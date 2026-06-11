@@ -38,14 +38,14 @@ export function Sidebar({ open, onClose }: Props) {
           </div>
         </div>
 
-        <nav className="mt-10 grid gap-2">
+        <nav className="mt-6 grid gap-0.5">
           {navItems.map((item) => (
             <NavLink
               key={item.label}
               to={item.to}
               onClick={onClose}
               className={({ isActive }) =>
-                `flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold transition ${
+                `flex items-center gap-3 rounded-xl px-4 py-2 text-sm font-semibold transition ${
                   isActive
                     ? "bg-blue-500 text-white shadow-lg shadow-blue-950/30"
                     : "text-blue-50 hover:bg-white/10 hover:text-white"

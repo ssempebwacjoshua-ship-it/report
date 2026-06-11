@@ -11,7 +11,7 @@ export function AppShell() {
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
       <div className="min-w-0">
         <Topbar onMenuClick={() => setSidebarOpen(true)} />
-        <div className="mx-auto w-full max-w-[1540px] px-4 py-6 md:px-8">
+        <div className="mx-auto w-full max-w-[1540px] px-4 py-4 md:px-8">
           <Outlet />
         </div>
       </div>
