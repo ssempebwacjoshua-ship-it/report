@@ -72,12 +72,7 @@ function TableHead() {
           Written Mark
         </th>
         <th className="marksheet-th text-center" style={{ width: "82px" }}>
-          <div>Split Mark</div>
-          <div className="marksheet-htu-labels">
-            <span>H</span>
-            <span>T</span>
-            <span>U</span>
-          </div>
+          Split Mark Entry
         </th>
         <th className="marksheet-th text-left" style={{ width: "110px" }}>
           Remarks
@@ -216,12 +211,12 @@ export function PrintableMarksheet({
                       </td>
                       {/* Written Mark — clean empty writing cell */}
                       <td className="marksheet-td" />
-                      {/* Split digit boxes */}
-                      <td className="marksheet-td marksheet-td-boxes">
-                        <div className="marksheet-digit-group">
-                          <span className="marksheet-digit-box" />
-                          <span className="marksheet-digit-box" />
-                          <span className="marksheet-digit-box" />
+                      {/* Split mark entry — one cell, three equal sections divided by thin vertical lines */}
+                      <td className="marksheet-td marksheet-td-split">
+                        <div className="marksheet-split-inner">
+                          <span className="marksheet-split-part" />
+                          <span className="marksheet-split-part" />
+                          <span className="marksheet-split-part marksheet-split-last" />
                         </div>
                       </td>
                       {/* Remarks — clean empty writing cell */}

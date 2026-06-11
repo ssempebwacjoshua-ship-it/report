@@ -356,21 +356,6 @@ body {
   vertical-align: bottom;
 }
 
-.marksheet-htu-labels {
-  display: flex;
-  justify-content: center;
-  gap: 4px;
-  margin-top: 2px;
-  font-size: 8px;
-  font-weight: 400;
-  opacity: 0.85;
-}
-
-.marksheet-htu-labels span {
-  width: 20px;
-  text-align: center;
-}
-
 .marksheet-td {
   border: 1px solid #94a3b8;
   padding: 0 5px;
@@ -400,23 +385,24 @@ body {
   font-size: 10px;
 }
 
-.marksheet-td-boxes {
-  padding: 2px 4px;
+/* Split mark entry — one rectangular cell divided into three sections */
+.marksheet-td-split {
+  padding: 0;
 }
 
-.marksheet-digit-group {
+.marksheet-split-inner {
   display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 2px;
+  height: 22px;
+  width: 100%;
 }
 
-.marksheet-digit-box {
-  display: inline-block;
-  width: 21px;
-  height: 21px;
-  border: 1.5px solid #64748b;
-  flex-shrink: 0;
+.marksheet-split-part {
+  flex: 1;
+  border-right: 1px solid #cbd5e1;
+}
+
+.marksheet-split-last {
+  border-right: none;
 }
 
 .marksheet-empty-cell {
@@ -682,12 +668,13 @@ body {
     -webkit-print-color-adjust: exact !important;
   }
 
-  .marksheet-digit-box {
-    width: 19px !important;
-    height: 19px !important;
-    border: 1.5px solid black !important;
-    print-color-adjust: exact !important;
-    -webkit-print-color-adjust: exact !important;
+  /* Split mark entry — match row height, light dividers in print */
+  .marksheet-split-inner {
+    height: 20px !important;
+  }
+
+  .marksheet-split-part {
+    border-right-color: #6b7280 !important;
   }
 
   .marksheet-footer {
