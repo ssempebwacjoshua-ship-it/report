@@ -16,7 +16,7 @@ const toneClass = {
 
 export function ReportsOverviewCard() {
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+    <section className="premium-card rounded-2xl p-4">
       <h2 className="text-sm font-bold text-slate-950">Reports Overview</h2>
       <div className="mt-3 divide-y divide-slate-100">
         {rows.map(([label, value, tone]) => (

@@ -35,17 +35,25 @@ export async function verifyS1Marks() {
   assert(school.subjects.length === O_LEVEL_SUBJECTS.length, "15 subjects exist");
 
   const enrollments = await prisma.classEnrollment.findMany({
-    where: { academicYearId: academicYear.id, termId: term.id, isActive: true, class: { level: 1 } },
+    where: { academicYearId: academicYear.id, termId: term.id, isActive: true, status: "ACTIVE", class: { level: 1 } },
     include: { student: true, class: true, stream: true },
   });
   assert(enrollments.some((enrollment) => enrollment.classId === senior1A.id), "students exist in Senior 1 A");
   assert(enrollments.some((enrollment) => enrollment.classId === senior1B.id), "students exist in Senior 1 B");
 
-  const expectedMarks = enrollments.length * O_LEVEL_SUBJECTS.length * 2;
+  const expectedMarks = enrollments.length * O_LEVEL_SUBJECTS.length * 3;
   const seededMarks = await prisma.subjectMark.count({
     where: { seedKey: S1_MARKS_SEED_KEY, termId: term.id, status: "FINALIZED" },
   });
   assert(seededMarks === expectedMarks, `expected ${expectedMarks} finalized seed marks, found ${seededMarks}`);
+
+  const contacts = await prisma.guardianContact.findMany({
+    where: { schoolId: school.id, studentId: { in: enrollments.map((enrollment) => enrollment.studentId) } },
+  });
+  assert(contacts.length >= enrollments.length, "guardian contacts exist for seeded students");
+  assert(contacts.some((contact) => contact.canReceiveReports && contact.email && !contact.phone), "missing phone warning contact exists");
+  assert(contacts.some((contact) => contact.canReceiveReports && contact.phone && !contact.email), "missing email warning contact exists");
+  assert(contacts.some((contact) => !contact.canReceiveReports), "no report recipient warning contact exists");
 
   for (const klass of [senior1A, senior1B]) {
     const report = buildReports(
@@ -54,7 +62,7 @@ export async function verifyS1Marks() {
         academicYearId: academicYear.id,
         termId: term.id,
         classId: klass.id,
-        assessmentType: "ALL",
+        assessmentType: "TERM_SUMMARY",
       }),
     );
     assert(report.cards.length > 0, `${klass.name} report cards are produced`);

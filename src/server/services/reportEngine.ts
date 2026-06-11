@@ -1,4 +1,5 @@
 import type { AssessmentFilter, ReportFilters, ReportsResponse, StudentReportCard } from "../../shared/types/reports";
+import type { ContactReadiness } from "../../shared/types/students";
 import { gradeForAverage, roundMark } from "./gradeService";
 import { rankByScore } from "./rankingService";
 import { emptyReasonForReadiness } from "./readinessService";
@@ -10,6 +11,8 @@ export type EngineStudent = {
   lastName: string;
   className: string;
   streamName: string;
+  contactReadiness: ContactReadiness;
+  contactSummary: string;
 };
 
 export type EngineSubject = {
@@ -21,7 +24,7 @@ export type EngineSubject = {
 export type EngineMark = {
   studentId: string;
   subjectId: string;
-  assessmentType: "BOT" | "EOT";
+  assessmentType: "BOT" | "MOT" | "EOT";
   marks: number;
   comments?: string | null;
 };
@@ -36,8 +39,8 @@ export type EngineInput = {
   marks: EngineMark[];
 };
 
-function requiredTypes(assessmentType: AssessmentFilter): Array<"BOT" | "EOT"> {
-  return assessmentType === "ALL" ? ["BOT", "EOT"] : [assessmentType];
+function requiredTypes(assessmentType: AssessmentFilter): Array<"BOT" | "MOT" | "EOT"> {
+  return assessmentType === "TERM_SUMMARY" ? ["BOT", "MOT", "EOT"] : [assessmentType];
 }
 
 function averageForMarks(values: Array<number | null>): number | null {
@@ -81,9 +84,12 @@ export function buildReports(input: EngineInput): ReportsResponse {
       .map((subject) => {
         const markSet = marksByStudentSubject.get(`${student.id}:${subject.id}`) ?? [];
         const botMarks = markSet.find((mark) => mark.assessmentType === "BOT")?.marks ?? null;
+        const motMarks = markSet.find((mark) => mark.assessmentType === "MOT")?.marks ?? null;
         const eotMarks = markSet.find((mark) => mark.assessmentType === "EOT")?.marks ?? null;
-        const marksForFilter = required.map((type) => (type === "BOT" ? botMarks : eotMarks));
-        const missingMarks = required.filter((type) => (type === "BOT" ? botMarks : eotMarks) == null);
+        const markForType = (type: "BOT" | "MOT" | "EOT") =>
+          type === "BOT" ? botMarks : type === "MOT" ? motMarks : eotMarks;
+        const marksForFilter = required.map(markForType);
+        const missingMarks = required.filter((type) => markForType(type) == null);
         const average = averageForMarks(marksForFilter);
         const total = marksForFilter.some((value) => value != null)
           ? roundMark(marksForFilter.reduce((sum, value) => sum + (value ?? 0), 0))
@@ -93,6 +99,7 @@ export function buildReports(input: EngineInput): ReportsResponse {
           subjectId: subject.id,
           subjectName: subject.name,
           botMarks,
+          motMarks,
           eotMarks,
           total,
           average,
@@ -110,8 +117,9 @@ export function buildReports(input: EngineInput): ReportsResponse {
     const missingMarks = subjects.flatMap((subject) => subject.missingMarks.map((type) => `${subject.subjectName} ${type}`));
     const marksFound = subjects.reduce((sum, subject) => {
       const bot = required.includes("BOT") && subject.botMarks != null ? 1 : 0;
+      const mot = required.includes("MOT") && subject.motMarks != null ? 1 : 0;
       const eot = required.includes("EOT") && subject.eotMarks != null ? 1 : 0;
-      return sum + bot + eot;
+      return sum + bot + mot + eot;
     }, 0);
 
     return {
@@ -130,6 +138,8 @@ export function buildReports(input: EngineInput): ReportsResponse {
       readiness: missingMarks.length ? "MISSING_MARKS" : "READY",
       missingMarks,
       comments: "",
+      contactReadiness: student.contactReadiness,
+      contactSummary: student.contactSummary,
       subjects,
     };
   });

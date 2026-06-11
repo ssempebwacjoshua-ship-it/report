@@ -19,11 +19,14 @@ const card: StudentReportCard = {
   readiness: "READY",
   missingMarks: [],
   comments: "",
+  contactReadiness: "READY",
+  contactSummary: "Florence Nakayiza (Mother) - +256700100005",
   subjects: [
     {
       subjectId: "eng",
       subjectName: "English Language",
       botMarks: 74,
+      motMarks: null,
       eotMarks: 80,
       total: 154,
       average: 77,
@@ -40,6 +43,7 @@ describe("StudentReportDetail", () => {
     render(<StudentReportDetail card={card} />);
     expect(screen.getByText("Esther Nakayiza")).toBeInTheDocument();
     expect(screen.getByText("English Language")).toBeInTheDocument();
+    expect(screen.getByText("Parent contact ready")).toBeInTheDocument();
     expect(screen.getAllByText("D2").length).toBeGreaterThan(0);
   });
 });

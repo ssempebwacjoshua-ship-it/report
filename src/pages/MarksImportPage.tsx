@@ -116,7 +116,7 @@ export function MarksImportPage() {
           </p>
         </div>
         <a
-          className="rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-blue-700"
+          className="btn btn-primary"
           href="/reports"
         >
           Reports
@@ -130,7 +130,7 @@ export function MarksImportPage() {
       ) : null}
 
       {/* Info banner */}
-      <section className="grid gap-3 rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 shadow-sm lg:grid-cols-[1fr_auto]">
+      <section className="premium-card grid gap-3 rounded-2xl px-4 py-3 lg:grid-cols-[1fr_auto]">
         <div>
           <h2 className="text-sm font-bold text-slate-950">
             Upload a marks sheet or paste CSV rows.
@@ -144,14 +144,14 @@ export function MarksImportPage() {
           <button
             type="button"
             onClick={downloadCsvTemplate}
-            className="h-9 rounded-xl border border-blue-200 bg-white px-4 text-sm font-bold text-blue-700 hover:bg-blue-50"
+            className="btn btn-secondary"
           >
             Download CSV template
           </button>
           <button
             type="button"
             onClick={downloadExcelTemplate}
-            className="h-9 rounded-xl border border-emerald-200 bg-white px-4 text-sm font-bold text-emerald-700 hover:bg-emerald-50"
+            className="btn btn-success-secondary"
           >
             Download Excel template
           </button>
@@ -161,7 +161,7 @@ export function MarksImportPage() {
       {/* Main layout: input + summary */}
       <section className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1.1fr)_minmax(260px,0.55fr)]">
         {/* Input card */}
-        <div className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="premium-card min-w-0 rounded-2xl p-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <h2 className="text-sm font-bold text-slate-950">Marks sheet input</h2>
@@ -170,22 +170,18 @@ export function MarksImportPage() {
                 quick testing.
               </p>
             </div>
-            <div className="rounded-xl bg-slate-100 p-1 text-sm font-bold">
+            <div className="tab-tray">
               <button
                 type="button"
                 onClick={() => setInputMode("upload")}
-                className={`rounded-lg px-3 py-1.5 text-sm ${
-                  inputMode === "upload" ? "bg-white text-blue-700 shadow-sm" : "text-slate-500"
-                }`}
+                className={`tab-button ${inputMode === "upload" ? "tab-button-active" : ""}`}
               >
                 Upload file
               </button>
               <button
                 type="button"
                 onClick={() => setInputMode("paste")}
-                className={`rounded-lg px-3 py-1.5 text-sm ${
-                  inputMode === "paste" ? "bg-white text-blue-700 shadow-sm" : "text-slate-500"
-                }`}
+                className={`tab-button ${inputMode === "paste" ? "tab-button-active" : ""}`}
               >
                 Paste CSV
               </button>
@@ -193,7 +189,7 @@ export function MarksImportPage() {
           </div>
 
           {inputMode === "upload" ? (
-            <div className="mt-4 rounded-2xl border border-dashed border-blue-200 bg-blue-50/50 p-4">
+            <div className="mt-4 rounded-2xl border border-dashed border-blue-200 bg-gradient-to-b from-blue-50/70 to-white p-4 shadow-inner">
               <label className="grid cursor-pointer gap-2 text-center">
                 <span className="text-sm font-bold text-slate-950">Choose a marks sheet</span>
                 <span className="text-xs text-slate-500">Accepted: CSV, XLSX, XLS</span>
@@ -203,12 +199,12 @@ export function MarksImportPage() {
                   accept=".csv,.xlsx,.xls,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                   onChange={(event) => void handleFile(event.target.files?.[0] ?? null)}
                 />
-                <span className="mx-auto inline-flex h-10 items-center rounded-xl bg-blue-600 px-5 text-sm font-bold text-white shadow-sm hover:bg-blue-700">
+                <span className="btn btn-primary mx-auto">
                   Browse file
                 </span>
               </label>
               {selectedFile ? (
-                <div className="mt-3 rounded-xl bg-white p-3 text-sm">
+                <div className="mt-3 rounded-xl border border-slate-100 bg-white p-3 text-sm shadow-sm">
                   <p className="font-bold text-slate-950">{selectedFile.name}</p>
                   <p className="mt-0.5 text-xs text-slate-500">File type: {selectedFile.type}</p>
                 </div>
@@ -218,7 +214,7 @@ export function MarksImportPage() {
             <label className="mt-4 grid gap-2 text-xs font-semibold uppercase text-slate-500">
               Paste CSV rows
               <textarea
-                className="min-h-64 rounded-xl border border-slate-200 bg-slate-50 p-3 font-mono text-sm font-normal text-slate-900 outline-none transition focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                className="premium-control min-h-64 rounded-xl border border-slate-200 bg-slate-50 p-3 font-mono text-sm font-normal text-slate-900 outline-none transition focus:border-blue-400 focus:bg-white"
                 value={csvText}
                 onChange={(event) => {
                   setCsvText(event.target.value);
@@ -234,7 +230,7 @@ export function MarksImportPage() {
               type="button"
               onClick={runDryRun}
               disabled={!hasInput}
-              className="h-10 rounded-xl bg-blue-600 px-5 text-sm font-bold text-white shadow-sm hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+              className="btn btn-primary"
             >
               Dry run
             </button>
@@ -242,21 +238,21 @@ export function MarksImportPage() {
               type="button"
               onClick={runCommit}
               disabled={!dryRunSucceeded}
-              className="h-10 rounded-xl bg-emerald-600 px-5 text-sm font-bold text-white shadow-sm hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+              className="btn btn-success"
             >
               Commit valid rows
             </button>
             <button
               type="button"
               onClick={clearInput}
-              className="h-10 rounded-xl border border-slate-200 px-5 text-sm font-bold text-slate-700 hover:bg-slate-50"
+              className="btn btn-danger-light"
             >
               Clear
             </button>
             <button
               type="button"
               onClick={loadSampleRows}
-              className="h-10 rounded-xl border border-amber-200 px-5 text-sm font-bold text-amber-700 hover:bg-amber-50"
+              className="btn btn-secondary"
             >
               Load sample
             </button>
@@ -264,7 +260,7 @@ export function MarksImportPage() {
         </div>
 
         {/* Summary sidebar */}
-        <aside className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <aside className="premium-card rounded-2xl p-4">
           <p className="text-sm font-bold text-slate-950">Import summary</p>
           {!preview ? (
             <p className="mt-2 text-xs text-slate-500">Run dry-run to preview totals.</p>

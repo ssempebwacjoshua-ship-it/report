@@ -1,4 +1,5 @@
 import type { REPORT_ASSESSMENT_FILTERS } from "../constants/assessmentTypes";
+import type { ContactReadiness } from "./students";
 
 export type AssessmentFilter = (typeof REPORT_ASSESSMENT_FILTERS)[number];
 export type ReportReadiness =
@@ -24,6 +25,7 @@ export type SubjectReportRow = {
   subjectId: string;
   subjectName: string;
   botMarks: number | null;
+  motMarks: number | null;
   eotMarks: number | null;
   total: number | null;
   average: number | null;
@@ -49,6 +51,8 @@ export type StudentReportCard = {
   readiness: ReportReadiness;
   missingMarks: string[];
   comments: string;
+  contactReadiness: ContactReadiness;
+  contactSummary: string;
   subjects: SubjectReportRow[];
 };
 

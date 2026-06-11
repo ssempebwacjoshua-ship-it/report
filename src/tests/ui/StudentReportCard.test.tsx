@@ -19,6 +19,8 @@ const card: Card = {
   readiness: "READY",
   missingMarks: [],
   comments: "",
+  contactReadiness: "READY",
+  contactSummary: "Agnes Namusoke (Mother) - +256700100001",
   subjects: [],
 };
 
@@ -28,5 +30,6 @@ describe("StudentReportCard", () => {
     expect(screen.getByText("Kampala Ssempebwa")).toBeInTheDocument();
     expect(screen.getByText("S1A-001")).toBeInTheDocument();
     expect(screen.getByText("READY")).toBeInTheDocument();
+    expect(screen.getByText("Parent contact ready")).toBeInTheDocument();
   });
 });

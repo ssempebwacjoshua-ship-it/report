@@ -15,7 +15,7 @@ const DEFAULT_FILTERS: Filters = {
   schoolCode: "SCU-PREVIEW",
   classId: "",
   streamId: "",
-  assessmentType: "ALL",
+  assessmentType: "TERM_SUMMARY",
 };
 
 const PANE_KEY = "reports-left-pane-width";
@@ -151,7 +151,7 @@ export function ReportsPage() {
           </p>
         </div>
         <a
-          className="rounded-xl bg-blue-600 px-4 py-3 text-sm font-bold text-white shadow-sm hover:bg-blue-700"
+          className="btn btn-primary"
           href="/imports/marks"
         >
           Marks import
@@ -178,7 +178,7 @@ export function ReportsPage() {
           <div className="grid min-w-0 content-start gap-3">
             <div className="flex items-center justify-between">
               <h2 className="text-base font-bold text-slate-950">Student cards</h2>
-              <span className="rounded-full bg-blue-50 px-3 py-1 text-sm font-semibold text-blue-700">
+              <span className="rounded-full border border-blue-100 bg-blue-50 px-3 py-1 text-sm font-bold text-blue-700 shadow-sm">
                 {report?.cards.length ?? 0} cards
               </span>
             </div>
@@ -205,12 +205,12 @@ export function ReportsPage() {
           className="no-print hidden w-2.5 shrink-0 cursor-col-resize select-none items-center justify-center self-stretch xl:flex"
           onMouseDown={onHandleMouseDown}
         >
-          <div className="h-16 w-px rounded-full bg-slate-200 transition-colors hover:bg-blue-300" />
+          <div className="h-16 w-1 rounded-full bg-slate-200 shadow-inner transition-colors hover:bg-blue-300" />
         </div>
 
         {/* Right pane: report preview */}
         <div className="min-w-0 flex-1">
-          <StudentReportDetail card={selectedCard} />
+          <StudentReportDetail card={selectedCard} assessmentType={report?.filters.assessmentType} />
         </div>
       </section>
     </main>

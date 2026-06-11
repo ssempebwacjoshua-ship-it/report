@@ -6,15 +6,27 @@ type Props = {
   onOpen: () => void;
 };
 
+const contactLabels = {
+  READY: "Parent contact ready",
+  NO_RECIPIENT: "No report recipient",
+  MISSING_PHONE_EMAIL: "Missing phone/email",
+};
+
+const contactClasses = {
+  READY: "bg-emerald-100 text-emerald-700",
+  NO_RECIPIENT: "bg-red-100 text-red-700",
+  MISSING_PHONE_EMAIL: "bg-amber-100 text-amber-700",
+};
+
 export function StudentReportCard({ card, selected, onOpen }: Props) {
   return (
     <button
       type="button"
       onClick={onOpen}
-      className={`grid gap-3 rounded-2xl border p-3 text-left shadow-sm transition ${
+      className={`grid gap-3 rounded-2xl border p-3 text-left transition-all duration-200 ${
         selected
-          ? "border-blue-300 bg-gradient-to-br from-blue-50 to-emerald-50 ring-2 ring-blue-100"
-          : "border-slate-200 bg-white hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-md"
+          ? "border-blue-300 bg-gradient-to-br from-white via-blue-50 to-emerald-50 shadow-[0_16px_34px_rgba(37,99,235,0.16)] ring-2 ring-blue-100 -translate-y-0.5"
+          : "premium-card premium-card-hover"
       }`}
     >
       <div className="flex items-start justify-between gap-3">
@@ -49,6 +61,12 @@ export function StudentReportCard({ card, selected, onOpen }: Props) {
         >
           {card.readiness.replaceAll("_", " ")}
         </span>
+      </div>
+      <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+        <span className={`rounded-full px-2.5 py-1 font-bold ${contactClasses[card.contactReadiness]}`}>
+          {contactLabels[card.contactReadiness]}
+        </span>
+        <span className="truncate text-slate-500">{card.contactSummary}</span>
       </div>
     </button>
   );

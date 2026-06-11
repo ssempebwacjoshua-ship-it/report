@@ -25,7 +25,7 @@ export function ImportPreviewTable({ preview }: { preview: ImportPreview | null 
   const duplicates = duplicateRows(preview);
 
   return (
-    <div className="min-w-0 rounded-2xl border border-slate-200 bg-white shadow-sm">
+    <div className="premium-card min-w-0 rounded-2xl">
       <div className="flex flex-wrap gap-3 border-b border-slate-200 p-4 text-sm">
         <span className="rounded-full bg-blue-50 px-3 py-1 font-semibold text-blue-700">Total: {preview.totalRows}</span>
         <span className="rounded-full bg-emerald-50 px-3 py-1 font-semibold text-emerald-700">Valid: {preview.validRows}</span>

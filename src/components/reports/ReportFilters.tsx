@@ -7,13 +7,13 @@ type Props = {
 };
 
 const selectClass =
-  "h-9 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-semibold normal-case text-slate-900 outline-none transition focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-100";
+  "premium-control h-9 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-semibold normal-case text-slate-900 outline-none transition focus:border-blue-400 focus:bg-white";
 
 export function ReportFilters({ context, filters, onChange }: Props) {
   const streams = context?.streams.filter((stream) => stream.classId === filters.classId) ?? [];
 
   return (
-    <div className="reports-filters rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+    <div className="reports-filters premium-card rounded-2xl px-4 py-3">
       <div className="grid gap-2.5 md:grid-cols-3 xl:grid-cols-6">
         <label className="grid gap-1 text-xs font-semibold uppercase text-slate-500">
           Class
@@ -76,8 +76,9 @@ export function ReportFilters({ context, filters, onChange }: Props) {
             value={filters.assessmentType}
             onChange={(e) => onChange({ ...filters, assessmentType: e.target.value as AssessmentFilter })}
           >
-            <option value="ALL">BOT + EOT</option>
+            <option value="TERM_SUMMARY">Term Summary</option>
             <option value="BOT">BOT</option>
+            <option value="MOT">MOT / Mid Term</option>
             <option value="EOT">EOT</option>
           </select>
         </label>

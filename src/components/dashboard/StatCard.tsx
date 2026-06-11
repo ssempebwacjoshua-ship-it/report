@@ -24,9 +24,9 @@ const noteColors = {
 
 export function StatCard({ label, value, note, tone, icon }: Props) {
   return (
-    <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+    <article className="premium-card premium-card-hover rounded-2xl p-4">
       <div className="flex items-center gap-4">
-        <div className={`grid h-12 w-12 shrink-0 place-items-center rounded-2xl shadow-md ${tones[tone]}`}>
+        <div className={`grid h-12 w-12 shrink-0 place-items-center rounded-2xl shadow-lg shadow-slate-200 ${tones[tone]}`}>
           <Icon name={icon} className="h-6 w-6" />
         </div>
         <div className="min-w-0">

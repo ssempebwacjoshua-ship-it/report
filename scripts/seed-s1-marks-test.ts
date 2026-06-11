@@ -5,10 +5,10 @@ import { seedPreviewData, PREVIEW_SCHOOL_CODE } from "./seed-preview";
 
 export const S1_MARKS_SEED_KEY = "reports-lab-s1-olevel-test-marks";
 
-function deterministicMark(studentIndex: number, subjectIndex: number, examType: "BOT" | "EOT"): number {
+function deterministicMark(studentIndex: number, subjectIndex: number, examType: "BOT" | "MOT" | "EOT"): number {
   const performanceBand = [86, 78, 67, 54, 82, 61, 43][studentIndex] ?? 58;
   const subjectShift = ((subjectIndex * 7) % 15) - 7;
-  const examShift = examType === "EOT" ? 4 : -2;
+  const examShift = examType === "EOT" ? 4 : examType === "BOT" ? -2 : 0;
   return Math.max(35, Math.min(96, performanceBand + subjectShift + examShift));
 }
 
@@ -25,7 +25,7 @@ export async function seedS1Marks() {
   const academicYear = school.academicYears[0];
   const term = academicYear.terms[0];
   const enrollments = await prisma.classEnrollment.findMany({
-    where: { academicYearId: academicYear.id, termId: term.id, isActive: true, class: { level: 1 }, student: { isActive: true } },
+    where: { academicYearId: academicYear.id, termId: term.id, isActive: true, status: "ACTIVE", class: { level: 1 }, student: { isActive: true } },
     include: { student: true, class: true, stream: true },
     orderBy: [{ student: { admissionNumber: "asc" } }],
   });
@@ -33,7 +33,7 @@ export async function seedS1Marks() {
   let count = 0;
   for (const [studentIndex, enrollment] of enrollments.entries()) {
     for (const [subjectIndex, subject] of school.subjects.entries()) {
-      for (const assessmentType of ["BOT", "EOT"] as const) {
+      for (const assessmentType of ["BOT", "MOT", "EOT"] as const) {
         await prisma.subjectMark.upsert({
           where: {
             studentId_subjectId_termId_assessmentType: {
@@ -86,7 +86,7 @@ export async function seedS1Marks() {
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   seedS1Marks()
     .then((result) => {
-      console.log(`Seeded ${result.marks} finalized BOT/EOT marks for ${result.students} S1 students.`);
+      console.log(`Seeded ${result.marks} finalized BOT/MOT/EOT marks for ${result.students} S1 students.`);
     })
     .finally(async () => prisma.$disconnect());
 }

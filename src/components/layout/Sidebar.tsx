@@ -8,7 +8,7 @@ type Props = {
 
 const navItems = [
   { to: "/dashboard", label: "Dashboard", icon: "home" as const },
-  { to: "/dashboard#students", label: "Students", icon: "students" as const },
+  { to: "/students", label: "Students", icon: "students" as const },
   { to: "/reports", label: "Report Generation", icon: "file" as const },
   { to: "/imports/marks", label: "Marks Import", icon: "upload" as const },
   { to: "/dashboard#settings", label: "Settings", icon: "settings" as const },
@@ -64,7 +64,7 @@ export function Sidebar({ open, onClose }: Props) {
                 onClick={onClose}
                 className={`flex items-center gap-3 rounded-xl px-4 py-2 text-sm font-semibold transition ${
                   active
-                    ? "bg-blue-500/90 text-white"
+                    ? "bg-blue-500 text-white shadow-lg shadow-blue-950/25 ring-1 ring-white/20"
                     : "text-blue-100 hover:bg-white/10 hover:text-white"
                 }`}
               >

@@ -16,7 +16,7 @@ const toneClass = {
 
 export function ActivityCard() {
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+    <section className="premium-card rounded-2xl p-4">
       <h2 className="text-sm font-bold text-slate-950">Recent Activity</h2>
       <div className="mt-3 grid gap-2.5">
         {activities.map(([label, time, tone]) => (
@@ -29,7 +29,7 @@ export function ActivityCard() {
           </div>
         ))}
       </div>
-      <a href="/reports" className="mt-4 inline-flex items-center gap-1.5 text-xs font-semibold text-blue-600">
+      <a href="/reports" className="action-link mt-4">
         View all activity
         <span aria-hidden="true">&rarr;</span>
       </a>

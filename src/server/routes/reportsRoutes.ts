@@ -11,7 +11,7 @@ const reportsQuery = z.object({
   termId: z.string().optional(),
   classId: z.string().min(1),
   streamId: z.string().optional(),
-  assessmentType: z.enum(["BOT", "EOT", "ALL"]).default("ALL"),
+  assessmentType: z.enum(["BOT", "MOT", "EOT", "TERM_SUMMARY"]).default("TERM_SUMMARY"),
   studentId: z.string().optional(),
   search: z.string().optional(),
 });

@@ -21,7 +21,7 @@ const SAMPLE_ROW = {
   term: "Term 1",
   examType: "BOT",
   marks: "81",
-  comments: "Strong start",
+  comments: "examType accepts: BOT, MOT, EOT (or Mid Term / Midterm / Mid-Term)",
 };
 
 export type ParsedMarksFile = {

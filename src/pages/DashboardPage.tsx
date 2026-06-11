@@ -1,3 +1,5 @@
+import { useEffect, useState } from "react";
+import { fetchStudentContactSummary } from "../client/studentsClient";
 import { ActivityCard } from "../components/dashboard/ActivityCard";
 import { ReportsOverviewCard } from "../components/dashboard/ReportsOverviewCard";
 import { StatCard } from "../components/dashboard/StatCard";
@@ -11,6 +13,19 @@ const uploads = [
 ] as const;
 
 export function DashboardPage() {
+  const [contactSummary, setContactSummary] = useState({
+    guardians: 0,
+    emailContacts: 0,
+    phoneContacts: 0,
+    reportRecipients: 0,
+  });
+
+  useEffect(() => {
+    fetchStudentContactSummary().then(setContactSummary).catch(() => {
+      setContactSummary({ guardians: 0, emailContacts: 0, phoneContacts: 0, reportRecipients: 0 });
+    });
+  }, []);
+
   return (
     <main className="grid gap-5">
       {/* Page header */}
@@ -20,7 +35,7 @@ export function DashboardPage() {
           <h1 className="text-2xl font-bold tracking-tight text-slate-950">Welcome, School Admin</h1>
           <p className="mt-1 text-sm text-slate-500">Here's what's happening in your school today.</p>
         </div>
-        <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+        <div className="premium-card rounded-2xl px-4 py-3">
           <div className="flex items-center gap-3">
             <div>
               <p className="text-xs font-medium text-slate-500">Current Term</p>
@@ -42,7 +57,7 @@ export function DashboardPage() {
       {/* Row 1: Recent uploads + Reports overview + Quick actions */}
       <section className="grid gap-4 xl:grid-cols-[1.2fr_1fr]">
         {/* Recent marks uploads */}
-        <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <section className="premium-card rounded-2xl p-4">
           <h2 className="text-sm font-bold text-slate-950">Recent Marks Uploads</h2>
           <div className="mt-4 overflow-x-auto">
             <table className="w-full min-w-[520px] text-left text-sm">
@@ -78,7 +93,7 @@ export function DashboardPage() {
           </div>
           <a
             href="/imports/marks"
-            className="mt-4 inline-flex items-center gap-1.5 text-xs font-semibold text-blue-600 hover:text-blue-700"
+            className="action-link mt-4"
           >
             View all uploads
             <span aria-hidden="true">&rarr;</span>
@@ -89,19 +104,19 @@ export function DashboardPage() {
           <ReportsOverviewCard />
 
           {/* Quick actions */}
-          <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <section className="premium-card rounded-2xl p-4">
             <h2 className="text-sm font-bold text-slate-950">Quick Actions</h2>
             <div className="mt-3 grid gap-2.5 sm:grid-cols-2">
               <a
                 href="/reports"
-                className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 text-sm font-bold text-white hover:bg-blue-700"
+                className="btn btn-primary"
               >
                 <Icon name="file" className="h-4 w-4" />
                 Generate Reports
               </a>
               <a
                 href="/reports"
-                className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-green-500 px-4 text-sm font-bold text-green-700 hover:bg-green-50"
+                className="btn btn-success-secondary"
               >
                 <Icon name="check" className="h-4 w-4" />
                 Approve Reports
@@ -114,13 +129,13 @@ export function DashboardPage() {
       {/* Row 2: Student contacts + Recent activity */}
       <section className="grid gap-4 xl:grid-cols-[1.2fr_1fr]">
         {/* Student contacts */}
-        <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <section className="premium-card rounded-2xl p-4">
           <h2 className="text-sm font-bold text-slate-950">Student Contacts for Reports</h2>
           <div className="mt-4 grid gap-4 md:grid-cols-3">
             {[
-              ["Guardians", "1,102", "Phone numbers", "green"],
-              ["Email Contacts", "856", "Email addresses", "blue"],
-              ["SMS Contacts", "1,185", "For SMS", "purple"],
+              ["Guardians", String(contactSummary.guardians), "Saved contacts", "green"],
+              ["Email Contacts", String(contactSummary.emailContacts), "Email addresses", "blue"],
+              ["Phone Contacts", String(contactSummary.phoneContacts), `${contactSummary.reportRecipients} report-ready`, "purple"],
             ].map(([label, value, note, tone]) => (
               <div
                 key={label}

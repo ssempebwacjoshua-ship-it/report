@@ -1,6 +1,20 @@
 import type { PrismaClient } from "@prisma/client";
 import type { ReportFilters } from "../../shared/types/reports";
+import type { ContactReadiness } from "../../shared/types/students";
 import type { EngineInput } from "../services/reportEngine";
+
+function getContactReadiness(contacts: Array<{ canReceiveReports: boolean; phone: string | null; email: string | null }>): ContactReadiness {
+  const recipients = contacts.filter((contact) => contact.canReceiveReports);
+  if (recipients.length === 0) return "NO_RECIPIENT";
+  return recipients.some((contact) => !contact.phone || !contact.email) ? "MISSING_PHONE_EMAIL" : "READY";
+}
+
+function getContactSummary(contacts: Array<{ guardianName: string; relationship: string; canReceiveReports: boolean; phone: string | null; email: string | null; isPrimary: boolean }>): string {
+  const primary = contacts.find((contact) => contact.isPrimary) ?? contacts[0];
+  if (!primary) return "No guardian contacts";
+  const channel = primary.phone ? primary.phone : primary.email ? primary.email : "missing phone/email";
+  return `${primary.guardianName} (${primary.relationship}) - ${channel}`;
+}
 
 export async function loadReportEngineInput(prisma: PrismaClient, filters: ReportFilters): Promise<EngineInput> {
   const school = await prisma.school.findUnique({
@@ -37,9 +51,10 @@ export async function loadReportEngineInput(prisma: PrismaClient, filters: Repor
       classId: filters.classId,
       streamId: filters.streamId || undefined,
       isActive: true,
+      status: "ACTIVE",
       student: { isActive: true },
     },
-    include: { student: true, class: true, stream: true },
+    include: { student: { include: { guardianContacts: true } }, class: true, stream: true },
     orderBy: [{ student: { admissionNumber: "asc" } }],
   });
 
@@ -53,7 +68,7 @@ export async function loadReportEngineInput(prisma: PrismaClient, filters: Repor
       streamId: filters.streamId || undefined,
       studentId: { in: studentIds },
       status: "FINALIZED",
-      assessmentType: filters.assessmentType === "ALL" ? undefined : filters.assessmentType,
+      assessmentType: filters.assessmentType === "TERM_SUMMARY" ? undefined : filters.assessmentType,
     },
   });
 
@@ -69,6 +84,8 @@ export async function loadReportEngineInput(prisma: PrismaClient, filters: Repor
       lastName: enrollment.student.lastName,
       className: enrollment.class.name,
       streamName: enrollment.stream.name,
+      contactReadiness: getContactReadiness(enrollment.student.guardianContacts),
+      contactSummary: getContactSummary(enrollment.student.guardianContacts),
     })),
     subjects: school.subjects.map((subject) => ({ id: subject.id, name: subject.name, sortOrder: subject.sortOrder })),
     marks: marks.map((mark) => ({

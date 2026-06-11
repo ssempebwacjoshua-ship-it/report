@@ -3,7 +3,7 @@ import type { RawMarkImportRow, ValidatedMarkImportRow } from "../../shared/type
 
 export type ImportReferenceData = Awaited<ReturnType<typeof loadImportReferenceData>>;
 
-const validExamTypes = new Set(["BOT", "EOT"]);
+const validExamTypes = new Set(["BOT", "MOT", "EOT"]);
 
 function norm(value: string): string {
   return value.trim().toLowerCase();
@@ -47,7 +47,7 @@ export async function validateImportRows(
     const klass = school.classes.find((item) => norm(item.name) === norm(raw.class) || norm(item.code) === norm(raw.class));
     const stream = klass?.streams.find((item) => norm(item.name) === norm(raw.stream) || norm(item.code) === norm(raw.stream));
     const subject = school.subjects.find((item) => norm(item.name) === norm(raw.subject) || norm(item.code) === norm(raw.subject));
-    const examType = raw.examType.trim().toUpperCase();
+    const examType = toAssessmentType(raw.examType);
     const marks = Number(raw.marks);
 
     if (!raw.admissionNumber) errors.push("Admission number is required.");
@@ -57,7 +57,7 @@ export async function validateImportRows(
     if (!subject) errors.push(`Subject ${raw.subject} was not found.`);
     if (!activeTerm) errors.push("No active term is configured.");
     if (activeTerm && norm(raw.term) !== norm(activeTerm.name)) errors.push(`Term must match active term ${activeTerm.name}.`);
-    if (!validExamTypes.has(examType)) errors.push("Exam type must be BOT or EOT.");
+    if (!validExamTypes.has(examType)) errors.push("Exam type must be BOT, MOT, or EOT.");
     if (!Number.isFinite(marks) || marks < 0 || marks > 100) errors.push("Marks must be numeric and within 0-100.");
     if (student && subject && validExamTypes.has(examType) && lockedMarkKeys.has(`${student.id}:${subject.id}:${examType}`)) {
       errors.push("A finalized non-import-owned mark already exists for this student, subject, and exam type.");
@@ -68,7 +68,9 @@ export async function validateImportRows(
 }
 
 export function toAssessmentType(value: string): AssessmentType {
-  return value.trim().toUpperCase() as AssessmentType;
+  const upper = value.trim().toUpperCase();
+  if (upper === "MID TERM" || upper === "MIDTERM" || upper === "MID-TERM") return "MOT" as AssessmentType;
+  return upper as AssessmentType;
 }
 
 export function finalizedStatus(): MarkStatus {

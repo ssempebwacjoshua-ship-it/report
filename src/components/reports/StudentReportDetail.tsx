@@ -1,8 +1,9 @@
 import { GRADE_BANDS } from "../../shared/constants/grades";
-import type { StudentReportCard } from "../../shared/types/reports";
+import type { AssessmentFilter, StudentReportCard } from "../../shared/types/reports";
 
 type Props = {
   card: StudentReportCard | null;
+  assessmentType?: AssessmentFilter;
 };
 
 function ShieldIcon() {
@@ -56,7 +57,26 @@ function GradeBadge({ grade }: { grade: string | null }) {
   );
 }
 
-export function StudentReportDetail({ card }: Props) {
+const ASSESSMENT_LABELS: Record<AssessmentFilter, string> = {
+  BOT: "BOT",
+  MOT: "MOT / Mid Term",
+  EOT: "EOT",
+  TERM_SUMMARY: "BOT + MOT + EOT (Term Summary)",
+};
+
+const CONTACT_LABELS = {
+  READY: "Parent contact ready",
+  NO_RECIPIENT: "No report recipient",
+  MISSING_PHONE_EMAIL: "Missing phone/email",
+};
+
+const CONTACT_CLASSES = {
+  READY: "bg-emerald-100 text-emerald-700",
+  NO_RECIPIENT: "bg-red-100 text-red-700",
+  MISSING_PHONE_EMAIL: "bg-amber-100 text-amber-700",
+};
+
+export function StudentReportDetail({ card, assessmentType }: Props) {
   if (!card) {
     return (
       <section className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-600 shadow-sm">
@@ -64,6 +84,10 @@ export function StudentReportDetail({ card }: Props) {
       </section>
     );
   }
+
+  const effectiveType: AssessmentFilter = assessmentType ?? "TERM_SUMMARY";
+  const isSingle = effectiveType === "BOT" || effectiveType === "MOT" || effectiveType === "EOT";
+  const isTermSummary = !isSingle;
 
   const today = new Date().toLocaleDateString("en-GB", {
     day: "2-digit",
@@ -78,7 +102,7 @@ export function StudentReportDetail({ card }: Props) {
         <button
           type="button"
           onClick={() => window.print()}
-          className="h-11 rounded-xl bg-blue-600 px-6 text-sm font-bold text-white shadow-sm hover:bg-blue-700 active:bg-blue-800"
+          className="btn btn-primary"
         >
           Print / Save PDF
         </button>
@@ -125,9 +149,6 @@ export function StudentReportDetail({ card }: Props) {
 
           {/* 2. Student identity */}
           <div className="mb-6 rounded-xl border border-slate-200 bg-slate-50 p-4 print:mb-2 print:p-2">
-            <h2 className="mb-3 text-xs font-bold uppercase tracking-widest text-slate-400 print:mb-1 print:text-[8px]">
-              Student Information
-            </h2>
             <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm md:grid-cols-3 print:gap-y-0.5 print:text-[9px]">
               <div>
                 <span className="font-semibold text-slate-600">Full Name: </span>
@@ -155,7 +176,7 @@ export function StudentReportDetail({ card }: Props) {
               </div>
               <div>
                 <span className="font-semibold text-slate-600">Assessment: </span>
-                <span className="text-slate-900">BOT + EOT</span>
+                <span className="text-slate-900">{ASSESSMENT_LABELS[effectiveType]}</span>
               </div>
               <div>
                 <span className="font-semibold text-slate-600">Status: </span>
@@ -174,11 +195,21 @@ export function StudentReportDetail({ card }: Props) {
                   {card.readiness === "READY" ? "Ready" : card.readiness.replace(/_/g, " ")}
                 </span>
               </div>
+              <div>
+                <span className="font-semibold text-slate-600">Parent Contact: </span>
+                <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-bold ${CONTACT_CLASSES[card.contactReadiness]}`}>
+                  {CONTACT_LABELS[card.contactReadiness]}
+                </span>
+              </div>
+              <div className="md:col-span-2">
+                <span className="font-semibold text-slate-600">Recipient: </span>
+                <span className="text-slate-900">{card.contactSummary}</span>
+              </div>
             </div>
           </div>
 
           {/* 3. Academic summary */}
-          <div className="report-summary-cards mb-6 grid grid-cols-2 gap-3 text-center lg:grid-cols-4 print:mb-2 print:gap-1.5">
+          <div className="report-summary-cards mb-6 grid grid-cols-3 gap-3 text-center print:mb-2 print:gap-1.5">
             <div className="report-summary-card rounded-xl bg-blue-600 p-4 text-white print:p-2">
               <b className="block text-3xl font-bold tabular-nums print:text-lg">
                 {card.average ?? "—"}
@@ -201,61 +232,83 @@ export function StudentReportDetail({ card }: Props) {
                 Position
               </span>
             </div>
-            <div className="report-summary-card rounded-xl bg-amber-500 p-4 text-white print:p-2">
-              <b className="block text-3xl font-bold tabular-nums print:text-lg">
-                {card.missingMarks.length}
-              </b>
-              <span className="mt-1 block text-xs font-semibold uppercase tracking-wider text-amber-100 print:mt-0.5 print:text-[8px]">
-                Missing
-              </span>
-            </div>
           </div>
 
           {/* 4. Subject marks table */}
           <div className="mb-6 overflow-x-auto rounded-xl border border-slate-200 print:mb-2 print:overflow-visible">
-            <table className="report-table w-full min-w-[680px] border-collapse text-sm">
-              <thead>
-                <tr className="report-table-header bg-[#0f2a5e] text-left text-xs font-semibold uppercase tracking-wide text-white">
-                  <th className="p-3 text-center">#</th>
-                  <th className="p-3">Subject</th>
-                  <th className="p-3 text-center">BOT</th>
-                  <th className="p-3 text-center">EOT</th>
-                  <th className="p-3 text-center">Total</th>
-                  <th className="p-3 text-center">Avg</th>
-                  <th className="p-3 text-center">Grade</th>
-                  <th className="p-3 text-center">Pos.</th>
-                  <th className="p-3 text-center">Missing</th>
-                </tr>
-              </thead>
-              <tbody>
-                {card.subjects.map((subject, index) => (
-                  <tr
-                    key={subject.subjectId}
-                    className={`border-b border-slate-100 ${index % 2 === 1 ? "bg-slate-50" : "bg-white"}`}
-                  >
-                    <td className="p-3 text-center text-xs text-slate-400">{index + 1}</td>
-                    <td className="p-3 font-semibold text-slate-900">{subject.subjectName}</td>
-                    <td className="p-3 text-center text-slate-700">{subject.botMarks ?? "—"}</td>
-                    <td className="p-3 text-center text-slate-700">{subject.eotMarks ?? "—"}</td>
-                    <td className="p-3 text-center font-medium text-slate-800">{subject.total ?? "—"}</td>
-                    <td className="p-3 text-center font-medium text-slate-800">{subject.average ?? "—"}</td>
-                    <td className="p-3 text-center">
-                      <GradeBadge grade={subject.grade} />
-                    </td>
-                    <td className="p-3 text-center text-slate-700">{subject.subjectPosition ?? "—"}</td>
-                    <td className="p-3 text-center text-xs">
-                      {subject.missingMarks.length === 0 ? (
-                        <span className="font-medium text-emerald-600">None</span>
-                      ) : (
-                        <span className="font-medium text-red-600">
-                          {subject.missingMarks.join(", ")}
-                        </span>
-                      )}
-                    </td>
+            {isTermSummary ? (
+              <table className="report-table w-full min-w-[720px] border-collapse text-sm">
+                <thead>
+                  <tr className="report-table-header bg-[#0f2a5e] text-left text-xs font-semibold uppercase tracking-wide text-white">
+                    <th className="p-3 text-center">#</th>
+                    <th className="p-3">Subject</th>
+                    <th className="p-3 text-center">BOT</th>
+                    <th className="p-3 text-center">MOT</th>
+                    <th className="p-3 text-center">EOT</th>
+                    <th className="p-3 text-center">Total</th>
+                    <th className="p-3 text-center">Avg</th>
+                    <th className="p-3 text-center">Grade</th>
+                    <th className="p-3 text-center">Pos.</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {card.subjects.map((subject, index) => (
+                    <tr
+                      key={subject.subjectId}
+                      className={`border-b border-slate-100 ${index % 2 === 1 ? "bg-slate-50" : "bg-white"}`}
+                    >
+                      <td className="p-3 text-center text-xs text-slate-400">{index + 1}</td>
+                      <td className="p-3 font-semibold text-slate-900">{subject.subjectName}</td>
+                      <td className="p-3 text-center text-slate-700">{subject.botMarks ?? "—"}</td>
+                      <td className="p-3 text-center text-slate-700">{subject.motMarks ?? "—"}</td>
+                      <td className="p-3 text-center text-slate-700">{subject.eotMarks ?? "—"}</td>
+                      <td className="p-3 text-center font-medium text-slate-800">{subject.total ?? "—"}</td>
+                      <td className="p-3 text-center font-medium text-slate-800">{subject.average ?? "—"}</td>
+                      <td className="p-3 text-center">
+                        <GradeBadge grade={subject.grade} />
+                      </td>
+                      <td className="p-3 text-center text-slate-700">{subject.subjectPosition ?? "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : (
+              <table className="report-table w-full min-w-[400px] border-collapse text-sm">
+                <thead>
+                  <tr className="report-table-header bg-[#0f2a5e] text-left text-xs font-semibold uppercase tracking-wide text-white">
+                    <th className="p-3 text-center">#</th>
+                    <th className="p-3">Subject</th>
+                    <th className="p-3 text-center">{effectiveType === "MOT" ? "MOT" : effectiveType}</th>
+                    <th className="p-3 text-center">Grade</th>
+                    <th className="p-3 text-center">Pos.</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {card.subjects.map((subject, index) => {
+                    const singleMark =
+                      effectiveType === "BOT"
+                        ? subject.botMarks
+                        : effectiveType === "MOT"
+                          ? subject.motMarks
+                          : subject.eotMarks;
+                    return (
+                      <tr
+                        key={subject.subjectId}
+                        className={`border-b border-slate-100 ${index % 2 === 1 ? "bg-slate-50" : "bg-white"}`}
+                      >
+                        <td className="p-3 text-center text-xs text-slate-400">{index + 1}</td>
+                        <td className="p-3 font-semibold text-slate-900">{subject.subjectName}</td>
+                        <td className="p-3 text-center text-slate-700">{singleMark ?? "—"}</td>
+                        <td className="p-3 text-center">
+                          <GradeBadge grade={subject.grade} />
+                        </td>
+                        <td className="p-3 text-center text-slate-700">{subject.subjectPosition ?? "—"}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
           </div>
 
           {/* 5. Grading key */}
