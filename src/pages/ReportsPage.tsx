@@ -41,6 +41,7 @@ export function ReportsPage() {
   const [report, setReport] = useState<ReportsResponse | null>(null);
   const [selectedStudentId, setSelectedStudentId] = useState("");
   const [showPositions, setShowPositions] = useState(false);
+  const [hmEditOpen, setHmEditOpen] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -151,12 +152,27 @@ export function ReportsPage() {
             Generate and inspect report cards from finalized stored marks.
           </p>
         </div>
-        <a
-          className="btn btn-primary"
-          href="/imports/marks"
-        >
-          Marks import
-        </a>
+        <div className="no-print flex flex-wrap justify-end gap-2">
+          <button
+            type="button"
+            className="btn btn-secondary"
+            disabled={!selectedCard}
+            onClick={() => setHmEditOpen((open) => !open)}
+          >
+            HM Edit
+          </button>
+          <button
+            type="button"
+            className="btn btn-primary"
+            disabled={!selectedCard}
+            onClick={() => window.print()}
+          >
+            Print / Save PDF
+          </button>
+          <a className="btn btn-secondary" href="/imports/marks">
+            Marks Import
+          </a>
+        </div>
       </header>
 
       {error ? (
@@ -219,6 +235,8 @@ export function ReportsPage() {
             assessmentType={report?.filters.assessmentType}
             showPositions={showPositions}
             onShowPositionsChange={setShowPositions}
+            editOpen={hmEditOpen}
+            onEditOpenChange={setHmEditOpen}
           />
         </div>
       </section>

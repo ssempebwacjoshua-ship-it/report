@@ -30,7 +30,7 @@ describe("StudentReportCard", () => {
     expect(screen.getByText("Kampala Ssempebwa")).toBeInTheDocument();
     expect(screen.getByText("S1A-001")).toBeInTheDocument();
     expect(screen.getByText("D1")).toBeInTheDocument();
-    expect(screen.getByText("Avg 81")).toBeInTheDocument();
+    expect(screen.getByText("Contact ready")).toBeInTheDocument();
     expect(screen.queryByText("Parent contact ready")).not.toBeInTheDocument();
     expect(screen.queryByText("Agnes Namusoke (Mother) - +256700100001")).not.toBeInTheDocument();
     expect(screen.queryByText("#1 Kampala Ssempebwa")).not.toBeInTheDocument();

@@ -7,6 +7,8 @@ type Props = {
   assessmentType?: AssessmentFilter;
   showPositions?: boolean;
   onShowPositionsChange?: (showPositions: boolean) => void;
+  editOpen?: boolean;
+  onEditOpenChange?: (open: boolean) => void;
 };
 
 type ReportDraft = {
@@ -78,18 +80,6 @@ const ASSESSMENT_LABELS: Record<AssessmentFilter, string> = {
   TERM_SUMMARY: "Term Summary",
 };
 
-const CONTACT_LABELS = {
-  READY: "Parent contact ready",
-  NO_RECIPIENT: "No report recipient",
-  MISSING_PHONE_EMAIL: "Missing phone/email",
-};
-
-const CONTACT_CLASSES = {
-  READY: "bg-emerald-100 text-emerald-700 ring-emerald-200",
-  NO_RECIPIENT: "bg-red-100 text-red-700 ring-red-200",
-  MISSING_PHONE_EMAIL: "bg-amber-100 text-amber-700 ring-amber-200",
-};
-
 function buildDefaultDraft(card: StudentReportCard): ReportDraft {
   return {
     classTeacherComment: card.comments || "",
@@ -116,7 +106,14 @@ function EmptyComment() {
   return <span className="text-slate-400">-</span>;
 }
 
-export function StudentReportDetail({ card, assessmentType, showPositions, onShowPositionsChange }: Props) {
+export function StudentReportDetail({
+  card,
+  assessmentType,
+  showPositions,
+  onShowPositionsChange,
+  editOpen,
+  onEditOpenChange,
+}: Props) {
   if (!card) {
     return (
       <section className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-600 shadow-sm">
@@ -131,6 +128,8 @@ export function StudentReportDetail({ card, assessmentType, showPositions, onSho
       assessmentType={assessmentType}
       showPositions={showPositions}
       onShowPositionsChange={onShowPositionsChange}
+      editOpen={editOpen}
+      onEditOpenChange={onEditOpenChange}
     />
   );
 }
@@ -140,21 +139,27 @@ function StudentReportDetailContent({
   assessmentType,
   showPositions,
   onShowPositionsChange,
+  editOpen,
+  onEditOpenChange,
 }: {
   card: StudentReportCard;
   assessmentType?: AssessmentFilter;
   showPositions?: boolean;
   onShowPositionsChange?: (showPositions: boolean) => void;
+  editOpen?: boolean;
+  onEditOpenChange?: (open: boolean) => void;
 }) {
   const defaultDraft = useMemo(() => buildDefaultDraft(card), [card]);
   const [draft, setDraft] = useState<ReportDraft>(defaultDraft);
   const [isEditing, setIsEditing] = useState(false);
   const [draftState, setDraftState] = useState<"idle" | "saved" | "ready">("idle");
+  const editing = editOpen ?? isEditing;
+  const setEditingOpen = onEditOpenChange ?? setIsEditing;
 
   useEffect(() => {
     setDraft(defaultDraft);
     setDraftState("idle");
-    setIsEditing(false);
+    setEditingOpen(false);
   }, [defaultDraft]);
 
   const effectiveType: AssessmentFilter = assessmentType ?? "TERM_SUMMARY";
@@ -175,20 +180,7 @@ function StudentReportDetailContent({
 
   return (
     <section className="report-print-area min-w-0">
-      <div className="no-print mb-4 flex flex-wrap justify-end gap-2">
-        <button
-          type="button"
-          onClick={() => setIsEditing((open) => !open)}
-          className="btn btn-secondary"
-        >
-          HM Edit
-        </button>
-        <button type="button" onClick={() => window.print()} className="btn btn-primary">
-          Print / Save PDF
-        </button>
-      </div>
-
-      {isEditing ? (
+      {editing ? (
         <div className="no-print mb-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
             <div>
@@ -289,7 +281,7 @@ function StudentReportDetailContent({
             >
               Save Draft
             </button>
-            <button type="button" className="btn btn-secondary" onClick={() => setIsEditing(false)}>
+            <button type="button" className="btn btn-secondary" onClick={() => setEditingOpen(false)}>
               Preview Report
             </button>
             <button
@@ -297,7 +289,7 @@ function StudentReportDetailContent({
               className="btn btn-primary"
               onClick={() => {
                 setDraftState("ready");
-                setIsEditing(false);
+                setEditingOpen(false);
               }}
             >
               Approve / Mark Ready
@@ -306,60 +298,6 @@ function StudentReportDetailContent({
         </div>
       ) : null}
 
-      <div className="no-print mb-4 rounded-2xl border border-blue-100 bg-white p-4 shadow-sm">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <p className="text-xs font-black uppercase tracking-wide text-blue-600">Selected child details</p>
-            <h2 className="mt-1 text-xl font-black text-slate-950">{card.studentName}</h2>
-            <p className="mt-1 text-sm font-semibold text-slate-500">
-              {card.admissionNumber} • {card.className} / {card.streamName}
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-black text-emerald-700 ring-1 ring-emerald-200">
-              Active enrollment
-            </span>
-            <span
-              className={`rounded-full px-3 py-1 text-xs font-black ring-1 ${
-                card.readiness === "READY"
-                  ? "bg-blue-100 text-blue-700 ring-blue-200"
-                  : "bg-amber-100 text-amber-700 ring-amber-200"
-              }`}
-            >
-              {card.readiness.replaceAll("_", " ")}
-            </span>
-          </div>
-        </div>
-
-        <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-          {[
-            ["Academic Year", card.academicYear],
-            ["Term", card.term],
-            ["Assessment", ASSESSMENT_LABELS[effectiveType]],
-            ["Average / Grade", `${card.average ?? "-"} / ${card.grade ?? "-"}`],
-          ].map(([label, value]) => (
-            <div key={label} className="rounded-xl border border-slate-100 bg-slate-50 p-3">
-              <p className="text-xs font-bold uppercase tracking-wide text-slate-500">{label}</p>
-              <p className="mt-1 text-sm font-black text-slate-950">{value}</p>
-            </div>
-          ))}
-          {visibleShowPositions ? (
-            <div className="rounded-xl border border-emerald-100 bg-emerald-50 p-3">
-              <p className="text-xs font-bold uppercase tracking-wide text-emerald-700">Overall Position</p>
-              <p className="mt-1 text-sm font-black text-emerald-900">
-                {card.overallPosition != null ? `#${card.overallPosition}` : "-"}
-              </p>
-            </div>
-          ) : null}
-          <div className="rounded-xl border border-slate-100 bg-slate-50 p-3 md:col-span-2 xl:col-span-3">
-            <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Parent / Guardian Contacts</p>
-            <p className="mt-1 text-sm font-semibold text-slate-700">{card.contactSummary}</p>
-            <span className={`mt-2 inline-flex rounded-full px-2.5 py-1 text-xs font-black ring-1 ${CONTACT_CLASSES[card.contactReadiness]}`}>
-              {CONTACT_LABELS[card.contactReadiness]}
-            </span>
-          </div>
-        </div>
-      </div>
 
       <div className="report-card-sheet mx-auto max-w-4xl overflow-hidden rounded-2xl bg-white shadow-[0_4px_24px_rgba(0,0,0,0.12)] ring-1 ring-slate-200">
         <div className="report-header-bg bg-[#0f2a5e] px-8 py-6 text-white print:px-5 print:py-2">

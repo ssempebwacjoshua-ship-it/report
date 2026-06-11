@@ -47,7 +47,8 @@ describe("StudentReportDetail", () => {
     expect(screen.getByText("English Language")).toBeInTheDocument();
     expect(screen.getAllByText("D2").length).toBeGreaterThan(0);
     expect(screen.queryByText("Pos.")).not.toBeInTheDocument();
-    expect(screen.getByText("Parent contact ready")).toBeInTheDocument();
+    expect(screen.queryByText("Parent contact ready")).not.toBeInTheDocument();
+    expect(screen.queryByText("Selected child details")).not.toBeInTheDocument();
     expect(screen.queryByText("Recipient:")).not.toBeInTheDocument();
     expect(screen.queryByText("Overall Position")).not.toBeInTheDocument();
     expect(printableReport?.textContent).not.toContain("Parent contact ready");
@@ -55,9 +56,8 @@ describe("StudentReportDetail", () => {
   });
 
   it("shows only the overall position summary when enabled", () => {
-    render(<StudentReportDetail card={card} />);
+    render(<StudentReportDetail card={card} editOpen />);
 
-    fireEvent.click(screen.getByRole("button", { name: "HM Edit" }));
     fireEvent.click(screen.getByLabelText("Show positions"));
 
     expect(screen.getAllByText("Overall Position").length).toBeGreaterThan(0);

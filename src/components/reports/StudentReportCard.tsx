@@ -7,11 +7,17 @@ type Props = {
   onOpen: () => void;
 };
 
-function readinessDot(readiness: Card["readiness"]) {
-  if (readiness === "READY") return "bg-emerald-500";
-  if (readiness === "MISSING_MARKS" || readiness === "NO_FINALIZED_MARKS") return "bg-amber-500";
-  return "bg-slate-400";
-}
+const contactLabels = {
+  READY: "Contact ready",
+  NO_RECIPIENT: "No report recipient",
+  MISSING_PHONE_EMAIL: "Missing phone/email",
+};
+
+const contactClasses = {
+  READY: "text-emerald-700 hover:text-emerald-800",
+  NO_RECIPIENT: "text-red-700 hover:text-red-800",
+  MISSING_PHONE_EMAIL: "text-amber-700 hover:text-amber-800",
+};
 
 export function StudentReportCard({ card, selected, showPositions, onOpen }: Props) {
   const primaryLabel =
@@ -20,28 +26,34 @@ export function StudentReportCard({ card, selected, showPositions, onOpen }: Pro
       : card.studentName;
 
   return (
-    <button
-      type="button"
-      onClick={onOpen}
-      className={`group grid w-full grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-1 rounded-2xl border px-3 py-3 text-left transition-all duration-200 ${
+    <div
+      className={`group rounded-2xl border transition-all duration-200 ${
         selected
           ? "border-blue-300 bg-gradient-to-br from-white via-blue-50 to-emerald-50 shadow-[0_14px_30px_rgba(37,99,235,0.16)] ring-2 ring-blue-100"
           : "border-slate-200 bg-white shadow-sm hover:-translate-y-0.5 hover:border-blue-200 hover:bg-blue-50/50 hover:shadow-md"
       }`}
     >
-      <div className="min-w-0">
-        <div className="flex min-w-0 items-center gap-2">
-          <span className={`h-2 w-2 shrink-0 rounded-full ${readinessDot(card.readiness)}`} />
-          <p className="truncate text-sm font-black text-slate-950">{primaryLabel}</p>
-        </div>
-        <p className="mt-1 truncate pl-4 text-xs font-semibold text-slate-500">{card.admissionNumber}</p>
-      </div>
-      <div className="text-right">
-        <span className="inline-flex rounded-full bg-blue-100 px-2.5 py-1 text-xs font-black text-blue-700">
+      <button
+        type="button"
+        onClick={onOpen}
+        className="grid w-full grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-1 px-3 pb-1 pt-3 text-left"
+      >
+        <p className="truncate text-sm font-black text-slate-950">{primaryLabel}</p>
+        <span className="rounded-full bg-blue-100 px-2.5 py-1 text-xs font-black text-blue-700">
           {card.grade ?? "-"}
         </span>
-        <p className="mt-1 text-xs font-bold text-slate-500">Avg {card.average ?? "-"}</p>
+      </button>
+      <div className="flex items-center justify-between gap-3 px-3 pb-3 text-xs font-semibold text-slate-500">
+        <button type="button" onClick={onOpen} className="truncate text-left">
+          {card.admissionNumber}
+        </button>
+        <a
+          href={`/students?studentId=${encodeURIComponent(card.studentId)}`}
+          className={`shrink-0 font-black underline-offset-2 hover:underline ${contactClasses[card.contactReadiness]}`}
+        >
+          {contactLabels[card.contactReadiness]}
+        </a>
       </div>
-    </button>
+    </div>
   );
 }
