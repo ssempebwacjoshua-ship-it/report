@@ -44,6 +44,7 @@ export type ScanImportRow = {
   studentName: string;
   writtenMark: string;
   splitMark: string;
+  extractedMark?: string;
   suggestedMark: string;
   confidence: number;
   remarks: string;
@@ -55,6 +56,17 @@ export type ScanImportRow = {
   splitDigitCropDataUrls?: string[];
   remarksCropDataUrl?: string;
   tableCropDataUrl?: string;
+  debugRawOcr?: {
+    written?: string;
+    split?: string;
+    splitZones?: string[];
+  };
+  debugCropImages?: {
+    written?: string;
+    split?: string;
+    splitZones?: string[];
+  };
+  statusReason?: string;
   status: ScanRowStatus;
   validationErrors: string[];
   operatorCorrection: string;

@@ -38,6 +38,15 @@ function resolveSuggestedMark(
 
 export type KnownStudent = { admissionNumber: string };
 
+function getAcceptedExtractedMark(row: ScanImportRow, fallbackSuggested: string): string {
+  const candidate = Object.prototype.hasOwnProperty.call(row, "extractedMark")
+    ? (row.extractedMark ?? "")
+    : (row.suggestedMark || fallbackSuggested);
+  const extracted = parseScanMark(candidate);
+  if (extracted === "INVALID") return "";
+  return extracted;
+}
+
 export function validateScanRows(
   rows: ScanImportRow[],
   context: ScanMarksheetContext,
@@ -63,30 +72,40 @@ export function validateScanRows(
     }
 
     const { suggested, conflict } = resolveSuggestedMark(row.writtenMark, row.splitMark);
-    const finalMark = row.operatorCorrection.trim() || suggested;
+    const extracted = getAcceptedExtractedMark(row, suggested);
+    const operatorMark = row.operatorCorrection.trim();
+    const finalMark = operatorMark || extracted;
 
     if (finalMark && finalMark !== "" && parseScanMark(finalMark) === "INVALID") {
       errors.push(`Mark "${finalMark}" is not valid. Use 0–100, AB, or EX.`);
     }
 
-    // Operator correction resolves both mark conflicts and low-confidence flags
-    const operatorResolved = row.operatorCorrection.trim() !== "";
+    const operatorResolved = operatorMark !== "";
 
     let status: ScanImportRow["status"];
+    let statusReason = "";
     if (errors.length > 0) {
       status = "INVALID";
+      statusReason = errors[0] ?? "Invalid row.";
     } else if (!operatorResolved && conflict) {
       status = "NEEDS_REVIEW";
+      statusReason = "Written and split mark OCR disagree. Enter the operator mark.";
     } else if (finalMark !== "") {
       status = !operatorResolved && row.confidence < 0.7 ? "NEEDS_REVIEW" : "VALID";
+      statusReason = status === "VALID"
+        ? (operatorResolved ? "Operator mark accepted." : "Confident extracted mark accepted.")
+        : "Extraction confidence is low. Confirm or enter the operator mark.";
     } else {
       status = "MISSING";
+      statusReason = "Needs entry.";
     }
 
     return {
       ...row,
-      suggestedMark: suggested,
+      suggestedMark: extracted,
+      extractedMark: extracted,
       status,
+      statusReason,
       validationErrors: errors,
     };
   });

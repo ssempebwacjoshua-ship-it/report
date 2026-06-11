@@ -14,13 +14,36 @@ import {
   preprocessScanImage,
 } from "./scanPreprocessService";
 import {
-  recognizeBlockText,
   recognizeSplitMarkZones,
   recognizeWrittenMark,
 } from "./markRecognitionService";
 import { validateScanRows } from "./scanImportValidator";
 
 type RosterStudent = { admissionNumber: string; studentName: string };
+
+function acceptedExtractedMark(
+  writtenMark: string,
+  splitMark: string,
+  confidence: number,
+): { mark: string; reason: string } {
+  if (!writtenMark && !splitMark) {
+    return { mark: "", reason: "No confident mark detected. Needs operator entry." };
+  }
+
+  if (writtenMark && splitMark && writtenMark === splitMark && confidence >= 0.85) {
+    return { mark: writtenMark, reason: "Written and split marks agree with high confidence." };
+  }
+
+  if (writtenMark && !splitMark && confidence >= 0.92) {
+    return { mark: writtenMark, reason: "Written mark detected with high confidence; split mark was blank." };
+  }
+
+  if (splitMark && !writtenMark && confidence >= 0.92) {
+    return { mark: splitMark, reason: "Split mark detected with high confidence; written mark was blank." };
+  }
+
+  return { mark: "", reason: "Extraction was not confident enough. Needs operator entry." };
+}
 
 async function loadRoster(
   prisma: PrismaClient,
@@ -122,7 +145,6 @@ export async function extractMarksFromScan(
     const rowFrac = dataRowRegion(index);
     const writtenRect = cellToPixel(COLUMNS.writtenMark, rowFrac, scan.width, scan.height);
     const splitRect = cellToPixel(COLUMNS.splitMark, rowFrac, scan.width, scan.height);
-    const remarksRect = cellToPixel(COLUMNS.remarks, rowFrac, scan.width, scan.height);
     const splitZoneRects = splitRectIntoVerticalZones(splitRect, 3);
 
     let writtenResult = { rawText: "", normalizedMark: "", confidence: 0 };
@@ -134,10 +156,8 @@ export async function extractMarksFromScan(
       zoneMarks: ["", "", ""],
       zoneConfidences: [0, 0, 0],
     };
-    let remarks = "";
     let writtenCropDataUrl = "";
     let splitCropDataUrl = "";
-    let remarksCropDataUrl = "";
     let splitDigitCropDataUrls: string[] = [];
 
     try {
@@ -166,21 +186,17 @@ export async function extractMarksFromScan(
       };
     }
 
-    try {
-      const remarksPreview = await cropPreview(scan.buffer, remarksRect);
-      remarksCropDataUrl = bufferToDataUrl(remarksPreview);
-      const remarksOcr = await recognizeBlockText(remarksPreview);
-      remarks = remarksOcr.text.trim().slice(0, 120);
-    } catch {
-      remarks = "";
-    }
-
     const confidence = writtenResult.confidence > 0 || splitResult.confidence > 0
       ? Math.min(
           writtenResult.confidence > 0 ? writtenResult.confidence : 1,
           splitResult.confidence > 0 ? splitResult.confidence : 1,
-        )
+      )
       : 0;
+    const extracted = acceptedExtractedMark(
+      writtenResult.normalizedMark,
+      splitResult.normalizedMark,
+      confidence,
+    );
 
     rawRows.push({
       rowNumber: index + 1,
@@ -188,17 +204,28 @@ export async function extractMarksFromScan(
       studentName: student.studentName,
       writtenMark: writtenResult.normalizedMark,
       splitMark: splitResult.normalizedMark,
-      suggestedMark: "",
+      extractedMark: extracted.mark,
+      suggestedMark: extracted.mark,
       confidence,
-      remarks,
+      remarks: "",
       writtenMarkRaw: writtenResult.rawText,
       splitMarkRaw: splitResult.rawText,
       splitDigitRaw: splitResult.zoneRawText,
       writtenCropDataUrl,
       splitCropDataUrl,
       splitDigitCropDataUrls,
-      remarksCropDataUrl,
       tableCropDataUrl: index === 0 ? tableCropDataUrl : undefined,
+      debugRawOcr: {
+        written: writtenResult.rawText,
+        split: splitResult.rawText,
+        splitZones: splitResult.zoneRawText,
+      },
+      debugCropImages: {
+        written: writtenCropDataUrl,
+        split: splitCropDataUrl,
+        splitZones: splitDigitCropDataUrls,
+      },
+      statusReason: extracted.reason,
       status: "PARSED",
       validationErrors: [],
       operatorCorrection: "",

@@ -329,6 +329,14 @@ export function ScanUploadPanel() {
     setDryRunSummary("");
   }
 
+  function handleRemarksChange(rowNumber: number, value: string) {
+    setScanRows((prev) =>
+      prev.map((row) =>
+        row.rowNumber === rowNumber ? { ...row, remarks: value } : row,
+      ),
+    );
+  }
+
   async function handleScanDryRun() {
     if (scanRows.length === 0) return;
     setError("");
@@ -357,6 +365,14 @@ export function ScanUploadPanel() {
     setPhase("idle");
     if (fileInputRef.current) fileInputRef.current.value = "";
   }
+
+  const rowSummary = {
+    total: scanRows.length,
+    entered: scanRows.filter((row) => row.operatorCorrection.trim() || row.extractedMark || row.suggestedMark).length,
+    missing: scanRows.filter((row) => row.status === "MISSING").length,
+    invalid: scanRows.filter((row) => row.status === "INVALID").length,
+    ready: scanRows.filter((row) => row.status === "VALID").length,
+  };
 
   // ── Render ───────────────────────────────────────────────────────────────────
 
@@ -579,11 +595,10 @@ export function ScanUploadPanel() {
                   <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z" />
                 </svg>
                 <div>
-                  <p className="text-sm font-bold text-emerald-900">Scan processed. Review suggested marks before validation.</p>
+                  <p className="text-sm font-bold text-emerald-900">Scan processed. Enter and review marks before validation.</p>
                   <p className="mt-0.5 text-sm text-emerald-700">{uploadResult.message}</p>
                   <p className="mt-1 text-xs font-semibold text-emerald-700">
-                    Some marks may need operator review. Use the crop previews to confirm each mark.
-                    Operator corrections are used for dry-run and commit.
+                    OCR suggestions are optional assistance only. Operator marks are used for dry-run and commit.
                   </p>
                   <p className="mt-1 text-xs text-emerald-600">
                     Batch: <code className="font-mono text-xs">{uploadResult.batchId}</code>
@@ -597,9 +612,9 @@ export function ScanUploadPanel() {
           <div className="premium-card rounded-2xl p-4">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
-                <h2 className="text-sm font-bold text-slate-950">Operator Review Table</h2>
+                <h2 className="text-sm font-bold text-slate-950">Operator Entry &amp; Review</h2>
                 <p className="mt-0.5 text-xs text-slate-500">
-                  Review suggested marks, enter corrections, then dry-run before committing valid rows.
+                  Enter marks from the scan, dry-run validation, then commit only valid rows.
                 </p>
               </div>
               <div className="flex flex-wrap gap-2">
@@ -623,6 +638,21 @@ export function ScanUploadPanel() {
               </div>
             </div>
 
+            <div className="mt-4 grid gap-2 sm:grid-cols-5">
+              {[
+                ["Total students", rowSummary.total],
+                ["Entered", rowSummary.entered],
+                ["Missing", rowSummary.missing],
+                ["Invalid", rowSummary.invalid],
+                ["Ready to dry-run", rowSummary.ready],
+              ].map(([label, value]) => (
+                <div key={label} className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2">
+                  <p className="text-[11px] font-bold uppercase text-slate-400">{label}</p>
+                  <p className="mt-0.5 text-lg font-black text-slate-950">{value}</p>
+                </div>
+              ))}
+            </div>
+
             {dryRunSummary && (
               <div className="mt-3 rounded-xl border border-blue-100 bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-800">
                 {dryRunSummary}
@@ -630,7 +660,11 @@ export function ScanUploadPanel() {
             )}
 
             <div className="mt-4">
-              <ScanReviewTable rows={scanRows} onCorrectionChange={handleCorrectionChange} />
+              <ScanReviewTable
+                rows={scanRows}
+                onCorrectionChange={handleCorrectionChange}
+                onRemarksChange={handleRemarksChange}
+              />
             </div>
           </div>
         </div>
