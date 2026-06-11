@@ -1,5 +1,26 @@
 import * as XLSX from "xlsx";
 
+// ── File type constants ───────────────────────────────────────────────────────
+
+export const DIGITAL_ACCEPT =
+  ".csv,.xlsx,.xls,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+
+export const SCAN_ACCEPT =
+  ".pdf,.png,.jpg,.jpeg,.webp,application/pdf,image/png,image/jpeg,image/webp";
+
+const SCAN_EXTENSIONS = new Set(["pdf", "png", "jpg", "jpeg", "webp"]);
+
+export function isScanFile(file: File): boolean {
+  const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
+  return SCAN_EXTENSIONS.has(ext);
+}
+
+export function getScanFileType(file: File): string {
+  return file.name.split(".").pop()?.toUpperCase() ?? "UNKNOWN";
+}
+
+// ── Digital marks template columns ───────────────────────────────────────────
+
 export const MARKS_TEMPLATE_COLUMNS = [
   "admissionNumber",
   "studentName",
