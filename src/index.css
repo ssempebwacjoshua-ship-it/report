@@ -282,7 +282,7 @@ body {
 .marksheet-sig-sublabel {
   flex-shrink: 0;
   font-weight: 600;
-  color: #374151;
+  color: #0f172a;
 }
 
 .marksheet-sig-short {
@@ -330,7 +330,7 @@ body {
   font-family: monospace;
   font-size: 9px;
   margin: 0;
-  color: #475569;
+  color: #1e293b;
 }
 
 /* Table */
@@ -357,7 +357,7 @@ body {
 }
 
 .marksheet-td {
-  border: 1px solid #94a3b8;
+  border: 1px solid #374151;
   padding: 0 5px;
   height: 22px;
   vertical-align: middle;
@@ -372,7 +372,7 @@ body {
 .marksheet-td-num {
   text-align: center;
   font-size: 9px;
-  color: #64748b;
+  color: #1e293b;
 }
 
 .marksheet-td-adm {
@@ -398,7 +398,7 @@ body {
 
 .marksheet-split-part {
   flex: 1;
-  border-right: 1px solid #cbd5e1;
+  border-right: 1px solid #475569;
 }
 
 .marksheet-split-last {
@@ -418,8 +418,8 @@ body {
   justify-content: space-between;
   align-items: center;
   font-size: 9px;
-  color: #475569;
-  border-top: 1px solid #e2e8f0;
+  color: #334155;
+  border-top: 1px solid #94a3b8;
   margin-top: 4px;
   padding-top: 3px;
   gap: 8px;
@@ -428,14 +428,14 @@ body {
 .marksheet-footer-continued {
   font-style: italic;
   font-weight: 700;
-  color: #1d4ed8;
+  color: #1e40af;
   white-space: nowrap;
 }
 
 .marksheet-footer-id {
   font-family: monospace;
   white-space: nowrap;
-  color: #64748b;
+  color: #334155;
 }
 
 @media print {
@@ -593,7 +593,7 @@ body {
   }
 
   .marksheet-header-box {
-    border: 1px solid black !important;
+    border: 1.5px solid black !important;
     padding: 7px 10px 6px !important;
     margin-bottom: 4px !important;
   }
@@ -630,15 +630,24 @@ body {
     border-bottom-color: black !important;
   }
 
+  .marksheet-sig-sublabel {
+    color: black !important;
+  }
+
   .marksheet-cont-header {
     background: transparent !important;
     border-color: black !important;
-    border-left-color: #1d4ed8 !important;
+    border-left-color: black !important;
     padding: 4px 8px !important;
     margin-bottom: 4px !important;
   }
 
+  .marksheet-cont-id {
+    color: black !important;
+  }
+
   .marksheet-table {
+    border: 2px solid black !important;
     border-collapse: collapse !important;
     width: 100% !important;
     table-layout: fixed !important;
@@ -659,10 +668,16 @@ body {
   }
 
   .marksheet-td {
-    border: 1px solid #374151 !important;
+    border: 1px solid black !important;
     padding: 0 4px !important;
     height: 20px !important;
     font-size: 8px !important;
+  }
+
+  .marksheet-td-num,
+  .marksheet-td-adm,
+  .marksheet-td-name {
+    color: black !important;
   }
 
   /* Never cut a student row across pages */
@@ -684,19 +699,19 @@ body {
   }
 
   .marksheet-split-part {
-    border-right-color: #6b7280 !important;
+    border-right-color: black !important;
   }
 
   .marksheet-footer {
     border-top-color: black !important;
+    color: black !important;
     font-size: 8px !important;
     margin-top: 3px !important;
     padding-top: 2px !important;
   }
 
+  .marksheet-footer-id,
   .marksheet-footer-continued {
-    color: #1d4ed8 !important;
-    print-color-adjust: exact !important;
-    -webkit-print-color-adjust: exact !important;
+    color: black !important;
   }
 }

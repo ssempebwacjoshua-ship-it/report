@@ -71,7 +71,7 @@ describe("validateScanRows", () => {
     // Blank means missing — not an error, not zero
     expect(result.validationErrors).toHaveLength(0);
     expect(result.suggestedMark).toBe("");
-    expect(result.status).toBe("PARSED");
+    expect(result.status).toBe("MISSING");
   });
 
   it("blank written mark but valid split mark → uses split as suggestion", () => {

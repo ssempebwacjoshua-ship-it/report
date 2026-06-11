@@ -11,13 +11,25 @@ async function acquireWorker(): Promise<Worker> {
   _worker = await createWorker("eng", 1, {
     logger: () => {},
   });
-  await _worker.setParameters({
-    // Whitelist: digits, AB (absent), EX (exempt), spaces
-    tessedit_char_whitelist: "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz ",
-    // PSM 7 = single text line
-    tessedit_pageseg_mode: "7",
-  });
   return _worker;
+}
+
+async function recognizeWithParameters(
+  buffer: Buffer,
+  params: Record<string, string>,
+): Promise<{ text: string; confidence: number }> {
+  try {
+    while (_workerBusy) await new Promise((r) => setTimeout(r, 20));
+    _workerBusy = true;
+    const worker = await acquireWorker();
+    await worker.setParameters(params);
+    const result = await worker.recognize(buffer);
+    _workerBusy = false;
+    return { text: result.data.text.trim(), confidence: result.data.confidence / 100 };
+  } catch {
+    _workerBusy = false;
+    return { text: "", confidence: 0 };
+  }
 }
 
 export async function terminateOcrWorker(): Promise<void> {
@@ -33,6 +45,22 @@ export type RecognizedCell = {
   rawText: string;
   normalizedMark: string;
   confidence: number;
+};
+
+export type RecognizedSplitZones = RecognizedCell & {
+  zoneRawText: string[];
+  zoneMarks: string[];
+  zoneConfidences: number[];
+};
+
+const MARK_OCR_PARAMS = {
+  tessedit_char_whitelist: "0123456789ABEX",
+  tessedit_pageseg_mode: "7",
+};
+
+const SINGLE_ZONE_OCR_PARAMS = {
+  tessedit_char_whitelist: "0123456789ABEX",
+  tessedit_pageseg_mode: "10",
 };
 
 // ── Mark normalisation ────────────────────────────────────────────────────────
@@ -89,6 +117,36 @@ export function parseSplitCellText(rawText: string): string {
   return normalizeMark(rawText);
 }
 
+export function parseSplitZoneTexts(zoneTexts: string[]): string {
+  const zoneMarks = zoneTexts.map((text) => normalizeMark(text));
+  const nonEmpty = zoneMarks.filter(Boolean);
+
+  if (nonEmpty.includes("AB")) return "AB";
+  if (nonEmpty.includes("EX")) return "EX";
+
+  // Check if individual zone characters spell out AB or EX (e.g. ["A","B",""] → "AB")
+  const joinedLetters = zoneTexts
+    .join("")
+    .replace(/\s+/g, "")
+    .toUpperCase()
+    .replace(/[^ABEX0-9]/g, "");
+  if (joinedLetters === "AB" || joinedLetters === "A8") return "AB";
+  if (joinedLetters === "EX") return "EX";
+
+  if (nonEmpty.length === 0) return "";
+
+  const digitParts = zoneTexts
+    .map((text) => text.replace(/[^0-9]/g, ""))
+    .filter(Boolean);
+  const joinedDigits = digitParts.join("");
+  if (joinedDigits.length > 0 && joinedDigits.length <= 3) {
+    const mark = normalizeMark(joinedDigits);
+    if (mark) return mark;
+  }
+
+  return parseSplitCellText(zoneTexts.join(" "));
+}
+
 // ── OCR functions ─────────────────────────────────────────────────────────────
 
 /**
@@ -96,22 +154,12 @@ export function parseSplitCellText(rawText: string): string {
  * Returns the normalised mark and raw confidence score (0-1).
  */
 export async function recognizeWrittenMark(cellBuffer: Buffer): Promise<RecognizedCell> {
-  try {
-    while (_workerBusy) await new Promise((r) => setTimeout(r, 20));
-    _workerBusy = true;
-    const worker = await acquireWorker();
-    const result = await worker.recognize(cellBuffer);
-    _workerBusy = false;
-
-    const rawText = result.data.text.trim();
-    const confidence = result.data.confidence / 100;
-    const normalizedMark = normalizeMark(rawText);
-
-    return { rawText, normalizedMark, confidence };
-  } catch {
-    _workerBusy = false;
-    return { rawText: "", normalizedMark: "", confidence: 0 };
-  }
+  const result = await recognizeWithParameters(cellBuffer, MARK_OCR_PARAMS);
+  return {
+    rawText: result.text,
+    normalizedMark: normalizeMark(result.text),
+    confidence: result.confidence,
+  };
 }
 
 /**
@@ -119,22 +167,40 @@ export async function recognizeWrittenMark(cellBuffer: Buffer): Promise<Recogniz
  * Handles multi-column sub-totals; returns the dominant total mark.
  */
 export async function recognizeSplitMark(cellBuffer: Buffer): Promise<RecognizedCell> {
-  try {
-    while (_workerBusy) await new Promise((r) => setTimeout(r, 20));
-    _workerBusy = true;
-    const worker = await acquireWorker();
-    const result = await worker.recognize(cellBuffer);
-    _workerBusy = false;
+  const result = await recognizeWithParameters(cellBuffer, MARK_OCR_PARAMS);
+  return {
+    rawText: result.text,
+    normalizedMark: parseSplitCellText(result.text),
+    confidence: result.confidence,
+  };
+}
 
-    const rawText = result.data.text.trim();
-    const confidence = result.data.confidence / 100;
-    const normalizedMark = parseSplitCellText(rawText);
+export async function recognizeSplitMarkZones(zoneBuffers: Buffer[]): Promise<RecognizedSplitZones> {
+  const zoneResults: RecognizedCell[] = [];
 
-    return { rawText, normalizedMark, confidence };
-  } catch {
-    _workerBusy = false;
-    return { rawText: "", normalizedMark: "", confidence: 0 };
+  for (const buffer of zoneBuffers) {
+    const result = await recognizeWithParameters(buffer, SINGLE_ZONE_OCR_PARAMS);
+    zoneResults.push({
+      rawText: result.text,
+      normalizedMark: normalizeMark(result.text),
+      confidence: result.confidence,
+    });
   }
+
+  const zoneRawText = zoneResults.map((result) => result.rawText);
+  const zoneMarks = zoneResults.map((result) => result.normalizedMark);
+  const nonBlankConfidences = zoneResults
+    .filter((result) => result.rawText.trim() || result.normalizedMark)
+    .map((result) => result.confidence);
+
+  return {
+    rawText: zoneRawText.join(" | "),
+    normalizedMark: parseSplitZoneTexts(zoneRawText),
+    confidence: nonBlankConfidences.length > 0 ? Math.min(...nonBlankConfidences) : 0,
+    zoneRawText,
+    zoneMarks,
+    zoneConfidences: zoneResults.map((result) => result.confidence),
+  };
 }
 
 /**
@@ -143,19 +209,9 @@ export async function recognizeSplitMark(cellBuffer: Buffer): Promise<Recognized
  * Returns raw text and confidence; the caller extracts structured fields.
  */
 export async function recognizeBlockText(buffer: Buffer): Promise<{ text: string; confidence: number }> {
-  try {
-    while (_workerBusy) await new Promise((r) => setTimeout(r, 20));
-    _workerBusy = true;
-    const worker = await acquireWorker();
-    // Switch to block mode for multi-line header text
-    await worker.setParameters({ tessedit_pageseg_mode: "6" });
-    const result = await worker.recognize(buffer);
-    // Restore single-line mode for subsequent mark cell reads
-    await worker.setParameters({ tessedit_pageseg_mode: "7" });
-    _workerBusy = false;
-    return { text: result.data.text, confidence: result.data.confidence / 100 };
-  } catch {
-    _workerBusy = false;
-    return { text: "", confidence: 0 };
-  }
+  const result = await recognizeWithParameters(buffer, {
+    tessedit_char_whitelist: "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz-_: ",
+    tessedit_pageseg_mode: "6",
+  });
+  return { text: result.text, confidence: result.confidence };
 }
