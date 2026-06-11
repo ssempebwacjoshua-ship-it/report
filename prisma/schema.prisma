@@ -1,0 +1,258 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum AssessmentType {
+  BOT
+  EOT
+}
+
+enum MarkStatus {
+  DRAFT
+  FINALIZED
+}
+
+enum ImportStatus {
+  DRY_RUN
+  COMMITTED
+  FAILED
+}
+
+enum ReportReadiness {
+  READY
+  MISSING_MARKS
+  NO_FINALIZED_MARKS
+  NO_STUDENTS
+  NO_SUBJECTS
+  NO_ACTIVE_TERM
+}
+
+model School {
+  id            String            @id @default(uuid()) @db.Uuid
+  code          String            @unique
+  name          String
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+  academicYears AcademicYear[]
+  classes       SchoolClass[]
+  streams       Stream[]
+  students      Student[]
+  subjects      Subject[]
+  imports       MarkImportBatch[]
+  auditLogs     AuditLog[]
+}
+
+model AcademicYear {
+  id        String   @id @default(uuid()) @db.Uuid
+  schoolId  String   @db.Uuid
+  name      String
+  startsOn  DateTime
+  endsOn    DateTime
+  isActive  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  school      School            @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  terms       Term[]
+  enrollments ClassEnrollment[]
+  marks       SubjectMark[]
+
+  @@unique([schoolId, name])
+  @@index([schoolId, isActive])
+}
+
+model Term {
+  id             String   @id @default(uuid()) @db.Uuid
+  academicYearId String   @db.Uuid
+  name           String
+  startsOn       DateTime
+  endsOn         DateTime
+  isActive       Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  academicYear AcademicYear      @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
+  enrollments  ClassEnrollment[]
+  marks        SubjectMark[]
+
+  @@unique([academicYearId, name])
+  @@index([academicYearId, isActive])
+}
+
+model SchoolClass {
+  id        String   @id @default(uuid()) @db.Uuid
+  schoolId  String   @db.Uuid
+  name      String
+  code      String
+  level     Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  school      School            @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  streams     Stream[]
+  enrollments ClassEnrollment[]
+  marks       SubjectMark[]
+
+  @@unique([schoolId, name])
+  @@unique([schoolId, code])
+}
+
+model Stream {
+  id        String   @id @default(uuid()) @db.Uuid
+  schoolId  String   @db.Uuid
+  classId   String   @db.Uuid
+  name      String
+  code      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  school      School            @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  class       SchoolClass       @relation(fields: [classId], references: [id], onDelete: Cascade)
+  enrollments ClassEnrollment[]
+  marks       SubjectMark[]
+
+  @@unique([classId, code])
+  @@index([schoolId])
+}
+
+model Student {
+  id              String   @id @default(uuid()) @db.Uuid
+  schoolId        String   @db.Uuid
+  admissionNumber String
+  firstName       String
+  lastName        String
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  school      School            @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  enrollments ClassEnrollment[]
+  marks       SubjectMark[]
+
+  @@unique([schoolId, admissionNumber])
+  @@index([schoolId, isActive])
+}
+
+model ClassEnrollment {
+  id             String   @id @default(uuid()) @db.Uuid
+  studentId      String   @db.Uuid
+  academicYearId String   @db.Uuid
+  termId         String   @db.Uuid
+  classId        String   @db.Uuid
+  streamId       String   @db.Uuid
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  student      Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  academicYear AcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
+  term         Term         @relation(fields: [termId], references: [id], onDelete: Cascade)
+  class        SchoolClass  @relation(fields: [classId], references: [id], onDelete: Cascade)
+  stream       Stream       @relation(fields: [streamId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, academicYearId, termId])
+  @@index([academicYearId, termId, classId, streamId, isActive])
+}
+
+model Subject {
+  id        String   @id @default(uuid()) @db.Uuid
+  schoolId  String   @db.Uuid
+  name      String
+  code      String
+  sortOrder Int
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  school School        @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  marks  SubjectMark[]
+
+  @@unique([schoolId, name])
+  @@unique([schoolId, code])
+  @@index([schoolId, isActive, sortOrder])
+}
+
+model SubjectMark {
+  id             String         @id @default(uuid()) @db.Uuid
+  schoolId       String         @db.Uuid
+  studentId      String         @db.Uuid
+  academicYearId String         @db.Uuid
+  termId         String         @db.Uuid
+  classId        String         @db.Uuid
+  streamId       String         @db.Uuid
+  subjectId      String         @db.Uuid
+  assessmentType AssessmentType
+  marks          Decimal        @db.Decimal(5, 2)
+  status         MarkStatus     @default(DRAFT)
+  comments       String?
+  importBatchId  String?        @db.Uuid
+  seedKey        String?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  student      Student          @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  academicYear AcademicYear     @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
+  term         Term             @relation(fields: [termId], references: [id], onDelete: Cascade)
+  class        SchoolClass      @relation(fields: [classId], references: [id], onDelete: Cascade)
+  stream       Stream           @relation(fields: [streamId], references: [id], onDelete: Cascade)
+  subject      Subject          @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  importBatch  MarkImportBatch? @relation(fields: [importBatchId], references: [id], onDelete: SetNull)
+
+  @@unique([studentId, subjectId, termId, assessmentType])
+  @@index([schoolId, academicYearId, termId, classId, streamId, status])
+  @@index([importBatchId])
+}
+
+model MarkImportBatch {
+  id        String       @id @default(uuid()) @db.Uuid
+  schoolId  String       @db.Uuid
+  status    ImportStatus
+  source    String
+  summary   String?
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  school School          @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  rows   MarkImportRow[]
+  marks  SubjectMark[]
+
+  @@index([schoolId, status, createdAt])
+}
+
+model MarkImportRow {
+  id        String   @id @default(uuid()) @db.Uuid
+  batchId   String   @db.Uuid
+  rowNumber Int
+  raw       Json
+  isValid   Boolean
+  errors    String[]
+  createdAt DateTime @default(now())
+
+  batch MarkImportBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+
+  @@unique([batchId, rowNumber])
+}
+
+model AuditLog {
+  id            String   @id @default(uuid()) @db.Uuid
+  schoolId      String   @db.Uuid
+  action        String
+  correlationId String?
+  details       Json?
+  createdAt     DateTime @default(now())
+
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  @@index([schoolId, correlationId])
+}

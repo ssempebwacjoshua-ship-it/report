@@ -1,0 +1,135 @@
+import "dotenv/config";
+import { pathToFileURL } from "node:url";
+import { prisma } from "../src/server/db/prisma";
+import { O_LEVEL_SUBJECTS } from "../src/shared/constants/subjects";
+
+export const PREVIEW_SCHOOL_CODE = "SCU-PREVIEW";
+
+const students = [
+  { firstName: "Kampala", lastName: "Ssempebwa", admissionNumber: "S1A-001", stream: "A" },
+  { firstName: "Brian", lastName: "Mugisha", admissionNumber: "S1A-002", stream: "A" },
+  { firstName: "Cynthia", lastName: "Okello", admissionNumber: "S1A-003", stream: "A" },
+  { firstName: "David", lastName: "Kasozi", admissionNumber: "S1A-004", stream: "A" },
+  { firstName: "Esther", lastName: "Nakayiza", admissionNumber: "S1B-001", stream: "B" },
+  { firstName: "Felix", lastName: "Namagembe", admissionNumber: "S1B-002", stream: "B" },
+  { firstName: "Grace", lastName: "Achen", admissionNumber: "S1B-003", stream: "B" },
+];
+
+export async function seedPreviewData() {
+  const school = await prisma.school.upsert({
+    where: { code: PREVIEW_SCHOOL_CODE },
+    update: { name: "School Connect Preview School" },
+    create: { code: PREVIEW_SCHOOL_CODE, name: "School Connect Preview School" },
+  });
+
+  const academicYear = await prisma.academicYear.upsert({
+    where: { schoolId_name: { schoolId: school.id, name: "2025/2026" } },
+    update: { isActive: true },
+    create: {
+      schoolId: school.id,
+      name: "2025/2026",
+      startsOn: new Date("2025-02-01"),
+      endsOn: new Date("2026-12-01"),
+      isActive: true,
+    },
+  });
+
+  await prisma.academicYear.updateMany({
+    where: { schoolId: school.id, id: { not: academicYear.id } },
+    data: { isActive: false },
+  });
+
+  const term = await prisma.term.upsert({
+    where: { academicYearId_name: { academicYearId: academicYear.id, name: "Term 1" } },
+    update: { isActive: true },
+    create: {
+      academicYearId: academicYear.id,
+      name: "Term 1",
+      startsOn: new Date("2026-02-01"),
+      endsOn: new Date("2026-05-15"),
+      isActive: true,
+    },
+  });
+
+  await prisma.term.updateMany({
+    where: { academicYearId: academicYear.id, id: { not: term.id } },
+    data: { isActive: false },
+  });
+
+  const s1a = await prisma.schoolClass.upsert({
+    where: { schoolId_code: { schoolId: school.id, code: "S1A" } },
+    update: { name: "Senior 1 A", level: 1 },
+    create: { schoolId: school.id, code: "S1A", name: "Senior 1 A", level: 1 },
+  });
+  const s1b = await prisma.schoolClass.upsert({
+    where: { schoolId_code: { schoolId: school.id, code: "S1B" } },
+    update: { name: "Senior 1 B", level: 1 },
+    create: { schoolId: school.id, code: "S1B", name: "Senior 1 B", level: 1 },
+  });
+
+  const streamA = await prisma.stream.upsert({
+    where: { classId_code: { classId: s1a.id, code: "A" } },
+    update: { name: "A", schoolId: school.id },
+    create: { schoolId: school.id, classId: s1a.id, code: "A", name: "A" },
+  });
+  const streamB = await prisma.stream.upsert({
+    where: { classId_code: { classId: s1b.id, code: "B" } },
+    update: { name: "B", schoolId: school.id },
+    create: { schoolId: school.id, classId: s1b.id, code: "B", name: "B" },
+  });
+
+  for (const [index, subject] of O_LEVEL_SUBJECTS.entries()) {
+    await prisma.subject.upsert({
+      where: { schoolId_code: { schoolId: school.id, code: subject.code } },
+      update: { name: subject.name, sortOrder: index + 1, isActive: true },
+      create: { schoolId: school.id, code: subject.code, name: subject.name, sortOrder: index + 1, isActive: true },
+    });
+  }
+
+  for (const studentSeed of students) {
+    const student = await prisma.student.upsert({
+      where: { schoolId_admissionNumber: { schoolId: school.id, admissionNumber: studentSeed.admissionNumber } },
+      update: { firstName: studentSeed.firstName, lastName: studentSeed.lastName, isActive: true },
+      create: {
+        schoolId: school.id,
+        firstName: studentSeed.firstName,
+        lastName: studentSeed.lastName,
+        admissionNumber: studentSeed.admissionNumber,
+        isActive: true,
+      },
+    });
+    const klass = studentSeed.stream === "A" ? s1a : s1b;
+    const stream = studentSeed.stream === "A" ? streamA : streamB;
+    await prisma.classEnrollment.upsert({
+      where: { studentId_academicYearId_termId: { studentId: student.id, academicYearId: academicYear.id, termId: term.id } },
+      update: { classId: klass.id, streamId: stream.id, isActive: true },
+      create: {
+        studentId: student.id,
+        academicYearId: academicYear.id,
+        termId: term.id,
+        classId: klass.id,
+        streamId: stream.id,
+        isActive: true,
+      },
+    });
+  }
+
+  await prisma.auditLog.create({
+    data: {
+      schoolId: school.id,
+      action: "seed.preview",
+      correlationId: "reports-lab-preview-seed",
+      details: { subjects: O_LEVEL_SUBJECTS.length, students: students.length },
+    },
+  });
+
+  return { school, academicYear, term, classes: [s1a, s1b], streams: [streamA, streamB], students: students.length };
+}
+
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  seedPreviewData()
+    .then((result) => {
+      console.log(`Seeded ${result.school.code}: ${result.students} students, ${O_LEVEL_SUBJECTS.length} subjects.`);
+    })
+    .finally(async () => prisma.$disconnect());
+}

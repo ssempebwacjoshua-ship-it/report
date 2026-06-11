@@ -1,0 +1,17 @@
+export const O_LEVEL_SUBJECTS = [
+  { code: "ENG", name: "English Language" },
+  { code: "MATH", name: "Mathematics" },
+  { code: "BIO", name: "Biology" },
+  { code: "CHEM", name: "Chemistry" },
+  { code: "PHY", name: "Physics" },
+  { code: "GEO", name: "Geography" },
+  { code: "HIST", name: "History" },
+  { code: "CRE", name: "Christian Religious Education" },
+  { code: "AGR", name: "Agriculture" },
+  { code: "ENT", name: "Entrepreneurship" },
+  { code: "LIT", name: "Literature in English" },
+  { code: "KIS", name: "Kiswahili" },
+  { code: "ICT", name: "Computer Studies / ICT" },
+  { code: "PE", name: "Physical Education" },
+  { code: "ART", name: "Fine Art" },
+] as const;
