@@ -392,7 +392,7 @@ function StudentReportDetailContent({
 
         <div className="px-8 py-6 print:px-5 print:py-3">
           <div className="mb-6 rounded-xl border border-slate-200 bg-slate-50 p-4 print:mb-2 print:p-2">
-            <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm md:grid-cols-3 print:gap-y-0.5 print:text-[9px]">
+            <div className="grid grid-cols-1 gap-x-6 gap-y-2 text-sm sm:grid-cols-2 lg:grid-cols-4 print:grid-cols-4 print:gap-y-0.5 print:text-[9px]">
               <div>
                 <span className="font-semibold text-slate-600">Full Name: </span>
                 <span className="font-medium text-slate-900">{card.studentName}</span>
@@ -408,10 +408,6 @@ function StudentReportDetailContent({
               <div>
                 <span className="font-semibold text-slate-600">Stream: </span>
                 <span className="text-slate-900">{card.streamName}</span>
-              </div>
-              <div className="md:col-span-2">
-                <span className="font-semibold text-slate-600">Subjects: </span>
-                <span className="text-slate-900">{card.totalSubjects}</span>
               </div>
             </div>
           </div>
