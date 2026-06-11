@@ -1,3 +1,5 @@
+import fs from "node:fs";
+import path from "node:path";
 import type { PrismaClient } from "@prisma/client";
 import type { ScanImportRow, ScanMarksheetContext } from "../../shared/types/imports";
 import {
@@ -22,7 +24,8 @@ import { validateScanRows } from "./scanImportValidator";
 
 type RosterStudent = { admissionNumber: string; studentName: string };
 
-function acceptedExtractedMark(
+// Exported so unit tests can cover the acceptance logic directly.
+export function acceptedExtractedMark(
   writtenMark: string,
   splitMark: string,
   splitConfidence: number,
@@ -78,6 +81,36 @@ async function loadRoster(
     studentName: `${enrollment.student.firstName} ${enrollment.student.lastName}`.trim(),
   }));
 }
+
+// ── Debug crop disk saving ─────────────────────────────────────────────────────
+//
+// When OCR_DEBUG=1 every crop is written to tmp/ocr-debug/latest/ so the operator
+// can open them in an image viewer to confirm alignment and preprocessing quality.
+
+const DEBUG_DIR = path.join(process.cwd(), "tmp", "ocr-debug", "latest");
+const OCR_DEBUG_ENABLED = process.env.OCR_DEBUG === "1";
+
+function clearDebugDir(): void {
+  if (!OCR_DEBUG_ENABLED) return;
+  try {
+    fs.rmSync(DEBUG_DIR, { recursive: true, force: true });
+    fs.mkdirSync(DEBUG_DIR, { recursive: true });
+  } catch {
+    // Best effort
+  }
+}
+
+function saveDebugFile(name: string, buffer: Buffer): void {
+  if (!OCR_DEBUG_ENABLED) return;
+  try {
+    fs.mkdirSync(DEBUG_DIR, { recursive: true });
+    fs.writeFileSync(path.join(DEBUG_DIR, name), buffer);
+  } catch {
+    // Best effort — debug saving never blocks import
+  }
+}
+
+// ── Extraction ─────────────────────────────────────────────────────────────────
 
 export type ExtractionResult = {
   parseStatus: "PARSED" | "FAILED";
@@ -137,9 +170,15 @@ export async function extractMarksFromScan(
     };
   }
 
+  // Clear previous debug run and save the original scan
+  clearDebugDir();
+  saveDebugFile("original.jpg", scan.buffer);
+
   let tableCropDataUrl = "";
   try {
-    tableCropDataUrl = bufferToDataUrl(await cropPreview(scan.buffer, tableToPixel(scan.width, scan.height)));
+    const tablePreviewBuf = await cropPreview(scan.buffer, tableToPixel(scan.width, scan.height));
+    tableCropDataUrl = bufferToDataUrl(tablePreviewBuf);
+    saveDebugFile("table.jpg", tablePreviewBuf);
   } catch {
     tableCropDataUrl = "";
   }
@@ -149,6 +188,7 @@ export async function extractMarksFromScan(
 
   for (let index = 0; index < roster.length; index++) {
     const student = roster[index]!;
+    const rowTag = `row-${String(index + 1).padStart(2, "0")}-${student.admissionNumber}`;
     const rowFrac = dataRowRegion(index);
     const writtenRect = cellToPixel(COLUMNS.writtenMark, rowFrac, scan.width, scan.height);
     const splitRect = cellToPixel(COLUMNS.splitMark, rowFrac, scan.width, scan.height);
@@ -163,11 +203,32 @@ export async function extractMarksFromScan(
 
     try {
       const writtenCell = await cropCell(scan.buffer, writtenRect);
-      writtenCropDataUrl = bufferToDataUrl(await cropPreview(scan.buffer, writtenRect));
+      const writtenPreview = await cropPreview(scan.buffer, writtenRect);
+      writtenCropDataUrl = bufferToDataUrl(writtenPreview);
+
+      saveDebugFile(`${rowTag}.jpg`, await cropPreview(scan.buffer, {
+        x: writtenRect.x,
+        y: writtenRect.y,
+        w: splitRect.x + splitRect.w - writtenRect.x,
+        h: writtenRect.h,
+      }));
+      saveDebugFile(`${rowTag}-written-raw.jpg`, writtenPreview);
+      saveDebugFile(`${rowTag}-written-processed.jpg`, writtenCell);
+
       const splitZoneCells = await Promise.all(splitZoneRects.map((rect) => cropCell(scan.buffer, rect)));
-      splitCropDataUrl = bufferToDataUrl(await cropPreview(scan.buffer, splitRect));
+      const splitPreview = await cropPreview(scan.buffer, splitRect);
+      splitCropDataUrl = bufferToDataUrl(splitPreview);
+
+      saveDebugFile(`${rowTag}-split-full-raw.jpg`, splitPreview);
+
       splitDigitCropDataUrls = await Promise.all(
-        splitZoneRects.map(async (rect) => bufferToDataUrl(await cropPreview(scan.buffer, rect))),
+        splitZoneRects.map(async (rect, zoneIndex) => {
+          const preview = await cropPreview(scan.buffer, rect);
+          const processed = splitZoneCells[zoneIndex]!;
+          saveDebugFile(`${rowTag}-split-${zoneIndex + 1}-raw.jpg`, preview);
+          saveDebugFile(`${rowTag}-split-${zoneIndex + 1}-processed.jpg`, processed);
+          return bufferToDataUrl(preview);
+        }),
       );
 
       const cropIds = {

@@ -39,6 +39,31 @@ function handleMarkKeyDown(event: KeyboardEvent<HTMLInputElement>) {
   inputs[index + 1]?.focus();
 }
 
+/** Confidence label used only in the debug panel. */
+function confidenceLabel(confidence: number, rawText: string): { label: string; tone: string } {
+  if (!rawText) return { label: "0% — no text", tone: "text-slate-400" };
+  const pct = Math.round(confidence * 100);
+  if (confidence >= 0.85) return { label: `${pct}% — high`, tone: "text-emerald-600 font-semibold" };
+  if (confidence >= 0.60) return { label: `${pct}% — medium`, tone: "text-amber-600" };
+  return { label: `${pct}% — low`, tone: "text-red-500" };
+}
+
+/** Decision label shown next to the parsed mark in debug. */
+function parsedDecision(row: ScanImportRow): { text: string; tone: string } {
+  const accepted = row.extractedMark || row.suggestedMark;
+  if (accepted) return { text: `Accepted: ${accepted}`, tone: "text-emerald-700 font-semibold" };
+
+  // Has a parsed mark but it wasn't accepted
+  const parsed = row.writtenMark || row.splitMark;
+  if (parsed) return { text: `Parsed: ${parsed} — not accepted`, tone: "text-amber-700" };
+
+  // Raw text present but couldn't parse a valid mark
+  const rawText = row.debugRawOcr?.written || row.writtenMarkRaw;
+  if (rawText) return { text: `Raw: "${rawText}" — not parseable`, tone: "text-red-500" };
+
+  return { text: "No text detected", tone: "text-slate-400" };
+}
+
 export function ScanReviewTable({
   rows,
   onCorrectionChange,
@@ -141,7 +166,7 @@ export function ScanReviewTable({
             Debug is for troubleshooting crop alignment and OCR only. Operator marks remain the source used for validation.
           </p>
           <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
-            <table className="w-full min-w-[980px] text-xs">
+            <table className="w-full min-w-[1100px] text-xs">
               <thead>
                 <tr className="bg-slate-100 text-left font-bold uppercase tracking-wide text-slate-500">
                   <th className="px-3 py-2">Row</th>
@@ -151,40 +176,84 @@ export function ScanReviewTable({
                   <th className="px-3 py-2">Zones</th>
                   <th className="px-3 py-2">Raw OCR</th>
                   <th className="px-3 py-2">Confidence</th>
+                  <th className="px-3 py-2">Parsed / Decision</th>
                   <th className="px-3 py-2">Reason</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {rows.map((row) => (
-                  <tr key={`debug-${row.rowNumber}`}>
-                    <td className="px-3 py-2 font-semibold">{row.rowNumber}</td>
-                    <td className="px-3 py-2 font-semibold">{row.ocrProvider ?? "manual"}</td>
-                    <td className="px-3 py-2">
-                      {row.debugCropImages?.written || row.writtenCropDataUrl ? (
-                        <img src={row.debugCropImages?.written ?? row.writtenCropDataUrl} alt="" className="h-10 w-24 rounded border object-contain" />
-                      ) : "-"}
-                    </td>
-                    <td className="px-3 py-2">
-                      {row.debugCropImages?.split || row.splitCropDataUrl ? (
-                        <img src={row.debugCropImages?.split ?? row.splitCropDataUrl} alt="" className="h-10 w-28 rounded border object-contain" />
-                      ) : "-"}
-                    </td>
-                    <td className="px-3 py-2">
-                      <div className="flex gap-1">
-                        {(row.debugCropImages?.splitZones ?? row.splitDigitCropDataUrls ?? []).map((src, zoneIndex) => (
-                          <img key={zoneIndex} src={src} alt="" className="h-8 w-10 rounded border object-contain" />
-                        ))}
-                      </div>
-                    </td>
-                    <td className="px-3 py-2 font-mono text-slate-600">
-                      <div>W: {row.debugRawOcr?.written || row.writtenMarkRaw || "-"}</div>
-                      <div>S: {row.debugRawOcr?.split || row.splitMarkRaw || "-"}</div>
-                      <div>Zones: {(row.debugRawOcr?.splitZones ?? row.splitDigitRaw ?? []).map((value) => value || "-").join(" | ")}</div>
-                    </td>
-                    <td className="px-3 py-2 font-semibold">{Math.round(row.confidence * 100)}%</td>
-                    <td className="px-3 py-2 text-slate-600">{row.statusReason || "-"}</td>
-                  </tr>
-                ))}
+                {rows.map((row) => {
+                  const writtenRaw = row.debugRawOcr?.written ?? row.writtenMarkRaw ?? "";
+                  const splitRaw = row.debugRawOcr?.split ?? row.splitMarkRaw ?? "";
+                  const zoneTexts = row.debugRawOcr?.splitZones ?? row.splitDigitRaw ?? [];
+                  const conf = confidenceLabel(row.confidence, writtenRaw || splitRaw);
+                  const decision = parsedDecision(row);
+
+                  return (
+                    <tr key={`debug-${row.rowNumber}`}>
+                      <td className="px-3 py-2 align-top">
+                        <div className="font-semibold">{row.rowNumber}</div>
+                        <div className="mt-0.5 font-mono text-[10px] text-slate-400">{row.admissionNumber}</div>
+                      </td>
+                      <td className="px-3 py-2 align-top font-semibold">{row.ocrProvider ?? "manual"}</td>
+                      <td className="px-3 py-2 align-top">
+                        {row.debugCropImages?.written || row.writtenCropDataUrl ? (
+                          <img
+                            src={row.debugCropImages?.written ?? row.writtenCropDataUrl}
+                            alt={`Written crop for row ${row.rowNumber}`}
+                            className="h-10 w-24 rounded border object-contain"
+                          />
+                        ) : (
+                          <span className="text-slate-300">-</span>
+                        )}
+                      </td>
+                      <td className="px-3 py-2 align-top">
+                        {row.debugCropImages?.split || row.splitCropDataUrl ? (
+                          <img
+                            src={row.debugCropImages?.split ?? row.splitCropDataUrl}
+                            alt={`Split crop for row ${row.rowNumber}`}
+                            className="h-10 w-28 rounded border object-contain"
+                          />
+                        ) : (
+                          <span className="text-slate-300">-</span>
+                        )}
+                      </td>
+                      <td className="px-3 py-2 align-top">
+                        <div className="flex gap-1">
+                          {(row.debugCropImages?.splitZones ?? row.splitDigitCropDataUrls ?? []).map((src, zoneIndex) => (
+                            <img
+                              key={zoneIndex}
+                              src={src}
+                              alt={`Zone ${zoneIndex + 1}`}
+                              className="h-8 w-10 rounded border object-contain"
+                            />
+                          ))}
+                        </div>
+                      </td>
+                      <td className="px-3 py-2 align-top font-mono text-slate-600">
+                        <div>W: {writtenRaw || <span className="text-slate-300">-</span>}</div>
+                        <div>S: {splitRaw || <span className="text-slate-300">-</span>}</div>
+                        <div>
+                          Zones:{" "}
+                          {zoneTexts.length > 0
+                            ? zoneTexts.map((value) => value || "-").join(" | ")
+                            : <span className="text-slate-300">-</span>}
+                        </div>
+                      </td>
+                      <td className="px-3 py-2 align-top">
+                        <span className={conf.tone}>{conf.label}</span>
+                      </td>
+                      <td className="px-3 py-2 align-top">
+                        <div className={decision.tone}>{decision.text}</div>
+                        {(row.writtenMark || row.splitMark) && (
+                          <div className="mt-1 text-slate-400">
+                            W norm: {row.writtenMark || "—"} / S norm: {row.splitMark || "—"}
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-3 py-2 align-top text-slate-600">{row.statusReason || "-"}</td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

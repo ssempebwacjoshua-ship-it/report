@@ -72,4 +72,68 @@ describe("PaddleOCR provider", () => {
 
     expect(["tesseract", "manual"]).toContain(provider.name);
   });
+
+  it("returns cropId with empty text and zero confidence when service returns no match", async () => {
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url.endsWith("/health")) return jsonResponse({ status: "ok" });
+      // Service only returns result for one of the two crops
+      return jsonResponse({
+        provider: "paddleocr",
+        results: [{ cropId: "S1A-001-written", text: "82", confidence: 0.91 }],
+      });
+    });
+    globalThis.fetch = fetchMock as typeof fetch;
+
+    const provider = createPaddleOcrProvider();
+    const results = await provider.recognizeCrops([
+      { cropId: "S1A-001-written", buffer: Buffer.from("a") },
+      { cropId: "S1A-001-split-1", buffer: Buffer.from("b") }, // not in service response
+    ]);
+
+    // crop IDs that had no match still appear — text is not silently dropped
+    expect(results).toHaveLength(2);
+    expect(results[0]).toMatchObject({ cropId: "S1A-001-written", text: "82" });
+    expect(results[1]).toMatchObject({ cropId: "S1A-001-split-1", text: "", confidence: 0 });
+  });
+
+  it("preserves low-confidence text in the response without discarding it", async () => {
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url.endsWith("/health")) return jsonResponse({ status: "ok" });
+      return jsonResponse({
+        provider: "paddleocr",
+        results: [{ cropId: "S1A-002-written", text: "7", confidence: 0.31 }],
+      });
+    });
+    globalThis.fetch = fetchMock as typeof fetch;
+
+    const provider = createPaddleOcrProvider();
+    const [result] = await provider.recognizeCrops([
+      { cropId: "S1A-002-written", buffer: Buffer.from("a") },
+    ]);
+
+    // The provider must NOT filter or discard low-confidence results —
+    // that decision belongs to the acceptance logic in scanExtractionService.
+    expect(result).toMatchObject({ cropId: "S1A-002-written", text: "7", confidence: 0.31 });
+  });
+
+  it("handles a completely empty results array from the service", async () => {
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url.endsWith("/health")) return jsonResponse({ status: "ok" });
+      return jsonResponse({ provider: "paddleocr", results: [] });
+    });
+    globalThis.fetch = fetchMock as typeof fetch;
+
+    const provider = createPaddleOcrProvider();
+    const results = await provider.recognizeCrops([
+      { cropId: "S1A-003-split-1", buffer: Buffer.from("a") },
+      { cropId: "S1A-003-split-2", buffer: Buffer.from("b") },
+    ]);
+
+    // All input crops must appear in output — none silently dropped
+    expect(results).toHaveLength(2);
+    for (const result of results) {
+      expect(result.text).toBe("");
+      expect(result.confidence).toBe(0);
+    }
+  });
 });
