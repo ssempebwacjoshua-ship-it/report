@@ -136,3 +136,26 @@ export async function recognizeSplitMark(cellBuffer: Buffer): Promise<Recognized
     return { rawText: "", normalizedMark: "", confidence: 0 };
   }
 }
+
+/**
+ * OCR a full-block buffer (e.g., the marksheet header region).
+ * Uses PSM 6 (single uniform block) instead of PSM 7 (single line).
+ * Returns raw text and confidence; the caller extracts structured fields.
+ */
+export async function recognizeBlockText(buffer: Buffer): Promise<{ text: string; confidence: number }> {
+  try {
+    while (_workerBusy) await new Promise((r) => setTimeout(r, 20));
+    _workerBusy = true;
+    const worker = await acquireWorker();
+    // Switch to block mode for multi-line header text
+    await worker.setParameters({ tessedit_pageseg_mode: "6" });
+    const result = await worker.recognize(buffer);
+    // Restore single-line mode for subsequent mark cell reads
+    await worker.setParameters({ tessedit_pageseg_mode: "7" });
+    _workerBusy = false;
+    return { text: result.data.text, confidence: result.data.confidence / 100 };
+  } catch {
+    _workerBusy = false;
+    return { text: "", confidence: 0 };
+  }
+}

@@ -93,3 +93,33 @@ export type ScanUploadResponse = {
   message: string;
   rows: ScanImportRow[];
 };
+
+// ── Context detection for scanned marksheet upload ────────────────────────────
+
+/** How the context was obtained. Ordered from most to least authoritative. */
+export type ContextSource =
+  | "BATCH_LOOKUP"   // exact match from a previously committed import batch
+  | "ID_PARSED"      // marksheet ID decoded against current school data
+  | "HEADER_OCR"     // OCR found the ID string in the scanned header image
+  | "MANUAL"         // operator typed the context manually
+  | "NOT_EXTRACTED"; // could not determine context
+
+export type DetectedContext = {
+  marksheetId: string;
+  className: string;
+  streamName: string;
+  subjectName: string;
+  termName: string;
+  examType: string;
+  academicYear: string;
+  overallConfidence: number; // 0–1
+  source: ContextSource;
+  partial: boolean;          // true when one or more fields could not be resolved
+  message: string;
+};
+
+export type DetectContextResponse = {
+  detected: DetectedContext | null;
+  detectionStatus: "DETECTED" | "PARTIAL" | "NOT_FOUND" | "ERROR";
+  message: string;
+};

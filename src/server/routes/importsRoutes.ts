@@ -3,7 +3,18 @@ import multer from "multer";
 import { z } from "zod";
 import { prisma } from "../db/prisma";
 import { commitMarksImport, dryRunMarksImport } from "../services/marksImportService";
+import { recognizeBlockText } from "../services/markRecognitionService";
+import {
+  findMarksheetIdInText,
+  resolveContextByMarksheetId,
+} from "../services/marksheetContextService";
+import { cropCell } from "../services/scanPreprocessService";
 import { extractMarksFromScan } from "../services/scanExtractionService";
+import {
+  LAYOUT,
+  PAGE_MARGIN_LEFT_FRAC,
+  TABLE_WIDTH_FRAC,
+} from "../services/marksheetGeometryService";
 
 const SCAN_FILE_TYPES = new Set(["PDF", "PNG", "JPG", "JPEG", "WEBP"]);
 
@@ -53,6 +64,115 @@ export function importsRoutes() {
 
   // ── Scanned handwritten marksheet import ───────────────────────────────────
 
+  /**
+   * POST /api/imports/scans/detect-context
+   *
+   * Upload a scanned image → OCR the header region to find the Marksheet ID
+   * → resolve full context from committed batches or school data.
+   *
+   * This is a lightweight, non-committing call meant to be the first step in
+   * the scan upload flow.  It does NOT extract marks or persist anything.
+   */
+  router.post(
+    "/api/imports/scans/detect-context",
+    upload.single("file"),
+    async (req, res, next) => {
+      try {
+        const schoolCode =
+          typeof req.body.schoolCode === "string" ? req.body.schoolCode.trim() : "SCU-PREVIEW";
+
+        const school = await prisma.school.findUnique({ where: { code: schoolCode } });
+        if (!school) {
+          res.status(404).json({ error: `School "${schoolCode}" was not found.` });
+          return;
+        }
+
+        const file = req.file;
+        let foundId: string | null = null;
+
+        // If a file was provided, try to OCR the header region for the marksheet ID
+        if (file) {
+          try {
+            const { preprocessScanImage } = await import("../services/scanPreprocessService");
+            const scan = await preprocessScanImage(file.buffer, file.mimetype);
+
+            // Crop header region (top ~22% of page, full usable width)
+            const headerRect = {
+              x: Math.max(0, Math.round(PAGE_MARGIN_LEFT_FRAC * scan.width)),
+              y: Math.max(0, Math.round(LAYOUT.marginTopFrac * scan.height)),
+              w: Math.max(1, Math.round(TABLE_WIDTH_FRAC * scan.width)),
+              h: Math.max(1, Math.round((LAYOUT.headerHFrac + 0.01) * scan.height)),
+            };
+
+            const headerBuffer = await cropCell(scan.buffer, headerRect);
+            const { text } = await recognizeBlockText(headerBuffer);
+            foundId = findMarksheetIdInText(text);
+          } catch {
+            // Header OCR failed — fall through to ID lookup or manual entry
+          }
+        }
+
+        // If the request also includes an explicit marksheetId field, prefer it
+        const explicitId = typeof req.body.marksheetId === "string"
+          ? req.body.marksheetId.trim()
+          : "";
+        const lookupId = explicitId || foundId;
+
+        if (!lookupId) {
+          res.json({
+            detected: null,
+            detectionStatus: "NOT_FOUND",
+            message: file
+              ? "No marksheet ID found in the scanned header. Enter the Marksheet ID manually."
+              : "No file uploaded and no marksheet ID provided.",
+            ocrFoundId: null,
+          });
+          return;
+        }
+
+        const result = await resolveContextByMarksheetId(prisma, school.id, lookupId);
+        res.json({ ...result, ocrFoundId: foundId });
+      } catch (error) {
+        next(error);
+      }
+    },
+  );
+
+  /**
+   * GET /api/imports/scans/context?marksheetId=MS-...&schoolCode=...
+   *
+   * Resolve a marksheet ID to its full context without uploading a file.
+   * Used when the operator types or pastes a marksheet ID directly.
+   */
+  router.get("/api/imports/scans/context", async (req, res, next) => {
+    try {
+      const marksheetId = String(req.query.marksheetId ?? "").trim();
+      const schoolCode  = String(req.query.schoolCode  ?? "SCU-PREVIEW").trim();
+
+      if (!marksheetId) {
+        res.status(400).json({ error: "marksheetId query parameter is required." });
+        return;
+      }
+
+      const school = await prisma.school.findUnique({ where: { code: schoolCode } });
+      if (!school) {
+        res.status(404).json({ error: `School "${schoolCode}" was not found.` });
+        return;
+      }
+
+      const result = await resolveContextByMarksheetId(prisma, school.id, marksheetId);
+      res.json(result);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  /**
+   * POST /api/imports/scans/upload
+   *
+   * Upload a scanned image + confirmed context → extract marks → return rows.
+   * Context must already be confirmed by the operator (from detect-context or manual entry).
+   */
   router.post(
     "/api/imports/scans/upload",
     upload.single("file"),
@@ -92,9 +212,8 @@ export function importsRoutes() {
           return;
         }
 
-        const schoolCode = typeof req.body.schoolCode === "string"
-          ? req.body.schoolCode.trim()
-          : "SCU-PREVIEW";
+        const schoolCode =
+          typeof req.body.schoolCode === "string" ? req.body.schoolCode.trim() : "SCU-PREVIEW";
 
         // 4. Look up school
         const school = await prisma.school.findUnique({ where: { code: schoolCode } });

@@ -139,6 +139,71 @@ describe("POST /api/imports/scans/upload", () => {
   });
 });
 
+// ── Context detection endpoints ───────────────────────────────────────────────
+
+describe("POST /api/imports/scans/detect-context", () => {
+  it("returns 404 for unknown school", async () => {
+    const res = await request(createServer())
+      .post("/api/imports/scans/detect-context")
+      .field("schoolCode", UNKNOWN)
+      .attach("file", FAKE_PNG, { filename: "test.png", contentType: "image/png" });
+    expect(res.status).toBe(404);
+  });
+
+  it("returns 200 with detectionStatus for known school (no real ID in fake image)", async () => {
+    const res = await request(createServer())
+      .post("/api/imports/scans/detect-context")
+      .field("schoolCode", SCHOOL)
+      .attach("file", FAKE_PNG, { filename: "test.png", contentType: "image/png" });
+    expect(res.status).toBe(200);
+    expect(["DETECTED", "PARTIAL", "NOT_FOUND", "ERROR"]).toContain(res.body.detectionStatus);
+    expect(typeof res.body.message).toBe("string");
+  });
+
+  it("resolves context when explicit marksheetId field provided (no file needed)", async () => {
+    const res = await request(createServer())
+      .post("/api/imports/scans/detect-context")
+      .field("schoolCode", SCHOOL)
+      .field("marksheetId", "MS-2026-SENI-A-ENGL-BOT-TE");
+    expect(res.status).toBe(200);
+    // Result can be DETECTED (batch match), PARTIAL (ID decoded), or NOT_FOUND (invalid ID)
+    expect(["DETECTED", "PARTIAL", "NOT_FOUND"]).toContain(res.body.detectionStatus);
+  });
+});
+
+describe("GET /api/imports/scans/context", () => {
+  it("returns 400 when marksheetId is missing", async () => {
+    const res = await request(createServer()).get(
+      `/api/imports/scans/context?schoolCode=${SCHOOL}`,
+    );
+    expect(res.status).toBe(400);
+  });
+
+  it("returns 404 for unknown school", async () => {
+    const res = await request(createServer()).get(
+      `/api/imports/scans/context?marksheetId=MS-2026-S1-A-MATH-BOT-T1&schoolCode=${UNKNOWN}`,
+    );
+    expect(res.status).toBe(404);
+  });
+
+  it("returns detectionStatus for a valid-format ID with known school", async () => {
+    const res = await request(createServer()).get(
+      `/api/imports/scans/context?marksheetId=MS-2026-SENI-A-ENGL-BOT-TE&schoolCode=${SCHOOL}`,
+    );
+    expect(res.status).toBe(200);
+    expect(["DETECTED", "PARTIAL", "NOT_FOUND"]).toContain(res.body.detectionStatus);
+    expect(typeof res.body.message).toBe("string");
+  });
+
+  it("returns NOT_FOUND for a malformed ID", async () => {
+    const res = await request(createServer()).get(
+      `/api/imports/scans/context?marksheetId=NOT-A-VALID-ID&schoolCode=${SCHOOL}`,
+    );
+    expect(res.status).toBe(200);
+    expect(res.body.detectionStatus).toBe("NOT_FOUND");
+  });
+});
+
 // ── Scan batches list ─────────────────────────────────────────────────────────
 
 describe("GET /api/imports/scans/batches", () => {

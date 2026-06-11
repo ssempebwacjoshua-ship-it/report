@@ -1,4 +1,5 @@
 import type {
+  DetectContextResponse,
   ImportPreview,
   ScanImportBatch,
   ScanMarksheetContext,
@@ -39,6 +40,42 @@ export async function commitMarksImport(csvText: string, schoolCode = "SCU-PREVI
     body: JSON.stringify({ schoolCode, csvText }),
   });
   if (!response.ok) throw new Error(await readImportError(response, "Could not commit import"));
+  return response.json();
+}
+
+// ── Scanned marksheet context detection ──────────────────────────────────────
+
+/**
+ * Upload a scan image and auto-detect the marksheet context from the header.
+ * This is a non-committing call — it never persists marks.
+ */
+export async function detectScanContext(
+  file: File,
+  schoolCode: string,
+): Promise<DetectContextResponse & { ocrFoundId: string | null }> {
+  const form = new FormData();
+  form.append("file", file);
+  form.append("schoolCode", schoolCode);
+
+  const response = await fetch(`${API_BASE}/api/imports/scans/detect-context`, {
+    method: "POST",
+    body: form,
+  });
+  if (!response.ok) throw new Error(await readImportError(response, "Context detection failed"));
+  return response.json();
+}
+
+/**
+ * Look up full marksheet context from a typed/pasted Marksheet ID.
+ * Does not require uploading a file.
+ */
+export async function lookupMarksheetContext(
+  marksheetId: string,
+  schoolCode: string,
+): Promise<DetectContextResponse> {
+  const params = new URLSearchParams({ marksheetId, schoolCode });
+  const response = await fetch(`${API_BASE}/api/imports/scans/context?${params}`);
+  if (!response.ok) throw new Error(await readImportError(response, "Marksheet context lookup failed"));
   return response.json();
 }
 
