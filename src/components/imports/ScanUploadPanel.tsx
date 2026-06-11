@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import {
+  commitScanRows,
   detectScanContext,
   dryRunScanRows,
   lookupMarksheetContext,
@@ -215,6 +216,8 @@ export function ScanUploadPanel() {
   const [uploadResult,   setUploadResult]   = useState<ScanUploadResponse | null>(null);
   const [scanRows,       setScanRows]       = useState<ScanImportRow[]>([]);
   const [dryRunSummary,  setDryRunSummary]  = useState("");
+  const [canCommit,      setCanCommit]      = useState(false);
+  const [committing,     setCommitting]     = useState(false);
   const [error,          setError]          = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -228,6 +231,7 @@ export function ScanUploadPanel() {
     setUploadResult(null);
     setScanRows([]);
     setDryRunSummary("");
+    setCanCommit(false);
 
     if (!file) return;
 
@@ -313,6 +317,7 @@ export function ScanUploadPanel() {
       setUploadResult(result);
       setScanRows(result.rows);
       setDryRunSummary("");
+      setCanCommit(false);
       setPhase("marks_review");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Mark extraction failed.");
@@ -327,6 +332,7 @@ export function ScanUploadPanel() {
       ),
     );
     setDryRunSummary("");
+    setCanCommit(false);
   }
 
   function handleRemarksChange(rowNumber: number, value: string) {
@@ -335,6 +341,7 @@ export function ScanUploadPanel() {
         row.rowNumber === rowNumber ? { ...row, remarks: value } : row,
       ),
     );
+    setCanCommit(false);
   }
 
   async function handleScanDryRun() {
@@ -346,8 +353,25 @@ export function ScanUploadPanel() {
       setDryRunSummary(
         `${result.totalRows} rows checked: ${result.validRows} valid, ${result.reviewRows} need review, ${result.missingRows} missing, ${result.invalidRows} invalid.`,
       );
+      setCanCommit(result.validRows > 0 && result.reviewRows === 0 && result.invalidRows === 0);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not validate scanned marks.");
+    }
+  }
+
+  async function handleScanCommit() {
+    if (!canCommit || scanRows.length === 0) return;
+    setCommitting(true);
+    setError("");
+    try {
+      const result = await commitScanRows(contextForm, scanRows, "SCU-PREVIEW");
+      setScanRows(result.rows);
+      setDryRunSummary(result.message);
+      setCanCommit(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not commit scanned marks.");
+    } finally {
+      setCommitting(false);
     }
   }
 
@@ -361,6 +385,8 @@ export function ScanUploadPanel() {
     setUploadResult(null);
     setScanRows([]);
     setDryRunSummary("");
+    setCanCommit(false);
+    setCommitting(false);
     setError("");
     setPhase("idle");
     if (fileInputRef.current) fileInputRef.current.value = "";
@@ -629,11 +655,12 @@ export function ScanUploadPanel() {
                 </button>
                 <button
                   type="button"
-                  disabled
+                  disabled={!canCommit || committing}
+                  onClick={handleScanCommit}
                   className="btn btn-success"
-                  title="Commit locked until dry-run passes"
+                  title="Commit is enabled after dry-run finds valid rows with no invalid/review rows"
                 >
-                  Commit valid rows
+                  {committing ? "Committing..." : "Commit valid rows"}
                 </button>
               </div>
             </div>

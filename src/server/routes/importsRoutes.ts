@@ -3,6 +3,7 @@ import multer from "multer";
 import { z } from "zod";
 import { prisma } from "../db/prisma";
 import { commitMarksImport, dryRunMarksImport } from "../services/marksImportService";
+import { finalizedStatus, toAssessmentType } from "../services/marksImportValidator";
 import { recognizeBlockText } from "../services/markRecognitionService";
 import {
   findMarksheetIdInText,
@@ -10,7 +11,7 @@ import {
 } from "../services/marksheetContextService";
 import { cropCell } from "../services/scanPreprocessService";
 import { extractMarksFromScan } from "../services/scanExtractionService";
-import { validateScanRows } from "../services/scanImportValidator";
+import { parseScanMark, validateScanRows } from "../services/scanImportValidator";
 import {
   LAYOUT,
   PAGE_MARGIN_LEFT_FRAC,
@@ -317,6 +318,144 @@ export function importsRoutes() {
         reviewRows: rows.filter((row) => row.status === "NEEDS_REVIEW").length,
         invalidRows: rows.filter((row) => row.status === "INVALID").length,
         rows,
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/api/imports/scans/commit", async (req, res, next) => {
+    try {
+      const payload = z.object({
+        schoolCode: z.string().default("SCU-PREVIEW"),
+        context: scanContextSchema,
+        rows: z.array(z.any()),
+      }).parse(req.body);
+
+      const school = await prisma.school.findUnique({
+        where: { code: payload.schoolCode },
+        include: {
+          academicYears: { where: { isActive: true }, include: { terms: { where: { isActive: true } } } },
+          classes: { include: { streams: true } },
+          students: true,
+          subjects: true,
+        },
+      });
+      if (!school) {
+        res.status(404).json({ error: `School "${payload.schoolCode}" was not found.` });
+        return;
+      }
+
+      const roster = await prisma.classEnrollment.findMany({
+        where: {
+          isActive: true,
+          status: "ACTIVE",
+          student: { schoolId: school.id },
+          class: { schoolId: school.id, name: { contains: payload.context.className.trim(), mode: "insensitive" } },
+          stream: { name: { contains: payload.context.streamName.trim(), mode: "insensitive" } },
+        },
+        include: { student: true, class: true, stream: true },
+        orderBy: { student: { admissionNumber: "asc" } },
+      });
+
+      const rows = validateScanRows(payload.rows, payload.context, roster.map((item) => ({
+        admissionNumber: item.student.admissionNumber,
+      })));
+      const activeYear = school.academicYears[0];
+      const activeTerm = activeYear?.terms[0];
+      const klass = school.classes.find((item) => item.name.toLowerCase() === payload.context.className.toLowerCase());
+      const stream = klass?.streams.find((item) => item.name.toLowerCase() === payload.context.streamName.toLowerCase());
+      const subject = school.subjects.find((item) =>
+        item.name.toLowerCase() === payload.context.subjectName.toLowerCase() ||
+        item.code.toLowerCase() === payload.context.subjectName.toLowerCase()
+      );
+
+      if (!activeYear || !activeTerm || !klass || !stream || !subject) {
+        res.status(400).json({ error: "Could not resolve active year, active term, class, stream, or subject for this scan." });
+        return;
+      }
+
+      const validRows = rows.filter((row) => row.status === "VALID");
+      const numericRows = validRows.filter((row) => {
+        const mark = parseScanMark(row.operatorCorrection || row.extractedMark || row.suggestedMark || "");
+        return mark !== "" && mark !== "AB" && mark !== "EX" && mark !== "INVALID";
+      });
+
+      if (numericRows.length === 0) {
+        res.status(400).json({ error: "No numeric valid rows are ready to commit. Enter marks and run dry-run validation first." });
+        return;
+      }
+
+      const batch = await prisma.markImportBatch.create({
+        data: {
+          schoolId: school.id,
+          status: "COMMITTED",
+          source: "scan",
+          summary: JSON.stringify({
+            scanMode: true,
+            context: payload.context,
+            committedRows: numericRows.length,
+            skippedRows: rows.length - numericRows.length,
+          }),
+          rows: {
+            create: rows.map((row) => ({
+              rowNumber: row.rowNumber,
+              raw: row,
+              isValid: row.status === "VALID",
+              errors: row.validationErrors,
+            })),
+          },
+        },
+      });
+
+      for (const row of numericRows) {
+        const enrollment = roster.find((item) => item.student.admissionNumber === row.admissionNumber);
+        if (!enrollment) continue;
+        const mark = Number(parseScanMark(row.operatorCorrection || row.extractedMark || row.suggestedMark || ""));
+
+        await prisma.subjectMark.upsert({
+          where: {
+            studentId_subjectId_termId_assessmentType: {
+              studentId: enrollment.student.id,
+              subjectId: subject.id,
+              termId: activeTerm.id,
+              assessmentType: toAssessmentType(payload.context.examType),
+            },
+          },
+          update: {
+            marks: mark,
+            comments: row.remarks || null,
+            status: finalizedStatus(),
+            importBatchId: batch.id,
+          },
+          create: {
+            schoolId: school.id,
+            studentId: enrollment.student.id,
+            academicYearId: activeYear.id,
+            termId: activeTerm.id,
+            classId: klass.id,
+            streamId: stream.id,
+            subjectId: subject.id,
+            assessmentType: toAssessmentType(payload.context.examType),
+            marks: mark,
+            comments: row.remarks || null,
+            status: finalizedStatus(),
+            importBatchId: batch.id,
+          },
+        });
+      }
+
+      res.json({
+        status: "COMMITTED",
+        totalRows: rows.length,
+        validRows: validRows.length,
+        missingRows: rows.filter((row) => row.status === "MISSING").length,
+        reviewRows: rows.filter((row) => row.status === "NEEDS_REVIEW").length,
+        invalidRows: rows.filter((row) => row.status === "INVALID").length,
+        committedRows: numericRows.length,
+        skippedRows: rows.length - numericRows.length,
+        rows,
+        message: `Committed ${numericRows.length} scanned mark rows. Skipped ${rows.length - numericRows.length} rows that were missing, non-numeric, or needed review.`,
       });
     } catch (error) {
       next(error);

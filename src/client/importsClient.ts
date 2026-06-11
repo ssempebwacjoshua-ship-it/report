@@ -3,6 +3,7 @@ import type {
   ImportPreview,
   ScanImportBatch,
   ScanMarksheetContext,
+  ScanRowsCommitResponse,
   ScanRowsValidationResponse,
   ScanUploadPayload,
   ScanUploadResponse,
@@ -137,5 +138,19 @@ export async function dryRunScanRows(
     body: JSON.stringify({ schoolCode, context, rows }),
   });
   if (!response.ok) throw new Error(await readImportError(response, "Could not validate scanned marks"));
+  return response.json();
+}
+
+export async function commitScanRows(
+  context: ScanMarksheetContext,
+  rows: ScanImportRow[],
+  schoolCode = "SCU-PREVIEW",
+): Promise<ScanRowsCommitResponse> {
+  const response = await fetch(`${API_BASE}/api/imports/scans/commit`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ schoolCode, context, rows }),
+  });
+  if (!response.ok) throw new Error(await readImportError(response, "Could not commit scanned marks"));
   return response.json();
 }

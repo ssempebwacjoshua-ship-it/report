@@ -125,6 +125,13 @@ export type ScanRowsValidationResponse = {
   rows: ScanImportRow[];
 };
 
+export type ScanRowsCommitResponse = Omit<ScanRowsValidationResponse, "status"> & {
+  status: "COMMITTED" | "FAILED";
+  committedRows: number;
+  skippedRows: number;
+  message: string;
+};
+
 // ── Context detection for scanned marksheet upload ────────────────────────────
 
 /** How the context was obtained. Ordered from most to least authoritative. */
