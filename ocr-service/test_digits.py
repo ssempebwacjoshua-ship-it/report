@@ -87,8 +87,8 @@ def run_tests(base_url: str) -> int:
         print(
             textwrap.dedent("""
             Interpretation:
-            - Failures on generated digits → PaddleOCR model or setup is broken.
-            - Pass on generated digits but fails on scan crops → crop geometry or preprocessing is wrong.
+            - Failures on generated digits: PaddleOCR model or setup is broken.
+            - Pass on generated digits but fails on scan crops: crop geometry or preprocessing is wrong.
             """).strip()
         )
     return failures
