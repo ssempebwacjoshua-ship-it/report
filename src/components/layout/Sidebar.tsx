@@ -1,9 +1,12 @@
 import { Link, useLocation } from "react-router-dom";
 import { Icon } from "./Icon";
+import type { CSSProperties, MouseEvent as ReactMouseEvent } from "react";
 
 type Props = {
   open: boolean;
   onClose: () => void;
+  width: number;
+  onResizeStart: (event: ReactMouseEvent) => void;
 };
 
 const navItems = [
@@ -14,7 +17,7 @@ const navItems = [
   { to: "/dashboard#settings", label: "Settings", icon: "settings" as const },
 ];
 
-export function Sidebar({ open, onClose }: Props) {
+export function Sidebar({ open, onClose, width, onResizeStart }: Props) {
   const location = useLocation();
 
   function isNavActive(to: string) {
@@ -40,7 +43,8 @@ export function Sidebar({ open, onClose }: Props) {
         onClick={onClose}
       />
       <aside
-        className={`app-shell-sidebar fixed inset-y-0 left-0 z-40 flex w-72 transform flex-col bg-gradient-to-b from-blue-950 via-blue-900 to-sky-900 p-5 text-white shadow-2xl transition lg:sticky lg:top-0 lg:h-screen lg:translate-x-0 ${
+        style={{ "--sidebar-width": `${width}px` } as CSSProperties}
+        className={`app-shell-sidebar fixed inset-y-0 left-0 z-40 flex w-72 transform flex-col bg-gradient-to-b from-blue-950 via-blue-900 to-sky-900 p-5 text-white shadow-2xl transition lg:sticky lg:top-0 lg:h-screen lg:w-[var(--sidebar-width)] lg:translate-x-0 ${
           open ? "translate-x-0" : "-translate-x-full"
         }`}
       >
@@ -93,6 +97,17 @@ export function Sidebar({ open, onClose }: Props) {
             <Icon name="chevron" className="h-3.5 w-3.5" />
           </div>
         </div>
+
+        <button
+          type="button"
+          aria-label="Resize navigation"
+          className="no-print absolute inset-y-0 -right-2 hidden w-4 cursor-col-resize items-center justify-center text-blue-200/70 transition hover:text-white lg:flex"
+          onMouseDown={onResizeStart}
+        >
+          <span className="rounded-full bg-white/10 px-0.5 py-3 text-sm leading-none shadow-inner ring-1 ring-white/10">
+            ⋮
+          </span>
+        </button>
       </aside>
     </>
   );

@@ -25,11 +25,19 @@ const card: Card = {
 };
 
 describe("StudentReportCard", () => {
-  it("renders student card summary", () => {
-    render(<StudentReportCard card={card} selected={false} onOpen={vi.fn()} />);
+  it("renders compact student row without contact details", () => {
+    render(<StudentReportCard card={card} selected={false} showPositions={false} onOpen={vi.fn()} />);
     expect(screen.getByText("Kampala Ssempebwa")).toBeInTheDocument();
     expect(screen.getByText("S1A-001")).toBeInTheDocument();
-    expect(screen.getByText("READY")).toBeInTheDocument();
-    expect(screen.getByText("Parent contact ready")).toBeInTheDocument();
+    expect(screen.getByText("D1")).toBeInTheDocument();
+    expect(screen.getByText("Avg 81")).toBeInTheDocument();
+    expect(screen.queryByText("Parent contact ready")).not.toBeInTheDocument();
+    expect(screen.queryByText("Agnes Namusoke (Mother) - +256700100001")).not.toBeInTheDocument();
+    expect(screen.queryByText("#1 Kampala Ssempebwa")).not.toBeInTheDocument();
+  });
+
+  it("shows position in the row only when enabled", () => {
+    render(<StudentReportCard card={card} selected={false} showPositions onOpen={vi.fn()} />);
+    expect(screen.getByText("#1 Kampala Ssempebwa")).toBeInTheDocument();
   });
 });

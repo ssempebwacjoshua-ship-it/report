@@ -5,6 +5,8 @@ import type { AssessmentFilter, StudentReportCard } from "../../shared/types/rep
 type Props = {
   card: StudentReportCard | null;
   assessmentType?: AssessmentFilter;
+  showPositions?: boolean;
+  onShowPositionsChange?: (showPositions: boolean) => void;
 };
 
 type ReportDraft = {
@@ -76,6 +78,18 @@ const ASSESSMENT_LABELS: Record<AssessmentFilter, string> = {
   TERM_SUMMARY: "Term Summary",
 };
 
+const CONTACT_LABELS = {
+  READY: "Parent contact ready",
+  NO_RECIPIENT: "No report recipient",
+  MISSING_PHONE_EMAIL: "Missing phone/email",
+};
+
+const CONTACT_CLASSES = {
+  READY: "bg-emerald-100 text-emerald-700 ring-emerald-200",
+  NO_RECIPIENT: "bg-red-100 text-red-700 ring-red-200",
+  MISSING_PHONE_EMAIL: "bg-amber-100 text-amber-700 ring-amber-200",
+};
+
 function buildDefaultDraft(card: StudentReportCard): ReportDraft {
   return {
     classTeacherComment: card.comments || "",
@@ -102,7 +116,7 @@ function EmptyComment() {
   return <span className="text-slate-400">-</span>;
 }
 
-export function StudentReportDetail({ card, assessmentType }: Props) {
+export function StudentReportDetail({ card, assessmentType, showPositions, onShowPositionsChange }: Props) {
   if (!card) {
     return (
       <section className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-600 shadow-sm">
@@ -111,10 +125,27 @@ export function StudentReportDetail({ card, assessmentType }: Props) {
     );
   }
 
-  return <StudentReportDetailContent card={card} assessmentType={assessmentType} />;
+  return (
+    <StudentReportDetailContent
+      card={card}
+      assessmentType={assessmentType}
+      showPositions={showPositions}
+      onShowPositionsChange={onShowPositionsChange}
+    />
+  );
 }
 
-function StudentReportDetailContent({ card, assessmentType }: { card: StudentReportCard; assessmentType?: AssessmentFilter }) {
+function StudentReportDetailContent({
+  card,
+  assessmentType,
+  showPositions,
+  onShowPositionsChange,
+}: {
+  card: StudentReportCard;
+  assessmentType?: AssessmentFilter;
+  showPositions?: boolean;
+  onShowPositionsChange?: (showPositions: boolean) => void;
+}) {
   const defaultDraft = useMemo(() => buildDefaultDraft(card), [card]);
   const [draft, setDraft] = useState<ReportDraft>(defaultDraft);
   const [isEditing, setIsEditing] = useState(false);
@@ -130,11 +161,17 @@ function StudentReportDetailContent({ card, assessmentType }: { card: StudentRep
   const isSingle = effectiveType === "BOT" || effectiveType === "MOT" || effectiveType === "EOT";
   const isTermSummary = !isSingle;
   const issueDate = formatDisplayDate(draft.issueDate);
+  const visibleShowPositions = showPositions ?? draft.showPositions;
 
   const updateDraft = <K extends keyof ReportDraft>(key: K, value: ReportDraft[K]) => {
     setDraft((current) => ({ ...current, [key]: value }));
     setDraftState("idle");
   };
+
+  function updateShowPositions(nextValue: boolean) {
+    updateDraft("showPositions", nextValue);
+    onShowPositionsChange?.(nextValue);
+  }
 
   return (
     <section className="report-print-area min-w-0">
@@ -230,11 +267,11 @@ function StudentReportDetailContent({ card, assessmentType }: { card: StudentRep
               <label className="flex items-center gap-2">
                 <input
                   type="checkbox"
-                  checked={draft.showPositions}
-                  onChange={(event) => updateDraft("showPositions", event.target.checked)}
+                  checked={visibleShowPositions}
+                  onChange={(event) => updateShowPositions(event.target.checked)}
                   className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
                 />
-                Show overall position summary
+                Show positions
               </label>
             </div>
           </div>
@@ -268,6 +305,61 @@ function StudentReportDetailContent({ card, assessmentType }: { card: StudentRep
           </div>
         </div>
       ) : null}
+
+      <div className="no-print mb-4 rounded-2xl border border-blue-100 bg-white p-4 shadow-sm">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="text-xs font-black uppercase tracking-wide text-blue-600">Selected child details</p>
+            <h2 className="mt-1 text-xl font-black text-slate-950">{card.studentName}</h2>
+            <p className="mt-1 text-sm font-semibold text-slate-500">
+              {card.admissionNumber} • {card.className} / {card.streamName}
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-black text-emerald-700 ring-1 ring-emerald-200">
+              Active enrollment
+            </span>
+            <span
+              className={`rounded-full px-3 py-1 text-xs font-black ring-1 ${
+                card.readiness === "READY"
+                  ? "bg-blue-100 text-blue-700 ring-blue-200"
+                  : "bg-amber-100 text-amber-700 ring-amber-200"
+              }`}
+            >
+              {card.readiness.replaceAll("_", " ")}
+            </span>
+          </div>
+        </div>
+
+        <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          {[
+            ["Academic Year", card.academicYear],
+            ["Term", card.term],
+            ["Assessment", ASSESSMENT_LABELS[effectiveType]],
+            ["Average / Grade", `${card.average ?? "-"} / ${card.grade ?? "-"}`],
+          ].map(([label, value]) => (
+            <div key={label} className="rounded-xl border border-slate-100 bg-slate-50 p-3">
+              <p className="text-xs font-bold uppercase tracking-wide text-slate-500">{label}</p>
+              <p className="mt-1 text-sm font-black text-slate-950">{value}</p>
+            </div>
+          ))}
+          {visibleShowPositions ? (
+            <div className="rounded-xl border border-emerald-100 bg-emerald-50 p-3">
+              <p className="text-xs font-bold uppercase tracking-wide text-emerald-700">Overall Position</p>
+              <p className="mt-1 text-sm font-black text-emerald-900">
+                {card.overallPosition != null ? `#${card.overallPosition}` : "-"}
+              </p>
+            </div>
+          ) : null}
+          <div className="rounded-xl border border-slate-100 bg-slate-50 p-3 md:col-span-2 xl:col-span-3">
+            <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Parent / Guardian Contacts</p>
+            <p className="mt-1 text-sm font-semibold text-slate-700">{card.contactSummary}</p>
+            <span className={`mt-2 inline-flex rounded-full px-2.5 py-1 text-xs font-black ring-1 ${CONTACT_CLASSES[card.contactReadiness]}`}>
+              {CONTACT_LABELS[card.contactReadiness]}
+            </span>
+          </div>
+        </div>
+      </div>
 
       <div className="report-card-sheet mx-auto max-w-4xl overflow-hidden rounded-2xl bg-white shadow-[0_4px_24px_rgba(0,0,0,0.12)] ring-1 ring-slate-200">
         <div className="report-header-bg bg-[#0f2a5e] px-8 py-6 text-white print:px-5 print:py-2">
@@ -326,7 +418,7 @@ function StudentReportDetailContent({ card, assessmentType }: { card: StudentRep
 
           <div
             className={`report-summary-cards mb-6 grid gap-3 text-center print:mb-2 print:gap-1.5 ${
-              draft.showPositions ? "grid-cols-3" : "grid-cols-2"
+              visibleShowPositions ? "grid-cols-3" : "grid-cols-2"
             }`}
           >
             <div className="report-summary-card rounded-xl bg-blue-600 p-4 text-white print:p-2">
@@ -343,7 +435,7 @@ function StudentReportDetailContent({ card, assessmentType }: { card: StudentRep
                 Grade
               </span>
             </div>
-            {draft.showPositions ? (
+            {visibleShowPositions ? (
               <div className="report-summary-card rounded-xl bg-emerald-600 p-4 text-white print:p-2">
                 <b className="block text-3xl font-bold tabular-nums print:text-lg">
                   {card.overallPosition != null ? `#${card.overallPosition}` : "-"}

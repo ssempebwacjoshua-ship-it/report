@@ -19,7 +19,7 @@ const DEFAULT_FILTERS: Filters = {
 };
 
 const PANE_KEY = "reports-left-pane-width";
-const MIN_LEFT = 300;
+const MIN_LEFT = 280;
 const MIN_RIGHT = 480;
 
 function useDesktopMatch() {
@@ -40,6 +40,7 @@ export function ReportsPage() {
   const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS);
   const [report, setReport] = useState<ReportsResponse | null>(null);
   const [selectedStudentId, setSelectedStudentId] = useState("");
+  const [showPositions, setShowPositions] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -170,27 +171,28 @@ export function ReportsPage() {
         ref={containerRef}
         className="flex min-w-0 flex-col gap-4 xl:flex-row xl:items-start xl:gap-0"
       >
-        {/* Left pane: student cards */}
+        {/* Left pane: compact student list */}
         <div
           className="student-card-list min-w-0 shrink-0"
           style={isDesktop ? { width: leftWidth } : undefined}
         >
           <div className="grid min-w-0 content-start gap-3">
             <div className="flex items-center justify-between">
-              <h2 className="text-base font-bold text-slate-950">Student cards</h2>
+              <h2 className="text-base font-bold text-slate-950">Students</h2>
               <span className="rounded-full border border-blue-100 bg-blue-50 px-3 py-1 text-sm font-bold text-blue-700 shadow-sm">
-                {report?.cards.length ?? 0} cards
+                {report?.cards.length ?? 0} students
               </span>
             </div>
             {report && report.cards.length === 0 ? (
               <EmptyReportState reason={report.emptyReason} />
             ) : null}
-            <div className="grid min-w-0 gap-3 md:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
+            <div className="grid min-w-0 gap-2">
               {report?.cards.map((card) => (
                 <StudentReportCard
                   key={card.studentId}
                   card={card}
                   selected={card.studentId === selectedStudentId}
+                  showPositions={showPositions}
                   onOpen={() => setSelectedStudentId(card.studentId)}
                 />
               ))}
@@ -205,12 +207,19 @@ export function ReportsPage() {
           className="no-print hidden w-2.5 shrink-0 cursor-col-resize select-none items-center justify-center self-stretch xl:flex"
           onMouseDown={onHandleMouseDown}
         >
-          <div className="h-16 w-1 rounded-full bg-slate-200 shadow-inner transition-colors hover:bg-blue-300" />
+          <div className="rounded-full bg-slate-200 px-0.5 py-3 text-sm leading-none text-slate-400 shadow-inner transition-colors hover:bg-blue-100 hover:text-blue-500">
+            ⋮
+          </div>
         </div>
 
         {/* Right pane: report preview */}
         <div className="min-w-0 flex-1">
-          <StudentReportDetail card={selectedCard} assessmentType={report?.filters.assessmentType} />
+          <StudentReportDetail
+            card={selectedCard}
+            assessmentType={report?.filters.assessmentType}
+            showPositions={showPositions}
+            onShowPositionsChange={setShowPositions}
+          />
         </div>
       </section>
     </main>

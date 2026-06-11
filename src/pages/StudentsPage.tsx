@@ -140,7 +140,7 @@ export function StudentsPage() {
         </div>
       </section>
 
-      <section className="grid gap-4 xl:grid-cols-[minmax(320px,0.9fr)_minmax(0,1.2fr)]">
+      <section className="grid gap-4 xl:grid-cols-[minmax(300px,0.78fr)_minmax(0,1.35fr)]">
         <div className="grid content-start gap-3">
           <div className="flex items-center justify-between">
             <h2 className="text-base font-bold text-slate-950">Enrolled students</h2>
@@ -149,30 +149,26 @@ export function StudentsPage() {
           {students.length === 0 ? (
             <div className="premium-card rounded-2xl p-5 text-sm text-slate-600">No enrolled students found for this class and stream.</div>
           ) : null}
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-1">
+          <div className="grid gap-2">
             {students.map((student) => (
               <button
                 key={student.id}
                 type="button"
                 onClick={() => setSelectedId(student.id)}
-                className={`rounded-2xl border p-4 text-left transition-all duration-200 ${
+                className={`rounded-2xl border px-3 py-3 text-left transition-all duration-200 ${
                   selectedId === student.id
-                    ? "border-blue-300 bg-gradient-to-br from-white via-blue-50 to-emerald-50 shadow-[0_16px_34px_rgba(37,99,235,0.16)] ring-2 ring-blue-100 -translate-y-0.5"
-                    : "premium-card premium-card-hover"
+                    ? "border-blue-300 bg-gradient-to-br from-white via-blue-50 to-emerald-50 shadow-[0_14px_30px_rgba(37,99,235,0.16)] ring-2 ring-blue-100"
+                    : "border-slate-200 bg-white shadow-sm hover:-translate-y-0.5 hover:border-blue-200 hover:bg-blue-50/50 hover:shadow-md"
                 }`}
               >
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="font-bold text-slate-950">{student.studentName}</p>
+                <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-3">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-black text-slate-950">{student.studentName}</p>
                     <p className="mt-0.5 text-xs font-semibold text-slate-500">{student.admissionNumber}</p>
+                    <p className="mt-1 text-xs font-semibold text-slate-600">{student.className} / {student.streamName}</p>
                   </div>
                   <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-bold text-emerald-700">{student.enrollmentStatus}</span>
                 </div>
-                <p className="mt-3 text-sm text-slate-600">{student.className} / {student.streamName}</p>
-                <p className="mt-2 text-xs text-slate-500">{student.contactSummary}</p>
-                <span className={`mt-3 inline-flex rounded-full px-2.5 py-1 text-xs font-bold ${readinessClass(student.contactReadiness)}`}>
-                  {contactLabels[student.contactReadiness]}
-                </span>
               </button>
             ))}
           </div>
@@ -191,6 +187,32 @@ export function StudentsPage() {
                   <Icon name="file" className="h-4 w-4" />
                   View report
                 </Link>
+              </div>
+
+              <div className="grid gap-3 md:grid-cols-4">
+                {[
+                  ["Enrollment", selected.enrollmentStatus],
+                  ["Class", selected.className],
+                  ["Stream", selected.streamName],
+                  ["Reports", contactLabels[selected.contactReadiness]],
+                ].map(([label, value]) => (
+                  <div key={label} className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+                    <p className="text-xs font-bold uppercase tracking-wide text-slate-500">{label}</p>
+                    <p className="mt-1 text-sm font-black text-slate-950">{value}</p>
+                  </div>
+                ))}
+              </div>
+
+              <div className="rounded-2xl border border-blue-100 bg-blue-50 p-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-950">Report readiness</h3>
+                    <p className="mt-1 text-sm text-slate-600">{selected.contactSummary}</p>
+                  </div>
+                  <span className={`inline-flex rounded-full px-3 py-1 text-xs font-black ${readinessClass(selected.contactReadiness)}`}>
+                    {contactLabels[selected.contactReadiness]}
+                  </span>
+                </div>
               </div>
 
               <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
