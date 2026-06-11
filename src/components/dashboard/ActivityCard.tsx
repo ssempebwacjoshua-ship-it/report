@@ -16,16 +16,23 @@ const toneClass = {
 
 export function ActivityCard() {
   return (
-    <section className="premium-card rounded-2xl p-4">
-      <h2 className="text-sm font-bold text-slate-950">Recent Activity</h2>
-      <div className="mt-3 grid gap-2.5">
+    <section className="premium-card rounded-2xl p-5">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h2 className="text-base font-black text-slate-950">Recent Activity</h2>
+          <p className="mt-1 text-sm text-slate-500">Latest report workflow movements.</p>
+        </div>
+      </div>
+      <div className="mt-4 grid gap-3">
         {activities.map(([label, time, tone]) => (
-          <div key={label} className="flex items-center gap-3 text-sm">
+          <div key={label} className="flex items-center gap-3 rounded-2xl border border-slate-100 bg-white/80 p-3 text-sm shadow-sm">
             <span className={`grid h-7 w-7 shrink-0 place-items-center rounded-full ${toneClass[tone]}`}>
               <Icon name="activity" className="h-3.5 w-3.5" />
             </span>
-            <span className="min-w-0 flex-1 text-slate-700">{label}</span>
-            <span className="hidden shrink-0 text-xs text-slate-400 sm:inline">{time}</span>
+            <div className="min-w-0 flex-1">
+              <p className="truncate font-semibold text-slate-700">{label}</p>
+              <p className="mt-0.5 text-xs text-slate-400">{time}</p>
+            </div>
           </div>
         ))}
       </div>

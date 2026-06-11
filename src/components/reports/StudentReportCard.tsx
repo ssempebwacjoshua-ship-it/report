@@ -29,14 +29,9 @@ export function StudentReportCard({ card, selected, onOpen }: Props) {
           : "premium-card premium-card-hover"
       }`}
     >
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="text-sm font-bold text-slate-950">{card.studentName}</p>
-          <p className="mt-0.5 text-xs font-semibold text-slate-500">{card.admissionNumber}</p>
-        </div>
-        <span className="rounded-full bg-blue-100 px-2.5 py-1 text-xs font-bold text-blue-700 shrink-0">
-          {card.overallPosition ? `#${card.overallPosition}` : "—"}
-        </span>
+      <div>
+        <p className="text-sm font-bold text-slate-950">{card.studentName}</p>
+        <p className="mt-0.5 text-xs font-semibold text-slate-500">{card.admissionNumber}</p>
       </div>
       <div className="grid grid-cols-3 gap-2 text-center text-xs">
         <span className="rounded-xl bg-slate-50 p-2">
@@ -44,11 +39,11 @@ export function StudentReportCard({ card, selected, onOpen }: Props) {
           Marks
         </span>
         <span className="rounded-xl bg-slate-50 p-2">
-          <b className="block text-base text-slate-950">{card.average ?? "—"}</b>
+          <b className="block text-base text-slate-950">{card.average ?? "-"}</b>
           Avg
         </span>
         <span className="rounded-xl bg-slate-50 p-2">
-          <b className="block text-base text-slate-950">{card.grade ?? "—"}</b>
+          <b className="block text-base text-slate-950">{card.grade ?? "-"}</b>
           Grade
         </span>
       </div>

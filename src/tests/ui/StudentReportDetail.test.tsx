@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { StudentReportDetail } from "../../components/reports/StudentReportDetail";
 import type { StudentReportCard } from "../../shared/types/reports";
@@ -39,11 +39,25 @@ const card: StudentReportCard = {
 };
 
 describe("StudentReportDetail", () => {
-  it("renders subject rows", () => {
+  it("renders official subject rows without contact or subject-position columns", () => {
     render(<StudentReportDetail card={card} />);
+
     expect(screen.getByText("Esther Nakayiza")).toBeInTheDocument();
     expect(screen.getByText("English Language")).toBeInTheDocument();
-    expect(screen.getByText("Parent contact ready")).toBeInTheDocument();
     expect(screen.getAllByText("D2").length).toBeGreaterThan(0);
+    expect(screen.queryByText("Pos.")).not.toBeInTheDocument();
+    expect(screen.queryByText("Parent contact ready")).not.toBeInTheDocument();
+    expect(screen.queryByText("Recipient:")).not.toBeInTheDocument();
+    expect(screen.queryByText("Overall Position")).not.toBeInTheDocument();
+  });
+
+  it("shows only the overall position summary when enabled", () => {
+    render(<StudentReportDetail card={card} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "HM Edit" }));
+    fireEvent.click(screen.getByLabelText("Show overall position summary"));
+
+    expect(screen.getByText("Overall Position")).toBeInTheDocument();
+    expect(screen.queryByText("Pos.")).not.toBeInTheDocument();
   });
 });
