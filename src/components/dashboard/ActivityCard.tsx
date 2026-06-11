@@ -16,20 +16,20 @@ const toneClass = {
 
 export function ActivityCard() {
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-      <h2 className="text-lg font-bold text-slate-950">Recent Activity</h2>
-      <div className="mt-5 grid gap-4">
+    <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+      <h2 className="text-sm font-bold text-slate-950">Recent Activity</h2>
+      <div className="mt-3 grid gap-2.5">
         {activities.map(([label, time, tone]) => (
           <div key={label} className="flex items-center gap-3 text-sm">
-            <span className={`grid h-8 w-8 shrink-0 place-items-center rounded-full ${toneClass[tone]}`}>
-              <Icon name="activity" className="h-4 w-4" />
+            <span className={`grid h-7 w-7 shrink-0 place-items-center rounded-full ${toneClass[tone]}`}>
+              <Icon name="activity" className="h-3.5 w-3.5" />
             </span>
-            <span className="min-w-0 flex-1 font-medium text-slate-700">{label}</span>
-            <span className="hidden text-xs text-slate-500 sm:inline">{time}</span>
+            <span className="min-w-0 flex-1 text-slate-700">{label}</span>
+            <span className="hidden shrink-0 text-xs text-slate-400 sm:inline">{time}</span>
           </div>
         ))}
       </div>
-      <a href="/reports" className="mt-5 inline-flex items-center gap-2 text-sm font-semibold text-blue-600">
+      <a href="/reports" className="mt-4 inline-flex items-center gap-1.5 text-xs font-semibold text-blue-600">
         View all activity
         <span aria-hidden="true">&rarr;</span>
       </a>

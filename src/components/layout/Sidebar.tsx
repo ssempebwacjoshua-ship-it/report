@@ -1,4 +1,4 @@
-import { NavLink } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { Icon } from "./Icon";
 
 type Props = {
@@ -15,6 +15,22 @@ const navItems = [
 ];
 
 export function Sidebar({ open, onClose }: Props) {
+  const location = useLocation();
+
+  function isNavActive(to: string) {
+    // Dashboard root: only active when pathname is /dashboard and there is no hash
+    if (to === "/dashboard") {
+      return location.pathname === "/dashboard" && location.hash === "";
+    }
+    // Hash-based anchors (students, settings): match both pathname and hash
+    if (to.includes("#")) {
+      const [path, hash] = to.split("#");
+      return location.pathname === path && location.hash === `#${hash}`;
+    }
+    // Regular routes: exact prefix match (handles /reports, /imports/marks, etc.)
+    return location.pathname === to || location.pathname.startsWith(to + "/");
+  }
+
   return (
     <>
       <button
@@ -29,48 +45,52 @@ export function Sidebar({ open, onClose }: Props) {
         }`}
       >
         <div className="flex items-center gap-3">
-          <div className="grid h-12 w-12 place-items-center rounded-2xl bg-white/15 ring-1 ring-white/25">
-            <Icon name="shield" className="h-7 w-7" />
+          <div className="grid h-11 w-11 place-items-center rounded-2xl bg-white/15 ring-1 ring-white/25">
+            <Icon name="shield" className="h-6 w-6" />
           </div>
           <div>
-            <p className="text-xl font-bold leading-tight">School Connect</p>
-            <p className="text-sm text-blue-100">Reports First</p>
+            <p className="text-lg font-bold leading-tight">School Connect</p>
+            <p className="text-xs text-blue-200">Reports First</p>
           </div>
         </div>
 
         <nav className="mt-6 grid gap-0.5">
-          {navItems.map((item) => (
-            <NavLink
-              key={item.label}
-              to={item.to}
-              onClick={onClose}
-              className={({ isActive }) =>
-                `flex items-center gap-3 rounded-xl px-4 py-2 text-sm font-semibold transition ${
-                  isActive
-                    ? "bg-blue-500 text-white shadow-lg shadow-blue-950/30"
-                    : "text-blue-50 hover:bg-white/10 hover:text-white"
-                }`
-              }
-            >
-              <Icon name={item.icon} className="h-5 w-5" />
-              {item.label}
-            </NavLink>
-          ))}
+          {navItems.map((item) => {
+            const active = isNavActive(item.to);
+            return (
+              <Link
+                key={item.label}
+                to={item.to}
+                onClick={onClose}
+                className={`flex items-center gap-3 rounded-xl px-4 py-2 text-sm font-semibold transition ${
+                  active
+                    ? "bg-blue-500/90 text-white"
+                    : "text-blue-100 hover:bg-white/10 hover:text-white"
+                }`}
+              >
+                <Icon
+                  name={item.icon}
+                  className={`h-4 w-4 shrink-0 ${active ? "text-white" : "text-blue-300"}`}
+                />
+                {item.label}
+              </Link>
+            );
+          })}
         </nav>
 
         <div className="mt-auto rounded-2xl bg-blue-950/70 p-4 shadow-inner ring-1 ring-white/10">
           <div className="flex items-center gap-3">
-            <div className="grid h-11 w-11 place-items-center rounded-full bg-white text-blue-700">
-              <Icon name="user" className="h-5 w-5" />
+            <div className="grid h-9 w-9 place-items-center rounded-full bg-white text-blue-700">
+              <Icon name="user" className="h-4 w-4" />
             </div>
             <div>
-              <p className="font-semibold">School Admin</p>
-              <p className="text-xs text-blue-100">Main Administrator</p>
+              <p className="text-sm font-semibold">School Admin</p>
+              <p className="text-xs text-blue-200">Main Administrator</p>
             </div>
           </div>
-          <div className="mt-4 flex items-center justify-between text-sm text-blue-50">
+          <div className="mt-3 flex items-center justify-between text-xs text-blue-200">
             <span>Uganda High School</span>
-            <Icon name="chevron" className="h-4 w-4" />
+            <Icon name="chevron" className="h-3.5 w-3.5" />
           </div>
         </div>
       </aside>

@@ -16,16 +16,16 @@ const toneClass = {
 
 export function ReportsOverviewCard() {
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-      <h2 className="text-lg font-bold text-slate-950">Reports Overview</h2>
-      <div className="mt-4 divide-y divide-slate-100">
+    <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+      <h2 className="text-sm font-bold text-slate-950">Reports Overview</h2>
+      <div className="mt-3 divide-y divide-slate-100">
         {rows.map(([label, value, tone]) => (
-          <div key={label} className="flex items-center gap-4 py-4">
-            <span className={`grid h-10 w-10 place-items-center rounded-full ${toneClass[tone]}`}>
-              <Icon name="file" className="h-5 w-5" />
+          <div key={label} className="flex items-center gap-3 py-2.5">
+            <span className={`grid h-8 w-8 shrink-0 place-items-center rounded-full ${toneClass[tone]}`}>
+              <Icon name="file" className="h-4 w-4" />
             </span>
-            <span className="flex-1 text-sm font-medium text-slate-600">{label}</span>
-            <span className="text-xl font-bold text-slate-950">{value}</span>
+            <span className="flex-1 text-sm text-slate-600">{label}</span>
+            <span className="text-lg font-bold text-slate-950">{value}</span>
           </div>
         ))}
       </div>

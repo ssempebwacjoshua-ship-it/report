@@ -32,7 +32,9 @@ function getPreviewStats(preview: ImportPreview | null) {
   });
 
   return {
-    protectedRows: preview.rows.filter((row) => row.errors.some((error) => error.toLowerCase().includes("finalized non-import-owned"))).length,
+    protectedRows: preview.rows.filter((row) =>
+      row.errors.some((error) => error.toLowerCase().includes("finalized non-import-owned")),
+    ).length,
     duplicateRows: duplicates.size,
     commitReadyRows: preview.rows.filter((row) => row.isValid).length,
   };
@@ -46,7 +48,8 @@ export function MarksImportPage() {
   const [selectedFile, setSelectedFile] = useState<{ name: string; type: string } | null>(null);
   const stats = getPreviewStats(preview);
   const hasInput = csvText.trim().length > 0;
-  const dryRunSucceeded = preview?.status === "DRY_RUN" && preview.invalidRows === 0 && preview.validRows > 0;
+  const dryRunSucceeded =
+    preview?.status === "DRY_RUN" && preview.invalidRows === 0 && preview.validRows > 0;
 
   async function runDryRun() {
     setError("");
@@ -77,7 +80,10 @@ export function MarksImportPage() {
       setSelectedFile({ name: parsed.fileName, type: parsed.fileType });
       setInputMode("upload");
     } catch (caught) {
-      setSelectedFile({ name: file.name, type: file.name.split(".").pop()?.toUpperCase() ?? "Unknown" });
+      setSelectedFile({
+        name: file.name,
+        type: file.name.split(".").pop()?.toUpperCase() ?? "Unknown",
+      });
       setCsvText("");
       setError(caught instanceof Error ? caught.message : "Could not parse marks sheet");
     }
@@ -99,54 +105,87 @@ export function MarksImportPage() {
   }
 
   return (
-    <main className="grid gap-6">
+    <main className="grid gap-5">
+      {/* Page header */}
       <header className="page-header flex flex-wrap items-end justify-between gap-3">
         <div>
           <p className="text-xs font-bold uppercase tracking-wide text-blue-600">Marks Import</p>
-          <h1 className="text-3xl font-bold tracking-tight text-slate-950">Upload and verify marks</h1>
-          <p className="mt-2 text-sm text-slate-600">Dry-run validation first, row-level errors always visible, then commit valid import-owned marks.</p>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-950">Upload and verify marks</h1>
+          <p className="mt-1 text-sm text-slate-500">
+            Dry-run validation first, row-level errors always visible, then commit valid import-owned marks.
+          </p>
         </div>
-        <a className="rounded-xl bg-blue-600 px-4 py-3 text-sm font-bold text-white shadow-sm hover:bg-blue-700" href="/reports">
+        <a
+          className="rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-blue-700"
+          href="/reports"
+        >
           Reports
         </a>
       </header>
 
-      {error ? <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 shadow-sm">{error}</div> : null}
-
-      <section className="grid gap-4 rounded-2xl border border-blue-100 bg-blue-50 p-5 text-sm text-slate-700 shadow-sm lg:grid-cols-[1fr_auto]">
-        <div>
-          <h2 className="text-base font-bold text-slate-950">Upload a marks sheet or paste CSV rows.</h2>
-          <p className="mt-2">Dry run first to check errors. Only valid rows can be committed. Existing finalized marks are protected unless they belong to the same import batch.</p>
+      {error ? (
+        <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 shadow-sm">
+          {error}
         </div>
-        <div className="flex flex-wrap gap-3">
-          <button type="button" onClick={downloadCsvTemplate} className="h-11 rounded-xl border border-blue-200 bg-white px-4 text-sm font-bold text-blue-700 hover:bg-blue-50">
+      ) : null}
+
+      {/* Info banner */}
+      <section className="grid gap-3 rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 shadow-sm lg:grid-cols-[1fr_auto]">
+        <div>
+          <h2 className="text-sm font-bold text-slate-950">
+            Upload a marks sheet or paste CSV rows.
+          </h2>
+          <p className="mt-1 text-sm text-slate-600">
+            Dry run first to check errors. Only valid rows can be committed. Existing finalized marks
+            are protected unless they belong to the same import batch.
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={downloadCsvTemplate}
+            className="h-9 rounded-xl border border-blue-200 bg-white px-4 text-sm font-bold text-blue-700 hover:bg-blue-50"
+          >
             Download CSV template
           </button>
-          <button type="button" onClick={downloadExcelTemplate} className="h-11 rounded-xl border border-emerald-200 bg-white px-4 text-sm font-bold text-emerald-700 hover:bg-emerald-50">
+          <button
+            type="button"
+            onClick={downloadExcelTemplate}
+            className="h-9 rounded-xl border border-emerald-200 bg-white px-4 text-sm font-bold text-emerald-700 hover:bg-emerald-50"
+          >
             Download Excel template
           </button>
         </div>
       </section>
 
-      <section className="grid min-w-0 gap-5 lg:grid-cols-[minmax(0,1.1fr)_minmax(280px,0.6fr)]">
-        <div className="min-w-0 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      {/* Main layout: input + summary */}
+      <section className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1.1fr)_minmax(260px,0.55fr)]">
+        {/* Input card */}
+        <div className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <h2 className="text-lg font-bold text-slate-950">Marks sheet input</h2>
-              <p className="text-sm text-slate-500">Upload `.csv`, `.xlsx`, or `.xls`; paste CSV remains available for quick testing.</p>
+              <h2 className="text-sm font-bold text-slate-950">Marks sheet input</h2>
+              <p className="mt-0.5 text-xs text-slate-500">
+                Upload <code>.csv</code>, <code>.xlsx</code>, or <code>.xls</code>; paste CSV for
+                quick testing.
+              </p>
             </div>
             <div className="rounded-xl bg-slate-100 p-1 text-sm font-bold">
               <button
                 type="button"
                 onClick={() => setInputMode("upload")}
-                className={`rounded-lg px-3 py-2 ${inputMode === "upload" ? "bg-white text-blue-700 shadow-sm" : "text-slate-500"}`}
+                className={`rounded-lg px-3 py-1.5 text-sm ${
+                  inputMode === "upload" ? "bg-white text-blue-700 shadow-sm" : "text-slate-500"
+                }`}
               >
                 Upload file
               </button>
               <button
                 type="button"
                 onClick={() => setInputMode("paste")}
-                className={`rounded-lg px-3 py-2 ${inputMode === "paste" ? "bg-white text-blue-700 shadow-sm" : "text-slate-500"}`}
+                className={`rounded-lg px-3 py-1.5 text-sm ${
+                  inputMode === "paste" ? "bg-white text-blue-700 shadow-sm" : "text-slate-500"
+                }`}
               >
                 Paste CSV
               </button>
@@ -154,30 +193,32 @@ export function MarksImportPage() {
           </div>
 
           {inputMode === "upload" ? (
-            <div className="mt-5 rounded-2xl border border-dashed border-blue-200 bg-blue-50/60 p-5">
-              <label className="grid cursor-pointer gap-3 text-center">
+            <div className="mt-4 rounded-2xl border border-dashed border-blue-200 bg-blue-50/50 p-4">
+              <label className="grid cursor-pointer gap-2 text-center">
                 <span className="text-sm font-bold text-slate-950">Choose a marks sheet</span>
-                <span className="text-xs text-slate-500">Accepted formats: CSV, XLSX, XLS</span>
+                <span className="text-xs text-slate-500">Accepted: CSV, XLSX, XLS</span>
                 <input
                   type="file"
                   className="sr-only"
                   accept=".csv,.xlsx,.xls,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                   onChange={(event) => void handleFile(event.target.files?.[0] ?? null)}
                 />
-                <span className="mx-auto inline-flex h-11 items-center rounded-xl bg-blue-600 px-5 text-sm font-bold text-white shadow-sm hover:bg-blue-700">Browse file</span>
+                <span className="mx-auto inline-flex h-10 items-center rounded-xl bg-blue-600 px-5 text-sm font-bold text-white shadow-sm hover:bg-blue-700">
+                  Browse file
+                </span>
               </label>
               {selectedFile ? (
-                <div className="mt-4 rounded-xl bg-white p-4 text-sm">
+                <div className="mt-3 rounded-xl bg-white p-3 text-sm">
                   <p className="font-bold text-slate-950">{selectedFile.name}</p>
-                  <p className="mt-1 text-slate-500">File type: {selectedFile.type}</p>
+                  <p className="mt-0.5 text-xs text-slate-500">File type: {selectedFile.type}</p>
                 </div>
               ) : null}
             </div>
           ) : (
-            <label className="mt-5 grid gap-3 text-sm font-semibold text-slate-950">
+            <label className="mt-4 grid gap-2 text-xs font-semibold uppercase text-slate-500">
               Paste CSV rows
               <textarea
-                className="min-h-72 rounded-xl border border-slate-200 bg-slate-50 p-4 font-mono text-sm font-normal text-slate-900 outline-none transition focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                className="min-h-64 rounded-xl border border-slate-200 bg-slate-50 p-3 font-mono text-sm font-normal text-slate-900 outline-none transition focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-100"
                 value={csvText}
                 onChange={(event) => {
                   setCsvText(event.target.value);
@@ -188,12 +229,12 @@ export function MarksImportPage() {
             </label>
           )}
 
-          <div className="mt-4 flex flex-wrap gap-3">
+          <div className="mt-4 flex flex-wrap gap-2">
             <button
               type="button"
               onClick={runDryRun}
               disabled={!hasInput}
-              className="h-11 rounded-xl bg-blue-600 px-5 text-sm font-bold text-white shadow-sm hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+              className="h-10 rounded-xl bg-blue-600 px-5 text-sm font-bold text-white shadow-sm hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-300"
             >
               Dry run
             </button>
@@ -201,42 +242,55 @@ export function MarksImportPage() {
               type="button"
               onClick={runCommit}
               disabled={!dryRunSucceeded}
-              className="h-11 rounded-xl bg-emerald-600 px-5 text-sm font-bold text-white shadow-sm hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+              className="h-10 rounded-xl bg-emerald-600 px-5 text-sm font-bold text-white shadow-sm hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-300"
             >
               Commit valid rows
             </button>
-            <button type="button" onClick={clearInput} className="h-11 rounded-xl border border-slate-200 px-5 text-sm font-bold text-slate-700 hover:bg-slate-50">
-              Clear input
+            <button
+              type="button"
+              onClick={clearInput}
+              className="h-10 rounded-xl border border-slate-200 px-5 text-sm font-bold text-slate-700 hover:bg-slate-50"
+            >
+              Clear
             </button>
-            <button type="button" onClick={loadSampleRows} className="h-11 rounded-xl border border-amber-200 px-5 text-sm font-bold text-amber-700 hover:bg-amber-50">
-              Load sample rows
+            <button
+              type="button"
+              onClick={loadSampleRows}
+              className="h-10 rounded-xl border border-amber-200 px-5 text-sm font-bold text-amber-700 hover:bg-amber-50"
+            >
+              Load sample
             </button>
           </div>
         </div>
 
-        <aside className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        {/* Summary sidebar */}
+        <aside className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
           <p className="text-sm font-bold text-slate-950">Import summary</p>
-          {!preview ? <p className="mt-2 text-sm text-slate-500">Run dry-run validation to preview totals.</p> : null}
-          <div className="mt-5 grid gap-3">
-            <div className="rounded-xl bg-blue-50 p-4">
+          {!preview ? (
+            <p className="mt-2 text-xs text-slate-500">Run dry-run to preview totals.</p>
+          ) : null}
+          <div className="mt-4 grid gap-2.5">
+            <div className="rounded-xl bg-blue-50 px-4 py-3">
               <p className="text-xs font-semibold text-blue-700">Total Rows</p>
-              <p className="text-2xl font-bold text-slate-950">{preview?.totalRows ?? 0}</p>
+              <p className="mt-0.5 text-2xl font-bold text-slate-950">{preview?.totalRows ?? 0}</p>
             </div>
-            <div className="rounded-xl bg-emerald-50 p-4">
+            <div className="rounded-xl bg-emerald-50 px-4 py-3">
               <p className="text-xs font-semibold text-emerald-700">Valid Rows</p>
-              <p className="text-2xl font-bold text-slate-950">{preview?.validRows ?? 0}</p>
+              <p className="mt-0.5 text-2xl font-bold text-slate-950">{preview?.validRows ?? 0}</p>
             </div>
-            <div className="rounded-xl bg-red-50 p-4">
+            <div className="rounded-xl bg-red-50 px-4 py-3">
               <p className="text-xs font-semibold text-red-700">Invalid Rows</p>
-              <p className="text-2xl font-bold text-slate-950">{preview?.invalidRows ?? 0}</p>
+              <p className="mt-0.5 text-2xl font-bold text-slate-950">{preview?.invalidRows ?? 0}</p>
             </div>
-            <div className="rounded-xl bg-amber-50 p-4">
-              <p className="text-xs font-semibold text-amber-700">Duplicate / Protected Rows</p>
-              <p className="text-2xl font-bold text-slate-950">{stats.duplicateRows + stats.protectedRows}</p>
+            <div className="rounded-xl bg-amber-50 px-4 py-3">
+              <p className="text-xs font-semibold text-amber-700">Duplicate / Protected</p>
+              <p className="mt-0.5 text-2xl font-bold text-slate-950">
+                {stats.duplicateRows + stats.protectedRows}
+              </p>
             </div>
-            <div className="rounded-xl bg-violet-50 p-4">
-              <p className="text-xs font-semibold text-violet-700">Commit-ready Rows</p>
-              <p className="text-2xl font-bold text-slate-950">{stats.commitReadyRows}</p>
+            <div className="rounded-xl bg-violet-50 px-4 py-3">
+              <p className="text-xs font-semibold text-violet-700">Commit-ready</p>
+              <p className="mt-0.5 text-2xl font-bold text-slate-950">{stats.commitReadyRows}</p>
             </div>
           </div>
         </aside>
