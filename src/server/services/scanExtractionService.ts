@@ -14,9 +14,10 @@ import {
   preprocessScanImage,
 } from "./scanPreprocessService";
 import {
-  recognizeSplitMarkZones,
-  recognizeWrittenMark,
+  normalizeMark,
+  parseSplitZoneTexts,
 } from "./markRecognitionService";
+import { resolveOcrProvider, type OcrCropResult } from "./ocrProvider";
 import { validateScanRows } from "./scanImportValidator";
 
 type RosterStudent = { admissionNumber: string; studentName: string };
@@ -24,25 +25,30 @@ type RosterStudent = { admissionNumber: string; studentName: string };
 function acceptedExtractedMark(
   writtenMark: string,
   splitMark: string,
-  confidence: number,
+  splitConfidence: number,
+  writtenConfidence: number,
 ): { mark: string; reason: string } {
   if (!writtenMark && !splitMark) {
     return { mark: "", reason: "No confident mark detected. Needs operator entry." };
   }
 
-  if (writtenMark && splitMark && writtenMark === splitMark && confidence >= 0.85) {
+  if (writtenMark && splitMark && writtenMark !== splitMark) {
+    return { mark: "", reason: "Written and split OCR disagree. Needs operator review." };
+  }
+
+  if (writtenMark && splitMark && writtenMark === splitMark && splitConfidence >= 0.75 && writtenConfidence >= 0.75) {
     return { mark: writtenMark, reason: "Written and split marks agree with high confidence." };
   }
 
-  if (writtenMark && !splitMark && confidence >= 0.92) {
-    return { mark: writtenMark, reason: "Written mark detected with high confidence; split mark was blank." };
-  }
-
-  if (splitMark && !writtenMark && confidence >= 0.92) {
-    return { mark: splitMark, reason: "Split mark detected with high confidence; written mark was blank." };
+  if (splitMark && splitConfidence >= 0.85) {
+    return { mark: splitMark, reason: "Split mark detected with high confidence; written mark is confirmation only." };
   }
 
   return { mark: "", reason: "Extraction was not confident enough. Needs operator entry." };
+}
+
+function resultById(results: OcrCropResult[], cropId: string): OcrCropResult {
+  return results.find((result) => result.cropId === cropId) ?? { cropId, text: "", confidence: 0 };
 }
 
 async function loadRoster(
@@ -139,6 +145,7 @@ export async function extractMarksFromScan(
   }
 
   const rawRows: ScanImportRow[] = [];
+  const ocrProvider = await resolveOcrProvider();
 
   for (let index = 0; index < roster.length; index++) {
     const student = roster[index]!;
@@ -148,55 +155,68 @@ export async function extractMarksFromScan(
     const splitZoneRects = splitRectIntoVerticalZones(splitRect, 3);
 
     let writtenResult = { rawText: "", normalizedMark: "", confidence: 0 };
-    let splitResult = {
-      rawText: "",
-      normalizedMark: "",
-      confidence: 0,
-      zoneRawText: ["", "", ""],
-      zoneMarks: ["", "", ""],
-      zoneConfidences: [0, 0, 0],
-    };
+    let splitResult = { rawText: "", normalizedMark: "", confidence: 0, zoneRawText: ["", "", ""], zoneConfidences: [0, 0, 0] };
     let writtenCropDataUrl = "";
     let splitCropDataUrl = "";
     let splitDigitCropDataUrls: string[] = [];
+    let extractionNote = "";
 
     try {
       const writtenCell = await cropCell(scan.buffer, writtenRect);
       writtenCropDataUrl = bufferToDataUrl(await cropPreview(scan.buffer, writtenRect));
-      writtenResult = await recognizeWrittenMark(writtenCell);
-    } catch {
-      writtenResult = { rawText: "", normalizedMark: "", confidence: 0 };
-    }
-
-    try {
-      splitCropDataUrl = bufferToDataUrl(await cropPreview(scan.buffer, splitRect));
       const splitZoneCells = await Promise.all(splitZoneRects.map((rect) => cropCell(scan.buffer, rect)));
+      splitCropDataUrl = bufferToDataUrl(await cropPreview(scan.buffer, splitRect));
       splitDigitCropDataUrls = await Promise.all(
         splitZoneRects.map(async (rect) => bufferToDataUrl(await cropPreview(scan.buffer, rect))),
       );
-      splitResult = await recognizeSplitMarkZones(splitZoneCells);
-    } catch {
-      splitResult = {
-        rawText: "",
-        normalizedMark: "",
-        confidence: 0,
-        zoneRawText: ["", "", ""],
-        zoneMarks: ["", "", ""],
-        zoneConfidences: [0, 0, 0],
+
+      const cropIds = {
+        written: `${student.admissionNumber}-written`,
+        zones: splitZoneRects.map((_, zoneIndex) => `${student.admissionNumber}-split-${zoneIndex + 1}`),
       };
+      const ocrResults = await ocrProvider.recognizeCrops([
+        { cropId: cropIds.written, buffer: writtenCell, mimeType: "image/jpeg" },
+        ...splitZoneCells.map((buffer, zoneIndex) => ({
+          cropId: cropIds.zones[zoneIndex]!,
+          buffer,
+          mimeType: "image/jpeg",
+        })),
+      ]);
+
+      const writtenOcr = resultById(ocrResults, cropIds.written);
+      const zoneResults = cropIds.zones.map((cropId) => resultById(ocrResults, cropId));
+      const zoneRawText = zoneResults.map((result) => result.text);
+      const splitConfidenceValues = zoneResults
+        .filter((result) => result.text.trim())
+        .map((result) => result.confidence);
+
+      writtenResult = {
+        rawText: writtenOcr.text,
+        normalizedMark: normalizeMark(writtenOcr.text),
+        confidence: writtenOcr.confidence,
+      };
+      splitResult = {
+        rawText: zoneRawText.join(" | "),
+        normalizedMark: parseSplitZoneTexts(zoneRawText),
+        confidence: splitConfidenceValues.length > 0 ? Math.min(...splitConfidenceValues) : 0,
+        zoneRawText,
+        zoneConfidences: zoneResults.map((result) => result.confidence),
+      };
+    } catch {
+      extractionNote = "OCR provider unavailable. Enter marks manually from the scan.";
+      writtenResult = { rawText: "", normalizedMark: "", confidence: 0 };
+      splitResult = { rawText: "", normalizedMark: "", confidence: 0, zoneRawText: ["", "", ""], zoneConfidences: [0, 0, 0] };
     }
 
-    const confidence = writtenResult.confidence > 0 || splitResult.confidence > 0
-      ? Math.min(
-          writtenResult.confidence > 0 ? writtenResult.confidence : 1,
-          splitResult.confidence > 0 ? splitResult.confidence : 1,
-      )
-      : 0;
     const extracted = acceptedExtractedMark(
       writtenResult.normalizedMark,
       splitResult.normalizedMark,
-      confidence,
+      splitResult.confidence,
+      writtenResult.confidence,
     );
+    const confidence = splitResult.normalizedMark
+      ? splitResult.confidence
+      : writtenResult.confidence;
 
     rawRows.push({
       rowNumber: index + 1,
@@ -215,6 +235,7 @@ export async function extractMarksFromScan(
       splitCropDataUrl,
       splitDigitCropDataUrls,
       tableCropDataUrl: index === 0 ? tableCropDataUrl : undefined,
+      ocrProvider: ocrProvider.name,
       debugRawOcr: {
         written: writtenResult.rawText,
         split: splitResult.rawText,
@@ -225,7 +246,7 @@ export async function extractMarksFromScan(
         split: splitCropDataUrl,
         splitZones: splitDigitCropDataUrls,
       },
-      statusReason: extracted.reason,
+      statusReason: extractionNote || extracted.reason,
       status: "PARSED",
       validationErrors: [],
       operatorCorrection: "",
@@ -248,6 +269,7 @@ export async function extractMarksFromScan(
     parseStatus: "PARSED",
     message:
       `Scan processed. Review suggested marks before validation. ` +
+      `OCR provider: ${ocrProvider.name}. ` +
       `Extracted ${roster.length} roster rows: ${parts.join(", ") || "all blank (no marks visible)"}.`,
     rows: validatedRows,
     studentCount: roster.length,

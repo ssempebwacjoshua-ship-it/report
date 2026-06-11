@@ -87,7 +87,9 @@ describe("parseSplitCellText", () => {
 
 describe("parseSplitZoneTexts", () => {
   it("joins two digit zones into a mark", () => {
+    expect(parseSplitZoneTexts(["7", "6", ""])).toBe("76");
     expect(parseSplitZoneTexts(["8", "2", ""])).toBe("82");
+    expect(parseSplitZoneTexts(["9", "4", ""])).toBe("94");
   });
 
   it("joins three digit zones into 100", () => {

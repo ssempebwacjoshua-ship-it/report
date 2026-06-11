@@ -56,6 +56,7 @@ export type ScanImportRow = {
   splitDigitCropDataUrls?: string[];
   remarksCropDataUrl?: string;
   tableCropDataUrl?: string;
+  ocrProvider?: string;
   debugRawOcr?: {
     written?: string;
     split?: string;

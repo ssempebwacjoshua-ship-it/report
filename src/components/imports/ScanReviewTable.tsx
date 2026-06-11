@@ -145,6 +145,7 @@ export function ScanReviewTable({
               <thead>
                 <tr className="bg-slate-100 text-left font-bold uppercase tracking-wide text-slate-500">
                   <th className="px-3 py-2">Row</th>
+                  <th className="px-3 py-2">Provider</th>
                   <th className="px-3 py-2">Written Crop</th>
                   <th className="px-3 py-2">Split Crop</th>
                   <th className="px-3 py-2">Zones</th>
@@ -157,6 +158,7 @@ export function ScanReviewTable({
                 {rows.map((row) => (
                   <tr key={`debug-${row.rowNumber}`}>
                     <td className="px-3 py-2 font-semibold">{row.rowNumber}</td>
+                    <td className="px-3 py-2 font-semibold">{row.ocrProvider ?? "manual"}</td>
                     <td className="px-3 py-2">
                       {row.debugCropImages?.written || row.writtenCropDataUrl ? (
                         <img src={row.debugCropImages?.written ?? row.writtenCropDataUrl} alt="" className="h-10 w-24 rounded border object-contain" />
