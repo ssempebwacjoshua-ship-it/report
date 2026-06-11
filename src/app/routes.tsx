@@ -3,6 +3,7 @@ import { AppShell } from "../components/layout/AppShell";
 import { DashboardPage } from "../pages/DashboardPage";
 import { ReportsPage } from "../pages/ReportsPage";
 import { MarksImportPage } from "../pages/MarksImportPage";
+import { MarksheetsPage } from "../pages/MarksheetsPage";
 import { StudentsPage } from "../pages/StudentsPage";
 
 export const router = createBrowserRouter([
@@ -15,6 +16,7 @@ export const router = createBrowserRouter([
       { path: "students", element: <StudentsPage /> },
       { path: "reports", element: <ReportsPage /> },
       { path: "imports/marks", element: <MarksImportPage /> },
+      { path: "marksheets", element: <MarksheetsPage /> },
     ],
   },
 ]);

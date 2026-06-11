@@ -300,4 +300,39 @@ body {
     page-break-inside: avoid;
     break-inside: avoid;
   }
+
+  /* Marksheet print area */
+  .marksheet-print-area {
+    display: block !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    width: 100% !important;
+    print-color-adjust: exact !important;
+    -webkit-print-color-adjust: exact !important;
+  }
+
+  .marksheet-table {
+    border-collapse: collapse !important;
+    width: 100% !important;
+    font-size: 9px !important;
+  }
+
+  .marksheet-table th,
+  .marksheet-table td {
+    border: 1px solid black !important;
+    padding: 3px 4px !important;
+  }
+
+  .marksheet-table thead tr {
+    background-color: #1e293b !important;
+    color: white !important;
+    print-color-adjust: exact !important;
+    -webkit-print-color-adjust: exact !important;
+  }
+
+  .marksheet-table tbody tr:nth-child(even) {
+    background-color: #f8fafc !important;
+    print-color-adjust: exact !important;
+    -webkit-print-color-adjust: exact !important;
+  }
 }

@@ -14,6 +14,7 @@ const navItems = [
   { to: "/students", label: "Students", icon: "students" as const },
   { to: "/reports", label: "Report Generation", icon: "file" as const },
   { to: "/imports/marks", label: "Marks Import", icon: "upload" as const },
+  { to: "/marksheets", label: "Marksheets", icon: "clipboard" as const },
   { to: "/dashboard#settings", label: "Settings", icon: "settings" as const },
 ];
 
