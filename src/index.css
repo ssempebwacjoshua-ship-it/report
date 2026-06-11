@@ -14,9 +14,10 @@ body {
 @media print {
   @page {
     size: A4;
-    margin: 12mm;
+    margin: 10mm 12mm;
   }
 
+  /* Hide all non-report UI */
   .app-shell-sidebar,
   .app-shell-topbar,
   .page-header,
@@ -31,20 +32,91 @@ body {
     display: none !important;
   }
 
-  .report-print-area {
-    display: block !important;
-    box-shadow: none !important;
-    border: 0 !important;
-    padding: 0 !important;
-    width: 100% !important;
-  }
-
-  .report-table {
-    min-width: 0 !important;
-    font-size: 10px !important;
-  }
-
   body {
     background: white;
+  }
+
+  /* Outer section — no padding/margin, let the sheet fill the page */
+  .report-print-area {
+    display: block !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    width: 100% !important;
+    /* Force all descendant backgrounds to print */
+    print-color-adjust: exact !important;
+    -webkit-print-color-adjust: exact !important;
+  }
+
+  /* Paper card — remove screen-only decorations */
+  .report-card-sheet {
+    box-shadow: none !important;
+    outline: none !important;
+    border-radius: 0 !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    /* Force backgrounds within to print */
+    print-color-adjust: exact !important;
+    -webkit-print-color-adjust: exact !important;
+  }
+
+  /* Header — explicit colour so browser cannot strip it */
+  .report-header-bg {
+    background-color: #0f2a5e !important;
+    color: white !important;
+    padding: 14px 20px !important;
+    print-color-adjust: exact !important;
+    -webkit-print-color-adjust: exact !important;
+  }
+
+  /* Gold accent line */
+  .report-gold-line {
+    background-color: #c9a227 !important;
+    print-color-adjust: exact !important;
+    -webkit-print-color-adjust: exact !important;
+  }
+
+  /* Table — compact for A4, show navy header */
+  .report-table {
+    min-width: 0 !important;
+    width: 100% !important;
+    font-size: 8.5px !important;
+  }
+
+  .report-table th,
+  .report-table td {
+    padding: 4px 5px !important;
+  }
+
+  .report-table-header {
+    background-color: #0f2a5e !important;
+    color: white !important;
+    print-color-adjust: exact !important;
+    -webkit-print-color-adjust: exact !important;
+  }
+
+  /* Summary cards — compact, force colour */
+  .report-summary-cards {
+    gap: 8px !important;
+    margin-bottom: 16px !important;
+  }
+
+  .report-summary-card {
+    padding: 8px !important;
+    print-color-adjust: exact !important;
+    -webkit-print-color-adjust: exact !important;
+  }
+
+  .report-summary-card b {
+    font-size: 18px !important;
+  }
+
+  /* Comments — keep together, avoid mid-signature page break */
+  .report-comments {
+    page-break-inside: avoid;
+  }
+
+  /* Footer */
+  .report-footer {
+    page-break-before: auto;
   }
 }
