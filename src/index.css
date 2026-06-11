@@ -192,6 +192,266 @@ body {
   transform: translateY(-1px);
 }
 
+/* ── Marksheet screen styles ──────────────────────────────────────────────── */
+
+.marksheet-print-area {
+  font-family: Arial, Helvetica, sans-serif;
+  color: #0f172a;
+  font-size: 11px;
+}
+
+/* Screen separator between pages */
+.marksheet-page + .marksheet-page {
+  margin-top: 24px;
+  padding-top: 12px;
+  border-top: 2px dashed #e2e8f0;
+}
+
+.marksheet-header-box {
+  border: 1.5px solid #334155;
+  padding: 9px 12px 7px;
+  margin-bottom: 5px;
+}
+
+.marksheet-title-block {
+  text-align: center;
+  margin-bottom: 7px;
+}
+
+.marksheet-school-name {
+  font-size: 13px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin: 0;
+}
+
+.marksheet-sheet-title {
+  font-size: 11px;
+  font-weight: 600;
+  margin: 1px 0 0;
+}
+
+.marksheet-meta-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2px 28px;
+  font-size: 10px;
+  border-top: 1px solid #cbd5e1;
+  border-bottom: 1px solid #cbd5e1;
+  padding: 5px 0;
+  margin: 6px 0;
+}
+
+.marksheet-meta-key {
+  font-weight: 700;
+}
+
+.marksheet-id-value {
+  font-family: monospace;
+  font-size: 9px;
+}
+
+/* Signature section */
+.marksheet-sig-section {
+  padding-top: 6px;
+}
+
+.marksheet-sig-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  margin-bottom: 8px;
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.marksheet-sig-label {
+  width: 152px;
+  flex-shrink: 0;
+  font-weight: 700;
+}
+
+.marksheet-sig-line {
+  flex: 1;
+  min-width: 50px;
+  height: 15px;
+  border-bottom: 1px solid #475569;
+}
+
+.marksheet-sig-sublabel {
+  flex-shrink: 0;
+  font-weight: 600;
+  color: #374151;
+}
+
+.marksheet-sig-short {
+  width: 104px;
+  flex-shrink: 0;
+  height: 15px;
+  border-bottom: 1px solid #475569;
+}
+
+.marksheet-sig-date {
+  width: 82px;
+  flex-shrink: 0;
+  height: 15px;
+  border-bottom: 1px solid #475569;
+}
+
+/* Continuation header */
+.marksheet-cont-header {
+  border: 1.5px solid #475569;
+  border-left: 3px solid #1d4ed8;
+  padding: 5px 10px;
+  margin-bottom: 5px;
+  background-color: #f8fafc;
+}
+
+.marksheet-cont-title {
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  margin: 0 0 2px;
+}
+
+.marksheet-cont-meta {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  margin-bottom: 1px;
+}
+
+.marksheet-cont-page {
+  font-weight: 700;
+}
+
+.marksheet-cont-id {
+  font-family: monospace;
+  font-size: 9px;
+  margin: 0;
+  color: #475569;
+}
+
+/* Table */
+.marksheet-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.marksheet-thead-row {
+  background-color: #1e293b;
+  color: #ffffff;
+  print-color-adjust: exact;
+  -webkit-print-color-adjust: exact;
+}
+
+.marksheet-th {
+  border: 1px solid #0f172a;
+  padding: 4px 5px;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1.3;
+  vertical-align: bottom;
+}
+
+.marksheet-htu-labels {
+  display: flex;
+  justify-content: center;
+  gap: 4px;
+  margin-top: 2px;
+  font-size: 8px;
+  font-weight: 400;
+  opacity: 0.85;
+}
+
+.marksheet-htu-labels span {
+  width: 20px;
+  text-align: center;
+}
+
+.marksheet-td {
+  border: 1px solid #94a3b8;
+  padding: 0 5px;
+  height: 22px;
+  vertical-align: middle;
+  font-size: 10px;
+}
+
+.marksheet-row {
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+.marksheet-td-num {
+  text-align: center;
+  font-size: 9px;
+  color: #64748b;
+}
+
+.marksheet-td-adm {
+  font-family: monospace;
+  font-size: 9px;
+}
+
+.marksheet-td-name {
+  font-weight: 600;
+  font-size: 10px;
+}
+
+.marksheet-td-boxes {
+  padding: 2px 4px;
+}
+
+.marksheet-digit-group {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 2px;
+}
+
+.marksheet-digit-box {
+  display: inline-block;
+  width: 21px;
+  height: 21px;
+  border: 1.5px solid #64748b;
+  flex-shrink: 0;
+}
+
+.marksheet-empty-cell {
+  text-align: center;
+  padding: 16px;
+  color: #94a3b8;
+  font-style: italic;
+}
+
+/* Footer */
+.marksheet-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 9px;
+  color: #475569;
+  border-top: 1px solid #e2e8f0;
+  margin-top: 4px;
+  padding-top: 3px;
+  gap: 8px;
+}
+
+.marksheet-footer-continued {
+  font-style: italic;
+  font-weight: 700;
+  color: #1d4ed8;
+  white-space: nowrap;
+}
+
+.marksheet-footer-id {
+  font-family: monospace;
+  white-space: nowrap;
+  color: #64748b;
+}
+
 @media print {
   @page {
     size: A4 portrait;
@@ -301,37 +561,144 @@ body {
     break-inside: avoid;
   }
 
-  /* Marksheet print area */
+  /* ── Marksheet print overrides ─────────────────────────────────────────── */
+
   .marksheet-print-area {
     display: block !important;
     padding: 0 !important;
     margin: 0 !important;
     width: 100% !important;
+    font-family: Arial, Helvetica, sans-serif !important;
+    color: black !important;
     print-color-adjust: exact !important;
     -webkit-print-color-adjust: exact !important;
+  }
+
+  /* Remove screen separator between pages — breaks handle paging */
+  .marksheet-page + .marksheet-page {
+    margin-top: 0 !important;
+    padding-top: 0 !important;
+    border-top: none !important;
+  }
+
+  /* Page breaks — each page segment except the last forces a new page */
+  .marksheet-page-break {
+    break-after: page !important;
+    page-break-after: always !important;
+  }
+
+  /* Strip screen card decoration from any wrapping premium-card */
+  .marksheet-print-area .premium-card {
+    box-shadow: none !important;
+    border: none !important;
+    border-radius: 0 !important;
+    padding: 0 !important;
+    background: transparent !important;
+  }
+
+  .marksheet-header-box {
+    border: 1px solid black !important;
+    padding: 7px 10px 6px !important;
+    margin-bottom: 4px !important;
+  }
+
+  .marksheet-school-name {
+    font-size: 12px !important;
+  }
+
+  .marksheet-sheet-title {
+    font-size: 10px !important;
+  }
+
+  .marksheet-meta-grid {
+    font-size: 9px !important;
+    border-top-color: black !important;
+    border-bottom-color: black !important;
+    gap: 1px 20px !important;
+    padding: 4px 0 !important;
+    margin: 4px 0 !important;
+  }
+
+  .marksheet-sig-section {
+    padding-top: 4px !important;
+  }
+
+  .marksheet-sig-row {
+    margin-bottom: 7px !important;
+    font-size: 9px !important;
+  }
+
+  .marksheet-sig-line,
+  .marksheet-sig-short,
+  .marksheet-sig-date {
+    border-bottom-color: black !important;
+  }
+
+  .marksheet-cont-header {
+    background: transparent !important;
+    border-color: black !important;
+    border-left-color: #1d4ed8 !important;
+    padding: 4px 8px !important;
+    margin-bottom: 4px !important;
   }
 
   .marksheet-table {
     border-collapse: collapse !important;
     width: 100% !important;
-    font-size: 9px !important;
+    table-layout: fixed !important;
+    font-size: 8px !important;
   }
 
-  .marksheet-table th,
-  .marksheet-table td {
-    border: 1px solid black !important;
-    padding: 3px 4px !important;
-  }
-
-  .marksheet-table thead tr {
+  .marksheet-thead-row {
     background-color: #1e293b !important;
     color: white !important;
     print-color-adjust: exact !important;
     -webkit-print-color-adjust: exact !important;
   }
 
-  .marksheet-table tbody tr:nth-child(even) {
+  .marksheet-th {
+    border: 1px solid black !important;
+    padding: 3px 4px !important;
+    font-size: 8px !important;
+  }
+
+  .marksheet-td {
+    border: 1px solid #374151 !important;
+    padding: 0 4px !important;
+    height: 20px !important;
+    font-size: 8px !important;
+  }
+
+  /* Never cut a student row across pages */
+  .marksheet-row {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  /* Zebra rows */
+  .marksheet-row:nth-child(even) {
     background-color: #f8fafc !important;
+    print-color-adjust: exact !important;
+    -webkit-print-color-adjust: exact !important;
+  }
+
+  .marksheet-digit-box {
+    width: 19px !important;
+    height: 19px !important;
+    border: 1.5px solid black !important;
+    print-color-adjust: exact !important;
+    -webkit-print-color-adjust: exact !important;
+  }
+
+  .marksheet-footer {
+    border-top-color: black !important;
+    font-size: 8px !important;
+    margin-top: 3px !important;
+    padding-top: 2px !important;
+  }
+
+  .marksheet-footer-continued {
+    color: #1d4ed8 !important;
     print-color-adjust: exact !important;
     -webkit-print-color-adjust: exact !important;
   }
