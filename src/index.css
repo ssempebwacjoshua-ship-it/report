@@ -547,6 +547,16 @@ body {
     break-inside: avoid;
   }
 
+  /* Strip screen card chrome from the marksheet preview wrapper */
+  .marksheet-card-wrapper {
+    padding: 0 !important;
+    border: none !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    overflow: visible !important;
+    background: transparent !important;
+  }
+
   /* ── Marksheet print overrides ─────────────────────────────────────────── */
 
   .marksheet-print-area {

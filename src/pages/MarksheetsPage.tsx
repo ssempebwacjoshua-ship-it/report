@@ -167,14 +167,14 @@ function PrintTab({ ctx, filters, students, loadingStudents, onChange }: PrintTa
 
   return (
     <div>
-      <div className="premium-card mb-6 rounded-2xl p-5">
+      <div className="no-print premium-card mb-6 rounded-2xl p-5">
         <h2 className="mb-4 text-sm font-bold uppercase tracking-wide text-slate-500">Select Marksheet Context</h2>
         <ContextSelector ctx={ctx} filters={filters} onChange={onChange} />
       </div>
 
       {ready && (
         <div>
-          <div className="mb-4 flex items-center justify-between">
+          <div className="no-print mb-4 flex items-center justify-between">
             <p className="text-sm text-slate-500">
               {loadingStudents
                 ? "Loading students…"
@@ -182,7 +182,7 @@ function PrintTab({ ctx, filters, students, loadingStudents, onChange }: PrintTa
             </p>
             <button
               type="button"
-              className="btn btn-primary no-print"
+              className="btn btn-primary"
               onClick={() => window.print()}
               disabled={loadingStudents || students.length === 0}
             >
@@ -191,7 +191,7 @@ function PrintTab({ ctx, filters, students, loadingStudents, onChange }: PrintTa
             </button>
           </div>
 
-          <div className="premium-card overflow-hidden rounded-2xl p-6">
+          <div className="marksheet-card-wrapper premium-card overflow-hidden rounded-2xl p-6">
             <PrintableMarksheet
               schoolName={schoolName}
               academicYear={academicYear}
@@ -207,7 +207,7 @@ function PrintTab({ ctx, filters, students, loadingStudents, onChange }: PrintTa
       )}
 
       {!ready && (
-        <div className="rounded-2xl border-2 border-dashed border-slate-200 py-16 text-center text-slate-400">
+        <div className="no-print rounded-2xl border-2 border-dashed border-slate-200 py-16 text-center text-slate-400">
           <Icon name="clipboard" className="mx-auto mb-3 h-10 w-10 opacity-30" />
           <p className="text-sm font-medium">Select class, stream, subject, and term to preview the marksheet.</p>
         </div>
