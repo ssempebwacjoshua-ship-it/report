@@ -5,7 +5,7 @@ import { createServer } from "../../server";
 const SCHOOL = "SCU-PREVIEW";
 const UNKNOWN = "UNKNOWN-SCHOOL-XYZ";
 
-const validContext = {
+const validContext = JSON.stringify({
   marksheetId: "MS-2026-S1A-A-MATH-BOT-T1",
   className: "Senior 1 A",
   streamName: "A",
@@ -13,128 +13,129 @@ const validContext = {
   termName: "Term 1",
   examType: "BOT",
   academicYear: "2026",
-};
+});
+
+// Tiny dummy buffer — not a valid image; Sharp will reject it gracefully
+const FAKE_PNG = Buffer.from("not-a-real-png");
+const FAKE_PDF = Buffer.from("%PDF-1.4 fake");
 
 // ── Scan upload endpoint ──────────────────────────────────────────────────────
 
 describe("POST /api/imports/scans/upload", () => {
-  it("returns 400 when fileName is missing", async () => {
-    const res = await request(createServer()).post("/api/imports/scans/upload").send({
-      schoolCode: SCHOOL,
-      fileType: "PDF",
-      context: validContext,
-    });
+  it("returns 400 when no file is attached", async () => {
+    const res = await request(createServer())
+      .post("/api/imports/scans/upload")
+      .field("schoolCode", SCHOOL)
+      .field("context", validContext);
     expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/no scan file/i);
   });
 
-  it("returns 400 when context is missing", async () => {
-    const res = await request(createServer()).post("/api/imports/scans/upload").send({
-      schoolCode: SCHOOL,
-      fileName: "marksheet.pdf",
-      fileType: "PDF",
-    });
+  it("returns 400 when context field is missing", async () => {
+    const res = await request(createServer())
+      .post("/api/imports/scans/upload")
+      .field("schoolCode", SCHOOL)
+      .attach("file", FAKE_PNG, { filename: "marksheet.png", contentType: "image/png" });
     expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/context/i);
   });
 
   it("returns 400 for unsupported scan file type CSV", async () => {
-    const res = await request(createServer()).post("/api/imports/scans/upload").send({
-      schoolCode: UNKNOWN,
-      fileName: "marks.csv",
-      fileType: "CSV",
-      context: validContext,
-    });
+    const res = await request(createServer())
+      .post("/api/imports/scans/upload")
+      .field("schoolCode", SCHOOL)
+      .field("context", validContext)
+      .attach("file", Buffer.from("a,b,c"), { filename: "marks.csv", contentType: "text/csv" });
     expect(res.status).toBe(400);
     expect(res.body.error).toMatch(/unsupported scan file type/i);
   });
 
   it("returns 400 for unsupported scan file type XLS", async () => {
-    const res = await request(createServer()).post("/api/imports/scans/upload").send({
-      schoolCode: UNKNOWN,
-      fileName: "marks.xls",
-      fileType: "XLS",
-      context: validContext,
-    });
+    const res = await request(createServer())
+      .post("/api/imports/scans/upload")
+      .field("schoolCode", SCHOOL)
+      .field("context", validContext)
+      .attach("file", Buffer.from("fake-xls"), {
+        filename: "marks.xls",
+        contentType: "application/vnd.ms-excel",
+      });
     expect(res.status).toBe(400);
     expect(res.body.error).toMatch(/unsupported/i);
   });
 
-  it("accepts PDF file type — returns 404 for unknown school (not 400)", async () => {
-    const res = await request(createServer()).post("/api/imports/scans/upload").send({
-      schoolCode: UNKNOWN,
-      fileName: "marksheet.pdf",
-      fileType: "PDF",
-      context: validContext,
-    });
-    // Format was accepted (PDF is valid); school lookup fails → 404
+  it("accepts PDF — returns 404 for unknown school (format accepted, school missing)", async () => {
+    const res = await request(createServer())
+      .post("/api/imports/scans/upload")
+      .field("schoolCode", UNKNOWN)
+      .field("context", validContext)
+      .attach("file", FAKE_PDF, { filename: "marksheet.pdf", contentType: "application/pdf" });
     expect(res.status).toBe(404);
     expect(res.body.error).toBeDefined();
   });
 
-  it("accepts PNG file type — returns 404 for unknown school (not 400)", async () => {
-    const res = await request(createServer()).post("/api/imports/scans/upload").send({
-      schoolCode: UNKNOWN,
-      fileName: "marksheet.png",
-      fileType: "PNG",
-      context: validContext,
-    });
+  it("accepts PNG — returns 404 for unknown school", async () => {
+    const res = await request(createServer())
+      .post("/api/imports/scans/upload")
+      .field("schoolCode", UNKNOWN)
+      .field("context", validContext)
+      .attach("file", FAKE_PNG, { filename: "marksheet.png", contentType: "image/png" });
     expect(res.status).toBe(404);
   });
 
-  it("accepts JPG file type — returns 404 for unknown school (not 400)", async () => {
-    const res = await request(createServer()).post("/api/imports/scans/upload").send({
-      schoolCode: UNKNOWN,
-      fileName: "marksheet.jpg",
-      fileType: "JPG",
-      context: validContext,
-    });
+  it("accepts JPG — returns 404 for unknown school", async () => {
+    const res = await request(createServer())
+      .post("/api/imports/scans/upload")
+      .field("schoolCode", UNKNOWN)
+      .field("context", validContext)
+      .attach("file", FAKE_PNG, { filename: "marksheet.jpg", contentType: "image/jpeg" });
     expect(res.status).toBe(404);
   });
 
-  it("accepts JPEG file type — returns 404 for unknown school (not 400)", async () => {
-    const res = await request(createServer()).post("/api/imports/scans/upload").send({
-      schoolCode: UNKNOWN,
-      fileName: "marksheet.jpeg",
-      fileType: "JPEG",
-      context: validContext,
-    });
+  it("accepts JPEG — returns 404 for unknown school", async () => {
+    const res = await request(createServer())
+      .post("/api/imports/scans/upload")
+      .field("schoolCode", UNKNOWN)
+      .field("context", validContext)
+      .attach("file", FAKE_PNG, { filename: "marksheet.jpeg", contentType: "image/jpeg" });
     expect(res.status).toBe(404);
   });
 
-  it("accepts WEBP file type — returns 404 for unknown school (not 400)", async () => {
-    const res = await request(createServer()).post("/api/imports/scans/upload").send({
-      schoolCode: UNKNOWN,
-      fileName: "marksheet.webp",
-      fileType: "WEBP",
-      context: validContext,
-    });
+  it("accepts WEBP — returns 404 for unknown school", async () => {
+    const res = await request(createServer())
+      .post("/api/imports/scans/upload")
+      .field("schoolCode", UNKNOWN)
+      .field("context", validContext)
+      .attach("file", FAKE_PNG, { filename: "marksheet.webp", contentType: "image/webp" });
     expect(res.status).toBe(404);
   });
 
-  it("returns EXTRACTION_NOT_CONFIGURED with empty rows for SCU-PREVIEW school", async () => {
-    const res = await request(createServer()).post("/api/imports/scans/upload").send({
-      schoolCode: SCHOOL,
-      fileName: "s1a-math-bot.pdf",
-      fileType: "PDF",
-      fileSize: 204800,
-      context: validContext,
-    });
+  it("returns 200 with batchId for SCU-PREVIEW — extraction may fail on fake image", async () => {
+    const res = await request(createServer())
+      .post("/api/imports/scans/upload")
+      .field("schoolCode", SCHOOL)
+      .field("context", validContext)
+      .attach("file", FAKE_PNG, { filename: "test.png", contentType: "image/png" });
     expect(res.status).toBe(200);
-    expect(res.body.parseStatus).toBe("EXTRACTION_NOT_CONFIGURED");
-    expect(res.body.message).toMatch(/extraction engine not configured/i);
-    expect(res.body.rows).toEqual([]);
     expect(typeof res.body.batchId).toBe("string");
+    expect(res.body.batchId.length).toBeGreaterThan(0);
+    // Extraction on a fake file returns PARSED or FAILED — both are valid
+    expect(["PARSED", "FAILED"]).toContain(res.body.parseStatus);
+    expect(typeof res.body.message).toBe("string");
+    expect(Array.isArray(res.body.rows)).toBe(true);
   });
 
-  it("does not auto-commit scanned rows — rows array is always empty from engine", async () => {
-    const res = await request(createServer()).post("/api/imports/scans/upload").send({
-      schoolCode: SCHOOL,
-      fileName: "test.png",
-      fileType: "PNG",
-      context: validContext,
-    });
+  it("does not auto-commit scanned rows — rows never committed without operator approval", async () => {
+    const res = await request(createServer())
+      .post("/api/imports/scans/upload")
+      .field("schoolCode", SCHOOL)
+      .field("context", validContext)
+      .attach("file", FAKE_PNG, { filename: "test.png", contentType: "image/png" });
     expect(res.status).toBe(200);
-    // Operator review required: rows must be empty until OCR provides them
-    expect(res.body.rows).toEqual([]);
+    // Any returned rows must be in PARSED/NEEDS_REVIEW/VALID/INVALID — never COMMITTED
+    const rows = (res.body.rows ?? []) as { status: string }[];
+    for (const row of rows) {
+      expect(row.status).not.toBe("COMMITTED");
+    }
   });
 });
 

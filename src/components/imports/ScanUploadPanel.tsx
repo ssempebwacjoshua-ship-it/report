@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { uploadScanMetadata } from "../../client/importsClient";
-import { getScanFileType, SCAN_ACCEPT } from "../../client/marksSheetHelpers";
+import { uploadScanFile } from "../../client/importsClient";
+import { SCAN_ACCEPT } from "../../client/marksSheetHelpers";
 import type { ScanImportRow, ScanMarksheetContext, ScanUploadResponse } from "../../shared/types/imports";
 import { ScanReviewTable } from "./ScanReviewTable";
 
@@ -113,13 +113,7 @@ export function ScanUploadPanel() {
     setUploading(true);
     setError("");
     try {
-      const result = await uploadScanMetadata({
-        schoolCode: "SCU-PREVIEW",
-        fileName: scanFile.name,
-        fileType: getScanFileType(scanFile),
-        fileSize: scanFile.size,
-        context,
-      });
+      const result = await uploadScanFile(scanFile, "SCU-PREVIEW", context);
       setUploadResult(result);
       setScanRows(result.rows);
     } catch (err) {
@@ -224,7 +218,7 @@ export function ScanUploadPanel() {
               disabled={!canUpload}
               className="btn btn-primary"
             >
-              {uploading ? "Uploading…" : "Upload & Register Scan"}
+              {uploading ? "Extracting marks…" : "Upload & Extract Marks"}
             </button>
             <button
               type="button"
@@ -334,11 +328,11 @@ export function ScanUploadPanel() {
       {uploadResult ? (
         <div className="grid gap-4">
           {/* Status banner */}
-          {uploadResult.parseStatus === "EXTRACTION_NOT_CONFIGURED" ? (
-            <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
+          {uploadResult.parseStatus === "FAILED" ? (
+            <div className="rounded-2xl border border-red-200 bg-red-50 p-4">
               <div className="flex items-start gap-3">
                 <svg
-                  className="mt-0.5 h-5 w-5 shrink-0 text-amber-600"
+                  className="mt-0.5 h-5 w-5 shrink-0 text-red-500"
                   fill="none"
                   viewBox="0 0 24 24"
                   stroke="currentColor"
@@ -347,28 +341,46 @@ export function ScanUploadPanel() {
                   <path
                     strokeLinecap="round"
                     strokeLinejoin="round"
-                    d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z"
+                    d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z"
                   />
                 </svg>
                 <div>
-                  <p className="text-sm font-bold text-amber-900">
-                    Scan uploaded. Extraction engine not configured.
-                  </p>
-                  <p className="mt-1 text-sm text-amber-700">
-                    This scan has been registered (Batch ID:{" "}
-                    <code className="font-mono text-xs">{uploadResult.batchId}</code>). Automated
-                    mark extraction is not yet available. When the OCR engine is configured, it will
-                    process this batch automatically.
+                  <p className="text-sm font-bold text-red-900">Extraction failed</p>
+                  <p className="mt-0.5 text-sm text-red-700">{uploadResult.message}</p>
+                  <p className="mt-1 text-xs text-red-500">
+                    Batch registered:{" "}
+                    <code className="font-mono">{uploadResult.batchId}</code>
                   </p>
                 </div>
               </div>
             </div>
           ) : (
-            <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4">
-              <p className="text-sm font-bold text-blue-900">
-                Scan uploaded — {uploadResult.parseStatus}
-              </p>
-              <p className="mt-0.5 text-sm text-blue-700">{uploadResult.message}</p>
+            <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+              <div className="flex items-start gap-3">
+                <svg
+                  className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z"
+                  />
+                </svg>
+                <div>
+                  <p className="text-sm font-bold text-emerald-900">
+                    Marks extracted — operator review required
+                  </p>
+                  <p className="mt-0.5 text-sm text-emerald-700">{uploadResult.message}</p>
+                  <p className="mt-1 text-xs text-emerald-600">
+                    Batch ID:{" "}
+                    <code className="font-mono text-xs">{uploadResult.batchId}</code>
+                  </p>
+                </div>
+              </div>
             </div>
           )}
 

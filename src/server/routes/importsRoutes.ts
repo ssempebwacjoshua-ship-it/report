@@ -1,7 +1,9 @@
 import { Router } from "express";
+import multer from "multer";
 import { z } from "zod";
 import { prisma } from "../db/prisma";
 import { commitMarksImport, dryRunMarksImport } from "../services/marksImportService";
+import { extractMarksFromScan } from "../services/scanExtractionService";
 
 const SCAN_FILE_TYPES = new Set(["PDF", "PNG", "JPG", "JPEG", "WEBP"]);
 
@@ -11,7 +13,7 @@ const importPayload = z.object({
 });
 
 const scanContextSchema = z.object({
-  marksheetId: z.string().min(1),
+  marksheetId: z.string().default(""),
   className: z.string().min(1),
   streamName: z.string().min(1),
   subjectName: z.string().min(1),
@@ -20,12 +22,10 @@ const scanContextSchema = z.object({
   academicYear: z.string().min(1),
 });
 
-const scanUploadPayload = z.object({
-  schoolCode: z.string().default("SCU-PREVIEW"),
-  fileName: z.string().min(1),
-  fileType: z.string().min(1),
-  fileSize: z.number().optional(),
-  context: scanContextSchema,
+// Accept scan files up to 20 MB in memory
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 20 * 1024 * 1024 },
 });
 
 export function importsRoutes() {
@@ -53,53 +53,111 @@ export function importsRoutes() {
 
   // ── Scanned handwritten marksheet import ───────────────────────────────────
 
-  router.post("/api/imports/scans/upload", async (req, res, next) => {
-    try {
-      const payload = scanUploadPayload.parse(req.body);
+  router.post(
+    "/api/imports/scans/upload",
+    upload.single("file"),
+    async (req, res, next) => {
+      try {
+        // 1. Require actual file bytes
+        const file = req.file;
+        if (!file) {
+          res
+            .status(400)
+            .json({ error: "No scan file uploaded. Attach a PNG, JPG, JPEG, WEBP, or PDF scan." });
+          return;
+        }
 
-      const fileTypeUpper = payload.fileType.trim().toUpperCase();
-      if (!SCAN_FILE_TYPES.has(fileTypeUpper)) {
-        res.status(400).json({
-          error: `Unsupported scan file type: ${payload.fileType}. Accepted formats: PDF, PNG, JPG, JPEG, WEBP.`,
+        // 2. Validate file type from extension
+        const ext = (file.originalname.split(".").pop() ?? "").trim().toUpperCase();
+        if (!SCAN_FILE_TYPES.has(ext)) {
+          res.status(400).json({
+            error: `Unsupported scan file type: .${ext.toLowerCase()}. Accepted formats: PDF, PNG, JPG, JPEG, WEBP.`,
+          });
+          return;
+        }
+
+        // 3. Parse and validate marksheet context (sent as JSON string in form field)
+        let context: z.infer<typeof scanContextSchema>;
+        try {
+          const raw =
+            typeof req.body.context === "string"
+              ? (JSON.parse(req.body.context) as unknown)
+              : req.body.context;
+          context = scanContextSchema.parse(raw);
+        } catch {
+          res.status(400).json({
+            error:
+              'Invalid or missing marksheet context. Send context as a JSON string in the "context" field.',
+          });
+          return;
+        }
+
+        const schoolCode = typeof req.body.schoolCode === "string"
+          ? req.body.schoolCode.trim()
+          : "SCU-PREVIEW";
+
+        // 4. Look up school
+        const school = await prisma.school.findUnique({ where: { code: schoolCode } });
+        if (!school) {
+          res.status(404).json({ error: `School "${schoolCode}" was not found.` });
+          return;
+        }
+
+        // 5. Create batch record immediately (before extraction, so it exists even on failure)
+        const batch = await prisma.markImportBatch.create({
+          data: {
+            schoolId: school.id,
+            status: "DRY_RUN",
+            source: "scan",
+            summary: JSON.stringify({
+              scanMode: true,
+              parseStatus: "PARSING",
+              fileName: file.originalname,
+              fileType: ext,
+              fileSize: file.size,
+              context,
+              rows: [],
+            }),
+          },
         });
-        return;
+
+        // 6. Run extraction engine
+        const extraction = await extractMarksFromScan(
+          prisma,
+          file.buffer,
+          file.mimetype,
+          school.id,
+          context,
+        );
+
+        // 7. Update batch with final extraction result
+        await prisma.markImportBatch.update({
+          where: { id: batch.id },
+          data: {
+            summary: JSON.stringify({
+              scanMode: true,
+              parseStatus: extraction.parseStatus,
+              fileName: file.originalname,
+              fileType: ext,
+              fileSize: file.size,
+              context,
+              rows: extraction.rows,
+              message: extraction.message,
+            }),
+          },
+        });
+
+        res.json({
+          batchId: batch.id,
+          parseStatus: extraction.parseStatus,
+          message: extraction.message,
+          rows: extraction.rows,
+        });
+      } catch (error) {
+        next(error);
       }
-
-      const school = await prisma.school.findUnique({ where: { code: payload.schoolCode } });
-      if (!school) {
-        res.status(404).json({ error: `School ${payload.schoolCode} was not found.` });
-        return;
-      }
-
-      const summary = JSON.stringify({
-        scanMode: true,
-        parseStatus: "EXTRACTION_NOT_CONFIGURED",
-        fileName: payload.fileName,
-        fileType: fileTypeUpper,
-        fileSize: payload.fileSize ?? 0,
-        context: payload.context,
-        rows: [],
-      });
-
-      const batch = await prisma.markImportBatch.create({
-        data: {
-          schoolId: school.id,
-          status: "DRY_RUN",
-          source: "scan",
-          summary,
-        },
-      });
-
-      res.json({
-        batchId: batch.id,
-        parseStatus: "EXTRACTION_NOT_CONFIGURED",
-        message: "Scan uploaded. Extraction engine not configured.",
-        rows: [],
-      });
-    } catch (error) {
-      next(error);
-    }
-  });
+    },
+  );
 
   router.get("/api/imports/scans/batches", async (req, res, next) => {
     try {
@@ -128,10 +186,7 @@ export function importsRoutes() {
           fileName: parsed["fileName"] ?? "",
           fileType: parsed["fileType"] ?? "",
           parseStatus: parsed["parseStatus"] ?? "UPLOADED",
-          message:
-            parsed["parseStatus"] === "EXTRACTION_NOT_CONFIGURED"
-              ? "Scan uploaded. Extraction engine not configured."
-              : "",
+          message: (parsed["message"] as string | undefined) ?? "",
           context: parsed["context"] ?? null,
           rows: parsed["rows"] ?? [],
           createdAt: b.createdAt.toISOString(),

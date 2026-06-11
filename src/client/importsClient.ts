@@ -1,4 +1,10 @@
-import type { ImportPreview, ScanImportBatch, ScanUploadPayload, ScanUploadResponse } from "../shared/types/imports";
+import type {
+  ImportPreview,
+  ScanImportBatch,
+  ScanMarksheetContext,
+  ScanUploadPayload,
+  ScanUploadResponse,
+} from "../shared/types/imports";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:4300";
 
@@ -38,11 +44,35 @@ export async function commitMarksImport(csvText: string, schoolCode = "SCU-PREVI
 
 // ── Scanned handwritten marksheet import ─────────────────────────────────────
 
+/** @deprecated Use uploadScanFile instead (sends actual file bytes for OCR). */
 export async function uploadScanMetadata(payload: ScanUploadPayload): Promise<ScanUploadResponse> {
+  return uploadScanFile(
+    new File([], payload.fileName, { type: "application/octet-stream" }),
+    payload.schoolCode,
+    payload.context,
+  );
+}
+
+/**
+ * Upload a scanned marksheet image and run the extraction engine.
+ *
+ * Sends the file as multipart/form-data. The server returns extracted mark rows
+ * for mandatory operator review — rows are never auto-committed.
+ */
+export async function uploadScanFile(
+  file: File,
+  schoolCode: string,
+  context: ScanMarksheetContext,
+): Promise<ScanUploadResponse> {
+  const form = new FormData();
+  form.append("file", file);
+  form.append("schoolCode", schoolCode);
+  form.append("context", JSON.stringify(context));
+
   const response = await fetch(`${API_BASE}/api/imports/scans/upload`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
+    body: form,
+    // Do NOT set Content-Type — the browser/fetch sets it with the correct boundary
   });
   if (!response.ok) throw new Error(await readImportError(response, "Could not upload scan"));
   return response.json();
