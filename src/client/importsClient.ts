@@ -3,8 +3,10 @@ import type {
   ImportPreview,
   ScanImportBatch,
   ScanMarksheetContext,
+  ScanRowsValidationResponse,
   ScanUploadPayload,
   ScanUploadResponse,
+  ScanImportRow,
 } from "../shared/types/imports";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:4300";
@@ -122,4 +124,18 @@ export async function fetchScanBatches(schoolCode = "SCU-PREVIEW"): Promise<Scan
   if (!response.ok) throw new Error("Could not load scan batches");
   const body = await response.json();
   return (body.batches ?? []) as ScanImportBatch[];
+}
+
+export async function dryRunScanRows(
+  context: ScanMarksheetContext,
+  rows: ScanImportRow[],
+  schoolCode = "SCU-PREVIEW",
+): Promise<ScanRowsValidationResponse> {
+  const response = await fetch(`${API_BASE}/api/imports/scans/dry-run`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ schoolCode, context, rows }),
+  });
+  if (!response.ok) throw new Error(await readImportError(response, "Could not validate scanned marks"));
+  return response.json();
 }

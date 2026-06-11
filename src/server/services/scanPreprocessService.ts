@@ -61,7 +61,27 @@ export async function preprocessScanImage(
 export async function cropCell(imageBuffer: Buffer, rect: PixelRect): Promise<Buffer> {
   return sharp(imageBuffer)
     .extract({ left: rect.x, top: rect.y, width: rect.w, height: rect.h })
+    .resize({
+      width: Math.max(96, rect.w * 4),
+      height: Math.max(48, rect.h * 4),
+      fit: "fill",
+    })
+    .greyscale()
     .normalize()
+    .linear(1.25, -12)
+    .threshold(168)
     .jpeg({ quality: 90 })
     .toBuffer();
+}
+
+export async function cropPreview(imageBuffer: Buffer, rect: PixelRect): Promise<Buffer> {
+  return sharp(imageBuffer)
+    .extract({ left: rect.x, top: rect.y, width: rect.w, height: rect.h })
+    .resize({ width: Math.max(120, rect.w * 3), withoutEnlargement: false })
+    .jpeg({ quality: 82 })
+    .toBuffer();
+}
+
+export function bufferToDataUrl(buffer: Buffer, mimeType = "image/jpeg"): string {
+  return `data:${mimeType};base64,${buffer.toString("base64")}`;
 }

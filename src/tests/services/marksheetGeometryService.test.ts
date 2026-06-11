@@ -5,6 +5,7 @@ import {
   PAGE_MARGIN_LEFT_FRAC,
   cellToPixel,
   dataRowRegion,
+  splitRectIntoVerticalZones,
 } from "../../server/services/marksheetGeometryService";
 
 const A4_W = 1240; // 150 DPI A4 width in pixels
@@ -118,5 +119,15 @@ describe("cellToPixel", () => {
     const rect = cellToPixel(COLUMNS.splitMark, rowFrac, w, h);
     expect(rect.x + rect.w).toBeLessThanOrEqual(w);
     expect(rect.y + rect.h).toBeLessThanOrEqual(h);
+  });
+
+  it("splits the split mark cell into exactly three vertical zones", () => {
+    const rowFrac = dataRowRegion(0);
+    const rect = cellToPixel(COLUMNS.splitMark, rowFrac, A4_W, A4_H);
+    const zones = splitRectIntoVerticalZones(rect, 3);
+    expect(zones).toHaveLength(3);
+    expect(zones[0]!.x).toBe(rect.x);
+    expect(zones[2]!.x + zones[2]!.w).toBe(rect.x + rect.w);
+    expect(zones.reduce((sum, zone) => sum + zone.w, 0)).toBe(rect.w);
   });
 });

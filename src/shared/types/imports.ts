@@ -31,6 +31,7 @@ export type ImportPreview = {
 export type ScanRowStatus =
   | "PARSED"
   | "NEEDS_REVIEW"
+  | "MISSING"
   | "VALID"
   | "INVALID"
   | "COMMITTED"
@@ -46,6 +47,14 @@ export type ScanImportRow = {
   suggestedMark: string;
   confidence: number;
   remarks: string;
+  writtenMarkRaw?: string;
+  splitMarkRaw?: string;
+  splitDigitRaw?: string[];
+  writtenCropDataUrl?: string;
+  splitCropDataUrl?: string;
+  splitDigitCropDataUrls?: string[];
+  remarksCropDataUrl?: string;
+  tableCropDataUrl?: string;
   status: ScanRowStatus;
   validationErrors: string[];
   operatorCorrection: string;
@@ -91,6 +100,16 @@ export type ScanUploadResponse = {
   batchId: string;
   parseStatus: ScanParseStatus;
   message: string;
+  rows: ScanImportRow[];
+};
+
+export type ScanRowsValidationResponse = {
+  status: "DRY_RUN";
+  totalRows: number;
+  validRows: number;
+  missingRows: number;
+  reviewRows: number;
+  invalidRows: number;
   rows: ScanImportRow[];
 };
 

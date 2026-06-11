@@ -98,3 +98,30 @@ export function dataRowRegion(index: number): { yFrac: number; hFrac: number } {
     hFrac: LAYOUT.dataRowHFrac,
   };
 }
+
+export function splitRectIntoVerticalZones(rect: PixelRect, zones = 3): PixelRect[] {
+  const safeZones = Math.max(1, Math.floor(zones));
+  const baseWidth = rect.w / safeZones;
+
+  return Array.from({ length: safeZones }, (_, index) => {
+    const left = Math.round(rect.x + index * baseWidth);
+    const right = index === safeZones - 1
+      ? rect.x + rect.w
+      : Math.round(rect.x + (index + 1) * baseWidth);
+    return {
+      x: left,
+      y: rect.y,
+      w: Math.max(1, right - left),
+      h: rect.h,
+    };
+  });
+}
+
+export function tableToPixel(imgW: number, imgH: number): PixelRect {
+  return {
+    x: Math.max(0, Math.round(PAGE_MARGIN_LEFT_FRAC * imgW)),
+    y: Math.max(0, Math.round(LAYOUT.tableStartFrac * imgH)),
+    w: Math.max(1, Math.round(TABLE_WIDTH_FRAC * imgW)),
+    h: Math.max(1, Math.round((LAYOUT.tableHeaderHFrac + LAYOUT.dataRowHFrac * 26) * imgH)),
+  };
+}

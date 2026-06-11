@@ -6,7 +6,7 @@ function norm(v: string): string {
   return v.trim().toLowerCase();
 }
 
-function parseMark(v: string): string {
+export function parseScanMark(v: string): string {
   const t = v.trim().toUpperCase();
   if (t === "AB" || t === "EX") return t;
   if (t === "") return "";
@@ -19,8 +19,8 @@ function resolveSuggestedMark(
   written: string,
   split: string,
 ): { suggested: string; conflict: boolean } {
-  const w = parseMark(written);
-  const s = parseMark(split);
+  const w = parseScanMark(written);
+  const s = parseScanMark(split);
 
   // Both blank → missing mark (not an error)
   if (w === "" && s === "") return { suggested: "", conflict: false };
@@ -65,7 +65,7 @@ export function validateScanRows(
     const { suggested, conflict } = resolveSuggestedMark(row.writtenMark, row.splitMark);
     const finalMark = row.operatorCorrection.trim() || suggested;
 
-    if (finalMark && finalMark !== "" && parseMark(finalMark) === "INVALID") {
+    if (finalMark && finalMark !== "" && parseScanMark(finalMark) === "INVALID") {
       errors.push(`Mark "${finalMark}" is not valid. Use 0–100, AB, or EX.`);
     }
 
@@ -75,12 +75,12 @@ export function validateScanRows(
     let status: ScanImportRow["status"];
     if (errors.length > 0) {
       status = "INVALID";
-    } else if (!operatorResolved && (conflict || row.confidence < 0.7)) {
+    } else if (!operatorResolved && conflict) {
       status = "NEEDS_REVIEW";
     } else if (finalMark !== "") {
-      status = "VALID";
+      status = !operatorResolved && row.confidence < 0.7 ? "NEEDS_REVIEW" : "VALID";
     } else {
-      status = "PARSED";
+      status = "MISSING";
     }
 
     return {

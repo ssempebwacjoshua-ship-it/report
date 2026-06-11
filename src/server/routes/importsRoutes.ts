@@ -10,6 +10,7 @@ import {
 } from "../services/marksheetContextService";
 import { cropCell } from "../services/scanPreprocessService";
 import { extractMarksFromScan } from "../services/scanExtractionService";
+import { validateScanRows } from "../services/scanImportValidator";
 import {
   LAYOUT,
   PAGE_MARGIN_LEFT_FRAC,
@@ -277,6 +278,50 @@ export function importsRoutes() {
       }
     },
   );
+
+  router.post("/api/imports/scans/dry-run", async (req, res, next) => {
+    try {
+      const payload = z.object({
+        schoolCode: z.string().default("SCU-PREVIEW"),
+        context: scanContextSchema,
+        rows: z.array(z.any()),
+      }).parse(req.body);
+
+      const school = await prisma.school.findUnique({ where: { code: payload.schoolCode } });
+      if (!school) {
+        res.status(404).json({ error: `School "${payload.schoolCode}" was not found.` });
+        return;
+      }
+
+      const roster = await prisma.classEnrollment.findMany({
+        where: {
+          isActive: true,
+          status: "ACTIVE",
+          student: { schoolId: school.id },
+          class: { schoolId: school.id, name: { contains: payload.context.className.trim(), mode: "insensitive" } },
+          stream: { name: { contains: payload.context.streamName.trim(), mode: "insensitive" } },
+        },
+        include: { student: true },
+        orderBy: { student: { admissionNumber: "asc" } },
+      });
+
+      const rows = validateScanRows(payload.rows, payload.context, roster.map((item) => ({
+        admissionNumber: item.student.admissionNumber,
+      })));
+
+      res.json({
+        status: "DRY_RUN",
+        totalRows: rows.length,
+        validRows: rows.filter((row) => row.status === "VALID").length,
+        missingRows: rows.filter((row) => row.status === "MISSING").length,
+        reviewRows: rows.filter((row) => row.status === "NEEDS_REVIEW").length,
+        invalidRows: rows.filter((row) => row.status === "INVALID").length,
+        rows,
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
 
   router.get("/api/imports/scans/batches", async (req, res, next) => {
     try {

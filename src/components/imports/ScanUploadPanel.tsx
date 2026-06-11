@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import {
   detectScanContext,
+  dryRunScanRows,
   lookupMarksheetContext,
   uploadScanFile,
 } from "../../client/importsClient";
@@ -213,6 +214,7 @@ export function ScanUploadPanel() {
   const [idLookupBusy,   setIdLookupBusy]   = useState(false);
   const [uploadResult,   setUploadResult]   = useState<ScanUploadResponse | null>(null);
   const [scanRows,       setScanRows]       = useState<ScanImportRow[]>([]);
+  const [dryRunSummary,  setDryRunSummary]  = useState("");
   const [error,          setError]          = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -225,6 +227,7 @@ export function ScanUploadPanel() {
     setDetectedCtx(null);
     setUploadResult(null);
     setScanRows([]);
+    setDryRunSummary("");
 
     if (!file) return;
 
@@ -309,6 +312,7 @@ export function ScanUploadPanel() {
       const result = await uploadScanFile(scanFile, "SCU-PREVIEW", confirmedContext);
       setUploadResult(result);
       setScanRows(result.rows);
+      setDryRunSummary("");
       setPhase("marks_review");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Mark extraction failed.");
@@ -322,6 +326,21 @@ export function ScanUploadPanel() {
         row.rowNumber === rowNumber ? { ...row, operatorCorrection: value } : row,
       ),
     );
+    setDryRunSummary("");
+  }
+
+  async function handleScanDryRun() {
+    if (scanRows.length === 0) return;
+    setError("");
+    try {
+      const result = await dryRunScanRows(contextForm, scanRows, "SCU-PREVIEW");
+      setScanRows(result.rows);
+      setDryRunSummary(
+        `${result.totalRows} rows checked: ${result.validRows} valid, ${result.reviewRows} need review, ${result.missingRows} missing, ${result.invalidRows} invalid.`,
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not validate scanned marks.");
+    }
   }
 
   function handleReset() {
@@ -333,6 +352,7 @@ export function ScanUploadPanel() {
     setManualId("");
     setUploadResult(null);
     setScanRows([]);
+    setDryRunSummary("");
     setError("");
     setPhase("idle");
     if (fileInputRef.current) fileInputRef.current.value = "";
@@ -559,8 +579,12 @@ export function ScanUploadPanel() {
                   <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z" />
                 </svg>
                 <div>
-                  <p className="text-sm font-bold text-emerald-900">Marks extracted — review required</p>
+                  <p className="text-sm font-bold text-emerald-900">Scan processed. Review suggested marks before validation.</p>
                   <p className="mt-0.5 text-sm text-emerald-700">{uploadResult.message}</p>
+                  <p className="mt-1 text-xs font-semibold text-emerald-700">
+                    Some marks may need operator review. Use the crop previews to confirm each mark.
+                    Operator corrections are used for dry-run and commit.
+                  </p>
                   <p className="mt-1 text-xs text-emerald-600">
                     Batch: <code className="font-mono text-xs">{uploadResult.batchId}</code>
                   </p>
@@ -575,13 +599,14 @@ export function ScanUploadPanel() {
               <div>
                 <h2 className="text-sm font-bold text-slate-950">Operator Review Table</h2>
                 <p className="mt-0.5 text-xs text-slate-500">
-                  Review extracted marks, enter corrections, then dry-run before committing.
+                  Review suggested marks, enter corrections, then dry-run before committing valid rows.
                 </p>
               </div>
               <div className="flex flex-wrap gap-2">
                 <button
                   type="button"
                   disabled={scanRows.length === 0}
+                  onClick={handleScanDryRun}
                   className="btn btn-primary"
                   title="Dry-run available once marks are extracted"
                 >
@@ -597,6 +622,12 @@ export function ScanUploadPanel() {
                 </button>
               </div>
             </div>
+
+            {dryRunSummary && (
+              <div className="mt-3 rounded-xl border border-blue-100 bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-800">
+                {dryRunSummary}
+              </div>
+            )}
 
             <div className="mt-4">
               <ScanReviewTable rows={scanRows} onCorrectionChange={handleCorrectionChange} />

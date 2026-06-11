@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { normalizeMark, parseSplitCellText } from "../../server/services/markRecognitionService";
+import { normalizeMark, parseSplitCellText, parseSplitZoneTexts } from "../../server/services/markRecognitionService";
 
 describe("normalizeMark", () => {
   it("returns numeric string for clean digit strings", () => {
@@ -82,5 +82,24 @@ describe("parseSplitCellText", () => {
 
   it("extracts the fixture mark S1A-003=100", () => {
     expect(parseSplitCellText("34 33 33 100")).toBe("100");
+  });
+});
+
+describe("parseSplitZoneTexts", () => {
+  it("joins two digit zones into a mark", () => {
+    expect(parseSplitZoneTexts(["8", "2", ""])).toBe("82");
+  });
+
+  it("joins three digit zones into 100", () => {
+    expect(parseSplitZoneTexts(["1", "0", "0"])).toBe("100");
+  });
+
+  it("handles absent and exempt markers", () => {
+    expect(parseSplitZoneTexts(["A", "B", ""])).toBe("AB");
+    expect(parseSplitZoneTexts(["E", "X", ""])).toBe("EX");
+  });
+
+  it("returns blank for empty zones", () => {
+    expect(parseSplitZoneTexts(["", "", ""])).toBe("");
   });
 });
