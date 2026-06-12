@@ -9,4 +9,11 @@ describe("getApiBaseUrl", () => {
       "VITE_API_BASE_URL must be the backend API URL, not DATABASE_URL.",
     );
   });
+
+  it("rejects relative URLs", async () => {
+    vi.resetModules();
+    vi.stubEnv("VITE_API_BASE_URL", "report-production-b00d.up.railway.app");
+    const { getApiBaseUrl } = await import("../../client/apiBase");
+    expect(() => getApiBaseUrl()).toThrow("Invalid VITE_API_BASE_URL: must be absolute HTTPS URL");
+  });
 });
