@@ -136,6 +136,10 @@ export function studentsRoutes() {
     res.type("text/csv").send("admissionNumber,fullName,gender,class,stream,guardianName,guardianPhone,guardianEmail,status\n,,,Senior 1,A,,,,,ACTIVE\n");
   });
 
+  router.get("/api/students/import/template", async (_req, res) => {
+    res.type("text/csv").send("admissionNumber,fullName,gender,class,stream,guardianName,guardianPhone,guardianEmail,status\n");
+  });
+
   router.get("/api/students/import/template.xlsx", async (_req, res) => {
     const xlsx = await import("xlsx");
     const wb = xlsx.utils.book_new();
@@ -173,6 +177,60 @@ export function studentsRoutes() {
       }
       const rows = file.originalname.toLowerCase().endsWith(".xlsx") ? parseStudentsXlsx(file.buffer) : parseStudentsCsv(file.buffer.toString("utf8"));
       res.json(await commitStudentImport(prisma, query.schoolCode, rows, mode === "create-and-update existing" ? "CREATE_AND_UPDATE_EXISTING" : "CREATE_ONLY"));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.get("/api/students/import/history", async (req, res, next) => {
+    try {
+      const query = schoolQuery.parse(req.query);
+      const school = await prisma.school.findUnique({ where: { code: query.schoolCode } });
+      if (!school) {
+        res.json({ batches: [] });
+        return;
+      }
+      const batches = await prisma.markImportBatch.findMany({
+        where: { schoolId: school.id, source: "student" },
+        orderBy: { createdAt: "desc" },
+        take: 50,
+      });
+      res.json({
+        batches: batches.map((batch) => ({
+          id: batch.id,
+          status: batch.status,
+          summary: batch.summary,
+          createdAt: batch.createdAt.toISOString(),
+          updatedAt: batch.updatedAt.toISOString(),
+        })),
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.get("/api/students/import/:id", async (req, res, next) => {
+    try {
+      const query = schoolQuery.parse(req.query);
+      const school = await prisma.school.findUnique({ where: { code: query.schoolCode } });
+      if (!school) {
+        res.status(404).json({ error: "School not found." });
+        return;
+      }
+      const batch = await prisma.markImportBatch.findFirst({
+        where: { id: req.params.id, schoolId: school.id, source: "student" },
+      });
+      if (!batch) {
+        res.status(404).json({ error: "Import batch not found." });
+        return;
+      }
+      res.json({
+        id: batch.id,
+        status: batch.status,
+        summary: batch.summary,
+        createdAt: batch.createdAt.toISOString(),
+        updatedAt: batch.updatedAt.toISOString(),
+      });
     } catch (error) {
       next(error);
     }
