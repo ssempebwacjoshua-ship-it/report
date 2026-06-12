@@ -31,6 +31,7 @@ type Phase =
 
 const EXAM_TYPES = ["BOT", "MOT", "EOT"] as const;
 const BATCH_SESSION_KEY = "scan_batchId";
+const BATCH_QUERY_KEY = "scanBatchId";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -101,6 +102,18 @@ function ProviderBadge({ result }: { result: ScanUploadResponse }) {
       )}
     </div>
   );
+}
+
+function contextSourceLabel(source?: string): string {
+  if (source === "recognized-id") return "Recognized Marksheet ID";
+  if (source === "selected-context") return "Selected context";
+  return "Manual required";
+}
+
+function extractionOutcome(rows: ScanImportRow[]): string {
+  const accepted = rows.filter((row) => row.extractedMark || row.suggestedMark).length;
+  const needsEntry = rows.filter((row) => row.status === "MISSING" || row.status === "NEEDS_REVIEW").length;
+  return `Extraction completed with ${accepted} accepted suggestion${accepted === 1 ? "" : "s"}, ${needsEntry} needs entry.`;
 }
 
 // ── File preview ──────────────────────────────────────────────────────────────
@@ -211,9 +224,11 @@ function ContextForm({
 
 export function ScanUploadPanel() {
   const [phase, setPhase] = useState<Phase>("idle");
+  const [currentBatchId, setCurrentBatchId] = useState("");
   const [scanFile, setScanFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [detectedCtx, setDetectedCtx] = useState<DetectedContext | null>(null);
+  const [recognizedMarksheetId, setRecognizedMarksheetId] = useState<string | null>(null);
   const [contextForm, setContextForm] = useState<ScanMarksheetContext>(emptyContext());
   const [manualId, setManualId] = useState("");
   const [idLookupBusy, setIdLookupBusy] = useState(false);
@@ -227,36 +242,62 @@ export function ScanUploadPanel() {
 
   useEffect(() => () => { if (previewUrl) URL.revokeObjectURL(previewUrl); }, [previewUrl]);
 
+  function rememberBatch(batchId: string) {
+    setCurrentBatchId(batchId);
+    sessionStorage.setItem(BATCH_SESSION_KEY, batchId);
+    const url = new URL(window.location.href);
+    url.searchParams.set(BATCH_QUERY_KEY, batchId);
+    window.history.replaceState({}, "", url);
+  }
+
+  function forgetBatch() {
+    setCurrentBatchId("");
+    sessionStorage.removeItem(BATCH_SESSION_KEY);
+    const url = new URL(window.location.href);
+    url.searchParams.delete(BATCH_QUERY_KEY);
+    window.history.replaceState({}, "", url);
+  }
+
   // On mount: restore previous session from sessionStorage
   useEffect(() => {
-    const savedBatchId = sessionStorage.getItem(BATCH_SESSION_KEY);
+    const params = new URLSearchParams(window.location.search);
+    const savedBatchId = params.get(BATCH_QUERY_KEY) || sessionStorage.getItem(BATCH_SESSION_KEY);
     if (savedBatchId) {
       setPhase("restoring");
       loadScanBatch(savedBatchId)
         .then((batch) => {
-          if (batch.rows.length > 0) {
+          if (batch.rows.length > 0 || batch.context || batch.resolvedContext) {
             const result: ScanUploadResponse = {
               batchId: batch.batchId,
+              scanBatchId: batch.scanBatchId ?? batch.batchId,
               parseStatus: batch.parseStatus,
               message: batch.message,
               rows: batch.rows,
+              recognizedMarksheetId: batch.recognizedMarksheetId,
+              normalizedMarksheetId: batch.normalizedMarksheetId,
+              selectedMarksheetId: batch.selectedMarksheetId,
+              resolvedContext: batch.resolvedContext,
+              contextSource: batch.contextSource,
+              contextWarning: batch.contextWarning,
               configuredProvider: batch.configuredProvider,
               activeProvider: batch.activeProvider,
               providerUrl: batch.providerUrl,
               providerReachable: batch.providerReachable,
               fallbackReason: batch.fallbackReason,
             };
+            rememberBatch(batch.batchId);
             setUploadResult(result);
             setScanRows(batch.rows);
-            if (batch.context) setContextForm(batch.context);
+            if (batch.resolvedContext || batch.context) setContextForm((batch.resolvedContext ?? batch.context)!);
+            setRecognizedMarksheetId(batch.recognizedMarksheetId ?? null);
             setPhase("marks_review");
           } else {
-            sessionStorage.removeItem(BATCH_SESSION_KEY);
+            forgetBatch();
             setPhase("idle");
           }
         })
         .catch(() => {
-          sessionStorage.removeItem(BATCH_SESSION_KEY);
+          forgetBatch();
           setPhase("idle");
         });
     }
@@ -267,6 +308,7 @@ export function ScanUploadPanel() {
   async function handleFileChange(file: File | null) {
     setError("");
     setDetectedCtx(null);
+    setRecognizedMarksheetId(null);
     setUploadResult(null);
     setScanRows([]);
     setDryRunSummary("");
@@ -287,6 +329,7 @@ export function ScanUploadPanel() {
 
     try {
       const result = await detectScanContext(file, "SCU-PREVIEW");
+      setRecognizedMarksheetId(result.recognizedMarksheetId ?? result.ocrFoundId ?? null);
       if (result.detected && result.detectionStatus !== "NOT_FOUND") {
         setDetectedCtx(result.detected);
         setContextForm(detectedToForm(result.detected));
@@ -310,6 +353,7 @@ export function ScanUploadPanel() {
     setError("");
     try {
       const result = await lookupMarksheetContext(manualId.trim(), "SCU-PREVIEW");
+      setRecognizedMarksheetId(result.normalizedMarksheetId ?? manualId.trim());
       if (result.detected) {
         setDetectedCtx(result.detected);
         setContextForm(detectedToForm(result.detected));
@@ -348,9 +392,13 @@ export function ScanUploadPanel() {
     setPhase("extracting");
     setError("");
     try {
-      const result = await uploadScanFile(scanFile, "SCU-PREVIEW", confirmedContext);
-      // Persist batchId in sessionStorage so refresh restores this session
-      sessionStorage.setItem(BATCH_SESSION_KEY, result.batchId);
+      const result = await uploadScanFile(scanFile, "SCU-PREVIEW", confirmedContext, {
+        recognizedMarksheetId,
+        selectedMarksheetId: confirmedContext.marksheetId,
+      });
+      rememberBatch(result.scanBatchId ?? result.batchId);
+      setContextForm(result.resolvedContext ?? confirmedContext);
+      setRecognizedMarksheetId(result.recognizedMarksheetId ?? recognizedMarksheetId);
       setUploadResult(result);
       setScanRows(result.rows);
       setDryRunSummary("");
@@ -385,7 +433,7 @@ export function ScanUploadPanel() {
     if (scanRows.length === 0) return;
     setError("");
     try {
-      const result = await dryRunScanRows(contextForm, scanRows, "SCU-PREVIEW");
+      const result = await dryRunScanRows(contextForm, scanRows, "SCU-PREVIEW", currentBatchId || uploadResult?.batchId);
       // Merge dry-run status back while PRESERVING operator corrections and crop images
       setScanRows((prev) =>
         result.rows.map((dryRow) => {
@@ -429,11 +477,12 @@ export function ScanUploadPanel() {
   }
 
   function handleReset() {
-    sessionStorage.removeItem(BATCH_SESSION_KEY);
+    forgetBatch();
     if (previewUrl) URL.revokeObjectURL(previewUrl);
     setScanFile(null);
     setPreviewUrl(null);
     setDetectedCtx(null);
+    setRecognizedMarksheetId(null);
     setContextForm(emptyContext());
     setManualId("");
     setUploadResult(null);
@@ -475,6 +524,21 @@ export function ScanUploadPanel() {
       {error && (
         <div className="rounded-2xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
           {error}
+        </div>
+      )}
+
+      {(recognizedMarksheetId || phase === "manual_id" || uploadResult?.contextWarning) && (
+        <div className="rounded-2xl border border-blue-100 bg-blue-50 p-4 text-sm text-blue-800">
+          {recognizedMarksheetId ? (
+            <p>
+              Recognized Marksheet ID: <span className="font-mono font-bold">{recognizedMarksheetId}</span>
+            </p>
+          ) : (
+            <p>Marksheet ID not recognized. Confirm the marksheet context manually.</p>
+          )}
+          {uploadResult?.contextWarning && (
+            <p className="mt-1 font-semibold">{uploadResult.contextWarning}</p>
+          )}
         </div>
       )}
 
@@ -551,7 +615,7 @@ export function ScanUploadPanel() {
       {phase === "manual_id" && (
         <div className="premium-card grid gap-4 rounded-2xl p-4">
           <div className="flex items-start gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">
-            <p>No marksheet ID found in the scan header. Enter the ID from the printed marksheet to auto-fill the context.</p>
+            <p>Marksheet ID not recognized. Confirm the marksheet context manually, or enter the printed Marksheet ID to auto-fill it.</p>
           </div>
           <div>
             <label className="block text-xs font-semibold uppercase text-slate-500">Marksheet ID</label>
@@ -611,6 +675,53 @@ export function ScanUploadPanel() {
       {/* ── Step 4: Mark extraction result + review table ── */}
       {phase === "marks_review" && uploadResult && (
         <div className="grid gap-4">
+          <div className="premium-card rounded-2xl p-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h2 className="text-sm font-bold text-slate-950">Scan Batch Summary</h2>
+                <p className="mt-0.5 text-xs text-slate-500">
+                  Batch ID: <code className="font-mono">{currentBatchId || uploadResult.batchId}</code>
+                </p>
+              </div>
+              <span className="rounded-full bg-blue-100 px-2.5 py-1 text-xs font-bold text-blue-800">
+                {contextSourceLabel(uploadResult.contextSource)}
+              </span>
+            </div>
+            <div className="mt-3 grid gap-2 text-sm text-slate-700 md:grid-cols-2">
+              <p>
+                <span className="font-semibold">Recognized ID:</span>{" "}
+                {uploadResult.recognizedMarksheetId || <span className="text-slate-400">Not recognized</span>}
+              </p>
+              <p>
+                <span className="font-semibold">Resolved ID:</span>{" "}
+                {uploadResult.normalizedMarksheetId || uploadResult.resolvedContext?.marksheetId || <span className="text-slate-400">Manual context</span>}
+              </p>
+              <p>
+                <span className="font-semibold">Class / Stream:</span>{" "}
+                {contextForm.className || uploadResult.resolvedContext?.className || "-"} / {contextForm.streamName || uploadResult.resolvedContext?.streamName || "-"}
+              </p>
+              <p>
+                <span className="font-semibold">Subject / Exam:</span>{" "}
+                {contextForm.subjectName || uploadResult.resolvedContext?.subjectName || "-"} / {contextForm.examType || uploadResult.resolvedContext?.examType || "-"}
+              </p>
+              <p>
+                <span className="font-semibold">Active provider:</span>{" "}
+                {uploadResult.activeProvider || "manual"}
+              </p>
+              <p>
+                <span className="font-semibold">Provider note:</span>{" "}
+                {uploadResult.fallbackReason || (uploadResult.activeProvider === "manual" ? "OCR provider unavailable; manual entry mode." : "Provider available.")}
+              </p>
+            </div>
+            {uploadResult.contextWarning && (
+              <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800">
+                {uploadResult.contextWarning}
+              </div>
+            )}
+            <div className="mt-3 rounded-xl border border-slate-100 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-700">
+              {extractionOutcome(scanRows)}
+            </div>
+          </div>
           {/* Status banner */}
           {uploadResult.parseStatus === "FAILED" ? (
             <div className="rounded-2xl border border-red-200 bg-red-50 p-4">

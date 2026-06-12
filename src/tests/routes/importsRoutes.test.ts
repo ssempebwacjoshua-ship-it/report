@@ -117,7 +117,10 @@ describe("POST /api/imports/scans/upload", () => {
       .attach("file", FAKE_PNG, { filename: "test.png", contentType: "image/png" });
     expect(res.status).toBe(200);
     expect(typeof res.body.batchId).toBe("string");
+    expect(res.body.scanBatchId).toBe(res.body.batchId);
     expect(res.body.batchId.length).toBeGreaterThan(0);
+    expect(res.body.contextSource).toBe("selected-context");
+    expect(res.body.resolvedContext).toBeDefined();
     // Extraction on a fake file returns PARSED or FAILED — both are valid
     expect(["PARSED", "FAILED"]).toContain(res.body.parseStatus);
     expect(typeof res.body.message).toBe("string");
@@ -136,6 +139,68 @@ describe("POST /api/imports/scans/upload", () => {
     for (const row of rows) {
       expect(row.status).not.toBe("COMMITTED");
     }
+  });
+
+  it("scan batch can be reloaded by ID after upload", async () => {
+    const upload = await request(createServer())
+      .post("/api/imports/scans/upload")
+      .field("schoolCode", SCHOOL)
+      .field("context", validContext)
+      .attach("file", FAKE_PNG, { filename: "test.png", contentType: "image/png" });
+
+    expect(upload.status).toBe(200);
+
+    const reload = await request(createServer()).get(`/api/imports/scan-batches/${upload.body.batchId}`);
+    expect(reload.status).toBe(200);
+    expect(reload.body.batchId).toBe(upload.body.batchId);
+    expect(reload.body.scanBatchId).toBe(upload.body.batchId);
+    expect(reload.body.contextSource).toBe("selected-context");
+    expect(reload.body.resolvedContext).toBeDefined();
+  });
+});
+
+describe("POST /api/imports/scans/dry-run", () => {
+  it("dry-run does not clear extraction rows and persists operator corrections to the batch", async () => {
+    const upload = await request(createServer())
+      .post("/api/imports/scans/upload")
+      .field("schoolCode", SCHOOL)
+      .field("context", validContext)
+      .attach("file", FAKE_PNG, { filename: "test.png", contentType: "image/png" });
+
+    expect(upload.status).toBe(200);
+
+    const rows = [{
+      rowNumber: 1,
+      admissionNumber: "S1A-001",
+      studentName: "Kampala Ssempebwa",
+      writtenMark: "",
+      splitMark: "",
+      extractedMark: "",
+      suggestedMark: "",
+      confidence: 0,
+      remarks: "",
+      status: "MISSING",
+      validationErrors: [],
+      operatorCorrection: "76",
+    }];
+
+    const dryRun = await request(createServer())
+      .post("/api/imports/scans/dry-run")
+      .send({
+        schoolCode: SCHOOL,
+        batchId: upload.body.batchId,
+        context: JSON.parse(validContext),
+        rows,
+      });
+
+    expect(dryRun.status).toBe(200);
+    expect(dryRun.body.rows).toHaveLength(1);
+    expect(dryRun.body.rows[0].operatorCorrection).toBe("76");
+
+    const reload = await request(createServer()).get(`/api/imports/scan-batches/${upload.body.batchId}`);
+    expect(reload.status).toBe(200);
+    expect(reload.body.rows).toHaveLength(1);
+    expect(reload.body.rows[0].operatorCorrection).toBe("76");
   });
 });
 

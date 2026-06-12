@@ -8,6 +8,7 @@ import { recognizeBlockText } from "../services/markRecognitionService";
 import {
   findMarksheetIdInText,
   resolveContextByMarksheetId,
+  resolveScanMarksheetContext,
 } from "../services/marksheetContextService";
 import { cropCell } from "../services/scanPreprocessService";
 import { extractMarksFromScan } from "../services/scanExtractionService";
@@ -34,6 +35,37 @@ const scanContextSchema = z.object({
   examType: z.string().min(1),
   academicYear: z.string().min(1),
 });
+
+function parseOptionalScanContext(value: unknown): Partial<z.infer<typeof scanContextSchema>> | null {
+  if (!value) return null;
+  try {
+    const raw = typeof value === "string" ? JSON.parse(value) as unknown : value;
+    const parsed = scanContextSchema.partial().safeParse(raw);
+    return parsed.success ? parsed.data : null;
+  } catch {
+    return null;
+  }
+}
+
+async function tryRecognizeHeaderMarksheetId(file: Express.Multer.File): Promise<string | null> {
+  try {
+    const { preprocessScanImage } = await import("../services/scanPreprocessService");
+    const scan = await preprocessScanImage(file.buffer, file.mimetype);
+
+    const headerRect = {
+      x: Math.max(0, Math.round(PAGE_MARGIN_LEFT_FRAC * scan.width)),
+      y: Math.max(0, Math.round(LAYOUT.marginTopFrac * scan.height)),
+      w: Math.max(1, Math.round(TABLE_WIDTH_FRAC * scan.width)),
+      h: Math.max(1, Math.round((LAYOUT.headerHFrac + 0.01) * scan.height)),
+    };
+
+    const headerBuffer = await cropCell(scan.buffer, headerRect);
+    const { text } = await recognizeBlockText(headerBuffer);
+    return findMarksheetIdInText(text);
+  } catch {
+    return null;
+  }
+}
 
 // Accept scan files up to 20 MB in memory
 const upload = multer({
@@ -90,50 +122,56 @@ export function importsRoutes() {
         }
 
         const file = req.file;
-        let foundId: string | null = null;
+        let foundId = file ? await tryRecognizeHeaderMarksheetId(file) : null;
 
-        // If a file was provided, try to OCR the header region for the marksheet ID
-        if (file) {
-          try {
-            const { preprocessScanImage } = await import("../services/scanPreprocessService");
-            const scan = await preprocessScanImage(file.buffer, file.mimetype);
-
-            // Crop header region (top ~22% of page, full usable width)
-            const headerRect = {
-              x: Math.max(0, Math.round(PAGE_MARGIN_LEFT_FRAC * scan.width)),
-              y: Math.max(0, Math.round(LAYOUT.marginTopFrac * scan.height)),
-              w: Math.max(1, Math.round(TABLE_WIDTH_FRAC * scan.width)),
-              h: Math.max(1, Math.round((LAYOUT.headerHFrac + 0.01) * scan.height)),
-            };
-
-            const headerBuffer = await cropCell(scan.buffer, headerRect);
-            const { text } = await recognizeBlockText(headerBuffer);
-            foundId = findMarksheetIdInText(text);
-          } catch {
-            // Header OCR failed — fall through to ID lookup or manual entry
-          }
-        }
-
-        // If the request also includes an explicit marksheetId field, prefer it
-        const explicitId = typeof req.body.marksheetId === "string"
+        const selectedContext = parseOptionalScanContext(req.body.context);
+        const selectedMarksheetId = typeof req.body.marksheetId === "string"
           ? req.body.marksheetId.trim()
-          : "";
-        const lookupId = explicitId || foundId;
+          : selectedContext?.marksheetId;
+        const resolution = await resolveScanMarksheetContext(prisma, school.id, {
+          recognizedMarksheetId: foundId,
+          selectedMarksheetId,
+          selectedContext,
+        });
 
-        if (!lookupId) {
+        if (!resolution.resolvedContext) {
           res.json({
             detected: null,
             detectionStatus: "NOT_FOUND",
             message: file
-              ? "No marksheet ID found in the scanned header. Enter the Marksheet ID manually."
+              ? "Marksheet ID not recognized. Confirm the marksheet context manually."
               : "No file uploaded and no marksheet ID provided.",
-            ocrFoundId: null,
+            ocrFoundId: foundId,
+            recognizedMarksheetId: resolution.recognizedMarksheetId,
+            normalizedMarksheetId: resolution.normalizedMarksheetId,
+            selectedMarksheetId: resolution.selectedMarksheetId,
+            resolvedContext: null,
+            contextSource: resolution.contextSource,
+            contextWarning: resolution.contextWarning,
           });
           return;
         }
 
-        const result = await resolveContextByMarksheetId(prisma, school.id, lookupId);
-        res.json({ ...result, ocrFoundId: foundId });
+        const detected = {
+          ...resolution.resolvedContext,
+          overallConfidence: resolution.contextSource === "recognized-id" ? 1 : 0.9,
+          source: resolution.contextSource === "recognized-id" ? "HEADER_OCR" : "MANUAL",
+          partial: false,
+          message: resolution.contextWarning || "Context resolved.",
+        };
+
+        res.json({
+          detected,
+          detectionStatus: "DETECTED",
+          message: resolution.contextWarning || "Context resolved.",
+          ocrFoundId: foundId,
+          recognizedMarksheetId: resolution.recognizedMarksheetId,
+          normalizedMarksheetId: resolution.normalizedMarksheetId,
+          selectedMarksheetId: resolution.selectedMarksheetId,
+          resolvedContext: resolution.resolvedContext,
+          contextSource: resolution.contextSource,
+          contextWarning: resolution.contextWarning,
+        });
       } catch (error) {
         next(error);
       }
@@ -198,31 +236,39 @@ export function importsRoutes() {
           return;
         }
 
-        // 3. Parse and validate marksheet context (sent as JSON string in form field)
-        let context: z.infer<typeof scanContextSchema>;
-        try {
-          const raw =
-            typeof req.body.context === "string"
-              ? (JSON.parse(req.body.context) as unknown)
-              : req.body.context;
-          context = scanContextSchema.parse(raw);
-        } catch {
-          res.status(400).json({
-            error:
-              'Invalid or missing marksheet context. Send context as a JSON string in the "context" field.',
-          });
-          return;
-        }
-
         const schoolCode =
           typeof req.body.schoolCode === "string" ? req.body.schoolCode.trim() : "SCU-PREVIEW";
 
-        // 4. Look up school
+        // 3. Look up school
         const school = await prisma.school.findUnique({ where: { code: schoolCode } });
         if (!school) {
           res.status(404).json({ error: `School "${schoolCode}" was not found.` });
           return;
         }
+
+        const selectedContext = parseOptionalScanContext(req.body.context);
+        const selectedMarksheetId = typeof req.body.selectedMarksheetId === "string"
+          ? req.body.selectedMarksheetId.trim()
+          : selectedContext?.marksheetId;
+        const bodyRecognizedId = typeof req.body.recognizedMarksheetId === "string"
+          ? req.body.recognizedMarksheetId.trim()
+          : "";
+        const recognizedMarksheetId = bodyRecognizedId || await tryRecognizeHeaderMarksheetId(file);
+        const contextResolution = await resolveScanMarksheetContext(prisma, school.id, {
+          recognizedMarksheetId,
+          selectedMarksheetId,
+          selectedContext,
+        });
+
+        if (!contextResolution.resolvedContext) {
+          res.status(400).json({
+            error: "Marksheet context is required before extraction.",
+            ...contextResolution,
+          });
+          return;
+        }
+
+        const context = scanContextSchema.parse(contextResolution.resolvedContext);
 
         // 5. Create batch record immediately (before extraction, so it exists even on failure)
         const batch = await prisma.markImportBatch.create({
@@ -237,6 +283,12 @@ export function importsRoutes() {
               fileType: ext,
               fileSize: file.size,
               context,
+              recognizedMarksheetId: contextResolution.recognizedMarksheetId,
+              normalizedMarksheetId: contextResolution.normalizedMarksheetId,
+              selectedMarksheetId: contextResolution.selectedMarksheetId,
+              resolvedContext: contextResolution.resolvedContext,
+              contextSource: contextResolution.contextSource,
+              contextWarning: contextResolution.contextWarning,
               rows: [],
             }),
           },
@@ -262,6 +314,12 @@ export function importsRoutes() {
               fileType: ext,
               fileSize: file.size,
               context,
+              recognizedMarksheetId: contextResolution.recognizedMarksheetId,
+              normalizedMarksheetId: contextResolution.normalizedMarksheetId,
+              selectedMarksheetId: contextResolution.selectedMarksheetId,
+              resolvedContext: contextResolution.resolvedContext,
+              contextSource: contextResolution.contextSource,
+              contextWarning: contextResolution.contextWarning,
               rows: extraction.rows,
               message: extraction.message,
               configuredProvider: extraction.configuredProvider,
@@ -275,9 +333,16 @@ export function importsRoutes() {
 
         res.json({
           batchId: batch.id,
+          scanBatchId: batch.id,
           parseStatus: extraction.parseStatus,
           message: extraction.message,
           rows: extraction.rows,
+          recognizedMarksheetId: contextResolution.recognizedMarksheetId,
+          normalizedMarksheetId: contextResolution.normalizedMarksheetId,
+          selectedMarksheetId: contextResolution.selectedMarksheetId,
+          resolvedContext: contextResolution.resolvedContext,
+          contextSource: contextResolution.contextSource,
+          contextWarning: contextResolution.contextWarning,
           configuredProvider: extraction.configuredProvider,
           activeProvider: extraction.activeProvider,
           providerUrl: extraction.providerUrl,
@@ -294,6 +359,7 @@ export function importsRoutes() {
     try {
       const payload = z.object({
         schoolCode: z.string().default("SCU-PREVIEW"),
+        batchId: z.string().optional(),
         context: scanContextSchema,
         rows: z.array(z.any()),
       }).parse(req.body);
@@ -319,6 +385,27 @@ export function importsRoutes() {
       const rows = validateScanRows(payload.rows, payload.context, roster.map((item) => ({
         admissionNumber: item.student.admissionNumber,
       })));
+
+      if (payload.batchId) {
+        const batch = await prisma.markImportBatch.findUnique({ where: { id: payload.batchId } });
+        if (batch) {
+          let parsed: Record<string, unknown> = {};
+          try {
+            parsed = JSON.parse(batch.summary ?? "{}") as Record<string, unknown>;
+          } catch { /* keep empty */ }
+          await prisma.markImportBatch.update({
+            where: { id: payload.batchId },
+            data: {
+              summary: JSON.stringify({
+                ...parsed,
+                parseStatus: parsed["parseStatus"] ?? "PARSED",
+                context: payload.context,
+                rows,
+              }),
+            },
+          });
+        }
+      }
 
       res.json({
         status: "DRY_RUN",
@@ -496,10 +583,17 @@ export function importsRoutes() {
 
       res.json({
         batchId: batch.id,
+        scanBatchId: batch.id,
         parseStatus: parsed["parseStatus"] ?? "UPLOADED",
         message: (parsed["message"] as string | undefined) ?? "",
         rows: (parsed["rows"] as unknown[]) ?? [],
         context: parsed["context"] ?? null,
+        recognizedMarksheetId: (parsed["recognizedMarksheetId"] as string | undefined) ?? null,
+        normalizedMarksheetId: (parsed["normalizedMarksheetId"] as string | undefined) ?? "",
+        selectedMarksheetId: (parsed["selectedMarksheetId"] as string | undefined) ?? "",
+        resolvedContext: parsed["resolvedContext"] ?? parsed["context"] ?? null,
+        contextSource: (parsed["contextSource"] as string | undefined) ?? "manual-required",
+        contextWarning: (parsed["contextWarning"] as string | undefined) ?? "",
         fileName: (parsed["fileName"] as string | undefined) ?? "",
         configuredProvider: (parsed["configuredProvider"] as string | undefined) ?? "",
         activeProvider: (parsed["activeProvider"] as string | undefined) ?? "",
@@ -542,6 +636,12 @@ export function importsRoutes() {
           parseStatus: parsed["parseStatus"] ?? "UPLOADED",
           message: (parsed["message"] as string | undefined) ?? "",
           context: parsed["context"] ?? null,
+          recognizedMarksheetId: parsed["recognizedMarksheetId"] ?? null,
+          normalizedMarksheetId: parsed["normalizedMarksheetId"] ?? "",
+          selectedMarksheetId: parsed["selectedMarksheetId"] ?? "",
+          resolvedContext: parsed["resolvedContext"] ?? parsed["context"] ?? null,
+          contextSource: parsed["contextSource"] ?? "manual-required",
+          contextWarning: parsed["contextWarning"] ?? "",
           rows: parsed["rows"] ?? [],
           createdAt: b.createdAt.toISOString(),
         };

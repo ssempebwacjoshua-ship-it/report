@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   computeMarksheetId,
   findMarksheetIdInText,
+  normalizeMarksheetId,
   parseMarksheetIdComponents,
+  resolveScanMarksheetContext,
 } from "../../server/services/marksheetContextService";
 
 // ── parseMarksheetIdComponents ────────────────────────────────────────────────
@@ -53,6 +55,81 @@ describe("parseMarksheetIdComponents", () => {
   it("returns invalid for a non-string input", () => {
     // @ts-expect-error testing runtime guard
     expect(parseMarksheetIdComponents(null).valid).toBe(false);
+  });
+});
+
+describe("normalizeMarksheetId", () => {
+  it("normalizes SENI to SEN1 for OCR/template ambiguity", () => {
+    expect(normalizeMarksheetId("MS-2026-SENI-A-MATH-EOT-TE")).toBe("MS-2026-SEN1-A-MATH-EOT-TE");
+  });
+
+  it("removes spaces and normalizes dash glyphs", () => {
+    expect(normalizeMarksheetId(" ms - 2026 - seni - a - math - eot - te ")).toBe("MS-2026-SEN1-A-MATH-EOT-TE");
+    expect(normalizeMarksheetId("MS–2026–SENI–A–MATH–EOT–TE")).toBe("MS-2026-SEN1-A-MATH-EOT-TE");
+  });
+});
+
+describe("resolveScanMarksheetContext", () => {
+  const selectedContext = {
+    marksheetId: "MS-2026-SENI-A-MATH-EOT-TE",
+    className: "Senior 1 A",
+    streamName: "A",
+    subjectName: "Mathematics",
+    termName: "Term 1",
+    examType: "EOT",
+    academicYear: "2025/2026",
+  };
+
+  function prismaMock() {
+    return {
+      markImportBatch: { findMany: async () => [] },
+      schoolClass: {
+        findMany: async () => [
+          { name: "Senior 1 A", streams: [{ name: "A", code: "A" }] },
+        ],
+      },
+      subject: {
+        findMany: async () => [{ name: "Mathematics", code: "MATH" }],
+      },
+      term: {
+        findMany: async () => [
+          { name: "Term 1", startsOn: new Date("2026-01-10"), academicYear: { name: "2025/2026" } },
+        ],
+      },
+    };
+  }
+
+  it("recognized Marksheet ID resolves context", async () => {
+    const result = await resolveScanMarksheetContext(prismaMock() as any, "school-1", {
+      recognizedMarksheetId: "MS-2026-SENI-A-MATH-EOT-TE",
+    });
+
+    expect(result.contextSource).toBe("recognized-id");
+    expect(result.normalizedMarksheetId).toBe("MS-2026-SEN1-A-MATH-EOT-TE");
+    expect(result.resolvedContext?.className).toBe("Senior 1 A");
+    expect(result.resolvedContext?.subjectName).toBe("Mathematics");
+  });
+
+  it("selected context fallback works when OCR ID fails", async () => {
+    const result = await resolveScanMarksheetContext(prismaMock() as any, "school-1", {
+      recognizedMarksheetId: "NOT-A-VALID-ID",
+      selectedContext,
+    });
+
+    expect(result.contextSource).toBe("selected-context");
+    expect(result.resolvedContext).toMatchObject({
+      ...selectedContext,
+      marksheetId: "MS-2026-SEN1-A-MATH-EOT-TE",
+    });
+    expect(result.contextWarning).toMatch(/using selected marksheet/i);
+  });
+
+  it("no context returns manual-required, not silent extraction", async () => {
+    const result = await resolveScanMarksheetContext(prismaMock() as any, "school-1", {});
+
+    expect(result.contextSource).toBe("manual-required");
+    expect(result.resolvedContext).toBeNull();
+    expect(result.contextWarning).toMatch(/required/i);
   });
 });
 
@@ -111,7 +188,7 @@ Subject: English Language   Exam Type: BOT - Beginning of Term
 Marksheet ID: MS-2026-SENI-A-ENGL-BOT-TE
 Generated: 11 June 2026
 `;
-    expect(findMarksheetIdInText(text)).toBe("MS-2026-SENI-A-ENGL-BOT-TE");
+    expect(findMarksheetIdInText(text)).toBe("MS-2026-SEN1-A-ENGL-BOT-TE");
   });
 
   it("is case-insensitive", () => {

@@ -97,6 +97,12 @@ export type ScanImportBatch = {
   parseStatus: ScanParseStatus;
   message: string;
   context: ScanMarksheetContext | null;
+  recognizedMarksheetId?: string;
+  normalizedMarksheetId?: string;
+  selectedMarksheetId?: string;
+  resolvedContext?: ScanMarksheetContext | null;
+  contextSource?: ScanContextSource;
+  contextWarning?: string;
   rows: ScanImportRow[];
   createdAt: string;
 };
@@ -111,9 +117,16 @@ export type ScanUploadPayload = {
 
 export type ScanUploadResponse = {
   batchId: string;
+  scanBatchId?: string;
   parseStatus: ScanParseStatus;
   message: string;
   rows: ScanImportRow[];
+  recognizedMarksheetId?: string;
+  normalizedMarksheetId?: string;
+  selectedMarksheetId?: string;
+  resolvedContext?: ScanMarksheetContext | null;
+  contextSource?: ScanContextSource;
+  contextWarning?: string;
   configuredProvider?: string;
   activeProvider?: string;
   providerUrl?: string;
@@ -123,10 +136,17 @@ export type ScanUploadResponse = {
 
 export type ScanBatchReloadResponse = {
   batchId: string;
+  scanBatchId?: string;
   parseStatus: ScanParseStatus;
   message: string;
   rows: ScanImportRow[];
   context: ScanMarksheetContext | null;
+  recognizedMarksheetId?: string;
+  normalizedMarksheetId?: string;
+  selectedMarksheetId?: string;
+  resolvedContext?: ScanMarksheetContext | null;
+  contextSource?: ScanContextSource;
+  contextWarning?: string;
   fileName: string;
   configuredProvider?: string;
   activeProvider?: string;
@@ -145,6 +165,11 @@ export type ScanRowsValidationResponse = {
   invalidRows: number;
   rows: ScanImportRow[];
 };
+
+export type ScanContextSource =
+  | "recognized-id"
+  | "selected-context"
+  | "manual-required";
 
 export type ScanRowsCommitResponse = Omit<ScanRowsValidationResponse, "status"> & {
   status: "COMMITTED" | "FAILED";
@@ -181,4 +206,10 @@ export type DetectContextResponse = {
   detected: DetectedContext | null;
   detectionStatus: "DETECTED" | "PARTIAL" | "NOT_FOUND" | "ERROR";
   message: string;
+  recognizedMarksheetId?: string | null;
+  normalizedMarksheetId?: string;
+  selectedMarksheetId?: string;
+  resolvedContext?: ScanMarksheetContext | null;
+  contextSource?: ScanContextSource;
+  contextWarning?: string;
 };

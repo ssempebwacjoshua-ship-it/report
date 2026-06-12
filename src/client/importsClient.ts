@@ -104,11 +104,14 @@ export async function uploadScanFile(
   file: File,
   schoolCode: string,
   context: ScanMarksheetContext,
+  options: { recognizedMarksheetId?: string | null; selectedMarksheetId?: string } = {},
 ): Promise<ScanUploadResponse> {
   const form = new FormData();
   form.append("file", file);
   form.append("schoolCode", schoolCode);
   form.append("context", JSON.stringify(context));
+  if (options.recognizedMarksheetId) form.append("recognizedMarksheetId", options.recognizedMarksheetId);
+  if (options.selectedMarksheetId) form.append("selectedMarksheetId", options.selectedMarksheetId);
 
   const response = await fetch(`${API_BASE}/api/imports/scans/upload`, {
     method: "POST",
@@ -142,11 +145,12 @@ export async function dryRunScanRows(
   context: ScanMarksheetContext,
   rows: ScanImportRow[],
   schoolCode = "SCU-PREVIEW",
+  batchId?: string,
 ): Promise<ScanRowsValidationResponse> {
   const response = await fetch(`${API_BASE}/api/imports/scans/dry-run`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ schoolCode, context, rows }),
+    body: JSON.stringify({ schoolCode, context, rows, batchId }),
   });
   if (!response.ok) throw new Error(await readImportError(response, "Could not validate scanned marks"));
   return response.json();
