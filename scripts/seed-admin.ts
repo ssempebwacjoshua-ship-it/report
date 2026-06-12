@@ -20,7 +20,17 @@ async function seedAdmin() {
   });
 
   if (existing) {
-    console.log(`Admin user already exists: ${ADMIN_EMAIL}`);
+    await prisma.user.update({
+      where: { id: existing.id },
+      data: {
+        name: ADMIN_NAME,
+        email: ADMIN_EMAIL,
+        passwordHash: await hashPassword(ADMIN_PASSWORD),
+        role: "ADMIN_OPERATOR",
+        isActive: true,
+      },
+    });
+    console.log(`Admin user updated: ${ADMIN_EMAIL}`);
     return;
   }
 
