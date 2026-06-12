@@ -36,7 +36,8 @@ export function ParentReportPage() {
     fetch(`/api/p/${token}`)
       .then(async (res) => {
         if (!res.ok) {
-          const body = (await res.json()) as { error?: string };
+          const raw = await res.text();
+          const body = raw ? (JSON.parse(raw) as { error?: string }) : {};
           throw new Error(body.error ?? "Report not found.");
         }
         return res.json() as Promise<ParentReportData>;
