@@ -7,9 +7,9 @@ import { Topbar } from "./Topbar";
 import { SettingsProvider, useAppSettings } from "./SettingsContext";
 
 const SIDEBAR_WIDTH_KEY = "school-connect-sidebar-width";
-const DEFAULT_SIDEBAR_WIDTH = 248;
+const DEFAULT_SIDEBAR_WIDTH = 240;
 const MIN_SIDEBAR_WIDTH = 224;
-const MAX_SIDEBAR_WIDTH = 272;
+const MAX_SIDEBAR_WIDTH = 260;
 const SIDEBAR_COLLAPSED_KEY = "school-connect-sidebar-collapsed";
 
 export function AppShell() {
@@ -102,7 +102,7 @@ function AppShellInner({
   const { settings } = useAppSettings() ?? {};
   useEffect(() => {
     if (!settings) return;
-    const widthBySetting = { compact: 224, standard: 248, wide: 272 };
+    const widthBySetting = { compact: 224, standard: 240, wide: 260 };
     const hasManualWidth = localStorage.getItem(SIDEBAR_WIDTH_KEY);
     if (!hasManualWidth) setSidebarWidth(widthBySetting[settings.sections.appearance.sidebarWidth]);
   }, [settings]);
@@ -136,7 +136,7 @@ function AppShellInner({
       />
       <div className="min-w-0">
         <Topbar onMenuClick={setSidebarOpenAndClose} sidebarCollapsed={sidebarCollapsed} />
-        <div className="mx-auto w-full max-w-[1540px] px-4 py-4 md:px-8">
+        <div className="app-page mx-auto w-full max-w-[1540px]">
           <Outlet />
         </div>
       </div>

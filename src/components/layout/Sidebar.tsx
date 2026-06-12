@@ -44,7 +44,7 @@ export function Sidebar({ open, onClose, collapsed, onToggleCollapsed, width }: 
       />
       <aside
         style={{ "--sidebar-width": `${sidebarWidth}px` } as CSSProperties}
-        className={`app-shell-sidebar fixed inset-y-0 left-0 z-40 flex w-[248px] transform flex-col overflow-y-auto overscroll-contain bg-gradient-to-b from-blue-950 via-blue-900 to-sky-900 text-white shadow-2xl transition-transform duration-200 lg:sticky lg:top-0 lg:h-screen lg:w-[var(--sidebar-width)] lg:translate-x-0 ${
+        className={`app-shell-sidebar fixed inset-y-0 left-0 z-40 flex w-[240px] transform flex-col overflow-y-auto overscroll-contain bg-gradient-to-b from-blue-950 via-blue-900 to-sky-900 text-white shadow-2xl transition-transform duration-200 lg:sticky lg:top-0 lg:h-screen lg:w-[var(--sidebar-width)] lg:translate-x-0 ${
           open ? "translate-x-0" : "-translate-x-full"
         }`}
       >

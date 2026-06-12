@@ -2,7 +2,20 @@ import request from "supertest";
 import { describe, expect, it } from "vitest";
 import { createServer } from "../../server";
 
-describe("authRoutes — /api/auth/login", () => {
+describe("authRoutes /api/auth/login", () => {
+  it("returns JSON success for seeded admin credentials", async () => {
+    const res = await request(createServer())
+      .post("/api/auth/login")
+      .send({ email: "admin@schoolconnect.test", password: "password123", schoolCode: "SCU-PREVIEW" });
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty("token");
+    expect(res.body).toHaveProperty("user");
+    expect(res.body.user).toMatchObject({
+      email: "admin@schoolconnect.test",
+      role: "ADMIN_OPERATOR",
+    });
+  });
+
   it("returns 401 for unknown email", async () => {
     const res = await request(createServer())
       .post("/api/auth/login")
@@ -33,7 +46,7 @@ describe("authRoutes — /api/auth/login", () => {
   });
 });
 
-describe("authRoutes — /api/auth/me", () => {
+describe("authRoutes /api/auth/me", () => {
   it("returns 401 without Authorization header", async () => {
     const res = await request(createServer()).get("/api/auth/me");
     expect(res.status).toBe(401);
@@ -54,7 +67,7 @@ describe("authRoutes — /api/auth/me", () => {
   });
 });
 
-describe("authRoutes — /api/auth/logout", () => {
+describe("authRoutes /api/auth/logout", () => {
   it("always returns 200", async () => {
     const res = await request(createServer()).post("/api/auth/logout");
     expect(res.status).toBe(200);

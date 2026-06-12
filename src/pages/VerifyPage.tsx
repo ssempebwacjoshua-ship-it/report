@@ -1,5 +1,8 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
+import { getApiBaseUrl } from "../client/apiBase";
+
+const API_BASE = getApiBaseUrl();
 
 type VerifyResult = {
   found: boolean;
@@ -29,7 +32,7 @@ export function VerifyPage() {
 
   useEffect(() => {
     if (!code) return;
-    fetch(`/api/verify/${encodeURIComponent(code)}`)
+    fetch(`${API_BASE}/api/verify/${encodeURIComponent(code)}`)
       .then(async (res) => {
         const body = (await res.json()) as VerifyResult;
         if (!res.ok && !body.found) {

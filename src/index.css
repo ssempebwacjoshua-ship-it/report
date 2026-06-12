@@ -12,6 +12,36 @@ body {
   overflow-x: hidden;
 }
 
+/* ── Global density tokens ── */
+:root {
+  --app-page-padding: 1.5rem;
+  --app-section-gap: 1rem;
+  --app-card-padding: 1rem;
+  --app-card-radius: 1rem;
+  --app-control-height: 2.5rem;
+  --app-button-height: 2.375rem;
+  --app-topbar-height: 3.5rem;
+  --app-sidebar-width: 240px;
+  --font-page-title: 1.4375rem;
+  --font-section-title: 1.0625rem;
+  --font-body: 0.875rem;
+}
+
+@media (max-width: 1023px) {
+  :root {
+    --app-page-padding: 1.125rem;
+    --font-page-title: 1.3125rem;
+  }
+}
+
+@media (max-width: 767px) {
+  :root {
+    --app-page-padding: 0.875rem;
+    --app-card-padding: 0.875rem;
+    --app-section-gap: 0.875rem;
+  }
+}
+
 :root[data-app-font-size="small"] body {
   font-size: 14px;
 }
@@ -60,8 +90,8 @@ body {
   border-radius: 0.625rem;
   border: 1.5px solid rgb(203 213 225);
   background-color: #fff;
-  padding: 0.6rem 0.875rem;
-  font-size: 0.9375rem;
+  padding: 0.5rem 0.75rem;
+  font-size: var(--font-body);
   color: rgb(15 23 42);
   outline: none;
   box-shadow: inset 0 1px 0 rgba(255,255,255,0.9), 0 1px 2px rgba(15,23,42,0.04);
@@ -105,10 +135,10 @@ body {
 }
 
 .tab-button {
-  min-height: 2.25rem;
+  min-height: 2.125rem;
   border-radius: 0.75rem;
   border: 1px solid transparent;
-  padding: 0.45rem 0.85rem;
+  padding: 0.4rem 0.75rem;
   color: rgb(71 85 105);
   font-size: 0.875rem;
   font-weight: 700;
@@ -133,13 +163,13 @@ body {
 
 .btn {
   display: inline-flex;
-  min-height: 2.5rem;
+  min-height: var(--app-button-height, 2.375rem);
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
-  border-radius: 0.75rem;
-  padding: 0.55rem 1rem;
-  font-size: 0.875rem;
+  border-radius: 0.625rem;
+  padding: 0.45rem 0.85rem;
+  font-size: var(--font-body);
   font-weight: 800;
   line-height: 1;
   transition: transform 200ms ease, box-shadow 200ms ease, border-color 200ms ease, background 200ms ease, color 200ms ease;
@@ -892,4 +922,46 @@ body {
 .marksheet-style-rich_black .marksheet-footer {
   border-top-color: #000;
   color: #000;
+}
+
+/* ── Global density pass (screen only) ── */
+@media screen {
+  .app-page {
+    padding: var(--app-page-padding);
+  }
+
+  main.grid {
+    gap: var(--app-section-gap);
+  }
+
+  main h1[class] {
+    font-size: var(--font-page-title);
+    line-height: 1.25;
+  }
+
+  .premium-card {
+    padding: var(--app-card-padding);
+    border-radius: var(--app-card-radius);
+  }
+
+  .premium-card > h2[class],
+  .premium-card header h2[class],
+  .page-header h2[class] {
+    font-size: var(--font-section-title);
+  }
+
+  .premium-control {
+    min-height: var(--app-control-height);
+  }
+
+  .app-shell-topbar {
+    height: var(--app-topbar-height);
+  }
+
+  :root[data-app-density="compact"] {
+    --app-card-padding: 0.75rem;
+    --app-section-gap: 0.75rem;
+    --app-button-height: 2.25rem;
+    --app-control-height: 2.25rem;
+  }
 }

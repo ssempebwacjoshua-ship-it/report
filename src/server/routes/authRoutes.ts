@@ -14,19 +14,26 @@ export function authRoutes() {
 
   router.post("/api/auth/login", async (req, res, next) => {
     try {
+      console.log("auth.login.request");
       const { email, password, schoolCode } = loginSchema.parse(req.body);
 
       const school = await prisma.school.findUnique({ where: { code: schoolCode } });
       if (!school) {
+        console.log("auth.login.school", { found: false });
         res.status(401).json({ error: "Invalid credentials." });
         return;
       }
+      console.log("auth.login.school", { found: true });
 
       const user = await prisma.user.findFirst({
         where: { schoolId: school.id, email: email.toLowerCase(), isActive: true },
       });
+      console.log("auth.login.user", { found: !!user });
 
-      if (!user || !(await verifyPassword(password, user.passwordHash))) {
+      const passwordMatch = user ? await verifyPassword(password, user.passwordHash) : false;
+      console.log("auth.login.password", { matched: passwordMatch });
+
+      if (!user || !passwordMatch) {
         res.status(401).json({ error: "Invalid credentials." });
         return;
       }
@@ -38,6 +45,9 @@ export function authRoutes() {
         email: user.email,
         role: user.role,
       });
+
+      console.log("auth.login.session", { success: true });
+      console.log("auth.login.response", { status: 200 });
 
       res.json({
         token,
