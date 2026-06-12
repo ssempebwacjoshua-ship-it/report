@@ -4,20 +4,17 @@ import { z } from "zod";
 import { prisma } from "../db/prisma";
 import { commitMarksImport, dryRunMarksImport } from "../services/marksImportService";
 import { finalizedStatus, toAssessmentType } from "../services/marksImportValidator";
-import { recognizeBlockText } from "../services/markRecognitionService";
 import {
-  findMarksheetIdInText,
   resolveContextByMarksheetId,
   resolveScanMarksheetContext,
 } from "../services/marksheetContextService";
-import { cropCell } from "../services/scanPreprocessService";
+import {
+  detectMarksheetIdFromScan,
+  saveMarksheetIdLookupDebug,
+  type MarksheetIdDetectionResult,
+} from "../services/marksheetIdDetectionService";
 import { extractMarksFromScan } from "../services/scanExtractionService";
 import { parseScanMark, validateScanRows } from "../services/scanImportValidator";
-import {
-  LAYOUT,
-  PAGE_MARGIN_LEFT_FRAC,
-  TABLE_WIDTH_FRAC,
-} from "../services/marksheetGeometryService";
 
 const SCAN_FILE_TYPES = new Set(["PDF", "PNG", "JPG", "JPEG", "WEBP"]);
 
@@ -47,24 +44,22 @@ function parseOptionalScanContext(value: unknown): Partial<z.infer<typeof scanCo
   }
 }
 
-async function tryRecognizeHeaderMarksheetId(file: Express.Multer.File): Promise<string | null> {
+async function tryDetectMarksheetId(file: Express.Multer.File): Promise<MarksheetIdDetectionResult | null> {
   try {
-    const { preprocessScanImage } = await import("../services/scanPreprocessService");
-    const scan = await preprocessScanImage(file.buffer, file.mimetype);
-
-    const headerRect = {
-      x: Math.max(0, Math.round(PAGE_MARGIN_LEFT_FRAC * scan.width)),
-      y: Math.max(0, Math.round(LAYOUT.marginTopFrac * scan.height)),
-      w: Math.max(1, Math.round(TABLE_WIDTH_FRAC * scan.width)),
-      h: Math.max(1, Math.round((LAYOUT.headerHFrac + 0.01) * scan.height)),
-    };
-
-    const headerBuffer = await cropCell(scan.buffer, headerRect);
-    const { text } = await recognizeBlockText(headerBuffer);
-    return findMarksheetIdInText(text);
+    return await detectMarksheetIdFromScan(file.buffer, file.mimetype);
   } catch {
     return null;
   }
+}
+
+function detectionMetadata(detection: MarksheetIdDetectionResult | null) {
+  return {
+    rawRecognizedId: detection?.rawRecognizedId ?? null,
+    normalizedRecognizedId: detection?.normalizedRecognizedId ?? "",
+    matchConfidence: detection?.confidence ?? 0,
+    matchSource: detection?.matchSource ?? undefined,
+    marksheetIdDebug: detection?.debug,
+  };
 }
 
 // Accept scan files up to 20 MB in memory
@@ -122,7 +117,8 @@ export function importsRoutes() {
         }
 
         const file = req.file;
-        let foundId = file ? await tryRecognizeHeaderMarksheetId(file) : null;
+        const idDetection = file ? await tryDetectMarksheetId(file) : null;
+        const foundId = idDetection?.rawRecognizedId || null;
 
         const selectedContext = parseOptionalScanContext(req.body.context);
         const selectedMarksheetId = typeof req.body.marksheetId === "string"
@@ -130,9 +126,18 @@ export function importsRoutes() {
           : selectedContext?.marksheetId;
         const resolution = await resolveScanMarksheetContext(prisma, school.id, {
           recognizedMarksheetId: foundId,
+          recognizedMatchSource: idDetection?.matchSource,
+          recognizedMatchConfidence: idDetection?.confidence,
           selectedMarksheetId,
           selectedContext,
         });
+        await saveMarksheetIdLookupDebug(idDetection, {
+          contextSource: resolution.contextSource,
+          matchedMarksheetId: resolution.matchedMarksheetId,
+          resolved: Boolean(resolution.resolvedContext),
+          warning: resolution.contextWarning,
+        });
+        const matchMetadata = detectionMetadata(idDetection);
 
         if (!resolution.resolvedContext) {
           res.json({
@@ -144,6 +149,12 @@ export function importsRoutes() {
             ocrFoundId: foundId,
             recognizedMarksheetId: resolution.recognizedMarksheetId,
             normalizedMarksheetId: resolution.normalizedMarksheetId,
+            rawRecognizedId: resolution.rawRecognizedId,
+            normalizedRecognizedId: resolution.normalizedRecognizedId,
+            matchedMarksheetId: resolution.matchedMarksheetId,
+            matchConfidence: resolution.matchConfidence || matchMetadata.matchConfidence,
+            matchSource: resolution.matchSource,
+            marksheetIdDebug: matchMetadata.marksheetIdDebug,
             selectedMarksheetId: resolution.selectedMarksheetId,
             resolvedContext: null,
             contextSource: resolution.contextSource,
@@ -167,6 +178,12 @@ export function importsRoutes() {
           ocrFoundId: foundId,
           recognizedMarksheetId: resolution.recognizedMarksheetId,
           normalizedMarksheetId: resolution.normalizedMarksheetId,
+          rawRecognizedId: resolution.rawRecognizedId,
+          normalizedRecognizedId: resolution.normalizedRecognizedId,
+          matchedMarksheetId: resolution.matchedMarksheetId,
+          matchConfidence: resolution.matchConfidence || matchMetadata.matchConfidence,
+          matchSource: resolution.matchSource,
+          marksheetIdDebug: matchMetadata.marksheetIdDebug,
           selectedMarksheetId: resolution.selectedMarksheetId,
           resolvedContext: resolution.resolvedContext,
           contextSource: resolution.contextSource,
@@ -253,16 +270,26 @@ export function importsRoutes() {
         const bodyRecognizedId = typeof req.body.recognizedMarksheetId === "string"
           ? req.body.recognizedMarksheetId.trim()
           : "";
-        const recognizedMarksheetId = bodyRecognizedId || await tryRecognizeHeaderMarksheetId(file);
+        const idDetection = bodyRecognizedId ? null : await tryDetectMarksheetId(file);
+        const recognizedMarksheetId = bodyRecognizedId || idDetection?.rawRecognizedId || "";
         const contextResolution = await resolveScanMarksheetContext(prisma, school.id, {
           recognizedMarksheetId,
+          recognizedMatchSource: idDetection?.matchSource,
+          recognizedMatchConfidence: idDetection?.confidence,
           selectedMarksheetId,
           selectedContext,
+        });
+        await saveMarksheetIdLookupDebug(idDetection, {
+          contextSource: contextResolution.contextSource,
+          matchedMarksheetId: contextResolution.matchedMarksheetId,
+          resolved: Boolean(contextResolution.resolvedContext),
+          warning: contextResolution.contextWarning,
         });
 
         if (!contextResolution.resolvedContext) {
           res.status(400).json({
             error: "Marksheet context is required before extraction.",
+            marksheetIdDebug: idDetection?.debug,
             ...contextResolution,
           });
           return;
@@ -285,6 +312,12 @@ export function importsRoutes() {
               context,
               recognizedMarksheetId: contextResolution.recognizedMarksheetId,
               normalizedMarksheetId: contextResolution.normalizedMarksheetId,
+              rawRecognizedId: contextResolution.rawRecognizedId,
+              normalizedRecognizedId: contextResolution.normalizedRecognizedId,
+              matchedMarksheetId: contextResolution.matchedMarksheetId,
+              matchConfidence: contextResolution.matchConfidence,
+              matchSource: contextResolution.matchSource,
+              marksheetIdDebug: idDetection?.debug,
               selectedMarksheetId: contextResolution.selectedMarksheetId,
               resolvedContext: contextResolution.resolvedContext,
               contextSource: contextResolution.contextSource,
@@ -316,6 +349,12 @@ export function importsRoutes() {
               context,
               recognizedMarksheetId: contextResolution.recognizedMarksheetId,
               normalizedMarksheetId: contextResolution.normalizedMarksheetId,
+              rawRecognizedId: contextResolution.rawRecognizedId,
+              normalizedRecognizedId: contextResolution.normalizedRecognizedId,
+              matchedMarksheetId: contextResolution.matchedMarksheetId,
+              matchConfidence: contextResolution.matchConfidence,
+              matchSource: contextResolution.matchSource,
+              marksheetIdDebug: idDetection?.debug,
               selectedMarksheetId: contextResolution.selectedMarksheetId,
               resolvedContext: contextResolution.resolvedContext,
               contextSource: contextResolution.contextSource,
@@ -339,6 +378,12 @@ export function importsRoutes() {
           rows: extraction.rows,
           recognizedMarksheetId: contextResolution.recognizedMarksheetId,
           normalizedMarksheetId: contextResolution.normalizedMarksheetId,
+          rawRecognizedId: contextResolution.rawRecognizedId,
+          normalizedRecognizedId: contextResolution.normalizedRecognizedId,
+          matchedMarksheetId: contextResolution.matchedMarksheetId,
+          matchConfidence: contextResolution.matchConfidence,
+          matchSource: contextResolution.matchSource,
+          marksheetIdDebug: idDetection?.debug,
           selectedMarksheetId: contextResolution.selectedMarksheetId,
           resolvedContext: contextResolution.resolvedContext,
           contextSource: contextResolution.contextSource,
@@ -590,6 +635,12 @@ export function importsRoutes() {
         context: parsed["context"] ?? null,
         recognizedMarksheetId: (parsed["recognizedMarksheetId"] as string | undefined) ?? null,
         normalizedMarksheetId: (parsed["normalizedMarksheetId"] as string | undefined) ?? "",
+        rawRecognizedId: (parsed["rawRecognizedId"] as string | undefined) ?? null,
+        normalizedRecognizedId: (parsed["normalizedRecognizedId"] as string | undefined) ?? "",
+        matchedMarksheetId: (parsed["matchedMarksheetId"] as string | undefined) ?? "",
+        matchConfidence: (parsed["matchConfidence"] as number | undefined) ?? 0,
+        matchSource: parsed["matchSource"] ?? "manual-required",
+        marksheetIdDebug: parsed["marksheetIdDebug"] ?? undefined,
         selectedMarksheetId: (parsed["selectedMarksheetId"] as string | undefined) ?? "",
         resolvedContext: parsed["resolvedContext"] ?? parsed["context"] ?? null,
         contextSource: (parsed["contextSource"] as string | undefined) ?? "manual-required",
@@ -638,6 +689,12 @@ export function importsRoutes() {
           context: parsed["context"] ?? null,
           recognizedMarksheetId: parsed["recognizedMarksheetId"] ?? null,
           normalizedMarksheetId: parsed["normalizedMarksheetId"] ?? "",
+          rawRecognizedId: parsed["rawRecognizedId"] ?? null,
+          normalizedRecognizedId: parsed["normalizedRecognizedId"] ?? "",
+          matchedMarksheetId: parsed["matchedMarksheetId"] ?? "",
+          matchConfidence: parsed["matchConfidence"] ?? 0,
+          matchSource: parsed["matchSource"] ?? "manual-required",
+          marksheetIdDebug: parsed["marksheetIdDebug"] ?? undefined,
           selectedMarksheetId: parsed["selectedMarksheetId"] ?? "",
           resolvedContext: parsed["resolvedContext"] ?? parsed["context"] ?? null,
           contextSource: parsed["contextSource"] ?? "manual-required",

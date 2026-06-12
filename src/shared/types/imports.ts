@@ -99,6 +99,12 @@ export type ScanImportBatch = {
   context: ScanMarksheetContext | null;
   recognizedMarksheetId?: string;
   normalizedMarksheetId?: string;
+  rawRecognizedId?: string | null;
+  normalizedRecognizedId?: string;
+  matchedMarksheetId?: string;
+  matchConfidence?: number;
+  matchSource?: MarksheetIdMatchSource;
+  marksheetIdDebug?: MarksheetIdDebug;
   selectedMarksheetId?: string;
   resolvedContext?: ScanMarksheetContext | null;
   contextSource?: ScanContextSource;
@@ -123,6 +129,12 @@ export type ScanUploadResponse = {
   rows: ScanImportRow[];
   recognizedMarksheetId?: string;
   normalizedMarksheetId?: string;
+  rawRecognizedId?: string | null;
+  normalizedRecognizedId?: string;
+  matchedMarksheetId?: string;
+  matchConfidence?: number;
+  matchSource?: MarksheetIdMatchSource;
+  marksheetIdDebug?: MarksheetIdDebug;
   selectedMarksheetId?: string;
   resolvedContext?: ScanMarksheetContext | null;
   contextSource?: ScanContextSource;
@@ -143,6 +155,12 @@ export type ScanBatchReloadResponse = {
   context: ScanMarksheetContext | null;
   recognizedMarksheetId?: string;
   normalizedMarksheetId?: string;
+  rawRecognizedId?: string | null;
+  normalizedRecognizedId?: string;
+  matchedMarksheetId?: string;
+  matchConfidence?: number;
+  matchSource?: MarksheetIdMatchSource;
+  marksheetIdDebug?: MarksheetIdDebug;
   selectedMarksheetId?: string;
   resolvedContext?: ScanMarksheetContext | null;
   contextSource?: ScanContextSource;
@@ -170,6 +188,31 @@ export type ScanContextSource =
   | "recognized-id"
   | "selected-context"
   | "manual-required";
+
+export type MarksheetIdMatchSource =
+  | "header"
+  | "footer"
+  | "selected-fallback"
+  | "manual-required";
+
+export type MarksheetIdCandidate = {
+  source: "header" | "footer";
+  rawRecognizedId: string;
+  normalizedRecognizedId: string;
+  confidence: number;
+  method?: "qr" | "ocr";
+};
+
+export type MarksheetIdDebug = {
+  headerCropPath?: string;
+  footerCropPath?: string;
+  debugJsonPath?: string;
+  rawHeaderText?: string;
+  rawFooterText?: string;
+  normalizedCandidates?: string[];
+  selectedCandidate?: MarksheetIdCandidate | null;
+  failureReason?: string;
+};
 
 export type ScanRowsCommitResponse = Omit<ScanRowsValidationResponse, "status"> & {
   status: "COMMITTED" | "FAILED";
@@ -208,6 +251,12 @@ export type DetectContextResponse = {
   message: string;
   recognizedMarksheetId?: string | null;
   normalizedMarksheetId?: string;
+  rawRecognizedId?: string | null;
+  normalizedRecognizedId?: string;
+  matchedMarksheetId?: string;
+  matchConfidence?: number;
+  matchSource?: MarksheetIdMatchSource;
+  marksheetIdDebug?: MarksheetIdDebug;
   selectedMarksheetId?: string;
   resolvedContext?: ScanMarksheetContext | null;
   contextSource?: ScanContextSource;

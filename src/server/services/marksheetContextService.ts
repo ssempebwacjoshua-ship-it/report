@@ -19,6 +19,7 @@ import type {
   ContextSource,
   DetectedContext,
   DetectContextResponse,
+  MarksheetIdMatchSource,
   ScanContextSource,
   ScanMarksheetContext,
 } from "../../shared/types/imports";
@@ -37,6 +38,8 @@ export type MarksheetIdComponents = {
 
 export type ScanContextResolverInput = {
   recognizedMarksheetId?: string | null;
+  recognizedMatchSource?: Extract<MarksheetIdMatchSource, "header" | "footer"> | null;
+  recognizedMatchConfidence?: number | null;
   selectedMarksheetId?: string | null;
   selectedClassId?: string | null;
   selectedStreamId?: string | null;
@@ -50,6 +53,11 @@ export type ScanContextResolverInput = {
 export type ScanContextResolution = {
   recognizedMarksheetId: string | null;
   normalizedMarksheetId: string;
+  rawRecognizedId: string | null;
+  normalizedRecognizedId: string;
+  matchedMarksheetId: string;
+  matchConfidence: number;
+  matchSource: MarksheetIdMatchSource;
   selectedMarksheetId: string;
   resolvedContext: ScanMarksheetContext | null;
   contextSource: ScanContextSource;
@@ -59,6 +67,11 @@ export type ScanContextResolution = {
 const EMPTY_SCAN_CONTEXT_RESOLUTION: ScanContextResolution = {
   recognizedMarksheetId: null,
   normalizedMarksheetId: "",
+  rawRecognizedId: null,
+  normalizedRecognizedId: "",
+  matchedMarksheetId: "",
+  matchConfidence: 0,
+  matchSource: "manual-required",
   selectedMarksheetId: "",
   resolvedContext: null,
   contextSource: "manual-required",
@@ -123,8 +136,10 @@ export function normalizeMarksheetId(input: string): string {
     .trim()
     .toUpperCase()
     .replace(/[–—−]/g, "-")
-    .replace(/\s+/g, "")
-    .replace(/-+/g, "-");
+    .replace(/\|/g, "I")
+    .replace(/[^A-Z0-9]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
 
   if (!cleaned) return "";
 
@@ -137,7 +152,7 @@ export function normalizeMarksheetId(input: string): string {
 
   prefix = prefix.replace(/^M5$/, "MS");
   year = year.replace(/O/g, "0");
-  classCode = classCode.replace(/^SENI$/, "SEN1").replace(/O/g, "0");
+  classCode = classCode.replace(/^SEN[IL1]$/, "SEN1").replace(/O/g, "0");
   stream = stream.replace(/O/g, "0");
   examType = examType.replace(/0/g, "O");
   termCode = termCode.replace(/O/g, "0");
@@ -412,12 +427,38 @@ export async function resolveContextByMarksheetId(
  * Try to find a marksheet ID in OCR'd text from a scanned header.
  * Returns the first match or null.
  */
+export function findMarksheetIdCandidatesInText(ocrText: string): string[] {
+  if (!ocrText || typeof ocrText !== "string") return [];
+
+  const text = ocrText
+    .toUpperCase()
+    .replace(/[–—−]/g, "-")
+    .replace(/\|/g, "I")
+    .replace(/\bSENL\b/g, "SEN1")
+    .replace(/\bSENI\b/g, "SEN1");
+
+  const candidates: string[] = [];
+  const push = (raw: string) => {
+    const normalized = normalizeMarksheetId(raw);
+    if (parseMarksheetIdComponents(normalized).valid && !candidates.includes(normalized)) {
+      candidates.push(normalized);
+    }
+  };
+
+  const strictMatches = text.match(/M[S5]-[20O]{4}-[A-Z0-9]{1,6}-[A-Z0-9]{1,3}-[A-Z]{1,6}-[A-Z0-9]{3}-[A-Z0-9]{1,4}/g) ?? [];
+  for (const match of strictMatches) push(match);
+
+  const tokens = text.match(/[A-Z0-9]+/g) ?? [];
+  for (let index = 0; index <= tokens.length - 7; index += 1) {
+    if (tokens[index] !== "MS" && tokens[index] !== "M5") continue;
+    push(tokens.slice(index, index + 7).join("-"));
+  }
+
+  return candidates;
+}
+
 export function findMarksheetIdInText(ocrText: string): string | null {
-  // Pattern: MS-YYYY-CLASS-STREAM-SUBJECT-EXAMTYPE-TERM (case-insensitive)
-  const m = ocrText.match(
-    /MS-\d{4}-[A-Z0-9]{1,6}-[A-Z0-9]{1,3}-[A-Z]{1,6}-[A-Z]{3}-[A-Z0-9]{1,4}/i,
-  );
-  return m ? normalizeMarksheetId(m[0]!) : null;
+  return findMarksheetIdCandidatesInText(ocrText)[0] ?? null;
 }
 
 export async function resolveScanMarksheetContext(
@@ -431,29 +472,45 @@ export async function resolveScanMarksheetContext(
   );
   const recognizedRaw = trimString(input.recognizedMarksheetId);
   const normalizedRecognized = normalizeMarksheetId(recognizedRaw);
+  const recognizedSource = input.recognizedMatchSource ?? "header";
+  const recognizedConfidence = typeof input.recognizedMatchConfidence === "number"
+    ? Math.max(0, Math.min(1, input.recognizedMatchConfidence))
+    : 0;
 
   if (normalizedRecognized) {
     const recognizedLookup = await resolveContextByMarksheetId(prisma, schoolId, normalizedRecognized);
     if (recognizedLookup.detected && !recognizedLookup.detected.partial) {
+      const resolvedContext = detectedToScanContext(recognizedLookup.detected);
       return {
         recognizedMarksheetId: recognizedRaw || normalizedRecognized,
         normalizedMarksheetId: recognizedLookup.normalizedMarksheetId || normalizedRecognized,
+        rawRecognizedId: recognizedRaw || normalizedRecognized,
+        normalizedRecognizedId: recognizedLookup.normalizedMarksheetId || normalizedRecognized,
+        matchedMarksheetId: resolvedContext.marksheetId || recognizedLookup.normalizedMarksheetId || normalizedRecognized,
+        matchConfidence: recognizedConfidence || recognizedLookup.detected.overallConfidence || 1,
+        matchSource: recognizedSource,
         selectedMarksheetId,
-        resolvedContext: detectedToScanContext(recognizedLookup.detected),
+        resolvedContext,
         contextSource: "recognized-id",
         contextWarning: "",
       };
     }
 
     if (selectedContext) {
+      const fallbackContext = {
+        ...selectedContext,
+        marksheetId: selectedMarksheetId || selectedContext.marksheetId || normalizedRecognized,
+      };
       return {
         recognizedMarksheetId: recognizedRaw || normalizedRecognized,
         normalizedMarksheetId: recognizedLookup.normalizedMarksheetId || normalizedRecognized,
+        rawRecognizedId: recognizedRaw || normalizedRecognized,
+        normalizedRecognizedId: recognizedLookup.normalizedMarksheetId || normalizedRecognized,
+        matchedMarksheetId: fallbackContext.marksheetId,
+        matchConfidence: 0.65,
+        matchSource: "selected-fallback",
         selectedMarksheetId,
-        resolvedContext: {
-          ...selectedContext,
-          marksheetId: selectedMarksheetId || selectedContext.marksheetId || normalizedRecognized,
-        },
+        resolvedContext: fallbackContext,
         contextSource: "selected-context",
         contextWarning: "Marksheet ID OCR failed; using selected marksheet.",
       };
@@ -463,20 +520,30 @@ export async function resolveScanMarksheetContext(
       ...EMPTY_SCAN_CONTEXT_RESOLUTION,
       recognizedMarksheetId: recognizedRaw || normalizedRecognized,
       normalizedMarksheetId: recognizedLookup.normalizedMarksheetId || normalizedRecognized,
+      rawRecognizedId: recognizedRaw || normalizedRecognized,
+      normalizedRecognizedId: recognizedLookup.normalizedMarksheetId || normalizedRecognized,
+      matchedMarksheetId: "",
+      matchConfidence: recognizedConfidence,
       selectedMarksheetId,
       contextWarning: recognizedLookup.message || "Recognized Marksheet ID could not be resolved. Confirm the marksheet context manually.",
     };
   }
 
   if (selectedContext) {
+    const fallbackContext = {
+      ...selectedContext,
+      marksheetId: selectedMarksheetId || selectedContext.marksheetId,
+    };
     return {
       recognizedMarksheetId: null,
       normalizedMarksheetId: selectedMarksheetId,
+      rawRecognizedId: null,
+      normalizedRecognizedId: "",
+      matchedMarksheetId: fallbackContext.marksheetId,
+      matchConfidence: 0.65,
+      matchSource: "selected-fallback",
       selectedMarksheetId,
-      resolvedContext: {
-        ...selectedContext,
-        marksheetId: selectedMarksheetId || selectedContext.marksheetId,
-      },
+      resolvedContext: fallbackContext,
       contextSource: "selected-context",
       contextWarning: "Marksheet context resolved from selected context.",
     };

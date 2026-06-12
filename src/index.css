@@ -211,6 +211,7 @@ body {
   border: 1.5px solid #334155;
   padding: 9px 12px 7px;
   margin-bottom: 5px;
+  position: relative;
 }
 
 .marksheet-title-block {
@@ -250,6 +251,17 @@ body {
 .marksheet-id-value {
   font-family: monospace;
   font-size: 9px;
+}
+
+.marksheet-id-qr {
+  position: absolute;
+  top: 9px;
+  right: 10px;
+  display: grid;
+  place-items: center;
+  width: 58px;
+  height: 58px;
+  background: #fff;
 }
 
 /* Signature section */
@@ -433,9 +445,17 @@ body {
 }
 
 .marksheet-footer-id {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   font-family: monospace;
   white-space: nowrap;
   color: #334155;
+}
+
+.marksheet-footer-id svg,
+.marksheet-id-qr svg {
+  flex: none;
 }
 
 @media print {
@@ -596,6 +616,7 @@ body {
     border: 1.5px solid black !important;
     padding: 7px 10px 6px !important;
     margin-bottom: 4px !important;
+    position: relative !important;
   }
 
   .marksheet-school-name {
@@ -613,6 +634,18 @@ body {
     gap: 1px 20px !important;
     padding: 4px 0 !important;
     margin: 4px 0 !important;
+  }
+
+  .marksheet-id-qr {
+    top: 7px !important;
+    right: 8px !important;
+    width: 50px !important;
+    height: 50px !important;
+  }
+
+  .marksheet-id-qr svg {
+    width: 48px !important;
+    height: 48px !important;
   }
 
   .marksheet-sig-section {
@@ -713,5 +746,10 @@ body {
   .marksheet-footer-id,
   .marksheet-footer-continued {
     color: black !important;
+  }
+
+  .marksheet-footer-id svg {
+    width: 30px !important;
+    height: 30px !important;
   }
 }

@@ -61,10 +61,13 @@ describe("parseMarksheetIdComponents", () => {
 describe("normalizeMarksheetId", () => {
   it("normalizes SENI to SEN1 for OCR/template ambiguity", () => {
     expect(normalizeMarksheetId("MS-2026-SENI-A-MATH-EOT-TE")).toBe("MS-2026-SEN1-A-MATH-EOT-TE");
+    expect(normalizeMarksheetId("MS-2026-SENL-A-MATH-EOT-TE")).toBe("MS-2026-SEN1-A-MATH-EOT-TE");
+    expect(normalizeMarksheetId("MS-2026-SEN|-A-MATH-EOT-TE")).toBe("MS-2026-SEN1-A-MATH-EOT-TE");
   });
 
   it("removes spaces and normalizes dash glyphs", () => {
     expect(normalizeMarksheetId(" ms - 2026 - seni - a - math - eot - te ")).toBe("MS-2026-SEN1-A-MATH-EOT-TE");
+    expect(normalizeMarksheetId("MS 2026 SENI A MATH EOT TE")).toBe("MS-2026-SEN1-A-MATH-EOT-TE");
     expect(normalizeMarksheetId("MS–2026–SENI–A–MATH–EOT–TE")).toBe("MS-2026-SEN1-A-MATH-EOT-TE");
   });
 });
@@ -210,8 +213,7 @@ Generated: 11 June 2026
   });
 
   it("handles OCR noise characters around the ID", () => {
-    // Simulated OCR may insert spaces inside; ID itself must be contiguous
-    const text = "ID: MS-2026-SEN1-A-ENGL-EOT-TE.";
+    const text = "ID: MS 2026 SENI A ENGL EOT TE.";
     expect(findMarksheetIdInText(text)).toBe("MS-2026-SEN1-A-ENGL-EOT-TE");
   });
 });

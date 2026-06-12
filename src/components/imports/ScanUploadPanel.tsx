@@ -105,9 +105,16 @@ function ProviderBadge({ result }: { result: ScanUploadResponse }) {
 }
 
 function contextSourceLabel(source?: string): string {
-  if (source === "recognized-id") return "Recognized Marksheet ID";
+  if (source === "recognized-id") return "Auto-detected from scan";
   if (source === "selected-context") return "Selected context";
   return "Manual required";
+}
+
+function matchSourceLabel(source?: string): string {
+  if (source === "header") return "header";
+  if (source === "footer") return "footer";
+  if (source === "selected-fallback") return "selected fallback";
+  return "manual required";
 }
 
 function extractionOutcome(rows: ScanImportRow[]): string {
@@ -275,6 +282,12 @@ export function ScanUploadPanel() {
               rows: batch.rows,
               recognizedMarksheetId: batch.recognizedMarksheetId,
               normalizedMarksheetId: batch.normalizedMarksheetId,
+              rawRecognizedId: batch.rawRecognizedId,
+              normalizedRecognizedId: batch.normalizedRecognizedId,
+              matchedMarksheetId: batch.matchedMarksheetId,
+              matchConfidence: batch.matchConfidence,
+              matchSource: batch.matchSource,
+              marksheetIdDebug: batch.marksheetIdDebug,
               selectedMarksheetId: batch.selectedMarksheetId,
               resolvedContext: batch.resolvedContext,
               contextSource: batch.contextSource,
@@ -329,10 +342,16 @@ export function ScanUploadPanel() {
 
     try {
       const result = await detectScanContext(file, "SCU-PREVIEW");
-      setRecognizedMarksheetId(result.recognizedMarksheetId ?? result.ocrFoundId ?? null);
-      if (result.detected && result.detectionStatus !== "NOT_FOUND") {
+      const recognizedId = result.normalizedRecognizedId ?? result.normalizedMarksheetId ?? result.recognizedMarksheetId ?? result.ocrFoundId ?? null;
+      setRecognizedMarksheetId(recognizedId);
+      if (result.detected && result.detectionStatus === "DETECTED" && result.contextSource === "recognized-id") {
+        const resolvedContext = result.resolvedContext ?? detectedToForm(result.detected);
         setDetectedCtx(result.detected);
-        setContextForm(detectedToForm(result.detected));
+        setContextForm(resolvedContext);
+        await handleExtractMarks(resolvedContext, file);
+      } else if (result.detected && result.detectionStatus !== "NOT_FOUND") {
+        setDetectedCtx(result.detected);
+        setContextForm(result.resolvedContext ?? detectedToForm(result.detected));
         setPhase("context_review");
       } else {
         setPhase("manual_id");
@@ -374,8 +393,9 @@ export function ScanUploadPanel() {
 
   // ── Confirm context → extract marks ──────────────────────────────────────────
 
-  async function handleExtractMarks(confirmedContext: ScanMarksheetContext) {
-    if (!scanFile) {
+  async function handleExtractMarks(confirmedContext: ScanMarksheetContext, fileOverride?: File) {
+    const fileToUpload = fileOverride ?? scanFile;
+    if (!fileToUpload) {
       setError("No scan file to extract marks from.");
       return;
     }
@@ -392,13 +412,12 @@ export function ScanUploadPanel() {
     setPhase("extracting");
     setError("");
     try {
-      const result = await uploadScanFile(scanFile, "SCU-PREVIEW", confirmedContext, {
-        recognizedMarksheetId,
+      const result = await uploadScanFile(fileToUpload, "SCU-PREVIEW", confirmedContext, {
         selectedMarksheetId: confirmedContext.marksheetId,
       });
       rememberBatch(result.scanBatchId ?? result.batchId);
       setContextForm(result.resolvedContext ?? confirmedContext);
-      setRecognizedMarksheetId(result.recognizedMarksheetId ?? recognizedMarksheetId);
+      setRecognizedMarksheetId(result.normalizedRecognizedId ?? result.recognizedMarksheetId ?? recognizedMarksheetId);
       setUploadResult(result);
       setScanRows(result.rows);
       setDryRunSummary("");
@@ -530,9 +549,12 @@ export function ScanUploadPanel() {
       {(recognizedMarksheetId || phase === "manual_id" || uploadResult?.contextWarning) && (
         <div className="rounded-2xl border border-blue-100 bg-blue-50 p-4 text-sm text-blue-800">
           {recognizedMarksheetId ? (
-            <p>
-              Recognized Marksheet ID: <span className="font-mono font-bold">{recognizedMarksheetId}</span>
-            </p>
+            <>
+              <p>
+                Recognized Marksheet ID: <span className="font-mono font-bold">{recognizedMarksheetId}</span>
+              </p>
+              <p className="mt-1 font-semibold">Context source: Auto-detected from scan</p>
+            </>
           ) : (
             <p>Marksheet ID not recognized. Confirm the marksheet context manually.</p>
           )}
@@ -690,11 +712,18 @@ export function ScanUploadPanel() {
             <div className="mt-3 grid gap-2 text-sm text-slate-700 md:grid-cols-2">
               <p>
                 <span className="font-semibold">Recognized ID:</span>{" "}
-                {uploadResult.recognizedMarksheetId || <span className="text-slate-400">Not recognized</span>}
+                {uploadResult.normalizedRecognizedId || uploadResult.recognizedMarksheetId || <span className="text-slate-400">Not recognized</span>}
               </p>
               <p>
                 <span className="font-semibold">Resolved ID:</span>{" "}
-                {uploadResult.normalizedMarksheetId || uploadResult.resolvedContext?.marksheetId || <span className="text-slate-400">Manual context</span>}
+                {uploadResult.matchedMarksheetId || uploadResult.normalizedMarksheetId || uploadResult.resolvedContext?.marksheetId || <span className="text-slate-400">Manual context</span>}
+              </p>
+              <p>
+                <span className="font-semibold">Match source:</span>{" "}
+                {matchSourceLabel(uploadResult.matchSource)}
+                {typeof uploadResult.matchConfidence === "number" && uploadResult.matchConfidence > 0
+                  ? ` (${Math.round(uploadResult.matchConfidence * 100)}%)`
+                  : ""}
               </p>
               <p>
                 <span className="font-semibold">Class / Stream:</span>{" "}

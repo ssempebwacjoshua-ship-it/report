@@ -2,8 +2,10 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ScanUploadPanel } from "../../components/imports/ScanUploadPanel";
 import {
+  detectScanContext,
   dryRunScanRows,
   loadScanBatch,
+  uploadScanFile,
 } from "../../client/importsClient";
 
 vi.mock("../../client/importsClient", () => ({
@@ -119,6 +121,60 @@ describe("ScanUploadPanel", () => {
     await waitFor(() => expect(dryRunScanRows).toHaveBeenCalled());
     expect(screen.getByDisplayValue("76")).toBeInTheDocument();
     expect(screen.getByText("Kampala Ssempebwa")).toBeInTheDocument();
-    expect(screen.getByText(/1 rows checked/)).toBeInTheDocument();
+    expect(await screen.findByText(/1 rows checked/)).toBeInTheDocument();
+  });
+
+  it("auto-extracts after recognized Marksheet ID and shows scan context source", async () => {
+    vi.mocked(detectScanContext).mockResolvedValue({
+      detected: {
+        ...context,
+        overallConfidence: 1,
+        source: "HEADER_OCR",
+        partial: false,
+        message: "Context resolved.",
+      },
+      detectionStatus: "DETECTED",
+      message: "Context resolved.",
+      recognizedMarksheetId: "MS-2026-SENI-A-MATH-EOT-TE",
+      normalizedMarksheetId: context.marksheetId,
+      rawRecognizedId: "MS-2026-SENI-A-MATH-EOT-TE",
+      normalizedRecognizedId: context.marksheetId,
+      matchedMarksheetId: context.marksheetId,
+      matchConfidence: 0.93,
+      matchSource: "header",
+      resolvedContext: context,
+      contextSource: "recognized-id",
+      contextWarning: "",
+    });
+    vi.mocked(uploadScanFile).mockResolvedValue({
+      batchId: "batch-auto",
+      scanBatchId: "batch-auto",
+      parseStatus: "PARSED",
+      message: "Scan processed.",
+      rows,
+      recognizedMarksheetId: "MS-2026-SENI-A-MATH-EOT-TE",
+      normalizedMarksheetId: context.marksheetId,
+      rawRecognizedId: "MS-2026-SENI-A-MATH-EOT-TE",
+      normalizedRecognizedId: context.marksheetId,
+      matchedMarksheetId: context.marksheetId,
+      matchConfidence: 0.93,
+      matchSource: "header",
+      resolvedContext: context,
+      contextSource: "recognized-id",
+      contextWarning: "",
+      activeProvider: "manual",
+    });
+
+    render(<ScanUploadPanel />);
+
+    const file = new File(["scan"], "marksheet.png", { type: "image/png" });
+    const input = screen.getByLabelText(/Choose a scanned marksheet/i);
+    fireEvent.change(input, { target: { files: [file] } });
+
+    expect(await screen.findByText("Operator Entry & Review")).toBeInTheDocument();
+    expect(uploadScanFile).toHaveBeenCalled();
+    expect(screen.getByText("Context source: Auto-detected from scan")).toBeInTheDocument();
+    expect(screen.getAllByText("Auto-detected from scan").length).toBeGreaterThan(0);
+    expect(screen.getAllByText(context.marksheetId).length).toBeGreaterThan(0);
   });
 });

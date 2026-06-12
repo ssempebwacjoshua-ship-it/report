@@ -1,3 +1,4 @@
+import { QRCodeSVG } from "qrcode.react";
 import type { MarksheetStudent } from "../../shared/types/marksheets";
 
 const EXAM_LABELS: Record<string, string> = {
@@ -156,6 +157,10 @@ export function PrintableMarksheet({
                   </div>
                 </div>
 
+                <div className="marksheet-id-qr" aria-label={`Marksheet ID QR ${marksheetId}`}>
+                  <QRCodeSVG value={marksheetId} size={54} marginSize={1} level="M" />
+                </div>
+
                 {/* Signatures on first page only when it is the ONLY page */}
                 {totalPages === 1 && (
                   <div className="marksheet-sig-section">
@@ -247,6 +252,7 @@ export function PrintableMarksheet({
                 <span className="marksheet-footer-continued">Continued on next page →</span>
               ) : (
                 <span className="marksheet-footer-id">
+                  <QRCodeSVG value={marksheetId} size={34} marginSize={1} level="M" />
                   {marksheetId}
                   {totalPages > 1 ? ` · Page ${pageIndex + 1} of ${totalPages}` : ""} · {today}
                 </span>
