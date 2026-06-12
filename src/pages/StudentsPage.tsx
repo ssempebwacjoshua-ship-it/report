@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { fetchReportContext } from "../client/reportsClient";
 import {
@@ -44,6 +44,7 @@ export function StudentsPage() {
   const [contactInput, setContactInput] = useState<GuardianContactInput>(EMPTY_CONTACT_INPUT);
   const [showAddForm, setShowAddForm] = useState(false);
   const [showImport, setShowImport] = useState(false);
+  const importFileInputRef = useRef<HTMLInputElement | null>(null);
   const [studentForm, setStudentForm] = useState({
     fullName: "",
     admissionNumber: "",
@@ -119,6 +120,10 @@ export function StudentsPage() {
     setImportPreview(result);
     const refreshed = await fetchStudents(filters);
     setStudents(refreshed.students);
+  }
+
+  function pickImportFile() {
+    importFileInputRef.current?.click();
   }
 
   async function saveContact() {
@@ -223,7 +228,23 @@ export function StudentsPage() {
           </div>
           {showImport ? (
             <div className="grid gap-3">
-              <input type="file" accept=".csv,.xlsx" onChange={(e) => setImportFile(e.target.files?.[0] ?? null)} />
+              <input
+                ref={importFileInputRef}
+                className="hidden"
+                type="file"
+                accept=".csv,.xlsx"
+                onChange={(e) => {
+                  const file = e.target.files?.[0] ?? null;
+                  setImportFile(file);
+                  setImportPreview(null);
+                }}
+              />
+              <div className="flex flex-wrap items-center gap-2">
+                <button type="button" className="btn btn-secondary" onClick={pickImportFile}>
+                  Choose Sheet
+                </button>
+                <span className="text-sm text-slate-600">{importFile ? importFile.name : "No file selected"}</span>
+              </div>
               <div className="flex flex-wrap justify-end gap-2">
                 <button type="button" className="btn btn-primary" onClick={() => void previewImport()} disabled={!importFile}>
                   Preview
