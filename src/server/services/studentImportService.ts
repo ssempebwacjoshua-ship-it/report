@@ -8,7 +8,6 @@ import type {
   StudentImportRowInput,
 } from "../../shared/types/students";
 import { generateAdmissionNumber } from "./studentAdmissionNumberService";
-import { createStudentRecord } from "../repositories/studentRepository";
 
 const PREVIEW_LIMIT = 100;
 const BATCH_SIZE = 400;
@@ -202,24 +201,41 @@ async function processChunk(prisma: PrismaClient, schoolId: string, schoolCode: 
         (await prisma.stream.findFirst({ where: { schoolId, classId: klass.id, OR: [{ name: row.raw.streamName }, { code: row.raw.streamName }] } })) ??
         (await prisma.stream.create({ data: { schoolId, classId: klass.id, name: row.raw.streamName, code: row.raw.streamName } }));
 
-      await createStudentRecord(
-        prisma,
-        schoolCode,
-        {
+      const created = await prisma.student.create({
+        data: {
+          schoolId,
           admissionNumber,
-          fullName: row.raw.fullName,
-          gender: normalizeGender(row.raw.gender),
+          firstName: row.raw.fullName.trim(),
+          lastName: "",
+          isActive: row.raw.status?.toLowerCase() !== "inactive",
+        },
+      });
+      await prisma.classEnrollment.create({
+        data: {
+          studentId: created.id,
+          academicYearId: activeYearId,
+          termId: activeTermId,
           classId: klass.id,
           streamId: stream.id,
           isActive: row.raw.status?.toLowerCase() !== "inactive",
-          guardianName: row.raw.guardianName,
-          guardianPhone: normalizePhone(row.raw.guardianPhone ?? ""),
-          guardianEmail: row.raw.guardianEmail,
-          notes: "",
-          schoolCode,
+          status: row.raw.status?.toLowerCase() === "inactive" ? "INACTIVE" : "ACTIVE",
         },
-        null,
-      );
+      });
+      if (row.raw.guardianName || row.raw.guardianPhone || row.raw.guardianEmail) {
+        await prisma.guardianContact.create({
+          data: {
+            schoolId,
+            studentId: created.id,
+            guardianName: row.raw.guardianName || "Parent/Guardian",
+            relationship: "Parent",
+            phone: row.raw.guardianPhone || null,
+            email: row.raw.guardianEmail || null,
+            preferredContactMethod: row.raw.guardianPhone ? "PHONE" : "EMAIL",
+            isPrimary: true,
+            canReceiveReports: true,
+          },
+        });
+      }
       successCount += 1;
     } catch (error) {
       failedCount += 1;
@@ -236,6 +252,7 @@ async function processImportJob(prisma: PrismaClient, batchId: string, schoolCod
     include: { school: { include: { classes: { include: { streams: true } }, students: true, academicYears: { where: { isActive: true }, include: { terms: { where: { isActive: true } } } } } } },
   });
   if (!batch || batch.source !== "student") return;
+  console.log("[student-import] processor picked job", { batchId });
   const summary = deserializeSummary(batch.summary);
   const rows = (summary.rows as StudentImportPreviewRow[] | undefined) ?? [];
   const totalRows = rows.length;
@@ -251,13 +268,16 @@ async function processImportJob(prisma: PrismaClient, batchId: string, schoolCod
   let failedCount = 0;
   let duplicateCount = 0;
   await prisma.markImportBatch.update({ where: { id: batchId }, data: { status: "DRY_RUN", summary: serializeSummary({ ...summary, status: "processing", totalRows, processedRows, successCount, failedCount, duplicateCount, startedAt: new Date().toISOString() }) } });
+  console.log("[student-import] file loaded", { batchId, rows: totalRows });
 
   for (let index = 0; index < rows.length; index += BATCH_SIZE) {
     const chunk = rows.slice(index, index + BATCH_SIZE);
+    console.log("[student-import] batch started", { batchId, offset: index, size: chunk.length });
     const result = await prisma.$transaction(async (tx) => {
       const chunkResult = await processChunk(tx, batch.schoolId, schoolCode, chunk, activeYear.id, activeTerm.id, mode);
       return chunkResult;
     });
+    console.log("[student-import] batch completed", { batchId, offset: index, success: result.successCount, failed: result.failedCount });
     processedRows += chunk.length;
     successCount += result.successCount;
     failedCount += result.failedCount;
@@ -273,12 +293,14 @@ async function processImportJob(prisma: PrismaClient, batchId: string, schoolCod
         summary: serializeSummary({ ...summary, status: "processing", totalRows, processedRows, successCount, failedCount, duplicateCount, updatedAt: new Date().toISOString() }),
       },
     });
+    console.log("[student-import] processedRows updated", { batchId, processedRows, successCount, failedCount });
   }
 
   await prisma.markImportBatch.update({
     where: { id: batchId },
     data: { status: "COMMITTED", summary: serializeSummary({ ...summary, status: "completed", totalRows, processedRows, successCount, failedCount, duplicateCount, completedAt: new Date().toISOString() }) },
   });
+  console.log("[student-import] job completed", { batchId, totalRows, processedRows, successCount, failedCount });
   await prisma.auditLog.create({
     data: {
       schoolId: batch.schoolId,
@@ -299,15 +321,26 @@ export async function createStudentImportJob(prisma: PrismaClient, schoolCode: s
       summary: serializeSummary({ ...preview, status: "queued", mode, rows: preview.rows }),
     },
   });
-  void setTimeout(() => {
-    void processImportJob(prisma, batch.id, schoolCode, mode).catch(async (error) => {
-      await prisma.markImportBatch.update({
-        where: { id: batch.id },
-        data: { status: "FAILED", summary: serializeSummary({ ...deserializeSummary(batch.summary), status: "failed", lastError: error instanceof Error ? error.message : "Import failed" }) },
-      });
+  console.log("[student-import] job created", { batchId: batch.id, totalRows: preview.totalRows, mode });
+  void processImportJob(prisma, batch.id, schoolCode, mode).catch(async (error) => {
+    console.error("[student-import] job failed", { batchId: batch.id, error: error instanceof Error ? error.message : "Import failed" });
+    await prisma.markImportBatch.update({
+      where: { id: batch.id },
+      data: { status: "FAILED", summary: serializeSummary({ ...deserializeSummary(batch.summary), status: "failed", lastError: error instanceof Error ? error.message : "Import failed", updatedAt: new Date().toISOString() }) },
     });
-  }, 0);
+  });
   return { jobId: batch.id, status: "QUEUED" as const, totalRows: preview.totalRows, validRows: preview.validRows, invalidRows: preview.invalidRows, duplicateRows: preview.duplicateRows };
+}
+
+export async function recoverStaleStudentImportJobs(prisma: PrismaClient) {
+  const stale = await prisma.markImportBatch.findMany({
+    where: { source: "student", status: "DRY_RUN", updatedAt: { lt: new Date(Date.now() - 5 * 60 * 1000) } },
+    take: 10,
+  });
+  for (const batch of stale) {
+    const summary = deserializeSummary(batch.summary);
+    await prisma.markImportBatch.update({ where: { id: batch.id }, data: { status: "FAILED", summary: serializeSummary({ ...summary, status: "failed", lastError: "Import stalled. Please retry or contact admin.", updatedAt: new Date().toISOString() }) } });
+  }
 }
 
 export async function getStudentImportJob(prisma: PrismaClient, schoolCode: string, jobId: string) {

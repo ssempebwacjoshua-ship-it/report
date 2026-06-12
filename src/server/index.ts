@@ -13,6 +13,8 @@ import { reportIssueRoutes } from "./routes/reportIssueRoutes";
 import { releaseCenterRoutes } from "./routes/releaseCenterRoutes";
 import { parentRoutes } from "./routes/parentRoutes";
 import { verifyRoutes } from "./routes/verifyRoutes";
+import { prisma } from "./db/prisma";
+import { recoverStaleStudentImportJobs } from "./services/studentImportService";
 
 export function createServer() {
   const app = express();
@@ -51,6 +53,7 @@ export function createServer() {
 
 if (process.env.NODE_ENV !== "test") {
   const port = Number(process.env.PORT ?? 4300);
+  void recoverStaleStudentImportJobs(prisma).catch((error) => console.error("Failed to recover stale student import jobs", error));
   createServer().listen(port, "0.0.0.0", () => {
     console.log(`Reports lab API listening on port ${port}`);
   });
