@@ -6,8 +6,17 @@ import { MarksImportPage } from "../pages/MarksImportPage";
 import { MarksheetsPage } from "../pages/MarksheetsPage";
 import { StudentsPage } from "../pages/StudentsPage";
 import { SettingsPage } from "../pages/SettingsPage";
+import { LoginPage } from "../pages/LoginPage";
+import { ParentReportPage } from "../pages/ParentReportPage";
+import { VerifyPage } from "../pages/VerifyPage";
 
 export const router = createBrowserRouter([
+  // Public routes — no AppShell, no auth
+  { path: "/login", element: <LoginPage /> },
+  { path: "/parent/r/:token", element: <ParentReportPage /> },
+  { path: "/verify/:code", element: <VerifyPage /> },
+
+  // Admin routes — wrapped in AppShell (auth guard inside)
   {
     path: "/",
     element: <AppShell />,

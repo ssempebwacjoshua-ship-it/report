@@ -39,6 +39,16 @@ enum ReportReadiness {
   NO_ACTIVE_TERM
 }
 
+enum UserRole {
+  ADMIN_OPERATOR
+}
+
+enum IssuedReportStatus {
+  ISSUED
+  REVOKED
+  SUPERSEDED
+}
+
 enum EnrollmentStatus {
   ACTIVE
   TRANSFERRED
@@ -67,6 +77,8 @@ model School {
   imports       MarkImportBatch[]
   auditLogs     AuditLog[]
   guardianContacts GuardianContact[]
+  users         User[]
+  issuedReports IssuedReport[]
 }
 
 model AcademicYear {
@@ -156,6 +168,7 @@ model Student {
   enrollments ClassEnrollment[]
   marks       SubjectMark[]
   guardianContacts GuardianContact[]
+  issuedReports IssuedReport[]
 
   @@unique([schoolId, admissionNumber])
   @@index([schoolId, isActive])
@@ -309,4 +322,51 @@ model AppSetting {
   updatedAt  DateTime @updatedAt
 
   @@index([schoolCode])
+}
+
+model User {
+  id           String   @id @default(uuid()) @db.Uuid
+  schoolId     String   @db.Uuid
+  name         String
+  email        String
+  passwordHash String
+  role         UserRole @default(ADMIN_OPERATOR)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  school        School         @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  issuedReports IssuedReport[]
+
+  @@unique([schoolId, email])
+  @@index([schoolId, role])
+}
+
+model IssuedReport {
+  id                 String             @id @default(uuid()) @db.Uuid
+  schoolId           String             @db.Uuid
+  studentId          String             @db.Uuid
+  academicYear       String
+  term               String
+  assessmentType     String
+  reportSnapshotJson Json
+  referenceCode      String             @unique
+  parentAccessToken  String             @unique
+  status             IssuedReportStatus @default(ISSUED)
+  issuedAt           DateTime           @default(now())
+  issuedById         String?            @db.Uuid
+  issuedByName       String?
+  viewedAt           DateTime?
+  downloadedAt       DateTime?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  school   School  @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  student  Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  issuedBy User?   @relation(fields: [issuedById], references: [id], onDelete: SetNull)
+
+  @@index([parentAccessToken])
+  @@index([referenceCode])
+  @@index([schoolId, status])
+  @@index([studentId, status])
 }

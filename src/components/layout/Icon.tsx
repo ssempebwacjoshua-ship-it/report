@@ -8,6 +8,7 @@ type IconName =
   | "cloud"
   | "file"
   | "home"
+  | "log-out"
   | "menu"
   | "send"
   | "settings"
@@ -31,6 +32,7 @@ const paths: Record<IconName, string[]> = {
   cloud: ["M17.5 19H7a5 5 0 1 1 .9-9.9 7 7 0 0 1 13.2 3A3.5 3.5 0 0 1 17.5 19Z", "M12 12v6M9 15l3-3 3 3"],
   file: ["M14 2H6a2 2 0 0 0-2 2v16h16V8z", "M14 2v6h6", "M8 13h8M8 17h5"],
   home: ["M3 10.5 12 3l9 7.5", "M5 9.5V21h14V9.5", "M9 21v-6h6v6"],
+  "log-out": ["M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4", "M16 17l5-5-5-5", "M21 12H9"],
   menu: ["M4 6h16M4 12h16M4 18h16"],
   send: ["M22 2 11 13", "m22 2-7 20-4-9-9-4z"],
   settings: ["M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8Z", "M4 12h2M18 12h2M12 4v2M12 18v2M6.3 6.3l1.4 1.4M16.3 16.3l1.4 1.4M17.7 6.3l-1.4 1.4M7.7 16.3l-1.4 1.4"],

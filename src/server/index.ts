@@ -8,18 +8,26 @@ import { importsRoutes } from "./routes/importsRoutes";
 import { studentsRoutes } from "./routes/studentsRoutes";
 import { marksheetsRoutes } from "./routes/marksheetsRoutes";
 import { settingsRoutes } from "./routes/settingsRoutes";
+import { authRoutes } from "./routes/authRoutes";
+import { reportIssueRoutes } from "./routes/reportIssueRoutes";
+import { parentRoutes } from "./routes/parentRoutes";
+import { verifyRoutes } from "./routes/verifyRoutes";
 
 export function createServer() {
   const app = express();
-  app.use(cors({ origin: process.env.CLIENT_ORIGIN ?? true }));
+  app.use(cors({ origin: process.env.CLIENT_ORIGIN ?? true, credentials: true }));
   app.use(express.json({ limit: "2mb" }));
 
   app.use(healthRoutes());
+  app.use(authRoutes());
   app.use(reportsRoutes());
+  app.use(reportIssueRoutes());
   app.use(importsRoutes());
   app.use(studentsRoutes());
   app.use(marksheetsRoutes());
   app.use(settingsRoutes());
+  app.use(parentRoutes());
+  app.use(verifyRoutes());
 
   const errorHandler: ErrorRequestHandler = (error, _req, res, _next) => {
     if (error instanceof ZodError) {

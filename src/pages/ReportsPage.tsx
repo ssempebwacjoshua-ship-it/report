@@ -5,6 +5,7 @@ import { StudentReportCard } from "../components/reports/StudentReportCard";
 import { StudentReportDetail } from "../components/reports/StudentReportDetail";
 import { fetchReportContext, fetchReports } from "../client/reportsClient";
 import { fetchSettings } from "../client/settingsClient";
+import { issueReport, type IssueReportResult } from "../client/issueReportClient";
 import type {
   ReportContext,
   ReportFilters as Filters,
@@ -43,6 +44,10 @@ export function ReportsPage() {
   const [selectedStudentId, setSelectedStudentId] = useState("");
   const [hmEditOpen, setHmEditOpen] = useState(false);
   const [error, setError] = useState("");
+  const [issuing, setIssuing] = useState(false);
+  const [issueResult, setIssueResult] = useState<IssueReportResult | null>(null);
+  const [issueError, setIssueError] = useState("");
+  const [copiedField, setCopiedField] = useState<string | null>(null);
 
   useEffect(() => {
     Promise.all([fetchReportContext(), fetchSettings()])
@@ -150,6 +155,39 @@ export function ReportsPage() {
   }, []);
   // ─────────────────────────────────────────────────────────────────────────
 
+  async function handleIssueReport() {
+    if (!selectedCard || !filters.classId) return;
+    setIssuing(true);
+    setIssueError("");
+    setIssueResult(null);
+    try {
+      const result = await issueReport({
+        schoolCode: filters.schoolCode,
+        studentId: selectedCard.studentId,
+        classId: filters.classId,
+        streamId: filters.streamId,
+        academicYearId: filters.academicYearId,
+        termId: filters.termId,
+        assessmentType: filters.assessmentType,
+      });
+      setIssueResult(result);
+    } catch (caught) {
+      setIssueError(caught instanceof Error ? caught.message : "Failed to issue report.");
+    } finally {
+      setIssuing(false);
+    }
+  }
+
+  async function copyText(text: string, field: string) {
+    await navigator.clipboard.writeText(text);
+    setCopiedField(field);
+    setTimeout(() => setCopiedField(null), 2000);
+  }
+
+  const messageTemplate = issueResult
+    ? `Dear Parent, ${issueResult.studentName}'s ${issueResult.term} (${issueResult.assessmentType}) report from ${report?.settings.school.schoolName ?? "the school"} is ready. View and download: ${issueResult.parentLink}`
+    : "";
+
   return (
     <main className="grid gap-4">
       <header className="page-header flex flex-wrap items-end justify-between gap-3">
@@ -179,6 +217,14 @@ export function ReportsPage() {
           >
             Print / Save PDF
           </button>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            disabled={!selectedCard || issuing}
+            onClick={() => void handleIssueReport()}
+          >
+            {issuing ? "Issuing…" : "Issue Report Link"}
+          </button>
           <a className="btn btn-secondary" href="/imports/marks">
             Marks Import
           </a>
@@ -188,6 +234,62 @@ export function ReportsPage() {
       {error ? (
         <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 shadow-sm">
           {error}
+        </div>
+      ) : null}
+
+      {issueError ? (
+        <div className="no-print rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 shadow-sm">
+          {issueError}
+        </div>
+      ) : null}
+
+      {issueResult ? (
+        <div className="no-print rounded-2xl border border-emerald-200 bg-emerald-50 p-4 shadow-sm">
+          <div className="mb-3 flex items-center justify-between">
+            <p className="text-sm font-semibold text-emerald-800">
+              Report link issued for {issueResult.studentName}
+            </p>
+            <button
+              type="button"
+              className="text-xs text-emerald-600 hover:text-emerald-800"
+              onClick={() => setIssueResult(null)}
+            >
+              Dismiss
+            </button>
+          </div>
+          <div className="grid gap-2">
+            <div className="flex items-center gap-2 rounded-lg bg-white/70 px-3 py-2">
+              <span className="min-w-0 flex-1 truncate font-mono text-xs text-slate-700">{issueResult.parentLink}</span>
+              <button
+                type="button"
+                className="shrink-0 rounded px-2 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-100"
+                onClick={() => void copyText(issueResult.parentLink, "link")}
+              >
+                {copiedField === "link" ? "Copied!" : "Copy link"}
+              </button>
+            </div>
+            <div className="flex items-start gap-2 rounded-lg bg-white/70 px-3 py-2">
+              <span className="min-w-0 flex-1 text-xs text-slate-600 leading-relaxed">{messageTemplate}</span>
+              <button
+                type="button"
+                className="shrink-0 rounded px-2 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-100"
+                onClick={() => void copyText(messageTemplate, "msg")}
+              >
+                {copiedField === "msg" ? "Copied!" : "Copy message"}
+              </button>
+            </div>
+            <div className="flex items-center gap-2 px-3">
+              <span className="text-xs text-slate-500">Reference code:</span>
+              <span className="font-mono text-sm font-bold text-slate-700">{issueResult.referenceCode}</span>
+              <button
+                type="button"
+                className="rounded px-2 py-0.5 text-xs font-medium text-emerald-700 hover:bg-emerald-100"
+                onClick={() => void copyText(issueResult.referenceCode, "ref")}
+              >
+                {copiedField === "ref" ? "Copied!" : "Copy"}
+              </button>
+            </div>
+          </div>
         </div>
       ) : null}
 

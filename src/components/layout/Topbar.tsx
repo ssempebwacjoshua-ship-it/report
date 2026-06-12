@@ -1,3 +1,5 @@
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "../../contexts/AuthContext";
 import { Icon } from "./Icon";
 import { getSchoolDisplayName } from "./branding";
 import { useAppSettings } from "./SettingsContext";
@@ -9,7 +11,15 @@ type Props = {
 
 export function Topbar({ onMenuClick, sidebarCollapsed }: Props) {
   const { settings } = useAppSettings() ?? {};
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
   const schoolName = getSchoolDisplayName(settings?.sections.school, "School Connect");
+
+  function handleLogout() {
+    logout();
+    navigate("/login", { replace: true });
+  }
+
   return (
     <header className="app-shell-topbar sticky top-0 z-20 flex h-14 items-center justify-between border-b border-blue-900/60 bg-blue-950 px-4 md:px-8">
       <div className="flex items-center gap-3">
@@ -32,10 +42,19 @@ export function Topbar({ onMenuClick, sidebarCollapsed }: Props) {
             <Icon name="user" className="h-4 w-4" />
           </div>
           <div className="hidden sm:block">
-            <p className="text-sm font-semibold leading-tight text-white">School Admin</p>
+            <p className="text-sm font-semibold leading-tight text-white">{user?.name ?? "Admin"}</p>
             <p className="text-xs leading-tight text-blue-300">Administrator</p>
           </div>
         </div>
+        <button
+          type="button"
+          onClick={handleLogout}
+          className="ml-1 grid h-8 w-8 place-items-center rounded-xl text-blue-300 transition hover:bg-white/10 hover:text-white"
+          title="Sign out"
+          aria-label="Sign out"
+        >
+          <Icon name="log-out" className="h-4 w-4" />
+        </button>
       </div>
     </header>
   );
