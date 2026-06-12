@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { AssessmentFilter, StudentReportCard } from "../../shared/types/reports";
 import type { GradingScaleSettings, ReportSettings, SchoolProfileSettings } from "../../shared/types/settings";
 import { defaultSettingsSections } from "../../shared/types/settings";
+import { getSchoolInitials } from "../layout/branding";
 
 type Props = {
   card: StudentReportCard | null;
@@ -24,35 +25,6 @@ type ReportDraft = {
   issueDate: string;
   showGradingKey: boolean;
 };
-
-function ShieldIcon() {
-  return (
-    <svg
-      viewBox="0 0 80 96"
-      className="h-16 w-14 flex-shrink-0 print:h-9 print:w-8"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-    >
-      <path
-        d="M40 4L8 16v28c0 22 14.4 42.4 32 48C57.6 86.4 72 66 72 44V16L40 4z"
-        fill="rgba(255,255,255,0.12)"
-        stroke="rgba(255,255,255,0.5)"
-        strokeWidth="2"
-      />
-      <text
-        x="40"
-        y="58"
-        textAnchor="middle"
-        fontSize="18"
-        fontWeight="bold"
-        fill="white"
-        fontFamily="Georgia, serif"
-      >
-        UHS
-      </text>
-    </svg>
-  );
-}
 
 const GRADE_COLORS: Record<string, string> = {
   D1: "bg-emerald-100 text-emerald-800",
@@ -305,7 +277,7 @@ function StudentReportDetailContent({
               school.logoUrl ? (
                 <img src={school.logoUrl} alt={`${school.schoolName} logo`} className="h-16 w-14 flex-shrink-0 object-contain print:h-9 print:w-8" />
               ) : (
-                <ShieldIcon />
+                <div className="grid h-16 w-14 flex-shrink-0 place-items-center rounded-2xl bg-white/10 text-2xl font-black text-white print:h-9 print:w-8">{getSchoolInitials(school.schoolName)}</div>
               )
             ) : (
               <div className="h-16 w-14 flex-shrink-0 print:h-9 print:w-8" />

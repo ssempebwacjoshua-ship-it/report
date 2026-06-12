@@ -3,7 +3,7 @@ import type { MouseEvent as ReactMouseEvent } from "react";
 import { Outlet } from "react-router-dom";
 import { Sidebar } from "./Sidebar";
 import { Topbar } from "./Topbar";
-import { fetchSettings } from "../../client/settingsClient";
+import { SettingsProvider, useAppSettings } from "./SettingsContext";
 
 const SIDEBAR_WIDTH_KEY = "school-connect-sidebar-width";
 const DEFAULT_SIDEBAR_WIDTH = 280;
@@ -22,18 +22,6 @@ export function AppShell() {
       return DEFAULT_SIDEBAR_WIDTH;
     }
   });
-
-  useEffect(() => {
-    fetchSettings()
-      .then((settings) => {
-        document.documentElement.dataset.appDensity = settings.sections.appearance.appDensity;
-        document.documentElement.dataset.appFontSize = settings.sections.appearance.fontSize;
-        const widthBySetting = { compact: 240, standard: 280, wide: 320 };
-        const hasManualWidth = localStorage.getItem(SIDEBAR_WIDTH_KEY);
-        if (!hasManualWidth) setSidebarWidth(widthBySetting[settings.sections.appearance.sidebarWidth]);
-      })
-      .catch(() => {});
-  }, []);
 
   function startSidebarResize(event: ReactMouseEvent) {
     const startX = event.clientX;
@@ -67,6 +55,40 @@ export function AppShell() {
     window.addEventListener("mouseup", onMouseUp);
     event.preventDefault();
   }
+
+  return (
+    <SettingsProvider>
+      <AppShellInner
+        sidebarOpen={sidebarOpen}
+        setSidebarOpen={setSidebarOpen}
+        sidebarWidth={sidebarWidth}
+        setSidebarWidth={setSidebarWidth}
+        startSidebarResize={startSidebarResize}
+      />
+    </SettingsProvider>
+  );
+}
+
+function AppShellInner({
+  sidebarOpen,
+  setSidebarOpen,
+  sidebarWidth,
+  setSidebarWidth,
+  startSidebarResize,
+}: {
+  sidebarOpen: boolean;
+  setSidebarOpen: (open: boolean) => void;
+  sidebarWidth: number;
+  setSidebarWidth: (width: number) => void;
+  startSidebarResize: (event: ReactMouseEvent) => void;
+}) {
+  const { settings } = useAppSettings() ?? {};
+  useEffect(() => {
+    if (!settings) return;
+    const widthBySetting = { compact: 240, standard: 280, wide: 320 };
+    const hasManualWidth = localStorage.getItem(SIDEBAR_WIDTH_KEY);
+    if (!hasManualWidth) setSidebarWidth(widthBySetting[settings.sections.appearance.sidebarWidth]);
+  }, [settings]);
 
   return (
     <div

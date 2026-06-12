@@ -1,5 +1,7 @@
 import { Link, useLocation } from "react-router-dom";
 import { Icon } from "./Icon";
+import { getSchoolDisplayName, getSchoolInitials } from "./branding";
+import { useAppSettings } from "./SettingsContext";
 import type { CSSProperties, MouseEvent as ReactMouseEvent } from "react";
 
 type Props = {
@@ -20,18 +22,12 @@ const navItems = [
 
 export function Sidebar({ open, onClose, width, onResizeStart }: Props) {
   const location = useLocation();
+  const { settings } = useAppSettings() ?? {};
+  const school = settings?.sections.school;
+  const schoolName = getSchoolDisplayName(school, "School Connect");
+  const initials = getSchoolInitials(schoolName);
 
   function isNavActive(to: string) {
-    // Dashboard root: only active when pathname is /dashboard and there is no hash
-    if (to === "/dashboard") {
-      return location.pathname === "/dashboard" && location.hash === "";
-    }
-    // Hash-based anchors (students, settings): match both pathname and hash
-    if (to.includes("#")) {
-      const [path, hash] = to.split("#");
-      return location.pathname === path && location.hash === `#${hash}`;
-    }
-    // Regular routes: exact prefix match (handles /reports, /imports/marks, etc.)
     return location.pathname === to || location.pathname.startsWith(to + "/");
   }
 
@@ -51,11 +47,15 @@ export function Sidebar({ open, onClose, width, onResizeStart }: Props) {
       >
         <div className="flex items-center gap-3">
           <div className="grid h-11 w-11 place-items-center rounded-2xl bg-white/15 ring-1 ring-white/25">
-            <Icon name="shield" className="h-6 w-6" />
+            {school?.logoUrl ? (
+              <img src={school.logoUrl} alt={`${schoolName} logo`} className="h-8 w-8 rounded-xl bg-white/10 object-contain" />
+            ) : (
+              <span className="text-sm font-black text-white">{initials}</span>
+            )}
           </div>
           <div>
-            <p className="text-lg font-bold leading-tight">School Connect</p>
-            <p className="text-xs text-blue-200">Reports First</p>
+            <p className="text-lg font-bold leading-tight">{schoolName}</p>
+            <p className="text-xs text-blue-200">{school?.schoolCode ?? "SCU-PREVIEW"}</p>
           </div>
         </div>
 
@@ -93,9 +93,9 @@ export function Sidebar({ open, onClose, width, onResizeStart }: Props) {
               <p className="text-xs text-blue-200">Main Administrator</p>
             </div>
           </div>
-          <div className="mt-3 flex items-center justify-between text-xs text-blue-200">
-            <span>Uganda High School</span>
-            <Icon name="chevron" className="h-3.5 w-3.5" />
+          <div className="mt-3 text-xs text-blue-200">
+            <span className="font-semibold">{schoolName}</span>
+            <div className="mt-1">{school?.headTeacherName || "Head Teacher"}</div>
           </div>
         </div>
 

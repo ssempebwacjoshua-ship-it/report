@@ -63,5 +63,7 @@ export async function patchSettingsSection<K extends SettingSection>(
     body: JSON.stringify(payload),
   });
   if (!response.ok) throw await readSettingsError(response, "Could not save settings");
-  return response.json();
+  const result = await response.json();
+  window.dispatchEvent(new Event("settings-updated"));
+  return result;
 }

@@ -15,6 +15,7 @@ import type { ImportPreview } from "../shared/types/imports";
 import type { MarksheetBatch, MarksheetStudent } from "../shared/types/marksheets";
 import type { ReportContext, ReportContextOption } from "../shared/types/reports";
 import { defaultSettingsSections, type SettingsSections } from "../shared/types/settings";
+import { getSchoolDisplayName } from "../components/layout/branding";
 
 type Tab = "print" | "enter" | "review";
 
@@ -161,7 +162,7 @@ type PrintTabProps = {
 
 function PrintTab({ ctx, settings, filters, students, loadingStudents, onChange }: PrintTabProps) {
   const ready = !!(filters.classId && filters.streamId && filters.subjectId && filters.termId);
-  const schoolName = settings.school.schoolName || ctx?.school?.name || "Uganda High School";
+  const schoolName = getSchoolDisplayName(settings.school, ctx?.school?.name ?? "School Connect");
   const academicYear = settings.academic.activeAcademicYear || ctx?.academicYears.find((y) => y.isActive)?.name || (ctx?.academicYears[0]?.name ?? "");
   const termName = findOption(ctx?.terms ?? [], filters.termId)?.name ?? "";
   const className = findOption(ctx?.classes ?? [], filters.classId)?.name ?? "";

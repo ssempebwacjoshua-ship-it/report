@@ -4,6 +4,8 @@ import { ActivityCard } from "../components/dashboard/ActivityCard";
 import { ReportsOverviewCard } from "../components/dashboard/ReportsOverviewCard";
 import { StatCard } from "../components/dashboard/StatCard";
 import { Icon } from "../components/layout/Icon";
+import { getSchoolDisplayName } from "../components/layout/branding";
+import { useAppSettings } from "../components/layout/SettingsContext";
 
 const uploads = [
   ["S4A", "Mathematics", "Term 2", "06 Jun 2026", "Pending Review"],
@@ -35,6 +37,8 @@ const workflowTone = {
 };
 
 export function DashboardPage() {
+  const { settings } = useAppSettings() ?? {};
+  const schoolName = getSchoolDisplayName(settings?.sections.school, "School Connect");
   const [contactSummary, setContactSummary] = useState({
     guardians: 0,
     emailContacts: 0,
@@ -60,7 +64,7 @@ export function DashboardPage() {
           <div className="max-w-3xl">
             <div className="flex flex-wrap items-center gap-2">
               <span className="rounded-full bg-white/10 px-3 py-1 text-xs font-extrabold uppercase tracking-wide text-blue-100 ring-1 ring-white/15">
-                Reports First Command Center
+                {schoolName} Command Center
               </span>
               <span className="rounded-full bg-emerald-400/15 px-3 py-1 text-xs font-extrabold text-emerald-100 ring-1 ring-emerald-300/30">
                 Term 2, 2026
@@ -311,7 +315,7 @@ export function DashboardPage() {
       </section>
 
       <footer className="flex flex-wrap justify-between gap-3 pb-1 text-xs text-slate-400">
-        <span>&copy; 2026 School Connect. All rights reserved.</span>
+        <span>&copy; 2026 {schoolName}. All rights reserved.</span>
         <span>Version 1.0.0</span>
       </footer>
     </main>
