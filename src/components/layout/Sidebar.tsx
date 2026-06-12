@@ -1,5 +1,5 @@
 import { Link, useLocation } from "react-router-dom";
-import type { CSSProperties, MouseEvent as ReactMouseEvent } from "react";
+import type { CSSProperties } from "react";
 import { Icon } from "./Icon";
 import { getSchoolDisplayName, getSchoolInitials } from "./branding";
 import { useAppSettings } from "./SettingsContext";
@@ -10,7 +10,6 @@ type Props = {
   collapsed: boolean;
   onToggleCollapsed: () => void;
   width: number;
-  onResizeStart: (event: ReactMouseEvent) => void;
 };
 
 const navItems = [
@@ -22,7 +21,7 @@ const navItems = [
   { to: "/settings", label: "Settings", icon: "settings" as const },
 ];
 
-export function Sidebar({ open, onClose, collapsed, onToggleCollapsed, width, onResizeStart }: Props) {
+export function Sidebar({ open, onClose, collapsed, onToggleCollapsed, width }: Props) {
   const location = useLocation();
   const { settings } = useAppSettings() ?? {};
   const school = settings?.sections.school;
@@ -49,7 +48,9 @@ export function Sidebar({ open, onClose, collapsed, onToggleCollapsed, width, on
         }`}
       >
         <div className={`flex items-center gap-3 ${collapsed ? "px-3 pt-3" : "px-4 pt-4"}`}>
-          <div className={`grid ${collapsed ? "h-10 w-10" : "h-11 w-11"} place-items-center rounded-2xl bg-white/15 ring-1 ring-white/25`}>
+          <div
+            className={`grid ${collapsed ? "h-10 w-10" : "h-11 w-11"} place-items-center rounded-2xl bg-white/15 ring-1 ring-white/25`}
+          >
             {school?.logoUrl ? (
               <img
                 src={school.logoUrl}
@@ -101,42 +102,20 @@ export function Sidebar({ open, onClose, collapsed, onToggleCollapsed, width, on
             {!collapsed ? (
               <div className="min-w-0">
                 <p className="truncate text-sm font-semibold">School Admin</p>
-                <p className="truncate text-xs text-blue-200">Main Administrator</p>
+                <p className="truncate text-xs text-blue-200">Administrator</p>
               </div>
             ) : null}
           </div>
+          <button
+            type="button"
+            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            className="no-print mt-3 hidden h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/10 text-blue-100 transition hover:bg-white/15 hover:text-white lg:inline-flex"
+            onClick={onToggleCollapsed}
+            title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          >
+            <Icon name="chevron" className={`h-4 w-4 transition ${collapsed ? "" : "rotate-180"}`} />
+          </button>
         </div>
-
-        {!collapsed ? (
-          <button
-            type="button"
-            aria-label="Collapse sidebar"
-            className="no-print absolute bottom-4 right-3 hidden rounded-full bg-white/10 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-blue-100 ring-1 ring-white/10 transition hover:bg-white/15 lg:block"
-            onClick={onToggleCollapsed}
-          >
-            Collapse
-          </button>
-        ) : (
-          <button
-            type="button"
-            aria-label="Expand sidebar"
-            className="no-print absolute bottom-4 right-3 hidden rounded-full bg-white/10 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-blue-100 ring-1 ring-white/10 transition hover:bg-white/15 lg:block"
-            onClick={onToggleCollapsed}
-          >
-            Expand
-          </button>
-        )}
-
-        <button
-          type="button"
-          aria-label="Resize navigation"
-          className="no-print absolute inset-y-0 -right-2 hidden w-4 cursor-col-resize items-center justify-center text-blue-200/70 transition hover:text-white lg:flex"
-          onMouseDown={onResizeStart}
-        >
-          <span className="rounded-full bg-white/10 px-0.5 py-3 text-sm leading-none shadow-inner ring-1 ring-white/10">
-            â‹®
-          </span>
-        </button>
       </aside>
     </>
   );

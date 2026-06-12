@@ -2,7 +2,6 @@ import { render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { MemoryRouter } from "react-router-dom";
 import { Sidebar } from "../../components/layout/Sidebar";
-import { Topbar } from "../../components/layout/Topbar";
 import { SettingsProvider } from "../../components/layout/SettingsContext";
 
 vi.mock("../../client/settingsClient", () => ({
@@ -89,15 +88,14 @@ function renderShell() {
   return render(
     <MemoryRouter>
       <SettingsProvider>
-        <Topbar onMenuClick={() => {}} sidebarCollapsed={false} />
-        <Sidebar open onClose={() => {}} collapsed={false} onToggleCollapsed={() => {}} width={248} onResizeStart={() => {}} />
+        <Sidebar open onClose={() => {}} collapsed={false} onToggleCollapsed={() => {}} width={248} />
       </SettingsProvider>
     </MemoryRouter>,
   );
 }
 
 describe("App shell branding", () => {
-  it("renders the saved school name in the topbar and sidebar", async () => {
+  it("renders the saved school name in the sidebar without the topbar branding", async () => {
     renderShell();
 
     await waitFor(() => expect(screen.getAllByText("Green Valley School").length).toBeGreaterThan(0));

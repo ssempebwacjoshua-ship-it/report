@@ -86,7 +86,7 @@ function renderSidebar(pathname = "/dashboard", collapsed = false) {
   return render(
     <MemoryRouter initialEntries={[pathname]}>
       <SettingsProvider>
-        <Sidebar open onClose={() => {}} collapsed={collapsed} onToggleCollapsed={() => {}} width={248} onResizeStart={() => {}} />
+        <Sidebar open onClose={() => {}} collapsed={collapsed} onToggleCollapsed={() => {}} width={248} />
       </SettingsProvider>
     </MemoryRouter>,
   );
@@ -107,5 +107,6 @@ describe("Sidebar navigation", () => {
     await waitFor(() => expect(screen.getByTitle("Dashboard")).toBeInTheDocument());
     expect(screen.queryByText("Dashboard")).not.toBeInTheDocument();
     expect(screen.getByTitle("Dashboard")).toBeInTheDocument();
+    expect(screen.getByLabelText("Expand sidebar")).toBeInTheDocument();
   });
 });
