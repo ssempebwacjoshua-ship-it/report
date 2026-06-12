@@ -10,9 +10,11 @@ import {
 } from "../client/marksheetsClient";
 import { dryRunMarksImport } from "../client/importsClient";
 import { fetchReportContext } from "../client/reportsClient";
+import { fetchSettings } from "../client/settingsClient";
 import type { ImportPreview } from "../shared/types/imports";
 import type { MarksheetBatch, MarksheetStudent } from "../shared/types/marksheets";
 import type { ReportContext, ReportContextOption } from "../shared/types/reports";
+import { defaultSettingsSections, type SettingsSections } from "../shared/types/settings";
 
 type Tab = "print" | "enter" | "review";
 
@@ -150,16 +152,17 @@ function ContextSelector({ ctx, filters, onChange }: ContextSelectorProps) {
 
 type PrintTabProps = {
   ctx: ReportContext | null;
+  settings: SettingsSections;
   filters: MarksheetFilters;
   students: MarksheetStudent[];
   loadingStudents: boolean;
   onChange: (filters: MarksheetFilters) => void;
 };
 
-function PrintTab({ ctx, filters, students, loadingStudents, onChange }: PrintTabProps) {
+function PrintTab({ ctx, settings, filters, students, loadingStudents, onChange }: PrintTabProps) {
   const ready = !!(filters.classId && filters.streamId && filters.subjectId && filters.termId);
-  const schoolName = ctx?.school?.name ?? "Uganda High School";
-  const academicYear = ctx?.academicYears.find((y) => y.isActive)?.name ?? (ctx?.academicYears[0]?.name ?? "");
+  const schoolName = settings.school.schoolName || ctx?.school?.name || "Uganda High School";
+  const academicYear = settings.academic.activeAcademicYear || ctx?.academicYears.find((y) => y.isActive)?.name || (ctx?.academicYears[0]?.name ?? "");
   const termName = findOption(ctx?.terms ?? [], filters.termId)?.name ?? "";
   const className = findOption(ctx?.classes ?? [], filters.classId)?.name ?? "";
   const streamName = findOption(ctx?.streams ?? [], filters.streamId)?.name ?? "";
@@ -194,6 +197,10 @@ function PrintTab({ ctx, filters, students, loadingStudents, onChange }: PrintTa
           <div className="marksheet-card-wrapper premium-card overflow-hidden rounded-2xl p-6">
             <PrintableMarksheet
               schoolName={schoolName}
+              schoolAddress={settings.school.address}
+              schoolPhone={settings.school.phone}
+              schoolEmail={settings.school.email}
+              footerText={settings.school.marksheetFooterText}
               academicYear={academicYear}
               termName={termName}
               className={className}
@@ -201,6 +208,10 @@ function PrintTab({ ctx, filters, students, loadingStudents, onChange }: PrintTa
               subjectName={subjectName}
               examType={filters.examType}
               students={students}
+              printStyle={settings.marksheets.printStyle}
+              includeQrCode={settings.marksheets.includeQrCode}
+              includeHumanReadableMarksheetId={settings.marksheets.includeHumanReadableMarksheetId}
+              validMarkValues={settings.marksheets.validMarkValues}
             />
           </div>
         </div>
@@ -729,16 +740,27 @@ const EMPTY_FILTERS: MarksheetFilters = {
 export function MarksheetsPage() {
   const [tab, setTab] = useState<Tab>("print");
   const [ctx, setCtx] = useState<ReportContext | null>(null);
+  const [settings, setSettings] = useState<SettingsSections>(defaultSettingsSections);
   const [filters, setFilters] = useState<MarksheetFilters>(EMPTY_FILTERS);
   const [students, setStudents] = useState<MarksheetStudent[]>([]);
   const [loadingStudents, setLoadingStudents] = useState(false);
 
   useEffect(() => {
-    fetchReportContext()
-      .then((data) => {
+    Promise.all([fetchReportContext(), fetchSettings()])
+      .then(([data, loadedSettings]) => {
         setCtx(data);
-        const activeTerm = data.terms.find((t) => t.isActive) ?? data.terms[0];
+        setSettings(loadedSettings.sections);
+        const activeTerm =
+          data.terms.find((t) => t.name === loadedSettings.sections.academic.activeTerm) ??
+          data.terms.find((t) => t.isActive) ??
+          data.terms[0];
         if (activeTerm) setFilters((prev) => ({ ...prev, termId: activeTerm.id }));
+        if (loadedSettings.sections.academic.defaultAssessmentType !== "TERM_SUMMARY") {
+          setFilters((prev) => ({
+            ...prev,
+            examType: loadedSettings.sections.academic.defaultAssessmentType as "BOT" | "MOT" | "EOT",
+          }));
+        }
       })
       .catch(() => {});
   }, []);
@@ -795,6 +817,7 @@ export function MarksheetsPage() {
         {tab === "print" && (
           <PrintTab
             ctx={ctx}
+            settings={settings}
             filters={filters}
             students={students}
             loadingStudents={loadingStudents}

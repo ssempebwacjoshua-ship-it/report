@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { buildReports, type EngineInput } from "../../server/services/reportEngine";
 import { gradeForAverage } from "../../server/services/gradeService";
+import { defaultSettingsSections } from "../../shared/types/settings";
 
 const baseInput: EngineInput = {
   filters: { schoolCode: "SCU-PREVIEW", classId: "c1", assessmentType: "TERM_SUMMARY" },
@@ -45,11 +46,23 @@ const baseInput: EngineInput = {
 
 describe("reportEngine", () => {
   it("calculates averages, grades, and positions", () => {
-    const report = buildReports(baseInput);
+    const report = buildReports({
+      ...baseInput,
+      settings: {
+        school: defaultSettingsSections.school,
+        reports: { ...defaultSettingsSections.reports, showOverallPosition: true },
+        grading: defaultSettingsSections.grading,
+      },
+    });
     expect(report.cards[0].average).toBe(80);
     expect(report.cards[0].grade).toBe("D1");
     expect(report.cards[0].overallPosition).toBe(1);
     expect(report.cards[1].readiness).toBe("MISSING_MARKS");
+  });
+
+  it("hides overall position when the report setting is off", () => {
+    const report = buildReports(baseInput);
+    expect(report.cards[0].overallPosition).toBeNull();
   });
 
   it("does not create cards from marks when the student is not in enrolled input", () => {

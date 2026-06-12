@@ -9,6 +9,7 @@ import type {
 } from "../../shared/types/imports";
 import {
   findMarksheetIdCandidatesInText,
+  findSheetNumberInText,
   normalizeMarksheetId,
   parseMarksheetIdComponents,
 } from "./marksheetContextService";
@@ -29,6 +30,7 @@ export type MarksheetIdDetectionResult = {
   selectedCandidate: MarksheetIdCandidate | null;
   rawRecognizedId: string | null;
   normalizedRecognizedId: string;
+  recognizedSheetNumber: string | null;
   confidence: number;
   matchSource: Extract<MarksheetIdMatchSource, "header" | "footer"> | null;
   debug: MarksheetIdDebug;
@@ -245,9 +247,13 @@ async function writeDebugArtifacts(
   const debugJson = {
     rawOcrHeaderText: result.rawHeaderText,
     rawOcrFooterText: result.rawFooterText,
+    recognizedSheetNumber: result.recognizedSheetNumber ?? null,
+    recognizedInternalMarksheetId: result.normalizedRecognizedId || null,
     normalizedCandidates: result.candidates.map((candidate) => candidate.normalizedRecognizedId),
     candidates: result.candidates,
     selectedCandidate: result.selectedCandidate,
+    matchedMarksheet: lookupResult?.matchedMarksheetId ?? null,
+    contextSource: lookupResult?.contextSource ?? null,
     lookupResult: lookupResult ?? null,
     failureReason: result.failureReason,
     debugCrops: {
@@ -319,6 +325,16 @@ export async function detectMarksheetIdFromScan(
     candidates.find((candidate) => candidate.source === "footer") ??
     null;
 
+  // Extract sheet number (YYYYMMDD-NNN) from OCR text — header first, footer fallback
+  const recognizedSheetNumber =
+    findSheetNumberInText(headerOcr.text) ??
+    findSheetNumberInText(footerOcr.text) ??
+    null;
+
+  const failureReason = selectedCandidate
+    ? ""
+    : headerOcr.error || footerOcr.error || "No Marksheet ID candidate found in header or footer crops.";
+
   const result: MarksheetIdDetectionResult = {
     rawHeaderText: headerOcr.text,
     rawFooterText: footerOcr.text,
@@ -326,11 +342,10 @@ export async function detectMarksheetIdFromScan(
     selectedCandidate,
     rawRecognizedId: selectedCandidate?.rawRecognizedId ?? null,
     normalizedRecognizedId: selectedCandidate?.normalizedRecognizedId ?? "",
+    recognizedSheetNumber,
     confidence: selectedCandidate?.confidence ?? 0,
     matchSource: selectedCandidate?.source ?? null,
-    failureReason: selectedCandidate
-      ? ""
-      : headerOcr.error || footerOcr.error || "No Marksheet ID candidate found in header or footer crops.",
+    failureReason,
     debug: {
       headerCropPath,
       footerCropPath,
@@ -339,9 +354,7 @@ export async function detectMarksheetIdFromScan(
       rawFooterText: footerOcr.text,
       normalizedCandidates: candidates.map((candidate) => candidate.normalizedRecognizedId),
       selectedCandidate,
-      failureReason: selectedCandidate
-        ? ""
-        : headerOcr.error || footerOcr.error || "No Marksheet ID candidate found in header or footer crops.",
+      failureReason,
     },
   };
 

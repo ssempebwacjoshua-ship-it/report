@@ -1,5 +1,7 @@
 import type { AssessmentType, MarkStatus, PrismaClient } from "@prisma/client";
 import type { RawMarkImportRow, ValidatedMarkImportRow } from "../../shared/types/imports";
+import type { SettingsSections } from "../../shared/types/settings";
+import { getSettingsSections } from "../repositories/settingsRepository";
 
 export type ImportReferenceData = Awaited<ReturnType<typeof loadImportReferenceData>>;
 
@@ -26,7 +28,9 @@ export async function validateImportRows(
   prisma: PrismaClient,
   schoolCode: string,
   rows: RawMarkImportRow[],
+  settings?: SettingsSections,
 ): Promise<ValidatedMarkImportRow[]> {
+  const appSettings = settings ?? await getSettingsSections(prisma, schoolCode);
   const school = await loadImportReferenceData(prisma, schoolCode);
   if (!school) {
     return rows.map((raw, index) => ({ rowNumber: index + 2, raw, isValid: false, errors: [`School ${schoolCode} was not found.`] }));
@@ -36,7 +40,12 @@ export async function validateImportRows(
   const activeTerm = activeYear?.terms[0];
   const existingMarks = activeTerm
     ? await prisma.subjectMark.findMany({
-        where: { schoolId: school.id, termId: activeTerm.id, status: "FINALIZED", importBatchId: null, seedKey: null },
+        where: {
+          schoolId: school.id,
+          termId: activeTerm.id,
+          status: "FINALIZED",
+          ...(appSettings.approval.protectCommittedMarksFromEditing ? {} : { importBatchId: null, seedKey: null }),
+        },
       })
     : [];
   const lockedMarkKeys = new Set(existingMarks.map((mark) => `${mark.studentId}:${mark.subjectId}:${mark.assessmentType}`));
@@ -58,7 +67,14 @@ export async function validateImportRows(
     if (!activeTerm) errors.push("No active term is configured.");
     if (activeTerm && norm(raw.term) !== norm(activeTerm.name)) errors.push(`Term must match active term ${activeTerm.name}.`);
     if (!validExamTypes.has(examType)) errors.push("Exam type must be BOT, MOT, or EOT.");
-    if (!Number.isFinite(marks) || marks < 0 || marks > 100) errors.push("Marks must be numeric and within 0-100.");
+    const markText = raw.marks.trim().toUpperCase();
+    if (markText === "") {
+      errors.push("Blank marks are missing, not zero. Enter 0-100, AB, or EX.");
+    } else if (markText === "AB" || markText === "EX") {
+      errors.push(`${markText} is valid on handwritten sheets but is not committed as a numeric mark.`);
+    } else if (!Number.isFinite(marks) || marks < 0 || marks > 100) {
+      errors.push("Marks must be numeric and within 0-100.");
+    }
     if (student && subject && validExamTypes.has(examType) && lockedMarkKeys.has(`${student.id}:${subject.id}:${examType}`)) {
       errors.push("A finalized non-import-owned mark already exists for this student, subject, and exam type.");
     }

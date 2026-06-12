@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { createHash } from "node:crypto";
 import multer from "multer";
 import { z } from "zod";
 import { prisma } from "../db/prisma";
@@ -15,6 +16,7 @@ import {
 } from "../services/marksheetIdDetectionService";
 import { extractMarksFromScan } from "../services/scanExtractionService";
 import { parseScanMark, validateScanRows } from "../services/scanImportValidator";
+import { getSettingsSections } from "../repositories/settingsRepository";
 
 const SCAN_FILE_TYPES = new Set(["PDF", "PNG", "JPG", "JPEG", "WEBP"]);
 
@@ -60,6 +62,36 @@ function detectionMetadata(detection: MarksheetIdDetectionResult | null) {
     matchSource: detection?.matchSource ?? undefined,
     marksheetIdDebug: detection?.debug,
   };
+}
+
+function scanDryRunFingerprint(schoolCode: string, context: unknown, rows: unknown): string {
+  return createHash("sha256")
+    .update(`${schoolCode}\n${JSON.stringify(context)}\n${JSON.stringify(rows)}`)
+    .digest("hex");
+}
+
+async function recordScanDryRun(schoolId: string, fingerprint: string) {
+  await prisma.auditLog.create({
+    data: {
+      schoolId,
+      action: "scan.dry_run",
+      correlationId: fingerprint,
+      details: { fingerprint },
+    },
+  });
+}
+
+async function hasRecentScanDryRun(schoolId: string, fingerprint: string) {
+  const since = new Date(Date.now() - 1000 * 60 * 60 * 4);
+  const log = await prisma.auditLog.findFirst({
+    where: {
+      schoolId,
+      action: "scan.dry_run",
+      correlationId: fingerprint,
+      createdAt: { gte: since },
+    },
+  });
+  return Boolean(log);
 }
 
 // Accept scan files up to 20 MB in memory
@@ -255,6 +287,7 @@ export function importsRoutes() {
 
         const schoolCode =
           typeof req.body.schoolCode === "string" ? req.body.schoolCode.trim() : "SCU-PREVIEW";
+        const settings = await getSettingsSections(prisma, schoolCode);
 
         // 3. Look up school
         const school = await prisma.school.findUnique({ where: { code: schoolCode } });
@@ -334,6 +367,7 @@ export function importsRoutes() {
           file.mimetype,
           school.id,
           context,
+          settings.ocr,
         );
 
         // 7. Update batch with final extraction result
@@ -429,7 +463,13 @@ export function importsRoutes() {
 
       const rows = validateScanRows(payload.rows, payload.context, roster.map((item) => ({
         admissionNumber: item.student.admissionNumber,
-      })));
+      })), {
+        minimumConfidenceForSuggestion: (await getSettingsSections(prisma, payload.schoolCode)).ocr.minimumConfidenceForSuggestion,
+      });
+      const settings = await getSettingsSections(prisma, payload.schoolCode);
+      if (settings.approval.keepAuditTrail) {
+        await recordScanDryRun(school.id, scanDryRunFingerprint(payload.schoolCode, payload.context, rows));
+      }
 
       if (payload.batchId) {
         const batch = await prisma.markImportBatch.findUnique({ where: { id: payload.batchId } });
@@ -502,7 +542,17 @@ export function importsRoutes() {
 
       const rows = validateScanRows(payload.rows, payload.context, roster.map((item) => ({
         admissionNumber: item.student.admissionNumber,
-      })));
+      })), {
+        minimumConfidenceForSuggestion: (await getSettingsSections(prisma, payload.schoolCode)).ocr.minimumConfidenceForSuggestion,
+      });
+      const settings = await getSettingsSections(prisma, payload.schoolCode);
+      if (settings.approval.requireDryRunBeforeCommit) {
+        const fingerprint = scanDryRunFingerprint(payload.schoolCode, payload.context, rows);
+        if (!(await hasRecentScanDryRun(school.id, fingerprint))) {
+          res.status(400).json({ error: "Dry-run validation is required before committing scanned marks." });
+          return;
+        }
+      }
       const activeYear = school.academicYears[0];
       const activeTerm = activeYear?.terms[0];
       const klass = school.classes.find((item) => item.name.toLowerCase() === payload.context.className.toLowerCase());

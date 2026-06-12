@@ -51,10 +51,12 @@ export function validateScanRows(
   rows: ScanImportRow[],
   context: ScanMarksheetContext,
   knownStudents: KnownStudent[],
+  options: { minimumConfidenceForSuggestion?: number } = {},
 ): ScanImportRow[] {
   const studentSet = new Set(knownStudents.map((s) => norm(s.admissionNumber)));
   const examType = context.examType.trim().toUpperCase();
   const examTypeValid = VALID_EXAM_TYPES.has(examType);
+  const minimumConfidence = options.minimumConfidenceForSuggestion ?? 0.7;
 
   return rows.map((row): ScanImportRow => {
     const errors: string[] = [];
@@ -91,7 +93,7 @@ export function validateScanRows(
       status = "NEEDS_REVIEW";
       statusReason = "Written and split mark OCR disagree. Enter the operator mark.";
     } else if (finalMark !== "") {
-      status = !operatorResolved && row.confidence < 0.7 ? "NEEDS_REVIEW" : "VALID";
+      status = !operatorResolved && row.confidence < minimumConfidence ? "NEEDS_REVIEW" : "VALID";
       statusReason = status === "VALID"
         ? (operatorResolved ? "Operator mark accepted." : "Confident extracted mark accepted.")
         : "Extraction confidence is low. Confirm or enter the operator mark.";

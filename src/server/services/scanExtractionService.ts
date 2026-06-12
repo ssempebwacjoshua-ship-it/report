@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import type { PrismaClient } from "@prisma/client";
 import type { ScanImportRow, ScanMarksheetContext } from "../../shared/types/imports";
+import type { OcrSettings } from "../../shared/types/settings";
 import {
   tableToPixel,
   type PixelRect,
@@ -35,6 +36,7 @@ export function acceptedExtractedMark(
   splitMark: string,
   splitConfidence: number,
   writtenConfidence: number,
+  minimumConfidence = 0.75,
 ): { mark: string; reason: string } {
   if (!writtenMark && !splitMark) {
     return { mark: "", reason: "No mark detected by OCR. Needs operator entry." };
@@ -42,7 +44,7 @@ export function acceptedExtractedMark(
 
   // Full agreement with sufficient confidence on both sides
   if (writtenMark && splitMark && writtenMark === splitMark) {
-    if (splitConfidence >= 0.75 && writtenConfidence >= 0.75) {
+    if (splitConfidence >= minimumConfidence && writtenConfidence >= minimumConfidence) {
       return { mark: writtenMark, reason: "Written and split marks agree with high confidence." };
     }
     // Agree but one side is low confidence — fall through to split-only check
@@ -61,7 +63,7 @@ export function acceptedExtractedMark(
     /^\d+$/.test(splitMark) &&
     splitMark.length < writtenMark.length &&
     writtenMark.endsWith(splitMark) &&
-    writtenConfidence >= 0.60
+    writtenConfidence >= Math.max(0.6, minimumConfidence - 0.15)
   ) {
     return {
       mark: writtenMark,
@@ -75,7 +77,7 @@ export function acceptedExtractedMark(
   }
 
   // Split zones valid with high confidence (no written mark or written was low-confidence)
-  if (splitMark && splitConfidence >= 0.85) {
+  if (splitMark && splitConfidence >= Math.max(0.85, minimumConfidence)) {
     return { mark: splitMark, reason: "Split mark detected with high confidence; written mark is confirmation only." };
   }
 
@@ -129,10 +131,10 @@ async function loadRoster(
 // ── Debug crop disk saving ─────────────────────────────────────────────────────
 
 const DEBUG_DIR = path.join(process.cwd(), "tmp", "ocr-debug", "latest");
-const OCR_DEBUG_ENABLED = process.env.OCR_DEBUG === "1";
+let ocrDebugEnabled = process.env.OCR_DEBUG === "1";
 
 function clearDebugDir(): void {
-  if (!OCR_DEBUG_ENABLED) return;
+  if (!ocrDebugEnabled) return;
   try {
     fs.rmSync(DEBUG_DIR, { recursive: true, force: true });
     fs.mkdirSync(DEBUG_DIR, { recursive: true });
@@ -140,7 +142,7 @@ function clearDebugDir(): void {
 }
 
 function saveDebugFile(name: string, buffer: Buffer): void {
-  if (!OCR_DEBUG_ENABLED) return;
+  if (!ocrDebugEnabled) return;
   try {
     fs.mkdirSync(DEBUG_DIR, { recursive: true });
     fs.writeFileSync(path.join(DEBUG_DIR, name), buffer);
@@ -309,11 +311,13 @@ export async function extractMarksFromScan(
   mimeType: string,
   schoolId: string,
   context: ScanMarksheetContext,
+  ocrSettings?: OcrSettings,
 ): Promise<ExtractionResult> {
+  ocrDebugEnabled = Boolean(ocrSettings?.debugMode) || process.env.OCR_DEBUG === "1";
   // Resolve OCR provider first so we can report it even if preprocessing fails
   let resolution: OcrProviderResolution;
   try {
-    resolution = await resolveOcrProviderWithMeta();
+    resolution = await resolveOcrProviderWithMeta(ocrSettings);
   } catch {
     resolution = {
       provider: { name: "manual", healthCheck: async () => false, recognizeCrops: async (c) => c.map((x) => ({ cropId: x.cropId, text: "", confidence: 0 })) },
@@ -574,6 +578,7 @@ export async function extractMarksFromScan(
       splitResult.normalizedMark,
       splitResult.confidence,
       writtenResult.confidence,
+      ocrSettings?.minimumConfidenceForSuggestion,
     );
     const confidence = splitResult.normalizedMark
       ? splitResult.confidence
@@ -619,7 +624,9 @@ export async function extractMarksFromScan(
     await saveDetectionOverlay(scan.colorBuffer, scan.width, scan.height, detection, overlayRects);
   } catch { /* Best effort */ }
 
-  const validatedRows = validateScanRows(rawRows, context, roster);
+  const validatedRows = validateScanRows(rawRows, context, roster, {
+    minimumConfidenceForSuggestion: ocrSettings?.minimumConfidenceForSuggestion,
+  });
   const countByStatus = validatedRows.reduce<Record<string, number>>((acc, row) => {
     acc[row.status] = (acc[row.status] ?? 0) + 1;
     return acc;

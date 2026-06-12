@@ -5,6 +5,7 @@ import { ReportsPage } from "../pages/ReportsPage";
 import { MarksImportPage } from "../pages/MarksImportPage";
 import { MarksheetsPage } from "../pages/MarksheetsPage";
 import { StudentsPage } from "../pages/StudentsPage";
+import { SettingsPage } from "../pages/SettingsPage";
 
 export const router = createBrowserRouter([
   {
@@ -17,6 +18,7 @@ export const router = createBrowserRouter([
       { path: "reports", element: <ReportsPage /> },
       { path: "imports/marks", element: <MarksImportPage /> },
       { path: "marksheets", element: <MarksheetsPage /> },
+      { path: "settings", element: <SettingsPage /> },
     ],
   },
 ]);

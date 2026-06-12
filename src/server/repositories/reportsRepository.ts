@@ -2,6 +2,7 @@ import type { PrismaClient } from "@prisma/client";
 import type { ReportFilters } from "../../shared/types/reports";
 import type { ContactReadiness } from "../../shared/types/students";
 import type { EngineInput } from "../services/reportEngine";
+import { getSettingsSections } from "./settingsRepository";
 
 function getContactReadiness(contacts: Array<{ canReceiveReports: boolean; phone: string | null; email: string | null }>): ContactReadiness {
   const recipients = contacts.filter((contact) => contact.canReceiveReports);
@@ -17,6 +18,7 @@ function getContactSummary(contacts: Array<{ guardianName: string; relationship:
 }
 
 export async function loadReportEngineInput(prisma: PrismaClient, filters: ReportFilters): Promise<EngineInput> {
+  const settings = await getSettingsSections(prisma, filters.schoolCode);
   const school = await prisma.school.findUnique({
     where: { code: filters.schoolCode },
     include: {
@@ -41,6 +43,11 @@ export async function loadReportEngineInput(prisma: PrismaClient, filters: Repor
       students: [],
       subjects: school?.subjects.map((subject) => ({ id: subject.id, name: subject.name, sortOrder: subject.sortOrder })) ?? [],
       marks: [],
+      settings: {
+        school: settings.school,
+        reports: settings.reports,
+        grading: settings.grading,
+      },
     };
   }
 
@@ -95,5 +102,10 @@ export async function loadReportEngineInput(prisma: PrismaClient, filters: Repor
       marks: Number(mark.marks),
       comments: mark.comments,
     })),
+    settings: {
+      school: settings.school,
+      reports: settings.reports,
+      grading: settings.grading,
+    },
   };
 }

@@ -2,6 +2,7 @@ fastapi
 uvicorn[standard]
 python-multipart
 pillow
+numpy
 paddleocr
 # 3.3.x has a PIR/oneDNN incompatibility on Windows CPU (ConvertPirAttribute2RuntimeAttribute error).
 # 3.2.2 is the newest release that works reliably on CPU without GPU.

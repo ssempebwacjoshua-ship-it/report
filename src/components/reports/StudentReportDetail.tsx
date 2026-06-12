@@ -1,12 +1,16 @@
 import { useEffect, useMemo, useState } from "react";
-import { GRADE_BANDS } from "../../shared/constants/grades";
 import type { AssessmentFilter, StudentReportCard } from "../../shared/types/reports";
+import type { GradingScaleSettings, ReportSettings, SchoolProfileSettings } from "../../shared/types/settings";
+import { defaultSettingsSections } from "../../shared/types/settings";
 
 type Props = {
   card: StudentReportCard | null;
   assessmentType?: AssessmentFilter;
   showPositions?: boolean;
-  onShowPositionsChange?: (showPositions: boolean) => void;
+  schoolSettings?: SchoolProfileSettings;
+  reportSettings?: ReportSettings;
+  grading?: GradingScaleSettings;
+  classAverage?: number | null;
   editOpen?: boolean;
   onEditOpenChange?: (open: boolean) => void;
 };
@@ -19,7 +23,6 @@ type ReportDraft = {
   headTeacherName: string;
   issueDate: string;
   showGradingKey: boolean;
-  showPositions: boolean;
 };
 
 function ShieldIcon() {
@@ -80,16 +83,19 @@ const ASSESSMENT_LABELS: Record<AssessmentFilter, string> = {
   TERM_SUMMARY: "Term Summary",
 };
 
-function buildDefaultDraft(card: StudentReportCard): ReportDraft {
+function buildDefaultDraft(
+  card: StudentReportCard,
+  school: SchoolProfileSettings,
+  reports: ReportSettings,
+): ReportDraft {
   return {
-    classTeacherComment: card.comments || "",
-    headTeacherComment: "",
+    classTeacherComment: card.comments || reports.defaultClassTeacherCommentTemplate,
+    headTeacherComment: reports.defaultHmCommentTemplate,
     conductNote: "",
     classTeacherName: "",
-    headTeacherName: "Head Teacher",
+    headTeacherName: school.headTeacherName || "Head Teacher",
     issueDate: new Date().toISOString().slice(0, 10),
-    showGradingKey: true,
-    showPositions: false,
+    showGradingKey: reports.showGradeKey,
   };
 }
 
@@ -110,7 +116,10 @@ export function StudentReportDetail({
   card,
   assessmentType,
   showPositions,
-  onShowPositionsChange,
+  schoolSettings,
+  reportSettings,
+  grading,
+  classAverage,
   editOpen,
   onEditOpenChange,
 }: Props) {
@@ -127,7 +136,10 @@ export function StudentReportDetail({
       card={card}
       assessmentType={assessmentType}
       showPositions={showPositions}
-      onShowPositionsChange={onShowPositionsChange}
+      schoolSettings={schoolSettings}
+      reportSettings={reportSettings}
+      grading={grading}
+      classAverage={classAverage}
       editOpen={editOpen}
       onEditOpenChange={onEditOpenChange}
     />
@@ -138,18 +150,27 @@ function StudentReportDetailContent({
   card,
   assessmentType,
   showPositions,
-  onShowPositionsChange,
+  schoolSettings,
+  reportSettings,
+  grading,
+  classAverage,
   editOpen,
   onEditOpenChange,
 }: {
   card: StudentReportCard;
   assessmentType?: AssessmentFilter;
   showPositions?: boolean;
-  onShowPositionsChange?: (showPositions: boolean) => void;
+  schoolSettings?: SchoolProfileSettings;
+  reportSettings?: ReportSettings;
+  grading?: GradingScaleSettings;
+  classAverage?: number | null;
   editOpen?: boolean;
   onEditOpenChange?: (open: boolean) => void;
 }) {
-  const defaultDraft = useMemo(() => buildDefaultDraft(card), [card]);
+  const school = schoolSettings ?? defaultSettingsSections.school;
+  const reports = reportSettings ?? defaultSettingsSections.reports;
+  const scale = grading ?? defaultSettingsSections.grading;
+  const defaultDraft = useMemo(() => buildDefaultDraft(card, school, reports), [card, school, reports]);
   const [draft, setDraft] = useState<ReportDraft>(defaultDraft);
   const [isEditing, setIsEditing] = useState(false);
   const [draftState, setDraftState] = useState<"idle" | "saved" | "ready">("idle");
@@ -166,20 +187,15 @@ function StudentReportDetailContent({
   const isSingle = effectiveType === "BOT" || effectiveType === "MOT" || effectiveType === "EOT";
   const isTermSummary = !isSingle;
   const issueDate = formatDisplayDate(draft.issueDate);
-  const visibleShowPositions = showPositions ?? draft.showPositions;
+  const visibleShowPositions = Boolean(showPositions);
 
   const updateDraft = <K extends keyof ReportDraft>(key: K, value: ReportDraft[K]) => {
     setDraft((current) => ({ ...current, [key]: value }));
     setDraftState("idle");
   };
 
-  function updateShowPositions(nextValue: boolean) {
-    updateDraft("showPositions", nextValue);
-    onShowPositionsChange?.(nextValue);
-  }
-
   return (
-    <section className="report-print-area min-w-0">
+    <section className={`report-print-area min-w-0 report-density-${reports.printDensity}`}>
       {editing ? (
         <div className="no-print mb-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
@@ -247,24 +263,7 @@ function StudentReportDetailContent({
               />
             </label>
             <div className="grid content-end gap-2 text-sm text-slate-700">
-              <label className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={draft.showGradingKey}
-                  onChange={(event) => updateDraft("showGradingKey", event.target.checked)}
-                  className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                />
-                Show grading key
-              </label>
-              <label className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={visibleShowPositions}
-                  onChange={(event) => updateShowPositions(event.target.checked)}
-                  className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                />
-                Show positions
-              </label>
+              <span className="text-xs font-semibold text-slate-500">Grade key and positions are controlled in Settings.</span>
             </div>
           </div>
 
@@ -302,11 +301,24 @@ function StudentReportDetailContent({
       <div className="report-card-sheet mx-auto max-w-4xl overflow-hidden rounded-2xl bg-white shadow-[0_4px_24px_rgba(0,0,0,0.12)] ring-1 ring-slate-200">
         <div className="report-header-bg bg-[#0f2a5e] px-8 py-6 text-white print:px-5 print:py-2">
           <div className="flex items-center gap-5 print:gap-3">
-            <ShieldIcon />
+            {reports.showSchoolLogo ? (
+              school.logoUrl ? (
+                <img src={school.logoUrl} alt={`${school.schoolName} logo`} className="h-16 w-14 flex-shrink-0 object-contain print:h-9 print:w-8" />
+              ) : (
+                <ShieldIcon />
+              )
+            ) : (
+              <div className="h-16 w-14 flex-shrink-0 print:h-9 print:w-8" />
+            )}
             <div className="flex-1 text-center">
               <h1 className="text-2xl font-bold tracking-wide print:text-base">
-                Uganda High School
+                {school.schoolName}
               </h1>
+              {school.address || school.phone || school.email ? (
+                <p className="mt-0.5 text-xs font-medium text-blue-100 print:text-[7px]">
+                  {[school.address, school.phone, school.email].filter(Boolean).join(" | ")}
+                </p>
+              ) : null}
               <p className="mt-0.5 text-sm font-medium uppercase tracking-widest text-blue-200 print:text-[8px]">
                 Student Academic Report
               </p>
@@ -352,7 +364,11 @@ function StudentReportDetailContent({
 
           <div
             className={`report-summary-cards mb-6 grid gap-3 text-center print:mb-2 print:gap-1.5 ${
-              visibleShowPositions ? "grid-cols-3" : "grid-cols-2"
+              visibleShowPositions && reports.showClassAverage
+                ? "grid-cols-4"
+                : visibleShowPositions || reports.showClassAverage
+                  ? "grid-cols-3"
+                  : "grid-cols-2"
             }`}
           >
             <div className="report-summary-card rounded-xl bg-blue-600 p-4 text-white print:p-2">
@@ -376,6 +392,16 @@ function StudentReportDetailContent({
                 </b>
                 <span className="mt-1 block text-xs font-semibold uppercase tracking-wider text-emerald-100 print:mt-0.5 print:text-[8px]">
                   Overall Position
+                </span>
+              </div>
+            ) : null}
+            {reports.showClassAverage ? (
+              <div className="report-summary-card rounded-xl bg-slate-700 p-4 text-white print:p-2">
+                <b className="block text-3xl font-bold tabular-nums print:text-lg">
+                  {classAverage ?? "-"}
+                </b>
+                <span className="mt-1 block text-xs font-semibold uppercase tracking-wider text-slate-200 print:mt-0.5 print:text-[8px]">
+                  Class Average
                 </span>
               </div>
             ) : null}
@@ -460,17 +486,15 @@ function StudentReportDetailContent({
                 Grading Key
               </h3>
               <div className="grid grid-cols-3 gap-2 text-xs sm:grid-cols-5 print:flex print:flex-wrap print:gap-1">
-                {GRADE_BANDS.map((band, index) => {
-                  const prevBand = index > 0 ? GRADE_BANDS[index - 1] : null;
-                  const max = prevBand ? prevBand.min - 1 : 100;
+                {scale.grades.map((band) => {
                   return (
                     <div
-                      key={band.grade}
+                      key={band.label}
                       className="flex items-center gap-2 rounded-lg bg-white px-3 py-2 shadow-sm ring-1 ring-slate-100 print:gap-1 print:px-2 print:py-0.5 print:shadow-none print:ring-0"
                     >
-                      <GradeBadge grade={band.grade} />
+                      <GradeBadge grade={band.label} />
                       <span className="text-slate-600">
-                        {band.min}-{max}
+                        {band.minScore}-{band.maxScore}
                       </span>
                     </div>
                   );
@@ -491,7 +515,7 @@ function StudentReportDetailContent({
                 <div className="mb-4 min-h-[56px] rounded-lg border border-dashed border-slate-200 bg-slate-50 p-2 text-xs italic text-slate-500 print:mb-1.5 print:min-h-0 print:p-1">
                   {draft.classTeacherComment ? draft.classTeacherComment : <EmptyComment />}
                 </div>
-                <SignatureLines name={draft.classTeacherName} date={issueDate} />
+                <SignatureLines name={draft.classTeacherName} date={issueDate} mode={reports.signatureMode} />
               </div>
               <div className="rounded-xl border border-slate-200 p-4 print:p-2">
                 <p className="mb-2 text-xs font-bold text-slate-600 print:mb-1 print:text-[8px]">
@@ -500,7 +524,7 @@ function StudentReportDetailContent({
                 <div className="mb-4 min-h-[56px] rounded-lg border border-dashed border-slate-200 bg-slate-50 p-2 text-xs italic text-slate-500 print:mb-1.5 print:min-h-0 print:p-1">
                   {draft.headTeacherComment ? draft.headTeacherComment : <EmptyComment />}
                 </div>
-                <SignatureLines name={draft.headTeacherName} date={issueDate} />
+                <SignatureLines name={draft.headTeacherName} date={issueDate} mode={reports.signatureMode} />
               </div>
               <div className="rounded-xl border border-slate-200 p-4 print:p-2">
                 <p className="mb-2 text-xs font-bold text-slate-600 print:mb-1 print:text-[8px]">
@@ -509,14 +533,14 @@ function StudentReportDetailContent({
                 <div className="mb-4 min-h-[56px] rounded-lg border border-dashed border-slate-200 bg-slate-50 p-2 text-xs italic text-slate-500 print:mb-1.5 print:min-h-0 print:p-1">
                   {draft.conductNote ? draft.conductNote : <EmptyComment />}
                 </div>
-                <SignatureLines name="" date={issueDate} />
+                <SignatureLines name="" date={issueDate} mode={reports.signatureMode} />
               </div>
             </div>
           </div>
 
           <div className="report-footer border-t border-slate-200 pt-4 text-center text-xs text-slate-400 print:pt-2">
             <p className="font-medium text-slate-500">
-              This report was generated by School Connect Reports First.
+              {school.reportFooterText}
             </p>
             <p className="mt-1 print:mt-0">
               Generated: {issueDate}&nbsp;&nbsp;|&nbsp;&nbsp;Verification: SC-REPORT-PREVIEW
@@ -528,17 +552,19 @@ function StudentReportDetailContent({
   );
 }
 
-function SignatureLines({ name, date }: { name: string; date: string }) {
+function SignatureLines({ name, date, mode }: { name: string; date: string; mode: ReportSettings["signatureMode"] }) {
   return (
     <div className="space-y-3 text-xs text-slate-500 print:space-y-1">
       <div className="flex items-end gap-2">
         <span className="w-10 flex-shrink-0 print:text-[8px]">Name:</span>
         <div className="min-h-5 flex-1 border-b border-slate-300 text-slate-700">{name}</div>
       </div>
-      <div className="flex items-end gap-2">
-        <span className="w-10 flex-shrink-0 print:text-[8px]">Sign:</span>
-        <div className="flex-1 border-b border-slate-300" />
-      </div>
+      {mode === "name_and_signature_line" ? (
+        <div className="flex items-end gap-2">
+          <span className="w-10 flex-shrink-0 print:text-[8px]">Sign:</span>
+          <div className="flex-1 border-b border-slate-300" />
+        </div>
+      ) : null}
       <div className="flex items-end gap-2">
         <span className="w-10 flex-shrink-0 print:text-[8px]">Date:</span>
         <div className="min-h-5 flex-1 border-b border-slate-300 text-slate-700">{date}</div>

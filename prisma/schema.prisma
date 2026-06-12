@@ -299,3 +299,14 @@ model AuditLog {
 
   @@index([schoolId, correlationId])
 }
+
+model AppSetting {
+  id         String   @id @default(uuid()) @db.Uuid
+  schoolCode String   @unique
+  sections   Json
+  updatedBy  String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([schoolCode])
+}

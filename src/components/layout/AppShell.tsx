@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { MouseEvent as ReactMouseEvent } from "react";
 import { Outlet } from "react-router-dom";
 import { Sidebar } from "./Sidebar";
 import { Topbar } from "./Topbar";
+import { fetchSettings } from "../../client/settingsClient";
 
 const SIDEBAR_WIDTH_KEY = "school-connect-sidebar-width";
 const DEFAULT_SIDEBAR_WIDTH = 280;
@@ -21,6 +22,18 @@ export function AppShell() {
       return DEFAULT_SIDEBAR_WIDTH;
     }
   });
+
+  useEffect(() => {
+    fetchSettings()
+      .then((settings) => {
+        document.documentElement.dataset.appDensity = settings.sections.appearance.appDensity;
+        document.documentElement.dataset.appFontSize = settings.sections.appearance.fontSize;
+        const widthBySetting = { compact: 240, standard: 280, wide: 320 };
+        const hasManualWidth = localStorage.getItem(SIDEBAR_WIDTH_KEY);
+        if (!hasManualWidth) setSidebarWidth(widthBySetting[settings.sections.appearance.sidebarWidth]);
+      })
+      .catch(() => {});
+  }, []);
 
   function startSidebarResize(event: ReactMouseEvent) {
     const startX = event.clientX;

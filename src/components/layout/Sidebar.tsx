@@ -15,7 +15,7 @@ const navItems = [
   { to: "/reports", label: "Report Generation", icon: "file" as const },
   { to: "/imports/marks", label: "Marks Import", icon: "upload" as const },
   { to: "/marksheets", label: "Marksheets", icon: "clipboard" as const },
-  { to: "/dashboard#settings", label: "Settings", icon: "settings" as const },
+  { to: "/settings", label: "Settings", icon: "settings" as const },
 ];
 
 export function Sidebar({ open, onClose, width, onResizeStart }: Props) {

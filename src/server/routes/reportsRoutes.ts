@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "../db/prisma";
 import { getReportContext } from "../repositories/schoolRepository";
 import { loadReportEngineInput } from "../repositories/reportsRepository";
+import { getSettingsSections } from "../repositories/settingsRepository";
 import { buildReports } from "../services/reportEngine";
 
 const reportsQuery = z.object({
@@ -11,7 +12,7 @@ const reportsQuery = z.object({
   termId: z.string().optional(),
   classId: z.string().min(1),
   streamId: z.string().optional(),
-  assessmentType: z.enum(["BOT", "MOT", "EOT", "TERM_SUMMARY"]).default("TERM_SUMMARY"),
+  assessmentType: z.enum(["BOT", "MOT", "EOT", "TERM_SUMMARY"]).optional(),
   studentId: z.string().optional(),
   search: z.string().optional(),
 });
@@ -30,7 +31,12 @@ export function reportsRoutes() {
 
   router.get("/api/reports", async (req, res, next) => {
     try {
-      const filters = reportsQuery.parse(req.query);
+      const rawFilters = reportsQuery.parse(req.query);
+      const settings = await getSettingsSections(prisma, rawFilters.schoolCode);
+      const filters = {
+        ...rawFilters,
+        assessmentType: rawFilters.assessmentType ?? settings.academic.defaultAssessmentType,
+      };
       const engineInput = await loadReportEngineInput(prisma, filters);
       const report = buildReports(engineInput);
       res.json(filters.studentId ? { ...report, cards: report.cards.filter((card) => card.studentId === filters.studentId) } : report);

@@ -7,6 +7,7 @@ import {
   lookupMarksheetContext,
   uploadScanFile,
 } from "../../client/importsClient";
+import { fetchSettings } from "../../client/settingsClient";
 import { SCAN_ACCEPT } from "../../client/marksSheetHelpers";
 import type {
   DetectedContext,
@@ -14,6 +15,7 @@ import type {
   ScanMarksheetContext,
   ScanUploadResponse,
 } from "../../shared/types/imports";
+import { defaultSettingsSections, type SettingsSections } from "../../shared/types/settings";
 import { ScanReviewTable } from "./ScanReviewTable";
 import { ExtractedContextCard } from "./ExtractedContextCard";
 
@@ -35,15 +37,15 @@ const BATCH_QUERY_KEY = "scanBatchId";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function emptyContext(): ScanMarksheetContext {
+function emptyContext(settings: SettingsSections = defaultSettingsSections): ScanMarksheetContext {
   return {
     marksheetId: "",
     className: "",
     streamName: "",
     subjectName: "",
-    termName: "",
-    examType: "BOT",
-    academicYear: String(new Date().getFullYear()),
+    termName: settings.academic.activeTerm,
+    examType: settings.academic.defaultAssessmentType === "TERM_SUMMARY" ? "EOT" : settings.academic.defaultAssessmentType,
+    academicYear: settings.academic.activeAcademicYear,
   };
 }
 
@@ -230,6 +232,7 @@ function ContextForm({
 // ── Main component ────────────────────────────────────────────────────────────
 
 export function ScanUploadPanel() {
+  const [settings, setSettings] = useState<SettingsSections>(defaultSettingsSections);
   const [phase, setPhase] = useState<Phase>("idle");
   const [currentBatchId, setCurrentBatchId] = useState("");
   const [scanFile, setScanFile] = useState<File | null>(null);
@@ -248,6 +251,18 @@ export function ScanUploadPanel() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => () => { if (previewUrl) URL.revokeObjectURL(previewUrl); }, [previewUrl]);
+
+  useEffect(() => {
+    fetchSettings()
+      .then((loaded) => {
+        setSettings(loaded.sections);
+        setContextForm((current) => {
+          if (current.className || current.subjectName || current.marksheetId) return current;
+          return emptyContext(loaded.sections);
+        });
+      })
+      .catch(() => {});
+  }, []);
 
   function rememberBatch(batchId: string) {
     setCurrentBatchId(batchId);
@@ -502,7 +517,7 @@ export function ScanUploadPanel() {
     setPreviewUrl(null);
     setDetectedCtx(null);
     setRecognizedMarksheetId(null);
-    setContextForm(emptyContext());
+    setContextForm(emptyContext(settings));
     setManualId("");
     setUploadResult(null);
     setScanRows([]);

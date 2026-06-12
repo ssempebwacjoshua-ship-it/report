@@ -309,4 +309,16 @@ S1A-001,Kampala Ssempebwa,Senior 1 A,A,English Language,Term 1,BOT,81,ok`;
     expect(res.status).toBe(200);
     expect(res.body.status).toBe("DRY_RUN");
   });
+
+  it("does not allow commit to bypass dry-run validation", async () => {
+    const csvText = `admissionNumber,studentName,class,stream,subject,term,examType,marks,comments
+S1A-001,Kampala Ssempebwa,Senior 1 A,A,English Language,Term 1,BOT,81,guard`;
+    const res = await request(createServer()).post("/api/imports/marks/commit").send({
+      schoolCode: SCHOOL,
+      csvText,
+    });
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe("FAILED");
+    expect(JSON.stringify(res.body.rows)).toMatch(/Dry-run validation is required before commit/i);
+  });
 });

@@ -1,4 +1,6 @@
 import type { AssessmentFilter, ReportFilters, ReportsResponse, StudentReportCard } from "../../shared/types/reports";
+import type { GradingScaleSettings, ReportSettings, SchoolProfileSettings } from "../../shared/types/settings";
+import { defaultSettingsSections } from "../../shared/types/settings";
 import type { ContactReadiness } from "../../shared/types/students";
 import { gradeForAverage, roundMark } from "./gradeService";
 import { rankByScore } from "./rankingService";
@@ -37,6 +39,11 @@ export type EngineInput = {
   students: EngineStudent[];
   subjects: EngineSubject[];
   marks: EngineMark[];
+  settings?: {
+    school: SchoolProfileSettings;
+    reports: ReportSettings;
+    grading: GradingScaleSettings;
+  };
 };
 
 function requiredTypes(assessmentType: AssessmentFilter): Array<"BOT" | "MOT" | "EOT"> {
@@ -51,15 +58,20 @@ function averageForMarks(values: Array<number | null>): number | null {
 
 export function buildReports(input: EngineInput): ReportsResponse {
   const required = requiredTypes(input.filters.assessmentType);
+  const settings = input.settings ?? {
+    school: defaultSettingsSections.school,
+    reports: defaultSettingsSections.reports,
+    grading: defaultSettingsSections.grading,
+  };
 
   if (!input.hasActiveTerm) {
-    return { filters: input.filters, readiness: "NO_ACTIVE_TERM", emptyReason: emptyReasonForReadiness("NO_ACTIVE_TERM"), cards: [] };
+    return { filters: input.filters, readiness: "NO_ACTIVE_TERM", emptyReason: emptyReasonForReadiness("NO_ACTIVE_TERM"), cards: [], settings };
   }
   if (input.subjects.length === 0) {
-    return { filters: input.filters, readiness: "NO_SUBJECTS", emptyReason: emptyReasonForReadiness("NO_SUBJECTS"), cards: [] };
+    return { filters: input.filters, readiness: "NO_SUBJECTS", emptyReason: emptyReasonForReadiness("NO_SUBJECTS"), cards: [], settings };
   }
   if (input.students.length === 0) {
-    return { filters: input.filters, readiness: "NO_STUDENTS", emptyReason: emptyReasonForReadiness("NO_STUDENTS"), cards: [] };
+    return { filters: input.filters, readiness: "NO_STUDENTS", emptyReason: emptyReasonForReadiness("NO_STUDENTS"), cards: [], settings };
   }
 
   const marksByStudentSubject = new Map<string, EngineMark[]>();
@@ -103,7 +115,7 @@ export function buildReports(input: EngineInput): ReportsResponse {
           eotMarks,
           total,
           average,
-          grade: gradeForAverage(average),
+          grade: gradeForAverage(average, settings.grading),
           subjectPosition: subjectPositions.get(subject.id)?.get(student.id) ?? null,
           missingMarks,
           comments: markSet.map((mark) => mark.comments).filter(Boolean).join(" "),
@@ -133,7 +145,7 @@ export function buildReports(input: EngineInput): ReportsResponse {
       marksFound,
       totalSubjects: input.subjects.length,
       average,
-      grade: gradeForAverage(average),
+      grade: gradeForAverage(average, settings.grading),
       overallPosition: null,
       readiness: missingMarks.length ? "MISSING_MARKS" : "READY",
       missingMarks,
@@ -145,7 +157,10 @@ export function buildReports(input: EngineInput): ReportsResponse {
   });
 
   const overallPositions = rankByScore(cardsWithoutPosition.map((card) => ({ id: card.studentId, score: card.average })));
-  const cards = cardsWithoutPosition.map((card) => ({ ...card, overallPosition: overallPositions.get(card.studentId) ?? null }));
+  const cards = cardsWithoutPosition.map((card) => ({
+    ...card,
+    overallPosition: settings.reports.showOverallPosition ? (overallPositions.get(card.studentId) ?? null) : null,
+  }));
   const filteredCards = input.filters.search
     ? cards.filter((card) => `${card.studentName} ${card.admissionNumber}`.toLowerCase().includes(input.filters.search!.toLowerCase()))
     : cards;
@@ -158,5 +173,6 @@ export function buildReports(input: EngineInput): ReportsResponse {
     readiness,
     emptyReason: filteredCards.length === 0 ? "Filters returned no report data." : emptyReasonForReadiness(readiness),
     cards: filteredCards,
+    settings,
   };
 }

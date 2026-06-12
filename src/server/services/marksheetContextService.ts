@@ -208,6 +208,114 @@ export function computeMarksheetId(
   return `MS-${y}-${cls}-${streamName.toUpperCase()}-${sub}-${examType.toUpperCase()}-${trm}`;
 }
 
+/**
+ * Compute the short human-typeable Sheet Number from an internal marksheet ID.
+ *
+ * Format: YYYYMMDD-NNN
+ *   YYYYMMDD = generation date
+ *   NNN      = 3-digit deterministic hash of the marksheet ID (date-independent)
+ *
+ * The hash is stable: the same marksheet ID always yields the same suffix,
+ * so the system can identify a scan by trying all candidate IDs and comparing
+ * their suffixes against the NNN in the OCR-detected sheet number.
+ */
+export function computeSheetNumber(marksheetId: string, generatedDate?: Date): string {
+  const date = generatedDate ?? new Date();
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  const dateStr = `${y}${m}${d}`;
+  const suffix = sheetNumberSuffix(marksheetId);
+  return `${dateStr}-${suffix}`;
+}
+
+function sheetNumberSuffix(marksheetId: string): string {
+  const chars = marksheetId.replace(/[^A-Z0-9]/gi, "").toUpperCase();
+  let hash = 7;
+  for (let i = 0; i < chars.length; i++) {
+    hash = (hash * 31 + chars.charCodeAt(i)) & 0x7fffffff;
+  }
+  return String(hash % 1000).padStart(3, "0");
+}
+
+/**
+ * Extract the YYYYMMDD-NNN sheet number from OCR text, if present.
+ * Matches "SHEET NO: 20260611-042" or "SHEET NO 20260611-042".
+ */
+export function findSheetNumberInText(text: string): string | null {
+  const m = text
+    .toUpperCase()
+    .match(/SHEET\s+N[O0][\s:.]+(\d{8}-\d{3})/);
+  return m ? m[1]! : null;
+}
+
+/**
+ * Try to resolve a marksheet ID from a sheet number by hashing all candidate
+ * marksheet IDs known for this school and matching the NNN suffix.
+ *
+ * Candidates come from:
+ *   1. Previously committed batches (batch lookup)
+ *   2. Cross-product of live school data (classes × streams × subjects × terms × exam types)
+ */
+export async function findMarksheetIdBySheetNumber(
+  prisma: PrismaClient,
+  schoolId: string,
+  sheetNumber: string,
+): Promise<string | null> {
+  const suffixMatch = sheetNumber.match(/-(\d{3})$/);
+  if (!suffixMatch) return null;
+  const targetSuffix = suffixMatch[1]!;
+
+  // 1. Scan committed batches
+  const batches = await prisma.markImportBatch.findMany({
+    where: { schoolId, source: { not: "scan" } },
+    orderBy: { createdAt: "desc" },
+    take: 500,
+  });
+  for (const batch of batches) {
+    let ctx: Record<string, unknown> = {};
+    try { ctx = JSON.parse(batch.summary ?? "{}") as Record<string, unknown>; } catch { continue; }
+    const cn = String(ctx["className"] ?? "");
+    const sn = String(ctx["streamName"] ?? "");
+    const su = String(ctx["subjectName"] ?? "");
+    const et = String(ctx["examType"] ?? "");
+    const tn = String(ctx["termName"] ?? "");
+    if (!cn || !su || !et || !tn) continue;
+    const year = new Date(batch.createdAt).getFullYear();
+    const id = computeMarksheetId(cn, sn, su, et, tn, year);
+    if (sheetNumberSuffix(id) === targetSuffix) return id;
+  }
+
+  // 2. Cross-product from live school data
+  const [classes, subjects, terms] = await Promise.all([
+    prisma.schoolClass.findMany({ where: { schoolId }, include: { streams: true } }),
+    prisma.subject.findMany({ where: { schoolId } }),
+    prisma.term.findMany({
+      where: { academicYear: { schoolId } },
+      include: { academicYear: true },
+      orderBy: { startsOn: "desc" },
+      take: 40,
+    }),
+  ]);
+
+  const examTypes = ["BOT", "MOT", "EOT"];
+  for (const cls of classes) {
+    for (const stream of cls.streams) {
+      for (const sub of subjects) {
+        for (const term of terms) {
+          const year = new Date(term.startsOn).getFullYear();
+          for (const et of examTypes) {
+            const id = computeMarksheetId(cls.name, stream.name, sub.name, et, term.name, year);
+            if (sheetNumberSuffix(id) === targetSuffix) return id;
+          }
+        }
+      }
+    }
+  }
+
+  return null;
+}
+
 // ── DB lookups ────────────────────────────────────────────────────────────────
 
 /**

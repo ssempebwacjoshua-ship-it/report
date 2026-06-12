@@ -7,6 +7,7 @@ import { reportsRoutes } from "./routes/reportsRoutes";
 import { importsRoutes } from "./routes/importsRoutes";
 import { studentsRoutes } from "./routes/studentsRoutes";
 import { marksheetsRoutes } from "./routes/marksheetsRoutes";
+import { settingsRoutes } from "./routes/settingsRoutes";
 
 export function createServer() {
   const app = express();
@@ -18,6 +19,7 @@ export function createServer() {
   app.use(importsRoutes());
   app.use(studentsRoutes());
   app.use(marksheetsRoutes());
+  app.use(settingsRoutes());
 
   const errorHandler: ErrorRequestHandler = (error, _req, res, _next) => {
     if (error instanceof ZodError) {

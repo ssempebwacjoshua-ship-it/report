@@ -4,6 +4,7 @@ import { ReportFilters } from "../components/reports/ReportFilters";
 import { StudentReportCard } from "../components/reports/StudentReportCard";
 import { StudentReportDetail } from "../components/reports/StudentReportDetail";
 import { fetchReportContext, fetchReports } from "../client/reportsClient";
+import { fetchSettings } from "../client/settingsClient";
 import type {
   ReportContext,
   ReportFilters as Filters,
@@ -40,24 +41,28 @@ export function ReportsPage() {
   const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS);
   const [report, setReport] = useState<ReportsResponse | null>(null);
   const [selectedStudentId, setSelectedStudentId] = useState("");
-  const [showPositions, setShowPositions] = useState(false);
   const [hmEditOpen, setHmEditOpen] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => {
-    fetchReportContext()
-      .then((loaded) => {
+    Promise.all([fetchReportContext(), fetchSettings()])
+      .then(([loaded, settings]) => {
         setContext(loaded);
         const activeYear =
-          loaded.academicYears.find((year) => year.isActive) ?? loaded.academicYears[0];
+          loaded.academicYears.find((year) => year.name === settings.sections.academic.activeAcademicYear) ??
+          loaded.academicYears.find((year) => year.isActive) ??
+          loaded.academicYears[0];
         const activeTerm =
-          loaded.terms.find((term) => term.isActive) ?? loaded.terms[0];
+          loaded.terms.find((term) => term.name === settings.sections.academic.activeTerm) ??
+          loaded.terms.find((term) => term.isActive) ??
+          loaded.terms[0];
         const firstClass = loaded.classes[0];
         setFilters((current) => ({
           ...current,
           academicYearId: activeYear?.id,
           termId: activeTerm?.id,
           classId: firstClass?.id ?? "",
+          assessmentType: settings.sections.academic.defaultAssessmentType,
         }));
       })
       .catch((caught: Error) => setError(caught.message));
@@ -81,6 +86,11 @@ export function ReportsPage() {
     () => report?.cards.find((card) => card.studentId === selectedStudentId) ?? null,
     [report, selectedStudentId],
   );
+  const classAverage = useMemo(() => {
+    const averages = report?.cards.map((card) => card.average).filter((value): value is number => value != null) ?? [];
+    if (averages.length === 0) return null;
+    return Math.round((averages.reduce((sum, value) => sum + value, 0) / averages.length) * 10) / 10;
+  }, [report]);
 
   // ── Resizable split pane ──────────────────────────────────────────────────
   const isDesktop = useDesktopMatch();
@@ -208,7 +218,7 @@ export function ReportsPage() {
                   key={card.studentId}
                   card={card}
                   selected={card.studentId === selectedStudentId}
-                  showPositions={showPositions}
+                  showPositions={Boolean(report?.settings.reports.showOverallPosition)}
                   onOpen={() => setSelectedStudentId(card.studentId)}
                 />
               ))}
@@ -233,8 +243,11 @@ export function ReportsPage() {
           <StudentReportDetail
             card={selectedCard}
             assessmentType={report?.filters.assessmentType}
-            showPositions={showPositions}
-            onShowPositionsChange={setShowPositions}
+            showPositions={Boolean(report?.settings.reports.showOverallPosition)}
+            schoolSettings={report?.settings.school}
+            reportSettings={report?.settings.reports}
+            grading={report?.settings.grading}
+            classAverage={classAverage}
             editOpen={hmEditOpen}
             onEditOpenChange={setHmEditOpen}
           />

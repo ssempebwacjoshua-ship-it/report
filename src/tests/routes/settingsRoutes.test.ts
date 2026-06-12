@@ -1,0 +1,119 @@
+import request from "supertest";
+import { describe, expect, it } from "vitest";
+import { createServer } from "../../server";
+import { defaultSettingsSections, type SettingSection, type SettingsSections } from "../../shared/types/settings";
+
+const SCHOOL = "SETTINGS-TEST";
+
+const sectionPayloads: Record<SettingSection, SettingsSections[SettingSection]> = {
+  school: {
+    ...defaultSettingsSections.school,
+    schoolName: "Settings Test School",
+    schoolCode: SCHOOL,
+    reportFooterText: "Reports verified by settings tests.",
+  },
+  academic: {
+    ...defaultSettingsSections.academic,
+    activeAcademicYear: "2025/2026",
+    activeTerm: "Term 1",
+    defaultAssessmentType: "EOT",
+  },
+  reports: {
+    ...defaultSettingsSections.reports,
+    showOverallPosition: true,
+    showGradeKey: false,
+    printDensity: "compact",
+  },
+  marksheets: {
+    ...defaultSettingsSections.marksheets,
+    includeQrCode: false,
+    includeHumanReadableMarksheetId: true,
+  },
+  ocr: {
+    ...defaultSettingsSections.ocr,
+    provider: "manual",
+    minimumConfidenceForSuggestion: 0.82,
+  },
+  grading: {
+    grades: [
+      { label: "D1", minScore: 90, maxScore: 100, descriptor: "Distinction" },
+      { label: "D2", minScore: 80, maxScore: 89, descriptor: "Strong" },
+      { label: "C3", minScore: 70, maxScore: 79, descriptor: "Good" },
+      { label: "C4", minScore: 65, maxScore: 69, descriptor: "Credit" },
+      { label: "C5", minScore: 60, maxScore: 64, descriptor: "Credit" },
+      { label: "C6", minScore: 50, maxScore: 59, descriptor: "Pass" },
+      { label: "P7", minScore: 45, maxScore: 49, descriptor: "Basic pass" },
+      { label: "P8", minScore: 40, maxScore: 44, descriptor: "Needs support" },
+      { label: "F9", minScore: 0, maxScore: 39, descriptor: "Below standard" },
+    ],
+  },
+  approval: {
+    ...defaultSettingsSections.approval,
+    requireHmFinalizationBeforeReportPrintRelease: true,
+  },
+  appearance: {
+    ...defaultSettingsSections.appearance,
+    appDensity: "compact",
+    sidebarWidth: "wide",
+    fontSize: "large",
+  },
+};
+
+describe("settingsRoutes", () => {
+  it("GET /api/settings returns defaults when no settings exist", async () => {
+    const res = await request(createServer()).get("/api/settings?schoolCode=NO-SUCH-SETTINGS-SCHOOL");
+    expect(res.status).toBe(200);
+    expect(res.body.sections.academic.defaultAssessmentType).toBe("EOT");
+    expect(res.body.sections.reports.showOverallPosition).toBe(false);
+    expect(res.body.sections.marksheets.includeQrCode).toBe(true);
+  });
+
+  it("every PATCH route persists valid settings", async () => {
+    for (const section of Object.keys(sectionPayloads) as SettingSection[]) {
+      const res = await request(createServer())
+        .patch(`/api/settings/${section}?schoolCode=${SCHOOL}`)
+        .send(sectionPayloads[section]);
+      expect(res.status).toBe(200);
+      expect(res.body.sections[section]).toMatchObject(sectionPayloads[section]);
+    }
+  });
+
+  it("invalid settings are rejected with clear errors", async () => {
+    const res = await request(createServer())
+      .patch(`/api/settings/school?schoolCode=${SCHOOL}`)
+      .send({ ...sectionPayloads.school, email: "not-an-email" });
+    expect(res.status).toBe(400);
+    expect(res.body.issues[0].message).toMatch(/email/i);
+  });
+
+  it("invalid and overlapping grading ranges are rejected", async () => {
+    const res = await request(createServer())
+      .patch(`/api/settings/grading?schoolCode=${SCHOOL}`)
+      .send({
+        grades: [
+          { label: "D1", minScore: 90, maxScore: 100, descriptor: "" },
+          { label: "D2", minScore: 85, maxScore: 95, descriptor: "" },
+          { label: "C3", minScore: 70, maxScore: 79, descriptor: "" },
+          { label: "C4", minScore: 65, maxScore: 69, descriptor: "" },
+          { label: "C5", minScore: 60, maxScore: 64, descriptor: "" },
+          { label: "C6", minScore: 50, maxScore: 59, descriptor: "" },
+          { label: "P7", minScore: 45, maxScore: 49, descriptor: "" },
+          { label: "P8", minScore: 40, maxScore: 44, descriptor: "" },
+          { label: "F9", minScore: 0, maxScore: 39, descriptor: "" },
+        ],
+      });
+    expect(res.status).toBe(400);
+    expect(JSON.stringify(res.body.issues)).toMatch(/overlap/i);
+  });
+
+  it("settings survive reload", async () => {
+    await request(createServer())
+      .patch(`/api/settings/reports?schoolCode=${SCHOOL}`)
+      .send(sectionPayloads.reports);
+
+    const reload = await request(createServer()).get(`/api/settings?schoolCode=${SCHOOL}`);
+    expect(reload.status).toBe(200);
+    expect(reload.body.sections.reports.showOverallPosition).toBe(true);
+    expect(reload.body.sections.reports.printDensity).toBe("compact");
+  });
+});

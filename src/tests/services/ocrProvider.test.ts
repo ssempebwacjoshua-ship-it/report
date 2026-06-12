@@ -67,10 +67,15 @@ describe("PaddleOCR provider", () => {
     process.env.OCR_PROVIDER = "paddleocr";
     process.env.PADDLE_OCR_URL = "http://localhost:8003";
     process.env.DOCTR_OCR_URL = "http://localhost:8002";
-
-    const provider = await resolveOcrProvider();
-
-    expect(["tesseract", "manual"]).toContain(provider.name);
+    // Ensure googlevision is not picked up from ambient machine credentials
+    const savedCreds = process.env.GOOGLE_APPLICATION_CREDENTIALS;
+    delete process.env.GOOGLE_APPLICATION_CREDENTIALS;
+    try {
+      const provider = await resolveOcrProvider();
+      expect(["tesseract", "manual"]).toContain(provider.name);
+    } finally {
+      if (savedCreds !== undefined) process.env.GOOGLE_APPLICATION_CREDENTIALS = savedCreds;
+    }
   });
 
   it("returns cropId with empty text and zero confidence when service returns no match", async () => {

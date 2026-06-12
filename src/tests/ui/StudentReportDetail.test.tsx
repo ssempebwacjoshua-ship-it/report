@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { StudentReportDetail } from "../../components/reports/StudentReportDetail";
 import type { StudentReportCard } from "../../shared/types/reports";
@@ -56,9 +56,7 @@ describe("StudentReportDetail", () => {
   });
 
   it("shows only the overall position summary when enabled", () => {
-    render(<StudentReportDetail card={card} editOpen />);
-
-    fireEvent.click(screen.getByLabelText("Show positions"));
+    render(<StudentReportDetail card={card} editOpen showPositions />);
 
     expect(screen.getAllByText("Overall Position").length).toBeGreaterThan(0);
     expect(screen.queryByText("Pos.")).not.toBeInTheDocument();

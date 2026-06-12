@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   computeMarksheetId,
+  computeSheetNumber,
+  findMarksheetIdBySheetNumber,
   findMarksheetIdInText,
+  findSheetNumberInText,
   normalizeMarksheetId,
   parseMarksheetIdComponents,
   resolveScanMarksheetContext,
@@ -175,6 +178,96 @@ describe("computeMarksheetId", () => {
     expect(parsed.year).toBe("2026");
     expect(parsed.stream).toBe("A");
     expect(parsed.examType).toBe("EOT");
+  });
+});
+
+// ── computeSheetNumber ────────────────────────────────────────────────────────
+
+describe("computeSheetNumber", () => {
+  const id = "MS-2026-SEN1-A-MATH-EOT-TE";
+  const date = new Date("2026-06-11");
+
+  it("produces YYYYMMDD-NNN format", () => {
+    const sn = computeSheetNumber(id, date);
+    expect(sn).toMatch(/^\d{8}-\d{3}$/);
+    expect(sn.startsWith("20260611-")).toBe(true);
+  });
+
+  it("is deterministic — same ID and date always gives same result", () => {
+    expect(computeSheetNumber(id, date)).toBe(computeSheetNumber(id, date));
+  });
+
+  it("different marksheet IDs generally produce different suffixes", () => {
+    const id2 = "MS-2026-SEN1-A-ENGL-EOT-TE";
+    const sn1 = computeSheetNumber(id, date);
+    const sn2 = computeSheetNumber(id2, date);
+    // Different IDs should (almost always) have different 3-digit suffixes
+    expect(sn1).not.toBe(sn2);
+  });
+
+  it("date portion matches the supplied generation date", () => {
+    const d = new Date("2025-12-01");
+    expect(computeSheetNumber(id, d).startsWith("20251201-")).toBe(true);
+  });
+});
+
+// ── findSheetNumberInText ─────────────────────────────────────────────────────
+
+describe("findSheetNumberInText", () => {
+  it("finds SHEET NO: YYYYMMDD-NNN in OCR text", () => {
+    const text = "SCHOOL NAME\nACADEMIC MARKSHEET\nSHEET NO: 20260611-042\nAcademic Year: 2025/2026";
+    expect(findSheetNumberInText(text)).toBe("20260611-042");
+  });
+
+  it("handles SHEET NO with a dot separator", () => {
+    const text = "SHEET NO. 20260611-007";
+    expect(findSheetNumberInText(text)).toBe("20260611-007");
+  });
+
+  it("handles OCR noise (zero read as O in NO)", () => {
+    const text = "SHEET N0 20260611-099";
+    expect(findSheetNumberInText(text)).toBe("20260611-099");
+  });
+
+  it("returns null when no sheet number present", () => {
+    expect(findSheetNumberInText("ACADEMIC MARKSHEET MS-2026-SEN1-A-MATH-EOT-TE")).toBeNull();
+  });
+});
+
+// ── findMarksheetIdBySheetNumber ──────────────────────────────────────────────
+
+describe("findMarksheetIdBySheetNumber", () => {
+  const targetId = "MS-2026-SEN1-A-MATH-EOT-TE";
+  const date = new Date("2026-06-11");
+  const sheetNumber = computeSheetNumber(targetId, date);
+
+  function prismaMock() {
+    return {
+      markImportBatch: { findMany: async () => [] },
+      schoolClass: {
+        findMany: async () => [
+          { name: "Senior 1 A", streams: [{ name: "A", code: "A" }] },
+        ],
+      },
+      subject: {
+        findMany: async () => [{ name: "Mathematics", code: "MATH" }],
+      },
+      term: {
+        findMany: async () => [
+          { name: "Term 1", startsOn: new Date("2026-01-10"), academicYear: { name: "2025/2026" } },
+        ],
+      },
+    };
+  }
+
+  it("resolves a marksheet ID from a sheet number via school data cross-product", async () => {
+    const found = await findMarksheetIdBySheetNumber(prismaMock() as any, "school-1", sheetNumber);
+    expect(found).toBe(targetId);
+  });
+
+  it("returns null for an invalid sheet number format", async () => {
+    const found = await findMarksheetIdBySheetNumber(prismaMock() as any, "school-1", "INVALID");
+    expect(found).toBeNull();
   });
 });
 

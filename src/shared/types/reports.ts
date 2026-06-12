@@ -1,4 +1,5 @@
 import type { REPORT_ASSESSMENT_FILTERS } from "../constants/assessmentTypes";
+import type { GradingScaleSettings, ReportSettings, SchoolProfileSettings } from "./settings";
 import type { ContactReadiness } from "./students";
 
 export type AssessmentFilter = (typeof REPORT_ASSESSMENT_FILTERS)[number];
@@ -78,4 +79,9 @@ export type ReportsResponse = {
   readiness: ReportReadiness;
   emptyReason: string | null;
   cards: StudentReportCard[];
+  settings: {
+    school: SchoolProfileSettings;
+    reports: ReportSettings;
+    grading: GradingScaleSettings;
+  };
 };

@@ -6,6 +6,23 @@ import {
   saveMarksheetIdLookupDebug,
   type MarksheetIdDetectionResult,
 } from "../../server/services/marksheetIdDetectionService";
+import { findSheetNumberInText } from "../../server/services/marksheetContextService";
+
+describe("marksheetIdDetectionService — sheet number OCR", () => {
+  it("extracts SHEET NO from header OCR text", () => {
+    const text = "UGHS SCHOOL\nACADEMIC MARKSHEET\nSHEET NO: 20260611-042\nAcademic Year: 2025/2026";
+    expect(findSheetNumberInText(text)).toBe("20260611-042");
+  });
+
+  it("extracts SHEET NO when OCR reads zero as O", () => {
+    const text = "SHEET N0 20260611-007";
+    expect(findSheetNumberInText(text)).toBe("20260611-007");
+  });
+
+  it("returns null when no SHEET NO present in scan text", () => {
+    expect(findSheetNumberInText("ACADEMIC MARKSHEET MS-2026-SEN1-A-MATH-EOT-TE")).toBeNull();
+  });
+});
 
 describe("marksheetIdDetectionService", () => {
   it("extracts Marksheet ID from header OCR text", () => {
@@ -36,7 +53,7 @@ describe("marksheetIdDetectionService", () => {
 
   it("writes debug JSON with raw and normalized values", async () => {
     const result: MarksheetIdDetectionResult = {
-      rawHeaderText: "Marksheet ID: MS-2026-SENI-A-MATH-EOT-TE",
+      rawHeaderText: "Marksheet ID: MS-2026-SENI-A-MATH-EOT-TE SHEET NO: 20260611-042",
       rawFooterText: "",
       candidates: [{
         source: "header",
@@ -54,6 +71,7 @@ describe("marksheetIdDetectionService", () => {
       },
       rawRecognizedId: "MS-2026-SENI-A-MATH-EOT-TE",
       normalizedRecognizedId: "MS-2026-SEN1-A-MATH-EOT-TE",
+      recognizedSheetNumber: "20260611-042",
       confidence: 0.92,
       matchSource: "header",
       failureReason: "",
@@ -76,12 +94,20 @@ describe("marksheetIdDetectionService", () => {
       rawOcrHeaderText: string;
       normalizedCandidates: string[];
       selectedCandidate: { normalizedRecognizedId: string };
+      recognizedSheetNumber: string;
+      recognizedInternalMarksheetId: string;
+      matchedMarksheet: string;
+      contextSource: string;
       lookupResult: { matchedMarksheetId: string };
     };
 
     expect(debug.rawOcrHeaderText).toContain("SENI");
     expect(debug.normalizedCandidates).toContain("MS-2026-SEN1-A-MATH-EOT-TE");
     expect(debug.selectedCandidate.normalizedRecognizedId).toBe("MS-2026-SEN1-A-MATH-EOT-TE");
+    expect(debug.recognizedSheetNumber).toBe("20260611-042");
+    expect(debug.recognizedInternalMarksheetId).toBe("MS-2026-SEN1-A-MATH-EOT-TE");
+    expect(debug.matchedMarksheet).toBe("MS-2026-SEN1-A-MATH-EOT-TE");
+    expect(debug.contextSource).toBe("recognized-id");
     expect(debug.lookupResult.matchedMarksheetId).toBe("MS-2026-SEN1-A-MATH-EOT-TE");
   });
 });

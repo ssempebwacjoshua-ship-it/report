@@ -8,8 +8,8 @@ const EXAM_LABELS: Record<string, string> = {
 };
 
 // Rows that fit comfortably on first page (full header) and continuation pages (compact header)
-const ROWS_FIRST = 26;
-const ROWS_CONT = 34;
+const ROWS_FIRST = 24;
+const ROWS_CONT = 32;
 
 type PageSegment = { students: MarksheetStudent[]; startIndex: number };
 
@@ -39,22 +39,25 @@ function computeMarksheetId(
   return `MS-${new Date().getFullYear()}-${cls}-${streamName.toUpperCase()}-${sub}-${examType}-${trm}`;
 }
 
-function formatDate(date: Date): string {
-  return date.toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" });
+// Deterministic 3-digit suffix from marksheet ID (mirrors marksheetContextService.ts)
+function sheetNumberSuffix(marksheetId: string): string {
+  const chars = marksheetId.replace(/[^A-Z0-9]/gi, "").toUpperCase();
+  let hash = 7;
+  for (let i = 0; i < chars.length; i++) {
+    hash = (hash * 31 + chars.charCodeAt(i)) & 0x7fffffff;
+  }
+  return String(hash % 1000).padStart(3, "0");
 }
 
-// ── Signature line — label | ________ name ________ | Signature: _____ | Date: _____
-function SigRow({ label }: { label: string }) {
-  return (
-    <div className="marksheet-sig-row">
-      <span className="marksheet-sig-label">{label}:</span>
-      <span className="marksheet-sig-line" />
-      <span className="marksheet-sig-sublabel">Signature:</span>
-      <span className="marksheet-sig-short" />
-      <span className="marksheet-sig-sublabel">Date:</span>
-      <span className="marksheet-sig-date" />
-    </div>
-  );
+function computeSheetNumber(marksheetId: string, generatedDate: Date): string {
+  const y = generatedDate.getFullYear();
+  const m = String(generatedDate.getMonth() + 1).padStart(2, "0");
+  const d = String(generatedDate.getDate()).padStart(2, "0");
+  return `${y}${m}${d}-${sheetNumberSuffix(marksheetId)}`;
+}
+
+function formatDate(date: Date): string {
+  return date.toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" });
 }
 
 // ── Table header — repeated on every page
@@ -62,20 +65,20 @@ function TableHead() {
   return (
     <thead>
       <tr className="marksheet-thead-row">
-        <th className="marksheet-th text-center" style={{ width: "32px" }}>
+        <th className="marksheet-th text-center" style={{ width: "28px" }}>
           No.
         </th>
-        <th className="marksheet-th text-left" style={{ width: "78px" }}>
+        <th className="marksheet-th text-left" style={{ width: "72px" }}>
           Adm. No.
         </th>
         <th className="marksheet-th text-left">Student Name</th>
-        <th className="marksheet-th text-center" style={{ width: "88px" }}>
+        <th className="marksheet-th text-center" style={{ width: "96px" }}>
           Written Mark
         </th>
-        <th className="marksheet-th text-center" style={{ width: "82px" }}>
+        <th className="marksheet-th text-center" style={{ width: "99px" }}>
           Split Mark Entry
         </th>
-        <th className="marksheet-th text-left" style={{ width: "110px" }}>
+        <th className="marksheet-th text-left" style={{ width: "88px" }}>
           Remarks
         </th>
       </tr>
@@ -85,6 +88,10 @@ function TableHead() {
 
 type Props = {
   schoolName: string;
+  schoolAddress?: string;
+  schoolPhone?: string;
+  schoolEmail?: string;
+  footerText: string;
   academicYear: string;
   termName: string;
   className: string;
@@ -92,10 +99,18 @@ type Props = {
   subjectName: string;
   examType: string;
   students: MarksheetStudent[];
+  printStyle: "rich_black" | "standard";
+  includeQrCode: boolean;
+  includeHumanReadableMarksheetId: boolean;
+  validMarkValues: string;
 };
 
 export function PrintableMarksheet({
   schoolName,
+  schoolAddress = "",
+  schoolPhone = "",
+  schoolEmail = "",
+  footerText,
   academicYear,
   termName,
   className,
@@ -103,15 +118,21 @@ export function PrintableMarksheet({
   subjectName,
   examType,
   students,
+  printStyle,
+  includeQrCode,
+  includeHumanReadableMarksheetId,
+  validMarkValues,
 }: Props) {
-  const today = formatDate(new Date());
+  const today = new Date();
+  const todayStr = formatDate(today);
   const marksheetId = computeMarksheetId(className, streamName, subjectName, examType, termName);
+  const sheetNumber = computeSheetNumber(marksheetId, today);
   const examLabel = EXAM_LABELS[examType] ?? examType;
   const pages = buildPages(students);
   const totalPages = pages.length;
 
   return (
-    <div className="marksheet-print-area">
+    <div className={`marksheet-print-area marksheet-style-${printStyle}`}>
       {pages.map(({ students: pageStudents, startIndex }, pageIndex) => {
         const isFirst = pageIndex === 0;
         const isLast = pageIndex === totalPages - 1;
@@ -124,8 +145,22 @@ export function PrintableMarksheet({
             {/* ══ FULL HEADER — first page only ══ */}
             {isFirst && (
               <div className="marksheet-header-box">
+                {/* Sheet Number + QR block — top right, absolute */}
+                <div className="marksheet-id-qr-block">
+                  <span className="marksheet-sheet-number-label">SHEET NO</span>
+                  <span className="marksheet-sheet-number-value">{sheetNumber}</span>
+                  {includeQrCode ? (
+                    <QRCodeSVG value={marksheetId} size={58} marginSize={1} level="M" aria-label={`Marksheet QR ${marksheetId}`} />
+                  ) : null}
+                </div>
+
                 <div className="marksheet-title-block">
                   <p className="marksheet-school-name">{schoolName}</p>
+                  {[schoolAddress, schoolPhone, schoolEmail].filter(Boolean).length > 0 ? (
+                    <p className="marksheet-school-contact">
+                      {[schoolAddress, schoolPhone, schoolEmail].filter(Boolean).join(" | ")}
+                    </p>
+                  ) : null}
                   <p className="marksheet-sheet-title">ACADEMIC MARKSHEET</p>
                 </div>
 
@@ -149,44 +184,43 @@ export function PrintableMarksheet({
                     <span className="marksheet-meta-key">Exam Type:</span> {examLabel}
                   </div>
                   <div>
-                    <span className="marksheet-meta-key">Marksheet ID:</span>{" "}
-                    <span className="marksheet-id-value">{marksheetId}</span>
+                    <span className="marksheet-meta-key">Generated:</span> {todayStr}
                   </div>
                   <div>
-                    <span className="marksheet-meta-key">Generated:</span> {today}
+                    <span className="marksheet-meta-key">Students:</span> {students.length}
                   </div>
                 </div>
-
-                <div className="marksheet-id-qr" aria-label={`Marksheet ID QR ${marksheetId}`}>
-                  <QRCodeSVG value={marksheetId} size={54} marginSize={1} level="M" />
-                </div>
-
-                {/* Signatures on first page only when it is the ONLY page */}
-                {totalPages === 1 && (
-                  <div className="marksheet-sig-section">
-                    <SigRow label="Class Teacher" />
-                    <SigRow label="Data Entry Operator" />
-                    <SigRow label="Head Teacher Approval" />
-                  </div>
-                )}
               </div>
             )}
 
             {/* ══ CONTINUATION HEADER — subsequent pages ══ */}
             {!isFirst && (
               <div className="marksheet-cont-header">
-                <p className="marksheet-cont-title">
-                  {schoolName} — ACADEMIC MARKSHEET — CONTINUATION
-                </p>
-                <div className="marksheet-cont-meta">
-                  <span>
-                    {className} / {streamName} / {subjectName} / {examType} — {termName}
-                  </span>
-                  <span className="marksheet-cont-page">
-                    Page {pageIndex + 1} of {totalPages}
-                  </span>
+                <div className="marksheet-cont-inner">
+                  <div>
+                    <p className="marksheet-cont-title">
+                      {schoolName} — ACADEMIC MARKSHEET — CONTINUATION
+                    </p>
+                    <div className="marksheet-cont-meta">
+                      <span>
+                        {className} / {streamName} / {subjectName} / {examType} — {termName}
+                      </span>
+                      <span className="marksheet-cont-page">
+                        Page {pageIndex + 1} of {totalPages}
+                      </span>
+                    </div>
+                    {includeHumanReadableMarksheetId ? (
+                      <p className="marksheet-cont-id">ID: {marksheetId}</p>
+                    ) : null}
+                  </div>
+                  <div className="marksheet-cont-sheet-number">
+                    <span className="marksheet-sheet-number-label">SHEET NO</span>
+                    <span className="marksheet-sheet-number-value marksheet-sheet-number-small">{sheetNumber}</span>
+                    {includeQrCode ? (
+                      <QRCodeSVG value={marksheetId} size={38} marginSize={1} level="M" />
+                    ) : null}
+                  </div>
                 </div>
-                <p className="marksheet-cont-id">Marksheet ID: {marksheetId}</p>
               </div>
             )}
 
@@ -232,29 +266,22 @@ export function PrintableMarksheet({
               </tbody>
             </table>
 
-            {/* ══ SIGNATURES — last page of a multi-page marksheet ══ */}
-            {isLast && totalPages > 1 && (
-              <div className="marksheet-sig-section">
-                <SigRow label="Class Teacher" />
-                <SigRow label="Data Entry Operator" />
-                <SigRow label="Head Teacher Approval" />
-              </div>
-            )}
-
             {/* ══ FOOTER ══ */}
             <div className="marksheet-footer">
-              <span>
-                Valid entries: 0–100 &nbsp;·&nbsp; <strong>AB</strong> = Absent &nbsp;·&nbsp;{" "}
-                <strong>EX</strong> = Exempted &nbsp;·&nbsp; Blank ≠ Zero &nbsp;·&nbsp; Total:{" "}
-                {students.length} students
+              <span className="marksheet-footer-legend">
+                Valid entries: {validMarkValues} &nbsp;|&nbsp; {footerText}
               </span>
               {!isLast ? (
                 <span className="marksheet-footer-continued">Continued on next page →</span>
               ) : (
                 <span className="marksheet-footer-id">
-                  <QRCodeSVG value={marksheetId} size={34} marginSize={1} level="M" />
-                  {marksheetId}
-                  {totalPages > 1 ? ` · Page ${pageIndex + 1} of ${totalPages}` : ""} · {today}
+                  {includeHumanReadableMarksheetId ? (
+                    <span className="marksheet-footer-internal-id">{marksheetId}</span>
+                  ) : null}
+                  <span>
+                    {totalPages > 1 ? `Page ${pageIndex + 1} of ${totalPages} · ` : ""}
+                    {todayStr}
+                  </span>
                 </span>
               )}
             </div>
