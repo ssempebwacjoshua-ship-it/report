@@ -83,6 +83,16 @@ body {
   cursor: not-allowed;
 }
 
+/* Mobile: 16px controls prevent iOS Safari zoom-on-focus; desktop unchanged. */
+@media (max-width: 767px) {
+  .input,
+  .premium-control,
+  select.premium-control,
+  input.premium-control {
+    font-size: 1rem;
+  }
+}
+
 .tab-tray {
   display: inline-flex;
   align-items: center;

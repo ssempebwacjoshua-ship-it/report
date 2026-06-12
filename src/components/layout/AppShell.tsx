@@ -2,8 +2,8 @@ import { useEffect, useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import { Navigate, Outlet } from "react-router-dom";
 import { useAuth } from "../../contexts/AuthContext";
-import { Icon } from "./Icon";
 import { Sidebar } from "./Sidebar";
+import { Topbar } from "./Topbar";
 import { SettingsProvider, useAppSettings } from "./SettingsContext";
 
 const SIDEBAR_WIDTH_KEY = "school-connect-sidebar-width";
@@ -135,15 +135,8 @@ function AppShellInner({
         width={sidebarWidth}
       />
       <div className="min-w-0">
-        <button
-          type="button"
-          onClick={setSidebarOpenAndClose}
-          aria-label="Open navigation"
-          className="no-print fixed left-4 top-4 z-30 grid h-10 w-10 place-items-center rounded-xl border border-slate-200 bg-white text-slate-700 shadow-sm transition hover:bg-slate-50 hover:text-slate-950 lg:hidden"
-        >
-          <Icon name="menu" className="h-5 w-5" />
-        </button>
-        <div className="mx-auto w-full max-w-[1540px] px-4 py-4 pt-16 md:px-8 lg:pt-4">
+        <Topbar onMenuClick={setSidebarOpenAndClose} sidebarCollapsed={sidebarCollapsed} />
+        <div className="mx-auto w-full max-w-[1540px] px-4 py-4 md:px-8">
           <Outlet />
         </div>
       </div>
