@@ -1,13 +1,12 @@
 import { render, screen, waitFor } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
 import { MemoryRouter } from "react-router-dom";
+import { describe, expect, it, vi } from "vitest";
 import { Sidebar } from "../../components/layout/Sidebar";
-import { Topbar } from "../../components/layout/Topbar";
 import { SettingsProvider } from "../../components/layout/SettingsContext";
 
 vi.mock("../../client/settingsClient", () => ({
   fetchSettings: vi.fn().mockResolvedValue({
-    schoolCode: "SCU-PREVIEW",
+    schoolCode: "GVS",
     sections: {
       school: {
         schoolName: "Green Valley School",
@@ -61,9 +60,7 @@ vi.mock("../../client/settingsClient", () => ({
         acceptOcrSuggestionsAutomatically: false,
         requireOperatorReviewBeforeCommit: true,
       },
-      grading: {
-        grades: [],
-      },
+      grading: { grades: [] },
       approval: {
         requireDryRunBeforeCommit: true,
         protectCommittedMarksFromEditing: true,
@@ -85,23 +82,30 @@ vi.mock("../../client/settingsClient", () => ({
   }),
 }));
 
-function renderShell() {
+function renderSidebar(pathname = "/dashboard", collapsed = false) {
   return render(
-    <MemoryRouter>
+    <MemoryRouter initialEntries={[pathname]}>
       <SettingsProvider>
-        <Topbar onMenuClick={() => {}} sidebarCollapsed={false} />
-        <Sidebar open onClose={() => {}} collapsed={false} onToggleCollapsed={() => {}} width={248} onResizeStart={() => {}} />
+        <Sidebar open onClose={() => {}} collapsed={collapsed} onToggleCollapsed={() => {}} width={248} onResizeStart={() => {}} />
       </SettingsProvider>
     </MemoryRouter>,
   );
 }
 
-describe("App shell branding", () => {
-  it("renders the saved school name in the topbar and sidebar", async () => {
-    renderShell();
+describe("Sidebar navigation", () => {
+  it("renders nav links and active state for the current route", async () => {
+    renderSidebar("/reports");
 
-    await waitFor(() => expect(screen.getAllByText("Green Valley School").length).toBeGreaterThan(0));
-    expect(screen.queryByText("Uganda High School")).not.toBeInTheDocument();
-    expect(screen.queryByText("UHS")).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Report Generation")).toBeInTheDocument());
+    expect(screen.getByText("Report Generation").closest("a")).toHaveClass("bg-white/12");
+    expect(screen.getByText("Students").closest("a")).toHaveAttribute("href", "/students");
+  });
+
+  it("hides labels when collapsed but keeps icon buttons", async () => {
+    renderSidebar("/dashboard", true);
+
+    await waitFor(() => expect(screen.getByTitle("Dashboard")).toBeInTheDocument());
+    expect(screen.queryByText("Dashboard")).not.toBeInTheDocument();
+    expect(screen.getByTitle("Dashboard")).toBeInTheDocument();
   });
 });

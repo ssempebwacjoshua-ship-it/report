@@ -1,12 +1,14 @@
 import { Link, useLocation } from "react-router-dom";
+import type { CSSProperties, MouseEvent as ReactMouseEvent } from "react";
 import { Icon } from "./Icon";
 import { getSchoolDisplayName, getSchoolInitials } from "./branding";
 import { useAppSettings } from "./SettingsContext";
-import type { CSSProperties, MouseEvent as ReactMouseEvent } from "react";
 
 type Props = {
   open: boolean;
   onClose: () => void;
+  collapsed: boolean;
+  onToggleCollapsed: () => void;
   width: number;
   onResizeStart: (event: ReactMouseEvent) => void;
 };
@@ -20,15 +22,16 @@ const navItems = [
   { to: "/settings", label: "Settings", icon: "settings" as const },
 ];
 
-export function Sidebar({ open, onClose, width, onResizeStart }: Props) {
+export function Sidebar({ open, onClose, collapsed, onToggleCollapsed, width, onResizeStart }: Props) {
   const location = useLocation();
   const { settings } = useAppSettings() ?? {};
   const school = settings?.sections.school;
   const schoolName = getSchoolDisplayName(school, "School Connect");
   const initials = getSchoolInitials(schoolName);
+  const sidebarWidth = collapsed ? 72 : width;
 
   function isNavActive(to: string) {
-    return location.pathname === to || location.pathname.startsWith(to + "/");
+    return location.pathname === to || location.pathname.startsWith(`${to}/`);
   }
 
   return (
@@ -40,64 +43,89 @@ export function Sidebar({ open, onClose, width, onResizeStart }: Props) {
         onClick={onClose}
       />
       <aside
-        style={{ "--sidebar-width": `${width}px` } as CSSProperties}
-        className={`app-shell-sidebar fixed inset-y-0 left-0 z-40 flex w-72 transform flex-col bg-gradient-to-b from-blue-950 via-blue-900 to-sky-900 p-5 text-white shadow-2xl transition lg:sticky lg:top-0 lg:h-screen lg:w-[var(--sidebar-width)] lg:translate-x-0 ${
+        style={{ "--sidebar-width": `${sidebarWidth}px` } as CSSProperties}
+        className={`app-shell-sidebar fixed inset-y-0 left-0 z-40 flex w-[248px] transform flex-col overflow-y-auto overscroll-contain bg-gradient-to-b from-blue-950 via-blue-900 to-sky-900 text-white shadow-2xl transition-transform duration-200 lg:sticky lg:top-0 lg:h-screen lg:w-[var(--sidebar-width)] lg:translate-x-0 ${
           open ? "translate-x-0" : "-translate-x-full"
         }`}
       >
-        <div className="flex items-center gap-3">
-          <div className="grid h-11 w-11 place-items-center rounded-2xl bg-white/15 ring-1 ring-white/25">
+        <div className={`flex items-center gap-3 ${collapsed ? "px-3 pt-3" : "px-4 pt-4"}`}>
+          <div className={`grid ${collapsed ? "h-10 w-10" : "h-11 w-11"} place-items-center rounded-2xl bg-white/15 ring-1 ring-white/25`}>
             {school?.logoUrl ? (
-              <img src={school.logoUrl} alt={`${schoolName} logo`} className="h-8 w-8 rounded-xl bg-white/10 object-contain" />
+              <img
+                src={school.logoUrl}
+                alt={`${schoolName} logo`}
+                className="h-8 w-8 rounded-xl bg-white/10 object-contain"
+              />
             ) : (
               <span className="text-sm font-black text-white">{initials}</span>
             )}
           </div>
-          <div>
-            <p className="text-lg font-bold leading-tight">{schoolName}</p>
-            <p className="text-xs text-blue-200">{school?.schoolCode ?? "SCU-PREVIEW"}</p>
-          </div>
+          {!collapsed ? (
+            <div className="min-w-0 flex-1">
+              <p className="line-clamp-2 text-sm font-bold leading-tight">{schoolName}</p>
+              <p className="mt-0.5 text-[11px] font-medium text-blue-200">{school?.schoolCode ?? "SCU-PREVIEW"}</p>
+            </div>
+          ) : null}
         </div>
 
-        <nav className="mt-6 grid gap-0.5">
+        <nav className="mt-4 grid flex-1 content-start gap-1 overflow-y-auto px-2 pb-3">
           {navItems.map((item) => {
             const active = isNavActive(item.to);
             return (
               <Link
                 key={item.label}
                 to={item.to}
+                title={collapsed ? item.label : undefined}
                 onClick={onClose}
-                className={`flex items-center gap-3 rounded-xl px-4 py-2 text-sm font-semibold transition ${
+                className={`group flex items-center gap-3 rounded-xl border px-3 py-2 text-sm font-semibold transition ${
                   active
-                    ? "bg-blue-500 text-white shadow-lg shadow-blue-950/25 ring-1 ring-white/20"
-                    : "text-blue-100 hover:bg-white/10 hover:text-white"
+                    ? "border-blue-300/40 bg-white/12 text-white shadow-[0_10px_20px_rgba(15,23,42,0.16)] ring-1 ring-blue-300/20"
+                    : "border-transparent text-blue-100 hover:border-white/10 hover:bg-white/8 hover:text-white"
                 }`}
               >
                 <Icon
                   name={item.icon}
-                  className={`h-4 w-4 shrink-0 ${active ? "text-white" : "text-blue-300"}`}
+                  className={`h-4 w-4 shrink-0 ${active ? "text-white" : "text-blue-300"} transition group-hover:text-white`}
                 />
-                {item.label}
+                {!collapsed ? <span className="truncate">{item.label}</span> : null}
               </Link>
             );
           })}
         </nav>
 
-        <div className="mt-auto rounded-2xl bg-blue-950/70 p-4 shadow-inner ring-1 ring-white/10">
-          <div className="flex items-center gap-3">
-            <div className="grid h-9 w-9 place-items-center rounded-full bg-white text-blue-700">
+        <div className={`mt-auto border-t border-white/10 ${collapsed ? "px-2 py-3" : "px-3 py-3"}`}>
+          <div className={`flex items-center gap-3 ${collapsed ? "justify-center" : ""}`}>
+            <div className="grid h-8 w-8 place-items-center rounded-full bg-white text-blue-700">
               <Icon name="user" className="h-4 w-4" />
             </div>
-            <div>
-              <p className="text-sm font-semibold">School Admin</p>
-              <p className="text-xs text-blue-200">Main Administrator</p>
-            </div>
-          </div>
-          <div className="mt-3 text-xs text-blue-200">
-            <span className="font-semibold">{schoolName}</span>
-            <div className="mt-1">{school?.headTeacherName || "Head Teacher"}</div>
+            {!collapsed ? (
+              <div className="min-w-0">
+                <p className="truncate text-sm font-semibold">School Admin</p>
+                <p className="truncate text-xs text-blue-200">Main Administrator</p>
+              </div>
+            ) : null}
           </div>
         </div>
+
+        {!collapsed ? (
+          <button
+            type="button"
+            aria-label="Collapse sidebar"
+            className="no-print absolute bottom-4 right-3 hidden rounded-full bg-white/10 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-blue-100 ring-1 ring-white/10 transition hover:bg-white/15 lg:block"
+            onClick={onToggleCollapsed}
+          >
+            Collapse
+          </button>
+        ) : (
+          <button
+            type="button"
+            aria-label="Expand sidebar"
+            className="no-print absolute bottom-4 right-3 hidden rounded-full bg-white/10 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-blue-100 ring-1 ring-white/10 transition hover:bg-white/15 lg:block"
+            onClick={onToggleCollapsed}
+          >
+            Expand
+          </button>
+        )}
 
         <button
           type="button"
@@ -106,7 +134,7 @@ export function Sidebar({ open, onClose, width, onResizeStart }: Props) {
           onMouseDown={onResizeStart}
         >
           <span className="rounded-full bg-white/10 px-0.5 py-3 text-sm leading-none shadow-inner ring-1 ring-white/10">
-            ⋮
+            â‹®
           </span>
         </button>
       </aside>

@@ -4,9 +4,10 @@ import { useAppSettings } from "./SettingsContext";
 
 type Props = {
   onMenuClick: () => void;
+  sidebarCollapsed: boolean;
 };
 
-export function Topbar({ onMenuClick }: Props) {
+export function Topbar({ onMenuClick, sidebarCollapsed }: Props) {
   const { settings } = useAppSettings() ?? {};
   const schoolName = getSchoolDisplayName(settings?.sections.school, "School Connect");
   return (
@@ -16,12 +17,12 @@ export function Topbar({ onMenuClick }: Props) {
           type="button"
           onClick={onMenuClick}
           aria-label="Open navigation"
-          className="rounded-xl p-2 text-blue-200 transition hover:bg-white/10"
+          className="grid h-9 w-9 place-items-center rounded-xl text-blue-200 transition hover:bg-white/10"
         >
           <Icon name="menu" className="h-5 w-5" />
         </button>
-        <div className="hidden items-center gap-2 text-sm font-semibold text-blue-100 sm:flex">
-          {schoolName}
+        <div className="hidden min-w-0 items-center gap-2 text-sm font-semibold text-blue-100 sm:flex">
+          <span className="truncate">{sidebarCollapsed ? "School Connect" : schoolName}</span>
         </div>
       </div>
 
@@ -34,7 +35,6 @@ export function Topbar({ onMenuClick }: Props) {
             <p className="text-sm font-semibold leading-tight text-white">School Admin</p>
             <p className="text-xs leading-tight text-blue-300">Administrator</p>
           </div>
-          <Icon name="chevron" className="hidden h-4 w-4 text-blue-400 sm:block" />
         </div>
       </div>
     </header>

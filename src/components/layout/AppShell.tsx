@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import type { Dispatch, SetStateAction } from "react";
 import type { MouseEvent as ReactMouseEvent } from "react";
 import { Outlet } from "react-router-dom";
 import { Sidebar } from "./Sidebar";
@@ -6,12 +7,20 @@ import { Topbar } from "./Topbar";
 import { SettingsProvider, useAppSettings } from "./SettingsContext";
 
 const SIDEBAR_WIDTH_KEY = "school-connect-sidebar-width";
-const DEFAULT_SIDEBAR_WIDTH = 280;
-const MIN_SIDEBAR_WIDTH = 220;
-const MAX_SIDEBAR_WIDTH = 340;
+const DEFAULT_SIDEBAR_WIDTH = 248;
+const MIN_SIDEBAR_WIDTH = 224;
+const MAX_SIDEBAR_WIDTH = 272;
+const SIDEBAR_COLLAPSED_KEY = "school-connect-sidebar-collapsed";
 
 export function AppShell() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    try {
+      return localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === "true";
+    } catch {
+      return false;
+    }
+  });
   const [sidebarWidth, setSidebarWidth] = useState(() => {
     try {
       const saved = Number(localStorage.getItem(SIDEBAR_WIDTH_KEY));
@@ -56,13 +65,33 @@ export function AppShell() {
     event.preventDefault();
   }
 
+  function toggleSidebar() {
+    const isDesktop = window.matchMedia("(min-width: 1024px)").matches;
+    if (isDesktop) {
+      setSidebarCollapsed((current) => {
+        const next = !current;
+        try {
+          localStorage.setItem(SIDEBAR_COLLAPSED_KEY, String(next));
+        } catch {
+          /* noop */
+        }
+        return next;
+      });
+      return;
+    }
+    setSidebarOpen((current) => !current);
+  }
+
   return (
     <SettingsProvider>
       <AppShellInner
         sidebarOpen={sidebarOpen}
         setSidebarOpen={setSidebarOpen}
+        sidebarCollapsed={sidebarCollapsed}
+        setSidebarCollapsed={setSidebarCollapsed}
         sidebarWidth={sidebarWidth}
         setSidebarWidth={setSidebarWidth}
+        setSidebarOpenAndClose={toggleSidebar}
         startSidebarResize={startSidebarResize}
       />
     </SettingsProvider>
@@ -72,37 +101,60 @@ export function AppShell() {
 function AppShellInner({
   sidebarOpen,
   setSidebarOpen,
+  sidebarCollapsed,
+  setSidebarCollapsed,
   sidebarWidth,
   setSidebarWidth,
+  setSidebarOpenAndClose,
   startSidebarResize,
 }: {
   sidebarOpen: boolean;
-  setSidebarOpen: (open: boolean) => void;
+  setSidebarOpen: Dispatch<SetStateAction<boolean>>;
+  sidebarCollapsed: boolean;
+  setSidebarCollapsed: Dispatch<SetStateAction<boolean>>;
   sidebarWidth: number;
-  setSidebarWidth: (width: number) => void;
+  setSidebarWidth: Dispatch<SetStateAction<number>>;
+  setSidebarOpenAndClose: () => void;
   startSidebarResize: (event: ReactMouseEvent) => void;
 }) {
   const { settings } = useAppSettings() ?? {};
   useEffect(() => {
     if (!settings) return;
-    const widthBySetting = { compact: 240, standard: 280, wide: 320 };
+    const widthBySetting = { compact: 224, standard: 248, wide: 272 };
     const hasManualWidth = localStorage.getItem(SIDEBAR_WIDTH_KEY);
     if (!hasManualWidth) setSidebarWidth(widthBySetting[settings.sections.appearance.sidebarWidth]);
   }, [settings]);
 
+  useEffect(() => {
+    try {
+      localStorage.setItem(SIDEBAR_COLLAPSED_KEY, String(sidebarCollapsed));
+    } catch {
+      /* noop */
+    }
+  }, [sidebarCollapsed]);
+
+  useEffect(() => {
+    document.body.style.overflow = sidebarOpen ? "hidden" : "";
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [sidebarOpen]);
+
   return (
     <div
       className="min-h-screen bg-slate-50 text-slate-950 lg:grid"
-      style={{ gridTemplateColumns: `${sidebarWidth}px minmax(0,1fr)` }}
+      style={{ gridTemplateColumns: `${sidebarCollapsed ? 72 : sidebarWidth}px minmax(0,1fr)` }}
     >
       <Sidebar
         open={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
+        collapsed={sidebarCollapsed}
+        onToggleCollapsed={() => setSidebarCollapsed((current) => !current)}
         width={sidebarWidth}
         onResizeStart={startSidebarResize}
       />
       <div className="min-w-0">
-        <Topbar onMenuClick={() => setSidebarOpen(true)} />
+        <Topbar onMenuClick={setSidebarOpenAndClose} sidebarCollapsed={sidebarCollapsed} />
         <div className="mx-auto w-full max-w-[1540px] px-4 py-4 md:px-8">
           <Outlet />
         </div>
