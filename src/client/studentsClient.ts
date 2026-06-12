@@ -1,4 +1,12 @@
-import type { ContactSummary, GuardianContactInput, StudentListItem, StudentsResponse } from "../shared/types/students";
+import type {
+  ContactSummary,
+  GuardianContactInput,
+  StudentCreateInput,
+  StudentImportCommitResult,
+  StudentImportPreview,
+  StudentListItem,
+  StudentsResponse,
+} from "../shared/types/students";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:4300";
 
@@ -22,6 +30,40 @@ export async function fetchStudents(filters: { schoolCode?: string; classId?: st
   const response = await fetch(`${API_BASE}/internal/students?${params.toString()}`);
   if (!response.ok) throw new Error(await readError(response, "Could not load students"));
   return response.json();
+}
+
+export async function createStudent(input: StudentCreateInput): Promise<{ admissionNumber: string }> {
+  const response = await fetch(`${API_BASE}/api/students?schoolCode=${encodeURIComponent(input.schoolCode ?? "SCU-PREVIEW")}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) throw new Error(await readError(response, "Could not create student"));
+  return response.json();
+}
+
+export async function previewStudentImport(formData: FormData, schoolCode = "SCU-PREVIEW"): Promise<StudentImportPreview> {
+  const response = await fetch(`${API_BASE}/api/students/import/preview?schoolCode=${encodeURIComponent(schoolCode)}`, {
+    method: "POST",
+    body: formData,
+  });
+  if (!response.ok) throw new Error(await readError(response, "Could not preview import"));
+  return response.json();
+}
+
+export async function commitStudentImport(formData: FormData, schoolCode = "SCU-PREVIEW"): Promise<StudentImportCommitResult> {
+  const response = await fetch(`${API_BASE}/api/students/import/commit?schoolCode=${encodeURIComponent(schoolCode)}`, {
+    method: "POST",
+    body: formData,
+  });
+  if (!response.ok) throw new Error(await readError(response, "Could not commit import"));
+  return response.json();
+}
+
+export async function downloadStudentTemplateCsv(): Promise<string> {
+  const response = await fetch(`${API_BASE}/api/students/import/template.csv`);
+  if (!response.ok) throw new Error("Could not download template");
+  return response.text();
 }
 
 export async function fetchStudentContactSummary(schoolCode = "SCU-PREVIEW"): Promise<ContactSummary> {

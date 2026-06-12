@@ -1,6 +1,7 @@
 import type { GuardianContactInput } from "../../shared/types/students";
 import type { PrismaClient } from "@prisma/client";
 import type { ContactReadiness, StudentListItem } from "../../shared/types/students";
+import type { StudentCreateInput } from "../../shared/types/students";
 
 export async function countActiveStudentsForClass(prisma: PrismaClient, classId: string, termId: string): Promise<number> {
   return prisma.classEnrollment.count({ where: { classId, termId, isActive: true, status: "ACTIVE", student: { isActive: true } } });
@@ -52,7 +53,7 @@ function toStudentListItem(enrollment: Awaited<ReturnType<typeof loadStudentEnro
 async function loadStudentEnrollmentRows(
   prisma: PrismaClient,
   schoolCode: string,
-  filters?: { classId?: string; streamId?: string; search?: string; studentId?: string },
+  filters?: { classId?: string; streamId?: string; search?: string; studentId?: string; isActive?: string },
 ) {
   const school = await prisma.school.findUnique({
     where: { code: schoolCode },
@@ -72,10 +73,8 @@ async function loadStudentEnrollmentRows(
       classId: filters?.classId || undefined,
       streamId: filters?.streamId || undefined,
       studentId: filters?.studentId || undefined,
-      isActive: true,
-      status: "ACTIVE",
+      ...(filters?.isActive ? { student: { isActive: filters.isActive === "true" } } : { isActive: true, status: "ACTIVE" }),
       student: {
-        isActive: true,
         schoolId: school.id,
         ...(search
           ? {
@@ -110,6 +109,81 @@ export async function listEnrolledStudents(
 export async function getEnrolledStudent(prisma: PrismaClient, schoolCode: string, studentId: string): Promise<StudentListItem | null> {
   const rows = await loadStudentEnrollmentRows(prisma, schoolCode, { studentId });
   return rows[0] ? toStudentListItem(rows[0]) : null;
+}
+
+export async function getStudentByAdmissionNumber(prisma: PrismaClient, schoolCode: string, admissionNumber: string) {
+  const school = await prisma.school.findUnique({ where: { code: schoolCode } });
+  if (!school) return null;
+  return prisma.student.findFirst({
+    where: { schoolId: school.id, admissionNumber: { equals: admissionNumber, mode: "insensitive" } },
+    include: {
+      guardianContacts: true,
+      enrollments: {
+        include: { class: true, stream: true, academicYear: true, term: true },
+        orderBy: [{ isActive: "desc" }, { createdAt: "desc" }],
+      },
+    },
+  });
+}
+
+export async function listStudentsForSchool(prisma: PrismaClient, schoolCode: string, filters?: { classId?: string; streamId?: string; search?: string; isActive?: string }) {
+  return loadStudentEnrollmentRows(prisma, schoolCode, filters);
+}
+
+export async function createStudentRecord(
+  prisma: PrismaClient,
+  schoolCode: string,
+  input: StudentCreateInput & { admissionNumber: string },
+  createdBy?: string | null,
+) {
+  const school = await prisma.school.findUniqueOrThrow({ where: { code: schoolCode } });
+  const activeYear = await prisma.academicYear.findFirst({ where: { schoolId: school.id, isActive: true }, include: { terms: { where: { isActive: true } } } });
+  const activeTerm = activeYear?.terms[0];
+  if (!activeYear || !activeTerm) throw new Error("An active academic year and term are required before adding students.");
+
+  const student = await prisma.$transaction(async (tx) => {
+    const created = await tx.student.create({
+      data: {
+        schoolId: school.id,
+        admissionNumber: input.admissionNumber,
+        firstName: input.fullName.trim(),
+        lastName: "",
+        isActive: input.isActive,
+      },
+    });
+    await tx.classEnrollment.create({
+      data: {
+        studentId: created.id,
+        academicYearId: activeYear.id,
+        termId: activeTerm.id,
+        classId: input.classId,
+        streamId: input.streamId,
+        isActive: input.isActive,
+        status: input.isActive ? "ACTIVE" : "INACTIVE",
+      },
+    });
+    if (input.guardianName || input.guardianPhone || input.guardianEmail || input.notes) {
+      await tx.guardianContact.create({
+        data: {
+          schoolId: school.id,
+          studentId: created.id,
+          guardianName: input.guardianName || "Parent/Guardian",
+          relationship: "Parent",
+          phone: input.guardianPhone || null,
+          email: input.guardianEmail || null,
+          notes: input.notes || null,
+          preferredContactMethod: input.guardianPhone ? "PHONE" : "EMAIL",
+          isPrimary: true,
+          canReceiveReports: true,
+        },
+      });
+    }
+    if (createdBy) {
+      await tx.auditLog.create({ data: { schoolId: school.id, action: "student.manual_create", details: { studentId: created.id, createdBy } } });
+    }
+    return created;
+  });
+  return student;
 }
 
 export async function getContactSummary(prisma: PrismaClient, schoolCode: string) {

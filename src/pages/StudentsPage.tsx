@@ -2,15 +2,19 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { fetchReportContext } from "../client/reportsClient";
 import {
+  commitStudentImport,
   createGuardianContact,
+  createStudent,
+  downloadStudentTemplateCsv,
   deleteGuardianContact,
   EMPTY_CONTACT_INPUT,
   fetchStudents,
+  previewStudentImport,
   updateGuardianContact,
 } from "../client/studentsClient";
 import { Icon } from "../components/layout/Icon";
 import type { ReportContext, ReportFilters } from "../shared/types/reports";
-import type { GuardianContact, GuardianContactInput, StudentListItem } from "../shared/types/students";
+import type { GuardianContact, GuardianContactInput, StudentImportPreview, StudentListItem } from "../shared/types/students";
 
 const contactLabels = {
   READY: "Parent contact ready",
@@ -44,6 +48,11 @@ export function StudentsPage() {
   const [selectedId, setSelectedId] = useState("");
   const [editingContactId, setEditingContactId] = useState<string | null>(null);
   const [contactInput, setContactInput] = useState<GuardianContactInput>(EMPTY_CONTACT_INPUT);
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [showImport, setShowImport] = useState(false);
+  const [studentForm, setStudentForm] = useState({ fullName: "", admissionNumber: "", gender: "", classId: "", streamId: "", isActive: true, guardianName: "", guardianPhone: "", guardianEmail: "", notes: "" });
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [importPreview, setImportPreview] = useState<StudentImportPreview | null>(null);
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -75,6 +84,36 @@ export function StudentsPage() {
   function addContact() {
     setEditingContactId(null);
     setContactInput({ ...EMPTY_CONTACT_INPUT, isPrimary: selected?.guardianContacts.length === 0 });
+  }
+
+  async function submitStudent() {
+    try {
+      const result = await createStudent({ ...studentForm, schoolCode: context?.school?.code ?? "SCU-PREVIEW" });
+      setError(`Student created: ${result.admissionNumber}`);
+      setShowAddForm(false);
+      const refreshed = await fetchStudents(filters);
+      setStudents(refreshed.students);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Could not create student");
+    }
+  }
+
+  async function previewImport() {
+    if (!importFile) return;
+    const formData = new FormData();
+    formData.set("file", importFile);
+    const preview = await previewStudentImport(formData, context?.school?.code ?? "SCU-PREVIEW");
+    setImportPreview(preview);
+  }
+
+  async function commitImport() {
+    if (!importFile) return;
+    const formData = new FormData();
+    formData.set("file", importFile);
+    const result = await commitStudentImport(formData, context?.school?.code ?? "SCU-PREVIEW");
+    setImportPreview(result);
+    const refreshed = await fetchStudents(filters);
+    setStudents(refreshed.students);
   }
 
   async function saveContact() {
@@ -116,6 +155,54 @@ export function StudentsPage() {
       </header>
 
       {error ? <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 shadow-sm">{error}</div> : null}
+
+      <section className="grid gap-3 lg:grid-cols-2">
+        <div className="premium-card rounded-2xl p-4">
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-base font-bold text-slate-950">Add Student</h2>
+            <button type="button" className="btn btn-secondary" onClick={() => setShowAddForm((current) => !current)}>{showAddForm ? "Close" : "Add Student"}</button>
+          </div>
+          {showAddForm ? (
+            <div className="grid gap-2 md:grid-cols-2">
+              <input className="premium-control h-9 rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm outline-none" placeholder="Full name" value={studentForm.fullName} onChange={(e) => setStudentForm({ ...studentForm, fullName: e.target.value })} />
+              <input className="premium-control h-9 rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm outline-none" placeholder="Admission number" value={studentForm.admissionNumber} onChange={(e) => setStudentForm({ ...studentForm, admissionNumber: e.target.value })} />
+              <select className="premium-control h-9 rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm outline-none" value={studentForm.classId} onChange={(e) => setStudentForm({ ...studentForm, classId: e.target.value })}>
+                <option value="">Class</option>
+                {context?.classes.map((klass) => <option key={klass.id} value={klass.id}>{klass.name}</option>)}
+              </select>
+              <select className="premium-control h-9 rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm outline-none" value={studentForm.streamId} onChange={(e) => setStudentForm({ ...studentForm, streamId: e.target.value })}>
+                <option value="">Stream</option>
+                {streams.map((stream) => <option key={stream.id} value={stream.id}>{stream.name}</option>)}
+              </select>
+              <input className="premium-control h-9 rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm outline-none" placeholder="Guardian name" value={studentForm.guardianName} onChange={(e) => setStudentForm({ ...studentForm, guardianName: e.target.value })} />
+              <input className="premium-control h-9 rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm outline-none" placeholder="Guardian phone" value={studentForm.guardianPhone} onChange={(e) => setStudentForm({ ...studentForm, guardianPhone: e.target.value })} />
+              <input className="premium-control h-9 rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm outline-none" placeholder="Guardian email" value={studentForm.guardianEmail} onChange={(e) => setStudentForm({ ...studentForm, guardianEmail: e.target.value })} />
+              <button type="button" className="btn btn-primary" onClick={() => void submitStudent()}>Create</button>
+            </div>
+          ) : null}
+        </div>
+
+        <div className="premium-card rounded-2xl p-4">
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-base font-bold text-slate-950">Import Students</h2>
+            <div className="flex gap-2">
+              <a className="btn btn-secondary" href="/api/students/import/template.csv">CSV template</a>
+              <a className="btn btn-secondary" href="/api/students/import/template.xlsx">XLSX template</a>
+              <button type="button" className="btn btn-secondary" onClick={() => setShowImport((current) => !current)}>{showImport ? "Close" : "Import Students"}</button>
+            </div>
+          </div>
+          {showImport ? (
+            <div className="grid gap-3">
+              <input type="file" accept=".csv,.xlsx" onChange={(e) => setImportFile(e.target.files?.[0] ?? null)} />
+              <div className="flex gap-2">
+                <button type="button" className="btn btn-primary" onClick={() => void previewImport()} disabled={!importFile}>Preview</button>
+                <button type="button" className="btn btn-success" onClick={() => void commitImport()} disabled={!importPreview || importPreview.invalidRows > 0}>Commit</button>
+              </div>
+              {importPreview ? <pre className="overflow-auto rounded-xl bg-slate-950 p-3 text-xs text-slate-100">{JSON.stringify(importPreview, null, 2)}</pre> : null}
+            </div>
+          ) : null}
+        </div>
+      </section>
 
       <section className="premium-card rounded-2xl p-4">
         <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-4">

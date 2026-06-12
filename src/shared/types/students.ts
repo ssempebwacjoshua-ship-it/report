@@ -52,3 +52,66 @@ export type GuardianContactInput = {
   canReceiveReports: boolean;
   notes?: string;
 };
+
+export type StudentImportMode = "CREATE_ONLY" | "CREATE_AND_UPDATE_EXISTING";
+
+export type StudentCreateInput = {
+  fullName: string;
+  admissionNumber?: string;
+  gender?: string;
+  classId: string;
+  streamId: string;
+  isActive: boolean;
+  guardianName?: string;
+  guardianPhone?: string;
+  guardianEmail?: string;
+  notes?: string;
+  schoolCode?: string;
+};
+
+export type StudentImportRowInput = {
+  admissionNumber?: string;
+  fullName: string;
+  gender?: string;
+  className: string;
+  streamName: string;
+  guardianName?: string;
+  guardianPhone?: string;
+  guardianEmail?: string;
+  status?: string;
+};
+
+export type StudentImportPreviewRow = {
+  rowNumber: number;
+  raw: StudentImportRowInput;
+  isValid: boolean;
+  errors: string[];
+  action: "create" | "update" | "duplicate" | "invalid";
+  existingStudentId?: string | null;
+  generatedAdmissionNumber?: string | null;
+};
+
+export type StudentImportPreview = {
+  status: "PREVIEW";
+  totalRows: number;
+  validRows: number;
+  invalidRows: number;
+  duplicateRows: number;
+  createRows: number;
+  updateRows: number;
+  rows: StudentImportPreviewRow[];
+  mode: StudentImportMode;
+};
+
+export type StudentImportCommitResult = StudentImportPreview & {
+  status: "COMMITTED";
+  batchId: string;
+};
+
+export type StudentListFilters = {
+  schoolCode?: string;
+  classId?: string;
+  streamId?: string;
+  search?: string;
+  isActive?: string;
+};
