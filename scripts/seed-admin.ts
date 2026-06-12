@@ -3,17 +3,24 @@ import { prisma } from "../src/server/db/prisma";
 import { hashPassword } from "../src/server/services/authService";
 
 const SCHOOL_CODE = process.env.SCHOOL_CODE ?? "SCU-PREVIEW";
-const ADMIN_EMAIL = "admin@schoolconnect.test";
-const ADMIN_PASSWORD = "password123";
-const ADMIN_NAME = "Demo Admin";
+const SCHOOL_NAME = process.env.SCHOOL_NAME ?? "School Connect Preview";
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL ?? "admin@schoolconnect.test";
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD ?? "password123";
+const ADMIN_NAME = "School Admin";
 
 async function seedAdmin() {
-  const school = await prisma.school.findUnique({ where: { code: SCHOOL_CODE } });
-
+  // Ensure the school exists — create it if missing (safe in any environment)
+  let school = await prisma.school.findUnique({ where: { code: SCHOOL_CODE } });
   if (!school) {
-    console.error(`School with code "${SCHOOL_CODE}" not found. Run seed-preview.ts first.`);
-    process.exit(1);
+    school = await prisma.school.create({
+      data: { code: SCHOOL_CODE, name: SCHOOL_NAME },
+    });
+    console.log(`Created school: ${school.name} (${school.code})`);
+  } else {
+    console.log(`School found: ${school.name} (${school.code})`);
   }
+
+  const passwordHash = await hashPassword(ADMIN_PASSWORD);
 
   const existing = await prisma.user.findFirst({
     where: { schoolId: school.id, email: ADMIN_EMAIL },
@@ -22,38 +29,27 @@ async function seedAdmin() {
   if (existing) {
     await prisma.user.update({
       where: { id: existing.id },
+      data: { name: ADMIN_NAME, passwordHash, role: "ADMIN_OPERATOR", isActive: true },
+    });
+    console.log(`Admin user updated: ${ADMIN_EMAIL}`);
+  } else {
+    await prisma.user.create({
       data: {
+        schoolId: school.id,
         name: ADMIN_NAME,
         email: ADMIN_EMAIL,
-        passwordHash: await hashPassword(ADMIN_PASSWORD),
+        passwordHash,
         role: "ADMIN_OPERATOR",
         isActive: true,
       },
     });
-    console.log(`Admin user updated: ${ADMIN_EMAIL}`);
-    return;
+    console.log(`Admin user created: ${ADMIN_EMAIL}`);
   }
-
-  await prisma.user.create({
-    data: {
-      schoolId: school.id,
-      name: ADMIN_NAME,
-      email: ADMIN_EMAIL,
-      passwordHash: await hashPassword(ADMIN_PASSWORD),
-      role: "ADMIN_OPERATOR",
-      isActive: true,
-    },
-  });
-
-  console.log(`Created admin user:`);
-  console.log(`  Email:    ${ADMIN_EMAIL}`);
-  console.log(`  Password: ${ADMIN_PASSWORD}`);
-  console.log(`  School:   ${school.name} (${SCHOOL_CODE})`);
 }
 
 seedAdmin()
   .catch((error) => {
-    console.error(error);
+    console.error("Seed failed:", error instanceof Error ? error.message : error);
     process.exit(1);
   })
   .finally(() => prisma.$disconnect());
