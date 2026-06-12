@@ -10,6 +10,7 @@ import { marksheetsRoutes } from "./routes/marksheetsRoutes";
 import { settingsRoutes } from "./routes/settingsRoutes";
 import { authRoutes } from "./routes/authRoutes";
 import { reportIssueRoutes } from "./routes/reportIssueRoutes";
+import { releaseCenterRoutes } from "./routes/releaseCenterRoutes";
 import { parentRoutes } from "./routes/parentRoutes";
 import { verifyRoutes } from "./routes/verifyRoutes";
 
@@ -22,6 +23,7 @@ export function createServer() {
   app.use(authRoutes());
   app.use(reportsRoutes());
   app.use(reportIssueRoutes());
+  app.use(releaseCenterRoutes());
   app.use(importsRoutes());
   app.use(studentsRoutes());
   app.use(marksheetsRoutes());

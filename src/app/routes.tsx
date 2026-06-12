@@ -1,6 +1,7 @@
 import { createBrowserRouter, Navigate } from "react-router-dom";
 import { AppShell } from "../components/layout/AppShell";
 import { DashboardPage } from "../pages/DashboardPage";
+import { ReleaseCenterPage } from "../pages/ReleaseCenterPage";
 import { ReportsPage } from "../pages/ReportsPage";
 import { MarksImportPage } from "../pages/MarksImportPage";
 import { MarksheetsPage } from "../pages/MarksheetsPage";
@@ -27,6 +28,7 @@ export const router = createBrowserRouter([
       { path: "dashboard", element: <DashboardPage /> },
       { path: "students", element: <StudentsPage /> },
       { path: "reports", element: <ReportsPage /> },
+      { path: "reports/release", element: <ReleaseCenterPage /> },
       { path: "imports/marks", element: <MarksImportPage /> },
       { path: "marksheets", element: <MarksheetsPage /> },
       { path: "settings", element: <SettingsPage /> },

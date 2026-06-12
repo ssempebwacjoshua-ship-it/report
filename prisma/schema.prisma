@@ -358,6 +358,7 @@ model IssuedReport {
   issuedByName       String?
   viewedAt           DateTime?
   downloadedAt       DateTime?
+  sentAt             DateTime?
   createdAt          DateTime           @default(now())
   updatedAt          DateTime           @updatedAt
 
