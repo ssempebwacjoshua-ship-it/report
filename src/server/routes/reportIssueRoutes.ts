@@ -11,6 +11,10 @@ function generateToken(): string {
   return crypto.randomBytes(32).toString("hex");
 }
 
+function hashToken(token: string): string {
+  return crypto.createHash("sha256").update(token).digest("hex");
+}
+
 function generateReferenceCode(): string {
   const now = new Date();
   const y = now.getFullYear();
@@ -91,6 +95,10 @@ export function reportIssueRoutes() {
         filters,
       };
 
+      const rawParentToken = generateToken();
+      const parentTokenHash = hashToken(rawParentToken);
+      const referenceCode = generateReferenceCode();
+
       const issued = await prisma.issuedReport.create({
         data: {
           schoolId: user.schoolId,
@@ -99,20 +107,27 @@ export function reportIssueRoutes() {
           term: card.term,
           assessmentType: filters.assessmentType,
           reportSnapshotJson: snapshot,
-          referenceCode: generateReferenceCode(),
-          parentAccessToken: generateToken(),
+          referenceCode,
+          parentAccessToken: parentTokenHash,
           status: "ISSUED",
           issuedById: user.userId,
           issuedByName: user.name,
         },
       });
 
-      const parentLink = `${process.env.CLIENT_ORIGIN ?? "http://localhost:5173"}/parent/r/${issued.parentAccessToken}`;
+      const parentLink = `${process.env.CLIENT_ORIGIN ?? "http://localhost:5173"}/parent/r/${rawParentToken}`;
+      console.log("report.issue", {
+        issuedReportId: issued.id,
+        reportRefCode: referenceCode,
+        parentUrl: parentLink,
+        tokenLength: rawParentToken.length,
+        tokenHashPrefix: `${parentTokenHash.slice(0, 12)}...`,
+      });
 
       res.status(201).json({
         id: issued.id,
-        referenceCode: issued.referenceCode,
-        parentAccessToken: issued.parentAccessToken,
+        referenceCode,
+        parentAccessToken: rawParentToken,
         parentLink,
         studentName: card.studentName,
         academicYear: card.academicYear,

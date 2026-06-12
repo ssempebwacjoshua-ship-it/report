@@ -1,16 +1,26 @@
+import crypto from "node:crypto";
 import { Router } from "express";
 import { prisma } from "../db/prisma";
+
+function hashToken(token: string): string {
+  return crypto.createHash("sha256").update(token).digest("hex");
+}
 
 export function parentRoutes() {
   const router = Router();
 
-  // Public — URL token IS the auth. No login required.
+  // Public â€” URL token IS the auth. No login required.
   router.get("/api/p/:token", async (req, res, next) => {
     try {
       const { token } = req.params;
+      const tokenHash = hashToken(token);
+      console.log("parent.link.open", {
+        tokenLength: token.length,
+        tokenHashPrefix: `${tokenHash.slice(0, 12)}...`,
+      });
 
       const issued = await prisma.issuedReport.findUnique({
-        where: { parentAccessToken: token },
+        where: { parentAccessToken: tokenHash },
         include: {
           school: { select: { name: true, code: true } },
           student: { select: { firstName: true, lastName: true, admissionNumber: true } },
@@ -18,11 +28,25 @@ export function parentRoutes() {
       });
 
       if (!issued) {
-        res.status(404).json({ error: "Report not found. The link may be invalid or expired." });
+        res.status(404).json({ message: "Report link not found or expired", code: "REPORT_LINK_NOT_FOUND" });
         return;
       }
 
-      // Track first view
+      console.log("parent.link.found", { issuedReportId: issued.id, status: issued.status });
+
+      if (issued.status === "REVOKED") {
+        res.status(410).json({ message: "This report link was revoked", code: "REPORT_REVOKED" });
+        return;
+      }
+
+      if (issued.status === "SUPERSEDED") {
+        res.status(410).json({
+          message: "This report has been replaced by a newer issued report",
+          code: "REPORT_SUPERSEDED",
+        });
+        return;
+      }
+
       if (!issued.viewedAt) {
         await prisma.issuedReport.update({
           where: { id: issued.id },
@@ -44,17 +68,17 @@ export function parentRoutes() {
     }
   });
 
-  // Track download event
   router.post("/api/p/:token/downloaded", async (req, res, next) => {
     try {
       const { token } = req.params;
+      const tokenHash = hashToken(token);
 
       const issued = await prisma.issuedReport.findUnique({
-        where: { parentAccessToken: token },
+        where: { parentAccessToken: tokenHash },
       });
 
       if (!issued) {
-        res.status(404).json({ error: "Not found." });
+        res.status(404).json({ message: "Report link not found or expired", code: "REPORT_LINK_NOT_FOUND" });
         return;
       }
 

@@ -4,6 +4,8 @@ import { StudentReportDetail } from "../components/reports/StudentReportDetail";
 import type { StudentReportCard } from "../shared/types/reports";
 import type { GradingScaleSettings, ReportSettings, SchoolProfileSettings } from "../shared/types/settings";
 
+const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:4300";
+
 type Snapshot = {
   card: StudentReportCard;
   settings: {
@@ -24,6 +26,8 @@ type ParentReportData = {
   snapshot: Snapshot;
 };
 
+type ApiErrorBody = { message?: string; code?: string; error?: string };
+
 export function ParentReportPage() {
   const { token } = useParams<{ token: string }>();
   const [data, setData] = useState<ParentReportData | null>(null);
@@ -33,12 +37,13 @@ export function ParentReportPage() {
 
   useEffect(() => {
     if (!token) return;
-    fetch(`/api/p/${token}`)
+    fetch(`${API_BASE}/api/p/${token}`)
       .then(async (res) => {
         if (!res.ok) {
           const raw = await res.text();
-          const body = raw ? (JSON.parse(raw) as { error?: string }) : {};
-          throw new Error(body.error ?? "Report not found.");
+          const body = raw ? (JSON.parse(raw) as ApiErrorBody) : {};
+          const fallback = res.status === 410 ? "This report link is no longer available." : "Report link not found or expired.";
+          throw new Error(body.message ?? body.error ?? fallback);
         }
         return res.json() as Promise<ParentReportData>;
       })
@@ -49,7 +54,7 @@ export function ParentReportPage() {
 
   function handlePrint() {
     if (token) {
-      fetch(`/api/p/${token}/downloaded`, { method: "POST" }).catch(() => {});
+      fetch(`${API_BASE}/api/p/${token}/downloaded`, { method: "POST" }).catch(() => {});
     }
     window.print();
   }
@@ -64,7 +69,7 @@ export function ParentReportPage() {
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-slate-50">
-        <p className="text-sm text-slate-500">Loading report…</p>
+        <p className="text-sm text-slate-500">Loading reportâ€¦</p>
       </div>
     );
   }
@@ -90,12 +95,13 @@ export function ParentReportPage() {
 
   return (
     <div className="min-h-screen bg-slate-50">
-      {/* Top bar — hidden on print */}
       <div className="no-print sticky top-0 z-10 border-b border-slate-200 bg-white px-4 py-3 shadow-sm">
         <div className="mx-auto flex max-w-4xl items-center justify-between gap-4">
           <div>
             <p className="text-xs font-bold uppercase tracking-wide text-blue-600">{school.name}</p>
-            <p className="text-sm font-semibold text-slate-800">{card.studentName} — {card.academicYear} {card.term}</p>
+            <p className="text-sm font-semibold text-slate-800">
+              {card.studentName} â€” {card.academicYear} {card.term}
+            </p>
           </div>
           <div className="flex items-center gap-2">
             {status === "REVOKED" ? (
@@ -112,10 +118,13 @@ export function ParentReportPage() {
         </div>
       </div>
 
-      {/* Revoked / superseded warning */}
       {(status === "REVOKED" || status === "SUPERSEDED") && (
         <div className="no-print mx-auto mt-4 max-w-4xl px-4">
-          <div className={`rounded-xl border px-4 py-3 text-sm ${status === "REVOKED" ? "border-red-200 bg-red-50 text-red-700" : "border-amber-200 bg-amber-50 text-amber-800"}`}>
+          <div
+            className={`rounded-xl border px-4 py-3 text-sm ${
+              status === "REVOKED" ? "border-red-200 bg-red-50 text-red-700" : "border-amber-200 bg-amber-50 text-amber-800"
+            }`}
+          >
             {status === "REVOKED"
               ? "This report link has been revoked by the school. Please contact the school for more information."
               : "A newer version of this report has been issued. This copy is kept for reference only."}
@@ -123,18 +132,13 @@ export function ParentReportPage() {
         </div>
       )}
 
-      {/* Reference code block */}
       <div className="no-print mx-auto mt-4 max-w-4xl px-4">
         <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
           <div className="flex-1">
             <p className="text-xs font-medium text-slate-500">Reference Code</p>
             <p className="font-mono text-base font-bold tracking-widest text-slate-800">{referenceCode}</p>
           </div>
-          <button
-            type="button"
-            className="btn btn-secondary text-xs"
-            onClick={() => void copyRef()}
-          >
+          <button type="button" className="btn btn-secondary text-xs" onClick={() => void copyRef()}>
             {copied ? "Copied!" : "Copy"}
           </button>
           <div className="text-right text-xs text-slate-500">
@@ -144,12 +148,10 @@ export function ParentReportPage() {
         </div>
       </div>
 
-      {/* Report — print-friendly area */}
       <div className="mx-auto max-w-4xl px-4 py-6">
-        {/* Print header — only visible on print */}
         <div className="print-only mb-4">
           <p className="text-center text-xs text-slate-500">
-            {school.name} — Issued {issuedDate} — Ref: {referenceCode}
+            {school.name} â€” Issued {issuedDate} â€” Ref: {referenceCode}
           </p>
         </div>
 
@@ -162,9 +164,8 @@ export function ParentReportPage() {
           grading={settings.grading}
         />
 
-        {/* Print footer — only visible on print */}
         <div className="print-only mt-6 border-t border-slate-200 pt-4 text-center text-xs text-slate-400">
-          Issued through {school.name} official report link · Reference: {referenceCode} · {issuedDate}
+          Issued through {school.name} official report link Â· Reference: {referenceCode} Â· {issuedDate}
         </div>
       </div>
     </div>
