@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
+import { getApiBaseUrl } from "../client/apiBase";
 import { getSchoolBranding } from "../components/layout/branding";
 import { StudentReportDetail } from "../components/reports/StudentReportDetail";
 import type { StudentReportCard } from "../shared/types/reports";
 import type { GradingScaleSettings, ReportSettings, SchoolProfileSettings } from "../shared/types/settings";
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:4300";
+const API_BASE = getApiBaseUrl();
 
 type Snapshot = {
   card: StudentReportCard;

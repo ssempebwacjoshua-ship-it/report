@@ -1,5 +1,6 @@
 const TOKEN_KEY = "sc_auth_token";
-const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:4300";
+import { getApiBaseUrl } from "./apiBase";
+const API_BASE = getApiBaseUrl();
 
 function authHeaders(): HeadersInit {
   const token = localStorage.getItem(TOKEN_KEY);

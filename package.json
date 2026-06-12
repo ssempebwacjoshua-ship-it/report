@@ -8,6 +8,8 @@
     "dev:web": "vite",
     "dev:api": "tsx watch src/server/index.ts",
     "build": "tsc && vite build",
+    "start": "node dist/server/index.js",
+    "start:prod": "npx prisma migrate deploy && node dist/server/index.js",
     "test": "vitest run",
     "test:watch": "vitest",
     "db:generate": "prisma generate",

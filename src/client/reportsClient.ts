@@ -1,6 +1,6 @@
 import type { ReportContext, ReportFilters, ReportsResponse } from "../shared/types/reports";
-
-const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:4300";
+import { getApiBaseUrl } from "./apiBase";
+const API_BASE = getApiBaseUrl();
 
 export async function fetchReportContext(schoolCode = "SCU-PREVIEW"): Promise<ReportContext> {
   const response = await fetch(`${API_BASE}/api/context?schoolCode=${encodeURIComponent(schoolCode)}`);

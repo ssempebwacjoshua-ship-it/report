@@ -2,9 +2,10 @@ import { type FormEvent, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { fetchSettings } from "../client/settingsClient";
+import { getApiBaseUrl } from "../client/apiBase";
 
 const IS_DEV = import.meta.env.DEV;
-const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:4300";
+const API_BASE = getApiBaseUrl();
 
 export function LoginPage() {
   const { login } = useAuth();

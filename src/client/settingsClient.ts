@@ -1,6 +1,6 @@
 import type { SettingSection, SettingsResponse, SettingsSections } from "../shared/types/settings";
-
-const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:4300";
+import { getApiBaseUrl } from "./apiBase";
+const API_BASE = getApiBaseUrl();
 
 export type SettingsFieldErrors = Record<string, string[]>;
 

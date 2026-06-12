@@ -1,7 +1,8 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { getApiBaseUrl } from "../client/apiBase";
 
 const TOKEN_KEY = "sc_auth_token";
-const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:4300";
+const API_BASE = getApiBaseUrl();
 
 export type AuthUser = {
   id: string;

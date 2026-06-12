@@ -1,7 +1,7 @@
 import type { ImportPreview } from "../shared/types/imports";
 import type { MarksheetBatchContext, MarksheetBatchesResponse, MarksheetStudentsResponse } from "../shared/types/marksheets";
-
-const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:4300";
+import { getApiBaseUrl } from "./apiBase";
+const API_BASE = getApiBaseUrl();
 
 async function readError(response: Response, fallback: string): Promise<string> {
   try {

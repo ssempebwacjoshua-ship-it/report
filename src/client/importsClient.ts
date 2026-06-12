@@ -10,8 +10,8 @@ import type {
   ScanUploadResponse,
   ScanImportRow,
 } from "../shared/types/imports";
-
-const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:4300";
+import { getApiBaseUrl } from "./apiBase";
+const API_BASE = getApiBaseUrl();
 
 async function readImportError(response: Response, fallback: string): Promise<string> {
   try {

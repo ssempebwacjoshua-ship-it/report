@@ -7,6 +7,7 @@ import { loadReportEngineInput } from "../repositories/reportsRepository";
 import { getSettingsSections } from "../repositories/settingsRepository";
 import { buildReports } from "../services/reportEngine";
 import type { PreferredContactMethod } from "@prisma/client";
+import { getPublicAppUrl } from "../config/publicUrl";
 
 // ── Token helpers (mirrors reportIssueRoutes.ts) ─────────────────────────────
 
@@ -263,7 +264,6 @@ export function releaseCenterRoutes() {
         ? reportResult.cards.filter((c) => body.studentIds!.includes(c.studentId))
         : reportResult.cards;
 
-      const clientOrigin = process.env.CLIENT_ORIGIN ?? "http://localhost:5173";
       const issued: Array<{
         studentId: string;
         studentName: string;
@@ -326,7 +326,7 @@ export function releaseCenterRoutes() {
           studentId: card.studentId,
           studentName: card.studentName,
           referenceCode,
-          parentLink: `${clientOrigin}/parent/r/${rawToken}`,
+          parentLink: `${getPublicAppUrl()}/parent/r/${rawToken}`,
           parentAccessToken: rawToken,
           issuedReportId: record.id,
         });

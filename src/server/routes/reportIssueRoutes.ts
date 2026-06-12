@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../db/prisma";
+import { getPublicAppUrl } from "../config/publicUrl";
 import { requireAuth } from "../middleware/requireAuth";
 import { loadReportEngineInput } from "../repositories/reportsRepository";
 import { getSettingsSections } from "../repositories/settingsRepository";
@@ -115,7 +116,7 @@ export function reportIssueRoutes() {
         },
       });
 
-      const parentLink = `${process.env.CLIENT_ORIGIN ?? "http://localhost:5173"}/parent/r/${rawParentToken}`;
+      const parentLink = `${getPublicAppUrl()}/parent/r/${rawParentToken}`;
       console.log("report.issue", {
         issuedReportId: issued.id,
         reportRefCode: referenceCode,
@@ -158,7 +159,7 @@ export function reportIssueRoutes() {
           id: r.id,
           referenceCode: r.referenceCode,
           parentAccessToken: r.parentAccessToken,
-          parentLink: `${process.env.CLIENT_ORIGIN ?? "http://localhost:5173"}/parent/r/${r.parentAccessToken}`,
+          parentLink: `${getPublicAppUrl()}/parent/r/${r.parentAccessToken}`,
           studentName: `${r.student.firstName} ${r.student.lastName}`,
           admissionNumber: r.student.admissionNumber,
           academicYear: r.academicYear,
