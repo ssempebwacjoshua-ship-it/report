@@ -51,7 +51,7 @@ export function createServer() {
 
 if (process.env.NODE_ENV !== "test") {
   const port = Number(process.env.PORT ?? 4300);
-  createServer().listen(port, () => {
-    console.log(`Reports lab API listening on http://localhost:${port}`);
+  createServer().listen(port, "0.0.0.0", () => {
+    console.log(`Reports lab API listening on port ${port}`);
   });
 }
