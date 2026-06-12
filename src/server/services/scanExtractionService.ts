@@ -3,20 +3,21 @@ import path from "node:path";
 import type { PrismaClient } from "@prisma/client";
 import type { ScanImportRow, ScanMarksheetContext } from "../../shared/types/imports";
 import {
-  splitRectIntoVerticalZones,
   tableToPixel,
   type PixelRect,
 } from "./marksheetGeometryService";
 import {
   bufferToDataUrl,
-  cropCell,
+  checkCropQuality,
   cropCellBlueIsolated,
   cropPreview,
   preprocessScanImage,
 } from "./scanPreprocessService";
 import {
+  computeSplitFullRect,
+  computeSplitZoneRects,
+  computeWrittenMarkCropRect,
   detectMarksheetTable,
-  detectedCellRect,
   type TableDetectionResult,
 } from "./marksheetTableDetection";
 import {
@@ -202,6 +203,53 @@ async function saveDetectionOverlay(
     .toFile(path.join(DEBUG_DIR, "overlay-detected-grid.jpg"));
 }
 
+async function saveFinalOcrCropOverlay(
+  colorBuffer: Buffer,
+  imgW: number,
+  imgH: number,
+  cropRects: Array<{
+    rowNumber: number;
+    writtenRect: PixelRect;
+    splitZoneRects: PixelRect[];
+  }>,
+): Promise<void> {
+  const sharp = (await import("sharp")).default;
+  const parts: string[] = [];
+
+  for (const { rowNumber, writtenRect, splitZoneRects } of cropRects) {
+    const rowLabel = String(rowNumber);
+    parts.push(
+      `<rect x="${writtenRect.x}" y="${writtenRect.y}" width="${writtenRect.w}" height="${writtenRect.h}" ` +
+      `fill="rgba(255,220,0,0.16)" stroke="#ffd400" stroke-width="3"/>`,
+    );
+    parts.push(
+      `<text x="${writtenRect.x + 4}" y="${writtenRect.y + 18}" font-size="18" ` +
+      `fill="#b88300" font-family="monospace" font-weight="700">W${rowLabel}</text>`,
+    );
+
+    splitZoneRects.forEach((rect, zoneIndex) => {
+      parts.push(
+        `<rect x="${rect.x}" y="${rect.y}" width="${rect.w}" height="${rect.h}" ` +
+        `fill="rgba(255,0,180,0.14)" stroke="#ff00b4" stroke-width="3"/>`,
+      );
+      parts.push(
+        `<text x="${rect.x + 4}" y="${rect.y + 18}" font-size="18" ` +
+        `fill="#b00078" font-family="monospace" font-weight="700">S${rowLabel}-${zoneIndex + 1}</text>`,
+      );
+    });
+  }
+
+  const svg =
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${imgW}" height="${imgH}" ` +
+    `viewBox="0 0 ${imgW} ${imgH}">${parts.join("")}</svg>`;
+
+  fs.mkdirSync(DEBUG_DIR, { recursive: true });
+  await sharp(colorBuffer)
+    .composite([{ input: Buffer.from(svg), blend: "over" }])
+    .jpeg({ quality: 88 })
+    .toFile(path.join(DEBUG_DIR, "overlay-final-ocr-crops.jpg"));
+}
+
 // ── Extraction ─────────────────────────────────────────────────────────────────
 
 export type ExtractionResult = {
@@ -317,8 +365,10 @@ export async function extractMarksFromScan(
         colLines: detection.colLines,
         warnings: detection.warnings,
         detectedDataRowCount: detection.rowLines.length > 1 ? detection.rowLines.length - 2 : 0,
+        columnBoundaries: detection.columnBoundaries,
         writtenMarkCol: detection.writtenMarkCol,
         splitMarkCol: detection.splitMarkCol,
+        splitZoneDividers: detection.splitZoneDividers,
         imageSize: { width: scan.width, height: scan.height },
         ocrProvider: {
           configured: resolution.configuredProvider,
@@ -344,16 +394,30 @@ export async function extractMarksFromScan(
 
   const rawRows: ScanImportRow[] = [];
   const overlayRects: Array<{ admNo: string; writtenRect: PixelRect; splitRect: PixelRect }> = [];
+  const finalCropRects = roster.map((student, index) => {
+    const writtenRect = computeWrittenMarkCropRect(detection, index, scan.width, scan.height);
+    const splitRect = computeSplitFullRect(detection, index);
+    const splitZoneRects = computeSplitZoneRects(detection, index, scan.width, scan.height);
+    overlayRects.push({ admNo: student.admissionNumber, writtenRect, splitRect });
+    return {
+      rowNumber: index + 1,
+      admissionNumber: student.admissionNumber,
+      writtenRect,
+      splitRect,
+      splitZoneRects,
+    };
+  });
   const ocrProvider = resolution.provider;
+
+  try {
+    await saveFinalOcrCropOverlay(scan.colorBuffer, scan.width, scan.height, finalCropRects);
+  } catch { /* Best effort */ }
 
   for (let index = 0; index < roster.length; index++) {
     const student = roster[index]!;
     const rowTag = `row-${String(index + 1).padStart(2, "0")}-${student.admissionNumber}`;
-
-    const writtenRect = detectedCellRect(detection, "writtenMark", index, scan.width, scan.height);
-    const splitRect = detectedCellRect(detection, "splitMark", index, scan.width, scan.height);
-    const splitZoneRects = splitRectIntoVerticalZones(splitRect, 3);
-    overlayRects.push({ admNo: student.admissionNumber, writtenRect, splitRect });
+    const cropPlan = finalCropRects[index]!;
+    const { writtenRect, splitRect, splitZoneRects } = cropPlan;
 
     let writtenResult = { rawText: "", normalizedMark: "", confidence: 0 };
     let splitResult = {
@@ -367,7 +431,6 @@ export async function extractMarksFromScan(
     let extractionNote = "";
 
     try {
-      const writtenCell = await cropCellBlueIsolated(scan.colorBuffer, writtenRect);
       const writtenPreview = await cropPreview(scan.buffer, writtenRect);
       writtenCropDataUrl = bufferToDataUrl(writtenPreview);
 
@@ -377,38 +440,69 @@ export async function extractMarksFromScan(
         w: splitRect.x + splitRect.w - writtenRect.x,
         h: writtenRect.h,
       }));
-      saveDebugFile(`${rowTag}-written-raw.jpg`, writtenPreview);
-      saveDebugFile(`${rowTag}-written-processed.jpg`, writtenCell);
+      saveAlways(`${rowTag}-written-final.jpg`, writtenPreview);
 
-      const splitZoneCells = await Promise.all(
-        splitZoneRects.map((rect) => cropCellBlueIsolated(scan.colorBuffer, rect)),
-      );
       const splitPreview = await cropPreview(scan.buffer, splitRect);
       splitCropDataUrl = bufferToDataUrl(splitPreview);
-      saveDebugFile(`${rowTag}-split-full-raw.jpg`, splitPreview);
+      saveDebugFile(`${rowTag}-split-full-final.jpg`, splitPreview);
 
-      splitDigitCropDataUrls = await Promise.all(
+      const splitZonePreviews = await Promise.all(
         splitZoneRects.map(async (rect, zoneIndex) => {
           const preview = await cropPreview(scan.buffer, rect);
-          saveDebugFile(`${rowTag}-split-${zoneIndex + 1}-raw.jpg`, preview);
-          saveDebugFile(`${rowTag}-split-${zoneIndex + 1}-processed.jpg`, splitZoneCells[zoneIndex]!);
-          return bufferToDataUrl(preview);
+          saveAlways(`${rowTag}-split-${zoneIndex + 1}-final.jpg`, preview);
+          return preview;
         }),
       );
+      splitDigitCropDataUrls = splitZonePreviews.map((preview) => bufferToDataUrl(preview));
 
       const cropIds = {
         written: `${student.admissionNumber}-written`,
         zones: splitZoneRects.map((_, z) => `${student.admissionNumber}-split-${z + 1}`),
       };
 
-      const ocrResults = await ocrProvider.recognizeCrops([
-        { cropId: cropIds.written, buffer: writtenCell, mimeType: "image/jpeg" },
-        ...splitZoneCells.map((buffer, z) => ({
-          cropId: cropIds.zones[z]!,
-          buffer,
-          mimeType: "image/jpeg",
-        })),
-      ]);
+      const qualityFailures: Array<{ label: string; reason: string; blocking: boolean }> = [];
+      const ocrInputs: Array<{ cropId: string; buffer: Buffer; mimeType: "image/jpeg" }> = [];
+
+      const writtenQuality = await checkCropQuality(writtenPreview);
+      if (writtenQuality.ok) {
+        const writtenCell = await cropCellBlueIsolated(scan.colorBuffer, writtenRect);
+        saveDebugFile(`${rowTag}-written-processed.jpg`, writtenCell);
+        ocrInputs.push({ cropId: cropIds.written, buffer: writtenCell, mimeType: "image/jpeg" });
+      } else {
+        qualityFailures.push({ label: "written", reason: writtenQuality.reason, blocking: true });
+      }
+
+      for (let zoneIndex = 0; zoneIndex < splitZonePreviews.length; zoneIndex++) {
+        const preview = splitZonePreviews[zoneIndex]!;
+        const quality = await checkCropQuality(preview);
+        if (quality.ok) {
+          const processed = await cropCellBlueIsolated(scan.colorBuffer, splitZoneRects[zoneIndex]!);
+          saveDebugFile(`${rowTag}-split-${zoneIndex + 1}-processed.jpg`, processed);
+          ocrInputs.push({
+            cropId: cropIds.zones[zoneIndex]!,
+            buffer: processed,
+            mimeType: "image/jpeg",
+          });
+        } else {
+          qualityFailures.push({
+            label: `split-${zoneIndex + 1}`,
+            reason: quality.reason,
+            blocking: !/blank crop/i.test(quality.reason),
+          });
+        }
+      }
+
+      const blockingQualityFailures = qualityFailures.filter((failure) => failure.blocking);
+      if (ocrInputs.length === 0) {
+        const failure = qualityFailures[0];
+        extractionNote = failure
+          ? `Final crop failed quality check: ${failure.label}: ${failure.reason}`
+          : "Final crop failed quality check: no usable OCR crops";
+      }
+
+      const ocrResults = ocrInputs.length > 0
+        ? await ocrProvider.recognizeCrops(ocrInputs)
+        : [];
 
       const writtenOcr = resultById(ocrResults, cropIds.written);
       const zoneResults = cropIds.zones.map((cropId) => resultById(ocrResults, cropId));
@@ -429,6 +523,10 @@ export async function extractMarksFromScan(
         zoneRawText,
         zoneConfidences: zoneResults.map((r) => r.confidence),
       };
+      if (!writtenResult.normalizedMark && !splitResult.normalizedMark && blockingQualityFailures.length > 0) {
+        const failure = blockingQualityFailures[0]!;
+        extractionNote = `Final crop failed quality check: ${failure.label}: ${failure.reason}`;
+      }
     } catch {
       extractionNote = "OCR provider unavailable. Enter marks manually from the scan.";
     }

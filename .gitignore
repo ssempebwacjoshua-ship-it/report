@@ -7,6 +7,10 @@ coverage/
 .vite/
 .DS_Store
 *.log
+tmp/
+ocr-service/tmp/
+ocr-service/.venv/
+ocr-service/__pycache__/
 prisma/*.db
 prisma/*.db-journal
 *.traineddata

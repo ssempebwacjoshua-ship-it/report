@@ -19,12 +19,25 @@ export type TableDetectionResult = {
   rowLines: number[];
   colLines: number[];
   dataRows: PixelRect[];
+  columnBoundaries: ColumnBoundaries;
   writtenMarkCol: { x: number; w: number };
   splitMarkCol: { x: number; w: number };
+  /** X positions of internal divider lines within the split mark column (data row area). */
+  splitZoneDividers: number[];
   confidence: number;
   geometryConfidence: number;
   colDetectionMethod: "detected" | "fallback";
   warnings: string[];
+};
+
+export type ColumnBoundaries = {
+  tableLeft: number;
+  noRight: number;
+  admNoRight: number;
+  studentNameRight: number;
+  writtenMarkRight: number;
+  splitMarkRight: number;
+  tableRight: number;
 };
 
 // ── Constants ──────────────────────────────────────────────────────────────────
@@ -39,13 +52,68 @@ const SEARCH_BOT_FRAC = 0.92;
 const GROUP_GAP = 8;
 
 // Vertical line detection constants.
-// A column pixel is a border if it is dark across ≥35% of the searched height.
-const VERT_DARK_THRESHOLD = 140;
-const VERT_LINE_FRAC = 0.35;
+// Search the full marks table grid. Handwriting is localized; real grid lines
+// persist through most of the table height.
+const VERT_DARK_THRESHOLD = 120;
+const VERT_LINE_FRAC = 0.40;
 // Column pixels within 4px group into one vertical line event.
 const COL_GROUP_GAP = 4;
 
+// Split-zone divider detection constants (data-row search).
+const SPLIT_VERT_DARK_THRESHOLD = 140;
+const SPLIT_VERT_LINE_FRAC = 0.40;
+
+/**
+ * Fixed-pixel crop padding constants.
+ *
+ * CELL_H_PAD   – horizontal inset from the detected column boundary into the cell (px).
+ * CELL_V_PAD   – vertical inset from the detected row-line centre into the cell (px).
+ *               Must clear the border half-width + JPEG ringing (~8 px each = 14 px total);
+ *               15 px gives 1 px of clear margin at 600 dpi.
+ * ZONE_DIV_PAD – padding from an internal split-zone divider centre to the zone crop edge.
+ */
+export const CELL_H_PAD = 8;
+export const CELL_V_PAD = 15;
+export const ZONE_DIV_PAD = 8;
+
 // ── Fallback geometry ──────────────────────────────────────────────────────────
+
+const CALIBRATED_BOUNDARY_FRACS = {
+  noRight: 0.058,
+  admNoRight: 0.196,
+  studentNameRight: 0.504,
+  writtenMarkRight: 0.660,
+  splitMarkRight: 0.806,
+} as const;
+
+function calibratedBoundaries(tableLeft: number, tableRight: number): ColumnBoundaries {
+  const tableWidth = tableRight - tableLeft;
+  return {
+    tableLeft,
+    noRight: tableLeft + Math.round(CALIBRATED_BOUNDARY_FRACS.noRight * tableWidth),
+    admNoRight: tableLeft + Math.round(CALIBRATED_BOUNDARY_FRACS.admNoRight * tableWidth),
+    studentNameRight: tableLeft + Math.round(CALIBRATED_BOUNDARY_FRACS.studentNameRight * tableWidth),
+    writtenMarkRight: tableLeft + Math.round(CALIBRATED_BOUNDARY_FRACS.writtenMarkRight * tableWidth),
+    splitMarkRight: tableLeft + Math.round(CALIBRATED_BOUNDARY_FRACS.splitMarkRight * tableWidth),
+    tableRight,
+  };
+}
+
+function columnsFromBoundaries(boundaries: ColumnBoundaries): {
+  writtenMarkCol: ColDef;
+  splitMarkCol: ColDef;
+} {
+  return {
+    writtenMarkCol: {
+      x: boundaries.studentNameRight,
+      w: boundaries.writtenMarkRight - boundaries.studentNameRight,
+    },
+    splitMarkCol: {
+      x: boundaries.writtenMarkRight,
+      w: boundaries.splitMarkRight - boundaries.writtenMarkRight,
+    },
+  };
+}
 
 function buildFallback(imgW: number, imgH: number, warnings: string[]): TableDetectionResult {
   const tableLeft = Math.round(PAGE_MARGIN_LEFT_FRAC * imgW);
@@ -61,6 +129,8 @@ function buildFallback(imgW: number, imgH: number, warnings: string[]): TableDet
     w: tableWidth,
     h: dataRowH,
   }));
+  const columnBoundaries = calibratedBoundaries(tableLeft, tableLeft + tableWidth);
+  const { writtenMarkCol, splitMarkCol } = columnsFromBoundaries(columnBoundaries);
 
   return {
     method: "fallback",
@@ -72,14 +142,10 @@ function buildFallback(imgW: number, imgH: number, warnings: string[]): TableDet
     rowLines: [],
     colLines: [],
     dataRows,
-    writtenMarkCol: {
-      x: tableLeft + Math.round(COLUMNS.writtenMark.x * tableWidth),
-      w: Math.round(COLUMNS.writtenMark.w * tableWidth),
-    },
-    splitMarkCol: {
-      x: tableLeft + Math.round(COLUMNS.splitMark.x * tableWidth),
-      w: Math.round(COLUMNS.splitMark.w * tableWidth),
-    },
+    columnBoundaries,
+    writtenMarkCol,
+    splitMarkCol,
+    splitZoneDividers: [],
     confidence: 0,
     geometryConfidence: 0,
     colDetectionMethod: "fallback",
@@ -93,11 +159,13 @@ function buildFallback(imgW: number, imgH: number, warnings: string[]): TableDet
  * Group consecutive "dark rows" (rows where ≥35% of pixels are dark) into
  * line events. Returns sorted Y positions (centre of each dark group).
  */
+type HorizontalLineEvent = { y: number; start: number; end: number };
+
 function findHorizontalLineEvents(
   pixels: Buffer,
   imgW: number,
   imgH: number,
-): number[] {
+): HorizontalLineEvent[] {
   const searchTop = Math.floor(imgH * SEARCH_TOP_FRAC);
   const searchBot = Math.floor(imgH * SEARCH_BOT_FRAC);
   const lineThreshold = Math.floor(imgW * H_LINE_FRAC);
@@ -111,7 +179,7 @@ function findHorizontalLineEvents(
     isLineRow[y] = count >= lineThreshold;
   }
 
-  const lineEvents: number[] = [];
+  const lineEvents: HorizontalLineEvent[] = [];
   let groupStart = -1;
   let groupEnd = -1;
 
@@ -126,7 +194,11 @@ function findHorizontalLineEvents(
         if (isLineRow[gap]) { nextInGap = true; break; }
       }
       if (!nextInGap) {
-        lineEvents.push(Math.round((groupStart + groupEnd) / 2));
+        lineEvents.push({
+          y: Math.round((groupStart + groupEnd) / 2),
+          start: groupStart,
+          end: groupEnd,
+        });
         groupStart = -1;
         groupEnd = -1;
       }
@@ -139,7 +211,7 @@ function findHorizontalLineEvents(
 // ── Table boundary detection ───────────────────────────────────────────────────
 
 /**
- * Find tableLeft and tableRight using the MEDIAN of leftmost/rightmost dark
+ * Find tableLeft and tableRight using the median of leftmost/rightmost dark
  * pixels across all line rows (not min/max, which is fragile against artifacts).
  */
 function findTableHorizExtent(
@@ -151,7 +223,6 @@ function findTableHorizExtent(
   const leftPixels: number[] = [];
   const rightPixels: number[] = [];
 
-  // Re-derive line rows using the same logic
   const searchTop = Math.floor(imgH * SEARCH_TOP_FRAC);
   const searchBot = Math.floor(imgH * SEARCH_BOT_FRAC);
   const lineThreshold = Math.floor(imgW * H_LINE_FRAC);
@@ -178,10 +249,8 @@ function findTableHorizExtent(
   leftPixels.sort((a, b) => a - b);
   rightPixels.sort((a, b) => a - b);
 
-  // Use 15th percentile for left (handles occasional left-edge artifacts)
-  // Use 85th percentile for right
-  const tableLeft = leftPixels[Math.floor(leftPixels.length * 0.15)] ?? leftPixels[0]!;
-  const tableRight = rightPixels[Math.floor(rightPixels.length * 0.85)] ?? rightPixels[rightPixels.length - 1]!;
+  const tableLeft = leftPixels[Math.floor(leftPixels.length * 0.5)] ?? leftPixels[0]!;
+  const tableRight = rightPixels[Math.floor(rightPixels.length * 0.5)] ?? rightPixels[rightPixels.length - 1]!;
 
   return { tableLeft, tableRight };
 }
@@ -191,9 +260,8 @@ function findTableHorizExtent(
 /**
  * Detect vertical column boundary lines within the marks table.
  *
- * Searches the top 20% of the table height (column header + a few data rows)
- * where handwriting is absent or minimal. Uses a lower dark threshold than
- * horizontal detection to catch lighter printed borders.
+ * Uses the full table height. Printed borders persist across rows; handwriting
+ * usually does not satisfy the vertical coverage threshold.
  */
 function detectVerticalLines(
   pixels: Buffer,
@@ -203,10 +271,8 @@ function detectVerticalLines(
   tableTop: number,
   tableBottom: number,
 ): number[] {
-  const tableH = tableBottom - tableTop;
-  // Search top 20% of table — column headers + first few data rows
   const searchTop = tableTop;
-  const searchBot = Math.min(tableBottom, tableTop + Math.round(tableH * 0.20));
+  const searchBot = tableBottom;
   const rowsSearched = searchBot - searchTop;
 
   if (rowsSearched < 3) return [];
@@ -226,7 +292,6 @@ function detectVerticalLines(
     isVertLine[x] = darkCountPerCol[x] >= vertThreshold;
   }
 
-  // Group consecutive vertical line pixels into single events
   const colEvents: number[] = [];
   let grpStart = -1;
   let grpEnd = -1;
@@ -252,6 +317,72 @@ function detectVerticalLines(
   return colEvents;
 }
 
+// ── Split-zone divider detection ───────────────────────────────────────────────
+
+/**
+ * Detect the 2 internal vertical divider lines within the split mark column.
+ *
+ * Unlike column-boundary detection (which searches only the header row to avoid
+ * handwriting), these internal dividers ONLY appear in the data rows — the header
+ * cell is a single merged "Split Mark Entry" cell with no sub-dividers.
+ *
+ * Returns sorted x positions of internal dividers (excluding outer column borders).
+ */
+function detectSplitZoneDividers(
+  pixels: Buffer,
+  imgW: number,
+  splitLeft: number,
+  splitRight: number,
+  dataRowTop: number,
+  tableBottom: number,
+): number[] {
+  const searchHeight = tableBottom - dataRowTop;
+  if (searchHeight < 10 || splitRight <= splitLeft) return [];
+
+  const darkCountPerCol = new Int32Array(imgW).fill(0);
+  for (let y = dataRowTop; y < tableBottom; y++) {
+    for (let x = splitLeft; x <= splitRight; x++) {
+      if ((pixels[y * imgW + x] ?? 255) < SPLIT_VERT_DARK_THRESHOLD) {
+        darkCountPerCol[x]++;
+      }
+    }
+  }
+
+  const threshold = searchHeight * SPLIT_VERT_LINE_FRAC;
+  const isLine: boolean[] = new Array(imgW).fill(false);
+  for (let x = splitLeft; x <= splitRight; x++) {
+    isLine[x] = darkCountPerCol[x] >= threshold;
+  }
+
+  const events: number[] = [];
+  let grpStart = -1;
+  let grpEnd = -1;
+
+  for (let x = splitLeft; x <= splitRight + 1; x++) {
+    const dark = x <= splitRight && isLine[x];
+    if (dark) {
+      if (grpStart < 0) grpStart = x;
+      grpEnd = x;
+    } else if (grpStart >= 0) {
+      let nextInGap = false;
+      for (let gap = x + 1; gap <= Math.min(x + COL_GROUP_GAP, splitRight); gap++) {
+        if (isLine[gap]) { nextInGap = true; break; }
+      }
+      if (!nextInGap) {
+        events.push(Math.round((grpStart + grpEnd) / 2));
+        grpStart = -1;
+        grpEnd = -1;
+      }
+    }
+  }
+
+  // Exclude outer borders (within 10px of split column edges)
+  const margin = 10;
+  return events
+    .filter((x) => x > splitLeft + margin && x < splitRight - margin)
+    .sort((a, b) => a - b);
+}
+
 // ── Column position derivation ─────────────────────────────────────────────────
 
 type ColDef = { x: number; w: number };
@@ -260,83 +391,149 @@ type ColDef = { x: number; w: number };
  * Derive Written Mark and Split Mark column x positions from detected vertical
  * line events.
  *
- * Column order (left → right): No | Adm No | Student Name | Written | Split | Remarks
- * The rightmost 3 internal vertical lines (not touching outer table edges) are:
- *   [Name|Written boundary, Written|Split boundary, Split|Remarks boundary]
+ * Column order: No | Adm No | Student Name | Written | Split | Remarks
+ * The rightmost 3 internal vertical lines are the last 3 inter-column boundaries.
  *
- * Falls back to fraction-based positions when fewer than 3 internal lines found
- * or when the derived widths are unreasonable.
+ * Falls back to template fractions when fewer than 3 internal lines are found
+ * or when derived widths are unreasonable.
  */
+function isReasonableColumnBoundaries(boundaries: ColumnBoundaries): boolean {
+  const ordered = [
+    boundaries.tableLeft,
+    boundaries.noRight,
+    boundaries.admNoRight,
+    boundaries.studentNameRight,
+    boundaries.writtenMarkRight,
+    boundaries.splitMarkRight,
+    boundaries.tableRight,
+  ];
+  for (let i = 1; i < ordered.length; i++) {
+    if (ordered[i]! <= ordered[i - 1]!) return false;
+  }
+
+  const tableWidth = boundaries.tableRight - boundaries.tableLeft;
+  const widths = {
+    no: (boundaries.noRight - boundaries.tableLeft) / tableWidth,
+    adm: (boundaries.admNoRight - boundaries.noRight) / tableWidth,
+    student: (boundaries.studentNameRight - boundaries.admNoRight) / tableWidth,
+    written: (boundaries.writtenMarkRight - boundaries.studentNameRight) / tableWidth,
+    split: (boundaries.splitMarkRight - boundaries.writtenMarkRight) / tableWidth,
+    remarks: (boundaries.tableRight - boundaries.splitMarkRight) / tableWidth,
+  };
+
+  return (
+    widths.no >= 0.025 && widths.no <= 0.10 &&
+    widths.adm >= 0.07 && widths.adm <= 0.18 &&
+    widths.student >= 0.22 && widths.student <= 0.50 &&
+    widths.written >= 0.08 && widths.written <= 0.22 &&
+    widths.split >= 0.08 && widths.split <= 0.22 &&
+    widths.remarks >= 0.10 && widths.remarks <= 0.28
+  );
+}
+
 function deriveColumnPositions(
   tableLeft: number,
   tableRight: number,
   colLines: number[],
   warnings: string[],
-): { writtenMarkCol: ColDef; splitMarkCol: ColDef; colDetectionMethod: "detected" | "fallback" } {
+): {
+  columnBoundaries: ColumnBoundaries;
+  writtenMarkCol: ColDef;
+  splitMarkCol: ColDef;
+  detectedSplitDividers: number[];
+  colDetectionMethod: "detected" | "fallback";
+} {
   const tableWidth = tableRight - tableLeft;
-  const margin = Math.max(5, Math.round(tableWidth * 0.02));
+  const margin = Math.max(5, Math.round(tableWidth * 0.01));
 
-  // Filter out the outer table border lines
-  const internalLines = colLines.filter(
-    (x) => x > tableLeft + margin && x < tableRight - margin,
-  ).sort((a, b) => a - b);
+  const candidates = colLines
+    .filter((x) => x >= tableLeft - margin && x <= tableRight + margin)
+    .sort((a, b) => a - b);
 
-  if (internalLines.length >= 3) {
-    // Rightmost 3 lines: [Name|Written, Written|Split, Split|Remarks]
-    const last3 = internalLines.slice(-3);
-    const writtenLeft = last3[0]!;
-    const splitLeft = last3[1]!;
-    const splitRight = last3[2]!;
+  let best: { boundaries: ColumnBoundaries; dividers: number[]; score: number } | null = null;
 
-    const writtenWidth = splitLeft - writtenLeft;
-    const splitWidth = splitRight - splitLeft;
-    const writtenFrac = writtenWidth / tableWidth;
-    const splitFrac = splitWidth / tableWidth;
+  for (let i = 0; i <= candidates.length - 4; i++) {
+    const cluster = candidates.slice(i, i + 4);
+    const gaps = [
+      cluster[1]! - cluster[0]!,
+      cluster[2]! - cluster[1]!,
+      cluster[3]! - cluster[2]!,
+    ];
+    const meanGap = gaps.reduce((sum, gap) => sum + gap, 0) / gaps.length;
+    if (meanGap <= 0) continue;
 
-    // Sanity check: Written ≈5–20% of table, Split ≈5–20%
-    if (writtenFrac >= 0.04 && writtenFrac <= 0.22 && splitFrac >= 0.04 && splitFrac <= 0.22) {
-      return {
-        writtenMarkCol: { x: writtenLeft, w: writtenWidth },
-        splitMarkCol: { x: splitLeft, w: splitWidth },
-        colDetectionMethod: "detected",
+    const maxDeviation = Math.max(...gaps.map((gap) => Math.abs(gap - meanGap))) / meanGap;
+    const splitFrac = (cluster[3]! - cluster[0]!) / tableWidth;
+    if (maxDeviation > 0.35 || splitFrac < 0.08 || splitFrac > 0.22) continue;
+
+    const leftLines = candidates.slice(0, i);
+    const rightLines = candidates.slice(i + 4);
+    if (leftLines.length < 3 || rightLines.length < 1) continue;
+
+    const noRight = leftLines[leftLines.length - 3]!;
+    const admNoRight = leftLines[leftLines.length - 2]!;
+    const studentNameRight = leftLines[leftLines.length - 1]!;
+    const writtenMarkRight = cluster[0]!;
+    const splitMarkRight = cluster[3]!;
+    const detectedTableLeft = leftLines[0]!;
+    const detectedTableRight = rightLines[rightLines.length - 1]!;
+
+    const boundaries: ColumnBoundaries = {
+      tableLeft: detectedTableLeft,
+      noRight,
+      admNoRight,
+      studentNameRight,
+      writtenMarkRight,
+      splitMarkRight,
+      tableRight: detectedTableRight,
+    };
+    if (!isReasonableColumnBoundaries(boundaries)) continue;
+
+    const score = maxDeviation + Math.abs(splitFrac - 0.145);
+    if (!best || score < best.score) {
+      best = {
+        boundaries,
+        dividers: [cluster[1]!, cluster[2]!],
+        score,
       };
     }
+  }
 
+  if (best) {
+    const { writtenMarkCol, splitMarkCol } = columnsFromBoundaries(best.boundaries);
+    return {
+      columnBoundaries: best.boundaries,
+      writtenMarkCol,
+      splitMarkCol,
+      detectedSplitDividers: best.dividers,
+      colDetectionMethod: "detected",
+    };
+  }
+
+  if (candidates.length > 0) {
     warnings.push(
-      `Detected column widths out of range (Written: ${(writtenFrac * 100).toFixed(1)}%, ` +
-      `Split: ${(splitFrac * 100).toFixed(1)}%); using fraction-based positions.`,
+      `Detected ${candidates.length} vertical grid candidate(s), but none matched the marksheet column order; ` +
+      `using calibrated template column positions.`,
     );
   } else {
     warnings.push(
-      `Only ${internalLines.length} internal vertical line(s) detected (need ≥3); ` +
-      `using fraction-based column positions.`,
+      "No vertical grid candidates detected; using calibrated template column positions.",
     );
   }
 
+  const columnBoundaries = calibratedBoundaries(tableLeft, tableRight);
+  const { writtenMarkCol, splitMarkCol } = columnsFromBoundaries(columnBoundaries);
   return {
-    writtenMarkCol: {
-      x: tableLeft + Math.round(COLUMNS.writtenMark.x * tableWidth),
-      w: Math.round(COLUMNS.writtenMark.w * tableWidth),
-    },
-    splitMarkCol: {
-      x: tableLeft + Math.round(COLUMNS.splitMark.x * tableWidth),
-      w: Math.round(COLUMNS.splitMark.w * tableWidth),
-    },
+    columnBoundaries,
+    writtenMarkCol,
+    splitMarkCol,
+    detectedSplitDividers: [],
     colDetectionMethod: "fallback",
   };
 }
 
 // ── Public API ─────────────────────────────────────────────────────────────────
 
-/**
- * Detect the marks table from a scanned marksheet using horizontal and vertical
- * projection.
- *
- * Horizontal: count dark pixels per row → find line events → derive table bounds.
- * Vertical: count dark pixels per column in header area → find column boundaries.
- *
- * Falls back to fraction-based geometry when detection is insufficient.
- */
 export async function detectMarksheetTable(
   buffer: Buffer,
   imgW: number,
@@ -356,7 +553,8 @@ export async function detectMarksheetTable(
   }
 
   // Step 1: find horizontal line events
-  const lineEvents = findHorizontalLineEvents(pixels, imgW, imgH);
+  const horizontalEvents = findHorizontalLineEvents(pixels, imgW, imgH);
+  const lineEvents = horizontalEvents.map((event) => event.y);
 
   if (lineEvents.length < 3) {
     warnings.push(
@@ -365,7 +563,7 @@ export async function detectMarksheetTable(
     return buildFallback(imgW, imgH, warnings);
   }
 
-  // Step 2: find table left/right using percentile (robust to dark artifacts)
+  // Step 2: find table left/right
   const { tableLeft, tableRight } = findTableHorizExtent(pixels, imgW, imgH, lineEvents);
 
   const tableWidth = tableRight - tableLeft;
@@ -376,18 +574,19 @@ export async function detectMarksheetTable(
     return buildFallback(imgW, imgH, warnings);
   }
 
-  const tableTop = lineEvents[0]!;
-  const tableBottom = lineEvents[lineEvents.length - 1]!;
+  const tableTop = horizontalEvents[0]!.y;
+  const tableBottom = horizontalEvents[horizontalEvents.length - 1]!.y;
 
-  const columnHeaderBottom = lineEvents.length >= 2
-    ? Math.round((lineEvents[0]! + lineEvents[1]!) / 2)
+  const columnHeaderBottom = horizontalEvents.length >= 2
+    ? horizontalEvents[1]!.end
     : tableTop + Math.round(LAYOUT.tableHeaderHFrac * imgH);
 
-  // Step 3: build data rows from gaps between consecutive line events
+  // Step 3: build data rows from line-event gaps
   const detectedDataRows: PixelRect[] = [];
-  for (let i = 1; i < lineEvents.length - 1; i++) {
-    const rowTop = lineEvents[i]!;
-    const rowBot = lineEvents[i + 1]!;
+  for (let i = 1; i < horizontalEvents.length - 1; i++) {
+    const rowTop = i === 1 ? horizontalEvents[i]!.end : horizontalEvents[i]!.y;
+    const rowBot = horizontalEvents[i + 1]!.y;
+    if (rowBot <= rowTop) continue;
     detectedDataRows.push({
       x: tableLeft,
       y: rowTop,
@@ -396,7 +595,6 @@ export async function detectMarksheetTable(
     });
   }
 
-  // Extend to 26 rows using average detected row height (or fallback)
   const avgH = detectedDataRows.length > 0
     ? Math.round(detectedDataRows.reduce((s, r) => s + r.h, 0) / detectedDataRows.length)
     : Math.max(1, Math.round(LAYOUT.dataRowHFrac * imgH));
@@ -409,17 +607,42 @@ export async function detectMarksheetTable(
     extendY += avgH;
   }
 
-  // Step 4: detect vertical column lines
+  // Step 4: detect vertical table grid lines
   const colLines = detectVerticalLines(
     pixels, imgW, tableLeft, tableRight, tableTop, tableBottom,
   );
 
   // Step 5: derive column positions
-  const { writtenMarkCol, splitMarkCol, colDetectionMethod } = deriveColumnPositions(
+  const {
+    columnBoundaries,
+    writtenMarkCol,
+    splitMarkCol,
+    detectedSplitDividers,
+    colDetectionMethod,
+  } = deriveColumnPositions(
     tableLeft, tableRight, colLines, warnings,
   );
 
-  // Step 6: compute confidence score
+  // Step 6: detect internal split-zone dividers (data rows only)
+  // These dividers are NOT in the column header so must be searched separately.
+  const dataRowTop = horizontalEvents.length >= 2 ? horizontalEvents[1]!.end : tableTop;
+  const splitZoneDividers = detectSplitZoneDividers(
+    pixels, imgW,
+    splitMarkCol.x, splitMarkCol.x + splitMarkCol.w,
+    dataRowTop, tableBottom,
+  );
+  const finalSplitZoneDividers = splitZoneDividers.length >= 2
+    ? splitZoneDividers
+    : detectedSplitDividers;
+
+  if (finalSplitZoneDividers.length < 2) {
+    warnings.push(
+      `Only ${finalSplitZoneDividers.length} split-zone divider(s) detected (need 2); ` +
+      `split zones will use equal-width division.`,
+    );
+  }
+
+  // Step 7: compute confidence
   const rowCountScore = Math.min(1, detectedDataRows.length / 10);
   const heights = detectedDataRows.map((r) => r.h);
   const meanH = heights.reduce((a, b) => a + b, 0) / Math.max(1, heights.length);
@@ -430,16 +653,18 @@ export async function detectMarksheetTable(
 
   return {
     method: "detected",
-    tableLeft,
-    tableRight,
+    tableLeft: columnBoundaries.tableLeft,
+    tableRight: columnBoundaries.tableRight,
     tableTop,
     tableBottom,
     columnHeaderBottom,
     rowLines: lineEvents,
     colLines,
     dataRows: allDataRows,
+    columnBoundaries,
     writtenMarkCol,
     splitMarkCol,
+    splitZoneDividers: finalSplitZoneDividers,
     confidence: geometryConfidence,
     geometryConfidence,
     colDetectionMethod,
@@ -447,9 +672,152 @@ export async function detectMarksheetTable(
   };
 }
 
+// ── Final crop rect helpers ────────────────────────────────────────────────────
+
 /**
- * Return the pixel rect for a specific column and data row using detected geometry.
- * Falls back to geometry service fractions for rows beyond the detected range.
+ * Build a crop rectangle from absolute left/right/top/bottom cell boundaries,
+ * applying fixed-pixel inward padding on each side.
+ *
+ * All four boundaries are expected to be at the CENTRE of a printed grid line,
+ * so padding values must be large enough to clear the border half-width plus
+ * JPEG ringing (empirically ~15 px total at 600 dpi).
+ */
+export function finalCropRect(
+  x1: number,
+  x2: number,
+  y1: number,
+  y2: number,
+  hPad: number,
+  vPad: number,
+): PixelRect {
+  const x = Math.max(0, x1 + hPad);
+  const y = Math.max(0, y1 + vPad);
+  const w = Math.max(1, x2 - x1 - 2 * hPad);
+  const h = Math.max(1, y2 - y1 - 2 * vPad);
+  return { x, y, w, h };
+}
+
+/**
+ * Compute the final padded crop rect for the Written Mark cell of a given row.
+ * Uses CELL_H_PAD / CELL_V_PAD so the crop sits safely inside the printed borders.
+ */
+export function computeWrittenMarkCropRect(
+  detection: TableDetectionResult,
+  rowIndex: number,
+  imgW = 0,
+  imgH = 0,
+): PixelRect {
+  const row = detection.dataRows[rowIndex];
+  const wc = detection.writtenMarkCol;
+
+  if (!row) {
+    // Fallback: use geometry-service fractions with an 8% inset
+    return cellToPixel(COLUMNS.writtenMark, dataRowRegion(rowIndex), imgW, imgH, 0.08);
+  }
+
+  return finalCropRect(wc.x, wc.x + wc.w, row.y, row.y + row.h, CELL_H_PAD, CELL_V_PAD);
+}
+
+/**
+ * Compute the final padded crop rects for each split-mark sub-zone of a given row.
+ *
+ * Strategy:
+ * 1. Determine the 3 zone x-boundaries from detected splitZoneDividers (preferred)
+ *    or equal-width division (fallback).
+ * 2. Apply ZONE_DIV_PAD inward from each internal divider (clears the divider line +
+ *    JPEG ringing), and CELL_H_PAD from the outer column borders.
+ * 3. Apply CELL_V_PAD vertically (same for all zones in the same row).
+ */
+export function computeSplitZoneRects(
+  detection: TableDetectionResult,
+  rowIndex: number,
+  imgW = 0,
+  imgH = 0,
+): PixelRect[] {
+  const row = detection.dataRows[rowIndex];
+  const sc = detection.splitMarkCol;
+
+  if (!row) {
+    const zoneW = sc.w / 3;
+    return Array.from({ length: 3 }, (_, i) =>
+      finalCropRect(
+        sc.x + i * zoneW, sc.x + (i + 1) * zoneW,
+        Math.round(LAYOUT.tableStartFrac * imgH + LAYOUT.tableHeaderHFrac * imgH + rowIndex * LAYOUT.dataRowHFrac * imgH),
+        Math.round(LAYOUT.tableStartFrac * imgH + LAYOUT.tableHeaderHFrac * imgH + (rowIndex + 1) * LAYOUT.dataRowHFrac * imgH),
+        ZONE_DIV_PAD, CELL_V_PAD,
+      ),
+    );
+  }
+
+  const splitLeft = sc.x;
+  const splitRight = sc.x + sc.w;
+  const rowTop = row.y;
+  const rowBottom = row.y + row.h;
+
+  // Filter dividers to those within this split column
+  const dividers = detection.splitZoneDividers
+    .filter((x) => x > splitLeft && x < splitRight)
+    .sort((a, b) => a - b);
+
+  // Build 3 zone x-ranges: [left, right) pairs for each zone
+  let zones: Array<[number, number, "outer-left" | "outer-right" | "inner", "outer-left" | "outer-right" | "inner"]>;
+
+  if (dividers.length >= 2) {
+    // Use detected dividers — each internal boundary uses ZONE_DIV_PAD,
+    // outer boundaries use CELL_H_PAD.
+    zones = [
+      [splitLeft, dividers[0]!, "outer-left", "inner"],
+      [dividers[0]!, dividers[1]!, "inner", "inner"],
+      [dividers[1]!, splitRight, "inner", "outer-right"],
+    ];
+  } else if (dividers.length === 1) {
+    // One detected divider: anchor it, split the remainder equally
+    const d0 = dividers[0]!;
+    const rightHalf = (splitRight - d0) / 2;
+    const midPoint = Math.round(d0 + rightHalf);
+    zones = [
+      [splitLeft, d0, "outer-left", "inner"],
+      [d0, midPoint, "inner", "inner"],
+      [midPoint, splitRight, "inner", "outer-right"],
+    ];
+  } else {
+    // No dividers: equal division
+    const zoneW = (splitRight - splitLeft) / 3;
+    zones = [
+      [splitLeft, Math.round(splitLeft + zoneW), "outer-left", "inner"],
+      [Math.round(splitLeft + zoneW), Math.round(splitLeft + 2 * zoneW), "inner", "inner"],
+      [Math.round(splitLeft + 2 * zoneW), splitRight, "inner", "outer-right"],
+    ];
+  }
+
+  return zones.map(([x1, x2, leftType, rightType]) => {
+    const leftPad = leftType === "outer-left" ? CELL_H_PAD : ZONE_DIV_PAD;
+    const rightPad = rightType === "outer-right" ? CELL_H_PAD : ZONE_DIV_PAD;
+    return {
+      x: Math.max(0, x1 + leftPad),
+      y: Math.max(0, rowTop + CELL_V_PAD),
+      w: Math.max(1, x2 - x1 - leftPad - rightPad),
+      h: Math.max(1, rowBottom - rowTop - 2 * CELL_V_PAD),
+    };
+  });
+}
+
+/**
+ * Compute the full split-cell crop rect (spans all 3 zones) for preview purposes.
+ */
+export function computeSplitFullRect(
+  detection: TableDetectionResult,
+  rowIndex: number,
+): PixelRect {
+  const row = detection.dataRows[rowIndex];
+  const sc = detection.splitMarkCol;
+  if (!row) return { x: sc.x, y: 0, w: sc.w, h: 1 };
+  return finalCropRect(sc.x, sc.x + sc.w, row.y, row.y + row.h, CELL_H_PAD, CELL_V_PAD);
+}
+
+/**
+ * @deprecated Use computeWrittenMarkCropRect or computeSplitZoneRects instead.
+ * Kept for backward compatibility with unit tests.
  */
 export function detectedCellRect(
   detection: TableDetectionResult,
@@ -457,7 +825,7 @@ export function detectedCellRect(
   rowIndex: number,
   imgW: number,
   imgH: number,
-  inset = 0.08,
+  inset = 0.15,
 ): PixelRect {
   const row = detection.dataRows[rowIndex];
   const colDef = col === "writtenMark" ? detection.writtenMarkCol : detection.splitMarkCol;

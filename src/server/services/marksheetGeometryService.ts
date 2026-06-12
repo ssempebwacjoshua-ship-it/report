@@ -67,7 +67,7 @@ export function cellToPixel(
   rowFrac: { yFrac: number; hFrac: number },
   imgW: number,
   imgH: number,
-  inset = 0.08,
+  inset = 0.15,
 ): PixelRect {
   const tableLeft = PAGE_MARGIN_LEFT_FRAC * imgW;
   const tableWidth = TABLE_WIDTH_FRAC * imgW;

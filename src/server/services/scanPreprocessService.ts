@@ -129,3 +129,88 @@ export async function cropPreview(imageBuffer: Buffer, rect: PixelRect): Promise
 export function bufferToDataUrl(buffer: Buffer, mimeType = "image/jpeg"): string {
   return `data:${mimeType};base64,${buffer.toString("base64")}`;
 }
+
+/**
+ * Inspect a greyscale crop JPEG for quality problems that would make OCR
+ * unreliable. Returns `ok: false` with a `reason` for any of:
+ *   - blank (too few dark pixels)
+ *   - mostly dark (border or solid region)
+ *   - vertical border line attached to the left or right edge
+ *   - too many full-height vertical lines (grid contamination)
+ *   - too many full-width horizontal lines (row border contamination)
+ *
+ * On decode failure the check is skipped (returns ok: true) so a decode
+ * error never blocks extraction.
+ */
+export async function checkCropQuality(croppedBuffer: Buffer): Promise<{ ok: boolean; reason: string }> {
+  let data: Buffer;
+  let w: number;
+  let h: number;
+  try {
+    const result = await sharp(croppedBuffer)
+      .greyscale()
+      .raw()
+      .toBuffer({ resolveWithObject: true });
+    data = result.data;
+    w = result.info.width;
+    h = result.info.height;
+  } catch {
+    return { ok: true, reason: "" };
+  }
+
+  if (w < 4 || h < 4) return { ok: false, reason: "Crop too small" };
+
+  let darkCount = 0;
+  for (let i = 0; i < data.length; i++) {
+    if ((data[i] ?? 255) < 128) darkCount++;
+  }
+  const darkFrac = darkCount / (w * h);
+
+  if (darkFrac < 0.002) return { ok: false, reason: "Blank crop — no ink detected" };
+  if (darkFrac > 0.40)  return { ok: false, reason: "Crop mostly dark (border or solid region)" };
+
+  // Edge contamination: left/right 6px columns
+  const edgePx = Math.max(3, Math.min(6, Math.floor(w * 0.04)));
+  let leftDark = 0;
+  let rightDark = 0;
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < edgePx; x++) {
+      if ((data[y * w + x] ?? 255) < 128) leftDark++;
+    }
+    for (let x = w - edgePx; x < w; x++) {
+      if ((data[y * w + x] ?? 255) < 128) rightDark++;
+    }
+  }
+  const edgeArea = h * edgePx;
+  if (leftDark / edgeArea > 0.35 || rightDark / edgeArea > 0.35) {
+    return { ok: false, reason: "Vertical border line attached to crop edge" };
+  }
+
+  // Full-height vertical lines (>75% dark per column)
+  let vertLineCols = 0;
+  for (let x = 0; x < w; x++) {
+    let colDark = 0;
+    for (let y = 0; y < h; y++) {
+      if ((data[y * w + x] ?? 255) < 128) colDark++;
+    }
+    if (colDark / h > 0.75) vertLineCols++;
+  }
+  if (vertLineCols / w > 0.03) {
+    return { ok: false, reason: "Prominent vertical lines (grid border contamination)" };
+  }
+
+  // Full-width horizontal lines (>55% dark per row)
+  let horizLineRows = 0;
+  for (let y = 0; y < h; y++) {
+    let rowDark = 0;
+    for (let x = 0; x < w; x++) {
+      if ((data[y * w + x] ?? 255) < 128) rowDark++;
+    }
+    if (rowDark / w > 0.55) horizLineRows++;
+  }
+  if (horizLineRows / h > 0.10) {
+    return { ok: false, reason: "Prominent horizontal lines (row border contamination)" };
+  }
+
+  return { ok: true, reason: "" };
+}

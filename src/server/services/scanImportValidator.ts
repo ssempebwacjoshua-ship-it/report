@@ -97,7 +97,7 @@ export function validateScanRows(
         : "Extraction confidence is low. Confirm or enter the operator mark.";
     } else {
       status = "MISSING";
-      statusReason = "Needs entry.";
+      statusReason = row.statusReason || "Needs entry.";
     }
 
     return {

@@ -74,6 +74,21 @@ describe("validateScanRows", () => {
     expect(result.status).toBe("MISSING");
   });
 
+  it("preserves final crop quality failure reason when OCR is skipped", () => {
+    const [result] = validateScanRows(
+      [makeRow({
+        writtenMark: "",
+        splitMark: "",
+        statusReason: "Final crop failed quality check: written: Blank crop",
+      })],
+      context,
+      students,
+    );
+
+    expect(result.status).toBe("MISSING");
+    expect(result.statusReason).toMatch(/Final crop failed quality check/);
+  });
+
   it("blank written mark but valid split mark → uses split as suggestion", () => {
     const [result] = validateScanRows(
       [makeRow({ writtenMark: "", splitMark: "68" })],
