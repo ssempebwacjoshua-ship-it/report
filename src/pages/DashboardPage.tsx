@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { fetchStudentContactSummary } from "../client/studentsClient";
 import { ActivityCard } from "../components/dashboard/ActivityCard";
 import { ReportsOverviewCard } from "../components/dashboard/ReportsOverviewCard";
@@ -37,6 +38,7 @@ const workflowTone = {
 };
 
 export function DashboardPage() {
+  const navigate = useNavigate();
   const { settings } = useAppSettings() ?? {};
   const schoolName = getSchoolDisplayName(settings?.sections.school, "School Connect");
   const [contactSummary, setContactSummary] = useState({
@@ -100,6 +102,7 @@ export function DashboardPage() {
               key={tab}
               type="button"
               className={`tab-button whitespace-nowrap ${index === 0 ? "tab-button-active" : ""}`}
+              onClick={tab === "Release Center" ? () => navigate("/reports/release") : undefined}
             >
               {tab}
             </button>
