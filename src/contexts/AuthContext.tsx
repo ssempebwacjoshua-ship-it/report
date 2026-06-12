@@ -27,7 +27,7 @@ async function readAuthBody(response: Response) {
   try {
     return JSON.parse(raw) as { token?: string; user?: AuthUser; error?: string };
   } catch {
-    throw new Error("Unexpected response from the server.");
+    throw new Error("API returned non-JSON response.");
   }
 }
 
@@ -76,6 +76,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const body = (await readAuthBody(res)) as { token?: string; user?: AuthUser; error?: string };
 
     if (!res.ok) {
+      if (res.status === 401) {
+        throw new Error("Invalid email or password.");
+      }
+      if (res.status >= 500) {
+        throw new Error("Server configuration error.");
+      }
       throw new Error(body.error ?? "Login failed. Check your credentials.");
     }
 
