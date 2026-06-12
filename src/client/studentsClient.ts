@@ -3,6 +3,7 @@ import type {
   GuardianContactInput,
   StudentCreateInput,
   StudentImportCommitResult,
+  StudentImportJob,
   StudentImportPreview,
   StudentListItem,
   StudentsResponse,
@@ -56,8 +57,24 @@ export async function commitStudentImport(formData: FormData, schoolCode = "SCU-
     method: "POST",
     body: formData,
   });
+  if (response.status === 202) return response.json() as Promise<StudentImportJob>;
   if (!response.ok) throw new Error(await readError(response, "Could not commit import"));
   return response.json();
+}
+
+export async function createStudentImportJob(formData: FormData, schoolCode = "SCU-PREVIEW"): Promise<StudentImportJob> {
+  const response = await fetch(`${API_BASE}/internal/students/import-jobs/upload?schoolCode=${encodeURIComponent(schoolCode)}`, {
+    method: "POST",
+    body: formData,
+  });
+  if (!response.ok) throw new Error(await readError(response, "Could not queue import"));
+  return response.json();
+}
+
+export async function fetchStudentImportJob(jobId: string, schoolCode = "SCU-PREVIEW") {
+  const response = await fetch(`${API_BASE}/internal/students/import-jobs/${encodeURIComponent(jobId)}?schoolCode=${encodeURIComponent(schoolCode)}`);
+  if (!response.ok) throw new Error(await readError(response, "Could not load import job"));
+  return response.json() as Promise<Record<string, unknown>>;
 }
 
 export async function downloadStudentTemplateCsv(): Promise<string> {

@@ -12,7 +12,7 @@ import {
   upsertGuardianContact,
 } from "../repositories/studentRepository";
 import { getReportContext } from "../repositories/schoolRepository";
-import { commitStudentImport, parseStudentsCsv, parseStudentsXlsx, previewStudentImport } from "../services/studentImportService";
+import { commitStudentImport, createStudentImportJob, getStudentImportJob, parseStudentsCsv, parseStudentsXlsx, previewStudentImport } from "../services/studentImportService";
 import { generateAdmissionNumber } from "../services/studentAdmissionNumberService";
 
 const schoolQuery = z.object({ schoolCode: z.string().default("SCU-PREVIEW") });
@@ -166,6 +166,36 @@ export function studentsRoutes() {
     }
   });
 
+  router.post("/internal/students/import-jobs/upload", upload.single("file"), async (req, res, next) => {
+    try {
+      const query = schoolQuery.parse(req.query);
+      const mode = admissionModeFromQuery(req.body.mode);
+      const file = req.file;
+      if (!file) {
+        res.status(400).json({ error: "Upload a CSV or XLSX file." });
+        return;
+      }
+      const rows = file.originalname.toLowerCase().endsWith(".xlsx") ? parseStudentsXlsx(file.buffer) : parseStudentsCsv(file.buffer.toString("utf8"));
+      res.status(202).json(await createStudentImportJob(prisma, query.schoolCode, rows, mode === "create-and-update existing" ? "CREATE_AND_UPDATE_EXISTING" : "CREATE_ONLY"));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.get("/internal/students/import-jobs/:jobId", async (req, res, next) => {
+    try {
+      const query = schoolQuery.parse(req.query);
+      const job = await getStudentImportJob(prisma, query.schoolCode, req.params.jobId);
+      if (!job) {
+        res.status(404).json({ error: "Import job not found." });
+        return;
+      }
+      res.json(job);
+    } catch (error) {
+      next(error);
+    }
+  });
+
   router.post("/api/students/import/commit", upload.single("file"), async (req, res, next) => {
     try {
       const query = schoolQuery.parse(req.query);
@@ -176,6 +206,10 @@ export function studentsRoutes() {
         return;
       }
       const rows = file.originalname.toLowerCase().endsWith(".xlsx") ? parseStudentsXlsx(file.buffer) : parseStudentsCsv(file.buffer.toString("utf8"));
+      if (rows.length > 500) {
+        res.status(202).json(await createStudentImportJob(prisma, query.schoolCode, rows, mode === "create-and-update existing" ? "CREATE_AND_UPDATE_EXISTING" : "CREATE_ONLY"));
+        return;
+      }
       res.json(await commitStudentImport(prisma, query.schoolCode, rows, mode === "create-and-update existing" ? "CREATE_AND_UPDATE_EXISTING" : "CREATE_ONLY"));
     } catch (error) {
       next(error);

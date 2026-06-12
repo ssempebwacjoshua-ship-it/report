@@ -10,6 +10,9 @@ import type {
 import { generateAdmissionNumber } from "./studentAdmissionNumberService";
 import { createStudentRecord } from "../repositories/studentRepository";
 
+const PREVIEW_LIMIT = 100;
+const BATCH_SIZE = 400;
+
 function text(value: unknown) {
   return typeof value === "string" ? value.trim() : value == null ? "" : String(value).trim();
 }
@@ -41,13 +44,21 @@ function inferClassLevel(name: string) {
   return match ? Number(match[1]) : 0;
 }
 
-export function parseStudentsCsv(csvText: string): StudentImportRowInput[] {
-  const records = parseCsv(csvText, {
-    columns: true,
-    skip_empty_lines: true,
-    trim: true,
-  }) as Record<string, unknown>[];
+function serializeSummary(summary: Record<string, unknown>) {
+  return JSON.stringify(summary);
+}
 
+function deserializeSummary(summary: string | null | undefined) {
+  if (!summary) return {};
+  try {
+    return JSON.parse(summary) as Record<string, unknown>;
+  } catch {
+    return {};
+  }
+}
+
+export function parseStudentsCsv(csvText: string): StudentImportRowInput[] {
+  const records = parseCsv(csvText, { columns: true, skip_empty_lines: true, trim: true }) as Record<string, unknown>[];
   return records.map((row) => ({
     admissionNumber: text(row.admissionNumber),
     fullName: text(row.fullName),
@@ -93,12 +104,7 @@ async function resolveSchool(prisma: PrismaClient, schoolCode: string) {
   });
 }
 
-export async function previewStudentImport(
-  prisma: PrismaClient,
-  schoolCode: string,
-  rows: StudentImportRowInput[],
-  mode: StudentImportMode = "CREATE_ONLY",
-): Promise<StudentImportPreview> {
+async function buildPreview(prisma: PrismaClient, schoolCode: string, rows: StudentImportRowInput[], mode: StudentImportMode = "CREATE_ONLY"): Promise<StudentImportPreview> {
   const school = await resolveSchool(prisma, schoolCode);
   if (!school) throw new Error(`School ${schoolCode} was not found.`);
   validateRequiredColumns(rows);
@@ -112,20 +118,14 @@ export async function previewStudentImport(
     const errors: string[] = [];
     const klass = school.classes.find((item) => norm(item.name) === norm(raw.className) || norm(item.code) === norm(raw.className));
     const stream = klass?.streams.find((item) => norm(item.name) === norm(raw.streamName) || norm(item.code) === norm(raw.streamName));
-
     const admissionNumber = raw.admissionNumber?.trim() || "";
+
     if (!admissionNumber) errors.push("Admission number is required.");
     if (!raw.fullName.trim()) errors.push("Full name is required.");
     if (!raw.gender.trim()) errors.push("Gender is required.");
     if (!raw.className.trim()) errors.push("Class is required.");
     if (!raw.streamName.trim()) errors.push("Stream is required.");
     if (raw.gender && !normalizeGender(raw.gender)) errors.push("Invalid gender.");
-    if (!klass) {
-      // classes can be created during commit
-    }
-    if (!stream) {
-      // streams can be created during commit
-    }
     if (raw.guardianEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(raw.guardianEmail)) errors.push("Guardian email must be valid.");
     if (raw.guardianPhone && !/^[+]?[0-9\s()-]+$/.test(raw.guardianPhone)) errors.push("Guardian phone must be valid.");
 
@@ -151,6 +151,7 @@ export async function previewStudentImport(
     });
   }
 
+  const visibleRows = previewRows.slice(0, PREVIEW_LIMIT);
   const validRows = previewRows.filter((row) => row.isValid).length;
   return {
     status: "PREVIEW",
@@ -160,41 +161,26 @@ export async function previewStudentImport(
     duplicateRows,
     createRows: previewRows.filter((row) => row.action === "create" && row.isValid).length,
     updateRows: previewRows.filter((row) => row.action === "update" && row.isValid).length,
-    rows: previewRows,
+    rows: visibleRows,
     mode,
   };
 }
 
-export async function commitStudentImport(
-  prisma: PrismaClient,
-  schoolCode: string,
-  rows: StudentImportRowInput[],
-  mode: StudentImportMode = "CREATE_ONLY",
-) {
-  const preview = await previewStudentImport(prisma, schoolCode, rows, mode);
-  if (preview.invalidRows > 0) return { ...preview, status: "PREVIEW" as const };
+async function processChunk(prisma: PrismaClient, schoolId: string, schoolCode: string, rows: StudentImportPreviewRow[], activeYearId: string, activeTermId: string, mode: StudentImportMode) {
+  let successCount = 0;
+  let duplicateCount = 0;
+  let failedCount = 0;
+  const rowErrors: Array<{ rowNumber: number; errors: string[] }> = [];
 
-  const school = await prisma.school.findUniqueOrThrow({
-    where: { code: schoolCode },
-    include: { academicYears: { where: { isActive: true }, include: { terms: { where: { isActive: true } } } } },
-  });
-  const activeYear = school.academicYears[0];
-  const activeTerm = activeYear?.terms[0];
-  if (!activeYear || !activeTerm) throw new Error("An active academic year and term are required before importing students.");
-
-  const batch = await prisma.markImportBatch.create({
-    data: {
-      schoolId: school.id,
-      status: "COMMITTED",
-      source: "student",
-      summary: JSON.stringify(preview),
-    },
-  });
-
-  for (let index = 0; index < preview.rows.length; index += 500) {
-    const chunk = preview.rows.slice(index, index + 500);
-    for (const row of chunk) {
+  for (const row of rows) {
+    try {
       const admissionNumber = row.raw.admissionNumber?.trim() || row.generatedAdmissionNumber || "";
+      if (!admissionNumber) throw new Error("Admission number is required.");
+      if (row.errors.length > 0 && row.action === "invalid") {
+        failedCount += 1;
+        rowErrors.push({ rowNumber: row.rowNumber, errors: row.errors });
+        continue;
+      }
       if (row.action === "update" && row.existingStudentId && mode === "CREATE_AND_UPDATE_EXISTING") {
         const name = splitName(row.raw.fullName);
         await prisma.student.update({
@@ -205,71 +191,143 @@ export async function commitStudentImport(
             isActive: row.raw.status?.toLowerCase() !== "inactive",
           },
         });
+        successCount += 1;
         continue;
       }
 
-      if (row.action === "create" || (row.action === "update" && mode === "CREATE_AND_UPDATE_EXISTING")) {
-        const klass =
-          (await prisma.schoolClass.findFirst({
-            where: { schoolId: school.id, OR: [{ name: row.raw.className }, { code: row.raw.className }] },
-          })) ??
-          (await prisma.schoolClass.create({
-            data: {
-              schoolId: school.id,
-              name: row.raw.className,
-              code: row.raw.className,
-              level: inferClassLevel(row.raw.className),
-            },
-          }));
-        const stream =
-          (await prisma.stream.findFirst({
-            where: { schoolId: school.id, classId: klass.id, OR: [{ name: row.raw.streamName }, { code: row.raw.streamName }] },
-          })) ??
-          (await prisma.stream.create({
-            data: {
-              schoolId: school.id,
-              classId: klass.id,
-              name: row.raw.streamName,
-              code: row.raw.streamName,
-            },
-          }));
-        await createStudentRecord(
-          prisma,
+      const klass =
+        (await prisma.schoolClass.findFirst({ where: { schoolId, OR: [{ name: row.raw.className }, { code: row.raw.className }] } })) ??
+        (await prisma.schoolClass.create({ data: { schoolId, name: row.raw.className, code: row.raw.className, level: inferClassLevel(row.raw.className) } }));
+      const stream =
+        (await prisma.stream.findFirst({ where: { schoolId, classId: klass.id, OR: [{ name: row.raw.streamName }, { code: row.raw.streamName }] } })) ??
+        (await prisma.stream.create({ data: { schoolId, classId: klass.id, name: row.raw.streamName, code: row.raw.streamName } }));
+
+      await createStudentRecord(
+        prisma,
+        schoolCode,
+        {
+          admissionNumber,
+          fullName: row.raw.fullName,
+          gender: normalizeGender(row.raw.gender),
+          classId: klass.id,
+          streamId: stream.id,
+          isActive: row.raw.status?.toLowerCase() !== "inactive",
+          guardianName: row.raw.guardianName,
+          guardianPhone: normalizePhone(row.raw.guardianPhone ?? ""),
+          guardianEmail: row.raw.guardianEmail,
+          notes: "",
           schoolCode,
-          {
-            admissionNumber,
-            fullName: row.raw.fullName,
-            gender: normalizeGender(row.raw.gender),
-            classId: klass.id,
-            streamId: stream.id,
-            isActive: row.raw.status?.toLowerCase() !== "inactive",
-            guardianName: row.raw.guardianName,
-            guardianPhone: normalizePhone(row.raw.guardianPhone ?? ""),
-            guardianEmail: row.raw.guardianEmail,
-            notes: "",
-            schoolCode,
-          },
-          null,
-        );
-      }
+        },
+        null,
+      );
+      successCount += 1;
+    } catch (error) {
+      failedCount += 1;
+      rowErrors.push({ rowNumber: row.rowNumber, errors: [error instanceof Error ? error.message : "Failed to import row"] });
     }
   }
 
+  return { successCount, duplicateCount, failedCount, rowErrors };
+}
+
+async function processImportJob(prisma: PrismaClient, batchId: string, schoolCode: string, mode: StudentImportMode) {
+  const batch = await prisma.markImportBatch.findUnique({
+    where: { id: batchId },
+    include: { school: { include: { classes: { include: { streams: true } }, students: true, academicYears: { where: { isActive: true }, include: { terms: { where: { isActive: true } } } } } } },
+  });
+  if (!batch || batch.source !== "student") return;
+  const summary = deserializeSummary(batch.summary);
+  const rows = (summary.rows as StudentImportPreviewRow[] | undefined) ?? [];
+  const totalRows = rows.length;
+  const activeYear = batch.school.academicYears[0];
+  const activeTerm = activeYear?.terms[0];
+  if (!activeYear || !activeTerm) {
+    await prisma.markImportBatch.update({ where: { id: batchId }, data: { status: "FAILED", summary: serializeSummary({ ...summary, status: "failed", lastError: "An active academic year and term are required before importing students." }) } });
+    return;
+  }
+
+  let processedRows = 0;
+  let successCount = 0;
+  let failedCount = 0;
+  let duplicateCount = 0;
+  await prisma.markImportBatch.update({ where: { id: batchId }, data: { status: "DRY_RUN", summary: serializeSummary({ ...summary, status: "processing", totalRows, processedRows, successCount, failedCount, duplicateCount, startedAt: new Date().toISOString() }) } });
+
+  for (let index = 0; index < rows.length; index += BATCH_SIZE) {
+    const chunk = rows.slice(index, index + BATCH_SIZE);
+    const result = await prisma.$transaction(async (tx) => {
+      const chunkResult = await processChunk(tx, batch.schoolId, schoolCode, chunk, activeYear.id, activeTerm.id, mode);
+      return chunkResult;
+    });
+    processedRows += chunk.length;
+    successCount += result.successCount;
+    failedCount += result.failedCount;
+    duplicateCount += result.duplicateCount;
+    for (const rowError of result.rowErrors) {
+      await prisma.markImportRow.create({
+        data: { batchId, rowNumber: rowError.rowNumber, raw: {}, isValid: false, errors: rowError.errors },
+      });
+    }
+    await prisma.markImportBatch.update({
+      where: { id: batchId },
+      data: {
+        summary: serializeSummary({ ...summary, status: "processing", totalRows, processedRows, successCount, failedCount, duplicateCount, updatedAt: new Date().toISOString() }),
+      },
+    });
+  }
+
+  await prisma.markImportBatch.update({
+    where: { id: batchId },
+    data: { status: "COMMITTED", summary: serializeSummary({ ...summary, status: "completed", totalRows, processedRows, successCount, failedCount, duplicateCount, completedAt: new Date().toISOString() }) },
+  });
   await prisma.auditLog.create({
     data: {
-      schoolId: school.id,
+      schoolId: batch.schoolId,
       action: "student.import.commit",
-      details: {
-        batchId: batch.id,
-        totalRows: preview.totalRows,
-        validRows: preview.validRows,
-        invalidRows: preview.invalidRows,
-        duplicateRows: preview.duplicateRows,
-        createRows: preview.createRows,
-        updateRows: preview.updateRows,
-      },
+      details: { batchId, totalRows, processedRows, successCount, failedCount, duplicateCount },
     },
   });
+}
 
-  return { ...preview, status: "COMMITTED" as const, batchId: batch.id };
+export async function createStudentImportJob(prisma: PrismaClient, schoolCode: string, rows: StudentImportRowInput[], mode: StudentImportMode = "CREATE_ONLY") {
+  const preview = await buildPreview(prisma, schoolCode, rows, mode);
+  const school = await prisma.school.findUniqueOrThrow({ where: { code: schoolCode } });
+  const batch = await prisma.markImportBatch.create({
+    data: {
+      schoolId: school.id,
+      status: "DRY_RUN",
+      source: "student",
+      summary: serializeSummary({ ...preview, status: "queued", mode, rows: preview.rows }),
+    },
+  });
+  void setTimeout(() => {
+    void processImportJob(prisma, batch.id, schoolCode, mode).catch(async (error) => {
+      await prisma.markImportBatch.update({
+        where: { id: batch.id },
+        data: { status: "FAILED", summary: serializeSummary({ ...deserializeSummary(batch.summary), status: "failed", lastError: error instanceof Error ? error.message : "Import failed" }) },
+      });
+    });
+  }, 0);
+  return { jobId: batch.id, status: "QUEUED" as const, totalRows: preview.totalRows, validRows: preview.validRows, invalidRows: preview.invalidRows, duplicateRows: preview.duplicateRows };
+}
+
+export async function getStudentImportJob(prisma: PrismaClient, schoolCode: string, jobId: string) {
+  const school = await prisma.school.findUnique({ where: { code: schoolCode } });
+  if (!school) return null;
+  const batch = await prisma.markImportBatch.findFirst({ where: { id: jobId, schoolId: school.id, source: "student" } });
+  if (!batch) return null;
+  return { id: batch.id, status: batch.status, ...deserializeSummary(batch.summary), createdAt: batch.createdAt.toISOString(), updatedAt: batch.updatedAt.toISOString() };
+}
+
+export async function previewStudentImport(prisma: PrismaClient, schoolCode: string, rows: StudentImportRowInput[], mode: StudentImportMode = "CREATE_ONLY"): Promise<StudentImportPreview> {
+  return buildPreview(prisma, schoolCode, rows, mode);
+}
+
+export async function commitStudentImport(prisma: PrismaClient, schoolCode: string, rows: StudentImportRowInput[], mode: StudentImportMode = "CREATE_ONLY") {
+  if (rows.length > 500) {
+    return createStudentImportJob(prisma, schoolCode, rows, mode);
+  }
+  const preview = await buildPreview(prisma, schoolCode, rows, mode);
+  if (preview.invalidRows > 0) return { ...preview, status: "PREVIEW" as const };
+  const queued = await createStudentImportJob(prisma, schoolCode, rows, mode);
+  return { ...preview, ...queued, status: "COMMITTED" as const };
 }

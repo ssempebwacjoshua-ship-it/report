@@ -108,6 +108,15 @@ export type StudentImportCommitResult = StudentImportPreview & {
   batchId: string;
 };
 
+export type StudentImportJob = {
+  jobId: string;
+  status: "QUEUED";
+  totalRows: number;
+  validRows: number;
+  invalidRows: number;
+  duplicateRows: number;
+};
+
 export type StudentListFilters = {
   schoolCode?: string;
   classId?: string;

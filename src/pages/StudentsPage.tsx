@@ -8,6 +8,7 @@ import {
   deleteGuardianContact,
   EMPTY_CONTACT_INPUT,
   fetchStudents,
+  fetchStudentImportJob,
   previewStudentImport,
   updateGuardianContact,
 } from "../client/studentsClient";
@@ -59,6 +60,7 @@ export function StudentsPage() {
   });
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importPreview, setImportPreview] = useState<StudentImportPreview | null>(null);
+  const [importJob, setImportJob] = useState<Record<string, unknown> | null>(null);
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -117,10 +119,31 @@ export function StudentsPage() {
     const formData = new FormData();
     formData.set("file", importFile);
     const result = await commitStudentImport(formData, context?.school?.code ?? "SCU-PREVIEW");
+    if ("jobId" in result) {
+      setImportJob(result);
+      setImportPreview(null);
+      return;
+    }
     setImportPreview(result);
     const refreshed = await fetchStudents(filters);
     setStudents(refreshed.students);
   }
+
+  useEffect(() => {
+    if (!importJob || typeof importJob.jobId !== "string") return;
+    const timer = setInterval(() => {
+      void fetchStudentImportJob(importJob.jobId, context?.school?.code ?? "SCU-PREVIEW")
+        .then((job) => {
+          setImportJob(job);
+          if (job.status === "COMMITTED" || job.status === "FAILED") {
+            clearInterval(timer);
+            void fetchStudents(filters).then((response) => setStudents(response.students));
+          }
+        })
+        .catch(() => undefined);
+    }, 1500);
+    return () => clearInterval(timer);
+  }, [importJob, context?.school?.code, filters]);
 
   function pickImportFile() {
     importFileInputRef.current?.click();
@@ -253,6 +276,14 @@ export function StudentsPage() {
                   Commit
                 </button>
               </div>
+              {importJob ? (
+                <div className="rounded-xl border border-blue-200 bg-blue-50 p-3 text-sm text-blue-900">
+                  <p className="font-semibold">Import queued</p>
+                  <p className="mt-1">
+                    Status: {String(importJob.status ?? "QUEUED")} | processed: {String(importJob.processedRows ?? 0)} / {String(importJob.totalRows ?? 0)}
+                  </p>
+                </div>
+              ) : null}
               {importPreview ? <pre className="overflow-auto rounded-xl bg-slate-950 p-3 text-xs text-slate-100">{JSON.stringify(importPreview, null, 2)}</pre> : null}
             </div>
           ) : null}
