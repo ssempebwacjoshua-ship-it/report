@@ -4,7 +4,9 @@ import {
   fetchReleaseStatus,
   issueBulk,
   markSent,
+  markSentBulk,
   revokeIssuedReport,
+  revokeBulk,
   type DeliveryStatus,
   type IssuedLinkData,
   type ReleaseFilters,
@@ -263,6 +265,8 @@ export function ReleaseCenterPage() {
   const [issuingIds, setIssuingIds] = useState<Set<string>>(new Set());
   const [bulkIssuing, setBulkIssuing] = useState(false);
   const [bulkResult, setBulkResult] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [activeFilter, setActiveFilter] = useState<"ALL" | "READY" | "MISSING_CONTACT" | "SENT" | "OPENED" | "DOWNLOADED" | "NEEDS_ATTENTION">("ALL");
 
   // Load context and school name once
   useEffect(() => {
@@ -292,6 +296,7 @@ export function ReleaseCenterPage() {
     try {
       const result = await fetchReleaseStatus({ ...f, search: q || undefined });
       setRows(result.rows);
+      setSelectedIds(new Set());
       setSummary(result.summary);
       setMeta({ term: result.meta.term, assessmentType: result.meta.assessmentType, academicYear: result.meta.academicYear });
       if (result.meta.schoolName) setSchoolName(result.meta.schoolName);
@@ -301,6 +306,19 @@ export function ReleaseCenterPage() {
       setLoading(false);
     }
   }, []);
+
+  const visibleRows = rows.filter((row) => {
+    if (activeFilter === "ALL") return true;
+    if (activeFilter === "READY") return row.deliveryStatus === "READY_TO_SEND" || row.deliveryStatus === "LINK_GENERATED";
+    if (activeFilter === "MISSING_CONTACT") return row.deliveryStatus === "MISSING_CONTACT";
+    if (activeFilter === "SENT") return row.deliveryStatus === "SENT_MANUALLY";
+    if (activeFilter === "OPENED") return row.deliveryStatus === "OPENED";
+    if (activeFilter === "DOWNLOADED") return row.deliveryStatus === "DOWNLOADED";
+    return ["NOT_FINALIZED", "MISSING_CONTACT", "REVOKED"].includes(row.deliveryStatus);
+  });
+  const selectedRows = visibleRows.filter((row) => selectedIds.has(row.studentId));
+  const allVisibleSelected = visibleRows.length > 0 && visibleRows.every((row) => selectedIds.has(row.studentId));
+  const anySelected = selectedRows.length > 0;
 
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -358,6 +376,36 @@ export function ReleaseCenterPage() {
     } finally {
       setBulkIssuing(false);
     }
+  }
+
+  async function handleBulkIssueSelected() {
+    const ids = selectedRows.map((row) => row.studentId);
+    if (ids.length === 0) return;
+    setBulkIssuing(true);
+    try {
+      const result = await issueBulk({ ...filters, studentIds: ids });
+      setBulkResult(`Issued ${result.issued.length} links. Skipped ${result.skipped.length}.`);
+      void loadStatus(filters, search);
+    } finally {
+      setBulkIssuing(false);
+    }
+  }
+
+  async function handleBulkMarkSent() {
+    const ids = selectedRows.filter((row) => row.issuedReport).map((row) => row.studentId);
+    if (ids.length === 0) return;
+    const result = await markSentBulk({ classId: filters.classId, schoolCode: filters.schoolCode, studentIds: ids });
+    setBulkResult(`Marked ${result.updated} as sent. Skipped ${result.skipped.length}.`);
+    void loadStatus(filters, search);
+  }
+
+  async function handleBulkRevoke() {
+    const ids = selectedRows.filter((row) => row.issuedReport).map((row) => row.studentId);
+    if (ids.length === 0) return;
+    if (!window.confirm(`Revoke ${ids.length} selected report links?`)) return;
+    const result = await revokeBulk({ classId: filters.classId, schoolCode: filters.schoolCode, studentIds: ids });
+    setBulkResult(`Revoked ${result.updated} links. Skipped ${result.skipped.length}.`);
+    void loadStatus(filters, search);
   }
 
   // ── Mark sent ─────────────────────────────────────────────────────────────
@@ -420,6 +468,48 @@ export function ReleaseCenterPage() {
     URL.revokeObjectURL(url);
   }
 
+  function exportSelectedCsv() {
+    const selected = selectedRows;
+    const header = "studentName,admissionNumber,guardianName,preferredMethod,phone,email,reportRef,reportLink,deliveryStatus,messageText\n";
+    const body = selected
+      .map((row) => {
+        const link = issuedLinks.get(row.studentId) ?? null;
+        const message = link ? buildMessage(row, link, schoolName, meta) : "Issue link first";
+        return [
+          `"${row.studentName}"`,
+          `"${row.admissionNumber}"`,
+          `"${row.primaryContact?.guardianName ?? ""}"`,
+          `"${row.primaryContact?.method ?? ""}"`,
+          `"${row.primaryContact?.contactValue ?? ""}"`,
+          `""`,
+          `"${link?.referenceCode ?? row.issuedReport?.referenceCode ?? ""}"`,
+          `"${link?.parentLink ?? ""}"`,
+          `"${row.deliveryStatus}"`,
+          `"${message.replace(/"/g, '""')}"`,
+        ].join(",");
+      })
+      .join("\n");
+    const blob = new Blob([header + body], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "release-selected.csv";
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  async function copySelectedMessages() {
+    const text = selectedRows
+      .map((row) => {
+        const link = issuedLinks.get(row.studentId) ?? null;
+        if (!link) return `${row.studentName} - Issue link first`;
+        const contact = row.primaryContact;
+        return `${row.studentName} â€” ${contact?.guardianName ?? "Parent"} â€” ${contact?.method ?? "Contact"}\n${buildMessage(row, link, schoolName, meta)}\nReport Ref: ${link.referenceCode}`;
+      })
+      .join("\n\n---\n\n");
+    await navigator.clipboard.writeText(text);
+  }
+
   const streams = context?.streams.filter((s) => s.classId === filters.classId) ?? [];
   const readyToIssueCount = rows.filter(
     (r) => (r.reportReadiness === "READY" || r.reportReadiness === "MISSING_MARKS") && !issuedLinks.has(r.studentId) && r.deliveryStatus !== "REVOKED" && r.deliveryStatus !== "SUPERSEDED"
@@ -444,6 +534,46 @@ export function ReleaseCenterPage() {
           <button
             type="button"
             className="btn btn-secondary"
+            onClick={() => void handleBulkIssueSelected()}
+            disabled={!anySelected || bulkIssuing}
+          >
+            Issue links for selected
+          </button>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={() => void copySelectedMessages()}
+            disabled={!anySelected}
+          >
+            Copy selected messages
+          </button>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={exportSelectedCsv}
+            disabled={!anySelected}
+          >
+            Export selected CSV
+          </button>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={() => void handleBulkMarkSent()}
+            disabled={!anySelected}
+          >
+            Mark selected as sent
+          </button>
+          <button
+            type="button"
+            className="btn btn-danger-light"
+            onClick={() => void handleBulkRevoke()}
+            disabled={!anySelected}
+          >
+            Revoke selected links
+          </button>
+          <button
+            type="button"
+            className="btn btn-secondary"
             onClick={exportCsv}
             disabled={rows.length === 0}
           >
@@ -455,10 +585,20 @@ export function ReleaseCenterPage() {
             onClick={() => void handleBulkIssue()}
             disabled={bulkIssuing || readyToIssueCount === 0}
           >
-            {bulkIssuing ? "Issuing…" : `Issue all links (${readyToIssueCount})`}
+            {bulkIssuing ? "Issuing..." : `Issue links for all ready (${readyToIssueCount})`}
           </button>
         </div>
       </header>
+
+      <div className="no-print flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">
+        <button type="button" className="text-blue-600 underline" onClick={() => setSelectedIds(new Set(visibleRows.map((r) => r.studentId)))}>
+          Select all visible rows
+        </button>
+        <button type="button" className="text-blue-600 underline" onClick={() => setSelectedIds(new Set())}>
+          Clear selection
+        </button>
+        <span>{selectedIds.size} selected</span>
+      </div>
 
       {/* Filters */}
       <div className="premium-card rounded-2xl px-4 py-3">
@@ -564,6 +704,19 @@ export function ReleaseCenterPage() {
         </div>
       )}
 
+      <div className="no-print flex flex-wrap gap-2">
+        {(["ALL", "READY", "MISSING_CONTACT", "SENT", "OPENED", "DOWNLOADED", "NEEDS_ATTENTION"] as const).map((filter) => (
+          <button
+            key={filter}
+            type="button"
+            className={`rounded-full border px-3 py-1 text-xs font-semibold ${activeFilter === filter ? "border-blue-200 bg-blue-50 text-blue-700" : "border-slate-200 bg-white text-slate-600"}`}
+            onClick={() => setActiveFilter(filter)}
+          >
+            {filter === "ALL" ? "All" : filter === "READY" ? "Ready to send" : filter === "MISSING_CONTACT" ? "Missing contact" : filter === "SENT" ? "Sent" : filter === "OPENED" ? "Opened" : filter === "DOWNLOADED" ? "Downloaded" : "Needs attention"}
+          </button>
+        ))}
+      </div>
+
       {/* Table */}
       {!filters.classId ? (
         <div className="rounded-2xl border border-slate-100 bg-white p-8 text-center text-sm text-slate-400">
@@ -573,7 +726,7 @@ export function ReleaseCenterPage() {
         <div className="rounded-2xl border border-slate-100 bg-white p-8 text-center text-sm text-slate-400">
           Loading…
         </div>
-      ) : rows.length === 0 ? (
+      ) : visibleRows.length === 0 ? (
         <div className="rounded-2xl border border-slate-100 bg-white p-8 text-center text-sm text-slate-400">
           No students found for these filters.
         </div>
@@ -584,6 +737,9 @@ export function ReleaseCenterPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-slate-100 bg-slate-50 text-xs font-bold uppercase tracking-wide text-slate-500">
+                  <th className="px-4 py-3 text-left">
+                    <input type="checkbox" checked={allVisibleSelected} onChange={() => setSelectedIds(allVisibleSelected ? new Set() : new Set(visibleRows.map((r) => r.studentId)))} />
+                  </th>
                   <th className="px-4 py-3 text-left">Student</th>
                   <th className="px-4 py-3 text-left">Adm. No.</th>
                   <th className="px-4 py-3 text-left">Guardian</th>
@@ -595,7 +751,7 @@ export function ReleaseCenterPage() {
                 </tr>
               </thead>
               <tbody>
-                {rows.map((row, i) => {
+                {visibleRows.map((row, i) => {
                   const link = issuedLinks.get(row.studentId) ?? null;
                   const ref = link?.referenceCode ?? row.issuedReport?.referenceCode;
                   return (
@@ -603,6 +759,13 @@ export function ReleaseCenterPage() {
                       key={row.studentId}
                       className={`border-b border-slate-50 last:border-0 ${i % 2 === 1 ? "bg-slate-50/40" : "bg-white"}`}
                     >
+                      <td className="px-4 py-3">
+                        <input type="checkbox" checked={selectedIds.has(row.studentId)} onChange={() => setSelectedIds((prev) => {
+                          const next = new Set(prev);
+                          if (next.has(row.studentId)) next.delete(row.studentId); else next.add(row.studentId);
+                          return next;
+                        })} />
+                      </td>
                       <td className="px-4 py-3 font-semibold text-slate-800">{row.studentName}</td>
                       <td className="px-4 py-3 font-mono text-slate-600">{row.admissionNumber}</td>
                       <td className="px-4 py-3 text-slate-600">{row.primaryContact?.guardianName ?? <span className="text-red-400">—</span>}</td>
@@ -645,15 +808,22 @@ export function ReleaseCenterPage() {
 
           {/* Mobile card list */}
           <div className="grid gap-3 xl:hidden">
-            {rows.map((row) => {
+            {visibleRows.map((row) => {
               const link = issuedLinks.get(row.studentId) ?? null;
               const ref = link?.referenceCode ?? row.issuedReport?.referenceCode;
               return (
                 <div key={row.studentId} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
                   <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <p className="font-bold text-slate-800">{row.studentName}</p>
-                      <p className="text-xs text-slate-500">{row.admissionNumber}</p>
+                    <div className="flex items-start gap-2">
+                      <input type="checkbox" checked={selectedIds.has(row.studentId)} onChange={() => setSelectedIds((prev) => {
+                        const next = new Set(prev);
+                        if (next.has(row.studentId)) next.delete(row.studentId); else next.add(row.studentId);
+                        return next;
+                      })} />
+                      <div>
+                        <p className="font-bold text-slate-800">{row.studentName}</p>
+                        <p className="text-xs text-slate-500">{row.admissionNumber}</p>
+                      </div>
                     </div>
                     <StatusPill status={row.deliveryStatus} />
                   </div>

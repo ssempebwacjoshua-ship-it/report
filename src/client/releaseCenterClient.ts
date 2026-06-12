@@ -126,6 +126,11 @@ export async function issueBulk(body: {
   return apiJson<BulkIssueResponse>(res);
 }
 
+export type BulkReleaseResult = {
+  updated: number;
+  skipped: Array<{ studentId: string; studentName: string; reason: string }>;
+};
+
 export async function markSent(issuedReportId: string): Promise<void> {
   const res = await fetch(`${API_BASE}/api/reports/release/${issuedReportId}/mark-sent`, {
     method: "POST",
@@ -140,4 +145,22 @@ export async function revokeIssuedReport(issuedReportId: string): Promise<void> 
     headers: authHeaders(),
   });
   await apiJson<unknown>(res);
+}
+
+export async function markSentBulk(body: { studentIds: string[]; classId: string; schoolCode?: string }): Promise<BulkReleaseResult> {
+  const res = await fetch(`${API_BASE}/api/reports/release/mark-sent-bulk`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify(body),
+  });
+  return apiJson<BulkReleaseResult>(res);
+}
+
+export async function revokeBulk(body: { studentIds: string[]; classId: string; schoolCode?: string }): Promise<BulkReleaseResult> {
+  const res = await fetch(`${API_BASE}/api/reports/release/revoke-bulk`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify(body),
+  });
+  return apiJson<BulkReleaseResult>(res);
 }

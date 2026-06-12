@@ -115,6 +115,12 @@ const bulkIssueSchema = z.object({
   studentIds: z.array(z.string().uuid()).optional(),
 });
 
+const bulkActionSchema = z.object({
+  schoolCode: z.string().default("SCU-PREVIEW"),
+  classId: z.string().min(1),
+  studentIds: z.array(z.string().uuid()).min(1),
+});
+
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function releaseCenterRoutes() {
@@ -327,6 +333,60 @@ export function releaseCenterRoutes() {
       }
 
       res.status(201).json({ issued, skipped });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/api/reports/release/mark-sent-bulk", requireAuth, async (req, res, next) => {
+    try {
+      const body = bulkActionSchema.parse(req.body);
+      const user = req.user!;
+      const rows = await prisma.issuedReport.findMany({
+        where: { schoolId: user.schoolId, studentId: { in: body.studentIds } },
+        include: { student: { select: { firstName: true, lastName: true } } },
+      });
+      const skipped: Array<{ studentId: string; studentName: string; reason: string }> = [];
+      let updated = 0;
+      for (const studentId of body.studentIds) {
+        const record = rows.find((row) => row.studentId === studentId);
+        if (!record) {
+          skipped.push({ studentId, studentName: "", reason: "No issued link" });
+          continue;
+        }
+        await prisma.issuedReport.update({ where: { id: record.id }, data: { sentAt: record.sentAt ?? new Date() } });
+        updated += 1;
+      }
+      res.json({ updated, skipped });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/api/reports/release/revoke-bulk", requireAuth, async (req, res, next) => {
+    try {
+      const body = bulkActionSchema.parse(req.body);
+      const user = req.user!;
+      const rows = await prisma.issuedReport.findMany({
+        where: { schoolId: user.schoolId, studentId: { in: body.studentIds } },
+        include: { student: { select: { firstName: true, lastName: true } } },
+      });
+      const skipped: Array<{ studentId: string; studentName: string; reason: string }> = [];
+      let updated = 0;
+      for (const studentId of body.studentIds) {
+        const record = rows.find((row) => row.studentId === studentId);
+        if (!record) {
+          skipped.push({ studentId, studentName: "", reason: "No issued link" });
+          continue;
+        }
+        if (record.status === "REVOKED") {
+          skipped.push({ studentId, studentName: `${record.student.firstName} ${record.student.lastName}`, reason: "Already revoked" });
+          continue;
+        }
+        await prisma.issuedReport.update({ where: { id: record.id }, data: { status: "REVOKED", updatedAt: new Date() } });
+        updated += 1;
+      }
+      res.json({ updated, skipped });
     } catch (error) {
       next(error);
     }
