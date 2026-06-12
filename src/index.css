@@ -555,9 +555,18 @@ body {
     margin: 8mm;
   }
 
+  html,
+  body {
+    margin: 0 !important;
+    padding: 0 !important;
+    min-height: 0 !important;
+    background: white !important;
+  }
+
   /* Hide all non-report UI */
   .app-shell-sidebar,
   .app-shell-topbar,
+  .report-parent-page > .no-print,
   .page-header,
   .reports-filters,
   .student-card-list,
@@ -570,18 +579,25 @@ body {
     display: none !important;
   }
 
-  body {
-    background: white;
-  }
-
-  /* Outer section — flush, full width, force colour printing for entire subtree */
+  /* Outer section ??? flush, full width, force colour printing for entire subtree */
   .report-print-area {
     display: block !important;
     padding: 0 !important;
     margin: 0 !important;
     width: 100% !important;
+    min-height: 0 !important;
     print-color-adjust: exact !important;
     -webkit-print-color-adjust: exact !important;
+  }
+
+  .report-print-page {
+    page-break-before: avoid !important;
+    break-before: avoid !important;
+    page-break-after: avoid !important;
+    break-after: avoid !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    min-height: 0 !important;
   }
 
   /* Paper card — strip screen-only decoration */

@@ -42,6 +42,7 @@ describe("StudentReportDetail", () => {
   it("renders official subject rows without contact or subject-position columns", () => {
     const { container } = render(<StudentReportDetail card={card} />);
     const printableReport = container.querySelector(".report-card-sheet");
+    const printPage = container.querySelector(".report-print-page");
 
     expect(screen.getAllByText("Esther Nakayiza").length).toBeGreaterThan(0);
     expect(screen.getByText("English Language")).toBeInTheDocument();
@@ -53,6 +54,7 @@ describe("StudentReportDetail", () => {
     expect(screen.queryByText("Overall Position")).not.toBeInTheDocument();
     expect(printableReport?.textContent).not.toContain("Parent contact ready");
     expect(printableReport?.textContent).not.toContain("Florence Nakayiza");
+    expect(printPage).toBeInTheDocument();
   });
 
   it("shows only the overall position summary when enabled", () => {

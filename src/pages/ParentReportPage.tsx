@@ -94,7 +94,7 @@ export function ParentReportPage() {
   });
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="report-parent-page min-h-screen bg-slate-50">
       <div className="no-print sticky top-0 z-10 border-b border-slate-200 bg-white px-4 py-3 shadow-sm">
         <div className="mx-auto flex max-w-4xl items-center justify-between gap-4">
           <div>
@@ -148,7 +148,7 @@ export function ParentReportPage() {
         </div>
       </div>
 
-      <div className="mx-auto max-w-4xl px-4 py-6">
+      <div className="report-print-page mx-auto max-w-4xl px-4 py-6">
         <div className="print-only mb-4">
           <p className="text-center text-xs text-slate-500">
             {school.name} â€” Issued {issuedDate} â€” Ref: {referenceCode}
