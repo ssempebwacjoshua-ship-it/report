@@ -12,6 +12,9 @@ import {
   updateGuardianContact,
 } from "../client/studentsClient";
 import { Icon } from "../components/layout/Icon";
+import { getApiBaseUrl } from "../client/apiBase";
+
+const API_BASE = getApiBaseUrl();
 import type { ReportContext, ReportFilters } from "../shared/types/reports";
 import type { GuardianContact, GuardianContactInput, StudentImportPreview, StudentListItem } from "../shared/types/students";
 
@@ -153,9 +156,14 @@ export function StudentsPage() {
           <h1 className="text-2xl font-bold tracking-tight text-slate-950">Enrolled students and report contacts</h1>
           <p className="mt-1 text-sm text-slate-500">Reports can only be issued for actively enrolled students.</p>
         </div>
-        <Link className="btn btn-primary" to="/reports">
-          Report Generation
-        </Link>
+        <div className="flex flex-wrap gap-2">
+          <button type="button" className="btn btn-secondary" onClick={() => setShowImport(true)}>
+            Import Batch
+          </button>
+          <Link className="btn btn-primary" to="/reports">
+            Report Generation
+          </Link>
+        </div>
       </header>
 
       {error ? <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 shadow-sm">{error}</div> : null}
@@ -202,14 +210,14 @@ export function StudentsPage() {
           <div className="mb-3 flex items-center justify-between gap-3">
             <h2 className="text-base font-bold text-slate-950">Import Students</h2>
             <div className="flex flex-wrap justify-end gap-2">
-              <a className="btn btn-secondary" href="/api/students/import/template.csv">
+              <a className="btn btn-secondary" href={`${API_BASE}/api/students/import/template.csv`}>
                 CSV Template
               </a>
-              <a className="btn btn-secondary" href="/api/students/import/template.xlsx">
+              <a className="btn btn-secondary" href={`${API_BASE}/api/students/import/template.xlsx`}>
                 XLSX Template
               </a>
               <button type="button" className="btn btn-secondary" onClick={() => setShowImport((current) => !current)}>
-                {showImport ? "Close" : "Import Students"}
+                {showImport ? "Close" : "Import Batch"}
               </button>
             </div>
           </div>

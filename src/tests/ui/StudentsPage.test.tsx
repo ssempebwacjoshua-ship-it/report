@@ -77,7 +77,7 @@ describe("StudentsPage", () => {
     expect(screen.getByRole("button", { name: "Add Student" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "CSV Template" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "XLSX Template" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Import Students" })).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: "Import Batch" }).length).toBeGreaterThan(0);
     expect(screen.getByRole("link", { name: "View Report" })).toBeInTheDocument();
     expect(screen.getAllByRole("button", { name: "Add Contact" }).length).toBeGreaterThan(0);
     await user.click(screen.getAllByText("Ada Lovelace")[0]);
