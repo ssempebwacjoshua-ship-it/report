@@ -124,7 +124,7 @@ function AppShellInner({
 
   return (
     <div
-      className="min-h-screen bg-slate-50 text-slate-950 lg:grid"
+      className="app-shell-root min-h-screen bg-slate-50 text-slate-950 lg:grid"
       style={{ gridTemplateColumns: `${sidebarCollapsed ? 72 : sidebarWidth}px minmax(0,1fr)` }}
     >
       <Sidebar

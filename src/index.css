@@ -1,6 +1,8 @@
 @import "tailwindcss";
 
-* {
+*,
+*::before,
+*::after {
   box-sizing: border-box;
 }
 
@@ -963,5 +965,92 @@ body {
     --app-section-gap: 0.75rem;
     --app-button-height: 2.25rem;
     --app-control-height: 2.25rem;
+  }
+}
+
+/* ── Mobile/PWA layout hardening (screen only) ── */
+@media screen {
+  html,
+  body {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  #root {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  /* Grid/flex blowout protection: sections and cards may always shrink.
+     Grid/flex children default to min-width:auto and refuse to shrink below
+     wide tables, so the page grows past the viewport instead. */
+  main.grid > *,
+  main.grid section,
+  .premium-card,
+  .page-header {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  /* Media and form controls can never exceed their container */
+  img,
+  svg,
+  video,
+  canvas,
+  input,
+  select,
+  textarea,
+  button {
+    max-width: 100%;
+  }
+
+  /* App shell tracks the dynamic viewport (mobile URL bar) */
+  @supports (min-height: 100dvh) {
+    .app-shell-root {
+      min-height: 100dvh;
+    }
+  }
+
+  @supports (height: 100dvh) {
+    @media (min-width: 1024px) {
+      .app-shell-sidebar {
+        height: 100dvh;
+      }
+    }
+  }
+
+  /* Safe-area insets for installed PWA (notch / home indicator) */
+  .app-shell-topbar {
+    padding-top: env(safe-area-inset-top);
+    height: calc(var(--app-topbar-height) + env(safe-area-inset-top));
+  }
+
+  .app-shell-sidebar {
+    padding-top: env(safe-area-inset-top);
+  }
+
+  .app-page {
+    padding-bottom: calc(var(--app-page-padding) + env(safe-area-inset-bottom));
+  }
+
+  /* Fixed-width marksheet preview scrolls inside its card, never the page */
+  .marksheet-card-wrapper {
+    overflow-x: auto;
+  }
+}
+
+@media screen and (max-width: 767px) {
+  /* Long names, emails and reference codes wrap instead of widening the page */
+  .premium-card,
+  td,
+  th {
+    overflow-wrap: anywhere;
+  }
+}
+
+@media print {
+  .marksheet-card-wrapper {
+    overflow: visible !important;
   }
 }

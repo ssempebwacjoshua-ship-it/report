@@ -205,7 +205,7 @@ export function StudentsPage() {
             </button>
           </div>
           {showAddForm ? (
-            <div className="grid gap-2 md:grid-cols-2">
+            <div className="grid grid-cols-2 gap-2">
               <input className="premium-control h-9 rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm outline-none" placeholder="Full name" value={studentForm.fullName} onChange={(e) => setStudentForm({ ...studentForm, fullName: e.target.value })} />
               <input className="premium-control h-9 rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm outline-none" placeholder="Admission number" value={studentForm.admissionNumber} onChange={(e) => setStudentForm({ ...studentForm, admissionNumber: e.target.value })} />
               <select className="premium-control h-9 rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm outline-none" value={studentForm.classId} onChange={(e) => setStudentForm({ ...studentForm, classId: e.target.value })}>

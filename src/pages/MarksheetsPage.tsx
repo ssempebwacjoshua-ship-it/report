@@ -195,7 +195,7 @@ function PrintTab({ ctx, settings, filters, students, loadingStudents, onChange 
             </button>
           </div>
 
-          <div className="marksheet-card-wrapper premium-card overflow-hidden rounded-2xl p-6">
+          <div className="marksheet-card-wrapper premium-card rounded-2xl p-6">
             <PrintableMarksheet
               schoolName={schoolName}
               schoolAddress={settings.school.address}
