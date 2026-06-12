@@ -39,9 +39,28 @@ function computeMarksheetId(
   return `MS-${new Date().getFullYear()}-${cls}-${streamName.toUpperCase()}-${sub}-${examType}-${trm}`;
 }
 
-// Deterministic 3-digit suffix from marksheet ID (mirrors marksheetContextService.ts)
+// Deterministic 3-digit suffix from marksheet ID (mirrors marksheetContextService.ts).
+// Apply the same basic normalization as the server side (SENI→SEN1, M5→MS, O/0 swaps)
+// so the printed sheet number matches what the lookup will compute.
+function normalizeIdForHash(id: string): string {
+  return id
+    .toUpperCase()
+    .replace(/[–—−]/g, "-")
+    .replace(/\|/g, "I")
+    .replace(/[^A-Z0-9]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "")
+    .split("-")
+    .map((part, i) => {
+      if (i === 0) return part.replace(/^M5$/, "MS");
+      if (i === 2) return part.replace(/^SEN[IL]$/, "SEN1");
+      return part;
+    })
+    .join("-");
+}
+
 function sheetNumberSuffix(marksheetId: string): string {
-  const chars = marksheetId.replace(/[^A-Z0-9]/gi, "").toUpperCase();
+  const chars = normalizeIdForHash(marksheetId).replace(/[^A-Z0-9]/g, "").toUpperCase();
   let hash = 7;
   for (let i = 0; i < chars.length; i++) {
     hash = (hash * 31 + chars.charCodeAt(i)) & 0x7fffffff;

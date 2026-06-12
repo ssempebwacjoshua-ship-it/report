@@ -230,7 +230,9 @@ export function computeSheetNumber(marksheetId: string, generatedDate?: Date): s
 }
 
 function sheetNumberSuffix(marksheetId: string): string {
-  const chars = marksheetId.replace(/[^A-Z0-9]/gi, "").toUpperCase();
+  // Always normalize before hashing so SENI and SEN1 produce the same suffix
+  const normalized = normalizeMarksheetId(marksheetId);
+  const chars = normalized.replace(/[^A-Z0-9]/gi, "").toUpperCase();
   let hash = 7;
   for (let i = 0; i < chars.length; i++) {
     hash = (hash * 31 + chars.charCodeAt(i)) & 0x7fffffff;
@@ -283,7 +285,8 @@ export async function findMarksheetIdBySheetNumber(
     if (!cn || !su || !et || !tn) continue;
     const year = new Date(batch.createdAt).getFullYear();
     const id = computeMarksheetId(cn, sn, su, et, tn, year);
-    if (sheetNumberSuffix(id) === targetSuffix) return id;
+    // sheetNumberSuffix normalizes before hashing — return the normalized form
+    if (sheetNumberSuffix(id) === targetSuffix) return normalizeMarksheetId(id);
   }
 
   // 2. Cross-product from live school data
@@ -306,7 +309,7 @@ export async function findMarksheetIdBySheetNumber(
           const year = new Date(term.startsOn).getFullYear();
           for (const et of examTypes) {
             const id = computeMarksheetId(cls.name, stream.name, sub.name, et, term.name, year);
-            if (sheetNumberSuffix(id) === targetSuffix) return id;
+            if (sheetNumberSuffix(id) === targetSuffix) return normalizeMarksheetId(id);
           }
         }
       }
