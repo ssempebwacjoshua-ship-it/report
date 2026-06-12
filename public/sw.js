@@ -6,7 +6,7 @@
  *    shows the app's own honest error/offline states (no fake data, no fake login).
  *  - Versioned cache + immediate activation so users don't stay on stale bundles.
  */
-const CACHE_VERSION = "scr-v1";
+const CACHE_VERSION = "scr-v2";
 const SHELL_CACHE = `${CACHE_VERSION}-shell`;
 const ASSET_CACHE = `${CACHE_VERSION}-assets`;
 
