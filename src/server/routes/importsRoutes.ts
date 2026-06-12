@@ -264,6 +264,11 @@ export function importsRoutes() {
               context,
               rows: extraction.rows,
               message: extraction.message,
+              configuredProvider: extraction.configuredProvider,
+              activeProvider: extraction.activeProvider,
+              providerUrl: extraction.providerUrl,
+              providerReachable: extraction.providerReachable,
+              fallbackReason: extraction.fallbackReason,
             }),
           },
         });
@@ -273,6 +278,11 @@ export function importsRoutes() {
           parseStatus: extraction.parseStatus,
           message: extraction.message,
           rows: extraction.rows,
+          configuredProvider: extraction.configuredProvider,
+          activeProvider: extraction.activeProvider,
+          providerUrl: extraction.providerUrl,
+          providerReachable: extraction.providerReachable,
+          fallbackReason: extraction.fallbackReason,
         });
       } catch (error) {
         next(error);
@@ -456,6 +466,47 @@ export function importsRoutes() {
         skippedRows: rows.length - numericRows.length,
         rows,
         message: `Committed ${numericRows.length} scanned mark rows. Skipped ${rows.length - numericRows.length} rows that were missing, non-numeric, or needed review.`,
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  /**
+   * GET /api/imports/scan-batches/:batchId
+   *
+   * Reload a previously extracted scan batch by ID.
+   * Used by the UI to restore extraction state after a page refresh.
+   */
+  router.get("/api/imports/scan-batches/:batchId", async (req, res, next) => {
+    try {
+      const { batchId } = req.params;
+      const batch = await prisma.markImportBatch.findUnique({ where: { id: batchId } });
+      if (!batch) {
+        res.status(404).json({ error: `Scan batch "${batchId}" not found.` });
+        return;
+      }
+
+      let parsed: Record<string, unknown> = {};
+      try {
+        parsed = JSON.parse(batch.summary ?? "{}") as Record<string, unknown>;
+      } catch {
+        /* ignore invalid JSON */
+      }
+
+      res.json({
+        batchId: batch.id,
+        parseStatus: parsed["parseStatus"] ?? "UPLOADED",
+        message: (parsed["message"] as string | undefined) ?? "",
+        rows: (parsed["rows"] as unknown[]) ?? [],
+        context: parsed["context"] ?? null,
+        fileName: (parsed["fileName"] as string | undefined) ?? "",
+        configuredProvider: (parsed["configuredProvider"] as string | undefined) ?? "",
+        activeProvider: (parsed["activeProvider"] as string | undefined) ?? "",
+        providerUrl: (parsed["providerUrl"] as string | undefined) ?? "",
+        providerReachable: parsed["providerReachable"] ?? false,
+        fallbackReason: (parsed["fallbackReason"] as string | undefined) ?? "",
+        createdAt: batch.createdAt.toISOString(),
       });
     } catch (error) {
       next(error);

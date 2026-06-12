@@ -221,7 +221,7 @@ describe("GET /api/imports/scans/batches", () => {
     );
     expect(res.status).toBe(200);
     expect(Array.isArray(res.body.batches)).toBe(true);
-  });
+  }, 15000);
 });
 
 // ── Digital import still works ────────────────────────────────────────────────

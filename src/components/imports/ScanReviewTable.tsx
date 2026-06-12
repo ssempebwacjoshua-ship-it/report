@@ -1,5 +1,5 @@
 import type { KeyboardEvent } from "react";
-import type { ScanImportRow, ScanRowStatus } from "../../shared/types/imports";
+import type { ScanImportRow, ScanRowStatus, ScanUploadResponse } from "../../shared/types/imports";
 
 const STATUS_STYLES: Record<ScanRowStatus, string> = {
   PARSED: "bg-slate-100 text-slate-700",
@@ -14,6 +14,7 @@ const STATUS_STYLES: Record<ScanRowStatus, string> = {
 
 type Props = {
   rows: ScanImportRow[];
+  providerInfo?: Pick<ScanUploadResponse, "configuredProvider" | "activeProvider" | "providerUrl" | "providerReachable" | "fallbackReason">;
   onCorrectionChange?: (rowNumber: number, value: string) => void;
   onRemarksChange?: (rowNumber: number, value: string) => void;
   readOnly?: boolean;
@@ -66,6 +67,7 @@ function parsedDecision(row: ScanImportRow): { text: string; tone: string } {
 
 export function ScanReviewTable({
   rows,
+  providerInfo,
   onCorrectionChange,
   onRemarksChange,
   readOnly = false,
@@ -165,6 +167,18 @@ export function ScanReviewTable({
           <p className="text-sm text-slate-500">
             Debug is for troubleshooting crop alignment and OCR only. Operator marks remain the source used for validation.
           </p>
+          {providerInfo && (
+            <div className="flex flex-wrap gap-x-4 gap-y-1 rounded-xl border border-slate-100 bg-white px-3 py-2 text-xs text-slate-600">
+              <span><span className="font-semibold">Configured:</span> {providerInfo.configuredProvider || "—"}</span>
+              <span><span className="font-semibold">Active:</span> {providerInfo.activeProvider || "manual"}</span>
+              {providerInfo.providerUrl && (
+                <span className="font-mono text-[10px] text-slate-400">{providerInfo.providerUrl}</span>
+              )}
+              {providerInfo.fallbackReason && (
+                <span className="text-amber-700"><span className="font-semibold">Fallback:</span> {providerInfo.fallbackReason}</span>
+              )}
+            </div>
+          )}
           <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
             <table className="w-full min-w-[1100px] text-xs">
               <thead>

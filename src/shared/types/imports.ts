@@ -114,6 +114,26 @@ export type ScanUploadResponse = {
   parseStatus: ScanParseStatus;
   message: string;
   rows: ScanImportRow[];
+  configuredProvider?: string;
+  activeProvider?: string;
+  providerUrl?: string;
+  providerReachable?: boolean;
+  fallbackReason?: string;
+};
+
+export type ScanBatchReloadResponse = {
+  batchId: string;
+  parseStatus: ScanParseStatus;
+  message: string;
+  rows: ScanImportRow[];
+  context: ScanMarksheetContext | null;
+  fileName: string;
+  configuredProvider?: string;
+  activeProvider?: string;
+  providerUrl?: string;
+  providerReachable?: boolean;
+  fallbackReason?: string;
+  createdAt: string;
 };
 
 export type ScanRowsValidationResponse = {

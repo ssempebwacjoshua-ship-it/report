@@ -23,7 +23,7 @@ import {
   normalizeMark,
   parseSplitZoneTexts,
 } from "./markRecognitionService";
-import { resolveOcrProvider, type OcrCropResult } from "./ocrProvider";
+import { resolveOcrProviderWithMeta, type OcrCropResult, type OcrProviderResolution } from "./ocrProvider";
 import { validateScanRows } from "./scanImportValidator";
 
 type RosterStudent = { admissionNumber: string; studentName: string };
@@ -96,9 +96,7 @@ function clearDebugDir(): void {
   try {
     fs.rmSync(DEBUG_DIR, { recursive: true, force: true });
     fs.mkdirSync(DEBUG_DIR, { recursive: true });
-  } catch {
-    // Best effort
-  }
+  } catch { /* Best effort */ }
 }
 
 function saveDebugFile(name: string, buffer: Buffer): void {
@@ -106,18 +104,14 @@ function saveDebugFile(name: string, buffer: Buffer): void {
   try {
     fs.mkdirSync(DEBUG_DIR, { recursive: true });
     fs.writeFileSync(path.join(DEBUG_DIR, name), buffer);
-  } catch {
-    // Best effort — debug saving never blocks import
-  }
+  } catch { /* Best effort */ }
 }
 
 function saveAlways(name: string, data: string | Buffer): void {
   try {
     fs.mkdirSync(DEBUG_DIR, { recursive: true });
     fs.writeFileSync(path.join(DEBUG_DIR, name), data);
-  } catch {
-    // Best effort
-  }
+  } catch { /* Best effort */ }
 }
 
 // ── Detection overlay ──────────────────────────────────────────────────────────
@@ -129,12 +123,10 @@ async function saveDetectionOverlay(
   detection: TableDetectionResult,
   studentRects: Array<{ admNo: string; writtenRect: PixelRect; splitRect: PixelRect }>,
 ): Promise<void> {
-  // Import sharp lazily so test environments that don't use overlay don't need it.
   const sharp = (await import("sharp")).default;
-
   const parts: string[] = [];
 
-  // Table outer border
+  // Table outer border (green)
   const tw = detection.tableRight - detection.tableLeft;
   const th = detection.tableBottom - detection.tableTop;
   parts.push(
@@ -142,30 +134,56 @@ async function saveDetectionOverlay(
     `fill="none" stroke="#00ff00" stroke-width="3"/>`,
   );
 
-  // Column header bottom
+  // Column header bottom (cyan)
   parts.push(
     `<line x1="${detection.tableLeft}" y1="${detection.columnHeaderBottom}" ` +
     `x2="${detection.tableRight}" y2="${detection.columnHeaderBottom}" ` +
     `stroke="#00ffff" stroke-width="2"/>`,
   );
 
-  // Horizontal line events
+  // Horizontal row lines (cyan, faint)
   for (const y of detection.rowLines) {
     parts.push(
       `<line x1="${detection.tableLeft}" y1="${y}" x2="${detection.tableRight}" y2="${y}" ` +
-      `stroke="#00ffff" stroke-width="1" opacity="0.7"/>`,
+      `stroke="#00ffff" stroke-width="1" opacity="0.6"/>`,
     );
   }
 
-  // Per-student written (yellow) and split (magenta) crop boxes
+  // Vertical column lines (orange)
+  for (const x of detection.colLines) {
+    parts.push(
+      `<line x1="${x}" y1="${detection.tableTop}" x2="${x}" y2="${detection.tableBottom}" ` +
+      `stroke="#ff8800" stroke-width="1" opacity="0.8"/>`,
+    );
+  }
+
+  // Written and split column spans (labelled at top of table)
+  const wc = detection.writtenMarkCol;
+  const sc = detection.splitMarkCol;
+  parts.push(
+    `<rect x="${wc.x}" y="${detection.tableTop}" width="${wc.w}" height="${th}" ` +
+    `fill="rgba(255,255,0,0.08)" stroke="#ffff00" stroke-width="1" stroke-dasharray="4,3"/>`,
+  );
+  parts.push(
+    `<text x="${wc.x + 2}" y="${detection.tableTop + 12}" font-size="9" fill="#cccc00" font-family="monospace">Written</text>`,
+  );
+  parts.push(
+    `<rect x="${sc.x}" y="${detection.tableTop}" width="${sc.w}" height="${th}" ` +
+    `fill="rgba(255,0,255,0.08)" stroke="#ff00ff" stroke-width="1" stroke-dasharray="4,3"/>`,
+  );
+  parts.push(
+    `<text x="${sc.x + 2}" y="${detection.tableTop + 12}" font-size="9" fill="#cc00cc" font-family="monospace">Split</text>`,
+  );
+
+  // Per-student crop boxes (yellow=written, magenta=split)
   for (const { admNo, writtenRect, splitRect } of studentRects) {
     parts.push(
       `<rect x="${writtenRect.x}" y="${writtenRect.y}" width="${writtenRect.w}" height="${writtenRect.h}" ` +
-      `fill="rgba(255,255,0,0.2)" stroke="#ffff00" stroke-width="1"/>`,
+      `fill="rgba(255,255,0,0.25)" stroke="#ffff00" stroke-width="1"/>`,
     );
     parts.push(
       `<rect x="${splitRect.x}" y="${splitRect.y}" width="${splitRect.w}" height="${splitRect.h}" ` +
-      `fill="rgba(255,0,255,0.2)" stroke="#ff00ff" stroke-width="1"/>`,
+      `fill="rgba(255,0,255,0.25)" stroke="#ff00ff" stroke-width="1"/>`,
     );
     const label = admNo.slice(-5);
     parts.push(
@@ -191,6 +209,11 @@ export type ExtractionResult = {
   message: string;
   rows: ScanImportRow[];
   studentCount: number;
+  configuredProvider: string;
+  activeProvider: string;
+  providerUrl: string;
+  providerReachable: boolean;
+  fallbackReason: string;
 };
 
 export async function extractMarksFromScan(
@@ -200,6 +223,29 @@ export async function extractMarksFromScan(
   schoolId: string,
   context: ScanMarksheetContext,
 ): Promise<ExtractionResult> {
+  // Resolve OCR provider first so we can report it even if preprocessing fails
+  let resolution: OcrProviderResolution;
+  try {
+    resolution = await resolveOcrProviderWithMeta();
+  } catch {
+    resolution = {
+      provider: { name: "manual", healthCheck: async () => false, recognizeCrops: async (c) => c.map((x) => ({ cropId: x.cropId, text: "", confidence: 0 })) },
+      configuredProvider: "paddleocr",
+      activeProvider: "manual",
+      providerUrl: "",
+      providerReachable: false,
+      fallbackReason: "Provider resolution failed unexpectedly.",
+    };
+  }
+
+  const providerSummary = {
+    configuredProvider: resolution.configuredProvider,
+    activeProvider: resolution.activeProvider,
+    providerUrl: resolution.providerUrl,
+    providerReachable: resolution.providerReachable,
+    fallbackReason: resolution.fallbackReason,
+  };
+
   let scan: { buffer: Buffer; colorBuffer: Buffer; width: number; height: number };
   try {
     scan = await preprocessScanImage(fileBuffer, mimeType);
@@ -209,6 +255,7 @@ export async function extractMarksFromScan(
       message: err instanceof Error ? err.message : "Image preprocessing failed.",
       rows: [],
       studentCount: 0,
+      ...providerSummary,
     };
   }
 
@@ -218,6 +265,7 @@ export async function extractMarksFromScan(
       message: "Scan image has zero dimensions. Upload a valid PNG, JPG, WEBP, or PDF scan.",
       rows: [],
       studentCount: 0,
+      ...providerSummary,
     };
   }
 
@@ -230,6 +278,7 @@ export async function extractMarksFromScan(
       message: `Roster lookup failed: ${err instanceof Error ? err.message : String(err)}`,
       rows: [],
       studentCount: 0,
+      ...providerSummary,
     };
   }
 
@@ -241,23 +290,24 @@ export async function extractMarksFromScan(
         "Check the class and stream names match the school's enrollment records.",
       rows: [],
       studentCount: 0,
+      ...providerSummary,
     };
   }
 
-  // Clear previous debug run; save original scan.
   clearDebugDir();
   saveDebugFile("original.jpg", scan.buffer);
 
-  // Detect table geometry from the actual scan.
+  // Detect table geometry
   const detection = await detectMarksheetTable(scan.buffer, scan.width, scan.height);
 
-  // Save geometry metadata always (operators need this for alignment diagnostics).
+  // Save geometry metadata (always — operators need this for alignment diagnostics)
   saveAlways(
     "geometry.json",
     JSON.stringify(
       {
         method: detection.method,
-        confidence: detection.confidence,
+        geometryConfidence: detection.geometryConfidence,
+        colDetectionMethod: detection.colDetectionMethod,
         tableLeft: detection.tableLeft,
         tableRight: detection.tableRight,
         tableTop: detection.tableTop,
@@ -270,6 +320,13 @@ export async function extractMarksFromScan(
         writtenMarkCol: detection.writtenMarkCol,
         splitMarkCol: detection.splitMarkCol,
         imageSize: { width: scan.width, height: scan.height },
+        ocrProvider: {
+          configured: resolution.configuredProvider,
+          active: resolution.activeProvider,
+          url: resolution.providerUrl,
+          reachable: resolution.providerReachable,
+          fallbackReason: resolution.fallbackReason,
+        },
       },
       null,
       2,
@@ -287,7 +344,7 @@ export async function extractMarksFromScan(
 
   const rawRows: ScanImportRow[] = [];
   const overlayRects: Array<{ admNo: string; writtenRect: PixelRect; splitRect: PixelRect }> = [];
-  const ocrProvider = await resolveOcrProvider();
+  const ocrProvider = resolution.provider;
 
   for (let index = 0; index < roster.length; index++) {
     const student = roster[index]!;
@@ -299,14 +356,17 @@ export async function extractMarksFromScan(
     overlayRects.push({ admNo: student.admissionNumber, writtenRect, splitRect });
 
     let writtenResult = { rawText: "", normalizedMark: "", confidence: 0 };
-    let splitResult = { rawText: "", normalizedMark: "", confidence: 0, zoneRawText: ["", "", ""], zoneConfidences: [0, 0, 0] };
+    let splitResult = {
+      rawText: "", normalizedMark: "", confidence: 0,
+      zoneRawText: ["", "", ""] as string[],
+      zoneConfidences: [0, 0, 0] as number[],
+    };
     let writtenCropDataUrl = "";
     let splitCropDataUrl = "";
     let splitDigitCropDataUrls: string[] = [];
     let extractionNote = "";
 
     try {
-      // Use blue-isolated crop for OCR; raw greyscale crop for preview/debug display.
       const writtenCell = await cropCellBlueIsolated(scan.colorBuffer, writtenRect);
       const writtenPreview = await cropPreview(scan.buffer, writtenRect);
       writtenCropDataUrl = bufferToDataUrl(writtenPreview);
@@ -325,27 +385,26 @@ export async function extractMarksFromScan(
       );
       const splitPreview = await cropPreview(scan.buffer, splitRect);
       splitCropDataUrl = bufferToDataUrl(splitPreview);
-
       saveDebugFile(`${rowTag}-split-full-raw.jpg`, splitPreview);
 
       splitDigitCropDataUrls = await Promise.all(
         splitZoneRects.map(async (rect, zoneIndex) => {
           const preview = await cropPreview(scan.buffer, rect);
-          const processed = splitZoneCells[zoneIndex]!;
           saveDebugFile(`${rowTag}-split-${zoneIndex + 1}-raw.jpg`, preview);
-          saveDebugFile(`${rowTag}-split-${zoneIndex + 1}-processed.jpg`, processed);
+          saveDebugFile(`${rowTag}-split-${zoneIndex + 1}-processed.jpg`, splitZoneCells[zoneIndex]!);
           return bufferToDataUrl(preview);
         }),
       );
 
       const cropIds = {
         written: `${student.admissionNumber}-written`,
-        zones: splitZoneRects.map((_, zoneIndex) => `${student.admissionNumber}-split-${zoneIndex + 1}`),
+        zones: splitZoneRects.map((_, z) => `${student.admissionNumber}-split-${z + 1}`),
       };
+
       const ocrResults = await ocrProvider.recognizeCrops([
         { cropId: cropIds.written, buffer: writtenCell, mimeType: "image/jpeg" },
-        ...splitZoneCells.map((buffer, zoneIndex) => ({
-          cropId: cropIds.zones[zoneIndex]!,
+        ...splitZoneCells.map((buffer, z) => ({
+          cropId: cropIds.zones[z]!,
           buffer,
           mimeType: "image/jpeg",
         })),
@@ -353,10 +412,10 @@ export async function extractMarksFromScan(
 
       const writtenOcr = resultById(ocrResults, cropIds.written);
       const zoneResults = cropIds.zones.map((cropId) => resultById(ocrResults, cropId));
-      const zoneRawText = zoneResults.map((result) => result.text);
+      const zoneRawText = zoneResults.map((r) => r.text);
       const splitConfidenceValues = zoneResults
-        .filter((result) => result.text.trim())
-        .map((result) => result.confidence);
+        .filter((r) => r.text.trim())
+        .map((r) => r.confidence);
 
       writtenResult = {
         rawText: writtenOcr.text,
@@ -368,12 +427,10 @@ export async function extractMarksFromScan(
         normalizedMark: parseSplitZoneTexts(zoneRawText),
         confidence: splitConfidenceValues.length > 0 ? Math.min(...splitConfidenceValues) : 0,
         zoneRawText,
-        zoneConfidences: zoneResults.map((result) => result.confidence),
+        zoneConfidences: zoneResults.map((r) => r.confidence),
       };
     } catch {
       extractionNote = "OCR provider unavailable. Enter marks manually from the scan.";
-      writtenResult = { rawText: "", normalizedMark: "", confidence: 0 };
-      splitResult = { rawText: "", normalizedMark: "", confidence: 0, zoneRawText: ["", "", ""], zoneConfidences: [0, 0, 0] };
     }
 
     const extracted = acceptedExtractedMark(
@@ -403,7 +460,7 @@ export async function extractMarksFromScan(
       splitCropDataUrl,
       splitDigitCropDataUrls,
       tableCropDataUrl: index === 0 ? tableCropDataUrl : undefined,
-      ocrProvider: ocrProvider.name,
+      ocrProvider: resolution.activeProvider,
       debugRawOcr: {
         written: writtenResult.rawText,
         split: splitResult.rawText,
@@ -421,12 +478,10 @@ export async function extractMarksFromScan(
     });
   }
 
-  // Save detection overlay always so operators can verify geometry.
+  // Save overlay (always)
   try {
     await saveDetectionOverlay(scan.colorBuffer, scan.width, scan.height, detection, overlayRects);
-  } catch {
-    // Best effort — overlay never blocks import
-  }
+  } catch { /* Best effort */ }
 
   const validatedRows = validateScanRows(rawRows, context, roster);
   const countByStatus = validatedRows.reduce<Record<string, number>>((acc, row) => {
@@ -434,23 +489,27 @@ export async function extractMarksFromScan(
     return acc;
   }, {});
 
-  const parts: string[] = [];
-  if (countByStatus["VALID"]) parts.push(`${countByStatus["VALID"]} valid`);
-  if (countByStatus["NEEDS_REVIEW"]) parts.push(`${countByStatus["NEEDS_REVIEW"]} need review`);
-  if (countByStatus["MISSING"]) parts.push(`${countByStatus["MISSING"]} missing`);
-  if (countByStatus["INVALID"]) parts.push(`${countByStatus["INVALID"]} invalid`);
+  const statusParts: string[] = [];
+  if (countByStatus["VALID"]) statusParts.push(`${countByStatus["VALID"]} valid`);
+  if (countByStatus["NEEDS_REVIEW"]) statusParts.push(`${countByStatus["NEEDS_REVIEW"]} need review`);
+  if (countByStatus["MISSING"]) statusParts.push(`${countByStatus["MISSING"]} missing`);
+  if (countByStatus["INVALID"]) statusParts.push(`${countByStatus["INVALID"]} invalid`);
 
   const detectionNote = detection.method === "detected"
-    ? `Table detected (confidence ${Math.round(detection.confidence * 100)}%).`
-    : `Table not detected — using estimated geometry.`;
+    ? `Table detected (confidence ${Math.round(detection.geometryConfidence * 100)}%, col: ${detection.colDetectionMethod}).`
+    : "Table not detected — using estimated geometry.";
+
+  const providerNote = resolution.fallbackReason
+    ? ` Provider: ${resolution.activeProvider} (fallback: ${resolution.fallbackReason})`
+    : ` Provider: ${resolution.activeProvider}.`;
 
   return {
     parseStatus: "PARSED",
     message:
-      `Scan processed. ${detectionNote} Review suggested marks before validation. ` +
-      `OCR provider: ${ocrProvider.name}. ` +
-      `Extracted ${roster.length} roster rows: ${parts.join(", ") || "all blank (no marks visible)"}.`,
+      `Scan processed. ${detectionNote}${providerNote} ` +
+      `${roster.length} roster rows: ${statusParts.join(", ") || "all blank (no marks visible)"}.`,
     rows: validatedRows,
     studentCount: roster.length,
+    ...providerSummary,
   };
 }

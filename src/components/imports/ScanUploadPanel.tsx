@@ -3,6 +3,7 @@ import {
   commitScanRows,
   detectScanContext,
   dryRunScanRows,
+  loadScanBatch,
   lookupMarksheetContext,
   uploadScanFile,
 } from "../../client/importsClient";
@@ -19,17 +20,19 @@ import { ExtractedContextCard } from "./ExtractedContextCard";
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 type Phase =
-  | "idle"             // no file selected yet
-  | "detecting"        // auto-detecting context from uploaded file
-  | "context_review"   // context ready; operator confirms or edits
-  | "manual_id"        // OCR failed; operator enters Marksheet ID manually
-  | "manual_form"      // no ID found; operator fills full form as last resort
-  | "extracting"       // extracting marks with confirmed context
-  | "marks_review";    // marks extracted; operator reviewing
+  | "idle"
+  | "restoring"      // loading saved batch on mount
+  | "detecting"
+  | "context_review"
+  | "manual_id"
+  | "manual_form"
+  | "extracting"
+  | "marks_review";
 
 const EXAM_TYPES = ["BOT", "MOT", "EOT"] as const;
+const BATCH_SESSION_KEY = "scan_batchId";
 
-// ── Helper: empty context form ────────────────────────────────────────────────
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
 function emptyContext(): ScanMarksheetContext {
   return {
@@ -43,18 +46,61 @@ function emptyContext(): ScanMarksheetContext {
   };
 }
 
-// ── Helper: detected context → mutable form state ────────────────────────────
-
 function detectedToForm(d: DetectedContext): ScanMarksheetContext {
   return {
     marksheetId: d.marksheetId,
-    className:   d.className,
-    streamName:  d.streamName,
+    className: d.className,
+    streamName: d.streamName,
     subjectName: d.subjectName,
-    termName:    d.termName,
-    examType:    d.examType,
+    termName: d.termName,
+    examType: d.examType,
     academicYear: d.academicYear,
   };
+}
+
+// ── Provider status badge ──────────────────────────────────────────────────────
+
+function ProviderBadge({ result }: { result: ScanUploadResponse }) {
+  const configured = result.configuredProvider ?? "";
+  const active = result.activeProvider ?? "";
+  const fallback = result.fallbackReason ?? "";
+  const reachable = result.providerReachable ?? false;
+
+  if (!configured && !active) return null;
+
+  const isFallback = active !== configured && !!fallback;
+
+  return (
+    <div className={`mt-2 flex flex-wrap items-start gap-x-3 gap-y-1 rounded-xl border px-3 py-2 text-xs ${
+      isFallback
+        ? "border-amber-200 bg-amber-50 text-amber-800"
+        : reachable
+          ? "border-emerald-100 bg-emerald-50 text-emerald-800"
+          : "border-slate-100 bg-slate-50 text-slate-600"
+    }`}>
+      <span><span className="font-semibold">Configured:</span> {configured || "—"}</span>
+      <span className="text-slate-300">|</span>
+      <span>
+        <span className="font-semibold">Active:</span>{" "}
+        <span className={reachable ? "font-bold" : "text-slate-500"}>{active || "manual"}</span>
+        {reachable && active !== "manual" && (
+          <span className="ml-1 inline-flex h-2 w-2 rounded-full bg-emerald-400" title="Reachable" />
+        )}
+      </span>
+      {isFallback && fallback && (
+        <>
+          <span className="text-slate-300">|</span>
+          <span><span className="font-semibold">Fallback reason:</span> {fallback}</span>
+        </>
+      )}
+      {result.providerUrl && (
+        <>
+          <span className="text-slate-300">|</span>
+          <span className="font-mono text-[10px] text-slate-500">{result.providerUrl}</span>
+        </>
+      )}
+    </div>
+  );
 }
 
 // ── File preview ──────────────────────────────────────────────────────────────
@@ -62,8 +108,8 @@ function detectedToForm(d: DetectedContext): ScanMarksheetContext {
 function FilePreview({ file, url }: { file: File; url: string }) {
   const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
   const isImage = ["png", "jpg", "jpeg", "webp"].includes(ext);
-  const isPdf   = ext === "pdf";
-  const sizeKb  = (file.size / 1024).toFixed(1);
+  const isPdf = ext === "pdf";
+  const sizeKb = (file.size / 1024).toFixed(1);
 
   return (
     <div className="mt-3 rounded-xl border border-slate-100 bg-white p-3 shadow-sm">
@@ -120,83 +166,41 @@ function ContextForm({
       <div className="mt-4 grid gap-3">
         <label className="grid gap-1 text-xs font-semibold uppercase text-slate-500">
           Marksheet ID
-          <input
-            type="text"
-            value={context.marksheetId}
-            onChange={(e) => set("marksheetId", e.target.value)}
-            placeholder="e.g. MS-2026-SEN1-A-ENGL-EOT-T1"
-            className={inputCls}
-          />
+          <input type="text" value={context.marksheetId} onChange={(e) => set("marksheetId", e.target.value)} placeholder="e.g. MS-2026-SEN1-A-ENGL-EOT-T1" className={inputCls} />
         </label>
 
         <div className="grid grid-cols-2 gap-3">
           <label className="grid gap-1 text-xs font-semibold uppercase text-slate-500">
             Class <span className="text-red-500">*</span>
-            <input
-              type="text"
-              value={context.className}
-              onChange={(e) => set("className", e.target.value)}
-              placeholder="e.g. Senior 1 A"
-              className={inputCls}
-            />
+            <input type="text" value={context.className} onChange={(e) => set("className", e.target.value)} placeholder="e.g. Senior 1 A" className={inputCls} />
           </label>
           <label className="grid gap-1 text-xs font-semibold uppercase text-slate-500">
             Stream <span className="text-red-500">*</span>
-            <input
-              type="text"
-              value={context.streamName}
-              onChange={(e) => set("streamName", e.target.value)}
-              placeholder="e.g. A"
-              className={inputCls}
-            />
+            <input type="text" value={context.streamName} onChange={(e) => set("streamName", e.target.value)} placeholder="e.g. A" className={inputCls} />
           </label>
         </div>
 
         <label className="grid gap-1 text-xs font-semibold uppercase text-slate-500">
           Subject <span className="text-red-500">*</span>
-          <input
-            type="text"
-            value={context.subjectName}
-            onChange={(e) => set("subjectName", e.target.value)}
-            placeholder="e.g. Mathematics"
-            className={inputCls}
-          />
+          <input type="text" value={context.subjectName} onChange={(e) => set("subjectName", e.target.value)} placeholder="e.g. Mathematics" className={inputCls} />
         </label>
 
         <div className="grid grid-cols-2 gap-3">
           <label className="grid gap-1 text-xs font-semibold uppercase text-slate-500">
             Term <span className="text-red-500">*</span>
-            <input
-              type="text"
-              value={context.termName}
-              onChange={(e) => set("termName", e.target.value)}
-              placeholder="e.g. Term 1"
-              className={inputCls}
-            />
+            <input type="text" value={context.termName} onChange={(e) => set("termName", e.target.value)} placeholder="e.g. Term 1" className={inputCls} />
           </label>
           <label className="grid gap-1 text-xs font-semibold uppercase text-slate-500">
             Exam Type <span className="text-red-500">*</span>
-            <select
-              value={context.examType}
-              onChange={(e) => set("examType", e.target.value)}
-              className={inputCls}
-            >
-              {EXAM_TYPES.map((t) => (
-                <option key={t} value={t}>{t}</option>
-              ))}
+            <select value={context.examType} onChange={(e) => set("examType", e.target.value)} className={inputCls}>
+              {EXAM_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
             </select>
           </label>
         </div>
 
         <label className="grid gap-1 text-xs font-semibold uppercase text-slate-500">
           Academic Year <span className="text-red-500">*</span>
-          <input
-            type="text"
-            value={context.academicYear}
-            onChange={(e) => set("academicYear", e.target.value)}
-            placeholder="e.g. 2026"
-            className={inputCls}
-          />
+          <input type="text" value={context.academicYear} onChange={(e) => set("academicYear", e.target.value)} placeholder="e.g. 2026" className={inputCls} />
         </label>
       </div>
     </div>
@@ -206,24 +210,59 @@ function ContextForm({
 // ── Main component ────────────────────────────────────────────────────────────
 
 export function ScanUploadPanel() {
-  const [phase,          setPhase]          = useState<Phase>("idle");
-  const [scanFile,       setScanFile]       = useState<File | null>(null);
-  const [previewUrl,     setPreviewUrl]     = useState<string | null>(null);
-  const [detectedCtx,    setDetectedCtx]    = useState<DetectedContext | null>(null);
-  const [contextForm,    setContextForm]    = useState<ScanMarksheetContext>(emptyContext());
-  const [manualId,       setManualId]       = useState("");
-  const [idLookupBusy,   setIdLookupBusy]   = useState(false);
-  const [uploadResult,   setUploadResult]   = useState<ScanUploadResponse | null>(null);
-  const [scanRows,       setScanRows]       = useState<ScanImportRow[]>([]);
-  const [dryRunSummary,  setDryRunSummary]  = useState("");
-  const [canCommit,      setCanCommit]      = useState(false);
-  const [committing,     setCommitting]     = useState(false);
-  const [error,          setError]          = useState("");
+  const [phase, setPhase] = useState<Phase>("idle");
+  const [scanFile, setScanFile] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [detectedCtx, setDetectedCtx] = useState<DetectedContext | null>(null);
+  const [contextForm, setContextForm] = useState<ScanMarksheetContext>(emptyContext());
+  const [manualId, setManualId] = useState("");
+  const [idLookupBusy, setIdLookupBusy] = useState(false);
+  const [uploadResult, setUploadResult] = useState<ScanUploadResponse | null>(null);
+  const [scanRows, setScanRows] = useState<ScanImportRow[]>([]);
+  const [dryRunSummary, setDryRunSummary] = useState("");
+  const [canCommit, setCanCommit] = useState(false);
+  const [committing, setCommitting] = useState(false);
+  const [error, setError] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => () => { if (previewUrl) URL.revokeObjectURL(previewUrl); }, [previewUrl]);
 
-  // ── File selection → auto-detect ────────────────────────────────────────────
+  // On mount: restore previous session from sessionStorage
+  useEffect(() => {
+    const savedBatchId = sessionStorage.getItem(BATCH_SESSION_KEY);
+    if (savedBatchId) {
+      setPhase("restoring");
+      loadScanBatch(savedBatchId)
+        .then((batch) => {
+          if (batch.rows.length > 0) {
+            const result: ScanUploadResponse = {
+              batchId: batch.batchId,
+              parseStatus: batch.parseStatus,
+              message: batch.message,
+              rows: batch.rows,
+              configuredProvider: batch.configuredProvider,
+              activeProvider: batch.activeProvider,
+              providerUrl: batch.providerUrl,
+              providerReachable: batch.providerReachable,
+              fallbackReason: batch.fallbackReason,
+            };
+            setUploadResult(result);
+            setScanRows(batch.rows);
+            if (batch.context) setContextForm(batch.context);
+            setPhase("marks_review");
+          } else {
+            sessionStorage.removeItem(BATCH_SESSION_KEY);
+            setPhase("idle");
+          }
+        })
+        .catch(() => {
+          sessionStorage.removeItem(BATCH_SESSION_KEY);
+          setPhase("idle");
+        });
+    }
+  }, []);
+
+  // ── File selection → auto-detect ─────────────────────────────────────────────
 
   async function handleFileChange(file: File | null) {
     setError("");
@@ -246,25 +285,21 @@ export function ScanUploadPanel() {
     setPreviewUrl(URL.createObjectURL(file));
     setPhase("detecting");
 
-    // Auto-detect context from header OCR
     try {
       const result = await detectScanContext(file, "SCU-PREVIEW");
-
       if (result.detected && result.detectionStatus !== "NOT_FOUND") {
         setDetectedCtx(result.detected);
         setContextForm(detectedToForm(result.detected));
         setPhase("context_review");
       } else {
-        // OCR found no ID — ask operator for it
         setPhase("manual_id");
       }
     } catch {
-      // Network/server error — fall back to manual ID input
       setPhase("manual_id");
     }
   }
 
-  // ── Manual ID lookup ─────────────────────────────────────────────────────────
+  // ── Manual ID lookup ──────────────────────────────────────────────────────────
 
   async function handleIdLookup() {
     if (!manualId.trim()) {
@@ -293,7 +328,7 @@ export function ScanUploadPanel() {
     }
   }
 
-  // ── Confirm context → extract marks ─────────────────────────────────────────
+  // ── Confirm context → extract marks ──────────────────────────────────────────
 
   async function handleExtractMarks(confirmedContext: ScanMarksheetContext) {
     if (!scanFile) {
@@ -314,6 +349,8 @@ export function ScanUploadPanel() {
     setError("");
     try {
       const result = await uploadScanFile(scanFile, "SCU-PREVIEW", confirmedContext);
+      // Persist batchId in sessionStorage so refresh restores this session
+      sessionStorage.setItem(BATCH_SESSION_KEY, result.batchId);
       setUploadResult(result);
       setScanRows(result.rows);
       setDryRunSummary("");
@@ -321,7 +358,7 @@ export function ScanUploadPanel() {
       setPhase("marks_review");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Mark extraction failed.");
-      setPhase("context_review"); // let operator retry
+      setPhase("context_review");
     }
   }
 
@@ -349,9 +386,25 @@ export function ScanUploadPanel() {
     setError("");
     try {
       const result = await dryRunScanRows(contextForm, scanRows, "SCU-PREVIEW");
-      setScanRows(result.rows);
+      // Merge dry-run status back while PRESERVING operator corrections and crop images
+      setScanRows((prev) =>
+        result.rows.map((dryRow) => {
+          const live = prev.find((r) => r.rowNumber === dryRow.rowNumber);
+          return {
+            ...dryRow,
+            operatorCorrection: live?.operatorCorrection ?? dryRow.operatorCorrection,
+            remarks: live?.remarks ?? dryRow.remarks,
+            writtenCropDataUrl: live?.writtenCropDataUrl ?? dryRow.writtenCropDataUrl,
+            splitCropDataUrl: live?.splitCropDataUrl ?? dryRow.splitCropDataUrl,
+            splitDigitCropDataUrls: live?.splitDigitCropDataUrls ?? dryRow.splitDigitCropDataUrls,
+            debugCropImages: live?.debugCropImages ?? dryRow.debugCropImages,
+            debugRawOcr: live?.debugRawOcr ?? dryRow.debugRawOcr,
+          };
+        }),
+      );
       setDryRunSummary(
-        `${result.totalRows} rows checked: ${result.validRows} valid, ${result.reviewRows} need review, ${result.missingRows} missing, ${result.invalidRows} invalid.`,
+        `${result.totalRows} rows checked: ${result.validRows} valid, ` +
+        `${result.reviewRows} need review, ${result.missingRows} missing, ${result.invalidRows} invalid.`,
       );
       setCanCommit(result.validRows > 0 && result.reviewRows === 0 && result.invalidRows === 0);
     } catch (err) {
@@ -376,6 +429,7 @@ export function ScanUploadPanel() {
   }
 
   function handleReset() {
+    sessionStorage.removeItem(BATCH_SESSION_KEY);
     if (previewUrl) URL.revokeObjectURL(previewUrl);
     setScanFile(null);
     setPreviewUrl(null);
@@ -406,10 +460,7 @@ export function ScanUploadPanel() {
     <div className="grid gap-5">
       {/* Operator reminder */}
       <div className="flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4">
-        <svg
-          className="mt-0.5 h-5 w-5 shrink-0 text-amber-600"
-          fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
-        >
+        <svg className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
         </svg>
         <div>
@@ -427,37 +478,50 @@ export function ScanUploadPanel() {
         </div>
       )}
 
-      {/* ── Step 1: File upload ── */}
-      <div className="premium-card rounded-2xl p-4">
-        <h2 className="text-sm font-bold text-slate-950">Step 1 — Upload scanned marksheet</h2>
-        <p className="mt-0.5 text-xs text-slate-500">Accepted: PDF, PNG, JPG, JPEG, WEBP</p>
-
-        <div className="mt-3 rounded-2xl border border-dashed border-violet-200 bg-gradient-to-b from-violet-50/60 to-white p-4 shadow-inner">
-          <label className="grid cursor-pointer gap-2 text-center">
-            <span className="text-sm font-bold text-slate-950">Choose a scanned marksheet</span>
-            <span className="text-xs text-slate-500">PDF, PNG, JPG, JPEG, WEBP</span>
-            <input
-              ref={fileInputRef}
-              type="file"
-              className="sr-only"
-              accept={SCAN_ACCEPT}
-              onChange={(e) => handleFileChange(e.target.files?.[0] ?? null)}
-              disabled={phase === "detecting" || phase === "extracting"}
-            />
-            <span className="btn btn-secondary mx-auto">Browse file</span>
-          </label>
-
-          {scanFile && previewUrl && <FilePreview file={scanFile} url={previewUrl} />}
+      {/* ── Restoring session ── */}
+      {phase === "restoring" && (
+        <div className="flex items-center gap-3 rounded-2xl border border-blue-100 bg-blue-50 p-4">
+          <svg className="h-5 w-5 animate-spin text-blue-500" fill="none" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+          </svg>
+          <p className="text-sm font-medium text-blue-800">Restoring previous session…</p>
         </div>
+      )}
 
-        {(phase !== "idle") && (
-          <div className="mt-3 flex gap-2">
-            <button type="button" onClick={handleReset} className="btn btn-danger-light text-sm">
-              Clear & start over
-            </button>
+      {/* ── Step 1: File upload ── */}
+      {phase !== "restoring" && (
+        <div className="premium-card rounded-2xl p-4">
+          <h2 className="text-sm font-bold text-slate-950">Step 1 — Upload scanned marksheet</h2>
+          <p className="mt-0.5 text-xs text-slate-500">Accepted: PDF, PNG, JPG, JPEG, WEBP</p>
+
+          <div className="mt-3 rounded-2xl border border-dashed border-violet-200 bg-gradient-to-b from-violet-50/60 to-white p-4 shadow-inner">
+            <label className="grid cursor-pointer gap-2 text-center">
+              <span className="text-sm font-bold text-slate-950">Choose a scanned marksheet</span>
+              <span className="text-xs text-slate-500">PDF, PNG, JPG, JPEG, WEBP</span>
+              <input
+                ref={fileInputRef}
+                type="file"
+                className="sr-only"
+                accept={SCAN_ACCEPT}
+                onChange={(e) => handleFileChange(e.target.files?.[0] ?? null)}
+                disabled={phase === "detecting" || phase === "extracting"}
+              />
+              <span className="btn btn-secondary mx-auto">Browse file</span>
+            </label>
+
+            {scanFile && previewUrl && <FilePreview file={scanFile} url={previewUrl} />}
           </div>
-        )}
-      </div>
+
+          {(phase !== "idle") && (
+            <div className="mt-3 flex gap-2">
+              <button type="button" onClick={handleReset} className="btn btn-danger-light text-sm">
+                Reset scan
+              </button>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ── Step 2a: Auto-detecting ── */}
       {phase === "detecting" && (
@@ -466,55 +530,31 @@ export function ScanUploadPanel() {
             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
           </svg>
-          <p className="text-sm font-medium text-blue-800">
-            Scanning header for marksheet ID…
-          </p>
+          <p className="text-sm font-medium text-blue-800">Scanning header for marksheet ID…</p>
         </div>
       )}
 
       {/* ── Step 2b: Detected context → confirm ── */}
       {phase === "context_review" && detectedCtx && (
         <div className="grid gap-4">
-          <div className="flex items-center gap-2 rounded-2xl border border-slate-100 bg-white px-4 py-2.5">
-            <span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-100 text-xs font-bold text-blue-700">2</span>
-            <span className="text-sm font-semibold text-slate-800">Review detected context</span>
-          </div>
-
           <ExtractedContextCard
             context={detectedCtx}
-            onEdit={() => {
-              setContextForm(detectedToForm(detectedCtx));
-              setPhase("manual_form");
-            }}
+            onEdit={() => { setContextForm(detectedToForm(detectedCtx)); setPhase("manual_form"); }}
           />
-
-          <button
-            type="button"
-            onClick={() => handleExtractMarks(detectedToForm(detectedCtx))}
-            className="btn btn-primary"
-          >
+          <button type="button" onClick={() => handleExtractMarks(detectedToForm(detectedCtx))} className="btn btn-primary">
             Confirm context &amp; extract marks
           </button>
         </div>
       )}
 
-      {/* ── Step 2c: Manual ID entry (OCR found nothing) ── */}
+      {/* ── Step 2c: Manual ID entry ── */}
       {phase === "manual_id" && (
         <div className="premium-card grid gap-4 rounded-2xl p-4">
           <div className="flex items-start gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">
-            <svg className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" />
-            </svg>
-            <p>
-              No marksheet ID found in the scan header. Enter the ID from the printed marksheet to
-              auto-fill the context.
-            </p>
+            <p>No marksheet ID found in the scan header. Enter the ID from the printed marksheet to auto-fill the context.</p>
           </div>
-
           <div>
-            <label className="block text-xs font-semibold uppercase text-slate-500">
-              Marksheet ID
-            </label>
+            <label className="block text-xs font-semibold uppercase text-slate-500">Marksheet ID</label>
             <div className="mt-1.5 flex gap-2">
               <input
                 type="text"
@@ -524,59 +564,32 @@ export function ScanUploadPanel() {
                 placeholder="MS-2026-SEN1-A-ENGL-EOT-T1"
                 className="premium-control flex-1 rounded-xl border border-slate-200 bg-slate-50 p-2 text-sm outline-none focus:border-blue-400 focus:bg-white"
               />
-              <button
-                type="button"
-                onClick={handleIdLookup}
-                disabled={idLookupBusy || !manualId.trim()}
-                className="btn btn-primary"
-              >
+              <button type="button" onClick={handleIdLookup} disabled={idLookupBusy || !manualId.trim()} className="btn btn-primary">
                 {idLookupBusy ? "Looking up…" : "Look up"}
               </button>
             </div>
-            <p className="mt-1.5 text-xs text-slate-400">
-              Found on the printed marksheet in the header. Format: MS-YYYY-CLASS-STREAM-SUBJECT-EXAMTYPE-TERM
-            </p>
           </div>
-
           <div className="border-t border-slate-100 pt-3">
-            <button
-              type="button"
-              onClick={() => setPhase("manual_form")}
-              className="text-xs text-slate-500 underline hover:text-slate-800"
-            >
+            <button type="button" onClick={() => setPhase("manual_form")} className="text-xs text-slate-500 underline hover:text-slate-800">
               Skip — enter context manually instead
             </button>
           </div>
         </div>
       )}
 
-      {/* ── Step 2d: Full manual form (last resort) ── */}
+      {/* ── Step 2d: Full manual form ── */}
       {phase === "manual_form" && (
         <div className="grid gap-4">
-          <div className="flex items-start gap-2 rounded-2xl border border-amber-200 bg-amber-50 p-3">
-            <svg className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
-            </svg>
-            <p className="text-xs text-amber-800">
-              Manual entry active. Fill in the context fields from the printed marksheet header.
-            </p>
-          </div>
-
           <ContextForm
             context={contextForm}
             onChange={setContextForm}
             title="Manual marksheet context"
             subtitle="Copy the fields from the printed marksheet header."
           />
-
           <button
             type="button"
             onClick={() => handleExtractMarks(contextForm)}
-            disabled={
-              !contextForm.className.trim() ||
-              !contextForm.subjectName.trim() ||
-              !contextForm.termName.trim()
-            }
+            disabled={!contextForm.className.trim() || !contextForm.subjectName.trim() || !contextForm.termName.trim()}
             className="btn btn-primary"
           >
             Extract marks with this context
@@ -601,36 +614,21 @@ export function ScanUploadPanel() {
           {/* Status banner */}
           {uploadResult.parseStatus === "FAILED" ? (
             <div className="rounded-2xl border border-red-200 bg-red-50 p-4">
-              <div className="flex items-start gap-3">
-                <svg className="mt-0.5 h-5 w-5 shrink-0 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
-                </svg>
-                <div>
-                  <p className="text-sm font-bold text-red-900">Extraction failed</p>
-                  <p className="mt-0.5 text-sm text-red-700">{uploadResult.message}</p>
-                  <p className="mt-1 text-xs text-red-400">
-                    Batch: <code className="font-mono">{uploadResult.batchId}</code>
-                  </p>
-                </div>
-              </div>
+              <p className="text-sm font-bold text-red-900">Extraction failed</p>
+              <p className="mt-0.5 text-sm text-red-700">{uploadResult.message}</p>
+              <p className="mt-1 text-xs text-red-400">Batch: <code className="font-mono">{uploadResult.batchId}</code></p>
             </div>
           ) : (
             <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
-              <div className="flex items-start gap-3">
-                <svg className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z" />
-                </svg>
-                <div>
-                  <p className="text-sm font-bold text-emerald-900">Scan processed. Enter and review marks before validation.</p>
-                  <p className="mt-0.5 text-sm text-emerald-700">{uploadResult.message}</p>
-                  <p className="mt-1 text-xs font-semibold text-emerald-700">
-                    OCR suggestions are optional assistance only. Operator marks are used for dry-run and commit.
-                  </p>
-                  <p className="mt-1 text-xs text-emerald-600">
-                    Batch: <code className="font-mono text-xs">{uploadResult.batchId}</code>
-                  </p>
-                </div>
-              </div>
+              <p className="text-sm font-bold text-emerald-900">Scan processed. Enter and review marks before validation.</p>
+              <p className="mt-0.5 text-sm text-emerald-700">{uploadResult.message}</p>
+              <p className="mt-1 text-xs font-semibold text-emerald-700">
+                OCR suggestions are optional assistance only. Operator marks are used for dry-run and commit.
+              </p>
+              <p className="mt-1 text-xs text-emerald-600">
+                Batch: <code className="font-mono text-xs">{uploadResult.batchId}</code>
+              </p>
+              <ProviderBadge result={uploadResult} />
             </div>
           )}
 
@@ -644,23 +642,14 @@ export function ScanUploadPanel() {
                 </p>
               </div>
               <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  disabled={scanRows.length === 0}
-                  onClick={handleScanDryRun}
-                  className="btn btn-primary"
-                  title="Dry-run available once marks are extracted"
-                >
+                <button type="button" disabled={scanRows.length === 0} onClick={handleScanDryRun} className="btn btn-primary">
                   Dry-run (operator review)
                 </button>
-                <button
-                  type="button"
-                  disabled={!canCommit || committing}
-                  onClick={handleScanCommit}
-                  className="btn btn-success"
-                  title="Commit is enabled after dry-run finds valid rows with no invalid/review rows"
-                >
+                <button type="button" disabled={!canCommit || committing} onClick={handleScanCommit} className="btn btn-success">
                   {committing ? "Committing..." : "Commit valid rows"}
+                </button>
+                <button type="button" onClick={handleReset} className="btn btn-danger-light text-sm" title="Clear all extraction data and start over">
+                  Reset scan
                 </button>
               </div>
             </div>
@@ -689,6 +678,7 @@ export function ScanUploadPanel() {
             <div className="mt-4">
               <ScanReviewTable
                 rows={scanRows}
+                providerInfo={uploadResult}
                 onCorrectionChange={handleCorrectionChange}
                 onRemarksChange={handleRemarksChange}
               />

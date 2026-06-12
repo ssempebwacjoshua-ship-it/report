@@ -1,6 +1,7 @@
 import type {
   DetectContextResponse,
   ImportPreview,
+  ScanBatchReloadResponse,
   ScanImportBatch,
   ScanMarksheetContext,
   ScanRowsCommitResponse,
@@ -115,6 +116,16 @@ export async function uploadScanFile(
     // Do NOT set Content-Type — the browser/fetch sets it with the correct boundary
   });
   if (!response.ok) throw new Error(await readImportError(response, "Could not upload scan"));
+  return response.json();
+}
+
+/**
+ * Reload a previously extracted scan batch by its batchId.
+ * Used to restore extraction state after a page refresh.
+ */
+export async function loadScanBatch(batchId: string): Promise<ScanBatchReloadResponse> {
+  const response = await fetch(`${API_BASE}/api/imports/scan-batches/${encodeURIComponent(batchId)}`);
+  if (!response.ok) throw new Error(await readImportError(response, "Could not load scan batch"));
   return response.json();
 }
 
