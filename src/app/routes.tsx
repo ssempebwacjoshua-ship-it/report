@@ -7,12 +7,14 @@ import { MarksheetsPage } from "../pages/MarksheetsPage";
 import { StudentsPage } from "../pages/StudentsPage";
 import { SettingsPage } from "../pages/SettingsPage";
 import { LoginPage } from "../pages/LoginPage";
+import { LogoutPage } from "../pages/LogoutPage";
 import { ParentReportPage } from "../pages/ParentReportPage";
 import { VerifyPage } from "../pages/VerifyPage";
 
 export const router = createBrowserRouter([
   // Public routes — no AppShell, no auth
   { path: "/login", element: <LoginPage /> },
+  { path: "/logout", element: <LogoutPage /> },
   { path: "/parent/r/:token", element: <ParentReportPage /> },
   { path: "/verify/:code", element: <VerifyPage /> },
 
