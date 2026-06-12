@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
-import { fetchSettings, patchSettingsSection } from "../client/settingsClient";
+import { fetchSettings, patchSettingsSection, SettingsClientError, type SettingsFieldErrors } from "../client/settingsClient";
 import {
   defaultSettingsSections,
   type SettingSection,
@@ -27,6 +27,10 @@ const labelClass = "grid gap-1 text-xs font-bold uppercase text-slate-500";
 
 function setField<T, K extends keyof T>(value: T, key: K, next: T[K]): T {
   return { ...value, [key]: next };
+}
+
+function firstFieldError(fieldErrors: SettingsFieldErrors | undefined, field: string) {
+  return fieldErrors?.[field]?.[0] ?? "";
 }
 
 function SectionFrame({
@@ -83,6 +87,7 @@ export function SettingsPage() {
   const [saving, setSaving] = useState<SettingSection | null>(null);
   const [saved, setSaved] = useState<SettingSection | null>(null);
   const [errors, setErrors] = useState<Partial<Record<SettingSection, string>>>({});
+  const [fieldErrors, setFieldErrors] = useState<Partial<Record<SettingSection, SettingsFieldErrors>>>({});
 
   useEffect(() => {
     fetchSettings()
@@ -98,18 +103,50 @@ export function SettingsPage() {
     setDraft((current) => ({ ...current, [section]: value }));
     setSaved(null);
     setErrors((current) => ({ ...current, [section]: "" }));
+    setFieldErrors((current) => {
+      if (!current[section]) return current;
+      const next = { ...current };
+      delete next[section];
+      return next;
+    });
+  }
+
+  function updateSchoolField<K extends keyof SettingsSections["school"]>(field: K, next: SettingsSections["school"][K]) {
+    setDraft((current) => ({
+      ...current,
+      school: { ...current.school, [field]: next },
+    }));
+    setSaved(null);
+    setErrors((current) => ({ ...current, school: "" }));
+    setFieldErrors((current) => {
+      const schoolErrors = current.school;
+      if (!schoolErrors || !schoolErrors[String(field)]) return current;
+      const nextErrors = { ...schoolErrors };
+      delete nextErrors[String(field)];
+      return { ...current, school: nextErrors };
+    });
   }
 
   async function saveSection(section: SettingSection) {
     setSaving(section);
     setSaved(null);
     setErrors((current) => ({ ...current, [section]: "" }));
+    setFieldErrors((current) => {
+      if (!current[section]) return current;
+      const next = { ...current };
+      delete next[section];
+      return next;
+    });
     try {
       const loaded = await patchSettingsSection(section, draft[section]);
       setSettings(loaded);
       setDraft(loaded.sections);
       setSaved(section);
     } catch (error) {
+      if (error instanceof SettingsClientError && error.fieldErrors) {
+        setFieldErrors((current) => ({ ...current, [section]: error.fieldErrors ?? {} }));
+        return;
+      }
       setErrors((current) => ({ ...current, [section]: error instanceof Error ? error.message : "Save failed" }));
     } finally {
       setSaving(null);
@@ -164,7 +201,13 @@ export function SettingsPage() {
         saved={saved === activeTab}
         error={errors[activeTab] ?? ""}
       >
-        {activeTab === "school" && <SchoolSection value={draft.school} onChange={(value) => updateSection("school", value)} />}
+        {activeTab === "school" && (
+          <SchoolSection
+            value={draft.school}
+            fieldErrors={fieldErrors.school ?? {}}
+            onFieldChange={updateSchoolField}
+          />
+        )}
         {activeTab === "academic" && <AcademicSection value={draft.academic} onChange={(value) => updateSection("academic", value)} />}
         {activeTab === "reports" && <ReportsSection value={draft.reports} onChange={(value) => updateSection("reports", value)} />}
         {activeTab === "marksheets" && <MarksheetsSection value={draft.marksheets} onChange={(value) => updateSection("marksheets", value)} />}
@@ -177,19 +220,67 @@ export function SettingsPage() {
   );
 }
 
-function SchoolSection({ value, onChange }: { value: SettingsSections["school"]; onChange: (value: SettingsSections["school"]) => void }) {
+function SchoolSection({
+  value,
+  fieldErrors,
+  onFieldChange,
+}: {
+  value: SettingsSections["school"];
+  fieldErrors: SettingsFieldErrors;
+  onFieldChange: <K extends keyof SettingsSections["school"]>(field: K, next: SettingsSections["school"][K]) => void;
+}) {
   return (
     <div className="grid gap-3 md:grid-cols-2">
-      <label className={labelClass}>School name<input className={fieldClass} value={value.schoolName} onChange={(e) => onChange(setField(value, "schoolName", e.target.value))} /></label>
-      <label className={labelClass}>School code<input className={fieldClass} value={value.schoolCode} onChange={(e) => onChange(setField(value, "schoolCode", e.target.value))} /></label>
-      <label className={`${labelClass} md:col-span-2`}>Address<input className={fieldClass} value={value.address} onChange={(e) => onChange(setField(value, "address", e.target.value))} /></label>
-      <label className={labelClass}>Phone<input className={fieldClass} value={value.phone} onChange={(e) => onChange(setField(value, "phone", e.target.value))} /></label>
-      <label className={labelClass}>Email<input className={fieldClass} value={value.email} onChange={(e) => onChange(setField(value, "email", e.target.value))} /></label>
-      <label className={labelClass}>Website<input className={fieldClass} value={value.website} onChange={(e) => onChange(setField(value, "website", e.target.value))} /></label>
-      <label className={labelClass}>Head Teacher name<input className={fieldClass} value={value.headTeacherName} onChange={(e) => onChange(setField(value, "headTeacherName", e.target.value))} /></label>
-      <label className={`${labelClass} md:col-span-2`}>Report footer text<textarea className={fieldClass} value={value.reportFooterText} onChange={(e) => onChange(setField(value, "reportFooterText", e.target.value))} /></label>
-      <label className={`${labelClass} md:col-span-2`}>Marksheet footer text<textarea className={fieldClass} value={value.marksheetFooterText} onChange={(e) => onChange(setField(value, "marksheetFooterText", e.target.value))} /></label>
-      <label className={`${labelClass} md:col-span-2`}>Logo URL<input className={fieldClass} value={value.logoUrl} onChange={(e) => onChange(setField(value, "logoUrl", e.target.value))} /></label>
+      <label className={labelClass}>
+        School name
+        <input className={fieldClass} value={value.schoolName} onChange={(e) => onFieldChange("schoolName", e.target.value)} aria-invalid={Boolean(firstFieldError(fieldErrors, "schoolName"))} />
+        {firstFieldError(fieldErrors, "schoolName") ? <span className="text-xs font-medium text-red-600">{firstFieldError(fieldErrors, "schoolName")}</span> : null}
+      </label>
+      <label className={labelClass}>
+        School code
+        <input className={fieldClass} value={value.schoolCode} onChange={(e) => onFieldChange("schoolCode", e.target.value)} aria-invalid={Boolean(firstFieldError(fieldErrors, "schoolCode"))} />
+        {firstFieldError(fieldErrors, "schoolCode") ? <span className="text-xs font-medium text-red-600">{firstFieldError(fieldErrors, "schoolCode")}</span> : null}
+      </label>
+      <label className={`${labelClass} md:col-span-2`}>
+        Address
+        <input className={fieldClass} value={value.address} onChange={(e) => onFieldChange("address", e.target.value)} aria-invalid={Boolean(firstFieldError(fieldErrors, "address"))} />
+        {firstFieldError(fieldErrors, "address") ? <span className="text-xs font-medium text-red-600">{firstFieldError(fieldErrors, "address")}</span> : null}
+      </label>
+      <label className={labelClass}>
+        Phone
+        <input className={fieldClass} value={value.phone} onChange={(e) => onFieldChange("phone", e.target.value)} aria-invalid={Boolean(firstFieldError(fieldErrors, "phone"))} />
+        {firstFieldError(fieldErrors, "phone") ? <span className="text-xs font-medium text-red-600">{firstFieldError(fieldErrors, "phone")}</span> : null}
+      </label>
+      <label className={labelClass}>
+        Email
+        <input className={fieldClass} value={value.email} onChange={(e) => onFieldChange("email", e.target.value)} aria-invalid={Boolean(firstFieldError(fieldErrors, "email"))} />
+        {firstFieldError(fieldErrors, "email") ? <span className="text-xs font-medium text-red-600">{firstFieldError(fieldErrors, "email")}</span> : null}
+      </label>
+      <label className={labelClass}>
+        Website
+        <input className={fieldClass} value={value.website} onChange={(e) => onFieldChange("website", e.target.value)} aria-invalid={Boolean(firstFieldError(fieldErrors, "website"))} />
+        {firstFieldError(fieldErrors, "website") ? <span className="text-xs font-medium text-red-600">{firstFieldError(fieldErrors, "website")}</span> : null}
+      </label>
+      <label className={labelClass}>
+        Head Teacher name
+        <input className={fieldClass} value={value.headTeacherName} onChange={(e) => onFieldChange("headTeacherName", e.target.value)} aria-invalid={Boolean(firstFieldError(fieldErrors, "headTeacherName"))} />
+        {firstFieldError(fieldErrors, "headTeacherName") ? <span className="text-xs font-medium text-red-600">{firstFieldError(fieldErrors, "headTeacherName")}</span> : null}
+      </label>
+      <label className={`${labelClass} md:col-span-2`}>
+        Report footer text
+        <textarea className={fieldClass} value={value.reportFooterText} onChange={(e) => onFieldChange("reportFooterText", e.target.value)} aria-invalid={Boolean(firstFieldError(fieldErrors, "reportFooterText"))} />
+        {firstFieldError(fieldErrors, "reportFooterText") ? <span className="text-xs font-medium text-red-600">{firstFieldError(fieldErrors, "reportFooterText")}</span> : null}
+      </label>
+      <label className={`${labelClass} md:col-span-2`}>
+        Marksheet footer text
+        <textarea className={fieldClass} value={value.marksheetFooterText} onChange={(e) => onFieldChange("marksheetFooterText", e.target.value)} aria-invalid={Boolean(firstFieldError(fieldErrors, "marksheetFooterText"))} />
+        {firstFieldError(fieldErrors, "marksheetFooterText") ? <span className="text-xs font-medium text-red-600">{firstFieldError(fieldErrors, "marksheetFooterText")}</span> : null}
+      </label>
+      <label className={`${labelClass} md:col-span-2`}>
+        Logo URL
+        <input className={fieldClass} value={value.logoUrl} onChange={(e) => onFieldChange("logoUrl", e.target.value)} aria-invalid={Boolean(firstFieldError(fieldErrors, "logoUrl"))} />
+        {firstFieldError(fieldErrors, "logoUrl") ? <span className="text-xs font-medium text-red-600">{firstFieldError(fieldErrors, "logoUrl")}</span> : null}
+      </label>
     </div>
   );
 }

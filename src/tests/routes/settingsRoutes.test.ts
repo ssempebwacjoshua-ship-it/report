@@ -8,9 +8,16 @@ const SCHOOL = "SETTINGS-TEST";
 const sectionPayloads: Record<SettingSection, SettingsSections[SettingSection]> = {
   school: {
     ...defaultSettingsSections.school,
-    schoolName: "Settings Test School",
+    schoolName: "School Connect Preview School",
     schoolCode: SCHOOL,
+    address: "Kampala, Uganda",
+    phone: "+256 700 000000",
+    email: "info@schoolconnect.test",
+    website: "",
+    headTeacherName: "Demo Head Teacher",
     reportFooterText: "Reports verified by settings tests.",
+    marksheetFooterText: "Marksheet footer verified by settings tests.",
+    logoUrl: "",
   },
   academic: {
     ...defaultSettingsSections.academic,
@@ -78,12 +85,71 @@ describe("settingsRoutes", () => {
     }
   });
 
-  it("invalid settings are rejected with clear errors", async () => {
+  it("accepts blank optional school profile fields", async () => {
     const res = await request(createServer())
       .patch(`/api/settings/school?schoolCode=${SCHOOL}`)
-      .send({ ...sectionPayloads.school, email: "not-an-email" });
+      .send({
+        ...sectionPayloads.school,
+        email: "",
+        website: "",
+        logoUrl: "",
+      });
+    expect(res.status).toBe(200);
+    expect(res.body.sections.school.email).toBe("");
+    expect(res.body.sections.school.website).toBe("");
+    expect(res.body.sections.school.logoUrl).toBe("");
+  });
+
+  it("accepts practical school profile values and persists them", async () => {
+    const res = await request(createServer())
+      .patch(`/api/settings/school?schoolCode=${SCHOOL}`)
+      .send(sectionPayloads.school);
+    expect(res.status).toBe(200);
+    expect(res.body.sections.school).toMatchObject({
+      schoolName: "School Connect Preview School",
+      schoolCode: SCHOOL,
+      address: "Kampala, Uganda",
+      phone: "+256 700 000000",
+      email: "info@schoolconnect.test",
+      website: "",
+      headTeacherName: "Demo Head Teacher",
+      reportFooterText: "Reports verified by settings tests.",
+      marksheetFooterText: "Marksheet footer verified by settings tests.",
+      logoUrl: "",
+    });
+  });
+
+  it("returns field-level errors for invalid school profile values", async () => {
+    const res = await request(createServer())
+      .patch(`/api/settings/school?schoolCode=${SCHOOL}`)
+      .send({
+        ...sectionPayloads.school,
+        email: "not-an-email",
+        website: "not-a-url",
+        logoUrl: "not-a-logo-url",
+      });
     expect(res.status).toBe(400);
-    expect(res.body.issues[0].message).toMatch(/email/i);
+    expect(res.body.message).toBe("Invalid request");
+    expect(res.body.fieldErrors.email[0]).toMatch(/email/i);
+    expect(res.body.fieldErrors.website[0]).toMatch(/url/i);
+    expect(res.body.fieldErrors.logoUrl[0]).toMatch(/url/i);
+  });
+
+  it("accepts valid email, URL, and phone formats", async () => {
+    const res = await request(createServer())
+      .patch(`/api/settings/school?schoolCode=${SCHOOL}`)
+      .send({
+        ...sectionPayloads.school,
+        email: "headteacher@schoolconnect.test",
+        website: "https://schoolconnect.test",
+        logoUrl: "https://schoolconnect.test/logo.png",
+        phone: "+256 700 000000",
+      });
+    expect(res.status).toBe(200);
+    expect(res.body.sections.school.email).toBe("headteacher@schoolconnect.test");
+    expect(res.body.sections.school.website).toBe("https://schoolconnect.test");
+    expect(res.body.sections.school.logoUrl).toBe("https://schoolconnect.test/logo.png");
+    expect(res.body.sections.school.phone).toBe("+256 700 000000");
   });
 
   it("invalid and overlapping grading ranges are rejected", async () => {
@@ -115,5 +181,21 @@ describe("settingsRoutes", () => {
     expect(reload.status).toBe(200);
     expect(reload.body.sections.reports.showOverallPosition).toBe(true);
     expect(reload.body.sections.reports.printDensity).toBe("compact");
+  });
+
+  it("school profile changes persist after reload", async () => {
+    await request(createServer())
+      .patch(`/api/settings/school?schoolCode=${SCHOOL}`)
+      .send({
+        ...sectionPayloads.school,
+        reportFooterText: "Persisted report footer.",
+        marksheetFooterText: "Persisted marksheet footer.",
+      });
+
+    const reload = await request(createServer()).get(`/api/settings?schoolCode=${SCHOOL}`);
+    expect(reload.status).toBe(200);
+    expect(reload.body.sections.school.reportFooterText).toBe("Persisted report footer.");
+    expect(reload.body.sections.school.marksheetFooterText).toBe("Persisted marksheet footer.");
+    expect(reload.body.sections.school.schoolName).toBe("School Connect Preview School");
   });
 });

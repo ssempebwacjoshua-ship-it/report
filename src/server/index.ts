@@ -23,7 +23,12 @@ export function createServer() {
 
   const errorHandler: ErrorRequestHandler = (error, _req, res, _next) => {
     if (error instanceof ZodError) {
-      res.status(400).json({ error: "Invalid request", issues: error.issues });
+      const fieldErrors = error.flatten().fieldErrors;
+      res.status(400).json({
+        message: "Invalid request",
+        fieldErrors,
+        issues: error.issues,
+      });
       return;
     }
     console.error(error);
