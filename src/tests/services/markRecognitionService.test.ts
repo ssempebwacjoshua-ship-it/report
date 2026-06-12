@@ -90,6 +90,7 @@ describe("parseSplitZoneTexts", () => {
     expect(parseSplitZoneTexts(["7", "6", ""])).toBe("76");
     expect(parseSplitZoneTexts(["8", "2", ""])).toBe("82");
     expect(parseSplitZoneTexts(["9", "4", ""])).toBe("94");
+    expect(parseSplitZoneTexts(["2", "6", ""])).toBe("26");
   });
 
   it("joins three digit zones into 100", () => {
@@ -103,5 +104,18 @@ describe("parseSplitZoneTexts", () => {
 
   it("returns blank for empty zones", () => {
     expect(parseSplitZoneTexts(["", "", ""])).toBe("");
+  });
+
+  it("ignores a border-artifact '-' in the third zone", () => {
+    // A border line in split zone 3 may produce '-'; must not affect the mark
+    expect(parseSplitZoneTexts(["7", "6", "-"])).toBe("76");
+    expect(parseSplitZoneTexts(["8", "2", "-"])).toBe("82");
+  });
+
+  it("zones 7 and 6 always produce 76, never 6 alone", () => {
+    // Regression: combining left-to-right must not drop the first zone's digit
+    const result = parseSplitZoneTexts(["7", "6", ""]);
+    expect(result).toBe("76");
+    expect(result).not.toBe("6");
   });
 });

@@ -37,22 +37,61 @@ export function acceptedExtractedMark(
   writtenConfidence: number,
 ): { mark: string; reason: string } {
   if (!writtenMark && !splitMark) {
-    return { mark: "", reason: "No confident mark detected. Needs operator entry." };
+    return { mark: "", reason: "No mark detected by OCR. Needs operator entry." };
   }
 
+  // Full agreement with sufficient confidence on both sides
+  if (writtenMark && splitMark && writtenMark === splitMark) {
+    if (splitConfidence >= 0.75 && writtenConfidence >= 0.75) {
+      return { mark: writtenMark, reason: "Written and split marks agree with high confidence." };
+    }
+    // Agree but one side is low confidence — fall through to split-only check
+  }
+
+  // Suffix match: split zones captured only trailing digit(s) of the written mark.
+  // Occurs when a split zone OCR fails (e.g. PaddleOCR returns a CJK character
+  // for a handwritten digit), leaving only the units digit(s) readable.
+  // If the split result is a pure-digit suffix of the written mark and written
+  // confidence is adequate, the written mark is accepted and the partial zone
+  // result is treated as confirmation of its last N digits.
+  if (
+    writtenMark && splitMark &&
+    writtenMark !== splitMark &&
+    /^\d+$/.test(writtenMark) &&
+    /^\d+$/.test(splitMark) &&
+    splitMark.length < writtenMark.length &&
+    writtenMark.endsWith(splitMark) &&
+    writtenConfidence >= 0.60
+  ) {
+    return {
+      mark: writtenMark,
+      reason: `Split zones confirmed last ${splitMark.length} digit(s); written mark ${writtenMark} accepted.`,
+    };
+  }
+
+  // Genuine disagreement (not a partial-suffix case)
   if (writtenMark && splitMark && writtenMark !== splitMark) {
-    return { mark: "", reason: "Written and split OCR disagree. Needs operator review." };
+    return { mark: "", reason: "Written and split OCR disagree. Enter the operator mark." };
   }
 
-  if (writtenMark && splitMark && writtenMark === splitMark && splitConfidence >= 0.75 && writtenConfidence >= 0.75) {
-    return { mark: writtenMark, reason: "Written and split marks agree with high confidence." };
-  }
-
+  // Split zones valid with high confidence (no written mark or written was low-confidence)
   if (splitMark && splitConfidence >= 0.85) {
     return { mark: splitMark, reason: "Split mark detected with high confidence; written mark is confirmation only." };
   }
 
   return { mark: "", reason: "Extraction was not confident enough. Needs operator entry." };
+}
+
+/**
+ * Returns the appropriate human-readable reason when OCR fails for a crop.
+ * Distinguishes a reachable provider that returned no usable text from an
+ * unreachable provider, so operators are not misled about service availability.
+ */
+export function ocrFailureReason(providerName: string, providerReachable: boolean): string {
+  if (!providerReachable) {
+    return `OCR service (${providerName}) is unreachable. Enter marks manually from the scan.`;
+  }
+  return `${providerName} returned no text from this crop. Enter the mark manually.`;
 }
 
 function resultById(results: OcrCropResult[], cropId: string): OcrCropResult {
@@ -365,7 +404,6 @@ export async function extractMarksFromScan(
         colLines: detection.colLines,
         warnings: detection.warnings,
         detectedDataRowCount: detection.rowLines.length > 1 ? detection.rowLines.length - 2 : 0,
-        columnBoundaries: detection.columnBoundaries,
         writtenMarkCol: detection.writtenMarkCol,
         splitMarkCol: detection.splitMarkCol,
         splitZoneDividers: detection.splitZoneDividers,
@@ -528,7 +566,7 @@ export async function extractMarksFromScan(
         extractionNote = `Final crop failed quality check: ${failure.label}: ${failure.reason}`;
       }
     } catch {
-      extractionNote = "OCR provider unavailable. Enter marks manually from the scan.";
+      extractionNote = ocrFailureReason(resolution.activeProvider, resolution.providerReachable);
     }
 
     const extracted = acceptedExtractedMark(

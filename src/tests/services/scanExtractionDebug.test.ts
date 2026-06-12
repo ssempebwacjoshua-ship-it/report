@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { acceptedExtractedMark } from "../../server/services/scanExtractionService";
+import { acceptedExtractedMark, ocrFailureReason } from "../../server/services/scanExtractionService";
 import { normalizeMark, parseSplitZoneTexts } from "../../server/services/markRecognitionService";
 
 // ── acceptedExtractedMark acceptance logic ────────────────────────────────────
@@ -32,6 +32,27 @@ describe("acceptedExtractedMark", () => {
     const { mark, reason } = acceptedExtractedMark("", "", 0, 0);
     expect(mark).toBe("");
     expect(reason).toMatch(/operator entry/i);
+  });
+
+  it("accepts written mark when split zones are a numeric suffix (partial zone OCR failure)", () => {
+    // PaddleOCR misread zone 1's '7' as a CJK character; zones combine to '6' not '76'.
+    // Written mark correctly reads '76'. Suffix match: '76'.endsWith('6') → accept '76'.
+    const { mark, reason } = acceptedExtractedMark("76", "6", 0.70, 0.70);
+    expect(mark).toBe("76");
+    expect(reason).toMatch(/confirmed|accepted/i);
+  });
+
+  it("rejects suffix match when written confidence is too low", () => {
+    // writtenConfidence below 0.60 means we can't trust the written mark enough
+    const { mark } = acceptedExtractedMark("76", "6", 0.70, 0.55);
+    expect(mark).toBe("");
+  });
+
+  it("does not treat non-suffix partial matches as agreement", () => {
+    // '7' is not a suffix of '82' — genuine disagreement
+    const { mark, reason } = acceptedExtractedMark("82", "7", 0.80, 0.80);
+    expect(mark).toBe("");
+    expect(reason).toMatch(/disagree/i);
   });
 
   it("rejects when only written mark present and confidence below threshold", () => {
@@ -145,6 +166,40 @@ describe("low confidence rejection behaviour", () => {
 //
 // This is covered by scanOperatorWorkflow.test.ts (keeps all roster rows).
 // The normalisation layer also must never throw for any OCR output.
+
+// ── ocrFailureReason message accuracy ─────────────────────────────────────────
+
+describe("ocrFailureReason", () => {
+  it("active provider: message says 'no text', not 'unavailable'", () => {
+    const msg = ocrFailureReason("paddleocr", true);
+    expect(msg).toMatch(/no text/i);
+    expect(msg.toLowerCase()).not.toContain("unavailable");
+    expect(msg.toLowerCase()).not.toContain("unreachable");
+  });
+
+  it("unreachable provider: message says 'unreachable'", () => {
+    const msg = ocrFailureReason("paddleocr", false);
+    expect(msg).toMatch(/unreachable/i);
+  });
+
+  it("includes the provider name in the message", () => {
+    expect(ocrFailureReason("paddleocr", true)).toContain("paddleocr");
+    expect(ocrFailureReason("tesseract", false)).toContain("tesseract");
+  });
+});
+
+// ── OCR auto-commit guard ──────────────────────────────────────────────────────
+
+describe("OCR never auto-commits", () => {
+  it("acceptedExtractedMark never returns a mark without at least one valid signal", () => {
+    // Simulate every case where BOTH written and split are blank
+    expect(acceptedExtractedMark("", "", 1.0, 1.0).mark).toBe("");
+    // Split-only at 84% (below 0.85 threshold) must not commit
+    expect(acceptedExtractedMark("", "76", 0.84, 0).mark).toBe("");
+    // Written-only with no split confirmation must not commit
+    expect(acceptedExtractedMark("76", "", 0, 0.55).mark).toBe("");
+  });
+});
 
 describe("normalisation robustness", () => {
   const garbageInputs = ["???", "---", "|||", "\x00\x01", "999", "1000", "ABX", "EXX", "", "   "];
