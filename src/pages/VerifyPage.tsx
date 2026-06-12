@@ -48,9 +48,7 @@ export function VerifyPage() {
         <div className="mb-8 text-center">
           <p className="text-xs font-bold uppercase tracking-wide text-blue-600">School Connect Reports</p>
           <h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-950">Report Verification</h1>
-          <p className="mt-1 text-sm text-slate-500">
-            Verify the authenticity of a school report using its reference code.
-          </p>
+          <p className="mt-1 text-sm text-slate-500">Verify the authenticity of a school report using its reference code.</p>
         </div>
 
         <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -60,7 +58,7 @@ export function VerifyPage() {
           </div>
 
           {loading ? (
-            <p className="text-sm text-slate-500">Verifying…</p>
+            <p className="text-sm text-slate-500">Verifying...</p>
           ) : fetchError ? (
             <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">{fetchError}</div>
           ) : !result?.found ? (
@@ -72,7 +70,11 @@ export function VerifyPage() {
             </div>
           ) : (
             <div className="grid gap-4">
-              <div className={`inline-flex w-fit items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-bold ${STATUS_STYLES[result.status ?? ""]?.classes ?? ""}`}>
+              <div
+                className={`inline-flex w-fit items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-bold ${
+                  STATUS_STYLES[result.status ?? ""]?.classes ?? ""
+                }`}
+              >
                 {STATUS_STYLES[result.status ?? ""]?.label ?? result.status}
               </div>
 

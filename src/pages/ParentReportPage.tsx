@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
+import { getSchoolBranding } from "../components/layout/branding";
 import { StudentReportDetail } from "../components/reports/StudentReportDetail";
 import type { StudentReportCard } from "../shared/types/reports";
 import type { GradingScaleSettings, ReportSettings, SchoolProfileSettings } from "../shared/types/settings";
@@ -69,7 +70,7 @@ export function ParentReportPage() {
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-slate-50">
-        <p className="text-sm text-slate-500">Loading reportâ€¦</p>
+        <p className="text-sm text-slate-500">Loading report...</p>
       </div>
     );
   }
@@ -85,8 +86,9 @@ export function ParentReportPage() {
     );
   }
 
-  const { snapshot, referenceCode, issuedAt, issuedByName, school, status } = data;
+  const { snapshot, referenceCode, issuedAt, issuedByName, status } = data;
   const { card, settings } = snapshot;
+  const branding = getSchoolBranding(settings.school);
   const issuedDate = new Date(issuedAt).toLocaleDateString("en-GB", {
     day: "numeric",
     month: "long",
@@ -98,9 +100,9 @@ export function ParentReportPage() {
       <div className="no-print sticky top-0 z-10 border-b border-slate-200 bg-white px-4 py-3 shadow-sm">
         <div className="mx-auto flex max-w-4xl items-center justify-between gap-4">
           <div>
-            <p className="text-xs font-bold uppercase tracking-wide text-blue-600">{school.name}</p>
+            <p className="text-xs font-bold uppercase tracking-wide text-blue-600">{branding.schoolName}</p>
             <p className="text-sm font-semibold text-slate-800">
-              {card.studentName} â€” {card.academicYear} {card.term}
+              {card.studentName} - {card.academicYear} {card.term}
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -151,7 +153,7 @@ export function ParentReportPage() {
       <div className="report-print-page mx-auto max-w-4xl px-4 py-6">
         <div className="print-only mb-4">
           <p className="text-center text-xs text-slate-500">
-            {school.name} â€” Issued {issuedDate} â€” Ref: {referenceCode}
+            {branding.schoolName} - Issued {issuedDate} - Ref: {referenceCode}
           </p>
         </div>
 
@@ -165,7 +167,7 @@ export function ParentReportPage() {
         />
 
         <div className="print-only mt-6 border-t border-slate-200 pt-4 text-center text-xs text-slate-400">
-          Issued through {school.name} official report link Â· Reference: {referenceCode} Â· {issuedDate}
+          Issued through {branding.schoolName} official report link - Reference: {referenceCode} - {issuedDate}
         </div>
       </div>
     </div>

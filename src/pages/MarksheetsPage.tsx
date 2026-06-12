@@ -162,7 +162,7 @@ type PrintTabProps = {
 
 function PrintTab({ ctx, settings, filters, students, loadingStudents, onChange }: PrintTabProps) {
   const ready = !!(filters.classId && filters.streamId && filters.subjectId && filters.termId);
-  const schoolName = getSchoolDisplayName(settings.school, ctx?.school?.name ?? "School Connect");
+  const schoolName = getSchoolDisplayName(settings.school, ctx?.school?.name ?? "");
   const academicYear = settings.academic.activeAcademicYear || ctx?.academicYears.find((y) => y.isActive)?.name || (ctx?.academicYears[0]?.name ?? "");
   const termName = findOption(ctx?.terms ?? [], filters.termId)?.name ?? "";
   const className = findOption(ctx?.classes ?? [], filters.classId)?.name ?? "";

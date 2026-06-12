@@ -6,6 +6,7 @@ import { StudentReportDetail } from "../components/reports/StudentReportDetail";
 import { fetchReportContext, fetchReports } from "../client/reportsClient";
 import { fetchSettings } from "../client/settingsClient";
 import { issueReport, type IssueReportResult } from "../client/issueReportClient";
+import { getSchoolDisplayName } from "../components/layout/branding";
 import type {
   ReportContext,
   ReportFilters as Filters,
@@ -185,7 +186,7 @@ export function ReportsPage() {
   }
 
   const messageTemplate = issueResult
-    ? `Dear Parent, ${issueResult.studentName}'s ${issueResult.term} (${issueResult.assessmentType}) report from ${report?.settings.school.schoolName ?? "the school"} is ready. View and download: ${issueResult.parentLink}`
+    ? `Dear Parent, ${issueResult.studentName}'s ${issueResult.term} (${issueResult.assessmentType}) report from ${getSchoolDisplayName(report?.settings.school, "the school")} is ready. View and download: ${issueResult.parentLink}`
     : "";
 
   return (
@@ -223,10 +224,13 @@ export function ReportsPage() {
             disabled={!selectedCard || issuing}
             onClick={() => void handleIssueReport()}
           >
-            {issuing ? "Issuing…" : "Issue Report Link"}
+            {issuing ? "Issuing..." : "Issue Report Link"}
           </button>
           <a className="btn btn-secondary" href="/imports/marks">
             Marks Import
+          </a>
+          <a className="btn btn-primary" href="/reports/release">
+            Release Center
           </a>
         </div>
       </header>
