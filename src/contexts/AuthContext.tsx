@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 
 const TOKEN_KEY = "sc_auth_token";
+const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:4300";
 
 export type AuthUser = {
   id: string;
@@ -19,6 +20,16 @@ type AuthContextValue = {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
+async function readAuthBody(response: Response) {
+  const raw = await response.text();
+  if (!raw) return {};
+  try {
+    return JSON.parse(raw) as { token?: string; user?: AuthUser; error?: string };
+  } catch {
+    throw new Error("Unexpected response from the server.");
+  }
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [token, setToken] = useState<string | null>(() => {
@@ -36,7 +47,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    fetch("/api/auth/me", { headers: { Authorization: `Bearer ${token}` } })
+    fetch(`${API_BASE}/api/auth/me`, { headers: { Authorization: `Bearer ${token}` } })
       .then((res) => {
         if (!res.ok) throw new Error("Invalid session");
         return res.json() as Promise<{ user: AuthUser }>;
@@ -55,13 +66,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [token]);
 
   async function login(email: string, password: string, schoolCode = "SCU-PREVIEW") {
-    const res = await fetch("/api/auth/login", {
+    const res = await fetch(`${API_BASE}/api/auth/login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email, password, schoolCode }),
     });
 
-    const body = (await res.json()) as { token?: string; user?: AuthUser; error?: string };
+    const body = (await readAuthBody(res)) as { token?: string; user?: AuthUser; error?: string };
 
     if (!res.ok) {
       throw new Error(body.error ?? "Login failed. Check your credentials.");
@@ -85,7 +96,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     setToken(null);
     setUser(null);
-    fetch("/api/auth/logout", { method: "POST" }).catch(() => {});
+    fetch(`${API_BASE}/api/auth/logout`, { method: "POST" }).catch(() => {});
   }
 
   return (
