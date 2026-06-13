@@ -64,17 +64,28 @@ const SPLIT_VERT_DARK_THRESHOLD = 140;
 const SPLIT_VERT_LINE_FRAC = 0.40;
 
 /**
- * Fixed-pixel crop padding constants.
+ * Fixed-pixel crop padding constants (for DETECTED geometry only).
  *
  * CELL_H_PAD   – horizontal inset from the detected column boundary into the cell (px).
  * CELL_V_PAD   – vertical inset from the detected row-line centre into the cell (px).
  *               Must clear the border half-width + JPEG ringing (~8 px each = 14 px total);
  *               15 px gives 1 px of clear margin at 600 dpi.
  * ZONE_DIV_PAD – padding from an internal split-zone divider centre to the zone crop edge.
+ *
+ * FALLBACK_H_PAD / FALLBACK_V_PAD – used when method="fallback" (no detected borders to clear).
+ * MIN_CROP_W / MIN_CROP_H – absolute minimums enforced regardless of row size.
  */
 export const CELL_H_PAD = 8;
 export const CELL_V_PAD = 15;
 export const ZONE_DIV_PAD = 8;
+
+// Fallback pads are small — no printed border to clear in estimated geometry.
+const FALLBACK_H_PAD = 2;
+const FALLBACK_V_PAD = 2;
+
+// Minimum usable crop dimensions before OCR is attempted.
+export const MIN_CROP_W = 40;
+export const MIN_CROP_H = 18;
 
 // ── Fallback geometry ──────────────────────────────────────────────────────────
 
@@ -115,15 +126,23 @@ function columnsFromBoundaries(boundaries: ColumnBoundaries): {
   };
 }
 
-function buildFallback(imgW: number, imgH: number, warnings: string[]): TableDetectionResult {
+function buildFallback(imgW: number, imgH: number, warnings: string[], rosterCount = 26): TableDetectionResult {
   const tableLeft = Math.round(PAGE_MARGIN_LEFT_FRAC * imgW);
   const tableWidth = Math.round(TABLE_WIDTH_FRAC * imgW);
   const tableTop = Math.round(LAYOUT.tableStartFrac * imgH);
   const tableHeaderH = Math.round(LAYOUT.tableHeaderHFrac * imgH);
-  const dataRowH = Math.max(1, Math.round(LAYOUT.dataRowHFrac * imgH));
   const colHeaderBot = tableTop + tableHeaderH;
 
-  const dataRows: PixelRect[] = Array.from({ length: 26 }, (_, i) => ({
+  // Divide the full estimated body height across all roster rows.
+  // Use 95% of page height as the estimated table bottom to leave a small margin.
+  const rowCount = Math.max(26, rosterCount);
+  const estimatedTableBottom = Math.round(imgH * 0.95);
+  const bodyH = Math.max(1, estimatedTableBottom - colHeaderBot);
+  // Minimum row height: enough so padding still leaves a crop, but never exceeds body/rowCount.
+  const minRowH = MIN_CROP_H + FALLBACK_V_PAD * 2 + 2;
+  const dataRowH = Math.max(1, Math.min(minRowH, Math.round(bodyH / rowCount)));
+
+  const dataRows: PixelRect[] = Array.from({ length: rowCount }, (_, i) => ({
     x: tableLeft,
     y: colHeaderBot + i * dataRowH,
     w: tableWidth,
@@ -137,7 +156,7 @@ function buildFallback(imgW: number, imgH: number, warnings: string[]): TableDet
     tableLeft,
     tableRight: tableLeft + tableWidth,
     tableTop,
-    tableBottom: colHeaderBot + 26 * dataRowH,
+    tableBottom: colHeaderBot + rowCount * dataRowH,
     columnHeaderBottom: colHeaderBot,
     rowLines: [],
     colLines: [],
@@ -538,6 +557,7 @@ export async function detectMarksheetTable(
   buffer: Buffer,
   imgW: number,
   imgH: number,
+  rosterCount = 26,
 ): Promise<TableDetectionResult> {
   const warnings: string[] = [];
 
@@ -549,7 +569,7 @@ export async function detectMarksheetTable(
       .toBuffer({ resolveWithObject: true });
     pixels = result.data;
   } catch (err) {
-    return buildFallback(imgW, imgH, [`Pixel extraction failed: ${err}`]);
+    return buildFallback(imgW, imgH, [`Pixel extraction failed: ${err}`], rosterCount);
   }
 
   // Step 1: find horizontal line events
@@ -560,7 +580,7 @@ export async function detectMarksheetTable(
     warnings.push(
       `Only ${lineEvents.length} horizontal line event(s) detected (need ≥3). Using fraction-based geometry.`,
     );
-    return buildFallback(imgW, imgH, warnings);
+    return buildFallback(imgW, imgH, warnings, rosterCount);
   }
 
   // Step 2: find table left/right
@@ -571,7 +591,7 @@ export async function detectMarksheetTable(
     warnings.push(
       `Detected table width ${tableWidth}px < 40% of image width. Using fraction-based geometry.`,
     );
-    return buildFallback(imgW, imgH, warnings);
+    return buildFallback(imgW, imgH, warnings, rosterCount);
   }
 
   const tableTop = horizontalEvents[0]!.y;
@@ -599,10 +619,11 @@ export async function detectMarksheetTable(
     ? Math.round(detectedDataRows.reduce((s, r) => s + r.h, 0) / detectedDataRows.length)
     : Math.max(1, Math.round(LAYOUT.dataRowHFrac * imgH));
 
+  const targetRowCount = Math.max(26, rosterCount);
   const allDataRows: PixelRect[] = [...detectedDataRows];
   const lastRow = detectedDataRows[detectedDataRows.length - 1];
   let extendY = lastRow ? lastRow.y + lastRow.h : columnHeaderBottom;
-  for (let extra = detectedDataRows.length; extra < 26; extra++) {
+  for (let extra = detectedDataRows.length; extra < targetRowCount; extra++) {
     allDataRows.push({ x: tableLeft, y: extendY, w: tableWidth, h: avgH });
     extendY += avgH;
   }
@@ -681,6 +702,10 @@ export async function detectMarksheetTable(
  * All four boundaries are expected to be at the CENTRE of a printed grid line,
  * so padding values must be large enough to clear the border half-width plus
  * JPEG ringing (empirically ~15 px total at 600 dpi).
+ *
+ * Padding is automatically reduced if the raw cell is smaller than the minimum
+ * crop dimensions, so we never produce a crop below MIN_CROP_W × MIN_CROP_H.
+ * The crop is never expanded beyond the supplied cell boundaries.
  */
 export function finalCropRect(
   x1: number,
@@ -690,16 +715,32 @@ export function finalCropRect(
   hPad: number,
   vPad: number,
 ): PixelRect {
-  const x = Math.max(0, x1 + hPad);
-  const y = Math.max(0, y1 + vPad);
-  const w = Math.max(1, x2 - x1 - 2 * hPad);
-  const h = Math.max(1, y2 - y1 - 2 * vPad);
+  const rawW = x2 - x1;
+  const rawH = y2 - y1;
+  // Scale padding down if the cell is too narrow/short to meet the minimum after padding.
+  const effectiveHPad = rawW - 2 * hPad >= MIN_CROP_W
+    ? hPad
+    : Math.max(0, Math.floor((rawW - MIN_CROP_W) / 2));
+  const effectiveVPad = rawH - 2 * vPad >= MIN_CROP_H
+    ? vPad
+    : Math.max(0, Math.floor((rawH - MIN_CROP_H) / 2));
+  const x = Math.max(0, x1 + effectiveHPad);
+  const y = Math.max(0, y1 + effectiveVPad);
+  const w = Math.max(1, rawW - 2 * effectiveHPad);
+  const h = Math.max(1, rawH - 2 * effectiveVPad);
   return { x, y, w, h };
 }
 
 /**
  * Compute the final padded crop rect for the Written Mark cell of a given row.
- * Uses CELL_H_PAD / CELL_V_PAD so the crop sits safely inside the printed borders.
+ *
+ * Uses CELL_H_PAD / CELL_V_PAD for detected geometry (where printed borders must
+ * be cleared), and smaller FALLBACK_H_PAD / FALLBACK_V_PAD for estimated geometry
+ * (no printed borders to clear).
+ *
+ * When the row index exceeds the dataRows array (unusual edge case for detected
+ * tables with fewer rows than the roster), the last row is extrapolated rather than
+ * using the fractional geometry which overflows for large row counts.
  */
 export function computeWrittenMarkCropRect(
   detection: TableDetectionResult,
@@ -711,11 +752,28 @@ export function computeWrittenMarkCropRect(
   const wc = detection.writtenMarkCol;
 
   if (!row) {
-    // Fallback: use geometry-service fractions with an 8% inset
+    // Extrapolate from the last known data row rather than using dataRowRegion(),
+    // which overflows for rowIndex > ~50 on typical A4 scans.
+    const lastRow = detection.dataRows[detection.dataRows.length - 1];
+    if (lastRow && imgW > 0 && imgH > 0) {
+      const avgH = detection.dataRows.length > 0
+        ? Math.round(detection.dataRows.reduce((s, r) => s + r.h, 0) / detection.dataRows.length)
+        : Math.max(MIN_CROP_H + 4, Math.round(LAYOUT.dataRowHFrac * imgH));
+      const extraY = lastRow.y + lastRow.h + (rowIndex - detection.dataRows.length) * avgH;
+      if (extraY < imgH) {
+        const syntheticRow: PixelRect = { x: wc.x, y: extraY, w: wc.w, h: avgH };
+        const hPad = detection.method === "fallback" ? FALLBACK_H_PAD : CELL_H_PAD;
+        const vPad = detection.method === "fallback" ? FALLBACK_V_PAD : CELL_V_PAD;
+        return finalCropRect(syntheticRow.x, syntheticRow.x + syntheticRow.w, syntheticRow.y, syntheticRow.y + syntheticRow.h, hPad, vPad);
+      }
+    }
+    // Last resort: fractional geometry (may overflow for very large rowIndex)
     return cellToPixel(COLUMNS.writtenMark, dataRowRegion(rowIndex), imgW, imgH, 0.08);
   }
 
-  return finalCropRect(wc.x, wc.x + wc.w, row.y, row.y + row.h, CELL_H_PAD, CELL_V_PAD);
+  const hPad = detection.method === "fallback" ? FALLBACK_H_PAD : CELL_H_PAD;
+  const vPad = detection.method === "fallback" ? FALLBACK_V_PAD : CELL_V_PAD;
+  return finalCropRect(wc.x, wc.x + wc.w, row.y, row.y + row.h, hPad, vPad);
 }
 
 /**
@@ -736,15 +794,18 @@ export function computeSplitZoneRects(
 ): PixelRect[] {
   const row = detection.dataRows[rowIndex];
   const sc = detection.splitMarkCol;
+  const isFallback = detection.method === "fallback";
 
   if (!row) {
     const zoneW = sc.w / 3;
+    const zonePad = isFallback ? FALLBACK_H_PAD : ZONE_DIV_PAD;
+    const rowVPad = isFallback ? FALLBACK_V_PAD : CELL_V_PAD;
     return Array.from({ length: 3 }, (_, i) =>
       finalCropRect(
         sc.x + i * zoneW, sc.x + (i + 1) * zoneW,
         Math.round(LAYOUT.tableStartFrac * imgH + LAYOUT.tableHeaderHFrac * imgH + rowIndex * LAYOUT.dataRowHFrac * imgH),
         Math.round(LAYOUT.tableStartFrac * imgH + LAYOUT.tableHeaderHFrac * imgH + (rowIndex + 1) * LAYOUT.dataRowHFrac * imgH),
-        ZONE_DIV_PAD, CELL_V_PAD,
+        zonePad, rowVPad,
       ),
     );
   }
@@ -790,14 +851,26 @@ export function computeSplitZoneRects(
     ];
   }
 
+  const outerHPad = isFallback ? FALLBACK_H_PAD : CELL_H_PAD;
+  const innerHPad = isFallback ? FALLBACK_H_PAD : ZONE_DIV_PAD;
+  const rowVPad  = isFallback ? FALLBACK_V_PAD : CELL_V_PAD;
+  const rawH = rowBottom - rowTop;
+  const effectiveV = rawH - 2 * rowVPad >= MIN_CROP_H
+    ? rowVPad
+    : Math.max(0, Math.floor((rawH - MIN_CROP_H) / 2));
+
   return zones.map(([x1, x2, leftType, rightType]) => {
-    const leftPad = leftType === "outer-left" ? CELL_H_PAD : ZONE_DIV_PAD;
-    const rightPad = rightType === "outer-right" ? CELL_H_PAD : ZONE_DIV_PAD;
+    const leftPad  = leftType  === "outer-left"  ? outerHPad : innerHPad;
+    const rightPad = rightType === "outer-right" ? outerHPad : innerHPad;
+    const rawW = x2 - x1;
+    const usable = rawW - leftPad - rightPad;
+    const effectiveL = usable >= MIN_CROP_W ? leftPad : Math.max(0, Math.floor((rawW - MIN_CROP_W) / 2));
+    const effectiveR = usable >= MIN_CROP_W ? rightPad : Math.max(0, Math.floor((rawW - MIN_CROP_W) / 2));
     return {
-      x: Math.max(0, x1 + leftPad),
-      y: Math.max(0, rowTop + CELL_V_PAD),
-      w: Math.max(1, x2 - x1 - leftPad - rightPad),
-      h: Math.max(1, rowBottom - rowTop - 2 * CELL_V_PAD),
+      x: Math.max(0, x1 + effectiveL),
+      y: Math.max(0, rowTop + effectiveV),
+      w: Math.max(1, rawW - effectiveL - effectiveR),
+      h: Math.max(1, rawH - 2 * effectiveV),
     };
   });
 }
@@ -812,7 +885,9 @@ export function computeSplitFullRect(
   const row = detection.dataRows[rowIndex];
   const sc = detection.splitMarkCol;
   if (!row) return { x: sc.x, y: 0, w: sc.w, h: 1 };
-  return finalCropRect(sc.x, sc.x + sc.w, row.y, row.y + row.h, CELL_H_PAD, CELL_V_PAD);
+  const hPad = detection.method === "fallback" ? FALLBACK_H_PAD : CELL_H_PAD;
+  const vPad = detection.method === "fallback" ? FALLBACK_V_PAD : CELL_V_PAD;
+  return finalCropRect(sc.x, sc.x + sc.w, row.y, row.y + row.h, hPad, vPad);
 }
 
 /**

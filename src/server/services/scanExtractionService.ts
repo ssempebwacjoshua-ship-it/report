@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import type { PrismaClient } from "@prisma/client";
-import type { ScanImportRow, ScanMarksheetContext } from "../../shared/types/imports";
+import type { GeometryDebugInfo, ScanImportRow, ScanMarksheetContext } from "../../shared/types/imports";
 import type { OcrSettings } from "../../shared/types/settings";
 import {
   tableToPixel,
@@ -396,8 +396,8 @@ export async function extractMarksFromScan(
   clearDebugDir();
   saveDebugFile("original.jpg", scan.buffer);
 
-  // Detect table geometry
-  const detection = await detectMarksheetTable(scan.buffer, scan.width, scan.height);
+  // Detect table geometry, passing roster count so fallback creates enough rows.
+  const detection = await detectMarksheetTable(scan.buffer, scan.width, scan.height, roster.length);
 
   // Save geometry metadata (always — operators need this for alignment diagnostics)
   saveAlways(
@@ -478,6 +478,7 @@ export async function extractMarksFromScan(
     let splitCropDataUrl = "";
     let splitDigitCropDataUrls: string[] = [];
     let extractionNote = "";
+    let cropRejectionReason: string | undefined;
 
     try {
       const writtenPreview = await cropPreview(scan.buffer, writtenRect);
@@ -544,6 +545,7 @@ export async function extractMarksFromScan(
       const blockingQualityFailures = qualityFailures.filter((failure) => failure.blocking);
       if (ocrInputs.length === 0) {
         const failure = qualityFailures[0];
+        cropRejectionReason = failure ? `${failure.label}: ${failure.reason}` : "no usable OCR crops";
         extractionNote = failure
           ? `Final crop failed quality check: ${failure.label}: ${failure.reason}`
           : "Final crop failed quality check: no usable OCR crops";
@@ -602,6 +604,7 @@ export async function extractMarksFromScan(
         extractionNote = isProviderUnavailableError(error)
           ? "OCR temporarily unavailable. Contact platform support."
           : ocrFailureReason(resolution.activeProvider, resolution.providerReachable);
+      cropRejectionReason = reason;
       }
     }
 
@@ -615,6 +618,25 @@ export async function extractMarksFromScan(
     const confidence = splitResult.normalizedMark
       ? splitResult.confidence
       : writtenResult.confidence;
+
+    const geomDebug: GeometryDebugInfo = {
+      imageWidth: scan.width,
+      imageHeight: scan.height,
+      detectionMethod: detection.method,
+      geometryConfidence: detection.geometryConfidence,
+      tableRect: {
+        left: detection.tableLeft,
+        right: detection.tableRight,
+        top: detection.tableTop,
+        bottom: detection.tableBottom,
+      },
+      writtenMarkCol: detection.writtenMarkCol,
+      splitMarkCol: detection.splitMarkCol,
+      dataRowCount: detection.dataRows.length,
+      writtenCropRect: { x: writtenRect.x, y: writtenRect.y, w: writtenRect.w, h: writtenRect.h },
+      cropRejectionReason,
+      warnings: detection.warnings,
+    };
 
     rawRows.push({
       rowNumber: index + 1,
@@ -644,6 +666,7 @@ export async function extractMarksFromScan(
         split: splitCropDataUrl,
         splitZones: splitDigitCropDataUrls,
       },
+      geometryDebug: geomDebug,
       statusReason: extractionNote || extracted.reason,
       status: "PARSED",
       validationErrors: [],
@@ -670,16 +693,20 @@ export async function extractMarksFromScan(
   if (countByStatus["MISSING"]) statusParts.push(`${countByStatus["MISSING"]} missing`);
   if (countByStatus["INVALID"]) statusParts.push(`${countByStatus["INVALID"]} invalid`);
 
+  const azureStatus = "Azure OCR succeeded.";
   const detectionNote = detection.method === "detected"
-    ? `Table detected (confidence ${Math.round(detection.geometryConfidence * 100)}%, col: ${detection.colDetectionMethod}).`
-    : "Table not detected — using estimated geometry.";
+    ? `Table geometry detected (confidence ${Math.round(detection.geometryConfidence * 100)}%, col: ${detection.colDetectionMethod}).`
+    : "Table geometry not detected — using estimated geometry. Crop quality may be reduced.";
 
-  const providerNote = " OCR provider: Azure.";
+  const allMissing = countByStatus["MISSING"] === roster.length && roster.length > 0;
+  const geometryNote = allMissing && detection.method === "fallback"
+    ? " Geometry is estimated — verify crop alignment in debug view."
+    : "";
 
   return {
     parseStatus: "PARSED",
     message:
-      `Scan processed. ${detectionNote}${providerNote} ` +
+      `Scan processed. ${azureStatus} ${detectionNote}${geometryNote} ` +
       `${roster.length} roster rows: ${statusParts.join(", ") || "all blank (no marks visible)"}.`,
     rows: validatedRows,
     studentCount: roster.length,

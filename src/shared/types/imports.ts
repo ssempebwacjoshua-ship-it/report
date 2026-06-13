@@ -38,6 +38,20 @@ export type ScanRowStatus =
   | "RETURNED"
   | "FINALIZED";
 
+export type GeometryDebugInfo = {
+  imageWidth: number;
+  imageHeight: number;
+  detectionMethod: "detected" | "fallback";
+  geometryConfidence: number;
+  tableRect: { left: number; right: number; top: number; bottom: number };
+  writtenMarkCol: { x: number; w: number };
+  splitMarkCol: { x: number; w: number };
+  dataRowCount: number;
+  writtenCropRect: { x: number; y: number; w: number; h: number };
+  cropRejectionReason?: string;
+  warnings: string[];
+};
+
 export type ScanImportRow = {
   rowNumber: number;
   admissionNumber: string;
@@ -67,6 +81,7 @@ export type ScanImportRow = {
     split?: string;
     splitZones?: string[];
   };
+  geometryDebug?: GeometryDebugInfo;
   statusReason?: string;
   status: ScanRowStatus;
   validationErrors: string[];

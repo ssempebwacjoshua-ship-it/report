@@ -732,10 +732,18 @@ export function ScanUploadPanel() {
                 Azure
               </p>
               <p>
-                <span className="font-semibold">OCR status:</span>{" "}
+                <span className="font-semibold">Azure OCR:</span>{" "}
                 {uploadResult.providerReachable === false
-                  ? "OCR temporarily unavailable. Contact platform support."
-                  : "Provider available."}
+                  ? <span className="text-red-700">Unavailable — contact platform support.</span>
+                  : <span className="text-emerald-700 font-semibold">Succeeded</span>}
+              </p>
+              <p>
+                <span className="font-semibold">Table geometry:</span>{" "}
+                {uploadResult.message.includes("Table geometry not detected")
+                  ? <span className="text-amber-700 font-semibold">Fallback (estimated) — crop alignment may be off</span>
+                  : uploadResult.message.includes("Table geometry detected")
+                    ? <span className="text-emerald-700 font-semibold">Detected</span>
+                    : <span className="text-slate-500">—</span>}
               </p>
             </div>
             {uploadResult.contextWarning && (

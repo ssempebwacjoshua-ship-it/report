@@ -1,5 +1,5 @@
 import type { KeyboardEvent } from "react";
-import type { ScanImportRow, ScanRowStatus, ScanUploadResponse } from "../../shared/types/imports";
+import type { GeometryDebugInfo, ScanImportRow, ScanRowStatus, ScanUploadResponse } from "../../shared/types/imports";
 
 const STATUS_STYLES: Record<ScanRowStatus, string> = {
   PARSED: "bg-slate-100 text-slate-700",
@@ -63,6 +63,117 @@ function parsedDecision(row: ScanImportRow): { text: string; tone: string } {
   if (rawText) return { text: `Raw: "${rawText}" — not parseable`, tone: "text-red-500" };
 
   return { text: "No text detected", tone: "text-slate-400" };
+}
+
+// ── Geometry Debug Panel ──────────────────────────────────────────────────────
+
+function GeometryDebugSummary({ info }: { info: GeometryDebugInfo }) {
+  return (
+    <div className="grid gap-1 rounded-xl border border-slate-100 bg-white px-3 py-2 text-xs text-slate-600">
+      <div className="flex flex-wrap gap-x-4 gap-y-0.5">
+        <span><span className="font-semibold">Image:</span> {info.imageWidth}×{info.imageHeight}px</span>
+        <span>
+          <span className="font-semibold">Geometry:</span>{" "}
+          <span className={info.detectionMethod === "detected" ? "text-emerald-700 font-semibold" : "text-amber-700 font-semibold"}>
+            {info.detectionMethod === "detected" ? `Detected (${Math.round(info.geometryConfidence * 100)}%)` : "Fallback (estimated)"}
+          </span>
+        </span>
+        <span><span className="font-semibold">Data rows:</span> {info.dataRowCount}</span>
+      </div>
+      <div className="flex flex-wrap gap-x-4 gap-y-0.5">
+        <span>
+          <span className="font-semibold">Table:</span>{" "}
+          L{info.tableRect.left} R{info.tableRect.right} T{info.tableRect.top} B{info.tableRect.bottom}
+        </span>
+        <span>
+          <span className="font-semibold">Written col:</span> x={info.writtenMarkCol.x} w={info.writtenMarkCol.w}
+        </span>
+        <span>
+          <span className="font-semibold">Split col:</span> x={info.splitMarkCol.x} w={info.splitMarkCol.w}
+        </span>
+      </div>
+      {info.warnings.length > 0 && (
+        <div className="mt-1 rounded bg-amber-50 px-2 py-1 text-amber-700">
+          {info.warnings.map((w, i) => <div key={i}>{w}</div>)}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function GeometryDebugPanel({ rows }: { rows: ScanImportRow[] }) {
+  const rowsWithDebug = rows.filter((r) => r.geometryDebug).slice(0, 10);
+  const firstInfo = rowsWithDebug[0]?.geometryDebug;
+  if (!firstInfo) return null;
+
+  return (
+    <details className="rounded-2xl border border-violet-200 bg-violet-50/40 p-4">
+      <summary className="cursor-pointer text-sm font-bold text-slate-800">
+        Geometry debug — crop alignment
+      </summary>
+      <div className="mt-4 grid gap-3">
+        <p className="text-xs text-slate-500">
+          Shows detected/estimated geometry and first 10 mark-cell crop thumbnails. Use this to diagnose crop alignment issues.
+          Geometry is in original image pixels.
+        </p>
+
+        <GeometryDebugSummary info={firstInfo} />
+
+        <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
+          <table className="w-full min-w-[700px] text-xs">
+            <thead>
+              <tr className="bg-slate-100 text-left font-bold uppercase tracking-wide text-slate-500">
+                <th className="px-3 py-2">Row</th>
+                <th className="px-3 py-2">Adm. No.</th>
+                <th className="px-3 py-2">Crop rect (px)</th>
+                <th className="px-3 py-2">Written crop</th>
+                <th className="px-3 py-2">Status / rejection</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {rowsWithDebug.map((row) => {
+                const g = row.geometryDebug!;
+                const rect = g.writtenCropRect;
+                const tooSmall = rect.w < 40 || rect.h < 18;
+                return (
+                  <tr key={`geom-${row.rowNumber}`}>
+                    <td className="px-3 py-2 font-semibold">{row.rowNumber}</td>
+                    <td className="px-3 py-2 font-mono text-slate-500">{row.admissionNumber}</td>
+                    <td className="px-3 py-2">
+                      <span className={`font-mono ${tooSmall ? "text-red-600 font-semibold" : "text-slate-600"}`}>
+                        x={rect.x} y={rect.y} {rect.w}×{rect.h}px
+                      </span>
+                      {tooSmall && (
+                        <span className="ml-1 rounded bg-red-100 px-1 text-red-700">too small</span>
+                      )}
+                    </td>
+                    <td className="px-3 py-2">
+                      {row.writtenCropDataUrl ? (
+                        <img
+                          src={row.writtenCropDataUrl}
+                          alt={`Written crop row ${row.rowNumber}`}
+                          className="h-8 w-20 rounded border object-contain"
+                        />
+                      ) : (
+                        <span className="text-slate-300">—</span>
+                      )}
+                    </td>
+                    <td className="px-3 py-2">
+                      {g.cropRejectionReason ? (
+                        <span className="text-red-600">{g.cropRejectionReason}</span>
+                      ) : (
+                        <span className="text-emerald-600">{row.statusReason || "ok"}</span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </details>
+  );
 }
 
 export function ScanReviewTable({
@@ -158,6 +269,8 @@ export function ScanReviewTable({
           </tbody>
         </table>
       </div>
+
+      <GeometryDebugPanel rows={rows} />
 
       <details className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
         <summary className="cursor-pointer text-sm font-bold text-slate-800">
