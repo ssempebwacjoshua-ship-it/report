@@ -88,6 +88,34 @@ function marksheetIdRects(width: number, height: number): Record<"header" | "foo
   };
 }
 
+/**
+ * Specific top-right corner crop where the marksheet ID is printed.
+ * Uses a generous left boundary (55 % of page width) to tolerate shifted or
+ * slightly skewed photos.  Starts from y=0 (above the print margin) so the ID
+ * is still captured even when the page is slightly low in the frame.
+ */
+function topRightIdRect(width: number, height: number): PixelRect {
+  const x = Math.max(0, Math.round(0.55 * width));
+  const h = Math.min(
+    Math.round((LAYOUT.marginTopFrac + LAYOUT.headerHFrac + 0.025) * height),
+    Math.round(0.28 * height),
+  );
+  return clampRect({ x, y: 0, w: width - x, h }, width, height);
+}
+
+/**
+ * Expanded top-right crop — wider horizontal margin for skewed / shifted scans.
+ * Starts at 42 % to catch prints shifted to the left.
+ */
+function expandedTopRightIdRect(width: number, height: number): PixelRect {
+  const x = Math.max(0, Math.round(0.42 * width));
+  const h = Math.min(
+    Math.round((LAYOUT.marginTopFrac + LAYOUT.headerHFrac + 0.035) * height),
+    Math.round(0.32 * height),
+  );
+  return clampRect({ x, y: 0, w: width - x, h }, width, height);
+}
+
 async function preparePrintedTextCrop(imageBuffer: Buffer, rect: PixelRect): Promise<Buffer> {
   const targetWidth = Math.min(2200, Math.max(480, rect.w * 3));
   const targetHeight = Math.min(520, Math.max(140, rect.h * 3));
@@ -104,6 +132,31 @@ async function preparePrintedTextCrop(imageBuffer: Buffer, rect: PixelRect): Pro
     .sharpen({ sigma: 0.8 })
     .jpeg({ quality: 94 })
     .toBuffer();
+}
+
+/**
+ * Higher-quality preprocessing for the specific marksheet ID zone.
+ * Applies a 4× upscale, aggressive contrast, and binarization so that printed
+ * text at the top-right corner reads cleanly even from phone/flatbed photos.
+ */
+async function prepareIdCropForOcr(imageBuffer: Buffer, rect: PixelRect): Promise<Buffer> {
+  const targetWidth = Math.min(2400, Math.max(640, rect.w * 4));
+  const targetHeight = Math.min(640, Math.max(180, rect.h * 4));
+  return sharp(imageBuffer)
+    .extract({ left: rect.x, top: rect.y, width: rect.w, height: rect.h })
+    .resize({ width: targetWidth, height: targetHeight, fit: "fill" })
+    .greyscale()
+    .normalize()
+    .linear(1.6, -30)
+    .sharpen({ sigma: 0.6 })
+    .threshold(145)
+    .jpeg({ quality: 97 })
+    .toBuffer();
+}
+
+/** Collapse newlines and multiple spaces in raw OCR output before candidate extraction. */
+function normalizeOcrWhitespace(text: string): string {
+  return text.replace(/[\r\n]+/g, " ").replace(/\s{2,}/g, " ").trim();
 }
 
 async function decodeQrFromCrop(imageBuffer: Buffer, rect: PixelRect): Promise<string> {
@@ -227,37 +280,58 @@ export async function detectMarksheetIdFromScan(
   fileBuffer: Buffer,
   mimeType: string,
 ): Promise<MarksheetIdDetectionResult> {
-  await fs.mkdir(DEBUG_DIR, { recursive: true });
+  try { await fs.mkdir(DEBUG_DIR, { recursive: true }); } catch { /* best effort */ }
+
   const scan = await preprocessScanImage(fileBuffer, mimeType);
   const rects = marksheetIdRects(scan.width, scan.height);
+  const topRightRect = topRightIdRect(scan.width, scan.height);
+  const expandedRect = expandedTopRightIdRect(scan.width, scan.height);
 
-  const [headerCrop, footerCrop] = await Promise.all([
+  // Prepare all crop zones in parallel
+  const [headerCrop, footerCrop, topRightCrop, expandedTopRightCrop] = await Promise.all([
     preparePrintedTextCrop(scan.buffer, rects.header),
     preparePrintedTextCrop(scan.buffer, rects.footer),
-  ]);
-  const headerCropPath = path.join(DEBUG_DIR, "marksheet-id-header-crop.jpg");
-  const footerCropPath = path.join(DEBUG_DIR, "marksheet-id-footer-crop.jpg");
-  await Promise.all([
-    fs.writeFile(headerCropPath, headerCrop),
-    fs.writeFile(footerCropPath, footerCrop),
+    prepareIdCropForOcr(scan.buffer, topRightRect),
+    prepareIdCropForOcr(scan.buffer, expandedRect),
   ]);
 
-  const [headerQr, footerQr] = await Promise.all([
+  // Save debug crops (best effort — filesystem may not be writable on all platforms)
+  const headerCropPath = path.join(DEBUG_DIR, "marksheet-id-header-crop.jpg");
+  const footerCropPath = path.join(DEBUG_DIR, "marksheet-id-footer-crop.jpg");
+  try {
+    await Promise.all([
+      fs.writeFile(headerCropPath, headerCrop),
+      fs.writeFile(footerCropPath, footerCrop),
+    ]);
+  } catch { /* best effort */ }
+
+  // QR decode on all header-region crops (fast, no Azure call)
+  const [headerQr, footerQr, topRightQr] = await Promise.all([
     decodeQrFromCrop(scan.colorBuffer, rects.header),
     decodeQrFromCrop(scan.colorBuffer, rects.footer),
+    decodeQrFromCrop(scan.colorBuffer, topRightRect),
   ]);
 
   const qrCandidates = [
+    ...extractMarksheetIdCandidatesFromOcrText(topRightQr, "header", 0.99, "qr"),
     ...extractMarksheetIdCandidatesFromOcrText(headerQr, "header", 0.99, "qr"),
     ...extractMarksheetIdCandidatesFromOcrText(footerQr, "footer", 0.99, "qr"),
   ];
 
-  const headerOcr = await recognizePrintedTextCrop("marksheet-id-header", headerCrop);
-  const footerOcr = await recognizePrintedTextCrop("marksheet-id-footer", footerCrop);
+  // OCR all zones: top-right crop first (highest signal), then expanded, full header, footer
+  const [topRightOcr, expandedOcr, headerOcr, footerOcr] = await Promise.all([
+    recognizePrintedTextCrop("marksheet-id-topright", topRightCrop),
+    recognizePrintedTextCrop("marksheet-id-topright-expanded", expandedTopRightCrop),
+    recognizePrintedTextCrop("marksheet-id-header", headerCrop),
+    recognizePrintedTextCrop("marksheet-id-footer", footerCrop),
+  ]);
 
+  // Priority: top-right > expanded top-right > full header band > footer
   const ocrCandidates = [
-    ...extractMarksheetIdCandidatesFromOcrText(headerOcr.text, "header", headerOcr.confidence, "ocr"),
-    ...extractMarksheetIdCandidatesFromOcrText(footerOcr.text, "footer", footerOcr.confidence, "ocr"),
+    ...extractMarksheetIdCandidatesFromOcrText(normalizeOcrWhitespace(topRightOcr.text), "header", topRightOcr.confidence, "ocr"),
+    ...extractMarksheetIdCandidatesFromOcrText(normalizeOcrWhitespace(expandedOcr.text), "header", expandedOcr.confidence * 0.95, "ocr"),
+    ...extractMarksheetIdCandidatesFromOcrText(normalizeOcrWhitespace(headerOcr.text), "header", headerOcr.confidence * 0.85, "ocr"),
+    ...extractMarksheetIdCandidatesFromOcrText(normalizeOcrWhitespace(footerOcr.text), "footer", footerOcr.confidence, "ocr"),
   ];
 
   const candidates = [...qrCandidates, ...ocrCandidates].filter((candidate, index, all) =>
@@ -272,18 +346,23 @@ export async function detectMarksheetIdFromScan(
     candidates.find((candidate) => candidate.source === "footer") ??
     null;
 
-  // Extract sheet number (YYYYMMDD-NNN) from OCR text — header first, footer fallback
+  // Sheet number: check top-right text first, then full header, then footer
   const recognizedSheetNumber =
+    findSheetNumberInText(topRightOcr.text) ??
     findSheetNumberInText(headerOcr.text) ??
     findSheetNumberInText(footerOcr.text) ??
     null;
 
+  // Best OCR text for display — prefer top-right zone which targets the ID specifically
+  const primaryHeaderText = topRightOcr.text || expandedOcr.text || headerOcr.text;
+
+  const firstError = topRightOcr.error || headerOcr.error || footerOcr.error || expandedOcr.error;
   const failureReason = selectedCandidate
     ? ""
-    : headerOcr.error || footerOcr.error || "No Marksheet ID candidate found in header or footer crops.";
+    : firstError || "No Marksheet ID candidate found in top-right corner, header, or footer.";
 
   const result: MarksheetIdDetectionResult = {
-    rawHeaderText: headerOcr.text,
+    rawHeaderText: primaryHeaderText,
     rawFooterText: footerOcr.text,
     candidates,
     selectedCandidate,
@@ -297,7 +376,7 @@ export async function detectMarksheetIdFromScan(
       headerCropPath,
       footerCropPath,
       debugJsonPath: path.join(DEBUG_DIR, "marksheet-id-detection.json"),
-      rawHeaderText: headerOcr.text,
+      rawHeaderText: primaryHeaderText,
       rawFooterText: footerOcr.text,
       normalizedCandidates: candidates.map((candidate) => candidate.normalizedRecognizedId),
       selectedCandidate,
@@ -305,6 +384,6 @@ export async function detectMarksheetIdFromScan(
     },
   };
 
-  await writeDebugArtifacts(result);
+  try { await writeDebugArtifacts(result); } catch { /* best effort */ }
   return result;
 }

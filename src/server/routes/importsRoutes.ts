@@ -211,7 +211,7 @@ export function importsRoutes() {
             detected: null,
             detectionStatus: "NOT_FOUND",
             message: file
-              ? "Marksheet ID not recognized. Confirm the marksheet context manually."
+              ? "Could not read the marksheet ID from the top-right corner. Please upload a clearer image or enter the sheet ID manually."
               : "No file uploaded and no marksheet ID provided.",
             ocrFoundId: foundId,
             recognizedMarksheetId: resolution.recognizedMarksheetId,
@@ -371,11 +371,14 @@ export function importsRoutes() {
         });
 
         if (!contextResolution.resolvedContext) {
-          res.status(400).json(importErr(
-            "CONTEXT_REQUIRED",
-            "Marksheet context is required before extraction. Provide or confirm the class, stream, subject, term, and exam type.",
-            { marksheetIdDebug: idDetection?.debug, ...contextResolution },
-          ));
+          // Distinguish: no user-provided context (OCR failed) vs. user provided context that
+          // still could not be resolved (wrong class/subject/etc).
+          const userProvidedContext = !!(selectedContext || selectedMarksheetId || bodyRecognizedId);
+          const code = userProvidedContext ? "CONTEXT_REQUIRED" : "SHEET_ID_NOT_DETECTED";
+          const message = userProvidedContext
+            ? "Marksheet context is required before extraction. Provide or confirm the class, stream, subject, term, and exam type."
+            : "Could not read the marksheet ID from the top-right corner. Please upload a clearer image or enter the sheet ID manually.";
+          res.status(400).json(importErr(code, message, { marksheetIdDebug: idDetection?.debug, ...contextResolution }));
           return;
         }
 

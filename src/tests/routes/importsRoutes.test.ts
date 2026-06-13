@@ -33,15 +33,18 @@ describe("POST /api/imports/scans/upload", () => {
     expect(res.body.message).toMatch(/no scan file/i);
   });
 
-  it("returns 400 when context field is missing", async () => {
+  it("returns 400 SHEET_ID_NOT_DETECTED when file is uploaded but no context given", async () => {
+    // No context or marksheetId provided — OCR on fake image finds nothing.
+    // Should return SHEET_ID_NOT_DETECTED (not CONTEXT_REQUIRED, not 500).
     const res = await request(createServer())
       .post("/api/imports/scans/upload")
       .field("schoolCode", SCHOOL)
       .attach("file", FAKE_PNG, { filename: "marksheet.png", contentType: "image/png" });
     expect(res.status).toBe(400);
     expect(res.body.error).toBe(true);
-    expect(res.body.code).toBe("CONTEXT_REQUIRED");
-    expect(res.body.message).toMatch(/context/i);
+    expect(res.body.code).toBe("SHEET_ID_NOT_DETECTED");
+    expect(res.body.message).toMatch(/top-right/i);
+    expect(Array.isArray(res.body.details)).toBe(true);
   });
 
   it("returns 400 for unsupported scan file type CSV", async () => {
@@ -348,6 +351,43 @@ S1A-001,Kampala Ssempebwa,Senior 1 A,A,English Language,Term 1,BOT,81,guard`;
     expect(res.status).toBe(200);
     expect(res.body.status).toBe("FAILED");
     expect(JSON.stringify(res.body.rows)).toMatch(/Dry-run validation is required before commit/i);
+  });
+});
+
+// ── Sheet ID top-right corner detection ──────────────────────────────────────
+
+describe("Sheet ID detection — top-right corner", () => {
+  it("detect-context with file shows top-right corner message when ID not found", async () => {
+    const res = await request(createServer())
+      .post("/api/imports/scans/detect-context")
+      .field("schoolCode", SCHOOL)
+      .attach("file", FAKE_PNG, { filename: "scan.png", contentType: "image/png" });
+    expect(res.status).toBe(200);
+    // When fake image yields no detectable ID, message must mention top-right corner
+    if (res.body.detectionStatus === "NOT_FOUND") {
+      expect(res.body.message).toMatch(/top-right/i);
+    }
+  });
+
+  it("upload with file but no context does not return 500", async () => {
+    const res = await request(createServer())
+      .post("/api/imports/scans/upload")
+      .field("schoolCode", SCHOOL)
+      .attach("file", FAKE_PNG, { filename: "scan.png", contentType: "image/png" });
+    expect(res.status).not.toBe(500);
+    expect(res.body.error).toBe(true);
+    expect(typeof res.body.message).toBe("string");
+    expect(res.body.message).not.toMatch(/unexpected server error/i);
+  });
+
+  it("detect-context never crashes — returns structured response even for unreadable image", async () => {
+    const res = await request(createServer())
+      .post("/api/imports/scans/detect-context")
+      .field("schoolCode", SCHOOL)
+      .attach("file", FAKE_PNG, { filename: "scan.png", contentType: "image/png" });
+    expect(res.status).toBe(200);
+    expect(["DETECTED", "PARTIAL", "NOT_FOUND"]).toContain(res.body.detectionStatus);
+    expect(typeof res.body.message).toBe("string");
   });
 });
 
