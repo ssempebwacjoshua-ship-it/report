@@ -549,9 +549,23 @@ export async function extractMarksFromScan(
           : "Final crop failed quality check: no usable OCR crops";
       }
 
+      if (ocrInputs.length > 0) {
+        console.log(
+          `[ocr.azure.marks] request started row=${index + 1} adm=${student.admissionNumber}` +
+          ` cropKind=marksGrid crops=${ocrInputs.length}` +
+          ` mimeType=${ocrInputs[0]?.mimeType ?? "image/jpeg"}`,
+        );
+      }
       const ocrResults = ocrInputs.length > 0
         ? await ocrProvider.recognizeCrops(ocrInputs)
         : [];
+      if (ocrResults.length > 0) {
+        const linesWithText = ocrResults.filter((r) => r.text.trim()).length;
+        console.log(
+          `[ocr.azure.marks] success row=${index + 1} adm=${student.admissionNumber}` +
+          ` lines=${linesWithText}/${ocrResults.length}`,
+        );
+      }
 
       const writtenOcr = resultById(ocrResults, cropIds.written);
       const zoneResults = cropIds.zones.map((cropId) => resultById(ocrResults, cropId));
@@ -577,17 +591,18 @@ export async function extractMarksFromScan(
         extractionNote = `Final crop failed quality check: ${failure.label}: ${failure.reason}`;
       }
     } catch (error) {
-      if (isProviderUnavailableError(error)) {
-        return {
-          parseStatus: "FAILED",
-          message: "OCR temporarily unavailable. Contact platform support.",
-          rows: [],
-          studentCount: roster.length,
-          ...providerSummary,
-          providerReachable: false,
-        };
+      const reason = error instanceof Error ? error.message : String(error);
+      console.error(
+        `[ocr.azure.marks] failed row=${index + 1} adm=${student.admissionNumber}` +
+        ` cropKind=marksGrid reason=${reason}`,
+      );
+      if (isProviderUnavailableError(error) && /too large/i.test(reason)) {
+        extractionNote = "Scan image is too large. Please use a smaller/clearer crop.";
+      } else {
+        extractionNote = isProviderUnavailableError(error)
+          ? "OCR temporarily unavailable. Contact platform support."
+          : ocrFailureReason(resolution.activeProvider, resolution.providerReachable);
       }
-      extractionNote = ocrFailureReason(resolution.activeProvider, resolution.providerReachable);
     }
 
     const extracted = acceptedExtractedMark(

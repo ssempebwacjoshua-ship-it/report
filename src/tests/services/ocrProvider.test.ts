@@ -81,7 +81,7 @@ describe("Azure OCR provider", () => {
     expect(body).not.toHaveProperty("url");
   });
 
-  it("surfaces Azure crop failures without substituting providers", async () => {
+  it("surfaces Azure 503 as ProviderUnavailableError without substituting providers", async () => {
     configureAzure();
     globalThis.fetch = vi.fn(async () => new Response("down", { status: 503 })) as typeof fetch;
 
@@ -90,5 +90,53 @@ describe("Azure OCR provider", () => {
     await expect(provider.recognizeCrops([
       { cropId: "S1A-001-written", buffer: Buffer.from("image-bytes"), mimeType: "image/jpeg" },
     ])).rejects.toMatchObject({ name: "ProviderUnavailableError" });
+    // Exactly one fetch call — no second provider was attempted
+    expect(globalThis.fetch as ReturnType<typeof vi.fn>).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects oversized marks crop before reaching Azure with descriptive error", async () => {
+    configureAzure();
+    // Buffer that decodes to just over 8 MB (the server-side limit in azureOcrService)
+    const oversizedBuffer = Buffer.alloc(9 * 1024 * 1024, 0x00);
+    // Mock fetch so we can detect if it was accidentally called
+    const fetchMock = vi.fn(async () => new Response("", { status: 200 }));
+    globalThis.fetch = fetchMock as typeof fetch;
+
+    const provider = await resolveOcrProvider();
+
+    await expect(
+      provider.recognizeCrops([
+        { cropId: "S1A-001-written", buffer: oversizedBuffer, mimeType: "image/jpeg" },
+      ]),
+    ).rejects.toMatchObject({
+      name: "ProviderUnavailableError",
+      message: "OCR image payload is too large.",
+    });
+    // Validation is local — no network call should have been made
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("marks crop OCR sends imageBase64 and mimeType to Azure Function", async () => {
+    configureAzure();
+    const fetchMock = vi.fn(async () =>
+      new Response(JSON.stringify({ ok: true, provider: "azure", text: "76", lines: ["76"], raw: {} }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+    globalThis.fetch = fetchMock as typeof fetch;
+
+    const provider = await resolveOcrProvider();
+    const [result] = await provider.recognizeCrops([
+      { cropId: "S1A-001-written", buffer: Buffer.from("cell-bytes"), mimeType: "image/jpeg" },
+    ]);
+
+    expect(result).toMatchObject({ cropId: "S1A-001-written", text: "76", confidence: 0.9 });
+    const body = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body)) as Record<string, string>;
+    expect(body.imageBase64).toBe(Buffer.from("cell-bytes").toString("base64"));
+    expect(body.mimeType).toBe("image/jpeg");
+    expect(body).not.toHaveProperty("url");
+    // No secrets in the request
+    expect(JSON.stringify(body)).not.toMatch(/code=|VISION_KEY|AzureWebJobsStorage/);
   });
 });

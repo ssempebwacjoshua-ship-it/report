@@ -33,10 +33,17 @@ function createAzureOcrProvider(): OcrProvider {
     name: "azure",
     healthCheck: async () => isAzureOcrConfigured(),
     recognizeCrops: async (crops) => Promise.all(crops.map(async (crop) => {
+      console.log(
+        `[ocr.azure.marks] payload type=imageBase64` +
+        ` mimeType=${crop.mimeType ?? "image/jpeg"}` +
+        ` approxBytes=${crop.buffer.length}` +
+        ` cropKind=marksGrid`,
+      );
       const result = await readAzureOcrFromImage({
         imageBase64: crop.buffer.toString("base64"),
         mimeType: crop.mimeType ?? "image/jpeg",
       });
+      console.log(`[ocr.azure.marks] success cropId=${crop.cropId} lines=${result.lines.length}`);
       return {
         cropId: crop.cropId,
         text: result.text,
