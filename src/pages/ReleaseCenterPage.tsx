@@ -719,15 +719,15 @@ export function ReleaseCenterPage() {
 
       {/* Table */}
       {!filters.classId ? (
-        <div className="rounded-2xl border border-slate-100 bg-white p-8 text-center text-sm text-slate-400">
+        <div className="rounded-xl border border-slate-100 bg-white p-4 text-center text-xs text-slate-400">
           Select a class to see release status.
         </div>
       ) : loading ? (
-        <div className="rounded-2xl border border-slate-100 bg-white p-8 text-center text-sm text-slate-400">
+        <div className="rounded-xl border border-slate-100 bg-white p-4 text-center text-xs text-slate-400">
           Loading…
         </div>
       ) : visibleRows.length === 0 ? (
-        <div className="rounded-2xl border border-slate-100 bg-white p-8 text-center text-sm text-slate-400">
+        <div className="rounded-xl border border-slate-100 bg-white p-4 text-center text-xs text-slate-400">
           No students found for these filters.
         </div>
       ) : (

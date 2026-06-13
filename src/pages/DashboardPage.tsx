@@ -60,9 +60,9 @@ export function DashboardPage() {
   );
 
   return (
-    <main className="grid gap-5">
-      <section className="overflow-hidden rounded-3xl border border-blue-100 bg-gradient-to-br from-slate-950 via-blue-950 to-blue-700 p-5 text-white shadow-[0_22px_55px_rgba(15,23,42,0.22)] lg:p-6">
-        <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+    <main className="grid gap-3">
+      <section className="overflow-hidden rounded-2xl border border-blue-100 bg-gradient-to-br from-slate-950 via-blue-950 to-blue-700 p-4 text-white shadow-[0_12px_32px_rgba(15,23,42,0.18)]">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div className="max-w-3xl">
             <div className="flex flex-wrap items-center gap-2">
               <span className="rounded-full bg-white/10 px-3 py-1 text-xs font-extrabold uppercase tracking-wide text-blue-100 ring-1 ring-white/15">
@@ -72,13 +72,13 @@ export function DashboardPage() {
                 Term 2, 2026
               </span>
             </div>
-            <h1 className="mt-3 text-2xl font-black tracking-tight sm:text-3xl">
+            <h1 className="mt-2 text-lg font-bold tracking-tight sm:text-xl">
               Welcome, School Admin
             </h1>
-            <p className="mt-2 max-w-2xl text-sm font-medium text-blue-100 sm:text-base">
+            <p className="mt-1.5 max-w-2xl text-sm font-medium text-blue-100">
               12 reports ready for approval • 18 marks uploads pending review
             </p>
-            <p className="mt-1 text-xs text-blue-200">
+            <p className="mt-1 text-[11px] text-blue-300">
               Dashboard metrics are preview values for the reports lab.
             </p>
           </div>
@@ -149,73 +149,71 @@ export function DashboardPage() {
         />
       </section>
 
-      <section className="premium-card rounded-3xl p-5">
-        <div className="flex flex-wrap items-start justify-between gap-3">
+      <section className="premium-card rounded-xl p-4">
+        <div className="flex flex-wrap items-start justify-between gap-2">
           <div>
-            <h2 className="text-base font-black text-slate-950">Report Workflow</h2>
-            <p className="mt-1 text-sm text-slate-500">
-              Track the path from marks upload to parent release.
-            </p>
+            <h2 className="text-sm font-bold text-slate-950">Report Workflow</h2>
+            <p className="mt-0.5 text-xs text-slate-500">Track the path from marks upload to parent release.</p>
           </div>
           <a href="/reports" className="action-link text-sm">
             Continue reports
             <span aria-hidden="true">&rarr;</span>
           </a>
         </div>
-        <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-5">
+        <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 md:grid-cols-5">
           {workflowStages.map(([label, value, note, tone], index) => (
-            <div key={label} className="relative rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
+            <div key={label} className="relative rounded-xl border border-slate-100 bg-white p-3 shadow-sm">
               {index < workflowStages.length - 1 ? (
-                <div className="absolute left-[calc(50%+2rem)] top-8 hidden h-0.5 w-[calc(100%-4rem)] bg-slate-200 md:block" />
+                <div className="absolute left-[calc(50%+1.5rem)] top-5 hidden h-0.5 w-[calc(100%-3rem)] bg-slate-200 md:block" />
               ) : null}
-              <div className={`relative z-10 grid h-10 w-10 place-items-center rounded-2xl font-black shadow-lg ${workflowTone[tone]}`}>
+              <div className={`relative z-10 grid h-7 w-7 place-items-center rounded-lg text-sm font-bold shadow-md ${workflowTone[tone]}`}>
                 {index + 1}
               </div>
-              <p className="mt-3 text-sm font-black text-slate-950">{label}</p>
-              <p className="mt-1 text-2xl font-black tabular-nums text-slate-950">{value}</p>
-              <p className="mt-1 text-sm text-slate-500">{note}</p>
+              <p className="mt-2 text-xs font-bold text-slate-950">{label}</p>
+              <p className="mt-0.5 text-lg font-bold tabular-nums text-slate-950">{value}</p>
+              <p className="mt-0.5 text-xs text-slate-500">{note}</p>
             </div>
           ))}
         </div>
       </section>
 
-      <section className="grid gap-4 xl:grid-cols-[1.25fr_0.95fr]">
-        <section className="premium-card rounded-3xl p-5">
-          <div className="flex flex-wrap items-start justify-between gap-3">
+      <section className="grid gap-3 xl:grid-cols-[1.25fr_0.95fr]">
+        <section className="premium-card rounded-xl p-4">
+          <div className="flex flex-wrap items-start justify-between gap-2">
             <div>
-              <h2 className="text-base font-black text-slate-950">Recent Marks Uploads</h2>
-              <p className="mt-1 text-sm text-slate-500">Compact review queue for uploaded sheets.</p>
+              <h2 className="text-sm font-bold text-slate-950">Recent Marks Uploads</h2>
+              <p className="mt-0.5 text-xs text-slate-500">Compact review queue for uploaded sheets.</p>
             </div>
             <a href="/imports/marks" className="action-link text-sm">
               View all uploads
               <span aria-hidden="true">&rarr;</span>
             </a>
           </div>
-          <div className="mt-4 overflow-x-auto">
+          <div className="mt-3 overflow-x-auto">
             <table className="w-full min-w-[650px] text-left text-sm">
               <thead>
                 <tr className="border-b border-slate-100 bg-slate-50 text-slate-500">
-                  <th className="rounded-l-xl px-3 py-3 font-black uppercase tracking-wide">Class</th>
-                  <th className="px-3 py-3 font-black uppercase tracking-wide">Subject</th>
-                  <th className="px-3 py-3 font-black uppercase tracking-wide">Term</th>
-                  <th className="px-3 py-3 font-black uppercase tracking-wide">Uploaded</th>
-                  <th className="px-3 py-3 font-black uppercase tracking-wide">Status</th>
-                  <th className="rounded-r-xl px-3 py-3 text-right font-black uppercase tracking-wide">Action</th>
+                  <th className="rounded-l-lg px-2.5 py-2 text-[11px] font-black uppercase tracking-wide">Class</th>
+                  <th className="px-2.5 py-2 text-[11px] font-black uppercase tracking-wide">Subject</th>
+                  <th className="px-2.5 py-2 text-[11px] font-black uppercase tracking-wide">Term</th>
+                  <th className="px-2.5 py-2 text-[11px] font-black uppercase tracking-wide">Uploaded</th>
+                  <th className="px-2.5 py-2 text-[11px] font-black uppercase tracking-wide">Status</th>
+                  <th className="rounded-r-lg px-2.5 py-2 text-right text-[11px] font-black uppercase tracking-wide">Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {uploads.map(([klass, subject, term, date, status]) => (
                   <tr key={`${klass}-${subject}-${date}`} className="hover:bg-blue-50/50">
-                    <td className="px-3 py-3.5 font-black text-slate-950">{klass}</td>
-                    <td className="px-3 py-3.5 font-semibold text-slate-700">{subject}</td>
-                    <td className="px-3 py-3.5 text-slate-600">{term}</td>
-                    <td className="px-3 py-3.5 text-slate-600">{date}</td>
-                    <td className="px-3 py-3.5">
+                    <td className="px-2.5 py-2 text-sm font-bold text-slate-950">{klass}</td>
+                    <td className="px-2.5 py-2 text-sm text-slate-700">{subject}</td>
+                    <td className="px-2.5 py-2 text-sm text-slate-600">{term}</td>
+                    <td className="px-2.5 py-2 text-sm text-slate-600">{date}</td>
+                    <td className="px-2.5 py-2">
                       <span className={`rounded-full px-2.5 py-1 text-xs font-extrabold ring-1 ${statusClasses[status]}`}>
                         {status}
                       </span>
                     </td>
-                    <td className="px-3 py-3.5 text-right">
+                    <td className="px-2.5 py-2 text-right">
                       <a href="/imports/marks" className="rounded-xl border border-blue-100 bg-white px-3 py-1.5 text-xs font-extrabold text-blue-700 shadow-sm hover:bg-blue-50">
                         Review
                       </a>
@@ -230,15 +228,15 @@ export function DashboardPage() {
         <ReportsOverviewCard />
       </section>
 
-      <section className="grid gap-4 xl:grid-cols-[1.05fr_1.15fr]">
-        <section className="premium-card rounded-3xl p-5">
-          <div className="flex flex-wrap items-start justify-between gap-3">
+      <section className="grid gap-3 xl:grid-cols-[1.05fr_1.15fr]">
+        <section className="premium-card rounded-xl p-4">
+          <div className="flex flex-wrap items-start justify-between gap-2">
             <div>
-              <h2 className="text-base font-black text-slate-950">Quick Actions</h2>
-              <p className="mt-1 text-sm text-slate-500">Jump straight into the next report task.</p>
+              <h2 className="text-sm font-bold text-slate-950">Quick Actions</h2>
+              <p className="mt-0.5 text-xs text-slate-500">Jump straight into the next report task.</p>
             </div>
           </div>
-          <div className="mt-4 grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-1 2xl:grid-cols-3">
+          <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-1 2xl:grid-cols-3">
             <a href="/reports" className="btn btn-primary justify-start">
               <Icon name="file" className="h-4 w-4" />
               Generate Reports
@@ -254,27 +252,27 @@ export function DashboardPage() {
           </div>
         </section>
 
-        <section className="premium-card rounded-3xl p-5">
-          <div className="flex flex-wrap items-start justify-between gap-3">
+        <section className="premium-card rounded-xl p-4">
+          <div className="flex flex-wrap items-start justify-between gap-2">
             <div>
-              <h2 className="text-base font-black text-slate-950">Student Contacts for Reports</h2>
-              <p className="mt-1 text-sm text-slate-500">Recipients and channels needed before release.</p>
+              <h2 className="text-sm font-bold text-slate-950">Student Contacts for Reports</h2>
+              <p className="mt-0.5 text-xs text-slate-500">Recipients and channels needed before release.</p>
             </div>
             <a href="/students" className="action-link text-sm">
               Manage Students
               <span aria-hidden="true">&rarr;</span>
             </a>
           </div>
-          <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-4">
             {[
               ["Guardians", String(contactSummary.guardians), "Saved contacts", "green"],
               ["Email contacts", String(contactSummary.emailContacts), "Email addresses", "blue"],
               ["Phone/SMS", String(contactSummary.phoneContacts), `${contactSummary.reportRecipients} ready`, "purple"],
               ["Missing recipients", String(missingRecipients), "Needs follow-up", "yellow"],
             ].map(([label, value, note, tone]) => (
-              <div key={label} className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
+              <div key={label} className="rounded-xl border border-slate-100 bg-white p-3 shadow-sm">
                 <span
-                  className={`grid h-10 w-10 place-items-center rounded-2xl ${
+                  className={`grid h-8 w-8 place-items-center rounded-lg ${
                     tone === "green"
                       ? "bg-green-100 text-green-600"
                       : tone === "blue"
@@ -284,11 +282,11 @@ export function DashboardPage() {
                           : "bg-violet-100 text-violet-600"
                   }`}
                 >
-                  <Icon name={tone === "yellow" ? "bell" : "students"} className="h-5 w-5" />
+                  <Icon name={tone === "yellow" ? "bell" : "students"} className="h-4 w-4" />
                 </span>
-                <p className="mt-3 text-sm font-bold text-slate-500">{label}</p>
-                <p className="mt-1 text-2xl font-black text-slate-950">{value}</p>
-                <p className={tone === "yellow" ? "mt-1 text-sm font-semibold text-amber-600" : "mt-1 text-sm text-blue-600"}>
+                <p className="mt-2 text-xs font-bold text-slate-500">{label}</p>
+                <p className="mt-0.5 text-lg font-bold text-slate-950">{value}</p>
+                <p className={tone === "yellow" ? "mt-0.5 text-xs font-semibold text-amber-600" : "mt-0.5 text-xs text-blue-600"}>
                   {note}
                 </p>
               </div>
@@ -297,20 +295,20 @@ export function DashboardPage() {
         </section>
       </section>
 
-      <section className="grid gap-4 xl:grid-cols-[1.25fr_0.95fr]">
+      <section className="grid gap-3 xl:grid-cols-[1.25fr_0.95fr]">
         <ActivityCard />
-        <section className="premium-card rounded-3xl p-5">
+        <section className="premium-card rounded-xl p-4">
           <div className="flex items-center gap-3">
-            <div className="grid h-12 w-12 place-items-center rounded-2xl bg-blue-100 text-blue-600">
-              <Icon name="check" className="h-6 w-6" />
+            <div className="grid h-9 w-9 place-items-center rounded-xl bg-blue-100 text-blue-600">
+              <Icon name="check" className="h-5 w-5" />
             </div>
             <div>
-              <h2 className="text-base font-black text-slate-950">Today&apos;s Focus</h2>
-              <p className="mt-1 text-sm text-slate-500">Clear pending marks before generating the next report batch.</p>
+              <h2 className="text-sm font-bold text-slate-950">Today&apos;s Focus</h2>
+              <p className="mt-0.5 text-xs text-slate-500">Clear pending marks before generating the next report batch.</p>
             </div>
           </div>
-          <div className="mt-4 rounded-2xl bg-gradient-to-br from-blue-50 to-emerald-50 p-4">
-            <p className="text-sm font-semibold text-slate-700">
+          <div className="mt-3 rounded-xl bg-gradient-to-br from-blue-50 to-emerald-50 p-3">
+            <p className="text-xs font-semibold text-slate-700">
               Start with the 18 pending uploads, then approve the 12 ready reports. Once contacts are complete, release approved reports to parents.
             </p>
           </div>

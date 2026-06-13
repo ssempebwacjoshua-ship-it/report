@@ -350,7 +350,7 @@ function EnterTab({ ctx, filters, students, loadingStudents, onChange }: EnterTa
           <ContextSelector ctx={ctx} filters={filters} onChange={onChange} />
         </div>
         <div className="flex flex-col items-center gap-4 rounded-2xl border-2 border-green-200 bg-green-50 py-12">
-          <div className="flex h-14 w-14 items-center justify-center rounded-full bg-green-100">
+          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-green-100">
             <Icon name="check" className="h-8 w-8 text-green-600" />
           </div>
           <div className="text-center">
@@ -786,7 +786,7 @@ export function MarksheetsPage() {
 
   return (
     <main className="min-h-screen bg-slate-50">
-      <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
+      <div className="mx-auto max-w-6xl px-4 py-4 sm:px-6">
         {/* Page header */}
         <div className="page-header mb-6">
           <div className="flex items-center gap-3">

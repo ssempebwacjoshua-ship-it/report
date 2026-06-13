@@ -48,9 +48,9 @@ export function Sidebar({ open, onClose, collapsed, onToggleCollapsed, width }: 
           open ? "translate-x-0" : "-translate-x-full"
         }`}
       >
-        <div className={`flex items-center gap-3 ${collapsed ? "px-3 pt-3" : "px-4 pt-4"}`}>
+        <div className={`flex items-center gap-3 ${collapsed ? "px-2 pt-3" : "px-3 pt-3"}`}>
           <div
-            className={`grid ${collapsed ? "h-10 w-10" : "h-11 w-11"} place-items-center rounded-2xl bg-white/15 ring-1 ring-white/25`}
+            className={`grid ${collapsed ? "h-8 w-8" : "h-9 w-9"} place-items-center rounded-xl bg-white/15 ring-1 ring-white/25`}
           >
             {school?.logoUrl ? (
               <img
@@ -79,7 +79,7 @@ export function Sidebar({ open, onClose, collapsed, onToggleCollapsed, width }: 
                 to={item.to}
                 title={collapsed ? item.label : undefined}
                 onClick={onClose}
-                className={`group flex items-center gap-3 rounded-xl border px-3 py-2 text-sm font-semibold transition ${
+                className={`group flex items-center gap-3 rounded-xl border px-3 py-1.5 text-sm font-semibold transition ${
                   active
                     ? "border-blue-300/40 bg-white/12 text-white shadow-[0_10px_20px_rgba(15,23,42,0.16)] ring-1 ring-blue-300/20"
                     : "border-transparent text-blue-100 hover:border-white/10 hover:bg-white/8 hover:text-white"
