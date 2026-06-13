@@ -737,6 +737,11 @@ body {
     break-inside: auto !important;
   }
 
+  /* Reset min-height so the outer container never inflates the print area */
+  .report-parent-page {
+    min-height: 0 !important;
+  }
+
   .report-parent-page .print-only {
     margin: 0 !important;
     padding: 0 !important;
@@ -745,6 +750,19 @@ body {
   .report-parent-page .report-print-area {
     padding: 0 !important;
     margin: 0 !important;
+  }
+
+  /* Override break-inside:avoid on the section wrapper — same reason as
+     the .report-card-sheet override above: if the report is 1px over the
+     page the browser pushes the whole section to page 2. */
+  .report-parent-page .report-print-page {
+    page-break-before: auto !important;
+    break-before: auto !important;
+    page-break-after: auto !important;
+    break-after: auto !important;
+    page-break-inside: auto !important;
+    break-inside: auto !important;
+    min-height: 0 !important;
   }
 
   /* Squeeze the blue header a little more on parent report print */

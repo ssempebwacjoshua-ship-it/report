@@ -223,3 +223,43 @@ describe("ParentReportPage — one-report-only enforcement", () => {
     expect(document.querySelectorAll("[data-testid='report-detail']")).toHaveLength(1);
   });
 });
+
+describe("ParentReportPage — single-page layout enforcement", () => {
+  it("print-only wrapper has no extra page-break containers between it and the report", async () => {
+    fetchMock.mockResolvedValueOnce({ ok: true, json: async () => issuedPayload });
+
+    renderPage();
+
+    await waitFor(() => expect(screen.getByTestId("report-detail")).toBeInTheDocument());
+
+    // No .marksheet-print-page wrappers (those force page breaks and belong in MarksheetsPage)
+    expect(document.querySelectorAll(".marksheet-print-page")).toHaveLength(0);
+    // No second report-print-page injected by ParentReportPage itself
+    // (StudentReportDetail is mocked so its internal .report-print-page is not in DOM)
+    expect(document.querySelectorAll(".report-print-page")).toHaveLength(0);
+  });
+
+  it("root element has report-parent-page class for scoped print CSS overrides", async () => {
+    fetchMock.mockResolvedValueOnce({ ok: true, json: async () => issuedPayload });
+
+    renderPage();
+
+    await waitFor(() => expect(screen.getByTestId("report-detail")).toBeInTheDocument());
+
+    expect(document.querySelector(".report-parent-page")).toBeInTheDocument();
+  });
+
+  it("print-only wrapper is a direct child of report-parent-page with no intermediate wrappers", async () => {
+    fetchMock.mockResolvedValueOnce({ ok: true, json: async () => issuedPayload });
+
+    renderPage();
+
+    await waitFor(() => expect(screen.getByTestId("report-detail")).toBeInTheDocument());
+
+    const parentPage = document.querySelector(".report-parent-page");
+    const printOnly = parentPage?.querySelector(".print-only");
+    expect(printOnly).toBeInTheDocument();
+    // The .print-only must be a direct child of .report-parent-page
+    expect(printOnly?.parentElement).toBe(parentPage);
+  });
+});

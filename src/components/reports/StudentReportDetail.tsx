@@ -479,7 +479,7 @@ function StudentReportDetailContent({
             <h3 className="mb-3 text-xs font-bold uppercase tracking-widest text-slate-400 print:mb-1 print:text-[7px]">
               Comments &amp; Signatures
             </h3>
-            <div className="grid gap-4 sm:grid-cols-3 print:gap-1">
+            <div className="grid gap-4 sm:grid-cols-3 print:grid-cols-3 print:gap-1">
               <div className="rounded-xl border border-slate-200 p-4 print:p-1.5">
                 <p className="mb-2 text-xs font-bold text-slate-600 print:mb-1 print:text-[7px]">
                   Class Teacher's Comment
