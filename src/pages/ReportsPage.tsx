@@ -7,6 +7,7 @@ import { fetchReportContext, fetchReports } from "../client/reportsClient";
 import { fetchSettings } from "../client/settingsClient";
 import { issueReport, type IssueReportResult } from "../client/issueReportClient";
 import { getSchoolDisplayName } from "../components/layout/branding";
+import { buildParentReportReleaseMessage } from "../shared/reportReleaseMessage";
 import type {
   ReportContext,
   ReportFilters as Filters,
@@ -186,7 +187,12 @@ export function ReportsPage() {
   }
 
   const messageTemplate = issueResult
-    ? `Dear Parent, ${issueResult.studentName}'s ${issueResult.term} (${issueResult.assessmentType}) report from ${getSchoolDisplayName(report?.settings.school, "the school")} is ready. View and download: ${issueResult.parentLink}`
+    ? buildParentReportReleaseMessage({
+        studentName: issueResult.studentName,
+        termName: issueResult.term,
+        schoolName: getSchoolDisplayName(report?.settings.school, "the school"),
+        reportLink: issueResult.parentLink,
+      })
     : "";
 
   return (

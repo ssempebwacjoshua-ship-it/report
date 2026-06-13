@@ -46,13 +46,14 @@ npx prisma migrate deploy && node dist/server/index.js
 | `DATABASE_URL` | Provided by Railway PostgreSQL addon |
 | `JWT_SECRET` | A long random string |
 | `CLIENT_ORIGIN` | `https://YOUR-VERCEL-APP.vercel.app` |
+| `APP_BASE_URL` | Branded parent report URL, for example `https://reports.schoolconnect.example` |
 | `NODE_ENV` | `production` |
 | `OCR_ENABLED` | `true` |
 | `OCR_PROVIDER` | `azure` |
 | `AZURE_OCR_FUNCTION_URL` | Private Azure Function URL stored only in Railway |
 | `PORT` | Set automatically by Railway — do not override |
 
-`CLIENT_ORIGIN` controls CORS. Parent report links use `CLIENT_ORIGIN` as the base URL.
+`CLIENT_ORIGIN` controls CORS. Parent report links use `APP_BASE_URL` when set, then fall back to `PUBLIC_APP_URL` or `CLIENT_ORIGIN`. Replace any Vercel preview URL with the production branded report domain before releasing reports to parents.
 
 The server binds to `0.0.0.0` and the port from `process.env.PORT`, which Railway injects automatically.
 
@@ -79,6 +80,6 @@ The script is idempotent.
 - `dist/index.html` is created after `build:client`.
 - `dist/server/index.js` is created after `build:server`.
 - Direct routes (`/login`, `/dashboard`, `/reports/release`, `/parent/r/:token`, `/verify/:code`) load through Vercel.
-- Parent report links point at the Vercel frontend URL, never `localhost`.
+- Parent report links point at the branded production report domain, never `localhost` or a Vercel preview URL.
 - Frontend never receives `DATABASE_URL`.
 - Railway serves the API and PostgreSQL only.

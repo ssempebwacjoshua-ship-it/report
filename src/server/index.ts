@@ -2,6 +2,7 @@ import "dotenv/config";
 import cors from "cors";
 import express, { type ErrorRequestHandler } from "express";
 import { ZodError } from "zod";
+import { dashboardRoutes } from "./routes/dashboardRoutes";
 import { healthRoutes } from "./routes/healthRoutes";
 import { reportsRoutes } from "./routes/reportsRoutes";
 import { importsRoutes } from "./routes/importsRoutes";
@@ -23,6 +24,7 @@ export function createServer() {
   app.use(express.json({ limit: "2mb" }));
 
   app.use(healthRoutes());
+  app.use(dashboardRoutes());
   app.use(authRoutes());
   app.use(reportsRoutes());
   app.use(reportIssueRoutes());

@@ -15,6 +15,7 @@ import {
 } from "../client/releaseCenterClient";
 import { fetchReportContext } from "../client/reportsClient";
 import { fetchSettings as loadSettings } from "../client/settingsClient";
+import { buildParentReportReleaseMessage, formatTermLabel } from "../shared/reportReleaseMessage";
 import type { ReportContext } from "../shared/types/reports";
 
 const DEFAULT_SCHOOL = "SCU-PREVIEW";
@@ -51,17 +52,16 @@ function buildMessage(
   schoolName: string,
   meta: { term: string; assessmentType: string },
 ) {
-  return `Dear Parent, ${row.studentName}'s ${meta.term} ${meta.assessmentType} report from ${schoolName} is ready.
-
-View and download it using the official school link:
-${link.parentLink}
-
-Report Ref: ${link.referenceCode}
-Thank you.`;
+  return buildParentReportReleaseMessage({
+    studentName: row.studentName,
+    termName: meta.term,
+    schoolName,
+    reportLink: link.parentLink,
+  });
 }
 
 function buildEmailSubject(row: ReleaseRow, schoolName: string, meta: { term: string; assessmentType: string }) {
-  return `${row.studentName}'s ${meta.term} ${meta.assessmentType} Report - ${schoolName}`;
+  return `${row.studentName} ${formatTermLabel(meta.term)} school report - ${schoolName}`;
 }
 
 function buildEmailBody(
@@ -70,8 +70,7 @@ function buildEmailBody(
   schoolName: string,
   meta: { term: string; assessmentType: string },
 ) {
-  const guardian = row.primaryContact?.guardianName ?? "Parent";
-  return `Dear ${guardian},\n\n${row.studentName}'s ${meta.term} ${meta.assessmentType} report from ${schoolName} is ready.\n\nView and download it using the official school link:\n${link.parentLink}\n\nReport Reference: ${link.referenceCode}\n\nThank you.`;
+  return buildMessage(row, link, schoolName, meta);
 }
 
 // ── Summary cards ─────────────────────────────────────────────────────────────
@@ -503,8 +502,7 @@ export function ReleaseCenterPage() {
       .map((row) => {
         const link = issuedLinks.get(row.studentId) ?? null;
         if (!link) return `${row.studentName} - Issue link first`;
-        const contact = row.primaryContact;
-        return `${row.studentName} â€” ${contact?.guardianName ?? "Parent"} â€” ${contact?.method ?? "Contact"}\n${buildMessage(row, link, schoolName, meta)}\nReport Ref: ${link.referenceCode}`;
+        return buildMessage(row, link, schoolName, meta);
       })
       .join("\n\n---\n\n");
     await navigator.clipboard.writeText(text);
