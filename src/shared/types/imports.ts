@@ -281,6 +281,7 @@ export type DetectContextResponse = {
 export type ImportErrorCode =
   | "MISSING_FILE"
   | "UNSUPPORTED_FILE_TYPE"
+  | "FILE_TOO_LARGE"
   | "SCHOOL_NOT_FOUND"
   | "CONTEXT_REQUIRED"
   | "DRY_RUN_REQUIRED"

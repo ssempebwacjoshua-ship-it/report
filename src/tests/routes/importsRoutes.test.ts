@@ -351,6 +351,39 @@ S1A-001,Kampala Ssempebwa,Senior 1 A,A,English Language,Term 1,BOT,81,guard`;
   });
 });
 
+// ── Multer error handling ──────────────────────────────────────────────────────
+
+describe("Multer errors return structured 400, not generic 500", () => {
+  it("oversized file on /upload returns 400 FILE_TOO_LARGE (not 500)", async () => {
+    // 21 MB > the 20 MB multer limit — triggers MulterError LIMIT_FILE_SIZE
+    const bigFile = Buffer.alloc(21 * 1024 * 1024, 0);
+    const res = await request(createServer())
+      .post("/api/imports/scans/upload")
+      .field("schoolCode", SCHOOL)
+      .field("context", validContext)
+      .attach("file", bigFile, { filename: "scan.png", contentType: "image/png" });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe(true);
+    expect(res.body.code).toBe("FILE_TOO_LARGE");
+    expect(typeof res.body.message).toBe("string");
+    expect(res.body.message).not.toMatch(/unexpected server error/i);
+    expect(Array.isArray(res.body.details)).toBe(true);
+  }, 15000);
+
+  it("oversized file on /detect-context returns 400 FILE_TOO_LARGE (not 500)", async () => {
+    const bigFile = Buffer.alloc(21 * 1024 * 1024, 0);
+    const res = await request(createServer())
+      .post("/api/imports/scans/detect-context")
+      .field("schoolCode", SCHOOL)
+      .attach("file", bigFile, { filename: "scan.png", contentType: "image/png" });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe(true);
+    expect(res.body.code).toBe("FILE_TOO_LARGE");
+    expect(typeof res.body.message).toBe("string");
+    expect(res.body.message).not.toMatch(/unexpected server error/i);
+  }, 15000);
+});
+
 // ── Structured error shape tests ─────────────────────────────────────────────
 
 describe("Import error responses always use structured shape", () => {

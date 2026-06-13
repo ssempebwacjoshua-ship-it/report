@@ -2,6 +2,7 @@ import "dotenv/config";
 import cors from "cors";
 import express, { type ErrorRequestHandler } from "express";
 import { ZodError } from "zod";
+import multer from "multer";
 import { dashboardRoutes } from "./routes/dashboardRoutes";
 import { healthRoutes } from "./routes/healthRoutes";
 import { reportsRoutes } from "./routes/reportsRoutes";
@@ -37,7 +38,7 @@ export function createServer() {
   app.use(verifyRoutes());
   app.use(ocrRoutes());
 
-  const errorHandler: ErrorRequestHandler = (error, _req, res, _next) => {
+  const errorHandler: ErrorRequestHandler = (error, req, res, _next) => {
     if (error instanceof ZodError) {
       const fieldErrors = error.flatten().fieldErrors;
       res.status(400).json({
@@ -50,7 +51,27 @@ export function createServer() {
       });
       return;
     }
-    console.error(error);
+    if (error instanceof multer.MulterError) {
+      const message = error.code === "LIMIT_FILE_SIZE"
+        ? "File is too large. Maximum scan file size is 20 MB."
+        : `Upload failed: ${error.message}`;
+      res.status(400).json({
+        error: true,
+        code: "FILE_TOO_LARGE",
+        message,
+        details: [error.code],
+      });
+      return;
+    }
+    const requestId = typeof req.headers["x-request-id"] === "string"
+      ? req.headers["x-request-id"]
+      : undefined;
+    console.error("[server-error]", {
+      route: `${req.method} ${req.url}`,
+      requestId,
+      message: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+    });
     res.status(500).json({
       error: true,
       code: "SERVER_ERROR",
