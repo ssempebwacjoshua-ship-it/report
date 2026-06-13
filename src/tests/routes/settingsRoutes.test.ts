@@ -39,7 +39,6 @@ const sectionPayloads: Record<SettingSection, SettingsSections[SettingSection]> 
   },
   ocr: {
     ...defaultSettingsSections.ocr,
-    provider: "manual",
     minimumConfidenceForSuggestion: 0.82,
   },
   grading: {
@@ -239,5 +238,100 @@ describe("settingsRoutes", () => {
     expect(fetchMock.mock.calls[0]?.[0]).toBeInstanceOf(URL);
     expect(res.body.text).toBe("hello world");
     expect(res.body.lines).toEqual(["hello", "world"]);
+  });
+
+  it("returns 400 and a validation message for an invalid OCR URL", async () => {
+    const token = signToken({
+      userId: "user-1",
+      schoolId: "school-1",
+      name: "Admin",
+      email: "admin@example.test",
+      role: "ADMIN_OPERATOR",
+    });
+
+    const res = await request(createServer())
+      .post("/internal/ocr/read")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ url: "not-a-url" });
+
+    expect(res.status).toBe(400);
+    expect(JSON.stringify(res.body)).toMatch(/url/i);
+  });
+
+  it("returns 503 with a user-friendly message when OCR provider is unavailable", async () => {
+    const saved = {
+      enabled: process.env.OCR_ENABLED,
+      provider: process.env.OCR_PROVIDER,
+      url: process.env.AZURE_OCR_FUNCTION_URL,
+    };
+    process.env.OCR_ENABLED = "false";
+    delete process.env.OCR_PROVIDER;
+    delete process.env.AZURE_OCR_FUNCTION_URL;
+
+    const token = signToken({
+      userId: "user-1",
+      schoolId: "school-1",
+      name: "Admin",
+      email: "admin@example.test",
+      role: "ADMIN_OPERATOR",
+    });
+
+    const res = await request(createServer())
+      .post("/internal/ocr/read")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ url: "https://example.com/test.jpg" });
+
+    process.env.OCR_ENABLED = saved.enabled;
+    if (saved.provider !== undefined) process.env.OCR_PROVIDER = saved.provider;
+    if (saved.url !== undefined) process.env.AZURE_OCR_FUNCTION_URL = saved.url;
+
+    expect(res.status).toBe(503);
+    expect(res.body.error).toBe("OCR is temporarily unavailable. Contact platform support.");
+    expect(JSON.stringify(res.body)).not.toMatch(/AZURE|FUNCTION_URL|OCR_ENABLED/);
+  });
+
+  it("returns a non-technical error when Azure Function itself returns an error", async () => {
+    process.env.OCR_ENABLED = "true";
+    process.env.OCR_PROVIDER = "azure";
+    process.env.AZURE_OCR_FUNCTION_URL = "https://azure-ocr.example.test/api/ocr";
+
+    const fetchMock = vi.fn(async () =>
+      new Response("Internal Server Error", {
+        status: 500,
+        headers: { "Content-Type": "text/plain" },
+      }),
+    );
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = fetchMock as typeof fetch;
+
+    const token = signToken({
+      userId: "user-1",
+      schoolId: "school-1",
+      name: "Admin",
+      email: "admin@example.test",
+      role: "ADMIN_OPERATOR",
+    });
+
+    const res = await request(createServer())
+      .post("/internal/ocr/read")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ url: "https://example.com/test.jpg" });
+
+    globalThis.fetch = originalFetch;
+
+    expect(res.status).toBe(500);
+    expect(JSON.stringify(res.body)).not.toMatch(/AZURE_OCR_FUNCTION_URL|code=|function\.azurewebsites/i);
+  });
+
+  it("OCR settings schema does not include provider infrastructure fields", async () => {
+    const res = await request(createServer()).get(`/api/settings?schoolCode=${SCHOOL}`);
+    expect(res.status).toBe(200);
+    const ocr = res.body.sections.ocr as Record<string, unknown>;
+    expect(ocr).not.toHaveProperty("provider");
+    expect(ocr).not.toHaveProperty("paddleOcrUrl");
+    expect(ocr).not.toHaveProperty("awsRegion");
+    expect(ocr).not.toHaveProperty("debugMode");
+    expect(ocr).toHaveProperty("minimumConfidenceForSuggestion");
+    expect(ocr).toHaveProperty("requireOperatorReviewBeforeCommit");
   });
 });

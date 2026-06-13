@@ -25,6 +25,11 @@ export function ocrRoutes() {
         lines: result.lines,
       });
     } catch (error) {
+      if (error instanceof Error && error.name === "ProviderUnavailableError") {
+        console.error("[ocr] provider unavailable:", error.message);
+        res.status(503).json({ error: "OCR is temporarily unavailable. Contact platform support." });
+        return;
+      }
       next(error);
     }
   });

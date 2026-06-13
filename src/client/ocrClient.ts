@@ -16,8 +16,10 @@ async function readOcrError(response: Response, fallback: string): Promise<strin
 export async function readAzureOcr(url: string, token?: string | null): Promise<{ provider: string; text: string; lines: string[] }> {
   const response = await fetch(`${API_BASE}/internal/ocr/read`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
     body: JSON.stringify({ url }),
   });
   if (!response.ok) throw new Error(await readOcrError(response, "Could not extract text"));

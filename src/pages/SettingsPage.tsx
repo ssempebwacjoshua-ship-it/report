@@ -395,10 +395,6 @@ function MarksheetsSection({ value, onChange }: { value: SettingsSections["marks
 function OcrSection({ value, onChange }: { value: SettingsSections["ocr"]; onChange: (value: SettingsSections["ocr"]) => void }) {
   return (
     <div className="grid gap-3 md:grid-cols-2">
-      <label className={labelClass}>OCR provider<select className={fieldClass} value={value.provider} onChange={(e) => onChange(setField(value, "provider", e.target.value as typeof value.provider))}>{["paddleocr", "textract", "googlevision", "tesseract", "manual"].map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
-      <label className={labelClass}>PaddleOCR URL<input className={fieldClass} value={value.paddleOcrUrl} onChange={(e) => onChange(setField(value, "paddleOcrUrl", e.target.value))} /></label>
-      <label className={labelClass}>AWS region for Textract<input className={fieldClass} value={value.awsRegion} onChange={(e) => onChange(setField(value, "awsRegion", e.target.value))} /></label>
-      <label className={labelClass}>OCR debug mode<BoolSelect value={value.debugMode} onChange={(v) => onChange(setField(value, "debugMode", v))} /></label>
       <label className={labelClass}>Minimum OCR confidence<input type="number" min="0" max="1" step="0.01" className={fieldClass} value={value.minimumConfidenceForSuggestion} onChange={(e) => onChange(setField(value, "minimumConfidenceForSuggestion", Number(e.target.value)))} /></label>
       <label className={labelClass}>Use split mark as primary source<BoolSelect value={value.useSplitMarkAsPrimarySource} disabled onChange={() => {}} /></label>
       <label className={labelClass}>Use written mark as confirmation<BoolSelect value={value.useWrittenMarkAsConfirmation} disabled onChange={() => {}} /></label>

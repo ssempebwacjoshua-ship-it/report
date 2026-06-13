@@ -44,7 +44,6 @@ export const SETTING_SECTIONS = [
 export type SettingSection = (typeof SETTING_SECTIONS)[number];
 
 export const assessmentTypeSchema = z.enum(["BOT", "MOT", "EOT", "TERM_SUMMARY"]);
-export const ocrProviderSchema = z.enum(["paddleocr", "textract", "googlevision", "tesseract", "manual"]);
 
 export const schoolProfileSchema = z.object({
   schoolName: z.string().trim().min(1, "School name is required."),
@@ -98,10 +97,6 @@ export const marksheetSettingsSchema = z.object({
 });
 
 export const ocrSettingsSchema = z.object({
-  provider: ocrProviderSchema.default("manual"),
-  paddleOcrUrl: z.string().trim().url("Enter a valid PaddleOCR URL.").default("http://127.0.0.1:8003"),
-  awsRegion: z.string().trim().default("us-east-1"),
-  debugMode: z.boolean().default(false),
   minimumConfidenceForSuggestion: z.number().min(0).max(1).default(0.7),
   useSplitMarkAsPrimarySource: z.literal(true).default(true),
   useWrittenMarkAsConfirmation: z.literal(true).default(true),
@@ -234,10 +229,6 @@ export const defaultSettingsSections: SettingsSections = {
     signaturesOnlyOnFinalPage: true,
   },
   ocr: {
-    provider: "manual",
-    paddleOcrUrl: "http://127.0.0.1:8003",
-    awsRegion: "us-east-1",
-    debugMode: false,
     minimumConfidenceForSuggestion: 0.7,
     useSplitMarkAsPrimarySource: true,
     useWrittenMarkAsConfirmation: true,
