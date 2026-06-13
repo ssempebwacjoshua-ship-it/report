@@ -55,36 +55,82 @@ function deserializeSummary(summary: string | null | undefined) {
   }
 }
 
+/**
+ * Normalise a column header for fuzzy matching:
+ * strip spaces, underscores, hyphens, dots, parens and lowercase everything.
+ * "Admission Number", "admission_number", "AdmissionNumber" → "admissionnumber"
+ */
+function normalizeKey(k: string): string {
+  return String(k)
+    .toLowerCase()
+    .replace(/[\s_\-./()#]+/g, "");
+}
+
+/**
+ * Build a normalised-key → value lookup from a raw row object so we can
+ * find a column regardless of how the user named it in their spreadsheet.
+ */
+function makeRowLookup(row: Record<string, unknown>): Map<string, unknown> {
+  const map = new Map<string, unknown>();
+  for (const [k, v] of Object.entries(row)) {
+    map.set(normalizeKey(k), v);
+  }
+  return map;
+}
+
+/**
+ * Pick a value from the normalised row using the first alias that matches.
+ * All alias strings are themselves normalised before lookup.
+ */
+function pick(lookup: Map<string, unknown>, ...aliases: string[]): unknown {
+  for (const alias of aliases) {
+    const v = lookup.get(normalizeKey(alias));
+    if (v !== undefined && v !== "") return v;
+  }
+  return "";
+}
+
 export function parseStudentsCsv(csvText: string): StudentImportRowInput[] {
-  const records = parseCsv(csvText, { columns: true, skip_empty_lines: true, trim: true }) as Record<string, unknown>[];
-  return records.map((row) => ({
-    admissionNumber: text(row.admissionNumber),
-    fullName: text(row.fullName),
-    gender: text(row.gender),
-    className: text(row.class),
-    streamName: text(row.stream),
-    guardianName: text(row.guardianName),
-    guardianPhone: normalizePhone(text(row.guardianPhone)),
-    guardianEmail: text(row.guardianEmail),
-    status: text(row.status),
-  }));
+  // Normalise headers at parse time so lookup is always by normalised key.
+  const records = parseCsv(csvText, {
+    columns: (headers: string[]) => headers.map(normalizeKey),
+    skip_empty_lines: true,
+    trim: true,
+  }) as Record<string, unknown>[];
+  return records.map((row) => {
+    const lk = makeRowLookup(row);
+    return {
+      admissionNumber: text(pick(lk, "admissionNumber", "admission number", "adm no", "adm", "admission_number", "admno", "admnumber")),
+      fullName:        text(pick(lk, "fullName", "full name", "name", "student name", "studentname", "student_name")),
+      gender:          text(pick(lk, "gender", "sex")),
+      className:       text(pick(lk, "class", "className", "class name", "classname", "class_name")),
+      streamName:      text(pick(lk, "stream", "streamName", "stream name", "streamname", "stream_name")),
+      guardianName:    text(pick(lk, "guardianName", "guardian name", "guardian", "parent name", "parentname", "parent_name")),
+      guardianPhone:   normalizePhone(text(pick(lk, "guardianPhone", "guardian phone", "phone", "mobile", "contact", "guardiancontact"))),
+      guardianEmail:   text(pick(lk, "guardianEmail", "guardian email", "email")),
+      status:          text(pick(lk, "status")),
+    };
+  });
 }
 
 export function parseStudentsXlsx(buffer: Buffer): StudentImportRowInput[] {
   const workbook = read(buffer, { type: "buffer" });
   const sheet = workbook.Sheets[workbook.SheetNames[0]];
   const rows = utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: "" });
-  return rows.map((row) => ({
-    admissionNumber: text(row.admissionNumber),
-    fullName: text(row.fullName),
-    gender: text(row.gender),
-    className: text(row.class),
-    streamName: text(row.stream),
-    guardianName: text(row.guardianName),
-    guardianPhone: normalizePhone(text(row.guardianPhone)),
-    guardianEmail: text(row.guardianEmail),
-    status: text(row.status),
-  }));
+  return rows.map((row) => {
+    const lk = makeRowLookup(row);
+    return {
+      admissionNumber: text(pick(lk, "admissionNumber", "admission number", "adm no", "adm", "admission_number", "admno", "admnumber")),
+      fullName:        text(pick(lk, "fullName", "full name", "name", "student name", "studentname", "student_name")),
+      gender:          text(pick(lk, "gender", "sex")),
+      className:       text(pick(lk, "class", "className", "class name", "classname", "class_name")),
+      streamName:      text(pick(lk, "stream", "streamName", "stream name", "streamname", "stream_name")),
+      guardianName:    text(pick(lk, "guardianName", "guardian name", "guardian", "parent name", "parentname", "parent_name")),
+      guardianPhone:   normalizePhone(text(pick(lk, "guardianPhone", "guardian phone", "phone", "mobile", "contact", "guardiancontact"))),
+      guardianEmail:   text(pick(lk, "guardianEmail", "guardian email", "email")),
+      status:          text(pick(lk, "status")),
+    };
+  });
 }
 
 function validateRequiredColumns(rows: StudentImportRowInput[]) {

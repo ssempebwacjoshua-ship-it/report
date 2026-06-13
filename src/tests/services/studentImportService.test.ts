@@ -3,8 +3,11 @@ import type { PrismaClient } from "@prisma/client";
 import {
   commitStudentImport,
   createStudentImportJob,
+  parseStudentsCsv,
+  parseStudentsXlsx,
   previewStudentImport,
 } from "../../server/services/studentImportService";
+import { utils, write } from "xlsx";
 import type { StudentImportRowInput } from "../../shared/types/students";
 
 /** Minimal in-memory Prisma fake covering everything the import service touches. */
@@ -271,5 +274,31 @@ describe("student import preview", () => {
     expect(preview.totalRows).toBe(300);
     expect(preview.validRows).toBe(300);
     expect(preview.rows.length).toBe(50);
+  });
+});
+
+describe("fuzzy header parsing", () => {
+  it("parseStudentsCsv handles human-readable headers with spaces", () => {
+    const csv = "Admission Number,Full Name,Gender,Class,Stream,Guardian Name,Guardian Phone,Guardian Email,Status\nADM-001,Jane Doe,Female,Senior 1 A,A,Mary Doe,0700000001,jane@example.com,ACTIVE\n";
+    const rows = parseStudentsCsv(csv);
+    expect(rows[0]?.admissionNumber).toBe("ADM-001");
+    expect(rows[0]?.fullName).toBe("Jane Doe");
+    expect(rows[0]?.gender).toBe("Female");
+    expect(rows[0]?.className).toBe("Senior 1 A");
+  });
+
+  it("parseStudentsXlsx handles human-readable headers with spaces", () => {
+    const ws = utils.aoa_to_sheet([
+      ["Admission Number", "Full Name", "Gender", "Class", "Stream", "Guardian Name", "Guardian Phone", "Guardian Email", "Status"],
+      ["ADM-002", "John Smith", "Male", "Senior 1 B", "B", "James Smith", "0700000002", "john@example.com", "ACTIVE"],
+    ]);
+    const wb = utils.book_new();
+    utils.book_append_sheet(wb, ws, "Students");
+    const buffer = Buffer.from(write(wb, { type: "buffer", bookType: "xlsx" }) as ArrayBuffer);
+    const rows = parseStudentsXlsx(buffer);
+    expect(rows[0]?.admissionNumber).toBe("ADM-002");
+    expect(rows[0]?.fullName).toBe("John Smith");
+    expect(rows[0]?.gender).toBe("Male");
+    expect(rows[0]?.className).toBe("Senior 1 B");
   });
 });
