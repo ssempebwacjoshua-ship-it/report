@@ -727,6 +727,32 @@ body {
     break-inside: avoid;
   }
 
+  /* ── Parent report link: single-page enforcement ──────────────────────────
+     The parent link renders exactly one report. break-inside:avoid on the
+     card sheet can CAUSE a second page — if the card is even 1px over the
+     page height the browser pushes the whole card to page 2. Override it so
+     the card stays on page 1 and clips rather than creating page 2.          */
+  .report-parent-page .report-card-sheet {
+    page-break-inside: auto !important;
+    break-inside: auto !important;
+  }
+
+  .report-parent-page .print-only {
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  .report-parent-page .report-print-area {
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  /* Squeeze the blue header a little more on parent report print */
+  .report-parent-page .report-header-bg {
+    padding-top: 4px !important;
+    padding-bottom: 4px !important;
+  }
+
   /* Strip screen card chrome from the marksheet preview wrapper */
   .marksheet-card-wrapper {
     padding: 0 !important;
@@ -761,6 +787,17 @@ body {
   .marksheet-page-break {
     break-after: page !important;
     page-break-after: always !important;
+  }
+
+  /* One marksheet-print-page per student; last child does not force a blank page */
+  .marksheet-print-page {
+    break-after: page;
+    page-break-after: always;
+  }
+
+  .marksheet-print-page:last-child {
+    break-after: auto;
+    page-break-after: auto;
   }
 
   /* Strip screen card decoration from any wrapping premium-card */

@@ -161,13 +161,63 @@ type PrintTabProps = {
 };
 
 function PrintTab({ ctx, settings, filters, students, loadingStudents, onChange }: PrintTabProps) {
-  const ready = !!(filters.classId && filters.streamId && filters.subjectId && filters.termId);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    setSelectedIds(new Set());
+  }, [filters.classId, filters.streamId]);
+
+  // Subject is optional for printing — a blank roster is still useful
+  const ready = !!(filters.classId && filters.streamId && filters.termId);
   const schoolName = getSchoolDisplayName(settings.school, ctx?.school?.name ?? "");
-  const academicYear = settings.academic.activeAcademicYear || ctx?.academicYears.find((y) => y.isActive)?.name || (ctx?.academicYears[0]?.name ?? "");
+  const academicYear =
+    settings.academic.activeAcademicYear ||
+    ctx?.academicYears.find((y) => y.isActive)?.name ||
+    (ctx?.academicYears[0]?.name ?? "");
   const termName = findOption(ctx?.terms ?? [], filters.termId)?.name ?? "";
   const className = findOption(ctx?.classes ?? [], filters.classId)?.name ?? "";
   const streamName = findOption(ctx?.streams ?? [], filters.streamId)?.name ?? "";
   const subjectName = findOption(ctx?.subjects ?? [], filters.subjectId)?.name ?? "";
+
+  const marksheetsToPrint =
+    selectedIds.size > 0 ? students.filter((s) => selectedIds.has(s.id)) : students;
+
+  const allSelected = students.length > 0 && selectedIds.size === students.length;
+
+  function toggleStudent(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function selectAll() {
+    setSelectedIds(new Set(students.map((s) => s.id)));
+  }
+
+  function clearSelection() {
+    setSelectedIds(new Set());
+  }
+
+  const commonMarksheetProps = {
+    schoolName,
+    schoolAddress: settings.school.address,
+    schoolPhone: settings.school.phone,
+    schoolEmail: settings.school.email,
+    footerText: settings.school.marksheetFooterText,
+    academicYear,
+    termName,
+    className,
+    streamName,
+    subjectName,
+    examType: filters.examType,
+    printStyle: settings.marksheets.printStyle,
+    includeQrCode: settings.marksheets.includeQrCode,
+    includeHumanReadableMarksheetId: settings.marksheets.includeHumanReadableMarksheetId,
+    validMarkValues: settings.marksheets.validMarkValues,
+  };
 
   return (
     <div>
@@ -178,42 +228,113 @@ function PrintTab({ ctx, settings, filters, students, loadingStudents, onChange 
 
       {ready && (
         <div>
-          <div className="no-print mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-sm text-slate-500">
-              {loadingStudents
-                ? "Loading students…"
-                : `${students.length} student${students.length !== 1 ? "s" : ""} — ready to print`}
-            </p>
-            <button
-              type="button"
-              className="btn btn-primary"
-              onClick={() => window.print()}
-              disabled={loadingStudents || students.length === 0}
-            >
-              <Icon name="file" className="h-4 w-4" />
-              Print Marksheet
-            </button>
+          {/* ── Student selection + print controls (screen only) ── */}
+          <div className="no-print premium-card mb-4 rounded-2xl p-4">
+            <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-sm text-slate-500">
+                {loadingStudents
+                  ? "Loading students…"
+                  : selectedIds.size > 0
+                    ? `${selectedIds.size} of ${students.length} selected — ${selectedIds.size} marksheet${selectedIds.size !== 1 ? "s" : ""} will print`
+                    : `${students.length} student${students.length !== 1 ? "s" : ""} — all ${students.length} marksheets will print`}
+              </p>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  className="btn btn-secondary text-xs"
+                  onClick={selectAll}
+                  disabled={loadingStudents || students.length === 0 || allSelected}
+                >
+                  Select All
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-secondary text-xs"
+                  onClick={clearSelection}
+                  disabled={selectedIds.size === 0}
+                >
+                  Clear
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={() => window.print()}
+                  disabled={loadingStudents || students.length === 0}
+                >
+                  <Icon name="file" className="h-4 w-4" />
+                  {selectedIds.size > 0 ? `Print ${selectedIds.size} Selected` : "Print All"}
+                </button>
+              </div>
+            </div>
+
+            {!loadingStudents && students.length > 0 && (
+              <div className="overflow-hidden rounded-xl border border-slate-200">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-slate-50">
+                      <th className="w-8 border-b border-slate-200 px-3 py-2 text-center">
+                        <input
+                          type="checkbox"
+                          aria-label="Select all students"
+                          checked={allSelected}
+                          onChange={() => (allSelected ? clearSelection() : selectAll())}
+                        />
+                      </th>
+                      <th className="w-10 border-b border-slate-200 px-3 py-2 text-left text-xs font-semibold text-slate-500">#</th>
+                      <th className="border-b border-slate-200 px-3 py-2 text-left text-xs font-semibold text-slate-500">Adm. No.</th>
+                      <th className="border-b border-slate-200 px-3 py-2 text-left text-xs font-semibold text-slate-500">Student Name</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {students.map((student, index) => {
+                      const checked = selectedIds.has(student.id);
+                      return (
+                        <tr
+                          key={student.id}
+                          className={`cursor-pointer transition-colors ${
+                            checked ? "bg-blue-50" : index % 2 === 0 ? "bg-white" : "bg-slate-50/50"
+                          } hover:bg-blue-50/70`}
+                          onClick={() => toggleStudent(student.id)}
+                        >
+                          <td className="px-3 py-2 text-center">
+                            <input
+                              type="checkbox"
+                              aria-label={`Select ${student.firstName} ${student.lastName}`}
+                              checked={checked}
+                              onChange={() => toggleStudent(student.id)}
+                              onClick={(e) => e.stopPropagation()}
+                            />
+                          </td>
+                          <td className="px-3 py-2 text-xs text-slate-400">{index + 1}</td>
+                          <td className="px-3 py-2 font-mono text-xs text-slate-600">{student.admissionNumber}</td>
+                          <td className="px-3 py-2 font-medium text-slate-800">
+                            {student.firstName} {student.lastName}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {!loadingStudents && students.length === 0 && (
+              <p className="py-2 text-sm text-slate-400">No students found for this class and stream.</p>
+            )}
           </div>
 
-          <div className="marksheet-card-wrapper premium-card rounded-2xl p-4 sm:p-6">
-            <PrintableMarksheet
-              schoolName={schoolName}
-              schoolAddress={settings.school.address}
-              schoolPhone={settings.school.phone}
-              schoolEmail={settings.school.email}
-              footerText={settings.school.marksheetFooterText}
-              academicYear={academicYear}
-              termName={termName}
-              className={className}
-              streamName={streamName}
-              subjectName={subjectName}
-              examType={filters.examType}
-              students={students}
-              printStyle={settings.marksheets.printStyle}
-              includeQrCode={settings.marksheets.includeQrCode}
-              includeHumanReadableMarksheetId={settings.marksheets.includeHumanReadableMarksheetId}
-              validMarkValues={settings.marksheets.validMarkValues}
-            />
+          {/* ── Screen preview — no-print ── */}
+          <div className="marksheet-card-wrapper no-print premium-card rounded-2xl p-4 sm:p-6">
+            <PrintableMarksheet {...commonMarksheetProps} students={students} />
+          </div>
+
+          {/* ── Print-only: one page per student ── */}
+          <div className="print-only">
+            {marksheetsToPrint.map((student) => (
+              <div key={student.id} className="marksheet-print-page">
+                <PrintableMarksheet {...commonMarksheetProps} students={[student]} />
+              </div>
+            ))}
           </div>
         </div>
       )}
@@ -221,7 +342,7 @@ function PrintTab({ ctx, settings, filters, students, loadingStudents, onChange 
       {!ready && (
         <div className="no-print rounded-2xl border-2 border-dashed border-slate-200 py-16 text-center text-slate-400">
           <Icon name="clipboard" className="mx-auto mb-3 h-10 w-10 opacity-30" />
-          <p className="text-sm font-medium">Select class, stream, subject, and term to preview the marksheet.</p>
+          <p className="text-sm font-medium">Select class, stream, and term to preview the marksheet.</p>
         </div>
       )}
     </div>

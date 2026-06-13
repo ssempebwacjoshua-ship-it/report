@@ -167,10 +167,8 @@ export function ParentReportPage() {
       </div>
 
       {/* Print-only container — hidden on screen via .print-only CSS class */}
-      <div className="print-only report-print-page">
-        <div className="mb-4 text-center text-xs text-slate-500">
-          {branding.schoolName} - Issued {issuedDate} - Ref: {referenceCode}
-        </div>
+      {/* No wrapper divs here: extra height causes 2-page overflow on mobile print */}
+      <div className="print-only">
         <StudentReportDetail
           card={card}
           assessmentType={snapshot.filters.assessmentType as "BOT" | "MOT" | "EOT" | "TERM_SUMMARY"}
@@ -179,9 +177,6 @@ export function ParentReportPage() {
           reportSettings={settings.reports}
           grading={settings.grading}
         />
-        <div className="mt-6 border-t border-slate-200 pt-4 text-center text-xs text-slate-400">
-          Issued through {branding.schoolName} official report link - Reference: {referenceCode} - {issuedDate}
-        </div>
       </div>
     </div>
   );
