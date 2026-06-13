@@ -13,6 +13,7 @@ import { reportIssueRoutes } from "./routes/reportIssueRoutes";
 import { releaseCenterRoutes } from "./routes/releaseCenterRoutes";
 import { parentRoutes } from "./routes/parentRoutes";
 import { verifyRoutes } from "./routes/verifyRoutes";
+import { ocrRoutes } from "./routes/ocrRoutes";
 import { prisma } from "./db/prisma";
 import { recoverStaleStudentImportJobs } from "./services/studentImportService";
 
@@ -32,6 +33,7 @@ export function createServer() {
   app.use(settingsRoutes());
   app.use(parentRoutes());
   app.use(verifyRoutes());
+  app.use(ocrRoutes());
 
   const errorHandler: ErrorRequestHandler = (error, _req, res, _next) => {
     if (error instanceof ZodError) {

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { fetchSettings, patchSettingsSection, SettingsClientError, type SettingsFieldErrors } from "../client/settingsClient";
+import { readAzureOcr } from "../client/ocrClient";
 import {
   defaultSettingsSections,
   type SettingSection,
@@ -88,6 +89,10 @@ export function SettingsPage() {
   const [saved, setSaved] = useState<SettingSection | null>(null);
   const [errors, setErrors] = useState<Partial<Record<SettingSection, string>>>({});
   const [fieldErrors, setFieldErrors] = useState<Partial<Record<SettingSection, SettingsFieldErrors>>>({});
+  const [ocrUrl, setOcrUrl] = useState("");
+  const [ocrResult, setOcrResult] = useState<{ provider: string; text: string; lines: string[] } | null>(null);
+  const [ocrError, setOcrError] = useState("");
+  const [ocrLoading, setOcrLoading] = useState(false);
 
   useEffect(() => {
     fetchSettings()
@@ -168,6 +173,21 @@ export function SettingsPage() {
 
   const activeLabel = useMemo(() => tabs.find((tab) => tab.id === activeTab)?.label ?? "Settings", [activeTab]);
 
+  async function runOcrTest() {
+    setOcrLoading(true);
+    setOcrError("");
+    setOcrResult(null);
+    try {
+      const token = localStorage.getItem("sc_auth_token");
+      const result = await readAzureOcr(ocrUrl.trim(), token);
+      setOcrResult(result);
+    } catch (error) {
+      setOcrError(error instanceof Error ? error.message : "OCR failed");
+    } finally {
+      setOcrLoading(false);
+    }
+  }
+
   if (loading) {
     return <main className="grid gap-4"><div className="premium-card rounded-xl p-5 text-sm text-slate-600">Loading settings...</div></main>;
   }
@@ -211,7 +231,45 @@ export function SettingsPage() {
         {activeTab === "academic" && <AcademicSection value={draft.academic} onChange={(value) => updateSection("academic", value)} />}
         {activeTab === "reports" && <ReportsSection value={draft.reports} onChange={(value) => updateSection("reports", value)} />}
         {activeTab === "marksheets" && <MarksheetsSection value={draft.marksheets} onChange={(value) => updateSection("marksheets", value)} />}
-        {activeTab === "ocr" && <OcrSection value={draft.ocr} onChange={(value) => updateSection("ocr", value)} />}
+        {activeTab === "ocr" && (
+          <div className="grid gap-4">
+            <OcrSection value={draft.ocr} onChange={(value) => updateSection("ocr", value)} />
+            <section className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+              <h3 className="text-sm font-bold text-slate-950">OCR test panel</h3>
+              <p className="mt-1 text-xs text-slate-500">Paste a public image or document URL and extract text through the Railway backend.</p>
+              <div className="mt-3 grid gap-2">
+                <input
+                  className={fieldClass}
+                  value={ocrUrl}
+                  onChange={(e) => setOcrUrl(e.target.value)}
+                  placeholder="https://example.com/image-or-pdf.jpg"
+                />
+                <div className="flex flex-wrap gap-2">
+                  <button type="button" className="btn btn-primary" onClick={() => void runOcrTest()} disabled={ocrLoading || !ocrUrl.trim()}>
+                    {ocrLoading ? "Extracting..." : "Extract Text"}
+                  </button>
+                </div>
+                {ocrError ? <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{ocrError}</div> : null}
+                {ocrResult ? (
+                  <div className="grid gap-2">
+                    <div className="rounded-lg border border-slate-200 bg-white p-3">
+                      <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Extracted text</p>
+                      <pre className="mt-2 whitespace-pre-wrap text-sm text-slate-800">{ocrResult.text || "(no text returned)"}</pre>
+                    </div>
+                    <div className="rounded-lg border border-slate-200 bg-white p-3">
+                      <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Lines</p>
+                      <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-700">
+                        {ocrResult.lines.map((line, index) => (
+                          <li key={`${index}-${line}`}>{line}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            </section>
+          </div>
+        )}
         {activeTab === "grading" && <GradingSection value={draft.grading} onChange={(value) => updateSection("grading", value)} />}
         {activeTab === "approval" && <ApprovalSection value={draft.approval} onChange={(value) => updateSection("approval", value)} />}
         {activeTab === "appearance" && <AppearanceSection value={draft.appearance} onChange={(value) => updateSection("appearance", value)} />}

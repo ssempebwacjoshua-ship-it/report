@@ -1,7 +1,8 @@
 import request from "supertest";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { createServer } from "../../server";
 import { defaultSettingsSections, type SettingSection, type SettingsSections } from "../../shared/types/settings";
+import { signToken } from "../../server/services/authService";
 
 const SCHOOL = "SETTINGS-TEST";
 
@@ -197,5 +198,46 @@ describe("settingsRoutes", () => {
     expect(reload.body.sections.school.reportFooterText).toBe("Persisted report footer.");
     expect(reload.body.sections.school.marksheetFooterText).toBe("Persisted marksheet footer.");
     expect(reload.body.sections.school.schoolName).toBe("School Connect Preview School");
+  });
+
+  it("rejects OCR reads without auth", async () => {
+    const res = await request(createServer()).post("/internal/ocr/read").send({ url: "https://example.com/test.jpg" });
+    expect(res.status).toBe(401);
+  });
+
+  it("forwards OCR reads to Azure with auth and returns extracted text", async () => {
+    process.env.OCR_ENABLED = "true";
+    process.env.OCR_PROVIDER = "azure";
+    process.env.AZURE_OCR_FUNCTION_URL = "https://azure-ocr.example.test/api/ocr";
+
+    const fetchMock = vi.fn(async () =>
+      new Response(JSON.stringify({ text: "hello world", lines: ["hello", "world"] }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = fetchMock as typeof fetch;
+
+    const token = signToken({
+      userId: "user-1",
+      schoolId: "school-1",
+      name: "Admin",
+      email: "admin@example.test",
+      role: "ADMIN_OPERATOR",
+    });
+
+    const res = await request(createServer())
+      .post("/internal/ocr/read")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ url: "https://example.com/test.jpg" });
+
+    globalThis.fetch = originalFetch;
+
+    expect(res.status).toBe(200);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0]?.[0]).toBeInstanceOf(URL);
+    expect(res.body.text).toBe("hello world");
+    expect(res.body.lines).toEqual(["hello", "world"]);
   });
 });
