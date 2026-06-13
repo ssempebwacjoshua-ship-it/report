@@ -275,3 +275,25 @@ export type DetectContextResponse = {
   contextSource?: ScanContextSource;
   contextWarning?: string;
 };
+
+// ── Structured import error shape ─────────────────────────────────────────────
+
+export type ImportErrorCode =
+  | "MISSING_FILE"
+  | "UNSUPPORTED_FILE_TYPE"
+  | "SCHOOL_NOT_FOUND"
+  | "CONTEXT_REQUIRED"
+  | "DRY_RUN_REQUIRED"
+  | "NO_VALID_ROWS"
+  | "MISSING_MARKSHEET_ID"
+  | "SCAN_SETUP_REQUIRED"
+  | "TEMPLATE_ERROR"
+  | "IMPORT_VALIDATION_FAILED"
+  | "SERVER_ERROR";
+
+export type ImportErrorResponse = {
+  error: true;
+  code: ImportErrorCode;
+  message: string;
+  details: string[];
+};

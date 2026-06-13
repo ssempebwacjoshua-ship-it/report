@@ -15,10 +15,14 @@ const API_BASE = getApiBaseUrl();
 
 async function readImportError(response: Response, fallback: string): Promise<string> {
   try {
-    const body = await response.json();
+    const body = await response.json() as Record<string, unknown>;
+    if (import.meta.env.DEV) {
+      console.debug("[import-error]", response.url, response.status, body);
+    }
+    if (body?.error === true && typeof body?.message === "string") return body.message as string;
     if (typeof body?.error === "string") return body.error;
-    if (Array.isArray(body?.issues) && body.issues.length)
-      return body.issues.map((issue: { message?: string }) => issue.message).join("; ");
+    if (Array.isArray(body?.issues) && (body.issues as unknown[]).length)
+      return (body.issues as Array<{ message?: string }>).map((issue) => issue.message).join("; ");
   } catch {
     return fallback;
   }

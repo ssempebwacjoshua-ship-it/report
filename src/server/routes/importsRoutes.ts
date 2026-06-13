@@ -21,6 +21,16 @@ import { getSettingsSections } from "../repositories/settingsRepository";
 
 const SCAN_FILE_TYPES = new Set(["PDF", "PNG", "JPG", "JPEG", "WEBP"]);
 
+function importErr(code: string, message: string, extra?: Record<string, unknown>) {
+  return { error: true as const, code, message, details: [] as string[], ...extra };
+}
+
+function isCsvParseError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  const code = (error as { code?: unknown }).code;
+  return typeof code === "string" && (code.startsWith("CSV_") || code === "INVALID_COLUMN_DEFINITION");
+}
+
 const importPayload = z.object({
   schoolCode: z.string().default("SCU-PREVIEW"),
   csvText: z.string().min(1),
@@ -111,6 +121,14 @@ export function importsRoutes() {
       const payload = importPayload.parse(req.body);
       res.json(await dryRunMarksImport(prisma, payload.schoolCode, payload.csvText));
     } catch (error) {
+      if (isCsvParseError(error)) {
+        res.status(400).json(importErr(
+          "TEMPLATE_ERROR",
+          "The marks sheet could not be parsed. Check that columns match the required template (admissionNumber, class, stream, subject, term, examType, marks).",
+          { details: [error instanceof Error ? error.message : String(error)] },
+        ));
+        return;
+      }
       next(error);
     }
   });
@@ -120,6 +138,14 @@ export function importsRoutes() {
       const payload = importPayload.parse(req.body);
       res.json(await commitMarksImport(prisma, payload.schoolCode, payload.csvText));
     } catch (error) {
+      if (isCsvParseError(error)) {
+        res.status(400).json(importErr(
+          "TEMPLATE_ERROR",
+          "The marks sheet could not be parsed. Check that columns match the required template (admissionNumber, class, stream, subject, term, examType, marks).",
+          { details: [error instanceof Error ? error.message : String(error)] },
+        ));
+        return;
+      }
       next(error);
     }
   });
@@ -145,7 +171,7 @@ export function importsRoutes() {
 
         const school = await prisma.school.findUnique({ where: { code: schoolCode } });
         if (!school) {
-          res.status(404).json({ error: `School "${schoolCode}" was not found.` });
+          res.status(404).json(importErr("SCHOOL_NOT_FOUND", `School "${schoolCode}" was not found.`));
           return;
         }
 
@@ -248,13 +274,13 @@ export function importsRoutes() {
       const schoolCode = String(req.query.schoolCode ?? "SCU-PREVIEW").trim();
 
       if (!marksheetId) {
-        res.status(400).json({ error: "marksheetId query parameter is required." });
+        res.status(400).json(importErr("MISSING_MARKSHEET_ID", "marksheetId query parameter is required."));
         return;
       }
 
       const school = await prisma.school.findUnique({ where: { code: schoolCode } });
       if (!school) {
-        res.status(404).json({ error: `School "${schoolCode}" was not found.` });
+        res.status(404).json(importErr("SCHOOL_NOT_FOUND", `School "${schoolCode}" was not found.`));
         return;
       }
 
@@ -285,18 +311,20 @@ export function importsRoutes() {
         // 1. Require actual file bytes
         const file = req.file;
         if (!file) {
-          res
-            .status(400)
-            .json({ error: "No scan file uploaded. Attach a PNG, JPG, JPEG, WEBP, or PDF scan." });
+          res.status(400).json(importErr(
+            "MISSING_FILE",
+            "No scan file uploaded. Attach a PNG, JPG, JPEG, WEBP, or PDF scan.",
+          ));
           return;
         }
 
         // 2. Validate file type from extension
         const ext = (file.originalname.split(".").pop() ?? "").trim().toUpperCase();
         if (!SCAN_FILE_TYPES.has(ext)) {
-          res.status(400).json({
-            error: `Unsupported scan file type: .${ext.toLowerCase()}. Accepted formats: PDF, PNG, JPG, JPEG, WEBP.`,
-          });
+          res.status(400).json(importErr(
+            "UNSUPPORTED_FILE_TYPE",
+            `Unsupported file type: .${ext.toLowerCase()}. Accepted formats: PDF, PNG, JPG, JPEG, WEBP.`,
+          ));
           return;
         }
 
@@ -307,7 +335,7 @@ export function importsRoutes() {
         // 3. Look up school
         const school = await prisma.school.findUnique({ where: { code: schoolCode } });
         if (!school) {
-          res.status(404).json({ error: `School "${schoolCode}" was not found.` });
+          res.status(404).json(importErr("SCHOOL_NOT_FOUND", `School "${schoolCode}" was not found.`));
           return;
         }
 
@@ -343,11 +371,11 @@ export function importsRoutes() {
         });
 
         if (!contextResolution.resolvedContext) {
-          res.status(400).json({
-            error: "Marksheet context is required before extraction.",
-            marksheetIdDebug: idDetection?.debug,
-            ...contextResolution,
-          });
+          res.status(400).json(importErr(
+            "CONTEXT_REQUIRED",
+            "Marksheet context is required before extraction. Provide or confirm the class, stream, subject, term, and exam type.",
+            { marksheetIdDebug: idDetection?.debug, ...contextResolution },
+          ));
           return;
         }
 
@@ -466,7 +494,7 @@ export function importsRoutes() {
 
       const school = await prisma.school.findUnique({ where: { code: payload.schoolCode } });
       if (!school) {
-        res.status(404).json({ error: `School "${payload.schoolCode}" was not found.` });
+        res.status(404).json(importErr("SCHOOL_NOT_FOUND", `School "${payload.schoolCode}" was not found.`));
         return;
       }
 
@@ -545,7 +573,7 @@ export function importsRoutes() {
         },
       });
       if (!school) {
-        res.status(404).json({ error: `School "${payload.schoolCode}" was not found.` });
+        res.status(404).json(importErr("SCHOOL_NOT_FOUND", `School "${payload.schoolCode}" was not found.`));
         return;
       }
 
@@ -570,7 +598,10 @@ export function importsRoutes() {
       if (settings.approval.requireDryRunBeforeCommit) {
         const fingerprint = scanDryRunFingerprint(payload.schoolCode, payload.context, rows);
         if (!(await hasRecentScanDryRun(school.id, fingerprint))) {
-          res.status(400).json({ error: "Dry-run validation is required before committing scanned marks." });
+          res.status(400).json(importErr(
+            "DRY_RUN_REQUIRED",
+            "Dry-run validation is required before committing scanned marks. Run dry-run first, then commit.",
+          ));
           return;
         }
       }
@@ -584,7 +615,11 @@ export function importsRoutes() {
       );
 
       if (!activeYear || !activeTerm || !klass || !stream || !subject) {
-        res.status(400).json({ error: "Could not resolve active year, active term, class, stream, or subject for this scan." });
+        res.status(400).json(importErr(
+          "SCAN_SETUP_REQUIRED",
+          "Could not resolve active year, active term, class, stream, or subject for this scan. " +
+          "Check that the class name, stream, and subject match the school's configuration.",
+        ));
         return;
       }
 
@@ -595,7 +630,10 @@ export function importsRoutes() {
       });
 
       if (numericRows.length === 0) {
-        res.status(400).json({ error: "No numeric valid rows are ready to commit. Enter marks and run dry-run validation first." });
+        res.status(400).json(importErr(
+          "NO_VALID_ROWS",
+          "No numeric valid rows are ready to commit. Enter marks and run dry-run validation first.",
+        ));
         return;
       }
 
@@ -686,7 +724,7 @@ export function importsRoutes() {
       const { batchId } = req.params;
       const batch = await prisma.markImportBatch.findUnique({ where: { id: batchId } });
       if (!batch) {
-        res.status(404).json({ error: `Scan batch "${batchId}" not found.` });
+        res.status(404).json(importErr("SERVER_ERROR", `Scan batch "${batchId}" not found.`));
         return;
       }
 

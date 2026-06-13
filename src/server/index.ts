@@ -41,14 +41,22 @@ export function createServer() {
     if (error instanceof ZodError) {
       const fieldErrors = error.flatten().fieldErrors;
       res.status(400).json({
+        error: true,
+        code: "IMPORT_VALIDATION_FAILED",
         message: "Invalid request",
         fieldErrors,
         issues: error.issues,
+        details: error.issues.map((issue) => issue.message),
       });
       return;
     }
     console.error(error);
-    res.status(500).json({ error: "Unexpected server error" });
+    res.status(500).json({
+      error: true,
+      code: "SERVER_ERROR",
+      message: "A server error occurred. Please try again or contact support if the problem persists.",
+      details: [],
+    });
   };
   app.use(errorHandler);
 
