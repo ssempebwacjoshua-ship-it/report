@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import { ParentReportPage } from "../../pages/ParentReportPage";
@@ -148,5 +148,74 @@ describe("ParentReportPage — public action card", () => {
 
     await waitFor(() => expect(screen.getByText("Report not available")).toBeInTheDocument());
     expect(screen.getByText("Not found")).toBeInTheDocument();
+  });
+});
+
+describe("ParentReportPage — one-report-only enforcement", () => {
+  it("renders exactly one report page — no multi-student list", async () => {
+    fetchMock.mockResolvedValueOnce({ ok: true, json: async () => issuedPayload });
+
+    renderPage();
+
+    await waitFor(() => expect(screen.getByTestId("report-detail")).toBeInTheDocument());
+
+    // Exactly one report detail rendered
+    expect(screen.getAllByTestId("report-detail")).toHaveLength(1);
+  });
+
+  it("Print Report button calls window.print exactly once", async () => {
+    fetchMock.mockResolvedValueOnce({ ok: true, json: async () => issuedPayload });
+    const printSpy = vi.spyOn(window, "print").mockImplementation(() => {});
+
+    renderPage();
+
+    await waitFor(() => expect(screen.getByRole("button", { name: /print report/i })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: /print report/i }));
+
+    expect(printSpy).toHaveBeenCalledTimes(1);
+    printSpy.mockRestore();
+  });
+
+  it("Download PDF button calls window.print exactly once", async () => {
+    fetchMock.mockResolvedValueOnce({ ok: true, json: async () => issuedPayload });
+    const printSpy = vi.spyOn(window, "print").mockImplementation(() => {});
+
+    renderPage();
+
+    await waitFor(() => expect(screen.getByRole("button", { name: /download pdf/i })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: /download pdf/i }));
+
+    expect(printSpy).toHaveBeenCalledTimes(1);
+    printSpy.mockRestore();
+  });
+
+  it("has no student selection UI (no combobox or student selector)", async () => {
+    fetchMock.mockResolvedValueOnce({ ok: true, json: async () => issuedPayload });
+
+    renderPage();
+
+    await waitFor(() => expect(screen.getByText("Ada Lovelace")).toBeInTheDocument());
+
+    // No dropdowns or selection controls
+    expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
+    expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+    expect(screen.queryByText(/select student/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/choose student/i)).not.toBeInTheDocument();
+  });
+
+  it("has no bulk report list — only one student's data shown", async () => {
+    fetchMock.mockResolvedValueOnce({ ok: true, json: async () => issuedPayload });
+
+    renderPage();
+
+    await waitFor(() => expect(screen.getByTestId("report-detail")).toBeInTheDocument());
+
+    // No list of students or multiple reports
+    expect(screen.queryByRole("list")).not.toBeInTheDocument();
+    expect(screen.queryByText(/all students/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/select all/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/print all/i)).not.toBeInTheDocument();
+    // Only one report detail exists
+    expect(document.querySelectorAll("[data-testid='report-detail']")).toHaveLength(1);
   });
 });
