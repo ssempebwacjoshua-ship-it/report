@@ -71,3 +71,16 @@ Before declaring done, require:
 - relevant tests
 - npm run build
 - confirmation no unrelated areas changed
+
+## Responsible-file scanning rule
+
+Before any search or code change:
+
+1. Declare responsible area.
+2. Declare likely files/directories.
+3. Scan only those first.
+4. Avoid broad repo scans unless targeted search fails.
+5. Explain why if broader scanning is required.
+6. Keep fix scoped.
+7. Stage only responsible files.
+8. After tests/build pass, create a focused commit.

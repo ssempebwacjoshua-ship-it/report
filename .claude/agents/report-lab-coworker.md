@@ -42,3 +42,14 @@ When given a task:
 
 Always prefer small targeted changes.
 Always ask for evidence from diffs/tests before saying a fix is complete.
+
+## Responsible-file scanning rule
+
+- Before scanning, declare the responsible area and likely files.
+- Scan only those files/directories first.
+- Do not run broad recursive scans unless targeted scanning fails.
+- If broad scanning is needed, explain why.
+- Do not touch unrelated files.
+- Stage only responsible files.
+- After tests/build pass, always create a focused git commit.
+- Do not commit unrelated files.

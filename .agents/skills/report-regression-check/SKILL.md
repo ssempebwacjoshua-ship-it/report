@@ -26,3 +26,14 @@ Block commit if:
 - parent message exposes internal enums
 - real secrets appear in tracked files
 - unrelated files changed without reason
+
+## Commit discipline rule
+
+Before commit:
+
+- Run git diff --stat.
+- Confirm changed files belong to the responsible area.
+- Do not stage unrelated files.
+- Run relevant tests/build.
+- If tests/build pass, always create a focused commit.
+- If commit is blocked, explain exactly why.
