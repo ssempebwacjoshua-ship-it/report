@@ -100,7 +100,7 @@ function ContextSelector({ ctx, filters, onChange }: ContextSelectorProps) {
   const selectClass = "premium-control w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none";
 
   return (
-    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
       <div>
         <label className="mb-1 block text-xs font-semibold text-slate-500 uppercase tracking-wide">Class</label>
         <select className={selectClass} value={filters.classId} onChange={(e) => set("classId", e.target.value)}>
@@ -178,7 +178,7 @@ function PrintTab({ ctx, settings, filters, students, loadingStudents, onChange 
 
       {ready && (
         <div>
-          <div className="no-print mb-4 flex items-center justify-between">
+          <div className="no-print mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-sm text-slate-500">
               {loadingStudents
                 ? "Loading students…"
@@ -195,7 +195,7 @@ function PrintTab({ ctx, settings, filters, students, loadingStudents, onChange 
             </button>
           </div>
 
-          <div className="marksheet-card-wrapper premium-card rounded-2xl p-6">
+          <div className="marksheet-card-wrapper premium-card rounded-2xl p-4 sm:p-6">
             <PrintableMarksheet
               schoolName={schoolName}
               schoolAddress={settings.school.address}

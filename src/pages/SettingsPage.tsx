@@ -180,12 +180,12 @@ export function SettingsPage() {
         <p className="mt-1 text-sm text-slate-600">Saved settings apply to reports, marksheets, scan import, grading, and approval controls.</p>
       </header>
 
-      <div className="tab-tray no-print flex max-w-full flex-wrap">
+      <div className="tab-tray no-print flex max-w-full flex-nowrap overflow-x-auto">
         {tabs.map((tab) => (
           <button
             key={tab.id}
             type="button"
-            className={`tab-button ${activeTab === tab.id ? "tab-button-active" : ""}`}
+            className={`tab-button shrink-0 whitespace-nowrap ${activeTab === tab.id ? "tab-button-active" : ""}`}
             onClick={() => setActiveTab(tab.id)}
           >
             {tab.label}

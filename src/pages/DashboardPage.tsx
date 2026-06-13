@@ -82,12 +82,12 @@ export function DashboardPage() {
               Dashboard metrics are preview values for the reports lab.
             </p>
           </div>
-          <div className="flex flex-wrap gap-3">
-            <a href="/reports" className="btn bg-white text-blue-700 shadow-xl shadow-blue-950/20 hover:bg-blue-50">
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <a href="/reports" className="btn w-full bg-white text-blue-700 shadow-xl shadow-blue-950/20 hover:bg-blue-50 sm:w-auto">
               <Icon name="file" className="h-4 w-4" />
               Generate Reports
             </a>
-            <a href="/imports/marks" className="btn border border-white/25 bg-white/10 text-white shadow-xl shadow-blue-950/20 hover:bg-white/15">
+            <a href="/imports/marks" className="btn w-full border border-white/25 bg-white/10 text-white shadow-xl shadow-blue-950/20 hover:bg-white/15 sm:w-auto">
               <Icon name="cloud" className="h-4 w-4" />
               Import Marks
             </a>
@@ -110,7 +110,7 @@ export function DashboardPage() {
         </div>
       </section>
 
-      <section className="grid grid-cols-2 gap-3 md:gap-4 xl:grid-cols-4">
+      <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:gap-4 xl:grid-cols-4">
         <StatCard
           label="Enrolled Students"
           value="1,248"
@@ -162,7 +162,7 @@ export function DashboardPage() {
             <span aria-hidden="true">&rarr;</span>
           </a>
         </div>
-        <div className="mt-5 grid grid-cols-2 gap-3 md:grid-cols-5">
+        <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-5">
           {workflowStages.map(([label, value, note, tone], index) => (
             <div key={label} className="relative rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
               {index < workflowStages.length - 1 ? (
@@ -238,7 +238,7 @@ export function DashboardPage() {
               <p className="mt-1 text-sm text-slate-500">Jump straight into the next report task.</p>
             </div>
           </div>
-          <div className="mt-4 grid grid-cols-2 gap-2.5 sm:grid-cols-3 xl:grid-cols-1 2xl:grid-cols-3">
+          <div className="mt-4 grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-1 2xl:grid-cols-3">
             <a href="/reports" className="btn btn-primary justify-start">
               <Icon name="file" className="h-4 w-4" />
               Generate Reports
@@ -265,7 +265,7 @@ export function DashboardPage() {
               <span aria-hidden="true">&rarr;</span>
             </a>
           </div>
-          <div className="mt-4 grid grid-cols-2 gap-3 xl:grid-cols-4">
+          <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
             {[
               ["Guardians", String(contactSummary.guardians), "Saved contacts", "green"],
               ["Email contacts", String(contactSummary.emailContacts), "Email addresses", "blue"],

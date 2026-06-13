@@ -169,7 +169,7 @@ function DigitalImportPanel() {
             are protected unless they belong to the same import batch.
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
           <button type="button" onClick={downloadCsvTemplate} className="btn btn-secondary">
             Download CSV template
           </button>
@@ -191,7 +191,7 @@ function DigitalImportPanel() {
                 quick testing.
               </p>
             </div>
-            <div className="tab-tray">
+            <div className="tab-tray flex-nowrap overflow-x-auto">
               <button
                 type="button"
                 onClick={() => setInputMode("upload")}
@@ -244,7 +244,7 @@ function DigitalImportPanel() {
             </label>
           )}
 
-          <div className="mt-4 flex flex-wrap gap-2">
+          <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
             <button type="button" onClick={runDryRun} disabled={!hasInput} className="btn btn-primary">
               Dry run
             </button>
@@ -320,7 +320,7 @@ export function MarksImportPage() {
       </header>
 
       {/* Import mode selector */}
-      <section className="grid gap-3 sm:grid-cols-2">
+      <section className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         {MODES.map((mode) => {
           const active = importMode === mode.id;
           return (

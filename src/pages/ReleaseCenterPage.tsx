@@ -602,7 +602,7 @@ export function ReleaseCenterPage() {
 
       {/* Filters */}
       <div className="premium-card rounded-2xl px-4 py-3">
-        <div className="grid gap-2.5 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-6">
+        <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-6">
           <label className="grid gap-1 text-xs font-semibold uppercase text-slate-500">
             Class
             <select
@@ -691,7 +691,7 @@ export function ReleaseCenterPage() {
 
       {/* Summary cards */}
       {summary && (
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-9">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-4 xl:grid-cols-9">
           <SummaryCard label="Total" value={summary.total} tone="slate" />
           <SummaryCard label="Finalized" value={summary.finalized} tone="blue" />
           <SummaryCard label="Links issued" value={summary.linksGenerated} tone="sky" />
