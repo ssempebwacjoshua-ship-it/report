@@ -592,6 +592,11 @@ body {
   padding: 0.75rem;
 }
 
+/* Hidden on screen; shown in @media print block below */
+.print-only {
+  display: none;
+}
+
 @media print {
   @page {
     size: A4 portrait;
@@ -620,6 +625,11 @@ body {
   button,
   a:not(.print-keep) {
     display: none !important;
+  }
+
+  /* Reveal print-only content */
+  .print-only {
+    display: block !important;
   }
 
   /* Outer section ??? flush, full width, force colour printing for entire subtree */

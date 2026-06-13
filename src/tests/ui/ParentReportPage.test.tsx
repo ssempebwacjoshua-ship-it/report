@@ -11,68 +11,142 @@ const fetchMock = vi.fn();
 
 vi.stubGlobal("fetch", fetchMock);
 
-describe("ParentReportPage", () => {
-  it("renders the issued snapshot in a print container and hides admin shell chrome", async () => {
-    fetchMock.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({
-        id: "issued-1",
-        status: "ISSUED",
-        referenceCode: "20260612-ABC123",
-        issuedAt: new Date().toISOString(),
-        issuedByName: "School Admin",
-        school: { name: "School Connect Preview School", code: "SCU-PREVIEW" },
-        snapshot: {
-          card: {
-            studentId: "s1",
-            admissionNumber: "ADM-001",
-            studentName: "Ada Lovelace",
-            className: "S1",
-            streamName: "A",
-            academicYear: "2025/2026",
-            term: "Term 1",
-            marksFound: 0,
-            totalSubjects: 0,
-            average: null,
-            grade: null,
-            overallPosition: null,
-            readiness: "READY",
-            missingMarks: [],
-            comments: "",
-            contactReadiness: "READY",
-            contactSummary: "",
-            subjects: [],
-          },
-          settings: {
-            school: { schoolName: "School Connect Preview School" },
-            reports: {
-              showOverallPosition: false,
-              showClassAverage: false,
-              showGradeKey: false,
-              showSchoolLogo: false,
-              printDensity: "compact",
-              signatureMode: "name_and_signature_line",
-              defaultHmCommentTemplate: "",
-              defaultClassTeacherCommentTemplate: "",
-            },
-            grading: { grades: [] },
-          },
-          filters: { assessmentType: "EOT" },
-        },
-      }),
-    });
+const issuedPayload = {
+  id: "issued-1",
+  status: "ISSUED",
+  referenceCode: "20260612-ABC123",
+  issuedAt: new Date().toISOString(),
+  issuedByName: "School Admin",
+  school: { name: "School Connect Preview School", code: "SCU-PREVIEW" },
+  snapshot: {
+    card: {
+      studentId: "s1",
+      admissionNumber: "ADM-001",
+      studentName: "Ada Lovelace",
+      className: "S1",
+      streamName: "A",
+      academicYear: "2025/2026",
+      term: "Term 1",
+      marksFound: 0,
+      totalSubjects: 0,
+      average: null,
+      grade: null,
+      overallPosition: null,
+      readiness: "READY",
+      missingMarks: [],
+      comments: "",
+      contactReadiness: "READY",
+      contactSummary: "",
+      subjects: [],
+    },
+    settings: {
+      school: { schoolName: "School Connect Preview School" },
+      reports: {
+        showOverallPosition: false,
+        showClassAverage: false,
+        showGradeKey: false,
+        showSchoolLogo: false,
+        printDensity: "compact",
+        signatureMode: "name_and_signature_line",
+        defaultHmCommentTemplate: "",
+        defaultClassTeacherCommentTemplate: "",
+      },
+      grading: { grades: [] },
+    },
+    filters: { assessmentType: "EOT" },
+  },
+};
 
-    render(
-      <MemoryRouter initialEntries={["/parent/r/raw-token"]}>
-        <Routes>
-          <Route path="/parent/r/:token" element={<ParentReportPage />} />
-        </Routes>
-      </MemoryRouter>,
-    );
+function renderPage() {
+  return render(
+    <MemoryRouter initialEntries={["/parent/r/raw-token"]}>
+      <Routes>
+        <Route path="/parent/r/:token" element={<ParentReportPage />} />
+      </Routes>
+    </MemoryRouter>,
+  );
+}
+
+describe("ParentReportPage — public action card", () => {
+  it("shows Print Report and Download PDF buttons", async () => {
+    fetchMock.mockResolvedValueOnce({ ok: true, json: async () => issuedPayload });
+
+    renderPage();
+
+    await waitFor(() => expect(screen.getByRole("button", { name: /print report/i })).toBeInTheDocument());
+    expect(screen.getByRole("button", { name: /download pdf/i })).toBeInTheDocument();
+  });
+
+  it("shows student name and reference code on screen", async () => {
+    fetchMock.mockResolvedValueOnce({ ok: true, json: async () => issuedPayload });
+
+    renderPage();
+
+    await waitFor(() => expect(screen.getByText("Ada Lovelace")).toBeInTheDocument());
+    expect(screen.getByText("20260612-ABC123")).toBeInTheDocument();
+  });
+
+  it("report detail is inside a print-only container, not directly visible on screen", async () => {
+    fetchMock.mockResolvedValueOnce({ ok: true, json: async () => issuedPayload });
+
+    renderPage();
 
     await waitFor(() => expect(screen.getByTestId("report-detail")).toBeInTheDocument());
-    expect(document.querySelector(".report-print-page")).toBeInTheDocument();
+
+    const reportDetail = screen.getByTestId("report-detail");
+    const printContainer = reportDetail.closest(".print-only");
+    expect(printContainer).toBeInTheDocument();
+  });
+
+  it("print container is in the DOM for window.print() to use", async () => {
+    fetchMock.mockResolvedValueOnce({ ok: true, json: async () => issuedPayload });
+
+    renderPage();
+
+    await waitFor(() => expect(document.querySelector(".print-only")).toBeInTheDocument());
+    // The container carries both classes on the same element
+    expect(document.querySelector(".print-only.report-print-page")).toBeInTheDocument();
+  });
+
+  it("does not render admin shell chrome", async () => {
+    fetchMock.mockResolvedValueOnce({ ok: true, json: async () => issuedPayload });
+
+    renderPage();
+
+    await waitFor(() => expect(screen.getByText("Ada Lovelace")).toBeInTheDocument());
     expect(document.querySelector(".app-shell-sidebar")).not.toBeInTheDocument();
-    expect(document.querySelector(".report-print-page")?.className).toContain("report-print-page");
+  });
+
+  it("shows a Valid badge for issued reports", async () => {
+    fetchMock.mockResolvedValueOnce({ ok: true, json: async () => issuedPayload });
+
+    renderPage();
+
+    await waitFor(() => expect(screen.getByText("Valid")).toBeInTheDocument());
+  });
+
+  it("shows a Revoked badge and warning for revoked reports", async () => {
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ ...issuedPayload, status: "REVOKED" }),
+    });
+
+    renderPage();
+
+    await waitFor(() => expect(screen.getAllByText("Revoked").length).toBeGreaterThan(0));
+    expect(screen.getByText(/revoked by the school/i)).toBeInTheDocument();
+  });
+
+  it("shows an error card when the API returns 404", async () => {
+    fetchMock.mockResolvedValueOnce({
+      ok: false,
+      status: 404,
+      text: async () => JSON.stringify({ message: "Not found" }),
+    });
+
+    renderPage();
+
+    await waitFor(() => expect(screen.getByText("Report not available")).toBeInTheDocument());
+    expect(screen.getByText("Not found")).toBeInTheDocument();
   });
 });

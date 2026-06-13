@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import { Navigate, Outlet } from "react-router-dom";
 import { useAuth } from "../../contexts/AuthContext";
+import { InstallPrompt } from "../pwa/InstallPrompt";
 import { Sidebar } from "./Sidebar";
 import { Topbar } from "./Topbar";
 import { SettingsProvider, useAppSettings } from "./SettingsContext";
@@ -140,6 +141,7 @@ function AppShellInner({
           <Outlet />
         </div>
       </div>
+      <InstallPrompt />
     </div>
   );
 }
