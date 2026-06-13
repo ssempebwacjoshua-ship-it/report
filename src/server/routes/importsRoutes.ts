@@ -397,7 +397,6 @@ export function importsRoutes() {
               message: extraction.message,
               configuredProvider: extraction.configuredProvider,
               activeProvider: extraction.activeProvider,
-              providerUrl: extraction.providerUrl,
               providerReachable: extraction.providerReachable,
               fallbackReason: extraction.fallbackReason,
             }),
@@ -424,7 +423,6 @@ export function importsRoutes() {
           contextWarning: contextResolution.contextWarning,
           configuredProvider: extraction.configuredProvider,
           activeProvider: extraction.activeProvider,
-          providerUrl: extraction.providerUrl,
           providerReachable: extraction.providerReachable,
           fallbackReason: extraction.fallbackReason,
         });
@@ -698,7 +696,6 @@ export function importsRoutes() {
         fileName: (parsed["fileName"] as string | undefined) ?? "",
         configuredProvider: (parsed["configuredProvider"] as string | undefined) ?? "",
         activeProvider: (parsed["activeProvider"] as string | undefined) ?? "",
-        providerUrl: (parsed["providerUrl"] as string | undefined) ?? "",
         providerReachable: parsed["providerReachable"] ?? false,
         fallbackReason: (parsed["fallbackReason"] as string | undefined) ?? "",
         createdAt: batch.createdAt.toISOString(),

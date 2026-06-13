@@ -1,11 +1,17 @@
 import { Router } from "express";
 import { z } from "zod";
 import { requireAuth } from "../middleware/requireAuth";
-import { readAzureOcr } from "../services/azureOcrService";
+import { readAzureOcrFromImage, readAzureOcrFromUrl } from "../services/azureOcrService";
 
-const bodySchema = z.object({
-  url: z.string().trim().url("Enter a valid image or document URL."),
-});
+const bodySchema = z.union([
+  z.object({
+    url: z.string().trim().url("Enter a valid image or document URL."),
+  }),
+  z.object({
+    imageBase64: z.string().min(1, "Image payload is required."),
+    mimeType: z.string().min(1, "Image MIME type is required."),
+  }),
+]);
 
 export function ocrRoutes() {
   const router = Router();
@@ -17,8 +23,10 @@ export function ocrRoutes() {
         return;
       }
 
-      const { url } = bodySchema.parse(req.body);
-      const result = await readAzureOcr(url);
+      const payload = bodySchema.parse(req.body);
+      const result = "url" in payload
+        ? await readAzureOcrFromUrl(payload.url)
+        : await readAzureOcrFromImage(payload);
       res.json({
         provider: "azure",
         text: result.text,

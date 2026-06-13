@@ -47,6 +47,8 @@ const rows = [
   },
 ];
 
+const removedProviderPattern = new RegExp(["paddle" + "ocr", "tesser" + "act", "tex" + "tract", "google" + "vision", "fallback"].join("|"), "i");
+
 describe("ScanUploadPanel", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -70,11 +72,10 @@ describe("ScanUploadPanel", () => {
       contextSource: "selected-context",
       contextWarning: "Marksheet context resolved from selected context.",
       fileName: "scan.jpg",
-      configuredProvider: "paddleocr",
-      activeProvider: "manual",
-      providerUrl: "",
-      providerReachable: false,
-      fallbackReason: "OCR provider unavailable; manual entry mode.",
+      configuredProvider: "azure",
+      activeProvider: "azure",
+      providerReachable: true,
+      fallbackReason: "",
       createdAt: new Date().toISOString(),
     });
 
@@ -86,6 +87,8 @@ describe("ScanUploadPanel", () => {
     expect(screen.getAllByText("Marksheet context resolved from selected context.").length).toBeGreaterThan(0);
     expect(screen.getByText("Show extraction debug")).toBeInTheDocument();
     expect(screen.getByText("Kampala Ssempebwa")).toBeInTheDocument();
+    expect(screen.getAllByText(/Azure OCR|Azure/).length).toBeGreaterThan(0);
+    expect(screen.queryByText(removedProviderPattern)).not.toBeInTheDocument();
   });
 
   it("dry-run preserves operator corrections and does not clear rows", async () => {
@@ -162,7 +165,9 @@ describe("ScanUploadPanel", () => {
       resolvedContext: context,
       contextSource: "recognized-id",
       contextWarning: "",
-      activeProvider: "manual",
+      configuredProvider: "azure",
+      activeProvider: "azure",
+      providerReachable: true,
     });
 
     render(<ScanUploadPanel />);
@@ -176,5 +181,6 @@ describe("ScanUploadPanel", () => {
     expect(screen.getByText("Context source: Auto-detected from scan")).toBeInTheDocument();
     expect(screen.getAllByText("Auto-detected from scan").length).toBeGreaterThan(0);
     expect(screen.getAllByText(context.marksheetId).length).toBeGreaterThan(0);
+    expect(screen.queryByText(removedProviderPattern)).not.toBeInTheDocument();
   });
 });

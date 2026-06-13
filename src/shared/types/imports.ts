@@ -141,7 +141,6 @@ export type ScanUploadResponse = {
   contextWarning?: string;
   configuredProvider?: string;
   activeProvider?: string;
-  providerUrl?: string;
   providerReachable?: boolean;
   fallbackReason?: string;
 };
@@ -168,7 +167,6 @@ export type ScanBatchReloadResponse = {
   fileName: string;
   configuredProvider?: string;
   activeProvider?: string;
-  providerUrl?: string;
   providerReachable?: boolean;
   fallbackReason?: string;
   createdAt: string;

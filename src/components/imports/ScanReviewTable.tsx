@@ -14,7 +14,7 @@ const STATUS_STYLES: Record<ScanRowStatus, string> = {
 
 type Props = {
   rows: ScanImportRow[];
-  providerInfo?: Pick<ScanUploadResponse, "configuredProvider" | "activeProvider" | "providerUrl" | "providerReachable" | "fallbackReason">;
+  providerInfo?: Pick<ScanUploadResponse, "providerReachable">;
   onCorrectionChange?: (rowNumber: number, value: string) => void;
   onRemarksChange?: (rowNumber: number, value: string) => void;
   readOnly?: boolean;
@@ -169,13 +169,9 @@ export function ScanReviewTable({
           </p>
           {providerInfo && (
             <div className="flex flex-wrap gap-x-4 gap-y-1 rounded-xl border border-slate-100 bg-white px-3 py-2 text-xs text-slate-600">
-              <span><span className="font-semibold">Configured:</span> {providerInfo.configuredProvider || "—"}</span>
-              <span><span className="font-semibold">Active:</span> {providerInfo.activeProvider || "manual"}</span>
-              {providerInfo.providerUrl && (
-                <span className="font-mono text-[10px] text-slate-400">{providerInfo.providerUrl}</span>
-              )}
-              {providerInfo.fallbackReason && (
-                <span className="text-amber-700"><span className="font-semibold">Fallback:</span> {providerInfo.fallbackReason}</span>
+              <span><span className="font-semibold">Provider:</span> Azure OCR</span>
+              {providerInfo.providerReachable === false && (
+                <span className="text-red-700">OCR temporarily unavailable. Contact platform support.</span>
               )}
             </div>
           )}

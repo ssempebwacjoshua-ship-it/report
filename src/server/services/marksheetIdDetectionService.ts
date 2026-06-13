@@ -20,6 +20,7 @@ import {
   type PixelRect,
 } from "./marksheetGeometryService";
 import { preprocessScanImage } from "./scanPreprocessService";
+import { readAzureOcrFromImage } from "./azureOcrService";
 
 const DEBUG_DIR = path.join(process.cwd(), "tmp", "ocr-debug", "latest");
 
@@ -45,12 +46,6 @@ type DebugLookupResult = {
 };
 
 type PrintedTextResult = { text: string; confidence: number; error: string };
-type DebugImageResponse = {
-  text?: string;
-  confidence?: number;
-  error?: string;
-  raw?: unknown;
-};
 
 async function withTimeout<T>(task: Promise<T>, ms: number, fallback: T): Promise<T> {
   let timeout: ReturnType<typeof setTimeout> | null = null;
@@ -127,68 +122,20 @@ async function decodeQrFromCrop(imageBuffer: Buffer, rect: PixelRect): Promise<s
   }
 }
 
-function collectRawTexts(raw: unknown): string[] {
-  const texts: string[] = [];
-  const visit = (value: unknown) => {
-    if (!value) return;
-    if (typeof value === "string") {
-      if (value.trim()) texts.push(value.trim());
-      return;
-    }
-    if (Array.isArray(value)) {
-      for (const item of value) visit(item);
-      return;
-    }
-    if (typeof value === "object") {
-      const record = value as Record<string, unknown>;
-      const recTexts = record["rec_texts"];
-      if (Array.isArray(recTexts)) {
-        for (const item of recTexts) {
-          if (typeof item === "string" && item.trim()) texts.push(item.trim());
-        }
-      }
-      for (const [key, item] of Object.entries(record)) {
-        if (key !== "rec_texts") visit(item);
-      }
-    }
-  };
-  visit(raw);
-  return [...new Set(texts)];
-}
-
-function textFromDebugImageResponse(body: DebugImageResponse): string {
-  const rawTexts = collectRawTexts(body.raw);
-  const primary = (body.text ?? "").trim();
-  return [...new Set([...rawTexts, primary].filter(Boolean))].join("\n");
-}
-
 async function recognizePrintedTextCrop(cropId: string, buffer: Buffer): Promise<PrintedTextResult> {
-  const baseUrl = (process.env.PADDLE_OCR_URL ?? "http://localhost:8003").replace(/\/+$/, "");
-
   try {
-    const health = await withTimeout(
-      fetch(`${baseUrl}/health`).then((response) => response.ok).catch(() => false),
-      2000,
-      false,
-    );
-    if (!health) return { text: "", confidence: 0, error: "PaddleOCR not reachable for Marksheet ID detection." };
-
-    const form = new FormData();
-    form.append("file", new Blob([buffer], { type: "image/jpeg" }), `${cropId}.jpg`);
-    const response = await withTimeout(
-      fetch(`${baseUrl}/ocr/debug-image`, { method: "POST", body: form }),
+    const result = await withTimeout(
+      readAzureOcrFromImage({
+        imageBase64: buffer.toString("base64"),
+        mimeType: "image/jpeg",
+      }),
       35000,
-      null as Response | null,
+      null as Awaited<ReturnType<typeof readAzureOcrFromImage>> | null,
     );
-    if (!response) return { text: "", confidence: 0, error: "PaddleOCR Marksheet ID crop request timed out." };
-    if (!response.ok) {
-      return { text: "", confidence: 0, error: `PaddleOCR Marksheet ID crop request returned ${response.status}.` };
-    }
-    const body = await response.json() as DebugImageResponse;
-    if (body.error) return { text: "", confidence: 0, error: body.error };
+    if (!result) return { text: "", confidence: 0, error: "Azure OCR Marksheet ID crop request timed out." };
     return {
-      text: textFromDebugImageResponse(body),
-      confidence: typeof body.confidence === "number" ? body.confidence : 0,
+      text: result.lines.length > 0 ? result.lines.join("\n") : result.text,
+      confidence: result.text.trim() || result.lines.length > 0 ? 0.9 : 0,
       error: "",
     };
   } catch (error) {
@@ -196,8 +143,8 @@ async function recognizePrintedTextCrop(cropId: string, buffer: Buffer): Promise
       text: "",
       confidence: 0,
       error: error instanceof Error
-        ? `PaddleOCR Marksheet ID crop request failed: ${error.message}`
-        : "PaddleOCR Marksheet ID crop request failed.",
+        ? `Azure OCR Marksheet ID crop request failed: ${error.message}`
+        : "Azure OCR Marksheet ID crop request failed.",
     };
   }
 }

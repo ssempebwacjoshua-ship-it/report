@@ -25,6 +25,7 @@ import {
   normalizeMark,
   parseSplitZoneTexts,
 } from "./markRecognitionService";
+import { isProviderUnavailableError } from "./azureOcrService";
 import { resolveOcrProviderWithMeta, type OcrCropResult, type OcrProviderResolution } from "./ocrProvider";
 import { validateScanRows } from "./scanImportValidator";
 
@@ -91,9 +92,9 @@ export function acceptedExtractedMark(
  */
 export function ocrFailureReason(providerName: string, providerReachable: boolean): string {
   if (!providerReachable) {
-    return `OCR service (${providerName}) is unreachable. Enter marks manually from the scan.`;
+    return "OCR temporarily unavailable. Contact platform support.";
   }
-  return `${providerName} returned no text from this crop. Enter the mark manually.`;
+  return `${providerName === "azure" ? "Azure OCR" : providerName} returned no text from this crop. Enter the mark manually.`;
 }
 
 function resultById(results: OcrCropResult[], cropId: string): OcrCropResult {
@@ -300,7 +301,6 @@ export type ExtractionResult = {
   studentCount: number;
   configuredProvider: string;
   activeProvider: string;
-  providerUrl: string;
   providerReachable: boolean;
   fallbackReason: string;
 };
@@ -320,22 +320,30 @@ export async function extractMarksFromScan(
     resolution = await resolveOcrProviderWithMeta(ocrSettings);
   } catch {
     resolution = {
-      provider: { name: "manual", healthCheck: async () => false, recognizeCrops: async (c) => c.map((x) => ({ cropId: x.cropId, text: "", confidence: 0 })) },
-      configuredProvider: "paddleocr",
-      activeProvider: "manual",
-      providerUrl: "",
+      provider: { name: "azure", healthCheck: async () => false, recognizeCrops: async (c) => c.map((x) => ({ cropId: x.cropId, text: "", confidence: 0 })) },
+      configuredProvider: "azure",
+      activeProvider: "azure",
       providerReachable: false,
-      fallbackReason: "Provider resolution failed unexpectedly.",
+      fallbackReason: "",
     };
   }
 
   const providerSummary = {
     configuredProvider: resolution.configuredProvider,
     activeProvider: resolution.activeProvider,
-    providerUrl: resolution.providerUrl,
     providerReachable: resolution.providerReachable,
     fallbackReason: resolution.fallbackReason,
   };
+
+  if (!resolution.providerReachable) {
+    return {
+      parseStatus: "FAILED",
+      message: "OCR temporarily unavailable. Contact platform support.",
+      rows: [],
+      studentCount: 0,
+      ...providerSummary,
+    };
+  }
 
   let scan: { buffer: Buffer; colorBuffer: Buffer; width: number; height: number };
   try {
@@ -415,7 +423,6 @@ export async function extractMarksFromScan(
         ocrProvider: {
           configured: resolution.configuredProvider,
           active: resolution.activeProvider,
-          url: resolution.providerUrl,
           reachable: resolution.providerReachable,
           fallbackReason: resolution.fallbackReason,
         },
@@ -569,7 +576,17 @@ export async function extractMarksFromScan(
         const failure = blockingQualityFailures[0]!;
         extractionNote = `Final crop failed quality check: ${failure.label}: ${failure.reason}`;
       }
-    } catch {
+    } catch (error) {
+      if (isProviderUnavailableError(error)) {
+        return {
+          parseStatus: "FAILED",
+          message: "OCR temporarily unavailable. Contact platform support.",
+          rows: [],
+          studentCount: roster.length,
+          ...providerSummary,
+          providerReachable: false,
+        };
+      }
       extractionNote = ocrFailureReason(resolution.activeProvider, resolution.providerReachable);
     }
 
@@ -601,7 +618,7 @@ export async function extractMarksFromScan(
       splitCropDataUrl,
       splitDigitCropDataUrls,
       tableCropDataUrl: index === 0 ? tableCropDataUrl : undefined,
-      ocrProvider: resolution.activeProvider,
+      ocrProvider: "Azure OCR",
       debugRawOcr: {
         written: writtenResult.rawText,
         split: splitResult.rawText,
@@ -642,9 +659,7 @@ export async function extractMarksFromScan(
     ? `Table detected (confidence ${Math.round(detection.geometryConfidence * 100)}%, col: ${detection.colDetectionMethod}).`
     : "Table not detected — using estimated geometry.";
 
-  const providerNote = resolution.fallbackReason
-    ? ` Provider: ${resolution.activeProvider} (fallback: ${resolution.fallbackReason})`
-    : ` Provider: ${resolution.activeProvider}.`;
+  const providerNote = " OCR provider: Azure.";
 
   return {
     parseStatus: "PARSED",

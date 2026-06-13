@@ -170,21 +170,20 @@ describe("low confidence rejection behaviour", () => {
 // ── ocrFailureReason message accuracy ─────────────────────────────────────────
 
 describe("ocrFailureReason", () => {
-  it("active provider: message says 'no text', not 'unavailable'", () => {
-    const msg = ocrFailureReason("paddleocr", true);
+  it("reachable Azure message says 'no text', not 'unavailable'", () => {
+    const msg = ocrFailureReason("azure", true);
     expect(msg).toMatch(/no text/i);
     expect(msg.toLowerCase()).not.toContain("unavailable");
     expect(msg.toLowerCase()).not.toContain("unreachable");
   });
 
-  it("unreachable provider: message says 'unreachable'", () => {
-    const msg = ocrFailureReason("paddleocr", false);
-    expect(msg).toMatch(/unreachable/i);
+  it("unreachable provider returns the friendly support message", () => {
+    const msg = ocrFailureReason("azure", false);
+    expect(msg).toBe("OCR temporarily unavailable. Contact platform support.");
   });
 
-  it("includes the provider name in the message", () => {
-    expect(ocrFailureReason("paddleocr", true)).toContain("paddleocr");
-    expect(ocrFailureReason("tesseract", false)).toContain("tesseract");
+  it("names Azure OCR for no-text crop failures", () => {
+    expect(ocrFailureReason("azure", true)).toContain("Azure OCR");
   });
 });
 

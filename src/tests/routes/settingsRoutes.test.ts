@@ -238,6 +238,44 @@ describe("settingsRoutes", () => {
     expect(fetchMock.mock.calls[0]?.[0]).toBeInstanceOf(URL);
     expect(res.body.text).toBe("hello world");
     expect(res.body.lines).toEqual(["hello", "world"]);
+    expect(JSON.stringify(res.body)).not.toMatch(/AZURE_OCR_FUNCTION_URL|code=|azurewebsites/i);
+  });
+
+  it("forwards image-byte OCR reads to Azure with auth", async () => {
+    process.env.OCR_ENABLED = "true";
+    process.env.OCR_PROVIDER = "azure";
+    process.env.AZURE_OCR_FUNCTION_URL = "https://azure-ocr.example.test/api/ocr";
+
+    const fetchMock = vi.fn(async () =>
+      new Response(JSON.stringify({ ok: true, provider: "azure", text: "crop text", lines: ["crop text"], raw: {} }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = fetchMock as typeof fetch;
+
+    const token = signToken({
+      userId: "user-1",
+      schoolId: "school-1",
+      name: "Admin",
+      email: "admin@example.test",
+      role: "ADMIN_OPERATOR",
+    });
+
+    const imageBase64 = Buffer.from("crop-bytes").toString("base64");
+    const res = await request(createServer())
+      .post("/internal/ocr/read")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ imageBase64, mimeType: "image/png" });
+
+    globalThis.fetch = originalFetch;
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ provider: "azure", text: "crop text", lines: ["crop text"] });
+    const body = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body)) as Record<string, string>;
+    expect(body).toMatchObject({ imageBase64, mimeType: "image/png" });
+    expect(body).not.toHaveProperty("url");
   });
 
   it("returns 400 and a validation message for an invalid OCR URL", async () => {
@@ -319,7 +357,8 @@ describe("settingsRoutes", () => {
 
     globalThis.fetch = originalFetch;
 
-    expect(res.status).toBe(500);
+    expect(res.status).toBe(503);
+    expect(res.body.error).toBe("OCR is temporarily unavailable. Contact platform support.");
     expect(JSON.stringify(res.body)).not.toMatch(/AZURE_OCR_FUNCTION_URL|code=|function\.azurewebsites/i);
   });
 

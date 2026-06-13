@@ -64,43 +64,23 @@ function detectedToForm(d: DetectedContext): ScanMarksheetContext {
 // ── Provider status badge ──────────────────────────────────────────────────────
 
 function ProviderBadge({ result }: { result: ScanUploadResponse }) {
-  const configured = result.configuredProvider ?? "";
-  const active = result.activeProvider ?? "";
-  const fallback = result.fallbackReason ?? "";
   const reachable = result.providerReachable ?? false;
-
-  if (!configured && !active) return null;
-
-  const isFallback = active !== configured && !!fallback;
 
   return (
     <div className={`mt-2 flex flex-wrap items-start gap-x-3 gap-y-1 rounded-xl border px-3 py-2 text-xs ${
-      isFallback
-        ? "border-amber-200 bg-amber-50 text-amber-800"
-        : reachable
-          ? "border-emerald-100 bg-emerald-50 text-emerald-800"
-          : "border-slate-100 bg-slate-50 text-slate-600"
+      reachable
+        ? "border-emerald-100 bg-emerald-50 text-emerald-800"
+        : "border-red-100 bg-red-50 text-red-700"
     }`}>
-      <span><span className="font-semibold">Configured:</span> {configured || "—"}</span>
-      <span className="text-slate-300">|</span>
       <span>
-        <span className="font-semibold">Active:</span>{" "}
-        <span className={reachable ? "font-bold" : "text-slate-500"}>{active || "manual"}</span>
-        {reachable && active !== "manual" && (
+        <span className="font-semibold">Provider:</span>{" "}
+        <span className={reachable ? "font-bold" : "text-red-700"}>Azure OCR</span>
+        {reachable && (
           <span className="ml-1 inline-flex h-2 w-2 rounded-full bg-emerald-400" title="Reachable" />
         )}
       </span>
-      {isFallback && fallback && (
-        <>
-          <span className="text-slate-300">|</span>
-          <span><span className="font-semibold">Fallback reason:</span> {fallback}</span>
-        </>
-      )}
-      {result.providerUrl && (
-        <>
-          <span className="text-slate-300">|</span>
-          <span className="font-mono text-[10px] text-slate-500">{result.providerUrl}</span>
-        </>
+      {!reachable && (
+        <span>OCR temporarily unavailable. Contact platform support.</span>
       )}
     </div>
   );
@@ -309,7 +289,6 @@ export function ScanUploadPanel() {
               contextWarning: batch.contextWarning,
               configuredProvider: batch.configuredProvider,
               activeProvider: batch.activeProvider,
-              providerUrl: batch.providerUrl,
               providerReachable: batch.providerReachable,
               fallbackReason: batch.fallbackReason,
             };
@@ -749,12 +728,14 @@ export function ScanUploadPanel() {
                 {contextForm.subjectName || uploadResult.resolvedContext?.subjectName || "-"} / {contextForm.examType || uploadResult.resolvedContext?.examType || "-"}
               </p>
               <p>
-                <span className="font-semibold">Active provider:</span>{" "}
-                {uploadResult.activeProvider || "manual"}
+                <span className="font-semibold">OCR provider:</span>{" "}
+                Azure
               </p>
               <p>
-                <span className="font-semibold">Provider note:</span>{" "}
-                {uploadResult.fallbackReason || (uploadResult.activeProvider === "manual" ? "OCR provider unavailable; manual entry mode." : "Provider available.")}
+                <span className="font-semibold">OCR status:</span>{" "}
+                {uploadResult.providerReachable === false
+                  ? "OCR temporarily unavailable. Contact platform support."
+                  : "Provider available."}
               </p>
             </div>
             {uploadResult.contextWarning && (

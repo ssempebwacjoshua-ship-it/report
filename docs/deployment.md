@@ -24,7 +24,7 @@ The server bundle is ~211 KB. npm packages are NOT bundled — they must be inst
 
 Do NOT put these in Vercel:
 
-- `DATABASE_URL`, `JWT_SECRET`, `OCR_PROVIDER`, `AWS_*`, `GOOGLE_*`
+- `DATABASE_URL`, `JWT_SECRET`, `OCR_PROVIDER`, `OCR_ENABLED`, `AZURE_OCR_FUNCTION_URL`
 
 The SPA requires `vercel.json` with a catch-all rewrite so all routes serve `dist/index.html`.
 
@@ -47,7 +47,9 @@ npx prisma migrate deploy && node dist/server/index.js
 | `JWT_SECRET` | A long random string |
 | `CLIENT_ORIGIN` | `https://YOUR-VERCEL-APP.vercel.app` |
 | `NODE_ENV` | `production` |
-| `OCR_PROVIDER` | `manual` (or `google-vision` / `textract`) |
+| `OCR_ENABLED` | `true` |
+| `OCR_PROVIDER` | `azure` |
+| `AZURE_OCR_FUNCTION_URL` | Private Azure Function URL stored only in Railway |
 | `PORT` | Set automatically by Railway — do not override |
 
 `CLIENT_ORIGIN` controls CORS. Parent report links use `CLIENT_ORIGIN` as the base URL.
