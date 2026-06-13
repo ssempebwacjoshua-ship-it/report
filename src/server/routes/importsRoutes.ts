@@ -6,6 +6,7 @@ import { prisma } from "../db/prisma";
 import { commitMarksImport, dryRunMarksImport } from "../services/marksImportService";
 import { finalizedStatus, toAssessmentType } from "../services/marksImportValidator";
 import {
+  findMarksheetIdBySheetNumber,
   resolveContextByMarksheetId,
   resolveScanMarksheetContext,
 } from "../services/marksheetContextService";
@@ -150,7 +151,15 @@ export function importsRoutes() {
 
         const file = req.file;
         const idDetection = file ? await tryDetectMarksheetId(file) : null;
-        const foundId = idDetection?.rawRecognizedId || null;
+        let foundId = idDetection?.rawRecognizedId || null;
+
+        if (!foundId && idDetection?.recognizedSheetNumber) {
+          foundId = await findMarksheetIdBySheetNumber(prisma, school.id, idDetection.recognizedSheetNumber) ?? null;
+          console.log(
+            `[id-detection] sheet-number-lookup sheetNumber=${idDetection.recognizedSheetNumber}` +
+            ` resolved=${foundId ?? "none"}`,
+          );
+        }
 
         const selectedContext = parseOptionalScanContext(req.body.context);
         const selectedMarksheetId = typeof req.body.marksheetId === "string"
@@ -235,8 +244,8 @@ export function importsRoutes() {
    */
   router.get("/api/imports/scans/context", async (req, res, next) => {
     try {
-      const marksheetId = String(req.query.marksheetId ?? "").trim();
-      const schoolCode  = String(req.query.schoolCode  ?? "SCU-PREVIEW").trim();
+      let marksheetId = String(req.query.marksheetId ?? "").trim();
+      const schoolCode = String(req.query.schoolCode ?? "SCU-PREVIEW").trim();
 
       if (!marksheetId) {
         res.status(400).json({ error: "marksheetId query parameter is required." });
@@ -247,6 +256,12 @@ export function importsRoutes() {
       if (!school) {
         res.status(404).json({ error: `School "${schoolCode}" was not found.` });
         return;
+      }
+
+      // Accept sheet number (YYYYMMDD-NNN) in addition to full MS-... IDs
+      if (/^\d{8}-\d{3}$/.test(marksheetId)) {
+        const resolved = await findMarksheetIdBySheetNumber(prisma, school.id, marksheetId);
+        if (resolved) marksheetId = resolved;
       }
 
       const result = await resolveContextByMarksheetId(prisma, school.id, marksheetId);
@@ -304,7 +319,15 @@ export function importsRoutes() {
           ? req.body.recognizedMarksheetId.trim()
           : "";
         const idDetection = bodyRecognizedId ? null : await tryDetectMarksheetId(file);
-        const recognizedMarksheetId = bodyRecognizedId || idDetection?.rawRecognizedId || "";
+        let resolvedIdFromScan = idDetection?.rawRecognizedId ?? "";
+        if (!resolvedIdFromScan && idDetection?.recognizedSheetNumber) {
+          resolvedIdFromScan = await findMarksheetIdBySheetNumber(prisma, school.id, idDetection.recognizedSheetNumber) ?? "";
+          console.log(
+            `[id-detection] sheet-number-lookup sheetNumber=${idDetection.recognizedSheetNumber}` +
+            ` resolved=${resolvedIdFromScan || "none"}`,
+          );
+        }
+        const recognizedMarksheetId = bodyRecognizedId || resolvedIdFromScan;
         const contextResolution = await resolveScanMarksheetContext(prisma, school.id, {
           recognizedMarksheetId,
           recognizedMatchSource: idDetection?.matchSource,

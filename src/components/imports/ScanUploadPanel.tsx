@@ -168,7 +168,7 @@ function ContextForm({
       <div className="mt-4 grid gap-3">
         <label className="grid gap-1 text-xs font-semibold uppercase text-slate-500">
           Marksheet ID
-          <input type="text" value={context.marksheetId} onChange={(e) => set("marksheetId", e.target.value)} placeholder="e.g. MS-2026-SEN1-A-ENGL-EOT-T1" className={inputCls} />
+          <input type="text" value={context.marksheetId} onChange={(e) => set("marksheetId", e.target.value)} placeholder="e.g. MS-2026-SEN1-A-CHEM-EOT-T1" className={inputCls} />
         </label>
 
         <div className="grid grid-cols-2 gap-3">
@@ -359,7 +359,7 @@ export function ScanUploadPanel() {
 
   async function handleIdLookup() {
     if (!manualId.trim()) {
-      setError("Enter a Marksheet ID (e.g. MS-2026-SEN1-A-ENGL-EOT-T1).");
+      setError("Enter a Marksheet ID or Sheet Number (e.g. MS-2026-SEN1-A-CHEM-EOT-T1 or 20260613-265).");
       return;
     }
     setIdLookupBusy(true);
@@ -631,7 +631,7 @@ export function ScanUploadPanel() {
       {phase === "manual_id" && (
         <div className="premium-card grid gap-4 rounded-2xl p-4">
           <div className="flex items-start gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">
-            <p>Marksheet ID not recognized. Confirm the marksheet context manually, or enter the printed Marksheet ID to auto-fill it.</p>
+            <p>Marksheet ID not recognized. Enter the printed Marksheet ID (e.g. MS-2026-SEN1-A-CHEM-EOT-T1) or Sheet Number (e.g. 20260613-265) to auto-fill context, or enter context manually.</p>
           </div>
           <div>
             <label className="block text-xs font-semibold uppercase text-slate-500">Marksheet ID</label>
@@ -641,7 +641,7 @@ export function ScanUploadPanel() {
                 value={manualId}
                 onChange={(e) => setManualId(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && handleIdLookup()}
-                placeholder="MS-2026-SEN1-A-ENGL-EOT-T1"
+                placeholder="MS-2026-SEN1-A-CHEM-EOT-T1 or 20260613-265"
                 className="premium-control flex-1 rounded-xl border border-slate-200 bg-slate-50 p-2 text-sm outline-none focus:border-blue-400 focus:bg-white"
               />
               <button type="button" onClick={handleIdLookup} disabled={idLookupBusy || !manualId.trim()} className="btn btn-primary">
