@@ -149,6 +149,20 @@ export function StudentsPage() {
     importFileInputRef.current?.click();
   }
 
+  function downloadErrorCsv(rowErrors: Array<{ rowNumber: number; admissionNumber?: string; errors: string[] }>) {
+    const header = "rowNumber,admissionNumber,errors\n";
+    const body = rowErrors
+      .map((r) => `${r.rowNumber},"${r.admissionNumber ?? ""}","${r.errors.join("; ").replace(/"/g, "'")}"`)
+      .join("\n");
+    const blob = new Blob([header + body], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "student-import-errors.csv";
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   async function saveContact() {
     if (!selected) return;
     setError("");
@@ -277,11 +291,25 @@ export function StudentsPage() {
                 </button>
               </div>
               {importJob ? (
-                <div className="rounded-xl border border-blue-200 bg-blue-50 p-3 text-sm text-blue-900">
-                  <p className="font-semibold">Import queued</p>
-                  <p className="mt-1">
-                    Status: {String(importJob.status ?? "QUEUED")} | processed: {String(importJob.processedRows ?? 0)} / {String(importJob.totalRows ?? 0)}
+                <div className={`rounded-xl border p-3 text-sm ${String(importJob.status) === "FAILED" ? "border-red-200 bg-red-50 text-red-800" : "border-blue-200 bg-blue-50 text-blue-900"}`}>
+                  <p className="font-semibold">
+                    {String(importJob.status) === "FAILED"
+                      ? `Import failed: ${String(importJob.lastError ?? "Unknown error")}`
+                      : String(importJob.status) === "COMMITTED"
+                        ? `Import completed — ${String(importJob.successCount ?? 0)} added, ${String(importJob.duplicateCount ?? 0)} duplicates skipped, ${String(importJob.failedCount ?? 0)} failed`
+                        : Number(importJob.processedRows ?? 0) > 0
+                          ? `Importing ${String(importJob.processedRows)} / ${String(importJob.totalRows ?? 0)}...`
+                          : "Validating..."}
                   </p>
+                  {Array.isArray(importJob.rowErrors) && importJob.rowErrors.length > 0 ? (
+                    <button
+                      type="button"
+                      className="mt-2 text-xs font-bold underline"
+                      onClick={() => downloadErrorCsv(importJob.rowErrors as Array<{ rowNumber: number; admissionNumber?: string; errors: string[] }>)}
+                    >
+                      Download error CSV ({(importJob.rowErrors as unknown[]).length} rows)
+                    </button>
+                  ) : null}
                 </div>
               ) : null}
               {importPreview ? <pre className="overflow-auto rounded-xl bg-slate-950 p-3 text-xs text-slate-100">{JSON.stringify(importPreview, null, 2)}</pre> : null}

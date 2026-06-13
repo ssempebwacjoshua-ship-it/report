@@ -89,6 +89,8 @@ export type StudentImportPreviewRow = {
   action: "create" | "update" | "duplicate" | "invalid";
   existingStudentId?: string | null;
   generatedAdmissionNumber?: string | null;
+  classId?: string | null;
+  streamId?: string | null;
 };
 
 export type StudentImportPreview = {
