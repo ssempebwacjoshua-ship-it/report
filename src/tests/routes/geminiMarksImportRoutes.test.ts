@@ -2,9 +2,12 @@ import request from "supertest";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 // ── Mocks ───────────────────────────────────────────────────────────────────
-const subjectMarkCreate = vi.fn();
-const subjectMarkUpsert = vi.fn();
-const markImportBatchCreate = vi.fn(async () => ({ id: "job-123" }));
+// vi.hoisted ensures these are available when vi.mock factories run (vi.mock is hoisted).
+const { markImportBatchCreate, subjectMarkCreate, subjectMarkUpsert } = vi.hoisted(() => ({
+  markImportBatchCreate: vi.fn(async () => ({ id: "job-123" })),
+  subjectMarkCreate: vi.fn(),
+  subjectMarkUpsert: vi.fn(),
+}));
 
 vi.mock("../../server/db/prisma", () => ({
   prisma: {

@@ -289,32 +289,34 @@ export function GeminiScanPanel() {
             </table>
           </div>
 
-          {/* Commit (disabled this phase) */}
-          <div className="premium-card rounded-2xl p-4">
-            <label className="flex items-center gap-2 text-sm text-slate-700">
-              <input
-                type="checkbox"
-                checked={reviewConfirmed}
-                onChange={(e) => setReviewConfirmed(e.target.checked)}
-              />
-              I have reviewed every flagged row.
-            </label>
-            <div className="mt-3 flex items-center gap-3">
-              <button
-                type="button"
-                disabled={!canCommit || hasBlocking || !reviewConfirmed}
-                className="btn btn-success"
-                title="Commit is not enabled in this phase"
-              >
-                Commit after review coming next
-              </button>
-              {hasBlocking && (
-                <p className="text-xs text-amber-700">Resolve all blocked and review rows before committing.</p>
-              )}
-            </div>
-          </div>
+          {/* Review confirmation — only meaningful once rows are extracted */}
+          <label className="flex items-center gap-2 text-sm text-slate-700">
+            <input
+              type="checkbox"
+              checked={reviewConfirmed}
+              onChange={(e) => setReviewConfirmed(e.target.checked)}
+            />
+            I have reviewed every flagged row.
+          </label>
+          {hasBlocking && (
+            <p className="text-xs text-amber-700">Resolve all blocked and review rows before committing.</p>
+          )}
         </div>
       )}
+
+      {/* Commit button — always visible as an honest pilot-state signal; always disabled this phase */}
+      <div className="premium-card rounded-2xl p-4">
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            disabled={!canCommit || hasBlocking || !reviewConfirmed}
+            className="btn btn-success"
+            title="Commit is not enabled in this phase"
+          >
+            Commit after review coming next
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
