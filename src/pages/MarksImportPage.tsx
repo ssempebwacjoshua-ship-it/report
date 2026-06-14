@@ -2,6 +2,7 @@ import { useState } from "react";
 import { commitMarksImport, dryRunMarksImport } from "../client/importsClient";
 import { DIGITAL_ACCEPT, downloadCsvTemplate, downloadExcelTemplate, parseMarksFile, validatePastedCsv } from "../client/marksSheetHelpers";
 import { ScanUploadPanel } from "../components/imports/ScanUploadPanel";
+import { GeminiScanPanel } from "../components/imports/GeminiScanPanel";
 import { ImportPreviewTable } from "../components/imports/ImportPreviewTable";
 import type { ImportPreview } from "../shared/types/imports";
 
@@ -12,7 +13,7 @@ S1A-001,Kampala Ssempebwa,Senior 1 A,A,English Language,Term 1,BOT,81,Strong sta
 
 // ── Import mode selector ──────────────────────────────────────────────────────
 
-type ImportMode = "digital" | "scan";
+type ImportMode = "digital" | "scan" | "gemini";
 
 const MODES: Array<{
   id: ImportMode;
@@ -52,6 +53,20 @@ const MODES: Array<{
     ),
     accent: "border-violet-200 hover:border-violet-400",
     badgeColor: "bg-violet-100 text-violet-700",
+  },
+  {
+    id: "gemini",
+    label: "Gemini Scan (Pilot)",
+    badge: "PNG / JPG / JPEG / WEBP / PDF",
+    desc: "Extract marks from a photographed marksheet with Gemini, then review every row before saving.",
+    formats: "PNG, JPG, JPEG, WEBP, PDF",
+    icon: (
+      <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456z" />
+      </svg>
+    ),
+    accent: "border-fuchsia-200 hover:border-fuchsia-400",
+    badgeColor: "bg-fuchsia-100 text-fuchsia-700",
   },
 ];
 
@@ -320,7 +335,7 @@ export function MarksImportPage() {
       </header>
 
       {/* Import mode selector */}
-      <section className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+      <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {MODES.map((mode) => {
           const active = importMode === mode.id;
           return (
@@ -365,7 +380,9 @@ export function MarksImportPage() {
       </section>
 
       {/* Tab content */}
-      {importMode === "digital" ? <DigitalImportPanel /> : <ScanUploadPanel />}
+      {importMode === "digital" && <DigitalImportPanel />}
+      {importMode === "scan" && <ScanUploadPanel />}
+      {importMode === "gemini" && <GeminiScanPanel />}
     </main>
   );
 }

@@ -312,3 +312,47 @@ export type ImportErrorResponse = {
   message: string;
   details: string[];
 };
+
+// ── Gemini marksheet scan import ───────────────────────────────
+
+export type GeminiRowStatus = "READY" | "REVIEW_REQUIRED" | "BLOCKED";
+
+export type GeminiScanContext = {
+  classId: string;
+  streamId: string;
+  subjectId: string;
+  termId: string;
+  examType: string;
+};
+
+export type GeminiScanRow = {
+  rowNumber: number;
+  extractedStudentId: string;
+  extractedStudentName: string;
+  matchedStudentId: string | null;
+  matchedStudentName: string | null;
+  mark: string;
+  confidenceScore: number;
+  status: GeminiRowStatus;
+  issues: string[];
+  raw: Record<string, unknown>;
+};
+
+export type GeminiScanSummary = {
+  totalRows: number;
+  readyRows: number;
+  reviewRows: number;
+  blockedRows: number;
+  missingMarkRows: number;
+  invalidMarkRows: number;
+  unmatchedStudentRows: number;
+  duplicateStudentRows: number;
+};
+
+export type GeminiScanExtractResponse = {
+  success: boolean;
+  jobId: string;
+  count: number;
+  summary: GeminiScanSummary;
+  rows: GeminiScanRow[];
+};

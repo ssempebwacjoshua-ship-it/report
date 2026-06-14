@@ -1,5 +1,7 @@
 import type {
   DetectContextResponse,
+  GeminiScanContext,
+  GeminiScanExtractResponse,
   ImportPreview,
   ScanBatchReloadResponse,
   ScanImportBatch,
@@ -171,5 +173,33 @@ export async function commitScanRows(
     body: JSON.stringify({ schoolCode, context, rows }),
   });
   if (!response.ok) throw new Error(await readImportError(response, "Could not commit scanned marks"));
+  return response.json();
+}
+// ── Gemini marksheet scan extraction ─────────────────────────────
+
+/**
+ * Upload a marksheet image to the Gemini extraction endpoint. Returns the
+ * validated, student-matched review rows. Never commits marks. The Gemini API
+ * key stays on the server — the client only sends the image and context IDs.
+ */
+export async function extractMarksWithGeminiScan(
+  image: File,
+  context: GeminiScanContext,
+  schoolCode = "SCU-PREVIEW",
+): Promise<GeminiScanExtractResponse> {
+  const form = new FormData();
+  form.append("image", image);
+  form.append("classId", context.classId);
+  if (context.streamId) form.append("streamId", context.streamId);
+  form.append("subjectId", context.subjectId);
+  form.append("termId", context.termId);
+  form.append("examType", context.examType);
+  form.append("schoolCode", schoolCode);
+
+  const response = await fetch(`${API_BASE}/api/marks-import/scan/extract`, {
+    method: "POST",
+    body: form,
+  });
+  if (!response.ok) throw new Error(await readImportError(response, "Gemini extraction failed"));
   return response.json();
 }
