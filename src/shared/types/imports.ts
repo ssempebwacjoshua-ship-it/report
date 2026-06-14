@@ -218,6 +218,8 @@ export type MarksheetIdCandidate = {
 
 export type MarksheetIdDebug = {
   headerCropPath?: string;
+  topRightCropPath?: string;
+  expandedTopRightCropPath?: string;
   footerCropPath?: string;
   debugJsonPath?: string;
   rawHeaderText?: string;

@@ -1,6 +1,25 @@
 import request from "supertest";
-import { describe, expect, it } from "vitest";
+import sharp from "sharp";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createServer } from "../../server";
+
+const ocrMockState = vi.hoisted(() => ({
+  idCropTexts: [] as string[],
+}));
+
+vi.mock("../../server/services/azureOcrService", async () => {
+  const actual = await vi.importActual<typeof import("../../server/services/azureOcrService")>(
+    "../../server/services/azureOcrService",
+  );
+  return {
+    ...actual,
+    isAzureOcrConfigured: () => false,
+    readAzureOcrFromImage: vi.fn(async () => {
+      const text = ocrMockState.idCropTexts.shift() ?? "";
+      return { text, lines: text ? [text] : [] };
+    }),
+  };
+});
 
 const SCHOOL = "SCU-PREVIEW";
 const UNKNOWN = "UNKNOWN-SCHOOL-XYZ";
@@ -15,9 +34,27 @@ const validContext = JSON.stringify({
   academicYear: "2026",
 });
 
+beforeEach(() => {
+  ocrMockState.idCropTexts = [];
+});
+
 // Tiny dummy buffer — not a valid image; Sharp will reject it gracefully
 const FAKE_PNG = Buffer.from("not-a-real-png");
 const FAKE_PDF = Buffer.from("%PDF-1.4 fake");
+const TOP_RIGHT_ID_MESSAGE = "Could not read the marksheet ID from the top-right corner. Please upload a clearer image or enter the sheet ID manually.";
+
+async function makeMarksheetScan(): Promise<Buffer> {
+  const svg = `
+    <svg width="1000" height="1400" xmlns="http://www.w3.org/2000/svg">
+      <rect width="100%" height="100%" fill="white"/>
+      <text x="900" y="70" text-anchor="end" font-family="Arial" font-size="24" font-weight="700">MS-2026-SENI-A-MATH-BOT-TE</text>
+      <text x="900" y="105" text-anchor="end" font-family="Arial" font-size="18">SHEET NO: 20260613-265</text>
+      <text x="60" y="160" font-family="Arial" font-size="32" font-weight="700">ACADEMIC MARKSHEET</text>
+      <rect x="40" y="320" width="920" height="720" fill="none" stroke="black" stroke-width="2"/>
+    </svg>
+  `;
+  return sharp(Buffer.from(svg)).png().toBuffer();
+}
 
 // ── Scan upload endpoint ──────────────────────────────────────────────────────
 
@@ -44,7 +81,22 @@ describe("POST /api/imports/scans/upload", () => {
     expect(res.body.error).toBe(true);
     expect(res.body.code).toBe("SHEET_ID_NOT_DETECTED");
     expect(res.body.message).toMatch(/top-right/i);
+    expect(res.body.message).toBe(TOP_RIGHT_ID_MESSAGE);
     expect(Array.isArray(res.body.details)).toBe(true);
+  });
+
+  it("does not return 500 when a valid scan image has no readable sheet ID", async () => {
+    ocrMockState.idCropTexts = ["", "", "", ""];
+
+    const res = await request(createServer())
+      .post("/api/imports/scans/upload")
+      .field("schoolCode", SCHOOL)
+      .attach("file", await makeMarksheetScan(), { filename: "marksheet.png", contentType: "image/png" });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe(true);
+    expect(res.body.code).toBe("SHEET_ID_NOT_DETECTED");
+    expect(res.body.message).toBe(TOP_RIGHT_ID_MESSAGE);
   });
 
   it("returns 400 for unsupported scan file type CSV", async () => {
@@ -246,6 +298,59 @@ describe("POST /api/imports/scans/detect-context", () => {
     expect(res.status).toBe(200);
     expect(["DETECTED", "PARTIAL", "NOT_FOUND", "ERROR"]).toContain(res.body.detectionStatus);
     expect(typeof res.body.message).toBe("string");
+  });
+
+  it("detects sheet ID from normal top-right crop", async () => {
+    ocrMockState.idCropTexts = [
+      "Marksheet ID: MS-2026-SENI-A-MATH-BOT-TE",
+      "",
+      "",
+      "",
+    ];
+
+    const res = await request(createServer())
+      .post("/api/imports/scans/detect-context")
+      .field("schoolCode", SCHOOL)
+      .attach("file", await makeMarksheetScan(), { filename: "scan.png", contentType: "image/png" });
+
+    expect(res.status).toBe(200);
+    expect(res.body.detectionStatus).toBe("DETECTED");
+    expect(res.body.normalizedRecognizedId).toBe("MS-2026-SEN1-A-MATH-BOT-TE");
+    expect(res.body.matchSource).toBe("header");
+    expect(res.body.contextSource).toBe("recognized-id");
+  });
+
+  it("detects sheet ID from slightly shifted top-right crop", async () => {
+    ocrMockState.idCropTexts = [
+      "",
+      "Marksheet ID: MS-2026-SENI-A-MATH-BOT-TE",
+      "",
+      "",
+    ];
+
+    const res = await request(createServer())
+      .post("/api/imports/scans/detect-context")
+      .field("schoolCode", SCHOOL)
+      .attach("file", await makeMarksheetScan(), { filename: "scan.png", contentType: "image/png" });
+
+    expect(res.status).toBe(200);
+    expect(res.body.detectionStatus).toBe("DETECTED");
+    expect(res.body.normalizedRecognizedId).toBe("MS-2026-SEN1-A-MATH-BOT-TE");
+    expect(res.body.matchSource).toBe("header");
+    expect(res.body.contextSource).toBe("recognized-id");
+  });
+
+  it("returns SHEET_ID_NOT_DETECTED-style message when OCR finds no sheet ID", async () => {
+    ocrMockState.idCropTexts = ["", "", "", ""];
+
+    const res = await request(createServer())
+      .post("/api/imports/scans/detect-context")
+      .field("schoolCode", SCHOOL)
+      .attach("file", await makeMarksheetScan(), { filename: "scan.png", contentType: "image/png" });
+
+    expect(res.status).toBe(200);
+    expect(res.body.detectionStatus).toBe("NOT_FOUND");
+    expect(res.body.message).toBe(TOP_RIGHT_ID_MESSAGE);
   });
 
   it("resolves context when explicit marksheetId field provided (no file needed)", async () => {

@@ -20,6 +20,8 @@ import { parseScanMark, validateScanRows } from "../services/scanImportValidator
 import { getSettingsSections } from "../repositories/settingsRepository";
 
 const SCAN_FILE_TYPES = new Set(["PDF", "PNG", "JPG", "JPEG", "WEBP"]);
+const SHEET_ID_NOT_DETECTED_MESSAGE =
+  "Could not read the marksheet ID from the top-right corner. Please upload a clearer image or enter the sheet ID manually.";
 
 function importErr(code: string, message: string, extra?: Record<string, unknown>) {
   return { error: true as const, code, message, details: [] as string[], ...extra };
@@ -207,12 +209,15 @@ export function importsRoutes() {
         const matchMetadata = detectionMetadata(idDetection);
 
         if (!resolution.resolvedContext) {
+          const message = file
+            ? SHEET_ID_NOT_DETECTED_MESSAGE
+            : "No file uploaded and no marksheet ID provided.";
           res.json({
             detected: null,
             detectionStatus: "NOT_FOUND",
-            message: file
-              ? "Could not read the marksheet ID from the top-right corner. Please upload a clearer image or enter the sheet ID manually."
-              : "No file uploaded and no marksheet ID provided.",
+            message,
+            code: file ? "SHEET_ID_NOT_DETECTED" : "MISSING_MARKSHEET_ID",
+            details: [],
             ocrFoundId: foundId,
             recognizedMarksheetId: resolution.recognizedMarksheetId,
             normalizedMarksheetId: resolution.normalizedMarksheetId,
@@ -377,7 +382,7 @@ export function importsRoutes() {
           const code = userProvidedContext ? "CONTEXT_REQUIRED" : "SHEET_ID_NOT_DETECTED";
           const message = userProvidedContext
             ? "Marksheet context is required before extraction. Provide or confirm the class, stream, subject, term, and exam type."
-            : "Could not read the marksheet ID from the top-right corner. Please upload a clearer image or enter the sheet ID manually.";
+            : SHEET_ID_NOT_DETECTED_MESSAGE;
           res.status(400).json(importErr(code, message, { marksheetIdDebug: idDetection?.debug, ...contextResolution }));
           return;
         }

@@ -47,6 +47,7 @@ const rows = [
   },
 ];
 
+const sheetIdMessage = "Could not read the marksheet ID from the top-right corner. Please upload a clearer image or enter the sheet ID manually.";
 const removedProviderPattern = new RegExp(["paddle" + "ocr", "tesser" + "act", "tex" + "tract", "google" + "vision", "fallback"].join("|"), "i");
 
 describe("ScanUploadPanel", () => {
@@ -182,5 +183,20 @@ describe("ScanUploadPanel", () => {
     expect(screen.getAllByText("Auto-detected from scan").length).toBeGreaterThan(0);
     expect(screen.getAllByText(context.marksheetId).length).toBeGreaterThan(0);
     expect(screen.queryByText(removedProviderPattern)).not.toBeInTheDocument();
+  });
+
+  it("shows structured top-right sheet ID fallback message", async () => {
+    vi.mocked(detectScanContext).mockRejectedValue(new Error(sheetIdMessage));
+
+    render(<ScanUploadPanel />);
+
+    const file = new File(["scan"], "marksheet.png", { type: "image/png" });
+    const input = screen.getByLabelText(/Choose a scanned marksheet/i);
+    fireEvent.change(input, { target: { files: [file] } });
+
+    expect(await screen.findByText(sheetIdMessage)).toBeInTheDocument();
+    expect(screen.getByText(/Enter the printed Marksheet ID/i)).toBeInTheDocument();
+    expect(screen.queryByText(/Unexpected error/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/^Server error$/i)).not.toBeInTheDocument();
   });
 });

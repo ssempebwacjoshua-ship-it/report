@@ -90,28 +90,28 @@ function marksheetIdRects(width: number, height: number): Record<"header" | "foo
 
 /**
  * Specific top-right corner crop where the marksheet ID is printed.
- * Uses a generous left boundary (55 % of page width) to tolerate shifted or
+ * Uses a generous left boundary (50 % of page width) to tolerate shifted or
  * slightly skewed photos.  Starts from y=0 (above the print margin) so the ID
  * is still captured even when the page is slightly low in the frame.
  */
 function topRightIdRect(width: number, height: number): PixelRect {
-  const x = Math.max(0, Math.round(0.55 * width));
+  const x = Math.max(0, Math.round(0.50 * width));
   const h = Math.min(
-    Math.round((LAYOUT.marginTopFrac + LAYOUT.headerHFrac + 0.025) * height),
-    Math.round(0.28 * height),
+    Math.round((LAYOUT.marginTopFrac + LAYOUT.headerHFrac + 0.04) * height),
+    Math.round(0.33 * height),
   );
   return clampRect({ x, y: 0, w: width - x, h }, width, height);
 }
 
 /**
  * Expanded top-right crop — wider horizontal margin for skewed / shifted scans.
- * Starts at 42 % to catch prints shifted to the left.
+ * Starts at 34 % to catch prints shifted to the left.
  */
 function expandedTopRightIdRect(width: number, height: number): PixelRect {
-  const x = Math.max(0, Math.round(0.42 * width));
+  const x = Math.max(0, Math.round(0.34 * width));
   const h = Math.min(
-    Math.round((LAYOUT.marginTopFrac + LAYOUT.headerHFrac + 0.035) * height),
-    Math.round(0.32 * height),
+    Math.round((LAYOUT.marginTopFrac + LAYOUT.headerHFrac + 0.06) * height),
+    Math.round(0.38 * height),
   );
   return clampRect({ x, y: 0, w: width - x, h }, width, height);
 }
@@ -258,6 +258,8 @@ async function writeDebugArtifacts(
     failureReason: result.failureReason,
     debugCrops: {
       headerIdCrop: path.join(DEBUG_DIR, "marksheet-id-header-crop.jpg"),
+      topRightIdCrop: path.join(DEBUG_DIR, "marksheet-id-topright-crop.jpg"),
+      expandedTopRightIdCrop: path.join(DEBUG_DIR, "marksheet-id-topright-expanded-crop.jpg"),
       footerIdCrop: path.join(DEBUG_DIR, "marksheet-id-footer-crop.jpg"),
     },
   };
@@ -297,10 +299,14 @@ export async function detectMarksheetIdFromScan(
 
   // Save debug crops (best effort — filesystem may not be writable on all platforms)
   const headerCropPath = path.join(DEBUG_DIR, "marksheet-id-header-crop.jpg");
+  const topRightCropPath = path.join(DEBUG_DIR, "marksheet-id-topright-crop.jpg");
+  const expandedTopRightCropPath = path.join(DEBUG_DIR, "marksheet-id-topright-expanded-crop.jpg");
   const footerCropPath = path.join(DEBUG_DIR, "marksheet-id-footer-crop.jpg");
   try {
     await Promise.all([
       fs.writeFile(headerCropPath, headerCrop),
+      fs.writeFile(topRightCropPath, topRightCrop),
+      fs.writeFile(expandedTopRightCropPath, expandedTopRightCrop),
       fs.writeFile(footerCropPath, footerCrop),
     ]);
   } catch { /* best effort */ }
@@ -374,6 +380,8 @@ export async function detectMarksheetIdFromScan(
     failureReason,
     debug: {
       headerCropPath,
+      topRightCropPath,
+      expandedTopRightCropPath,
       footerCropPath,
       debugJsonPath: path.join(DEBUG_DIR, "marksheet-id-detection.json"),
       rawHeaderText: primaryHeaderText,

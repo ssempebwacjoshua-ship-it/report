@@ -348,9 +348,11 @@ export function ScanUploadPanel() {
         setContextForm(result.resolvedContext ?? detectedToForm(result.detected));
         setPhase("context_review");
       } else {
+        setError(result.message || "Could not read the marksheet ID from the top-right corner. Please upload a clearer image or enter the sheet ID manually.");
         setPhase("manual_id");
       }
-    } catch {
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not read the marksheet ID from the top-right corner. Please upload a clearer image or enter the sheet ID manually.");
       setPhase("manual_id");
     }
   }
