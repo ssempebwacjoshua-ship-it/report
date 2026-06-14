@@ -298,6 +298,85 @@ export async function stripHorizontalBorders(croppedBuffer: Buffer): Promise<Buf
   return sharp(data, { raw: { width: w, height: h, channels: 1 } }).jpeg({ quality: 90 }).toBuffer();
 }
 
+/**
+ * Search a mark-cell region for handwritten (blue-ink) strokes and return a crop
+ * tightly bounding them, padded slightly. Unlike a blind shift, this locates the
+ * actual handwriting within the full cell so a fallback crop lands on the mark.
+ *
+ * Uses the same blue-dominant rule as cropCellBlueIsolated. Returns null when no
+ * ink is found or the buffer has no colour channels.
+ */
+export async function findInkRowBandCrop(
+  colorBuffer: Buffer,
+  cellRect: PixelRect,
+): Promise<PixelRect | null> {
+  let data: Buffer;
+  let info: sharp.OutputInfo;
+  try {
+    const result = await sharp(colorBuffer)
+      .extract({ left: cellRect.x, top: cellRect.y, width: cellRect.w, height: cellRect.h })
+      .raw()
+      .toBuffer({ resolveWithObject: true });
+    data = result.data;
+    info = result.info;
+  } catch {
+    return null;
+  }
+  if (info.channels < 3) return null;
+
+  const ch = info.channels;
+  const w = info.width;
+  const h = info.height;
+  const isInk = (i: number): boolean => {
+    const r = data[i] ?? 255;
+    const g = data[i + 1] ?? 255;
+    const b = data[i + 2] ?? 255;
+    return b > r + 15 && b > g + 10 && b > 80;
+  };
+
+  // Vertical extent of ink rows.
+  const rowThreshold = Math.max(1, Math.round(w * 0.02));
+  let top = -1;
+  let bottom = -1;
+  for (let y = 0; y < h; y++) {
+    let ink = 0;
+    for (let x = 0; x < w; x++) if (isInk((y * w + x) * ch)) ink++;
+    if (ink >= rowThreshold) {
+      if (top < 0) top = y;
+      bottom = y;
+    }
+  }
+  if (top < 0) return null;
+
+  const marginY = Math.round((bottom - top + 1) * 0.3) + 4;
+  const y0 = Math.max(0, top - marginY);
+  const y1 = Math.min(h - 1, bottom + marginY);
+
+  // Horizontal extent of ink within the vertical band.
+  const colThreshold = Math.max(1, Math.round((y1 - y0 + 1) * 0.05));
+  let left = -1;
+  let right = -1;
+  for (let x = 0; x < w; x++) {
+    let ink = 0;
+    for (let y = y0; y <= y1; y++) if (isInk((y * w + x) * ch)) ink++;
+    if (ink >= colThreshold) {
+      if (left < 0) left = x;
+      right = x;
+    }
+  }
+  if (left < 0) { left = 0; right = w - 1; }
+  const marginX = Math.round((right - left + 1) * 0.3) + 4;
+  const x0 = Math.max(0, left - marginX);
+  const x1 = Math.min(w - 1, right + marginX);
+
+  return {
+    x: cellRect.x + x0,
+    y: cellRect.y + y0,
+    w: Math.max(1, x1 - x0 + 1),
+    h: Math.max(1, y1 - y0 + 1),
+  };
+}
+
 export type CropSelection = {
   rect: PixelRect;
   strategy: CropStrategy;

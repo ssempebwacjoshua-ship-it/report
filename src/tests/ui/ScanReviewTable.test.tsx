@@ -73,6 +73,22 @@ describe("ScanReviewTable fallback crop debug", () => {
     expect(screen.queryByText(/OCR temporarily unavailable/i)).not.toBeInTheDocument();
   });
 
+  it("shows the crop-alignment failure message and never 'OCR unavailable' for a crop failure", () => {
+    const row = baseRow({
+      statusReason: "Crop alignment failed. Could not isolate the handwritten mark. Please enter mark manually.",
+      geometryDebug: geometry({
+        fallbackCropUsed: true,
+        cropQualityReason: "Crop mostly dark (border or solid region)",
+        cropRejectionReason: "written: Crop mostly dark (border or solid region)",
+      }),
+    });
+
+    render(<ScanReviewTable rows={[row]} providerInfo={{ providerReachable: true }} />);
+
+    expect(screen.getAllByText(/crop alignment failed/i).length).toBeGreaterThan(0);
+    expect(screen.queryByText(/OCR temporarily unavailable/i)).not.toBeInTheDocument();
+  });
+
   it("renders the original candidate crop thumbnail alongside the selected crop", () => {
     const row = baseRow({
       writtenCropDataUrl: "data:image/jpeg;base64,SELECTED",

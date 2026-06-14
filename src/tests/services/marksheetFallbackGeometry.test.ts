@@ -381,9 +381,120 @@ describe("existing valid crop still works", () => {
 });
 
 describe("cropFailureReason", () => {
-  it("asks the operator to enter the mark manually, not that OCR is unavailable", () => {
+  it("reports crop alignment failure and asks for manual entry, not OCR unavailable", () => {
     const msg = cropFailureReason();
-    expect(msg).toMatch(/enter the mark manually/i);
+    expect(msg).toMatch(/crop alignment failed/i);
+    expect(msg).toMatch(/enter mark manually/i);
     expect(msg.toLowerCase()).not.toContain("unavailable");
+  });
+});
+
+// ── Row-band geometry (tiny-row / border-line root cause) ────────────────────────
+//
+// On real scans the horizontal-line detector can lock onto printed row borders,
+// producing data rows only ~14–18px tall. Cropping row.y..row.y+row.h then lands
+// on the border, not the handwriting. The fix reconstructs a usable row band and
+// crops its inner 20–80% region.
+
+import {
+  MIN_ROW_BAND_H,
+  effectiveRowBand,
+  innerRowBandRect,
+  isCropHeightValid,
+} from "../../server/services/marksheetTableDetection";
+import type { TableDetectionResult } from "../../server/services/marksheetTableDetection";
+
+/** Build a detection-like object with uniformly thin (border-contaminated) rows. */
+function detectionWithThinRows(rowH: number, rowCount = 26): TableDetectionResult {
+  const tableTop = 1276;
+  const columnHeaderBottom = 1400;
+  const tableBottom = 5930;
+  const dataRows = Array.from({ length: rowCount }, (_, i) => ({
+    x: 99, y: columnHeaderBottom + i * rowH, w: 4591, h: rowH,
+  }));
+  return {
+    method: "detected",
+    tableLeft: 99, tableRight: 4690, tableTop, tableBottom,
+    columnHeaderBottom,
+    rowLines: [], colLines: [],
+    dataRows,
+    columnBoundaries: {
+      tableLeft: 99, noRight: 360, admNoRight: 990, studentNameRight: 2514,
+      writtenMarkRight: 3253, splitMarkRight: 4016, tableRight: 4690,
+    },
+    writtenMarkCol: { x: 2514, w: 739 },
+    splitMarkCol: { x: 3253, w: 763 },
+    splitZoneDividers: [],
+    confidence: 0.7, geometryConfidence: 0.7,
+    colDetectionMethod: "detected",
+    warnings: [],
+  };
+}
+
+describe("minimum crop height rule", () => {
+  it("treats a 14px crop height as invalid", () => {
+    expect(isCropHeightValid(14)).toBe(false);
+    expect(isCropHeightValid(18)).toBe(false);
+  });
+
+  it("accepts a plausible mark-cell height", () => {
+    expect(isCropHeightValid(MIN_ROW_BAND_H)).toBe(true);
+    expect(isCropHeightValid(120)).toBe(true);
+  });
+});
+
+describe("innerRowBandRect", () => {
+  it("crops the inner 20–80% of the band, inset horizontally", () => {
+    const rect = innerRowBandRect(1000, 1180, 2514, 739);
+    // Vertical: y ≈ top + 20%, h ≈ 60%
+    expect(rect.y).toBeGreaterThanOrEqual(1030);
+    expect(rect.y).toBeLessThanOrEqual(1042);
+    expect(rect.h).toBeGreaterThanOrEqual(100);
+    expect(rect.h).toBeLessThanOrEqual(115);
+    // Horizontal inset away from vertical borders
+    expect(rect.x).toBeGreaterThan(2514);
+    expect(rect.x + rect.w).toBeLessThan(2514 + 739);
+  });
+});
+
+describe("effectiveRowBand reconstructs thin detected rows", () => {
+  it("ignores a 14px detected row and rebuilds the band from table body height", () => {
+    const detection = detectionWithThinRows(14);
+    const band = effectiveRowBand(detection, 5);
+    expect(band.reconstructed).toBe(true);
+    expect(band.height).toBeGreaterThanOrEqual(MIN_ROW_BAND_H);
+  });
+
+  it("keeps a healthy detected row as-is", () => {
+    const detection = detectionWithThinRows(170);
+    const band = effectiveRowBand(detection, 5);
+    expect(band.reconstructed).toBe(false);
+    expect(band.height).toBe(170);
+  });
+});
+
+describe("computeWrittenMarkCropRect avoids tiny border crops", () => {
+  it("produces a tall inner-band crop even when detected rows are 14px", () => {
+    const detection = detectionWithThinRows(14);
+    const rect = computeWrittenMarkCropRect(detection, 5, 5100, 7013);
+    // Must be far taller than the 14px border row it replaced.
+    expect(rect.h).toBeGreaterThanOrEqual(50);
+    expect(rect.h).toBeLessThanOrEqual(detection.tableBottom);
+  });
+});
+
+describe("vertical border contamination triggers an inward crop", () => {
+  it("selectBestCrop moves the crop x inward when a vertical border hugs the edge", async () => {
+    const W = 200, H = 160;
+    const base: PixelRect = { x: 40, y: 20, w: 100, h: 120 };
+    const img = await rawImage(W, H, (px) => {
+      // Vertical border line on the left edge of the cell.
+      fillRect(px, W, 40, 20, 47, 140, 0);
+      // Handwritten mark, centred.
+      fillRect(px, W, 84, 70, 108, 100, 0);
+    });
+    const best = await selectBestCrop(img, generateWrittenCropCandidates(base, W, H));
+    expect(best.quality.ok).toBe(true);
+    expect(best.rect.x).toBeGreaterThan(base.x);
   });
 });

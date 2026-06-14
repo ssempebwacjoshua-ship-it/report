@@ -87,6 +87,17 @@ const FALLBACK_V_PAD = 2;
 export const MIN_CROP_W = 40;
 export const MIN_CROP_H = 18;
 
+/**
+ * Minimum row-band height (ORIGINAL image px) for a detected row to be trusted.
+ *
+ * On high-resolution scans (e.g. 5100×7013) a real marksheet row is ~150–200px
+ * tall. When the horizontal-line detector locks onto closely-spaced printed
+ * borders it can emit rows only ~14–18px tall — far too short to contain a
+ * handwritten mark. Anything below this threshold is treated as border noise and
+ * the row band is reconstructed from the overall table-body height instead.
+ */
+export const MIN_ROW_BAND_H = 40;
+
 // ── Fallback geometry ──────────────────────────────────────────────────────────
 
 const CALIBRATED_BOUNDARY_FRACS = {
@@ -731,16 +742,83 @@ export function finalCropRect(
   return { x, y, w, h };
 }
 
+// ── Row-band resolution ──────────────────────────────────────────────────────
+
+export type RowBand = { top: number; bottom: number; height: number; reconstructed: boolean };
+
+/** True when a crop/row band is tall enough (original px) to hold a handwritten mark. */
+export function isCropHeightValid(height: number): boolean {
+  return height >= MIN_ROW_BAND_H;
+}
+
 /**
- * Compute the final padded crop rect for the Written Mark cell of a given row.
+ * Resolve a usable vertical row band for a data row.
  *
- * Uses CELL_H_PAD / CELL_V_PAD for detected geometry (where printed borders must
- * be cleared), and smaller FALLBACK_H_PAD / FALLBACK_V_PAD for estimated geometry
- * (no printed borders to clear).
+ * When the detected row height is implausibly small (the detector locked onto a
+ * printed border line), the band is reconstructed by dividing the table body
+ * evenly across the roster — giving a realistic ~150–200px band on hi-res scans
+ * instead of a 14px border sliver. Also handles rowIndex beyond the detected
+ * rows by extrapolating within the table body.
+ */
+export function effectiveRowBand(
+  detection: TableDetectionResult,
+  rowIndex: number,
+  _imgH = 0,
+): RowBand {
+  const rowCount = Math.max(1, detection.dataRows.length);
+  const bodyTop = detection.columnHeaderBottom || detection.tableTop;
+  const bodyBottom = detection.tableBottom;
+  const reconstructedH = (bodyBottom - bodyTop) / rowCount;
+  const row = detection.dataRows[rowIndex];
+
+  if (row && row.h >= MIN_ROW_BAND_H) {
+    return { top: row.y, bottom: row.y + row.h, height: row.h, reconstructed: false };
+  }
+
+  // Detected row missing or too thin: reconstruct from the table body if that
+  // yields a plausible band height.
+  if (reconstructedH >= MIN_ROW_BAND_H) {
+    const top = Math.round(bodyTop + rowIndex * reconstructedH);
+    const height = Math.round(reconstructedH);
+    return { top, bottom: top + height, height, reconstructed: true };
+  }
+
+  // Neither detected nor reconstructed band clears the minimum (small estimated
+  // geometry / unit-test images): use the detected row as-is so downstream
+  // adaptive-padding guards apply.
+  if (row) {
+    return { top: row.y, bottom: row.y + row.h, height: row.h, reconstructed: false };
+  }
+  const top = Math.round(bodyTop + rowIndex * reconstructedH);
+  const height = Math.max(1, Math.round(reconstructedH));
+  return { top, bottom: top + height, height, reconstructed: true };
+}
+
+/**
+ * Crop the INNER portion of a row band (vertical 20%–80%) to avoid the printed
+ * top/bottom border lines, and inset horizontally to clear vertical column
+ * borders. Targets the handwritten-mark area, not the grid.
+ */
+export function innerRowBandRect(top: number, bottom: number, colX: number, colW: number): PixelRect {
+  const height = Math.max(1, bottom - top);
+  const innerTop = Math.round(top + height * 0.2);
+  const innerH = Math.max(1, Math.round(height * 0.6));
+  const xInset = Math.max(2, Math.round(colW * 0.08));
+  return {
+    x: Math.max(0, Math.round(colX + xInset)),
+    y: Math.max(0, innerTop),
+    w: Math.max(1, Math.round(colW - 2 * xInset)),
+    h: innerH,
+  };
+}
+
+/**
+ * Compute the crop rect for the Written Mark cell of a given row.
  *
- * When the row index exceeds the dataRows array (unusual edge case for detected
- * tables with fewer rows than the roster), the last row is extrapolated rather than
- * using the fractional geometry which overflows for large row counts.
+ * For detected (or reconstructed) geometry the crop targets the inner 20–80% of
+ * the row band, avoiding the printed borders that previously produced 14–18px
+ * border-only crops. For small estimated geometry it falls back to the adaptive
+ * finalCropRect padding so minimum-size guards still hold.
  */
 export function computeWrittenMarkCropRect(
   detection: TableDetectionResult,
@@ -748,32 +826,21 @@ export function computeWrittenMarkCropRect(
   imgW = 0,
   imgH = 0,
 ): PixelRect {
-  const row = detection.dataRows[rowIndex];
   const wc = detection.writtenMarkCol;
+  const band = effectiveRowBand(detection, rowIndex, imgH);
 
-  if (!row) {
-    // Extrapolate from the last known data row rather than using dataRowRegion(),
-    // which overflows for rowIndex > ~50 on typical A4 scans.
-    const lastRow = detection.dataRows[detection.dataRows.length - 1];
-    if (lastRow && imgW > 0 && imgH > 0) {
-      const avgH = detection.dataRows.length > 0
-        ? Math.round(detection.dataRows.reduce((s, r) => s + r.h, 0) / detection.dataRows.length)
-        : Math.max(MIN_CROP_H + 4, Math.round(LAYOUT.dataRowHFrac * imgH));
-      const extraY = lastRow.y + lastRow.h + (rowIndex - detection.dataRows.length) * avgH;
-      if (extraY < imgH) {
-        const syntheticRow: PixelRect = { x: wc.x, y: extraY, w: wc.w, h: avgH };
-        const hPad = detection.method === "fallback" ? FALLBACK_H_PAD : CELL_H_PAD;
-        const vPad = detection.method === "fallback" ? FALLBACK_V_PAD : CELL_V_PAD;
-        return finalCropRect(syntheticRow.x, syntheticRow.x + syntheticRow.w, syntheticRow.y, syntheticRow.y + syntheticRow.h, hPad, vPad);
-      }
-    }
-    // Last resort: fractional geometry (may overflow for very large rowIndex)
-    return cellToPixel(COLUMNS.writtenMark, dataRowRegion(rowIndex), imgW, imgH, 0.08);
+  // Detected (or reconstructed) row band is tall enough: crop its inner region so
+  // the printed top/bottom border lines are excluded and only the handwritten
+  // mark area remains.
+  if (band.height >= MIN_ROW_BAND_H) {
+    return innerRowBandRect(band.top, band.bottom, wc.x, wc.w);
   }
 
+  // Band too short for an inner crop (estimated/fallback geometry on small images):
+  // keep the existing adaptive-padding behaviour so minimum-size guards still hold.
   const hPad = detection.method === "fallback" ? FALLBACK_H_PAD : CELL_H_PAD;
   const vPad = detection.method === "fallback" ? FALLBACK_V_PAD : CELL_V_PAD;
-  return finalCropRect(wc.x, wc.x + wc.w, row.y, row.y + row.h, hPad, vPad);
+  return finalCropRect(wc.x, wc.x + wc.w, band.top, band.bottom, hPad, vPad);
 }
 
 /**
@@ -812,8 +879,12 @@ export function computeSplitZoneRects(
 
   const splitLeft = sc.x;
   const splitRight = sc.x + sc.w;
-  const rowTop = row.y;
-  const rowBottom = row.y + row.h;
+  // Use the inner 20–80% of the (possibly reconstructed) row band so the printed
+  // top/bottom row borders are excluded from the split-zone crops.
+  const band = effectiveRowBand(detection, rowIndex, imgH);
+  const useInner = band.height >= MIN_ROW_BAND_H;
+  const rowTop = useInner ? Math.round(band.top + band.height * 0.2) : band.top;
+  const rowBottom = useInner ? Math.round(band.top + band.height * 0.8) : band.bottom;
 
   // Filter dividers to those within this split column
   const dividers = detection.splitZoneDividers
@@ -882,12 +953,14 @@ export function computeSplitFullRect(
   detection: TableDetectionResult,
   rowIndex: number,
 ): PixelRect {
-  const row = detection.dataRows[rowIndex];
   const sc = detection.splitMarkCol;
-  if (!row) return { x: sc.x, y: 0, w: sc.w, h: 1 };
+  const band = effectiveRowBand(detection, rowIndex);
+  if (band.height >= MIN_ROW_BAND_H) {
+    return innerRowBandRect(band.top, band.bottom, sc.x, sc.w);
+  }
   const hPad = detection.method === "fallback" ? FALLBACK_H_PAD : CELL_H_PAD;
   const vPad = detection.method === "fallback" ? FALLBACK_V_PAD : CELL_V_PAD;
-  return finalCropRect(sc.x, sc.x + sc.w, row.y, row.y + row.h, hPad, vPad);
+  return finalCropRect(sc.x, sc.x + sc.w, band.top, band.bottom, hPad, vPad);
 }
 
 // ── Fallback crop candidates ─────────────────────────────────────────────────
@@ -904,7 +977,8 @@ export type CropStrategy =
   | "shift-up"
   | "center-inner"
   | "zone-left"
-  | "zone-right";
+  | "zone-right"
+  | "ink-band";
 
 export type CropCandidate = { strategy: CropStrategy; rect: PixelRect };
 

@@ -12,6 +12,7 @@ import {
   bufferToDataUrl,
   cropCellBlueIsolated,
   cropPreview,
+  findInkRowBandCrop,
   preprocessScanImage,
   selectBestCrop,
   stripHorizontalBorders,
@@ -21,8 +22,10 @@ import {
   computeSplitZoneRects,
   computeWrittenMarkCropRect,
   detectMarksheetTable,
+  effectiveRowBand,
   generateSplitZoneCropCandidates,
   generateWrittenCropCandidates,
+  type CropCandidate,
   type TableDetectionResult,
 } from "./marksheetTableDetection";
 import {
@@ -107,7 +110,7 @@ export function ocrFailureReason(providerName: string, providerReachable: boolea
  * operator should enter the mark manually rather than being told OCR is down.
  */
 export function cropFailureReason(): string {
-  return "Could not isolate the handwritten mark. Please enter mark manually.";
+  return "Crop alignment failed. Could not isolate the handwritten mark. Please enter mark manually.";
 }
 
 function resultById(results: OcrCropResult[], cropId: string): OcrCropResult {
@@ -507,7 +510,18 @@ export async function extractMarksFromScan(
       // fallback recrop candidates and pick the best-scoring (border/blank-free)
       // crop BEFORE sending anything to OCR.
       const writtenCandidates = generateWrittenCropCandidates(writtenRect, scan.width, scan.height);
-      const writtenPick = await selectBestCrop(scan.buffer, writtenCandidates);
+
+      // Prepend an ink-band candidate: search the full mark cell for handwriting
+      // strokes and crop tightly around them (rather than shifting blindly).
+      const wc = detection.writtenMarkCol;
+      const band = effectiveRowBand(detection, index, scan.height);
+      const fullCell = { x: wc.x, y: band.top, w: wc.w, h: Math.max(1, band.height) };
+      const inkRect = await findInkRowBandCrop(scan.colorBuffer, fullCell);
+      const candidatesWithInk: CropCandidate[] = inkRect
+        ? [{ strategy: "ink-band", rect: inkRect }, ...writtenCandidates]
+        : writtenCandidates;
+
+      const writtenPick = await selectBestCrop(scan.buffer, candidatesWithInk);
       writtenFinalRect = writtenPick.rect;
       fallbackStrategy = writtenPick.strategy;
       let writtenQuality = writtenPick.quality;
