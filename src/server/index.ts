@@ -18,6 +18,7 @@ import { verifyRoutes } from "./routes/verifyRoutes";
 import { ocrRoutes } from "./routes/ocrRoutes";
 import { documentCleanerRoutes } from "./routes/documentCleanerRoutes";
 import geminiOcrRoutes from "./routes/geminiOcrRoutes";
+import geminiRosterRoutes from "./routes/geminiRosterRoutes";
 import { prisma } from "./db/prisma";
 import { recoverStaleStudentImportJobs } from "./services/studentImportService";
 
@@ -41,7 +42,8 @@ export function createServer() {
   app.use(ocrRoutes());
   app.use(documentCleanerRoutes());
   app.use("/api", geminiOcrRoutes);
-  console.log("[Gemini OCR] routes mounted at /api/test-gemini-marks");
+  app.use("/api", geminiRosterRoutes);
+  console.log("[Gemini OCR] routes mounted at /api/test-gemini-marks and /api/test-gemini-roster");
 
   const errorHandler: ErrorRequestHandler = (error, req, res, _next) => {
     if (error instanceof ZodError) {

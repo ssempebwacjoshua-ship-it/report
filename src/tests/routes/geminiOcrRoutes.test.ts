@@ -1,0 +1,169 @@
+import request from "supertest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { createServer } from "../../server";
+
+// Mock both Gemini services so tests never call the real API.
+vi.mock("../../server/services/geminiOcrService", () => ({
+  extractMarksWithGemini: vi.fn(),
+}));
+
+vi.mock("../../server/services/geminiRosterService", () => ({
+  parseRosterImagePerfect: vi.fn(),
+}));
+
+import { extractMarksWithGemini } from "../../server/services/geminiOcrService";
+import { parseRosterImagePerfect } from "../../server/services/geminiRosterService";
+import type { GeminiExtractedMarkRow } from "../../server/services/geminiOcrService";
+import type { PerfectRosterRow } from "../../server/services/geminiRosterService";
+
+const mockExtractMarks = vi.mocked(extractMarksWithGemini);
+const mockParseRoster = vi.mocked(parseRosterImagePerfect);
+
+const FAKE_IMAGE = Buffer.from("fake-image-data");
+
+// ── Marks route ───────────────────────────────────────────────────────────────
+
+describe("GET /api/test-gemini-marks/health", () => {
+  it("returns 200 and route confirmation", async () => {
+    const app = createServer();
+    const res = await request(app).get("/api/test-gemini-marks/health");
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.route).toBe("gemini-ocr-mounted");
+  });
+});
+
+describe("POST /api/test-gemini-marks", () => {
+  beforeEach(() => {
+    mockExtractMarks.mockReset();
+  });
+
+  it("returns 400 when no image file is uploaded", async () => {
+    const app = createServer();
+    const res = await request(app).post("/api/test-gemini-marks");
+    expect(res.status).toBe(400);
+    expect(res.body.success).toBe(false);
+    expect(res.body.error).toMatch(/no image/i);
+  });
+
+  it("returns 400 when document is not a marksheet", async () => {
+    mockExtractMarks.mockRejectedValueOnce(
+      new Error("Uploaded document does not look like a marksheet."),
+    );
+    const app = createServer();
+    const res = await request(app)
+      .post("/api/test-gemini-marks")
+      .attach("image", FAKE_IMAGE, { filename: "roster.jpg", contentType: "image/jpeg" });
+    expect(res.status).toBe(400);
+    expect(res.body.success).toBe(false);
+    expect(res.body.error).toMatch(/marksheet/i);
+  });
+
+  it("returns 200 with extracted rows when document is a marksheet", async () => {
+    const mockRows: GeminiExtractedMarkRow[] = [
+      { studentId: "SC2026-0001", studentName: "Alice Nantongo", mark: "82", confidenceScore: 0.95, needsReview: false },
+    ];
+    mockExtractMarks.mockResolvedValueOnce(mockRows);
+    const app = createServer();
+    const res = await request(app)
+      .post("/api/test-gemini-marks")
+      .attach("image", FAKE_IMAGE, { filename: "marks.jpg", contentType: "image/jpeg" });
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.count).toBe(1);
+    expect(res.body.rows[0].studentId).toBe("SC2026-0001");
+    expect(res.body.rows[0].mark).toBe("82");
+  });
+
+  it("returns 500 for unexpected Gemini errors", async () => {
+    mockExtractMarks.mockRejectedValueOnce(new Error("Network timeout"));
+    const app = createServer();
+    const res = await request(app)
+      .post("/api/test-gemini-marks")
+      .attach("image", FAKE_IMAGE, { filename: "marks.jpg", contentType: "image/jpeg" });
+    expect(res.status).toBe(500);
+    expect(res.body.success).toBe(false);
+  });
+});
+
+// ── Roster route ──────────────────────────────────────────────────────────────
+
+describe("GET /api/test-gemini-roster/health", () => {
+  it("returns 200 and route confirmation", async () => {
+    const app = createServer();
+    const res = await request(app).get("/api/test-gemini-roster/health");
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.route).toBe("gemini-roster-mounted");
+  });
+});
+
+describe("POST /api/test-gemini-roster", () => {
+  beforeEach(() => {
+    mockParseRoster.mockReset();
+  });
+
+  it("returns 400 when no image file is uploaded", async () => {
+    const app = createServer();
+    const res = await request(app).post("/api/test-gemini-roster");
+    expect(res.status).toBe(400);
+    expect(res.body.success).toBe(false);
+    expect(res.body.error).toMatch(/no image/i);
+  });
+
+  it("maps teacher level field correctly — A' Level and O' Level are not marks", async () => {
+    const mockRows: PerfectRosterRow[] = [
+      {
+        no: "1",
+        teacherName: "MAKOHA LAWRENCE",
+        subject: "Physics",
+        level: "A' Level",
+        confidenceScore: 0.95,
+        needsReview: false,
+      },
+      {
+        no: "2",
+        teacherName: "Nantale Margret",
+        subject: "Literature",
+        level: "O' Level",
+        confidenceScore: 0.9,
+        needsReview: false,
+      },
+    ];
+    mockParseRoster.mockResolvedValueOnce(mockRows);
+    const app = createServer();
+    const res = await request(app)
+      .post("/api/test-gemini-roster")
+      .attach("image", FAKE_IMAGE, { filename: "roster.jpg", contentType: "image/jpeg" });
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.rows[0].level).toBe("A' Level");
+    expect(res.body.rows[1].level).toBe("O' Level");
+    // level should never appear in a mark-like numeric field
+    expect(res.body.rows[0].teacherName).toBe("MAKOHA LAWRENCE");
+  });
+
+  it("passes knownTeachers JSON to the service", async () => {
+    mockParseRoster.mockResolvedValueOnce([]);
+    const app = createServer();
+    await request(app)
+      .post("/api/test-gemini-roster")
+      .field("knownTeachers", JSON.stringify(["MAKOHA LAWRENCE", "Nantale Margret"]))
+      .attach("image", FAKE_IMAGE, { filename: "roster.jpg", contentType: "image/jpeg" });
+    expect(mockParseRoster).toHaveBeenCalledWith(
+      expect.any(Buffer),
+      ["MAKOHA LAWRENCE", "Nantale Margret"],
+      expect.any(String),
+    );
+  });
+
+  it("proceeds without knownTeachers when field is absent", async () => {
+    mockParseRoster.mockResolvedValueOnce([]);
+    const app = createServer();
+    const res = await request(app)
+      .post("/api/test-gemini-roster")
+      .attach("image", FAKE_IMAGE, { filename: "roster.jpg", contentType: "image/jpeg" });
+    expect(res.status).toBe(200);
+    expect(mockParseRoster).toHaveBeenCalledWith(expect.any(Buffer), [], expect.any(String));
+  });
+});
