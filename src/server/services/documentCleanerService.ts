@@ -1,17 +1,34 @@
 import { randomUUID } from "node:crypto";
 import sharp from "sharp";
 import type { ExtractedDocument } from "../../shared/types/documentCleaner";
-import { isAzureOcrConfigured, readAzureOcrFromImage } from "./azureOcrService";
-import { normalizeFromOcrLines } from "./documentCleanerNormalizeService";
+import { isAzureOcrConfigured } from "./azureOcrService";
+import {
+  normalizeFromOcrLines,
+  normalizeFromTableCells,
+  type TableCell,
+} from "./documentCleanerNormalizeService";
 
 // ── OCR helpers ───────────────────────────────────────────────────────────────
 
-async function ocrImageBuffer(buffer: Buffer, mimeType: string): Promise<{ lines: string[]; error: string }> {
+/**
+ * Calls the Azure OCR Function directly (one fetch) so we can capture both
+ * the flat `lines[]` array AND the structured `raw.tables[].cells[]` that
+ * carry rowIndex/columnIndex. The azureOcrService helper discards `raw`, so
+ * we bypass it here — but we still gate on isAzureOcrConfigured().
+ */
+async function ocrWithStructure(
+  buffer: Buffer,
+  mimeType: string,
+): Promise<{ lines: string[]; tableCells: TableCell[] | null; error: string }> {
   if (!isAzureOcrConfigured()) {
-    return { lines: [], error: "OCR service is not configured. Enter the document content manually." };
+    return {
+      lines: [],
+      tableCells: null,
+      error: "OCR service is not configured. Enter the document content manually.",
+    };
   }
+
   try {
-    // PDFs are sent as-is; images are pre-processed for better OCR accuracy
     let processedBuffer = buffer;
     let processedMime = mimeType;
     if (mimeType !== "application/pdf") {
@@ -23,17 +40,78 @@ async function ocrImageBuffer(buffer: Buffer, mimeType: string): Promise<{ lines
         .toBuffer();
       processedMime = "image/jpeg";
     }
-    const result = await readAzureOcrFromImage({
-      imageBase64: processedBuffer.toString("base64"),
-      mimeType: processedMime,
-    });
-    const lines = result.lines.length > 0
-      ? result.lines
-      : result.text.split("\n").map((l) => l.trim()).filter(Boolean);
-    return { lines, error: "" };
+
+    const functionUrl = process.env.AZURE_OCR_FUNCTION_URL!;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 30_000);
+
+    let data: {
+      ok?: boolean;
+      text?: string;
+      lines?: string[];
+      raw?: unknown;
+    };
+    try {
+      const response = await fetch(functionUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          imageBase64: processedBuffer.toString("base64"),
+          mimeType: processedMime,
+        }),
+        signal: controller.signal,
+      });
+      if (!response.ok) throw new Error("OCR service returned an error.");
+      data = (await response.json()) as typeof data;
+    } finally {
+      clearTimeout(timeout);
+    }
+
+    if (data.ok === false) throw new Error("OCR extraction failed.");
+
+    const lines =
+      Array.isArray(data.lines) && data.lines.length > 0
+        ? (data.lines as string[])
+        : (data.text ?? "").split("\n").map((l: string) => l.trim()).filter(Boolean);
+
+    // Extract table cells from the raw Azure Layout response.
+    // The Azure Function may return raw as the full analyzeResult object (raw.tables)
+    // or as the full API response (raw.analyzeResult.tables) — handle both.
+    const rawData = data.raw as Record<string, unknown> | null | undefined;
+    let tableCells: TableCell[] | null = null;
+
+    const rawTables: unknown[] | null =
+      (rawData && Array.isArray(rawData.tables) ? rawData.tables as unknown[] : null) ??
+      (rawData?.analyzeResult && Array.isArray((rawData.analyzeResult as Record<string, unknown>).tables)
+        ? (rawData.analyzeResult as Record<string, unknown>).tables as unknown[]
+        : null);
+
+    if (rawTables && rawTables.length > 0) {
+      // Pick the table with the most cells (the main content table)
+      let bestCells: TableCell[] = [];
+      for (const table of rawTables as Array<{ cells?: unknown[] }>) {
+        if (!Array.isArray(table.cells)) continue;
+        const cells: TableCell[] = [];
+        for (const c of table.cells as Array<Record<string, unknown>>) {
+          if (typeof c.rowIndex === "number" && typeof c.columnIndex === "number") {
+            cells.push({
+              rowIndex: c.rowIndex,
+              columnIndex: c.columnIndex,
+              content: String(c.content ?? c.text ?? ""),
+              kind: typeof c.kind === "string" ? c.kind : undefined,
+            });
+          }
+        }
+        if (cells.length > bestCells.length) bestCells = cells;
+      }
+      if (bestCells.length > 0) tableCells = bestCells;
+    }
+
+    return { lines, tableCells, error: "" };
   } catch (err) {
     return {
       lines: [],
+      tableCells: null,
       error: err instanceof Error ? err.message : "OCR extraction failed.",
     };
   }
@@ -112,20 +190,39 @@ export async function extractDocumentFromImage(
   mimeType: string,
 ): Promise<{ draftId: string; document: ExtractedDocument; imagePreviewUrl: string }> {
   const draftId = randomUUID();
-  const [imagePreviewUrl, { lines }] = await Promise.all([
+  const [imagePreviewUrl, { lines, tableCells }] = await Promise.all([
     makePreviewDataUrl(buffer, mimeType),
-    ocrImageBuffer(buffer, mimeType),
+    ocrWithStructure(buffer, mimeType),
   ]);
 
-  if (lines.length === 0) {
+  if (lines.length === 0 && !tableCells) {
     return { draftId, document: emptyDocument(), imagePreviewUrl };
   }
 
-  // normalizeFromOcrLines scans ALL lines to find the column header row,
-  // then groups the body lines into rows. It returns metaEndIdx so we know
-  // which lines to use for title / school / year / term extraction.
-  const { columns, rows, uncertainCells, metaEndIdx } = normalizeFromOcrLines(lines);
-  const metaLines = metaEndIdx > 0 ? lines.slice(0, metaEndIdx) : lines.slice(0, Math.min(4, lines.length));
+  let columns: string[];
+  let rows: ReturnType<typeof normalizeFromOcrLines>["rows"];
+  let uncertainCells: ReturnType<typeof normalizeFromOcrLines>["uncertainCells"];
+  let metaEndIdx: number;
+
+  if (tableCells && tableCells.length > 0) {
+    // Azure returned structured table cells with rowIndex/columnIndex — use them
+    // directly to avoid the interleaved-row problem in flat OCR line output.
+    const result = normalizeFromTableCells(tableCells);
+    columns = result.columns;
+    rows = result.rows;
+    uncertainCells = result.uncertainCells;
+    metaEndIdx = 0; // use first few lines from flat output for meta extraction
+  } else {
+    // Fall back to line-based normalisation (delimiter detection + row grouping)
+    const result = normalizeFromOcrLines(lines);
+    columns = result.columns;
+    rows = result.rows;
+    uncertainCells = result.uncertainCells;
+    metaEndIdx = result.metaEndIdx;
+  }
+
+  const metaLines =
+    metaEndIdx > 0 ? lines.slice(0, metaEndIdx) : lines.slice(0, Math.min(4, lines.length));
 
   const title = extractTitle(metaLines);
   const { schoolName, academicYear, term } = extractMeta(metaLines);

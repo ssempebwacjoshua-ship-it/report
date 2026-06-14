@@ -12,26 +12,212 @@ function wordsContainKeyword(text: string): boolean {
   return words.some((w) => TABLE_KEYWORDS.has(w));
 }
 
+// True only when the text (stripped of punctuation) is exactly one TABLE_KEYWORD word.
+// Used as a strict trigger for Strategy 2 so preamble phrases like "School Name"
+// (which contain "NAME" but aren't column headers) don't start a false header run.
+function isDirectKeyword(text: string): boolean {
+  const cleaned = text.trim().toUpperCase().replace(/[^A-Z]/g, "");
+  return TABLE_KEYWORDS.has(cleaned);
+}
+
+// Used by delimiter detection (body lines) — no "/" splitting
 function splitLineIntoSegments(line: string): string[] {
   if ((line.match(/,/g)?.length ?? 0) >= 2) return line.split(",").map((s) => s.trim()).filter(Boolean);
   if ((line.match(/\t/g)?.length ?? 0) >= 1) return line.split("\t").map((s) => s.trim()).filter(Boolean);
   return line.split(/\s{2,}/).map((s) => s.trim()).filter(Boolean);
 }
 
+// Used by column header detection — also tries "/" as delimiter (Azure Layout OCR uses it)
+function splitLineIntoSegmentsAll(line: string): string[] {
+  const trimmed = line.trim();
+  if ((trimmed.match(/,/g)?.length ?? 0) >= 2) return trimmed.split(",").map((s) => s.trim()).filter(Boolean);
+  if ((trimmed.match(/\t/g)?.length ?? 0) >= 1) return trimmed.split("\t").map((s) => s.trim()).filter(Boolean);
+  if ((trimmed.match(/\//g)?.length ?? 0) >= 1) {
+    const parts = trimmed.split("/").map((s) => s.trim()).filter(Boolean);
+    if (parts.length >= 2) return parts;
+  }
+  const spaceParts = trimmed.split(/\s{2,}/).map((s) => s.trim()).filter(Boolean);
+  if (spaceParts.length >= 2) return spaceParts;
+  return trimmed ? [trimmed] : [];
+}
+
 /**
- * Scans up to the first 20 lines for a column header row.
- * A header row has ≥ 3 segments and at least one segment matches a table keyword
- * (NO, NAME, SUBJECT, LEVEL, MARK, TEACHER …).
+ * Scans up to the first 20 lines for a column header row using three strategies:
+ *
+ * Strategy 1 — single line with ≥3 segments containing a keyword
+ *   "NO  TEACHER'S NAME  Subject  Level" → 4 segments → header
+ *
+ * Strategy 3 — single line with exactly 2 segments where both are keywords
+ *   "NO  NAME" → 2 keyword segments → header
+ *
+ * Strategy 2 — consecutive keyword lines combined into one header
+ *   "NO" (1 segment, keyword) + "Teachers Name / Subject" (2 segments after "/" split)
+ *   → combined ["NO", "Teachers Name", "Subject"] → header at last consumed line
+ *
+ * Returns { idx: -1, columns: [] } when no header is found.
  */
 export function findTableColumnHeader(lines: string[]): { idx: number; columns: string[] } {
   const limit = Math.min(lines.length, 20);
   for (let i = 0; i < limit; i++) {
-    const segs = splitLineIntoSegments(lines[i]!.trim());
+    const line = lines[i]!.trim();
+    const segs = splitLineIntoSegmentsAll(line);
+
+    // Strategy 1: single line, ≥3 segments, at least one has a keyword
     if (segs.length >= 3 && segs.some((s) => wordsContainKeyword(s))) {
       return { idx: i, columns: segs };
     }
+
+    // Strategy 3: two segments where both contain keywords
+    if (segs.length === 2 && segs.every((s) => wordsContainKeyword(s))) {
+      return { idx: i, columns: segs };
+    }
+
+    // Strategy 2: line is a single standalone keyword (e.g. "NO", "SUBJECT", "LEVEL")
+    // Only trigger on a direct keyword word so preamble phrases like "School Name"
+    // don't incorrectly start a header collection run.
+    if (segs.length === 1 && isDirectKeyword(segs[0]!)) {
+      const collectedSegs: string[] = [...segs];
+      let j = i + 1;
+      while (j < limit) {
+        const nextLine = lines[j]!.trim();
+        const nextSegs = splitLineIntoSegmentsAll(nextLine);
+        if (nextSegs.length >= 1 && nextSegs.some((s) => wordsContainKeyword(s))) {
+          collectedSegs.push(...nextSegs);
+          j++;
+        } else {
+          break;
+        }
+      }
+      if (collectedSegs.length >= 2) {
+        return { idx: j - 1, columns: collectedSegs };
+      }
+    }
   }
   return { idx: -1, columns: [] };
+}
+
+// ── Structured table cells (Azure raw.tables) ─────────────────────────────────
+
+export type TableCell = {
+  rowIndex: number;
+  columnIndex: number;
+  content: string;
+  kind?: string;
+};
+
+/**
+ * Normalises a raw Azure OCR column header to a clean display name.
+ * Applies title-casing and fixes missing possessives ("Teachers" → "Teacher's").
+ */
+function normalizeColumnHeader(raw: string): string {
+  return raw
+    .trim()
+    .replace(/\bTeachers\b/i, "Teacher's")
+    .split(/\s+/)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+    .join(" ");
+}
+
+/**
+ * Returns true when a cell value contains non-printable-ASCII characters
+ * that suggest OCR misread (e.g. "À la001", `“ Level`).
+ */
+function hasOcrNoise(text: string): boolean {
+  return text.trim().length > 0 && /[^\x20-\x7E]/.test(text);
+}
+
+/** Strips trailing period/whitespace from pure row-number cells (e.g. "1." → "1"). */
+function normalizeNumberCell(text: string): string {
+  const m = text.trim().match(/^(\d+)\s*\.?\s*$/);
+  return m ? m[1]! : text;
+}
+
+/**
+ * Reconstructs columns and rows from Azure Layout's raw table cells,
+ * which carry rowIndex/columnIndex so interleaved OCR order doesn't matter.
+ *
+ * - Header detection (priority order):
+ *     1. Rows where any cell has kind === "columnHeader" (Azure Form Recognizer v3)
+ *     2. First row within the first 4 where ≥2 cells contain table keywords
+ *     3. No header — all rows returned as data
+ * - Fully empty rows are dropped.
+ * - Column headers are normalized to title-case.
+ * - Cells with non-ASCII OCR noise are marked as uncertainCells.
+ */
+export function normalizeFromTableCells(cells: TableCell[]): {
+  columns: string[];
+  rows: DocumentRow[];
+  uncertainCells: UncertainCell[];
+} {
+  if (cells.length === 0) return { columns: [], rows: [], uncertainCells: [] };
+
+  const maxRow = Math.max(...cells.map((c) => c.rowIndex));
+  const maxCol = Math.max(...cells.map((c) => c.columnIndex));
+  const colCount = maxCol + 1;
+
+  // Build 2D grid
+  const grid: string[][] = Array.from({ length: maxRow + 1 }, () =>
+    Array<string>(colCount).fill(""),
+  );
+  for (const cell of cells) {
+    if (cell.rowIndex <= maxRow && cell.columnIndex <= maxCol) {
+      grid[cell.rowIndex]![cell.columnIndex] = cell.content.trim();
+    }
+  }
+
+  // Detect header row
+  let headerRowIdx = -1;
+  const kindHeaderRows = new Set(
+    cells.filter((c) => c.kind === "columnHeader").map((c) => c.rowIndex),
+  );
+  if (kindHeaderRows.size > 0) {
+    headerRowIdx = Math.min(...kindHeaderRows);
+  } else {
+    for (let r = 0; r <= Math.min(maxRow, 3); r++) {
+      const keywordCount = grid[r]!.filter((c) => wordsContainKeyword(c)).length;
+      if (keywordCount >= 2) { headerRowIdx = r; break; }
+    }
+  }
+
+  if (headerRowIdx === -1) {
+    const dataRows = grid.filter((rowCells) => rowCells.some((c) => c.length > 0));
+    const rows: DocumentRow[] = dataRows.map((rowCells) => ({ cells: rowCells, confidence: 0.7 }));
+    return { columns: [], rows, uncertainCells: [] };
+  }
+
+  // Normalize column headers (title-case, fix possessives)
+  const columns = grid[headerRowIdx]!.map(normalizeColumnHeader);
+
+  // Build data rows: skip header, drop fully-empty rows
+  const uncertainCells: UncertainCell[] = [];
+  const rows: DocumentRow[] = [];
+
+  const dataGrid = grid.filter((_, r) => r > headerRowIdx);
+  for (const rawCells of dataGrid) {
+    // Drop rows where every cell is empty
+    if (rawCells.every((c) => c.length === 0)) continue;
+
+    const normalizedCells = rawCells
+      .slice(0, colCount)
+      .map((c) => normalizeNumberCell(c));
+
+    while (normalizedCells.length < colCount) normalizedCells.push("");
+
+    const rowIdx = rows.length;
+    for (let ci = 0; ci < normalizedCells.length; ci++) {
+      if (hasOcrNoise(normalizedCells[ci]!)) {
+        uncertainCells.push({
+          rowIndex: rowIdx,
+          columnIndex: ci,
+          reason: "OCR noise detected — please verify",
+        });
+      }
+    }
+
+    rows.push({ cells: normalizedCells, confidence: 0.9 });
+  }
+
+  return { columns, rows, uncertainCells };
 }
 
 // ── Delimiter-based parsing ───────────────────────────────────────────────────

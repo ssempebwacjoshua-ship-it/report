@@ -1,0 +1,58 @@
+{
+  "columns": [
+    "No",
+    "Teacher's Name",
+    "Subject",
+    "Level"
+  ],
+  "rows": [
+    {
+      "cells": [
+        "1",
+        "MAKOHA LAWRENCE",
+        "Physics",
+        "A’ Level"
+      ],
+      "confidence": 0.9
+    },
+    {
+      "cells": [
+        "2",
+        "Galibato Alox",
+        "ENT",
+        "À la001"
+      ],
+      "confidence": 0.9
+    },
+    {
+      "cells": [
+        "3",
+        "Mr SSemogomma Lamede",
+        "C.R.E",
+        "“ Level"
+      ],
+      "confidence": 0.9
+    },
+    {
+      "cells": [
+        "4",
+        "Nantale Margret",
+        "* Literature",
+        "0’ level"
+      ],
+      "confidence": 0.9
+    }
+  ],
+  "uncertainCells": [
+    {
+      "rowIndex": 1,
+      "columnIndex": 3,
+      "reason": "OCR noise detected — please verify"
+    },
+    {
+      "rowIndex": 2,
+      "columnIndex": 3,
+      "reason": "OCR noise detected — please verify"
+    }
+  ]
+}

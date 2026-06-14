@@ -1,0 +1,228 @@
+{
+  "ok": true,
+  "provider": "azure",
+  "text": "N & SB\nList of Examiners\n2026 TERM 1",
+  "lines": [
+    "N & SB",
+    "LIST OF EXAMINERS",
+    "2026 TERM 1",
+    "NO",
+    "Teachers Name",
+    "Subject",
+    "Level",
+    "1.",
+    "MAKOHA LAWRENCE",
+    "Physics",
+    "A’ Level",
+    "2.",
+    "Galibato Alox",
+    "ENT",
+    "À la001",
+    "3.",
+    "Mr SSemogomma Lamede",
+    "C.R.E",
+    "“ Level"
+  ],
+  "raw": {
+    "tables": [
+      {
+        "rowCount": 8,
+        "columnCount": 4,
+        "cells": [
+          {
+            "kind": "columnHeader",
+            "rowIndex": 0,
+            "columnIndex": 0,
+            "content": "NO"
+          },
+          {
+            "kind": "columnHeader",
+            "rowIndex": 0,
+            "columnIndex": 1,
+            "content": "Teachers Name"
+          },
+          {
+            "kind": "columnHeader",
+            "rowIndex": 0,
+            "columnIndex": 2,
+            "content": "Subject"
+          },
+          {
+            "kind": "columnHeader",
+            "rowIndex": 0,
+            "columnIndex": 3,
+            "content": "Level"
+          },
+          {
+            "kind": "content",
+            "rowIndex": 1,
+            "columnIndex": 0,
+            "content": "1."
+          },
+          {
+            "kind": "content",
+            "rowIndex": 1,
+            "columnIndex": 1,
+            "content": "MAKOHA LAWRENCE"
+          },
+          {
+            "kind": "content",
+            "rowIndex": 1,
+            "columnIndex": 2,
+            "content": "Physics"
+          },
+          {
+            "kind": "content",
+            "rowIndex": 1,
+            "columnIndex": 3,
+            "content": "A’ Level"
+          },
+          {
+            "kind": "content",
+            "rowIndex": 2,
+            "columnIndex": 0,
+            "content": "2."
+          },
+          {
+            "kind": "content",
+            "rowIndex": 2,
+            "columnIndex": 1,
+            "content": "Galibato Alox"
+          },
+          {
+            "kind": "content",
+            "rowIndex": 2,
+            "columnIndex": 2,
+            "content": "ENT"
+          },
+          {
+            "kind": "content",
+            "rowIndex": 2,
+            "columnIndex": 3,
+            "content": "À la001"
+          },
+          {
+            "kind": "content",
+            "rowIndex": 3,
+            "columnIndex": 0,
+            "content": "3."
+          },
+          {
+            "kind": "content",
+            "rowIndex": 3,
+            "columnIndex": 1,
+            "content": "Mr SSemogomma Lamede"
+          },
+          {
+            "kind": "content",
+            "rowIndex": 3,
+            "columnIndex": 2,
+            "content": "C.R.E"
+          },
+          {
+            "kind": "content",
+            "rowIndex": 3,
+            "columnIndex": 3,
+            "content": "“ Level"
+          },
+          {
+            "kind": "content",
+            "rowIndex": 4,
+            "columnIndex": 0,
+            "content": ""
+          },
+          {
+            "kind": "content",
+            "rowIndex": 4,
+            "columnIndex": 1,
+            "content": ""
+          },
+          {
+            "kind": "content",
+            "rowIndex": 4,
+            "columnIndex": 2,
+            "content": ""
+          },
+          {
+            "kind": "content",
+            "rowIndex": 4,
+            "columnIndex": 3,
+            "content": ""
+          },
+          {
+            "kind": "content",
+            "rowIndex": 5,
+            "columnIndex": 0,
+            "content": "4"
+          },
+          {
+            "kind": "content",
+            "rowIndex": 5,
+            "columnIndex": 1,
+            "content": "Nantale Margret"
+          },
+          {
+            "kind": "content",
+            "rowIndex": 5,
+            "columnIndex": 2,
+            "content": "* Literature"
+          },
+          {
+            "kind": "content",
+            "rowIndex": 5,
+            "columnIndex": 3,
+            "content": "0’ level"
+          },
+          {
+            "kind": "content",
+            "rowIndex": 6,
+            "columnIndex": 0,
+            "content": ""
+          },
+          {
+            "kind": "content",
+            "rowIndex": 6,
+            "columnIndex": 1,
+            "content": ""
+          },
+          {
+            "kind": "content",
+            "rowIndex": 6,
+            "columnIndex": 2,
+            "content": ""
+          },
+          {
+            "kind": "content",
+            "rowIndex": 6,
+            "columnIndex": 3,
+            "content": ""
+          },
+          {
+            "kind": "content",
+            "rowIndex": 7,
+            "columnIndex": 0,
+            "content": ""
+          },
+          {
+            "kind": "content",
+            "rowIndex": 7,
+            "columnIndex": 1,
+            "content": ""
+          },
+          {
+            "kind": "content",
+            "rowIndex": 7,
+            "columnIndex": 2,
+            "content": ""
+          },
+          {
+            "kind": "content",
+            "rowIndex": 7,
+            "columnIndex": 3,
+            "content": ""
+          }
+        ]
+      }
+    ]
+  }
+}

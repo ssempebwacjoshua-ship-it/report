@@ -1,10 +1,22 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   findTableColumnHeader,
   groupLinesByRowNumber,
   normalizeFromOcrLines,
+  normalizeFromTableCells,
   normalizeTableLines,
+  type TableCell,
 } from "../../server/services/documentCleanerNormalizeService";
+
+// ── Fixture helpers ───────────────────────────────────────────────────────────
+
+const FIXTURE_DIR = join(__dirname, "../fixtures/document-cleaner");
+
+function loadFixture<T>(name: string): T {
+  return JSON.parse(readFileSync(join(FIXTURE_DIR, name), "utf8")) as T;
+}
 
 // ── findTableColumnHeader ─────────────────────────────────────────────────────
 
@@ -43,6 +55,123 @@ describe("findTableColumnHeader", () => {
     ];
     const { idx } = findTableColumnHeader(lines);
     expect(idx).toBe(0);
+  });
+});
+
+// ── findTableColumnHeader — consecutive keyword lines (real Azure output) ────
+
+describe("findTableColumnHeader — consecutive keyword lines", () => {
+  it("combines 'NO' + 'Teachers Name / Subject' into a header", () => {
+    const lines = [
+      "N & SB",
+      "LIST OF EXAMINERS",
+      "2026 Term 1",
+      "NO",
+      "Teachers Name / Subject",
+      "1. MAROHA LAWRENCE",
+    ];
+    const { idx, columns } = findTableColumnHeader(lines);
+    expect(idx).toBe(4);
+    expect(columns).toContain("NO");
+    expect(columns.some((c) => /name/i.test(c))).toBe(true);
+    expect(columns.some((c) => /subject/i.test(c))).toBe(true);
+  });
+
+  it("collects three consecutive keyword lines", () => {
+    const lines = ["NO", "Teacher Name", "Subject", "1. Alice", "Math"];
+    const { idx, columns } = findTableColumnHeader(lines);
+    expect(idx).toBeGreaterThanOrEqual(0);
+    expect(columns).toContain("NO");
+    expect(columns).toContain("Teacher Name");
+    expect(columns).toContain("Subject");
+  });
+
+  it("stops collecting when a non-keyword line is hit", () => {
+    // "NO" → keyword; next: "Teachers Name / Subject" → keyword; next: "1. ALICE" → not a keyword
+    const lines = ["NO", "Teachers Name / Subject", "1. ALICE", "Physics"];
+    const { idx, columns } = findTableColumnHeader(lines);
+    expect(idx).toBe(1);
+    expect(columns.length).toBe(3); // "NO", "Teachers Name", "Subject"
+  });
+
+  it("does not false-trigger on non-keyword preamble lines", () => {
+    // "N & SB" and "LIST OF EXAMINERS" contain no TABLE_KEYWORDS
+    const lines = ["N & SB", "LIST OF EXAMINERS", "2026 Term 1"];
+    const { idx } = findTableColumnHeader(lines);
+    expect(idx).toBe(-1);
+  });
+});
+
+// ── normalizeFromTableCells ───────────────────────────────────────────────────
+
+describe("normalizeFromTableCells", () => {
+  it("reconstructs columns and rows using rowIndex/columnIndex", () => {
+    const cells: TableCell[] = [
+      { rowIndex: 0, columnIndex: 0, content: "NO", kind: "columnHeader" },
+      { rowIndex: 0, columnIndex: 1, content: "TEACHER", kind: "columnHeader" },
+      { rowIndex: 0, columnIndex: 2, content: "SUBJECT", kind: "columnHeader" },
+      { rowIndex: 1, columnIndex: 0, content: "1" },
+      { rowIndex: 1, columnIndex: 1, content: "NAKOTTA LAWRENCE" },
+      { rowIndex: 1, columnIndex: 2, content: "Physics" },
+      { rowIndex: 2, columnIndex: 0, content: "2" },
+      { rowIndex: 2, columnIndex: 1, content: "Galubalo Alex" },
+      { rowIndex: 2, columnIndex: 2, content: "ENT" },
+    ];
+    const { columns, rows } = normalizeFromTableCells(cells);
+    // Headers are normalized to title-case
+    expect(columns).toEqual(["No", "Teacher", "Subject"]);
+    expect(rows).toHaveLength(2);
+    expect(rows[0]!.cells).toEqual(["1", "NAKOTTA LAWRENCE", "Physics"]);
+    expect(rows[1]!.cells).toEqual(["2", "Galubalo Alex", "ENT"]);
+  });
+
+  it("detects header by keyword match when kind is not provided", () => {
+    const cells: TableCell[] = [
+      { rowIndex: 0, columnIndex: 0, content: "NO" },
+      { rowIndex: 0, columnIndex: 1, content: "NAME" },
+      { rowIndex: 0, columnIndex: 2, content: "SUBJECT" },
+      { rowIndex: 1, columnIndex: 0, content: "1" },
+      { rowIndex: 1, columnIndex: 1, content: "Alice" },
+      { rowIndex: 1, columnIndex: 2, content: "Math" },
+    ];
+    const { columns, rows } = normalizeFromTableCells(cells);
+    // Headers are normalized to title-case
+    expect(columns).toEqual(["No", "Name", "Subject"]);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.cells).toEqual(["1", "Alice", "Math"]);
+  });
+
+  it("correctly handles cells arriving in non-sequential order", () => {
+    // Azure may return cells in reading order (left-right, top-bottom) but
+    // rows 1-2 can be interleaved. With coordinates, order does not matter.
+    const cells: TableCell[] = [
+      { rowIndex: 2, columnIndex: 1, content: "Galubalo Alex", kind: "content" },
+      { rowIndex: 1, columnIndex: 1, content: "NAKOTTA", kind: "content" },
+      { rowIndex: 0, columnIndex: 0, content: "NO", kind: "columnHeader" },
+      { rowIndex: 0, columnIndex: 1, content: "NAME", kind: "columnHeader" },
+      { rowIndex: 1, columnIndex: 0, content: "1", kind: "content" },
+      { rowIndex: 2, columnIndex: 0, content: "2", kind: "content" },
+    ];
+    const { columns, rows } = normalizeFromTableCells(cells);
+    // Headers are normalized to title-case
+    expect(columns).toEqual(["No", "Name"]);
+    expect(rows[0]!.cells).toEqual(["1", "NAKOTTA"]);
+    expect(rows[1]!.cells).toEqual(["2", "Galubalo Alex"]);
+  });
+
+  it("assigns high confidence to reconstructed rows", () => {
+    const cells: TableCell[] = [
+      { rowIndex: 0, columnIndex: 0, content: "NO", kind: "columnHeader" },
+      { rowIndex: 1, columnIndex: 0, content: "1" },
+    ];
+    const { rows } = normalizeFromTableCells(cells);
+    expect(rows[0]!.confidence).toBeGreaterThanOrEqual(0.8);
+  });
+
+  it("returns empty for empty input", () => {
+    const { columns, rows } = normalizeFromTableCells([]);
+    expect(columns).toHaveLength(0);
+    expect(rows).toHaveLength(0);
   });
 });
 
@@ -169,6 +298,44 @@ describe("normalizeFromOcrLines — NALYA-style single-cell lines", () => {
   });
 });
 
+// ── normalizeFromOcrLines — real Azure consecutive keyword lines ───────────────
+
+describe("normalizeFromOcrLines — real Azure consecutive keyword header lines", () => {
+  const AZURE_STYLE_LINES = [
+    "N & SB",
+    "LIST OF EXAMINERS",
+    "2026 Term 1",
+    "NO",
+    "Teachers Name / Subject",
+    "1. MAROHA LAWRENCE",
+    "Galubalo",
+    "Physics",
+    "A Level",
+    "3. Ssemogooma Lameck",
+    "C.R.E",
+    "O Level",
+  ];
+
+  it("detects column header from consecutive keyword lines", () => {
+    const { columns } = normalizeFromOcrLines(AZURE_STYLE_LINES);
+    expect(columns.length).toBeGreaterThanOrEqual(2);
+    expect(columns.some((c) => /^no$/i.test(c))).toBe(true);
+    expect(columns.some((c) => /subject/i.test(c))).toBe(true);
+  });
+
+  it("produces data rows from the body lines", () => {
+    const { rows } = normalizeFromOcrLines(AZURE_STYLE_LINES);
+    expect(rows.length).toBeGreaterThan(0);
+  });
+
+  it("each row has the same cell count as columns", () => {
+    const { columns, rows } = normalizeFromOcrLines(AZURE_STYLE_LINES);
+    for (const row of rows) {
+      expect(row.cells).toHaveLength(columns.length);
+    }
+  });
+});
+
 // ── normalizeFromOcrLines — delimiter-separated body ─────────────────────────
 
 describe("normalizeFromOcrLines — delimiter-separated body", () => {
@@ -259,5 +426,90 @@ describe("normalizeTableLines — no detectable header", () => {
     const { columns, rows } = normalizeTableLines(["1, 45, 50", "2, 60, 70"]);
     expect(columns).toHaveLength(0);
     expect(rows).toHaveLength(2);
+  });
+});
+
+// ── Fixture-based integration: real Azure Document Intelligence table ──────────
+
+describe("normalizeFromTableCells — NALYA real Azure DI fixture", () => {
+  type AzureFixture = {
+    raw: { tables: Array<{ cells: TableCell[] }> };
+  };
+  type ExpectedFixture = {
+    columns: string[];
+    rows: Array<{ cells: string[]; confidence: number }>;
+    uncertainCells: Array<{ rowIndex: number; columnIndex: number; reason: string }>;
+  };
+
+  const azureFixture = loadFixture<AzureFixture>("nalya-azure-layout-table.json");
+  const expectedFixture = loadFixture<ExpectedFixture>("nalya-expected-table.json");
+  const cells = azureFixture.raw.tables[0]!.cells;
+
+  it("normalizes raw column headers correctly", () => {
+    const { columns } = normalizeFromTableCells(cells);
+    expect(columns).toEqual(expectedFixture.columns);
+    // Specifically: "NO" → "No", "Teachers Name" → "Teacher's Name"
+    expect(columns[0]).toBe("No");
+    expect(columns[1]).toBe("Teacher's Name");
+    expect(columns[2]).toBe("Subject");
+    expect(columns[3]).toBe("Level");
+  });
+
+  it("drops fully-empty rows, keeps data rows", () => {
+    const { rows } = normalizeFromTableCells(cells);
+    expect(rows).toHaveLength(expectedFixture.rows.length);
+    // Fixture has 4 data rows and 3 empty rows — only data rows should remain
+    expect(rows.length).toBe(4);
+  });
+
+  it("strips trailing period from row-number cells", () => {
+    const { rows } = normalizeFromTableCells(cells);
+    // "1." → "1", "2." → "2", "3." → "3"
+    expect(rows[0]!.cells[0]).toBe("1");
+    expect(rows[1]!.cells[0]).toBe("2");
+    expect(rows[2]!.cells[0]).toBe("3");
+    expect(rows[3]!.cells[0]).toBe("4");
+  });
+
+  it("preserves name, subject, level from row 1", () => {
+    const { rows } = normalizeFromTableCells(cells);
+    expect(rows[0]!.cells[1]).toBe("MAKOHA LAWRENCE");
+    expect(rows[0]!.cells[2]).toBe("Physics");
+    // Compare against fixture to avoid hardcoding Unicode apostrophe variants
+    expect(rows[0]!.cells[3]).toBe(expectedFixture.rows[0]!.cells[3]);
+  });
+
+  it("marks non-ASCII OCR noise cells as uncertain", () => {
+    const { uncertainCells } = normalizeFromTableCells(cells);
+    // row 2 col 3 ("À la001") and row 3 col 3 ("" Level") have non-ASCII chars
+    // After empty-row filtering: row indices restart from 0
+    expect(uncertainCells.length).toBeGreaterThanOrEqual(2);
+    // At least one uncertain cell in column 3
+    const col3Uncertain = uncertainCells.filter((u) => u.columnIndex === 3);
+    expect(col3Uncertain.length).toBeGreaterThanOrEqual(1);
+    expect(col3Uncertain[0]!.reason).toMatch(/OCR noise/i);
+  });
+
+  it("assigns high confidence to data rows", () => {
+    const { rows } = normalizeFromTableCells(cells);
+    for (const row of rows) {
+      expect(row.confidence).toBeGreaterThanOrEqual(0.8);
+    }
+  });
+
+  it("each row has exactly 4 cells matching column count", () => {
+    const { columns, rows } = normalizeFromTableCells(cells);
+    for (const row of rows) {
+      expect(row.cells).toHaveLength(columns.length);
+    }
+  });
+
+  it("matches the full expected fixture output (columns + row count)", () => {
+    const { columns, rows } = normalizeFromTableCells(cells);
+    expect(columns).toEqual(expectedFixture.columns);
+    expect(rows.length).toBe(expectedFixture.rows.length);
+    for (let i = 0; i < expectedFixture.rows.length; i++) {
+      expect(rows[i]!.cells).toEqual(expectedFixture.rows[i]!.cells);
+    }
   });
 });
