@@ -342,6 +342,65 @@ model User {
   @@index([schoolId, role])
 }
 
+// ── Smart Pages / Document Cleaner billing ─────────────────────────────────
+
+model SchoolSmartPagePlan {
+  id               String   @id @default(uuid()) @db.Uuid
+  schoolId         String   @unique @db.Uuid
+  planName         String   @default("STANDARD")
+  includedPages    Int      @default(5000)
+  billingCycle     String   @default("ACADEMIC_YEAR")
+  cycleStart       DateTime
+  cycleEnd         DateTime
+  usedPages        Int      @default(0)
+  topUpPages       Int      @default(0)
+  rolloverPages    Int      @default(0)
+  status           String   @default("ACTIVE")
+  allowHighAccuracy Boolean @default(false)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([schoolId, status])
+}
+
+model SmartPageLedger {
+  id             String   @id @default(uuid()) @db.Uuid
+  schoolId       String   @db.Uuid
+  jobId          String
+  fileHash       String
+  pagesCharged   Int      @default(0)
+  action         String   @default("EXTRACT")
+  reason         String   @default("")
+  provider       String   @default("")
+  model          String   @default("")
+  extractionMode String   @default("balanced")
+  status         String   @default("CHARGED")
+  createdAt      DateTime @default(now())
+
+  @@index([schoolId, fileHash, status])
+  @@index([schoolId, createdAt])
+}
+
+model DocumentCleanerJob {
+  id             String   @id @default(uuid()) @db.Uuid
+  schoolId       String?  @db.Uuid
+  uploadedBy     String?
+  documentType   String   @default("table")
+  pageCount      Int      @default(1)
+  provider       String   @default("")
+  model          String   @default("")
+  extractionMode String   @default("balanced")
+  status         String   @default("PENDING")
+  pagesCharged   Int      @default(0)
+  confidence     Float    @default(0)
+  fileHash       String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([schoolId, fileHash])
+  @@index([schoolId, status, createdAt])
+}
+
 model IssuedReport {
   id                 String             @id @default(uuid()) @db.Uuid
   schoolId           String             @db.Uuid

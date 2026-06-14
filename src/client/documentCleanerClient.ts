@@ -1,8 +1,14 @@
 import type { DocumentUploadResponse, ExtractedDocument } from "../shared/types/documentCleaner";
+import type { ExtractionMode, SmartPageSummary } from "../shared/types/smartPages";
 
-export async function uploadDocument(file: File): Promise<DocumentUploadResponse> {
+export async function uploadDocument(
+  file: File,
+  options?: { schoolCode?: string; extractionMode?: ExtractionMode },
+): Promise<DocumentUploadResponse & { pageEstimate?: number; extractionMode?: ExtractionMode; fromCache?: boolean }> {
   const form = new FormData();
   form.append("file", file);
+  if (options?.schoolCode) form.append("schoolCode", options.schoolCode);
+  if (options?.extractionMode) form.append("extractionMode", options.extractionMode);
 
   const res = await fetch("/api/documents/cleaner/upload", {
     method: "POST",
@@ -14,7 +20,7 @@ export async function uploadDocument(file: File): Promise<DocumentUploadResponse
     throw new Error(body.message ?? "Upload failed");
   }
 
-  return res.json() as Promise<DocumentUploadResponse>;
+  return res.json();
 }
 
 export async function generatePdfHtml(
@@ -33,4 +39,13 @@ export async function generatePdfHtml(
   }
 
   return res.text();
+}
+
+export async function getSmartPagesSummary(schoolCode: string): Promise<SmartPageSummary> {
+  const res = await fetch(`/api/documents/cleaner/smart-pages?schoolCode=${encodeURIComponent(schoolCode)}`);
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({ message: "Failed to load Smart Pages summary" }));
+    throw new Error(body.message ?? "Failed to load Smart Pages summary");
+  }
+  return res.json() as Promise<SmartPageSummary>;
 }

@@ -1,6 +1,42 @@
 import request from "supertest";
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createServer } from "../../server";
+
+// ── Smart Pages service mock ──────────────────────────────────────────────────
+
+const smartPagesMockState = vi.hoisted(() => ({
+  remainingPages: 5000,
+  allowHighAccuracy: false,
+  isDuplicate: false,
+  extractionShouldThrow: false,
+}));
+
+vi.mock("../../server/services/smartPagesService", async (importOriginal) => {
+  const original = await importOriginal<typeof import("../../server/services/smartPagesService")>();
+  return {
+    ...original,
+    estimatePageCount: () => 1,
+    getDefaultExtractionMode: () => "balanced" as const,
+    canExtract: vi.fn(async (_schoolId: string, _pageCount: number) => {
+      if (smartPagesMockState.remainingPages <= 0) {
+        return { allowed: false, code: "SMART_PAGES_EXHAUSTED", message: "No Smart Pages remaining." };
+      }
+      return { allowed: true };
+    }),
+    isDuplicateJob: vi.fn(async () => smartPagesMockState.isDuplicate),
+    deductPages: vi.fn(async () => undefined),
+    isHighAccuracyAllowed: vi.fn(async () => smartPagesMockState.allowHighAccuracy),
+    getSummary: vi.fn(async () => ({
+      includedPages: 5000,
+      topUpPages: 0,
+      usedPages: 5000 - smartPagesMockState.remainingPages,
+      remainingPages: smartPagesMockState.remainingPages,
+      planName: "STANDARD" as const,
+      billingCycle: "ACADEMIC_YEAR",
+      allowHighAccuracy: smartPagesMockState.allowHighAccuracy,
+    })),
+  };
+});
 
 const FAKE_PNG = Buffer.from("not-a-real-png");
 const FAKE_PDF = Buffer.from("%PDF-1.4 fake");
@@ -205,6 +241,169 @@ describe("POST /api/documents/cleaner/generate-pdf", () => {
     expect(res.status).toBe(200);
     // Default primary color should appear in the output
     expect(res.text).toMatch(/#1e40af|#1d4ed8|blue/i);
+  });
+});
+
+// ── Smart Pages — GET summary endpoint ────────────────────────────────────────
+
+describe("GET /api/documents/cleaner/smart-pages", () => {
+  beforeEach(() => {
+    smartPagesMockState.remainingPages = 5000;
+    smartPagesMockState.allowHighAccuracy = false;
+    smartPagesMockState.isDuplicate = false;
+    smartPagesMockState.extractionShouldThrow = false;
+  });
+
+  it("returns 200 with summary when schoolCode is provided", async () => {
+    const res = await request(createServer())
+      .get("/api/documents/cleaner/smart-pages")
+      .query({ schoolCode: "SCU-PREVIEW" });
+    expect(res.status).toBe(200);
+    expect(typeof res.body.remainingPages).toBe("number");
+    expect(typeof res.body.includedPages).toBe("number");
+    expect(typeof res.body.usedPages).toBe("number");
+    expect(typeof res.body.billingCycle).toBe("string");
+  });
+
+  it("returns 400 when schoolCode is missing", async () => {
+    const res = await request(createServer())
+      .get("/api/documents/cleaner/smart-pages");
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe(true);
+  });
+});
+
+// ── Smart Pages — page allowance enforcement ──────────────────────────────────
+
+describe("Smart Pages — allowance enforcement on upload", () => {
+  beforeEach(() => {
+    smartPagesMockState.remainingPages = 5000;
+    smartPagesMockState.allowHighAccuracy = false;
+    smartPagesMockState.isDuplicate = false;
+    smartPagesMockState.extractionShouldThrow = false;
+  });
+
+  it("returns 402 SMART_PAGES_EXHAUSTED when school has no remaining pages", async () => {
+    smartPagesMockState.remainingPages = 0;
+    const res = await request(createServer())
+      .post("/api/documents/cleaner/upload")
+      .field("schoolCode", "SCU-PREVIEW")
+      .attach("file", FAKE_PNG, { filename: "doc.png", contentType: "image/png" });
+    expect(res.status).toBe(402);
+    expect(res.body.error).toBe(true);
+    expect(res.body.code).toBe("SMART_PAGES_EXHAUSTED");
+    expect(typeof res.body.message).toBe("string");
+  });
+
+  it("returns 200 when schoolCode omitted (no billing check applied)", async () => {
+    smartPagesMockState.remainingPages = 0; // would block with schoolCode
+    const res = await request(createServer())
+      .post("/api/documents/cleaner/upload")
+      .attach("file", FAKE_PNG, { filename: "doc.png", contentType: "image/png" });
+    expect(res.status).toBe(200); // no billing check without schoolCode
+  });
+});
+
+// ── Smart Pages — extraction mode enforcement ─────────────────────────────────
+
+describe("Smart Pages — extraction mode enforcement", () => {
+  beforeEach(() => {
+    smartPagesMockState.remainingPages = 5000;
+    smartPagesMockState.allowHighAccuracy = false;
+    smartPagesMockState.isDuplicate = false;
+  });
+
+  it("returns 403 HIGH_ACCURACY_NOT_ALLOWED when plan does not allow high_accuracy", async () => {
+    smartPagesMockState.allowHighAccuracy = false;
+    const res = await request(createServer())
+      .post("/api/documents/cleaner/upload")
+      .field("schoolCode", "SCU-PREVIEW")
+      .field("extractionMode", "high_accuracy")
+      .attach("file", FAKE_PNG, { filename: "doc.png", contentType: "image/png" });
+    expect(res.status).toBe(403);
+    expect(res.body.error).toBe(true);
+    expect(res.body.code).toBe("HIGH_ACCURACY_NOT_ALLOWED");
+  });
+
+  it("accepts balanced mode (default) without any errors", async () => {
+    const res = await request(createServer())
+      .post("/api/documents/cleaner/upload")
+      .field("schoolCode", "SCU-PREVIEW")
+      .field("extractionMode", "balanced")
+      .attach("file", FAKE_PNG, { filename: "doc.png", contentType: "image/png" });
+    expect(res.status).toBe(200);
+  });
+
+  it("accepts economical mode", async () => {
+    const res = await request(createServer())
+      .post("/api/documents/cleaner/upload")
+      .field("schoolCode", "SCU-PREVIEW")
+      .field("extractionMode", "economical")
+      .attach("file", FAKE_PNG, { filename: "doc.png", contentType: "image/png" });
+    expect(res.status).toBe(200);
+  });
+
+  it("accepts high_accuracy mode when plan allows it", async () => {
+    smartPagesMockState.allowHighAccuracy = true;
+    const res = await request(createServer())
+      .post("/api/documents/cleaner/upload")
+      .field("schoolCode", "SCU-PREVIEW")
+      .field("extractionMode", "high_accuracy")
+      .attach("file", FAKE_PNG, { filename: "doc.png", contentType: "image/png" });
+    expect(res.status).toBe(200);
+  });
+});
+
+// ── Smart Pages — generate-pdf does NOT deduct pages ─────────────────────────
+
+describe("Smart Pages — generate-pdf billing behaviour", () => {
+  it("generate-pdf succeeds even when schoolCode has no remaining pages (no billing check)", async () => {
+    smartPagesMockState.remainingPages = 0;
+    const res = await request(createServer())
+      .post("/api/documents/cleaner/generate-pdf")
+      .send({ document: validDocument });
+    expect(res.status).toBe(200);
+    expect(res.headers["content-type"]).toMatch(/text\/html/);
+  });
+});
+
+// ── Smart Pages — idempotency / deduplication ─────────────────────────────────
+
+describe("Smart Pages — deduplication", () => {
+  beforeEach(() => {
+    smartPagesMockState.remainingPages = 5000;
+    smartPagesMockState.allowHighAccuracy = false;
+    smartPagesMockState.isDuplicate = false;
+  });
+
+  it("returns 200 without charging when same file was already processed (duplicate job)", async () => {
+    smartPagesMockState.isDuplicate = true;
+    const res = await request(createServer())
+      .post("/api/documents/cleaner/upload")
+      .field("schoolCode", "SCU-PREVIEW")
+      .attach("file", FAKE_PNG, { filename: "doc.png", contentType: "image/png" });
+    expect(res.status).toBe(200);
+    // fromCache flag indicates no new charge
+    expect(res.body.fromCache).toBe(true);
+  });
+});
+
+// ── Smart Pages — response includes extraction metadata ───────────────────────
+
+describe("Smart Pages — extraction metadata in response", () => {
+  beforeEach(() => {
+    smartPagesMockState.remainingPages = 5000;
+    smartPagesMockState.isDuplicate = false;
+  });
+
+  it("upload response includes pageEstimate and extractionMode when schoolCode provided", async () => {
+    const res = await request(createServer())
+      .post("/api/documents/cleaner/upload")
+      .field("schoolCode", "SCU-PREVIEW")
+      .attach("file", FAKE_PNG, { filename: "doc.png", contentType: "image/png" });
+    expect(res.status).toBe(200);
+    expect(typeof res.body.pageEstimate).toBe("number");
+    expect(typeof res.body.extractionMode).toBe("string");
   });
 });
 

@@ -1,6 +1,8 @@
-import { useRef, useState } from "react";
-import { generatePdfHtml, uploadDocument } from "../client/documentCleanerClient";
+import { useEffect, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
+import { generatePdfHtml, getSmartPagesSummary, uploadDocument } from "../client/documentCleanerClient";
 import type { DocumentUploadResponse, ExtractedDocument } from "../shared/types/documentCleaner";
+import type { ExtractionMode, SmartPageSummary } from "../shared/types/smartPages";
 
 type State =
   | { phase: "idle" }
@@ -8,17 +10,59 @@ type State =
   | { phase: "ready"; draft: DocumentUploadResponse }
   | { phase: "error"; message: string };
 
+const MODES: Array<{ value: ExtractionMode; label: string; description: string }> = [
+  { value: "economical", label: "Economical", description: "Basic OCR — best for simple lists" },
+  { value: "balanced", label: "Balanced", description: "Layout-aware — best for tables and grids" },
+  { value: "high_accuracy", label: "High Accuracy", description: "Form parser — higher cost, PRO/Enterprise only" },
+];
+
 export function DocumentCleanerPage() {
+  const [searchParams] = useSearchParams();
+  const schoolCode = searchParams.get("schoolCode") ?? undefined;
+
   const [state, setState] = useState<State>({ phase: "idle" });
   const [doc, setDoc] = useState<ExtractedDocument | null>(null);
+  const [mode, setMode] = useState<ExtractionMode>("balanced");
+  const [showHighAccuracyWarning, setShowHighAccuracyWarning] = useState(false);
+  const [pendingMode, setPendingMode] = useState<ExtractionMode | null>(null);
+  const [smartPages, setSmartPages] = useState<SmartPageSummary | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!schoolCode) return;
+    getSmartPagesSummary(schoolCode).then(setSmartPages).catch(() => {/* best effort */});
+  }, [schoolCode]);
+
+  function handleModeChange(selected: ExtractionMode) {
+    if (selected === "high_accuracy") {
+      setPendingMode(selected);
+      setShowHighAccuracyWarning(true);
+    } else {
+      setMode(selected);
+    }
+  }
+
+  function confirmHighAccuracy() {
+    if (pendingMode) setMode(pendingMode);
+    setPendingMode(null);
+    setShowHighAccuracyWarning(false);
+  }
+
+  function cancelHighAccuracy() {
+    setPendingMode(null);
+    setShowHighAccuracyWarning(false);
+  }
 
   async function handleFile(file: File) {
     setState({ phase: "uploading" });
     try {
-      const result = await uploadDocument(file);
+      const result = await uploadDocument(file, { schoolCode, extractionMode: mode });
       setDoc(result.document);
       setState({ phase: "ready", draft: result });
+      // Refresh Smart Pages summary after successful extraction
+      if (schoolCode) {
+        getSmartPagesSummary(schoolCode).then(setSmartPages).catch(() => {/* best effort */});
+      }
     } catch (err) {
       setState({
         phase: "error",
@@ -78,46 +122,139 @@ export function DocumentCleanerPage() {
   const ready = state.phase === "ready";
   const uploading = state.phase === "uploading";
 
+  const remainingPages = smartPages?.remainingPages ?? null;
+  const includedPages = smartPages?.includedPages ?? 0;
+  const usedPages = smartPages?.usedPages ?? 0;
+  const billingCycle = smartPages?.billingCycle === "ACADEMIC_YEAR" ? "Academic Year" : smartPages?.billingCycle ?? "";
+
   return (
     <div className="min-h-screen bg-gray-50 p-4 sm:p-8">
       <div className="mx-auto max-w-4xl">
-        <h1 className="mb-2 text-2xl font-bold text-gray-900">Document Cleaner</h1>
-        <p className="mb-6 text-sm text-gray-500">
-          Take a photo of a handwritten list or table and get a clean, printable document.
-        </p>
-
-        {/* Upload area — always visible before upload */}
-        {!ready && (
-          <div
-            className={`rounded-lg border-2 border-dashed p-10 text-center transition-colors ${
-              uploading
-                ? "border-blue-300 bg-blue-50"
-                : "border-gray-300 bg-white hover:border-blue-400"
-            }`}
-            onDrop={handleDrop}
-            onDragOver={(e) => e.preventDefault()}
-          >
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/png,image/jpeg,image/webp,application/pdf"
-              className="sr-only"
-              onChange={handleFileInputChange}
-            />
-            <p className="mb-3 text-sm font-medium text-gray-700">
-              {uploading ? "Extracting text from your document…" : "Drag & drop a file here"}
+        <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Document Cleaner</h1>
+            <p className="mt-1 text-sm text-gray-500">
+              Take a photo of a handwritten list or table and get a clean, printable document.
             </p>
-            {!uploading && (
+          </div>
+
+          {/* Smart Pages card */}
+          {smartPages && remainingPages !== null && (
+            <div className="shrink-0 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm">
+              <p className="font-semibold text-blue-800">Smart Pages</p>
+              <p className="mt-0.5 text-blue-700">
+                <span className="font-bold">{typeof remainingPages === "number" && remainingPages === Infinity ? "Unlimited" : remainingPages.toLocaleString()}</span>
+                {" / "}{(includedPages + (smartPages.topUpPages ?? 0)).toLocaleString()} remaining
+              </p>
+              <p className="mt-0.5 text-xs text-blue-500">{billingCycle} {smartPages.planName ?? ""}</p>
+              {remainingPages === 0 && (
+                <p className="mt-1 text-xs font-medium text-red-600">
+                  You have used all Smart Pages. Buy top-up pages to continue.
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* High Accuracy warning dialog */}
+        {showHighAccuracyWarning && (
+          <div className="mb-4 rounded-lg border border-yellow-300 bg-yellow-50 p-4">
+            <p className="font-semibold text-yellow-800">High Accuracy mode may cost more</p>
+            <p className="mt-1 text-sm text-yellow-700">
+              High Accuracy uses an advanced form parser and consumes more Smart Pages per document. Continue?
+            </p>
+            <div className="mt-3 flex gap-2">
               <button
                 type="button"
-                onClick={() => fileInputRef.current?.click()}
-                className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+                onClick={confirmHighAccuracy}
+                className="rounded bg-yellow-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-yellow-700"
               >
-                Browse files
+                Yes, use High Accuracy
               </button>
-            )}
-            <p className="mt-3 text-xs text-gray-400">PNG, JPG, WEBP, or PDF — max 20 MB</p>
+              <button
+                type="button"
+                onClick={cancelHighAccuracy}
+                className="rounded border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-100"
+              >
+                Cancel
+              </button>
+            </div>
           </div>
+        )}
+
+        {/* Upload area — before upload */}
+        {!ready && (
+          <>
+            {/* Mode selector */}
+            <div className="mb-4 rounded-lg border border-gray-200 bg-white p-4">
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
+                Extraction Mode
+              </p>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                {MODES.map((m) => (
+                  <label
+                    key={m.value}
+                    className={`flex cursor-pointer items-start gap-2 rounded-lg border p-3 transition-colors ${
+                      mode === m.value
+                        ? "border-blue-500 bg-blue-50"
+                        : "border-gray-200 hover:border-blue-300"
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="extractionMode"
+                      value={m.value}
+                      checked={mode === m.value}
+                      onChange={() => handleModeChange(m.value)}
+                      className="mt-0.5 shrink-0"
+                      aria-label={m.label}
+                    />
+                    <div>
+                      <p className="text-sm font-medium text-gray-900">{m.label}</p>
+                      <p className="text-xs text-gray-500">{m.description}</p>
+                    </div>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            <div
+              className={`rounded-lg border-2 border-dashed p-10 text-center transition-colors ${
+                uploading
+                  ? "border-blue-300 bg-blue-50"
+                  : "border-gray-300 bg-white hover:border-blue-400"
+              }`}
+              onDrop={handleDrop}
+              onDragOver={(e) => e.preventDefault()}
+            >
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/png,image/jpeg,image/webp,application/pdf"
+                className="sr-only"
+                onChange={handleFileInputChange}
+              />
+              <p className="mb-3 text-sm font-medium text-gray-700">
+                {uploading ? "Extracting text from your document…" : "Drag & drop a file here"}
+              </p>
+              {!uploading && (
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+                >
+                  Browse files
+                </button>
+              )}
+              <p className="mt-3 text-xs text-gray-400">PNG, JPG, WEBP, or PDF — max 20 MB</p>
+              {schoolCode && remainingPages !== null && remainingPages !== Infinity && (
+                <p className="mt-2 text-xs text-gray-500">
+                  This will use <span className="font-medium">1 Smart Page</span>
+                  {" "}({remainingPages.toLocaleString()} remaining).
+                </p>
+              )}
+            </div>
+          </>
         )}
 
         {/* Error */}
@@ -134,7 +271,7 @@ export function DocumentCleanerPage() {
           </div>
         )}
 
-        {/* Ready state — editable table + preview */}
+        {/* Ready state */}
         {ready && doc && (
           <>
             <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -180,7 +317,6 @@ export function DocumentCleanerPage() {
             </div>
 
             <div className="grid gap-4 sm:grid-cols-[1fr_220px]">
-              {/* Editable table */}
               <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white shadow-sm">
                 <table className="min-w-full text-sm">
                   {doc.columns.length > 0 && (
@@ -212,10 +348,6 @@ export function DocumentCleanerPage() {
                               key={ci}
                               data-uncertain={isUncertain ? "true" : undefined}
                               title={uncertainReason}
-                              onClick={() => {
-                                const input = document.getElementById(`cell-${ri}-${ci}`);
-                                input?.focus();
-                              }}
                               className={`px-2 py-1 ${
                                 isUncertain
                                   ? "uncertain bg-yellow-50 ring-1 ring-yellow-300 ring-inset"
@@ -240,7 +372,6 @@ export function DocumentCleanerPage() {
                 </table>
               </div>
 
-              {/* Image preview */}
               {state.draft.imagePreviewUrl && (
                 <div className="flex flex-col gap-2">
                   <p className="text-xs font-medium text-gray-500">Original scan</p>
