@@ -1,5 +1,8 @@
 import type { DocumentUploadResponse, ExtractedDocument } from "../shared/types/documentCleaner";
 import type { ExtractionMode, SmartPageSummary } from "../shared/types/smartPages";
+import { getApiBaseUrl } from "./apiBase";
+
+const API_BASE = getApiBaseUrl();
 
 export async function uploadDocument(
   file: File,
@@ -10,7 +13,7 @@ export async function uploadDocument(
   if (options?.schoolCode) form.append("schoolCode", options.schoolCode);
   if (options?.extractionMode) form.append("extractionMode", options.extractionMode);
 
-  const res = await fetch("/api/documents/cleaner/upload", {
+  const res = await fetch(`${API_BASE}/api/documents/cleaner/upload`, {
     method: "POST",
     body: form,
   });
@@ -27,7 +30,7 @@ export async function generatePdfHtml(
   document: ExtractedDocument,
   primaryColor?: string,
 ): Promise<string> {
-  const res = await fetch("/api/documents/cleaner/generate-pdf", {
+  const res = await fetch(`${API_BASE}/api/documents/cleaner/generate-pdf`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ document, primaryColor }),
@@ -42,7 +45,7 @@ export async function generatePdfHtml(
 }
 
 export async function getSmartPagesSummary(schoolCode: string): Promise<SmartPageSummary> {
-  const res = await fetch(`/api/documents/cleaner/smart-pages?schoolCode=${encodeURIComponent(schoolCode)}`);
+  const res = await fetch(`${API_BASE}/api/documents/cleaner/smart-pages?schoolCode=${encodeURIComponent(schoolCode)}`);
   if (!res.ok) {
     const body = await res.json().catch(() => ({ message: "Failed to load Smart Pages summary" }));
     throw new Error(body.message ?? "Failed to load Smart Pages summary");
