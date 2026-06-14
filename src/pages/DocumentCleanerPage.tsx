@@ -10,6 +10,8 @@ type State =
   | { phase: "ready"; draft: DocumentUploadResponse }
   | { phase: "error"; message: string };
 
+type SmartPagesStatus = "loading" | "ok" | "error" | "no-settings";
+
 const MODES: Array<{ value: ExtractionMode; label: string; description: string }> = [
   { value: "economical", label: "Economical", description: "Basic OCR — best for simple lists" },
   { value: "balanced", label: "Balanced", description: "Layout-aware — best for tables and grids" },
@@ -17,20 +19,34 @@ const MODES: Array<{ value: ExtractionMode; label: string; description: string }
 ];
 
 export function DocumentCleanerPage() {
-  const schoolCode = useAppSettings()?.settings?.schoolCode || undefined;
+  const appSettings = useAppSettings();
+  const settingsReady = appSettings !== null && appSettings.settings !== null;
+  const schoolCode = appSettings?.settings?.schoolCode || undefined;
 
   const [state, setState] = useState<State>({ phase: "idle" });
   const [doc, setDoc] = useState<ExtractedDocument | null>(null);
   const [mode, setMode] = useState<ExtractionMode>("balanced");
   const [showHighAccuracyWarning, setShowHighAccuracyWarning] = useState(false);
   const [pendingMode, setPendingMode] = useState<ExtractionMode | null>(null);
+  const [spStatus, setSpStatus] = useState<SmartPagesStatus>("loading");
   const [smartPages, setSmartPages] = useState<SmartPageSummary | null>(null);
+  const [spError, setSpError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (!schoolCode) return;
-    getSmartPagesSummary(schoolCode).then(setSmartPages).catch(() => {/* best effort */});
-  }, [schoolCode]);
+    if (!settingsReady) return;
+    if (!schoolCode) {
+      setSpStatus("no-settings");
+      return;
+    }
+    setSpStatus("loading");
+    getSmartPagesSummary(schoolCode)
+      .then((summary) => { setSmartPages(summary); setSpStatus("ok"); })
+      .catch((err) => {
+        setSpError(err instanceof Error ? err.message : "Failed to load Smart Pages summary.");
+        setSpStatus("error");
+      });
+  }, [settingsReady, schoolCode]);
 
   function handleModeChange(selected: ExtractionMode) {
     if (selected === "high_accuracy") {
@@ -58,9 +74,10 @@ export function DocumentCleanerPage() {
       const result = await uploadDocument(file, { schoolCode, extractionMode: mode });
       setDoc(result.document);
       setState({ phase: "ready", draft: result });
-      // Refresh Smart Pages summary after successful extraction
       if (schoolCode) {
-        getSmartPagesSummary(schoolCode).then(setSmartPages).catch(() => {/* best effort */});
+        getSmartPagesSummary(schoolCode)
+          .then((summary) => { setSmartPages(summary); setSpStatus("ok"); })
+          .catch(() => {});
       }
     } catch (err) {
       setState({
@@ -123,7 +140,6 @@ export function DocumentCleanerPage() {
 
   const remainingPages = smartPages?.remainingPages ?? null;
   const includedPages = smartPages?.includedPages ?? 0;
-  const usedPages = smartPages?.usedPages ?? 0;
   const billingCycle = smartPages?.billingCycle === "ACADEMIC_YEAR" ? "Academic Year" : smartPages?.billingCycle ?? "";
 
   return (
@@ -137,22 +153,46 @@ export function DocumentCleanerPage() {
             </p>
           </div>
 
-          {/* Smart Pages card */}
-          {smartPages && remainingPages !== null && (
-            <div className="shrink-0 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm">
-              <p className="font-semibold text-blue-800">Smart Pages</p>
-              <p className="mt-0.5 text-blue-700">
-                <span className="font-bold">{typeof remainingPages === "number" && remainingPages === Infinity ? "Unlimited" : remainingPages.toLocaleString()}</span>
-                {" / "}{(includedPages + (smartPages.topUpPages ?? 0)).toLocaleString()} remaining
-              </p>
-              <p className="mt-0.5 text-xs text-blue-500">{billingCycle} {smartPages.planName ?? ""}</p>
-              {remainingPages === 0 && (
-                <p className="mt-1 text-xs font-medium text-red-600">
-                  You have used all Smart Pages. Buy top-up pages to continue.
+          {/* Smart Pages card — always visible */}
+          <div className={`shrink-0 rounded-lg border px-4 py-3 text-sm ${
+            spStatus === "error" ? "border-red-200 bg-red-50" :
+            spStatus === "ok" ? "border-blue-200 bg-blue-50" :
+            "border-gray-200 bg-gray-50"
+          }`}>
+            {spStatus === "loading" && (
+              <>
+                <p className="font-semibold text-gray-600">Smart Pages</p>
+                <p className="mt-0.5 text-gray-400">Loading Smart Pages…</p>
+              </>
+            )}
+            {spStatus === "no-settings" && (
+              <>
+                <p className="font-semibold text-gray-600">Smart Pages</p>
+                <p className="mt-0.5 text-gray-400">Smart Pages not configured for this school.</p>
+              </>
+            )}
+            {spStatus === "error" && (
+              <>
+                <p className="font-semibold text-red-700">Smart Pages</p>
+                <p className="mt-0.5 text-red-600">{spError ?? "Failed to load Smart Pages summary."}</p>
+              </>
+            )}
+            {spStatus === "ok" && smartPages && (
+              <>
+                <p className="font-semibold text-blue-800">Smart Pages</p>
+                <p className="mt-0.5 text-blue-700">
+                  <span className="font-bold">{remainingPages === Infinity ? "Unlimited" : remainingPages?.toLocaleString()}</span>
+                  {" / "}{(includedPages + (smartPages.topUpPages ?? 0)).toLocaleString()} remaining
                 </p>
-              )}
-            </div>
-          )}
+                <p className="mt-0.5 text-xs text-blue-500">{billingCycle} {smartPages.planName ?? ""}</p>
+                {remainingPages === 0 && (
+                  <p className="mt-1 text-xs font-medium text-red-600">
+                    You have used all Smart Pages. Buy top-up pages to continue.
+                  </p>
+                )}
+              </>
+            )}
+          </div>
         </div>
 
         {/* High Accuracy warning dialog */}

@@ -10,14 +10,14 @@ vi.mock("../../client/documentCleanerClient", () => ({
 }));
 
 const { mockSettingsState } = vi.hoisted(() => {
-  const mockSettingsState = { schoolCode: undefined as string | undefined };
+  const mockSettingsState = { settingsLoaded: false, schoolCode: undefined as string | undefined };
   return { mockSettingsState };
 });
 
 vi.mock("../../components/layout/SettingsContext", () => ({
   useAppSettings: () =>
-    mockSettingsState.schoolCode
-      ? { settings: { schoolCode: mockSettingsState.schoolCode, sections: {} }, refreshSettings: () => {} }
+    mockSettingsState.settingsLoaded
+      ? { settings: { schoolCode: mockSettingsState.schoolCode ?? "", sections: {} }, refreshSettings: () => {} }
       : null,
 }));
 
@@ -187,11 +187,27 @@ describe("DocumentCleanerPage — Smart Pages card", () => {
     mockGenerate.mockReset();
     mockGetSummary.mockReset();
     mockGetSummary.mockResolvedValue(mockSummary);
+    mockSettingsState.settingsLoaded = true;
     mockSettingsState.schoolCode = "NALYA-SS";
   });
 
   afterEach(() => {
+    mockSettingsState.settingsLoaded = false;
     mockSettingsState.schoolCode = undefined;
+  });
+
+  it("shows loading state before settings are ready", () => {
+    mockSettingsState.settingsLoaded = false;
+    renderPage();
+    expect(screen.getByText(/loading smart pages/i)).toBeInTheDocument();
+  });
+
+  it("shows error state when getSmartPagesSummary fails", async () => {
+    mockGetSummary.mockRejectedValue(new Error("Network error"));
+    renderPage();
+    await waitFor(() => {
+      expect(screen.getByText(/network error|failed to load smart pages/i)).toBeInTheDocument();
+    });
   });
 
   it("shows Smart Pages remaining count when summary is available", async () => {
@@ -260,5 +276,18 @@ describe("DocumentCleanerPage — High Accuracy mode warning", () => {
         screen.queryByRole("button", { name: /continue|confirm/i });
       expect(confirmBtn).not.toBeNull();
     });
+  });
+});
+
+// ── Route ─────────────────────────────────────────────────────────────────────
+
+describe("DocumentCleanerPage — routing", () => {
+  it("renders when placed at /documents/cleaner", () => {
+    render(
+      <MemoryRouter initialEntries={["/documents/cleaner"]}>
+        <DocumentCleanerPage />
+      </MemoryRouter>,
+    );
+    expect(screen.getByRole("heading", { name: /document cleaner|paper.to.pdf/i })).toBeInTheDocument();
   });
 });

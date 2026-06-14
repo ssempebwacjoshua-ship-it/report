@@ -109,4 +109,10 @@ describe("Sidebar navigation", () => {
     expect(screen.getByTitle("Dashboard")).toBeInTheDocument();
     expect(screen.getByLabelText("Expand sidebar")).toBeInTheDocument();
   });
+
+  it("has a Paper to PDF nav link pointing to /documents/cleaner", async () => {
+    renderSidebar("/dashboard");
+    await waitFor(() => expect(screen.getByText("Paper to PDF")).toBeInTheDocument());
+    expect(screen.getByText("Paper to PDF").closest("a")).toHaveAttribute("href", "/documents/cleaner");
+  });
 });
