@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { useSearchParams } from "react-router-dom";
 import { generatePdfHtml, getSmartPagesSummary, uploadDocument } from "../client/documentCleanerClient";
+import { useAppSettings } from "../components/layout/SettingsContext";
 import type { DocumentUploadResponse, ExtractedDocument } from "../shared/types/documentCleaner";
 import type { ExtractionMode, SmartPageSummary } from "../shared/types/smartPages";
 
@@ -17,8 +17,7 @@ const MODES: Array<{ value: ExtractionMode; label: string; description: string }
 ];
 
 export function DocumentCleanerPage() {
-  const [searchParams] = useSearchParams();
-  const schoolCode = searchParams.get("schoolCode") ?? undefined;
+  const schoolCode = useAppSettings()?.settings?.schoolCode || undefined;
 
   const [state, setState] = useState<State>({ phase: "idle" });
   const [doc, setDoc] = useState<ExtractedDocument | null>(null);

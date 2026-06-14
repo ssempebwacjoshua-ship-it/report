@@ -9,6 +9,18 @@ vi.mock("../../client/documentCleanerClient", () => ({
   getSmartPagesSummary: vi.fn(),
 }));
 
+const { mockSettingsState } = vi.hoisted(() => {
+  const mockSettingsState = { schoolCode: undefined as string | undefined };
+  return { mockSettingsState };
+});
+
+vi.mock("../../components/layout/SettingsContext", () => ({
+  useAppSettings: () =>
+    mockSettingsState.schoolCode
+      ? { settings: { schoolCode: mockSettingsState.schoolCode, sections: {} }, refreshSettings: () => {} }
+      : null,
+}));
+
 import { generatePdfHtml, getSmartPagesSummary, uploadDocument } from "../../client/documentCleanerClient";
 
 const mockUpload = uploadDocument as ReturnType<typeof vi.fn>;
@@ -169,35 +181,30 @@ const mockSummary = {
   allowHighAccuracy: false,
 };
 
-function renderPageWithSchool() {
-  return render(
-    <MemoryRouter initialEntries={["/?schoolCode=NALYA-SS"]}>
-      <DocumentCleanerPage />
-    </MemoryRouter>,
-  );
-}
-
 describe("DocumentCleanerPage — Smart Pages card", () => {
   beforeEach(() => {
     mockUpload.mockReset();
     mockGenerate.mockReset();
     mockGetSummary.mockReset();
     mockGetSummary.mockResolvedValue(mockSummary);
+    mockSettingsState.schoolCode = "NALYA-SS";
+  });
+
+  afterEach(() => {
+    mockSettingsState.schoolCode = undefined;
   });
 
   it("shows Smart Pages remaining count when summary is available", async () => {
-    renderPageWithSchool();
+    renderPage();
     await waitFor(() => {
-      // The Smart Pages card title ("Smart Pages") should appear
       const smartPagesText = screen.queryByText(/smart pages|ai document pages/i);
-      // Use queryAllByText to safely check for the number without throwing on multiple matches
       const remainingTexts = screen.queryAllByText(/4[,.]?250/);
       expect(smartPagesText ?? (remainingTexts.length > 0 ? remainingTexts[0] : null)).not.toBeNull();
     });
   });
 
   it("shows billing period label", async () => {
-    renderPageWithSchool();
+    renderPage();
     await waitFor(() => {
       const label = screen.queryByText(/academic year|billing/i);
       expect(label).not.toBeNull();
