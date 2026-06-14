@@ -59,11 +59,14 @@ describe("POST /api/test-gemini-marks", () => {
     expect(res.body.error).toMatch(/marksheet/i);
   });
 
-  it("returns 200 with extracted rows when document is a marksheet", async () => {
+  it("returns 200 with extracted rows and summary when document is a marksheet", async () => {
     const mockRows: GeminiExtractedMarkRow[] = [
       { studentId: "SC2026-0001", studentName: "Alice Nantongo", mark: "82", confidenceScore: 0.95, needsReview: false },
     ];
-    mockExtractMarks.mockResolvedValueOnce(mockRows);
+    mockExtractMarks.mockResolvedValueOnce({
+      rows: mockRows,
+      summary: { totalRows: 1, validRows: 1, reviewRows: 0, missingMarkRows: 0, invalidMarkRows: 0 },
+    });
     const app = createServer();
     const res = await request(app)
       .post("/api/test-gemini-marks")
@@ -73,6 +76,8 @@ describe("POST /api/test-gemini-marks", () => {
     expect(res.body.count).toBe(1);
     expect(res.body.rows[0].studentId).toBe("SC2026-0001");
     expect(res.body.rows[0].mark).toBe("82");
+    expect(res.body.summary.totalRows).toBe(1);
+    expect(res.body.summary.validRows).toBe(1);
   });
 
   it("returns 500 for unexpected Gemini errors", async () => {

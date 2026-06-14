@@ -11,10 +11,77 @@ export interface GeminiExtractedMarkRow {
   reason?: string;
 }
 
+export interface MarksheetValidationSummary {
+  totalRows: number;
+  validRows: number;
+  reviewRows: number;
+  missingMarkRows: number;
+  invalidMarkRows: number;
+}
+
+/**
+ * Deterministic validation pass applied after Gemini returns rows.
+ * Gemini's confidenceScore and needsReview are NOT trusted for mark validity —
+ * we check the mark field ourselves and override when necessary.
+ *
+ * Rules:
+ *  - trimmed empty   → needsReview true, reason "Missing mark",        confidenceScore 0
+ *  - non-numeric     → needsReview true, reason "Invalid mark",         confidenceScore 0
+ *  - < 0 or > 100   → needsReview true, reason "Mark outside valid range", confidenceScore 0
+ *  - valid mark      → preserve Gemini's needsReview and reason as-is
+ *
+ * Exported for direct unit testing.
+ */
+export function validateMarksheetRows(rows: GeminiExtractedMarkRow[]): {
+  rows: GeminiExtractedMarkRow[];
+  summary: MarksheetValidationSummary;
+} {
+  let missingMarkRows = 0;
+  let invalidMarkRows = 0;
+
+  const validated = rows.map((row): GeminiExtractedMarkRow => {
+    const mark = row.mark.trim();
+
+    if (mark === "") {
+      missingMarkRows++;
+      return { ...row, mark, needsReview: true, reason: "Missing mark", confidenceScore: 0 };
+    }
+
+    const num = Number(mark);
+    if (isNaN(num)) {
+      invalidMarkRows++;
+      return { ...row, mark, needsReview: true, reason: "Invalid mark", confidenceScore: 0 };
+    }
+
+    if (num < 0 || num > 100) {
+      invalidMarkRows++;
+      return {
+        ...row, mark, needsReview: true, reason: "Mark outside valid range", confidenceScore: 0,
+      };
+    }
+
+    // Mark is valid — preserve Gemini's judgment (including any existing needsReview: true)
+    return { ...row, mark };
+  });
+
+  const reviewRows = validated.filter((r) => r.needsReview).length;
+
+  return {
+    rows: validated,
+    summary: {
+      totalRows: validated.length,
+      validRows: validated.length - reviewRows,
+      reviewRows,
+      missingMarkRows,
+      invalidMarkRows,
+    },
+  };
+}
+
 export async function extractMarksWithGemini(
   imageBuffer: Buffer,
   mimeType = "image/jpeg",
-): Promise<GeminiExtractedMarkRow[]> {
+): Promise<{ rows: GeminiExtractedMarkRow[]; summary: MarksheetValidationSummary }> {
   if (!process.env.GEMINI_API_KEY) {
     throw new Error("Missing GEMINI_API_KEY");
   }
@@ -41,12 +108,13 @@ student names, and numeric scores or marks.
 - If it IS a student marksheet, return documentType "marksheet" and extract each row:
   - studentId: student admission number or ID exactly as written
   - studentName: full name exactly as written
-  - mark: numeric score from the marks/score column ONLY
+  - mark: numeric score from the marks/score column ONLY — use empty string if the cell is blank
   - confidenceScore: 0 to 1
-  - needsReview: true if any field is unclear
+  - needsReview: true if name, ID, or mark is unclear or missing
   - reason: short explanation when needsReview is true
 
 IMPORTANT: "A' Level" and "O' Level" are education levels, not marks. Do not put them in mark.
+If a mark cell is blank or unreadable, set mark to "" and needsReview to true.
         `,
       },
     ],
@@ -99,5 +167,5 @@ IMPORTANT: "A' Level" and "O' Level" are education levels, not marks. Do not put
     throw new Error("Gemini response missing rows array");
   }
 
-  return parsed.rows;
+  return validateMarksheetRows(parsed.rows);
 }

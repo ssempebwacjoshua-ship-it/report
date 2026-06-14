@@ -37,12 +37,12 @@ router.post("/test-gemini-marks", upload.single("image"), async (req, res) => {
       return;
     }
 
-    const rows = await extractMarksWithGemini(
+    const { rows, summary } = await extractMarksWithGemini(
       req.file.buffer,
       req.file.mimetype || "image/jpeg",
     );
 
-    res.json({ success: true, count: rows.length, rows });
+    res.json({ success: true, count: rows.length, rows, summary });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Gemini OCR failed";
     console.error("[Gemini Marks OCR] error:", message);
