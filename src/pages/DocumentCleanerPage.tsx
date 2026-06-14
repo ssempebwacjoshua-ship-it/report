@@ -387,19 +387,18 @@ export function DocumentCleanerPage() {
                               key={ci}
                               data-uncertain={isUncertain ? "true" : undefined}
                               title={uncertainReason}
-                              className={`px-2 py-1 ${
+                              className={`px-1 py-0.5 ${
                                 isUncertain
                                   ? "uncertain bg-yellow-50 ring-1 ring-yellow-300 ring-inset"
                                   : ""
                               }`}
                             >
-                              {cell}
                               <input
                                 id={`cell-${ri}-${ci}`}
                                 type="text"
-                                defaultValue={cell}
+                                value={cell}
                                 onChange={(e) => updateCell(ri, ci, e.target.value)}
-                                className="sr-only"
+                                className="w-full rounded bg-transparent px-1 py-0.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400"
                                 aria-label={`Row ${ri + 1}, column ${ci + 1}`}
                               />
                             </td>

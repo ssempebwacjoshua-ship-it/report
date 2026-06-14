@@ -116,7 +116,10 @@ describe("DocumentCleanerPage — after successful upload", () => {
   it("renders row data in the editable table", async () => {
     await uploadFakeFile();
     await waitFor(() => {
-      expect(screen.getByText(/nakotta/i)).toBeInTheDocument();
+      // Cells are rendered as editable inputs; check both text and input value
+      const found =
+        screen.queryByDisplayValue(/nakotta/i) ?? screen.queryByText(/nakotta/i);
+      expect(found).not.toBeNull();
     });
   });
 

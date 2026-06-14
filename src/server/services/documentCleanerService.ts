@@ -1,7 +1,8 @@
 import { randomUUID } from "node:crypto";
 import sharp from "sharp";
-import type { ExtractedDocument, DocumentRow, UncertainCell } from "../../shared/types/documentCleaner";
+import type { ExtractedDocument } from "../../shared/types/documentCleaner";
 import { isAzureOcrConfigured, readAzureOcrFromImage } from "./azureOcrService";
+import { normalizeTableLines } from "./documentCleanerNormalizeService";
 
 // ── OCR helpers ───────────────────────────────────────────────────────────────
 
@@ -75,60 +76,6 @@ function extractMeta(lines: string[]): { schoolName: string; academicYear: strin
   return { schoolName, academicYear, term };
 }
 
-/**
- * Parse OCR lines into table rows.
- * Heuristic: each line after the header block is a data row.
- * Cells are split by 2+ consecutive spaces or tab characters.
- */
-function parseTableRows(dataLines: string[]): { rows: DocumentRow[]; uncertainCells: UncertainCell[] } {
-  const rows: DocumentRow[] = [];
-  const uncertainCells: UncertainCell[] = [];
-
-  for (const line of dataLines) {
-    const trimmed = line.trim();
-    if (!trimmed) continue;
-
-    const cells = trimmed.split(/\s{2,}|\t/).map((c) => c.trim()).filter(Boolean);
-    if (cells.length === 0) continue;
-
-    // Assign low confidence to rows that look incomplete or very short
-    const confidence = cells.length >= 2 && trimmed.length > 5 ? 0.8 : 0.45;
-    rows.push({ cells, confidence });
-
-    if (confidence < 0.6) {
-      cells.forEach((_, colIdx) => {
-        uncertainCells.push({
-          rowIndex: rows.length - 1,
-          columnIndex: colIdx,
-          reason: "Incomplete or very short row — please review",
-        });
-      });
-    }
-  }
-
-  return { rows, uncertainCells };
-}
-
-/**
- * Try to infer column headers from the first data line that looks tabular
- * (contains 2+ spaced segments and has a numeric prefix or all-caps words).
- */
-function inferColumns(dataLines: string[]): { columns: string[]; remainingLines: string[] } {
-  if (dataLines.length === 0) return { columns: [], remainingLines: [] };
-
-  const first = dataLines[0]!.trim();
-  const segments = first.split(/\s{2,}|\t/).map((s) => s.trim()).filter(Boolean);
-
-  // Looks like a header if segments are mostly non-numeric and all-caps
-  const isHeader = segments.length >= 2 &&
-    segments.filter((s) => /^[A-Z'./\s]+$/.test(s)).length >= segments.length * 0.6;
-
-  if (isHeader) {
-    return { columns: segments, remainingLines: dataLines.slice(1) };
-  }
-
-  return { columns: [], remainingLines: dataLines };
-}
 
 // ── Image preview ─────────────────────────────────────────────────────────────
 
@@ -182,8 +129,7 @@ export async function extractDocumentFromImage(
 
   const title = extractTitle(headerLines);
   const { schoolName, academicYear, term } = extractMeta(headerLines);
-  const { columns, remainingLines } = inferColumns(bodyLines);
-  const { rows, uncertainCells } = parseTableRows(remainingLines);
+  const { columns, rows, uncertainCells } = normalizeTableLines(bodyLines);
 
   const document: ExtractedDocument = {
     documentType: "table",
