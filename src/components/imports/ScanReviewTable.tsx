@@ -126,7 +126,9 @@ function GeometryDebugPanel({ rows }: { rows: ScanImportRow[] }) {
                 <th className="px-3 py-2">Row</th>
                 <th className="px-3 py-2">Adm. No.</th>
                 <th className="px-3 py-2">Crop rect (px)</th>
-                <th className="px-3 py-2">Written crop</th>
+                <th className="px-3 py-2">Original crop</th>
+                <th className="px-3 py-2">Selected crop</th>
+                <th className="px-3 py-2">Fallback</th>
                 <th className="px-3 py-2">Status / rejection</th>
               </tr>
             </thead>
@@ -148,10 +150,21 @@ function GeometryDebugPanel({ rows }: { rows: ScanImportRow[] }) {
                       )}
                     </td>
                     <td className="px-3 py-2">
+                      {row.originalWrittenCropDataUrl ? (
+                        <img
+                          src={row.originalWrittenCropDataUrl}
+                          alt={`Original candidate crop row ${row.rowNumber}`}
+                          className="h-8 w-20 rounded border object-contain opacity-80"
+                        />
+                      ) : (
+                        <span className="text-slate-300">—</span>
+                      )}
+                    </td>
+                    <td className="px-3 py-2">
                       {row.writtenCropDataUrl ? (
                         <img
                           src={row.writtenCropDataUrl}
-                          alt={`Written crop row ${row.rowNumber}`}
+                          alt={`Selected crop row ${row.rowNumber}`}
                           className="h-8 w-20 rounded border object-contain"
                         />
                       ) : (
@@ -159,8 +172,20 @@ function GeometryDebugPanel({ rows }: { rows: ScanImportRow[] }) {
                       )}
                     </td>
                     <td className="px-3 py-2">
+                      {g.fallbackCropUsed ? (
+                        <span className="inline-block rounded bg-amber-100 px-1.5 py-0.5 font-semibold text-amber-800">
+                          Fallback: {g.fallbackStrategy ?? "recrop"}
+                        </span>
+                      ) : (
+                        <span className="text-slate-400">original</span>
+                      )}
+                      {g.cropQualityReason && (
+                        <p className="mt-1 max-w-44 text-[11px] text-red-600">{g.cropQualityReason}</p>
+                      )}
+                    </td>
+                    <td className="px-3 py-2">
                       {g.cropRejectionReason ? (
-                        <span className="text-red-600">{g.cropRejectionReason}</span>
+                        <span className="text-red-600">{row.statusReason || g.cropRejectionReason}</span>
                       ) : (
                         <span className="text-emerald-600">{row.statusReason || "ok"}</span>
                       )}

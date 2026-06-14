@@ -8,17 +8,21 @@ import {
   type PixelRect,
 } from "./marksheetGeometryService";
 import {
+  analyzeCropQuality,
   bufferToDataUrl,
-  checkCropQuality,
   cropCellBlueIsolated,
   cropPreview,
   preprocessScanImage,
+  selectBestCrop,
+  stripHorizontalBorders,
 } from "./scanPreprocessService";
 import {
   computeSplitFullRect,
   computeSplitZoneRects,
   computeWrittenMarkCropRect,
   detectMarksheetTable,
+  generateSplitZoneCropCandidates,
+  generateWrittenCropCandidates,
   type TableDetectionResult,
 } from "./marksheetTableDetection";
 import {
@@ -95,6 +99,15 @@ export function ocrFailureReason(providerName: string, providerReachable: boolea
     return "OCR temporarily unavailable. Contact platform support.";
   }
   return `${providerName === "azure" ? "Azure OCR" : providerName} returned no text from this crop. Enter the mark manually.`;
+}
+
+/**
+ * Reason shown when crop geometry could not isolate the handwritten mark for any
+ * fallback recrop. This is a CROP problem, not an OCR-provider problem — the
+ * operator should enter the mark manually rather than being told OCR is down.
+ */
+export function cropFailureReason(): string {
+  return "Could not isolate the handwritten mark. Please enter mark manually.";
 }
 
 function resultById(results: OcrCropResult[], cropId: string): OcrCropResult {
@@ -475,14 +488,46 @@ export async function extractMarksFromScan(
       zoneConfidences: [0, 0, 0] as number[],
     };
     let writtenCropDataUrl = "";
+    let originalWrittenCropDataUrl = "";
     let splitCropDataUrl = "";
     let splitDigitCropDataUrls: string[] = [];
     let extractionNote = "";
     let cropRejectionReason: string | undefined;
+    let writtenFinalRect: PixelRect = writtenRect;
+    let fallbackCropUsed = false;
+    let fallbackStrategy = "original";
+    let cropQualityReason: string | undefined;
 
     try {
-      const writtenPreview = await cropPreview(scan.buffer, writtenRect);
+      // Original (computed) written crop — kept for debug comparison.
+      const originalWrittenPreview = await cropPreview(scan.buffer, writtenRect);
+      originalWrittenCropDataUrl = bufferToDataUrl(originalWrittenPreview);
+
+      // The computed crop often lands on a row border or blank cell. Generate
+      // fallback recrop candidates and pick the best-scoring (border/blank-free)
+      // crop BEFORE sending anything to OCR.
+      const writtenCandidates = generateWrittenCropCandidates(writtenRect, scan.width, scan.height);
+      const writtenPick = await selectBestCrop(scan.buffer, writtenCandidates);
+      writtenFinalRect = writtenPick.rect;
+      fallbackStrategy = writtenPick.strategy;
+      let writtenQuality = writtenPick.quality;
+      let writtenPreview = writtenPick.preview;
+      let writtenBorderStripped = false;
+
+      // Last resort: ignore printed horizontal border pixels, then re-check.
+      if (!writtenQuality.ok && /horizontal/i.test(writtenQuality.reason)) {
+        const stripped = await stripHorizontalBorders(writtenPick.preview);
+        const restripQuality = await analyzeCropQuality(stripped);
+        if (restripQuality.ok) {
+          writtenQuality = restripQuality;
+          writtenPreview = stripped;
+          writtenBorderStripped = true;
+        }
+      }
+
+      const writtenFallbackUsed = writtenPick.strategy !== "original" || writtenBorderStripped;
       writtenCropDataUrl = bufferToDataUrl(writtenPreview);
+      if (!writtenQuality.ok) cropQualityReason = writtenQuality.reason;
 
       saveDebugFile(`${rowTag}.jpg`, await cropPreview(scan.buffer, {
         x: writtenRect.x,
@@ -496,15 +541,6 @@ export async function extractMarksFromScan(
       splitCropDataUrl = bufferToDataUrl(splitPreview);
       saveDebugFile(`${rowTag}-split-full-final.jpg`, splitPreview);
 
-      const splitZonePreviews = await Promise.all(
-        splitZoneRects.map(async (rect, zoneIndex) => {
-          const preview = await cropPreview(scan.buffer, rect);
-          saveAlways(`${rowTag}-split-${zoneIndex + 1}-final.jpg`, preview);
-          return preview;
-        }),
-      );
-      splitDigitCropDataUrls = splitZonePreviews.map((preview) => bufferToDataUrl(preview));
-
       const cropIds = {
         written: `${student.admissionNumber}-written`,
         zones: splitZoneRects.map((_, z) => `${student.admissionNumber}-split-${z + 1}`),
@@ -513,20 +549,40 @@ export async function extractMarksFromScan(
       const qualityFailures: Array<{ label: string; reason: string; blocking: boolean }> = [];
       const ocrInputs: Array<{ cropId: string; buffer: Buffer; mimeType: "image/jpeg" }> = [];
 
-      const writtenQuality = await checkCropQuality(writtenPreview);
       if (writtenQuality.ok) {
-        const writtenCell = await cropCellBlueIsolated(scan.colorBuffer, writtenRect);
+        // Blue-ink isolation re-crops from colour and drops black border pixels,
+        // so the selected fallback rect is safe to send to OCR.
+        const writtenCell = await cropCellBlueIsolated(scan.colorBuffer, writtenFinalRect);
         saveDebugFile(`${rowTag}-written-processed.jpg`, writtenCell);
         ocrInputs.push({ cropId: cropIds.written, buffer: writtenCell, mimeType: "image/jpeg" });
       } else {
         qualityFailures.push({ label: "written", reason: writtenQuality.reason, blocking: true });
       }
 
-      for (let zoneIndex = 0; zoneIndex < splitZonePreviews.length; zoneIndex++) {
-        const preview = splitZonePreviews[zoneIndex]!;
-        const quality = await checkCropQuality(preview);
-        if (quality.ok) {
-          const processed = await cropCellBlueIsolated(scan.colorBuffer, splitZoneRects[zoneIndex]!);
+      let anyZoneFallback = false;
+      const splitZonePreviews: Buffer[] = [];
+      for (let zoneIndex = 0; zoneIndex < splitZoneRects.length; zoneIndex++) {
+        const baseZoneRect = splitZoneRects[zoneIndex]!;
+        const zoneCandidates = generateSplitZoneCropCandidates(baseZoneRect, scan.width, scan.height);
+        const zonePick = await selectBestCrop(scan.buffer, zoneCandidates);
+        let zoneQuality = zonePick.quality;
+        let zonePreview = zonePick.preview;
+
+        if (!zoneQuality.ok && /horizontal/i.test(zoneQuality.reason)) {
+          const stripped = await stripHorizontalBorders(zonePick.preview);
+          const restripQuality = await analyzeCropQuality(stripped);
+          if (restripQuality.ok) {
+            zoneQuality = restripQuality;
+            zonePreview = stripped;
+          }
+        }
+
+        if (zonePick.strategy !== "original") anyZoneFallback = true;
+        splitZonePreviews.push(zonePreview);
+        saveAlways(`${rowTag}-split-${zoneIndex + 1}-final.jpg`, zonePreview);
+
+        if (zoneQuality.ok) {
+          const processed = await cropCellBlueIsolated(scan.colorBuffer, zonePick.rect);
           saveDebugFile(`${rowTag}-split-${zoneIndex + 1}-processed.jpg`, processed);
           ocrInputs.push({
             cropId: cropIds.zones[zoneIndex]!,
@@ -536,19 +592,20 @@ export async function extractMarksFromScan(
         } else {
           qualityFailures.push({
             label: `split-${zoneIndex + 1}`,
-            reason: quality.reason,
-            blocking: !/blank crop/i.test(quality.reason),
+            reason: zoneQuality.reason,
+            blocking: !/blank crop/i.test(zoneQuality.reason),
           });
         }
       }
+      splitDigitCropDataUrls = splitZonePreviews.map((preview) => bufferToDataUrl(preview));
+      fallbackCropUsed = writtenFallbackUsed || anyZoneFallback;
 
       const blockingQualityFailures = qualityFailures.filter((failure) => failure.blocking);
       if (ocrInputs.length === 0) {
         const failure = qualityFailures[0];
         cropRejectionReason = failure ? `${failure.label}: ${failure.reason}` : "no usable OCR crops";
-        extractionNote = failure
-          ? `Final crop failed quality check: ${failure.label}: ${failure.reason}`
-          : "Final crop failed quality check: no usable OCR crops";
+        // Bad crop geometry — ask for manual entry, NOT "OCR unavailable".
+        extractionNote = cropFailureReason();
       }
 
       if (ocrInputs.length > 0) {
@@ -590,7 +647,9 @@ export async function extractMarksFromScan(
       };
       if (!writtenResult.normalizedMark && !splitResult.normalizedMark && blockingQualityFailures.length > 0) {
         const failure = blockingQualityFailures[0]!;
-        extractionNote = `Final crop failed quality check: ${failure.label}: ${failure.reason}`;
+        cropRejectionReason = cropRejectionReason ?? `${failure.label}: ${failure.reason}`;
+        cropQualityReason = cropQualityReason ?? failure.reason;
+        extractionNote = cropFailureReason();
       }
     } catch (error) {
       const reason = error instanceof Error ? error.message : String(error);
@@ -633,7 +692,11 @@ export async function extractMarksFromScan(
       writtenMarkCol: detection.writtenMarkCol,
       splitMarkCol: detection.splitMarkCol,
       dataRowCount: detection.dataRows.length,
-      writtenCropRect: { x: writtenRect.x, y: writtenRect.y, w: writtenRect.w, h: writtenRect.h },
+      writtenCropRect: { x: writtenFinalRect.x, y: writtenFinalRect.y, w: writtenFinalRect.w, h: writtenFinalRect.h },
+      originalWrittenCropRect: { x: writtenRect.x, y: writtenRect.y, w: writtenRect.w, h: writtenRect.h },
+      fallbackCropUsed,
+      fallbackStrategy,
+      cropQualityReason,
       cropRejectionReason,
       warnings: detection.warnings,
     };
@@ -652,6 +715,7 @@ export async function extractMarksFromScan(
       splitMarkRaw: splitResult.rawText,
       splitDigitRaw: splitResult.zoneRawText,
       writtenCropDataUrl,
+      originalWrittenCropDataUrl,
       splitCropDataUrl,
       splitDigitCropDataUrls,
       tableCropDataUrl: index === 0 ? tableCropDataUrl : undefined,

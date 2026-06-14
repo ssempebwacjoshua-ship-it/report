@@ -47,7 +47,16 @@ export type GeometryDebugInfo = {
   writtenMarkCol: { x: number; w: number };
   splitMarkCol: { x: number; w: number };
   dataRowCount: number;
+  /** The final crop rect actually sent to OCR (after any fallback recrop). */
   writtenCropRect: { x: number; y: number; w: number; h: number };
+  /** The original computed crop rect, before fallback recrop selection. */
+  originalWrittenCropRect?: { x: number; y: number; w: number; h: number };
+  /** True when a fallback recrop was selected instead of the original crop. */
+  fallbackCropUsed?: boolean;
+  /** Which fallback strategy was selected (e.g. "shrink", "center-inner"). */
+  fallbackStrategy?: string;
+  /** Quality reason for the chosen crop, when it still failed the quality gate. */
+  cropQualityReason?: string;
   cropRejectionReason?: string;
   warnings: string[];
 };
@@ -66,6 +75,8 @@ export type ScanImportRow = {
   splitMarkRaw?: string;
   splitDigitRaw?: string[];
   writtenCropDataUrl?: string;
+  /** The original computed written crop (before fallback recrop), for debug comparison. */
+  originalWrittenCropDataUrl?: string;
   splitCropDataUrl?: string;
   splitDigitCropDataUrls?: string[];
   remarksCropDataUrl?: string;

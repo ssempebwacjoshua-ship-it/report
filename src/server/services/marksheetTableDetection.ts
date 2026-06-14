@@ -890,6 +890,110 @@ export function computeSplitFullRect(
   return finalCropRect(sc.x, sc.x + sc.w, row.y, row.y + row.h, hPad, vPad);
 }
 
+// ── Fallback crop candidates ─────────────────────────────────────────────────
+//
+// When the primary (computed) crop lands on a row border, a blank cell, or a
+// horizontal grid line instead of the handwritten mark, these helpers generate
+// alternative crop rectangles. The extraction service scores each candidate and
+// sends only the best (border/blank-free) crop to OCR.
+
+export type CropStrategy =
+  | "original"
+  | "shrink"
+  | "shift-down"
+  | "shift-up"
+  | "center-inner"
+  | "zone-left"
+  | "zone-right";
+
+export type CropCandidate = { strategy: CropStrategy; rect: PixelRect };
+
+/** Clamp a rect to image bounds, guaranteeing positive width/height. */
+function clampRect(rect: PixelRect, imgW: number, imgH: number): PixelRect {
+  const x = Math.max(0, Math.min(rect.x, Math.max(0, imgW - 1)));
+  const y = Math.max(0, Math.min(rect.y, Math.max(0, imgH - 1)));
+  const w = Math.max(1, Math.min(rect.w, imgW - x));
+  const h = Math.max(1, Math.min(rect.h, imgH - y));
+  return { x, y, w, h };
+}
+
+/**
+ * Generate fallback crop candidates for a Written Mark cell.
+ *
+ * Order matters: "original" comes first so it wins ties (a crop is only replaced
+ * by a strictly better-scoring candidate). The fallbacks progressively move the
+ * crop away from printed borders:
+ *   - shrink:       pull in from all four borders
+ *   - shift-down:   drop below the top row line
+ *   - shift-up:     trim the bottom row line
+ *   - center-inner: tight crop on the cell centre (away from every border)
+ */
+export function generateWrittenCropCandidates(
+  base: PixelRect,
+  imgW: number,
+  imgH: number,
+): CropCandidate[] {
+  const shrinkX = Math.max(2, Math.round(base.w * 0.12));
+  const shrinkY = Math.max(2, Math.round(base.h * 0.18));
+  const shiftY = Math.max(2, Math.round(base.h * 0.22));
+  const centerX = Math.max(2, Math.round(base.w * 0.2));
+  const centerY = Math.max(2, Math.round(base.h * 0.25));
+
+  const raw: CropCandidate[] = [
+    { strategy: "original", rect: base },
+    {
+      strategy: "shrink",
+      rect: { x: base.x + shrinkX, y: base.y + shrinkY, w: base.w - 2 * shrinkX, h: base.h - 2 * shrinkY },
+    },
+    {
+      strategy: "shift-down",
+      rect: { x: base.x, y: base.y + shiftY, w: base.w, h: base.h - shiftY },
+    },
+    {
+      strategy: "shift-up",
+      rect: { x: base.x, y: base.y, w: base.w, h: base.h - shiftY },
+    },
+    {
+      strategy: "center-inner",
+      rect: { x: base.x + centerX, y: base.y + centerY, w: base.w - 2 * centerX, h: base.h - 2 * centerY },
+    },
+  ];
+
+  return raw.map((candidate) => ({
+    strategy: candidate.strategy,
+    rect: clampRect(candidate.rect, imgW, imgH),
+  }));
+}
+
+/**
+ * Generate fallback crop candidates for a single split-mark zone.
+ *
+ * Includes the same vertical recrops as the written cell plus left/right
+ * half-zone crops, used when a digit sits to one side of the zone or when a
+ * divider line contaminates one edge.
+ */
+export function generateSplitZoneCropCandidates(
+  base: PixelRect,
+  imgW: number,
+  imgH: number,
+): CropCandidate[] {
+  const written = generateWrittenCropCandidates(base, imgW, imgH);
+  const halfW = Math.max(1, Math.round(base.w * 0.55));
+
+  const zoneCandidates: CropCandidate[] = [
+    { strategy: "zone-left", rect: { x: base.x, y: base.y, w: halfW, h: base.h } },
+    { strategy: "zone-right", rect: { x: base.x + (base.w - halfW), y: base.y, w: halfW, h: base.h } },
+  ];
+
+  return [
+    ...written,
+    ...zoneCandidates.map((candidate) => ({
+      strategy: candidate.strategy,
+      rect: clampRect(candidate.rect, imgW, imgH),
+    })),
+  ];
+}
+
 /**
  * @deprecated Use computeWrittenMarkCropRect or computeSplitZoneRects instead.
  * Kept for backward compatibility with unit tests.
