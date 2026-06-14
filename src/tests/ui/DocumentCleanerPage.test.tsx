@@ -44,6 +44,7 @@ const mockDraft = {
     uncertainCells: [
       { rowIndex: 1, columnIndex: 1, reason: "low handwriting confidence" },
     ],
+    cellCorrections: [],
   },
 };
 

@@ -17,6 +17,7 @@ import { parentRoutes } from "./routes/parentRoutes";
 import { verifyRoutes } from "./routes/verifyRoutes";
 import { ocrRoutes } from "./routes/ocrRoutes";
 import { documentCleanerRoutes } from "./routes/documentCleanerRoutes";
+import geminiOcrRoutes from "./routes/geminiOcrRoutes";
 import { prisma } from "./db/prisma";
 import { recoverStaleStudentImportJobs } from "./services/studentImportService";
 
@@ -39,6 +40,7 @@ export function createServer() {
   app.use(verifyRoutes());
   app.use(ocrRoutes());
   app.use(documentCleanerRoutes());
+  app.use("/api", geminiOcrRoutes);
 
   const errorHandler: ErrorRequestHandler = (error, req, res, _next) => {
     if (error instanceof ZodError) {

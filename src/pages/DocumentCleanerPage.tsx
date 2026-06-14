@@ -136,7 +136,7 @@ export function DocumentCleanerPage() {
   );
 
   const correctionMap = new Map<string, CellCorrection>(
-    (doc?.cellCorrections ?? []).map((c) => [`${c.rowIndex}:${c.columnIndex}`, c]),
+    (doc?.cellCorrections ?? []).map((c: CellCorrection) => [`${c.rowIndex}:${c.columnIndex}`, c]),
   );
 
   const ready = state.phase === "ready";
@@ -448,7 +448,7 @@ export function DocumentCleanerPage() {
               )}
             </div>
 
-            {(uncertainSet.size > 0 || doc.cellCorrections.length > 0) && (
+            {(uncertainSet.size > 0 || (doc.cellCorrections?.length ?? 0) > 0) && (
               <p className="mt-3 text-xs text-gray-600">
                 {uncertainSet.size > 0 && (
                   <span className="text-yellow-700">
@@ -456,10 +456,10 @@ export function DocumentCleanerPage() {
                     {uncertainSet.size !== 1 ? "s" : ""} flagged for OCR noise.{" "}
                   </span>
                 )}
-                {doc.cellCorrections.length > 0 && (
+                {(doc.cellCorrections?.length ?? 0) > 0 && (
                   <span className="text-amber-700">
-                    <span className="font-semibold">{doc.cellCorrections.length}</span> cell
-                    {doc.cellCorrections.length !== 1 ? "s" : ""} auto-corrected — highlighted
+                    <span className="font-semibold">{doc.cellCorrections!.length}</span> cell
+                    {doc.cellCorrections!.length !== 1 ? "s" : ""} auto-corrected — highlighted
                     yellow (corrected) or red (invalid). Review before saving.
                   </span>
                 )}
