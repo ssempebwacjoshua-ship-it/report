@@ -41,6 +41,7 @@ export function createServer() {
   app.use(ocrRoutes());
   app.use(documentCleanerRoutes());
   app.use("/api", geminiOcrRoutes);
+  console.log("[Gemini OCR] routes mounted at /api/test-gemini-marks");
 
   const errorHandler: ErrorRequestHandler = (error, req, res, _next) => {
     if (error instanceof ZodError) {
