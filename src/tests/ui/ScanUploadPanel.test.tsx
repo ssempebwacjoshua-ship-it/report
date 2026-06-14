@@ -128,6 +128,54 @@ describe("ScanUploadPanel", () => {
     expect(await screen.findByText(/1 rows checked/)).toBeInTheDocument();
   });
 
+  it("shows scan debug for failed extraction with no rows", async () => {
+    sessionStorage.setItem("scan_batchId", "batch-failed");
+    vi.mocked(loadScanBatch).mockResolvedValue({
+      batchId: "batch-failed",
+      scanBatchId: "batch-failed",
+      parseStatus: "FAILED",
+      message: "No active students found for class \"Senior 1 A\" stream \"B\".",
+      rows: [],
+      context: { ...context, streamName: "B" },
+      resolvedContext: { ...context, streamName: "B" },
+      recognizedMarksheetId: "MS-2026-SENI-B-MATH-EOT-TE",
+      normalizedRecognizedId: "MS-2026-SEN1-B-MATH-EOT-TE",
+      normalizedMarksheetId: "MS-2026-SEN1-B-MATH-EOT-TE",
+      selectedMarksheetId: "MS-2026-SEN1-B-MATH-EOT-TE",
+      matchedMarksheetId: "MS-2026-SEN1-B-MATH-EOT-TE",
+      matchConfidence: 0.9,
+      matchSource: "header",
+      contextSource: "recognized-id",
+      contextWarning: "",
+      fileName: "scan.jpg",
+      configuredProvider: "azure",
+      activeProvider: "azure",
+      providerReachable: true,
+      fallbackReason: "",
+      marksheetIdDebug: {
+        rawHeaderText: "Marksheet ID: MS-2026-SENI-B-MATH-EOT-TE",
+        normalizedCandidates: ["MS-2026-SEN1-B-MATH-EOT-TE"],
+        topRightCropPath: "tmp/ocr-debug/latest/marksheet-id-topright-crop.jpg",
+        expandedTopRightCropPath: "tmp/ocr-debug/latest/marksheet-id-topright-expanded-crop.jpg",
+        headerCropPath: "tmp/ocr-debug/latest/marksheet-id-header-crop.jpg",
+        debugJsonPath: "tmp/ocr-debug/latest/marksheet-id-detection.json",
+      },
+      createdAt: new Date().toISOString(),
+    });
+
+    render(<ScanUploadPanel />);
+
+    expect(await screen.findByText("Extraction failed")).toBeInTheDocument();
+    expect(screen.getByText("Show scan debug")).toBeInTheDocument();
+    expect(screen.getByText("No rows loaded yet.")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText("Show scan debug"));
+
+    expect(screen.getByText("Raw ID OCR")).toBeInTheDocument();
+    expect(screen.getAllByText("MS-2026-SEN1-B-MATH-EOT-TE").length).toBeGreaterThan(0);
+    expect(screen.getByText("Top-right crop:")).toBeInTheDocument();
+  });
+
   it("auto-extracts after recognized Marksheet ID and shows scan context source", async () => {
     vi.mocked(detectScanContext).mockResolvedValue({
       detected: {

@@ -105,6 +105,26 @@ describe("resolveScanMarksheetContext", () => {
     };
   }
 
+  function prismaMockWithParallelSeniorOneStreams() {
+    return {
+      markImportBatch: { findMany: async () => [] },
+      schoolClass: {
+        findMany: async () => [
+          { name: "Senior 1 A", streams: [{ name: "A", code: "A" }] },
+          { name: "Senior 1 B", streams: [{ name: "B", code: "B" }] },
+        ],
+      },
+      subject: {
+        findMany: async () => [{ name: "Mathematics", code: "MATH" }],
+      },
+      term: {
+        findMany: async () => [
+          { name: "Term 1", startsOn: new Date("2026-01-10"), academicYear: { name: "2025/2026" } },
+        ],
+      },
+    };
+  }
+
   it("recognized Marksheet ID resolves context", async () => {
     const result = await resolveScanMarksheetContext(prismaMock() as any, "school-1", {
       recognizedMarksheetId: "MS-2026-SENI-A-MATH-EOT-TE",
@@ -114,6 +134,16 @@ describe("resolveScanMarksheetContext", () => {
     expect(result.normalizedMarksheetId).toBe("MS-2026-SEN1-A-MATH-EOT-TE");
     expect(result.resolvedContext?.className).toBe("Senior 1 A");
     expect(result.resolvedContext?.subjectName).toBe("Mathematics");
+  });
+
+  it("prefers the class that owns the requested stream when class codes collide", async () => {
+    const result = await resolveScanMarksheetContext(prismaMockWithParallelSeniorOneStreams() as any, "school-1", {
+      recognizedMarksheetId: "MS-2026-SENI-B-MATH-EOT-TE",
+    });
+
+    expect(result.contextSource).toBe("recognized-id");
+    expect(result.resolvedContext?.className).toBe("Senior 1 B");
+    expect(result.resolvedContext?.streamName).toBe("B");
   });
 
   it("selected context fallback works when OCR ID fails", async () => {

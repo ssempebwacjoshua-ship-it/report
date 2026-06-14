@@ -105,6 +105,76 @@ function extractionOutcome(rows: ScanImportRow[]): string {
   return `Extraction completed with ${accepted} accepted suggestion${accepted === 1 ? "" : "s"}, ${needsEntry} needs entry.`;
 }
 
+function BatchDebugPanel({ result }: { result: ScanUploadResponse }) {
+  const debug = result.marksheetIdDebug;
+  const cropPaths = [
+    ["Top-right crop", debug?.topRightCropPath],
+    ["Expanded top-right crop", debug?.expandedTopRightCropPath],
+    ["Full header crop", debug?.headerCropPath],
+    ["Footer crop", debug?.footerCropPath],
+    ["Debug JSON", debug?.debugJsonPath],
+  ].filter(([, value]) => Boolean(value));
+
+  return (
+    <details className="rounded-2xl border border-violet-200 bg-violet-50/40 p-4">
+      <summary className="cursor-pointer text-sm font-bold text-slate-800">
+        Show scan debug
+      </summary>
+      <div className="mt-4 grid gap-3 text-xs text-slate-600">
+        <div className="grid gap-2 rounded-xl border border-slate-100 bg-white px-3 py-2 md:grid-cols-2">
+          <p><span className="font-semibold">Parse status:</span> {result.parseStatus}</p>
+          <p><span className="font-semibold">Provider reachable:</span> {result.providerReachable === false ? "No" : "Yes"}</p>
+          <p><span className="font-semibold">Recognized ID:</span> {result.normalizedRecognizedId || result.recognizedMarksheetId || "Not recognized"}</p>
+          <p><span className="font-semibold">Matched ID:</span> {result.matchedMarksheetId || result.normalizedMarksheetId || "Not matched"}</p>
+          <p><span className="font-semibold">Match source:</span> {matchSourceLabel(result.matchSource)}</p>
+          <p><span className="font-semibold">Context source:</span> {contextSourceLabel(result.contextSource)}</p>
+        </div>
+
+        {debug?.rawHeaderText || debug?.rawFooterText ? (
+          <div className="rounded-xl border border-slate-100 bg-white px-3 py-2">
+            <p className="font-semibold text-slate-700">Raw ID OCR</p>
+            {debug.rawHeaderText ? <pre className="mt-1 whitespace-pre-wrap font-mono text-[11px] text-slate-600">{debug.rawHeaderText}</pre> : null}
+            {debug.rawFooterText ? <pre className="mt-2 whitespace-pre-wrap font-mono text-[11px] text-slate-500">{debug.rawFooterText}</pre> : null}
+          </div>
+        ) : null}
+
+        {debug?.normalizedCandidates && debug.normalizedCandidates.length > 0 ? (
+          <div className="rounded-xl border border-slate-100 bg-white px-3 py-2">
+            <p className="font-semibold text-slate-700">Normalized ID candidates</p>
+            <div className="mt-1 flex flex-wrap gap-1">
+              {debug.normalizedCandidates.map((candidate) => (
+                <code key={candidate} className="rounded bg-slate-100 px-2 py-1 font-mono text-[11px] text-slate-700">
+                  {candidate}
+                </code>
+              ))}
+            </div>
+          </div>
+        ) : null}
+
+        {cropPaths.length > 0 ? (
+          <div className="rounded-xl border border-slate-100 bg-white px-3 py-2">
+            <p className="font-semibold text-slate-700">Debug artifacts</p>
+            <div className="mt-1 grid gap-1">
+              {cropPaths.map(([label, value]) => (
+                <p key={label}>
+                  <span className="font-semibold">{label}:</span>{" "}
+                  <code className="font-mono text-[11px] text-slate-500">{value}</code>
+                </p>
+              ))}
+            </div>
+          </div>
+        ) : null}
+
+        {debug?.failureReason ? (
+          <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-amber-800">
+            <span className="font-semibold">ID failure:</span> {debug.failureReason}
+          </div>
+        ) : null}
+      </div>
+    </details>
+  );
+}
+
 // ── File preview ──────────────────────────────────────────────────────────────
 
 function FilePreview({ file, url }: { file: File; url: string }) {
@@ -777,6 +847,8 @@ export function ScanUploadPanel() {
               <ProviderBadge result={uploadResult} />
             </div>
           )}
+
+          <BatchDebugPanel result={uploadResult} />
 
           {/* Operator review table */}
           <div className="premium-card rounded-2xl p-4">

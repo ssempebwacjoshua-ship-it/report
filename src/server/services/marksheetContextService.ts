@@ -358,7 +358,7 @@ async function lookupFromBatches(
     const year = new Date(batch.createdAt).getFullYear();
     const computed = computeMarksheetId(cn, sn, su, et, tn, year);
 
-    if (computed.toUpperCase() === targetId.toUpperCase()) {
+    if (normalizeMarksheetId(computed) === normalizeMarksheetId(targetId)) {
       return {
         marksheetId: computed,
         className:    cn,
@@ -402,20 +402,27 @@ async function resolveFromSchoolData(
   ]);
 
   // ── Class ──────────────────────────────────────────────────────────────────
-  let className  = "";
+  let className = "";
   let streamName = c.stream; // fallback: use stream code directly
+  const classMatches: Array<{
+    cls: typeof classes[number];
+    streamMatch: typeof classes[number]["streams"][number] | undefined;
+  }> = [];
 
   for (const cls of classes) {
     const code = cls.name.replace(/\s+/g, "").toUpperCase().slice(0, 4);
     const variants = classCodeVariants(code);
     if (variants.has(c.classCode)) {
-      className = cls.name;
       const match = cls.streams.find(
         (s) => s.name.toUpperCase() === c.stream || s.code.toUpperCase() === c.stream,
       );
-      if (match) streamName = match.name;
-      break;
+      classMatches.push({ cls, streamMatch: match });
     }
+  }
+  const bestClassMatch = classMatches.find((match) => match.streamMatch) ?? classMatches[0];
+  if (bestClassMatch) {
+    className = bestClassMatch.cls.name;
+    if (bestClassMatch.streamMatch) streamName = bestClassMatch.streamMatch.name;
   }
 
   // ── Subject ────────────────────────────────────────────────────────────────
