@@ -2,11 +2,13 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
+  detectMarksheetSchema,
   findTableColumnHeader,
   groupLinesByRowNumber,
   normalizeFromOcrLines,
   normalizeFromTableCells,
   normalizeTableLines,
+  repairMarksheetRows,
   type TableCell,
 } from "../../server/services/documentCleanerNormalizeService";
 
@@ -511,5 +513,122 @@ describe("normalizeFromTableCells — NALYA real Azure DI fixture", () => {
     for (let i = 0; i < expectedFixture.rows.length; i++) {
       expect(rows[i]!.cells).toEqual(expectedFixture.rows[i]!.cells);
     }
+  });
+});
+
+// ── detectMarksheetSchema ─────────────────────────────────────────────────────
+
+describe("detectMarksheetSchema", () => {
+  const MARKSHEET_COLS = ["No", "Adm No", "Student Name", "Written Mark", "Split Mark Entry", "Remarks"];
+
+  it("returns true for standard marksheet column headers", () => {
+    expect(detectMarksheetSchema(MARKSHEET_COLS)).toBe(true);
+  });
+
+  it("returns true when abbreviated headers have adm + mark + name", () => {
+    expect(detectMarksheetSchema(["No", "Adm No", "Name", "Mark"])).toBe(true);
+  });
+
+  it("returns false for NALYA examiners table (no Adm No or Mark columns)", () => {
+    expect(detectMarksheetSchema(["No", "Teacher's Name", "Subject", "Level"])).toBe(false);
+  });
+
+  it("returns false when fewer than 4 columns", () => {
+    expect(detectMarksheetSchema(["Adm No", "Name", "Mark"])).toBe(false);
+  });
+
+  it("returns false when only name column matches", () => {
+    expect(detectMarksheetSchema(["No", "Student Name", "Subject", "Level"])).toBe(false);
+  });
+
+  it("returns true when data rows contain ≥2 admission numbers (data-driven)", () => {
+    const rows = [
+      { cells: ["1", "SC2026-0001", "Alice", "50", "5", ""], confidence: 0.9 },
+      { cells: ["2", "SC2026-0002", "Bob", "60", "6", ""], confidence: 0.9 },
+    ];
+    // Columns don't explicitly say "Adm No" but data is conclusive
+    expect(detectMarksheetSchema(["No", "ID", "Name", "Total Mark"], rows)).toBe(true);
+  });
+});
+
+// ── repairMarksheetRows ───────────────────────────────────────────────────────
+
+describe("repairMarksheetRows", () => {
+  const COLS = ["No", "Adm No", "Student Name", "Written Mark", "Split Mark Entry", "Remarks"];
+
+  it("repairs the bad live row: 1|1|SC2026-0002|Ruth Karungi|30|2 → 1|SC2026-0002|Ruth Karungi|30|2|blank", () => {
+    const rows = [
+      { cells: ["1", "1", "SC2026-0002", "Ruth Karungi", "30", "2"], confidence: 0.9 },
+    ];
+    const { rows: repaired, cellCorrections } = repairMarksheetRows(COLS, rows, []);
+    expect(repaired[0]!.cells).toEqual(["1", "SC2026-0002", "Ruth Karungi", "30", "2", ""]);
+    expect(cellCorrections.some((c) => c.status === "corrected")).toBe(true);
+  });
+
+  it("records raw OCR value and corrected value in the correction", () => {
+    const rows = [
+      { cells: ["1", "1", "SC2026-0002", "Ruth Karungi", "30", "2"], confidence: 0.9 },
+    ];
+    const { cellCorrections } = repairMarksheetRows(COLS, rows, []);
+    const admNoCorrection = cellCorrections.find((c) => c.columnIndex === 1);
+    expect(admNoCorrection).toBeDefined();
+    expect(admNoCorrection!.raw).toBe("1");
+    expect(admNoCorrection!.value).toBe("SC2026-0002");
+  });
+
+  it("repairs row where student name was under Written Mark column (name/mark swap)", () => {
+    const rows = [
+      { cells: ["1", "SC2026-0001", "45", "Daniel Bamwesigye", "4", "5"], confidence: 0.9 },
+    ];
+    const { rows: repaired, cellCorrections } = repairMarksheetRows(COLS, rows, []);
+    expect(repaired[0]!.cells[2]).toBe("Daniel Bamwesigye");
+    expect(repaired[0]!.cells[3]).toBe("45");
+    expect(cellCorrections.filter((c) => c.status === "corrected").length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("marks invalid when Written Mark contains alphabetic characters", () => {
+    const rows = [
+      { cells: ["1", "SC2026-0001", "Daniel Bamwesigye", "FortyFive", "4", "5"], confidence: 0.9 },
+    ];
+    const { cellCorrections } = repairMarksheetRows(COLS, rows, []);
+    const markCorrection = cellCorrections.find((c) => c.columnIndex === 3 && c.status === "invalid");
+    expect(markCorrection).toBeDefined();
+    expect(markCorrection!.reason).toMatch(/letter/i);
+  });
+
+  it("does not change well-formed rows", () => {
+    const rows = [
+      { cells: ["1", "SC2026-0001", "Daniel Bamwesigye", "45", "4", "5"], confidence: 0.9 },
+    ];
+    const { rows: repaired, cellCorrections } = repairMarksheetRows(COLS, rows, []);
+    expect(repaired[0]!.cells).toEqual(["1", "SC2026-0001", "Daniel Bamwesigye", "45", "4", "5"]);
+    expect(cellCorrections.filter((c) => c.status === "corrected" || c.status === "invalid")).toHaveLength(0);
+  });
+
+  it("sets lower confidence for corrected rows", () => {
+    const rows = [
+      { cells: ["1", "1", "SC2026-0002", "Ruth Karungi", "30", "2"], confidence: 0.9 },
+    ];
+    const { rows: repaired } = repairMarksheetRows(COLS, rows, []);
+    expect(repaired[0]!.confidence).toBeLessThan(0.9);
+  });
+
+  it("preserves existing uncertain cells that are NOT at corrected positions", () => {
+    const rows = [
+      { cells: ["1", "SC2026-0001", "Alice", "45", "4", "5"], confidence: 0.9 },
+    ];
+    const existing = [{ rowIndex: 0, columnIndex: 5, reason: "OCR noise" }];
+    const { uncertainCells } = repairMarksheetRows(COLS, rows, existing);
+    expect(uncertainCells).toHaveLength(1);
+    expect(uncertainCells[0]!.columnIndex).toBe(5);
+  });
+
+  it("does NOT generate corrections for NALYA examiners table (schema check guards call)", () => {
+    // detectMarksheetSchema returns false for this → repairMarksheetRows is never called in prod.
+    // But if called directly, it finds no Adm No and only runs type validation.
+    // "A' Level" at position 3 would be flagged invalid by validateMarksheetCells,
+    // but the schema check prevents this in the service layer.
+    const nalyaColumns = ["No", "Teacher's Name", "Subject", "Level"];
+    expect(detectMarksheetSchema(nalyaColumns)).toBe(false);
   });
 });

@@ -1,4 +1,4 @@
-import type { DocumentRow, UncertainCell } from "../../shared/types/documentCleaner";
+import type { CellCorrection, DocumentRow, UncertainCell } from "../../shared/types/documentCleaner";
 
 // ── Column header detection ───────────────────────────────────────────────────
 
@@ -218,6 +218,200 @@ export function normalizeFromTableCells(cells: TableCell[]): {
   }
 
   return { columns, rows, uncertainCells };
+}
+
+// ── Marksheet schema detection & repair ──────────────────────────────────────
+
+const ADM_NO_RE = /^SC\d{4}-\d{4,5}$/i;
+
+function isAdmNo(text: string): boolean {
+  return ADM_NO_RE.test(text.trim());
+}
+
+function isLikelyName(text: string): boolean {
+  const t = text.trim();
+  return t.length >= 2 && /^[A-Za-z]/.test(t) && /[A-Za-z]{2,}/.test(t) && !/^\d+$/.test(t) && !isAdmNo(t);
+}
+
+function isNumericMark(text: string): boolean {
+  return /^\d{1,3}$/.test(text.trim());
+}
+
+/**
+ * Returns true when the columns indicate a student marksheet schema:
+ * must have an Adm No column, a marks column, and a name column, with ≥ 4 cols.
+ * Also accepts data-driven detection: ≥ 2 cells in the first 5 rows match the
+ * admission number pattern (for when column headers are vague).
+ */
+export function detectMarksheetSchema(columns: string[], rows?: DocumentRow[]): boolean {
+  if (columns.length < 4) return false;
+  const hasAdmCol = columns.some((c) => /adm/i.test(c));
+  const hasMarkCol = columns.some((c) => /mark|score/i.test(c));
+  const hasNameCol = columns.some((c) => /\bname\b/i.test(c));
+  if (hasAdmCol && hasMarkCol && hasNameCol) return true;
+  if (rows && rows.length > 0) {
+    const admMatches = rows
+      .slice(0, 5)
+      .flatMap((r) => r.cells)
+      .filter((c) => isAdmNo(c));
+    if (admMatches.length >= 2) return true;
+  }
+  return false;
+}
+
+function tryRepairNameMarkSwap(
+  rawCells: string[],
+  colCount: number,
+  rowIdx: number,
+): { cells: string[]; corrections: CellCorrection[] } | null {
+  // Schema positions after Adm No: 2=Student Name, 3=Written Mark
+  if (rawCells.length < 4) return null;
+  if (!isAdmNo(rawCells[1] ?? "")) return null;
+  const atNamePos = rawCells[2] ?? "";
+  const atMarkPos = rawCells[3] ?? "";
+  if (!isNumericMark(atNamePos) || !isLikelyName(atMarkPos)) return null;
+  const cells = [...rawCells];
+  while (cells.length < colCount) cells.push("");
+  cells[2] = atMarkPos;
+  cells[3] = atNamePos;
+  return {
+    cells: cells.slice(0, colCount),
+    corrections: [
+      {
+        rowIndex: rowIdx, columnIndex: 2,
+        raw: atNamePos, value: atMarkPos,
+        status: "corrected",
+        reason: `Student name "${atMarkPos}" was in Written Mark column; moved to Student Name`,
+      },
+      {
+        rowIndex: rowIdx, columnIndex: 3,
+        raw: atMarkPos, value: atNamePos,
+        status: "corrected",
+        reason: `Written mark "${atNamePos}" was in Student Name column; moved to Written Mark`,
+      },
+    ],
+  };
+}
+
+function validateMarksheetCells(
+  rawCells: string[],
+  colCount: number,
+  rowIdx: number,
+): { cells: string[]; corrections: CellCorrection[] } {
+  const cells = rawCells.slice(0, colCount);
+  while (cells.length < colCount) cells.push("");
+  const corrections: CellCorrection[] = [];
+  const admNoCell = cells[1] ?? "";
+  if (admNoCell && !isAdmNo(admNoCell)) {
+    corrections.push({
+      rowIndex: rowIdx, columnIndex: 1,
+      raw: admNoCell, value: admNoCell,
+      status: "uncertain",
+      reason: `"${admNoCell}" doesn't match admission number format SC####-#####`,
+    });
+  }
+  const nameCell = cells[2] ?? "";
+  if (nameCell && /^\d+$/.test(nameCell)) {
+    corrections.push({
+      rowIndex: rowIdx, columnIndex: 2,
+      raw: nameCell, value: nameCell,
+      status: "invalid",
+      reason: `Student name "${nameCell}" is numeric; expected a name`,
+    });
+  }
+  const markCell = cells[3] ?? "";
+  if (markCell && /[a-zA-Z]/.test(markCell)) {
+    corrections.push({
+      rowIndex: rowIdx, columnIndex: 3,
+      raw: markCell, value: markCell,
+      status: "invalid",
+      reason: `Written mark "${markCell}" contains letters; expected a numeric score`,
+    });
+  }
+  return { cells, corrections };
+}
+
+/**
+ * Repairs rows from a marksheet table using schema-aware structural analysis.
+ *
+ * For each row:
+ * 1. Finds the admission number (SC####-####) as an anchor.
+ * 2. If it's at column 1 (expected): checks for name/mark swap and validates.
+ * 3. If it's shifted right (e.g., col 2): removes the noise cells before it,
+ *    shifts the Adm No to col 1, and pads Remarks with "".
+ * 4. If absent: runs type validation only (flags invalid marks, uncertain Adm Nos).
+ *
+ * Returns per-cell CellCorrection metadata so the UI can highlight corrected
+ * (yellow) and invalid (red) cells. Does NOT silently save corrections —
+ * all changes are surfaced for user review.
+ */
+export function repairMarksheetRows(
+  columns: string[],
+  rows: DocumentRow[],
+  existingUncertain: UncertainCell[],
+): { rows: DocumentRow[]; uncertainCells: UncertainCell[]; cellCorrections: CellCorrection[] } {
+  const colCount = columns.length;
+  const allCorrections: CellCorrection[] = [];
+
+  const repairedRows: DocumentRow[] = rows.map((row, rowIdx) => {
+    const rawCells = [...row.cells];
+    const admNoIdx = rawCells.findIndex((c) => isAdmNo(c));
+    let cells: string[];
+    let rowCorrections: CellCorrection[] = [];
+
+    if (admNoIdx === -1) {
+      ({ cells, corrections: rowCorrections } = validateMarksheetCells(rawCells, colCount, rowIdx));
+    } else if (admNoIdx === 1) {
+      const swapResult = tryRepairNameMarkSwap(rawCells, colCount, rowIdx);
+      if (swapResult) {
+        cells = swapResult.cells;
+        rowCorrections = swapResult.corrections;
+      } else {
+        ({ cells, corrections: rowCorrections } = validateMarksheetCells(rawCells, colCount, rowIdx));
+      }
+    } else {
+      // Adm No is shifted right — remove the noise cells before it
+      const noise = rawCells.slice(1, admNoIdx);
+      const afterAdmNo = rawCells.slice(admNoIdx + 1);
+      const repairedCells = [rawCells[0] ?? "", rawCells[admNoIdx]!, ...afterAdmNo];
+      while (repairedCells.length < colCount) repairedCells.push("");
+      cells = repairedCells.slice(0, colCount);
+      rowCorrections.push({
+        rowIndex: rowIdx, columnIndex: 1,
+        raw: rawCells[1] ?? "",
+        value: rawCells[admNoIdx]!,
+        status: "corrected",
+        reason: `Removed ${noise.length} extra cell(s) before Adm No: "${noise.join('", "')}"`,
+      });
+      if (cells.length > afterAdmNo.length + 2) {
+        rowCorrections.push({
+          rowIndex: rowIdx, columnIndex: colCount - 1,
+          raw: "", value: "",
+          status: "corrected",
+          reason: "Remarks column missing after shift repair; padded blank",
+        });
+      }
+      // After shift repair, also check for name/mark swap
+      const swapResult = tryRepairNameMarkSwap(cells, colCount, rowIdx);
+      if (swapResult) {
+        cells = swapResult.cells;
+        rowCorrections.push(...swapResult.corrections);
+      }
+    }
+
+    allCorrections.push(...rowCorrections);
+    const hasInvalid = rowCorrections.some((c) => c.status === "invalid");
+    const hasCorrected = rowCorrections.some((c) => c.status === "corrected");
+    const confidence = hasInvalid ? 0.3 : hasCorrected ? 0.6 : row.confidence;
+    return { ...row, cells, confidence };
+  });
+
+  const correctionKeys = new Set(allCorrections.map((c) => `${c.rowIndex}:${c.columnIndex}`));
+  const filteredUncertain = existingUncertain.filter(
+    (u) => !correctionKeys.has(`${u.rowIndex}:${u.columnIndex}`),
+  );
+
+  return { rows: repairedRows, uncertainCells: filteredUncertain, cellCorrections: allCorrections };
 }
 
 // ── Delimiter-based parsing ───────────────────────────────────────────────────

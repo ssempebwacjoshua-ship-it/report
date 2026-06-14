@@ -15,6 +15,17 @@ export type UncertainCell = {
   reason: string;
 };
 
+export type CellStatus = "valid" | "corrected" | "uncertain" | "invalid";
+
+export type CellCorrection = {
+  rowIndex: number;
+  columnIndex: number;
+  raw: string;
+  value: string;
+  status: CellStatus;
+  reason: string;
+};
+
 export type ExtractedDocument = {
   documentType: DocumentType;
   title: string;
@@ -24,6 +35,7 @@ export type ExtractedDocument = {
   columns: string[];
   rows: DocumentRow[];
   uncertainCells: UncertainCell[];
+  cellCorrections: CellCorrection[];
 };
 
 export type DocumentUploadResponse = {

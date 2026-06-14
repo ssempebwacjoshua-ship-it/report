@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { generatePdfHtml, getSmartPagesSummary, uploadDocument } from "../client/documentCleanerClient";
 import { useAppSettings } from "../components/layout/SettingsContext";
-import type { DocumentUploadResponse, ExtractedDocument } from "../shared/types/documentCleaner";
+import type { CellCorrection, DocumentUploadResponse, ExtractedDocument } from "../shared/types/documentCleaner";
 import type { ExtractionMode, SmartPageSummary } from "../shared/types/smartPages";
 
 type State =
@@ -133,6 +133,10 @@ export function DocumentCleanerPage() {
 
   const uncertainSet = new Set(
     (doc?.uncertainCells ?? []).map((u) => `${u.rowIndex}:${u.columnIndex}`),
+  );
+
+  const correctionMap = new Map<string, CellCorrection>(
+    (doc?.cellCorrections ?? []).map((c) => [`${c.rowIndex}:${c.columnIndex}`, c]),
   );
 
   const ready = state.phase === "ready";
@@ -377,18 +381,35 @@ export function DocumentCleanerPage() {
                       <tr key={ri} className={ri % 2 === 1 ? "bg-gray-50" : ""}>
                         {row.cells.map((cell, ci) => {
                           const isUncertain = uncertainSet.has(`${ri}:${ci}`);
-                          const uncertainReason = isUncertain
-                            ? (doc.uncertainCells.find(
-                                (u) => u.rowIndex === ri && u.columnIndex === ci,
-                              )?.reason ?? "Review this cell")
-                            : undefined;
+                          const correction = correctionMap.get(`${ri}:${ci}`);
+                          const cellStatus = correction?.status;
+                          const showRed = cellStatus === "invalid";
+                          const showYellow =
+                            isUncertain ||
+                            cellStatus === "corrected" ||
+                            cellStatus === "uncertain";
+                          const cellTitle =
+                            correction?.reason ??
+                            (isUncertain
+                              ? (doc.uncertainCells.find(
+                                  (u) => u.rowIndex === ri && u.columnIndex === ci,
+                                )?.reason ?? "Review this cell")
+                              : undefined);
+                          const helperText =
+                            correction && correction.raw !== correction.value
+                              ? `OCR: "${correction.raw}"`
+                              : undefined;
                           return (
                             <td
                               key={ci}
                               data-uncertain={isUncertain ? "true" : undefined}
-                              title={uncertainReason}
+                              data-corrected={cellStatus === "corrected" ? "true" : undefined}
+                              data-invalid={cellStatus === "invalid" ? "true" : undefined}
+                              title={cellTitle}
                               className={`px-1 py-0.5 ${
-                                isUncertain
+                                showRed
+                                  ? "bg-red-50 ring-1 ring-red-400 ring-inset"
+                                  : showYellow
                                   ? "uncertain bg-yellow-50 ring-1 ring-yellow-300 ring-inset"
                                   : ""
                               }`}
@@ -401,6 +422,11 @@ export function DocumentCleanerPage() {
                                 className="w-full rounded bg-transparent px-1 py-0.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400"
                                 aria-label={`Row ${ri + 1}, column ${ci + 1}`}
                               />
+                              {helperText && (
+                                <span className="block px-1 text-xs leading-none text-gray-400">
+                                  {helperText}
+                                </span>
+                              )}
                             </td>
                           );
                         })}
@@ -422,10 +448,21 @@ export function DocumentCleanerPage() {
               )}
             </div>
 
-            {uncertainSet.size > 0 && (
-              <p className="mt-3 text-xs text-yellow-700">
-                <span className="font-semibold">{uncertainSet.size}</span> cell
-                {uncertainSet.size !== 1 ? "s" : ""} highlighted in yellow may need review.
+            {(uncertainSet.size > 0 || doc.cellCorrections.length > 0) && (
+              <p className="mt-3 text-xs text-gray-600">
+                {uncertainSet.size > 0 && (
+                  <span className="text-yellow-700">
+                    <span className="font-semibold">{uncertainSet.size}</span> cell
+                    {uncertainSet.size !== 1 ? "s" : ""} flagged for OCR noise.{" "}
+                  </span>
+                )}
+                {doc.cellCorrections.length > 0 && (
+                  <span className="text-amber-700">
+                    <span className="font-semibold">{doc.cellCorrections.length}</span> cell
+                    {doc.cellCorrections.length !== 1 ? "s" : ""} auto-corrected — highlighted
+                    yellow (corrected) or red (invalid). Review before saving.
+                  </span>
+                )}
               </p>
             )}
           </>

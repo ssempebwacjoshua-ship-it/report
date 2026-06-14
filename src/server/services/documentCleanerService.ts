@@ -1,10 +1,12 @@
 import { randomUUID } from "node:crypto";
 import sharp from "sharp";
-import type { ExtractedDocument } from "../../shared/types/documentCleaner";
+import type { CellCorrection, ExtractedDocument } from "../../shared/types/documentCleaner";
 import { isAzureOcrConfigured } from "./azureOcrService";
 import {
+  detectMarksheetSchema,
   normalizeFromOcrLines,
   normalizeFromTableCells,
+  repairMarksheetRows,
   type TableCell,
 } from "./documentCleanerNormalizeService";
 
@@ -182,6 +184,7 @@ function emptyDocument(): ExtractedDocument {
     columns: [],
     rows: [],
     uncertainCells: [],
+    cellCorrections: [],
   };
 }
 
@@ -221,6 +224,16 @@ export async function extractDocumentFromImage(
     metaEndIdx = result.metaEndIdx;
   }
 
+  // Schema-aware marksheet repair: detect horizontal cell shifts and type errors.
+  // Only applied when the column headers indicate a student marksheet (Adm No + Mark + Name).
+  let cellCorrections: CellCorrection[] = [];
+  if (detectMarksheetSchema(columns, rows)) {
+    const repaired = repairMarksheetRows(columns, rows, uncertainCells);
+    rows = repaired.rows;
+    uncertainCells = repaired.uncertainCells;
+    cellCorrections = repaired.cellCorrections;
+  }
+
   const metaLines =
     metaEndIdx > 0 ? lines.slice(0, metaEndIdx) : lines.slice(0, Math.min(4, lines.length));
 
@@ -236,6 +249,7 @@ export async function extractDocumentFromImage(
     columns,
     rows,
     uncertainCells,
+    cellCorrections,
   };
 
   return { draftId, document, imagePreviewUrl };
