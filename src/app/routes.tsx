@@ -11,6 +11,7 @@ import { LoginPage } from "../pages/LoginPage";
 import { LogoutPage } from "../pages/LogoutPage";
 import { ParentReportPage } from "../pages/ParentReportPage";
 import { VerifyPage } from "../pages/VerifyPage";
+import { DocumentCleanerPage } from "../pages/DocumentCleanerPage";
 
 export const router = createBrowserRouter([
   // Public routes — no AppShell, no auth
@@ -32,6 +33,7 @@ export const router = createBrowserRouter([
       { path: "imports/marks", element: <MarksImportPage /> },
       { path: "marksheets", element: <MarksheetsPage /> },
       { path: "settings", element: <SettingsPage /> },
+      { path: "documents/cleaner", element: <DocumentCleanerPage /> },
     ],
   },
 ]);
