@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import sharp from "sharp";
 import type { ExtractedDocument } from "../../shared/types/documentCleaner";
 import { isAzureOcrConfigured, readAzureOcrFromImage } from "./azureOcrService";
-import { normalizeTableLines } from "./documentCleanerNormalizeService";
+import { normalizeFromOcrLines } from "./documentCleanerNormalizeService";
 
 // ── OCR helpers ───────────────────────────────────────────────────────────────
 
@@ -121,15 +121,14 @@ export async function extractDocumentFromImage(
     return { draftId, document: emptyDocument(), imagePreviewUrl };
   }
 
-  // Identify the split between header metadata and table content.
-  // A rough heuristic: header lines are the first ~20% of all lines (max 6).
-  const headerCount = Math.min(6, Math.max(2, Math.round(lines.length * 0.2)));
-  const headerLines = lines.slice(0, headerCount);
-  const bodyLines = lines.slice(headerCount);
+  // normalizeFromOcrLines scans ALL lines to find the column header row,
+  // then groups the body lines into rows. It returns metaEndIdx so we know
+  // which lines to use for title / school / year / term extraction.
+  const { columns, rows, uncertainCells, metaEndIdx } = normalizeFromOcrLines(lines);
+  const metaLines = metaEndIdx > 0 ? lines.slice(0, metaEndIdx) : lines.slice(0, Math.min(4, lines.length));
 
-  const title = extractTitle(headerLines);
-  const { schoolName, academicYear, term } = extractMeta(headerLines);
-  const { columns, rows, uncertainCells } = normalizeTableLines(bodyLines);
+  const title = extractTitle(metaLines);
+  const { schoolName, academicYear, term } = extractMeta(metaLines);
 
   const document: ExtractedDocument = {
     documentType: "table",

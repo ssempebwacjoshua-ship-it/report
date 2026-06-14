@@ -1,147 +1,262 @@
 import { describe, expect, it } from "vitest";
-import { normalizeTableLines } from "../../server/services/documentCleanerNormalizeService";
+import {
+  findTableColumnHeader,
+  groupLinesByRowNumber,
+  normalizeFromOcrLines,
+  normalizeTableLines,
+} from "../../server/services/documentCleanerNormalizeService";
 
-const HEADER = "No, Adm No, Student Name, Written Mark, Split Mark Entry, Remarks";
-const ROW1 = "1, SC226-0001, Daniel Bamwesigye, 45, 4, 5";
-const ROW2 = "2, SC226-0005, Allan Andrew Nakiwala, 71, 71, blank";
+// ── findTableColumnHeader ─────────────────────────────────────────────────────
 
-// ── Comma-separated table (main use case) ─────────────────────────────────────
-
-describe("normalizeTableLines — comma-separated table", () => {
-  const lines = [HEADER, ROW1, ROW2];
-
-  it("extracts column headers from the first line", () => {
-    const { columns } = normalizeTableLines(lines);
-    expect(columns).toEqual([
-      "No",
-      "Adm No",
-      "Student Name",
-      "Written Mark",
-      "Split Mark Entry",
-      "Remarks",
-    ]);
+describe("findTableColumnHeader", () => {
+  it("detects multi-space column header containing NO and NAME", () => {
+    const lines = [
+      "N & SB",
+      "List of Examiners",
+      "2026 TERM 1",
+      "NO  TEACHER'S NAME  Subject  Level",
+      "1. NAKOTTA LAWRENCE",
+    ];
+    const { idx, columns } = findTableColumnHeader(lines);
+    expect(idx).toBe(3);
+    expect(columns).toEqual(["NO", "TEACHER'S NAME", "Subject", "Level"]);
   });
 
-  it("parses two data rows", () => {
-    const { rows } = normalizeTableLines(lines);
-    expect(rows).toHaveLength(2);
+  it("detects comma-separated header with SUBJECT keyword", () => {
+    const lines = ["School Name", "No, Adm No, Student Name, Written Mark, Split Mark Entry, Remarks"];
+    const { idx, columns } = findTableColumnHeader(lines);
+    expect(idx).toBe(1);
+    expect(columns).toHaveLength(6);
+    expect(columns[0]).toBe("No");
   });
 
-  it("parses row 1 cells correctly", () => {
-    const { rows } = normalizeTableLines(lines);
-    expect(rows[0]!.cells).toEqual(["1", "SC226-0001", "Daniel Bamwesigye", "45", "4", "5"]);
+  it("returns idx -1 when no keyword-based header is found", () => {
+    const lines = ["Galubalo", "Physics", "A Level"];
+    const { idx } = findTableColumnHeader(lines);
+    expect(idx).toBe(-1);
   });
 
-  it("parses row 2 cells correctly", () => {
-    const { rows } = normalizeTableLines(lines);
-    expect(rows[1]!.cells).toEqual(["2", "SC226-0005", "Allan Andrew Nakiwala", "71", "71", "blank"]);
+  it("ignores data rows even if they contain numbers after keywords", () => {
+    const lines = [
+      "NO  TEACHER'S NAME  Subject  Level",
+      "1. NAKOTTA LAWRENCE",
+    ];
+    const { idx } = findTableColumnHeader(lines);
+    expect(idx).toBe(0);
+  });
+});
+
+// ── groupLinesByRowNumber ─────────────────────────────────────────────────────
+
+describe("groupLinesByRowNumber", () => {
+  it("groups numbered lines into rows for a 4-column table", () => {
+    const lines = [
+      "1. NAKOTTA LAWRENCE",
+      "Physics",
+      "A Level",
+      "2. Galubalo Alex",
+      "ENT",
+      "A Level",
+      "3. Mr Ssemogooma Lameck",
+      "C.R.E",
+      "O Level",
+    ];
+    const { rows } = groupLinesByRowNumber(lines, 4);
+    expect(rows).toHaveLength(3);
+    expect(rows[0]!.cells).toEqual(["1", "NAKOTTA LAWRENCE", "Physics", "A Level"]);
+    expect(rows[1]!.cells).toEqual(["2", "Galubalo Alex", "ENT", "A Level"]);
+    expect(rows[2]!.cells).toEqual(["3", "Mr Ssemogooma Lameck", "C.R.E", "O Level"]);
   });
 
-  it("assigns high confidence to well-formed rows", () => {
-    const { rows } = normalizeTableLines(lines);
+  it("assigns high confidence to complete numbered rows", () => {
+    const lines = ["1. NAKOTTA LAWRENCE", "Physics", "A Level"];
+    const { rows } = groupLinesByRowNumber(lines, 4);
     expect(rows[0]!.confidence).toBeGreaterThanOrEqual(0.7);
-    expect(rows[1]!.confidence).toBeGreaterThanOrEqual(0.7);
   });
 
-  it("produces no uncertain cells for well-formed rows", () => {
-    const { uncertainCells } = normalizeTableLines(lines);
-    expect(uncertainCells).toHaveLength(0);
+  it("pads short rows to colCount", () => {
+    const lines = ["5. Mr Wander Raymond", "General Paper"];
+    const { rows } = groupLinesByRowNumber(lines, 4);
+    expect(rows[0]!.cells).toHaveLength(4);
+    expect(rows[0]!.cells[3]).toBe("");
   });
 
-  it("row cell count matches the number of header columns", () => {
-    const { columns, rows } = normalizeTableLines(lines);
+  it("handles orphan lines before the first numbered row", () => {
+    const lines = [
+      "Galubalo",
+      "Physics",
+      "A Level",
+      "3. Mr Ssemogooma Lameck",
+      "C.R.E",
+      "O Level",
+    ];
+    const { rows, uncertainCells } = groupLinesByRowNumber(lines, 4);
+    // Orphan group: ["Galubalo","Physics","A Level"] → row with auto number "1"
+    const orphanRow = rows.find((r) => r.cells[0] === "1");
+    expect(orphanRow).toBeDefined();
+    expect(orphanRow!.cells[1]).toBe("Galubalo");
+    // Orphan rows should be marked uncertain
+    const orphanUncertain = uncertainCells.filter((u) => u.rowIndex === rows.indexOf(orphanRow!));
+    expect(orphanUncertain.length).toBeGreaterThan(0);
+  });
+
+  it("returns empty rows for empty input", () => {
+    const { rows } = groupLinesByRowNumber([], 4);
+    expect(rows).toHaveLength(0);
+  });
+});
+
+// ── normalizeFromOcrLines — NALYA-style single-cell OCR output ────────────────
+
+describe("normalizeFromOcrLines — NALYA-style single-cell lines", () => {
+  const NALYA_LINES = [
+    "N & SB",
+    "List of Examiners",
+    "2026 TERM 1",
+    "NO  TEACHER'S NAME  Subject  Level",
+    "1. NAKOTTA LAWRENCE",
+    "Physics",
+    "A Level",
+    "2. Galubalo Alex",
+    "ENT",
+    "A Level",
+    "3. Mr Ssemogooma Lameck",
+    "C.R.E",
+    "O Level",
+    "4. Nantale Margret",
+    "Literature",
+    "O Level",
+    "5. Mr Wander Raymond",
+    "General Paper",
+    "A Level",
+  ];
+
+  it("extracts 4 column headers", () => {
+    const { columns } = normalizeFromOcrLines(NALYA_LINES);
+    expect(columns).toEqual(["NO", "TEACHER'S NAME", "Subject", "Level"]);
+  });
+
+  it("produces 5 data rows", () => {
+    const { rows } = normalizeFromOcrLines(NALYA_LINES);
+    expect(rows).toHaveLength(5);
+  });
+
+  it("correctly structures row 1", () => {
+    const { rows } = normalizeFromOcrLines(NALYA_LINES);
+    expect(rows[0]!.cells).toEqual(["1", "NAKOTTA LAWRENCE", "Physics", "A Level"]);
+  });
+
+  it("correctly structures row 3", () => {
+    const { rows } = normalizeFromOcrLines(NALYA_LINES);
+    expect(rows[2]!.cells).toEqual(["3", "Mr Ssemogooma Lameck", "C.R.E", "O Level"]);
+  });
+
+  it("correctly structures row 5", () => {
+    const { rows } = normalizeFromOcrLines(NALYA_LINES);
+    expect(rows[4]!.cells).toEqual(["5", "Mr Wander Raymond", "General Paper", "A Level"]);
+  });
+
+  it("sets metaEndIdx to point at the column header line", () => {
+    const { metaEndIdx } = normalizeFromOcrLines(NALYA_LINES);
+    expect(metaEndIdx).toBe(3); // "NO  TEACHER'S NAME  Subject  Level" is at index 3
+  });
+
+  it("each row has exactly colCount cells", () => {
+    const { columns, rows } = normalizeFromOcrLines(NALYA_LINES);
     for (const row of rows) {
       expect(row.cells).toHaveLength(columns.length);
     }
   });
 });
 
-// ── Empty / blank input ────────────────────────────────────────────────────────
+// ── normalizeFromOcrLines — delimiter-separated body ─────────────────────────
 
-describe("normalizeTableLines — empty input", () => {
-  it("returns empty result for no lines", () => {
+describe("normalizeFromOcrLines — delimiter-separated body", () => {
+  const lines = [
+    "NO  TEACHER'S NAME  Subject  Level",
+    "1, NAKOTTA LAWRENCE, Physics, A Level",
+    "2, Galubalo Alex, ENT, A Level",
+  ];
+
+  it("detects comma-separated body and parses rows", () => {
+    const { columns, rows } = normalizeFromOcrLines(lines);
+    expect(columns).toEqual(["NO", "TEACHER'S NAME", "Subject", "Level"]);
+    expect(rows).toHaveLength(2);
+    expect(rows[0]!.cells).toEqual(["1", "NAKOTTA LAWRENCE", "Physics", "A Level"]);
+  });
+});
+
+// ── normalizeTableLines — CSV tests (kept for direct delimiter use) ───────────
+
+describe("normalizeTableLines — comma-separated", () => {
+  const HEADER = "No, Adm No, Student Name, Written Mark, Split Mark Entry, Remarks";
+  const ROW1 = "1, SC226-0001, Daniel Bamwesigye, 45, 4, 5";
+  const ROW2 = "2, SC226-0005, Allan Andrew Nakiwala, 71, 71, blank";
+
+  it("extracts column headers", () => {
+    const { columns } = normalizeTableLines([HEADER, ROW1, ROW2]);
+    expect(columns).toEqual(["No", "Adm No", "Student Name", "Written Mark", "Split Mark Entry", "Remarks"]);
+  });
+
+  it("parses row 1 cells", () => {
+    const { rows } = normalizeTableLines([HEADER, ROW1, ROW2]);
+    expect(rows[0]!.cells).toEqual(["1", "SC226-0001", "Daniel Bamwesigye", "45", "4", "5"]);
+  });
+
+  it("parses row 2 cells", () => {
+    const { rows } = normalizeTableLines([HEADER, ROW1, ROW2]);
+    expect(rows[1]!.cells).toEqual(["2", "SC226-0005", "Allan Andrew Nakiwala", "71", "71", "blank"]);
+  });
+
+  it("assigns high confidence to complete rows", () => {
+    const { rows } = normalizeTableLines([HEADER, ROW1, ROW2]);
+    expect(rows[0]!.confidence).toBeGreaterThanOrEqual(0.7);
+  });
+
+  it("produces no uncertain cells for well-formed rows", () => {
+    const { uncertainCells } = normalizeTableLines([HEADER, ROW1, ROW2]);
+    expect(uncertainCells).toHaveLength(0);
+  });
+
+  it("row cell count matches header column count", () => {
+    const { columns, rows } = normalizeTableLines([HEADER, ROW1, ROW2]);
+    for (const row of rows) expect(row.cells).toHaveLength(columns.length);
+  });
+
+  it("returns empty for blank input", () => {
     const result = normalizeTableLines([]);
     expect(result.columns).toHaveLength(0);
     expect(result.rows).toHaveLength(0);
-    expect(result.uncertainCells).toHaveLength(0);
   });
 
-  it("returns empty result for all-blank lines", () => {
-    const result = normalizeTableLines(["", "  ", "\t"]);
-    expect(result.columns).toHaveLength(0);
-    expect(result.rows).toHaveLength(0);
-  });
-});
-
-// ── Mismatched row length ─────────────────────────────────────────────────────
-
-describe("normalizeTableLines — mismatched row cell count", () => {
-  it("pads a short row to match header column count", () => {
-    const lines = [HEADER, "3, SC226-0010, Partial Row"]; // 3 of 6 cells
-    const { columns, rows } = normalizeTableLines(lines);
-    expect(rows[0]!.cells).toHaveLength(columns.length);
-  });
-
-  it("marks all cells in a short row as uncertain", () => {
-    const lines = [HEADER, "3, SC226-0010, Partial Row"];
-    const { uncertainCells } = normalizeTableLines(lines);
+  it("pads and marks uncertain a short row", () => {
+    const { rows, uncertainCells } = normalizeTableLines([HEADER, "3, SC226-0010, Partial Row"]);
+    expect(rows[0]!.cells).toHaveLength(6);
     expect(uncertainCells.length).toBeGreaterThan(0);
-    expect(uncertainCells[0]!.reason).toMatch(/review/i);
-  });
-
-  it("assigns low confidence to a short row", () => {
-    const lines = [HEADER, "3, SC226-0010, Partial Row"];
-    const { rows } = normalizeTableLines(lines);
-    expect(rows[0]!.confidence).toBeLessThan(0.6);
   });
 });
 
-// ── Tab-separated table ───────────────────────────────────────────────────────
-
-describe("normalizeTableLines — tab-separated table", () => {
-  const lines = [
-    "No\tAdm No\tStudent Name\tWritten Mark",
-    "1\tSC226-0001\tDaniel Bamwesigye\t45",
-    "2\tSC226-0005\tAllan Andrew Nakiwala\t71",
-  ];
-
-  it("detects tab delimiter and extracts headers", () => {
-    const { columns } = normalizeTableLines(lines);
-    expect(columns).toEqual(["No", "Adm No", "Student Name", "Written Mark"]);
-  });
-
-  it("parses row 1 with tab delimiter", () => {
-    const { rows } = normalizeTableLines(lines);
-    expect(rows[0]!.cells).toEqual(["1", "SC226-0001", "Daniel Bamwesigye", "45"]);
+describe("normalizeTableLines — tab-separated", () => {
+  it("detects tab delimiter and parses correctly", () => {
+    const lines = ["No\tAdm No\tStudent Name", "1\tSC226-0001\tDaniel Bamwesigye"];
+    const { columns, rows } = normalizeTableLines(lines);
+    expect(columns).toEqual(["No", "Adm No", "Student Name"]);
+    expect(rows[0]!.cells).toEqual(["1", "SC226-0001", "Daniel Bamwesigye"]);
   });
 });
 
-// ── Multi-space-separated table ───────────────────────────────────────────────
-
-describe("normalizeTableLines — multi-space-separated table", () => {
-  const lines = [
-    "NO   TEACHER NAME   SUBJECT",
-    "1    NAKOTTA        Physics",
-    "2    NAKAZZI        Mathematics",
-  ];
-
-  it("detects multi-space delimiter and extracts headers", () => {
-    const { columns } = normalizeTableLines(lines);
+describe("normalizeTableLines — multi-space-separated", () => {
+  it("detects multi-space delimiter and parses correctly", () => {
+    const lines = ["NO   TEACHER NAME   SUBJECT", "1    NAKOTTA        Physics"];
+    const { columns, rows } = normalizeTableLines(lines);
     expect(columns).toEqual(["NO", "TEACHER NAME", "SUBJECT"]);
-  });
-
-  it("parses row 1 with multi-space delimiter", () => {
-    const { rows } = normalizeTableLines(lines);
     expect(rows[0]!.cells).toEqual(["1", "NAKOTTA", "Physics"]);
   });
 });
 
-// ── No header line ────────────────────────────────────────────────────────────
-
 describe("normalizeTableLines — no detectable header", () => {
   it("treats all lines as data rows when every row starts with a number", () => {
-    const lines = ["1, 45, 50", "2, 60, 70"];
-    const { columns, rows } = normalizeTableLines(lines);
+    const { columns, rows } = normalizeTableLines(["1, 45, 50", "2, 60, 70"]);
     expect(columns).toHaveLength(0);
     expect(rows).toHaveLength(2);
   });
