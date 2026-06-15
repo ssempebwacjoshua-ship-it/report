@@ -151,5 +151,14 @@ export async function commitMarksImport(prisma: PrismaClient, schoolCode: string
     });
   }
 
+  await prisma.auditLog.create({
+    data: {
+      schoolId: school.id,
+      action: "marks.imported",
+      correlationId: batch.id,
+      details: { batchId: batch.id, source: "csv", totalRows: validated.length },
+    },
+  });
+
   return { status: "COMMITTED", batchId: batch.id, totalRows: validated.length, validRows: validated.length, invalidRows: 0, rows: validated };
 }

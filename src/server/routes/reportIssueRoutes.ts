@@ -87,7 +87,7 @@ export function reportIssueRoutes() {
       }
 
       // Supersede any existing ISSUED reports for same student+year+term+type
-      await prisma.issuedReport.updateMany({
+      const supersededResult = await prisma.issuedReport.updateMany({
         where: {
           schoolId: user.schoolId,
           studentId: body.studentId,
@@ -98,6 +98,16 @@ export function reportIssueRoutes() {
         },
         data: { status: "SUPERSEDED", updatedAt: new Date() },
       });
+
+      if (supersededResult.count > 0) {
+        await prisma.auditLog.create({
+          data: {
+            schoolId: user.schoolId,
+            action: "report.superseded",
+            details: { studentId: body.studentId, count: supersededResult.count, actorId: user.userId, actorName: user.name },
+          },
+        });
+      }
 
       const snapshot = {
         card,
@@ -132,6 +142,15 @@ export function reportIssueRoutes() {
           status: "ISSUED",
           issuedById: user.userId,
           issuedByName: user.name,
+        },
+      });
+
+      await prisma.auditLog.create({
+        data: {
+          schoolId: user.schoolId,
+          action: "report.issue",
+          correlationId: issued.id,
+          details: { issuedReportId: issued.id, referenceCode, studentId: body.studentId, actorId: user.userId, actorName: user.name },
         },
       });
 
@@ -219,6 +238,15 @@ export function reportIssueRoutes() {
       const updated = await prisma.issuedReport.update({
         where: { id },
         data: { status: "REVOKED", updatedAt: new Date() },
+      });
+
+      await prisma.auditLog.create({
+        data: {
+          schoolId: user.schoolId,
+          action: "report.revoke",
+          correlationId: id,
+          details: { issuedReportId: id, reason: reason ?? null, actorId: user.userId, actorName: user.name },
+        },
       });
 
       res.json({ id: updated.id, status: updated.status });
