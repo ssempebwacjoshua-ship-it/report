@@ -225,10 +225,54 @@ export default function geminiMarksImportRoutes() {
       } catch (error: unknown) {
         const message = error instanceof Error ? error.message : "Gemini extraction failed";
         console.error("[gemini-extract]", { reqId, event: "error", message });
+
+        // ── Application-level 400s ───────────────────────────────────────────
         if (message === "Uploaded document does not look like a marksheet.") {
           res.status(400).json(importErr("NOT_MARKSHEET", message));
           return;
         }
+        if (
+          message === "Gemini returned empty response" ||
+          message === "Gemini returned invalid JSON" ||
+          message === "Gemini response missing rows array"
+        ) {
+          res.status(400).json(importErr(
+            "GEMINI_PARSE_ERROR",
+            "Gemini could not read the marksheet. Try a clearer or higher-resolution image.",
+          ));
+          return;
+        }
+
+        // ── Gemini service-level 503s ────────────────────────────────────────
+        if (message === "Missing GEMINI_API_KEY") {
+          res.status(503).json(importErr(
+            "GEMINI_NOT_CONFIGURED",
+            "Gemini AI is not configured on this server. Please contact support.",
+          ));
+          return;
+        }
+        if (/api.?key.*(invalid|not valid|expired)|PERMISSION_DENIED|permission denied|unauthorized/i.test(message)) {
+          res.status(503).json(importErr(
+            "GEMINI_AUTH_ERROR",
+            "Gemini AI authentication failed. Please contact support.",
+          ));
+          return;
+        }
+        if (/RESOURCE_EXHAUSTED|resource exhausted|quota|rate.?limit|too many requests/i.test(message)) {
+          res.status(503).json(importErr(
+            "GEMINI_RATE_LIMIT",
+            "Gemini AI is temporarily unavailable (rate limit). Please wait a moment and try again.",
+          ));
+          return;
+        }
+        if (/UNAVAILABLE|unavailable|fetch.*failed|network.*error|timeout|ECONNREFUSED|ENOTFOUND/i.test(message)) {
+          res.status(503).json(importErr(
+            "GEMINI_UNAVAILABLE",
+            "Could not reach the Gemini AI service. Please try again in a moment.",
+          ));
+          return;
+        }
+
         next(error);
       }
     },

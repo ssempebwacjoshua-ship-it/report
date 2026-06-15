@@ -105,6 +105,64 @@ describe("POST /api/marks-import/scan/extract", () => {
   });
 });
 
+describe("Gemini error handling", () => {
+  it("returns 503 GEMINI_NOT_CONFIGURED when GEMINI_API_KEY is missing", async () => {
+    const { extractMarksWithGemini } = await import("../../server/services/geminiOcrService");
+    vi.mocked(extractMarksWithGemini).mockRejectedValueOnce(new Error("Missing GEMINI_API_KEY"));
+
+    const res = await request(createServer())
+      .post("/api/marks-import/scan/extract")
+      .attach("image", IMAGE, { filename: "marks.jpg", contentType: "image/jpeg" })
+      .field("classId", "class-1").field("subjectId", "subject-1")
+      .field("termId", "term-1").field("examType", "BOT");
+
+    expect(res.status).toBe(503);
+    expect(res.body.code).toBe("GEMINI_NOT_CONFIGURED");
+  });
+
+  it("returns 503 GEMINI_AUTH_ERROR for an invalid API key", async () => {
+    const { extractMarksWithGemini } = await import("../../server/services/geminiOcrService");
+    vi.mocked(extractMarksWithGemini).mockRejectedValueOnce(new Error("API key not valid. Please pass a valid API key."));
+
+    const res = await request(createServer())
+      .post("/api/marks-import/scan/extract")
+      .attach("image", IMAGE, { filename: "marks.jpg", contentType: "image/jpeg" })
+      .field("classId", "class-1").field("subjectId", "subject-1")
+      .field("termId", "term-1").field("examType", "BOT");
+
+    expect(res.status).toBe(503);
+    expect(res.body.code).toBe("GEMINI_AUTH_ERROR");
+  });
+
+  it("returns 503 GEMINI_RATE_LIMIT on quota exhaustion", async () => {
+    const { extractMarksWithGemini } = await import("../../server/services/geminiOcrService");
+    vi.mocked(extractMarksWithGemini).mockRejectedValueOnce(new Error("RESOURCE_EXHAUSTED: quota exceeded"));
+
+    const res = await request(createServer())
+      .post("/api/marks-import/scan/extract")
+      .attach("image", IMAGE, { filename: "marks.jpg", contentType: "image/jpeg" })
+      .field("classId", "class-1").field("subjectId", "subject-1")
+      .field("termId", "term-1").field("examType", "BOT");
+
+    expect(res.status).toBe(503);
+    expect(res.body.code).toBe("GEMINI_RATE_LIMIT");
+  });
+
+  it("returns 400 GEMINI_PARSE_ERROR when Gemini returns empty response", async () => {
+    const { extractMarksWithGemini } = await import("../../server/services/geminiOcrService");
+    vi.mocked(extractMarksWithGemini).mockRejectedValueOnce(new Error("Gemini returned empty response"));
+
+    const res = await request(createServer())
+      .post("/api/marks-import/scan/extract")
+      .attach("image", IMAGE, { filename: "marks.jpg", contentType: "image/jpeg" })
+      .field("classId", "class-1").field("subjectId", "subject-1")
+      .field("termId", "term-1").field("examType", "BOT");
+
+    expect(res.status).toBe(400);
+    expect(res.body.code).toBe("GEMINI_PARSE_ERROR");
+  });
+});
+
 describe("file validation boundaries", () => {
   it("returns 400 JSON when image exceeds 10 MB size limit", async () => {
     const oversized = Buffer.alloc(10 * 1024 * 1024 + 1);
