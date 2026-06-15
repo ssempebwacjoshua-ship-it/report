@@ -64,4 +64,34 @@ describe("extractMarksWithGeminiScan — security contract", () => {
     const headers = options?.headers as Record<string, string> | undefined;
     expect(headers?.["x-internal-test-key"]).toBeUndefined();
   });
+
+  it("includes Authorization header when a token is in localStorage", async () => {
+    vi.stubEnv("VITE_API_BASE_URL", "https://api.example.com");
+    vi.resetModules();
+
+    const mockFetch = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({ success: true, jobId: "j1", count: 0, rows: [], summary: {} }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      ),
+    );
+    vi.stubGlobal("fetch", mockFetch);
+    vi.stubGlobal("localStorage", {
+      getItem: (key: string) => (key === "sc_auth_token" ? "tok-abc123" : null),
+    });
+
+    const { extractMarksWithGeminiScan } = await import("../../client/importsClient");
+    const image = new File(["bytes"], "marks.jpg", { type: "image/jpeg" });
+    await extractMarksWithGeminiScan(image, {
+      classId: "c1",
+      streamId: "",
+      subjectId: "s1",
+      termId: "t1",
+      examType: "BOT",
+    });
+
+    const [, options] = mockFetch.mock.calls[0] as [string, RequestInit];
+    const headers = options?.headers as Record<string, string> | undefined;
+    expect(headers?.["Authorization"]).toBe("Bearer tok-abc123");
+  });
 });

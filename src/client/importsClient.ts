@@ -14,6 +14,11 @@ import type {
 } from "../shared/types/imports";
 import { getApiBaseUrl } from "./apiBase";
 const API_BASE = getApiBaseUrl();
+const TOKEN_KEY = "sc_auth_token";
+function authHeaders(): HeadersInit {
+  const token = localStorage.getItem(TOKEN_KEY);
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
 
 async function readImportError(response: Response, fallback: string): Promise<string> {
   try {
@@ -198,6 +203,7 @@ export async function extractMarksWithGeminiScan(
 
   const response = await fetch(`${API_BASE}/api/marks-import/scan/extract`, {
     method: "POST",
+    headers: authHeaders(),
     body: form,
   });
   if (!response.ok) throw new Error(await readImportError(response, "Gemini extraction failed"));
