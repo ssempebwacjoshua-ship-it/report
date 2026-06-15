@@ -271,7 +271,9 @@ model SubjectMark {
   importBatch  MarkImportBatch? @relation(fields: [importBatchId], references: [id], onDelete: SetNull)
 
   @@unique([studentId, subjectId, termId, assessmentType])
-  @@index([schoolId, academicYearId, termId, classId, streamId, status])
+  @@index([schoolId, academicYearId, termId, classId, streamId, assessmentType, status])
+  @@index([schoolId, studentId, academicYearId, termId, assessmentType])
+  @@index([schoolId, subjectId, academicYearId, termId, assessmentType])
   @@index([importBatchId])
 }
 
@@ -315,6 +317,7 @@ model AuditLog {
 
   school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
 
+  @@index([schoolId, action, createdAt])
   @@index([schoolId, correlationId])
 }
 
