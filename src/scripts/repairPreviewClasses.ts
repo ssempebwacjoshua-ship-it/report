@@ -16,7 +16,41 @@
  */
 
 import type { PrismaClient } from "@prisma/client";
-import { CANONICAL_CLASSES, isCanonicalClassCode } from "../shared/constants/classes";
+import {
+  CANONICAL_CLASSES,
+  getClassesForSections,
+  isCanonicalClassCode,
+  type SchoolSection,
+} from "../shared/constants/classes";
+
+export type ProvisionResult = {
+  schoolCode: string;
+  sectionsProvisioned: SchoolSection[];
+  totalClassesProcessed: number;
+};
+
+/**
+ * Upserts every canonical class definition for the given sections into the DB.
+ * Idempotent: safe to run multiple times. Existing records are left unchanged.
+ */
+export async function provisionCanonicalClasses(
+  prisma: PrismaClient,
+  schoolCode: string,
+  sections: SchoolSection[],
+): Promise<ProvisionResult> {
+  const school = await prisma.school.findUnique({ where: { code: schoolCode } });
+  if (!school) throw new Error(`School not found: ${schoolCode}`);
+
+  const defs = getClassesForSections(sections);
+  for (const def of defs) {
+    await prisma.schoolClass.upsert({
+      where: { schoolId_code: { schoolId: school.id, code: def.code } },
+      create: { schoolId: school.id, name: def.name, code: def.code, level: def.level },
+      update: {},
+    });
+  }
+  return { schoolCode, sectionsProvisioned: sections, totalClassesProcessed: defs.length };
+}
 
 export type RepairResult = {
   schoolCode: string;
@@ -174,11 +208,18 @@ async function main() {
     ? process.argv.slice(2)
     : ["SCU-PREVIEW"];
 
+  // Section to provision can be extended; default is SECONDARY for this preview school.
+  const sections: SchoolSection[] = ["SECONDARY"];
+
   try {
     for (const code of schoolCodes) {
-      console.log(`Repairing classes for school: ${code}`);
-      const result = await repairSchoolClasses(prisma, code);
-      console.log(JSON.stringify(result, null, 2));
+      console.log(`\nProvisioning canonical classes for school: ${code} (sections: ${sections.join(", ")})`);
+      const provResult = await provisionCanonicalClasses(prisma, code, sections);
+      console.log(JSON.stringify(provResult, null, 2));
+
+      console.log(`\nRepairing non-canonical class names for school: ${code}`);
+      const repairResult = await repairSchoolClasses(prisma, code);
+      console.log(JSON.stringify(repairResult, null, 2));
     }
   } finally {
     await prisma.$disconnect();

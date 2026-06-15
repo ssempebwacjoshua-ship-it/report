@@ -12,6 +12,7 @@ const {
   subjectMarkCreate,
   subjectMarkUpsert,
   subjectMarkCount,
+  schoolClassUpsert,
 } = vi.hoisted(() => {
   const txSubjectMarkUpsert = vi.fn(async () => ({}));
   const txMarkImportBatchUpdate = vi.fn(async () => ({ id: "job-123", status: "COMMITTED" }));
@@ -51,6 +52,7 @@ const {
     subjectMarkCreate: vi.fn(),
     subjectMarkUpsert: vi.fn(),
     subjectMarkCount: vi.fn(async () => 2),
+    schoolClassUpsert: vi.fn(async () => ({})),
   };
 });
 
@@ -61,6 +63,10 @@ vi.mock("../../server/db/prisma", () => ({
     schoolClass: {
       findFirst: vi.fn(async () => ({ id: "class-1", schoolId: "school-1", streams: [] })),
       findMany: vi.fn(async () => [{ id: "class-1", name: "Senior 1", code: "S1" }]),
+      upsert: schoolClassUpsert,
+    },
+    appSetting: {
+      findUnique: vi.fn(async () => null),
     },
     subject: {
       findFirst: vi.fn(async () => ({ id: "subject-1" })),
@@ -157,6 +163,7 @@ beforeEach(() => {
   txMarkImportBatchUpdate.mockClear();
   txAuditLogCreate.mockClear();
   mockTransaction.mockClear();
+  schoolClassUpsert.mockClear();
 });
 
 describe("POST /api/marks-import/scan/extract", () => {
@@ -284,6 +291,24 @@ describe("no active students", () => {
   });
 });
 
+describe("stream-class validation", () => {
+  it("returns STREAM_NOT_FOUND with 'does not belong' message when stream is not in the selected class", async () => {
+    // stream.findFirst returns null — the stream UUID is not under the given classId
+    const res = await request(createServer())
+      .post("/api/marks-import/scan/extract")
+      .attach("image", IMAGE, { filename: "marks.jpg", contentType: "image/jpeg" })
+      .field("classId", CLS)
+      .field("streamId", STREAM)
+      .field("subjectId", SUBJ)
+      .field("termId", TERM)
+      .field("examType", "BOT");
+
+    expect(res.status).toBe(404);
+    expect(res.body.code).toBe("STREAM_NOT_FOUND");
+    expect(res.body.error).toContain("does not belong to the selected class");
+  });
+});
+
 describe("MarkImportBatch failure", () => {
   it("returns 400 at stage create_import_batch when batch creation fails", async () => {
     markImportBatchCreate.mockRejectedValueOnce(new Error("Prisma: connection refused"));
@@ -358,6 +383,53 @@ describe("GET /api/marks-import/scan/options", () => {
     expect(streamIds).toContain("stream-a");
     expect(streamIds).toContain("stream-b");
     expect(streamIds).not.toContain("stream-x");
+  });
+
+  it("upserts S1-S6 (6 classes) for a secondary school when no setting is stored", async () => {
+    // appSetting returns null → defaults to SECONDARY → 6 upsert calls
+    await request(createServer())
+      .get("/api/marks-import/scan/options")
+      .query({ schoolCode: "SCU-PREVIEW" });
+
+    const upsertedCodes = schoolClassUpsert.mock.calls.map(
+      (call) => (call[0] as { create: { code: string } }).create.code,
+    );
+    expect(upsertedCodes).toHaveLength(6);
+    expect(upsertedCodes).toEqual(expect.arrayContaining(["S1", "S2", "S3", "S4", "S5", "S6"]));
+  });
+
+  it("upserts P1-P7 (7 classes) when school sections setting is PRIMARY", async () => {
+    const { prisma } = await import("../../server/db/prisma");
+    vi.mocked(prisma.appSetting.findUnique).mockResolvedValueOnce({
+      sections: { school: { schoolSections: ["PRIMARY"] } },
+    } as never);
+
+    await request(createServer())
+      .get("/api/marks-import/scan/options")
+      .query({ schoolCode: "SCU-PREVIEW" });
+
+    const upsertedCodes = schoolClassUpsert.mock.calls.map(
+      (call) => (call[0] as { create: { code: string } }).create.code,
+    );
+    expect(upsertedCodes).toHaveLength(7);
+    expect(upsertedCodes).toEqual(expect.arrayContaining(["P1", "P2", "P3", "P4", "P5", "P6", "P7"]));
+  });
+
+  it("upserts Baby/Middle/Top (3 classes) when school sections setting is NURSERY", async () => {
+    const { prisma } = await import("../../server/db/prisma");
+    vi.mocked(prisma.appSetting.findUnique).mockResolvedValueOnce({
+      sections: { school: { schoolSections: ["NURSERY"] } },
+    } as never);
+
+    await request(createServer())
+      .get("/api/marks-import/scan/options")
+      .query({ schoolCode: "SCU-PREVIEW" });
+
+    const upsertedCodes = schoolClassUpsert.mock.calls.map(
+      (call) => (call[0] as { create: { code: string } }).create.code,
+    );
+    expect(upsertedCodes).toHaveLength(3);
+    expect(upsertedCodes).toEqual(expect.arrayContaining(["BABY", "MIDDLE", "TOP"]));
   });
 });
 

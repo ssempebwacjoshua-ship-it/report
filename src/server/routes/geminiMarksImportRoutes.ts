@@ -2,7 +2,11 @@ import type { NextFunction, Request, Response } from "express";
 import { Router } from "express";
 import multer from "multer";
 import { prisma } from "../db/prisma";
-import { isCanonicalClassCode } from "../../shared/constants/classes";
+import {
+  getClassesForSections,
+  isCanonicalClassCode,
+  type SchoolSection,
+} from "../../shared/constants/classes";
 import { verifyToken } from "../services/authService";
 import { extractMarksWithGemini } from "../services/geminiOcrService";
 import {
@@ -201,7 +205,7 @@ export default function geminiMarksImportRoutes() {
             return;
           }
           if (streamId && !stream) {
-            res.status(404).json(stageErr(reqId, stage, "STREAM_NOT_FOUND", "Selected stream was not found for this class."));
+            res.status(404).json(stageErr(reqId, stage, "STREAM_NOT_FOUND", "Selected stream does not belong to the selected class."));
             return;
           }
           console.log("[gemini-extract]", { reqId, stage, event: "context_validated", schoolId });
@@ -353,11 +357,34 @@ export default function geminiMarksImportRoutes() {
         return;
       }
 
+      // Read stored school sections (default: SECONDARY when not yet configured).
+      let schoolSections: SchoolSection[] = ["SECONDARY"];
+      const savedSetting = await prisma.appSetting.findUnique({
+        where: { schoolCode: school.code },
+        select: { sections: true },
+      });
+      if (savedSetting?.sections) {
+        const raw = savedSetting.sections as { school?: { schoolSections?: unknown } };
+        if (Array.isArray(raw?.school?.schoolSections) && raw.school.schoolSections.length > 0) {
+          schoolSections = raw.school.schoolSections as SchoolSection[];
+        }
+      }
+
+      // Provision missing canonical classes for the school's sections (idempotent).
+      const sectionClassDefs = getClassesForSections(schoolSections);
+      for (const def of sectionClassDefs) {
+        await prisma.schoolClass.upsert({
+          where: { schoolId_code: { schoolId: school.id, code: def.code } },
+          create: { schoolId: school.id, name: def.name, code: def.code, level: def.level },
+          update: {},
+        });
+      }
+
       const [classes, streams, subjects, terms] = await Promise.all([
         prisma.schoolClass.findMany({
           where: { schoolId: school.id },
           select: { id: true, name: true, code: true },
-          orderBy: { name: "asc" },
+          orderBy: { level: "asc" },
         }),
         prisma.stream.findMany({
           where: { schoolId: school.id },
