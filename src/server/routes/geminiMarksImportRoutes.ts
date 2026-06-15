@@ -642,10 +642,12 @@ export default function geminiMarksImportRoutes() {
         skippedRows: 0,
         batchId: batch.id,
         message: `${validRows.length} marks saved and ready for reports.`,
+        schoolCode,
         academicYearId: term.academicYearId,
         classId: batchContext.classId,
         streamId,
         termId: batchContext.termId,
+        subjectId: batchContext.subjectId,
         assessmentType: batchContext.examType,
       });
 

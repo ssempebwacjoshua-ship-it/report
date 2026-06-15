@@ -151,6 +151,7 @@ export function GeminiScanPanel() {
   const reportsUrl = useMemo(() => {
     if (!commitResponse) return "/reports";
     const params = new URLSearchParams();
+    if (commitResponse.schoolCode) params.set("schoolCode", commitResponse.schoolCode);
     params.set("classId", context.classId);
     if (context.streamId) params.set("streamId", context.streamId);
     params.set("termId", context.termId);

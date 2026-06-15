@@ -379,9 +379,11 @@ export type GeminiCommitResponse = {
   skippedRows: number;
   batchId: string;
   message: string;
+  schoolCode: string;
   academicYearId: string;
   classId: string;
   streamId: string | null;
   termId: string;
+  subjectId: string;
   assessmentType: string;
 };

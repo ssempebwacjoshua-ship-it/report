@@ -553,15 +553,17 @@ describe("POST /api/marks-import/scan/commit — successful commit", () => {
     expect(upsertArg.create.termId).toBe(TERM);
   });
 
-  it("returns academicYearId, classId, termId, assessmentType for navigation", async () => {
+  it("returns navigation context (schoolCode, classId, streamId, termId, subjectId, assessmentType) for Go to Reports", async () => {
     const res = await request(createServer())
       .post("/api/marks-import/scan/commit")
       .send({ jobId: JOB, reviewedRows: VALID_REVIEWED_ROWS });
 
+    expect(res.body.schoolCode).toBe("SCU-PREVIEW");
     expect(res.body.academicYearId).toBe("year-1");
     expect(res.body.classId).toBe(CLS);
     expect(res.body.streamId).toBe(STREAM);
     expect(res.body.termId).toBe(TERM);
+    expect(res.body.subjectId).toBe(SUBJ);
     expect(res.body.assessmentType).toBe("BOT");
   });
 

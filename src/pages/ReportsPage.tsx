@@ -43,6 +43,7 @@ function useDesktopMatch() {
 export function ReportsPage() {
   const [searchParams] = useSearchParams();
   const urlParams = useRef({
+    schoolCode: searchParams.get("schoolCode"),
     classId: searchParams.get("classId"),
     streamId: searchParams.get("streamId"),
     termId: searchParams.get("termId"),
@@ -53,6 +54,7 @@ export function ReportsPage() {
   const [context, setContext] = useState<ReportContext | null>(null);
   const [filters, setFilters] = useState<Filters>(() => ({
     ...DEFAULT_FILTERS,
+    ...(urlParams.schoolCode ? { schoolCode: urlParams.schoolCode } : {}),
     classId: urlParams.classId ?? DEFAULT_FILTERS.classId,
     streamId: urlParams.streamId ?? DEFAULT_FILTERS.streamId,
     ...(urlParams.termId ? { termId: urlParams.termId } : {}),

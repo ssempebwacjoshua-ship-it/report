@@ -133,10 +133,12 @@ const COMMIT_SUCCESS: GeminiCommitResponse = {
   skippedRows: 0,
   batchId: "job-ready",
   message: "2 marks saved and ready for reports.",
+  schoolCode: "SCU-PREVIEW",
   academicYearId: "year-1",
   classId: "class-1",
   streamId: null,
   termId: "term-1",
+  subjectId: "subject-1",
   assessmentType: "BOT",
 };
 
@@ -375,6 +377,7 @@ describe("GeminiScanPanel — commit flow", () => {
     fireEvent.click(screen.getByRole("button", { name: "Save Reviewed Marks" }));
     const link = await screen.findByRole("link", { name: "Go to Reports" });
     const href = link.getAttribute("href") ?? "";
+    expect(href).toContain("schoolCode=SCU-PREVIEW");
     expect(href).toContain("classId=class-1");
     expect(href).toContain("termId=term-1");
     expect(href).toContain("assessmentType=BOT");
