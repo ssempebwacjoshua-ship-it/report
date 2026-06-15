@@ -1,16 +1,19 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { GeminiScanPanel } from "../../components/imports/GeminiScanPanel";
-import { extractMarksWithGeminiScan, fetchScanOptions } from "../../client/importsClient";
-import type { GeminiScanExtractResponse, ScanOptions } from "../../shared/types/imports";
+import { commitGeminiScanRows, extractMarksWithGeminiScan, fetchScanOptions } from "../../client/importsClient";
+import type { GeminiCommitResponse, GeminiScanExtractResponse, ScanOptions } from "../../shared/types/imports";
 
 vi.mock("../../client/importsClient", () => ({
   extractMarksWithGeminiScan: vi.fn(),
   fetchScanOptions: vi.fn(),
+  commitGeminiScanRows: vi.fn(),
 }));
 
 const mockExtract = vi.mocked(extractMarksWithGeminiScan);
 const mockFetchOptions = vi.mocked(fetchScanOptions);
+const mockCommit = vi.mocked(commitGeminiScanRows);
 
 const OPTIONS: ScanOptions = {
   success: true,
@@ -93,6 +96,51 @@ const RESPONSE_WITH_MISMATCH: GeminiScanExtractResponse = {
   ],
 };
 
+// All-READY response used for commit flow tests.
+const RESPONSE_ALL_READY: GeminiScanExtractResponse = {
+  success: true,
+  jobId: "job-ready",
+  count: 2,
+  summary: {
+    totalRows: 2,
+    readyRows: 2,
+    reviewRows: 0,
+    blockedRows: 0,
+    missingMarkRows: 0,
+    invalidMarkRows: 0,
+    unmatchedStudentRows: 0,
+    duplicateStudentRows: 0,
+  },
+  rows: [
+    {
+      rowNumber: 1, extractedStudentId: "SC2026-00001", extractedStudentName: "Alice Nantongo",
+      matchedStudentId: "aaaaaaaa-0000-0000-0000-000000000011", matchedStudentName: "Alice Nantongo",
+      mark: "82", confidenceScore: 0.95, status: "READY", issues: [], raw: {},
+    },
+    {
+      rowNumber: 2, extractedStudentId: "SC2026-00094", extractedStudentName: "Faith Mukulu",
+      matchedStudentId: "aaaaaaaa-0000-0000-0000-000000000012", matchedStudentName: "Faith Mukulu",
+      mark: "65", confidenceScore: 0.9, status: "READY", issues: [], raw: {},
+    },
+  ],
+};
+
+const COMMIT_SUCCESS: GeminiCommitResponse = {
+  success: true,
+  committedRows: 2,
+  skippedRows: 0,
+  batchId: "job-ready",
+  message: "2 marks saved for review.",
+};
+
+function renderPanel() {
+  return render(
+    <MemoryRouter>
+      <GeminiScanPanel />
+    </MemoryRouter>,
+  );
+}
+
 // Waits for options to load, then fills all required fields with dropdown selections.
 async function fillContextAndFile() {
   const classSelect = await screen.findByLabelText("Class");
@@ -110,7 +158,7 @@ describe("GeminiScanPanel", () => {
   });
 
   it("disables 'Read Marksheet' until required context + image exist", async () => {
-    render(<GeminiScanPanel />);
+    renderPanel();
     const button = screen.getByRole("button", { name: "Read Marksheet" });
     expect(button).toBeDisabled();
     await fillContextAndFile();
@@ -120,7 +168,7 @@ describe("GeminiScanPanel", () => {
   it("shows the loading state during extraction", async () => {
     let resolve!: (v: GeminiScanExtractResponse) => void;
     mockExtract.mockReturnValue(new Promise((r) => { resolve = r; }));
-    render(<GeminiScanPanel />);
+    renderPanel();
     await fillContextAndFile();
     fireEvent.click(screen.getByRole("button", { name: "Read Marksheet" }));
     expect(await screen.findByText("Extracting marks from image...")).toBeInTheDocument();
@@ -130,7 +178,7 @@ describe("GeminiScanPanel", () => {
 
   it("renders summary cards and highlights review and missing-mark rows", async () => {
     mockExtract.mockResolvedValue(RESPONSE);
-    render(<GeminiScanPanel />);
+    renderPanel();
     await fillContextAndFile();
     fireEvent.click(screen.getByRole("button", { name: "Read Marksheet" }));
 
@@ -151,7 +199,7 @@ describe("GeminiScanPanel", () => {
 
   it("shows a clean network error message when fetch fails", async () => {
     mockExtract.mockRejectedValueOnce(new Error("Failed to fetch"));
-    render(<GeminiScanPanel />);
+    renderPanel();
     await fillContextAndFile();
     fireEvent.click(screen.getByRole("button", { name: "Read Marksheet" }));
     expect(await screen.findByText(/Could not reach the extraction server/i)).toBeInTheDocument();
@@ -159,7 +207,7 @@ describe("GeminiScanPanel", () => {
 
   it("shows a clean timeout error message when the request times out", async () => {
     mockExtract.mockRejectedValueOnce(new Error("Request timeout exceeded"));
-    render(<GeminiScanPanel />);
+    renderPanel();
     await fillContextAndFile();
     fireEvent.click(screen.getByRole("button", { name: "Read Marksheet" }));
     expect(await screen.findByText(/took too long to process/i)).toBeInTheDocument();
@@ -167,7 +215,7 @@ describe("GeminiScanPanel", () => {
 
   it("keeps the commit button disabled while blocked/review rows exist", async () => {
     mockExtract.mockResolvedValue(RESPONSE);
-    render(<GeminiScanPanel />);
+    renderPanel();
     await fillContextAndFile();
     fireEvent.click(screen.getByRole("button", { name: "Read Marksheet" }));
 
@@ -186,7 +234,7 @@ describe("GeminiScanPanel — matched student display", () => {
   });
 
   it("does not display internal UUIDs in the review table", async () => {
-    render(<GeminiScanPanel />);
+    renderPanel();
     await fillContextAndFile();
     fireEvent.click(screen.getByRole("button", { name: "Read Marksheet" }));
     await screen.findByTestId("gemini-row-1");
@@ -196,7 +244,7 @@ describe("GeminiScanPanel — matched student display", () => {
   });
 
   it("shows matched student name and admission number in the Matched Student cell", async () => {
-    render(<GeminiScanPanel />);
+    renderPanel();
     await fillContextAndFile();
     fireEvent.click(screen.getByRole("button", { name: "Read Marksheet" }));
     const cell = await screen.findByTestId("matched-student-4");
@@ -215,7 +263,7 @@ describe("GeminiScanPanel — row resolution", () => {
   });
 
   async function extractAndWait() {
-    render(<GeminiScanPanel />);
+    renderPanel();
     await fillContextAndFile();
     fireEvent.click(screen.getByRole("button", { name: "Read Marksheet" }));
     await screen.findByTestId("gemini-row-1");
@@ -259,12 +307,57 @@ describe("GeminiScanPanel — row resolution", () => {
     expect(screen.queryByText("Missing mark")).not.toBeInTheDocument();
   });
 
-  it("'Save Reviewed Marks' is always disabled (commit not yet connected)", async () => {
+  it("'Save Reviewed Marks' is disabled until all rows are READY", async () => {
     await extractAndWait();
     const saveBtn = screen.getByRole("button", { name: "Save Reviewed Marks" });
     expect(saveBtn).toBeDisabled();
-    // Tick the review-confirmed checkbox — commit must still be disabled.
+    // Tick the review-confirmed checkbox — blocked rows still prevent enabling.
     fireEvent.click(screen.getByLabelText(/reviewed every flagged row/i));
     expect(saveBtn).toBeDisabled();
+  });
+});
+
+describe("GeminiScanPanel — commit flow", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockFetchOptions.mockResolvedValue(OPTIONS);
+    mockExtract.mockResolvedValue(RESPONSE_ALL_READY);
+  });
+
+  async function extractAllReadyAndCheck() {
+    renderPanel();
+    await fillContextAndFile();
+    fireEvent.click(screen.getByRole("button", { name: "Read Marksheet" }));
+    await screen.findByTestId("gemini-row-1");
+  }
+
+  it("enables Save Reviewed Marks only when all rows are READY and checkbox is checked", async () => {
+    await extractAllReadyAndCheck();
+    const saveBtn = screen.getByRole("button", { name: "Save Reviewed Marks" });
+    // All rows READY but checkbox not yet ticked.
+    expect(saveBtn).toBeDisabled();
+    fireEvent.click(screen.getByLabelText(/reviewed every flagged row/i));
+    expect(saveBtn).toBeEnabled();
+  });
+
+  it("calls commitGeminiScanRows with the jobId and reviewed rows", async () => {
+    mockCommit.mockResolvedValueOnce(COMMIT_SUCCESS);
+    await extractAllReadyAndCheck();
+    fireEvent.click(screen.getByLabelText(/reviewed every flagged row/i));
+    fireEvent.click(screen.getByRole("button", { name: "Save Reviewed Marks" }));
+    await waitFor(() => expect(mockCommit).toHaveBeenCalledTimes(1));
+    const [jobId, rows] = mockCommit.mock.calls[0];
+    expect(jobId).toBe("job-ready");
+    expect(rows).toHaveLength(2);
+  });
+
+  it("shows success message and 'Go to Reports' after successful commit", async () => {
+    mockCommit.mockResolvedValueOnce(COMMIT_SUCCESS);
+    await extractAllReadyAndCheck();
+    fireEvent.click(screen.getByLabelText(/reviewed every flagged row/i));
+    fireEvent.click(screen.getByRole("button", { name: "Save Reviewed Marks" }));
+    expect(await screen.findByText(/2 marks saved successfully/i)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Go to Reports" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Save Reviewed Marks" })).not.toBeInTheDocument();
   });
 });

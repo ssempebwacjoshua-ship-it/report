@@ -370,3 +370,11 @@ export type ScanOptions = {
   terms: ScanOptionsTerm[];
   examTypes: string[];
 };
+
+export type GeminiCommitResponse = {
+  success: true;
+  committedRows: number;
+  skippedRows: number;
+  batchId: string;
+  message: string;
+};

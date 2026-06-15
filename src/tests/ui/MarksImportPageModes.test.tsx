@@ -1,4 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import { MarksImportPage } from "../../pages/MarksImportPage";
 import type { ScanOptions } from "../../shared/types/imports";
@@ -7,6 +8,7 @@ import type { ScanOptions } from "../../shared/types/imports";
 vi.mock("../../client/importsClient", () => ({
   dryRunMarksImport: vi.fn(),
   commitMarksImport: vi.fn(),
+  commitGeminiScanRows: vi.fn(),
   extractMarksWithGeminiScan: vi.fn(),
   fetchScanOptions: vi.fn().mockResolvedValue({
     success: true,
@@ -29,14 +31,14 @@ vi.mock("../../client/settingsClient", () => ({
 
 describe("MarksImportPage modes", () => {
   it("renders the existing digital CSV/Excel import UI by default", () => {
-    render(<MarksImportPage />);
+    render(<MemoryRouter><MarksImportPage /></MemoryRouter>);
     expect(screen.getByText("Digital Marksheet")).toBeInTheDocument();
     expect(screen.getByText("Download CSV template")).toBeInTheDocument();
     expect(screen.getByText("Download Excel template")).toBeInTheDocument();
   });
 
   it("offers Smart Marksheet Import as an additional mode", () => {
-    render(<MarksImportPage />);
+    render(<MemoryRouter><MarksImportPage /></MemoryRouter>);
     fireEvent.click(screen.getByText("Smart Marksheet Import"));
     expect(screen.getByRole("button", { name: "Read Marksheet" })).toBeInTheDocument();
     // Save Reviewed Marks is always visible (but disabled until commit is wired).

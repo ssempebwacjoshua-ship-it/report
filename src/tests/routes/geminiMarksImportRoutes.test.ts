@@ -2,15 +2,59 @@ import request from "supertest";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 // ── Mocks ───────────────────────────────────────────────────────────────────
-// vi.hoisted ensures these are available when vi.mock factories run (vi.mock is hoisted).
-const { markImportBatchCreate, subjectMarkCreate, subjectMarkUpsert } = vi.hoisted(() => ({
-  markImportBatchCreate: vi.fn(async () => ({ id: "job-123" })),
-  subjectMarkCreate: vi.fn(),
-  subjectMarkUpsert: vi.fn(),
-}));
+const {
+  markImportBatchCreate,
+  markImportBatchFindUnique,
+  txSubjectMarkUpsert,
+  txMarkImportBatchUpdate,
+  txAuditLogCreate,
+  mockTransaction,
+  subjectMarkCreate,
+  subjectMarkUpsert,
+} = vi.hoisted(() => {
+  const txSubjectMarkUpsert = vi.fn(async () => ({}));
+  const txMarkImportBatchUpdate = vi.fn(async () => ({ id: "job-123", status: "COMMITTED" }));
+  const txAuditLogCreate = vi.fn(async () => ({}));
+
+  const mockTransaction = vi.fn(async (fn: (tx: unknown) => Promise<unknown>) =>
+    fn({
+      subjectMark: { upsert: txSubjectMarkUpsert },
+      markImportBatch: { update: txMarkImportBatchUpdate },
+      auditLog: { create: txAuditLogCreate },
+    }),
+  );
+
+  // Default batch: school-1, DRY_RUN, with a valid context including a stream UUID
+  const defaultBatch = () => ({
+    id: "job-123",
+    schoolId: "school-1",
+    status: "DRY_RUN",
+    summary: JSON.stringify({
+      context: {
+        classId: "aaaaaaaa-0000-0000-0000-000000000001",
+        streamId: "aaaaaaaa-0000-0000-0000-000000000004",
+        subjectId: "aaaaaaaa-0000-0000-0000-000000000002",
+        termId: "aaaaaaaa-0000-0000-0000-000000000003",
+        examType: "BOT",
+      },
+    }),
+  });
+
+  return {
+    markImportBatchCreate: vi.fn(async () => ({ id: "job-123" })),
+    markImportBatchFindUnique: vi.fn(async () => defaultBatch()),
+    txSubjectMarkUpsert,
+    txMarkImportBatchUpdate,
+    txAuditLogCreate,
+    mockTransaction,
+    subjectMarkCreate: vi.fn(),
+    subjectMarkUpsert: vi.fn(),
+  };
+});
 
 vi.mock("../../server/db/prisma", () => ({
   prisma: {
+    $transaction: mockTransaction,
     school: { findUnique: vi.fn(async () => ({ id: "school-1", code: "SCU-PREVIEW" })) },
     schoolClass: {
       findFirst: vi.fn(async () => ({ id: "class-1", schoolId: "school-1", streams: [] })),
@@ -21,7 +65,7 @@ vi.mock("../../server/db/prisma", () => ({
       findMany: vi.fn(async () => [{ id: "subject-1", name: "Mathematics", code: "MATH" }]),
     },
     term: {
-      findFirst: vi.fn(async () => ({ id: "term-1" })),
+      findFirst: vi.fn(async () => ({ id: "term-1", academicYearId: "year-1" })),
       findMany: vi.fn(async () => [
         { id: "term-1", name: "Term 1", isActive: true, academicYear: { name: "2025/2026" } },
       ]),
@@ -31,7 +75,10 @@ vi.mock("../../server/db/prisma", () => ({
       findMany: vi.fn(async () => []),
     },
     classEnrollment: { findMany: vi.fn(async () => []) },
-    markImportBatch: { create: markImportBatchCreate },
+    markImportBatch: {
+      create: markImportBatchCreate,
+      findUnique: markImportBatchFindUnique,
+    },
     subjectMark: { create: subjectMarkCreate, upsert: subjectMarkUpsert },
   },
 }));
@@ -61,15 +108,52 @@ import { createServer } from "../../server";
 
 const IMAGE = Buffer.from("fake-marksheet-bytes");
 
-// Valid UUIDs that pass UUID_RE validation and satisfy the Prisma mocks (mocks ignore actual values).
+// Valid UUIDs that pass UUID_RE validation.
 const CLS = "aaaaaaaa-0000-0000-0000-000000000001";
 const SUBJ = "aaaaaaaa-0000-0000-0000-000000000002";
 const TERM = "aaaaaaaa-0000-0000-0000-000000000003";
+const STREAM = "aaaaaaaa-0000-0000-0000-000000000004";
+const STU1 = "aaaaaaaa-0000-0000-0000-000000000011";
+const STU2 = "aaaaaaaa-0000-0000-0000-000000000012";
+const JOB = "aaaaaaaa-0000-0000-0000-000000000099";
+
+// Two fully-validated READY rows for commit tests.
+const VALID_REVIEWED_ROWS = [
+  {
+    rowNumber: 1,
+    extractedStudentId: "SC2026-00001",
+    extractedStudentName: "Alice Nantongo",
+    matchedStudentId: STU1,
+    matchedStudentName: "Alice Nantongo",
+    mark: "82",
+    confidenceScore: 0.95,
+    status: "READY",
+    issues: [],
+    raw: {},
+  },
+  {
+    rowNumber: 2,
+    extractedStudentId: "SC2026-00094",
+    extractedStudentName: "Faith Mukulu",
+    matchedStudentId: STU2,
+    matchedStudentName: "Faith Mukulu",
+    mark: "65",
+    confidenceScore: 0.9,
+    status: "READY",
+    issues: [],
+    raw: {},
+  },
+];
 
 beforeEach(() => {
   subjectMarkCreate.mockClear();
   subjectMarkUpsert.mockClear();
   markImportBatchCreate.mockClear();
+  markImportBatchFindUnique.mockClear();
+  txSubjectMarkUpsert.mockClear();
+  txMarkImportBatchUpdate.mockClear();
+  txAuditLogCreate.mockClear();
+  mockTransaction.mockClear();
 });
 
 describe("POST /api/marks-import/scan/extract", () => {
@@ -111,15 +195,13 @@ describe("POST /api/marks-import/scan/extract", () => {
     expect(res.body.count).toBe(2);
     expect(res.body.summary.totalRows).toBe(2);
 
-    // Faith Mukulu empty mark must be REVIEW_REQUIRED with "Missing mark"
     const faith = res.body.rows.find((r: { extractedStudentId: string }) => r.extractedStudentId === "SC2026-00094");
     expect(faith.status).toBe("REVIEW_REQUIRED");
     expect(faith.issues).toContain("Missing mark");
 
-    // No marks were persisted during extraction.
+    // No marks persisted during extraction.
     expect(subjectMarkCreate).not.toHaveBeenCalled();
     expect(subjectMarkUpsert).not.toHaveBeenCalled();
-    // A non-committing job record was created.
     expect(markImportBatchCreate).toHaveBeenCalledTimes(1);
   });
 });
@@ -176,7 +258,6 @@ describe("debugNoDb mode", () => {
     expect(res.body.success).toBe(true);
     expect(Array.isArray(res.body.rows)).toBe(true);
     expect(res.body.rows.length).toBeGreaterThan(0);
-    // Batch and school lookups must be skipped in debugNoDb mode.
     expect(markImportBatchCreate).not.toHaveBeenCalled();
   });
 });
@@ -201,7 +282,7 @@ describe("no active students", () => {
 });
 
 describe("MarkImportBatch failure", () => {
-  it("returns 400 at stage create_import_batch and logs Prisma error when batch creation fails", async () => {
+  it("returns 400 at stage create_import_batch when batch creation fails", async () => {
     markImportBatchCreate.mockRejectedValueOnce(new Error("Prisma: connection refused"));
 
     const res = await request(createServer())
@@ -322,14 +403,161 @@ describe("file validation boundaries", () => {
   });
 });
 
-describe("POST /api/marks-import/scan/commit", () => {
-  it("is disabled in this phase and never saves marks", async () => {
+// ── POST /api/marks-import/scan/commit ────────────────────────────────────
+
+describe("POST /api/marks-import/scan/commit — input validation", () => {
+  it("rejects missing jobId with 400 INVALID_JOB_ID", async () => {
     const res = await request(createServer())
       .post("/api/marks-import/scan/commit")
-      .send({ jobId: "job-123", rows: [] });
-    expect(res.status).toBe(501);
-    expect(res.body.code).toBe("COMMIT_NOT_ENABLED");
-    expect(subjectMarkCreate).not.toHaveBeenCalled();
-    expect(subjectMarkUpsert).not.toHaveBeenCalled();
+      .send({ reviewedRows: VALID_REVIEWED_ROWS });
+    expect(res.status).toBe(400);
+    expect(res.body.code).toBe("INVALID_JOB_ID");
+  });
+
+  it("rejects non-UUID jobId with 400 INVALID_JOB_ID", async () => {
+    const res = await request(createServer())
+      .post("/api/marks-import/scan/commit")
+      .send({ jobId: "not-a-uuid", reviewedRows: VALID_REVIEWED_ROWS });
+    expect(res.status).toBe(400);
+    expect(res.body.code).toBe("INVALID_JOB_ID");
+  });
+
+  it("rejects missing reviewedRows with 400 MISSING_ROWS", async () => {
+    const res = await request(createServer())
+      .post("/api/marks-import/scan/commit")
+      .send({ jobId: JOB });
+    expect(res.status).toBe(400);
+    expect(res.body.code).toBe("MISSING_ROWS");
+  });
+});
+
+describe("POST /api/marks-import/scan/commit — batch checks", () => {
+  it("rejects an unknown jobId with 404 BATCH_NOT_FOUND", async () => {
+    markImportBatchFindUnique.mockResolvedValueOnce(null);
+    const res = await request(createServer())
+      .post("/api/marks-import/scan/commit")
+      .send({ jobId: "aaaaaaaa-dead-beef-0000-000000000000", reviewedRows: VALID_REVIEWED_ROWS });
+    expect(res.status).toBe(404);
+    expect(res.body.code).toBe("BATCH_NOT_FOUND");
+  });
+
+  it("rejects an already committed batch with 409 ALREADY_COMMITTED", async () => {
+    markImportBatchFindUnique.mockResolvedValueOnce({
+      id: "job-123",
+      schoolId: "school-1",
+      status: "COMMITTED",
+      summary: "{}",
+    });
+    const res = await request(createServer())
+      .post("/api/marks-import/scan/commit")
+      .send({ jobId: JOB, reviewedRows: VALID_REVIEWED_ROWS });
+    expect(res.status).toBe(409);
+    expect(res.body.code).toBe("ALREADY_COMMITTED");
+  });
+});
+
+describe("POST /api/marks-import/scan/commit — row-level validation", () => {
+  it("rejects a row with a missing mark with 400 ROW_VALIDATION_FAILED", async () => {
+    const rows = VALID_REVIEWED_ROWS.map((r, i) =>
+      i === 0 ? { ...r, mark: "" } : r,
+    );
+    const res = await request(createServer())
+      .post("/api/marks-import/scan/commit")
+      .send({ jobId: JOB, reviewedRows: rows });
+    expect(res.status).toBe(400);
+    expect(res.body.code).toBe("ROW_VALIDATION_FAILED");
+    expect(res.body.rowIssues[0].issues).toContain("Mark is required.");
+  });
+
+  it("rejects duplicate matchedStudentId across rows with 400 ROW_VALIDATION_FAILED", async () => {
+    const rows = VALID_REVIEWED_ROWS.map((r) => ({ ...r, matchedStudentId: STU1 }));
+    const res = await request(createServer())
+      .post("/api/marks-import/scan/commit")
+      .send({ jobId: JOB, reviewedRows: rows });
+    expect(res.status).toBe(400);
+    expect(res.body.code).toBe("ROW_VALIDATION_FAILED");
+    const dupeRow = res.body.rowIssues.find((ri: { issues: string[] }) =>
+      ri.issues.some((i) => /duplicate/i.test(i)),
+    );
+    expect(dupeRow).toBeDefined();
+  });
+
+  it("rejects a row with status REVIEW_REQUIRED with 400 ROW_VALIDATION_FAILED", async () => {
+    const rows = VALID_REVIEWED_ROWS.map((r, i) =>
+      i === 0 ? { ...r, status: "REVIEW_REQUIRED", issues: ["Missing mark"] } : r,
+    );
+    const res = await request(createServer())
+      .post("/api/marks-import/scan/commit")
+      .send({ jobId: JOB, reviewedRows: rows });
+    expect(res.status).toBe(400);
+    expect(res.body.code).toBe("ROW_VALIDATION_FAILED");
+    expect(res.body.rowIssues[0].issues.some((i: string) => /REVIEW_REQUIRED/i.test(i))).toBe(true);
+  });
+});
+
+describe("POST /api/marks-import/scan/commit — successful commit", () => {
+  it("upserts one SubjectMark per reviewed row and responds 200", async () => {
+    const res = await request(createServer())
+      .post("/api/marks-import/scan/commit")
+      .send({ jobId: JOB, reviewedRows: VALID_REVIEWED_ROWS });
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.committedRows).toBe(2);
+    expect(res.body.batchId).toBe("job-123"); // batch mock returns id "job-123"
+    expect(typeof res.body.message).toBe("string");
+    expect(txSubjectMarkUpsert).toHaveBeenCalledTimes(2);
+  });
+
+  it("sets batch status to COMMITTED inside the transaction", async () => {
+    await request(createServer())
+      .post("/api/marks-import/scan/commit")
+      .send({ jobId: JOB, reviewedRows: VALID_REVIEWED_ROWS });
+
+    expect(txMarkImportBatchUpdate).toHaveBeenCalledTimes(1);
+    const updateCall = txMarkImportBatchUpdate.mock.calls[0][0] as { data: { status: string } };
+    expect(updateCall.data.status).toBe("COMMITTED");
+  });
+
+  it("creates an AuditLog entry with action GEMINI_SCAN_COMMITTED", async () => {
+    await request(createServer())
+      .post("/api/marks-import/scan/commit")
+      .send({ jobId: JOB, reviewedRows: VALID_REVIEWED_ROWS });
+
+    expect(txAuditLogCreate).toHaveBeenCalledTimes(1);
+    const createCall = txAuditLogCreate.mock.calls[0][0] as { data: { action: string } };
+    expect(createCall.data.action).toBe("GEMINI_SCAN_COMMITTED");
+  });
+
+  it("does not duplicate marks on repeated commit (second commit returns 409)", async () => {
+    // First commit succeeds; batch now shows COMMITTED.
+    markImportBatchFindUnique
+      .mockResolvedValueOnce({
+        id: "job-123",
+        schoolId: "school-1",
+        status: "DRY_RUN",
+        summary: JSON.stringify({
+          context: { classId: CLS, streamId: STREAM, subjectId: SUBJ, termId: TERM, examType: "BOT" },
+        }),
+      })
+      .mockResolvedValueOnce({
+        id: "job-123",
+        schoolId: "school-1",
+        status: "COMMITTED",
+        summary: "{}",
+      });
+
+    const first = await request(createServer())
+      .post("/api/marks-import/scan/commit")
+      .send({ jobId: JOB, reviewedRows: VALID_REVIEWED_ROWS });
+    expect(first.status).toBe(200);
+
+    const second = await request(createServer())
+      .post("/api/marks-import/scan/commit")
+      .send({ jobId: JOB, reviewedRows: VALID_REVIEWED_ROWS });
+    expect(second.status).toBe(409);
+    expect(second.body.code).toBe("ALREADY_COMMITTED");
+
+    expect(txSubjectMarkUpsert).toHaveBeenCalledTimes(2); // only first commit's 2 rows
   });
 });

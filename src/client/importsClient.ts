@@ -1,7 +1,9 @@
 import type {
   DetectContextResponse,
+  GeminiCommitResponse,
   GeminiScanContext,
   GeminiScanExtractResponse,
+  GeminiScanRow,
   ImportPreview,
   ScanBatchReloadResponse,
   ScanImportBatch,
@@ -224,5 +226,19 @@ export async function extractMarksWithGeminiScan(
     body: form,
   });
   if (!response.ok) throw new Error(await readImportError(response, "Gemini extraction failed"));
+  return response.json();
+}
+
+export async function commitGeminiScanRows(
+  jobId: string,
+  reviewedRows: GeminiScanRow[],
+  schoolCode = "SCU-PREVIEW",
+): Promise<GeminiCommitResponse> {
+  const response = await fetch(`${API_BASE}/api/marks-import/scan/commit`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify({ jobId, reviewedRows, schoolCode }),
+  });
+  if (!response.ok) throw new Error(await readImportError(response, "Could not save marks"));
   return response.json();
 }

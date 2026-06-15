@@ -391,13 +391,258 @@ export default function geminiMarksImportRoutes() {
   /**
    * POST /api/marks-import/scan/commit
    *
-   * Intentionally disabled in this pilot phase.
+   * Saves reviewed Gemini-extracted marks to SubjectMark as DRAFT inside a
+   * Prisma transaction.  The batch status moves from DRY_RUN → COMMITTED.
+   * An AuditLog entry is created for every successful commit.
+   *
+   * The server re-validates every row before writing — the client is never
+   * trusted to gate the write.
    */
-  router.post("/api/marks-import/scan/commit", requireImportAuth, (_req, res) => {
-    res.status(501).json(importErr(
-      "COMMIT_NOT_ENABLED",
-      "Gemini scan commit is not enabled yet. Review and correct rows now; saving will be wired into the existing marks-import workflow in the next phase.",
-    ));
+  router.post("/api/marks-import/scan/commit", requireImportAuth, async (req: Request, res: Response) => {
+    const reqId = (req.headers["x-request-id"] as string | undefined)
+      ?? `gc-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+
+    try {
+      // ── 1. Parse body ──────────────────────────────────────────────────────
+      const body = req.body as Record<string, unknown>;
+      const { jobId, reviewedRows } = body;
+
+      if (typeof jobId !== "string" || !UUID_RE.test(jobId)) {
+        res.status(400).json(importErr("INVALID_JOB_ID", "jobId is required and must be a valid UUID."));
+        return;
+      }
+      if (!Array.isArray(reviewedRows) || reviewedRows.length === 0) {
+        res.status(400).json(importErr("MISSING_ROWS", "reviewedRows must be a non-empty array."));
+        return;
+      }
+
+      // ── 2. Load and tenant-check the batch ────────────────────────────────
+      const batch = await prisma.markImportBatch.findUnique({ where: { id: jobId } });
+      if (!batch) {
+        res.status(404).json(importErr("BATCH_NOT_FOUND", "No import batch found for this job ID. Please re-extract the marksheet."));
+        return;
+      }
+
+      const sessionSchoolId = req.user?.schoolId;
+      const schoolCode = typeof body.schoolCode === "string" && body.schoolCode.trim()
+        ? body.schoolCode.trim()
+        : "SCU-PREVIEW";
+
+      let schoolId: string;
+      if (sessionSchoolId) {
+        if (batch.schoolId !== sessionSchoolId) {
+          res.status(403).json(importErr("ACCESS_DENIED", "This import batch does not belong to your school."));
+          return;
+        }
+        schoolId = sessionSchoolId;
+      } else {
+        const school = await prisma.school.findUnique({ where: { code: schoolCode } });
+        if (!school || batch.schoolId !== school.id) {
+          res.status(403).json(importErr("ACCESS_DENIED", "This import batch does not belong to the resolved school."));
+          return;
+        }
+        schoolId = school.id;
+      }
+
+      // ── 3. Check batch status ──────────────────────────────────────────────
+      if (batch.status === "COMMITTED") {
+        res.status(409).json(importErr("ALREADY_COMMITTED", "These marks have already been saved and cannot be submitted again."));
+        return;
+      }
+      if (batch.status !== "DRY_RUN") {
+        res.status(400).json(importErr("INVALID_BATCH_STATUS", `Batch is in status '${batch.status}' and cannot be committed.`));
+        return;
+      }
+
+      // ── 4. Parse batch context (classId, streamId, subjectId, termId, examType) ──
+      type BatchContext = {
+        classId: string;
+        streamId: string | null;
+        subjectId: string;
+        termId: string;
+        examType: string;
+      };
+      let batchContext: BatchContext | null = null;
+      try {
+        const parsed = JSON.parse(batch.summary ?? "{}") as { context?: BatchContext };
+        batchContext = parsed.context ?? null;
+      } catch {
+        // malformed
+      }
+
+      if (
+        !batchContext ||
+        !batchContext.classId || !UUID_RE.test(batchContext.classId) ||
+        !batchContext.subjectId || !UUID_RE.test(batchContext.subjectId) ||
+        !batchContext.termId || !UUID_RE.test(batchContext.termId) ||
+        !VALID_EXAM_TYPES.has(batchContext.examType ?? "")
+      ) {
+        res.status(400).json(importErr("INVALID_BATCH", "Import batch is missing context. Please re-extract the marksheet."));
+        return;
+      }
+
+      const streamId = typeof batchContext.streamId === "string" && UUID_RE.test(batchContext.streamId)
+        ? batchContext.streamId
+        : null;
+
+      if (!streamId) {
+        res.status(400).json(importErr("MISSING_STREAM", "This import batch is missing a stream. All classes must have a stream to save marks."));
+        return;
+      }
+
+      // ── 5. Load term for academicYearId ───────────────────────────────────
+      const term = await prisma.term.findFirst({
+        where: { id: batchContext.termId, academicYear: { schoolId } },
+        select: { academicYearId: true },
+      });
+      if (!term) {
+        res.status(404).json(importErr("TERM_NOT_FOUND", "The term for this batch could not be found."));
+        return;
+      }
+
+      // ── 6. Server-side row validation ─────────────────────────────────────
+      type RowInput = Record<string, unknown>;
+      const seenStudentIds = new Set<string>();
+      const rowIssues: Array<{ rowNumber: number; issues: string[] }> = [];
+
+      for (const rawRow of reviewedRows as RowInput[]) {
+        const issues: string[] = [];
+        const rowNumber = typeof rawRow.rowNumber === "number" ? rawRow.rowNumber : 0;
+
+        if (rawRow.status !== "READY") {
+          issues.push(`Row has unresolved status: ${String(rawRow.status)}.`);
+        }
+
+        const matchedStudentId = typeof rawRow.matchedStudentId === "string" ? rawRow.matchedStudentId.trim() : "";
+        if (!matchedStudentId || !UUID_RE.test(matchedStudentId)) {
+          issues.push("matchedStudentId is missing or invalid.");
+        } else if (seenStudentIds.has(matchedStudentId)) {
+          issues.push("Duplicate student: this student appears more than once.");
+        } else {
+          seenStudentIds.add(matchedStudentId);
+        }
+
+        const extractedStudentId = typeof rawRow.extractedStudentId === "string" ? rawRow.extractedStudentId.trim() : "";
+        if (!extractedStudentId) {
+          issues.push("extractedStudentId (admission number) is required.");
+        }
+
+        const markStr = typeof rawRow.mark === "string" ? rawRow.mark.trim() : "";
+        if (!markStr) {
+          issues.push("Mark is required.");
+        } else {
+          const markNum = parseFloat(markStr);
+          if (isNaN(markNum) || markNum < 0 || markNum > 100) {
+            issues.push(`Mark '${markStr}' is not a valid score (must be 0–100).`);
+          }
+        }
+
+        if (issues.length > 0) rowIssues.push({ rowNumber, issues });
+      }
+
+      if (rowIssues.length > 0) {
+        res.status(400).json({
+          success: false,
+          code: "ROW_VALIDATION_FAILED",
+          message: `${rowIssues.length} row(s) failed server-side validation.`,
+          rowIssues,
+        });
+        return;
+      }
+
+      // ── 7. Commit in a Prisma transaction ─────────────────────────────────
+      const assessmentType = batchContext.examType as "BOT" | "MOT" | "EOT";
+      const validRows = reviewedRows as Array<{
+        rowNumber: number;
+        matchedStudentId: string;
+        extractedStudentId: string;
+        mark: string;
+      }>;
+
+      await prisma.$transaction(async (tx) => {
+        for (const row of validRows) {
+          await tx.subjectMark.upsert({
+            where: {
+              studentId_subjectId_termId_assessmentType: {
+                studentId: row.matchedStudentId,
+                subjectId: batchContext!.subjectId,
+                termId: batchContext!.termId,
+                assessmentType,
+              },
+            },
+            create: {
+              schoolId,
+              studentId: row.matchedStudentId,
+              academicYearId: term.academicYearId,
+              termId: batchContext!.termId,
+              classId: batchContext!.classId,
+              streamId,
+              subjectId: batchContext!.subjectId,
+              assessmentType,
+              marks: parseFloat(row.mark),
+              status: "DRAFT",
+              importBatchId: batch.id,
+            },
+            update: {
+              marks: parseFloat(row.mark),
+              status: "DRAFT",
+              importBatchId: batch.id,
+            },
+          });
+        }
+
+        await tx.markImportBatch.update({
+          where: { id: batch.id },
+          data: {
+            status: "COMMITTED",
+            summary: JSON.stringify({
+              ...(JSON.parse(batch.summary ?? "{}") as Record<string, unknown>),
+              committed: true,
+              committedAt: new Date().toISOString(),
+              committedRows: validRows.length,
+            }),
+          },
+        });
+
+        await tx.auditLog.create({
+          data: {
+            schoolId,
+            action: "GEMINI_SCAN_COMMITTED",
+            correlationId: batch.id,
+            details: {
+              batchId: batch.id,
+              committedRows: validRows.length,
+              subjectId: batchContext!.subjectId,
+              termId: batchContext!.termId,
+              assessmentType,
+              classId: batchContext!.classId,
+              streamId,
+            },
+          },
+        });
+      });
+
+      console.log("[gemini-commit]", {
+        reqId,
+        event: "committed",
+        jobId: batch.id,
+        committedRows: validRows.length,
+      });
+
+      res.json({
+        success: true,
+        committedRows: validRows.length,
+        skippedRows: 0,
+        batchId: batch.id,
+        message: `${validRows.length} marks saved for review.`,
+      });
+
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Unexpected error";
+      const stack = error instanceof Error ? error.stack : undefined;
+      console.error("[gemini-commit]", { reqId, event: "error", message, stack });
+      res.status(500).json(importErr("INTERNAL_ERROR", "An unexpected error occurred while saving marks. Please try again."));
+    }
   });
 
   return router;

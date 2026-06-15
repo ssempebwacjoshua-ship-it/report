@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { extractMarksWithGeminiScan, fetchScanOptions } from "../../client/importsClient";
+import { Link } from "react-router-dom";
+import { commitGeminiScanRows, extractMarksWithGeminiScan, fetchScanOptions } from "../../client/importsClient";
 import { SCAN_ACCEPT } from "../../client/marksSheetHelpers";
 import type {
   GeminiScanContext,
@@ -85,6 +86,8 @@ const SUMMARY_CARDS: Array<{ key: keyof GeminiScanExtractResponse["summary"]; la
   { key: "duplicateStudentRows", label: "Duplicate rows", color: "bg-violet-50 text-violet-700" },
 ];
 
+type CommitPhase = "idle" | "saving" | "saved" | "error";
+
 export function GeminiScanPanel() {
   const [options, setOptions] = useState<OptionsState>({ status: "loading" });
   const [context, setContext] = useState<GeminiScanContext>(emptyContext());
@@ -95,6 +98,9 @@ export function GeminiScanPanel() {
   const [error, setError] = useState("");
   const [reviewConfirmed, setReviewConfirmed] = useState(false);
   const [compressedSize, setCompressedSize] = useState<number | null>(null);
+  const [commitPhase, setCommitPhase] = useState<CommitPhase>("idle");
+  const [commitError, setCommitError] = useState("");
+  const [committedCount, setCommittedCount] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -135,7 +141,26 @@ export function GeminiScanPanel() {
     () => rows.some((row) => row.status !== "READY"),
     [rows],
   );
-  const canCommit = false; // Commit endpoint not yet wired.
+  const canCommit =
+    !hasBlockingIssues &&
+    reviewConfirmed &&
+    !!result?.jobId &&
+    commitPhase === "idle";
+
+  async function handleCommit() {
+    if (!canCommit || !result) return;
+    setCommitPhase("saving");
+    setCommitError("");
+    try {
+      const response = await commitGeminiScanRows(result.jobId, rows);
+      setCommittedCount(response.committedRows);
+      setCommitPhase("saved");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Could not save marks.";
+      setCommitError(msg);
+      setCommitPhase("error");
+    }
+  }
 
   async function handleExtract() {
     if (!image || !requiredFilled) return;
@@ -144,6 +169,9 @@ export function GeminiScanPanel() {
     setResult(null);
     setRows([]);
     setReviewConfirmed(false);
+    setCommitPhase("idle");
+    setCommitError("");
+    setCommittedCount(null);
     setCompressedSize(null);
 
     const compressed = await compressImage(image);
@@ -439,13 +467,14 @@ export function GeminiScanPanel() {
                       {row.extractedStudentName}
                     </td>
 
-                    {/* Mark — editable; "Apply mark" button in Action column validates + resolves */}
+                    {/* Mark — editable until committed */}
                     <td className="px-2 py-2">
                       <input
                         type="text"
                         value={row.mark}
                         onChange={(e) => updateRow(row.rowNumber, { mark: e.target.value })}
-                        className={`w-16 rounded border px-1.5 py-1 text-xs ${
+                        disabled={commitPhase === "saved"}
+                        className={`w-16 rounded border px-1.5 py-1 text-xs disabled:bg-slate-100 ${
                           row.issues.some((i) => /mark/i.test(i)) ? "border-red-400 bg-red-50" : "border-slate-200 bg-white"
                         }`}
                         aria-label={`Mark for row ${row.rowNumber}`}
@@ -521,19 +550,47 @@ export function GeminiScanPanel() {
         </div>
       )}
 
-      {/* Save Reviewed Marks button */}
-      <div className="premium-card rounded-2xl p-4">
-        <div className="flex items-center gap-3">
-          <button
-            type="button"
-            disabled={!canCommit || hasBlockingIssues || !reviewConfirmed}
-            className="btn btn-success"
-          >
-            Save Reviewed Marks
-          </button>
-          <p className="text-xs text-slate-500">Saving will be enabled after review commit is connected.</p>
+      {/* Save Reviewed Marks */}
+      {commitPhase !== "saved" && (
+        <div className="premium-card rounded-2xl p-4">
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              onClick={handleCommit}
+              disabled={!canCommit}
+              className="btn btn-success"
+            >
+              {commitPhase === "saving" ? "Saving reviewed marks..." : "Save Reviewed Marks"}
+            </button>
+            {commitPhase === "error" && (
+              <p className="text-xs text-red-600">{commitError}</p>
+            )}
+          </div>
         </div>
-      </div>
+      )}
+
+      {/* Success state */}
+      {commitPhase === "saved" && (
+        <div className="premium-card rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+          <p className="text-sm font-bold text-emerald-900">
+            {committedCount} marks saved successfully.
+          </p>
+          <p className="mt-1 text-xs text-emerald-700">
+            All marks have been saved as drafts and are ready for teacher review.
+          </p>
+          <div className="mt-3 flex gap-3">
+            <button type="button" disabled className="btn btn-success opacity-60">
+              Marks Saved
+            </button>
+            <Link
+              to="/reports"
+              className="rounded-xl border border-emerald-300 bg-white px-4 py-2 text-sm font-semibold text-emerald-700 hover:bg-emerald-50"
+            >
+              Go to Reports
+            </Link>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
