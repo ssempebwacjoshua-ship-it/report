@@ -19,6 +19,7 @@ import { resolveSchoolContext } from "./middleware/resolveSchoolContext";
 import { authRoutes } from "./routes/authRoutes";
 import { platformAdminRoutes } from "./routes/platformAdminRoutes";
 import { reportIssueRoutes } from "./routes/reportIssueRoutes";
+import { reportAssistantRoutes } from "./routes/reportAssistantRoutes";
 import { releaseCenterRoutes } from "./routes/releaseCenterRoutes";
 import { parentRoutes } from "./routes/parentRoutes";
 import { verifyRoutes } from "./routes/verifyRoutes";
@@ -67,6 +68,7 @@ export function createServer() {
   app.use(dashboardRoutes());
   app.use(reportsRoutes());
   app.use(reportIssueRoutes());
+  app.use(reportAssistantRoutes());
   app.use(releaseCenterRoutes());
   app.use(importsRoutes());
   app.use(studentsRoutes());
