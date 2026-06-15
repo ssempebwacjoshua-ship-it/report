@@ -8,11 +8,14 @@ import {
   type SettingsResponse,
   type SettingsSections,
 } from "../shared/types/settings";
+import { SchoolStructureSection } from "../components/settings/SchoolStructureSection";
 
-type Tab = { id: SettingSection; label: string };
+type TabId = SettingSection | "school-structure";
+type Tab = { id: TabId; label: string };
 
 const tabs: Tab[] = [
   { id: "school", label: "School Profile" },
+  { id: "school-structure", label: "School Structure" },
   { id: "academic", label: "Academic Setup" },
   { id: "reports", label: "Reports" },
   { id: "marksheets", label: "Marksheets" },
@@ -81,7 +84,7 @@ function BoolSelect({ value, onChange, disabled = false }: { value: boolean; onC
 }
 
 export function SettingsPage() {
-  const [activeTab, setActiveTab] = useState<SettingSection>("school");
+  const [activeTab, setActiveTab] = useState<TabId>("school");
   const [settings, setSettings] = useState<SettingsResponse | null>(null);
   const [draft, setDraft] = useState<SettingsSections>(defaultSettingsSections);
   const [loading, setLoading] = useState(true);
@@ -213,6 +216,9 @@ export function SettingsPage() {
         ))}
       </div>
 
+      {activeTab === "school-structure" ? (
+        <SchoolStructureSection schoolCode={draft.school.schoolCode} />
+      ) : (
       <SectionFrame
         title={activeLabel}
         onSave={() => saveSection(activeTab)}
@@ -274,6 +280,7 @@ export function SettingsPage() {
         {activeTab === "approval" && <ApprovalSection value={draft.approval} onChange={(value) => updateSection("approval", value)} />}
         {activeTab === "appearance" && <AppearanceSection value={draft.appearance} onChange={(value) => updateSection("appearance", value)} />}
       </SectionFrame>
+      )}
     </main>
   );
 }

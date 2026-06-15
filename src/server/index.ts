@@ -14,6 +14,7 @@ import { importsRoutes } from "./routes/importsRoutes";
 import { studentsRoutes } from "./routes/studentsRoutes";
 import { marksheetsRoutes } from "./routes/marksheetsRoutes";
 import { settingsRoutes } from "./routes/settingsRoutes";
+import { schoolStructureRoutes } from "./routes/schoolStructureRoutes";
 import { authRoutes } from "./routes/authRoutes";
 import { reportIssueRoutes } from "./routes/reportIssueRoutes";
 import { releaseCenterRoutes } from "./routes/releaseCenterRoutes";
@@ -39,7 +40,7 @@ export function createServer() {
       return callback(null, true); // no CLIENT_ORIGIN — allow all (local dev)
     },
     credentials: true,
-    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization", "x-request-id", "x-internal-test-key"],
   }));
   app.use(express.json({ limit: "2mb" }));
@@ -53,6 +54,7 @@ export function createServer() {
   app.use(importsRoutes());
   app.use(studentsRoutes());
   app.use(marksheetsRoutes());
+  app.use(schoolStructureRoutes());
   app.use(settingsRoutes());
   app.use(parentRoutes());
   app.use(verifyRoutes());

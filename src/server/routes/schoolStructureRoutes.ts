@@ -1,0 +1,277 @@
+import { Router } from "express";
+import { z } from "zod";
+import { prisma } from "../db/prisma";
+import {
+  CANONICAL_CLASSES,
+  getClassesForSections,
+  isCanonicalClassCode,
+  type SchoolSection,
+} from "../../shared/constants/classes";
+import { getSettingsSections, patchSettingsSection } from "../repositories/settingsRepository";
+
+const AVAILABLE_SECTIONS = [
+  { code: "NURSERY" as const, label: "Nursery / Pre-primary" },
+  { code: "PRIMARY" as const, label: "Primary" },
+  { code: "SECONDARY" as const, label: "Secondary" },
+];
+
+async function buildStructureResponse(schoolCode: string) {
+  const school = await prisma.school.findUnique({ where: { code: schoolCode } });
+  if (!school) return null;
+
+  const settings = await getSettingsSections(prisma, schoolCode);
+  const selectedSections: SchoolSection[] = settings.school.schoolSections;
+
+  const allClasses = await prisma.schoolClass.findMany({
+    where: { schoolId: school.id },
+    orderBy: { level: "asc" },
+  });
+  const canonicalClasses = allClasses.filter((c) => isCanonicalClassCode(c.code));
+
+  const classIds = canonicalClasses.map((c) => c.id);
+  const streams =
+    classIds.length > 0
+      ? await prisma.stream.findMany({
+          where: { classId: { in: classIds } },
+          orderBy: { name: "asc" },
+        })
+      : [];
+
+  const streamsByClassId: Record<string, Array<{ id: string; name: string; code: string }>> = {};
+  for (const s of streams) {
+    if (!streamsByClassId[s.classId]) streamsByClassId[s.classId] = [];
+    streamsByClassId[s.classId]!.push({ id: s.id, name: s.name, code: s.code });
+  }
+
+  const classesWithMeta = canonicalClasses.map((c) => {
+    const catalogEntry = CANONICAL_CLASSES.find((cc) => cc.code === c.code);
+    return {
+      id: c.id,
+      name: c.name,
+      code: c.code,
+      level: c.level,
+      section: (catalogEntry?.section ?? "SECONDARY") as SchoolSection,
+      streams: streamsByClassId[c.id] ?? [],
+    };
+  });
+
+  const lockWarnings: Partial<Record<SchoolSection, string>> = {};
+  for (const section of selectedSections) {
+    const sectionClassIds = classesWithMeta.filter((c) => c.section === section).map((c) => c.id);
+    if (sectionClassIds.length === 0) continue;
+    const [enrollCount, markCount] = await Promise.all([
+      prisma.classEnrollment.count({ where: { classId: { in: sectionClassIds } } }),
+      prisma.subjectMark.count({ where: { classId: { in: sectionClassIds } } }),
+    ]);
+    if (enrollCount > 0 || markCount > 0) {
+      const label = AVAILABLE_SECTIONS.find((s) => s.code === section)?.label ?? section;
+      lockWarnings[section] = `${label} has ${enrollCount} enrolment(s) and ${markCount} mark(s) and cannot be removed without platform-owner approval.`;
+    }
+  }
+
+  return {
+    success: true as const,
+    school: { id: school.id, code: school.code, name: school.name },
+    selectedSections,
+    availableSections: AVAILABLE_SECTIONS,
+    canonicalClasses: classesWithMeta,
+    streamsByClass: streamsByClassId,
+    lockWarnings,
+  };
+}
+
+const schoolCodeQuery = z.object({ schoolCode: z.string().default("SCU-PREVIEW") });
+
+const sectionsBodySchema = z.object({
+  schoolCode: z.string().optional().default("SCU-PREVIEW"),
+  selectedSections: z.array(z.enum(["NURSERY", "PRIMARY", "SECONDARY"])).min(1),
+});
+
+const streamCreateSchema = z.object({
+  schoolCode: z.string().optional().default("SCU-PREVIEW"),
+  classId: z.string().min(1),
+  name: z.string().min(1),
+  code: z.string().min(1),
+});
+
+export function schoolStructureRoutes() {
+  const router = Router();
+
+  router.get("/api/settings/school-structure", async (req, res, next) => {
+    try {
+      const { schoolCode } = schoolCodeQuery.parse(req.query);
+      const data = await buildStructureResponse(schoolCode);
+      if (!data) {
+        res.status(404).json({ success: false, error: "School not found." });
+        return;
+      }
+      res.json(data);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.patch("/api/settings/school-structure", async (req, res, next) => {
+    try {
+      const parsed = sectionsBodySchema.safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json({
+          success: false,
+          error: "selectedSections must be a non-empty array of NURSERY, PRIMARY, or SECONDARY.",
+        });
+        return;
+      }
+      const { schoolCode, selectedSections: newSections } = parsed.data;
+
+      const school = await prisma.school.findUnique({ where: { code: schoolCode } });
+      if (!school) {
+        res.status(404).json({ success: false, error: "School not found." });
+        return;
+      }
+
+      const currentSettings = await getSettingsSections(prisma, schoolCode);
+      const currentSections = currentSettings.school.schoolSections;
+      const removedSections = currentSections.filter((s) => !newSections.includes(s));
+
+      if (removedSections.length > 0) {
+        const removedCodes = new Set(getClassesForSections(removedSections).map((c) => c.code));
+        const removedDbClasses = await prisma.schoolClass.findMany({
+          where: { schoolId: school.id, code: { in: Array.from(removedCodes) } },
+        });
+        if (removedDbClasses.length > 0) {
+          const removedClassIds = removedDbClasses.map((c) => c.id);
+          const [enrollCount, markCount] = await Promise.all([
+            prisma.classEnrollment.count({ where: { classId: { in: removedClassIds } } }),
+            prisma.subjectMark.count({ where: { classId: { in: removedClassIds } } }),
+          ]);
+          if (enrollCount > 0 || markCount > 0) {
+            const sectionLabels = removedSections
+              .map((s) => AVAILABLE_SECTIONS.find((a) => a.code === s)?.label ?? s)
+              .join(", ");
+            res.status(409).json({
+              success: false,
+              code: "SECTION_HAS_DATA",
+              error: `The section(s) "${sectionLabels}" have existing students or marks and cannot be removed without platform-owner approval.`,
+            });
+            return;
+          }
+        }
+      }
+
+      const classDefs = getClassesForSections(newSections);
+      for (const def of classDefs) {
+        await prisma.schoolClass.upsert({
+          where: { schoolId_code: { schoolId: school.id, code: def.code } },
+          create: { schoolId: school.id, name: def.name, code: def.code, level: def.level },
+          update: {},
+        });
+      }
+
+      await patchSettingsSection(prisma, schoolCode, "school", {
+        ...currentSettings.school,
+        schoolSections: newSections,
+      });
+
+      const data = await buildStructureResponse(schoolCode);
+      if (!data) {
+        res.status(404).json({ success: false, error: "School not found after update." });
+        return;
+      }
+      res.json(data);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/api/settings/school-structure/streams", async (req, res, next) => {
+    try {
+      const parsed = streamCreateSchema.safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json({ success: false, error: "classId, name, and code are required." });
+        return;
+      }
+      const { schoolCode, classId, name, code } = parsed.data;
+      const streamCode = code.trim().toUpperCase();
+      const streamName = name.trim();
+
+      const school = await prisma.school.findUnique({ where: { code: schoolCode } });
+      if (!school) {
+        res.status(404).json({ success: false, error: "School not found." });
+        return;
+      }
+
+      const klass = await prisma.schoolClass.findFirst({ where: { id: classId, schoolId: school.id } });
+      if (!klass) {
+        res.status(404).json({ success: false, error: "Class not found." });
+        return;
+      }
+      if (!isCanonicalClassCode(klass.code)) {
+        res.status(400).json({ success: false, error: "Streams can only be added to canonical classes." });
+        return;
+      }
+
+      const existing = await prisma.stream.findUnique({
+        where: { classId_code: { classId, code: streamCode } },
+      });
+      if (existing) {
+        res.status(409).json({
+          success: false,
+          error: `Stream "${streamCode}" already exists in ${klass.name}.`,
+        });
+        return;
+      }
+
+      const stream = await prisma.stream.create({
+        data: { schoolId: school.id, classId, name: streamName, code: streamCode },
+      });
+
+      res.status(201).json({
+        success: true,
+        stream: { id: stream.id, name: stream.name, code: stream.code },
+        message: `Stream ${streamName} added to ${klass.name}.`,
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.delete("/api/settings/school-structure/streams/:streamId", async (req, res, next) => {
+    try {
+      const { streamId } = req.params;
+      const { schoolCode } = schoolCodeQuery.parse(req.query);
+
+      const school = await prisma.school.findUnique({ where: { code: schoolCode } });
+      if (!school) {
+        res.status(404).json({ success: false, error: "School not found." });
+        return;
+      }
+
+      const stream = await prisma.stream.findFirst({ where: { id: streamId, schoolId: school.id } });
+      if (!stream) {
+        res.status(404).json({ success: false, error: "Stream not found." });
+        return;
+      }
+
+      const [enrollCount, markCount] = await Promise.all([
+        prisma.classEnrollment.count({ where: { streamId } }),
+        prisma.subjectMark.count({ where: { streamId } }),
+      ]);
+
+      if (enrollCount > 0 || markCount > 0) {
+        res.status(409).json({
+          success: false,
+          code: "STREAM_HAS_DATA",
+          error: `Stream "${stream.name}" has ${enrollCount} enrolment(s) and ${markCount} mark(s). It cannot be removed while data exists.`,
+        });
+        return;
+      }
+
+      await prisma.stream.delete({ where: { id: streamId } });
+      res.json({ success: true, message: `Stream "${stream.name}" removed.` });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  return router;
+}
