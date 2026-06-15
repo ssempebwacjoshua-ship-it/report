@@ -97,7 +97,6 @@ function computeDeliveryStatus(
 // ── Filters ───────────────────────────────────────────────────────────────────
 
 const releaseFiltersSchema = z.object({
-  schoolCode: z.string().default("SCU-PREVIEW"),
   classId: z.string().min(1, "classId is required."),
   streamId: z.string().optional(),
   academicYearId: z.string().optional(),
@@ -107,7 +106,6 @@ const releaseFiltersSchema = z.object({
 });
 
 const bulkIssueSchema = z.object({
-  schoolCode: z.string().default("SCU-PREVIEW"),
   classId: z.string().min(1),
   streamId: z.string().optional(),
   academicYearId: z.string().optional(),
@@ -117,7 +115,6 @@ const bulkIssueSchema = z.object({
 });
 
 const bulkActionSchema = z.object({
-  schoolCode: z.string().default("SCU-PREVIEW"),
   classId: z.string().min(1),
   studentIds: z.array(z.string().uuid()).min(1),
 });
@@ -131,11 +128,13 @@ export function releaseCenterRoutes() {
   router.get("/api/reports/release-status", requireAuth, async (req, res, next) => {
     try {
       const filters = releaseFiltersSchema.parse(req.query);
+      const schoolCode = req.school!.code;
       const user = req.user!;
-      const settings = await getSettingsSections(prisma, filters.schoolCode);
+      const settings = await getSettingsSections(prisma, schoolCode);
 
       const engineInput = await loadReportEngineInput(prisma, {
         ...filters,
+        schoolCode,
         assessmentType: filters.assessmentType ?? settings.academic.defaultAssessmentType,
       });
       const reportResult = buildReports(engineInput);
@@ -249,11 +248,13 @@ export function releaseCenterRoutes() {
   router.post("/api/reports/issue-bulk", requireAuth, async (req, res, next) => {
     try {
       const body = bulkIssueSchema.parse(req.body);
+      const schoolCode = req.school!.code;
       const user = req.user!;
-      const settings = await getSettingsSections(prisma, body.schoolCode);
+      const settings = await getSettingsSections(prisma, schoolCode);
 
       const filters = {
         ...body,
+        schoolCode,
         assessmentType: body.assessmentType ?? settings.academic.defaultAssessmentType,
       };
 

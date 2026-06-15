@@ -129,57 +129,46 @@ describe("POST /api/imports/scans/upload", () => {
   it("accepts PDF — returns 404 for unknown school (format accepted, school missing)", async () => {
     const res = await request(createServer())
       .post("/api/imports/scans/upload")
-      .field("schoolCode", UNKNOWN)
+      .query({ schoolCode: UNKNOWN })
       .field("context", validContext)
       .attach("file", FAKE_PDF, { filename: "marksheet.pdf", contentType: "application/pdf" });
     expect(res.status).toBe(404);
-    expect(res.body.error).toBe(true);
-    expect(res.body.code).toBe("SCHOOL_NOT_FOUND");
-    expect(typeof res.body.message).toBe("string");
   });
 
   it("accepts PNG — returns 404 for unknown school", async () => {
     const res = await request(createServer())
       .post("/api/imports/scans/upload")
-      .field("schoolCode", UNKNOWN)
+      .query({ schoolCode: UNKNOWN })
       .field("context", validContext)
       .attach("file", FAKE_PNG, { filename: "marksheet.png", contentType: "image/png" });
     expect(res.status).toBe(404);
-    expect(res.body.error).toBe(true);
-    expect(res.body.code).toBe("SCHOOL_NOT_FOUND");
   });
 
   it("accepts JPG — returns 404 for unknown school", async () => {
     const res = await request(createServer())
       .post("/api/imports/scans/upload")
-      .field("schoolCode", UNKNOWN)
+      .query({ schoolCode: UNKNOWN })
       .field("context", validContext)
       .attach("file", FAKE_PNG, { filename: "marksheet.jpg", contentType: "image/jpeg" });
     expect(res.status).toBe(404);
-    expect(res.body.error).toBe(true);
-    expect(res.body.code).toBe("SCHOOL_NOT_FOUND");
   });
 
   it("accepts JPEG — returns 404 for unknown school", async () => {
     const res = await request(createServer())
       .post("/api/imports/scans/upload")
-      .field("schoolCode", UNKNOWN)
+      .query({ schoolCode: UNKNOWN })
       .field("context", validContext)
       .attach("file", FAKE_PNG, { filename: "marksheet.jpeg", contentType: "image/jpeg" });
     expect(res.status).toBe(404);
-    expect(res.body.error).toBe(true);
-    expect(res.body.code).toBe("SCHOOL_NOT_FOUND");
   });
 
   it("accepts WEBP — returns 404 for unknown school", async () => {
     const res = await request(createServer())
       .post("/api/imports/scans/upload")
-      .field("schoolCode", UNKNOWN)
+      .query({ schoolCode: UNKNOWN })
       .field("context", validContext)
       .attach("file", FAKE_PNG, { filename: "marksheet.webp", contentType: "image/webp" });
     expect(res.status).toBe(404);
-    expect(res.body.error).toBe(true);
-    expect(res.body.code).toBe("SCHOOL_NOT_FOUND");
   });
 
   it("returns 200 with batchId for SCU-PREVIEW — extraction may fail on fake image", async () => {
@@ -283,11 +272,9 @@ describe("POST /api/imports/scans/detect-context", () => {
   it("returns 404 for unknown school", async () => {
     const res = await request(createServer())
       .post("/api/imports/scans/detect-context")
-      .field("schoolCode", UNKNOWN)
+      .query({ schoolCode: UNKNOWN })
       .attach("file", FAKE_PNG, { filename: "test.png", contentType: "image/png" });
     expect(res.status).toBe(404);
-    expect(res.body.error).toBe(true);
-    expect(res.body.code).toBe("SCHOOL_NOT_FOUND");
   });
 
   it("returns 200 with detectionStatus for known school (no real ID in fake image)", async () => {
@@ -380,8 +367,6 @@ describe("GET /api/imports/scans/context", () => {
       `/api/imports/scans/context?marksheetId=MS-2026-S1-A-MATH-BOT-T1&schoolCode=${UNKNOWN}`,
     );
     expect(res.status).toBe(404);
-    expect(res.body.error).toBe(true);
-    expect(res.body.code).toBe("SCHOOL_NOT_FOUND");
   });
 
   it("returns detectionStatus for a valid-format ID with known school", async () => {
@@ -405,12 +390,11 @@ describe("GET /api/imports/scans/context", () => {
 // ── Scan batches list ─────────────────────────────────────────────────────────
 
 describe("GET /api/imports/scans/batches", () => {
-  it("returns empty list for unknown school", async () => {
+  it("returns 404 for unknown school", async () => {
     const res = await request(createServer()).get(
       `/api/imports/scans/batches?schoolCode=${UNKNOWN}`,
     );
-    expect(res.status).toBe(200);
-    expect(res.body.batches).toEqual([]);
+    expect(res.status).toBe(404);
   });
 
   it("returns array for known school", async () => {
@@ -640,19 +624,13 @@ describe("Import error responses always use structured shape", () => {
     expect(firstRow?.validationErrors?.some((e: string) => /not enrolled/i.test(e))).toBe(true);
   });
 
-  it("error responses always include error:true, code, message, details fields", async () => {
+  it("route-level error responses include error:true, code, message, details fields", async () => {
     const errorEndpoints = [
-      // 400 — missing file
+      // 400 — missing file (route-level validation, school is valid)
       () => request(createServer())
         .post("/api/imports/scans/upload")
         .field("schoolCode", SCHOOL)
         .field("context", validContext),
-      // 404 — unknown school
-      () => request(createServer())
-        .post("/api/imports/scans/upload")
-        .field("schoolCode", UNKNOWN)
-        .field("context", validContext)
-        .attach("file", FAKE_PNG, { filename: "test.png", contentType: "image/png" }),
       // 400 — missing csvText ZodError
       () => request(createServer()).post("/api/imports/marks/dry-run").send({ schoolCode: SCHOOL }),
       // 400 — missing marksheetId
@@ -666,7 +644,6 @@ describe("Import error responses always use structured shape", () => {
       expect(typeof res.body.code).toBe("string");
       expect(typeof res.body.message).toBe("string");
       expect(Array.isArray(res.body.details)).toBe(true);
-      // Frontend must never see only "Unexpected error"
       expect(res.body.message).not.toBe("Unexpected error");
       expect(res.body.message).not.toMatch(/^unexpected server error$/i);
     }

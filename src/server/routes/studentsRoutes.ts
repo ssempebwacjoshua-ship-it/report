@@ -15,7 +15,6 @@ import { getReportContext } from "../repositories/schoolRepository";
 import { commitStudentImport, createStudentImportJob, getStudentImportJob, parseStudentsCsv, parseStudentsXlsx, previewStudentImport } from "../services/studentImportService";
 import { generateAdmissionNumber } from "../services/studentAdmissionNumberService";
 
-const schoolQuery = z.object({ schoolCode: z.string().default("SCU-PREVIEW") });
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
 const studentCreateSchema = z.object({
@@ -31,8 +30,8 @@ const studentCreateSchema = z.object({
   notes: z.string().trim().optional().or(z.literal("")),
 });
 
-function updatedByFromRequest(req: { header: (name: string) => string | undefined }) {
-  return req.header("x-user-name") ?? req.header("x-user-email") ?? null;
+function updatedByFromRequest(req: { header: (name: string) => string | undefined; user?: { name?: string; email?: string } }) {
+  return req.user?.name ?? req.user?.email ?? req.header("x-user-name") ?? req.header("x-user-email") ?? null;
 }
 
 function splitName(fullName: string) {
@@ -51,13 +50,8 @@ export function studentsRoutes() {
 
   router.get("/internal/students", async (req, res, next) => {
     try {
-      const query = z.object({ schoolCode: z.string().default("SCU-PREVIEW"), classId: z.string().optional(), streamId: z.string().optional(), search: z.string().optional(), isActive: z.string().optional() }).parse(req.query);
-      const school = await prisma.school.findUnique({ where: { code: query.schoolCode } });
-      if (!school) {
-        res.json({ students: [] });
-        return;
-      }
-      const rows = await listEnrolledStudents(prisma, query.schoolCode, query);
+      const query = z.object({ classId: z.string().optional(), streamId: z.string().optional(), search: z.string().optional(), isActive: z.string().optional() }).parse(req.query);
+      const rows = await listEnrolledStudents(prisma, req.school!.code, query);
       res.json({ students: rows });
     } catch (error) {
       next(error);
@@ -67,13 +61,12 @@ export function studentsRoutes() {
   router.get("/api/students", async (req, res, next) => {
     try {
       const query = z.object({
-        schoolCode: z.string().default("SCU-PREVIEW"),
         classId: z.string().optional(),
         streamId: z.string().optional(),
         search: z.string().optional(),
         isActive: z.string().optional(),
       }).parse(req.query);
-      const students = await listEnrolledStudents(prisma, query.schoolCode, query);
+      const students = await listEnrolledStudents(prisma, req.school!.code, query);
       res.json({ students });
     } catch (error) {
       next(error);
@@ -82,7 +75,7 @@ export function studentsRoutes() {
 
   router.post("/api/students", async (req, res, next) => {
     try {
-      const schoolCode = schoolQuery.parse(req.query).schoolCode;
+      const schoolCode = req.school!.code;
       const input = studentCreateSchema.parse(req.body);
       const admissionNumber = input.admissionNumber?.trim() || await generateAdmissionNumber(prisma, schoolCode, input.fullName, input.classId);
       const student = await createStudentRecord(prisma, schoolCode, {
@@ -102,15 +95,15 @@ export function studentsRoutes() {
 
   router.patch("/api/students/:id", async (req, res, next) => {
     try {
-      const query = schoolQuery.parse(req.query);
+      const schoolCode = req.school!.code;
       const input = studentCreateSchema.partial().parse(req.body);
-      const current = await getEnrolledStudent(prisma, query.schoolCode, req.params.id);
+      const current = await getEnrolledStudent(prisma, schoolCode, req.params.id);
       if (!current) {
         res.status(404).json({ error: "Student not found." });
         return;
       }
       const name = splitName(input.fullName ?? current.studentName);
-      const school = await prisma.school.findUniqueOrThrow({ where: { code: query.schoolCode } });
+      const school = req.school!;
       await prisma.student.update({
         where: { id: current.id },
         data: {
@@ -152,7 +145,7 @@ export function studentsRoutes() {
 
   router.post("/api/students/import/preview", upload.single("file"), async (req, res, next) => {
     try {
-      const query = schoolQuery.parse(req.query);
+      const schoolCode = req.school!.code;
       const mode = admissionModeFromQuery(req.body.mode);
       const file = req.file;
       if (!file) {
@@ -160,7 +153,7 @@ export function studentsRoutes() {
         return;
       }
       const rows = file.originalname.toLowerCase().endsWith(".xlsx") ? parseStudentsXlsx(file.buffer) : parseStudentsCsv(file.buffer.toString("utf8"));
-      res.json(await previewStudentImport(prisma, query.schoolCode, rows, mode === "create-and-update existing" ? "CREATE_AND_UPDATE_EXISTING" : "CREATE_ONLY"));
+      res.json(await previewStudentImport(prisma, schoolCode, rows, mode === "create-and-update existing" ? "CREATE_AND_UPDATE_EXISTING" : "CREATE_ONLY"));
     } catch (error) {
       next(error);
     }
@@ -168,7 +161,7 @@ export function studentsRoutes() {
 
   router.post("/internal/students/import-jobs/upload", upload.single("file"), async (req, res, next) => {
     try {
-      const query = schoolQuery.parse(req.query);
+      const schoolCode = req.school!.code;
       const mode = admissionModeFromQuery(req.body.mode);
       const file = req.file;
       if (!file) {
@@ -176,7 +169,7 @@ export function studentsRoutes() {
         return;
       }
       const rows = file.originalname.toLowerCase().endsWith(".xlsx") ? parseStudentsXlsx(file.buffer) : parseStudentsCsv(file.buffer.toString("utf8"));
-      res.status(202).json(await createStudentImportJob(prisma, query.schoolCode, rows, mode === "create-and-update existing" ? "CREATE_AND_UPDATE_EXISTING" : "CREATE_ONLY"));
+      res.status(202).json(await createStudentImportJob(prisma, schoolCode, rows, mode === "create-and-update existing" ? "CREATE_AND_UPDATE_EXISTING" : "CREATE_ONLY"));
     } catch (error) {
       next(error);
     }
@@ -184,8 +177,7 @@ export function studentsRoutes() {
 
   router.get("/internal/students/import-jobs/:jobId", async (req, res, next) => {
     try {
-      const query = schoolQuery.parse(req.query);
-      const job = await getStudentImportJob(prisma, query.schoolCode, req.params.jobId);
+      const job = await getStudentImportJob(prisma, req.school!.code, req.params.jobId);
       if (!job) {
         res.status(404).json({ error: "Import job not found." });
         return;
@@ -198,7 +190,7 @@ export function studentsRoutes() {
 
   router.post("/api/students/import/commit", upload.single("file"), async (req, res, next) => {
     try {
-      const query = schoolQuery.parse(req.query);
+      const schoolCode = req.school!.code;
       const mode = admissionModeFromQuery(req.body.mode);
       const file = req.file;
       if (!file) {
@@ -207,10 +199,10 @@ export function studentsRoutes() {
       }
       const rows = file.originalname.toLowerCase().endsWith(".xlsx") ? parseStudentsXlsx(file.buffer) : parseStudentsCsv(file.buffer.toString("utf8"));
       if (rows.length > 500) {
-        res.status(202).json(await createStudentImportJob(prisma, query.schoolCode, rows, mode === "create-and-update existing" ? "CREATE_AND_UPDATE_EXISTING" : "CREATE_ONLY"));
+        res.status(202).json(await createStudentImportJob(prisma, schoolCode, rows, mode === "create-and-update existing" ? "CREATE_AND_UPDATE_EXISTING" : "CREATE_ONLY"));
         return;
       }
-      res.json(await commitStudentImport(prisma, query.schoolCode, rows, mode === "create-and-update existing" ? "CREATE_AND_UPDATE_EXISTING" : "CREATE_ONLY"));
+      res.json(await commitStudentImport(prisma, schoolCode, rows, mode === "create-and-update existing" ? "CREATE_AND_UPDATE_EXISTING" : "CREATE_ONLY"));
     } catch (error) {
       next(error);
     }
@@ -218,12 +210,7 @@ export function studentsRoutes() {
 
   router.get("/api/students/import/history", async (req, res, next) => {
     try {
-      const query = schoolQuery.parse(req.query);
-      const school = await prisma.school.findUnique({ where: { code: query.schoolCode } });
-      if (!school) {
-        res.json({ batches: [] });
-        return;
-      }
+      const school = req.school!;
       const batches = await prisma.markImportBatch.findMany({
         where: { schoolId: school.id, source: "student" },
         orderBy: { createdAt: "desc" },
@@ -245,12 +232,7 @@ export function studentsRoutes() {
 
   router.get("/api/students/import/:id", async (req, res, next) => {
     try {
-      const query = schoolQuery.parse(req.query);
-      const school = await prisma.school.findUnique({ where: { code: query.schoolCode } });
-      if (!school) {
-        res.status(404).json({ error: "School not found." });
-        return;
-      }
+      const school = req.school!;
       const batch = await prisma.markImportBatch.findFirst({
         where: { id: req.params.id, schoolId: school.id, source: "student" },
       });
@@ -272,8 +254,7 @@ export function studentsRoutes() {
 
   router.get("/internal/students/contact-summary", async (req, res, next) => {
     try {
-      const query = schoolQuery.parse(req.query);
-      res.json(await getContactSummary(prisma, query.schoolCode));
+      res.json(await getContactSummary(prisma, req.school!.code));
     } catch (error) {
       next(error);
     }
@@ -281,8 +262,7 @@ export function studentsRoutes() {
 
   router.get("/internal/students/:id", async (req, res, next) => {
     try {
-      const query = schoolQuery.parse(req.query);
-      const student = await getEnrolledStudent(prisma, query.schoolCode, req.params.id);
+      const student = await getEnrolledStudent(prisma, req.school!.code, req.params.id);
       if (!student) {
         res.status(404).json({ error: "No actively enrolled student was found." });
         return;
@@ -293,9 +273,9 @@ export function studentsRoutes() {
     }
   });
 
-  router.post("/internal/students/:id/contacts", async (req, res, next) => { try { const query = schoolQuery.parse(req.query); const contact = await upsertGuardianContact(prisma, query.schoolCode, req.params.id, req.body); res.status(201).json(contact); } catch (error) { next(error); } });
-  router.patch("/internal/students/:id/contacts/:contactId", async (req, res, next) => { try { const query = schoolQuery.parse(req.query); const contact = await upsertGuardianContact(prisma, query.schoolCode, req.params.id, req.body, req.params.contactId); res.json(contact); } catch (error) { next(error); } });
-  router.delete("/internal/students/:id/contacts/:contactId", async (req, res, next) => { try { const query = schoolQuery.parse(req.query); await deleteGuardianContact(prisma, query.schoolCode, req.params.id, req.params.contactId); res.status(204).end(); } catch (error) { next(error); } });
+  router.post("/internal/students/:id/contacts", async (req, res, next) => { try { const contact = await upsertGuardianContact(prisma, req.school!.code, req.params.id, req.body); res.status(201).json(contact); } catch (error) { next(error); } });
+  router.patch("/internal/students/:id/contacts/:contactId", async (req, res, next) => { try { const contact = await upsertGuardianContact(prisma, req.school!.code, req.params.id, req.body, req.params.contactId); res.json(contact); } catch (error) { next(error); } });
+  router.delete("/internal/students/:id/contacts/:contactId", async (req, res, next) => { try { await deleteGuardianContact(prisma, req.school!.code, req.params.id, req.params.contactId); res.status(204).end(); } catch (error) { next(error); } });
 
   return router;
 }

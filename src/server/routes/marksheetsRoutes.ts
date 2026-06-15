@@ -4,8 +4,6 @@ import { prisma } from "../db/prisma";
 import { listEnrolledStudents } from "../repositories/studentRepository";
 import { commitMarksImport, dryRunMarksImport } from "../services/marksImportService";
 
-const schoolQuery = z.object({ schoolCode: z.string().default("SCU-PREVIEW") });
-
 const contextSchema = z.object({
   className: z.string(),
   streamName: z.string(),
@@ -24,10 +22,10 @@ export function marksheetsRoutes() {
   router.get("/api/marksheets/students", async (req, res, next) => {
     try {
       const query = z
-        .object({ schoolCode: z.string().default("SCU-PREVIEW"), classId: z.string().min(1), streamId: z.string().optional() })
+        .object({ classId: z.string().min(1), streamId: z.string().optional() })
         .parse(req.query);
 
-      const students = await listEnrolledStudents(prisma, query.schoolCode, {
+      const students = await listEnrolledStudents(prisma, req.school!.code, {
         classId: query.classId,
         streamId: query.streamId,
       });
@@ -48,8 +46,8 @@ export function marksheetsRoutes() {
   // Dry run marks from marksheet form (reuses same service)
   router.post("/api/marksheets/dry-run", async (req, res, next) => {
     try {
-      const body = z.object({ schoolCode: z.string().default("SCU-PREVIEW"), csvText: z.string().min(1) }).parse(req.body);
-      const result = await dryRunMarksImport(prisma, body.schoolCode, body.csvText);
+      const body = z.object({ csvText: z.string().min(1) }).parse(req.body);
+      const result = await dryRunMarksImport(prisma, req.school!.code, body.csvText);
       res.json(result);
     } catch (error) {
       next(error);
@@ -61,25 +59,22 @@ export function marksheetsRoutes() {
     try {
       const body = z
         .object({
-          schoolCode: z.string().default("SCU-PREVIEW"),
           csvText: z.string().min(1),
           context: contextSchema,
         })
         .parse(req.body);
 
-      const result = await commitMarksImport(prisma, body.schoolCode, body.csvText);
+      const schoolCode = req.school!.code;
+      const result = await commitMarksImport(prisma, schoolCode, body.csvText);
 
       if (result.status === "COMMITTED" && result.batchId) {
-        const school = await prisma.school.findUnique({ where: { code: body.schoolCode } });
-        if (school) {
-          await prisma.markImportBatch.update({
-            where: { id: result.batchId },
-            data: {
-              source: "marksheet",
-              summary: JSON.stringify(body.context),
-            },
-          });
-        }
+        await prisma.markImportBatch.update({
+          where: { id: result.batchId },
+          data: {
+            source: "marksheet",
+            summary: JSON.stringify(body.context),
+          },
+        });
       }
 
       res.json(result);
@@ -91,12 +86,7 @@ export function marksheetsRoutes() {
   // List committed batches for HM review
   router.get("/api/marksheets/batches", async (req, res, next) => {
     try {
-      const query = schoolQuery.parse(req.query);
-      const school = await prisma.school.findUnique({ where: { code: query.schoolCode } });
-      if (!school) {
-        res.json({ batches: [] });
-        return;
-      }
+      const school = req.school!;
 
       const batches = await prisma.markImportBatch.findMany({
         where: { schoolId: school.id, status: "COMMITTED" },
@@ -155,14 +145,8 @@ export function marksheetsRoutes() {
   // HM approve
   router.post("/api/marksheets/batches/:batchId/approve", async (req, res, next) => {
     try {
-      const query = schoolQuery.parse(req.query);
       const body = z.object({ note: z.string().optional() }).parse(req.body);
-
-      const school = await prisma.school.findUnique({ where: { code: query.schoolCode } });
-      if (!school) {
-        res.status(404).json({ error: "School not found" });
-        return;
-      }
+      const school = req.school!;
 
       const batch = await prisma.markImportBatch.findFirst({
         where: { id: req.params.batchId, schoolId: school.id },
@@ -190,14 +174,8 @@ export function marksheetsRoutes() {
   // HM return for correction
   router.post("/api/marksheets/batches/:batchId/return", async (req, res, next) => {
     try {
-      const query = schoolQuery.parse(req.query);
       const body = z.object({ note: z.string().min(1, "A reason is required when returning marks.") }).parse(req.body);
-
-      const school = await prisma.school.findUnique({ where: { code: query.schoolCode } });
-      if (!school) {
-        res.status(404).json({ error: "School not found" });
-        return;
-      }
+      const school = req.school!;
 
       const batch = await prisma.markImportBatch.findFirst({
         where: { id: req.params.batchId, schoolId: school.id },

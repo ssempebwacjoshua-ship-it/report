@@ -7,7 +7,6 @@ import { getSettingsSections } from "../repositories/settingsRepository";
 import { buildReports } from "../services/reportEngine";
 
 const reportsQuery = z.object({
-  schoolCode: z.string().default("SCU-PREVIEW"),
   academicYearId: z.string().optional(),
   termId: z.string().optional(),
   classId: z.string().min(1),
@@ -22,8 +21,7 @@ export function reportsRoutes() {
 
   router.get("/api/context", async (req, res, next) => {
     try {
-      const schoolCode = String(req.query.schoolCode ?? "SCU-PREVIEW");
-      res.json(await getReportContext(prisma, schoolCode));
+      res.json(await getReportContext(prisma, req.school!.code));
     } catch (error) {
       next(error);
     }
@@ -31,8 +29,9 @@ export function reportsRoutes() {
 
   router.get("/api/reports", async (req, res, next) => {
     try {
-      const rawFilters = reportsQuery.parse(req.query);
-      const settings = await getSettingsSections(prisma, rawFilters.schoolCode);
+      const schoolCode = req.school!.code;
+      const rawFilters = { ...reportsQuery.parse(req.query), schoolCode };
+      const settings = await getSettingsSections(prisma, schoolCode);
       const filters = {
         ...rawFilters,
         assessmentType: rawFilters.assessmentType ?? settings.academic.defaultAssessmentType,

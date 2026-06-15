@@ -34,7 +34,6 @@ function isCsvParseError(error: unknown): boolean {
 }
 
 const importPayload = z.object({
-  schoolCode: z.string().default("SCU-PREVIEW"),
   csvText: z.string().min(1),
 });
 
@@ -121,7 +120,7 @@ export function importsRoutes() {
   router.post("/api/imports/marks/dry-run", async (req, res, next) => {
     try {
       const payload = importPayload.parse(req.body);
-      res.json(await dryRunMarksImport(prisma, payload.schoolCode, payload.csvText));
+      res.json(await dryRunMarksImport(prisma, req.school!.code, payload.csvText));
     } catch (error) {
       if (isCsvParseError(error)) {
         res.status(400).json(importErr(
@@ -138,7 +137,7 @@ export function importsRoutes() {
   router.post("/api/imports/marks/commit", async (req, res, next) => {
     try {
       const payload = importPayload.parse(req.body);
-      res.json(await commitMarksImport(prisma, payload.schoolCode, payload.csvText));
+      res.json(await commitMarksImport(prisma, req.school!.code, payload.csvText));
     } catch (error) {
       if (isCsvParseError(error)) {
         res.status(400).json(importErr(
@@ -168,14 +167,7 @@ export function importsRoutes() {
     upload.single("file"),
     async (req, res, next) => {
       try {
-        const schoolCode =
-          typeof req.body.schoolCode === "string" ? req.body.schoolCode.trim() : "SCU-PREVIEW";
-
-        const school = await prisma.school.findUnique({ where: { code: schoolCode } });
-        if (!school) {
-          res.status(404).json(importErr("SCHOOL_NOT_FOUND", `School "${schoolCode}" was not found.`));
-          return;
-        }
+        const school = req.school!;
 
         const file = req.file;
         const idDetection = file ? await tryDetectMarksheetId(file) : null;
@@ -276,18 +268,13 @@ export function importsRoutes() {
   router.get("/api/imports/scans/context", async (req, res, next) => {
     try {
       let marksheetId = String(req.query.marksheetId ?? "").trim();
-      const schoolCode = String(req.query.schoolCode ?? "SCU-PREVIEW").trim();
 
       if (!marksheetId) {
         res.status(400).json(importErr("MISSING_MARKSHEET_ID", "marksheetId query parameter is required."));
         return;
       }
 
-      const school = await prisma.school.findUnique({ where: { code: schoolCode } });
-      if (!school) {
-        res.status(404).json(importErr("SCHOOL_NOT_FOUND", `School "${schoolCode}" was not found.`));
-        return;
-      }
+      const school = req.school!;
 
       // Accept sheet number (YYYYMMDD-NNN) in addition to full MS-... IDs
       if (/^\d{8}-\d{3}$/.test(marksheetId)) {
@@ -333,16 +320,8 @@ export function importsRoutes() {
           return;
         }
 
-        const schoolCode =
-          typeof req.body.schoolCode === "string" ? req.body.schoolCode.trim() : "SCU-PREVIEW";
-        const settings = await getSettingsSections(prisma, schoolCode);
-
-        // 3. Look up school
-        const school = await prisma.school.findUnique({ where: { code: schoolCode } });
-        if (!school) {
-          res.status(404).json(importErr("SCHOOL_NOT_FOUND", `School "${schoolCode}" was not found.`));
-          return;
-        }
+        const school = req.school!;
+        const settings = await getSettingsSections(prisma, school.code);
 
         const selectedContext = parseOptionalScanContext(req.body.context);
         const selectedMarksheetId = typeof req.body.selectedMarksheetId === "string"
@@ -494,17 +473,12 @@ export function importsRoutes() {
   router.post("/api/imports/scans/dry-run", async (req, res, next) => {
     try {
       const payload = z.object({
-        schoolCode: z.string().default("SCU-PREVIEW"),
         batchId: z.string().optional(),
         context: scanContextSchema,
         rows: z.array(z.any()),
       }).parse(req.body);
 
-      const school = await prisma.school.findUnique({ where: { code: payload.schoolCode } });
-      if (!school) {
-        res.status(404).json(importErr("SCHOOL_NOT_FOUND", `School "${payload.schoolCode}" was not found.`));
-        return;
-      }
+      const school = req.school!;
 
       const roster = await prisma.classEnrollment.findMany({
         where: {
@@ -521,11 +495,11 @@ export function importsRoutes() {
       const rows = validateScanRows(payload.rows, payload.context, roster.map((item) => ({
         admissionNumber: item.student.admissionNumber,
       })), {
-        minimumConfidenceForSuggestion: (await getSettingsSections(prisma, payload.schoolCode)).ocr.minimumConfidenceForSuggestion,
+        minimumConfidenceForSuggestion: (await getSettingsSections(prisma, school.code)).ocr.minimumConfidenceForSuggestion,
       });
-      const settings = await getSettingsSections(prisma, payload.schoolCode);
+      const settings = await getSettingsSections(prisma, school.code);
       if (settings.approval.keepAuditTrail) {
-        await recordScanDryRun(school.id, scanDryRunFingerprint(payload.schoolCode, payload.context, rows));
+        await recordScanDryRun(school.id, scanDryRunFingerprint(school.code, payload.context, rows));
       }
 
       if (payload.batchId) {
@@ -566,24 +540,16 @@ export function importsRoutes() {
   router.post("/api/imports/scans/commit", async (req, res, next) => {
     try {
       const payload = z.object({
-        schoolCode: z.string().default("SCU-PREVIEW"),
         context: scanContextSchema,
         rows: z.array(z.any()),
       }).parse(req.body);
 
-      const school = await prisma.school.findUnique({
-        where: { code: payload.schoolCode },
-        include: {
-          academicYears: { where: { isActive: true }, include: { terms: { where: { isActive: true } } } },
-          classes: { include: { streams: true } },
-          students: true,
-          subjects: true,
-        },
-      });
-      if (!school) {
-        res.status(404).json(importErr("SCHOOL_NOT_FOUND", `School "${payload.schoolCode}" was not found.`));
-        return;
-      }
+      const school = req.school!;
+      const [academicYears, classes, subjects] = await Promise.all([
+        prisma.academicYear.findMany({ where: { schoolId: school.id, isActive: true }, include: { terms: { where: { isActive: true } } }, take: 1 }),
+        prisma.schoolClass.findMany({ where: { schoolId: school.id }, include: { streams: true } }),
+        prisma.subject.findMany({ where: { schoolId: school.id } }),
+      ]);
 
       const roster = await prisma.classEnrollment.findMany({
         where: {
@@ -600,11 +566,11 @@ export function importsRoutes() {
       const rows = validateScanRows(payload.rows, payload.context, roster.map((item) => ({
         admissionNumber: item.student.admissionNumber,
       })), {
-        minimumConfidenceForSuggestion: (await getSettingsSections(prisma, payload.schoolCode)).ocr.minimumConfidenceForSuggestion,
+        minimumConfidenceForSuggestion: (await getSettingsSections(prisma, school.code)).ocr.minimumConfidenceForSuggestion,
       });
-      const settings = await getSettingsSections(prisma, payload.schoolCode);
+      const settings = await getSettingsSections(prisma, school.code);
       if (settings.approval.requireDryRunBeforeCommit) {
-        const fingerprint = scanDryRunFingerprint(payload.schoolCode, payload.context, rows);
+        const fingerprint = scanDryRunFingerprint(school.code, payload.context, rows);
         if (!(await hasRecentScanDryRun(school.id, fingerprint))) {
           res.status(400).json(importErr(
             "DRY_RUN_REQUIRED",
@@ -613,11 +579,11 @@ export function importsRoutes() {
           return;
         }
       }
-      const activeYear = school.academicYears[0];
+      const activeYear = academicYears[0];
       const activeTerm = activeYear?.terms[0];
-      const klass = school.classes.find((item) => item.name.toLowerCase() === payload.context.className.toLowerCase());
+      const klass = classes.find((item) => item.name.toLowerCase() === payload.context.className.toLowerCase());
       const stream = klass?.streams.find((item) => item.name.toLowerCase() === payload.context.streamName.toLowerCase());
-      const subject = school.subjects.find((item) =>
+      const subject = subjects.find((item) =>
         item.name.toLowerCase() === payload.context.subjectName.toLowerCase() ||
         item.code.toLowerCase() === payload.context.subjectName.toLowerCase()
       );
@@ -776,12 +742,7 @@ export function importsRoutes() {
 
   router.get("/api/imports/scans/batches", async (req, res, next) => {
     try {
-      const schoolCode = String(req.query.schoolCode ?? "SCU-PREVIEW");
-      const school = await prisma.school.findUnique({ where: { code: schoolCode } });
-      if (!school) {
-        res.json({ batches: [] });
-        return;
-      }
+      const school = req.school!;
 
       const batches = await prisma.markImportBatch.findMany({
         where: { schoolId: school.id, source: "scan" },

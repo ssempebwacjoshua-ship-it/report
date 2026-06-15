@@ -15,6 +15,7 @@ import { studentsRoutes } from "./routes/studentsRoutes";
 import { marksheetsRoutes } from "./routes/marksheetsRoutes";
 import { settingsRoutes } from "./routes/settingsRoutes";
 import { schoolStructureRoutes } from "./routes/schoolStructureRoutes";
+import { resolveSchoolContext } from "./middleware/resolveSchoolContext";
 import { authRoutes } from "./routes/authRoutes";
 import { reportIssueRoutes } from "./routes/reportIssueRoutes";
 import { releaseCenterRoutes } from "./routes/releaseCenterRoutes";
@@ -45,9 +46,21 @@ export function createServer() {
   }));
   app.use(express.json({ limit: "2mb" }));
 
+  // Public routes — no authentication required
   app.use(healthRoutes());
-  app.use(dashboardRoutes());
   app.use(authRoutes());
+  app.use(verifyRoutes());
+  app.use(parentRoutes());
+
+  // Internal diagnostic routes — protected by their own x-internal-test-key, not by school context
+  app.use("/api", geminiOcrRoutes);
+  app.use("/api", geminiRosterRoutes);
+
+  // Tenant isolation: resolve school context from JWT or (dev-only) schoolCode param
+  app.use(resolveSchoolContext);
+
+  // Protected data routes — all have req.school set by the middleware above
+  app.use(dashboardRoutes());
   app.use(reportsRoutes());
   app.use(reportIssueRoutes());
   app.use(releaseCenterRoutes());
@@ -56,12 +69,8 @@ export function createServer() {
   app.use(marksheetsRoutes());
   app.use(schoolStructureRoutes());
   app.use(settingsRoutes());
-  app.use(parentRoutes());
-  app.use(verifyRoutes());
   app.use(ocrRoutes());
   app.use(documentCleanerRoutes());
-  app.use("/api", geminiOcrRoutes);
-  app.use("/api", geminiRosterRoutes);
   app.use(geminiMarksImportRoutes());
 
   const errorHandler: ErrorRequestHandler = (error, req, res, _next) => {

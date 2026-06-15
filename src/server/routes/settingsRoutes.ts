@@ -1,13 +1,10 @@
 import { Router } from "express";
-import { z } from "zod";
 import { prisma } from "../db/prisma";
 import { getSettings, patchSettingsSection } from "../repositories/settingsRepository";
 import { SETTING_SECTIONS, type SettingSection } from "../../shared/types/settings";
 
-const schoolCodeQuery = z.object({ schoolCode: z.string().default("SCU-PREVIEW") });
-
-function updatedByFromRequest(req: { header: (name: string) => string | undefined }) {
-  return req.header("x-user-name") ?? req.header("x-user-email") ?? null;
+function updatedByFromRequest(req: { header: (name: string) => string | undefined; user?: { name?: string; email?: string } }) {
+  return req.user?.name ?? req.user?.email ?? req.header("x-user-name") ?? req.header("x-user-email") ?? null;
 }
 
 export function settingsRoutes() {
@@ -15,8 +12,7 @@ export function settingsRoutes() {
 
   router.get("/api/settings", async (req, res, next) => {
     try {
-      const query = schoolCodeQuery.parse(req.query);
-      res.json(await getSettings(prisma, query.schoolCode));
+      res.json(await getSettings(prisma, req.school!.code));
     } catch (error) {
       next(error);
     }
@@ -25,11 +21,10 @@ export function settingsRoutes() {
   for (const section of SETTING_SECTIONS) {
     router.patch(`/api/settings/${section}`, async (req, res, next) => {
       try {
-        const query = schoolCodeQuery.parse(req.query);
         res.json(
           await patchSettingsSection(
             prisma,
-            query.schoolCode,
+            req.school!.code,
             section as SettingSection,
             req.body,
             updatedByFromRequest(req),

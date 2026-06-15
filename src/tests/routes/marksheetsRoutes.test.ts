@@ -8,18 +8,16 @@ describe("marksheetsRoutes", () => {
     expect(res.status).toBe(400);
   });
 
-  it("GET /api/marksheets/students returns empty list for unknown school", async () => {
+  it("GET /api/marksheets/students returns 404 for unknown school", async () => {
     const res = await request(createServer()).get(
       "/api/marksheets/students?schoolCode=UNKNOWN-SCHOOL&classId=fake-class-id",
     );
-    expect(res.status).toBe(200);
-    expect(res.body.students).toEqual([]);
+    expect(res.status).toBe(404);
   });
 
-  it("GET /api/marksheets/batches returns empty list for unknown school", async () => {
+  it("GET /api/marksheets/batches returns 404 for unknown school", async () => {
     const res = await request(createServer()).get("/api/marksheets/batches?schoolCode=UNKNOWN-SCHOOL");
-    expect(res.status).toBe(200);
-    expect(res.body.batches).toEqual([]);
+    expect(res.status).toBe(404);
   });
 
   it("POST /api/marksheets/batches/:id/approve returns 404 for unknown school", async () => {
@@ -32,7 +30,7 @@ describe("marksheetsRoutes", () => {
 
   it("POST /api/marksheets/batches/:id/return returns 400 when note is missing", async () => {
     const res = await request(createServer())
-      .post("/api/marksheets/batches/fake-batch-id/return?schoolCode=UNKNOWN-SCHOOL")
+      .post("/api/marksheets/batches/fake-batch-id/return?schoolCode=SCU-PREVIEW")
       .send({});
     expect(res.status).toBe(400);
   });

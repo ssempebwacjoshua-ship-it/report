@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import supertest from "supertest";
 import express from "express";
 import { schoolStructureRoutes } from "../../server/routes/schoolStructureRoutes";
+import { resolveSchoolContext } from "../../server/middleware/resolveSchoolContext";
 
 const {
   schoolFindUnique,
@@ -71,6 +72,7 @@ const MOCK_STREAMS = [
 function createApp() {
   const app = express();
   app.use(express.json());
+  app.use(resolveSchoolContext);
   app.use(schoolStructureRoutes());
   return app;
 }

@@ -29,9 +29,11 @@ describe("reportIssueRoutes — POST /api/reports/issue", () => {
   it("returns 400 when studentId is not a valid UUID", async () => {
     // Need a valid-looking token — use signToken directly
     const { signToken } = await import("../../server/services/authService");
+    const { prisma } = await import("../../server/db/prisma");
+    const school = await prisma.school.findUnique({ where: { code: "SCU-PREVIEW" } });
     const token = signToken({
       userId: "00000000-0000-0000-0000-000000000001",
-      schoolId: "00000000-0000-0000-0000-000000000002",
+      schoolId: school?.id ?? "00000000-0000-0000-0000-000000000002",
       name: "Test Admin",
       email: "test@test.com",
       role: "ADMIN_OPERATOR",

@@ -26,7 +26,6 @@ function generateReferenceCode(): string {
 }
 
 const issueSchema = z.object({
-  schoolCode: z.string().default("SCU-PREVIEW"),
   studentId: z.string().uuid("studentId must be a valid UUID."),
   academicYearId: z.string().optional(),
   termId: z.string().optional(),
@@ -47,10 +46,11 @@ export function reportIssueRoutes() {
     try {
       const body = issueSchema.parse(req.body);
       const user = req.user!;
+      const schoolCode = req.school!.code;
 
-      const settings = await getSettingsSections(prisma, body.schoolCode);
+      const settings = await getSettingsSections(prisma, schoolCode);
       const filters = {
-        schoolCode: body.schoolCode,
+        schoolCode,
         studentId: body.studentId,
         classId: body.classId,
         streamId: body.streamId,
@@ -144,7 +144,6 @@ export function reportIssueRoutes() {
   // GET /api/reports/issued — list issued reports for a school
   router.get("/api/reports/issued", requireAuth, async (req, res, next) => {
     try {
-      const schoolCode = String(req.query.schoolCode ?? "SCU-PREVIEW");
       const user = req.user!;
 
       const issued = await prisma.issuedReport.findMany({

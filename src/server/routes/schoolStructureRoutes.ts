@@ -15,10 +15,8 @@ const AVAILABLE_SECTIONS = [
   { code: "SECONDARY" as const, label: "Secondary" },
 ];
 
-async function buildStructureResponse(schoolCode: string) {
-  const school = await prisma.school.findUnique({ where: { code: schoolCode } });
-  if (!school) return null;
-
+async function buildStructureResponse(school: { id: string; code: string; name: string }) {
+  const schoolCode = school.code;
   const settings = await getSettingsSections(prisma, schoolCode);
   const selectedSections: SchoolSection[] = settings.school.schoolSections;
 
@@ -80,15 +78,11 @@ async function buildStructureResponse(schoolCode: string) {
   };
 }
 
-const schoolCodeQuery = z.object({ schoolCode: z.string().default("SCU-PREVIEW") });
-
 const sectionsBodySchema = z.object({
-  schoolCode: z.string().optional().default("SCU-PREVIEW"),
   selectedSections: z.array(z.enum(["NURSERY", "PRIMARY", "SECONDARY"])).min(1),
 });
 
 const streamCreateSchema = z.object({
-  schoolCode: z.string().optional().default("SCU-PREVIEW"),
   classId: z.string().min(1),
   name: z.string().min(1),
   code: z.string().min(1),
@@ -99,13 +93,7 @@ export function schoolStructureRoutes() {
 
   router.get("/api/settings/school-structure", async (req, res, next) => {
     try {
-      const { schoolCode } = schoolCodeQuery.parse(req.query);
-      const data = await buildStructureResponse(schoolCode);
-      if (!data) {
-        res.status(404).json({ success: false, error: "School not found." });
-        return;
-      }
-      res.json(data);
+      res.json(await buildStructureResponse(req.school!));
     } catch (error) {
       next(error);
     }
@@ -121,13 +109,9 @@ export function schoolStructureRoutes() {
         });
         return;
       }
-      const { schoolCode, selectedSections: newSections } = parsed.data;
-
-      const school = await prisma.school.findUnique({ where: { code: schoolCode } });
-      if (!school) {
-        res.status(404).json({ success: false, error: "School not found." });
-        return;
-      }
+      const { selectedSections: newSections } = parsed.data;
+      const school = req.school!;
+      const schoolCode = school.code;
 
       const currentSettings = await getSettingsSections(prisma, schoolCode);
       const currentSections = currentSettings.school.schoolSections;
@@ -172,12 +156,7 @@ export function schoolStructureRoutes() {
         schoolSections: newSections,
       });
 
-      const data = await buildStructureResponse(schoolCode);
-      if (!data) {
-        res.status(404).json({ success: false, error: "School not found after update." });
-        return;
-      }
-      res.json(data);
+      res.json(await buildStructureResponse(school));
     } catch (error) {
       next(error);
     }
@@ -190,15 +169,10 @@ export function schoolStructureRoutes() {
         res.status(400).json({ success: false, error: "classId, name, and code are required." });
         return;
       }
-      const { schoolCode, classId, name, code } = parsed.data;
+      const { classId, name, code } = parsed.data;
       const streamCode = code.trim().toUpperCase();
       const streamName = name.trim();
-
-      const school = await prisma.school.findUnique({ where: { code: schoolCode } });
-      if (!school) {
-        res.status(404).json({ success: false, error: "School not found." });
-        return;
-      }
+      const school = req.school!;
 
       const klass = await prisma.schoolClass.findFirst({ where: { id: classId, schoolId: school.id } });
       if (!klass) {
@@ -238,13 +212,7 @@ export function schoolStructureRoutes() {
   router.delete("/api/settings/school-structure/streams/:streamId", async (req, res, next) => {
     try {
       const { streamId } = req.params;
-      const { schoolCode } = schoolCodeQuery.parse(req.query);
-
-      const school = await prisma.school.findUnique({ where: { code: schoolCode } });
-      if (!school) {
-        res.status(404).json({ success: false, error: "School not found." });
-        return;
-      }
+      const school = req.school!;
 
       const stream = await prisma.stream.findFirst({ where: { id: streamId, schoolId: school.id } });
       if (!stream) {

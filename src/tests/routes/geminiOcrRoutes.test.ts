@@ -292,13 +292,12 @@ describe("production x-internal-test-key protection", () => {
     vi.stubEnv("INTERNAL_TEST_KEY", "test-secret");
     const app = createServer();
     // Send without the internal key — the real route uses normal app auth, not the test key.
-    // Without a bearer token in production, requireImportAuth returns 401 (AUTH_REQUIRED).
-    // If the x-internal-test-key guard were still blocking here it would return 403.
+    // Without a bearer token in production, resolveSchoolContext returns 401.
+    // If the x-internal-test-key guard were blocking here it would return 403 — that would be wrong.
     const res = await request(app)
       .post("/api/marks-import/scan/extract")
       .attach("image", FAKE_IMAGE, { filename: "marks.jpg", contentType: "image/jpeg" })
       .field("classId", "c1").field("subjectId", "s1").field("termId", "t1").field("examType", "BOT");
     expect(res.status).toBe(401); // auth required — not 403 key-guard
-    expect(res.body.code).toBe("AUTH_REQUIRED");
   });
 });

@@ -163,17 +163,7 @@ export default function geminiMarksImportRoutes() {
         if (!debugNoDb) {
           console.log("[gemini-extract]", { reqId, stage, event: "resolving_context" });
 
-          const sessionSchoolId = req.user?.schoolId;
-          const schoolCode = typeof req.body.schoolCode === "string" && req.body.schoolCode.trim()
-            ? req.body.schoolCode.trim()
-            : "SCU-PREVIEW";
-          const school = sessionSchoolId
-            ? await prisma.school.findUnique({ where: { id: sessionSchoolId } })
-            : await prisma.school.findUnique({ where: { code: schoolCode } });
-          if (!school) {
-            res.status(404).json(stageErr(reqId, stage, "SCHOOL_NOT_FOUND", "School could not be resolved for this session."));
-            return;
-          }
+          const school = req.school!;
           schoolId = school.id;
 
           const klass = await prisma.schoolClass.findFirst({
@@ -345,17 +335,7 @@ export default function geminiMarksImportRoutes() {
    */
   router.get("/api/marks-import/scan/options", requireImportAuth, async (req, res, next) => {
     try {
-      const sessionSchoolId = req.user?.schoolId;
-      const schoolCode = typeof req.query.schoolCode === "string" && req.query.schoolCode.trim()
-        ? req.query.schoolCode.trim()
-        : "SCU-PREVIEW";
-      const school = sessionSchoolId
-        ? await prisma.school.findUnique({ where: { id: sessionSchoolId } })
-        : await prisma.school.findUnique({ where: { code: schoolCode } });
-      if (!school) {
-        res.status(404).json(importErr("SCHOOL_NOT_FOUND", "School could not be resolved for this session."));
-        return;
-      }
+      const school = req.school!;
 
       // Read stored school sections (default: SECONDARY when not yet configured).
       let schoolSections: SchoolSection[] = ["SECONDARY"];
@@ -460,26 +440,13 @@ export default function geminiMarksImportRoutes() {
         return;
       }
 
-      const sessionSchoolId = req.user?.schoolId;
-      const schoolCode = typeof body.schoolCode === "string" && body.schoolCode.trim()
-        ? body.schoolCode.trim()
-        : "SCU-PREVIEW";
-
-      let schoolId: string;
-      if (sessionSchoolId) {
-        if (batch.schoolId !== sessionSchoolId) {
-          res.status(403).json(importErr("ACCESS_DENIED", "This import batch does not belong to your school."));
-          return;
-        }
-        schoolId = sessionSchoolId;
-      } else {
-        const school = await prisma.school.findUnique({ where: { code: schoolCode } });
-        if (!school || batch.schoolId !== school.id) {
-          res.status(403).json(importErr("ACCESS_DENIED", "This import batch does not belong to the resolved school."));
-          return;
-        }
-        schoolId = school.id;
+      const school = req.school!;
+      if (batch.schoolId !== school.id) {
+        res.status(403).json(importErr("ACCESS_DENIED", "This import batch does not belong to your school."));
+        return;
       }
+      const schoolId = school.id;
+      const schoolCode = school.code;
 
       // ── 3. Check batch status ──────────────────────────────────────────────
       if (batch.status === "COMMITTED") {
