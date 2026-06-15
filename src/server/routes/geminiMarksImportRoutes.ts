@@ -18,6 +18,8 @@ const SCAN_MIME_TYPES = new Set([
   "application/pdf",
 ]);
 const SCAN_FILE_EXTENSIONS = new Set(["PNG", "JPG", "JPEG", "WEBP", "PDF"]);
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const VALID_EXAM_TYPES = new Set(["BOT", "MOT", "EOT"]);
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -113,6 +115,35 @@ export default function geminiMarksImportRoutes() {
           return;
         }
 
+        // 3a. Early start log (before any DB work so we always see what was submitted)
+        console.log("[gemini-extract]", {
+          reqId, event: "start",
+          file: { name: file.originalname, sizeKB: Math.round(file.size / 1024), mime: file.mimetype },
+          context: { classId, streamId: streamId || null, subjectId, termId, examType },
+        });
+
+        // 3b. Validate IDs are proper UUIDs before hitting Prisma (prevents type errors on bad input)
+        if (!UUID_RE.test(classId)) {
+          res.status(400).json(importErr("INVALID_ID", "Invalid class selection. Please choose a class from the list."));
+          return;
+        }
+        if (streamId && !UUID_RE.test(streamId)) {
+          res.status(400).json(importErr("INVALID_ID", "Invalid stream selection. Please choose a stream from the list."));
+          return;
+        }
+        if (!UUID_RE.test(subjectId)) {
+          res.status(400).json(importErr("INVALID_ID", "Invalid subject selection. Please choose a subject from the list."));
+          return;
+        }
+        if (!UUID_RE.test(termId)) {
+          res.status(400).json(importErr("INVALID_ID", "Invalid term selection. Please choose a term from the list."));
+          return;
+        }
+        if (!VALID_EXAM_TYPES.has(examType)) {
+          res.status(400).json(importErr("INVALID_ID", "Invalid exam type. Please select BOT, MOT, or EOT."));
+          return;
+        }
+
         // 4. Resolve school server-side. Never trust a frontend-supplied schoolId.
         //    In production the school comes from the authenticated session; otherwise
         //    we resolve from schoolCode, consistent with the rest of the import flow.
@@ -177,11 +208,6 @@ export default function geminiMarksImportRoutes() {
         });
 
         // 8. Call Gemini extraction service (server-only key).
-        console.log("[gemini-extract]", {
-          reqId, event: "start",
-          file: { name: file.originalname, sizeKB: Math.round(file.size / 1024), mime: file.mimetype },
-          context: { classId, streamId: streamId || null, subjectId, termId, examType },
-        });
         const geminiStart = Date.now();
         const { rows: geminiRows } = await extractMarksWithGemini(file.buffer, file.mimetype || "image/jpeg");
         console.log("[gemini-extract]", { reqId, event: "gemini-done", durationMs: Date.now() - geminiStart, rawRows: geminiRows.length });
@@ -277,6 +303,68 @@ export default function geminiMarksImportRoutes() {
       }
     },
   );
+
+  /**
+   * GET /api/marks-import/scan/options
+   *
+   * Returns the dropdown options (classes, streams, subjects, terms, examTypes)
+   * needed to populate the Smart Marksheet Import form. School-scoped; never
+   * returns data across schools.
+   */
+  router.get("/api/marks-import/scan/options", requireImportAuth, async (req, res, next) => {
+    try {
+      const sessionSchoolId = req.user?.schoolId;
+      const schoolCode = typeof req.query.schoolCode === "string" && req.query.schoolCode.trim()
+        ? req.query.schoolCode.trim()
+        : "SCU-PREVIEW";
+      const school = sessionSchoolId
+        ? await prisma.school.findUnique({ where: { id: sessionSchoolId } })
+        : await prisma.school.findUnique({ where: { code: schoolCode } });
+      if (!school) {
+        res.status(404).json(importErr("SCHOOL_NOT_FOUND", "School could not be resolved for this session."));
+        return;
+      }
+
+      const [classes, streams, subjects, terms] = await Promise.all([
+        prisma.schoolClass.findMany({
+          where: { schoolId: school.id },
+          select: { id: true, name: true, code: true },
+          orderBy: { name: "asc" },
+        }),
+        prisma.stream.findMany({
+          where: { schoolId: school.id },
+          select: { id: true, classId: true, name: true, code: true },
+          orderBy: { name: "asc" },
+        }),
+        prisma.subject.findMany({
+          where: { schoolId: school.id, isActive: true },
+          select: { id: true, name: true, code: true },
+          orderBy: { sortOrder: "asc" },
+        }),
+        prisma.term.findMany({
+          where: { academicYear: { schoolId: school.id } },
+          include: { academicYear: { select: { name: true } } },
+          orderBy: [{ academicYear: { startsOn: "desc" } }, { startsOn: "asc" }],
+          take: 12,
+        }),
+      ]);
+
+      res.json({
+        success: true,
+        classes,
+        streams,
+        subjects,
+        terms: terms.map((t) => ({
+          id: t.id,
+          name: `${t.academicYear.name} — ${t.name}`,
+          isActive: t.isActive,
+        })),
+        examTypes: ["BOT", "MOT", "EOT"],
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
 
   /**
    * POST /api/marks-import/scan/commit

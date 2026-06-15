@@ -6,6 +6,7 @@ import type {
   ScanBatchReloadResponse,
   ScanImportBatch,
   ScanMarksheetContext,
+  ScanOptions,
   ScanRowsCommitResponse,
   ScanRowsValidationResponse,
   ScanUploadPayload,
@@ -180,6 +181,22 @@ export async function commitScanRows(
   if (!response.ok) throw new Error(await readImportError(response, "Could not commit scanned marks"));
   return response.json();
 }
+// ── Gemini marksheet scan options ────────────────────────────────
+
+/**
+ * Fetch the dropdown options (classes, streams, subjects, terms) for the
+ * Smart Marksheet Import panel. School-scoped; uses the auth token when
+ * available, otherwise falls back to the SCU-PREVIEW school in dev/test.
+ */
+export async function fetchScanOptions(schoolCode = "SCU-PREVIEW"): Promise<ScanOptions> {
+  const params = new URLSearchParams({ schoolCode });
+  const response = await fetch(`${API_BASE}/api/marks-import/scan/options?${params}`, {
+    headers: authHeaders(),
+  });
+  if (!response.ok) throw new Error(await readImportError(response, "Could not load import options"));
+  return response.json();
+}
+
 // ── Gemini marksheet scan extraction ─────────────────────────────
 
 /**

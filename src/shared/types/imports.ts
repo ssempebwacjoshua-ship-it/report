@@ -356,3 +356,17 @@ export type GeminiScanExtractResponse = {
   summary: GeminiScanSummary;
   rows: GeminiScanRow[];
 };
+
+export type ScanOptionsClass = { id: string; name: string; code: string };
+export type ScanOptionsStream = { id: string; classId: string; name: string; code: string };
+export type ScanOptionsSubject = { id: string; name: string; code: string };
+export type ScanOptionsTerm = { id: string; name: string; isActive: boolean };
+
+export type ScanOptions = {
+  success: boolean;
+  classes: ScanOptionsClass[];
+  streams: ScanOptionsStream[];
+  subjects: ScanOptionsSubject[];
+  terms: ScanOptionsTerm[];
+  examTypes: string[];
+};

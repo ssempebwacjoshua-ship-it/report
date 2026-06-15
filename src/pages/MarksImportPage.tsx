@@ -56,9 +56,9 @@ const MODES: Array<{
   },
   {
     id: "gemini",
-    label: "Gemini Scan (Pilot)",
+    label: "Smart Marksheet Import",
     badge: "PNG / JPG / JPEG / WEBP / PDF",
-    desc: "Extract marks from a photographed marksheet with Gemini, then review every row before saving.",
+    desc: "Upload a photo or scan of a marksheet. The system reads the marks and prepares them for review before saving.",
     formats: "PNG, JPG, JPEG, WEBP, PDF",
     icon: (
       <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

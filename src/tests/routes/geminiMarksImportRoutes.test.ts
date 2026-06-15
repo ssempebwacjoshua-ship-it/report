@@ -12,10 +12,24 @@ const { markImportBatchCreate, subjectMarkCreate, subjectMarkUpsert } = vi.hoist
 vi.mock("../../server/db/prisma", () => ({
   prisma: {
     school: { findUnique: vi.fn(async () => ({ id: "school-1", code: "SCU-PREVIEW" })) },
-    schoolClass: { findFirst: vi.fn(async () => ({ id: "class-1", schoolId: "school-1", streams: [] })) },
-    subject: { findFirst: vi.fn(async () => ({ id: "subject-1" })) },
-    term: { findFirst: vi.fn(async () => ({ id: "term-1" })) },
-    stream: { findFirst: vi.fn(async () => null) },
+    schoolClass: {
+      findFirst: vi.fn(async () => ({ id: "class-1", schoolId: "school-1", streams: [] })),
+      findMany: vi.fn(async () => [{ id: "class-1", name: "Senior 1", code: "S1" }]),
+    },
+    subject: {
+      findFirst: vi.fn(async () => ({ id: "subject-1" })),
+      findMany: vi.fn(async () => [{ id: "subject-1", name: "Mathematics", code: "MATH" }]),
+    },
+    term: {
+      findFirst: vi.fn(async () => ({ id: "term-1" })),
+      findMany: vi.fn(async () => [
+        { id: "term-1", name: "Term 1", isActive: true, academicYear: { name: "2025/2026" } },
+      ]),
+    },
+    stream: {
+      findFirst: vi.fn(async () => null),
+      findMany: vi.fn(async () => []),
+    },
     classEnrollment: { findMany: vi.fn(async () => []) },
     markImportBatch: { create: markImportBatchCreate },
     subjectMark: { create: subjectMarkCreate, upsert: subjectMarkUpsert },
@@ -46,6 +60,11 @@ vi.mock("../../server/services/geminiMarksImportService", async (importActual) =
 import { createServer } from "../../server";
 
 const IMAGE = Buffer.from("fake-marksheet-bytes");
+
+// Valid UUIDs that pass UUID_RE validation and satisfy the Prisma mocks (mocks ignore actual values).
+const CLS = "aaaaaaaa-0000-0000-0000-000000000001";
+const SUBJ = "aaaaaaaa-0000-0000-0000-000000000002";
+const TERM = "aaaaaaaa-0000-0000-0000-000000000003";
 
 beforeEach(() => {
   subjectMarkCreate.mockClear();
@@ -81,9 +100,9 @@ describe("POST /api/marks-import/scan/extract", () => {
     const res = await request(createServer())
       .post("/api/marks-import/scan/extract")
       .attach("image", IMAGE, { filename: "marks.jpg", contentType: "image/jpeg" })
-      .field("classId", "class-1")
-      .field("subjectId", "subject-1")
-      .field("termId", "term-1")
+      .field("classId", CLS)
+      .field("subjectId", SUBJ)
+      .field("termId", TERM)
       .field("examType", "BOT");
 
     expect(res.status).toBe(200);
@@ -105,6 +124,61 @@ describe("POST /api/marks-import/scan/extract", () => {
   });
 });
 
+describe("UUID validation", () => {
+  it("returns 400 INVALID_ID when classId is not a UUID", async () => {
+    const res = await request(createServer())
+      .post("/api/marks-import/scan/extract")
+      .attach("image", IMAGE, { filename: "marks.jpg", contentType: "image/jpeg" })
+      .field("classId", "1")
+      .field("subjectId", "subject-1")
+      .field("termId", "term-1")
+      .field("examType", "BOT");
+    expect(res.status).toBe(400);
+    expect(res.body.code).toBe("INVALID_ID");
+  });
+
+  it("returns 400 INVALID_ID when subjectId is not a UUID", async () => {
+    const res = await request(createServer())
+      .post("/api/marks-import/scan/extract")
+      .attach("image", IMAGE, { filename: "marks.jpg", contentType: "image/jpeg" })
+      .field("classId", "class-1")
+      .field("subjectId", "1")
+      .field("termId", "term-1")
+      .field("examType", "BOT");
+    expect(res.status).toBe(400);
+    expect(res.body.code).toBe("INVALID_ID");
+  });
+
+  it("returns 400 INVALID_ID when termId is not a UUID", async () => {
+    const res = await request(createServer())
+      .post("/api/marks-import/scan/extract")
+      .attach("image", IMAGE, { filename: "marks.jpg", contentType: "image/jpeg" })
+      .field("classId", "class-1")
+      .field("subjectId", "subject-1")
+      .field("termId", "1")
+      .field("examType", "BOT");
+    expect(res.status).toBe(400);
+    expect(res.body.code).toBe("INVALID_ID");
+  });
+});
+
+describe("GET /api/marks-import/scan/options", () => {
+  it("returns classes, streams, subjects, terms, and examTypes for the resolved school", async () => {
+    const res = await request(createServer())
+      .get("/api/marks-import/scan/options")
+      .query({ schoolCode: "SCU-PREVIEW" });
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.classes).toEqual([{ id: "class-1", name: "Senior 1", code: "S1" }]);
+    expect(res.body.streams).toEqual([]);
+    expect(res.body.subjects).toEqual([{ id: "subject-1", name: "Mathematics", code: "MATH" }]);
+    expect(res.body.terms[0]).toMatchObject({ id: "term-1", isActive: true });
+    expect(res.body.terms[0].name).toContain("Term 1");
+    expect(res.body.examTypes).toEqual(["BOT", "MOT", "EOT"]);
+  });
+});
+
 describe("Gemini error handling", () => {
   it("returns 503 GEMINI_NOT_CONFIGURED when GEMINI_API_KEY is missing", async () => {
     const { extractMarksWithGemini } = await import("../../server/services/geminiOcrService");
@@ -113,8 +187,8 @@ describe("Gemini error handling", () => {
     const res = await request(createServer())
       .post("/api/marks-import/scan/extract")
       .attach("image", IMAGE, { filename: "marks.jpg", contentType: "image/jpeg" })
-      .field("classId", "class-1").field("subjectId", "subject-1")
-      .field("termId", "term-1").field("examType", "BOT");
+      .field("classId", CLS).field("subjectId", SUBJ)
+      .field("termId", TERM).field("examType", "BOT");
 
     expect(res.status).toBe(503);
     expect(res.body.code).toBe("GEMINI_NOT_CONFIGURED");
@@ -127,8 +201,8 @@ describe("Gemini error handling", () => {
     const res = await request(createServer())
       .post("/api/marks-import/scan/extract")
       .attach("image", IMAGE, { filename: "marks.jpg", contentType: "image/jpeg" })
-      .field("classId", "class-1").field("subjectId", "subject-1")
-      .field("termId", "term-1").field("examType", "BOT");
+      .field("classId", CLS).field("subjectId", SUBJ)
+      .field("termId", TERM).field("examType", "BOT");
 
     expect(res.status).toBe(503);
     expect(res.body.code).toBe("GEMINI_AUTH_ERROR");
@@ -141,8 +215,8 @@ describe("Gemini error handling", () => {
     const res = await request(createServer())
       .post("/api/marks-import/scan/extract")
       .attach("image", IMAGE, { filename: "marks.jpg", contentType: "image/jpeg" })
-      .field("classId", "class-1").field("subjectId", "subject-1")
-      .field("termId", "term-1").field("examType", "BOT");
+      .field("classId", CLS).field("subjectId", SUBJ)
+      .field("termId", TERM).field("examType", "BOT");
 
     expect(res.status).toBe(503);
     expect(res.body.code).toBe("GEMINI_RATE_LIMIT");
@@ -155,8 +229,8 @@ describe("Gemini error handling", () => {
     const res = await request(createServer())
       .post("/api/marks-import/scan/extract")
       .attach("image", IMAGE, { filename: "marks.jpg", contentType: "image/jpeg" })
-      .field("classId", "class-1").field("subjectId", "subject-1")
-      .field("termId", "term-1").field("examType", "BOT");
+      .field("classId", CLS).field("subjectId", SUBJ)
+      .field("termId", TERM).field("examType", "BOT");
 
     expect(res.status).toBe(400);
     expect(res.body.code).toBe("GEMINI_PARSE_ERROR");
@@ -169,9 +243,9 @@ describe("file validation boundaries", () => {
     const res = await request(createServer())
       .post("/api/marks-import/scan/extract")
       .attach("image", oversized, { filename: "big.jpg", contentType: "image/jpeg" })
-      .field("classId", "class-1")
-      .field("subjectId", "subject-1")
-      .field("termId", "term-1")
+      .field("classId", CLS)
+      .field("subjectId", SUBJ)
+      .field("termId", TERM)
       .field("examType", "BOT");
     expect(res.status).toBe(400);
     expect(res.type).toMatch(/json/);
@@ -182,9 +256,9 @@ describe("file validation boundaries", () => {
     const res = await request(createServer())
       .post("/api/marks-import/scan/extract")
       .attach("image", Buffer.from("not-an-image"), { filename: "data.txt", contentType: "text/plain" })
-      .field("classId", "class-1")
-      .field("subjectId", "subject-1")
-      .field("termId", "term-1")
+      .field("classId", CLS)
+      .field("subjectId", SUBJ)
+      .field("termId", TERM)
       .field("examType", "BOT");
     expect(res.status).toBe(400);
     expect(res.type).toMatch(/json/);

@@ -1,25 +1,27 @@
-import { useMemo, useRef, useState } from "react";
-import { extractMarksWithGeminiScan } from "../../client/importsClient";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { extractMarksWithGeminiScan, fetchScanOptions } from "../../client/importsClient";
 import { SCAN_ACCEPT } from "../../client/marksSheetHelpers";
 import type {
   GeminiScanContext,
   GeminiScanExtractResponse,
   GeminiScanRow,
+  ScanOptions,
 } from "../../shared/types/imports";
-
-const EXAM_TYPES = ["BOT", "MOT", "EOT"] as const;
 
 type Phase = "idle" | "compressing" | "extracting" | "review";
 
+type OptionsState =
+  | { status: "loading" }
+  | { status: "ready"; data: ScanOptions }
+  | { status: "error"; message: string };
+
 async function compressImage(file: File, maxPx = 1400, quality = 0.8): Promise<File> {
-  if (!file.type.startsWith("image/")) return file; // PDFs skip compression
-  // 2D canvas unavailable in jsdom test environments — skip compression entirely.
+  if (!file.type.startsWith("image/")) return file;
   if (!document.createElement("canvas").getContext("2d")) return file;
   try {
     return await new Promise<File>((resolve, reject) => {
       const img = new Image();
       const url = URL.createObjectURL(file);
-      // Safety fallback: if onload/onerror never fire, resolve with the original file.
       const fallback = setTimeout(() => { URL.revokeObjectURL(url); resolve(file); }, 5000);
       img.onload = () => {
         clearTimeout(fallback);
@@ -46,7 +48,7 @@ async function compressImage(file: File, maxPx = 1400, quality = 0.8): Promise<F
       img.src = url;
     });
   } catch {
-    return file; // fall back to original on any error
+    return file;
   }
 }
 
@@ -54,7 +56,6 @@ function emptyContext(): GeminiScanContext {
   return { classId: "", streamId: "", subjectId: "", termId: "", examType: "BOT" };
 }
 
-// Row styling by status — READY normal, REVIEW amber, BLOCKED red.
 function rowClass(status: GeminiScanRow["status"]): string {
   if (status === "BLOCKED") return "bg-red-50 border-l-4 border-red-400";
   if (status === "REVIEW_REQUIRED") return "bg-amber-50 border-l-4 border-amber-400";
@@ -84,6 +85,7 @@ const SUMMARY_CARDS: Array<{ key: keyof GeminiScanExtractResponse["summary"]; la
 ];
 
 export function GeminiScanPanel() {
+  const [options, setOptions] = useState<OptionsState>({ status: "loading" });
   const [context, setContext] = useState<GeminiScanContext>(emptyContext());
   const [image, setImage] = useState<File | null>(null);
   const [phase, setPhase] = useState<Phase>("idle");
@@ -94,16 +96,35 @@ export function GeminiScanPanel() {
   const [compressedSize, setCompressedSize] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  useEffect(() => {
+    fetchScanOptions()
+      .then((data) => setOptions({ status: "ready", data }))
+      .catch((err) => setOptions({
+        status: "error",
+        message: err instanceof Error ? err.message : "Could not load options",
+      }));
+  }, []);
+
   function set<K extends keyof GeminiScanContext>(key: K, value: GeminiScanContext[K]) {
-    setContext((prev) => ({ ...prev, [key]: value }));
+    if (key === "classId") {
+      setContext((prev) => ({ ...prev, classId: value as string, streamId: "" }));
+    } else {
+      setContext((prev) => ({ ...prev, [key]: value }));
+    }
   }
 
-  // Stream is required here unless the operator explicitly has no stream selection.
+  const classStreams = useMemo(() => {
+    if (options.status !== "ready") return [];
+    return options.data.streams.filter((s) => s.classId === context.classId);
+  }, [options, context.classId]);
+
+  const optionsReady = options.status === "ready";
   const requiredFilled =
-    context.classId.trim() !== "" &&
-    context.subjectId.trim() !== "" &&
-    context.termId.trim() !== "" &&
-    context.examType.trim() !== "";
+    optionsReady &&
+    context.classId !== "" &&
+    context.subjectId !== "" &&
+    context.termId !== "" &&
+    context.examType !== "";
 
   const isExtracting = phase === "compressing" || phase === "extracting";
   const canExtract = requiredFilled && image !== null && !isExtracting;
@@ -112,7 +133,7 @@ export function GeminiScanPanel() {
     () => rows.some((row) => row.status === "BLOCKED" || row.status === "REVIEW_REQUIRED"),
     [rows],
   );
-  const canCommit = false; // Commit is not implemented in this phase.
+  const canCommit = false;
 
   async function handleExtract() {
     if (!image || !requiredFilled) return;
@@ -133,7 +154,7 @@ export function GeminiScanPanel() {
       setRows(response.rows);
       setPhase("review");
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Gemini extraction failed.";
+      const msg = err instanceof Error ? err.message : "Extraction failed.";
       setError(
         /failed to fetch|networkerror|network error|err_http2|fetch/i.test(msg)
           ? "Could not reach the extraction server. Please try again or contact support."
@@ -149,23 +170,30 @@ export function GeminiScanPanel() {
     setRows((prev) => prev.map((row) => (row.rowNumber === rowNumber ? { ...row, ...patch } : row)));
   }
 
-  const inputCls =
+  const selectCls =
     "premium-control rounded-xl border border-slate-200 bg-slate-50 p-2 text-sm font-normal text-slate-900 outline-none focus:border-blue-400 focus:bg-white";
 
   return (
     <div className="grid gap-5">
-      {/* Pilot notice */}
+      {/* Banner */}
       <div className="flex items-start gap-3 rounded-2xl border border-violet-200 bg-violet-50 p-4">
         <div>
-          <p className="text-sm font-bold text-violet-900">Gemini marksheet scan (pilot)</p>
+          <p className="text-sm font-bold text-violet-900">Smart Marksheet Import</p>
           <p className="mt-0.5 text-sm text-violet-700">
-            Extract marks from a photographed marksheet with Gemini, then review every row.
-            Marks are never saved automatically — backend validation, not Gemini confidence,
-            controls safety.
+            Upload a photo or scan of a marksheet. The system reads the marks and prepares them
+            for your review before anything is saved.
           </p>
         </div>
       </div>
 
+      {/* Options load error */}
+      {options.status === "error" && (
+        <div className="rounded-2xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+          Could not load form options: {options.message}. Please refresh the page.
+        </div>
+      )}
+
+      {/* Extraction error */}
       {error && (
         <div className="rounded-2xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>
       )}
@@ -174,33 +202,92 @@ export function GeminiScanPanel() {
       <div className="premium-card rounded-2xl p-4">
         <h2 className="text-sm font-bold text-slate-950">Step 1 — Select context and image</h2>
         <p className="mt-0.5 text-xs text-slate-500">
-          All fields are required before extraction. Stream is required where the class uses streams.
+          All fields are required. Stream is required where the class uses streams.
         </p>
 
-        <div className="mt-4 grid gap-3 sm:grid-cols-2">
-          <label className="grid gap-1 text-xs font-semibold uppercase text-slate-500">
-            Class ID <span className="text-red-500">*</span>
-            <input type="text" value={context.classId} onChange={(e) => set("classId", e.target.value)} className={inputCls} placeholder="class UUID" />
-          </label>
-          <label className="grid gap-1 text-xs font-semibold uppercase text-slate-500">
-            Stream ID
-            <input type="text" value={context.streamId} onChange={(e) => set("streamId", e.target.value)} className={inputCls} placeholder="stream UUID (if applicable)" />
-          </label>
-          <label className="grid gap-1 text-xs font-semibold uppercase text-slate-500">
-            Subject ID <span className="text-red-500">*</span>
-            <input type="text" value={context.subjectId} onChange={(e) => set("subjectId", e.target.value)} className={inputCls} placeholder="subject UUID" />
-          </label>
-          <label className="grid gap-1 text-xs font-semibold uppercase text-slate-500">
-            Term ID <span className="text-red-500">*</span>
-            <input type="text" value={context.termId} onChange={(e) => set("termId", e.target.value)} className={inputCls} placeholder="term UUID" />
-          </label>
-          <label className="grid gap-1 text-xs font-semibold uppercase text-slate-500">
-            Exam Type <span className="text-red-500">*</span>
-            <select value={context.examType} onChange={(e) => set("examType", e.target.value)} className={inputCls}>
-              {EXAM_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
-            </select>
-          </label>
-        </div>
+        {options.status === "loading" && (
+          <p className="mt-4 text-sm text-slate-500">Loading options…</p>
+        )}
+
+        {optionsReady && (
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <label className="grid gap-1 text-xs font-semibold uppercase text-slate-500">
+              Class <span className="text-red-500">*</span>
+              <select
+                aria-label="Class"
+                value={context.classId}
+                onChange={(e) => set("classId", e.target.value)}
+                className={selectCls}
+              >
+                <option value="">Select class…</option>
+                {options.data.classes.map((c) => (
+                  <option key={c.id} value={c.id}>{c.name} ({c.code})</option>
+                ))}
+              </select>
+            </label>
+
+            {classStreams.length > 0 && (
+              <label className="grid gap-1 text-xs font-semibold uppercase text-slate-500">
+                Stream <span className="text-red-500">*</span>
+                <select
+                  aria-label="Stream"
+                  value={context.streamId}
+                  onChange={(e) => set("streamId", e.target.value)}
+                  className={selectCls}
+                >
+                  <option value="">Select stream…</option>
+                  {classStreams.map((s) => (
+                    <option key={s.id} value={s.id}>{s.name} ({s.code})</option>
+                  ))}
+                </select>
+              </label>
+            )}
+
+            <label className="grid gap-1 text-xs font-semibold uppercase text-slate-500">
+              Subject <span className="text-red-500">*</span>
+              <select
+                aria-label="Subject"
+                value={context.subjectId}
+                onChange={(e) => set("subjectId", e.target.value)}
+                className={selectCls}
+              >
+                <option value="">Select subject…</option>
+                {options.data.subjects.map((s) => (
+                  <option key={s.id} value={s.id}>{s.name} ({s.code})</option>
+                ))}
+              </select>
+            </label>
+
+            <label className="grid gap-1 text-xs font-semibold uppercase text-slate-500">
+              Term <span className="text-red-500">*</span>
+              <select
+                aria-label="Term"
+                value={context.termId}
+                onChange={(e) => set("termId", e.target.value)}
+                className={selectCls}
+              >
+                <option value="">Select term…</option>
+                {options.data.terms.map((t) => (
+                  <option key={t.id} value={t.id}>{t.name}</option>
+                ))}
+              </select>
+            </label>
+
+            <label className="grid gap-1 text-xs font-semibold uppercase text-slate-500">
+              Exam Type <span className="text-red-500">*</span>
+              <select
+                aria-label="Exam Type"
+                value={context.examType}
+                onChange={(e) => set("examType", e.target.value)}
+                className={selectCls}
+              >
+                {options.data.examTypes.map((t) => (
+                  <option key={t} value={t}>{t}</option>
+                ))}
+              </select>
+            </label>
+          </div>
+        )}
 
         <div className="mt-4 rounded-2xl border border-dashed border-violet-200 bg-gradient-to-b from-violet-50/60 to-white p-4">
           <label className="grid cursor-pointer gap-2 text-center">
@@ -233,15 +320,15 @@ export function GeminiScanPanel() {
             disabled={!canExtract}
             className="btn btn-primary"
           >
-            Extract with Gemini
+            Read Marksheet
           </button>
-          {!requiredFilled && (
+          {!requiredFilled && optionsReady && (
             <p className="self-center text-xs text-slate-500">Select class, subject, term, exam type, and an image to enable extraction.</p>
           )}
         </div>
       </div>
 
-      {/* Step 2 — compressing or extracting */}
+      {/* Step 2 — progress */}
       {isExtracting && (
         <div className="flex items-center gap-3 rounded-2xl border border-blue-100 bg-blue-50 p-4">
           <svg className="h-5 w-5 shrink-0 animate-spin text-blue-500" fill="none" viewBox="0 0 24 24">
@@ -262,7 +349,6 @@ export function GeminiScanPanel() {
       {/* Step 3 — review */}
       {phase === "review" && result && (
         <div className="grid gap-4">
-          {/* Summary cards */}
           <div className="grid gap-2 sm:grid-cols-3 lg:grid-cols-6">
             {SUMMARY_CARDS.map((card) => (
               <div key={card.key} className={`rounded-xl px-3 py-2 ${card.color}`} data-testid={`summary-${card.key}`}>
@@ -276,7 +362,6 @@ export function GeminiScanPanel() {
             Job ID: <code className="font-mono">{result.jobId}</code> · {result.count} rows extracted
           </p>
 
-          {/* Review table */}
           <div className="premium-card overflow-x-auto rounded-2xl p-4">
             <h2 className="text-sm font-bold text-slate-950">Review &amp; correct</h2>
             <table className="mt-3 w-full min-w-[860px] border-collapse text-sm">
@@ -353,7 +438,6 @@ export function GeminiScanPanel() {
             </table>
           </div>
 
-          {/* Review confirmation — only meaningful once rows are extracted */}
           <label className="flex items-center gap-2 text-sm text-slate-700">
             <input
               type="checkbox"
@@ -368,7 +452,7 @@ export function GeminiScanPanel() {
         </div>
       )}
 
-      {/* Commit button — always visible as an honest pilot-state signal; always disabled this phase */}
+      {/* Commit button */}
       <div className="premium-card rounded-2xl p-4">
         <div className="flex items-center gap-3">
           <button
