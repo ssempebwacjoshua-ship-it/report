@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { commitGeminiScanRows, extractMarksWithGeminiScan, fetchScanOptions } from "../../client/importsClient";
 import { SCAN_ACCEPT } from "../../client/marksSheetHelpers";
 import type {
+  GeminiCommitResponse,
   GeminiScanContext,
   GeminiScanExtractResponse,
   GeminiScanRow,
@@ -100,7 +101,7 @@ export function GeminiScanPanel() {
   const [compressedSize, setCompressedSize] = useState<number | null>(null);
   const [commitPhase, setCommitPhase] = useState<CommitPhase>("idle");
   const [commitError, setCommitError] = useState("");
-  const [committedCount, setCommittedCount] = useState<number | null>(null);
+  const [commitResponse, setCommitResponse] = useState<GeminiCommitResponse | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -147,13 +148,24 @@ export function GeminiScanPanel() {
     !!result?.jobId &&
     commitPhase === "idle";
 
+  const reportsUrl = useMemo(() => {
+    if (!commitResponse) return "/reports";
+    const params = new URLSearchParams();
+    params.set("classId", context.classId);
+    if (context.streamId) params.set("streamId", context.streamId);
+    params.set("termId", context.termId);
+    params.set("assessmentType", context.examType);
+    if (commitResponse.academicYearId) params.set("academicYearId", commitResponse.academicYearId);
+    return `/reports?${params.toString()}`;
+  }, [commitResponse, context]);
+
   async function handleCommit() {
     if (!canCommit || !result) return;
     setCommitPhase("saving");
     setCommitError("");
     try {
       const response = await commitGeminiScanRows(result.jobId, rows);
-      setCommittedCount(response.committedRows);
+      setCommitResponse(response);
       setCommitPhase("saved");
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Could not save marks.";
@@ -171,7 +183,7 @@ export function GeminiScanPanel() {
     setReviewConfirmed(false);
     setCommitPhase("idle");
     setCommitError("");
-    setCommittedCount(null);
+    setCommitResponse(null);
     setCompressedSize(null);
 
     const compressed = await compressImage(image);
@@ -573,17 +585,14 @@ export function GeminiScanPanel() {
       {commitPhase === "saved" && (
         <div className="premium-card rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
           <p className="text-sm font-bold text-emerald-900">
-            {committedCount} marks saved successfully.
-          </p>
-          <p className="mt-1 text-xs text-emerald-700">
-            All marks have been saved as drafts and are ready for teacher review.
+            {commitResponse?.committedRows} marks saved and ready for reports.
           </p>
           <div className="mt-3 flex gap-3">
             <button type="button" disabled className="btn btn-success opacity-60">
               Marks Saved
             </button>
             <Link
-              to="/reports"
+              to={reportsUrl}
               className="rounded-xl border border-emerald-300 bg-white px-4 py-2 text-sm font-semibold text-emerald-700 hover:bg-emerald-50"
             >
               Go to Reports

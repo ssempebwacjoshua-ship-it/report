@@ -128,9 +128,16 @@ const RESPONSE_ALL_READY: GeminiScanExtractResponse = {
 const COMMIT_SUCCESS: GeminiCommitResponse = {
   success: true,
   committedRows: 2,
+  finalizedRows: 2,
+  reportsReady: true,
   skippedRows: 0,
   batchId: "job-ready",
-  message: "2 marks saved for review.",
+  message: "2 marks saved and ready for reports.",
+  academicYearId: "year-1",
+  classId: "class-1",
+  streamId: null,
+  termId: "term-1",
+  assessmentType: "BOT",
 };
 
 function renderPanel() {
@@ -356,8 +363,21 @@ describe("GeminiScanPanel — commit flow", () => {
     await extractAllReadyAndCheck();
     fireEvent.click(screen.getByLabelText(/reviewed every flagged row/i));
     fireEvent.click(screen.getByRole("button", { name: "Save Reviewed Marks" }));
-    expect(await screen.findByText(/2 marks saved successfully/i)).toBeInTheDocument();
+    expect(await screen.findByText(/2 marks saved and ready for reports/i)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Go to Reports" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Save Reviewed Marks" })).not.toBeInTheDocument();
+  });
+
+  it("'Go to Reports' link includes classId, termId, and assessmentType as URL params", async () => {
+    mockCommit.mockResolvedValueOnce(COMMIT_SUCCESS);
+    await extractAllReadyAndCheck();
+    fireEvent.click(screen.getByLabelText(/reviewed every flagged row/i));
+    fireEvent.click(screen.getByRole("button", { name: "Save Reviewed Marks" }));
+    const link = await screen.findByRole("link", { name: "Go to Reports" });
+    const href = link.getAttribute("href") ?? "";
+    expect(href).toContain("classId=class-1");
+    expect(href).toContain("termId=term-1");
+    expect(href).toContain("assessmentType=BOT");
+    expect(href).toContain("academicYearId=year-1");
   });
 });

@@ -580,12 +580,12 @@ export default function geminiMarksImportRoutes() {
               subjectId: batchContext!.subjectId,
               assessmentType,
               marks: parseFloat(row.mark),
-              status: "DRAFT",
+              status: "FINALIZED",
               importBatchId: batch.id,
             },
             update: {
               marks: parseFloat(row.mark),
-              status: "DRAFT",
+              status: "FINALIZED",
               importBatchId: batch.id,
             },
           });
@@ -622,19 +622,31 @@ export default function geminiMarksImportRoutes() {
         });
       });
 
+      const finalizedRows = await prisma.subjectMark.count({
+        where: { importBatchId: batch.id, status: "FINALIZED" },
+      });
+
       console.log("[gemini-commit]", {
         reqId,
         event: "committed",
         jobId: batch.id,
         committedRows: validRows.length,
+        finalizedRows,
       });
 
       res.json({
         success: true,
         committedRows: validRows.length,
+        finalizedRows,
+        reportsReady: finalizedRows === validRows.length,
         skippedRows: 0,
         batchId: batch.id,
-        message: `${validRows.length} marks saved for review.`,
+        message: `${validRows.length} marks saved and ready for reports.`,
+        academicYearId: term.academicYearId,
+        classId: batchContext.classId,
+        streamId,
+        termId: batchContext.termId,
+        assessmentType: batchContext.examType,
       });
 
     } catch (error: unknown) {

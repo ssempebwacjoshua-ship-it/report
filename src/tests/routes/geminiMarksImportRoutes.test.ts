@@ -11,6 +11,7 @@ const {
   mockTransaction,
   subjectMarkCreate,
   subjectMarkUpsert,
+  subjectMarkCount,
 } = vi.hoisted(() => {
   const txSubjectMarkUpsert = vi.fn(async () => ({}));
   const txMarkImportBatchUpdate = vi.fn(async () => ({ id: "job-123", status: "COMMITTED" }));
@@ -49,6 +50,7 @@ const {
     mockTransaction,
     subjectMarkCreate: vi.fn(),
     subjectMarkUpsert: vi.fn(),
+    subjectMarkCount: vi.fn(async () => 2),
   };
 });
 
@@ -79,7 +81,7 @@ vi.mock("../../server/db/prisma", () => ({
       create: markImportBatchCreate,
       findUnique: markImportBatchFindUnique,
     },
-    subjectMark: { create: subjectMarkCreate, upsert: subjectMarkUpsert },
+    subjectMark: { create: subjectMarkCreate, upsert: subjectMarkUpsert, count: subjectMarkCount },
   },
 }));
 
@@ -148,6 +150,7 @@ const VALID_REVIEWED_ROWS = [
 beforeEach(() => {
   subjectMarkCreate.mockClear();
   subjectMarkUpsert.mockClear();
+  subjectMarkCount.mockClear();
   markImportBatchCreate.mockClear();
   markImportBatchFindUnique.mockClear();
   txSubjectMarkUpsert.mockClear();
@@ -496,7 +499,7 @@ describe("POST /api/marks-import/scan/commit — row-level validation", () => {
 });
 
 describe("POST /api/marks-import/scan/commit — successful commit", () => {
-  it("upserts one SubjectMark per reviewed row and responds 200", async () => {
+  it("upserts one SubjectMark per reviewed row and responds 200 with finalizedRows", async () => {
     const res = await request(createServer())
       .post("/api/marks-import/scan/commit")
       .send({ jobId: JOB, reviewedRows: VALID_REVIEWED_ROWS });
@@ -504,9 +507,62 @@ describe("POST /api/marks-import/scan/commit — successful commit", () => {
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
     expect(res.body.committedRows).toBe(2);
+    expect(res.body.finalizedRows).toBe(2);
+    expect(res.body.reportsReady).toBe(true);
     expect(res.body.batchId).toBe("job-123"); // batch mock returns id "job-123"
     expect(typeof res.body.message).toBe("string");
     expect(txSubjectMarkUpsert).toHaveBeenCalledTimes(2);
+  });
+
+  it("saves SubjectMark with status FINALIZED, not DRAFT", async () => {
+    await request(createServer())
+      .post("/api/marks-import/scan/commit")
+      .send({ jobId: JOB, reviewedRows: VALID_REVIEWED_ROWS });
+
+    const upsertArg = txSubjectMarkUpsert.mock.calls[0][0] as {
+      create: { status: string };
+      update: { status: string };
+    };
+    expect(upsertArg.create.status).toBe("FINALIZED");
+    expect(upsertArg.update.status).toBe("FINALIZED");
+  });
+
+  it("saves SubjectMark with the same assessmentType as the import context", async () => {
+    await request(createServer())
+      .post("/api/marks-import/scan/commit")
+      .send({ jobId: JOB, reviewedRows: VALID_REVIEWED_ROWS });
+
+    const upsertArg = txSubjectMarkUpsert.mock.calls[0][0] as {
+      where: { studentId_subjectId_termId_assessmentType: { assessmentType: string } };
+      create: { assessmentType: string };
+    };
+    expect(upsertArg.where.studentId_subjectId_termId_assessmentType.assessmentType).toBe("BOT");
+    expect(upsertArg.create.assessmentType).toBe("BOT");
+  });
+
+  it("saves SubjectMark with the same classId, streamId, and termId as the import context", async () => {
+    await request(createServer())
+      .post("/api/marks-import/scan/commit")
+      .send({ jobId: JOB, reviewedRows: VALID_REVIEWED_ROWS });
+
+    const upsertArg = txSubjectMarkUpsert.mock.calls[0][0] as {
+      create: { classId: string; streamId: string; termId: string };
+    };
+    expect(upsertArg.create.classId).toBe(CLS);
+    expect(upsertArg.create.streamId).toBe(STREAM);
+    expect(upsertArg.create.termId).toBe(TERM);
+  });
+
+  it("returns academicYearId, classId, termId, assessmentType for navigation", async () => {
+    const res = await request(createServer())
+      .post("/api/marks-import/scan/commit")
+      .send({ jobId: JOB, reviewedRows: VALID_REVIEWED_ROWS });
+
+    expect(res.body.academicYearId).toBe("year-1");
+    expect(res.body.classId).toBe(CLS);
+    expect(res.body.streamId).toBe(STREAM);
+    expect(res.body.termId).toBe(TERM);
+    expect(res.body.assessmentType).toBe("BOT");
   });
 
   it("sets batch status to COMMITTED inside the transaction", async () => {

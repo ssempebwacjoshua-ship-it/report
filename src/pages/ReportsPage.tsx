@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { EmptyReportState } from "../components/reports/EmptyReportState";
 import { ReportFilters } from "../components/reports/ReportFilters";
 import { StudentReportCard } from "../components/reports/StudentReportCard";
@@ -40,8 +41,24 @@ function useDesktopMatch() {
 }
 
 export function ReportsPage() {
+  const [searchParams] = useSearchParams();
+  const urlParams = useRef({
+    classId: searchParams.get("classId"),
+    streamId: searchParams.get("streamId"),
+    termId: searchParams.get("termId"),
+    academicYearId: searchParams.get("academicYearId"),
+    assessmentType: searchParams.get("assessmentType") as Filters["assessmentType"] | null,
+  }).current;
+
   const [context, setContext] = useState<ReportContext | null>(null);
-  const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS);
+  const [filters, setFilters] = useState<Filters>(() => ({
+    ...DEFAULT_FILTERS,
+    classId: urlParams.classId ?? DEFAULT_FILTERS.classId,
+    streamId: urlParams.streamId ?? DEFAULT_FILTERS.streamId,
+    ...(urlParams.termId ? { termId: urlParams.termId } : {}),
+    ...(urlParams.academicYearId ? { academicYearId: urlParams.academicYearId } : {}),
+    ...(urlParams.assessmentType ? { assessmentType: urlParams.assessmentType } : {}),
+  }));
   const [report, setReport] = useState<ReportsResponse | null>(null);
   const [selectedStudentId, setSelectedStudentId] = useState("");
   const [hmEditOpen, setHmEditOpen] = useState(false);
@@ -66,10 +83,10 @@ export function ReportsPage() {
         const firstClass = loaded.classes[0];
         setFilters((current) => ({
           ...current,
-          academicYearId: activeYear?.id,
-          termId: activeTerm?.id,
-          classId: firstClass?.id ?? "",
-          assessmentType: settings.sections.academic.defaultAssessmentType,
+          academicYearId: urlParams.academicYearId ?? activeYear?.id,
+          termId: urlParams.termId ?? activeTerm?.id,
+          classId: urlParams.classId ?? firstClass?.id ?? "",
+          assessmentType: urlParams.assessmentType ?? settings.sections.academic.defaultAssessmentType,
         }));
       })
       .catch((caught: Error) => setError(caught.message));

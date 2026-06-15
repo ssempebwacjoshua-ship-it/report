@@ -374,7 +374,14 @@ export type ScanOptions = {
 export type GeminiCommitResponse = {
   success: true;
   committedRows: number;
+  finalizedRows: number;
+  reportsReady: boolean;
   skippedRows: number;
   batchId: string;
   message: string;
+  academicYearId: string;
+  classId: string;
+  streamId: string | null;
+  termId: string;
+  assessmentType: string;
 };
