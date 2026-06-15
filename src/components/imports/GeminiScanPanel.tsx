@@ -9,7 +9,46 @@ import type {
 
 const EXAM_TYPES = ["BOT", "MOT", "EOT"] as const;
 
-type Phase = "idle" | "extracting" | "review";
+type Phase = "idle" | "compressing" | "extracting" | "review";
+
+async function compressImage(file: File, maxPx = 1400, quality = 0.8): Promise<File> {
+  if (!file.type.startsWith("image/")) return file; // PDFs skip compression
+  // 2D canvas unavailable in jsdom test environments — skip compression entirely.
+  if (!document.createElement("canvas").getContext("2d")) return file;
+  try {
+    return await new Promise<File>((resolve, reject) => {
+      const img = new Image();
+      const url = URL.createObjectURL(file);
+      // Safety fallback: if onload/onerror never fire, resolve with the original file.
+      const fallback = setTimeout(() => { URL.revokeObjectURL(url); resolve(file); }, 5000);
+      img.onload = () => {
+        clearTimeout(fallback);
+        URL.revokeObjectURL(url);
+        const { width, height } = img;
+        if (width <= maxPx && height <= maxPx) { resolve(file); return; }
+        const scale = Math.min(maxPx / width, maxPx / height);
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.round(width * scale);
+        canvas.height = Math.round(height * scale);
+        const ctx = canvas.getContext("2d");
+        if (!ctx) { resolve(file); return; }
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        canvas.toBlob(
+          (blob) => {
+            if (!blob || blob.size >= file.size) { resolve(file); return; }
+            resolve(new File([blob], file.name.replace(/\.[^.]+$/, ".jpg"), { type: "image/jpeg" }));
+          },
+          "image/jpeg",
+          quality,
+        );
+      };
+      img.onerror = () => { clearTimeout(fallback); URL.revokeObjectURL(url); reject(new Error("Image load failed")); };
+      img.src = url;
+    });
+  } catch {
+    return file; // fall back to original on any error
+  }
+}
 
 function emptyContext(): GeminiScanContext {
   return { classId: "", streamId: "", subjectId: "", termId: "", examType: "BOT" };
@@ -52,6 +91,7 @@ export function GeminiScanPanel() {
   const [rows, setRows] = useState<GeminiScanRow[]>([]);
   const [error, setError] = useState("");
   const [reviewConfirmed, setReviewConfirmed] = useState(false);
+  const [compressedSize, setCompressedSize] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   function set<K extends keyof GeminiScanContext>(key: K, value: GeminiScanContext[K]) {
@@ -65,7 +105,8 @@ export function GeminiScanPanel() {
     context.termId.trim() !== "" &&
     context.examType.trim() !== "";
 
-  const canExtract = requiredFilled && image !== null && phase !== "extracting";
+  const isExtracting = phase === "compressing" || phase === "extracting";
+  const canExtract = requiredFilled && image !== null && !isExtracting;
 
   const hasBlocking = useMemo(
     () => rows.some((row) => row.status === "BLOCKED" || row.status === "REVIEW_REQUIRED"),
@@ -75,18 +116,31 @@ export function GeminiScanPanel() {
 
   async function handleExtract() {
     if (!image || !requiredFilled) return;
-    setPhase("extracting");
+    setPhase("compressing");
     setError("");
     setResult(null);
     setRows([]);
     setReviewConfirmed(false);
+    setCompressedSize(null);
+
+    const compressed = await compressImage(image);
+    if (compressed !== image) setCompressedSize(compressed.size);
+
+    setPhase("extracting");
     try {
-      const response = await extractMarksWithGeminiScan(image, context);
+      const response = await extractMarksWithGeminiScan(compressed, context);
       setResult(response);
       setRows(response.rows);
       setPhase("review");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Gemini extraction failed.");
+      const msg = err instanceof Error ? err.message : "Gemini extraction failed.";
+      setError(
+        /failed to fetch|networkerror|network error|err_http2|fetch/i.test(msg)
+          ? "Could not reach the extraction server. Please try again or contact support."
+          : /timeout/i.test(msg)
+            ? "The image took too long to process. Try a clearer or smaller image."
+            : msg,
+      );
       setPhase("idle");
     }
   }
@@ -164,7 +218,10 @@ export function GeminiScanPanel() {
           </label>
           {image && (
             <p className="mt-3 text-center text-xs text-slate-600">
-              Selected: <span className="font-semibold text-slate-900">{image.name}</span> ({(image.size / 1024).toFixed(1)} KB)
+              Selected: <span className="font-semibold text-slate-900">{image.name}</span>{" "}
+              {compressedSize !== null && compressedSize < image.size
+                ? `(${(image.size / 1024).toFixed(0)} KB → ${(compressedSize / 1024).toFixed(0)} KB)`
+                : `(${(image.size / 1024).toFixed(1)} KB)`}
             </p>
           )}
         </div>
@@ -184,14 +241,21 @@ export function GeminiScanPanel() {
         </div>
       </div>
 
-      {/* Step 2 — extracting */}
-      {phase === "extracting" && (
+      {/* Step 2 — compressing or extracting */}
+      {isExtracting && (
         <div className="flex items-center gap-3 rounded-2xl border border-blue-100 bg-blue-50 p-4">
-          <svg className="h-5 w-5 animate-spin text-blue-500" fill="none" viewBox="0 0 24 24">
+          <svg className="h-5 w-5 shrink-0 animate-spin text-blue-500" fill="none" viewBox="0 0 24 24">
             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
           </svg>
-          <p className="text-sm font-medium text-blue-800">Extracting marks from image...</p>
+          <div>
+            <p className="text-sm font-medium text-blue-800">
+              {phase === "compressing" ? "Preparing image..." : "Extracting marks from image..."}
+            </p>
+            {phase === "extracting" && (
+              <p className="mt-0.5 text-xs text-blue-600">Uploading and reading marksheet — may take 15–30 s</p>
+            )}
+          </div>
         </div>
       )}
 

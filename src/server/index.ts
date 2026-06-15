@@ -1,6 +1,7 @@
 import "dotenv/config";
 import cors from "cors";
 import express, { type ErrorRequestHandler } from "express";
+import http from "http";
 import { ZodError } from "zod";
 import multer from "multer";
 import { dashboardRoutes } from "./routes/dashboardRoutes";
@@ -25,7 +26,19 @@ import { recoverStaleStudentImportJobs } from "./services/studentImportService";
 
 export function createServer() {
   const app = express();
-  app.use(cors({ origin: process.env.CLIENT_ORIGIN ?? true, credentials: true }));
+  app.use(cors({
+    origin: (origin, callback) => {
+      const allowed = process.env.CLIENT_ORIGIN?.trim();
+      if (!origin) return callback(null, true); // non-browser (curl, server-to-server)
+      if (allowed) {
+        return callback(null, origin === allowed || /^https?:\/\/localhost(:\d+)?$/.test(origin));
+      }
+      return callback(null, true); // no CLIENT_ORIGIN — allow all (local dev)
+    },
+    credentials: true,
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization", "x-request-id", "x-internal-test-key"],
+  }));
   app.use(express.json({ limit: "2mb" }));
 
   app.use(healthRoutes());
@@ -63,7 +76,7 @@ export function createServer() {
     }
     if (error instanceof multer.MulterError) {
       const message = error.code === "LIMIT_FILE_SIZE"
-        ? "File is too large. Maximum scan file size is 20 MB."
+        ? "File is too large. Please upload a smaller image (max 10 MB)."
         : `Upload failed: ${error.message}`;
       res.status(400).json({
         error: true,
@@ -97,7 +110,10 @@ export function createServer() {
 if (process.env.NODE_ENV !== "test") {
   const port = Number(process.env.PORT ?? 4300);
   void recoverStaleStudentImportJobs(prisma).catch((error) => console.error("Failed to recover stale student import jobs", error));
-  createServer().listen(port, "0.0.0.0", () => {
+  const httpServer = http.createServer(createServer());
+  httpServer.requestTimeout = 120_000;
+  httpServer.headersTimeout = 125_000;
+  httpServer.listen(port, "0.0.0.0", () => {
     console.log(`Reports lab API listening on port ${port}`);
   });
 }

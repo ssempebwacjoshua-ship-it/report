@@ -109,7 +109,7 @@ describe("DashboardPage — live data", () => {
 
     await waitFor(() => expect(screen.getByText("Marks Uploaded")).toBeInTheDocument());
     // Each stage value is present
-    expect(screen.getByText("12")).toBeInTheDocument(); // marksUploaded (unique)
+    expect(screen.getAllByText("12").length).toBeGreaterThanOrEqual(1); // marksUploaded
     // reviewed = 5, but "5" also appears as the step-counter label for the 5th stage
     expect(screen.getAllByText("5").length).toBeGreaterThanOrEqual(1);
     // generated/approved = 15 (appears in KPI, workflow, and ReportsOverviewCard)

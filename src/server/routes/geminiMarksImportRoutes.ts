@@ -9,7 +9,7 @@ import {
   validateAndMatchGeminiRows,
 } from "../services/geminiMarksImportService";
 
-const MAX_FILE_BYTES = 20 * 1024 * 1024;
+const MAX_FILE_BYTES = 10 * 1024 * 1024;
 const SCAN_MIME_TYPES = new Set([
   "image/png",
   "image/jpg",
@@ -66,6 +66,8 @@ export default function geminiMarksImportRoutes() {
     requireImportAuth,
     upload.single("image"),
     async (req, res, next) => {
+      const reqId = (req.headers["x-request-id"] as string | undefined)
+        ?? `gx-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
       try {
         // 1. Image required
         const file = req.file;
@@ -76,7 +78,7 @@ export default function geminiMarksImportRoutes() {
 
         // 2. File size / type checks
         if (file.size > MAX_FILE_BYTES) {
-          res.status(400).json(importErr("FILE_TOO_LARGE", "Image is too large. Maximum scan size is 20 MB."));
+          res.status(400).json(importErr("FILE_TOO_LARGE", "Image is too large. Maximum scan size is 10 MB."));
           return;
         }
         const ext = (file.originalname.split(".").pop() ?? "").trim().toUpperCase();
@@ -175,10 +177,19 @@ export default function geminiMarksImportRoutes() {
         });
 
         // 8. Call Gemini extraction service (server-only key).
+        console.log("[gemini-extract]", {
+          reqId, event: "start",
+          file: { name: file.originalname, sizeKB: Math.round(file.size / 1024), mime: file.mimetype },
+          context: { classId, streamId: streamId || null, subjectId, termId, examType },
+        });
+        const geminiStart = Date.now();
         const { rows: geminiRows } = await extractMarksWithGemini(file.buffer, file.mimetype || "image/jpeg");
+        console.log("[gemini-extract]", { reqId, event: "gemini-done", durationMs: Date.now() - geminiStart, rawRows: geminiRows.length });
 
         // 9. Deterministic backend validation + matching.
+        const validationStart = Date.now();
         const { rows, summary } = validateAndMatchGeminiRows(geminiRows, expectedStudents);
+        console.log("[gemini-extract]", { reqId, event: "validation-done", durationMs: Date.now() - validationStart, summary });
 
         // 10. Record a non-committing scan job. Reuse MarkImportBatch if available;
         //     this stores only the review payload — NO marks are persisted.
@@ -209,9 +220,11 @@ export default function geminiMarksImportRoutes() {
           console.error("[gemini-marks-import] could not persist scan job:", err instanceof Error ? err.message : err);
         }
 
+        console.log("[gemini-extract]", { reqId, event: "ok", jobId, count: rows.length });
         res.json({ success: true, jobId, count: rows.length, summary, rows });
       } catch (error: unknown) {
         const message = error instanceof Error ? error.message : "Gemini extraction failed";
+        console.error("[gemini-extract]", { reqId, event: "error", message });
         if (message === "Uploaded document does not look like a marksheet.") {
           res.status(400).json(importErr("NOT_MARKSHEET", message));
           return;

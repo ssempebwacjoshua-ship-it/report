@@ -105,6 +105,35 @@ describe("POST /api/marks-import/scan/extract", () => {
   });
 });
 
+describe("file validation boundaries", () => {
+  it("returns 400 JSON when image exceeds 10 MB size limit", async () => {
+    const oversized = Buffer.alloc(10 * 1024 * 1024 + 1);
+    const res = await request(createServer())
+      .post("/api/marks-import/scan/extract")
+      .attach("image", oversized, { filename: "big.jpg", contentType: "image/jpeg" })
+      .field("classId", "class-1")
+      .field("subjectId", "subject-1")
+      .field("termId", "term-1")
+      .field("examType", "BOT");
+    expect(res.status).toBe(400);
+    expect(res.type).toMatch(/json/);
+    expect(res.body.code).toBe("FILE_TOO_LARGE");
+  });
+
+  it("returns 400 JSON for unsupported file types", async () => {
+    const res = await request(createServer())
+      .post("/api/marks-import/scan/extract")
+      .attach("image", Buffer.from("not-an-image"), { filename: "data.txt", contentType: "text/plain" })
+      .field("classId", "class-1")
+      .field("subjectId", "subject-1")
+      .field("termId", "term-1")
+      .field("examType", "BOT");
+    expect(res.status).toBe(400);
+    expect(res.type).toMatch(/json/);
+    expect(res.body.code).toBe("UNSUPPORTED_FILE_TYPE");
+  });
+});
+
 describe("POST /api/marks-import/scan/commit", () => {
   it("is disabled in this phase and never saves marks", async () => {
     const res = await request(createServer())

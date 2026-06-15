@@ -99,6 +99,22 @@ describe("GeminiScanPanel", () => {
     expect(markInput.className).toMatch(/border-red-400/);
   });
 
+  it("shows a clean network error message when fetch fails", async () => {
+    mockExtract.mockRejectedValueOnce(new Error("Failed to fetch"));
+    render(<GeminiScanPanel />);
+    fillContextAndFile();
+    fireEvent.click(screen.getByRole("button", { name: "Extract with Gemini" }));
+    expect(await screen.findByText(/Could not reach the extraction server/i)).toBeInTheDocument();
+  });
+
+  it("shows a clean timeout error message when the request times out", async () => {
+    mockExtract.mockRejectedValueOnce(new Error("Request timeout exceeded"));
+    render(<GeminiScanPanel />);
+    fillContextAndFile();
+    fireEvent.click(screen.getByRole("button", { name: "Extract with Gemini" }));
+    expect(await screen.findByText(/took too long to process/i)).toBeInTheDocument();
+  });
+
   it("keeps the commit button disabled while blocked/review rows exist", async () => {
     mockExtract.mockResolvedValue(RESPONSE);
     render(<GeminiScanPanel />);
