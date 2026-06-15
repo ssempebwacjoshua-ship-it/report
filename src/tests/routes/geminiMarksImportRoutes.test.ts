@@ -141,9 +141,9 @@ describe("UUID validation", () => {
     const res = await request(createServer())
       .post("/api/marks-import/scan/extract")
       .attach("image", IMAGE, { filename: "marks.jpg", contentType: "image/jpeg" })
-      .field("classId", "class-1")
+      .field("classId", CLS)
       .field("subjectId", "1")
-      .field("termId", "term-1")
+      .field("termId", TERM)
       .field("examType", "BOT");
     expect(res.status).toBe(400);
     expect(res.body.code).toBe("INVALID_ID");
@@ -153,12 +153,68 @@ describe("UUID validation", () => {
     const res = await request(createServer())
       .post("/api/marks-import/scan/extract")
       .attach("image", IMAGE, { filename: "marks.jpg", contentType: "image/jpeg" })
-      .field("classId", "class-1")
-      .field("subjectId", "subject-1")
+      .field("classId", CLS)
+      .field("subjectId", SUBJ)
       .field("termId", "1")
       .field("examType", "BOT");
     expect(res.status).toBe(400);
     expect(res.body.code).toBe("INVALID_ID");
+  });
+});
+
+describe("debugNoDb mode", () => {
+  it("returns rows from Gemini without any DB calls when ?debugNoDb=true", async () => {
+    const res = await request(createServer())
+      .post("/api/marks-import/scan/extract?debugNoDb=true")
+      .attach("image", IMAGE, { filename: "marks.jpg", contentType: "image/jpeg" })
+      .field("classId", CLS)
+      .field("subjectId", SUBJ)
+      .field("termId", TERM)
+      .field("examType", "BOT");
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(Array.isArray(res.body.rows)).toBe(true);
+    expect(res.body.rows.length).toBeGreaterThan(0);
+    // Batch and school lookups must be skipped in debugNoDb mode.
+    expect(markImportBatchCreate).not.toHaveBeenCalled();
+  });
+});
+
+describe("no active students", () => {
+  it("returns 400 NO_STUDENTS at stage load_expected_students when roster is empty", async () => {
+    const { loadExpectedStudents } = await import("../../server/services/geminiMarksImportService");
+    vi.mocked(loadExpectedStudents).mockResolvedValueOnce([]);
+
+    const res = await request(createServer())
+      .post("/api/marks-import/scan/extract")
+      .attach("image", IMAGE, { filename: "marks.jpg", contentType: "image/jpeg" })
+      .field("classId", CLS)
+      .field("subjectId", SUBJ)
+      .field("termId", TERM)
+      .field("examType", "BOT");
+
+    expect(res.status).toBe(400);
+    expect(res.body.code).toBe("NO_STUDENTS");
+    expect(res.body.stage).toBe("load_expected_students");
+  });
+});
+
+describe("MarkImportBatch failure", () => {
+  it("returns 400 at stage create_import_batch and logs Prisma error when batch creation fails", async () => {
+    markImportBatchCreate.mockRejectedValueOnce(new Error("Prisma: connection refused"));
+
+    const res = await request(createServer())
+      .post("/api/marks-import/scan/extract")
+      .attach("image", IMAGE, { filename: "marks.jpg", contentType: "image/jpeg" })
+      .field("classId", CLS)
+      .field("subjectId", SUBJ)
+      .field("termId", TERM)
+      .field("examType", "BOT");
+
+    expect(res.status).toBe(400);
+    expect(res.body.code).toBe("BATCH_CREATE_FAILED");
+    expect(res.body.stage).toBe("create_import_batch");
   });
 });
 
