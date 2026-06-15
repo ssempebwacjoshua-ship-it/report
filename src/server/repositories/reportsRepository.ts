@@ -53,6 +53,7 @@ export async function loadReportEngineInput(prisma: PrismaClient, filters: Repor
 
   const enrollments = await prisma.classEnrollment.findMany({
     where: {
+      schoolId: school.id,
       academicYearId: academicYear.id,
       termId: term.id,
       classId: filters.classId,

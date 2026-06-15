@@ -79,6 +79,7 @@ model School {
   guardianContacts GuardianContact[]
   users         User[]
   issuedReports IssuedReport[]
+  enrollments   ClassEnrollment[]
 }
 
 model AcademicYear {
@@ -176,6 +177,7 @@ model Student {
 
 model ClassEnrollment {
   id             String   @id @default(uuid()) @db.Uuid
+  schoolId       String   @db.Uuid
   studentId      String   @db.Uuid
   academicYearId String   @db.Uuid
   termId         String   @db.Uuid
@@ -188,6 +190,7 @@ model ClassEnrollment {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
+  school       School       @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   student      Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
   academicYear AcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
   term         Term         @relation(fields: [termId], references: [id], onDelete: Cascade)
@@ -195,6 +198,8 @@ model ClassEnrollment {
   stream       Stream       @relation(fields: [streamId], references: [id], onDelete: Cascade)
 
   @@unique([studentId, academicYearId, termId])
+  @@index([schoolId, academicYearId, termId, classId, streamId, isActive, status])
+  @@index([schoolId, studentId, academicYearId, termId])
   @@index([academicYearId, termId, classId, streamId, isActive, status])
 }
 

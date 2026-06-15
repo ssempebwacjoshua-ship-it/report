@@ -68,25 +68,25 @@ async function loadStudentEnrollmentRows(
   const search = filters?.search?.trim();
   return prisma.classEnrollment.findMany({
     where: {
+      schoolId: school.id,
       academicYearId: academicYear.id,
       termId: term.id,
       classId: filters?.classId || undefined,
       streamId: filters?.streamId || undefined,
       studentId: filters?.studentId || undefined,
       ...(filters?.isActive ? { student: { isActive: filters.isActive === "true" } } : { isActive: true, status: "ACTIVE" }),
-      student: {
-        schoolId: school.id,
-        ...(search
-          ? {
+      ...(search
+        ? {
+            student: {
               OR: [
                 { firstName: { contains: search, mode: "insensitive" } },
                 { lastName: { contains: search, mode: "insensitive" } },
                 { admissionNumber: { contains: search, mode: "insensitive" } },
                 { guardianContacts: { some: { phone: { contains: search, mode: "insensitive" } } } },
               ],
-            }
-          : {}),
-      },
+            },
+          }
+        : {}),
     },
     include: {
       class: true,
@@ -153,6 +153,7 @@ export async function createStudentRecord(
     });
     await tx.classEnrollment.create({
       data: {
+        schoolId: school.id,
         studentId: created.id,
         academicYearId: activeYear.id,
         termId: activeTerm.id,

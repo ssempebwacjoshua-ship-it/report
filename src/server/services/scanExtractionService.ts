@@ -124,16 +124,11 @@ async function loadRoster(
 ): Promise<RosterStudent[]> {
   const enrollments = await prisma.classEnrollment.findMany({
     where: {
+      schoolId,
       isActive: true,
       status: "ACTIVE",
-      student: { schoolId },
-      class: {
-        schoolId,
-        name: { contains: context.className.trim(), mode: "insensitive" },
-      },
-      stream: {
-        name: { contains: context.streamName.trim(), mode: "insensitive" },
-      },
+      class: { name: { contains: context.className.trim(), mode: "insensitive" } },
+      stream: { name: { contains: context.streamName.trim(), mode: "insensitive" } },
     },
     include: { student: true },
     orderBy: { student: { admissionNumber: "asc" } },

@@ -226,12 +226,12 @@ export async function loadExpectedStudents(
 ): Promise<ExpectedStudent[]> {
   const enrollments = await prisma.classEnrollment.findMany({
     where: {
+      schoolId,
       isActive: true,
       status: "ACTIVE",
       termId,
       classId,
       ...(streamId ? { streamId } : {}),
-      student: { schoolId },
     },
     include: { student: true },
     orderBy: { student: { admissionNumber: "asc" } },

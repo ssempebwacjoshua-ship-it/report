@@ -482,10 +482,10 @@ export function importsRoutes() {
 
       const roster = await prisma.classEnrollment.findMany({
         where: {
+          schoolId: school.id,
           isActive: true,
           status: "ACTIVE",
-          student: { schoolId: school.id },
-          class: { schoolId: school.id, name: { contains: payload.context.className.trim(), mode: "insensitive" } },
+          class: { name: { contains: payload.context.className.trim(), mode: "insensitive" } },
           stream: { name: { contains: payload.context.streamName.trim(), mode: "insensitive" } },
         },
         include: { student: true },
@@ -553,10 +553,10 @@ export function importsRoutes() {
 
       const roster = await prisma.classEnrollment.findMany({
         where: {
+          schoolId: school.id,
           isActive: true,
           status: "ACTIVE",
-          student: { schoolId: school.id },
-          class: { schoolId: school.id, name: { contains: payload.context.className.trim(), mode: "insensitive" } },
+          class: { name: { contains: payload.context.className.trim(), mode: "insensitive" } },
           stream: { name: { contains: payload.context.streamName.trim(), mode: "insensitive" } },
         },
         include: { student: true, class: true, stream: true },

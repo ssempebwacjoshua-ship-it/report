@@ -355,6 +355,7 @@ async function processBatch(
         }
         existingByAdm.set(norm(c.adm), studentId);
         enrollments.push({
+          schoolId,
           studentId,
           academicYearId: activeYearId,
           termId: activeTermId,
@@ -398,6 +399,7 @@ async function processBatch(
           existingByAdm.set(norm(c.adm), created.id);
           await prisma.classEnrollment.createMany({
             data: [{
+              schoolId,
               studentId: created.id,
               academicYearId: activeYearId,
               termId: activeTermId,
