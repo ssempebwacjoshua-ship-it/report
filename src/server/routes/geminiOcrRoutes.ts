@@ -24,13 +24,13 @@ function requireInternalKey(req: Request, res: Response, next: NextFunction): vo
   next();
 }
 
-router.use(requireInternalKey);
-
-router.get("/test-gemini-marks/health", (_req, res) => {
+// requireInternalKey is applied per-route, NOT as router.use(), so it never
+// accidentally blocks real production routes mounted under the same /api prefix.
+router.get("/test-gemini-marks/health", requireInternalKey, (_req, res) => {
   res.json({ success: true, route: "gemini-ocr-mounted" });
 });
 
-router.post("/test-gemini-marks", upload.single("image"), async (req, res) => {
+router.post("/test-gemini-marks", requireInternalKey, upload.single("image"), async (req, res) => {
   try {
     if (!req.file) {
       res.status(400).json({ success: false, error: "No image uploaded" });

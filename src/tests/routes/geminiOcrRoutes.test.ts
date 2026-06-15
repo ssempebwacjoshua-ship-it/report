@@ -1,5 +1,5 @@
 import request from "supertest";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createServer } from "../../server";
 
 // Mock both Gemini services so tests never call the real API.
@@ -170,5 +170,56 @@ describe("POST /api/test-gemini-roster", () => {
       .attach("image", FAKE_IMAGE, { filename: "roster.jpg", contentType: "image/jpeg" });
     expect(res.status).toBe(200);
     expect(mockParseRoster).toHaveBeenCalledWith(expect.any(Buffer), [], expect.any(String));
+  });
+});
+
+// ── Production key-protection boundary tests ──────────────────────────────────
+//
+// These tests verify the separation of concerns:
+//   /api/test-gemini-*  → protected by x-internal-test-key in production
+//   /api/marks-import/* → protected by normal app auth, NOT x-internal-test-key
+//
+// Root cause that was fixed: router.use(requireInternalKey) gated ALL /api/*
+// traffic because the router is mounted with app.use("/api", ...). Moving the
+// guard to per-route middleware ensures only the pilot test routes are affected.
+
+describe("production x-internal-test-key protection", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("POST /api/test-gemini-marks rejects without x-internal-test-key in production", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("INTERNAL_TEST_KEY", "test-secret");
+    const app = createServer();
+    const res = await request(app)
+      .post("/api/test-gemini-marks")
+      .attach("image", FAKE_IMAGE, { filename: "marks.jpg", contentType: "image/jpeg" });
+    expect(res.status).toBe(403);
+    expect(res.body.error).toMatch(/x-internal-test-key/i);
+  });
+
+  it("GET /api/test-gemini-marks/health rejects without x-internal-test-key in production", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("INTERNAL_TEST_KEY", "test-secret");
+    const app = createServer();
+    const res = await request(app).get("/api/test-gemini-marks/health");
+    expect(res.status).toBe(403);
+    expect(res.body.error).toMatch(/x-internal-test-key/i);
+  });
+
+  it("POST /api/marks-import/scan/extract does NOT return 403 without x-internal-test-key in production", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("INTERNAL_TEST_KEY", "test-secret");
+    const app = createServer();
+    // Send without the internal key — the real route uses normal app auth, not the test key.
+    // Without a bearer token in production, requireImportAuth returns 401 (AUTH_REQUIRED).
+    // If the x-internal-test-key guard were still blocking here it would return 403.
+    const res = await request(app)
+      .post("/api/marks-import/scan/extract")
+      .attach("image", FAKE_IMAGE, { filename: "marks.jpg", contentType: "image/jpeg" })
+      .field("classId", "c1").field("subjectId", "s1").field("termId", "t1").field("examType", "BOT");
+    expect(res.status).toBe(401); // auth required — not 403 key-guard
+    expect(res.body.code).toBe("AUTH_REQUIRED");
   });
 });
