@@ -152,6 +152,50 @@ export function importsRoutes() {
     }
   });
 
+  router.get("/api/imports/marks/errors/:batchId", async (req, res, next) => {
+    try {
+      const { batchId } = req.params;
+      const school = req.school!;
+
+      const batch = await prisma.markImportBatch.findFirst({
+        where: { id: batchId, schoolId: school.id },
+      });
+      if (!batch) {
+        res.status(404).json(importErr("SERVER_ERROR", `Import batch "${batchId}" not found.`));
+        return;
+      }
+
+      const allRows = await prisma.markImportRow.findMany({
+        where: { batchId: batch.id },
+        orderBy: { rowNumber: "asc" },
+      });
+
+      const errorRows = allRows.filter((row) => row.errors.length > 0);
+      const header = "rowNumber,admissionNumber,class,stream,subject,term,examType,marks,errors";
+      const lines = errorRows.map((row) => {
+        const raw = row.raw as { admissionNumber?: string; class?: string; stream?: string; subject?: string; term?: string; examType?: string; marks?: unknown };
+        const esc = (v: string) => `"${v.replace(/"/g, '""')}"`;
+        return [
+          row.rowNumber,
+          esc(raw.admissionNumber ?? ""),
+          esc(raw.class ?? ""),
+          esc(raw.stream ?? ""),
+          esc(raw.subject ?? ""),
+          esc(raw.term ?? ""),
+          esc(raw.examType ?? ""),
+          esc(String(raw.marks ?? "")),
+          esc(row.errors.join("; ")),
+        ].join(",");
+      });
+
+      res.setHeader("Content-Type", "text/csv; charset=utf-8");
+      res.setHeader("Content-Disposition", `attachment; filename="import-errors-${batchId}.csv"`);
+      res.send([header, ...lines].join("\n"));
+    } catch (error) {
+      next(error);
+    }
+  });
+
   // ── Scanned handwritten marksheet import ───────────────────────────────────
 
   /**

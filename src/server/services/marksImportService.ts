@@ -5,6 +5,8 @@ import { parseMarksCsv } from "../adapters/csvMarksParser";
 import { getSettingsSections } from "../repositories/settingsRepository";
 import { finalizedStatus, toAssessmentType, validateImportRows } from "./marksImportValidator";
 
+const CHUNK_SIZE = 50;
+
 function norm(value: string): string {
   return value.trim().toLowerCase();
 }
@@ -100,7 +102,7 @@ export async function commitMarksImport(prisma: PrismaClient, schoolCode: string
       schoolId: school.id,
       status: "COMMITTED",
       source: "csv",
-      summary: `${validated.length} rows committed`,
+      summary: null,
       rows: {
         create: validated.map((row) => ({
           rowNumber: row.rowNumber,
@@ -112,53 +114,108 @@ export async function commitMarksImport(prisma: PrismaClient, schoolCode: string
     },
   });
 
-  for (const row of validated) {
-    const raw = row.raw as RawMarkImportRow;
-    const student = school.students.find((item) => norm(item.admissionNumber) === norm(raw.admissionNumber))!;
-    const klass = school.classes.find((item) => norm(item.name) === norm(raw.class) || norm(item.code) === norm(raw.class))!;
-    const stream = klass.streams.find((item) => norm(item.name) === norm(raw.stream) || norm(item.code) === norm(raw.stream))!;
-    const subject = school.subjects.find((item) => norm(item.name) === norm(raw.subject) || norm(item.code) === norm(raw.subject))!;
+  let successCount = 0;
+  const commitErrors: Array<{ rowNumber: number; error: string }> = [];
 
-    await prisma.subjectMark.upsert({
-      where: {
-        studentId_subjectId_termId_assessmentType: {
-          studentId: student.id,
-          subjectId: subject.id,
-          termId: activeTerm.id,
-          assessmentType: toAssessmentType(raw.examType),
+  for (let i = 0; i < validated.length; i += CHUNK_SIZE) {
+    const chunk = validated.slice(i, i + CHUNK_SIZE);
+    const upsertOps = chunk.map((row) => {
+      const raw = row.raw as RawMarkImportRow;
+      const student = school.students.find((item) => norm(item.admissionNumber) === norm(raw.admissionNumber))!;
+      const klass = school.classes.find((item) => norm(item.name) === norm(raw.class) || norm(item.code) === norm(raw.class))!;
+      const stream = klass.streams.find((item) => norm(item.name) === norm(raw.stream) || norm(item.code) === norm(raw.stream))!;
+      const subject = school.subjects.find((item) => norm(item.name) === norm(raw.subject) || norm(item.code) === norm(raw.subject))!;
+
+      return prisma.subjectMark.upsert({
+        where: {
+          studentId_subjectId_termId_assessmentType: {
+            studentId: student.id,
+            subjectId: subject.id,
+            termId: activeTerm.id,
+            assessmentType: toAssessmentType(raw.examType),
+          },
         },
-      },
-      update: {
-        marks: Number(raw.marks),
-        comments: raw.comments ?? null,
-        status: finalizedStatus(),
-        importBatchId: batch.id,
-      },
-      create: {
-        schoolId: school.id,
-        studentId: student.id,
-        academicYearId: activeYear.id,
-        termId: activeTerm.id,
-        classId: klass.id,
-        streamId: stream.id,
-        subjectId: subject.id,
-        assessmentType: toAssessmentType(raw.examType),
-        marks: Number(raw.marks),
-        comments: raw.comments ?? null,
-        status: finalizedStatus(),
-        importBatchId: batch.id,
-      },
+        update: {
+          marks: Number(raw.marks),
+          comments: raw.comments ?? null,
+          status: finalizedStatus(),
+          importBatchId: batch.id,
+        },
+        create: {
+          schoolId: school.id,
+          studentId: student.id,
+          academicYearId: activeYear.id,
+          termId: activeTerm.id,
+          classId: klass.id,
+          streamId: stream.id,
+          subjectId: subject.id,
+          assessmentType: toAssessmentType(raw.examType),
+          marks: Number(raw.marks),
+          comments: raw.comments ?? null,
+          status: finalizedStatus(),
+          importBatchId: batch.id,
+        },
+      });
     });
+
+    try {
+      await prisma.$transaction(upsertOps);
+      successCount += chunk.length;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Database error during commit.";
+      for (const row of chunk) {
+        commitErrors.push({ rowNumber: row.rowNumber, error: message });
+      }
+    }
   }
+
+  const failedCount = commitErrors.length;
+
+  if (failedCount > 0) {
+    await prisma.$transaction(
+      commitErrors.map(({ rowNumber, error }) =>
+        prisma.markImportRow.updateMany({
+          where: { batchId: batch.id, rowNumber },
+          data: { isValid: false, errors: [error] },
+        }),
+      ),
+    );
+  }
+
+  const finalStatus: "COMMITTED" | "FAILED" = successCount === 0 ? "FAILED" : "COMMITTED";
+  const summary =
+    failedCount === 0
+      ? `${successCount} rows committed`
+      : `${successCount} rows committed, ${failedCount} rows failed`;
+
+  await prisma.markImportBatch.update({
+    where: { id: batch.id },
+    data: { status: finalStatus, summary },
+  });
 
   await prisma.auditLog.create({
     data: {
       schoolId: school.id,
       action: "marks.imported",
       correlationId: batch.id,
-      details: { batchId: batch.id, source: "csv", totalRows: validated.length },
+      details: { batchId: batch.id, source: "csv", totalRows: validated.length, successCount, failedCount },
     },
   });
 
-  return { status: "COMMITTED", batchId: batch.id, totalRows: validated.length, validRows: validated.length, invalidRows: 0, rows: validated };
+  const resultRows =
+    failedCount === 0
+      ? validated
+      : validated.map((row) => {
+          const failure = commitErrors.find((e) => e.rowNumber === row.rowNumber);
+          return failure ? { ...row, isValid: false, errors: [failure.error] } : row;
+        });
+
+  return {
+    status: finalStatus,
+    batchId: batch.id,
+    totalRows: validated.length,
+    validRows: successCount,
+    invalidRows: failedCount,
+    rows: resultRows,
+  };
 }

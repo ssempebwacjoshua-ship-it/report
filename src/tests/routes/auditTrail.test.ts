@@ -29,9 +29,13 @@ describe("Phase 6 audit trail — marks.imported (CSV commit)", () => {
         findMany: vi.fn(async () => []),
         upsert: vi.fn(async () => ({})),
       },
-      markImportBatch: { create: vi.fn(async () => ({ id: "batch-unit-1" })) },
+      markImportBatch: {
+        create: vi.fn(async () => ({ id: "batch-unit-1" })),
+        update: vi.fn(async () => ({})),
+      },
       // findFirst returns a truthy log to pass the requireDryRunBeforeCommit gate
       auditLog: { create: auditLogCreate, findFirst: vi.fn(async () => ({ id: "prior-dry-run-log" })) },
+      $transaction: vi.fn(async (ops: Array<Promise<unknown>>) => Promise.all(ops)),
     } as unknown as PrismaClient;
 
     const csv = ["admissionNumber,class,stream,subject,term,examType,marks", "001,P1,A,Mathematics,Term 1,BOT,85"].join(
