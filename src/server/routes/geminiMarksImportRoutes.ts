@@ -13,6 +13,7 @@ import {
   loadExpectedStudents,
   validateAndMatchGeminiRows,
 } from "../services/geminiMarksImportService";
+import { validateScore } from "../../shared/utils/validateScore";
 
 const MAX_FILE_BYTES = 10 * 1024 * 1024;
 const SCAN_MIME_TYPES = new Set([
@@ -532,13 +533,9 @@ export default function geminiMarksImportRoutes() {
         }
 
         const markStr = typeof rawRow.mark === "string" ? rawRow.mark.trim() : "";
-        if (!markStr) {
-          issues.push("Mark is required.");
-        } else {
-          const markNum = parseFloat(markStr);
-          if (isNaN(markNum) || markNum < 0 || markNum > 100) {
-            issues.push(`Mark '${markStr}' is not a valid score (must be 0–100).`);
-          }
+        const scoreCheck = validateScore(markStr);
+        if (!scoreCheck.valid) {
+          issues.push(scoreCheck.error);
         }
 
         if (issues.length > 0) rowIssues.push({ rowNumber, issues });

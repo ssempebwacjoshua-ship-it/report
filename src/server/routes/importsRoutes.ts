@@ -18,6 +18,7 @@ import {
 import { extractMarksFromScan } from "../services/scanExtractionService";
 import { parseScanMark, validateScanRows } from "../services/scanImportValidator";
 import { getSettingsSections } from "../repositories/settingsRepository";
+import { validateScore } from "../../shared/utils/validateScore";
 
 const SCAN_FILE_TYPES = new Set(["PDF", "PNG", "JPG", "JPEG", "WEBP"]);
 const SHEET_ID_NOT_DETECTED_MESSAGE =
@@ -636,7 +637,10 @@ export function importsRoutes() {
       for (const row of numericRows) {
         const enrollment = roster.find((item) => item.student.admissionNumber === row.admissionNumber);
         if (!enrollment) continue;
-        const mark = Number(parseScanMark(row.operatorCorrection || row.extractedMark || row.suggestedMark || ""));
+        const rawMark = parseScanMark(row.operatorCorrection || row.extractedMark || row.suggestedMark || "");
+        const scoreCheck = validateScore(rawMark);
+        if (!scoreCheck.valid) continue;
+        const mark = scoreCheck.value;
 
         await prisma.subjectMark.upsert({
           where: {

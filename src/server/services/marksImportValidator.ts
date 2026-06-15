@@ -2,6 +2,7 @@ import type { AssessmentType, MarkStatus, PrismaClient } from "@prisma/client";
 import type { RawMarkImportRow, ValidatedMarkImportRow } from "../../shared/types/imports";
 import type { SettingsSections } from "../../shared/types/settings";
 import { getSettingsSections } from "../repositories/settingsRepository";
+import { validateScore } from "../../shared/utils/validateScore";
 
 export type ImportReferenceData = Awaited<ReturnType<typeof loadImportReferenceData>>;
 
@@ -57,8 +58,6 @@ export async function validateImportRows(
     const stream = klass?.streams.find((item) => norm(item.name) === norm(raw.stream) || norm(item.code) === norm(raw.stream));
     const subject = school.subjects.find((item) => norm(item.name) === norm(raw.subject) || norm(item.code) === norm(raw.subject));
     const examType = toAssessmentType(raw.examType);
-    const marks = Number(raw.marks);
-
     if (!raw.admissionNumber) errors.push("Admission number is required.");
     if (!student) errors.push(`Admission number ${raw.admissionNumber} was not found.`);
     if (!klass) errors.push(`Class ${raw.class} was not found.`);
@@ -72,8 +71,9 @@ export async function validateImportRows(
       errors.push("Blank marks are missing, not zero. Enter 0-100, AB, or EX.");
     } else if (markText === "AB" || markText === "EX") {
       errors.push(`${markText} is valid on handwritten sheets but is not committed as a numeric mark.`);
-    } else if (!Number.isFinite(marks) || marks < 0 || marks > 100) {
-      errors.push("Marks must be numeric and within 0-100.");
+    } else {
+      const scoreCheck = validateScore(raw.marks);
+      if (!scoreCheck.valid) errors.push(scoreCheck.error);
     }
     if (student && subject && validExamTypes.has(examType) && lockedMarkKeys.has(`${student.id}:${subject.id}:${examType}`)) {
       errors.push("A finalized non-import-owned mark already exists for this student, subject, and exam type.");
