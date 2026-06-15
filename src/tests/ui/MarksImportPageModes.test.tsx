@@ -39,7 +39,7 @@ describe("MarksImportPage modes", () => {
     render(<MarksImportPage />);
     fireEvent.click(screen.getByText("Smart Marksheet Import"));
     expect(screen.getByRole("button", { name: "Read Marksheet" })).toBeInTheDocument();
-    // Commit is honestly labelled as not yet available.
-    expect(screen.getByText("Commit after review coming next")).toBeInTheDocument();
+    // Save Reviewed Marks is always visible (but disabled until commit is wired).
+    expect(screen.getByRole("button", { name: "Save Reviewed Marks" })).toBeInTheDocument();
   });
 });

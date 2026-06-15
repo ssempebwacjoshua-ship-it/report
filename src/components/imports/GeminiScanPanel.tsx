@@ -5,6 +5,7 @@ import type {
   GeminiScanContext,
   GeminiScanExtractResponse,
   GeminiScanRow,
+  GeminiRowStatus,
   ScanOptions,
 } from "../../shared/types/imports";
 
@@ -129,11 +130,12 @@ export function GeminiScanPanel() {
   const isExtracting = phase === "compressing" || phase === "extracting";
   const canExtract = requiredFilled && image !== null && !isExtracting;
 
-  const hasBlocking = useMemo(
-    () => rows.some((row) => row.status === "BLOCKED" || row.status === "REVIEW_REQUIRED"),
+  // Commit is blocked until every row is READY.
+  const hasBlockingIssues = useMemo(
+    () => rows.some((row) => row.status !== "READY"),
     [rows],
   );
-  const canCommit = false;
+  const canCommit = false; // Commit endpoint not yet wired.
 
   async function handleExtract() {
     if (!image || !requiredFilled) return;
@@ -168,6 +170,33 @@ export function GeminiScanPanel() {
 
   function updateRow(rowNumber: number, patch: Partial<GeminiScanRow>) {
     setRows((prev) => prev.map((row) => (row.rowNumber === rowNumber ? { ...row, ...patch } : row)));
+  }
+
+  // Accept the matched student's enrolled name, clearing the name mismatch issue.
+  function resolveNameMismatch(rowNumber: number) {
+    setRows((prev) => prev.map((row) => {
+      if (row.rowNumber !== rowNumber) return row;
+      const newIssues = row.issues.filter((i) => !/name mismatch/i.test(i));
+      const newStatus: GeminiRowStatus = newIssues.length === 0 ? "READY" : row.status;
+      return {
+        ...row,
+        extractedStudentName: row.matchedStudentName ?? row.extractedStudentName,
+        issues: newIssues,
+        status: newStatus,
+      };
+    }));
+  }
+
+  // Validate and apply a mark entered by the operator, clearing the missing/invalid mark issue.
+  function applyMark(rowNumber: number) {
+    setRows((prev) => prev.map((row) => {
+      if (row.rowNumber !== rowNumber) return row;
+      const numVal = parseFloat(row.mark);
+      if (row.mark.trim() === "" || isNaN(numVal) || numVal < 0 || numVal > 100) return row;
+      const newIssues = row.issues.filter((i) => !/missing mark|invalid mark/i.test(i));
+      const newStatus: GeminiRowStatus = newIssues.length === 0 ? "READY" : row.status;
+      return { ...row, issues: newIssues, status: newStatus };
+    }));
   }
 
   const selectCls =
@@ -349,6 +378,7 @@ export function GeminiScanPanel() {
       {/* Step 3 — review */}
       {phase === "review" && result && (
         <div className="grid gap-4">
+          {/* Summary cards — from initial server response */}
           <div className="grid gap-2 sm:grid-cols-3 lg:grid-cols-6">
             {SUMMARY_CARDS.map((card) => (
               <div key={card.key} className={`rounded-xl px-3 py-2 ${card.color}`} data-testid={`summary-${card.key}`}>
@@ -362,48 +392,54 @@ export function GeminiScanPanel() {
             Job ID: <code className="font-mono">{result.jobId}</code> · {result.count} rows extracted
           </p>
 
+          {/* Review table */}
           <div className="premium-card overflow-x-auto rounded-2xl p-4">
             <h2 className="text-sm font-bold text-slate-950">Review &amp; correct</h2>
-            <table className="mt-3 w-full min-w-[860px] border-collapse text-sm">
+            <table className="mt-3 w-full min-w-[900px] border-collapse text-sm">
               <thead>
                 <tr className="text-left text-[11px] font-bold uppercase text-slate-400">
                   <th className="px-2 py-2">Row</th>
-                  <th className="px-2 py-2">Extracted Student ID</th>
+                  <th className="px-2 py-2">Extracted ID</th>
                   <th className="px-2 py-2">Matched Student</th>
                   <th className="px-2 py-2">Extracted Name</th>
                   <th className="px-2 py-2">Mark</th>
-                  <th className="px-2 py-2">Status</th>
-                  <th className="px-2 py-2">Issues</th>
+                  <th className="px-2 py-2">Status &amp; Issues</th>
                   <th className="px-2 py-2">Action</th>
                 </tr>
               </thead>
               <tbody>
                 {rows.map((row) => (
-                  <tr key={row.rowNumber} className={rowClass(row.status)} data-testid={`gemini-row-${row.rowNumber}`} data-status={row.status}>
+                  <tr
+                    key={row.rowNumber}
+                    className={rowClass(row.status)}
+                    data-testid={`gemini-row-${row.rowNumber}`}
+                    data-status={row.status}
+                  >
                     <td className="px-2 py-2 font-mono text-xs text-slate-500">{row.rowNumber}</td>
-                    <td className="px-2 py-2 font-mono text-xs">{row.extractedStudentId || <span className="text-red-500">—</span>}</td>
-                    <td className="px-2 py-2">
-                      <input
-                        type="text"
-                        value={row.matchedStudentId ?? ""}
-                        onChange={(e) => updateRow(row.rowNumber, { matchedStudentId: e.target.value || null })}
-                        className="w-40 rounded border border-slate-200 bg-white px-1.5 py-1 text-xs"
-                        placeholder="match student ID"
-                        aria-label={`Matched student for row ${row.rowNumber}`}
-                      />
-                      {row.matchedStudentName && (
-                        <p className="mt-0.5 text-[11px] text-slate-500">{row.matchedStudentName}</p>
+
+                    {/* Extracted Student ID (admission number from marksheet) */}
+                    <td className="px-2 py-2 font-mono text-xs">
+                      {row.extractedStudentId || <span className="text-red-500">—</span>}
+                    </td>
+
+                    {/* Matched Student — name + admission number, NO internal UUID */}
+                    <td className="px-2 py-2" data-testid={`matched-student-${row.rowNumber}`}>
+                      {row.matchedStudentName ? (
+                        <div>
+                          <p className="text-xs font-medium text-slate-900">{row.matchedStudentName}</p>
+                          <p className="text-[11px] text-slate-500">{row.extractedStudentId}</p>
+                        </div>
+                      ) : (
+                        <span className="text-[11px] text-red-500">— No match</span>
                       )}
                     </td>
-                    <td className="px-2 py-2">
-                      <input
-                        type="text"
-                        value={row.extractedStudentName}
-                        onChange={(e) => updateRow(row.rowNumber, { extractedStudentName: e.target.value })}
-                        className="w-40 rounded border border-slate-200 bg-white px-1.5 py-1 text-xs"
-                        aria-label={`Extracted name for row ${row.rowNumber}`}
-                      />
+
+                    {/* Extracted Name — read-only, for comparison with Matched Student */}
+                    <td className="px-2 py-2 text-xs text-slate-700">
+                      {row.extractedStudentName}
                     </td>
+
+                    {/* Mark — editable; "Apply mark" button in Action column validates + resolves */}
                     <td className="px-2 py-2">
                       <input
                         type="text"
@@ -415,22 +451,52 @@ export function GeminiScanPanel() {
                         aria-label={`Mark for row ${row.rowNumber}`}
                       />
                     </td>
+
+                    {/* Status badge + issue chips stacked */}
                     <td className="px-2 py-2">
-                      <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${statusBadge(row.status)}`}>
+                      <span className={`inline-block rounded-full px-2 py-0.5 text-[11px] font-bold ${statusBadge(row.status)}`}>
                         {row.status}
                       </span>
+                      {row.issues.length > 0 && (
+                        <div className="mt-1 flex flex-wrap gap-1">
+                          {row.issues.map((issue) => (
+                            <span key={issue} className={`rounded px-1.5 py-0.5 text-[11px] ${issueClass(issue)}`}>
+                              {issue}
+                            </span>
+                          ))}
+                        </div>
+                      )}
                     </td>
+
+                    {/* Action column — targeted resolution buttons */}
                     <td className="px-2 py-2">
-                      <div className="flex flex-wrap gap-1">
-                        {row.issues.length === 0
-                          ? <span className="text-[11px] text-slate-400">—</span>
-                          : row.issues.map((issue) => (
-                              <span key={issue} className={`rounded px-1.5 py-0.5 text-[11px] ${issueClass(issue)}`}>{issue}</span>
-                            ))}
+                      <div className="flex flex-col gap-1">
+                        {row.issues.some((i) => /name mismatch/i.test(i)) && row.matchedStudentName && (
+                          <button
+                            type="button"
+                            onClick={() => resolveNameMismatch(row.rowNumber)}
+                            className="rounded bg-blue-100 px-2 py-1 text-[11px] font-semibold text-blue-800 hover:bg-blue-200"
+                            aria-label={`Use enrolled name for row ${row.rowNumber}`}
+                          >
+                            Use enrolled name
+                          </button>
+                        )}
+                        {row.issues.some((i) => /missing mark|invalid mark/i.test(i)) && (
+                          <button
+                            type="button"
+                            onClick={() => applyMark(row.rowNumber)}
+                            className="rounded bg-emerald-100 px-2 py-1 text-[11px] font-semibold text-emerald-800 hover:bg-emerald-200"
+                            aria-label={`Apply mark for row ${row.rowNumber}`}
+                          >
+                            Apply mark
+                          </button>
+                        )}
+                        {row.issues.length === 0 && row.confidenceScore > 0 && (
+                          <span className="text-[11px] text-slate-400">
+                            conf {Math.round(row.confidenceScore * 100)}%
+                          </span>
+                        )}
                       </div>
-                    </td>
-                    <td className="px-2 py-2 text-[11px] text-slate-400">
-                      {row.confidenceScore ? `conf ${Math.round(row.confidenceScore * 100)}%` : "—"}
                     </td>
                   </tr>
                 ))}
@@ -438,6 +504,7 @@ export function GeminiScanPanel() {
             </table>
           </div>
 
+          {/* Review confirmation checkbox */}
           <label className="flex items-center gap-2 text-sm text-slate-700">
             <input
               type="checkbox"
@@ -446,23 +513,25 @@ export function GeminiScanPanel() {
             />
             I have reviewed every flagged row.
           </label>
-          {hasBlocking && (
-            <p className="text-xs text-amber-700">Resolve all blocked and review rows before committing.</p>
+          {hasBlockingIssues && (
+            <p className="text-xs text-amber-700">
+              Resolve all flagged rows before saving. Use "Use enrolled name" for name mismatches and "Apply mark" for missing marks.
+            </p>
           )}
         </div>
       )}
 
-      {/* Commit button */}
+      {/* Save Reviewed Marks button */}
       <div className="premium-card rounded-2xl p-4">
         <div className="flex items-center gap-3">
           <button
             type="button"
-            disabled={!canCommit || hasBlocking || !reviewConfirmed}
+            disabled={!canCommit || hasBlockingIssues || !reviewConfirmed}
             className="btn btn-success"
-            title="Commit is not enabled in this phase"
           >
-            Commit after review coming next
+            Save Reviewed Marks
           </button>
+          <p className="text-xs text-slate-500">Saving will be enabled after review commit is connected.</p>
         </div>
       </div>
     </div>
