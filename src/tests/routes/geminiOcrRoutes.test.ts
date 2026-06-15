@@ -5,19 +5,21 @@ import { createServer } from "../../server";
 // Mock both Gemini services so tests never call the real API.
 vi.mock("../../server/services/geminiOcrService", () => ({
   extractMarksWithGemini: vi.fn(),
+  pingGemini: vi.fn(),
 }));
 
 vi.mock("../../server/services/geminiRosterService", () => ({
   parseRosterImagePerfect: vi.fn(),
 }));
 
-import { extractMarksWithGemini } from "../../server/services/geminiOcrService";
+import { extractMarksWithGemini, pingGemini } from "../../server/services/geminiOcrService";
 import { parseRosterImagePerfect } from "../../server/services/geminiRosterService";
 import type { GeminiExtractedMarkRow } from "../../server/services/geminiOcrService";
 import type { PerfectRosterRow } from "../../server/services/geminiRosterService";
 
 const mockExtractMarks = vi.mocked(extractMarksWithGemini);
 const mockParseRoster = vi.mocked(parseRosterImagePerfect);
+const mockPingGemini = vi.mocked(pingGemini);
 
 const FAKE_IMAGE = Buffer.from("fake-image-data");
 
@@ -173,6 +175,74 @@ describe("POST /api/test-gemini-roster", () => {
   });
 });
 
+// ── Health endpoint ───────────────────────────────────────────────────────────
+
+describe("GET /api/test-gemini-health", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    mockPingGemini.mockReset();
+  });
+
+  it("returns keyConfigured: false and success: false when API key is missing", async () => {
+    vi.stubEnv("GEMINI_API_KEY", "");
+    const app = createServer();
+    const res = await request(app).get("/api/test-gemini-health");
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(false);
+    expect(res.body.keyConfigured).toBe(false);
+    expect(res.body.nodeVersion).toBeTruthy();
+    expect(res.body.message).toMatch(/not configured/i);
+  });
+
+  it("does not expose the API key value in the response", async () => {
+    vi.stubEnv("GEMINI_API_KEY", "super-secret-key-12345");
+    mockPingGemini.mockResolvedValueOnce({ model: "gemini-2.5-flash" });
+    const app = createServer();
+    const res = await request(app).get("/api/test-gemini-health");
+    const body = JSON.stringify(res.body);
+    expect(body).not.toContain("super-secret-key-12345");
+  });
+
+  it("returns success: true when pingGemini resolves", async () => {
+    vi.stubEnv("GEMINI_API_KEY", "test-key");
+    mockPingGemini.mockResolvedValueOnce({ model: "gemini-2.5-flash" });
+    const app = createServer();
+    const res = await request(app).get("/api/test-gemini-health");
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.keyConfigured).toBe(true);
+    expect(res.body.nodeVersion).toBe(process.version);
+  });
+
+  it("returns success: false with diagnostic in dev when pingGemini throws a network error", async () => {
+    vi.stubEnv("GEMINI_API_KEY", "test-key");
+    vi.stubEnv("NODE_ENV", "development");
+    const fetchErr = new Error("fetch failed");
+    mockPingGemini.mockRejectedValueOnce(fetchErr);
+    const app = createServer();
+    const res = await request(app).get("/api/test-gemini-health");
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(false);
+    expect(res.body.keyConfigured).toBe(true);
+    expect(res.body.diagnostic).toBeDefined();
+    expect(res.body.diagnostic.message).toBe("fetch failed");
+  });
+
+  it("omits diagnostic object in production when pingGemini throws", async () => {
+    vi.stubEnv("GEMINI_API_KEY", "test-key");
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("INTERNAL_TEST_KEY", "test-secret");
+    mockPingGemini.mockRejectedValueOnce(new Error("fetch failed"));
+    const app = createServer();
+    const res = await request(app)
+      .get("/api/test-gemini-health")
+      .set("x-internal-test-key", "test-secret");
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(false);
+    expect(res.body.diagnostic).toBeUndefined();
+  });
+});
+
 // ── Production key-protection boundary tests ──────────────────────────────────
 //
 // These tests verify the separation of concerns:
@@ -204,6 +274,15 @@ describe("production x-internal-test-key protection", () => {
     vi.stubEnv("INTERNAL_TEST_KEY", "test-secret");
     const app = createServer();
     const res = await request(app).get("/api/test-gemini-marks/health");
+    expect(res.status).toBe(403);
+    expect(res.body.error).toMatch(/x-internal-test-key/i);
+  });
+
+  it("GET /api/test-gemini-health rejects without x-internal-test-key in production", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("INTERNAL_TEST_KEY", "test-secret");
+    const app = createServer();
+    const res = await request(app).get("/api/test-gemini-health");
     expect(res.status).toBe(403);
     expect(res.body.error).toMatch(/x-internal-test-key/i);
   });

@@ -317,7 +317,12 @@ export default function geminiMarksImportRoutes() {
           res.status(503).json(stageErr(reqId, "gemini_extract", "GEMINI_RATE_LIMIT", "Gemini AI is temporarily unavailable (rate limit). Please wait a moment and try again."));
           return;
         }
-        if (/UNAVAILABLE|unavailable|fetch.*failed|network.*error|timeout|ECONNREFUSED|ENOTFOUND/i.test(message)) {
+        const cause = error instanceof Error ? String((error as NodeJS.ErrnoException).cause ?? "") : "";
+        if (/fetch failed|ECONNRESET|ENOTFOUND|ETIMEDOUT/i.test(message) || /fetch failed|ECONNRESET|ENOTFOUND|ETIMEDOUT/i.test(cause)) {
+          res.status(503).json(stageErr(reqId, "gemini_extract", "GEMINI_NETWORK_ERROR", "Could not reach the Gemini AI service from this server. Check internet, DNS, proxy, or firewall."));
+          return;
+        }
+        if (/UNAVAILABLE|unavailable|network.*error|timeout|ECONNREFUSED/i.test(message)) {
           res.status(503).json(stageErr(reqId, "gemini_extract", "GEMINI_UNAVAILABLE", "Could not reach the Gemini AI service. Please try again in a moment."));
           return;
         }

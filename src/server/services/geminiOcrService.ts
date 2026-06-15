@@ -1,6 +1,17 @@
 import { GoogleGenAI, Type } from "@google/genai";
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+// Lazy singleton — not constructed until first API call.
+let aiInstance: GoogleGenAI | null = null;
+
+function getGeminiClient(): GoogleGenAI {
+  if (!process.env.GEMINI_API_KEY) {
+    throw new Error("Missing GEMINI_API_KEY");
+  }
+  if (!aiInstance) {
+    aiInstance = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+  }
+  return aiInstance;
+}
 
 export interface GeminiExtractedMarkRow {
   studentId: string;
@@ -78,6 +89,40 @@ export function validateMarksheetRows(rows: GeminiExtractedMarkRow[]): {
   };
 }
 
+// ── Retry logic for transient network errors ─────────────────────────────────
+
+const RETRYABLE_RE = /fetch failed|ECONNRESET|ENOTFOUND|ETIMEDOUT|UNAVAILABLE|503/i;
+
+function isRetryable(err: unknown): boolean {
+  if (!(err instanceof Error)) return false;
+  const cause = String((err as NodeJS.ErrnoException).cause ?? "");
+  return RETRYABLE_RE.test(err.message) || RETRYABLE_RE.test(cause);
+}
+
+const RETRY_DELAYS_MS = [0, 800, 1600];
+
+async function withGeminiRetry<T>(fn: () => Promise<T>): Promise<T> {
+  let lastErr: unknown;
+  for (let i = 0; i < RETRY_DELAYS_MS.length; i++) {
+    if (i > 0) await new Promise((r) => setTimeout(r, RETRY_DELAYS_MS[i]));
+    try {
+      return await fn();
+    } catch (err) {
+      lastErr = err;
+      if (!isRetryable(err)) throw err;
+      console.warn("[gemini-ocr] transient error, will retry", {
+        attempt: i + 1,
+        max: RETRY_DELAYS_MS.length,
+        message: err instanceof Error ? err.message : String(err),
+        cause: err instanceof Error ? (err as NodeJS.ErrnoException).cause : undefined,
+      });
+    }
+  }
+  throw lastErr;
+}
+
+// ── Public API ────────────────────────────────────────────────────────────────
+
 export async function extractMarksWithGemini(
   imageBuffer: Buffer,
   mimeType = "image/jpeg",
@@ -86,17 +131,23 @@ export async function extractMarksWithGemini(
     throw new Error("Missing GEMINI_API_KEY");
   }
 
-  const response = await ai.models.generateContent({
-    model: process.env.GEMINI_MODEL ?? "gemini-2.5-flash",
-    contents: [
-      {
-        inlineData: {
-          data: imageBuffer.toString("base64"),
-          mimeType,
-        },
-      },
-      {
-        text: `
+  const model = process.env.GEMINI_MODEL ?? "gemini-2.5-flash";
+  const startMs = Date.now();
+
+  let response: Awaited<ReturnType<GoogleGenAI["models"]["generateContent"]>>;
+  try {
+    response = await withGeminiRetry(() =>
+      getGeminiClient().models.generateContent({
+        model,
+        contents: [
+          {
+            inlineData: {
+              data: imageBuffer.toString("base64"),
+              mimeType,
+            },
+          },
+          {
+            text: `
 You are reading a school document image.
 
 First, determine if this is a student marksheet: a table containing student IDs (admission numbers),
@@ -116,38 +167,51 @@ student names, and numeric scores or marks.
 IMPORTANT: "A' Level" and "O' Level" are education levels, not marks. Do not put them in mark.
 If a mark cell is blank or unreadable, set mark to "" and needsReview to true.
         `,
-      },
-    ],
-    config: {
-      temperature: 0,
-      responseMimeType: "application/json",
-      responseSchema: {
-        type: Type.OBJECT,
-        properties: {
-          documentType: {
-            type: Type.STRING,
-            description: "Either 'marksheet' or 'not_marksheet'",
           },
-          rows: {
-            type: Type.ARRAY,
-            items: {
-              type: Type.OBJECT,
-              properties: {
-                studentId: { type: Type.STRING },
-                studentName: { type: Type.STRING },
-                mark: { type: Type.STRING },
-                confidenceScore: { type: Type.NUMBER },
-                needsReview: { type: Type.BOOLEAN },
-                reason: { type: Type.STRING },
+        ],
+        config: {
+          temperature: 0,
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              documentType: {
+                type: Type.STRING,
+                description: "Either 'marksheet' or 'not_marksheet'",
               },
-              required: ["studentId", "studentName", "mark", "confidenceScore", "needsReview"],
+              rows: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    studentId: { type: Type.STRING },
+                    studentName: { type: Type.STRING },
+                    mark: { type: Type.STRING },
+                    confidenceScore: { type: Type.NUMBER },
+                    needsReview: { type: Type.BOOLEAN },
+                    reason: { type: Type.STRING },
+                  },
+                  required: ["studentId", "studentName", "mark", "confidenceScore", "needsReview"],
+                },
+              },
             },
+            required: ["documentType", "rows"],
           },
         },
-        required: ["documentType", "rows"],
-      },
-    },
-  });
+      }),
+    );
+  } catch (error: unknown) {
+    console.error("[gemini-ocr] Gemini call failed", {
+      model,
+      mimeType,
+      imageSizeKb: Math.round(imageBuffer.byteLength / 1024),
+      durationMs: Date.now() - startMs,
+      errorName: error instanceof Error ? error.name : "Unknown",
+      errorMessage: error instanceof Error ? error.message : String(error),
+      errorCause: error instanceof Error ? (error as NodeJS.ErrnoException).cause : undefined,
+    });
+    throw error;
+  }
 
   const text = response.text;
   if (!text) throw new Error("Gemini returned empty response");
@@ -168,4 +232,17 @@ If a mark cell is blank or unreadable, set mark to "" and needsReview to true.
   }
 
   return validateMarksheetRows(parsed.rows);
+}
+
+/** Sends a tiny text-only ping to Gemini. Throws on network or auth failure. */
+export async function pingGemini(): Promise<{ model: string }> {
+  const model = process.env.GEMINI_MODEL ?? "gemini-2.5-flash";
+  await withGeminiRetry(() =>
+    getGeminiClient().models.generateContent({
+      model,
+      contents: [{ text: "Reply with one word: ok" }],
+      config: { temperature: 0 },
+    }),
+  );
+  return { model };
 }

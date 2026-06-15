@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   validateMarksheetRows,
   type GeminiExtractedMarkRow,
@@ -121,5 +121,41 @@ describe("validateMarksheetRows — summary totals", () => {
     const rows = [makeRow("30"), makeRow(""), makeRow("FortyFive"), makeRow("101"), makeRow("0")];
     const { summary } = validateMarksheetRows(rows);
     expect(summary.validRows + summary.reviewRows).toBe(summary.totalRows);
+  });
+});
+
+// ── Lazy client + network resilience ─────────────────────────────────────────
+// These tests use a separate describe scope with a vi.mock for @google/genai so
+// they never hit the real Gemini API.
+
+describe("geminiOcrService — lazy client initialization and network errors", () => {
+  // We need to isolate the module so the aiInstance singleton resets per describe.
+  // vitest runs each test file in its own module scope, but within this file the
+  // singleton persists. We verify the invariant by observing constructor call counts
+  // using vi.hoisted mocks declared at file level elsewhere is not feasible in the
+  // same file as the non-mocked validateMarksheetRows import.
+  //
+  // Strategy: use vi.stubEnv to control the key, and rely on the fact that
+  // the check `if (!process.env.GEMINI_API_KEY) throw` happens before `new GoogleGenAI`.
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("extractMarksWithGemini throws 'Missing GEMINI_API_KEY' when key is absent", async () => {
+    // Import the actual (non-mocked) service function dynamically after clearing the key.
+    vi.stubEnv("GEMINI_API_KEY", "");
+    const { extractMarksWithGemini: fn } = await import(
+      "../../server/services/geminiOcrService"
+    );
+    await expect(fn(Buffer.from("fake"), "image/jpeg")).rejects.toThrow(
+      "Missing GEMINI_API_KEY",
+    );
+  });
+
+  it("pingGemini throws 'Missing GEMINI_API_KEY' when key is absent", async () => {
+    vi.stubEnv("GEMINI_API_KEY", "");
+    const { pingGemini: fn } = await import("../../server/services/geminiOcrService");
+    await expect(fn()).rejects.toThrow("Missing GEMINI_API_KEY");
   });
 });

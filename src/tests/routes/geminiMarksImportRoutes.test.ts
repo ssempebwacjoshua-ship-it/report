@@ -404,6 +404,37 @@ describe("Gemini error handling", () => {
     expect(res.body.code).toBe("GEMINI_RATE_LIMIT");
   });
 
+  it("returns 503 GEMINI_NETWORK_ERROR when Node fetch fails (network/DNS/proxy)", async () => {
+    const { extractMarksWithGemini } = await import("../../server/services/geminiOcrService");
+    const fetchErr = new Error("fetch failed");
+    vi.mocked(extractMarksWithGemini).mockRejectedValueOnce(fetchErr);
+
+    const res = await request(createServer())
+      .post("/api/marks-import/scan/extract")
+      .attach("image", IMAGE, { filename: "marks.jpg", contentType: "image/jpeg" })
+      .field("classId", CLS).field("subjectId", SUBJ)
+      .field("termId", TERM).field("examType", "BOT");
+
+    expect(res.status).toBe(503);
+    expect(res.body.code).toBe("GEMINI_NETWORK_ERROR");
+    expect(res.body.message).toMatch(/internet|DNS|proxy|firewall/i);
+  });
+
+  it("returns 503 GEMINI_NETWORK_ERROR when cause contains ENOTFOUND", async () => {
+    const { extractMarksWithGemini } = await import("../../server/services/geminiOcrService");
+    const fetchErr = Object.assign(new Error("fetch failed"), { cause: { code: "ENOTFOUND" } });
+    vi.mocked(extractMarksWithGemini).mockRejectedValueOnce(fetchErr);
+
+    const res = await request(createServer())
+      .post("/api/marks-import/scan/extract")
+      .attach("image", IMAGE, { filename: "marks.jpg", contentType: "image/jpeg" })
+      .field("classId", CLS).field("subjectId", SUBJ)
+      .field("termId", TERM).field("examType", "BOT");
+
+    expect(res.status).toBe(503);
+    expect(res.body.code).toBe("GEMINI_NETWORK_ERROR");
+  });
+
   it("returns 400 GEMINI_PARSE_ERROR when Gemini returns empty response", async () => {
     const { extractMarksWithGemini } = await import("../../server/services/geminiOcrService");
     vi.mocked(extractMarksWithGemini).mockRejectedValueOnce(new Error("Gemini returned empty response"));

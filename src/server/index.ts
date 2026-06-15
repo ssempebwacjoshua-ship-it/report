@@ -1,4 +1,7 @@
 import "dotenv/config";
+import dns from "node:dns";
+// Force IPv4 DNS resolution — prevents "fetch failed" on Windows/IPv6 networks when reaching Gemini
+dns.setDefaultResultOrder("ipv4first");
 import cors from "cors";
 import express, { type ErrorRequestHandler } from "express";
 import http from "http";
@@ -58,8 +61,6 @@ export function createServer() {
   app.use("/api", geminiOcrRoutes);
   app.use("/api", geminiRosterRoutes);
   app.use(geminiMarksImportRoutes());
-  console.log("[Gemini OCR] routes mounted at /api/test-gemini-marks and /api/test-gemini-roster");
-  console.log("[Gemini Import] route mounted at /api/marks-import/scan/extract");
 
   const errorHandler: ErrorRequestHandler = (error, req, res, _next) => {
     if (error instanceof ZodError) {
@@ -109,6 +110,13 @@ export function createServer() {
 
 if (process.env.NODE_ENV !== "test") {
   const port = Number(process.env.PORT ?? 4300);
+  const geminiModel = process.env.GEMINI_MODEL ?? "gemini-2.5-flash (default)";
+  const geminiKeyStatus = process.env.GEMINI_API_KEY ? "yes" : "no";
+  console.log("[startup] Gemini routes: /api/test-gemini-marks, /api/test-gemini-roster, /api/marks-import/scan/extract, /api/test-gemini-health");
+  console.log("[startup] Gemini model:", geminiModel);
+  console.log("[startup] Gemini key configured:", geminiKeyStatus);
+  console.log("[startup] Node DNS result order: ipv4first (forced)");
+  console.log("[startup] Node version:", process.version);
   void recoverStaleStudentImportJobs(prisma).catch((error) => console.error("Failed to recover stale student import jobs", error));
   const httpServer = http.createServer(createServer());
   httpServer.requestTimeout = 120_000;

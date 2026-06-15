@@ -1,7 +1,7 @@
 import type { NextFunction, Request, Response } from "express";
 import { Router } from "express";
 import multer from "multer";
-import { extractMarksWithGemini } from "../services/geminiOcrService";
+import { extractMarksWithGemini, pingGemini } from "../services/geminiOcrService";
 
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage() });
@@ -51,6 +51,54 @@ router.post("/test-gemini-marks", requireInternalKey, upload.single("image"), as
       res.status(400).json({ success: false, error: message });
     } else {
       res.status(500).json({ success: false, error: message });
+    }
+  }
+});
+
+router.get("/test-gemini-health", requireInternalKey, async (_req, res) => {
+  const keyConfigured = !!process.env.GEMINI_API_KEY;
+  const model = process.env.GEMINI_MODEL ?? "gemini-2.5-flash";
+  const isDev = process.env.NODE_ENV !== "production";
+
+  if (!keyConfigured) {
+    res.json({
+      success: false,
+      keyConfigured: false,
+      model,
+      nodeVersion: process.version,
+      message: "GEMINI_API_KEY is not configured on this server.",
+    });
+    return;
+  }
+
+  try {
+    await pingGemini();
+    res.json({
+      success: true,
+      keyConfigured: true,
+      model,
+      nodeVersion: process.version,
+      message: "Gemini AI is reachable and responding.",
+    });
+  } catch (error: unknown) {
+    const base = {
+      success: false,
+      keyConfigured: true,
+      model,
+      nodeVersion: process.version,
+      message: "Could not reach Gemini AI. Check server internet, DNS, proxy, or firewall.",
+    };
+    if (isDev) {
+      res.json({
+        ...base,
+        diagnostic: {
+          name: error instanceof Error ? error.name : "Unknown",
+          message: error instanceof Error ? error.message : String(error),
+          cause: error instanceof Error ? (error as NodeJS.ErrnoException).cause : undefined,
+        },
+      });
+    } else {
+      res.json(base);
     }
   }
 });
