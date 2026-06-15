@@ -2,6 +2,7 @@ import type { NextFunction, Request, Response } from "express";
 import { Router } from "express";
 import multer from "multer";
 import { prisma } from "../db/prisma";
+import { isCanonicalClassCode } from "../../shared/constants/classes";
 import { verifyToken } from "../services/authService";
 import { extractMarksWithGemini } from "../services/geminiOcrService";
 import {
@@ -371,10 +372,14 @@ export default function geminiMarksImportRoutes() {
         }),
       ]);
 
+      const canonicalClasses = classes.filter((c) => isCanonicalClassCode(c.code));
+      const canonicalClassIds = new Set(canonicalClasses.map((c) => c.id));
+      const canonicalStreams = streams.filter((s) => canonicalClassIds.has(s.classId));
+
       res.json({
         success: true,
-        classes,
-        streams,
+        classes: canonicalClasses,
+        streams: canonicalStreams,
         subjects,
         terms: terms.map((t) => ({
           id: t.id,

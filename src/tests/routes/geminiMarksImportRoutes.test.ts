@@ -317,6 +317,48 @@ describe("GET /api/marks-import/scan/options", () => {
     expect(res.body.terms[0].name).toContain("Term 1");
     expect(res.body.examTypes).toEqual(["BOT", "MOT", "EOT"]);
   });
+
+  it("filters out non-canonical classes (S1A, S1B) and returns only Senior 1 (S1)", async () => {
+    const { prisma } = await import("../../server/db/prisma");
+    vi.mocked(prisma.schoolClass.findMany).mockResolvedValueOnce([
+      { id: "class-s1",  name: "Senior 1",   code: "S1"  } as never,
+      { id: "class-s1a", name: "Senior 1 A", code: "S1A" } as never,
+      { id: "class-s1b", name: "Senior 1 B", code: "S1B" } as never,
+    ]);
+
+    const res = await request(createServer())
+      .get("/api/marks-import/scan/options")
+      .query({ schoolCode: "SCU-PREVIEW" });
+
+    expect(res.status).toBe(200);
+    const codes = res.body.classes.map((c: { code: string }) => c.code);
+    expect(codes).toContain("S1");
+    expect(codes).not.toContain("S1A");
+    expect(codes).not.toContain("S1B");
+  });
+
+  it("filters streams to only those under canonical classes", async () => {
+    const { prisma } = await import("../../server/db/prisma");
+    vi.mocked(prisma.schoolClass.findMany).mockResolvedValueOnce([
+      { id: "class-s1",  name: "Senior 1",   code: "S1"  } as never,
+      { id: "class-s1a", name: "Senior 1 A", code: "S1A" } as never,
+    ]);
+    vi.mocked(prisma.stream.findMany).mockResolvedValueOnce([
+      { id: "stream-a", classId: "class-s1",  name: "A", code: "A" } as never,
+      { id: "stream-b", classId: "class-s1",  name: "B", code: "B" } as never,
+      { id: "stream-x", classId: "class-s1a", name: "A", code: "A" } as never,
+    ]);
+
+    const res = await request(createServer())
+      .get("/api/marks-import/scan/options")
+      .query({ schoolCode: "SCU-PREVIEW" });
+
+    expect(res.status).toBe(200);
+    const streamIds = res.body.streams.map((s: { id: string }) => s.id);
+    expect(streamIds).toContain("stream-a");
+    expect(streamIds).toContain("stream-b");
+    expect(streamIds).not.toContain("stream-x");
+  });
 });
 
 describe("Gemini error handling", () => {
