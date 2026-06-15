@@ -5,6 +5,7 @@ import { getSchoolBranding } from "../components/layout/branding";
 import { StudentReportDetail } from "../components/reports/StudentReportDetail";
 import type { StudentReportCard } from "../shared/types/reports";
 import type { GradingScaleSettings, ReportSettings, SchoolProfileSettings } from "../shared/types/settings";
+import type { ReportComments } from "../shared/utils/reportComments";
 
 const API_BASE = getApiBaseUrl();
 
@@ -16,6 +17,7 @@ type Snapshot = {
     grading: GradingScaleSettings;
   };
   filters: { assessmentType: string };
+  reportComments?: ReportComments;
 };
 
 type ParentReportData = {
@@ -176,6 +178,7 @@ export function ParentReportPage() {
           schoolSettings={settings.school}
           reportSettings={settings.reports}
           grading={settings.grading}
+          initialComments={snapshot.reportComments}
         />
       </div>
     </div>

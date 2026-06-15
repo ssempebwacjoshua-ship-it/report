@@ -7,6 +7,7 @@ import { requireAuth } from "../middleware/requireAuth";
 import { loadReportEngineInput } from "../repositories/reportsRepository";
 import { getSettingsSections } from "../repositories/settingsRepository";
 import { buildReports } from "../services/reportEngine";
+import { COMMENT_LIMITS } from "../../shared/utils/reportComments";
 
 function generateToken(): string {
   return crypto.randomBytes(32).toString("hex");
@@ -25,6 +26,15 @@ function generateReferenceCode(): string {
   return `${y}${m}${d}-${suffix}`;
 }
 
+const reportCommentsSchema = z.object({
+  classTeacherComment: z.string().max(COMMENT_LIMITS.classTeacherComment, `Class teacher comment must be ${COMMENT_LIMITS.classTeacherComment} characters or fewer.`).default(""),
+  headTeacherComment: z.string().max(COMMENT_LIMITS.headTeacherComment, `Head teacher comment must be ${COMMENT_LIMITS.headTeacherComment} characters or fewer.`).default(""),
+  conductNote: z.string().max(COMMENT_LIMITS.conductNote, `Conduct note must be ${COMMENT_LIMITS.conductNote} characters or fewer.`).default(""),
+  classTeacherName: z.string().max(COMMENT_LIMITS.classTeacherName, `Class teacher name must be ${COMMENT_LIMITS.classTeacherName} characters or fewer.`).default(""),
+  headTeacherName: z.string().max(COMMENT_LIMITS.headTeacherName, `Head teacher name must be ${COMMENT_LIMITS.headTeacherName} characters or fewer.`).default(""),
+  issueDate: z.string().max(10).default(""),
+});
+
 const issueSchema = z.object({
   studentId: z.string().uuid("studentId must be a valid UUID."),
   academicYearId: z.string().optional(),
@@ -32,6 +42,7 @@ const issueSchema = z.object({
   classId: z.string().min(1, "classId is required."),
   streamId: z.string().optional(),
   assessmentType: z.enum(["BOT", "MOT", "EOT", "TERM_SUMMARY"]).default("TERM_SUMMARY"),
+  reportComments: reportCommentsSchema.optional(),
 });
 
 const revokeSchema = z.object({
@@ -94,6 +105,14 @@ export function reportIssueRoutes() {
         issuedAt: new Date().toISOString(),
         issuedByName: user.name,
         filters,
+        reportComments: body.reportComments ?? {
+          classTeacherComment: "",
+          headTeacherComment: "",
+          conductNote: "",
+          classTeacherName: "",
+          headTeacherName: "",
+          issueDate: "",
+        },
       };
 
       const rawParentToken = generateToken();

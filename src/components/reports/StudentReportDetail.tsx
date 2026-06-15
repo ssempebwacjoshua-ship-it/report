@@ -3,6 +3,7 @@ import type { AssessmentFilter, StudentReportCard } from "../../shared/types/rep
 import type { GradingScaleSettings, ReportSettings, SchoolProfileSettings } from "../../shared/types/settings";
 import { defaultSettingsSections } from "../../shared/types/settings";
 import { getSchoolInitials } from "../layout/branding";
+import type { ReportComments } from "../../shared/utils/reportComments";
 
 type Props = {
   card: StudentReportCard | null;
@@ -14,6 +15,7 @@ type Props = {
   classAverage?: number | null;
   editOpen?: boolean;
   onEditOpenChange?: (open: boolean) => void;
+  initialComments?: ReportComments;
 };
 
 type ReportDraft = {
@@ -94,6 +96,7 @@ export function StudentReportDetail({
   classAverage,
   editOpen,
   onEditOpenChange,
+  initialComments,
 }: Props) {
   if (!card) {
     return (
@@ -114,6 +117,7 @@ export function StudentReportDetail({
       classAverage={classAverage}
       editOpen={editOpen}
       onEditOpenChange={onEditOpenChange}
+      initialComments={initialComments}
     />
   );
 }
@@ -128,6 +132,7 @@ function StudentReportDetailContent({
   classAverage,
   editOpen,
   onEditOpenChange,
+  initialComments,
 }: {
   card: StudentReportCard;
   assessmentType?: AssessmentFilter;
@@ -138,11 +143,25 @@ function StudentReportDetailContent({
   classAverage?: number | null;
   editOpen?: boolean;
   onEditOpenChange?: (open: boolean) => void;
+  initialComments?: ReportComments;
 }) {
   const school = schoolSettings ?? defaultSettingsSections.school;
   const reports = reportSettings ?? defaultSettingsSections.reports;
   const scale = grading ?? defaultSettingsSections.grading;
-  const defaultDraft = useMemo(() => buildDefaultDraft(card, school, reports), [card, school, reports]);
+  const defaultDraft = useMemo(() => {
+    if (initialComments) {
+      return {
+        classTeacherComment: initialComments.classTeacherComment,
+        headTeacherComment: initialComments.headTeacherComment,
+        conductNote: initialComments.conductNote,
+        classTeacherName: initialComments.classTeacherName,
+        headTeacherName: initialComments.headTeacherName || school.headTeacherName || "Head Teacher",
+        issueDate: initialComments.issueDate || new Date().toISOString().slice(0, 10),
+        showGradingKey: reports.showGradeKey,
+      };
+    }
+    return buildDefaultDraft(card, school, reports);
+  }, [card, school, reports, initialComments]);
   const [draft, setDraft] = useState<ReportDraft>(defaultDraft);
   const [isEditing, setIsEditing] = useState(false);
   const [draftState, setDraftState] = useState<"idle" | "saved" | "ready">("idle");
