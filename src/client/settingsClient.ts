@@ -1,5 +1,6 @@
 import type { SettingSection, SettingsResponse, SettingsSections } from "../shared/types/settings";
-import { authHeaders, getApiBaseUrl, handleSessionExpiry } from "./apiBase";
+import { getApiBaseUrl, makeRequestHeaders, parseApiError } from "./apiBase";
+
 const API_BASE = getApiBaseUrl();
 
 export type SettingsFieldErrors = Record<string, string[]>;
@@ -18,41 +19,26 @@ export class SettingsClientError extends Error {
 }
 
 async function readSettingsError(response: Response, fallback: string): Promise<SettingsClientError> {
-  if (response.status === 401) {
-    handleSessionExpiry();
-    return new SettingsClientError("Session expired. Please log in again.", 401);
-  }
+  // Extract field errors from a clone before parseApiError consumes the body
+  let fieldErrors: SettingsFieldErrors | null = null;
   try {
-    const body = await response.json();
-    const fieldErrors: SettingsFieldErrors | null =
-      body?.fieldErrors && typeof body.fieldErrors === "object" ? body.fieldErrors : null;
-
-    if (typeof body?.message === "string") {
-      return new SettingsClientError(body.message, response.status, fieldErrors);
-    }
-
-    if (typeof body?.error === "string") {
-      return new SettingsClientError(body.error, response.status, fieldErrors);
-    }
-
-    if (Array.isArray(body?.issues) && body.issues.length) {
-      const message = body.issues
-        .map((issue: { path?: Array<string | number>; message?: string }) => {
-          const path = issue.path?.join(".");
-          return path ? `${path}: ${issue.message}` : issue.message;
-        })
-        .join("; ");
-      return new SettingsClientError(message || fallback, response.status, fieldErrors);
+    const bodyText = await response.clone().text();
+    if (bodyText) {
+      const body = JSON.parse(bodyText) as Record<string, unknown>;
+      if (body?.fieldErrors && typeof body.fieldErrors === "object") {
+        fieldErrors = body.fieldErrors as SettingsFieldErrors;
+      }
     }
   } catch {
-    return new SettingsClientError(fallback, response.status);
+    // ignore — field errors not available
   }
-  return new SettingsClientError(fallback, response.status);
+  const message = await parseApiError(response, fallback);
+  return new SettingsClientError(message, response.status, fieldErrors);
 }
 
 export async function fetchSettings(): Promise<SettingsResponse> {
   const response = await fetch(`${API_BASE}/api/settings`, {
-    headers: authHeaders(),
+    headers: makeRequestHeaders(),
   });
   if (!response.ok) throw await readSettingsError(response, "Could not load settings");
   return response.json();
@@ -64,7 +50,7 @@ export async function patchSettingsSection<K extends SettingSection>(
 ): Promise<SettingsResponse> {
   const response = await fetch(`${API_BASE}/api/settings/${section}`, {
     method: "PATCH",
-    headers: { "Content-Type": "application/json", ...authHeaders() },
+    headers: makeRequestHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify(payload),
   });
   if (!response.ok) throw await readSettingsError(response, "Could not save settings");

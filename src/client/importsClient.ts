@@ -15,48 +15,29 @@ import type {
   ScanUploadResponse,
   ScanImportRow,
 } from "../shared/types/imports";
-import { authHeaders, getApiBaseUrl, handleSessionExpiry } from "./apiBase";
-const API_BASE = getApiBaseUrl();
+import { getApiBaseUrl, makeRequestHeaders, parseApiError } from "./apiBase";
 
-async function readImportError(response: Response, fallback: string): Promise<string> {
-  if (response.status === 401) {
-    handleSessionExpiry();
-    return "Session expired. Please log in again.";
-  }
-  try {
-    const body = await response.json() as Record<string, unknown>;
-    if (import.meta.env.DEV) {
-      console.debug("[import-error]", response.url, response.status, body);
-    }
-    if (body?.error === true && typeof body?.message === "string") return body.message as string;
-    if (typeof body?.error === "string") return body.error;
-    if (Array.isArray(body?.issues) && (body.issues as unknown[]).length)
-      return (body.issues as Array<{ message?: string }>).map((issue) => issue.message).join("; ");
-  } catch {
-    return fallback;
-  }
-  return fallback;
-}
+const API_BASE = getApiBaseUrl();
 
 // ── Digital import (CSV / XLS / XLSX) ────────────────────────────────────────
 
 export async function dryRunMarksImport(csvText: string): Promise<ImportPreview> {
   const response = await fetch(`${API_BASE}/api/imports/marks/dry-run`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", ...authHeaders() },
+    headers: makeRequestHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify({ csvText }),
   });
-  if (!response.ok) throw new Error(await readImportError(response, "Could not validate import"));
+  if (!response.ok) throw new Error(await parseApiError(response, "Could not validate import"));
   return response.json();
 }
 
 export async function commitMarksImport(csvText: string): Promise<ImportPreview> {
   const response = await fetch(`${API_BASE}/api/imports/marks/commit`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", ...authHeaders() },
+    headers: makeRequestHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify({ csvText }),
   });
-  if (!response.ok) throw new Error(await readImportError(response, "Could not commit import"));
+  if (!response.ok) throw new Error(await parseApiError(response, "Could not commit import"));
   return response.json();
 }
 
@@ -74,10 +55,10 @@ export async function detectScanContext(
 
   const response = await fetch(`${API_BASE}/api/imports/scans/detect-context`, {
     method: "POST",
-    headers: authHeaders(),
+    headers: makeRequestHeaders(), // No Content-Type — browser sets multipart boundary
     body: form,
   });
-  if (!response.ok) throw new Error(await readImportError(response, "Context detection failed"));
+  if (!response.ok) throw new Error(await parseApiError(response, "Context detection failed"));
   return response.json();
 }
 
@@ -90,9 +71,9 @@ export async function lookupMarksheetContext(
 ): Promise<DetectContextResponse> {
   const params = new URLSearchParams({ marksheetId });
   const response = await fetch(`${API_BASE}/api/imports/scans/context?${params}`, {
-    headers: authHeaders(),
+    headers: makeRequestHeaders(),
   });
-  if (!response.ok) throw new Error(await readImportError(response, "Marksheet context lookup failed"));
+  if (!response.ok) throw new Error(await parseApiError(response, "Marksheet context lookup failed"));
   return response.json();
 }
 
@@ -126,11 +107,10 @@ export async function uploadScanFile(
 
   const response = await fetch(`${API_BASE}/api/imports/scans/upload`, {
     method: "POST",
-    headers: authHeaders(),
+    headers: makeRequestHeaders(), // No Content-Type — browser/fetch sets it with boundary
     body: form,
-    // Do NOT set Content-Type — the browser/fetch sets it with the correct boundary
   });
-  if (!response.ok) throw new Error(await readImportError(response, "Could not upload scan"));
+  if (!response.ok) throw new Error(await parseApiError(response, "Could not upload scan"));
   return response.json();
 }
 
@@ -140,18 +120,17 @@ export async function uploadScanFile(
  */
 export async function loadScanBatch(batchId: string): Promise<ScanBatchReloadResponse> {
   const response = await fetch(`${API_BASE}/api/imports/scan-batches/${encodeURIComponent(batchId)}`, {
-    headers: authHeaders(),
+    headers: makeRequestHeaders(),
   });
-  if (!response.ok) throw new Error(await readImportError(response, "Could not load scan batch"));
+  if (!response.ok) throw new Error(await parseApiError(response, "Could not load scan batch"));
   return response.json();
 }
 
 export async function fetchScanBatches(): Promise<ScanImportBatch[]> {
-  const response = await fetch(
-    `${API_BASE}/api/imports/scans/batches`,
-    { headers: authHeaders() },
-  );
-  if (!response.ok) throw new Error("Could not load scan batches");
+  const response = await fetch(`${API_BASE}/api/imports/scans/batches`, {
+    headers: makeRequestHeaders(),
+  });
+  if (!response.ok) throw new Error(await parseApiError(response, "Could not load scan batches"));
   const body = await response.json();
   return (body.batches ?? []) as ScanImportBatch[];
 }
@@ -163,10 +142,10 @@ export async function dryRunScanRows(
 ): Promise<ScanRowsValidationResponse> {
   const response = await fetch(`${API_BASE}/api/imports/scans/dry-run`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", ...authHeaders() },
+    headers: makeRequestHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify({ context, rows, batchId }),
   });
-  if (!response.ok) throw new Error(await readImportError(response, "Could not validate scanned marks"));
+  if (!response.ok) throw new Error(await parseApiError(response, "Could not validate scanned marks"));
   return response.json();
 }
 
@@ -176,12 +155,13 @@ export async function commitScanRows(
 ): Promise<ScanRowsCommitResponse> {
   const response = await fetch(`${API_BASE}/api/imports/scans/commit`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", ...authHeaders() },
+    headers: makeRequestHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify({ context, rows }),
   });
-  if (!response.ok) throw new Error(await readImportError(response, "Could not commit scanned marks"));
+  if (!response.ok) throw new Error(await parseApiError(response, "Could not commit scanned marks"));
   return response.json();
 }
+
 // ── Gemini marksheet scan options ────────────────────────────────
 
 /**
@@ -190,9 +170,9 @@ export async function commitScanRows(
  */
 export async function fetchScanOptions(): Promise<ScanOptions> {
   const response = await fetch(`${API_BASE}/api/marks-import/scan/options`, {
-    headers: authHeaders(),
+    headers: makeRequestHeaders(),
   });
-  if (!response.ok) throw new Error(await readImportError(response, "Could not load import options"));
+  if (!response.ok) throw new Error(await parseApiError(response, "Could not load import options"));
   return response.json();
 }
 
@@ -217,10 +197,10 @@ export async function extractMarksWithGeminiScan(
 
   const response = await fetch(`${API_BASE}/api/marks-import/scan/extract`, {
     method: "POST",
-    headers: authHeaders(),
+    headers: makeRequestHeaders(), // No Content-Type — browser/fetch sets it with boundary
     body: form,
   });
-  if (!response.ok) throw new Error(await readImportError(response, "Gemini extraction failed"));
+  if (!response.ok) throw new Error(await parseApiError(response, "Gemini extraction failed"));
   return response.json();
 }
 
@@ -230,9 +210,9 @@ export async function commitGeminiScanRows(
 ): Promise<GeminiCommitResponse> {
   const response = await fetch(`${API_BASE}/api/marks-import/scan/commit`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", ...authHeaders() },
+    headers: makeRequestHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify({ jobId, reviewedRows }),
   });
-  if (!response.ok) throw new Error(await readImportError(response, "Could not save marks"));
+  if (!response.ok) throw new Error(await parseApiError(response, "Could not save marks"));
   return response.json();
 }

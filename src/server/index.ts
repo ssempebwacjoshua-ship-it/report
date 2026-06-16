@@ -1,4 +1,5 @@
 import "dotenv/config";
+import { randomUUID } from "node:crypto";
 import dns from "node:dns";
 // Force IPv4 DNS resolution — prevents "fetch failed" on Windows/IPv6 networks when reaching Gemini
 dns.setDefaultResultOrder("ipv4first");
@@ -107,7 +108,7 @@ export function createServer() {
     }
     const requestId = typeof req.headers["x-request-id"] === "string"
       ? req.headers["x-request-id"]
-      : undefined;
+      : randomUUID();
     console.error("[server-error]", {
       route: `${req.method} ${req.url}`,
       requestId,
@@ -118,6 +119,7 @@ export function createServer() {
       error: true,
       code: "SERVER_ERROR",
       message: "A server error occurred. Please try again or contact support if the problem persists.",
+      requestId,
       details: [],
     });
   };

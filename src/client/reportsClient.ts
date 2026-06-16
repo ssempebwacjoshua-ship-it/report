@@ -1,20 +1,13 @@
 import type { ReportContext, ReportFilters, ReportsResponse } from "../shared/types/reports";
-import { authHeaders, getApiBaseUrl, handleSessionExpiry } from "./apiBase";
-const API_BASE = getApiBaseUrl();
+import { getApiBaseUrl, makeRequestHeaders, parseApiError } from "./apiBase";
 
-function checkUnauthorized(response: Response): void {
-  if (response.status === 401) {
-    handleSessionExpiry();
-    throw new Error("Session expired. Please log in again.");
-  }
-}
+const API_BASE = getApiBaseUrl();
 
 export async function fetchReportContext(): Promise<ReportContext> {
   const response = await fetch(`${API_BASE}/api/context`, {
-    headers: authHeaders(),
+    headers: makeRequestHeaders(),
   });
-  checkUnauthorized(response);
-  if (!response.ok) throw new Error("Could not load report context");
+  if (!response.ok) throw new Error(await parseApiError(response, "Could not load report context"));
   return response.json();
 }
 
@@ -24,9 +17,8 @@ export async function fetchReports(filters: ReportFilters): Promise<ReportsRespo
     if (value && key !== "schoolCode") params.set(key, String(value));
   });
   const response = await fetch(`${API_BASE}/api/reports?${params.toString()}`, {
-    headers: authHeaders(),
+    headers: makeRequestHeaders(),
   });
-  checkUnauthorized(response);
-  if (!response.ok) throw new Error("Could not load reports");
+  if (!response.ok) throw new Error(await parseApiError(response, "Could not load reports"));
   return response.json();
 }

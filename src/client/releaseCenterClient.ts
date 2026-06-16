@@ -1,20 +1,6 @@
-const TOKEN_KEY = "sc_auth_token";
-import { getApiBaseUrl } from "./apiBase";
+import { getApiBaseUrl, makeRequestHeaders, parseApiError } from "./apiBase";
+
 const API_BASE = getApiBaseUrl();
-
-function authHeaders(): HeadersInit {
-  const token = localStorage.getItem(TOKEN_KEY);
-  return token ? { Authorization: `Bearer ${token}` } : {};
-}
-
-async function apiJson<T>(res: Response): Promise<T> {
-  const raw = await res.text();
-  const data = raw ? (JSON.parse(raw) as T & { error?: string }) : ({} as T & { error?: string });
-  if (!res.ok) {
-    throw new Error((data as { error?: string }).error ?? `Request failed (${res.status})`);
-  }
-  return data;
-}
 
 export type ResolvedContact = {
   guardianName: string;
@@ -91,9 +77,10 @@ export async function fetchReleaseStatus(filters: ReleaseFilters): Promise<Relea
   if (filters.assessmentType) params.set("assessmentType", filters.assessmentType);
   if (filters.search) params.set("search", filters.search);
   const res = await fetch(`${API_BASE}/api/reports/release-status?${params}`, {
-    headers: authHeaders(),
+    headers: makeRequestHeaders(),
   });
-  return apiJson<ReleaseStatusResponse>(res);
+  if (!res.ok) throw new Error(await parseApiError(res, "Could not load release status"));
+  return res.json() as Promise<ReleaseStatusResponse>;
 }
 
 export type IssuedLinkData = {
@@ -121,10 +108,11 @@ export async function issueBulk(body: {
 }): Promise<BulkIssueResponse> {
   const res = await fetch(`${API_BASE}/api/reports/issue-bulk`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", ...authHeaders() },
+    headers: makeRequestHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify(body),
   });
-  return apiJson<BulkIssueResponse>(res);
+  if (!res.ok) throw new Error(await parseApiError(res, "Could not issue report links"));
+  return res.json() as Promise<BulkIssueResponse>;
 }
 
 export type BulkReleaseResult = {
@@ -135,33 +123,35 @@ export type BulkReleaseResult = {
 export async function markSent(issuedReportId: string): Promise<void> {
   const res = await fetch(`${API_BASE}/api/reports/release/${issuedReportId}/mark-sent`, {
     method: "POST",
-    headers: authHeaders(),
+    headers: makeRequestHeaders(),
   });
-  await apiJson<unknown>(res);
+  if (!res.ok) throw new Error(await parseApiError(res, "Could not mark report as sent"));
 }
 
 export async function revokeIssuedReport(issuedReportId: string): Promise<void> {
   const res = await fetch(`${API_BASE}/api/reports/release/${issuedReportId}/revoke`, {
     method: "POST",
-    headers: authHeaders(),
+    headers: makeRequestHeaders(),
   });
-  await apiJson<unknown>(res);
+  if (!res.ok) throw new Error(await parseApiError(res, "Could not revoke report"));
 }
 
 export async function markSentBulk(body: { studentIds: string[]; classId: string; schoolCode?: string }): Promise<BulkReleaseResult> {
   const res = await fetch(`${API_BASE}/api/reports/release/mark-sent-bulk`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", ...authHeaders() },
+    headers: makeRequestHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify(body),
   });
-  return apiJson<BulkReleaseResult>(res);
+  if (!res.ok) throw new Error(await parseApiError(res, "Could not mark reports as sent"));
+  return res.json() as Promise<BulkReleaseResult>;
 }
 
 export async function revokeBulk(body: { studentIds: string[]; classId: string; schoolCode?: string }): Promise<BulkReleaseResult> {
   const res = await fetch(`${API_BASE}/api/reports/release/revoke-bulk`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", ...authHeaders() },
+    headers: makeRequestHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify(body),
   });
-  return apiJson<BulkReleaseResult>(res);
+  if (!res.ok) throw new Error(await parseApiError(res, "Could not revoke reports"));
+  return res.json() as Promise<BulkReleaseResult>;
 }

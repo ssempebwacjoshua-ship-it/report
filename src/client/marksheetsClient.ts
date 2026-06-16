@@ -1,24 +1,8 @@
 import type { ImportPreview } from "../shared/types/imports";
 import type { MarksheetBatchContext, MarksheetBatchesResponse, MarksheetStudentsResponse } from "../shared/types/marksheets";
-import { authHeaders, getApiBaseUrl, handleSessionExpiry } from "./apiBase";
-const API_BASE = getApiBaseUrl();
+import { getApiBaseUrl, makeRequestHeaders, parseApiError } from "./apiBase";
 
-async function readError(response: Response, fallback: string): Promise<string> {
-  if (response.status === 401) {
-    handleSessionExpiry();
-    return "Session expired. Please log in again.";
-  }
-  try {
-    const body = await response.json();
-    if (typeof body?.error === "string") return body.error;
-    if (Array.isArray(body?.issues) && body.issues.length) {
-      return body.issues.map((i: { message?: string }) => i.message).join("; ");
-    }
-  } catch {
-    return fallback;
-  }
-  return fallback;
-}
+const API_BASE = getApiBaseUrl();
 
 export async function fetchMarksheetStudents(
   classId: string,
@@ -26,17 +10,17 @@ export async function fetchMarksheetStudents(
 ): Promise<MarksheetStudentsResponse> {
   const params = new URLSearchParams({ classId, streamId });
   const response = await fetch(`${API_BASE}/api/marksheets/students?${params}`, {
-    headers: authHeaders(),
+    headers: makeRequestHeaders(),
   });
-  if (!response.ok) throw new Error(await readError(response, "Could not load students"));
+  if (!response.ok) throw new Error(await parseApiError(response, "Could not load students"));
   return response.json();
 }
 
 export async function fetchMarksheetBatches(): Promise<MarksheetBatchesResponse> {
   const response = await fetch(`${API_BASE}/api/marksheets/batches`, {
-    headers: authHeaders(),
+    headers: makeRequestHeaders(),
   });
-  if (!response.ok) throw new Error(await readError(response, "Could not load batches"));
+  if (!response.ok) throw new Error(await parseApiError(response, "Could not load batches"));
   return response.json();
 }
 
@@ -46,10 +30,10 @@ export async function commitMarksheetEntry(
 ): Promise<ImportPreview> {
   const response = await fetch(`${API_BASE}/api/marksheets/commit`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", ...authHeaders() },
+    headers: makeRequestHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify({ csvText, context }),
   });
-  if (!response.ok) throw new Error(await readError(response, "Could not commit marks"));
+  if (!response.ok) throw new Error(await parseApiError(response, "Could not commit marks"));
   return response.json();
 }
 
@@ -61,11 +45,11 @@ export async function approveMarksheetBatch(
     `${API_BASE}/api/marksheets/batches/${encodeURIComponent(batchId)}/approve`,
     {
       method: "POST",
-      headers: { "Content-Type": "application/json", ...authHeaders() },
+      headers: makeRequestHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify({ note }),
     },
   );
-  if (!response.ok) throw new Error(await readError(response, "Could not approve batch"));
+  if (!response.ok) throw new Error(await parseApiError(response, "Could not approve batch"));
 }
 
 export async function returnMarksheetBatch(
@@ -76,9 +60,9 @@ export async function returnMarksheetBatch(
     `${API_BASE}/api/marksheets/batches/${encodeURIComponent(batchId)}/return`,
     {
       method: "POST",
-      headers: { "Content-Type": "application/json", ...authHeaders() },
+      headers: makeRequestHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify({ note }),
     },
   );
-  if (!response.ok) throw new Error(await readError(response, "Could not return batch"));
+  if (!response.ok) throw new Error(await parseApiError(response, "Could not return batch"));
 }

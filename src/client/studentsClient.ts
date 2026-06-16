@@ -8,29 +8,9 @@ import type {
   StudentListItem,
   StudentsResponse,
 } from "../shared/types/students";
-import { authHeaders, getApiBaseUrl, handleSessionExpiry } from "./apiBase";
-const API_BASE = getApiBaseUrl();
+import { getApiBaseUrl, makeRequestHeaders, parseApiError } from "./apiBase";
 
-async function readError(response: Response, fallback: string): Promise<string> {
-  if (response.status === 401) {
-    handleSessionExpiry();
-    return "Session expired. Please log in again.";
-  }
-  if (response.status === 403) {
-    return "You do not have access to this resource.";
-  }
-  if (response.status >= 500) {
-    return "Server error. Check Railway logs.";
-  }
-  try {
-    const body = await response.json();
-    if (typeof body?.error === "string") return body.error;
-    if (Array.isArray(body?.issues)) return body.issues.map((issue: { message?: string }) => issue.message).filter(Boolean).join("; ");
-  } catch {
-    return fallback;
-  }
-  return fallback;
-}
+const API_BASE = getApiBaseUrl();
 
 export async function fetchStudents(filters: { classId?: string; streamId?: string; search?: string; isActive?: string } = {}): Promise<StudentsResponse> {
   const params = new URLSearchParams();
@@ -39,101 +19,101 @@ export async function fetchStudents(filters: { classId?: string; streamId?: stri
   if (filters.search) params.set("search", filters.search);
   if (filters.isActive) params.set("isActive", filters.isActive);
   const response = await fetch(`${API_BASE}/api/students?${params.toString()}`, {
-    headers: authHeaders(),
+    headers: makeRequestHeaders(),
   });
-  if (!response.ok) throw new Error(await readError(response, "Could not load students"));
+  if (!response.ok) throw new Error(await parseApiError(response, "Could not load students"));
   return response.json();
 }
 
 export async function createStudent(input: StudentCreateInput): Promise<{ admissionNumber: string }> {
   const response = await fetch(`${API_BASE}/api/students`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", ...authHeaders() },
+    headers: makeRequestHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify(input),
   });
-  if (!response.ok) throw new Error(await readError(response, "Could not create student"));
+  if (!response.ok) throw new Error(await parseApiError(response, "Could not create student"));
   return response.json();
 }
 
 export async function previewStudentImport(formData: FormData): Promise<StudentImportPreview> {
   const response = await fetch(`${API_BASE}/api/students/import/preview`, {
     method: "POST",
-    headers: authHeaders(),
+    headers: makeRequestHeaders(),
     body: formData,
   });
-  if (!response.ok) throw new Error(await readError(response, "Could not preview import"));
+  if (!response.ok) throw new Error(await parseApiError(response, "Could not preview import"));
   return response.json();
 }
 
 export async function commitStudentImport(formData: FormData): Promise<StudentImportCommitResult> {
   const response = await fetch(`${API_BASE}/api/students/import/commit`, {
     method: "POST",
-    headers: authHeaders(),
+    headers: makeRequestHeaders(),
     body: formData,
   });
   if (response.status === 202) return response.json() as Promise<StudentImportJob>;
-  if (!response.ok) throw new Error(await readError(response, "Could not commit import"));
+  if (!response.ok) throw new Error(await parseApiError(response, "Could not commit import"));
   return response.json();
 }
 
 export async function createStudentImportJob(formData: FormData): Promise<StudentImportJob> {
   const response = await fetch(`${API_BASE}/api/students/import-jobs/upload`, {
     method: "POST",
-    headers: authHeaders(),
+    headers: makeRequestHeaders(),
     body: formData,
   });
-  if (!response.ok) throw new Error(await readError(response, "Could not queue import"));
+  if (!response.ok) throw new Error(await parseApiError(response, "Could not queue import"));
   return response.json();
 }
 
 export async function fetchStudentImportJob(jobId: string) {
   const response = await fetch(`${API_BASE}/api/students/import-jobs/${encodeURIComponent(jobId)}`, {
-    headers: authHeaders(),
+    headers: makeRequestHeaders(),
   });
-  if (!response.ok) throw new Error(await readError(response, "Could not load import job"));
+  if (!response.ok) throw new Error(await parseApiError(response, "Could not load import job"));
   return response.json() as Promise<Record<string, unknown>>;
 }
 
 export async function downloadStudentTemplateCsv(): Promise<string> {
   const response = await fetch(`${API_BASE}/api/students/import/template.csv`, {
-    headers: authHeaders(),
+    headers: makeRequestHeaders(),
   });
-  if (!response.ok) throw new Error("Could not download template");
+  if (!response.ok) throw new Error(await parseApiError(response, "Could not download template"));
   return response.text();
 }
 
 export async function fetchStudentContactSummary(): Promise<ContactSummary> {
   const response = await fetch(`${API_BASE}/api/students/contact-summary`, {
-    headers: authHeaders(),
+    headers: makeRequestHeaders(),
   });
-  if (!response.ok) throw new Error(await readError(response, "Could not load contact summary"));
+  if (!response.ok) throw new Error(await parseApiError(response, "Could not load contact summary"));
   return response.json();
 }
 
 export async function createGuardianContact(studentId: string, input: GuardianContactInput): Promise<void> {
   const response = await fetch(`${API_BASE}/api/students/${studentId}/contacts`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", ...authHeaders() },
+    headers: makeRequestHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify(input),
   });
-  if (!response.ok) throw new Error(await readError(response, "Could not create contact"));
+  if (!response.ok) throw new Error(await parseApiError(response, "Could not create contact"));
 }
 
 export async function updateGuardianContact(studentId: string, contactId: string, input: GuardianContactInput): Promise<void> {
   const response = await fetch(`${API_BASE}/api/students/${studentId}/contacts/${contactId}`, {
     method: "PATCH",
-    headers: { "Content-Type": "application/json", ...authHeaders() },
+    headers: makeRequestHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify(input),
   });
-  if (!response.ok) throw new Error(await readError(response, "Could not update contact"));
+  if (!response.ok) throw new Error(await parseApiError(response, "Could not update contact"));
 }
 
 export async function deleteGuardianContact(studentId: string, contactId: string): Promise<void> {
   const response = await fetch(`${API_BASE}/api/students/${studentId}/contacts/${contactId}`, {
     method: "DELETE",
-    headers: authHeaders(),
+    headers: makeRequestHeaders(),
   });
-  if (!response.ok) throw new Error(await readError(response, "Could not delete contact"));
+  if (!response.ok) throw new Error(await parseApiError(response, "Could not delete contact"));
 }
 
 export const EMPTY_CONTACT_INPUT: GuardianContactInput = {

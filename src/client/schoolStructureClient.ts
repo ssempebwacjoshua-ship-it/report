@@ -1,4 +1,4 @@
-import { authHeaders, getApiBaseUrl, handleSessionExpiry } from "./apiBase";
+import { getApiBaseUrl, makeRequestHeaders, parseApiError } from "./apiBase";
 
 const API_BASE = getApiBaseUrl();
 
@@ -35,29 +35,15 @@ export type SchoolStructureData = {
 };
 
 async function handleResponse<T>(res: Response, fallback: string): Promise<T> {
-  if (res.status === 401) {
-    handleSessionExpiry();
-    throw new Error("Session expired. Please log in again.");
-  }
+  if (!res.ok) throw new Error(await parseApiError(res, fallback));
   const text = await res.text();
-  const body: Record<string, unknown> = text ? (JSON.parse(text) as Record<string, unknown>) : {};
-  if (!res.ok) {
-    const message =
-      typeof body.error === "string"
-        ? body.error
-        : typeof body.message === "string"
-          ? body.message
-          : fallback;
-    throw new Error(message);
-  }
-  return body as T;
+  return (text ? JSON.parse(text) : {}) as T;
 }
 
 export async function fetchSchoolStructure(): Promise<SchoolStructureData> {
-  const res = await fetch(
-    `${API_BASE}/api/settings/school-structure`,
-    { headers: authHeaders() },
-  );
+  const res = await fetch(`${API_BASE}/api/settings/school-structure`, {
+    headers: makeRequestHeaders(),
+  });
   return handleResponse<SchoolStructureData>(res, "Could not load school structure.");
 }
 
@@ -66,7 +52,7 @@ export async function updateSchoolStructure(payload: {
 }): Promise<SchoolStructureData> {
   const res = await fetch(`${API_BASE}/api/settings/school-structure`, {
     method: "PATCH",
-    headers: { "Content-Type": "application/json", ...authHeaders() },
+    headers: makeRequestHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify(payload),
   });
   return handleResponse<SchoolStructureData>(res, "Could not update school structure.");
@@ -79,7 +65,7 @@ export async function createSchoolStream(payload: {
 }): Promise<{ success: true; stream: StreamRecord; message: string }> {
   const res = await fetch(`${API_BASE}/api/settings/school-structure/streams`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", ...authHeaders() },
+    headers: makeRequestHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify(payload),
   });
   return handleResponse<{ success: true; stream: StreamRecord; message: string }>(
@@ -93,7 +79,7 @@ export async function deleteSchoolStream(
 ): Promise<{ success: true; message: string }> {
   const res = await fetch(
     `${API_BASE}/api/settings/school-structure/streams/${encodeURIComponent(streamId)}`,
-    { method: "DELETE", headers: authHeaders() },
+    { method: "DELETE", headers: makeRequestHeaders() },
   );
   return handleResponse<{ success: true; message: string }>(res, "Could not delete stream.");
 }
