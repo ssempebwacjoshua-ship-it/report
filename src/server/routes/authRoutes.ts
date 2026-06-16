@@ -32,6 +32,11 @@ export function authRoutes() {
           res.status(401).json({ error: "Invalid credentials." });
           return;
         }
+        if (!school.isActive) {
+          console.log("auth.login.school", { suspended: true });
+          res.status(403).json({ error: "This school account has been suspended. Please contact support." });
+          return;
+        }
         console.log("auth.login.school", { found: true });
         user = await prisma.user.findFirst({
           where: { schoolId: school.id, email: email.toLowerCase(), isActive: true },

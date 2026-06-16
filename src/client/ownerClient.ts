@@ -16,10 +16,35 @@ export type OwnerSchool = {
   id: string;
   code: string;
   name: string;
+  phone: string | null;
+  address: string | null;
+  isActive: boolean;
   createdAt: string;
   subscription: { planCode: string; status: string; currentPeriodEnd: string; studentLimit: number | null } | null;
   primaryAdmin: { id: string; name: string; email: string } | null;
   studentCount: number;
+};
+
+export type CreateOwnerSchoolInput = {
+  schoolName: string;
+  schoolCode: string;
+  phone?: string;
+  address?: string;
+  sections: Array<"NURSERY" | "PRIMARY" | "SECONDARY">;
+  planCode: string;
+  trialDays?: number;
+  adminName: string;
+  adminEmail: string;
+  adminTemporaryPassword: string;
+};
+
+export type CreateOwnerSchoolResult = {
+  ok: boolean;
+  school: { id: string; code: string; name: string; phone: string | null; address: string | null; isActive: boolean };
+  subscription: { id: string; planCode: string; status: string; currentPeriodEnd: string; studentLimit: number | null };
+  invoice: { id: string; setupFeeUgx: number; amountUgx: number; totalUgx: number; status: string };
+  admin: { id: string; email: string; name: string; mustChangePassword: boolean };
+  classesSeeded: number;
 };
 
 export type OwnerUser = {
@@ -95,4 +120,34 @@ export async function ownerEnableUser(userId: string): Promise<void> {
     headers: makeRequestHeaders(),
   });
   if (!res.ok) throw new Error(await parseApiError(res, "Could not enable user"));
+}
+
+export async function createOwnerSchool(input: CreateOwnerSchoolInput): Promise<CreateOwnerSchoolResult> {
+  const res = await fetch(`${API_BASE}/api/owner/schools`, {
+    method: "POST",
+    headers: makeRequestHeaders({ "Content-Type": "application/json" }),
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) throw new Error(await parseApiError(res, "Could not create school"));
+  return res.json();
+}
+
+export async function fetchOwnerSchoolById(schoolId: string): Promise<{ school: OwnerSchool }> {
+  const res = await fetch(`${API_BASE}/api/owner/schools/${encodeURIComponent(schoolId)}`, {
+    headers: makeRequestHeaders(),
+  });
+  if (!res.ok) throw new Error(await parseApiError(res, "Could not load school"));
+  return res.json();
+}
+
+export async function patchOwnerSchool(
+  schoolId: string,
+  data: { name?: string; phone?: string | null; address?: string | null; isActive?: boolean },
+): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/owner/schools/${encodeURIComponent(schoolId)}`, {
+    method: "PATCH",
+    headers: makeRequestHeaders({ "Content-Type": "application/json" }),
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error(await parseApiError(res, "Could not update school"));
 }

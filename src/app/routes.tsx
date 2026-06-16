@@ -14,6 +14,7 @@ import { ParentReportPage } from "../pages/ParentReportPage";
 import { VerifyPage } from "../pages/VerifyPage";
 import { DocumentCleanerPage } from "../pages/DocumentCleanerPage";
 import { OwnerDashboardPage } from "../pages/owner/OwnerDashboardPage";
+import { OwnerSchoolsPage } from "../pages/owner/OwnerSchoolsPage";
 import { OwnerUsersPage } from "../pages/owner/OwnerUsersPage";
 
 export const router = createBrowserRouter([
@@ -29,6 +30,7 @@ export const router = createBrowserRouter([
     element: <OwnerShell />,
     children: [
       { index: true, element: <OwnerDashboardPage /> },
+      { path: "schools", element: <OwnerSchoolsPage /> },
       { path: "users", element: <OwnerUsersPage /> },
     ],
   },
