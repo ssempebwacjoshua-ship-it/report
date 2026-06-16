@@ -1,4 +1,4 @@
-import { getApiBaseUrl } from "./apiBase";
+import { authHeaders, getApiBaseUrl, handleSessionExpiry } from "./apiBase";
 
 const API_BASE = getApiBaseUrl();
 
@@ -35,6 +35,10 @@ export type SchoolStructureData = {
 };
 
 async function handleResponse<T>(res: Response, fallback: string): Promise<T> {
+  if (res.status === 401) {
+    handleSessionExpiry();
+    throw new Error("Session expired. Please log in again.");
+  }
   const text = await res.text();
   const body: Record<string, unknown> = text ? (JSON.parse(text) as Record<string, unknown>) : {};
   if (!res.ok) {
@@ -52,6 +56,7 @@ async function handleResponse<T>(res: Response, fallback: string): Promise<T> {
 export async function fetchSchoolStructure(schoolCode = "SCU-PREVIEW"): Promise<SchoolStructureData> {
   const res = await fetch(
     `${API_BASE}/api/settings/school-structure?schoolCode=${encodeURIComponent(schoolCode)}`,
+    { headers: authHeaders() },
   );
   return handleResponse<SchoolStructureData>(res, "Could not load school structure.");
 }
@@ -62,7 +67,7 @@ export async function updateSchoolStructure(payload: {
 }): Promise<SchoolStructureData> {
   const res = await fetch(`${API_BASE}/api/settings/school-structure`, {
     method: "PATCH",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...authHeaders() },
     body: JSON.stringify(payload),
   });
   return handleResponse<SchoolStructureData>(res, "Could not update school structure.");
@@ -76,7 +81,7 @@ export async function createSchoolStream(payload: {
 }): Promise<{ success: true; stream: StreamRecord; message: string }> {
   const res = await fetch(`${API_BASE}/api/settings/school-structure/streams`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...authHeaders() },
     body: JSON.stringify(payload),
   });
   return handleResponse<{ success: true; stream: StreamRecord; message: string }>(
@@ -91,7 +96,7 @@ export async function deleteSchoolStream(
 ): Promise<{ success: true; message: string }> {
   const res = await fetch(
     `${API_BASE}/api/settings/school-structure/streams/${encodeURIComponent(streamId)}?schoolCode=${encodeURIComponent(schoolCode)}`,
-    { method: "DELETE" },
+    { method: "DELETE", headers: authHeaders() },
   );
   return handleResponse<{ success: true; message: string }>(res, "Could not delete stream.");
 }

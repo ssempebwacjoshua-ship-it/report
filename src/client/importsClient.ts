@@ -15,15 +15,14 @@ import type {
   ScanUploadResponse,
   ScanImportRow,
 } from "../shared/types/imports";
-import { getApiBaseUrl } from "./apiBase";
+import { authHeaders, getApiBaseUrl, handleSessionExpiry } from "./apiBase";
 const API_BASE = getApiBaseUrl();
-const TOKEN_KEY = "sc_auth_token";
-function authHeaders(): HeadersInit {
-  const token = localStorage.getItem(TOKEN_KEY);
-  return token ? { Authorization: `Bearer ${token}` } : {};
-}
 
 async function readImportError(response: Response, fallback: string): Promise<string> {
+  if (response.status === 401) {
+    handleSessionExpiry();
+    return "Session expired. Please log in again.";
+  }
   try {
     const body = await response.json() as Record<string, unknown>;
     if (import.meta.env.DEV) {
@@ -44,7 +43,7 @@ async function readImportError(response: Response, fallback: string): Promise<st
 export async function dryRunMarksImport(csvText: string, schoolCode = "SCU-PREVIEW"): Promise<ImportPreview> {
   const response = await fetch(`${API_BASE}/api/imports/marks/dry-run`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...authHeaders() },
     body: JSON.stringify({ schoolCode, csvText }),
   });
   if (!response.ok) throw new Error(await readImportError(response, "Could not validate import"));
@@ -54,7 +53,7 @@ export async function dryRunMarksImport(csvText: string, schoolCode = "SCU-PREVI
 export async function commitMarksImport(csvText: string, schoolCode = "SCU-PREVIEW"): Promise<ImportPreview> {
   const response = await fetch(`${API_BASE}/api/imports/marks/commit`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...authHeaders() },
     body: JSON.stringify({ schoolCode, csvText }),
   });
   if (!response.ok) throw new Error(await readImportError(response, "Could not commit import"));
@@ -77,6 +76,7 @@ export async function detectScanContext(
 
   const response = await fetch(`${API_BASE}/api/imports/scans/detect-context`, {
     method: "POST",
+    headers: authHeaders(),
     body: form,
   });
   if (!response.ok) throw new Error(await readImportError(response, "Context detection failed"));
@@ -92,7 +92,9 @@ export async function lookupMarksheetContext(
   schoolCode: string,
 ): Promise<DetectContextResponse> {
   const params = new URLSearchParams({ marksheetId, schoolCode });
-  const response = await fetch(`${API_BASE}/api/imports/scans/context?${params}`);
+  const response = await fetch(`${API_BASE}/api/imports/scans/context?${params}`, {
+    headers: authHeaders(),
+  });
   if (!response.ok) throw new Error(await readImportError(response, "Marksheet context lookup failed"));
   return response.json();
 }
@@ -129,6 +131,7 @@ export async function uploadScanFile(
 
   const response = await fetch(`${API_BASE}/api/imports/scans/upload`, {
     method: "POST",
+    headers: authHeaders(),
     body: form,
     // Do NOT set Content-Type — the browser/fetch sets it with the correct boundary
   });
@@ -141,7 +144,9 @@ export async function uploadScanFile(
  * Used to restore extraction state after a page refresh.
  */
 export async function loadScanBatch(batchId: string): Promise<ScanBatchReloadResponse> {
-  const response = await fetch(`${API_BASE}/api/imports/scan-batches/${encodeURIComponent(batchId)}`);
+  const response = await fetch(`${API_BASE}/api/imports/scan-batches/${encodeURIComponent(batchId)}`, {
+    headers: authHeaders(),
+  });
   if (!response.ok) throw new Error(await readImportError(response, "Could not load scan batch"));
   return response.json();
 }
@@ -149,6 +154,7 @@ export async function loadScanBatch(batchId: string): Promise<ScanBatchReloadRes
 export async function fetchScanBatches(schoolCode = "SCU-PREVIEW"): Promise<ScanImportBatch[]> {
   const response = await fetch(
     `${API_BASE}/api/imports/scans/batches?schoolCode=${encodeURIComponent(schoolCode)}`,
+    { headers: authHeaders() },
   );
   if (!response.ok) throw new Error("Could not load scan batches");
   const body = await response.json();
@@ -163,7 +169,7 @@ export async function dryRunScanRows(
 ): Promise<ScanRowsValidationResponse> {
   const response = await fetch(`${API_BASE}/api/imports/scans/dry-run`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...authHeaders() },
     body: JSON.stringify({ schoolCode, context, rows, batchId }),
   });
   if (!response.ok) throw new Error(await readImportError(response, "Could not validate scanned marks"));
@@ -177,7 +183,7 @@ export async function commitScanRows(
 ): Promise<ScanRowsCommitResponse> {
   const response = await fetch(`${API_BASE}/api/imports/scans/commit`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...authHeaders() },
     body: JSON.stringify({ schoolCode, context, rows }),
   });
   if (!response.ok) throw new Error(await readImportError(response, "Could not commit scanned marks"));

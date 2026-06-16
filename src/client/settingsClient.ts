@@ -1,5 +1,5 @@
 import type { SettingSection, SettingsResponse, SettingsSections } from "../shared/types/settings";
-import { getApiBaseUrl } from "./apiBase";
+import { authHeaders, getApiBaseUrl, handleSessionExpiry } from "./apiBase";
 const API_BASE = getApiBaseUrl();
 
 export type SettingsFieldErrors = Record<string, string[]>;
@@ -18,6 +18,10 @@ export class SettingsClientError extends Error {
 }
 
 async function readSettingsError(response: Response, fallback: string): Promise<SettingsClientError> {
+  if (response.status === 401) {
+    handleSessionExpiry();
+    return new SettingsClientError("Session expired. Please log in again.", 401);
+  }
   try {
     const body = await response.json();
     const fieldErrors: SettingsFieldErrors | null =
@@ -47,7 +51,9 @@ async function readSettingsError(response: Response, fallback: string): Promise<
 }
 
 export async function fetchSettings(schoolCode = "SCU-PREVIEW"): Promise<SettingsResponse> {
-  const response = await fetch(`${API_BASE}/api/settings?schoolCode=${encodeURIComponent(schoolCode)}`);
+  const response = await fetch(`${API_BASE}/api/settings?schoolCode=${encodeURIComponent(schoolCode)}`, {
+    headers: authHeaders(),
+  });
   if (!response.ok) throw await readSettingsError(response, "Could not load settings");
   return response.json();
 }
@@ -59,7 +65,7 @@ export async function patchSettingsSection<K extends SettingSection>(
 ): Promise<SettingsResponse> {
   const response = await fetch(`${API_BASE}/api/settings/${section}?schoolCode=${encodeURIComponent(schoolCode)}`, {
     method: "PATCH",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...authHeaders() },
     body: JSON.stringify(payload),
   });
   if (!response.ok) throw await readSettingsError(response, "Could not save settings");

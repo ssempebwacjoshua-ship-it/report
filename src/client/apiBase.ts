@@ -16,3 +16,15 @@ export function getApiBaseUrl() {
   if (import.meta.env.DEV) return LOCAL_API_BASE;
   throw new Error("VITE_API_BASE_URL is required in production.");
 }
+
+export const TOKEN_KEY = "sc_auth_token";
+
+export function authHeaders(): HeadersInit {
+  const token = localStorage.getItem(TOKEN_KEY);
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
+export function handleSessionExpiry(): void {
+  localStorage.removeItem(TOKEN_KEY);
+  window.location.href = "/login?reason=session_expired";
+}

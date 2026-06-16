@@ -1,9 +1,13 @@
 import type { ImportPreview } from "../shared/types/imports";
 import type { MarksheetBatchContext, MarksheetBatchesResponse, MarksheetStudentsResponse } from "../shared/types/marksheets";
-import { getApiBaseUrl } from "./apiBase";
+import { authHeaders, getApiBaseUrl, handleSessionExpiry } from "./apiBase";
 const API_BASE = getApiBaseUrl();
 
 async function readError(response: Response, fallback: string): Promise<string> {
+  if (response.status === 401) {
+    handleSessionExpiry();
+    return "Session expired. Please log in again.";
+  }
   try {
     const body = await response.json();
     if (typeof body?.error === "string") return body.error;
@@ -22,13 +26,17 @@ export async function fetchMarksheetStudents(
   schoolCode = "SCU-PREVIEW",
 ): Promise<MarksheetStudentsResponse> {
   const params = new URLSearchParams({ schoolCode, classId, streamId });
-  const response = await fetch(`${API_BASE}/api/marksheets/students?${params}`);
+  const response = await fetch(`${API_BASE}/api/marksheets/students?${params}`, {
+    headers: authHeaders(),
+  });
   if (!response.ok) throw new Error(await readError(response, "Could not load students"));
   return response.json();
 }
 
 export async function fetchMarksheetBatches(schoolCode = "SCU-PREVIEW"): Promise<MarksheetBatchesResponse> {
-  const response = await fetch(`${API_BASE}/api/marksheets/batches?schoolCode=${encodeURIComponent(schoolCode)}`);
+  const response = await fetch(`${API_BASE}/api/marksheets/batches?schoolCode=${encodeURIComponent(schoolCode)}`, {
+    headers: authHeaders(),
+  });
   if (!response.ok) throw new Error(await readError(response, "Could not load batches"));
   return response.json();
 }
@@ -40,7 +48,7 @@ export async function commitMarksheetEntry(
 ): Promise<ImportPreview> {
   const response = await fetch(`${API_BASE}/api/marksheets/commit`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...authHeaders() },
     body: JSON.stringify({ schoolCode, csvText, context }),
   });
   if (!response.ok) throw new Error(await readError(response, "Could not commit marks"));
@@ -56,7 +64,7 @@ export async function approveMarksheetBatch(
     `${API_BASE}/api/marksheets/batches/${encodeURIComponent(batchId)}/approve?schoolCode=${encodeURIComponent(schoolCode)}`,
     {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...authHeaders() },
       body: JSON.stringify({ note }),
     },
   );
@@ -72,7 +80,7 @@ export async function returnMarksheetBatch(
     `${API_BASE}/api/marksheets/batches/${encodeURIComponent(batchId)}/return?schoolCode=${encodeURIComponent(schoolCode)}`,
     {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...authHeaders() },
       body: JSON.stringify({ note }),
     },
   );
