@@ -199,7 +199,7 @@ export function SettingsPage() {
     <main className="grid gap-4">
       <header className="page-header">
         <p className="text-xs font-bold uppercase tracking-wide text-blue-600">Settings</p>
-        <h1 className="text-2xl font-bold tracking-tight text-slate-950">School Connect Reports Lab</h1>
+        <h1 className="text-xl font-bold tracking-tight text-slate-950 sm:text-2xl">School Connect Reports Lab</h1>
         <p className="mt-1 text-sm text-slate-600">Saved settings apply to reports, marksheets, scan import, grading, and approval controls.</p>
       </header>
 

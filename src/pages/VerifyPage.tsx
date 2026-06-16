@@ -50,7 +50,7 @@ export function VerifyPage() {
       <div className="w-full max-w-md">
         <div className="mb-8 text-center">
           <p className="text-xs font-bold uppercase tracking-wide text-blue-600">School Connect Reports</p>
-          <h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-950">Report Verification</h1>
+          <h1 className="mt-1 text-xl font-bold tracking-tight text-slate-950 sm:text-2xl">Report Verification</h1>
           <p className="mt-1 text-sm text-slate-500">Verify the authenticity of a school report using its reference code.</p>
         </div>
 
