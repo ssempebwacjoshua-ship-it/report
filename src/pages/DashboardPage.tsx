@@ -161,7 +161,7 @@ export function DashboardPage() {
       </section>
 
       {/* ── KPI cards ────────────────────────────────────────────────────── */}
-      <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:gap-4 xl:grid-cols-4">
+      <section className="grid grid-cols-2 gap-3 sm:grid-cols-2 md:gap-4 xl:grid-cols-4">
         <StatCard
           label="Enrolled Students"
           value={statsLoading ? "—" : fmt(stats?.enrolledStudents ?? 0)}
@@ -345,7 +345,7 @@ export function DashboardPage() {
               <p className="mt-0.5 text-xs text-slate-500">Jump straight into the next task.</p>
             </div>
           </div>
-          <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-1 2xl:grid-cols-3">
+          <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-1 2xl:grid-cols-3">
             <Link to="/reports" className="btn btn-primary justify-start">
               <Icon name="file" className="h-4 w-4" />
               Generate Reports

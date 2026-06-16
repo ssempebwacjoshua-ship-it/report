@@ -295,7 +295,7 @@ function SchoolSection({
   onFieldChange: <K extends keyof SettingsSections["school"]>(field: K, next: SettingsSections["school"][K]) => void;
 }) {
   return (
-    <div className="grid gap-3 md:grid-cols-2">
+    <div className="grid grid-cols-2 gap-3 md:grid-cols-2">
       <label className={labelClass}>
         School name
         <input className={fieldClass} value={value.schoolName} onChange={(e) => onFieldChange("schoolName", e.target.value)} aria-invalid={Boolean(firstFieldError(fieldErrors, "schoolName"))} />
@@ -306,7 +306,7 @@ function SchoolSection({
         <input className={fieldClass} value={value.schoolCode} onChange={(e) => onFieldChange("schoolCode", e.target.value)} aria-invalid={Boolean(firstFieldError(fieldErrors, "schoolCode"))} />
         {firstFieldError(fieldErrors, "schoolCode") ? <span className="text-xs font-medium text-red-600">{firstFieldError(fieldErrors, "schoolCode")}</span> : null}
       </label>
-      <label className={`${labelClass} md:col-span-2`}>
+      <label className={`${labelClass} col-span-2`}>
         Address
         <input className={fieldClass} value={value.address} onChange={(e) => onFieldChange("address", e.target.value)} aria-invalid={Boolean(firstFieldError(fieldErrors, "address"))} />
         {firstFieldError(fieldErrors, "address") ? <span className="text-xs font-medium text-red-600">{firstFieldError(fieldErrors, "address")}</span> : null}
@@ -331,17 +331,17 @@ function SchoolSection({
         <input className={fieldClass} value={value.headTeacherName} onChange={(e) => onFieldChange("headTeacherName", e.target.value)} aria-invalid={Boolean(firstFieldError(fieldErrors, "headTeacherName"))} />
         {firstFieldError(fieldErrors, "headTeacherName") ? <span className="text-xs font-medium text-red-600">{firstFieldError(fieldErrors, "headTeacherName")}</span> : null}
       </label>
-      <label className={`${labelClass} md:col-span-2`}>
+      <label className={`${labelClass} col-span-2`}>
         Report footer text
         <textarea className={fieldClass} value={value.reportFooterText} onChange={(e) => onFieldChange("reportFooterText", e.target.value)} aria-invalid={Boolean(firstFieldError(fieldErrors, "reportFooterText"))} />
         {firstFieldError(fieldErrors, "reportFooterText") ? <span className="text-xs font-medium text-red-600">{firstFieldError(fieldErrors, "reportFooterText")}</span> : null}
       </label>
-      <label className={`${labelClass} md:col-span-2`}>
+      <label className={`${labelClass} col-span-2`}>
         Marksheet footer text
         <textarea className={fieldClass} value={value.marksheetFooterText} onChange={(e) => onFieldChange("marksheetFooterText", e.target.value)} aria-invalid={Boolean(firstFieldError(fieldErrors, "marksheetFooterText"))} />
         {firstFieldError(fieldErrors, "marksheetFooterText") ? <span className="text-xs font-medium text-red-600">{firstFieldError(fieldErrors, "marksheetFooterText")}</span> : null}
       </label>
-      <label className={`${labelClass} md:col-span-2`}>
+      <label className={`${labelClass} col-span-2`}>
         Logo URL
         <input className={fieldClass} value={value.logoUrl} onChange={(e) => onFieldChange("logoUrl", e.target.value)} aria-invalid={Boolean(firstFieldError(fieldErrors, "logoUrl"))} />
         {firstFieldError(fieldErrors, "logoUrl") ? <span className="text-xs font-medium text-red-600">{firstFieldError(fieldErrors, "logoUrl")}</span> : null}
@@ -358,7 +358,7 @@ function AcademicSection({ value, onChange }: { value: SettingsSections["academi
     onChange({ ...value, supportedAssessmentTypes: next });
   };
   return (
-    <div className="grid gap-3 md:grid-cols-2">
+    <div className="grid grid-cols-2 gap-3 md:grid-cols-2">
       <label className={labelClass}>Active academic year<input className={fieldClass} value={value.activeAcademicYear} onChange={(e) => onChange(setField(value, "activeAcademicYear", e.target.value))} /></label>
       <label className={labelClass}>Active term<input className={fieldClass} value={value.activeTerm} onChange={(e) => onChange(setField(value, "activeTerm", e.target.value))} /></label>
       <label className={labelClass}>Default assessment<select className={fieldClass} value={value.defaultAssessmentType} onChange={(e) => onChange(setField(value, "defaultAssessmentType", e.target.value as typeof value.defaultAssessmentType))}>{["BOT", "MOT", "EOT", "TERM_SUMMARY"].map((item) => <option key={item} value={item}>{item === "TERM_SUMMARY" ? "Term Summary" : item}</option>)}</select></label>
@@ -371,22 +371,22 @@ function AcademicSection({ value, onChange }: { value: SettingsSections["academi
 
 function ReportsSection({ value, onChange }: { value: SettingsSections["reports"]; onChange: (value: SettingsSections["reports"]) => void }) {
   return (
-    <div className="grid gap-3 md:grid-cols-2">
+    <div className="grid grid-cols-2 gap-3 md:grid-cols-2">
       <label className={labelClass}>Show overall position<BoolSelect value={value.showOverallPosition} onChange={(v) => onChange(setField(value, "showOverallPosition", v))} /></label>
       <label className={labelClass}>Show class average<BoolSelect value={value.showClassAverage} onChange={(v) => onChange(setField(value, "showClassAverage", v))} /></label>
       <label className={labelClass}>Show grade key<BoolSelect value={value.showGradeKey} onChange={(v) => onChange(setField(value, "showGradeKey", v))} /></label>
       <label className={labelClass}>Show school logo<BoolSelect value={value.showSchoolLogo} onChange={(v) => onChange(setField(value, "showSchoolLogo", v))} /></label>
       <label className={labelClass}>Report print density<select className={fieldClass} value={value.printDensity} onChange={(e) => onChange(setField(value, "printDensity", e.target.value as typeof value.printDensity))}><option value="compact">Compact</option><option value="standard">Standard</option></select></label>
       <label className={labelClass}>Report signature mode<select className={fieldClass} value={value.signatureMode} onChange={(e) => onChange(setField(value, "signatureMode", e.target.value as typeof value.signatureMode))}><option value="name_only">Head Teacher name only</option><option value="name_and_signature_line">Head Teacher name + signature line</option></select></label>
-      <label className={`${labelClass} md:col-span-2`}>Default HM comment template<textarea className={fieldClass} value={value.defaultHmCommentTemplate} onChange={(e) => onChange(setField(value, "defaultHmCommentTemplate", e.target.value))} /></label>
-      <label className={`${labelClass} md:col-span-2`}>Default class teacher comment template<textarea className={fieldClass} value={value.defaultClassTeacherCommentTemplate} onChange={(e) => onChange(setField(value, "defaultClassTeacherCommentTemplate", e.target.value))} /></label>
+      <label className={`${labelClass} col-span-2`}>Default HM comment template<textarea className={fieldClass} value={value.defaultHmCommentTemplate} onChange={(e) => onChange(setField(value, "defaultHmCommentTemplate", e.target.value))} /></label>
+      <label className={`${labelClass} col-span-2`}>Default class teacher comment template<textarea className={fieldClass} value={value.defaultClassTeacherCommentTemplate} onChange={(e) => onChange(setField(value, "defaultClassTeacherCommentTemplate", e.target.value))} /></label>
     </div>
   );
 }
 
 function MarksheetsSection({ value, onChange }: { value: SettingsSections["marksheets"]; onChange: (value: SettingsSections["marksheets"]) => void }) {
   return (
-    <div className="grid gap-3 md:grid-cols-2">
+    <div className="grid grid-cols-2 gap-3 md:grid-cols-2">
       <label className={labelClass}>Print style<select className={fieldClass} value={value.printStyle} onChange={(e) => onChange(setField(value, "printStyle", e.target.value as typeof value.printStyle))}><option value="rich_black">Rich black</option><option value="standard">Standard</option></select></label>
       <label className={labelClass}>Include QR code<BoolSelect value={value.includeQrCode} onChange={(v) => onChange(setField(value, "includeQrCode", v))} /></label>
       <label className={labelClass}>Include human-readable Marksheet ID<BoolSelect value={value.includeHumanReadableMarksheetId} onChange={(v) => onChange(setField(value, "includeHumanReadableMarksheetId", v))} /></label>
@@ -401,7 +401,7 @@ function MarksheetsSection({ value, onChange }: { value: SettingsSections["marks
 
 function OcrSection({ value, onChange }: { value: SettingsSections["ocr"]; onChange: (value: SettingsSections["ocr"]) => void }) {
   return (
-    <div className="grid gap-3 md:grid-cols-2">
+    <div className="grid grid-cols-2 gap-3 md:grid-cols-2">
       <label className={labelClass}>Minimum OCR confidence<input type="number" min="0" max="1" step="0.01" className={fieldClass} value={value.minimumConfidenceForSuggestion} onChange={(e) => onChange(setField(value, "minimumConfidenceForSuggestion", Number(e.target.value)))} /></label>
       <label className={labelClass}>Use split mark as primary source<BoolSelect value={value.useSplitMarkAsPrimarySource} disabled onChange={() => {}} /></label>
       <label className={labelClass}>Use written mark as confirmation<BoolSelect value={value.useWrittenMarkAsConfirmation} disabled onChange={() => {}} /></label>
@@ -438,7 +438,7 @@ function GradingSection({ value, onChange }: { value: SettingsSections["grading"
 
 function ApprovalSection({ value, onChange }: { value: SettingsSections["approval"]; onChange: (value: SettingsSections["approval"]) => void }) {
   return (
-    <div className="grid gap-3 md:grid-cols-2">
+    <div className="grid grid-cols-2 gap-3 md:grid-cols-2">
       <label className={labelClass}>Require dry-run before commit<BoolSelect value={value.requireDryRunBeforeCommit} onChange={(v) => onChange(setField(value, "requireDryRunBeforeCommit", v))} /></label>
       <label className={labelClass}>Protect committed marks from editing<BoolSelect value={value.protectCommittedMarksFromEditing} onChange={(v) => onChange(setField(value, "protectCommittedMarksFromEditing", v))} /></label>
       <label className={labelClass}>Require HM finalization before report print/release<BoolSelect value={value.requireHmFinalizationBeforeReportPrintRelease} onChange={(v) => onChange(setField(value, "requireHmFinalizationBeforeReportPrintRelease", v))} /></label>
@@ -452,7 +452,7 @@ function ApprovalSection({ value, onChange }: { value: SettingsSections["approva
 
 function AppearanceSection({ value, onChange }: { value: SettingsSections["appearance"]; onChange: (value: SettingsSections["appearance"]) => void }) {
   return (
-    <div className="grid gap-3 md:grid-cols-2">
+    <div className="grid grid-cols-2 gap-3 md:grid-cols-2">
       <label className={labelClass}>App density<select className={fieldClass} value={value.appDensity} onChange={(e) => onChange(setField(value, "appDensity", e.target.value as typeof value.appDensity))}><option value="compact">Compact</option><option value="comfortable">Comfortable</option></select></label>
       <label className={labelClass}>Sidebar width<select className={fieldClass} value={value.sidebarWidth} onChange={(e) => onChange(setField(value, "sidebarWidth", e.target.value as typeof value.sidebarWidth))}><option value="compact">Compact</option><option value="standard">Standard</option><option value="wide">Wide</option></select></label>
       <label className={labelClass}>Print style<select className={fieldClass} value={value.printStyle} onChange={(e) => onChange(setField(value, "printStyle", e.target.value as typeof value.printStyle))}><option value="rich_black">Rich black</option><option value="standard">Standard</option></select></label>

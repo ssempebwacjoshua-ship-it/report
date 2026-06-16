@@ -333,7 +333,7 @@ function StudentReportDetailContent({
 
         <div className="px-8 py-6 print:px-4 print:py-2">
           <div className="mb-6 rounded-xl border border-slate-200 bg-slate-50 p-4 print:mb-1 print:p-2">
-            <div className="grid grid-cols-1 gap-x-6 gap-y-2 text-sm sm:grid-cols-2 lg:grid-cols-4 print:grid-cols-4 print:gap-y-0.5 print:text-[8px]">
+            <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm sm:grid-cols-2 lg:grid-cols-4 print:grid-cols-4 print:gap-y-0.5 print:text-[8px]">
               <div>
                 <span className="font-semibold text-slate-600">Full Name: </span>
                 <span className="font-medium text-slate-900">{card.studentName}</span>

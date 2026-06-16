@@ -100,7 +100,7 @@ function ContextSelector({ ctx, filters, onChange }: ContextSelectorProps) {
   const selectClass = "premium-control w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none";
 
   return (
-    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-2 lg:grid-cols-5">
       <div>
         <label className="mb-1 block text-xs font-semibold text-slate-500 uppercase tracking-wide">Class</label>
         <select className={selectClass} value={filters.classId} onChange={(e) => set("classId", e.target.value)}>
