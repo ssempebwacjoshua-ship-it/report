@@ -214,7 +214,7 @@ export function DashboardPage() {
             <span aria-hidden="true">&rarr;</span>
           </Link>
         </div>
-        <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 md:grid-cols-5">
+        <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-2 md:grid-cols-5">
           {workflowStageMeta.map((stage, index) => {
             const value = stats?.workflow[stage.key] ?? 0;
             return (
@@ -374,7 +374,7 @@ export function DashboardPage() {
               <span aria-hidden="true">&rarr;</span>
             </Link>
           </div>
-          <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-2 xl:grid-cols-4">
             {(
               [
                 ["Guardians", contacts.guardians, "Saved contacts", "green"],
