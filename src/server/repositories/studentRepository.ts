@@ -20,13 +20,15 @@ function formatContactSummary(contacts: Array<{ guardianName: string; relationsh
   return `${primary.guardianName} (${primary.relationship}) - ${channel}`;
 }
 
-function toStudentListItem(enrollment: Awaited<ReturnType<typeof loadStudentEnrollmentRows>>[number]): StudentListItem {
-  const contacts = enrollment.student.guardianContacts;
-  // Cast relations to nullable: Prisma types assume FK integrity, but live DBs can
-  // have orphaned references (deleted class/stream records, data migrations, etc.)
-  const classRecord = enrollment.class as (typeof enrollment.class) | null;
-  const streamRecord = enrollment.stream as (typeof enrollment.stream) | null;
+type ClassRecord = { id: string; name: string };
+type StreamRecord = { id: string; name: string; code: string };
 
+function toStudentListItem(
+  enrollment: Awaited<ReturnType<typeof loadStudentEnrollmentRows>>[number],
+  classRecord: ClassRecord | null,
+  streamRecord: StreamRecord | null,
+): StudentListItem {
+  const contacts = enrollment.student.guardianContacts;
   return {
     id: enrollment.student.id,
     admissionNumber: enrollment.student.admissionNumber,
@@ -71,6 +73,9 @@ async function loadStudentEnrollmentRows(
   if (!school || !academicYear || !term) return [];
 
   const search = filters?.search?.trim();
+  // Do NOT include class/stream relations here — Prisma throws "Inconsistent query
+  // result" when classId/streamId FKs point to deleted records (orphaned rows in
+  // the live DB).  Classes and streams are fetched separately below.
   return prisma.classEnrollment.findMany({
     where: {
       schoolId: school.id,
@@ -94,12 +99,26 @@ async function loadStudentEnrollmentRows(
         : {}),
     },
     include: {
-      class: true,
-      stream: true,
       student: { include: { guardianContacts: { orderBy: [{ isPrimary: "desc" }, { guardianName: "asc" }] } } },
     },
-    orderBy: [{ class: { name: "asc" } }, { stream: { code: "asc" } }, { student: { admissionNumber: "asc" } }],
+    // No orderBy on relation fields — sorted in JS after class/stream maps are built
   });
+}
+
+async function lookupClassesAndStreams(
+  prisma: PrismaClient,
+  rows: Awaited<ReturnType<typeof loadStudentEnrollmentRows>>,
+): Promise<{ classById: Map<string, ClassRecord>; streamById: Map<string, StreamRecord> }> {
+  const classIds = [...new Set(rows.map((r) => r.classId))];
+  const streamIds = [...new Set(rows.map((r) => r.streamId))];
+  const [classes, streams] = await Promise.all([
+    classIds.length > 0 ? prisma.schoolClass.findMany({ where: { id: { in: classIds } } }) : Promise.resolve([]),
+    streamIds.length > 0 ? prisma.stream.findMany({ where: { id: { in: streamIds } } }) : Promise.resolve([]),
+  ]);
+  return {
+    classById: new Map(classes.map((c) => [c.id, { id: c.id, name: c.name }])),
+    streamById: new Map(streams.map((s) => [s.id, { id: s.id, name: s.name, code: s.code }])),
+  };
 }
 
 export async function listEnrolledStudents(
@@ -108,29 +127,42 @@ export async function listEnrolledStudents(
   filters?: { classId?: string; streamId?: string; search?: string },
 ): Promise<StudentListItem[]> {
   const rows = await loadStudentEnrollmentRows(prisma, schoolCode, filters);
+  const { classById, streamById } = await lookupClassesAndStreams(prisma, rows);
 
   for (const row of rows) {
-    const classRecord = row.class as (typeof row.class) | null;
-    const streamRecord = row.stream as (typeof row.stream) | null;
-    if (!classRecord || !streamRecord) {
+    const hasClass = classById.has(row.classId);
+    const hasStream = streamById.has(row.streamId);
+    if (!hasClass || !hasStream) {
       console.warn("[studentRepository] enrollment has missing relation", {
         enrollmentId: row.id,
         studentId: row.studentId,
         classId: row.classId,
         streamId: row.streamId,
-        missingClass: !classRecord,
-        missingStream: !streamRecord,
+        missingClass: !hasClass,
+        missingStream: !hasStream,
         schoolCode,
       });
     }
   }
 
-  return rows.map(toStudentListItem);
+  rows.sort((a, b) => {
+    const classA = classById.get(a.classId)?.name ?? "";
+    const classB = classById.get(b.classId)?.name ?? "";
+    if (classA !== classB) return classA.localeCompare(classB);
+    const streamA = streamById.get(a.streamId)?.code ?? "";
+    const streamB = streamById.get(b.streamId)?.code ?? "";
+    if (streamA !== streamB) return streamA.localeCompare(streamB);
+    return a.student.admissionNumber.localeCompare(b.student.admissionNumber);
+  });
+
+  return rows.map((row) => toStudentListItem(row, classById.get(row.classId) ?? null, streamById.get(row.streamId) ?? null));
 }
 
 export async function getEnrolledStudent(prisma: PrismaClient, schoolCode: string, studentId: string): Promise<StudentListItem | null> {
   const rows = await loadStudentEnrollmentRows(prisma, schoolCode, { studentId });
-  return rows[0] ? toStudentListItem(rows[0]) : null;
+  if (!rows[0]) return null;
+  const { classById, streamById } = await lookupClassesAndStreams(prisma, rows);
+  return toStudentListItem(rows[0], classById.get(rows[0].classId) ?? null, streamById.get(rows[0].streamId) ?? null);
 }
 
 export async function getStudentByAdmissionNumber(prisma: PrismaClient, schoolCode: string, admissionNumber: string) {
