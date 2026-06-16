@@ -872,7 +872,7 @@ export function ScanUploadPanel() {
               </div>
             </div>
 
-            <div className="mt-4 grid gap-2 sm:grid-cols-5">
+            <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-5">
               {[
                 ["Total students", rowSummary.total],
                 ["Entered", rowSummary.entered],

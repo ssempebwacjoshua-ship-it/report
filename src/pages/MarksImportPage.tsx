@@ -248,7 +248,7 @@ function DigitalImportPanel() {
             <label className="mt-4 grid gap-2 text-xs font-semibold uppercase text-slate-500">
               Paste CSV rows
               <textarea
-                className="premium-control min-h-64 rounded-xl border border-slate-200 bg-slate-50 p-3 font-mono text-sm font-normal text-slate-900 outline-none transition focus:border-blue-400 focus:bg-white"
+                className="premium-control min-h-32 rounded-xl border border-slate-200 bg-slate-50 p-3 font-mono text-sm font-normal text-slate-900 outline-none transition focus:border-blue-400 focus:bg-white sm:min-h-64"
                 value={csvText}
                 onChange={(e) => {
                   setCsvText(e.target.value);
@@ -281,28 +281,28 @@ function DigitalImportPanel() {
           {!preview ? (
             <p className="mt-2 text-xs text-slate-500">Run dry-run to preview totals.</p>
           ) : null}
-          <div className="mt-4 grid gap-2.5">
-            <div className="rounded-xl bg-blue-50 px-4 py-3">
+          <div className="mt-3 grid grid-cols-2 gap-2 lg:grid-cols-1 lg:gap-2.5">
+            <div className="rounded-xl bg-blue-50 px-3 py-2 lg:px-4 lg:py-3">
               <p className="text-xs font-semibold text-blue-700">Total Rows</p>
-              <p className="mt-0.5 text-2xl font-bold text-slate-950">{preview?.totalRows ?? 0}</p>
+              <p className="mt-0.5 text-xl font-bold text-slate-950 sm:text-2xl">{preview?.totalRows ?? 0}</p>
             </div>
-            <div className="rounded-xl bg-emerald-50 px-4 py-3">
+            <div className="rounded-xl bg-emerald-50 px-3 py-2 lg:px-4 lg:py-3">
               <p className="text-xs font-semibold text-emerald-700">Valid Rows</p>
-              <p className="mt-0.5 text-2xl font-bold text-slate-950">{preview?.validRows ?? 0}</p>
+              <p className="mt-0.5 text-xl font-bold text-slate-950 sm:text-2xl">{preview?.validRows ?? 0}</p>
             </div>
-            <div className="rounded-xl bg-red-50 px-4 py-3">
+            <div className="rounded-xl bg-red-50 px-3 py-2 lg:px-4 lg:py-3">
               <p className="text-xs font-semibold text-red-700">Invalid Rows</p>
-              <p className="mt-0.5 text-2xl font-bold text-slate-950">{preview?.invalidRows ?? 0}</p>
+              <p className="mt-0.5 text-xl font-bold text-slate-950 sm:text-2xl">{preview?.invalidRows ?? 0}</p>
             </div>
-            <div className="rounded-xl bg-amber-50 px-4 py-3">
+            <div className="rounded-xl bg-amber-50 px-3 py-2 lg:px-4 lg:py-3">
               <p className="text-xs font-semibold text-amber-700">Duplicate / Protected</p>
-              <p className="mt-0.5 text-2xl font-bold text-slate-950">
+              <p className="mt-0.5 text-xl font-bold text-slate-950 sm:text-2xl">
                 {stats.duplicateRows + stats.protectedRows}
               </p>
             </div>
-            <div className="rounded-xl bg-violet-50 px-4 py-3">
+            <div className="col-span-2 rounded-xl bg-violet-50 px-3 py-2 lg:col-span-1 lg:px-4 lg:py-3">
               <p className="text-xs font-semibold text-violet-700">Commit-ready</p>
-              <p className="mt-0.5 text-2xl font-bold text-slate-950">{stats.commitReadyRows}</p>
+              <p className="mt-0.5 text-xl font-bold text-slate-950 sm:text-2xl">{stats.commitReadyRows}</p>
             </div>
           </div>
         </aside>
@@ -324,7 +324,7 @@ export function MarksImportPage() {
       <header className="page-header flex flex-wrap items-end justify-between gap-3">
         <div>
           <p className="text-xs font-bold uppercase tracking-wide text-blue-600">Marks Import</p>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-950">Upload and verify marks</h1>
+          <h1 className="text-xl font-bold tracking-tight text-slate-950 sm:text-2xl">Upload and verify marks</h1>
           <p className="mt-1 text-sm text-slate-500">
             Digital CSV/XLS import or scanned handwritten marksheet — choose your import mode below.
           </p>
@@ -343,14 +343,14 @@ export function MarksImportPage() {
               key={mode.id}
               type="button"
               onClick={() => setImportMode(mode.id)}
-              className={`flex items-start gap-4 rounded-2xl border-2 bg-white p-5 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${
+              className={`flex items-start gap-3 rounded-2xl border-2 bg-white p-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 sm:gap-4 sm:p-5 ${
                 active
                   ? "border-blue-500 shadow-lg shadow-blue-100 ring-1 ring-blue-400"
                   : `${mode.accent} shadow-sm`
               }`}
             >
               <div
-                className={`mt-0.5 grid h-11 w-11 shrink-0 place-items-center rounded-xl ${
+                className={`mt-0.5 grid h-9 w-9 shrink-0 place-items-center rounded-xl sm:h-11 sm:w-11 ${
                   active ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-500"
                 }`}
               >

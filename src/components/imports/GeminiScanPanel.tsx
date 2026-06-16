@@ -420,7 +420,7 @@ export function GeminiScanPanel() {
       {phase === "review" && result && (
         <div className="grid gap-4">
           {/* Summary cards — from initial server response */}
-          <div className="grid gap-2 sm:grid-cols-3 lg:grid-cols-6">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
             {SUMMARY_CARDS.map((card) => (
               <div key={card.key} className={`rounded-xl px-3 py-2 ${card.color}`} data-testid={`summary-${card.key}`}>
                 <p className="text-[11px] font-bold uppercase">{card.label}</p>
