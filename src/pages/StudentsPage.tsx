@@ -195,7 +195,7 @@ export function StudentsPage() {
       <header className="page-header flex flex-wrap items-end justify-between gap-3">
         <div>
           <p className="text-xs font-bold uppercase tracking-wide text-blue-600">Students</p>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-950">Enrolled students and report contacts</h1>
+          <h1 className="text-xl font-bold tracking-tight text-slate-950 sm:text-2xl">Enrolled students and report contacts</h1>
           <p className="mt-1 text-sm text-slate-500">Reports can only be issued for actively enrolled students.</p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -319,7 +319,7 @@ export function StudentsPage() {
       </section>
 
       <section className="premium-card rounded-2xl p-4">
-        <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4">
           <label className="grid gap-1 text-xs font-bold uppercase text-slate-500">
             Class
             <select className="premium-control h-10 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-semibold text-slate-900 outline-none" value={filters.classId} onChange={(event) => setFilters({ ...filters, classId: event.target.value, streamId: "" })}>
@@ -342,7 +342,7 @@ export function StudentsPage() {
               ))}
             </select>
           </label>
-          <label className="grid gap-1 text-xs font-bold uppercase text-slate-500 md:col-span-1 xl:col-span-2">
+          <label className="col-span-2 grid gap-1 text-xs font-bold uppercase text-slate-500 md:col-span-1 xl:col-span-2">
             Search
             <input className="premium-control h-10 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-semibold text-slate-900 outline-none" value={filters.search ?? ""} onChange={(event) => setFilters({ ...filters, search: event.target.value })} placeholder="Name, admission number, guardian phone" />
           </label>
@@ -394,7 +394,7 @@ export function StudentsPage() {
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <p className="text-xs font-bold uppercase tracking-wide text-blue-600">Student profile</p>
-                  <h2 className="mt-1 text-2xl font-bold text-slate-950">{selected.studentName}</h2>
+                  <h2 className="mt-1 text-xl font-bold text-slate-950 sm:text-2xl">{selected.studentName}</h2>
                   <p className="text-sm text-slate-500">{selected.admissionNumber}</p>
                 </div>
                 <Link className="btn btn-primary" to={`/reports?studentId=${encodeURIComponent(selected.id)}`}>
@@ -466,7 +466,7 @@ export function StudentsPage() {
               {editingContactId !== null && (
                 <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
                   <h3 className="text-sm font-bold text-slate-950">Edit Contact</h3>
-                  <div className="mt-3 grid gap-2 md:grid-cols-2">
+                  <div className="mt-3 grid grid-cols-2 gap-2">
                     <input className="premium-control h-9 rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm outline-none" value={contactInput.guardianName} onChange={(event) => setContactInput({ ...contactInput, guardianName: event.target.value })} placeholder="Guardian name" />
                     <input className="premium-control h-9 rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm outline-none" value={contactInput.relationship} onChange={(event) => setContactInput({ ...contactInput, relationship: event.target.value })} placeholder="Relationship" />
                     <input className="premium-control h-9 rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm outline-none" value={contactInput.phone ?? ""} onChange={(event) => setContactInput({ ...contactInput, phone: event.target.value })} placeholder="Phone" />
@@ -510,7 +510,7 @@ export function StudentsPage() {
               {editingContactId === null && (
                 <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
                   <h3 className="text-sm font-bold text-slate-950">Add Contact</h3>
-                  <div className="mt-3 grid gap-2 md:grid-cols-2">
+                  <div className="mt-3 grid grid-cols-2 gap-2">
                     <input className="premium-control h-9 rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm outline-none" value={contactInput.guardianName} onChange={(event) => setContactInput({ ...contactInput, guardianName: event.target.value })} placeholder="Guardian name" />
                     <input className="premium-control h-9 rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm outline-none" value={contactInput.relationship} onChange={(event) => setContactInput({ ...contactInput, relationship: event.target.value })} placeholder="Relationship" />
                     <input className="premium-control h-9 rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm outline-none" value={contactInput.phone ?? ""} onChange={(event) => setContactInput({ ...contactInput, phone: event.target.value })} placeholder="Phone" />
