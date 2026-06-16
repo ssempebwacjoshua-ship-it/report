@@ -30,6 +30,7 @@ import geminiRosterRoutes from "./routes/geminiRosterRoutes";
 import geminiMarksImportRoutes from "./routes/geminiMarksImportRoutes";
 import { prisma } from "./db/prisma";
 import { recoverStaleStudentImportJobs } from "./services/studentImportService";
+import { validateEnv } from "./middleware/validateEnv";
 
 export function createServer() {
   const app = express();
@@ -126,6 +127,13 @@ export function createServer() {
 }
 
 if (process.env.NODE_ENV !== "test") {
+  const envResult = validateEnv();
+  for (const warning of envResult.warnings) console.warn("[env-check] WARNING:", warning);
+  if (!envResult.valid) {
+    for (const error of envResult.errors) console.error("[env-check] FATAL:", error);
+    process.exit(1);
+  }
+
   const port = Number(process.env.PORT ?? 4300);
   const geminiModel = process.env.GEMINI_MODEL ?? "gemini-2.5-flash (default)";
   const geminiKeyStatus = process.env.GEMINI_API_KEY ? "yes" : "no";

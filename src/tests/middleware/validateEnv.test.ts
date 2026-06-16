@@ -1,0 +1,107 @@
+import { describe, expect, it } from "vitest";
+import { validateEnv } from "../../server/middleware/validateEnv";
+
+// ── Non-production: only VITE_ key leaks are checked ─────────────────────────
+
+describe("validateEnv — non-production", () => {
+  it("passes with no env vars set (dev default)", () => {
+    const result = validateEnv({ NODE_ENV: "development" });
+    expect(result.valid).toBe(true);
+    expect(result.errors).toHaveLength(0);
+  });
+
+  it("errors when a VITE_ prefixed API key is detected (frontend exposure)", () => {
+    const result = validateEnv({ NODE_ENV: "development", VITE_GEMINI_API_KEY: "leaked-key" });
+    expect(result.valid).toBe(false);
+    expect(result.errors.some((e) => e.includes("VITE_GEMINI_API_KEY"))).toBe(true);
+  });
+
+  it("errors when VITE_API_SECRET is present (any case variant)", () => {
+    const result = validateEnv({ NODE_ENV: "development", VITE_API_SECRET: "oops" });
+    expect(result.valid).toBe(false);
+    expect(result.errors[0]).toContain("VITE_API_SECRET");
+  });
+
+  it("ignores safe VITE_ vars that are not API keys or secrets", () => {
+    const result = validateEnv({ NODE_ENV: "development", VITE_APP_TITLE: "School Connect" });
+    expect(result.valid).toBe(true);
+  });
+});
+
+// ── Production: JWT_SECRET enforcement ───────────────────────────────────────
+
+describe("validateEnv — production JWT_SECRET checks", () => {
+  const prodBase = {
+    NODE_ENV: "production",
+    DATABASE_URL: "postgresql://...",
+    CLIENT_ORIGIN: "https://app.example.com",
+  };
+
+  it("errors when JWT_SECRET is missing in production", () => {
+    const result = validateEnv(prodBase);
+    expect(result.valid).toBe(false);
+    expect(result.errors.some((e) => e.includes("JWT_SECRET is not set"))).toBe(true);
+  });
+
+  it("errors when JWT_SECRET is the dev placeholder in production", () => {
+    const result = validateEnv({ ...prodBase, JWT_SECRET: "dev-secret-change-in-production" });
+    expect(result.valid).toBe(false);
+    expect(result.errors.some((e) => e.includes("development placeholder"))).toBe(true);
+  });
+
+  it("errors when JWT_SECRET is too short in production", () => {
+    const result = validateEnv({ ...prodBase, JWT_SECRET: "short" });
+    expect(result.valid).toBe(false);
+    expect(result.errors.some((e) => e.includes("too short"))).toBe(true);
+  });
+
+  it("passes with a strong JWT_SECRET (32+ chars)", () => {
+    const result = validateEnv({ ...prodBase, JWT_SECRET: "a".repeat(32) });
+    expect(result.valid).toBe(true);
+    expect(result.warnings.some((w) => w.includes("PLATFORM_ADMIN_KEY"))).toBe(true); // still warns
+  });
+});
+
+// ── Production: required vars ─────────────────────────────────────────────────
+
+describe("validateEnv — production required vars", () => {
+  const prodWithJwt = {
+    NODE_ENV: "production",
+    JWT_SECRET: "a".repeat(32),
+  };
+
+  it("errors when DATABASE_URL is missing in production", () => {
+    const result = validateEnv({ ...prodWithJwt, CLIENT_ORIGIN: "https://app.example.com" });
+    expect(result.valid).toBe(false);
+    expect(result.errors.some((e) => e.includes("DATABASE_URL"))).toBe(true);
+  });
+
+  it("errors when CLIENT_ORIGIN is missing in production", () => {
+    const result = validateEnv({ ...prodWithJwt, DATABASE_URL: "postgresql://..." });
+    expect(result.valid).toBe(false);
+    expect(result.errors.some((e) => e.includes("CLIENT_ORIGIN"))).toBe(true);
+  });
+
+  it("warns (not errors) when PLATFORM_ADMIN_KEY is missing in production", () => {
+    const result = validateEnv({
+      ...prodWithJwt,
+      DATABASE_URL: "postgresql://...",
+      CLIENT_ORIGIN: "https://app.example.com",
+    });
+    expect(result.valid).toBe(true); // warnings don't block startup
+    expect(result.warnings.some((w) => w.includes("PLATFORM_ADMIN_KEY"))).toBe(true);
+  });
+
+  it("passes cleanly when all production vars are set", () => {
+    const result = validateEnv({
+      NODE_ENV: "production",
+      JWT_SECRET: "a".repeat(32),
+      DATABASE_URL: "postgresql://...",
+      CLIENT_ORIGIN: "https://app.example.com",
+      PLATFORM_ADMIN_KEY: "strong-platform-key",
+    });
+    expect(result.valid).toBe(true);
+    expect(result.errors).toHaveLength(0);
+    expect(result.warnings).toHaveLength(0);
+  });
+});
