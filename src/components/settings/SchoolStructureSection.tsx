@@ -67,7 +67,7 @@ export function SchoolStructureSection() {
     setSavedSections(false);
     setSectionSaveError("");
     try {
-      const updated = await updateSchoolStructure({ schoolCode, selectedSections: draftSections });
+      const updated = await updateSchoolStructure({ selectedSections: draftSections });
       setData(updated);
       setDraftSections(updated.selectedSections);
       setSavedSections(true);
@@ -96,12 +96,11 @@ export function SchoolStructureSection() {
     setStreamField(cls.id, { saving: true, error: "" });
     try {
       await createSchoolStream({
-        schoolCode,
         classId: cls.id,
         name: trimmedName,
         code: state.code || trimmedName.toUpperCase(),
       });
-      const updated = await fetchSchoolStructure(schoolCode);
+      const updated = await fetchSchoolStructure();
       setData(updated);
       setDraftSections(updated.selectedSections);
       setStreamField(cls.id, { name: "", code: "", saving: false, error: "" });
@@ -114,8 +113,8 @@ export function SchoolStructureSection() {
     setDeletingStream((prev) => ({ ...prev, [streamId]: true }));
     setDeleteStreamErrors((prev) => ({ ...prev, [streamId]: "" }));
     try {
-      await deleteSchoolStream(streamId, schoolCode);
-      const updated = await fetchSchoolStructure(schoolCode);
+      await deleteSchoolStream(streamId);
+      const updated = await fetchSchoolStructure();
       setData(updated);
       setDraftSections(updated.selectedSections);
     } catch (e) {
