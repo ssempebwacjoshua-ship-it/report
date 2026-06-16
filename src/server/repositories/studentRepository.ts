@@ -22,15 +22,20 @@ function formatContactSummary(contacts: Array<{ guardianName: string; relationsh
 
 function toStudentListItem(enrollment: Awaited<ReturnType<typeof loadStudentEnrollmentRows>>[number]): StudentListItem {
   const contacts = enrollment.student.guardianContacts;
+  // Cast relations to nullable: Prisma types assume FK integrity, but live DBs can
+  // have orphaned references (deleted class/stream records, data migrations, etc.)
+  const classRecord = enrollment.class as (typeof enrollment.class) | null;
+  const streamRecord = enrollment.stream as (typeof enrollment.stream) | null;
+
   return {
     id: enrollment.student.id,
     admissionNumber: enrollment.student.admissionNumber,
     studentName: `${enrollment.student.firstName} ${enrollment.student.lastName}`,
     isActive: enrollment.student.isActive,
     enrollmentStatus: enrollment.status,
-    className: enrollment.class.name,
+    className: classRecord?.name ?? "Unknown class",
     classId: enrollment.classId,
-    streamName: enrollment.stream.name,
+    streamName: streamRecord?.name ?? "Unknown stream",
     streamId: enrollment.streamId,
     academicYearId: enrollment.academicYearId,
     termId: enrollment.termId,
@@ -103,6 +108,23 @@ export async function listEnrolledStudents(
   filters?: { classId?: string; streamId?: string; search?: string },
 ): Promise<StudentListItem[]> {
   const rows = await loadStudentEnrollmentRows(prisma, schoolCode, filters);
+
+  for (const row of rows) {
+    const classRecord = row.class as (typeof row.class) | null;
+    const streamRecord = row.stream as (typeof row.stream) | null;
+    if (!classRecord || !streamRecord) {
+      console.warn("[studentRepository] enrollment has missing relation", {
+        enrollmentId: row.id,
+        studentId: row.studentId,
+        classId: row.classId,
+        streamId: row.streamId,
+        missingClass: !classRecord,
+        missingStream: !streamRecord,
+        schoolCode,
+      });
+    }
+  }
+
   return rows.map(toStudentListItem);
 }
 
