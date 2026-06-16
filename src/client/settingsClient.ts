@@ -50,8 +50,8 @@ async function readSettingsError(response: Response, fallback: string): Promise<
   return new SettingsClientError(fallback, response.status);
 }
 
-export async function fetchSettings(schoolCode = "SCU-PREVIEW"): Promise<SettingsResponse> {
-  const response = await fetch(`${API_BASE}/api/settings?schoolCode=${encodeURIComponent(schoolCode)}`, {
+export async function fetchSettings(): Promise<SettingsResponse> {
+  const response = await fetch(`${API_BASE}/api/settings`, {
     headers: authHeaders(),
   });
   if (!response.ok) throw await readSettingsError(response, "Could not load settings");
@@ -61,9 +61,8 @@ export async function fetchSettings(schoolCode = "SCU-PREVIEW"): Promise<Setting
 export async function patchSettingsSection<K extends SettingSection>(
   section: K,
   payload: SettingsSections[K],
-  schoolCode = "SCU-PREVIEW",
 ): Promise<SettingsResponse> {
-  const response = await fetch(`${API_BASE}/api/settings/${section}?schoolCode=${encodeURIComponent(schoolCode)}`, {
+  const response = await fetch(`${API_BASE}/api/settings/${section}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json", ...authHeaders() },
     body: JSON.stringify(payload),

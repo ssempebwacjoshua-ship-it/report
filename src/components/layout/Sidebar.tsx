@@ -68,7 +68,7 @@ export function Sidebar({ open, onClose, collapsed, onToggleCollapsed, width }: 
           {!collapsed ? (
             <div className="min-w-0 flex-1">
               <p className="line-clamp-2 text-sm font-bold leading-tight">{schoolName}</p>
-              <p className="mt-0.5 text-[11px] font-medium text-blue-200">{school?.schoolCode ?? "SCU-PREVIEW"}</p>
+              <p className="mt-0.5 text-[11px] font-medium text-blue-200">{school?.schoolCode ?? "—"}</p>
             </div>
           ) : null}
         </div>

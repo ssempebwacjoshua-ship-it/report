@@ -6,7 +6,7 @@ import { signToken, verifyPassword, verifyToken } from "../services/authService"
 const loginSchema = z.object({
   email: z.string().email("Enter a valid email address."),
   password: z.string().min(1, "Password is required."),
-  schoolCode: z.string().default("SCU-PREVIEW"),
+  schoolCode: z.string().min(1, "School code is required."),
 });
 
 export function authRoutes() {

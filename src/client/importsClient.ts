@@ -40,21 +40,21 @@ async function readImportError(response: Response, fallback: string): Promise<st
 
 // ── Digital import (CSV / XLS / XLSX) ────────────────────────────────────────
 
-export async function dryRunMarksImport(csvText: string, schoolCode = "SCU-PREVIEW"): Promise<ImportPreview> {
+export async function dryRunMarksImport(csvText: string): Promise<ImportPreview> {
   const response = await fetch(`${API_BASE}/api/imports/marks/dry-run`, {
     method: "POST",
     headers: { "Content-Type": "application/json", ...authHeaders() },
-    body: JSON.stringify({ schoolCode, csvText }),
+    body: JSON.stringify({ csvText }),
   });
   if (!response.ok) throw new Error(await readImportError(response, "Could not validate import"));
   return response.json();
 }
 
-export async function commitMarksImport(csvText: string, schoolCode = "SCU-PREVIEW"): Promise<ImportPreview> {
+export async function commitMarksImport(csvText: string): Promise<ImportPreview> {
   const response = await fetch(`${API_BASE}/api/imports/marks/commit`, {
     method: "POST",
     headers: { "Content-Type": "application/json", ...authHeaders() },
-    body: JSON.stringify({ schoolCode, csvText }),
+    body: JSON.stringify({ csvText }),
   });
   if (!response.ok) throw new Error(await readImportError(response, "Could not commit import"));
   return response.json();
@@ -68,11 +68,9 @@ export async function commitMarksImport(csvText: string, schoolCode = "SCU-PREVI
  */
 export async function detectScanContext(
   file: File,
-  schoolCode: string,
 ): Promise<DetectContextResponse & { ocrFoundId: string | null }> {
   const form = new FormData();
   form.append("file", file);
-  form.append("schoolCode", schoolCode);
 
   const response = await fetch(`${API_BASE}/api/imports/scans/detect-context`, {
     method: "POST",
@@ -89,9 +87,8 @@ export async function detectScanContext(
  */
 export async function lookupMarksheetContext(
   marksheetId: string,
-  schoolCode: string,
 ): Promise<DetectContextResponse> {
-  const params = new URLSearchParams({ marksheetId, schoolCode });
+  const params = new URLSearchParams({ marksheetId });
   const response = await fetch(`${API_BASE}/api/imports/scans/context?${params}`, {
     headers: authHeaders(),
   });
@@ -118,13 +115,11 @@ export async function uploadScanMetadata(payload: ScanUploadPayload): Promise<Sc
  */
 export async function uploadScanFile(
   file: File,
-  schoolCode: string,
   context: ScanMarksheetContext,
   options: { recognizedMarksheetId?: string | null; selectedMarksheetId?: string } = {},
 ): Promise<ScanUploadResponse> {
   const form = new FormData();
   form.append("file", file);
-  form.append("schoolCode", schoolCode);
   form.append("context", JSON.stringify(context));
   if (options.recognizedMarksheetId) form.append("recognizedMarksheetId", options.recognizedMarksheetId);
   if (options.selectedMarksheetId) form.append("selectedMarksheetId", options.selectedMarksheetId);
@@ -151,9 +146,9 @@ export async function loadScanBatch(batchId: string): Promise<ScanBatchReloadRes
   return response.json();
 }
 
-export async function fetchScanBatches(schoolCode = "SCU-PREVIEW"): Promise<ScanImportBatch[]> {
+export async function fetchScanBatches(): Promise<ScanImportBatch[]> {
   const response = await fetch(
-    `${API_BASE}/api/imports/scans/batches?schoolCode=${encodeURIComponent(schoolCode)}`,
+    `${API_BASE}/api/imports/scans/batches`,
     { headers: authHeaders() },
   );
   if (!response.ok) throw new Error("Could not load scan batches");
@@ -164,13 +159,12 @@ export async function fetchScanBatches(schoolCode = "SCU-PREVIEW"): Promise<Scan
 export async function dryRunScanRows(
   context: ScanMarksheetContext,
   rows: ScanImportRow[],
-  schoolCode = "SCU-PREVIEW",
   batchId?: string,
 ): Promise<ScanRowsValidationResponse> {
   const response = await fetch(`${API_BASE}/api/imports/scans/dry-run`, {
     method: "POST",
     headers: { "Content-Type": "application/json", ...authHeaders() },
-    body: JSON.stringify({ schoolCode, context, rows, batchId }),
+    body: JSON.stringify({ context, rows, batchId }),
   });
   if (!response.ok) throw new Error(await readImportError(response, "Could not validate scanned marks"));
   return response.json();
@@ -179,12 +173,11 @@ export async function dryRunScanRows(
 export async function commitScanRows(
   context: ScanMarksheetContext,
   rows: ScanImportRow[],
-  schoolCode = "SCU-PREVIEW",
 ): Promise<ScanRowsCommitResponse> {
   const response = await fetch(`${API_BASE}/api/imports/scans/commit`, {
     method: "POST",
     headers: { "Content-Type": "application/json", ...authHeaders() },
-    body: JSON.stringify({ schoolCode, context, rows }),
+    body: JSON.stringify({ context, rows }),
   });
   if (!response.ok) throw new Error(await readImportError(response, "Could not commit scanned marks"));
   return response.json();
@@ -193,12 +186,10 @@ export async function commitScanRows(
 
 /**
  * Fetch the dropdown options (classes, streams, subjects, terms) for the
- * Smart Marksheet Import panel. School-scoped; uses the auth token when
- * available, otherwise falls back to the SCU-PREVIEW school in dev/test.
+ * Smart Marksheet Import panel. School-scoped via the auth token.
  */
-export async function fetchScanOptions(schoolCode = "SCU-PREVIEW"): Promise<ScanOptions> {
-  const params = new URLSearchParams({ schoolCode });
-  const response = await fetch(`${API_BASE}/api/marks-import/scan/options?${params}`, {
+export async function fetchScanOptions(): Promise<ScanOptions> {
+  const response = await fetch(`${API_BASE}/api/marks-import/scan/options`, {
     headers: authHeaders(),
   });
   if (!response.ok) throw new Error(await readImportError(response, "Could not load import options"));
@@ -215,7 +206,6 @@ export async function fetchScanOptions(schoolCode = "SCU-PREVIEW"): Promise<Scan
 export async function extractMarksWithGeminiScan(
   image: File,
   context: GeminiScanContext,
-  schoolCode = "SCU-PREVIEW",
 ): Promise<GeminiScanExtractResponse> {
   const form = new FormData();
   form.append("image", image);
@@ -224,7 +214,6 @@ export async function extractMarksWithGeminiScan(
   form.append("subjectId", context.subjectId);
   form.append("termId", context.termId);
   form.append("examType", context.examType);
-  form.append("schoolCode", schoolCode);
 
   const response = await fetch(`${API_BASE}/api/marks-import/scan/extract`, {
     method: "POST",
@@ -238,12 +227,11 @@ export async function extractMarksWithGeminiScan(
 export async function commitGeminiScanRows(
   jobId: string,
   reviewedRows: GeminiScanRow[],
-  schoolCode = "SCU-PREVIEW",
 ): Promise<GeminiCommitResponse> {
   const response = await fetch(`${API_BASE}/api/marks-import/scan/commit`, {
     method: "POST",
     headers: { "Content-Type": "application/json", ...authHeaders() },
-    body: JSON.stringify({ jobId, reviewedRows, schoolCode }),
+    body: JSON.stringify({ jobId, reviewedRows }),
   });
   if (!response.ok) throw new Error(await readImportError(response, "Could not save marks"));
   return response.json();

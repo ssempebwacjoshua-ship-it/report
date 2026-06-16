@@ -23,9 +23,8 @@ async function readError(response: Response, fallback: string): Promise<string> 
 export async function fetchMarksheetStudents(
   classId: string,
   streamId: string,
-  schoolCode = "SCU-PREVIEW",
 ): Promise<MarksheetStudentsResponse> {
-  const params = new URLSearchParams({ schoolCode, classId, streamId });
+  const params = new URLSearchParams({ classId, streamId });
   const response = await fetch(`${API_BASE}/api/marksheets/students?${params}`, {
     headers: authHeaders(),
   });
@@ -33,8 +32,8 @@ export async function fetchMarksheetStudents(
   return response.json();
 }
 
-export async function fetchMarksheetBatches(schoolCode = "SCU-PREVIEW"): Promise<MarksheetBatchesResponse> {
-  const response = await fetch(`${API_BASE}/api/marksheets/batches?schoolCode=${encodeURIComponent(schoolCode)}`, {
+export async function fetchMarksheetBatches(): Promise<MarksheetBatchesResponse> {
+  const response = await fetch(`${API_BASE}/api/marksheets/batches`, {
     headers: authHeaders(),
   });
   if (!response.ok) throw new Error(await readError(response, "Could not load batches"));
@@ -44,12 +43,11 @@ export async function fetchMarksheetBatches(schoolCode = "SCU-PREVIEW"): Promise
 export async function commitMarksheetEntry(
   csvText: string,
   context: MarksheetBatchContext,
-  schoolCode = "SCU-PREVIEW",
 ): Promise<ImportPreview> {
   const response = await fetch(`${API_BASE}/api/marksheets/commit`, {
     method: "POST",
     headers: { "Content-Type": "application/json", ...authHeaders() },
-    body: JSON.stringify({ schoolCode, csvText, context }),
+    body: JSON.stringify({ csvText, context }),
   });
   if (!response.ok) throw new Error(await readError(response, "Could not commit marks"));
   return response.json();
@@ -58,10 +56,9 @@ export async function commitMarksheetEntry(
 export async function approveMarksheetBatch(
   batchId: string,
   note: string,
-  schoolCode = "SCU-PREVIEW",
 ): Promise<void> {
   const response = await fetch(
-    `${API_BASE}/api/marksheets/batches/${encodeURIComponent(batchId)}/approve?schoolCode=${encodeURIComponent(schoolCode)}`,
+    `${API_BASE}/api/marksheets/batches/${encodeURIComponent(batchId)}/approve`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json", ...authHeaders() },
@@ -74,10 +71,9 @@ export async function approveMarksheetBatch(
 export async function returnMarksheetBatch(
   batchId: string,
   note: string,
-  schoolCode = "SCU-PREVIEW",
 ): Promise<void> {
   const response = await fetch(
-    `${API_BASE}/api/marksheets/batches/${encodeURIComponent(batchId)}/return?schoolCode=${encodeURIComponent(schoolCode)}`,
+    `${API_BASE}/api/marksheets/batches/${encodeURIComponent(batchId)}/return`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json", ...authHeaders() },

@@ -53,16 +53,15 @@ async function handleResponse<T>(res: Response, fallback: string): Promise<T> {
   return body as T;
 }
 
-export async function fetchSchoolStructure(schoolCode = "SCU-PREVIEW"): Promise<SchoolStructureData> {
+export async function fetchSchoolStructure(): Promise<SchoolStructureData> {
   const res = await fetch(
-    `${API_BASE}/api/settings/school-structure?schoolCode=${encodeURIComponent(schoolCode)}`,
+    `${API_BASE}/api/settings/school-structure`,
     { headers: authHeaders() },
   );
   return handleResponse<SchoolStructureData>(res, "Could not load school structure.");
 }
 
 export async function updateSchoolStructure(payload: {
-  schoolCode?: string;
   selectedSections: SchoolSection[];
 }): Promise<SchoolStructureData> {
   const res = await fetch(`${API_BASE}/api/settings/school-structure`, {
@@ -74,7 +73,6 @@ export async function updateSchoolStructure(payload: {
 }
 
 export async function createSchoolStream(payload: {
-  schoolCode?: string;
   classId: string;
   name: string;
   code: string;
@@ -92,10 +90,9 @@ export async function createSchoolStream(payload: {
 
 export async function deleteSchoolStream(
   streamId: string,
-  schoolCode = "SCU-PREVIEW",
 ): Promise<{ success: true; message: string }> {
   const res = await fetch(
-    `${API_BASE}/api/settings/school-structure/streams/${encodeURIComponent(streamId)}?schoolCode=${encodeURIComponent(schoolCode)}`,
+    `${API_BASE}/api/settings/school-structure/streams/${encodeURIComponent(streamId)}`,
     { method: "DELETE", headers: authHeaders() },
   );
   return handleResponse<{ success: true; message: string }>(res, "Could not delete stream.");

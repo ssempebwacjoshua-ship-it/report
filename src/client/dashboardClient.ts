@@ -9,9 +9,9 @@ function authHeaders(): HeadersInit {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
-export async function fetchDashboardStats(schoolCode = "SCU-PREVIEW"): Promise<DashboardStats> {
+export async function fetchDashboardStats(): Promise<DashboardStats> {
   const response = await fetch(
-    `${API_BASE}/api/dashboard/stats?schoolCode=${encodeURIComponent(schoolCode)}`,
+    `${API_BASE}/api/dashboard/stats`,
     { headers: authHeaders() },
   );
   if (!response.ok) throw new Error("Could not load dashboard stats");

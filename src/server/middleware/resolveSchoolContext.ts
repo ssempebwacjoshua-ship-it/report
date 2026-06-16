@@ -16,18 +16,16 @@ declare global {
  * Tenant isolation middleware.
  *
  * When a valid JWT is present:
- *   - schoolId comes from the token (token wins, client-supplied schoolCode is ignored).
+ *   - schoolId comes from the token (token wins; client-supplied schoolCode is secondary).
  *   - If the client also sent a schoolCode that resolves to a DIFFERENT school → 403.
  *   - req.user and req.school are both set.
  *
- * In production without a token → 401.
+ * In production without a token → 401 (no fallback, no guessing).
  *
- * In non-production without a token (dev/test):
+ * In dev/test (NODE_ENV !== "production") without a token:
  *   - Falls back to schoolCode from query string or request body.
- *   - Default: "SCU-PREVIEW".
- *   - req.school is set; req.user is undefined.
- *
- * After this middleware, req.school is always defined on the happy path.
+ *   - If no schoolCode is provided, defaults to "SCU-PREVIEW" for local convenience.
+ *   - This path is never active in production.
  */
 export async function resolveSchoolContext(
   req: Request,
@@ -48,6 +46,7 @@ export async function resolveSchoolContext(
       });
 
       if (!school) {
+        console.error("[resolveSchoolContext] school not found for token", { schoolId: payload.schoolId, userId: payload.userId });
         res.status(403).json({ error: "School not found for your account." });
         return;
       }
@@ -55,6 +54,7 @@ export async function resolveSchoolContext(
       // Cross-tenant check: if the client explicitly sent a schoolCode, it must match
       const clientCode = extractClientSchoolCode(req);
       if (clientCode && clientCode !== school.code) {
+        console.warn("[resolveSchoolContext] cross-tenant mismatch", { clientCode, jwtSchool: school.code, route: req.path });
         res.status(403).json({ error: "You do not have access to this school." });
         return;
       }
@@ -66,6 +66,7 @@ export async function resolveSchoolContext(
 
     // No token
     if (process.env.NODE_ENV === "production") {
+      console.warn("[resolveSchoolContext] unauthenticated request in production", { route: req.path, method: req.method });
       res.status(401).json({ error: "Authentication required." });
       return;
     }

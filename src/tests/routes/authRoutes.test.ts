@@ -44,6 +44,13 @@ describe("authRoutes /api/auth/login", () => {
       .send({ email: "admin@test.com", password: "password123", schoolCode: "NO-SUCH-SCHOOL" });
     expect(res.status).toBe(401);
   });
+
+  it("returns 400 when schoolCode is missing", async () => {
+    const res = await request(createServer())
+      .post("/api/auth/login")
+      .send({ email: "admin@schoolconnect.test", password: "password123" });
+    expect(res.status).toBe(400);
+  });
 });
 
 describe("authRoutes /api/auth/me", () => {

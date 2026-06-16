@@ -39,7 +39,7 @@ function mergeSections(saved: unknown, school?: { code: string; name: string } |
   return settingsSectionsSchema.parse(candidate);
 }
 
-export async function getSettings(prisma: PrismaClient, schoolCode = "SCU-PREVIEW"): Promise<SettingsResponse> {
+export async function getSettings(prisma: PrismaClient, schoolCode: string): Promise<SettingsResponse> {
   const [school, saved] = await Promise.all([
     prisma.school.findUnique({ where: { code: schoolCode }, select: { code: true, name: true } }),
     prisma.appSetting.findUnique({ where: { schoolCode } }),
@@ -54,7 +54,7 @@ export async function getSettings(prisma: PrismaClient, schoolCode = "SCU-PREVIE
   };
 }
 
-export async function getSettingsSections(prisma: PrismaClient, schoolCode = "SCU-PREVIEW"): Promise<SettingsSections> {
+export async function getSettingsSections(prisma: PrismaClient, schoolCode: string): Promise<SettingsSections> {
   return (await getSettings(prisma, schoolCode)).sections;
 }
 

@@ -9,8 +9,8 @@ function checkUnauthorized(response: Response): void {
   }
 }
 
-export async function fetchReportContext(schoolCode = "SCU-PREVIEW"): Promise<ReportContext> {
-  const response = await fetch(`${API_BASE}/api/context?schoolCode=${encodeURIComponent(schoolCode)}`, {
+export async function fetchReportContext(): Promise<ReportContext> {
+  const response = await fetch(`${API_BASE}/api/context`, {
     headers: authHeaders(),
   });
   checkUnauthorized(response);
@@ -21,7 +21,7 @@ export async function fetchReportContext(schoolCode = "SCU-PREVIEW"): Promise<Re
 export async function fetchReports(filters: ReportFilters): Promise<ReportsResponse> {
   const params = new URLSearchParams();
   Object.entries(filters).forEach(([key, value]) => {
-    if (value) params.set(key, String(value));
+    if (value && key !== "schoolCode") params.set(key, String(value));
   });
   const response = await fetch(`${API_BASE}/api/reports?${params.toString()}`, {
     headers: authHeaders(),
