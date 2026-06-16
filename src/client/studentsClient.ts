@@ -8,16 +8,20 @@ import type {
   StudentListItem,
   StudentsResponse,
 } from "../shared/types/students";
-import { getApiBaseUrl } from "./apiBase";
+import { authHeaders, getApiBaseUrl, handleSessionExpiry } from "./apiBase";
 const API_BASE = getApiBaseUrl();
-const TOKEN_KEY = "sc_auth_token";
-
-function authHeaders(): HeadersInit {
-  const token = localStorage.getItem(TOKEN_KEY);
-  return token ? { Authorization: `Bearer ${token}` } : {};
-}
 
 async function readError(response: Response, fallback: string): Promise<string> {
+  if (response.status === 401) {
+    handleSessionExpiry();
+    return "Session expired. Please log in again.";
+  }
+  if (response.status === 403) {
+    return "You do not have access to this resource.";
+  }
+  if (response.status >= 500) {
+    return "Server error. Check Railway logs.";
+  }
   try {
     const body = await response.json();
     if (typeof body?.error === "string") return body.error;
@@ -28,13 +32,13 @@ async function readError(response: Response, fallback: string): Promise<string> 
   return fallback;
 }
 
-export async function fetchStudents(filters: { schoolCode?: string; classId?: string; streamId?: string; search?: string } = {}): Promise<StudentsResponse> {
+export async function fetchStudents(filters: { classId?: string; streamId?: string; search?: string; isActive?: string } = {}): Promise<StudentsResponse> {
   const params = new URLSearchParams();
-  params.set("schoolCode", filters.schoolCode ?? "SCU-PREVIEW");
   if (filters.classId) params.set("classId", filters.classId);
   if (filters.streamId) params.set("streamId", filters.streamId);
   if (filters.search) params.set("search", filters.search);
-  const response = await fetch(`${API_BASE}/internal/students?${params.toString()}`, {
+  if (filters.isActive) params.set("isActive", filters.isActive);
+  const response = await fetch(`${API_BASE}/api/students?${params.toString()}`, {
     headers: authHeaders(),
   });
   if (!response.ok) throw new Error(await readError(response, "Could not load students"));
@@ -42,7 +46,7 @@ export async function fetchStudents(filters: { schoolCode?: string; classId?: st
 }
 
 export async function createStudent(input: StudentCreateInput): Promise<{ admissionNumber: string }> {
-  const response = await fetch(`${API_BASE}/api/students?schoolCode=${encodeURIComponent(input.schoolCode ?? "SCU-PREVIEW")}`, {
+  const response = await fetch(`${API_BASE}/api/students`, {
     method: "POST",
     headers: { "Content-Type": "application/json", ...authHeaders() },
     body: JSON.stringify(input),
@@ -51,8 +55,8 @@ export async function createStudent(input: StudentCreateInput): Promise<{ admiss
   return response.json();
 }
 
-export async function previewStudentImport(formData: FormData, schoolCode = "SCU-PREVIEW"): Promise<StudentImportPreview> {
-  const response = await fetch(`${API_BASE}/api/students/import/preview?schoolCode=${encodeURIComponent(schoolCode)}`, {
+export async function previewStudentImport(formData: FormData): Promise<StudentImportPreview> {
+  const response = await fetch(`${API_BASE}/api/students/import/preview`, {
     method: "POST",
     headers: authHeaders(),
     body: formData,
@@ -61,8 +65,8 @@ export async function previewStudentImport(formData: FormData, schoolCode = "SCU
   return response.json();
 }
 
-export async function commitStudentImport(formData: FormData, schoolCode = "SCU-PREVIEW"): Promise<StudentImportCommitResult> {
-  const response = await fetch(`${API_BASE}/api/students/import/commit?schoolCode=${encodeURIComponent(schoolCode)}`, {
+export async function commitStudentImport(formData: FormData): Promise<StudentImportCommitResult> {
+  const response = await fetch(`${API_BASE}/api/students/import/commit`, {
     method: "POST",
     headers: authHeaders(),
     body: formData,
@@ -72,8 +76,8 @@ export async function commitStudentImport(formData: FormData, schoolCode = "SCU-
   return response.json();
 }
 
-export async function createStudentImportJob(formData: FormData, schoolCode = "SCU-PREVIEW"): Promise<StudentImportJob> {
-  const response = await fetch(`${API_BASE}/internal/students/import-jobs/upload?schoolCode=${encodeURIComponent(schoolCode)}`, {
+export async function createStudentImportJob(formData: FormData): Promise<StudentImportJob> {
+  const response = await fetch(`${API_BASE}/api/students/import-jobs/upload`, {
     method: "POST",
     headers: authHeaders(),
     body: formData,
@@ -82,8 +86,8 @@ export async function createStudentImportJob(formData: FormData, schoolCode = "S
   return response.json();
 }
 
-export async function fetchStudentImportJob(jobId: string, schoolCode = "SCU-PREVIEW") {
-  const response = await fetch(`${API_BASE}/internal/students/import-jobs/${encodeURIComponent(jobId)}?schoolCode=${encodeURIComponent(schoolCode)}`, {
+export async function fetchStudentImportJob(jobId: string) {
+  const response = await fetch(`${API_BASE}/api/students/import-jobs/${encodeURIComponent(jobId)}`, {
     headers: authHeaders(),
   });
   if (!response.ok) throw new Error(await readError(response, "Could not load import job"));
@@ -98,8 +102,8 @@ export async function downloadStudentTemplateCsv(): Promise<string> {
   return response.text();
 }
 
-export async function fetchStudentContactSummary(schoolCode = "SCU-PREVIEW"): Promise<ContactSummary> {
-  const response = await fetch(`${API_BASE}/internal/students/contact-summary?schoolCode=${encodeURIComponent(schoolCode)}`, {
+export async function fetchStudentContactSummary(): Promise<ContactSummary> {
+  const response = await fetch(`${API_BASE}/api/students/contact-summary`, {
     headers: authHeaders(),
   });
   if (!response.ok) throw new Error(await readError(response, "Could not load contact summary"));
@@ -107,7 +111,7 @@ export async function fetchStudentContactSummary(schoolCode = "SCU-PREVIEW"): Pr
 }
 
 export async function createGuardianContact(studentId: string, input: GuardianContactInput): Promise<void> {
-  const response = await fetch(`${API_BASE}/internal/students/${studentId}/contacts?schoolCode=SCU-PREVIEW`, {
+  const response = await fetch(`${API_BASE}/api/students/${studentId}/contacts`, {
     method: "POST",
     headers: { "Content-Type": "application/json", ...authHeaders() },
     body: JSON.stringify(input),
@@ -116,7 +120,7 @@ export async function createGuardianContact(studentId: string, input: GuardianCo
 }
 
 export async function updateGuardianContact(studentId: string, contactId: string, input: GuardianContactInput): Promise<void> {
-  const response = await fetch(`${API_BASE}/internal/students/${studentId}/contacts/${contactId}?schoolCode=SCU-PREVIEW`, {
+  const response = await fetch(`${API_BASE}/api/students/${studentId}/contacts/${contactId}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json", ...authHeaders() },
     body: JSON.stringify(input),
@@ -125,7 +129,7 @@ export async function updateGuardianContact(studentId: string, contactId: string
 }
 
 export async function deleteGuardianContact(studentId: string, contactId: string): Promise<void> {
-  const response = await fetch(`${API_BASE}/internal/students/${studentId}/contacts/${contactId}?schoolCode=SCU-PREVIEW`, {
+  const response = await fetch(`${API_BASE}/api/students/${studentId}/contacts/${contactId}`, {
     method: "DELETE",
     headers: authHeaders(),
   });

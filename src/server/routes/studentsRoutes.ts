@@ -48,34 +48,51 @@ function admissionModeFromQuery(value: unknown) {
 export function studentsRoutes() {
   const router = Router();
 
-  router.get("/internal/students", async (req, res, next) => {
-    try {
-      const query = z.object({ classId: z.string().optional(), streamId: z.string().optional(), search: z.string().optional(), isActive: z.string().optional() }).parse(req.query);
-      const rows = await listEnrolledStudents(prisma, req.school!.code, query);
-      res.json({ students: rows });
-    } catch (error) {
-      next(error);
-    }
-  });
+  // ── Student list ──────────────────────────────────────────────────────────────
 
   router.get("/api/students", async (req, res, next) => {
     try {
+      if (!req.school) {
+        res.status(401).json({ error: "School context required." });
+        return;
+      }
       const query = z.object({
         classId: z.string().optional(),
         streamId: z.string().optional(),
         search: z.string().optional(),
         isActive: z.string().optional(),
       }).parse(req.query);
-      const students = await listEnrolledStudents(prisma, req.school!.code, query);
+      const students = await listEnrolledStudents(prisma, req.school.code, query);
       res.json({ students });
     } catch (error) {
       next(error);
     }
   });
 
+  // Legacy list route kept for any server-to-server callers
+  router.get("/internal/students", async (req, res, next) => {
+    try {
+      if (!req.school) {
+        res.status(401).json({ error: "School context required." });
+        return;
+      }
+      const query = z.object({ classId: z.string().optional(), streamId: z.string().optional(), search: z.string().optional(), isActive: z.string().optional() }).parse(req.query);
+      const rows = await listEnrolledStudents(prisma, req.school.code, query);
+      res.json({ students: rows });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // ── Student create / update ───────────────────────────────────────────────────
+
   router.post("/api/students", async (req, res, next) => {
     try {
-      const schoolCode = req.school!.code;
+      if (!req.school) {
+        res.status(401).json({ error: "School context required." });
+        return;
+      }
+      const schoolCode = req.school.code;
       const input = studentCreateSchema.parse(req.body);
       const admissionNumber = input.admissionNumber?.trim() || await generateAdmissionNumber(prisma, schoolCode, input.fullName, input.classId);
       const student = await createStudentRecord(prisma, schoolCode, {
@@ -95,7 +112,12 @@ export function studentsRoutes() {
 
   router.patch("/api/students/:id", async (req, res, next) => {
     try {
-      const schoolCode = req.school!.code;
+      if (!req.school) {
+        res.status(401).json({ error: "School context required." });
+        return;
+      }
+      const schoolCode = req.school.code;
+      const school = req.school;
       const input = studentCreateSchema.partial().parse(req.body);
       const current = await getEnrolledStudent(prisma, schoolCode, req.params.id);
       if (!current) {
@@ -103,7 +125,6 @@ export function studentsRoutes() {
         return;
       }
       const name = splitName(input.fullName ?? current.studentName);
-      const school = req.school!;
       await prisma.student.update({
         where: { id: current.id },
         data: {
@@ -125,6 +146,8 @@ export function studentsRoutes() {
     }
   });
 
+  // ── Import templates ──────────────────────────────────────────────────────────
+
   router.get("/api/students/import/template.csv", async (_req, res) => {
     res.type("text/csv").send("admissionNumber,fullName,gender,class,stream,guardianName,guardianPhone,guardianEmail,status\n,,,Senior 1,A,,,,,ACTIVE\n");
   });
@@ -143,9 +166,15 @@ export function studentsRoutes() {
     res.send(buffer);
   });
 
+  // ── Import preview/commit ─────────────────────────────────────────────────────
+
   router.post("/api/students/import/preview", upload.single("file"), async (req, res, next) => {
     try {
-      const schoolCode = req.school!.code;
+      if (!req.school) {
+        res.status(401).json({ error: "School context required." });
+        return;
+      }
+      const schoolCode = req.school.code;
       const mode = admissionModeFromQuery(req.body.mode);
       const file = req.file;
       if (!file) {
@@ -159,38 +188,13 @@ export function studentsRoutes() {
     }
   });
 
-  router.post("/internal/students/import-jobs/upload", upload.single("file"), async (req, res, next) => {
-    try {
-      const schoolCode = req.school!.code;
-      const mode = admissionModeFromQuery(req.body.mode);
-      const file = req.file;
-      if (!file) {
-        res.status(400).json({ error: "Upload a CSV or XLSX file." });
-        return;
-      }
-      const rows = file.originalname.toLowerCase().endsWith(".xlsx") ? parseStudentsXlsx(file.buffer) : parseStudentsCsv(file.buffer.toString("utf8"));
-      res.status(202).json(await createStudentImportJob(prisma, schoolCode, rows, mode === "create-and-update existing" ? "CREATE_AND_UPDATE_EXISTING" : "CREATE_ONLY"));
-    } catch (error) {
-      next(error);
-    }
-  });
-
-  router.get("/internal/students/import-jobs/:jobId", async (req, res, next) => {
-    try {
-      const job = await getStudentImportJob(prisma, req.school!.code, req.params.jobId);
-      if (!job) {
-        res.status(404).json({ error: "Import job not found." });
-        return;
-      }
-      res.json(job);
-    } catch (error) {
-      next(error);
-    }
-  });
-
   router.post("/api/students/import/commit", upload.single("file"), async (req, res, next) => {
     try {
-      const schoolCode = req.school!.code;
+      if (!req.school) {
+        res.status(401).json({ error: "School context required." });
+        return;
+      }
+      const schoolCode = req.school.code;
       const mode = admissionModeFromQuery(req.body.mode);
       const file = req.file;
       if (!file) {
@@ -208,9 +212,92 @@ export function studentsRoutes() {
     }
   });
 
+  // ── Import jobs (browser-facing) ──────────────────────────────────────────────
+
+  router.post("/api/students/import-jobs/upload", upload.single("file"), async (req, res, next) => {
+    try {
+      if (!req.school) {
+        res.status(401).json({ error: "School context required." });
+        return;
+      }
+      const schoolCode = req.school.code;
+      const mode = admissionModeFromQuery(req.body.mode);
+      const file = req.file;
+      if (!file) {
+        res.status(400).json({ error: "Upload a CSV or XLSX file." });
+        return;
+      }
+      const rows = file.originalname.toLowerCase().endsWith(".xlsx") ? parseStudentsXlsx(file.buffer) : parseStudentsCsv(file.buffer.toString("utf8"));
+      res.status(202).json(await createStudentImportJob(prisma, schoolCode, rows, mode === "create-and-update existing" ? "CREATE_AND_UPDATE_EXISTING" : "CREATE_ONLY"));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.get("/api/students/import-jobs/:jobId", async (req, res, next) => {
+    try {
+      if (!req.school) {
+        res.status(401).json({ error: "School context required." });
+        return;
+      }
+      const job = await getStudentImportJob(prisma, req.school.code, req.params.jobId);
+      if (!job) {
+        res.status(404).json({ error: "Import job not found." });
+        return;
+      }
+      res.json(job);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Legacy internal import-job routes (not called from browser)
+  router.post("/internal/students/import-jobs/upload", upload.single("file"), async (req, res, next) => {
+    try {
+      if (!req.school) {
+        res.status(401).json({ error: "School context required." });
+        return;
+      }
+      const schoolCode = req.school.code;
+      const mode = admissionModeFromQuery(req.body.mode);
+      const file = req.file;
+      if (!file) {
+        res.status(400).json({ error: "Upload a CSV or XLSX file." });
+        return;
+      }
+      const rows = file.originalname.toLowerCase().endsWith(".xlsx") ? parseStudentsXlsx(file.buffer) : parseStudentsCsv(file.buffer.toString("utf8"));
+      res.status(202).json(await createStudentImportJob(prisma, schoolCode, rows, mode === "create-and-update existing" ? "CREATE_AND_UPDATE_EXISTING" : "CREATE_ONLY"));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.get("/internal/students/import-jobs/:jobId", async (req, res, next) => {
+    try {
+      if (!req.school) {
+        res.status(401).json({ error: "School context required." });
+        return;
+      }
+      const job = await getStudentImportJob(prisma, req.school.code, req.params.jobId);
+      if (!job) {
+        res.status(404).json({ error: "Import job not found." });
+        return;
+      }
+      res.json(job);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // ── Import history ────────────────────────────────────────────────────────────
+
   router.get("/api/students/import/history", async (req, res, next) => {
     try {
-      const school = req.school!;
+      if (!req.school) {
+        res.status(401).json({ error: "School context required." });
+        return;
+      }
+      const school = req.school;
       const batches = await prisma.markImportBatch.findMany({
         where: { schoolId: school.id, source: "student" },
         orderBy: { createdAt: "desc" },
@@ -232,7 +319,11 @@ export function studentsRoutes() {
 
   router.get("/api/students/import/:id", async (req, res, next) => {
     try {
-      const school = req.school!;
+      if (!req.school) {
+        res.status(401).json({ error: "School context required." });
+        return;
+      }
+      const school = req.school;
       const batch = await prisma.markImportBatch.findFirst({
         where: { id: req.params.id, schoolId: school.id, source: "student" },
       });
@@ -252,17 +343,42 @@ export function studentsRoutes() {
     }
   });
 
-  router.get("/internal/students/contact-summary", async (req, res, next) => {
+  // ── Contact summary (browser-facing) ─────────────────────────────────────────
+
+  router.get("/api/students/contact-summary", async (req, res, next) => {
     try {
-      res.json(await getContactSummary(prisma, req.school!.code));
+      if (!req.school) {
+        res.status(401).json({ error: "School context required." });
+        return;
+      }
+      res.json(await getContactSummary(prisma, req.school.code));
     } catch (error) {
       next(error);
     }
   });
 
+  // Legacy internal contact-summary route
+  router.get("/internal/students/contact-summary", async (req, res, next) => {
+    try {
+      if (!req.school) {
+        res.status(401).json({ error: "School context required." });
+        return;
+      }
+      res.json(await getContactSummary(prisma, req.school.code));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // ── Single student (internal use) ─────────────────────────────────────────────
+
   router.get("/internal/students/:id", async (req, res, next) => {
     try {
-      const student = await getEnrolledStudent(prisma, req.school!.code, req.params.id);
+      if (!req.school) {
+        res.status(401).json({ error: "School context required." });
+        return;
+      }
+      const student = await getEnrolledStudent(prisma, req.school.code, req.params.id);
       if (!student) {
         res.status(404).json({ error: "No actively enrolled student was found." });
         return;
@@ -273,9 +389,86 @@ export function studentsRoutes() {
     }
   });
 
-  router.post("/internal/students/:id/contacts", async (req, res, next) => { try { const contact = await upsertGuardianContact(prisma, req.school!.code, req.params.id, req.body); res.status(201).json(contact); } catch (error) { next(error); } });
-  router.patch("/internal/students/:id/contacts/:contactId", async (req, res, next) => { try { const contact = await upsertGuardianContact(prisma, req.school!.code, req.params.id, req.body, req.params.contactId); res.json(contact); } catch (error) { next(error); } });
-  router.delete("/internal/students/:id/contacts/:contactId", async (req, res, next) => { try { await deleteGuardianContact(prisma, req.school!.code, req.params.id, req.params.contactId); res.status(204).end(); } catch (error) { next(error); } });
+  // ── Guardian contacts (browser-facing) ───────────────────────────────────────
+
+  router.post("/api/students/:id/contacts", async (req, res, next) => {
+    try {
+      if (!req.school) {
+        res.status(401).json({ error: "School context required." });
+        return;
+      }
+      const contact = await upsertGuardianContact(prisma, req.school.code, req.params.id, req.body);
+      res.status(201).json(contact);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.patch("/api/students/:id/contacts/:contactId", async (req, res, next) => {
+    try {
+      if (!req.school) {
+        res.status(401).json({ error: "School context required." });
+        return;
+      }
+      const contact = await upsertGuardianContact(prisma, req.school.code, req.params.id, req.body, req.params.contactId);
+      res.json(contact);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.delete("/api/students/:id/contacts/:contactId", async (req, res, next) => {
+    try {
+      if (!req.school) {
+        res.status(401).json({ error: "School context required." });
+        return;
+      }
+      await deleteGuardianContact(prisma, req.school.code, req.params.id, req.params.contactId);
+      res.status(204).end();
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Legacy internal contact routes (not called from browser)
+  router.post("/internal/students/:id/contacts", async (req, res, next) => {
+    try {
+      if (!req.school) {
+        res.status(401).json({ error: "School context required." });
+        return;
+      }
+      const contact = await upsertGuardianContact(prisma, req.school.code, req.params.id, req.body);
+      res.status(201).json(contact);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.patch("/internal/students/:id/contacts/:contactId", async (req, res, next) => {
+    try {
+      if (!req.school) {
+        res.status(401).json({ error: "School context required." });
+        return;
+      }
+      const contact = await upsertGuardianContact(prisma, req.school.code, req.params.id, req.body, req.params.contactId);
+      res.json(contact);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.delete("/internal/students/:id/contacts/:contactId", async (req, res, next) => {
+    try {
+      if (!req.school) {
+        res.status(401).json({ error: "School context required." });
+        return;
+      }
+      await deleteGuardianContact(prisma, req.school.code, req.params.id, req.params.contactId);
+      res.status(204).end();
+    } catch (error) {
+      next(error);
+    }
+  });
 
   return router;
 }

@@ -1,6 +1,12 @@
+import { readFileSync } from "fs";
+import { dirname, resolve } from "path";
+import { fileURLToPath } from "url";
 import request from "supertest";
 import { describe, expect, it } from "vitest";
 import { createServer } from "../../server";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const clientSource = readFileSync(resolve(__dirname, "../../client/studentsClient.ts"), "utf8");
 
 describe("students import routes", () => {
   it("returns the student CSV template", async () => {
@@ -19,6 +25,70 @@ describe("students import routes", () => {
       .post("/api/students/import/preview")
       .field("schoolCode", "SCU-PREVIEW")
       .attach("file", Buffer.from(csv), { filename: "students.csv", contentType: "text/csv" });
-    expect([200, 404]).toContain(res.status);
+    expect([200, 401, 404]).toContain(res.status);
+  });
+});
+
+describe("students routes — new /api routes exist and do not 404", () => {
+  it("GET /api/students responds (school context resolved in dev)", async () => {
+    const res = await request(createServer()).get("/api/students");
+    expect(res.status).not.toBe(404);
+    expect(res.status).not.toBe(500);
+  });
+
+  it("GET /api/students/contact-summary responds", async () => {
+    const res = await request(createServer()).get("/api/students/contact-summary");
+    expect(res.status).not.toBe(404);
+    expect(res.status).not.toBe(500);
+  });
+
+  it("GET /api/students/import-jobs/:jobId with valid UUID → 404 not found, not a routing 404", async () => {
+    const res = await request(createServer()).get("/api/students/import-jobs/00000000-0000-0000-0000-000000000000");
+    // 404 means the route matched but the job wasn't found — correct
+    // 401 means school context required — also correct
+    // 500 would mean we crashed — not acceptable
+    expect([401, 404]).toContain(res.status);
+  });
+
+  it("POST /api/students/import-jobs/upload route exists (not 404)", async () => {
+    const res = await request(createServer()).post("/api/students/import-jobs/upload");
+    // Route must exist — any status other than 404 confirms it
+    expect(res.status).not.toBe(404);
+  });
+
+  it("POST /api/students/:id/contacts route exists (not 404)", async () => {
+    const res = await request(createServer())
+      .post("/api/students/00000000-0000-0000-0000-000000000000/contacts")
+      .send({});
+    expect(res.status).not.toBe(404);
+  });
+
+  it("DELETE /api/students/:id/contacts/:contactId route exists (not 404)", async () => {
+    const res = await request(createServer()).delete(
+      "/api/students/00000000-0000-0000-0000-000000000001/contacts/00000000-0000-0000-0000-000000000002",
+    );
+    expect(res.status).not.toBe(404);
+  });
+});
+
+describe("students client — no browser call uses /internal/students", () => {
+  it("createStudentImportJob uses /api/students/import-jobs/upload", () => {
+    expect(clientSource).toContain("/api/students/import-jobs/upload");
+  });
+
+  it("fetchStudentImportJob uses /api/students/import-jobs/", () => {
+    expect(clientSource).toContain("/api/students/import-jobs/");
+  });
+
+  it("fetchStudentContactSummary uses /api/students/contact-summary", () => {
+    expect(clientSource).toContain("/api/students/contact-summary");
+  });
+
+  it("createGuardianContact uses /api/students/ (not /internal)", () => {
+    expect(clientSource).toContain("api/students/");
+  });
+
+  it("no client function uses /internal/students", () => {
+    expect(clientSource).not.toContain("/internal/students");
   });
 });
