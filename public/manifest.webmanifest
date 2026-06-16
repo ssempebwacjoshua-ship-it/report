@@ -1,6 +1,6 @@
 {
   "name": "School Connect Reports",
-  "short_name": "SchoolConnect",
+  "short_name": "Reports",
   "description": "School reports, marks and parent communication",
   "start_url": "/",
   "scope": "/",

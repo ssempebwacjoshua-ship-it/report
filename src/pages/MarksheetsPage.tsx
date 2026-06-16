@@ -328,13 +328,9 @@ function PrintTab({ ctx, settings, filters, students, loadingStudents, onChange 
             <PrintableMarksheet {...commonMarksheetProps} students={students} />
           </div>
 
-          {/* ── Print-only: one page per student ── */}
+          {/* ── Print-only: one marksheet per class/stream/subject/exam ── */}
           <div className="print-only">
-            {marksheetsToPrint.map((student) => (
-              <div key={student.id} className="marksheet-print-page">
-                <PrintableMarksheet {...commonMarksheetProps} students={[student]} />
-              </div>
-            ))}
+            <PrintableMarksheet {...commonMarksheetProps} students={marksheetsToPrint} />
           </div>
         </div>
       )}

@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 
-const DISMISSED_KEY = "school-connect-install-dismissed";
+const DISMISSED_KEY = "sc_reports_pwa_install_dismissed";
+const INSTALLED_KEY = "sc_reports_pwa_install_installed";
+const DISMISS_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 type BeforeInstallPromptEvent = Event & {
   prompt: () => Promise<void>;
@@ -14,26 +16,32 @@ function isIos() {
 function isStandalone() {
   return (
     window.matchMedia("(display-mode: standalone)").matches ||
-    // iOS Safari legacy flag
     (window.navigator as Navigator & { standalone?: boolean }).standalone === true
   );
 }
 
-/** Small, dismissible install helper.
- * - Chrome/Edge/Android: shows an "Install app" button when beforeinstallprompt fires.
- * - iOS Safari: shows Share → Add to Home Screen instructions.
- * - Never shows when already installed, and stays hidden after dismissal.
- */
+function wasDismissedRecently() {
+  try {
+    const raw = localStorage.getItem(DISMISSED_KEY);
+    if (!raw) return false;
+    return Date.now() - Number(raw) < DISMISS_TTL_MS;
+  } catch {
+    return false;
+  }
+}
+
+function wasInstalled() {
+  try {
+    return localStorage.getItem(INSTALLED_KEY) === "true";
+  } catch {
+    return false;
+  }
+}
+
 export function InstallPrompt() {
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [showIosHelp, setShowIosHelp] = useState(false);
-  const [dismissed, setDismissed] = useState(() => {
-    try {
-      return localStorage.getItem(DISMISSED_KEY) === "true";
-    } catch {
-      return false;
-    }
-  });
+  const [dismissed, setDismissed] = useState(() => wasDismissedRecently() || wasInstalled());
 
   useEffect(() => {
     if (dismissed || isStandalone()) return;
@@ -42,11 +50,26 @@ export function InstallPrompt() {
       e.preventDefault();
       setDeferredPrompt(e as BeforeInstallPromptEvent);
     }
+
+    function onAppInstalled() {
+      try {
+        localStorage.setItem(INSTALLED_KEY, "true");
+      } catch {
+        /* noop */
+      }
+      setDismissed(true);
+      setDeferredPrompt(null);
+    }
+
     window.addEventListener("beforeinstallprompt", onBeforeInstallPrompt);
+    window.addEventListener("appinstalled", onAppInstalled);
 
     if (isIos()) setShowIosHelp(true);
 
-    return () => window.removeEventListener("beforeinstallprompt", onBeforeInstallPrompt);
+    return () => {
+      window.removeEventListener("beforeinstallprompt", onBeforeInstallPrompt);
+      window.removeEventListener("appinstalled", onAppInstalled);
+    };
   }, [dismissed]);
 
   function dismiss() {
@@ -54,7 +77,7 @@ export function InstallPrompt() {
     setDeferredPrompt(null);
     setShowIosHelp(false);
     try {
-      localStorage.setItem(DISMISSED_KEY, "true");
+      localStorage.setItem(DISMISSED_KEY, String(Date.now()));
     } catch {
       /* noop */
     }
@@ -75,9 +98,9 @@ export function InstallPrompt() {
       <div className="flex items-start gap-3">
         <img src="/icons/icon-192.png" alt="" className="h-9 w-9 shrink-0 rounded-xl" />
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-bold text-slate-900">Install School Connect</p>
+          <p className="text-sm font-bold text-slate-900">Install School Connect Reports</p>
           {deferredPrompt ? (
-            <p className="mt-0.5 text-xs text-slate-500">Add the app to your home screen for quick access.</p>
+            <p className="mt-0.5 text-xs text-slate-500">Open faster and use it like a desktop app.</p>
           ) : (
             <p className="mt-0.5 text-xs text-slate-500">
               On iPhone: tap <span className="font-semibold">Share</span>, then{" "}

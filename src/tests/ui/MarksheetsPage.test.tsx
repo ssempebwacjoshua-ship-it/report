@@ -139,17 +139,21 @@ describe("MarksheetsPage Print tab — filter returns multiple students", () => 
 });
 
 describe("MarksheetsPage Print tab — print-page DOM elements", () => {
-  it("creates one .marksheet-print-page per student when nothing is selected (prints all)", async () => {
+  it("renders exactly one PrintableMarksheet inside the print-only container", async () => {
     await loadStudents();
-    expect(document.querySelectorAll(".marksheet-print-page")).toHaveLength(3);
+    const printOnly = document.querySelector(".print-only");
+    expect(printOnly).not.toBeNull();
+    expect(
+      printOnly!.querySelectorAll("[data-testid='printable-marksheet']"),
+    ).toHaveLength(1);
   });
 
-  it("each .marksheet-print-page contains exactly one student row", async () => {
+  it("print-only marksheet contains all 3 student rows when nothing is selected", async () => {
     await loadStudents();
-    const pages = document.querySelectorAll(".marksheet-print-page");
-    for (const page of pages) {
-      expect(page.querySelectorAll("[data-testid='marksheet-student-row']")).toHaveLength(1);
-    }
+    const printOnly = document.querySelector(".print-only");
+    expect(
+      printOnly!.querySelectorAll("[data-testid='marksheet-student-row']"),
+    ).toHaveLength(3);
   });
 });
 
@@ -183,21 +187,30 @@ describe("MarksheetsPage Print tab — student selection", () => {
     expect(screen.getByText(/2 of 3 selected/)).toBeInTheDocument();
   });
 
-  it("selecting 2 students creates exactly 2 .marksheet-print-page elements", async () => {
+  it("selecting 2 students passes exactly 2 student rows to the print-only marksheet", async () => {
     await loadStudents();
     fireEvent.click(screen.getByLabelText("Select Alice Smith"));
     fireEvent.click(screen.getByLabelText("Select Bob Jones"));
 
-    expect(document.querySelectorAll(".marksheet-print-page")).toHaveLength(2);
+    const printOnly = document.querySelector(".print-only");
+    expect(
+      printOnly!.querySelectorAll("[data-testid='marksheet-student-row']"),
+    ).toHaveLength(2);
   });
 
-  it("selecting all via Select All then clearing restores all 3 print pages", async () => {
+  it("clearing selection after Select All restores all 3 rows in the print-only marksheet", async () => {
     await loadStudents();
     fireEvent.click(screen.getByRole("button", { name: /select all/i }));
-    expect(document.querySelectorAll(".marksheet-print-page")).toHaveLength(3);
+    let printOnly = document.querySelector(".print-only");
+    expect(
+      printOnly!.querySelectorAll("[data-testid='marksheet-student-row']"),
+    ).toHaveLength(3);
 
     fireEvent.click(screen.getByRole("button", { name: /^clear$/i }));
-    expect(document.querySelectorAll(".marksheet-print-page")).toHaveLength(3);
+    printOnly = document.querySelector(".print-only");
+    expect(
+      printOnly!.querySelectorAll("[data-testid='marksheet-student-row']"),
+    ).toHaveLength(3);
   });
 });
 

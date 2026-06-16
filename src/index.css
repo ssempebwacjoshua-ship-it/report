@@ -807,13 +807,9 @@ body {
     page-break-after: always !important;
   }
 
-  /* One marksheet-print-page per student; last child does not force a blank page */
+  /* .marksheet-print-page is no longer used for per-student pagination;
+     page breaks are handled by .marksheet-page-break inside PrintableMarksheet */
   .marksheet-print-page {
-    break-after: page;
-    page-break-after: always;
-  }
-
-  .marksheet-print-page:last-child {
     break-after: auto;
     page-break-after: auto;
   }
