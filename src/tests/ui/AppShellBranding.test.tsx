@@ -4,6 +4,10 @@ import { MemoryRouter } from "react-router-dom";
 import { Sidebar } from "../../components/layout/Sidebar";
 import { SettingsProvider } from "../../components/layout/SettingsContext";
 
+vi.mock("../../contexts/AuthContext", () => ({
+  useAuth: () => ({ user: { name: "Test Admin", role: "ADMIN_OPERATOR" }, token: "tok", loading: false, login: vi.fn(), logout: vi.fn() }),
+}));
+
 vi.mock("../../client/settingsClient", () => ({
   fetchSettings: vi.fn().mockResolvedValue({
     schoolCode: "SCU-PREVIEW",

@@ -662,9 +662,7 @@ const STATUS_CONFIG = {
   RETURNED: { label: "Returned for Correction", dot: "bg-red-500", text: "text-red-700", bg: "bg-red-50 border-red-200" },
 };
 
-type HmReviewTabProps = { schoolCode?: string };
-
-function HmReviewTab({ schoolCode = "SCU-PREVIEW" }: HmReviewTabProps) {
+function HmReviewTab() {
   const [batches, setBatches] = useState<MarksheetBatch[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -676,7 +674,7 @@ function HmReviewTab({ schoolCode = "SCU-PREVIEW" }: HmReviewTabProps) {
     setLoading(true);
     setError("");
     try {
-      const data = await fetchMarksheetBatches(schoolCode);
+      const data = await fetchMarksheetBatches();
       setBatches(data.batches);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not load batches");
@@ -692,7 +690,7 @@ function HmReviewTab({ schoolCode = "SCU-PREVIEW" }: HmReviewTabProps) {
   async function handleApprove(batchId: string) {
     setActionLoading(batchId);
     try {
-      await approveMarksheetBatch(batchId, "", schoolCode);
+      await approveMarksheetBatch(batchId, "");
       setBatches((prev) =>
         prev.map((b) => (b.id === batchId ? { ...b, approvalStatus: "APPROVED", hmNote: null } : b)),
       );
@@ -712,7 +710,7 @@ function HmReviewTab({ schoolCode = "SCU-PREVIEW" }: HmReviewTabProps) {
     setActionLoading(batchId);
     setError("");
     try {
-      await returnMarksheetBatch(batchId, note, schoolCode);
+      await returnMarksheetBatch(batchId, note);
       setBatches((prev) =>
         prev.map((b) => (b.id === batchId ? { ...b, approvalStatus: "RETURNED", hmNote: note } : b)),
       );

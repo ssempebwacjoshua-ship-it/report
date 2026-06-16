@@ -96,7 +96,7 @@ export function StudentsPage() {
 
   async function submitStudent() {
     try {
-      const result = await createStudent({ ...studentForm, schoolCode: context?.school?.code ?? "SCU-PREVIEW" });
+      const result = await createStudent({ ...studentForm });
       setError(`Student created: ${result.admissionNumber}`);
       setShowAddForm(false);
       const refreshed = await fetchStudents(filters);
@@ -110,7 +110,7 @@ export function StudentsPage() {
     if (!importFile) return;
     const formData = new FormData();
     formData.set("file", importFile);
-    const preview = await previewStudentImport(formData, context?.school?.code ?? "SCU-PREVIEW");
+    const preview = await previewStudentImport(formData);
     setImportPreview(preview);
   }
 
@@ -118,7 +118,7 @@ export function StudentsPage() {
     if (!importFile) return;
     const formData = new FormData();
     formData.set("file", importFile);
-    const result = await commitStudentImport(formData, context?.school?.code ?? "SCU-PREVIEW");
+    const result = await commitStudentImport(formData);
     if ("jobId" in result) {
       setImportJob(result);
       setImportPreview(null);
@@ -132,7 +132,7 @@ export function StudentsPage() {
   useEffect(() => {
     if (!importJob || typeof importJob.jobId !== "string") return;
     const timer = setInterval(() => {
-      void fetchStudentImportJob(importJob.jobId, context?.school?.code ?? "SCU-PREVIEW")
+      void fetchStudentImportJob(importJob.jobId)
         .then((job) => {
           setImportJob(job);
           if (job.status === "COMMITTED" || job.status === "FAILED") {

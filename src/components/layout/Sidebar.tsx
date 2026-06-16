@@ -3,6 +3,7 @@ import type { CSSProperties } from "react";
 import { Icon } from "./Icon";
 import { getSchoolDisplayName, getSchoolInitials } from "./branding";
 import { useAppSettings } from "./SettingsContext";
+import { useAuth } from "../../contexts/AuthContext";
 
 type Props = {
   open: boolean;
@@ -25,6 +26,7 @@ const navItems = [
 
 export function Sidebar({ open, onClose, collapsed, onToggleCollapsed, width }: Props) {
   const location = useLocation();
+  const { user } = useAuth();
   const { settings } = useAppSettings() ?? {};
   const school = settings?.sections.school;
   const schoolName = getSchoolDisplayName(school, "School Connect");
@@ -103,8 +105,8 @@ export function Sidebar({ open, onClose, collapsed, onToggleCollapsed, width }: 
             </div>
             {!collapsed ? (
               <div className="min-w-0">
-                <p className="truncate text-sm font-semibold">School Admin</p>
-                <p className="truncate text-xs text-blue-200">Administrator</p>
+                <p className="truncate text-sm font-semibold">{user?.name ?? "School Admin"}</p>
+                <p className="truncate text-xs text-blue-200">{user?.role === "ADMIN_OPERATOR" ? "Administrator" : (user?.role ?? "Administrator")}</p>
               </div>
             ) : null}
           </div>

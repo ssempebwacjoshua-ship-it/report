@@ -405,7 +405,7 @@ export function ScanUploadPanel() {
     setPhase("detecting");
 
     try {
-      const result = await detectScanContext(file, "SCU-PREVIEW");
+      const result = await detectScanContext(file);
       const recognizedId = result.normalizedRecognizedId ?? result.normalizedMarksheetId ?? result.recognizedMarksheetId ?? result.ocrFoundId ?? null;
       setRecognizedMarksheetId(recognizedId);
       if (result.detected && result.detectionStatus === "DETECTED" && result.contextSource === "recognized-id") {
@@ -437,7 +437,7 @@ export function ScanUploadPanel() {
     setIdLookupBusy(true);
     setError("");
     try {
-      const result = await lookupMarksheetContext(manualId.trim(), "SCU-PREVIEW");
+      const result = await lookupMarksheetContext(manualId.trim());
       setRecognizedMarksheetId(result.normalizedMarksheetId ?? manualId.trim());
       if (result.detected) {
         setDetectedCtx(result.detected);
@@ -478,7 +478,7 @@ export function ScanUploadPanel() {
     setPhase("extracting");
     setError("");
     try {
-      const result = await uploadScanFile(fileToUpload, "SCU-PREVIEW", confirmedContext, {
+      const result = await uploadScanFile(fileToUpload, confirmedContext, {
         selectedMarksheetId: confirmedContext.marksheetId,
       });
       rememberBatch(result.scanBatchId ?? result.batchId);
@@ -518,7 +518,7 @@ export function ScanUploadPanel() {
     if (scanRows.length === 0) return;
     setError("");
     try {
-      const result = await dryRunScanRows(contextForm, scanRows, "SCU-PREVIEW", currentBatchId || uploadResult?.batchId);
+      const result = await dryRunScanRows(contextForm, scanRows, currentBatchId || uploadResult?.batchId);
       // Merge dry-run status back while PRESERVING operator corrections and crop images
       setScanRows((prev) =>
         result.rows.map((dryRow) => {
@@ -550,7 +550,7 @@ export function ScanUploadPanel() {
     setCommitting(true);
     setError("");
     try {
-      const result = await commitScanRows(contextForm, scanRows, "SCU-PREVIEW");
+      const result = await commitScanRows(contextForm, scanRows);
       setScanRows(result.rows);
       setDryRunSummary(result.message);
       setCanCommit(false);

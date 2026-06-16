@@ -18,8 +18,6 @@ import { fetchSettings as loadSettings } from "../client/settingsClient";
 import { buildParentReportReleaseMessage, formatTermLabel } from "../shared/reportReleaseMessage";
 import type { ReportContext } from "../shared/types/reports";
 
-const DEFAULT_SCHOOL = "SCU-PREVIEW";
-
 // ── Status display ────────────────────────────────────────────────────────────
 
 const STATUS_CONFIG: Record<DeliveryStatus, { label: string; classes: string }> = {
@@ -245,7 +243,6 @@ export function ReleaseCenterPage() {
   const [context, setContext] = useState<ReportContext | null>(null);
   const [schoolName, setSchoolName] = useState("School Connect");
   const [filters, setFilters] = useState<ReleaseFilters>({
-    schoolCode: DEFAULT_SCHOOL,
     classId: "",
     assessmentType: "TERM_SUMMARY",
   });
@@ -393,7 +390,7 @@ export function ReleaseCenterPage() {
   async function handleBulkMarkSent() {
     const ids = selectedRows.filter((row) => row.issuedReport).map((row) => row.studentId);
     if (ids.length === 0) return;
-    const result = await markSentBulk({ classId: filters.classId, schoolCode: filters.schoolCode, studentIds: ids });
+    const result = await markSentBulk({ classId: filters.classId, studentIds: ids });
     setBulkResult(`Marked ${result.updated} as sent. Skipped ${result.skipped.length}.`);
     void loadStatus(filters, search);
   }
@@ -402,7 +399,7 @@ export function ReleaseCenterPage() {
     const ids = selectedRows.filter((row) => row.issuedReport).map((row) => row.studentId);
     if (ids.length === 0) return;
     if (!window.confirm(`Revoke ${ids.length} selected report links?`)) return;
-    const result = await revokeBulk({ classId: filters.classId, schoolCode: filters.schoolCode, studentIds: ids });
+    const result = await revokeBulk({ classId: filters.classId, studentIds: ids });
     setBulkResult(`Revoked ${result.updated} links. Skipped ${result.skipped.length}.`);
     void loadStatus(filters, search);
   }

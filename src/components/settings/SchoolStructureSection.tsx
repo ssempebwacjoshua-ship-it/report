@@ -25,7 +25,7 @@ function defaultAddStreamState(): AddStreamState {
   return { name: "", code: "", saving: false, error: "" };
 }
 
-export function SchoolStructureSection({ schoolCode = "SCU-PREVIEW" }: { schoolCode?: string }) {
+export function SchoolStructureSection() {
   const [data, setData] = useState<SchoolStructureData | null>(null);
   const [loadError, setLoadError] = useState("");
   const [loading, setLoading] = useState(true);
@@ -40,14 +40,14 @@ export function SchoolStructureSection({ schoolCode = "SCU-PREVIEW" }: { schoolC
   const [deleteStreamErrors, setDeleteStreamErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
-    fetchSchoolStructure(schoolCode)
+    fetchSchoolStructure()
       .then((d) => {
         setData(d);
         setDraftSections(d.selectedSections);
       })
       .catch((e: Error) => setLoadError(e.message || "Failed to load school structure."))
       .finally(() => setLoading(false));
-  }, [schoolCode]);
+  }, []);
 
   function toggleSection(section: SchoolSection) {
     if (data?.lockWarnings?.[section]) return;

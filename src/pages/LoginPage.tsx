@@ -1,7 +1,6 @@
-import { type FormEvent, useEffect, useState } from "react";
+import { type FormEvent, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
-import { fetchSettings } from "../client/settingsClient";
 import { getApiBaseUrl } from "../client/apiBase";
 
 const IS_DEV = import.meta.env.DEV;
@@ -10,27 +9,17 @@ const API_BASE = getApiBaseUrl();
 export function LoginPage() {
   const { login } = useAuth();
   const navigate = useNavigate();
+  const [schoolCode, setSchoolCode] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const [schoolName, setSchoolName] = useState<string | null>(null);
-
-  // Load school name for branding — non-blocking, best-effort
-  useEffect(() => {
-    fetchSettings()
-      .then((s) => setSchoolName(s.sections.school.schoolName || null))
-      .catch(() => {
-        /* ignore — branding is cosmetic */
-      });
-  }, []);
-
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError("");
     setLoading(true);
     try {
-      await login(email.trim(), password);
+      await login(email.trim(), password, schoolCode.trim());
       navigate("/dashboard", { replace: true });
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Login failed.");
@@ -40,6 +29,7 @@ export function LoginPage() {
   }
 
   function fillDemo() {
+    setSchoolCode("SCU-PREVIEW");
     setEmail("admin@schoolconnect.test");
     setPassword("password123");
   }
@@ -57,7 +47,7 @@ export function LoginPage() {
             </svg>
           </div>
           <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">
-            {schoolName ?? "School Connect"}
+            School Connect
           </h1>
           <p className="mt-1 text-sm font-medium text-slate-500">
             Reports &amp; Marks Management
@@ -84,6 +74,23 @@ export function LoginPage() {
             ) : null}
 
             <div className="grid gap-5">
+              <div className="grid gap-2">
+                <label htmlFor="schoolCode" className="text-sm font-semibold text-slate-700">
+                  School code
+                </label>
+                <input
+                  id="schoolCode"
+                  type="text"
+                  autoComplete="organization"
+                  required
+                  className="input uppercase"
+                  placeholder="e.g. SCU-2025"
+                  value={schoolCode}
+                  onChange={(e) => setSchoolCode(e.target.value.toUpperCase())}
+                  disabled={loading}
+                />
+              </div>
+
               <div className="grid gap-2">
                 <label htmlFor="email" className="text-sm font-semibold text-slate-700">
                   Email address

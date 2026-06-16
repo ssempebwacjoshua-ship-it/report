@@ -217,7 +217,7 @@ export function SettingsPage() {
       </div>
 
       {activeTab === "school-structure" ? (
-        <SchoolStructureSection schoolCode={draft.school.schoolCode} />
+        <SchoolStructureSection />
       ) : (
       <SectionFrame
         title={activeLabel}

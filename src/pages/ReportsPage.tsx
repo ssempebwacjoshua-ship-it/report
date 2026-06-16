@@ -17,7 +17,7 @@ import type {
 } from "../shared/types/reports";
 
 const DEFAULT_FILTERS: Filters = {
-  schoolCode: "SCU-PREVIEW",
+  schoolCode: "",
   classId: "",
   streamId: "",
   assessmentType: "TERM_SUMMARY",
