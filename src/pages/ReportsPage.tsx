@@ -221,7 +221,7 @@ export function ReportsPage() {
           <p className="text-xs font-bold uppercase tracking-wide text-blue-600">
             Report Generation
           </p>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-950">Academic reports</h1>
+          <h1 className="text-xl font-bold tracking-tight text-slate-950 sm:text-2xl">Academic reports</h1>
           <p className="mt-1 text-sm text-slate-600">
             Generate and inspect report cards from finalized stored marks.
           </p>
