@@ -63,6 +63,23 @@ enum PreferredContactMethod {
   WHATSAPP
 }
 
+enum SubscriptionBillingCycle {
+  YEAR
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  EXPIRED
+  SUSPENDED
+  PENDING
+}
+
+enum InvoiceStatus {
+  UNPAID
+  PAID
+  CANCELLED
+}
+
 model School {
   id            String            @id @default(uuid()) @db.Uuid
   code          String            @unique
@@ -80,6 +97,7 @@ model School {
   users         User[]
   issuedReports IssuedReport[]
   enrollments   ClassEnrollment[]
+  subscription  ReportLabSubscription?
 }
 
 model AcademicYear {
@@ -437,4 +455,41 @@ model IssuedReport {
   @@index([referenceCode])
   @@index([schoolId, status])
   @@index([studentId, status])
+}
+
+// ── Report Lab Subscription ────────────────────────────────────────────────
+
+model ReportLabSubscription {
+  id                 String                   @id @default(uuid()) @db.Uuid
+  schoolId           String                   @unique @db.Uuid
+  planCode           String
+  billingCycle       SubscriptionBillingCycle  @default(YEAR)
+  studentLimit       Int?
+  currentPeriodStart DateTime
+  currentPeriodEnd   DateTime
+  status             SubscriptionStatus        @default(ACTIVE)
+  createdAt          DateTime                 @default(now())
+  updatedAt          DateTime                 @updatedAt
+
+  school   School             @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  invoices ReportLabInvoice[]
+
+  @@index([schoolId, status])
+}
+
+model ReportLabInvoice {
+  id             String        @id @default(uuid()) @db.Uuid
+  subscriptionId String        @db.Uuid
+  setupFeeUgx    Int           @default(0)
+  amountUgx      Int
+  totalUgx       Int
+  status         InvoiceStatus @default(UNPAID)
+  paidAt         DateTime?
+  notes          String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  subscription ReportLabSubscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+
+  @@index([subscriptionId, createdAt])
 }

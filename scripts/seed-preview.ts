@@ -2,6 +2,7 @@ import "dotenv/config";
 import { pathToFileURL } from "node:url";
 import { prisma } from "../src/server/db/prisma";
 import { O_LEVEL_SUBJECTS } from "../src/shared/constants/subjects";
+import { getPlanByCode } from "../src/shared/constants/subscriptionPlans";
 
 export const PREVIEW_SCHOOL_CODE = "SCU-PREVIEW";
 
@@ -183,6 +184,48 @@ export async function seedPreviewData() {
         isPrimary: true,
         canReceiveReports: studentSeed.contact.canReceiveReports,
         notes: "Preview report contact",
+      },
+    });
+  }
+
+  // Subscription — REPORT_LAB_1000 for SCU-PREVIEW, active for one year from seed date
+  const PLAN_CODE = "REPORT_LAB_1000";
+  const plan = getPlanByCode(PLAN_CODE)!;
+  const periodStart = new Date("2026-06-16T00:00:00.000Z");
+  const periodEnd = new Date("2027-06-16T00:00:00.000Z");
+
+  const sub = await prisma.reportLabSubscription.upsert({
+    where: { schoolId: school.id },
+    update: {
+      planCode: PLAN_CODE,
+      studentLimit: plan.studentLimit,
+      currentPeriodStart: periodStart,
+      currentPeriodEnd: periodEnd,
+      status: "ACTIVE",
+    },
+    create: {
+      schoolId: school.id,
+      planCode: PLAN_CODE,
+      billingCycle: "YEAR",
+      studentLimit: plan.studentLimit,
+      currentPeriodStart: periodStart,
+      currentPeriodEnd: periodEnd,
+      status: "ACTIVE",
+    },
+  });
+
+  // Create invoice only if there are none yet (idempotent-friendly)
+  const invoiceCount = await prisma.reportLabInvoice.count({ where: { subscriptionId: sub.id } });
+  if (invoiceCount === 0) {
+    await prisma.reportLabInvoice.create({
+      data: {
+        subscriptionId: sub.id,
+        setupFeeUgx: 500_000,
+        amountUgx: 600_000,
+        totalUgx: 1_100_000,
+        status: "PAID",
+        paidAt: periodStart,
+        notes: "Initial setup — School Connect Preview",
       },
     });
   }

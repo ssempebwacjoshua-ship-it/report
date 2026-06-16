@@ -9,8 +9,9 @@ import {
   type SettingsSections,
 } from "../shared/types/settings";
 import { SchoolStructureSection } from "../components/settings/SchoolStructureSection";
+import { SubscriptionSection } from "../components/settings/SubscriptionSection";
 
-type TabId = SettingSection | "school-structure";
+type TabId = SettingSection | "school-structure" | "subscription";
 type Tab = { id: TabId; label: string };
 
 const tabs: Tab[] = [
@@ -23,6 +24,7 @@ const tabs: Tab[] = [
   { id: "grading", label: "Grading Scale" },
   { id: "approval", label: "Approval & Safety" },
   { id: "appearance", label: "Appearance" },
+  { id: "subscription", label: "Subscription" },
 ];
 
 const fieldClass =
@@ -218,14 +220,16 @@ export function SettingsPage() {
 
       {activeTab === "school-structure" ? (
         <SchoolStructureSection />
+      ) : activeTab === "subscription" ? (
+        <SubscriptionSection />
       ) : (
       <SectionFrame
         title={activeLabel}
-        onSave={() => saveSection(activeTab)}
-        onReset={() => resetSection(activeTab)}
+        onSave={() => saveSection(activeTab as SettingSection)}
+        onReset={() => resetSection(activeTab as SettingSection)}
         saving={saving === activeTab}
         saved={saved === activeTab}
-        error={errors[activeTab] ?? ""}
+        error={errors[activeTab as SettingSection] ?? ""}
       >
         {activeTab === "school" && (
           <SchoolSection

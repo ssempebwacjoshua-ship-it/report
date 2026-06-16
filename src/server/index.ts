@@ -26,6 +26,7 @@ import { parentRoutes } from "./routes/parentRoutes";
 import { verifyRoutes } from "./routes/verifyRoutes";
 import { ocrRoutes } from "./routes/ocrRoutes";
 import { documentCleanerRoutes } from "./routes/documentCleanerRoutes";
+import { subscriptionRoutes } from "./routes/subscriptionRoutes";
 import geminiOcrRoutes from "./routes/geminiOcrRoutes";
 import geminiRosterRoutes from "./routes/geminiRosterRoutes";
 import geminiMarksImportRoutes from "./routes/geminiMarksImportRoutes";
@@ -79,6 +80,7 @@ export function createServer() {
   app.use(settingsRoutes());
   app.use(ocrRoutes());
   app.use(documentCleanerRoutes());
+  app.use(subscriptionRoutes());
   app.use(geminiMarksImportRoutes());
 
   const errorHandler: ErrorRequestHandler = (error, req, res, _next) => {
