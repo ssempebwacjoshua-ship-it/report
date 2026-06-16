@@ -19,6 +19,7 @@ import { schoolStructureRoutes } from "./routes/schoolStructureRoutes";
 import { resolveSchoolContext } from "./middleware/resolveSchoolContext";
 import { authRoutes } from "./routes/authRoutes";
 import { platformAdminRoutes } from "./routes/platformAdminRoutes";
+import { platformOwnerRoutes } from "./routes/platformOwnerRoutes";
 import { reportIssueRoutes } from "./routes/reportIssueRoutes";
 import { reportAssistantRoutes } from "./routes/reportAssistantRoutes";
 import { releaseCenterRoutes } from "./routes/releaseCenterRoutes";
@@ -59,6 +60,9 @@ export function createServer() {
 
   // Platform-owner provisioning — protected by PLATFORM_ADMIN_KEY, not by school JWT
   app.use(platformAdminRoutes());
+
+  // Platform owner console APIs — protected by JWT with isPlatformOwner, not by school context
+  app.use(platformOwnerRoutes());
 
   // Internal diagnostic routes — protected by their own x-internal-test-key, not by school context
   app.use("/api", geminiOcrRoutes);

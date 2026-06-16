@@ -9,13 +9,14 @@ export type AuthUser = {
   name: string;
   email: string;
   role: "ADMIN_OPERATOR";
+  isPlatformOwner?: boolean;
 };
 
 type AuthContextValue = {
   user: AuthUser | null;
   token: string | null;
   loading: boolean;
-  login: (email: string, password: string, schoolCode: string) => Promise<void>;
+  login: (email: string, password: string, schoolCode: string) => Promise<AuthUser>;
   logout: () => void;
 };
 
@@ -66,7 +67,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .finally(() => setLoading(false));
   }, [token]);
 
-  async function login(email: string, password: string, schoolCode: string) {
+  async function login(email: string, password: string, schoolCode: string): Promise<AuthUser> {
     const res = await fetch(`${API_BASE}/api/auth/login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -93,6 +94,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     setToken(newToken);
     setUser(newUser);
+    return newUser;
   }
 
   function logout() {

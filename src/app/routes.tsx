@@ -1,5 +1,6 @@
 import { createBrowserRouter, Navigate } from "react-router-dom";
 import { AppShell } from "../components/layout/AppShell";
+import { OwnerShell } from "../components/layout/OwnerShell";
 import { DashboardPage } from "../pages/DashboardPage";
 import { ReleaseCenterPage } from "../pages/ReleaseCenterPage";
 import { ReportsPage } from "../pages/ReportsPage";
@@ -12,6 +13,8 @@ import { LogoutPage } from "../pages/LogoutPage";
 import { ParentReportPage } from "../pages/ParentReportPage";
 import { VerifyPage } from "../pages/VerifyPage";
 import { DocumentCleanerPage } from "../pages/DocumentCleanerPage";
+import { OwnerDashboardPage } from "../pages/owner/OwnerDashboardPage";
+import { OwnerUsersPage } from "../pages/owner/OwnerUsersPage";
 
 export const router = createBrowserRouter([
   // Public routes — no AppShell, no auth
@@ -19,6 +22,16 @@ export const router = createBrowserRouter([
   { path: "/logout", element: <LogoutPage /> },
   { path: "/parent/r/:token", element: <ParentReportPage /> },
   { path: "/verify/:code", element: <VerifyPage /> },
+
+  // Platform owner console — wrapped in OwnerShell (owner guard inside)
+  {
+    path: "/owner",
+    element: <OwnerShell />,
+    children: [
+      { index: true, element: <OwnerDashboardPage /> },
+      { path: "users", element: <OwnerUsersPage /> },
+    ],
+  },
 
   // Admin routes — wrapped in AppShell (auth guard inside)
   {

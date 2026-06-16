@@ -351,21 +351,25 @@ model AppSetting {
 }
 
 model User {
-  id           String   @id @default(uuid()) @db.Uuid
-  schoolId     String   @db.Uuid
-  name         String
-  email        String
-  passwordHash String
-  role         UserRole @default(ADMIN_OPERATOR)
-  isActive     Boolean  @default(true)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id              String   @id @default(uuid()) @db.Uuid
+  schoolId        String   @db.Uuid
+  name            String
+  email           String
+  passwordHash    String
+  role            UserRole @default(ADMIN_OPERATOR)
+  isActive        Boolean  @default(true)
+  isPlatformOwner Boolean  @default(false)
+  mustChangePassword Boolean @default(false)
+  lastLoginAt     DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   school        School         @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   issuedReports IssuedReport[]
 
   @@unique([schoolId, email])
   @@index([schoolId, role])
+  @@index([isPlatformOwner])
 }
 
 // ── Smart Pages / Document Cleaner billing ─────────────────────────────────

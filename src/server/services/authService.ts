@@ -10,6 +10,7 @@ export type AuthPayload = {
   name: string;
   email: string;
   role: "ADMIN_OPERATOR";
+  isPlatformOwner?: boolean;
 };
 
 export function signToken(payload: AuthPayload): string {
