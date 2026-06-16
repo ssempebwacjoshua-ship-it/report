@@ -10,6 +10,12 @@ import type {
 } from "../shared/types/students";
 import { getApiBaseUrl } from "./apiBase";
 const API_BASE = getApiBaseUrl();
+const TOKEN_KEY = "sc_auth_token";
+
+function authHeaders(): HeadersInit {
+  const token = localStorage.getItem(TOKEN_KEY);
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
 
 async function readError(response: Response, fallback: string): Promise<string> {
   try {
@@ -28,7 +34,9 @@ export async function fetchStudents(filters: { schoolCode?: string; classId?: st
   if (filters.classId) params.set("classId", filters.classId);
   if (filters.streamId) params.set("streamId", filters.streamId);
   if (filters.search) params.set("search", filters.search);
-  const response = await fetch(`${API_BASE}/internal/students?${params.toString()}`);
+  const response = await fetch(`${API_BASE}/internal/students?${params.toString()}`, {
+    headers: authHeaders(),
+  });
   if (!response.ok) throw new Error(await readError(response, "Could not load students"));
   return response.json();
 }
@@ -36,7 +44,7 @@ export async function fetchStudents(filters: { schoolCode?: string; classId?: st
 export async function createStudent(input: StudentCreateInput): Promise<{ admissionNumber: string }> {
   const response = await fetch(`${API_BASE}/api/students?schoolCode=${encodeURIComponent(input.schoolCode ?? "SCU-PREVIEW")}`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...authHeaders() },
     body: JSON.stringify(input),
   });
   if (!response.ok) throw new Error(await readError(response, "Could not create student"));
@@ -46,6 +54,7 @@ export async function createStudent(input: StudentCreateInput): Promise<{ admiss
 export async function previewStudentImport(formData: FormData, schoolCode = "SCU-PREVIEW"): Promise<StudentImportPreview> {
   const response = await fetch(`${API_BASE}/api/students/import/preview?schoolCode=${encodeURIComponent(schoolCode)}`, {
     method: "POST",
+    headers: authHeaders(),
     body: formData,
   });
   if (!response.ok) throw new Error(await readError(response, "Could not preview import"));
@@ -55,6 +64,7 @@ export async function previewStudentImport(formData: FormData, schoolCode = "SCU
 export async function commitStudentImport(formData: FormData, schoolCode = "SCU-PREVIEW"): Promise<StudentImportCommitResult> {
   const response = await fetch(`${API_BASE}/api/students/import/commit?schoolCode=${encodeURIComponent(schoolCode)}`, {
     method: "POST",
+    headers: authHeaders(),
     body: formData,
   });
   if (response.status === 202) return response.json() as Promise<StudentImportJob>;
@@ -65,6 +75,7 @@ export async function commitStudentImport(formData: FormData, schoolCode = "SCU-
 export async function createStudentImportJob(formData: FormData, schoolCode = "SCU-PREVIEW"): Promise<StudentImportJob> {
   const response = await fetch(`${API_BASE}/internal/students/import-jobs/upload?schoolCode=${encodeURIComponent(schoolCode)}`, {
     method: "POST",
+    headers: authHeaders(),
     body: formData,
   });
   if (!response.ok) throw new Error(await readError(response, "Could not queue import"));
@@ -72,19 +83,25 @@ export async function createStudentImportJob(formData: FormData, schoolCode = "S
 }
 
 export async function fetchStudentImportJob(jobId: string, schoolCode = "SCU-PREVIEW") {
-  const response = await fetch(`${API_BASE}/internal/students/import-jobs/${encodeURIComponent(jobId)}?schoolCode=${encodeURIComponent(schoolCode)}`);
+  const response = await fetch(`${API_BASE}/internal/students/import-jobs/${encodeURIComponent(jobId)}?schoolCode=${encodeURIComponent(schoolCode)}`, {
+    headers: authHeaders(),
+  });
   if (!response.ok) throw new Error(await readError(response, "Could not load import job"));
   return response.json() as Promise<Record<string, unknown>>;
 }
 
 export async function downloadStudentTemplateCsv(): Promise<string> {
-  const response = await fetch(`${API_BASE}/api/students/import/template.csv`);
+  const response = await fetch(`${API_BASE}/api/students/import/template.csv`, {
+    headers: authHeaders(),
+  });
   if (!response.ok) throw new Error("Could not download template");
   return response.text();
 }
 
 export async function fetchStudentContactSummary(schoolCode = "SCU-PREVIEW"): Promise<ContactSummary> {
-  const response = await fetch(`${API_BASE}/internal/students/contact-summary?schoolCode=${encodeURIComponent(schoolCode)}`);
+  const response = await fetch(`${API_BASE}/internal/students/contact-summary?schoolCode=${encodeURIComponent(schoolCode)}`, {
+    headers: authHeaders(),
+  });
   if (!response.ok) throw new Error(await readError(response, "Could not load contact summary"));
   return response.json();
 }
@@ -92,7 +109,7 @@ export async function fetchStudentContactSummary(schoolCode = "SCU-PREVIEW"): Pr
 export async function createGuardianContact(studentId: string, input: GuardianContactInput): Promise<void> {
   const response = await fetch(`${API_BASE}/internal/students/${studentId}/contacts?schoolCode=SCU-PREVIEW`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...authHeaders() },
     body: JSON.stringify(input),
   });
   if (!response.ok) throw new Error(await readError(response, "Could not create contact"));
@@ -101,7 +118,7 @@ export async function createGuardianContact(studentId: string, input: GuardianCo
 export async function updateGuardianContact(studentId: string, contactId: string, input: GuardianContactInput): Promise<void> {
   const response = await fetch(`${API_BASE}/internal/students/${studentId}/contacts/${contactId}?schoolCode=SCU-PREVIEW`, {
     method: "PATCH",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...authHeaders() },
     body: JSON.stringify(input),
   });
   if (!response.ok) throw new Error(await readError(response, "Could not update contact"));
@@ -110,6 +127,7 @@ export async function updateGuardianContact(studentId: string, contactId: string
 export async function deleteGuardianContact(studentId: string, contactId: string): Promise<void> {
   const response = await fetch(`${API_BASE}/internal/students/${studentId}/contacts/${contactId}?schoolCode=SCU-PREVIEW`, {
     method: "DELETE",
+    headers: authHeaders(),
   });
   if (!response.ok) throw new Error(await readError(response, "Could not delete contact"));
 }
