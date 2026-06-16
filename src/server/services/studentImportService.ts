@@ -305,7 +305,7 @@ async function processBatch(
     }
     if (!row.classId || !row.streamId) {
       failedCount += 1;
-      rowErrors.push({ rowNumber: row.rowNumber, admissionNumber: adm, errors: ["Class or stream could not be resolved."] });
+      rowErrors.push({ rowNumber: row.rowNumber, admissionNumber: adm, errors: ["Class/stream could not be resolved. Student was not imported."] });
       continue;
     }
     creates.push({ row, adm, isActive: row.raw.status?.toLowerCase() !== "inactive" });
@@ -329,43 +329,45 @@ async function processBatch(
     }
   }
 
-  if (creates.length > 0) {
+  // Per-student transactional create: student upsert + enrollment upsert in one $transaction.
+  // If the enrollment upsert fails the transaction rolls back, so no orphan Student is created.
+  // classEnrollment.upsert (not createMany/skipDuplicates) ensures the classId is always
+  // corrected even when a prior import left the student in the wrong class.
+  for (const c of creates) {
+    const name = splitName(c.row.raw.fullName);
     try {
-      await prisma.student.createMany({
-        data: creates.map((c) => {
-          const name = splitName(c.row.raw.fullName);
-          return { schoolId, admissionNumber: c.adm, firstName: name.firstName, lastName: name.lastName, isActive: c.isActive };
-        }),
-        skipDuplicates: true,
-      });
-      const fetched = await prisma.student.findMany({
-        where: { schoolId, admissionNumber: { in: creates.map((c) => c.adm) } },
-        select: { id: true, admissionNumber: true },
-      });
-      const idByAdm = new Map(fetched.map((s) => [norm(s.admissionNumber), s.id]));
-
-      const enrollments: Array<Record<string, unknown>> = [];
-      const guardians: Array<Record<string, unknown>> = [];
-      for (const c of creates) {
-        const studentId = idByAdm.get(norm(c.adm));
-        if (!studentId) {
-          failedCount += 1;
-          rowErrors.push({ rowNumber: c.row.rowNumber, admissionNumber: c.adm, errors: ["Student row was not created."] });
-          continue;
-        }
-        existingByAdm.set(norm(c.adm), studentId);
-        enrollments.push({
-          schoolId,
-          studentId,
-          academicYearId: activeYearId,
-          termId: activeTermId,
-          classId: c.row.classId,
-          streamId: c.row.streamId,
-          isActive: c.isActive,
-          status: c.isActive ? "ACTIVE" : "INACTIVE",
+      const studentId = await prisma.$transaction(async (tx) => {
+        const student = await tx.student.upsert({
+          where: { schoolId_admissionNumber: { schoolId, admissionNumber: c.adm } },
+          create: { schoolId, admissionNumber: c.adm, firstName: name.firstName, lastName: name.lastName, isActive: c.isActive },
+          update: {},
         });
-        if (c.row.raw.guardianName || c.row.raw.guardianPhone || c.row.raw.guardianEmail) {
-          guardians.push({
+        await tx.classEnrollment.upsert({
+          where: { studentId_academicYearId_termId: { studentId: student.id, academicYearId: activeYearId, termId: activeTermId } },
+          update: {
+            classId: c.row.classId!,
+            streamId: c.row.streamId!,
+            isActive: c.isActive,
+            status: c.isActive ? "ACTIVE" : "INACTIVE",
+            leftAt: null,
+          },
+          create: {
+            schoolId,
+            studentId: student.id,
+            academicYearId: activeYearId,
+            termId: activeTermId,
+            classId: c.row.classId!,
+            streamId: c.row.streamId!,
+            isActive: c.isActive,
+            status: c.isActive ? "ACTIVE" : "INACTIVE",
+          },
+        });
+        return student.id;
+      });
+      existingByAdm.set(norm(c.adm), studentId);
+      if (c.row.raw.guardianName || c.row.raw.guardianPhone || c.row.raw.guardianEmail) {
+        await prisma.guardianContact.createMany({
+          data: [{
             schoolId,
             studentId,
             guardianName: c.row.raw.guardianName || "Parent/Guardian",
@@ -375,66 +377,17 @@ async function processBatch(
             preferredContactMethod: c.row.raw.guardianPhone ? "PHONE" : "EMAIL",
             isPrimary: true,
             canReceiveReports: true,
-          });
-        }
-        successCount += 1;
+          }] as never,
+        });
       }
-      if (enrollments.length > 0) {
-        await prisma.classEnrollment.createMany({ data: enrollments as never, skipDuplicates: true });
-      }
-      if (guardians.length > 0) {
-        await prisma.guardianContact.createMany({ data: guardians as never });
-      }
-    } catch (batchError) {
-      // Batch insert failed (e.g. one malformed row): isolate with per-row creates.
-      console.warn("[student-import] batch insert failed, falling back to per-row", {
-        error: batchError instanceof Error ? batchError.message : String(batchError),
+      successCount += 1;
+    } catch (rowError) {
+      failedCount += 1;
+      rowErrors.push({
+        rowNumber: c.row.rowNumber,
+        admissionNumber: c.adm,
+        errors: [rowError instanceof Error ? rowError.message : "Failed to import row"],
       });
-      for (const c of creates) {
-        try {
-          const name = splitName(c.row.raw.fullName);
-          const created = await prisma.student.create({
-            data: { schoolId, admissionNumber: c.adm, firstName: name.firstName, lastName: name.lastName, isActive: c.isActive },
-          });
-          existingByAdm.set(norm(c.adm), created.id);
-          await prisma.classEnrollment.createMany({
-            data: [{
-              schoolId,
-              studentId: created.id,
-              academicYearId: activeYearId,
-              termId: activeTermId,
-              classId: c.row.classId,
-              streamId: c.row.streamId,
-              isActive: c.isActive,
-              status: c.isActive ? "ACTIVE" : "INACTIVE",
-            }] as never,
-            skipDuplicates: true,
-          });
-          if (c.row.raw.guardianName || c.row.raw.guardianPhone || c.row.raw.guardianEmail) {
-            await prisma.guardianContact.createMany({
-              data: [{
-                schoolId,
-                studentId: created.id,
-                guardianName: c.row.raw.guardianName || "Parent/Guardian",
-                relationship: "Parent",
-                phone: c.row.raw.guardianPhone || null,
-                email: c.row.raw.guardianEmail || null,
-                preferredContactMethod: c.row.raw.guardianPhone ? "PHONE" : "EMAIL",
-                isPrimary: true,
-                canReceiveReports: true,
-              }] as never,
-            });
-          }
-          successCount += 1;
-        } catch (rowError) {
-          failedCount += 1;
-          rowErrors.push({
-            rowNumber: c.row.rowNumber,
-            admissionNumber: c.adm,
-            errors: [rowError instanceof Error ? rowError.message : "Failed to import row"],
-          });
-        }
-      }
     }
   }
 
