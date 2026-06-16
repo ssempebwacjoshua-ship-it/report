@@ -1116,3 +1116,75 @@ body {
     overflow: visible !important;
   }
 }
+/* Mobile viewport stability: prevent horizontal scroll and mobile input zoom */
+html,
+body,
+#root {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: hidden;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  overscroll-behavior-x: none;
+  touch-action: pan-y;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+img,
+svg,
+canvas,
+video,
+iframe {
+  max-width: 100%;
+}
+
+table {
+  max-width: 100%;
+}
+
+main,
+section,
+article,
+aside,
+header,
+footer,
+nav,
+.app,
+.app-shell,
+.page,
+.page-shell,
+.content,
+.container,
+.card,
+.panel {
+  min-width: 0;
+  max-width: 100%;
+}
+
+@media (max-width: 768px) {
+  input,
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+
+  .table-wrap,
+  .overflow-x-auto,
+  .scroll-x {
+    max-width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+}
