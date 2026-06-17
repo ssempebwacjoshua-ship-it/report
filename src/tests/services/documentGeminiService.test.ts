@@ -102,4 +102,10 @@ describe("documentGeminiService", () => {
     expect(request.contents?.filter((part) => Boolean(part.inlineData)).length).toBe(4);
     expect(request.contents?.some((part) => typeof part.text === "string" && part.text.includes("High accuracy mode"))).toBe(true);
   });
+
+  it("falls back to gemini-3.5-flash when GEMINI_MODEL is blank", async () => {
+    vi.stubEnv("GEMINI_MODEL", "");
+    const { resolveGeminiDocumentModel } = await import("../../server/services/documentGeminiService");
+    expect(resolveGeminiDocumentModel()).toBe("gemini-3.5-flash");
+  });
 });

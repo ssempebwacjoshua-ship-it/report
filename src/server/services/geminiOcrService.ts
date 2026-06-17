@@ -30,6 +30,16 @@ export interface MarksheetValidationSummary {
   invalidMarkRows: number;
 }
 
+export function resolveGeminiOcrModel(): string {
+  const model = process.env.GEMINI_MODEL?.trim();
+  return model || "gemini-2.5-flash";
+}
+
+export function resolveGeminiHealthModel(): string {
+  const model = process.env.GEMINI_MODEL?.trim();
+  return model || "gemini-3.5-flash";
+}
+
 /**
  * Deterministic validation pass applied after Gemini returns rows.
  * Gemini's confidenceScore and needsReview are NOT trusted for mark validity —
@@ -131,7 +141,7 @@ export async function extractMarksWithGemini(
     throw new Error("Missing GEMINI_API_KEY");
   }
 
-  const model = process.env.GEMINI_MODEL ?? "gemini-2.5-flash";
+  const model = resolveGeminiOcrModel();
   const startMs = Date.now();
 
   let response: Awaited<ReturnType<GoogleGenAI["models"]["generateContent"]>>;
@@ -236,7 +246,7 @@ If a mark cell is blank or unreadable, set mark to "" and needsReview to true.
 
 /** Sends a tiny text-only ping to Gemini. Throws on network or auth failure. */
 export async function pingGemini(): Promise<{ model: string }> {
-  const model = process.env.GEMINI_MODEL ?? "gemini-3.5-flash";
+  const model = resolveGeminiHealthModel();
   await withGeminiRetry(() =>
     getGeminiClient().models.generateContent({
       model,

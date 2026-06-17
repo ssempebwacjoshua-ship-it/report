@@ -109,7 +109,7 @@ describe("DocumentEditorPage — Smart Pages flow", () => {
 
     await waitFor(() => expect(screen.getByRole("button", { name: /preview/i })).toBeInTheDocument());
     fireEvent.click(screen.getByRole("button", { name: /preview/i }));
-    const generateButton = screen.getByRole("button", { name: /looks good, generate document/i });
+    const generateButton = screen.getByRole("button", { name: /generate document from extraction/i });
     fireEvent.click(generateButton);
     fireEvent.click(generateButton);
 
@@ -123,6 +123,71 @@ describe("DocumentEditorPage — Smart Pages flow", () => {
 
     await waitFor(() => expect(screen.getByText(/done! your document is ready/i)).toBeInTheDocument());
     expect(documentIntelligenceMocks.getVersionHistory).toHaveBeenCalledTimes(1);
+  });
+
+  it("uses applyPrompt when an active version already exists", async () => {
+    documentIntelligenceMocks.getDocument.mockResolvedValue({
+      id: "doc-1",
+      title: "Sample Smart Page",
+      status: "DRAFT",
+      extractionStatus: "READY",
+      extractionError: null,
+      domain: "school",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      versionCount: 1,
+      hasSourceFiles: true,
+      extractedKnowledge,
+      activeVersion: {
+        id: "version-1",
+        instruction: "Initial",
+        schema: { theme: { primaryColor: "#2563eb" }, components: [] },
+        componentTree: [],
+        renderSettings: {},
+        createdAt: new Date().toISOString(),
+      },
+      latestSourceFile: { id: "source-1", status: "READY" },
+    });
+    documentIntelligenceMocks.applyPrompt.mockResolvedValue({
+      versionId: "version-2",
+      schema: { theme: { primaryColor: "#2563eb" } },
+      componentTree: [],
+    });
+
+    renderPage();
+
+    await waitFor(() => expect(screen.getByRole("button", { name: /actions/i })).toBeInTheDocument());
+    const promptInput = screen.getByPlaceholderText(/edit the document/i);
+    fireEvent.change(promptInput, { target: { value: "Make it more formal" } });
+    fireEvent.keyDown(promptInput, { key: "Enter", code: "Enter" });
+
+    await waitFor(() => expect(documentIntelligenceMocks.applyPrompt).toHaveBeenCalledWith("doc-1", "Make it more formal"));
+    expect(documentIntelligenceMocks.generateSchema).not.toHaveBeenCalled();
+  });
+
+  it("hides publish and print actions until a version exists", async () => {
+    documentIntelligenceMocks.getDocument.mockResolvedValue({
+      id: "doc-1",
+      title: "Sample Smart Page",
+      status: "DRAFT",
+      extractionStatus: "READY",
+      extractionError: null,
+      domain: "school",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      versionCount: 0,
+      hasSourceFiles: true,
+      extractedKnowledge,
+      activeVersion: null,
+      latestSourceFile: { id: "source-1", status: "READY" },
+    });
+
+    renderPage();
+
+    await waitFor(() => expect(screen.getByText(/generate document from extraction/i)).toBeInTheDocument());
+    expect(screen.queryByRole("button", { name: /actions/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /publish/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /print \/ pdf/i })).not.toBeInTheDocument();
   });
 
   it("shows a visible print error in chat", async () => {
