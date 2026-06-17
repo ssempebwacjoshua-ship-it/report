@@ -140,6 +140,68 @@ Rules:
   return { schema: { theme: parsed.theme, components: parsed.components }, componentTree: parsed.components };
 }
 
+export async function generateBulkTemplate(
+  sampleRecords: Record<string, unknown>[],
+  intent: string,
+  collectionType: string,
+): Promise<{ theme: DocumentSchema["theme"]; components: ComponentNode[] }> {
+  const res = await getClient().models.generateContent({
+    model: model(),
+    contents: [
+      {
+        text: `You are a Document Intelligence Engine. Create a TEMPLATE document schema for bulk generation.
+
+Collection type: ${collectionType}
+User intent: "${intent}"
+
+Sample records (${sampleRecords.length} of many):
+${JSON.stringify(sampleRecords, null, 2)}
+
+Return a template schema where dynamic values use {{fieldName}} placeholders.
+For example: "title": "Report for {{name}}" or "content": "Score: {{math}}"
+
+Available component types:
+- header: { title, subtitle?, logoText?, date?, primaryColor? }
+- textBlock: { heading?, content }
+- table: { heading?, columns: string[], rows: [{"col": "{{field}}"}] }
+- statistics: { heading?, items: [{ label, value: "{{field}}", change? }] }
+- aiSummary: { heading?, content }
+- profileCard: { name: "{{name}}", subtitle?, fields: [{ label, value: "{{field}}" }], avatarText?: "{{initials}}" }
+- signature: { label?, name?, date? }
+- footer: { left?, center?, right? }
+
+Return ONLY valid JSON (no markdown):
+{
+  "theme": { "primaryColor": "#2563eb", "fontFamily": "system-ui", "pageSize": "A4", "orientation": "PORTRAIT" },
+  "components": [ { "id": "h1", "type": "header", "props": { "title": "Report for {{name}}" } } ]
+}
+
+Rules:
+- Use {{fieldName}} placeholders for all record-specific data
+- First component MUST be header, last MUST be footer
+- Use every significant field from the sample records
+- Generate unique short IDs for each component`,
+      },
+    ],
+    config: { temperature: 0.2 },
+  });
+
+  const text = res.text ?? "";
+  const fallbackComponents: ComponentNode[] = [
+    {
+      id: "h1",
+      type: "header",
+      props: { title: `${collectionType} Document — {{name}}`, date: new Date().toLocaleDateString() },
+    },
+    { id: "f1", type: "footer", props: { center: collectionType } },
+  ];
+
+  return parseJsonSafe<{ theme: DocumentSchema["theme"]; components: ComponentNode[] }>(text, {
+    theme: { primaryColor: "#2563eb", fontFamily: "system-ui", pageSize: "A4", orientation: "PORTRAIT" },
+    components: fallbackComponents,
+  });
+}
+
 export async function applyPromptToSchema(
   currentSchema: DocumentSchema,
   instruction: string,
