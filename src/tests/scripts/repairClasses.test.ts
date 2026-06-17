@@ -1,6 +1,6 @@
 import type { PrismaClient } from "@prisma/client";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { repairSchoolClasses } from "../../scripts/repairPreviewClasses";
+import { normalizeSchoolClassStreams, repairSchoolClasses } from "../../scripts/repairPreviewClasses";
 
 // ── Fixture data ─────────────────────────────────────────────────────────────
 
@@ -74,6 +74,17 @@ function makePrisma(overrides: {
       : null,
   );
 
+  const outerStream = {
+    findMany: streamFindMany,
+    findUnique: streamFindUnique,
+  };
+  const outerClassEnrollment = {
+    count: vi.fn(async () => 3),
+  };
+  const outerSubjectMark = {
+    count: vi.fn(async () => 5),
+  };
+
   const streamUpdate = vi.fn(async () => ({}));
   const streamDelete = vi.fn(async () => ({}));
 
@@ -102,7 +113,11 @@ function makePrisma(overrides: {
     },
     schoolClass: {
       findMany: vi.fn(async () => classes),
+      findUnique: schoolClassFindUnique,
     },
+    stream: outerStream,
+    classEnrollment: outerClassEnrollment,
+    subjectMark: outerSubjectMark,
     $transaction: vi.fn(async (fn: (tx: object) => Promise<unknown>) => fn(txProxy)),
     // expose for assertions
     _tx: txProxy,
@@ -277,5 +292,29 @@ describe("repairSchoolClasses — result summary", () => {
 
     expect(result.skipped.some((s) => s.includes("WEIRD"))).toBe(true);
     expect(result.classesRepaired).toBe(0);
+  });
+});
+
+describe("normalizeSchoolClassStreams — dry run", () => {
+  it("reports planned repairs without mutating records", async () => {
+    const prisma = makePrisma({ classes: [badClasses[0]] });
+    const tx = (prisma as unknown as {
+      _tx: {
+        schoolClass: { create: ReturnType<typeof vi.fn>; update: ReturnType<typeof vi.fn> };
+        stream: { update: ReturnType<typeof vi.fn>; delete: ReturnType<typeof vi.fn> };
+      };
+    })._tx;
+
+    const result = await normalizeSchoolClassStreams(prisma, SCHOOL_CODE, { dryRun: true });
+
+    expect(result.badClassesFound).toBe(1);
+    expect(result.classesRepaired).toBe(1);
+    expect(result.streamsReparented).toBe(1);
+    expect(result.enrollmentsMigrated).toBe(3);
+    expect(result.marksMigrated).toBe(5);
+    expect(tx.schoolClass.create).not.toHaveBeenCalled();
+    expect(tx.schoolClass.update).not.toHaveBeenCalled();
+    expect(tx.stream.update).not.toHaveBeenCalled();
+    expect(tx.stream.delete).not.toHaveBeenCalled();
   });
 });

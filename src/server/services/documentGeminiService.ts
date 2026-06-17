@@ -16,7 +16,7 @@ function getClient(): GoogleGenAI {
 }
 
 function model() {
-  return process.env.GEMINI_MODEL ?? "gemini-2.5-flash";
+  return process.env.GEMINI_MODEL ?? "gemini-3.5-flash";
 }
 async function generateContentWithRetry(request: Parameters<GoogleGenAI["models"]["generateContent"]>[0]) {
   const timeoutMs = Number(process.env.GEMINI_TIMEOUT_MS ?? 45_000);

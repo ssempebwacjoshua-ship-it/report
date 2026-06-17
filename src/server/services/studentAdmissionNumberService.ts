@@ -1,4 +1,5 @@
 import type { PrismaClient } from "@prisma/client";
+import { resolveCanonicalClassAndStreamInput, resolveCanonicalClassFromInput } from "../../shared/utils/classStreamNormalization";
 
 function slug(value: string) {
   return value.replace(/[^A-Za-z0-9]+/g, "").toUpperCase();
@@ -14,6 +15,9 @@ const WORD_NUMBERS: Record<string, string> = {
 };
 
 function classCode(className: string) {
+  const canonical = resolveCanonicalClassFromInput(className);
+  if (canonical) return canonical.code;
+
   const normalized = className
     .trim()
     .toLowerCase()
@@ -40,7 +44,9 @@ export async function generateAdmissionNumber(
 ): Promise<string> {
   const school = await prisma.school.findUnique({ where: { code: schoolCode } });
   const prefix = school?.code ? `${slug(school.code)}-` : "";
-  const base = `${prefix}${classCode(className)}${slug(streamName).slice(0, 1) || "A"}`;
+  const normalized = resolveCanonicalClassAndStreamInput(className, streamName);
+  const streamSuffix = normalized?.streamCode ? normalized.streamCode.slice(0, 1) : slug(streamName).slice(0, 1);
+  const base = `${prefix}${classCode(className)}${streamSuffix || "A"}`;
   const existing = await prisma.student.findMany({
     where: { schoolId: school?.id },
     select: { admissionNumber: true },
