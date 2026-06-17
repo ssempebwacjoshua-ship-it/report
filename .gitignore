@@ -16,3 +16,6 @@ prisma/*.db-journal
 *.traineddata
 
 local.settings.json
+
+db-audit/
+db-audit.zip
