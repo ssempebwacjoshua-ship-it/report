@@ -52,12 +52,93 @@ function stripFences(text: string): string {
   return text.trim().replace(/^```(?:json)?\n?/, "").replace(/\n?```$/, "").trim();
 }
 
-function parseJsonSafe<T>(text: string, fallback: T): T {
-  try {
-    return JSON.parse(stripFences(text)) as T;
-  } catch {
+function safePreview(text: string, limit = 240): string {
+  return text.replace(/\s+/g, " ").slice(0, limit);
+}
+
+function logExtractionResponseIssue(reason: string, text: string, modelName: string) {
+  console.warn("[document-gemini] extraction response issue", {
+    reason,
+    model: modelName,
+    responseLength: text.length,
+    responsePreview: safePreview(text),
+  });
+}
+
+function parseJsonSafe<T>(text: string, fallback: T, modelName?: string): T {
+  const stripped = stripFences(text);
+  if (!stripped) {
+    if (modelName) logExtractionResponseIssue("empty-response", text, modelName);
     return fallback;
   }
+
+  try {
+    return JSON.parse(stripped) as T;
+  } catch {
+    const start = stripped.indexOf("{");
+    const end = stripped.lastIndexOf("}");
+    if (start >= 0 && end > start) {
+      try {
+        return JSON.parse(stripped.slice(start, end + 1)) as T;
+      } catch {
+        /* fall through */
+      }
+    }
+    if (modelName) logExtractionResponseIssue("invalid-json", text, modelName);
+    return fallback;
+  }
+}
+
+function buildExtractionConfig() {
+  return {
+    temperature: 0,
+    responseMimeType: "application/json",
+  };
+}
+
+function buildExtractionFallback(text: string, originalName: string, highAccuracy: boolean): ExtractedKnowledge {
+  return {
+    documentType: "document",
+    domain: "general",
+    title: originalName.replace(/\.[^.]+$/, ""),
+    suggestedDocumentType: "document",
+    sections: [{ content: text }],
+    tables: [],
+    statistics: [],
+    entities: [],
+    people: [],
+    dates: [],
+    handwrittenNotes: [],
+    keyFacts: [],
+    unclearItems: [],
+    unclearTableCells: [],
+    confidence: highAccuracy ? 0.55 : 0.35,
+    handwritingDifficulty: highAccuracy ? "medium" : "high",
+    needsReview: true,
+    recommendedNextStep: highAccuracy ? "review" : "high_accuracy_retry",
+    rawText: text,
+  };
+}
+
+export async function probeSmartPagesGeminiExtraction(): Promise<{
+  model: string;
+  success: boolean;
+  confidence: number;
+  title: string;
+  responseLength: number;
+}> {
+  const probeImage = Buffer.from(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO5j2f8AAAAASUVORK5CYII=",
+    "base64",
+  );
+  const result = await extractDocumentKnowledge(probeImage, "image/png", "smart-pages-diagnostic.png");
+  return {
+    model: resolveGeminiDocumentModel(),
+    success: true,
+    confidence: typeof result.confidence === "number" ? result.confidence : 0,
+    title: result.title,
+    responseLength: result.rawText?.length ?? 0,
+  };
 }
 
 function formatPreferences(preferences?: Record<string, unknown>): string {
@@ -153,8 +234,10 @@ High accuracy mode:
 ${priorExtractionText}`,
     });
   } else {
+    const fastBuffer = options.processedBuffer ?? fileBuffer;
+    const fastMimeType = options.processedBuffer ? (options.processedMimeType ?? "image/jpeg") : mimeType;
     contents.push(
-      { inlineData: { data: fileBuffer.toString("base64"), mimeType } },
+      { inlineData: { data: fastBuffer.toString("base64"), mimeType: fastMimeType } },
       { text: basePrompt },
     );
   }
@@ -162,33 +245,13 @@ ${priorExtractionText}`,
   const res = await generateContentWithRetry({
     model: model(),
     contents,
-    config: { temperature: 0 },
+    config: buildExtractionConfig(),
   });
 
   const text = res.text ?? "";
-  const fallback: ExtractedKnowledge = {
-    documentType: "document",
-    domain: "general",
-    title: originalName.replace(/\.[^.]+$/, ""),
-    suggestedDocumentType: "document",
-    sections: [{ content: text }],
-    tables: [],
-    statistics: [],
-    entities: [],
-    people: [],
-    dates: [],
-    handwrittenNotes: [],
-    keyFacts: [],
-    unclearItems: [],
-    unclearTableCells: [],
-    confidence: options.highAccuracy ? 0.55 : 0.35,
-    handwritingDifficulty: options.highAccuracy ? "medium" : "high",
-    needsReview: true,
-    recommendedNextStep: options.highAccuracy ? "review" : "high_accuracy_retry",
-    rawText: text,
-  };
+  const fallback = buildExtractionFallback(text, originalName, Boolean(options.highAccuracy));
 
-  return normalizeExtraction(parseJsonSafe<ExtractedKnowledge>(text, fallback), fallback, options.highAccuracy ?? false);
+  return normalizeExtraction(parseJsonSafe<ExtractedKnowledge>(text, fallback, model()), fallback, options.highAccuracy ?? false);
 }
 
 function normalizeExtraction(knowledge: ExtractedKnowledge, fallback: ExtractedKnowledge, highAccuracy: boolean): ExtractedKnowledge {

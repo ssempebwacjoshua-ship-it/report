@@ -344,6 +344,22 @@ export async function processSourceFileExtraction(sourceFileId: string): Promise
       ocrQuality: { width: preprocessed.width, height: preprocessed.height, notes: preprocessed.notes, warning: preprocessed.warning, retryMode },
     });
   } catch (error) {
+    const statusValue = (error as { status?: unknown } | null)?.status;
+    const causeValue = error instanceof Error ? (error as { cause?: unknown }).cause : undefined;
+    const geminiModel = process.env.GEMINI_MODEL?.trim() || "gemini-3.5-flash";
+    const diagnostic = {
+      documentId: sourceFile.documentId,
+      sourceFileId: sourceFile.id,
+      originalName: sourceFile.originalName,
+      mimeType: sourceFile.mimeType,
+      sizeBytes: sourceFile.sizeBytes,
+      geminiModel,
+      errorName: error instanceof Error ? error.name : "Unknown",
+      errorMessage: error instanceof Error ? error.message : String(error),
+      errorCause: causeValue === undefined || causeValue === null ? undefined : String(causeValue),
+      errorStatus: typeof statusValue === "number" ? statusValue : undefined,
+    };
+    console.error("[document-intelligence] extraction failed", diagnostic);
     const message = friendlyExtractionError(error);
     await db.documentSourceFile.update({
       where: { id: sourceFile.id },
