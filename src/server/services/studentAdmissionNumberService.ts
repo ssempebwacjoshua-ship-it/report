@@ -4,11 +4,24 @@ function slug(value: string) {
   return value.replace(/[^A-Za-z0-9]+/g, "").toUpperCase();
 }
 
+const WORD_NUMBERS: Record<string, string> = {
+  one: "1",
+  two: "2",
+  three: "3",
+  four: "4",
+  five: "5",
+  six: "6",
+};
+
 function classCode(className: string) {
-  const match = className.match(/(\d+)/);
-  const number = (match?.[1] ?? slug(className).slice(0, 2)) || "S1";
-  const suffix = className.replace(/.*?([A-Za-z])\s*$/, "$1").toUpperCase();
-  return `S${number}${suffix}`.replace(/\s+/g, "");
+  const normalized = className
+    .trim()
+    .toLowerCase()
+    .replace(/\b(one|two|three|four|five|six)\b/g, (word) => WORD_NUMBERS[word] ?? word);
+  const number = normalized.match(/(\d+)/)?.[1] ?? (slug(className).slice(0, 2) || "1");
+  const compact = normalized.replace(/[^a-z0-9]/g, "");
+  const suffix = compact.match(/^(?:senior|primary|s|p)?\d+([a-z])$/)?.[1]?.toUpperCase() ?? "";
+  return `S${number}${suffix}`;
 }
 
 /**

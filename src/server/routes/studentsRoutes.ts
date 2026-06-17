@@ -40,9 +40,34 @@ function splitName(fullName: string) {
 }
 
 function admissionModeFromQuery(value: unknown) {
-  return value === "school-provided" || value === "system-generated" || value === "mixed/adaptive"
-    ? value
-    : "mixed/adaptive";
+  const normalized = String(value ?? "").trim().toLowerCase().replace(/[_\s]+/g, "-");
+  return normalized === "create-and-update-existing" || normalized === "update" || normalized === "create-and-update"
+    ? "CREATE_AND_UPDATE_EXISTING"
+    : "CREATE_ONLY";
+}
+
+function parseUploadedStudentRows(file: Express.Multer.File) {
+  try {
+    const isXlsx = file.originalname.toLowerCase().endsWith(".xlsx")
+      || file.mimetype.includes("spreadsheetml")
+      || file.mimetype.includes("excel");
+    return isXlsx ? parseStudentsXlsx(file.buffer) : parseStudentsCsv(file.buffer.toString("utf8"));
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Could not parse import file.";
+    throw Object.assign(new Error(`Could not parse import file. Check the headers and CSV/XLSX formatting. ${message}`), { status: 400 });
+  }
+}
+
+function logStudentImport(req: { method: string; url: string; school?: { id: string; code: string } | null; headers: Record<string, unknown> }, event: string, details: Record<string, unknown> = {}) {
+  const requestId = typeof req.headers["x-request-id"] === "string" ? req.headers["x-request-id"] : undefined;
+  console.info("[student-import]", {
+    event,
+    requestId,
+    route: `${req.method} ${req.url}`,
+    schoolId: req.school?.id,
+    schoolCode: req.school?.code,
+    ...details,
+  });
 }
 
 export function studentsRoutes() {
@@ -163,9 +188,13 @@ export function studentsRoutes() {
         res.status(400).json({ error: "Upload a CSV or XLSX file." });
         return;
       }
-      const rows = file.originalname.toLowerCase().endsWith(".xlsx") ? parseStudentsXlsx(file.buffer) : parseStudentsCsv(file.buffer.toString("utf8"));
-      res.json(await previewStudentImport(prisma, schoolCode, rows, mode === "create-and-update existing" ? "CREATE_AND_UPDATE_EXISTING" : "CREATE_ONLY"));
+      logStudentImport(req, "preview.hit", { fileName: file.originalname, mimeType: file.mimetype });
+      const rows = parseUploadedStudentRows(file);
+      const result = await previewStudentImport(prisma, schoolCode, rows, mode);
+      logStudentImport(req, "preview.done", { parsedRows: rows.length, validRows: result.validRows, errorCount: result.invalidRows });
+      res.json(result);
     } catch (error) {
+      logStudentImport(req, "preview.error", { error: error instanceof Error ? error.message : String(error) });
       next(error);
     }
   });
@@ -183,13 +212,19 @@ export function studentsRoutes() {
         res.status(400).json({ error: "Upload a CSV or XLSX file." });
         return;
       }
-      const rows = file.originalname.toLowerCase().endsWith(".xlsx") ? parseStudentsXlsx(file.buffer) : parseStudentsCsv(file.buffer.toString("utf8"));
+      logStudentImport(req, "commit.hit", { fileName: file.originalname, mimeType: file.mimetype });
+      const rows = parseUploadedStudentRows(file);
       if (rows.length > 500) {
-        res.status(202).json(await createStudentImportJob(prisma, schoolCode, rows, mode === "create-and-update existing" ? "CREATE_AND_UPDATE_EXISTING" : "CREATE_ONLY"));
+        const job = await createStudentImportJob(prisma, schoolCode, rows, mode);
+        logStudentImport(req, "commit.queued", { parsedRows: rows.length, jobId: job.jobId, validRows: job.validRows, errorCount: job.invalidRows });
+        res.status(202).json(job);
         return;
       }
-      res.json(await commitStudentImport(prisma, schoolCode, rows, mode === "create-and-update existing" ? "CREATE_AND_UPDATE_EXISTING" : "CREATE_ONLY"));
+      const result = await commitStudentImport(prisma, schoolCode, rows, mode);
+      logStudentImport(req, "commit.done", { parsedRows: rows.length, status: result.status, jobId: "jobId" in result ? result.jobId : undefined, validRows: result.validRows, errorCount: result.invalidRows });
+      res.json(result);
     } catch (error) {
+      logStudentImport(req, "commit.error", { error: error instanceof Error ? error.message : String(error) });
       next(error);
     }
   });
@@ -209,9 +244,13 @@ export function studentsRoutes() {
         res.status(400).json({ error: "Upload a CSV or XLSX file." });
         return;
       }
-      const rows = file.originalname.toLowerCase().endsWith(".xlsx") ? parseStudentsXlsx(file.buffer) : parseStudentsCsv(file.buffer.toString("utf8"));
-      res.status(202).json(await createStudentImportJob(prisma, schoolCode, rows, mode === "create-and-update existing" ? "CREATE_AND_UPDATE_EXISTING" : "CREATE_ONLY"));
+      logStudentImport(req, "job-upload.hit", { fileName: file.originalname, mimeType: file.mimetype });
+      const rows = parseUploadedStudentRows(file);
+      const job = await createStudentImportJob(prisma, schoolCode, rows, mode);
+      logStudentImport(req, "job-upload.queued", { parsedRows: rows.length, jobId: job.jobId, validRows: job.validRows, errorCount: job.invalidRows });
+      res.status(202).json(job);
     } catch (error) {
+      logStudentImport(req, "job-upload.error", { error: error instanceof Error ? error.message : String(error) });
       next(error);
     }
   });
@@ -247,9 +286,13 @@ export function studentsRoutes() {
         res.status(400).json({ error: "Upload a CSV or XLSX file." });
         return;
       }
-      const rows = file.originalname.toLowerCase().endsWith(".xlsx") ? parseStudentsXlsx(file.buffer) : parseStudentsCsv(file.buffer.toString("utf8"));
-      res.status(202).json(await createStudentImportJob(prisma, schoolCode, rows, mode === "create-and-update existing" ? "CREATE_AND_UPDATE_EXISTING" : "CREATE_ONLY"));
+      logStudentImport(req, "internal-job-upload.hit", { fileName: file.originalname, mimeType: file.mimetype });
+      const rows = parseUploadedStudentRows(file);
+      const job = await createStudentImportJob(prisma, schoolCode, rows, mode);
+      logStudentImport(req, "internal-job-upload.queued", { parsedRows: rows.length, jobId: job.jobId, validRows: job.validRows, errorCount: job.invalidRows });
+      res.status(202).json(job);
     } catch (error) {
+      logStudentImport(req, "internal-job-upload.error", { error: error instanceof Error ? error.message : String(error) });
       next(error);
     }
   });

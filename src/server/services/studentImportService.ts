@@ -24,6 +24,48 @@ function norm(value: string) {
   return value.trim().toLowerCase();
 }
 
+const NUMBER_WORDS: Record<string, string> = {
+  one: "1",
+  two: "2",
+  three: "3",
+  four: "4",
+  five: "5",
+  six: "6",
+};
+
+function lookupKey(value: string) {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/\b(one|two|three|four|five|six)\b/g, (word) => NUMBER_WORDS[word] ?? word)
+    .replace(/[^a-z0-9]+/g, "");
+}
+
+function uniqueValues(values: string[]) {
+  return [...new Set(values.filter(Boolean))];
+}
+
+function classLookupKeys(value: string) {
+  const key = lookupKey(value);
+  const keys = [key];
+  const match = key.match(/^(senior|primary|s|p)?(\d+)([a-z])?$/);
+  if (match) {
+    const number = match[2];
+    const suffix = match[3] ?? "";
+    keys.push(`senior${number}`, `s${number}`, `primary${number}`, `p${number}`);
+    if (suffix) keys.push(`senior${number}${suffix}`, `s${number}${suffix}`);
+  }
+  return uniqueValues(keys);
+}
+
+function streamLookupKeys(value: string) {
+  const key = lookupKey(value);
+  const keys = [key];
+  const match = key.match(/^(?:stream)?([a-z0-9]+)$/);
+  if (match) keys.push(match[1]);
+  return uniqueValues(keys);
+}
+
 function splitName(fullName: string) {
   const parts = fullName.trim().split(/\s+/);
   return { firstName: parts[0] ?? "", lastName: parts.slice(1).join(" ") };
@@ -156,25 +198,52 @@ async function resolveSchool(prisma: PrismaClient, schoolCode: string) {
 type SchoolContext = NonNullable<Awaited<ReturnType<typeof resolveSchool>>>;
 
 type ResolvedMaps = {
-  classByKey: Map<string, { id: string; streamByKey: Map<string, string> }>;
+  classesByKey: Map<string, Array<{ id: string; name: string; code: string; streamByKey: Map<string, string> }>>;
   existingByAdm: Map<string, string>;
 };
 
 function buildMaps(school: SchoolContext): ResolvedMaps {
-  const classByKey = new Map<string, { id: string; streamByKey: Map<string, string> }>();
+  const classesByKey = new Map<string, Array<{ id: string; name: string; code: string; streamByKey: Map<string, string> }>>();
   for (const klass of school.classes) {
     const streamByKey = new Map<string, string>();
     for (const stream of klass.streams) {
-      streamByKey.set(norm(stream.name), stream.id);
-      streamByKey.set(norm(stream.code), stream.id);
+      for (const key of streamLookupKeys(stream.name)) streamByKey.set(key, stream.id);
+      for (const key of streamLookupKeys(stream.code)) streamByKey.set(key, stream.id);
     }
-    const entry = { id: klass.id, streamByKey };
-    classByKey.set(norm(klass.name), entry);
-    classByKey.set(norm(klass.code), entry);
+    const entry = { id: klass.id, name: klass.name, code: klass.code, streamByKey };
+    for (const key of uniqueValues([...classLookupKeys(klass.name), ...classLookupKeys(klass.code)])) {
+      const bucket = classesByKey.get(key) ?? [];
+      bucket.push(entry);
+      classesByKey.set(key, bucket);
+    }
   }
   const existingByAdm = new Map<string, string>();
   for (const student of school.students) existingByAdm.set(norm(student.admissionNumber), student.id);
-  return { classByKey, existingByAdm };
+  return { classesByKey, existingByAdm };
+}
+
+function resolveClassAndStream(maps: ResolvedMaps, className: string, streamName: string) {
+  const candidates = new Map<string, { id: string; name: string; code: string; streamByKey: Map<string, string> }>();
+  for (const key of classLookupKeys(className)) {
+    for (const klass of maps.classesByKey.get(key) ?? []) candidates.set(klass.id, klass);
+  }
+  const streamKeys = streamLookupKeys(streamName);
+  const withStream = [...candidates.values()]
+    .map((klass) => ({
+      klass,
+      streamId: streamKeys.map((key) => klass.streamByKey.get(key)).find(Boolean) ?? null,
+    }))
+    .filter((item) => item.streamId);
+  if (withStream.length === 1) return { klass: withStream[0].klass, streamId: withStream[0].streamId };
+  if (withStream.length > 1) {
+    const exactClassKey = lookupKey(className);
+    const exact = withStream.find((item) => lookupKey(item.klass.name) === exactClassKey || lookupKey(item.klass.code) === exactClassKey);
+    const canonical = exact ?? withStream.find((item) => /^s\d+$/i.test(item.klass.code) || /^senior\s+\d+$/i.test(item.klass.name));
+    if (canonical) return { klass: canonical.klass, streamId: canonical.streamId };
+    return { klass: withStream[0].klass, streamId: withStream[0].streamId };
+  }
+  const first = candidates.values().next().value as { id: string; name: string; code: string; streamByKey: Map<string, string> } | undefined;
+  return { klass: first ?? null, streamId: null };
 }
 
 /** Validates every row using in-memory maps — no per-row queries except
@@ -192,7 +261,8 @@ async function buildPreviewRows(prisma: PrismaClient, schoolCode: string, rows: 
     throw new Error("No active academic year or term found. Go to Preferences → Academic Years and activate a year and term before importing students.");
   }
   validateRequiredColumns(rows);
-  const { classByKey, existingByAdm } = buildMaps(school);
+  const maps = buildMaps(school);
+  const { existingByAdm } = maps;
 
   const seen = new Set<string>();
   const previewRows: StudentImportPreviewRow[] = [];
@@ -201,16 +271,17 @@ async function buildPreviewRows(prisma: PrismaClient, schoolCode: string, rows: 
   for (let i = 0; i < rows.length; i += 1) {
     const raw = rows[i]!;
     const errors: string[] = [];
-    const klass = classByKey.get(norm(raw.className)) ?? null;
-    const streamId = klass?.streamByKey.get(norm(raw.streamName)) ?? null;
+    const resolved = resolveClassAndStream(maps, raw.className, raw.streamName);
+    const klass = resolved.klass;
+    const streamId = resolved.streamId;
     const admissionNumber = raw.admissionNumber?.trim() || "";
 
     if (!raw.fullName.trim()) errors.push("Full name is required.");
     if (!raw.gender.trim()) errors.push("Gender is required.");
     if (!raw.className.trim()) errors.push("Class is required.");
-    else if (!klass) errors.push(`Class "${raw.className}" does not exist. Create it first in School Structure, or fix the class column.`);
+    else if (!klass) errors.push(`Class "${raw.className}" does not match an existing class. Use names such as "Senior 1" or "S1".`);
     if (!raw.streamName.trim()) errors.push("Stream is required.");
-    else if (klass && !streamId) errors.push(`Stream "${raw.streamName}" does not exist in class "${raw.className}". Create it first in School Structure.`);
+    else if (klass && !streamId) errors.push(`Stream "${raw.streamName}" does not exist in class "${klass.name}". Create it first in School Structure or fix the stream column.`);
     if (raw.guardianEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(raw.guardianEmail)) errors.push("Guardian email must be valid.");
     if (raw.guardianPhone && !/^[+]?[0-9\s()-]+$/.test(raw.guardianPhone)) errors.push("Guardian phone must be valid.");
 
@@ -284,6 +355,8 @@ function summarizePreview(previewRows: StudentImportPreviewRow[], duplicateRows:
 
 type BatchOutcome = {
   successCount: number;
+  createdCount: number;
+  updatedCount: number;
   duplicateCount: number;
   failedCount: number;
   rowErrors: Array<{ rowNumber: number; admissionNumber?: string; errors: string[] }>;
@@ -303,6 +376,8 @@ async function processBatch(
   existingByAdm: Map<string, string>,
 ): Promise<BatchOutcome> {
   let successCount = 0;
+  let createdCount = 0;
+  let updatedCount = 0;
   let duplicateCount = 0;
   let failedCount = 0;
   const rowErrors: BatchOutcome["rowErrors"] = [];
@@ -348,6 +423,7 @@ async function processBatch(
         data: { firstName: name.firstName, lastName: name.lastName, isActive: row.raw.status?.toLowerCase() !== "inactive" },
       });
       successCount += 1;
+      updatedCount += 1;
     } catch (error) {
       failedCount += 1;
       rowErrors.push({ rowNumber: row.rowNumber, errors: [error instanceof Error ? error.message : "Failed to update student"] });
@@ -407,6 +483,7 @@ async function processBatch(
         });
       }
       successCount += 1;
+      createdCount += 1;
     } catch (rowError) {
       failedCount += 1;
       rowErrors.push({
@@ -417,7 +494,7 @@ async function processBatch(
     }
   }
 
-  return { successCount, duplicateCount, failedCount, rowErrors };
+  return { successCount, createdCount, updatedCount, duplicateCount, failedCount, rowErrors };
 }
 
 export async function processImportJob(prisma: PrismaClient, batchId: string, schoolCode: string, mode: StudentImportMode) {
@@ -443,9 +520,19 @@ export async function processImportJob(prisma: PrismaClient, batchId: string, sc
   const activeYear = batch.school.academicYears[0];
   const activeTerm = activeYear?.terms[0];
   if (!activeYear || !activeTerm) {
+    const message = "An active academic year and term are required before importing students.";
     await prisma.markImportBatch.update({
       where: { id: batchId },
-      data: { status: "FAILED", summary: serializeSummary({ ...summary, rows: undefined, status: "failed", lastError: "An active academic year and term are required before importing students." }) },
+      data: {
+        status: "FAILED",
+        summary: serializeSummary({
+          ...summary,
+          rows: undefined,
+          status: "failed",
+          lastError: message,
+          errors: [{ row: 0, field: "academicYear", message }],
+        }),
+      },
     });
     return;
   }
@@ -455,13 +542,33 @@ export async function processImportJob(prisma: PrismaClient, batchId: string, sc
 
   let processedRows = 0;
   let successCount = 0;
+  let createdCount = 0;
+  let updatedCount = 0;
   let failedCount = 0;
   let duplicateCount = 0;
   const allRowErrors: BatchOutcome["rowErrors"] = [];
 
   await prisma.markImportBatch.update({
     where: { id: batchId },
-    data: { status: "DRY_RUN", summary: serializeSummary({ ...summary, status: "processing", totalRows, processedRows, successCount, failedCount, duplicateCount, startedAt: new Date().toISOString() }) },
+    data: {
+      status: "DRY_RUN",
+      summary: serializeSummary({
+        ...summary,
+        status: "processing",
+        totalRows,
+        processedRows,
+        successCount,
+        createdCount,
+        updatedCount,
+        failedCount,
+        duplicateCount,
+        created: createdCount,
+        updated: updatedCount,
+        skipped: duplicateCount + failedCount,
+        errors: [],
+        startedAt: new Date().toISOString(),
+      }),
+    },
   });
 
   for (let index = 0; index < rows.length; index += BATCH_SIZE) {
@@ -470,6 +577,8 @@ export async function processImportJob(prisma: PrismaClient, batchId: string, sc
     const result = await processBatch(prisma, batch.schoolId, chunk, activeYear.id, activeTerm.id, mode, existingByAdm);
     processedRows += chunk.length;
     successCount += result.successCount;
+    createdCount += result.createdCount;
+    updatedCount += result.updatedCount;
     failedCount += result.failedCount;
     duplicateCount += result.duplicateCount;
     if (result.rowErrors.length > 0 && allRowErrors.length < ROW_ERROR_LIMIT) {
@@ -481,9 +590,30 @@ export async function processImportJob(prisma: PrismaClient, batchId: string, sc
     }
     await prisma.markImportBatch.update({
       where: { id: batchId },
-      data: { summary: serializeSummary({ ...summary, status: "processing", totalRows, processedRows, successCount, failedCount, duplicateCount, updatedAt: new Date().toISOString() }) },
+      data: {
+        summary: serializeSummary({
+          ...summary,
+          status: "processing",
+          totalRows,
+          processedRows,
+          successCount,
+          createdCount,
+          updatedCount,
+          failedCount,
+          duplicateCount,
+          created: createdCount,
+          updated: updatedCount,
+          skipped: duplicateCount + failedCount,
+          errors: allRowErrors.map((item) => ({
+            row: item.rowNumber,
+            field: item.admissionNumber ? "admissionNumber" : "row",
+            message: item.errors.join("; "),
+          })),
+          updatedAt: new Date().toISOString(),
+        }),
+      },
     });
-    console.log(`[student-import] job ${batchId}: processed ${processedRows}/${totalRows}`, { batchMs: Date.now() - tBatch, success: result.successCount, failed: result.failedCount, duplicates: result.duplicateCount });
+    console.log(`[student-import] job ${batchId}: processed ${processedRows}/${totalRows}`, { batchMs: Date.now() - tBatch, success: result.successCount, created: result.createdCount, updated: result.updatedCount, failed: result.failedCount, duplicates: result.duplicateCount });
   }
 
   await prisma.markImportBatch.update({
@@ -497,19 +627,29 @@ export async function processImportJob(prisma: PrismaClient, batchId: string, sc
         totalRows,
         processedRows,
         successCount,
+        createdCount,
+        updatedCount,
         failedCount,
         duplicateCount,
+        created: createdCount,
+        updated: updatedCount,
+        skipped: duplicateCount + failedCount,
         rowErrors: allRowErrors,
+        errors: allRowErrors.map((item) => ({
+          row: item.rowNumber,
+          field: item.admissionNumber ? "admissionNumber" : "row",
+          message: item.errors.join("; "),
+        })),
         completedAt: new Date().toISOString(),
       }),
     },
   });
-  console.log("[student-import] stage: completed", { batchId, totalRows, processedRows, successCount, failedCount, duplicateCount, totalMs: Date.now() - tStart });
+  console.log("[student-import] stage: completed", { batchId, totalRows, processedRows, successCount, createdCount, updatedCount, failedCount, duplicateCount, totalMs: Date.now() - tStart });
   await prisma.auditLog.create({
     data: {
       schoolId: batch.schoolId,
       action: "student.import.commit",
-      details: { batchId, mode, totalRows, processedRows, successCount, failedCount, duplicateCount, destructive: false },
+      details: { batchId, mode, totalRows, processedRows, successCount, createdCount, updatedCount, failedCount, duplicateCount, destructive: false },
     },
   });
 }

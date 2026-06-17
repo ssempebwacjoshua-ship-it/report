@@ -17,6 +17,10 @@ function makeFakeDb(seedCount = 7) {
 
   const school = { id: "school-1", code: "SCU-PREVIEW", name: "Preview" };
   const classes = [
+    { id: "class-s1", schoolId: school.id, name: "Senior 1", code: "S1", streams: [
+      { id: "stream-s1-a", classId: "class-s1", name: "A", code: "A" },
+      { id: "stream-s1-b", classId: "class-s1", name: "B", code: "B" },
+    ] },
     { id: "class-s1a", schoolId: school.id, name: "Senior 1 A", code: "S1A", streams: [{ id: "stream-a", classId: "class-s1a", name: "A", code: "A" }] },
     { id: "class-s1b", schoolId: school.id, name: "Senior 1 B", code: "S1B", streams: [{ id: "stream-b", classId: "class-s1b", name: "B", code: "B" }] },
   ];
@@ -238,7 +242,7 @@ describe("student import data safety (append-only default)", () => {
     const { db } = makeFakeDb();
     const preview = await previewStudentImport(db, "SCU-PREVIEW", makeRows(3, { className: "Senior 99", streamName: "Z" }));
     expect(preview.invalidRows).toBe(3);
-    expect(preview.rows[0]!.errors.join(" ")).toContain('Class "Senior 99" does not exist');
+    expect(preview.rows[0]!.errors.join(" ")).toContain('Class "Senior 99" does not match an existing class');
   });
 });
 
@@ -288,6 +292,35 @@ describe("student import preview", () => {
 });
 
 describe("student import enrollment correctness", () => {
+  it("imports 20 students from canonical Senior 1 + stream A into the canonical class", async () => {
+    const { db, state } = makeFakeDb(0);
+    const rows = makeRows(20, { className: "Senior 1", streamName: "A", prefix: "S1A-CANON" });
+    const preview = await previewStudentImport(db, "SCU-PREVIEW", rows);
+    expect(preview.totalRows).toBe(20);
+    expect(preview.validRows).toBe(20);
+    expect(preview.invalidRows).toBe(0);
+    const job = await createStudentImportJob(db, "SCU-PREVIEW", rows);
+    const batch = await waitForJob(state, job.jobId);
+    const summary = JSON.parse(batch.summary!);
+    expect(summary.successCount).toBe(20);
+    expect(summary.created).toBe(20);
+    expect(summary.skipped).toBe(0);
+    expect(state.students.length).toBe(20);
+    expect(state.enrollments.filter((e) => e.classId === "class-s1" && e.streamId === "stream-s1-a").length).toBe(20);
+  });
+
+  it("accepts S1 and Senior One aliases for class matching", async () => {
+    const { db } = makeFakeDb(0);
+    const rows: StudentImportRowInput[] = [
+      { admissionNumber: "ALIAS-001", fullName: "Alias One", gender: "Female", className: "S1", streamName: "A", status: "ACTIVE", guardianName: "", guardianPhone: "", guardianEmail: "" },
+      { admissionNumber: "ALIAS-002", fullName: "Alias Two", gender: "Male", className: "Senior One", streamName: "Stream A", status: "ACTIVE", guardianName: "", guardianPhone: "", guardianEmail: "" },
+    ];
+    const preview = await previewStudentImport(db, "SCU-PREVIEW", rows);
+    expect(preview.validRows).toBe(2);
+    expect(preview.rows.map((row) => row.classId)).toEqual(["class-s1", "class-s1"]);
+    expect(preview.rows.map((row) => row.streamId)).toEqual(["stream-s1-a", "stream-s1-a"]);
+  });
+
   it("new students get ClassEnrollment with the correct classId and streamId", async () => {
     const { db, state } = makeFakeDb(0);
     const rows = makeRows(3, { className: "Senior 1 A", streamName: "A", prefix: "BC" });
@@ -356,6 +389,22 @@ describe("student import enrollment correctness", () => {
     expect(state.enrollments.length).toBe(enrollmentCountAfterFirst);
   });
 
+  it("duplicate guardian phone/email across rows does not crash import", async () => {
+    const { db, state } = makeFakeDb(0);
+    const rows = makeRows(3, { className: "Senior 1", streamName: "A", prefix: "GUARD" }).map((row) => ({
+      ...row,
+      guardianName: "Shared Guardian",
+      guardianPhone: "+256700111222",
+      guardianEmail: "shared@example.test",
+    }));
+    const job = await createStudentImportJob(db, "SCU-PREVIEW", rows);
+    const batch = await waitForJob(state, job.jobId);
+    const summary = JSON.parse(batch.summary!);
+    expect(summary.successCount).toBe(3);
+    expect(summary.failedCount).toBe(0);
+    expect(state.guardians.length).toBe(3);
+  });
+
   it("total and class-filtered enrollment counts are consistent after import", async () => {
     const { db, state } = makeFakeDb(0);
     const rows = [
@@ -410,6 +459,21 @@ describe("fuzzy header parsing", () => {
     expect(() => parseStudentsCsv(csv)).not.toThrow();
     const rows = parseStudentsCsv(csv);
     expect(rows[0]?.admissionNumber).toBe("ADM-003");
+  });
+
+  it("malformed headers become row-level validation errors, not parser crashes", async () => {
+    const { db } = makeFakeDb(0);
+    const csv = "Adm No,Student Name,Sex,Class Name,Stream Name,Unexpected Column\nADM-004,Readable Student,Female,Senior 1,A,ignored\n";
+    const rows = parseStudentsCsv(csv);
+    const preview = await previewStudentImport(db, "SCU-PREVIEW", rows);
+    expect(preview.invalidRows).toBe(0);
+    expect(preview.validRows).toBe(1);
+
+    const badCsv = "Only Header,Another Header\nvalue,other\n";
+    const badRows = parseStudentsCsv(badCsv);
+    const badPreview = await previewStudentImport(db, "SCU-PREVIEW", badRows);
+    expect(badPreview.invalidRows).toBe(1);
+    expect(badPreview.rows[0]!.errors.join(" ")).toContain("Full name is required");
   });
 });
 
@@ -472,6 +536,18 @@ describe("auto-generated admission numbers", () => {
     // All admission numbers must be unique
     const admNums = state.students.map((s) => s.admissionNumber.toLowerCase());
     expect(new Set(admNums).size).toBe(20);
+  });
+
+  it("blank admission numbers for Senior 1 + stream A generate unique S1A numbers", async () => {
+    const { db } = makeFakeDb(0);
+    const rows = makeRowsNoAdm(3, { className: "Senior 1", streamName: "A" });
+    const preview = await previewStudentImport(db, "SCU-PREVIEW", rows);
+    expect(preview.invalidRows).toBe(0);
+    expect(preview.rows.map((row) => row.generatedAdmissionNumber)).toEqual([
+      "SCUPREVIEW-S1A-001",
+      "SCUPREVIEW-S1A-002",
+      "SCUPREVIEW-S1A-003",
+    ]);
   });
 });
 
