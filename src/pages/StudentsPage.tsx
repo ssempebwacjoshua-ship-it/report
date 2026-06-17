@@ -83,6 +83,9 @@ export function StudentsPage() {
 
   const selected = useMemo(() => students.find((student) => student.id === selectedId) ?? null, [students, selectedId]);
   const streams = context?.streams.filter((stream) => stream.classId === filters.classId) ?? [];
+  const hasActiveYear = context?.academicYears.some((y) => y.isActive) ?? false;
+  const hasActiveTerm = context?.terms.some((t) => t.isActive) ?? false;
+  const canImport = hasActiveYear && hasActiveTerm;
 
   function editContact(contact: GuardianContact) {
     setEditingContactId(contact.id);
@@ -294,11 +297,16 @@ export function StudentsPage() {
                 </button>
                 <span className="text-sm text-slate-600">{importFile ? importFile.name : "No file selected"}</span>
               </div>
+              {!canImport && context ? (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                  <strong>No active academic year or term.</strong> Go to <strong>Preferences → Academic Years</strong> and activate a year and term before importing students.
+                </div>
+              ) : null}
               <div className="flex flex-wrap justify-end gap-2">
-                <button type="button" className="btn btn-primary" onClick={() => void previewImport()} disabled={!importFile}>
+                <button type="button" className="btn btn-primary" onClick={() => void previewImport()} disabled={!importFile || !canImport}>
                   Preview
                 </button>
-                <button type="button" className="btn btn-success" onClick={() => void commitImport()} disabled={!importPreview || importPreview.invalidRows > 0}>
+                <button type="button" className="btn btn-success" onClick={() => void commitImport()} disabled={!importPreview || importPreview.invalidRows > 0 || !canImport}>
                   Commit
                 </button>
               </div>
