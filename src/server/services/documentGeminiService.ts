@@ -1,5 +1,11 @@
 import { GoogleGenAI } from "@google/genai";
-import type { DocumentSchema, ComponentNode, ExtractedKnowledge } from "../../shared/types/documentIntelligence";
+import type {
+  DocumentSchema,
+  ComponentNode,
+  ExtractedKnowledge,
+  HandwritingDifficulty,
+  ExtractionRecommendation,
+} from "../../shared/types/documentIntelligence";
 
 let _client: GoogleGenAI | null = null;
 
@@ -60,13 +66,15 @@ export async function extractDocumentKnowledge(
   fileBuffer: Buffer,
   mimeType: string,
   originalName: string,
+  options: {
+    highAccuracy?: boolean;
+    processedBuffer?: Buffer;
+    processedMimeType?: string;
+    sectionBuffers?: Array<{ label: string; buffer: Buffer; mimeType: string }>;
+    priorExtraction?: ExtractedKnowledge | null;
+  } = {},
 ): Promise<ExtractedKnowledge> {
-  const res = await generateContentWithRetry({
-    model: model(),
-    contents: [
-      { inlineData: { data: fileBuffer.toString("base64"), mimeType } },
-      {
-        text: `You are a Document Intelligence Engine. Analyze this document and extract all content.
+  const basePrompt = `You are a Document Intelligence Engine. Analyze this document and extract all content.
 
 Return ONLY valid JSON (no markdown, no code fences):
 {
@@ -74,6 +82,10 @@ Return ONLY valid JSON (no markdown, no code fences):
   "domain": "education | healthcare | legal | business | nonprofit | general",
   "title": "inferred title",
   "suggestedDocumentType": "best document type for polished output",
+  "confidence": 0,
+  "handwritingDifficulty": "low | medium | high",
+  "needsReview": true,
+  "recommendedNextStep": "accept | review | high_accuracy_retry",
   "people": ["person names only"],
   "dates": ["dates exactly as written"],
   "sections": [{ "heading": "string or null", "content": "string" }],
@@ -83,6 +95,7 @@ Return ONLY valid JSON (no markdown, no code fences):
   "handwrittenNotes": [{ "heading": "string or null", "content": "string" }],
   "keyFacts": ["fact exactly supported by visible content"],
   "unclearItems": [{ "label": "field or area", "value": "best visible fragment or empty", "reason": "why unclear", "unclear": true }],
+  "unclearTableCells": [{ "row": 1, "column": "column name", "value": "best visible fragment or empty", "reason": "why unclear" }],
   "rawText": "full text content"
 }
 
@@ -90,13 +103,60 @@ Rules:
 - Return JSON only.
 - Do not hallucinate missing content.
 - If handwriting or a field is unclear, put it in unclearItems with "unclear": true.
+- If a table cell is uncertain, add it to unclearTableCells instead of guessing.
+- Confidence must be a number from 0 to 1.
+- If confidence is below 0.7, set needsReview to true.
+- If confidence is below 0.45, recommend high_accuracy_retry.
 - Preserve original wording where possible.
 - Extract tables only when table structure is visible.
 - For off-frame, tilted, dark, or low-confidence content, add an unclearItems entry instead of guessing.
 
-Document filename: ${originalName}`,
-      },
-    ],
+Document filename: ${originalName}`;
+
+  const contents: Array<{ inlineData?: { data: string; mimeType: string }; text?: string }> = [];
+  const addInline = (buffer: Buffer, inlineMime: string) => {
+    contents.push({ inlineData: { data: buffer.toString("base64"), mimeType: inlineMime } });
+  };
+
+  if (options.highAccuracy && options.processedBuffer) {
+    addInline(fileBuffer, mimeType);
+    addInline(options.processedBuffer, options.processedMimeType ?? "image/jpeg");
+    for (const section of options.sectionBuffers ?? []) {
+      addInline(section.buffer, section.mimeType);
+    }
+    const priorExtractionText = options.priorExtraction
+      ? `Previous extraction to compare against:\n${JSON.stringify({
+          confidence: options.priorExtraction.confidence,
+          handwritingDifficulty: options.priorExtraction.handwritingDifficulty,
+          needsReview: options.priorExtraction.needsReview,
+          recommendedNextStep: options.priorExtraction.recommendedNextStep,
+          unclearItems: options.priorExtraction.unclearItems,
+          unclearTableCells: options.priorExtraction.unclearTableCells,
+          sections: options.priorExtraction.sections,
+          tables: options.priorExtraction.tables,
+        }, null, 2)}`
+      : "No prior extraction provided.";
+    contents.push({
+      text: `${basePrompt}
+
+High accuracy mode:
+- Compare the original image, the enhanced image, and the section crops.
+- Prefer the clearer reading, but do not guess when the sources disagree.
+- Mark uncertain fields instead of filling them in.
+- Use the prior extraction only as a reference for comparison, never as a reason to hallucinate.
+
+${priorExtractionText}`,
+    });
+  } else {
+    contents.push(
+      { inlineData: { data: fileBuffer.toString("base64"), mimeType } },
+      { text: basePrompt },
+    );
+  }
+
+  const res = await generateContentWithRetry({
+    model: model(),
+    contents,
     config: { temperature: 0 },
   });
 
@@ -115,10 +175,61 @@ Document filename: ${originalName}`,
     handwrittenNotes: [],
     keyFacts: [],
     unclearItems: [],
+    unclearTableCells: [],
+    confidence: options.highAccuracy ? 0.55 : 0.35,
+    handwritingDifficulty: options.highAccuracy ? "medium" : "high",
+    needsReview: true,
+    recommendedNextStep: options.highAccuracy ? "review" : "high_accuracy_retry",
     rawText: text,
   };
 
-  return parseJsonSafe<ExtractedKnowledge>(text, fallback);
+  return normalizeExtraction(parseJsonSafe<ExtractedKnowledge>(text, fallback), fallback, options.highAccuracy ?? false);
+}
+
+function normalizeExtraction(knowledge: ExtractedKnowledge, fallback: ExtractedKnowledge, highAccuracy: boolean): ExtractedKnowledge {
+  const confidence = clampConfidence(typeof knowledge.confidence === "number" ? knowledge.confidence : fallback.confidence ?? 0.5);
+  const handwritingDifficulty = normalizeDifficulty(
+    knowledge.handwritingDifficulty ?? fallback.handwritingDifficulty ?? (confidence >= 0.8 ? "low" : confidence >= 0.55 ? "medium" : "high"),
+  );
+  const recommendedNextStep = normalizeRecommendation(
+    knowledge.recommendedNextStep ?? fallback.recommendedNextStep ?? (confidence < 0.45 ? "high_accuracy_retry" : confidence < 0.75 ? "review" : "accept"),
+  );
+  const needsReview = typeof knowledge.needsReview === "boolean" ? knowledge.needsReview : confidence < 0.75 || handwritingDifficulty !== "low";
+  const unclearItems = Array.isArray(knowledge.unclearItems) ? knowledge.unclearItems : fallback.unclearItems ?? [];
+  const unclearTableCells = Array.isArray(knowledge.unclearTableCells) ? knowledge.unclearTableCells : fallback.unclearTableCells ?? [];
+  const reviewWarning =
+    knowledge.reviewWarning
+    ?? (confidence < 0.45
+      ? "Some handwriting was difficult to read. Review the extracted text or try high accuracy extraction."
+      : confidence < 0.75
+        ? "Some handwriting was difficult to read. Please review before publishing."
+        : undefined);
+
+  return {
+    ...fallback,
+    ...knowledge,
+    confidence: highAccuracy ? confidence : (knowledge.confidence ?? confidence),
+    handwritingDifficulty,
+    needsReview,
+    recommendedNextStep,
+    unclearItems,
+    unclearTableCells,
+    reviewWarning,
+    ocrQualityNotes: knowledge.ocrQualityNotes ?? fallback.ocrQualityNotes,
+  };
+}
+
+function clampConfidence(value: number): number {
+  if (!Number.isFinite(value)) return 0.5;
+  return Math.max(0, Math.min(1, value));
+}
+
+function normalizeDifficulty(value: unknown): HandwritingDifficulty {
+  return value === "low" || value === "medium" || value === "high" ? value : "medium";
+}
+
+function normalizeRecommendation(value: unknown): ExtractionRecommendation {
+  return value === "accept" || value === "review" || value === "high_accuracy_retry" ? value : "review";
 }
 
 export async function generateDocumentSchema(

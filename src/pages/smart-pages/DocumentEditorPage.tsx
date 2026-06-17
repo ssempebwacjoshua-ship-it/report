@@ -90,6 +90,8 @@ function ExtractionReviewPanel({
   onDraftChange,
   onSave,
   onGenerate,
+  onHighAccuracyRetry,
+  retryingHighAccuracy,
 }: {
   knowledge: ExtractedKnowledge;
   editing: boolean;
@@ -99,15 +101,31 @@ function ExtractionReviewPanel({
   onDraftChange: (value: string) => void;
   onSave: () => void;
   onGenerate: () => void;
+  onHighAccuracyRetry: () => void;
+  retryingHighAccuracy: boolean;
 }) {
   const unclear = knowledge.unclearItems ?? [];
+  const confidence = typeof knowledge.confidence === "number" ? Math.round(knowledge.confidence * 100) : null;
   const tables = knowledge.tables ?? [];
   const text = knowledge.rawText || knowledge.sections.map((section) => section.content).join("\n\n");
+  const needsReview = Boolean(knowledge.needsReview || knowledge.reviewWarning || unclear.length || (typeof knowledge.confidence === "number" && knowledge.confidence < 0.7));
   return (
     <div className="mx-auto grid w-full max-w-2xl gap-3 p-4">
-      {knowledge.reviewWarning || unclear.length ? (
+      {needsReview ? (
         <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-          {knowledge.reviewWarning ?? "Some handwriting was unclear. Please review before publishing."}
+          <p>{knowledge.reviewWarning ?? "Some handwriting was difficult to read. Review the extracted text or try high accuracy extraction."}</p>
+          <div className="mt-2 flex flex-wrap items-center gap-2 text-xs font-semibold">
+            {confidence !== null ? <span className="rounded-full bg-amber-100 px-2 py-1 text-amber-900">Confidence {confidence}%</span> : null}
+            {knowledge.handwritingDifficulty ? <span className="rounded-full bg-amber-100 px-2 py-1 text-amber-900">Handwriting {knowledge.handwritingDifficulty}</span> : null}
+            <button
+              type="button"
+              onClick={onHighAccuracyRetry}
+              disabled={retryingHighAccuracy}
+              className="rounded-full bg-amber-600 px-3 py-1.5 text-white disabled:opacity-60"
+            >
+              {retryingHighAccuracy ? "Re-extracting..." : "Re-extract with high accuracy"}
+            </button>
+          </div>
         </div>
       ) : null}
       <section className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
@@ -295,6 +313,7 @@ export function DocumentEditorPage() {
   const [reviewEditing, setReviewEditing] = useState(false);
   const [reviewDraft, setReviewDraft] = useState("");
   const [reviewSaving, setReviewSaving] = useState(false);
+  const [retryingHighAccuracy, setRetryingHighAccuracy] = useState(false);
 
   const [versions, setVersions] = useState<DocumentVersionSummary[]>([]);
   const [showVersions, setShowVersions] = useState(false);
@@ -575,19 +594,21 @@ export function DocumentEditorPage() {
     }
   }
 
-  async function handleRetryExtraction() {
+  async function handleRetryExtraction(highAccuracy = false) {
     if (!id) return;
     if (!acquireActionLock("retry")) return;
+    if (highAccuracy) setRetryingHighAccuracy(true);
     try {
-      await retryDocumentExtraction(id, doc?.latestSourceFile?.id);
+      await retryDocumentExtraction(id, doc?.latestSourceFile?.id, { highAccuracy });
       setStage("processing");
       setActiveTab("preview");
       const refreshed = await getDocument(id);
       setDoc(refreshed);
-      addMessage("assistant", "Retrying extraction in the background.");
+      addMessage("assistant", highAccuracy ? "Retrying extraction with high accuracy in the background." : "Retrying extraction in the background.");
     } catch (e) {
       addMessage("assistant", e instanceof Error ? e.message : "Retry failed.");
     } finally {
+      if (highAccuracy) setRetryingHighAccuracy(false);
       releaseActionLock("retry");
     }
   }
@@ -902,6 +923,8 @@ export function DocumentEditorPage() {
               onDraftChange={setReviewDraft}
               onSave={() => void handleSaveExtractionReview()}
               onGenerate={() => void handleGenerateFromReview()}
+              onHighAccuracyRetry={() => void handleRetryExtraction(true)}
+              retryingHighAccuracy={retryingHighAccuracy}
             />
           ) : stage === "ready" ? (
             <div className="min-h-full p-4">

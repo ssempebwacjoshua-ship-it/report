@@ -84,11 +84,15 @@ export async function uploadDocumentFile(
   return json<{ ok: boolean; status: "PROCESSING"; sourceFileId: string }>(res);
 }
 
-export async function retryDocumentExtraction(documentId: string, sourceFileId?: string): Promise<{ status: "PROCESSING"; sourceFileId: string }> {
+export async function retryDocumentExtraction(
+  documentId: string,
+  sourceFileId?: string,
+  options: { highAccuracy?: boolean } = {},
+): Promise<{ status: "PROCESSING"; sourceFileId: string }> {
   const res = await fetch(`${API_BASE}/api/smart-documents/${documentId}/extraction/retry`, {
     method: "POST",
     headers: authHeaders(),
-    body: JSON.stringify({ sourceFileId }),
+    body: JSON.stringify({ sourceFileId, highAccuracy: options.highAccuracy ?? false }),
   });
   return json(res);
 }

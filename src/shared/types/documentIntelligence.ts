@@ -114,6 +114,16 @@ export interface ExtractedUnclearItem {
   unclear: true;
 }
 
+export interface ExtractedUnclearTableCell {
+  row: number;
+  column: string;
+  value: string;
+  reason: string;
+}
+
+export type HandwritingDifficulty = "low" | "medium" | "high";
+export type ExtractionRecommendation = "accept" | "review" | "high_accuracy_retry";
+
 export interface ExtractedKnowledge {
   documentType: string;
   domain: string;
@@ -127,9 +137,14 @@ export interface ExtractedKnowledge {
   handwrittenNotes?: ExtractedSection[];
   keyFacts?: string[];
   unclearItems?: ExtractedUnclearItem[];
+  unclearTableCells?: ExtractedUnclearTableCell[];
   suggestedDocumentType?: string;
   ocrQualityNotes?: string[];
   reviewWarning?: string;
+  confidence?: number;
+  handwritingDifficulty?: HandwritingDifficulty;
+  needsReview?: boolean;
+  recommendedNextStep?: ExtractionRecommendation;
   rawText?: string;
 }
 
