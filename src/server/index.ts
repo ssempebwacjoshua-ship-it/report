@@ -30,6 +30,9 @@ import { documentCleanerRoutes } from "./routes/documentCleanerRoutes";
 import { subscriptionRoutes } from "./routes/subscriptionRoutes";
 import { documentIntelligenceRoutes } from "./routes/documentIntelligenceRoutes";
 import { creatorAuthRoutes } from "./routes/creatorAuthRoutes";
+import { collectionRoutes } from "./routes/collectionRoutes";
+import { bulkGenerationRoutes } from "./routes/bulkGenerationRoutes";
+import { startBulkGenerationWorker } from "./services/bulkGenerationService";
 import geminiOcrRoutes from "./routes/geminiOcrRoutes";
 import geminiRosterRoutes from "./routes/geminiRosterRoutes";
 import geminiMarksImportRoutes from "./routes/geminiMarksImportRoutes";
@@ -63,6 +66,8 @@ export function createServer() {
   // Document Intelligence Engine — creator auth accepts both school JWTs and external creator JWTs
   app.use("/api/creator", creatorAuthRoutes());
   app.use("/api/smart-documents", documentIntelligenceRoutes());
+  app.use("/api/collections", collectionRoutes());
+  app.use("/api/bulk-jobs", bulkGenerationRoutes());
 
   // Platform-owner provisioning — protected by PLATFORM_ADMIN_KEY, not by school JWT
   app.use(platformAdminRoutes());
@@ -157,6 +162,7 @@ if (process.env.NODE_ENV !== "test") {
   console.log("[startup] Node DNS result order: ipv4first (forced)");
   console.log("[startup] Node version:", process.version);
   void recoverStaleStudentImportJobs(prisma).catch((error) => console.error("Failed to recover stale student import jobs", error));
+  startBulkGenerationWorker();
   const httpServer = http.createServer(createServer());
   httpServer.requestTimeout = 120_000;
   httpServer.headersTimeout = 125_000;

@@ -148,6 +148,66 @@ function SignatureRenderer({ props }: { props: Record<string, unknown> }) {
   );
 }
 
+function ChartRenderer({ props, primaryColor }: { props: Record<string, unknown>; primaryColor: string }) {
+  const labels = (props.labels as string[]) ?? [];
+  const data = (props.data as number[]) ?? [];
+  const max = Math.max(...data, 1);
+  const barW = 36;
+  const chartH = 100;
+  const gap = 10;
+  const svgW = Math.max(labels.length * (barW + gap) + 20, 200);
+  return (
+    <div>
+      {props.heading ? (
+        <h2 className="mb-2 text-sm font-bold uppercase tracking-wide text-slate-500">{String(props.heading)}</h2>
+      ) : null}
+      <svg width={svgW} height={chartH + 36} overflow="visible" className="block">
+        {labels.map((label, i) => {
+          const barH = Math.max(Math.round((data[i] ?? 0) / max * chartH), 2);
+          const x = 10 + i * (barW + gap);
+          const y = chartH - barH + 4;
+          return (
+            <g key={i}>
+              <rect x={x} y={y} width={barW} height={barH} fill={primaryColor} opacity={0.8} rx={3} />
+              <text x={x + barW / 2} y={chartH + 20} textAnchor="middle" fontSize={9} fill="#64748b">{label}</text>
+              <text x={x + barW / 2} y={y - 3} textAnchor="middle" fontSize={9} fill="#334155">{data[i]}</text>
+            </g>
+          );
+        })}
+      </svg>
+    </div>
+  );
+}
+
+function TimelineRenderer({ props, primaryColor }: { props: Record<string, unknown>; primaryColor: string }) {
+  const items = (props.items as { date: string; title: string; description?: string }[]) ?? [];
+  return (
+    <div>
+      {props.heading ? (
+        <h2 className="mb-3 text-sm font-bold uppercase tracking-wide text-slate-500">{String(props.heading)}</h2>
+      ) : null}
+      <div className="relative">
+        <div className="absolute left-[9px] top-0 bottom-0 w-px bg-slate-200" />
+        <div className="grid gap-4">
+          {items.map((item, i) => (
+            <div key={i} className="flex gap-3 pl-6 relative">
+              <div
+                className="absolute left-0 top-1 h-4 w-4 rounded-full border-2 border-white shadow-sm"
+                style={{ background: primaryColor }}
+              />
+              <div>
+                <p className="text-[10px] text-slate-400 font-medium">{item.date}</p>
+                <p className="text-sm font-bold text-slate-900">{item.title}</p>
+                {item.description ? <p className="text-xs text-slate-500 mt-0.5">{item.description}</p> : null}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function FooterRenderer({ props }: { props: Record<string, unknown> }) {
   return (
     <div className="flex items-center justify-between border-t border-slate-200 pt-3 text-[10px] text-slate-400">
@@ -170,6 +230,8 @@ function renderComponent(node: ComponentNode, primaryColor: string): React.React
     case "aiSummary": return <AiSummaryRenderer key={key} props={node.props} />;
     case "profileCard": return <ProfileCardRenderer key={key} props={node.props} />;
     case "signature": return <SignatureRenderer key={key} props={node.props} />;
+    case "chart": return <ChartRenderer key={key} props={node.props} primaryColor={primaryColor} />;
+    case "timeline": return <TimelineRenderer key={key} props={node.props} primaryColor={primaryColor} />;
     case "footer": return <FooterRenderer key={key} props={node.props} />;
     default: return null;
   }

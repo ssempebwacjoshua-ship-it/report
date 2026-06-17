@@ -62,16 +62,25 @@ export function SmartPagesPage() {
           <h1 className="text-xl font-black text-slate-950">Smart Pages</h1>
           <p className="mt-0.5 text-sm text-slate-500">Upload anything. Describe what you want. AI builds it.</p>
         </div>
-        <button
-          type="button"
-          className="btn btn-primary flex items-center gap-2"
-          onClick={() => setShowModal(true)}
-        >
-          <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2.5">
-            <path d="M12 5v14M5 12h14" strokeLinecap="round" />
-          </svg>
-          New Document
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"
+            onClick={() => void navigate("/collections")}
+          >
+            Collections
+          </button>
+          <button
+            type="button"
+            className="btn btn-primary flex items-center gap-2"
+            onClick={() => setShowModal(true)}
+          >
+            <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <path d="M12 5v14M5 12h14" strokeLinecap="round" />
+            </svg>
+            New Document
+          </button>
+        </div>
       </div>
 
       {loadError ? (

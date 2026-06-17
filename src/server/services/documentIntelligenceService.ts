@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import bcrypt from "bcryptjs";
 import { prisma } from "../db/prisma";
 import {
   extractDocumentKnowledge,
@@ -264,7 +265,7 @@ export async function restoreVersion(
 export async function publishDocument(
   documentId: string,
   creatorId: string,
-  options: { expiresInDays?: number } = {},
+  options: { expiresInDays?: number; password?: string } = {},
 ): Promise<{ token: string; url: string }> {
   const db = prisma as any;
   const doc = await db.smartDocument.findFirst({ where: { id: documentId, creatorId } });
@@ -274,11 +275,12 @@ export async function publishDocument(
   const expiresAt = options.expiresInDays
     ? new Date(Date.now() + options.expiresInDays * 86_400_000)
     : null;
+  const passwordHash = options.password ? await bcrypt.hash(options.password, 10) : null;
 
   await db.publishedDocument.upsert({
     where: { documentId },
-    update: { token, expiresAt, updatedAt: new Date() },
-    create: { id: randomUUID(), documentId, token, expiresAt },
+    update: { token, expiresAt, passwordHash, updatedAt: new Date() },
+    create: { id: randomUUID(), documentId, token, expiresAt, passwordHash },
   });
 
   await db.smartDocument.update({ where: { id: documentId }, data: { status: "PUBLISHED" } });
@@ -291,7 +293,8 @@ export async function publishDocument(
 
 export async function getPublishedDocument(
   token: string,
-): Promise<{ document: SmartDocumentDetail; publishedAt: string } | null> {
+  password?: string,
+): Promise<{ document: SmartDocumentDetail; publishedAt: string } | null | "PASSWORD_REQUIRED" | "WRONG_PASSWORD"> {
   const db = prisma as any;
   const published = await db.publishedDocument.findUnique({
     where: { token },
@@ -300,6 +303,12 @@ export async function getPublishedDocument(
 
   if (!published) return null;
   if (published.expiresAt && new Date(published.expiresAt as Date) < new Date()) return null;
+
+  if (published.passwordHash) {
+    if (!password) return "PASSWORD_REQUIRED";
+    const valid = await bcrypt.compare(password, published.passwordHash as string);
+    if (!valid) return "WRONG_PASSWORD";
+  }
 
   await db.publishedDocument.update({
     where: { token },

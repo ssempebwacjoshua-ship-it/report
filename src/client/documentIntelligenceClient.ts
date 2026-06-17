@@ -123,7 +123,7 @@ export async function restoreVersion(documentId: string, versionId: string): Pro
 
 export async function publishDocument(
   documentId: string,
-  options: { expiresInDays?: number } = {},
+  options: { expiresInDays?: number; password?: string } = {},
 ): Promise<{ token: string; url: string }> {
   const res = await fetch(`${API_BASE}/api/smart-documents/${documentId}/publish`, {
     method: "POST",
@@ -133,9 +133,31 @@ export async function publishDocument(
   return json(res);
 }
 
+export async function openPrintWindow(documentId: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/smart-documents/${documentId}/print`, { headers: authHeaders() });
+  if (!res.ok) throw new Error(`Print failed: ${res.status}`);
+  const html = await res.text();
+  const blob = new Blob([html], { type: "text/html" });
+  const url = URL.createObjectURL(blob);
+  const win = window.open(url, "_blank");
+  if (win) {
+    setTimeout(() => URL.revokeObjectURL(url), 30_000);
+  }
+}
+
 export async function getPublishedDocument(
   token: string,
+  password?: string,
 ): Promise<{ document: SmartDocumentDetail; publishedAt: string }> {
-  const res = await fetch(`${API_BASE}/api/smart-documents/p/${token}`);
-  return json(res);
+  const url = new URL(`${API_BASE}/api/smart-documents/p/${token}`);
+  if (password) url.searchParams.set("password", password);
+  const res = await fetch(url.toString());
+  if (!res.ok) {
+    const data = await res.json() as { error?: string; code?: string };
+    if (data.code === "PASSWORD_REQUIRED" || data.code === "WRONG_PASSWORD") {
+      throw Object.assign(new Error(data.error ?? "Auth failed"), { code: data.code });
+    }
+    throw new Error(data.error ?? `HTTP ${res.status}`);
+  }
+  return res.json() as Promise<{ document: SmartDocumentDetail; publishedAt: string }>;
 }

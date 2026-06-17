@@ -1,7 +1,10 @@
 import { Router } from "express";
 import multer from "multer";
+import bcrypt from "bcryptjs";
 import { requireCreator } from "../middleware/requireCreator";
 import * as svc from "../services/documentIntelligenceService";
+import { renderSchemaToHtml } from "../services/documentRenderService";
+import type { DocumentSchema, ComponentNode } from "../../shared/types/documentIntelligence";
 
 const router = Router();
 const upload = multer({
@@ -12,8 +15,11 @@ const upload = multer({
 // Public document page — no auth required (before :id route to avoid conflict)
 router.get("/p/:token", async (req, res) => {
   try {
-    const result = await svc.getPublishedDocument(req.params.token);
+    const password = req.query.password as string | undefined;
+    const result = await svc.getPublishedDocument(req.params.token, password);
     if (!result) { res.status(404).json({ error: "Document not found or link has expired." }); return; }
+    if (result === "PASSWORD_REQUIRED") { res.status(401).json({ error: "Password required.", code: "PASSWORD_REQUIRED" }); return; }
+    if (result === "WRONG_PASSWORD") { res.status(401).json({ error: "Incorrect password.", code: "WRONG_PASSWORD" }); return; }
     res.json({ ok: true, ...result });
   } catch (e) {
     res.status(500).json({ error: e instanceof Error ? e.message : "Failed to load document." });
@@ -107,11 +113,25 @@ router.post("/:id/versions/:versionId/restore", requireCreator, async (req, res)
   }
 });
 
+// Print export — returns full print-ready HTML page (no auth for now so owner can open in new tab)
+router.get("/:id/print", requireCreator, async (req, res) => {
+  try {
+    const doc = await svc.getDocument(req.params.id, req.creator!.id);
+    if (!doc) { res.status(404).json({ error: "Document not found." }); return; }
+    if (!doc.activeVersion) { res.status(400).json({ error: "Document has no content yet." }); return; }
+    const html = renderSchemaToHtml(doc.activeVersion.schema, doc.activeVersion.componentTree, doc.title);
+    res.setHeader("Content-Type", "text/html; charset=utf-8");
+    res.send(html);
+  } catch (e: any) {
+    res.status(e?.status ?? 500).json({ error: e instanceof Error ? e.message : "Print export failed." });
+  }
+});
+
 // Publish
 router.post("/:id/publish", requireCreator, async (req, res) => {
-  const { expiresInDays } = req.body as { expiresInDays?: number };
+  const { expiresInDays, password } = req.body as { expiresInDays?: number; password?: string };
   try {
-    const result = await svc.publishDocument(req.params.id, req.creator!.id, { expiresInDays });
+    const result = await svc.publishDocument(req.params.id, req.creator!.id, { expiresInDays, password });
     res.json({ ok: true, ...result });
   } catch (e: any) {
     res.status(e?.status ?? 500).json({ error: e instanceof Error ? e.message : "Publish failed." });

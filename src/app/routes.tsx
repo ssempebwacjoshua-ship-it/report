@@ -19,6 +19,10 @@ import { OwnerUsersPage } from "../pages/owner/OwnerUsersPage";
 import { SmartPagesPage } from "../pages/smart-pages/SmartPagesPage";
 import { DocumentEditorPage } from "../pages/smart-pages/DocumentEditorPage";
 import { PublishedDocumentPage } from "../pages/smart-pages/PublishedDocumentPage";
+import { CollectionsPage } from "../pages/smart-pages/CollectionsPage";
+import { CollectionDetailPage } from "../pages/smart-pages/CollectionDetailPage";
+import { BulkGeneratePage } from "../pages/smart-pages/BulkGeneratePage";
+import { BulkJobStatusPage } from "../pages/smart-pages/BulkJobStatusPage";
 
 export const router = createBrowserRouter([
   // Public routes — no AppShell, no auth
@@ -55,6 +59,10 @@ export const router = createBrowserRouter([
       { path: "documents/cleaner", element: <DocumentCleanerPage /> },
       { path: "smart-pages", element: <SmartPagesPage /> },
       { path: "smart-pages/:id", element: <DocumentEditorPage /> },
+      { path: "collections", element: <CollectionsPage /> },
+      { path: "collections/:id", element: <CollectionDetailPage /> },
+      { path: "collections/:id/bulk-generate", element: <BulkGeneratePage /> },
+      { path: "bulk-jobs/:id", element: <BulkJobStatusPage /> },
     ],
   },
 ]);
