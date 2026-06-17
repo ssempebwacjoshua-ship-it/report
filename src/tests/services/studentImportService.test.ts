@@ -81,9 +81,15 @@ function makeFakeDb(seedCount = 7) {
         students.push(st);
         return st;
       },
-      findMany: async ({ where }: { where: { admissionNumber?: { in: string[] } } }) => {
-        const wanted = new Set((where.admissionNumber?.in ?? []).map((a) => a.toLowerCase()));
-        return students.filter((s) => wanted.has(s.admissionNumber.toLowerCase())).map((s) => ({ id: s.id, admissionNumber: s.admissionNumber }));
+      findMany: async ({ where }: { where: { admissionNumber?: { in: string[] }; schoolId?: string } }) => {
+        if (where.admissionNumber?.in) {
+          const wanted = new Set(where.admissionNumber.in.map((a) => a.toLowerCase()));
+          return students.filter((s) => wanted.has(s.admissionNumber.toLowerCase())).map((s) => ({ id: s.id, admissionNumber: s.admissionNumber }));
+        }
+        if (where.schoolId) {
+          return students.filter((s) => s.schoolId === where.schoolId).map((s) => ({ id: s.id, admissionNumber: s.admissionNumber }));
+        }
+        return [];
       },
       update: async ({ where, data }: { where: { id: string }; data: Record<string, unknown> }) => {
         const st = students.find((s) => s.id === where.id)!;
@@ -389,5 +395,142 @@ describe("fuzzy header parsing", () => {
     expect(rows[0]?.fullName).toBe("John Smith");
     expect(rows[0]?.gender).toBe("Male");
     expect(rows[0]?.className).toBe("Senior 1 B");
+  });
+
+  it("parseStudentsCsv does not throw on CSV with extra trailing columns (relax_column_count)", () => {
+    // Some users export CSVs that have trailing empty commas — must not 500.
+    const csv = "admissionNumber,fullName,gender,class,stream,guardianName,guardianPhone,guardianEmail,status\nADM-001,Jane Doe,Female,Senior 1 A,A,Mary,0700000001,jane@example.com,ACTIVE,EXTRA,EXTRA2\n";
+    expect(() => parseStudentsCsv(csv)).not.toThrow();
+    const rows = parseStudentsCsv(csv);
+    expect(rows[0]?.admissionNumber).toBe("ADM-001");
+  });
+
+  it("parseStudentsCsv does not throw on CSV with fewer columns than header", () => {
+    const csv = "admissionNumber,fullName,gender,class,stream,guardianName,guardianPhone,guardianEmail,status\nADM-003,Alice,,Senior 1 A,A\n";
+    expect(() => parseStudentsCsv(csv)).not.toThrow();
+    const rows = parseStudentsCsv(csv);
+    expect(rows[0]?.admissionNumber).toBe("ADM-003");
+  });
+});
+
+describe("auto-generated admission numbers", () => {
+  function makeRowsNoAdm(count: number, opts: { className?: string; streamName?: string } = {}): StudentImportRowInput[] {
+    return Array.from({ length: count }, (_, i) => ({
+      admissionNumber: "",
+      fullName: `Auto Student ${i + 1}`,
+      gender: i % 2 ? "Male" : "Female",
+      className: opts.className ?? "Senior 1 A",
+      streamName: opts.streamName ?? "A",
+      guardianName: "",
+      guardianPhone: "",
+      guardianEmail: "",
+      status: "ACTIVE",
+    }));
+  }
+
+  it("20 students without admission numbers all receive unique auto-generated numbers", async () => {
+    const { db } = makeFakeDb(0);
+    const rows = makeRowsNoAdm(20);
+    const preview = await previewStudentImport(db, "SCU-PREVIEW", rows);
+    expect(preview.totalRows).toBe(20);
+    expect(preview.invalidRows).toBe(0);
+    const generated = preview.rows.map((r) => r.generatedAdmissionNumber).filter(Boolean);
+    const unique = new Set(generated.map((n) => n?.toLowerCase()));
+    expect(unique.size).toBe(preview.rows.length); // all different
+  });
+
+  it("auto-generated numbers skip numbers already used by existing DB students", async () => {
+    // Seed students that occupy the first 5 auto-number candidates
+    const { db, state } = makeFakeDb(0);
+    // Manually pre-seed students whose admission numbers match the auto-gen pattern
+    // so the generator is forced to skip them.
+    const school = { id: "school-1" };
+    for (let i = 1; i <= 5; i += 1) {
+      // The pattern is: SCUPREVIEW-S1AA-001 ... SCUPREVIEW-S1AA-005
+      state.students.push({ id: `pre-${i}`, schoolId: school.id, admissionNumber: `SCUPREVIEW-S1AA-${String(i).padStart(3, "0")}`, firstName: `Pre${i}`, lastName: "Exist", isActive: true });
+    }
+    const rows = makeRowsNoAdm(3);
+    const preview = await previewStudentImport(db, "SCU-PREVIEW", rows);
+    expect(preview.invalidRows).toBe(0);
+    const generated = preview.rows.map((r) => r.generatedAdmissionNumber?.toUpperCase()).filter(Boolean);
+    // None of the generated numbers should collide with pre-seeded ones
+    const occupied = new Set(["SCUPREVIEW-S1AA-001", "SCUPREVIEW-S1AA-002", "SCUPREVIEW-S1AA-003", "SCUPREVIEW-S1AA-004", "SCUPREVIEW-S1AA-005"]);
+    for (const gen of generated) {
+      expect(occupied.has(gen!)).toBe(false);
+    }
+  });
+
+  it("auto-generated numbers do not conflict with each other across 20 rows", async () => {
+    const { db, state } = makeFakeDb(0);
+    const rows = makeRowsNoAdm(20);
+    const job = await createStudentImportJob(db, "SCU-PREVIEW", rows);
+    const batch = await waitForJob(state, job.jobId);
+    const summary = JSON.parse(batch.summary!);
+    expect(summary.successCount).toBe(20);
+    expect(summary.failedCount).toBe(0);
+    expect(state.students.length).toBe(20);
+    // All admission numbers must be unique
+    const admNums = state.students.map((s) => s.admissionNumber.toLowerCase());
+    expect(new Set(admNums).size).toBe(20);
+  });
+});
+
+describe("missing required field validation", () => {
+  it("row with missing fullName is marked invalid with correct error", async () => {
+    const { db } = makeFakeDb(0);
+    const rows = [{ admissionNumber: "ADM-001", fullName: "", gender: "Male", className: "Senior 1 A", streamName: "A", status: "ACTIVE", guardianName: "", guardianPhone: "", guardianEmail: "" }];
+    const preview = await previewStudentImport(db, "SCU-PREVIEW", rows);
+    expect(preview.invalidRows).toBe(1);
+    expect(preview.rows[0]!.errors.join(" ")).toContain("Full name is required");
+  });
+
+  it("row with missing gender is marked invalid", async () => {
+    const { db } = makeFakeDb(0);
+    const rows = [{ admissionNumber: "ADM-002", fullName: "Jane Doe", gender: "", className: "Senior 1 A", streamName: "A", status: "ACTIVE", guardianName: "", guardianPhone: "", guardianEmail: "" }];
+    const preview = await previewStudentImport(db, "SCU-PREVIEW", rows);
+    expect(preview.invalidRows).toBe(1);
+    expect(preview.rows[0]!.errors.join(" ")).toContain("Gender is required");
+  });
+
+  it("row with missing class is marked invalid", async () => {
+    const { db } = makeFakeDb(0);
+    const rows = [{ admissionNumber: "ADM-003", fullName: "Jane Doe", gender: "Female", className: "", streamName: "A", status: "ACTIVE", guardianName: "", guardianPhone: "", guardianEmail: "" }];
+    const preview = await previewStudentImport(db, "SCU-PREVIEW", rows);
+    expect(preview.invalidRows).toBe(1);
+    expect(preview.rows[0]!.errors.join(" ")).toContain("Class is required");
+  });
+
+  it("row with missing stream is marked invalid", async () => {
+    const { db } = makeFakeDb(0);
+    const rows = [{ admissionNumber: "ADM-004", fullName: "Jane Doe", gender: "Female", className: "Senior 1 A", streamName: "", status: "ACTIVE", guardianName: "", guardianPhone: "", guardianEmail: "" }];
+    const preview = await previewStudentImport(db, "SCU-PREVIEW", rows);
+    expect(preview.invalidRows).toBe(1);
+    expect(preview.rows[0]!.errors.join(" ")).toContain("Stream is required");
+  });
+
+  it("row with unknown class does not auto-generate a real admission number (avoids wasted DB queries)", async () => {
+    const { db } = makeFakeDb(0);
+    // No admission number + bad class = invalid row; generator must NOT be called.
+    // The placeholder starts with __INVALID_ to signal "not a real generated number".
+    const rows = [{ admissionNumber: "", fullName: "Ghost", gender: "Male", className: "Nonexistent Class", streamName: "Z", status: "ACTIVE", guardianName: "", guardianPhone: "", guardianEmail: "" }];
+    const preview = await previewStudentImport(db, "SCU-PREVIEW", rows);
+    expect(preview.invalidRows).toBe(1);
+    expect(preview.rows[0]!.generatedAdmissionNumber).toMatch(/^__INVALID_/);
+  });
+
+  it("a mix of 20 valid + 3 invalid rows: valid rows all import, invalid rows all reported", async () => {
+    const { db, state } = makeFakeDb(0);
+    const good = makeRows(20);
+    const bad: StudentImportRowInput[] = [
+      { admissionNumber: "BAD-001", fullName: "", gender: "Male", className: "Senior 1 A", streamName: "A", status: "ACTIVE", guardianName: "", guardianPhone: "", guardianEmail: "" },
+      { admissionNumber: "BAD-002", fullName: "No Gender", gender: "", className: "Senior 1 A", streamName: "A", status: "ACTIVE", guardianName: "", guardianPhone: "", guardianEmail: "" },
+      { admissionNumber: "BAD-003", fullName: "No Class", gender: "Female", className: "Made Up", streamName: "A", status: "ACTIVE", guardianName: "", guardianPhone: "", guardianEmail: "" },
+    ];
+    const job = await createStudentImportJob(db, "SCU-PREVIEW", [...good, ...bad]);
+    const batch = await waitForJob(state, job.jobId);
+    const summary = JSON.parse(batch.summary!);
+    expect(summary.successCount).toBe(20);
+    expect(summary.failedCount).toBe(3);
+    expect(state.students.length).toBe(20);
   });
 });
