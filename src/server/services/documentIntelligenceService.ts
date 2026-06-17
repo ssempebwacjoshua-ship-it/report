@@ -6,6 +6,13 @@ import {
   generateDocumentSchema,
   applyPromptToSchema,
 } from "./documentGeminiService";
+import {
+  createNotification,
+  executeWorkflows,
+  incrementDocumentAnalytics,
+  preferenceMap,
+  upsertSearchIndex,
+} from "./documentOsService";
 import type {
   SmartDocumentDetail,
   SmartDocumentSummary,
@@ -80,6 +87,9 @@ export async function createDocument(creatorId: string, title: string): Promise<
   const doc = await db.smartDocument.create({
     data: { id: randomUUID(), creatorId, title, status: "DRAFT" },
   });
+  await upsertSearchIndex(creatorId, "DOCUMENT", doc.id, doc.title, doc.title, { status: doc.status });
+  await createNotification(creatorId, "DOCUMENT_CREATED", "Document created", `${doc.title} is ready for content.`);
+  await executeWorkflows(creatorId, "DOCUMENT_CREATED", { documentId: doc.id, title: doc.title });
   return rowToDetail(doc, null, 0);
 }
 
@@ -166,6 +176,14 @@ export async function uploadAndExtract(
       ...(needsTitleUpdate && knowledge.title ? { title: knowledge.title } : {}),
     },
   });
+  await upsertSearchIndex(creatorId, "DOCUMENT", documentId, needsTitleUpdate && knowledge.title ? knowledge.title : doc.title, [
+    needsTitleUpdate && knowledge.title ? knowledge.title : doc.title,
+    knowledge.documentType,
+    knowledge.domain,
+    knowledge.rawText ?? "",
+    JSON.stringify(knowledge.sections ?? []),
+    JSON.stringify(knowledge.tables ?? []),
+  ].join("\n"), { status: doc.status, sourceFileId: sourceFile.id });
 
   return { knowledge, sourceFileId: sourceFile.id as string };
 }
@@ -184,7 +202,7 @@ export async function generateSchema(
   const knowledge = doc.extractedKnowledge as ExtractedKnowledge | null;
   if (!knowledge) throw Object.assign(new Error("Upload a file first to extract content."), { status: 400 });
 
-  const { schema, componentTree } = await generateDocumentSchema(knowledge, intent);
+  const { schema, componentTree } = await generateDocumentSchema(knowledge, intent, "#2563eb", await preferenceMap(creatorId));
 
   const version = await db.documentVersion.create({
     data: {
@@ -197,6 +215,11 @@ export async function generateSchema(
   });
 
   await db.smartDocument.update({ where: { id: documentId }, data: { activeVersionId: version.id } });
+  await upsertSearchIndex(creatorId, "VERSION", version.id, doc.title, [
+    intent,
+    JSON.stringify(schema),
+    JSON.stringify(componentTree),
+  ].join("\n"), { documentId });
 
   return { versionId: version.id as string, schema, componentTree };
 }
@@ -216,7 +239,7 @@ export async function applyPrompt(
   if (!currentVersion) throw Object.assign(new Error("Generate a schema first."), { status: 400 });
 
   const currentSchema = currentVersion.schema as DocumentSchema;
-  const { schema, componentTree } = await applyPromptToSchema(currentSchema, instruction);
+  const { schema, componentTree } = await applyPromptToSchema(currentSchema, instruction, await preferenceMap(creatorId));
 
   const version = await db.documentVersion.create({
     data: {
@@ -230,6 +253,11 @@ export async function applyPrompt(
   });
 
   await db.smartDocument.update({ where: { id: documentId }, data: { activeVersionId: version.id } });
+  await upsertSearchIndex(creatorId, "VERSION", version.id, doc.title, [
+    instruction,
+    JSON.stringify(schema),
+    JSON.stringify(componentTree),
+  ].join("\n"), { documentId });
 
   return { versionId: version.id as string, schema, componentTree };
 }
@@ -269,6 +297,7 @@ export async function restoreVersion(
   const version = await db.documentVersion.findFirst({ where: { id: versionId, documentId } });
   if (!version) throw Object.assign(new Error("Version not found."), { status: 404 });
   await db.smartDocument.update({ where: { id: documentId }, data: { activeVersionId: versionId } });
+  await createNotification(creatorId, "VERSION_RESTORED", "Version restored", `${doc.title} was restored to an earlier version.`);
 }
 
 // ── Publish ────────────────────────────────────────────────────────────────────
@@ -295,6 +324,10 @@ export async function publishDocument(
   });
 
   await db.smartDocument.update({ where: { id: documentId }, data: { status: "PUBLISHED" } });
+  await upsertSearchIndex(creatorId, "PUBLISHED_PAGE", documentId, doc.title, doc.title, { token, documentId });
+  await incrementDocumentAnalytics(documentId, { shares: 1 });
+  await createNotification(creatorId, "DOCUMENT_PUBLISHED", "Document published", `${doc.title} is available at its public link.`);
+  await executeWorkflows(creatorId, "PUBLISH_COMPLETED", { documentId, token, title: doc.title });
 
   const origin = process.env.CLIENT_ORIGIN ?? "http://localhost:5173";
   return { token, url: `${origin}/p/${token}` };
@@ -325,6 +358,7 @@ export async function getPublishedDocument(
     where: { token },
     data: { viewCount: { increment: 1 } },
   });
+  await incrementDocumentAnalytics(published.documentId as string, { views: 1, visitors: 1 });
 
   const doc = published.document;
   const activeVersion = await resolveActiveVersion(db, doc.id, doc.activeVersionId);

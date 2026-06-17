@@ -34,6 +34,8 @@ The SPA requires `vercel.json` with a catch-all rewrite so all routes serve `dis
 
 **Start command:** `npm run start:prod`
 
+`railway.json` pins this start command for Railway so production does not accidentally run plain `npm start` and skip migrations.
+
 `start:prod` is:
 ```bash
 npx prisma migrate deploy && node dist/server/index.js

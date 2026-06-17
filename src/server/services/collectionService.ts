@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { prisma } from "../db/prisma";
+import { createNotification, executeWorkflows, upsertSearchIndex, removeSearchIndex } from "./documentOsService";
 
 const db = prisma as any;
 
@@ -44,6 +45,7 @@ export async function createCollection(
   const c = await db.collection.create({
     data: { id: randomUUID(), creatorId, name: name.trim(), type },
   });
+  await upsertSearchIndex(creatorId, "COLLECTION", c.id, c.name, `${c.name}\n${c.type}`, { type: c.type });
   return { id: c.id, name: c.name, type: c.type, recordCount: 0, createdAt: c.createdAt.toISOString(), updatedAt: c.updatedAt.toISOString() };
 }
 
@@ -88,12 +90,14 @@ export async function updateCollection(
   const c = await db.collection.findFirst({ where: { id: collectionId, creatorId } });
   if (!c) throw Object.assign(new Error("Collection not found."), { status: 404 });
   await db.collection.update({ where: { id: collectionId }, data: patch });
+  await upsertSearchIndex(creatorId, "COLLECTION", collectionId, patch.name ?? c.name, `${patch.name ?? c.name}\n${patch.type ?? c.type}`, { type: patch.type ?? c.type });
 }
 
 export async function deleteCollection(collectionId: string, creatorId: string): Promise<void> {
   const c = await db.collection.findFirst({ where: { id: collectionId, creatorId } });
   if (!c) throw Object.assign(new Error("Collection not found."), { status: 404 });
   await db.collection.delete({ where: { id: collectionId } });
+  await removeSearchIndex("COLLECTION", collectionId);
 }
 
 // ── Records ────────────────────────────────────────────────────────────────────
@@ -115,6 +119,8 @@ export async function addRecord(
   const record = await db.collectionRecord.create({
     data: { id: randomUUID(), collectionId, data, sortOrder },
   });
+  await upsertSearchIndex(creatorId, "RECORD", record.id, c.name, JSON.stringify(data), { collectionId });
+  await executeWorkflows(creatorId, "RECORD_ADDED", { collectionId, recordId: record.id, collectionName: c.name });
   return { id: record.id };
 }
 
@@ -126,6 +132,7 @@ export async function deleteRecord(
   const c = await db.collection.findFirst({ where: { id: collectionId, creatorId } });
   if (!c) throw Object.assign(new Error("Collection not found."), { status: 404 });
   await db.collectionRecord.deleteMany({ where: { id: recordId, collectionId } });
+  await removeSearchIndex("RECORD", recordId);
 }
 
 // ── CSV import ─────────────────────────────────────────────────────────────────
@@ -193,12 +200,17 @@ export async function importCSVIntoCollection(
   for (const row of rows) {
     const nonEmpty = Object.values(row).some((v) => v !== "");
     if (!nonEmpty) { skipped++; continue; }
-    await db.collectionRecord.create({
+    const record = await db.collectionRecord.create({
       data: { id: randomUUID(), collectionId, data: row, sortOrder: sortOrder++ },
     });
+    await upsertSearchIndex(creatorId, "RECORD", record.id, c.name, JSON.stringify(row), { collectionId });
     imported++;
   }
 
+  if (imported > 0) {
+    await createNotification(creatorId, "COLLECTION_IMPORTED", "Collection imported", `${imported} record${imported === 1 ? "" : "s"} were imported into ${c.name}.`);
+    await executeWorkflows(creatorId, "COLLECTION_IMPORTED", { collectionId, collectionName: c.name, imported, skipped });
+  }
   return { imported, skipped };
 }
 

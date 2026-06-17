@@ -529,6 +529,10 @@ model Creator {
   documents   SmartDocument[]
   collections Collection[]
   bulkJobs    BulkGenerationJob[]
+  preferences CreatorPreference[]
+  workflows   AutomationWorkflow[]
+  notifications Notification[]
+  searchIndexes SearchIndex[]
 
   @@index([email])
   @@index([schoolId])
@@ -549,6 +553,7 @@ model SmartDocument {
   versions    DocumentVersion[]
   sourceFiles DocumentSourceFile[]
   published   PublishedDocument?
+  analytics   DocumentAnalytics?
 
   @@index([creatorId, status, createdAt])
 }
@@ -685,4 +690,88 @@ model BulkJobOutput {
 
   @@index([jobId, status])
   @@index([recordId])
+}
+
+// Phase 3: AI Document Operating System primitives
+
+model CreatorPreference {
+  id        String   @id @default(uuid()) @db.Uuid
+  creatorId String   @db.Uuid
+  key       String
+  value     Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  creator Creator @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+
+  @@unique([creatorId, key])
+  @@index([creatorId])
+}
+
+model AutomationWorkflow {
+  id        String   @id @default(uuid()) @db.Uuid
+  creatorId String   @db.Uuid
+  name      String
+  trigger   String
+  actions   Json
+  isActive  Boolean  @default(true)
+  lastRunAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  creator Creator @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+
+  @@index([creatorId, isActive])
+  @@index([trigger, isActive])
+}
+
+model SearchIndex {
+  id             String   @id @default(uuid()) @db.Uuid
+  creatorId      String   @db.Uuid
+  entityType     String
+  entityId       String
+  title          String?
+  searchableText String
+  metadata       Json?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  creator Creator @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+
+  @@unique([entityType, entityId])
+  @@index([creatorId, entityType])
+  @@index([creatorId, updatedAt])
+}
+
+model Notification {
+  id        String    @id @default(uuid()) @db.Uuid
+  creatorId String    @db.Uuid
+  type      String
+  title     String
+  message   String
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  creator Creator @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+
+  @@index([creatorId, readAt, createdAt])
+  @@index([creatorId, type])
+}
+
+model DocumentAnalytics {
+  id           String    @id @default(uuid()) @db.Uuid
+  documentId   String    @unique @db.Uuid
+  views        Int       @default(0)
+  downloads    Int       @default(0)
+  shares       Int       @default(0)
+  visitors     Int       @default(0)
+  lastViewedAt DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  document SmartDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@index([views])
+  @@index([downloads])
+  @@index([updatedAt])
 }
