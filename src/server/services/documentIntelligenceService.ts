@@ -588,7 +588,12 @@ export async function applyPrompt(
   }
 
   const currentVersion = await resolveActiveVersion(db, documentId, doc.activeVersionId);
-  if (!currentVersion) throw Object.assign(new Error("Generate a schema first."), { status: 400 });
+  if (!currentVersion) {
+    if (!doc.extractedKnowledge) {
+      throw Object.assign(new Error("Upload a file first to extract content."), { status: 400 });
+    }
+    return generateSchema(documentId, creatorId, instruction);
+  }
 
   const currentSchema = currentVersion.schema as DocumentSchema;
   const fitToOnePage = wantsFitToOnePage(instruction);

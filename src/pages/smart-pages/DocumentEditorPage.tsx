@@ -92,6 +92,7 @@ function ExtractionReviewPanel({
   onGenerate,
   onHighAccuracyRetry,
   retryingHighAccuracy,
+  primaryActionLabel,
 }: {
   knowledge: ExtractedKnowledge;
   editing: boolean;
@@ -103,6 +104,7 @@ function ExtractionReviewPanel({
   onGenerate: () => void;
   onHighAccuracyRetry: () => void;
   retryingHighAccuracy: boolean;
+  primaryActionLabel: string;
 }) {
   const unclear = knowledge.unclearItems ?? [];
   const confidence = typeof knowledge.confidence === "number" ? Math.round(knowledge.confidence * 100) : null;
@@ -182,7 +184,7 @@ function ExtractionReviewPanel({
         </section>
       ) : null}
       <button type="button" className="btn btn-primary sticky bottom-3 z-10 shadow-lg" onClick={onGenerate}>
-        Looks good, generate document
+        {primaryActionLabel}
       </button>
     </div>
   );
@@ -225,6 +227,10 @@ function ExtractionFailedCard({ message, onRetry }: { message?: string | null; o
       </div>
     </div>
   );
+}
+
+function isMissingSchemaError(error: unknown): boolean {
+  return error instanceof Error && /generate a schema first/i.test(error.message);
 }
 
 // ── Version history panel ──────────────────────────────────────────────────────
@@ -322,6 +328,7 @@ export function DocumentEditorPage() {
 
   const [activeTab, setActiveTab] = useState<"chat" | "preview">("chat");
   const [showActions, setShowActions] = useState(false);
+  const hasActiveVersion = Boolean(activeVersionId);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
@@ -368,7 +375,7 @@ export function DocumentEditorPage() {
           d.activeVersion
             ? `Loaded "${d.title}" — ${d.versionCount} version${d.versionCount !== 1 ? "s" : ""}. Keep editing below.`
             : d.extractedKnowledge
-              ? `Content extracted from "${d.title}". Describe how you'd like the document to look.`
+              ? `Content extracted from "${d.title}". Generate a document from extraction first, then keep editing below.`
               : `New document "${d.title}". Upload a file or describe what you'd like to create.`,
         );
       })
@@ -478,7 +485,8 @@ export function DocumentEditorPage() {
     setBusy(true);
 
     try {
-      if (stage === "uploaded" || stage === "empty") {
+      const shouldGenerateFirst = stage === "uploaded" || stage === "empty" || !hasActiveVersion;
+      if (shouldGenerateFirst) {
         if (stage === "empty" && !extractedKnowledge) {
           const manualKnowledge: ExtractedKnowledge = {
             documentType: "document",
@@ -519,22 +527,40 @@ export function DocumentEditorPage() {
         const v = await getVersionHistory(id);
         setVersions(v);
       } else {
-        // Subsequent prompts → apply edit
-        const result = await applyPrompt(id, text);
-        setSchema(result.schema);
-        setComponentTree(result.componentTree);
-        setActiveVersionId(result.versionId);
-        const refreshed = await getDocument(id);
-        setDoc(refreshed);
-        setRenderSettings(refreshed.activeVersion?.renderSettings);
-        addMessage("assistant", "Updated. Switch to Preview to see the changes.", {
-          action: "edit",
-          versionId: result.versionId,
-        });
-        setActiveTab("preview");
-        // Refresh versions
-        const v = await getVersionHistory(id);
-        setVersions(v);
+        try {
+          const result = await applyPrompt(id, text);
+          setSchema(result.schema);
+          setComponentTree(result.componentTree);
+          setActiveVersionId(result.versionId);
+          const refreshed = await getDocument(id);
+          setDoc(refreshed);
+          setRenderSettings(refreshed.activeVersion?.renderSettings);
+          addMessage("assistant", "Updated. Switch to Preview to see the changes.", {
+            action: "edit",
+            versionId: result.versionId,
+          });
+          setActiveTab("preview");
+          // Refresh versions
+          const v = await getVersionHistory(id);
+          setVersions(v);
+        } catch (error) {
+          if (!hasActiveVersion && isMissingSchemaError(error)) {
+            addMessage("assistant", "No schema existed yet, so I generated one from your extraction instead.");
+            const result = await generateSchema(id, text);
+            setSchema(result.schema);
+            setComponentTree(result.componentTree);
+            setActiveVersionId(result.versionId);
+            const refreshed = await getDocument(id);
+            setDoc(refreshed);
+            setRenderSettings(refreshed.activeVersion?.renderSettings);
+            setStage("ready");
+            setActiveTab("preview");
+            const v = await getVersionHistory(id);
+            setVersions(v);
+          } else {
+            throw error;
+          }
+        }
       }
     } catch (e) {
       addMessage("assistant", e instanceof Error ? e.message : "Something went wrong. Try again.");
@@ -542,7 +568,7 @@ export function DocumentEditorPage() {
       setBusy(false);
       if (!nested) releaseActionLock("submit");
     }
-  }, [id, busy, stage, extractedKnowledge, doc?.title]);
+  }, [id, busy, stage, extractedKnowledge, doc?.title, hasActiveVersion]);
 
   // Send message handler
   const handleSend = useCallback(async () => {
@@ -615,6 +641,10 @@ export function DocumentEditorPage() {
 
   async function handlePublish(password?: string) {
     if (!id || publishing) return;
+    if (!hasActiveVersion) {
+      addMessage("assistant", "Generate a document first before publishing.");
+      return;
+    }
     if (!acquireActionLock("publish")) return;
     setPublishing(true);
     setShowPublishModal(false);
@@ -637,6 +667,10 @@ export function DocumentEditorPage() {
 
   async function handlePrint() {
     if (!id || printing) return;
+    if (!hasActiveVersion) {
+      addMessage("assistant", "Generate a document first before printing.");
+      return;
+    }
     if (!acquireActionLock("print")) return;
     setPrinting(true);
     try {
@@ -694,6 +728,9 @@ export function DocumentEditorPage() {
 
   const currentSchema = schema ?? { theme: DEFAULT_THEME, components: [] };
   const suggestions = stage === "ready" ? POST_GENERATE_SUGGESTIONS : INITIAL_SUGGESTIONS;
+  const extractionPrimaryActionLabel = hasActiveVersion
+    ? "Looks good, generate document"
+    : "Generate document from extraction.";
   const stageLabel =
     stage === "ready"
       ? "Ready"
@@ -725,7 +762,7 @@ export function DocumentEditorPage() {
           <h1 className="min-w-0 flex-1 truncate text-sm font-bold text-slate-900">
             {doc.title}
           </h1>
-          {stage === "ready" ? (
+          {stage === "ready" && hasActiveVersion ? (
             <span className="hidden rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-700 sm:inline-flex">
               {componentTree.length} components
             </span>
@@ -736,7 +773,7 @@ export function DocumentEditorPage() {
           <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-bold text-slate-600">
             {stageLabel}
           </span>
-          {stage === "ready" ? (
+          {stage === "ready" && hasActiveVersion ? (
             <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-bold text-emerald-700">
               {componentTree.length} components
             </span>
@@ -751,7 +788,7 @@ export function DocumentEditorPage() {
         ) : null}
 
         <div className="hidden">
-          {versions.length > 0 ? (
+          {versions.length > 0 && hasActiveVersion ? (
             <button
               type="button"
               onClick={() => { void getVersionHistory(id!).then(setVersions); setShowVersions(true); }}
@@ -760,7 +797,7 @@ export function DocumentEditorPage() {
               History
             </button>
           ) : null}
-          {stage === "ready" ? (
+          {stage === "ready" && hasActiveVersion ? (
             <>
               <button
                 type="button"
@@ -925,8 +962,9 @@ export function DocumentEditorPage() {
               onGenerate={() => void handleGenerateFromReview()}
               onHighAccuracyRetry={() => void handleRetryExtraction(true)}
               retryingHighAccuracy={retryingHighAccuracy}
+              primaryActionLabel={extractionPrimaryActionLabel}
             />
-          ) : stage === "ready" ? (
+          ) : stage === "ready" && hasActiveVersion ? (
             <div className="min-h-full p-4">
               <div className="mx-auto max-w-2xl">
                 {publishResult ? (
@@ -964,7 +1002,7 @@ export function DocumentEditorPage() {
         </div>
       </div>
 
-      {stage === "ready" ? (
+      {stage === "ready" && hasActiveVersion ? (
         <div className="fixed inset-x-3 bottom-3 z-40 print:hidden lg:inset-x-auto lg:bottom-4 lg:right-4">
           {showActions ? (
             <div className="mb-2 grid w-full gap-1 rounded-2xl border border-slate-200 bg-white p-2 text-sm shadow-xl lg:min-w-40">
