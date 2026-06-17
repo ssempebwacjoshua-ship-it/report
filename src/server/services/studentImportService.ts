@@ -550,7 +550,9 @@ export async function getStudentImportJob(prisma: PrismaClient, schoolCode: stri
   if (!batch) return null;
   const summary = deserializeSummary(batch.summary);
   delete (summary as Record<string, unknown>).rows; // never ship the full row set to the client
-  return { id: batch.id, status: batch.status, ...summary, createdAt: batch.createdAt.toISOString(), updatedAt: batch.updatedAt.toISOString() };
+  // batch.status must come AFTER ...summary so it is not shadowed by summary.status ("completed" etc.)
+  // jobId (not id) so the frontend polling loop can continue using importJob.jobId across re-renders.
+  return { ...summary, jobId: batch.id, status: batch.status, createdAt: batch.createdAt.toISOString(), updatedAt: batch.updatedAt.toISOString() };
 }
 
 export async function previewStudentImport(prisma: PrismaClient, schoolCode: string, rows: StudentImportRowInput[], mode: StudentImportMode = "CREATE_ONLY"): Promise<StudentImportPreview> {

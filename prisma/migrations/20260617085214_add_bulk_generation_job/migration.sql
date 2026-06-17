@@ -11,10 +11,10 @@ CREATE TYPE "CollectionType" AS ENUM ('STUDENTS', 'PATIENTS', 'CLIENTS', 'EMPLOY
 CREATE TYPE "BulkJobStatus" AS ENUM ('PENDING', 'PROCESSING', 'COMPLETED', 'FAILED', 'PARTIAL');
 
 -- DropIndex
-DROP INDEX "School_isActive_idx";
+DROP INDEX IF EXISTS "School_isActive_idx";
 
 -- DropIndex
-DROP INDEX "SubjectMark_schoolId_academicYearId_termId_classId_streamId_idx";
+DROP INDEX IF EXISTS "SubjectMark_schoolId_academicYearId_termId_classId_streamId_idx";
 
 -- AlterTable
 ALTER TABLE "AppSetting" ALTER COLUMN "id" DROP DEFAULT;
