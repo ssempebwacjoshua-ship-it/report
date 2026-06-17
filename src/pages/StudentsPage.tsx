@@ -252,7 +252,7 @@ export function StudentsPage() {
           <div className="mb-3 flex items-center justify-between gap-3">
             <h2 className="text-base font-bold text-slate-950">Import Students</h2>
             <div className="flex flex-wrap justify-end gap-2">
-              <a className="btn btn-secondary" href={`${API_BASE}/api/students/import/template.csv`}>
+              <a className="btn btn-secondary" href={`${API_BASE}/templates/student-import-template.csv`}>
                 CSV Template
               </a>
               <a className="btn btn-secondary" href={`${API_BASE}/api/students/import/template.xlsx`}>

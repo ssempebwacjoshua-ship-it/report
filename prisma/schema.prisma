@@ -526,7 +526,9 @@ model Creator {
   createdAt    DateTime    @default(now())
   updatedAt    DateTime    @updatedAt
 
-  documents SmartDocument[]
+  documents   SmartDocument[]
+  collections Collection[]
+  bulkJobs    BulkGenerationJob[]
 
   @@index([email])
   @@index([schoolId])
@@ -595,4 +597,92 @@ model PublishedDocument {
   document SmartDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
 
   @@index([token])
+}
+
+// ── Collections & Bulk Generation ─────────────────────────────────────────────
+
+enum CollectionType {
+  STUDENTS
+  PATIENTS
+  CLIENTS
+  EMPLOYEES
+  CUSTOM
+}
+
+enum BulkJobStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  PARTIAL
+}
+
+model Collection {
+  id        String         @id @default(uuid()) @db.Uuid
+  creatorId String         @db.Uuid
+  name      String
+  type      CollectionType @default(CUSTOM)
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  creator  Creator             @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  records  CollectionRecord[]
+  bulkJobs BulkGenerationJob[]
+
+  @@index([creatorId])
+}
+
+model CollectionRecord {
+  id           String   @id @default(uuid()) @db.Uuid
+  collectionId String   @db.Uuid
+  data         Json
+  sortOrder    Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  collection Collection      @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  outputs    BulkJobOutput[]
+
+  @@index([collectionId, sortOrder])
+}
+
+model BulkGenerationJob {
+  id               String        @id @default(uuid()) @db.Uuid
+  creatorId        String        @db.Uuid
+  collectionId     String        @db.Uuid
+  intent           String
+  templateSchema   Json?
+  status           BulkJobStatus @default(PENDING)
+  totalRecords     Int           @default(0)
+  processedRecords Int           @default(0)
+  failedRecords    Int           @default(0)
+  errorMessage     String?
+  startedAt        DateTime?
+  completedAt      DateTime?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  creator    Creator            @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  collection Collection         @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  outputs    BulkJobOutput[]
+
+  @@index([creatorId, status])
+  @@index([status, createdAt])
+}
+
+model BulkJobOutput {
+  id           String   @id @default(uuid()) @db.Uuid
+  jobId        String   @db.Uuid
+  recordId     String   @db.Uuid
+  documentId   String?  @db.Uuid
+  publishToken String?
+  status       String   @default("PENDING")
+  error        String?
+  createdAt    DateTime @default(now())
+
+  job    BulkGenerationJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  record CollectionRecord  @relation(fields: [recordId], references: [id], onDelete: Cascade)
+
+  @@index([jobId, status])
+  @@index([recordId])
 }

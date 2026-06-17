@@ -5,6 +5,7 @@ import {
   generateSchema,
   getDocument,
   getVersionHistory,
+  openPrintWindow,
   publishDocument,
   restoreVersion,
   uploadDocumentFile,
@@ -279,17 +280,35 @@ export function DocumentEditorPage() {
     }
   }, [input, id, busy, stage]);
 
-  async function handlePublish() {
+  const [showPublishModal, setShowPublishModal] = useState(false);
+  const [publishPassword, setPublishPassword] = useState("");
+  const [printing, setPrinting] = useState(false);
+
+  async function handlePublish(password?: string) {
     if (!id || publishing) return;
     setPublishing(true);
+    setShowPublishModal(false);
     try {
-      const result = await publishDocument(id);
+      const result = await publishDocument(id, password ? { password } : {});
       setPublishResult(result);
-      addMessage("assistant", `Published! Your document is live at:\n${result.url}`, { action: "publish" });
+      addMessage("assistant", `Published! Your document is live at:\n${result.url}${password ? "\n🔒 Password protected." : ""}`, { action: "publish" });
     } catch (e) {
       addMessage("assistant", e instanceof Error ? e.message : "Publish failed.");
     } finally {
       setPublishing(false);
+      setPublishPassword("");
+    }
+  }
+
+  async function handlePrint() {
+    if (!id || printing) return;
+    setPrinting(true);
+    try {
+      await openPrintWindow(id);
+    } catch (e) {
+      addMessage("assistant", e instanceof Error ? e.message : "Print failed.");
+    } finally {
+      setPrinting(false);
     }
   }
 
@@ -371,14 +390,24 @@ export function DocumentEditorPage() {
             </button>
           ) : null}
           {stage === "ready" ? (
-            <button
-              type="button"
-              onClick={() => void handlePublish()}
-              disabled={publishing}
-              className="btn btn-primary text-xs"
-            >
-              {publishing ? "Publishing…" : publishResult ? "Published" : "Publish"}
-            </button>
+            <>
+              <button
+                type="button"
+                onClick={() => void handlePrint()}
+                disabled={printing}
+                className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+              >
+                {printing ? "Opening…" : "Print / PDF"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowPublishModal(true)}
+                disabled={publishing}
+                className="btn btn-primary text-xs"
+              >
+                {publishing ? "Publishing…" : publishResult ? "Re-publish" : "Publish"}
+              </button>
+            </>
           ) : null}
         </div>
       </div>
@@ -546,6 +575,42 @@ export function DocumentEditorPage() {
           onRestore={(v) => void handleVersionRestore(v)}
           onClose={() => setShowVersions(false)}
         />
+      ) : null}
+
+      {/* Publish modal */}
+      {showPublishModal ? (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/50 p-4 sm:items-center">
+          <div className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-2xl">
+            <h2 className="text-base font-black text-slate-900">Publish Document</h2>
+            <p className="mt-1 text-sm text-slate-500">Create a shareable link. Optionally add a password.</p>
+            <div className="mt-4">
+              <label className="mb-1 block text-xs font-medium text-slate-600">Password (optional)</label>
+              <input
+                type="password"
+                placeholder="Leave empty for public link"
+                value={publishPassword}
+                onChange={(e) => setPublishPassword(e.target.value)}
+                className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm focus:border-blue-400 focus:outline-none"
+              />
+            </div>
+            <div className="mt-4 flex gap-2">
+              <button
+                type="button"
+                onClick={() => { setShowPublishModal(false); setPublishPassword(""); }}
+                className="flex-1 rounded-lg border border-slate-200 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => void handlePublish(publishPassword || undefined)}
+                className="btn btn-primary flex-1"
+              >
+                Publish
+              </button>
+            </div>
+          </div>
+        </div>
       ) : null}
     </div>
   );
