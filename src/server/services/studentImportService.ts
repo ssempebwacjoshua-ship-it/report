@@ -1,6 +1,6 @@
 import { parse as parseCsv } from "csv-parse/sync";
-import { read, utils } from "xlsx";
 import type { PrismaClient } from "@prisma/client";
+import { read, utils } from "xlsx";
 import type {
   StudentImportMode,
   StudentImportPreview,
@@ -11,7 +11,7 @@ import { generateAdmissionNumber } from "./studentAdmissionNumberService";
 
 /** Rows shown in the preview response. The full row set is always processed. */
 const PREVIEW_RESPONSE_LIMIT = 50;
-/** Rows per processing batch — small enough for steady progress, large enough to amortize round trips. */
+/** Rows per processing batch - small enough for steady progress, large enough to amortize round trips. */
 const BATCH_SIZE = 50;
 /** Maximum per-row errors retained in the job summary (for the error CSV). */
 const ROW_ERROR_LIMIT = 1000;
@@ -71,15 +71,6 @@ function splitName(fullName: string) {
   return { firstName: parts[0] ?? "", lastName: parts.slice(1).join(" ") };
 }
 
-function normalizeGender(value: string) {
-  const normalized = value.trim().toLowerCase();
-  if (!normalized) return "";
-  if (["m", "male", "boy"].includes(normalized)) return "Male";
-  if (["f", "female", "girl"].includes(normalized)) return "Female";
-  if (["other", "unknown", "x"].includes(normalized)) return "Other";
-  return value.trim();
-}
-
 function normalizePhone(value: string) {
   return value.trim().replace(/[^\d+\s()-]/g, "");
 }
@@ -98,9 +89,9 @@ function deserializeSummary(summary: string | null | undefined) {
 }
 
 /**
- * Normalise a column header for fuzzy matching:
+ * Normalize a column header for fuzzy matching:
  * strip spaces, underscores, hyphens, dots, parens and lowercase everything.
- * "Admission Number", "admission_number", "AdmissionNumber" → "admissionnumber"
+ * "Admission Number", "admission_number", "AdmissionNumber" -> "admissionnumber"
  */
 function normalizeKey(k: string): string {
   return String(k)
@@ -109,7 +100,7 @@ function normalizeKey(k: string): string {
 }
 
 /**
- * Build a normalised-key → value lookup from a raw row object so we can
+ * Build a normalized-key -> value lookup from a raw row object so we can
  * find a column regardless of how the user named it in their spreadsheet.
  */
 function makeRowLookup(row: Record<string, unknown>): Map<string, unknown> {
@@ -121,8 +112,8 @@ function makeRowLookup(row: Record<string, unknown>): Map<string, unknown> {
 }
 
 /**
- * Pick a value from the normalised row using the first alias that matches.
- * All alias strings are themselves normalised before lookup.
+ * Pick a value from the normalized row using the first alias that matches.
+ * All alias strings are themselves normalized before lookup.
  */
 function pick(lookup: Map<string, unknown>, ...aliases: string[]): unknown {
   for (const alias of aliases) {
@@ -133,9 +124,6 @@ function pick(lookup: Map<string, unknown>, ...aliases: string[]): unknown {
 }
 
 export function parseStudentsCsv(csvText: string): StudentImportRowInput[] {
-  // Normalise headers at parse time so lookup is always by normalised key.
-  // relax_column_count: user-supplied CSVs frequently have extra trailing
-  // commas or fewer columns than the header — don't throw, just ignore extras.
   const records = parseCsv(csvText, {
     columns: (headers: string[]) => headers.map(normalizeKey),
     skip_empty_lines: true,
@@ -146,14 +134,14 @@ export function parseStudentsCsv(csvText: string): StudentImportRowInput[] {
     const lk = makeRowLookup(row);
     return {
       admissionNumber: text(pick(lk, "admissionNumber", "admission number", "adm no", "adm", "admission_number", "admno", "admnumber")),
-      fullName:        text(pick(lk, "fullName", "full name", "name", "student name", "studentname", "student_name")),
-      gender:          text(pick(lk, "gender", "sex")),
-      className:       text(pick(lk, "class", "className", "class name", "classname", "class_name")),
-      streamName:      text(pick(lk, "stream", "streamName", "stream name", "streamname", "stream_name")),
-      guardianName:    text(pick(lk, "guardianName", "guardian name", "guardian", "parent name", "parentname", "parent_name")),
-      guardianPhone:   normalizePhone(text(pick(lk, "guardianPhone", "guardian phone", "phone", "mobile", "contact", "guardiancontact"))),
-      guardianEmail:   text(pick(lk, "guardianEmail", "guardian email", "email")),
-      status:          text(pick(lk, "status")),
+      fullName: text(pick(lk, "fullName", "full name", "name", "student name", "studentname", "student_name")),
+      gender: text(pick(lk, "gender", "sex")),
+      className: text(pick(lk, "class", "className", "class name", "classname", "class_name")),
+      streamName: text(pick(lk, "stream", "streamName", "stream name", "streamname", "stream_name")),
+      guardianName: text(pick(lk, "guardianName", "guardian name", "guardian", "parent name", "parentname", "parent_name")),
+      guardianPhone: normalizePhone(text(pick(lk, "guardianPhone", "guardian phone", "phone", "mobile", "contact", "guardiancontact"))),
+      guardianEmail: text(pick(lk, "guardianEmail", "guardian email", "email")),
+      status: text(pick(lk, "status")),
     };
   });
 }
@@ -166,14 +154,14 @@ export function parseStudentsXlsx(buffer: Buffer): StudentImportRowInput[] {
     const lk = makeRowLookup(row);
     return {
       admissionNumber: text(pick(lk, "admissionNumber", "admission number", "adm no", "adm", "admission_number", "admno", "admnumber")),
-      fullName:        text(pick(lk, "fullName", "full name", "name", "student name", "studentname", "student_name")),
-      gender:          text(pick(lk, "gender", "sex")),
-      className:       text(pick(lk, "class", "className", "class name", "classname", "class_name")),
-      streamName:      text(pick(lk, "stream", "streamName", "stream name", "streamname", "stream_name")),
-      guardianName:    text(pick(lk, "guardianName", "guardian name", "guardian", "parent name", "parentname", "parent_name")),
-      guardianPhone:   normalizePhone(text(pick(lk, "guardianPhone", "guardian phone", "phone", "mobile", "contact", "guardiancontact"))),
-      guardianEmail:   text(pick(lk, "guardianEmail", "guardian email", "email")),
-      status:          text(pick(lk, "status")),
+      fullName: text(pick(lk, "fullName", "full name", "name", "student name", "studentname", "student_name")),
+      gender: text(pick(lk, "gender", "sex")),
+      className: text(pick(lk, "class", "className", "class name", "classname", "class_name")),
+      streamName: text(pick(lk, "stream", "streamName", "stream name", "streamname", "stream_name")),
+      guardianName: text(pick(lk, "guardianName", "guardian name", "guardian", "parent name", "parentname", "parent_name")),
+      guardianPhone: normalizePhone(text(pick(lk, "guardianPhone", "guardian phone", "phone", "mobile", "contact", "guardiancontact"))),
+      guardianEmail: text(pick(lk, "guardianEmail", "guardian email", "email")),
+      status: text(pick(lk, "status")),
     };
   });
 }
@@ -182,20 +170,31 @@ function validateRequiredColumns(rows: StudentImportRowInput[]) {
   if (rows.length === 0) throw new Error("Import file is empty.");
 }
 
-/** Single query that loads everything validation needs. Students are loaded
- * lean (id + admissionNumber only) so big schools stay cheap. */
 async function resolveSchool(prisma: PrismaClient, schoolCode: string) {
   return prisma.school.findUnique({
     where: { code: schoolCode },
     include: {
       classes: { include: { streams: true } },
       students: { select: { id: true, admissionNumber: true } },
-      academicYears: { where: { isActive: true }, include: { terms: { where: { isActive: true } } } },
+      academicYears: {
+        orderBy: [{ isActive: "desc" }, { startsOn: "desc" }],
+        include: {
+          terms: {
+            orderBy: [{ isActive: "desc" }, { startsOn: "desc" }],
+          },
+        },
+      },
     },
   });
 }
 
 type SchoolContext = NonNullable<Awaited<ReturnType<typeof resolveSchool>>>;
+
+type EnrollmentContext = {
+  academicYearId: string | null;
+  termId: string | null;
+  warnings: string[];
+};
 
 type ResolvedMaps = {
   classesByKey: Map<string, Array<{ id: string; name: string; code: string; streamByKey: Map<string, string> }>>;
@@ -222,6 +221,45 @@ function buildMaps(school: SchoolContext): ResolvedMaps {
   return { classesByKey, existingByAdm };
 }
 
+function resolveEnrollmentContext(school: SchoolContext): EnrollmentContext {
+  const activeYear = school.academicYears.find((year) => year.isActive);
+  const activeTerm = activeYear?.terms.find((term) => term.isActive);
+  if (activeYear && activeTerm) {
+    return { academicYearId: activeYear.id, termId: activeTerm.id, warnings: [] };
+  }
+
+  const latestYearWithTerm = school.academicYears.find((year) => year.terms.length > 0);
+  const latestTerm = latestYearWithTerm?.terms[0];
+  if (latestYearWithTerm && latestTerm) {
+    return {
+      academicYearId: latestYearWithTerm.id,
+      termId: latestTerm.id,
+      warnings: [
+        `No active academic year/term is set. Import will use the latest available setup: ${latestYearWithTerm.name} / ${latestTerm.name}.`,
+      ],
+    };
+  }
+
+  const latestYear = school.academicYears[0];
+  if (latestYear) {
+    return {
+      academicYearId: null,
+      termId: null,
+      warnings: [
+        `No term is configured for ${latestYear.name}. Students can be created, but enrollments will be skipped until a term is added.`,
+      ],
+    };
+  }
+
+  return {
+    academicYearId: null,
+    termId: null,
+    warnings: [
+      "No academic year or term is configured. Students can be created, but enrollments will be skipped until setup is completed.",
+    ],
+  };
+}
+
 function resolveClassAndStream(maps: ResolvedMaps, className: string, streamName: string) {
   const candidates = new Map<string, { id: string; name: string; code: string; streamByKey: Map<string, string> }>();
   for (const key of classLookupKeys(className)) {
@@ -246,21 +284,12 @@ function resolveClassAndStream(maps: ResolvedMaps, className: string, streamName
   return { klass: first ?? null, streamId: null };
 }
 
-/** Validates every row using in-memory maps — no per-row queries except
- * admission-number generation for rows that omit one.
- * SAFETY: unknown classes/streams are reported as row errors. Imports never
- * silently create classes or streams (that previously fabricated duplicate
- * classes and made seeded students appear to vanish from the class filter). */
 async function buildPreviewRows(prisma: PrismaClient, schoolCode: string, rows: StudentImportRowInput[], mode: StudentImportMode) {
   const t0 = Date.now();
   const school = await resolveSchool(prisma, schoolCode);
   if (!school) throw new Error(`School ${schoolCode} was not found.`);
-  const activeYear = school.academicYears[0];
-  const activeTerm = activeYear?.terms[0];
-  if (!activeYear || !activeTerm) {
-    throw new Error("No active academic year or term found. Go to Preferences → Academic Years and activate a year and term before importing students.");
-  }
   validateRequiredColumns(rows);
+  const enrollmentContext = resolveEnrollmentContext(school);
   const maps = buildMaps(school);
   const { existingByAdm } = maps;
 
@@ -285,23 +314,15 @@ async function buildPreviewRows(prisma: PrismaClient, schoolCode: string, rows: 
     if (raw.guardianEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(raw.guardianEmail)) errors.push("Guardian email must be valid.");
     if (raw.guardianPhone && !/^[+]?[0-9\s()-]+$/.test(raw.guardianPhone)) errors.push("Guardian phone must be valid.");
 
-    // Only auto-generate an admission number when the row is otherwise valid.
-    // Skipping for invalid rows avoids wasted DB queries and prevents the admission
-    // number from being consumed in the `seen` set.
     let effectiveAdmission = admissionNumber;
     if (!effectiveAdmission && errors.length === 0) {
       try {
-        // Pass `seen` so the generator skips numbers already allocated earlier
-        // in this batch (otherwise every row without an admission number gets the
-        // same candidate since the DB hasn't changed yet).
         effectiveAdmission = await generateAdmissionNumber(prisma, schoolCode, raw.className, raw.streamName, seen);
       } catch {
         errors.push("Could not auto-generate a unique admission number. Please provide one manually.");
         effectiveAdmission = `__GEN_${i}`;
       }
     } else if (!effectiveAdmission) {
-      // Row already has errors — give it a placeholder so the duplicate check
-      // doesn't incorrectly flag a later valid row.
       effectiveAdmission = `__INVALID_${i}`;
     }
     if (seen.has(norm(effectiveAdmission))) {
@@ -314,7 +335,6 @@ async function buildPreviewRows(prisma: PrismaClient, schoolCode: string, rows: 
     if (errors.length > 0) {
       action = "invalid";
     } else if (existingStudentId) {
-      // Existing student: APPEND-ONLY mode skips and reports; update mode updates.
       action = mode === "CREATE_AND_UPDATE_EXISTING" ? "update" : "duplicate";
       if (action === "duplicate") duplicateRows += 1;
     } else {
@@ -335,10 +355,15 @@ async function buildPreviewRows(prisma: PrismaClient, schoolCode: string, rows: 
   }
 
   console.log("[student-import] preview built", { schoolCode, rows: rows.length, ms: Date.now() - t0 });
-  return { school, previewRows, duplicateRows };
+  return { school, previewRows, duplicateRows, enrollmentContext };
 }
 
-function summarizePreview(previewRows: StudentImportPreviewRow[], duplicateRows: number, mode: StudentImportMode): StudentImportPreview {
+function summarizePreview(
+  previewRows: StudentImportPreviewRow[],
+  duplicateRows: number,
+  mode: StudentImportMode,
+  warnings: string[],
+): StudentImportPreview {
   const validRows = previewRows.filter((row) => row.isValid).length;
   return {
     status: "PREVIEW",
@@ -350,6 +375,7 @@ function summarizePreview(previewRows: StudentImportPreviewRow[], duplicateRows:
     updateRows: previewRows.filter((row) => row.action === "update").length,
     rows: previewRows.slice(0, PREVIEW_RESPONSE_LIMIT),
     mode,
+    warnings,
   };
 }
 
@@ -359,19 +385,16 @@ type BatchOutcome = {
   updatedCount: number;
   duplicateCount: number;
   failedCount: number;
+  studentOnlyCount: number;
   rowErrors: Array<{ rowNumber: number; admissionNumber?: string; errors: string[] }>;
 };
 
-/** Processes one batch with set-based queries:
- * createMany(students) → findMany(ids) → createMany(enrollments) → createMany(guardians).
- * Roughly 4 queries per 50 rows instead of ~250. Falls back to per-row
- * creates if a batch insert fails, so one bad row never kills the batch. */
 async function processBatch(
   prisma: PrismaClient,
   schoolId: string,
   rows: StudentImportPreviewRow[],
-  activeYearId: string,
-  activeTermId: string,
+  academicYearId: string | null,
+  termId: string | null,
   mode: StudentImportMode,
   existingByAdm: Map<string, string>,
 ): Promise<BatchOutcome> {
@@ -380,6 +403,7 @@ async function processBatch(
   let updatedCount = 0;
   let duplicateCount = 0;
   let failedCount = 0;
+  let studentOnlyCount = 0;
   const rowErrors: BatchOutcome["rowErrors"] = [];
 
   type CreateRow = { row: StudentImportPreviewRow; adm: string; isActive: boolean };
@@ -397,7 +421,6 @@ async function processBatch(
       if (mode === "CREATE_AND_UPDATE_EXISTING") {
         updates.push(row);
       } else {
-        // APPEND-ONLY default: never overwrite. Skip and report.
         duplicateCount += 1;
         rowErrors.push({ rowNumber: row.rowNumber, admissionNumber: adm, errors: [`Student ${adm} already exists. Row skipped (append-only mode).`] });
       }
@@ -409,10 +432,9 @@ async function processBatch(
       continue;
     }
     creates.push({ row, adm, isActive: row.raw.status?.toLowerCase() !== "inactive" });
-    existingByAdm.set(norm(adm), "pending"); // guard against same-batch duplicates
+    existingByAdm.set(norm(adm), "pending");
   }
 
-  // Updates (explicit update mode only): name + active flag, nothing else.
   for (const row of updates) {
     try {
       const existingId = existingByAdm.get(norm(row.raw.admissionNumber?.trim() || row.generatedAdmissionNumber || ""));
@@ -430,41 +452,43 @@ async function processBatch(
     }
   }
 
-  // Per-student transactional create: student upsert + enrollment upsert in one $transaction.
-  // If the enrollment upsert fails the transaction rolls back, so no orphan Student is created.
-  // classEnrollment.upsert (not createMany/skipDuplicates) ensures the classId is always
-  // corrected even when a prior import left the student in the wrong class.
   for (const c of creates) {
     const name = splitName(c.row.raw.fullName);
     try {
-      const studentId = await prisma.$transaction(async (tx) => {
-        const student = await tx.student.upsert({
+      const studentId = academicYearId && termId
+        ? await prisma.$transaction(async (tx) => {
+          const student = await tx.student.upsert({
+            where: { schoolId_admissionNumber: { schoolId, admissionNumber: c.adm } },
+            create: { schoolId, admissionNumber: c.adm, firstName: name.firstName, lastName: name.lastName, isActive: c.isActive },
+            update: {},
+          });
+          await tx.classEnrollment.upsert({
+            where: { studentId_academicYearId_termId: { studentId: student.id, academicYearId, termId } },
+            update: {
+              classId: c.row.classId!,
+              streamId: c.row.streamId!,
+              isActive: c.isActive,
+              status: c.isActive ? "ACTIVE" : "INACTIVE",
+              leftAt: null,
+            },
+            create: {
+              schoolId,
+              studentId: student.id,
+              academicYearId,
+              termId,
+              classId: c.row.classId!,
+              streamId: c.row.streamId!,
+              isActive: c.isActive,
+              status: c.isActive ? "ACTIVE" : "INACTIVE",
+            },
+          });
+          return student.id;
+        })
+        : await prisma.student.upsert({
           where: { schoolId_admissionNumber: { schoolId, admissionNumber: c.adm } },
           create: { schoolId, admissionNumber: c.adm, firstName: name.firstName, lastName: name.lastName, isActive: c.isActive },
           update: {},
-        });
-        await tx.classEnrollment.upsert({
-          where: { studentId_academicYearId_termId: { studentId: student.id, academicYearId: activeYearId, termId: activeTermId } },
-          update: {
-            classId: c.row.classId!,
-            streamId: c.row.streamId!,
-            isActive: c.isActive,
-            status: c.isActive ? "ACTIVE" : "INACTIVE",
-            leftAt: null,
-          },
-          create: {
-            schoolId,
-            studentId: student.id,
-            academicYearId: activeYearId,
-            termId: activeTermId,
-            classId: c.row.classId!,
-            streamId: c.row.streamId!,
-            isActive: c.isActive,
-            status: c.isActive ? "ACTIVE" : "INACTIVE",
-          },
-        });
-        return student.id;
-      });
+        }).then((student) => student.id);
       existingByAdm.set(norm(c.adm), studentId);
       if (c.row.raw.guardianName || c.row.raw.guardianPhone || c.row.raw.guardianEmail) {
         await prisma.guardianContact.createMany({
@@ -484,6 +508,7 @@ async function processBatch(
       }
       successCount += 1;
       createdCount += 1;
+      if (!academicYearId || !termId) studentOnlyCount += 1;
     } catch (rowError) {
       failedCount += 1;
       rowErrors.push({
@@ -494,7 +519,7 @@ async function processBatch(
     }
   }
 
-  return { successCount, createdCount, updatedCount, duplicateCount, failedCount, rowErrors };
+  return { successCount, createdCount, updatedCount, duplicateCount, failedCount, studentOnlyCount, rowErrors };
 }
 
 export async function processImportJob(prisma: PrismaClient, batchId: string, schoolCode: string, mode: StudentImportMode) {
@@ -506,7 +531,14 @@ export async function processImportJob(prisma: PrismaClient, batchId: string, sc
         include: {
           classes: { include: { streams: true } },
           students: { select: { id: true, admissionNumber: true } },
-          academicYears: { where: { isActive: true }, include: { terms: { where: { isActive: true } } } },
+          academicYears: {
+            orderBy: [{ isActive: "desc" }, { startsOn: "desc" }],
+            include: {
+              terms: {
+                orderBy: [{ isActive: "desc" }, { startsOn: "desc" }],
+              },
+            },
+          },
         },
       },
     },
@@ -517,25 +549,10 @@ export async function processImportJob(prisma: PrismaClient, batchId: string, sc
   const summary = deserializeSummary(batch.summary);
   const rows = (summary.rows as StudentImportPreviewRow[] | undefined) ?? [];
   const totalRows = rows.length;
-  const activeYear = batch.school.academicYears[0];
-  const activeTerm = activeYear?.terms[0];
-  if (!activeYear || !activeTerm) {
-    const message = "An active academic year and term are required before importing students.";
-    await prisma.markImportBatch.update({
-      where: { id: batchId },
-      data: {
-        status: "FAILED",
-        summary: serializeSummary({
-          ...summary,
-          rows: undefined,
-          status: "failed",
-          lastError: message,
-          errors: [{ row: 0, field: "academicYear", message }],
-        }),
-      },
-    });
-    return;
-  }
+  const enrollmentContext = resolveEnrollmentContext(batch.school as SchoolContext);
+  const warnings = Array.isArray(summary.warnings)
+    ? [...new Set([...summary.warnings.filter((value): value is string => typeof value === "string"), ...enrollmentContext.warnings])]
+    : enrollmentContext.warnings;
 
   const { existingByAdm } = buildMaps(batch.school as SchoolContext);
   console.log("[student-import] stage: maps built", { batchId, existingStudents: existingByAdm.size, ms: Date.now() - tStart });
@@ -546,6 +563,7 @@ export async function processImportJob(prisma: PrismaClient, batchId: string, sc
   let updatedCount = 0;
   let failedCount = 0;
   let duplicateCount = 0;
+  let studentOnlyCount = 0;
   const allRowErrors: BatchOutcome["rowErrors"] = [];
 
   await prisma.markImportBatch.update({
@@ -562,10 +580,12 @@ export async function processImportJob(prisma: PrismaClient, batchId: string, sc
         updatedCount,
         failedCount,
         duplicateCount,
+        studentOnlyCount,
         created: createdCount,
         updated: updatedCount,
         skipped: duplicateCount + failedCount,
         errors: [],
+        warnings,
         startedAt: new Date().toISOString(),
       }),
     },
@@ -574,13 +594,22 @@ export async function processImportJob(prisma: PrismaClient, batchId: string, sc
   for (let index = 0; index < rows.length; index += BATCH_SIZE) {
     const chunk = rows.slice(index, index + BATCH_SIZE);
     const tBatch = Date.now();
-    const result = await processBatch(prisma, batch.schoolId, chunk, activeYear.id, activeTerm.id, mode, existingByAdm);
+    const result = await processBatch(
+      prisma,
+      batch.schoolId,
+      chunk,
+      enrollmentContext.academicYearId,
+      enrollmentContext.termId,
+      mode,
+      existingByAdm,
+    );
     processedRows += chunk.length;
     successCount += result.successCount;
     createdCount += result.createdCount;
     updatedCount += result.updatedCount;
     failedCount += result.failedCount;
     duplicateCount += result.duplicateCount;
+    studentOnlyCount += result.studentOnlyCount;
     if (result.rowErrors.length > 0 && allRowErrors.length < ROW_ERROR_LIMIT) {
       allRowErrors.push(...result.rowErrors.slice(0, ROW_ERROR_LIMIT - allRowErrors.length));
       await prisma.markImportRow.createMany({
@@ -601,6 +630,7 @@ export async function processImportJob(prisma: PrismaClient, batchId: string, sc
           updatedCount,
           failedCount,
           duplicateCount,
+          studentOnlyCount,
           created: createdCount,
           updated: updatedCount,
           skipped: duplicateCount + failedCount,
@@ -609,11 +639,20 @@ export async function processImportJob(prisma: PrismaClient, batchId: string, sc
             field: item.admissionNumber ? "admissionNumber" : "row",
             message: item.errors.join("; "),
           })),
+          warnings,
           updatedAt: new Date().toISOString(),
         }),
       },
     });
-    console.log(`[student-import] job ${batchId}: processed ${processedRows}/${totalRows}`, { batchMs: Date.now() - tBatch, success: result.successCount, created: result.createdCount, updated: result.updatedCount, failed: result.failedCount, duplicates: result.duplicateCount });
+    console.log(`[student-import] job ${batchId}: processed ${processedRows}/${totalRows}`, {
+      batchMs: Date.now() - tBatch,
+      success: result.successCount,
+      created: result.createdCount,
+      updated: result.updatedCount,
+      failed: result.failedCount,
+      duplicates: result.duplicateCount,
+      studentOnly: result.studentOnlyCount,
+    });
   }
 
   await prisma.markImportBatch.update({
@@ -631,6 +670,7 @@ export async function processImportJob(prisma: PrismaClient, batchId: string, sc
         updatedCount,
         failedCount,
         duplicateCount,
+        studentOnlyCount,
         created: createdCount,
         updated: updatedCount,
         skipped: duplicateCount + failedCount,
@@ -640,29 +680,52 @@ export async function processImportJob(prisma: PrismaClient, batchId: string, sc
           field: item.admissionNumber ? "admissionNumber" : "row",
           message: item.errors.join("; "),
         })),
+        warnings,
         completedAt: new Date().toISOString(),
       }),
     },
   });
-  console.log("[student-import] stage: completed", { batchId, totalRows, processedRows, successCount, createdCount, updatedCount, failedCount, duplicateCount, totalMs: Date.now() - tStart });
+  console.log("[student-import] stage: completed", {
+    batchId,
+    totalRows,
+    processedRows,
+    successCount,
+    createdCount,
+    updatedCount,
+    failedCount,
+    duplicateCount,
+    studentOnlyCount,
+    totalMs: Date.now() - tStart,
+  });
   await prisma.auditLog.create({
     data: {
       schoolId: batch.schoolId,
       action: "student.import.commit",
-      details: { batchId, mode, totalRows, processedRows, successCount, createdCount, updatedCount, failedCount, duplicateCount, destructive: false },
+      details: {
+        batchId,
+        mode,
+        totalRows,
+        processedRows,
+        successCount,
+        createdCount,
+        updatedCount,
+        failedCount,
+        duplicateCount,
+        studentOnlyCount,
+        destructive: false,
+      },
     },
   });
 }
 
 export async function createStudentImportJob(prisma: PrismaClient, schoolCode: string, rows: StudentImportRowInput[], mode: StudentImportMode = "CREATE_ONLY") {
-  const { previewRows, duplicateRows, school } = await buildPreviewRows(prisma, schoolCode, rows, mode);
-  const preview = summarizePreview(previewRows, duplicateRows, mode);
+  const { previewRows, duplicateRows, school, enrollmentContext } = await buildPreviewRows(prisma, schoolCode, rows, mode);
+  const preview = summarizePreview(previewRows, duplicateRows, mode, enrollmentContext.warnings);
   const batch = await prisma.markImportBatch.create({
     data: {
       schoolId: school.id,
       status: "DRY_RUN",
       source: "student",
-      // CRITICAL: store ALL rows for processing — never the preview slice.
       summary: serializeSummary({ ...preview, status: "queued", mode, rows: previewRows }),
     },
   });
@@ -674,7 +737,15 @@ export async function createStudentImportJob(prisma: PrismaClient, schoolCode: s
       data: { status: "FAILED", summary: serializeSummary({ ...preview, status: "failed", lastError: error instanceof Error ? error.message : "Import failed", updatedAt: new Date().toISOString() }) },
     });
   });
-  return { jobId: batch.id, status: "QUEUED" as const, totalRows: preview.totalRows, validRows: preview.validRows, invalidRows: preview.invalidRows, duplicateRows: preview.duplicateRows };
+  return {
+    jobId: batch.id,
+    status: "QUEUED" as const,
+    totalRows: preview.totalRows,
+    validRows: preview.validRows,
+    invalidRows: preview.invalidRows,
+    duplicateRows: preview.duplicateRows,
+    warnings: preview.warnings,
+  };
 }
 
 export async function recoverStaleStudentImportJobs(prisma: PrismaClient) {
@@ -684,7 +755,19 @@ export async function recoverStaleStudentImportJobs(prisma: PrismaClient) {
   });
   for (const batch of stale) {
     const summary = deserializeSummary(batch.summary);
-    await prisma.markImportBatch.update({ where: { id: batch.id }, data: { status: "FAILED", summary: serializeSummary({ ...summary, rows: undefined, status: "failed", lastError: "Import stalled. Please retry or contact admin.", updatedAt: new Date().toISOString() }) } });
+    await prisma.markImportBatch.update({
+      where: { id: batch.id },
+      data: {
+        status: "FAILED",
+        summary: serializeSummary({
+          ...summary,
+          rows: undefined,
+          status: "failed",
+          lastError: "Import stalled. Please retry or contact admin.",
+          updatedAt: new Date().toISOString(),
+        }),
+      },
+    });
   }
 }
 
@@ -694,26 +777,19 @@ export async function getStudentImportJob(prisma: PrismaClient, schoolCode: stri
   const batch = await prisma.markImportBatch.findFirst({ where: { id: jobId, schoolId: school.id, source: "student" } });
   if (!batch) return null;
   const summary = deserializeSummary(batch.summary);
-  delete (summary as Record<string, unknown>).rows; // never ship the full row set to the client
-  // batch.status must come AFTER ...summary so it is not shadowed by summary.status ("completed" etc.)
-  // jobId (not id) so the frontend polling loop can continue using importJob.jobId across re-renders.
+  delete (summary as Record<string, unknown>).rows;
   return { ...summary, jobId: batch.id, status: batch.status, createdAt: batch.createdAt.toISOString(), updatedAt: batch.updatedAt.toISOString() };
 }
 
 export async function previewStudentImport(prisma: PrismaClient, schoolCode: string, rows: StudentImportRowInput[], mode: StudentImportMode = "CREATE_ONLY"): Promise<StudentImportPreview> {
-  const { previewRows, duplicateRows } = await buildPreviewRows(prisma, schoolCode, rows, mode);
-  return summarizePreview(previewRows, duplicateRows, mode);
+  const { previewRows, duplicateRows, enrollmentContext } = await buildPreviewRows(prisma, schoolCode, rows, mode);
+  return summarizePreview(previewRows, duplicateRows, mode, enrollmentContext.warnings);
 }
 
 export async function commitStudentImport(prisma: PrismaClient, schoolCode: string, rows: StudentImportRowInput[], mode: StudentImportMode = "CREATE_ONLY") {
-  const { previewRows, duplicateRows } = await buildPreviewRows(prisma, schoolCode, rows, mode);
-  const preview = summarizePreview(previewRows, duplicateRows, mode);
-  // Only refuse when nothing at all can be imported — individual bad rows are
-  // skipped and reported instead of killing the whole import.
+  const { previewRows, duplicateRows, enrollmentContext } = await buildPreviewRows(prisma, schoolCode, rows, mode);
+  const preview = summarizePreview(previewRows, duplicateRows, mode, enrollmentContext.warnings);
   if (preview.validRows === 0) return { ...preview, status: "PREVIEW" as const };
   const queued = await createStudentImportJob(prisma, schoolCode, rows, mode);
-  // Return QUEUED (not COMMITTED) so the frontend polls for the background job result.
-  // Returning COMMITTED here causes the polling guard to exit early and the final
-  // success/failure counts are never loaded.
   return { ...preview, ...queued };
 }
