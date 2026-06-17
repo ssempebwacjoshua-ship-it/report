@@ -36,6 +36,7 @@ import { collectionRoutes } from "./routes/collectionRoutes";
 import { bulkGenerationRoutes } from "./routes/bulkGenerationRoutes";
 import { documentOsRoutes } from "./routes/documentOsRoutes";
 import { startBulkGenerationWorker } from "./services/bulkGenerationService";
+import { startDocumentExtractionWorker } from "./services/documentIntelligenceService";
 import geminiOcrRoutes from "./routes/geminiOcrRoutes";
 import geminiRosterRoutes from "./routes/geminiRosterRoutes";
 import geminiMarksImportRoutes from "./routes/geminiMarksImportRoutes";
@@ -198,6 +199,7 @@ if (process.env.NODE_ENV !== "test") {
   console.log("[startup] Node version:", process.version);
   void recoverStaleStudentImportJobs(prisma).catch((error) => console.error("Failed to recover stale student import jobs", error));
   startBulkGenerationWorker();
+  startDocumentExtractionWorker();
   const httpServer = http.createServer(createServer());
   httpServer.requestTimeout = 120_000;
   httpServer.headersTimeout = 125_000;

@@ -71,7 +71,7 @@ export async function getDocument(documentId: string): Promise<SmartDocumentDeta
 export async function uploadDocumentFile(
   documentId: string,
   file: File,
-): Promise<{ knowledge: ExtractedKnowledge; sourceFileId: string }> {
+): Promise<{ status: "PROCESSING"; sourceFileId: string }> {
   const token = localStorage.getItem("sc_auth_token") ?? localStorage.getItem("sp_creator_token");
   const formData = new FormData();
   formData.append("file", file);
@@ -80,7 +80,16 @@ export async function uploadDocumentFile(
     headers: token ? { Authorization: `Bearer ${token}` } : {},
     body: formData,
   });
-  return json<{ ok: boolean; knowledge: ExtractedKnowledge; sourceFileId: string }>(res);
+  return json<{ ok: boolean; status: "PROCESSING"; sourceFileId: string }>(res);
+}
+
+export async function retryDocumentExtraction(documentId: string, sourceFileId?: string): Promise<{ status: "PROCESSING"; sourceFileId: string }> {
+  const res = await fetch(`${API_BASE}/api/smart-documents/${documentId}/extraction/retry`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify({ sourceFileId }),
+  });
+  return json(res);
 }
 
 export async function updateExtractedKnowledge(

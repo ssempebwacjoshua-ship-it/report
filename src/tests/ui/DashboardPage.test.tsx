@@ -1,6 +1,6 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { DashboardPage } from "../../pages/DashboardPage";
 
 // ── Mocks ──────────────────────────────────────────────────────────────────────
@@ -25,6 +25,11 @@ import type { DashboardStats } from "../../shared/types/dashboard";
 
 const mockFetchStats = vi.mocked(fetchDashboardStats);
 const mockFetchContacts = vi.mocked(fetchStudentContactSummary);
+
+beforeEach(() => {
+  mockFetchStats.mockReset();
+  mockFetchContacts.mockReset();
+});
 
 const statsPayload: DashboardStats = {
   schoolName: "Test School",
@@ -144,7 +149,7 @@ describe("DashboardPage — live data", () => {
 
 describe("DashboardPage — state handling", () => {
   it("shows loading dashes before stats arrive", () => {
-    mockFetchStats.mockImplementation(() => new Promise(() => {})); // never resolves
+    mockFetchStats.mockImplementationOnce(() => new Promise(() => {})); // never resolves
     mockFetchContacts.mockResolvedValueOnce(contactsPayload);
 
     renderPage();

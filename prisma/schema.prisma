@@ -544,6 +544,10 @@ model SmartDocument {
   creatorId          String         @db.Uuid
   title              String
   extractedKnowledge Json?
+  extractionStatus   String         @default("IDLE")
+  extractionError    String?
+  extractionStartedAt DateTime?
+  extractionCompletedAt DateTime?
   activeVersionId    String?        @db.Uuid
   status             DocumentStatus @default(DRAFT)
   createdAt          DateTime       @default(now())
@@ -556,6 +560,7 @@ model SmartDocument {
   analytics   DocumentAnalytics?
 
   @@index([creatorId, status, createdAt])
+  @@index([creatorId, extractionStatus, updatedAt])
 }
 
 model DocumentVersion {
@@ -579,17 +584,24 @@ model DocumentSourceFile {
   originalName     String
   mimeType         String
   sizeBytes        Int?
+  status           String   @default("UPLOADED")
   originalData     Bytes?
   processedData    Bytes?
   processedMimeType String?
   geminiFileUri    String?
   extractedContent Json?
+  extractionError  String?
+  extractionStartedAt DateTime?
+  extractionCompletedAt DateTime?
+  fileHash         String?
   ocrQuality       Json?
   createdAt        DateTime @default(now())
 
   document SmartDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
 
   @@index([documentId])
+  @@index([status, createdAt])
+  @@index([fileHash])
 }
 
 model PublishedDocument {

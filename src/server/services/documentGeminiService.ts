@@ -12,7 +12,31 @@ function getClient(): GoogleGenAI {
 function model() {
   return process.env.GEMINI_MODEL ?? "gemini-2.5-flash";
 }
+async function generateContentWithRetry(request: Parameters<GoogleGenAI["models"]["generateContent"]>[0]) {
+  const timeoutMs = Number(process.env.GEMINI_TIMEOUT_MS ?? 45_000);
+  let lastError: unknown;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      return await withTimeout(getClient().models.generateContent(request), timeoutMs);
+    } catch (error) {
+      lastError = error;
+      if (attempt === 0) await new Promise((resolve) => setTimeout(resolve, 750));
+    }
+  }
+  throw lastError instanceof Error
+    ? lastError
+    : new Error("Gemini request failed. Please retry.");
+}
 
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error("Gemini request timed out. Please retry.")), timeoutMs);
+  });
+  return Promise.race([promise, timeout]).finally(() => {
+    if (timer) clearTimeout(timer);
+  });
+}
 function stripFences(text: string): string {
   return text.trim().replace(/^```(?:json)?\n?/, "").replace(/\n?```$/, "").trim();
 }
@@ -37,7 +61,7 @@ export async function extractDocumentKnowledge(
   mimeType: string,
   originalName: string,
 ): Promise<ExtractedKnowledge> {
-  const res = await getClient().models.generateContent({
+  const res = await generateContentWithRetry({
     model: model(),
     contents: [
       { inlineData: { data: fileBuffer.toString("base64"), mimeType } },
@@ -103,7 +127,7 @@ export async function generateDocumentSchema(
   primaryColor = "#2563eb",
   preferences?: Record<string, unknown>,
 ): Promise<{ schema: DocumentSchema; componentTree: ComponentNode[] }> {
-  const res = await getClient().models.generateContent({
+  const res = await generateContentWithRetry({
     model: model(),
     contents: [
       {
@@ -178,7 +202,7 @@ export async function generateBulkTemplate(
   collectionType: string,
   preferences?: Record<string, unknown>,
 ): Promise<{ theme: DocumentSchema["theme"]; components: ComponentNode[] }> {
-  const res = await getClient().models.generateContent({
+  const res = await generateContentWithRetry({
     model: model(),
     contents: [
       {
@@ -244,7 +268,7 @@ export async function applyPromptToSchema(
   instruction: string,
   preferences?: Record<string, unknown>,
 ): Promise<{ schema: DocumentSchema; componentTree: ComponentNode[] }> {
-  const res = await getClient().models.generateContent({
+  const res = await generateContentWithRetry({
     model: model(),
     contents: [
       {
@@ -286,7 +310,7 @@ export async function runGeminiAgent(input: {
   instruction: string;
   context: unknown;
 }): Promise<{ response: string; suggestedActions: string[] }> {
-  const res = await getClient().models.generateContent({
+  const res = await generateContentWithRetry({
     model: model(),
     contents: [
       {
@@ -318,7 +342,7 @@ export async function translateDocumentSchema(
   currentSchema: DocumentSchema,
   language: "Arabic" | "French" | "Swahili" | "Spanish",
 ): Promise<{ schema: DocumentSchema; componentTree: ComponentNode[] }> {
-  const res = await getClient().models.generateContent({
+  const res = await generateContentWithRetry({
     model: model(),
     contents: [
       {
@@ -350,7 +374,7 @@ Return ONLY the translated complete schema as valid JSON:
 export async function summarizeDocumentSchema(
   currentSchema: DocumentSchema,
 ): Promise<{ summary: string; keyPoints: string[] }> {
-  const res = await getClient().models.generateContent({
+  const res = await generateContentWithRetry({
     model: model(),
     contents: [
       {
@@ -379,7 +403,7 @@ export async function rewriteDocumentTone(
   currentSchema: DocumentSchema,
   tone: string,
 ): Promise<{ schema: DocumentSchema; componentTree: ComponentNode[] }> {
-  const res = await getClient().models.generateContent({
+  const res = await generateContentWithRetry({
     model: model(),
     contents: [
       {
@@ -410,7 +434,7 @@ Return ONLY the rewritten complete schema as valid JSON:
 export async function classifyDocumentSchema(
   currentSchema: DocumentSchema,
 ): Promise<{ documentType: string; domain: string; confidence: number; tags: string[] }> {
-  const res = await getClient().models.generateContent({
+  const res = await generateContentWithRetry({
     model: model(),
     contents: [
       {
@@ -444,7 +468,7 @@ export async function assistSearchRanking(input: {
   results: Array<{ id: string; entityType: string; title: string | null; snippet: string; score: number }>;
 }): Promise<{ rankedIds: string[]; explanation: string }> {
   if (input.results.length === 0) return { rankedIds: [], explanation: "No results to rank." };
-  const res = await getClient().models.generateContent({
+  const res = await generateContentWithRetry({
     model: model(),
     contents: [
       {
@@ -474,7 +498,7 @@ export async function suggestWorkflow(input: {
   creatorPreferences: Record<string, unknown>;
   context: unknown;
 }): Promise<{ name: string; trigger: string; actions: Array<{ type: string; config?: Record<string, unknown> }>; rationale: string }> {
-  const res = await getClient().models.generateContent({
+  const res = await generateContentWithRetry({
     model: model(),
     contents: [
       {

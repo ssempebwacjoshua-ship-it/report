@@ -1,5 +1,6 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import bcrypt from "bcryptjs";
+import * as XLSX from "xlsx";
 import { prisma } from "../db/prisma";
 import {
   extractDocumentKnowledge,
@@ -72,6 +73,8 @@ export async function listDocuments(creatorId: string): Promise<SmartDocumentSum
     id: d.id as string,
     title: d.title as string,
     status: d.status as string,
+    extractionStatus: d.extractionStatus as SmartDocumentSummary["extractionStatus"],
+    extractionError: d.extractionError as string | null,
     domain: (d.extractedKnowledge as any)?.domain as string | undefined,
     createdAt: (d.createdAt as Date).toISOString(),
     updatedAt: (d.updatedAt as Date).toISOString(),
@@ -103,6 +106,7 @@ export async function getDocument(documentId: string, creatorId: string): Promis
     include: {
       _count: { select: { versions: true } },
       published: { select: { token: true } },
+      sourceFiles: { orderBy: { createdAt: "desc" }, take: 1 },
     },
   });
   if (!doc) return null;
@@ -135,6 +139,8 @@ function rowToDetail(doc: any, version: any, versionCount: number): SmartDocumen
     id: doc.id as string,
     title: doc.title as string,
     status: doc.status as string,
+    extractionStatus: doc.extractionStatus as SmartDocumentSummary["extractionStatus"],
+    extractionError: doc.extractionError as string | null,
     domain: knowledge?.domain,
     createdAt: (doc.createdAt as Date).toISOString(),
     updatedAt: (doc.updatedAt as Date).toISOString(),
@@ -143,6 +149,16 @@ function rowToDetail(doc: any, version: any, versionCount: number): SmartDocumen
     publishToken: (doc.published?.token as string) ?? undefined,
     extractedKnowledge: knowledge,
     activeVersion,
+    latestSourceFile: doc.sourceFiles?.[0]
+      ? {
+          id: doc.sourceFiles[0].id,
+          status: doc.sourceFiles[0].status,
+          originalName: doc.sourceFiles[0].originalName,
+          extractionError: doc.sourceFiles[0].extractionError,
+          extractionStartedAt: doc.sourceFiles[0].extractionStartedAt?.toISOString() ?? null,
+          extractionCompletedAt: doc.sourceFiles[0].extractionCompletedAt?.toISOString() ?? null,
+        }
+      : undefined,
   };
 }
 
@@ -152,20 +168,11 @@ export async function uploadAndExtract(
   documentId: string,
   creatorId: string,
   file: Express.Multer.File,
-): Promise<{ knowledge: ExtractedKnowledge; sourceFileId: string }> {
+): Promise<{ sourceFileId: string; status: "PROCESSING" }> {
   const db = prisma as any;
   const doc = await db.smartDocument.findFirst({ where: { id: documentId, creatorId } });
   if (!doc) throw Object.assign(new Error("Document not found."), { status: 404 });
-
-  const preprocessed = await preprocessDocumentForOcr(file.buffer, file.mimetype);
-  const knowledge = await extractDocumentKnowledge(preprocessed.processedBuffer, preprocessed.processedMimeType, file.originalname);
-  const unclearItems = knowledge.unclearItems ?? [];
-  const qualityMessages = preprocessed.notes.map((note) => note.message);
-  const enrichedKnowledge: ExtractedKnowledge = {
-    ...knowledge,
-    ocrQualityNotes: qualityMessages,
-    reviewWarning: preprocessed.warning ?? (unclearItems.length > 0 ? "Some handwriting was unclear. Please review before publishing." : undefined),
-  };
+  const fileHash = createHash("sha256").update(file.buffer).digest("hex");
 
   const sourceFile = await db.documentSourceFile.create({
     data: {
@@ -174,37 +181,285 @@ export async function uploadAndExtract(
       originalName: file.originalname,
       mimeType: file.mimetype,
       sizeBytes: file.size,
-      originalData: preprocessed.originalBuffer,
-      processedData: preprocessed.processedBuffer,
-      processedMimeType: preprocessed.processedMimeType,
-      extractedContent: enrichedKnowledge as any,
-      ocrQuality: {
-        width: preprocessed.width,
-        height: preprocessed.height,
-        notes: preprocessed.notes,
-        warning: preprocessed.warning,
-      } as any,
+      status: "UPLOADED",
+      originalData: file.buffer,
+      fileHash,
+      extractionStartedAt: new Date(),
+      ocrQuality: { notes: [{ code: "QUEUED", message: "Extraction job queued.", severity: "info" }] } as any,
     },
   });
-
-  const needsTitleUpdate = !doc.title || doc.title === "Untitled Document";
   await db.smartDocument.update({
     where: { id: documentId },
     data: {
-      extractedKnowledge: enrichedKnowledge as any,
-      ...(needsTitleUpdate && enrichedKnowledge.title ? { title: enrichedKnowledge.title } : {}),
+      extractionStatus: "PROCESSING",
+      extractionError: null,
+      extractionStartedAt: new Date(),
+      extractionCompletedAt: null,
     },
   });
-  await upsertSearchIndex(creatorId, "DOCUMENT", documentId, needsTitleUpdate && enrichedKnowledge.title ? enrichedKnowledge.title : doc.title, [
-    needsTitleUpdate && enrichedKnowledge.title ? enrichedKnowledge.title : doc.title,
-    enrichedKnowledge.documentType,
-    enrichedKnowledge.domain,
-    enrichedKnowledge.rawText ?? "",
-    JSON.stringify(enrichedKnowledge.sections ?? []),
-    JSON.stringify(enrichedKnowledge.tables ?? []),
-  ].join("\n"), { status: doc.status, sourceFileId: sourceFile.id });
+  return { sourceFileId: sourceFile.id as string, status: "PROCESSING" };
+}
 
-  return { knowledge: enrichedKnowledge, sourceFileId: sourceFile.id as string };
+export async function retryDocumentExtraction(documentId: string, creatorId: string, sourceFileId?: string): Promise<{ sourceFileId: string; status: "PROCESSING" }> {
+  const db = prisma as any;
+  const doc = await db.smartDocument.findFirst({ where: { id: documentId, creatorId }, include: { sourceFiles: { orderBy: { createdAt: "desc" }, take: 1 } } });
+  if (!doc) throw Object.assign(new Error("Document not found."), { status: 404 });
+  const sourceFile = sourceFileId
+    ? await db.documentSourceFile.findFirst({ where: { id: sourceFileId, documentId } })
+    : doc.sourceFiles?.[0];
+  if (!sourceFile) throw Object.assign(new Error("No source file available to retry."), { status: 404 });
+  await db.documentSourceFile.update({
+    where: { id: sourceFile.id },
+    data: { status: "UPLOADED", extractionError: null, extractionStartedAt: new Date(), extractionCompletedAt: null },
+  });
+  await db.smartDocument.update({
+    where: { id: documentId },
+    data: { extractionStatus: "PROCESSING", extractionError: null, extractionStartedAt: new Date(), extractionCompletedAt: null },
+  });
+  return { sourceFileId: sourceFile.id as string, status: "PROCESSING" };
+}
+
+export async function processNextDocumentExtractionJob(): Promise<boolean> {
+  const db = prisma as any;
+  await failStaleExtractionJobs();
+  const sourceFile = await db.documentSourceFile.findFirst({
+    where: { status: "UPLOADED" },
+    orderBy: { createdAt: "asc" },
+    include: { document: true },
+  });
+  if (!sourceFile) return false;
+  await processSourceFileExtraction(sourceFile.id);
+  return true;
+}
+
+let _documentExtractionWorkerRunning = false;
+
+export function startDocumentExtractionWorker(): void {
+  setInterval(async () => {
+    if (_documentExtractionWorkerRunning) return;
+    _documentExtractionWorkerRunning = true;
+    try {
+      await processNextDocumentExtractionJob();
+    } catch (error) {
+      console.error("[document-extraction-worker] error:", error instanceof Error ? error.message : error);
+    } finally {
+      _documentExtractionWorkerRunning = false;
+    }
+  }, 2_000);
+}
+
+export async function processSourceFileExtraction(sourceFileId: string): Promise<void> {
+  const db = prisma as any;
+  const sourceFile = await db.documentSourceFile.findUnique({ where: { id: sourceFileId }, include: { document: true } });
+  if (!sourceFile || sourceFile.status === "READY") return;
+  const document = sourceFile.document;
+  try {
+    const cached = sourceFile.fileHash
+      ? await db.documentSourceFile.findFirst({
+          where: {
+            fileHash: sourceFile.fileHash,
+            status: "READY",
+            NOT: { id: sourceFile.id },
+          },
+          orderBy: { extractionCompletedAt: "desc" },
+        })
+      : null;
+    if (cached?.extractedContent) {
+      await completeExtraction(sourceFile, cached.extractedContent as ExtractedKnowledge, {
+        processedData: cached.processedData,
+        processedMimeType: cached.processedMimeType,
+        ocrQuality: { reusedFromSourceFileId: cached.id, notes: [{ code: "CACHE_HIT", message: "Reused extraction from matching file.", severity: "info" }] },
+      });
+      return;
+    }
+
+    const originalData = sourceFile.originalData as Buffer | Uint8Array | null;
+    if (!originalData) throw new Error("Uploaded file data is missing. Please upload the file again.");
+    const original = Buffer.from(originalData);
+
+    await db.documentSourceFile.update({ where: { id: sourceFile.id }, data: { status: "PREPROCESSING", extractionStartedAt: new Date(), extractionError: null } });
+    await db.smartDocument.update({ where: { id: document.id }, data: { extractionStatus: "PROCESSING", extractionError: null, extractionStartedAt: new Date() } });
+
+    const structured = parseStructuredFile(original, sourceFile.mimeType, sourceFile.originalName);
+    if (structured) {
+      await completeExtraction(sourceFile, structured, {
+        processedData: original,
+        processedMimeType: sourceFile.mimeType,
+        ocrQuality: { notes: [{ code: "LOCAL_STRUCTURED_PARSE", message: "Parsed structured file locally without Gemini.", severity: "info" }] },
+      });
+      return;
+    }
+
+    const preprocessed = await preprocessDocumentForOcr(original, sourceFile.mimeType);
+    await db.documentSourceFile.update({
+      where: { id: sourceFile.id },
+      data: {
+        status: "EXTRACTING",
+        processedData: preprocessed.processedBuffer,
+        processedMimeType: preprocessed.processedMimeType,
+        ocrQuality: { width: preprocessed.width, height: preprocessed.height, notes: preprocessed.notes, warning: preprocessed.warning } as any,
+      },
+    });
+
+    const knowledge = await extractDocumentKnowledge(preprocessed.processedBuffer, preprocessed.processedMimeType, sourceFile.originalName);
+    const unclearItems = knowledge.unclearItems ?? [];
+    const enrichedKnowledge: ExtractedKnowledge = {
+      ...knowledge,
+      ocrQualityNotes: preprocessed.notes.map((note) => note.message),
+      reviewWarning: preprocessed.warning ?? (unclearItems.length > 0 ? "Some handwriting was unclear. Please review before publishing." : undefined),
+    };
+    await completeExtraction(sourceFile, enrichedKnowledge, {
+      processedData: preprocessed.processedBuffer,
+      processedMimeType: preprocessed.processedMimeType,
+      ocrQuality: { width: preprocessed.width, height: preprocessed.height, notes: preprocessed.notes, warning: preprocessed.warning },
+    });
+  } catch (error) {
+    const message = friendlyExtractionError(error);
+    await db.documentSourceFile.update({
+      where: { id: sourceFile.id },
+      data: { status: "FAILED", extractionError: message, extractionCompletedAt: new Date() },
+    });
+    await db.smartDocument.update({
+      where: { id: sourceFile.documentId },
+      data: { extractionStatus: "FAILED", extractionError: message, extractionCompletedAt: new Date() },
+    });
+  }
+}
+
+async function completeExtraction(
+  sourceFile: any,
+  knowledge: ExtractedKnowledge,
+  extras: { processedData?: Buffer | null; processedMimeType?: string | null; ocrQuality?: unknown },
+) {
+  const db = prisma as any;
+  const document = sourceFile.document ?? await db.smartDocument.findUnique({ where: { id: sourceFile.documentId } });
+  const needsTitleUpdate = !document.title || document.title === "Untitled Document";
+  const title = needsTitleUpdate && knowledge.title ? knowledge.title : document.title;
+  await db.documentSourceFile.update({
+    where: { id: sourceFile.id },
+    data: {
+      status: "READY",
+      processedData: extras.processedData ?? sourceFile.processedData,
+      processedMimeType: extras.processedMimeType ?? sourceFile.processedMimeType,
+      extractedContent: knowledge as any,
+      ocrQuality: extras.ocrQuality as any,
+      extractionError: null,
+      extractionCompletedAt: new Date(),
+    },
+  });
+  await db.smartDocument.update({
+    where: { id: sourceFile.documentId },
+    data: {
+      extractedKnowledge: knowledge as any,
+      extractionStatus: "READY",
+      extractionError: null,
+      extractionCompletedAt: new Date(),
+      ...(needsTitleUpdate && knowledge.title ? { title: knowledge.title } : {}),
+    },
+  });
+  await upsertSearchIndex(sourceFile.document.creatorId, "DOCUMENT", sourceFile.documentId, title, [
+    title,
+    knowledge.documentType,
+    knowledge.domain,
+    knowledge.rawText ?? "",
+    JSON.stringify(knowledge.sections ?? []),
+    JSON.stringify(knowledge.tables ?? []),
+  ].join("\n"), { status: document.status, sourceFileId: sourceFile.id });
+  await createNotification(sourceFile.document.creatorId, "EXTRACTION_READY", "Document ready for review", `${title} has been read and is ready to review.`);
+}
+
+async function failStaleExtractionJobs() {
+  const db = prisma as any;
+  const staleBefore = new Date(Date.now() - 10 * 60_000);
+  const stale = await db.documentSourceFile.findMany({
+    where: {
+      status: { in: ["PREPROCESSING", "EXTRACTING"] },
+      extractionStartedAt: { lt: staleBefore },
+    },
+    select: { id: true, documentId: true },
+  });
+  for (const row of stale) {
+    const message = "Extraction took too long. Please retry.";
+    await db.documentSourceFile.update({
+      where: { id: row.id },
+      data: { status: "FAILED", extractionError: message, extractionCompletedAt: new Date() },
+    });
+    await db.smartDocument.update({
+      where: { id: row.documentId },
+      data: { extractionStatus: "FAILED", extractionError: message, extractionCompletedAt: new Date() },
+    });
+  }
+}
+
+function parseStructuredFile(buffer: Buffer, mimeType: string, originalName: string): ExtractedKnowledge | null {
+  const lowerName = originalName.toLowerCase();
+  const isStructured = /(\.csv|\.xlsx|\.xls)$/i.test(lowerName)
+    || /csv|spreadsheet|excel|officedocument\.spreadsheetml/i.test(mimeType);
+  if (!isStructured) return null;
+  try {
+    const workbook = lowerName.endsWith(".csv") || /csv/i.test(mimeType)
+      ? XLSX.read(buffer.toString("utf8"), { type: "string" })
+      : XLSX.read(buffer, { type: "buffer" });
+    const sheetName = workbook.SheetNames[0];
+    if (!sheetName) throw new Error("No worksheet found.");
+    const rows = XLSX.utils.sheet_to_json<Array<string | number>>(workbook.Sheets[sheetName], { header: 1, raw: false, defval: "" });
+    const nonEmptyRows = rows
+      .map((row) => row.map((cell) => String(cell ?? "").trim()))
+      .filter((row) => row.some(Boolean));
+    if (nonEmptyRows.length === 0) throw new Error("No rows found.");
+    const headers = normalizeHeaders(nonEmptyRows[0]);
+    const dataRows = nonEmptyRows.slice(1).map((row) => Object.fromEntries(headers.map((header, index) => [header, row[index] ?? ""])));
+    const rawText = nonEmptyRows.map((row) => row.join(" | ")).join("\n");
+    return {
+      documentType: "table",
+      domain: "general",
+      title: originalName.replace(/\.[^.]+$/, ""),
+      suggestedDocumentType: "table",
+      sections: [{ heading: "Imported structured data", content: `${dataRows.length} rows detected locally.` }],
+      tables: [{ heading: sheetName, columns: headers, rows: dataRows }],
+      statistics: [{ label: "Rows", value: dataRows.length }, { label: "Columns", value: headers.length }],
+      entities: [],
+      people: [],
+      dates: [],
+      handwrittenNotes: [],
+      keyFacts: [`${dataRows.length} structured rows parsed locally.`],
+      unclearItems: [],
+      ocrQualityNotes: ["Structured file parsed locally without Gemini."],
+      rawText,
+    };
+  } catch (error) {
+    return {
+      documentType: "table",
+      domain: "general",
+      title: originalName.replace(/\.[^.]+$/, ""),
+      suggestedDocumentType: "table",
+      sections: [{ heading: "Structured file", content: "The spreadsheet could not be parsed cleanly." }],
+      tables: [],
+      statistics: [],
+      entities: [],
+      people: [],
+      dates: [],
+      handwrittenNotes: [],
+      keyFacts: [],
+      unclearItems: [{ label: "Spreadsheet parsing", value: "", reason: error instanceof Error ? error.message : "Unknown parsing error", unclear: true }],
+      reviewWarning: "Some fields were unclear. Please review before publishing.",
+      rawText: "",
+    };
+  }
+}
+
+function normalizeHeaders(row: string[]): string[] {
+  return row.map((header, index) => {
+    const value = String(header || "").trim();
+    return value || `Column ${index + 1}`;
+  });
+}
+
+function friendlyExtractionError(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error);
+  if (/timeout|timed out/i.test(message)) return "Reading took too long. Please retry extraction.";
+  if (/GEMINI_API_KEY/i.test(message)) return "Gemini is not configured. Add a Gemini API key and retry extraction.";
+  return "We could not read this document. Please retry or upload a clearer file.";
 }
 
 export async function updateExtractedKnowledge(
@@ -219,6 +474,9 @@ export async function updateExtractedKnowledge(
     where: { id: documentId },
     data: {
       extractedKnowledge: knowledge as any,
+      extractionStatus: "READY",
+      extractionError: null,
+      extractionCompletedAt: new Date(),
       ...(knowledge.title ? { title: knowledge.title } : {}),
     },
   });
@@ -247,6 +505,9 @@ export async function generateSchema(
 
   const knowledge = doc.extractedKnowledge as ExtractedKnowledge | null;
   if (!knowledge) throw Object.assign(new Error("Upload a file first to extract content."), { status: 400 });
+  if (doc.extractionStatus === "PROCESSING") {
+    throw Object.assign(new Error("Document extraction is still processing. Please wait for review before generating."), { status: 409 });
+  }
 
   const fitToOnePage = wantsFitToOnePage(intent);
   const { schema, componentTree } = await generateDocumentSchema(knowledge, intent, "#2563eb", await preferenceMap(creatorId));
