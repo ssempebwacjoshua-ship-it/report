@@ -11,11 +11,19 @@ function classCode(className: string) {
   return `S${number}${suffix}`.replace(/\s+/g, "");
 }
 
+/**
+ * Generate a unique admission number for the given class/stream.
+ *
+ * @param alsoExclude - set of admission numbers already allocated in the
+ *   current in-memory batch (so two rows in the same import don't get the
+ *   same auto-generated number even though neither has been written to DB yet).
+ */
 export async function generateAdmissionNumber(
   prisma: PrismaClient,
   schoolCode: string,
   className: string,
   streamName: string,
+  alsoExclude: Set<string> = new Set(),
 ): Promise<string> {
   const school = await prisma.school.findUnique({ where: { code: schoolCode } });
   const prefix = school?.code ? `${slug(school.code)}-` : "";
@@ -24,10 +32,11 @@ export async function generateAdmissionNumber(
     where: { schoolId: school?.id },
     select: { admissionNumber: true },
   });
-  const used = new Set(existing.map((item) => item.admissionNumber.trim().toUpperCase()));
-  for (let i = 1; i < 1000; i += 1) {
+  const used = new Set<string>(existing.map((item) => item.admissionNumber.trim().toUpperCase()));
+  for (const exc of alsoExclude) used.add(exc.toUpperCase());
+  for (let i = 1; i < 10000; i += 1) {
     const candidate = `${base}-${String(i).padStart(3, "0")}`;
     if (!used.has(candidate.toUpperCase())) return candidate;
   }
-  throw new Error("Could not generate a unique admission number.");
+  throw new Error("Could not generate a unique admission number. Please provide admission numbers manually.");
 }

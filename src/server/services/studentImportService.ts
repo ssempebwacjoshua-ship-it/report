@@ -92,10 +92,13 @@ function pick(lookup: Map<string, unknown>, ...aliases: string[]): unknown {
 
 export function parseStudentsCsv(csvText: string): StudentImportRowInput[] {
   // Normalise headers at parse time so lookup is always by normalised key.
+  // relax_column_count: user-supplied CSVs frequently have extra trailing
+  // commas or fewer columns than the header — don't throw, just ignore extras.
   const records = parseCsv(csvText, {
     columns: (headers: string[]) => headers.map(normalizeKey),
     skip_empty_lines: true,
     trim: true,
+    relax_column_count: true,
   }) as Record<string, unknown>[];
   return records.map((row) => {
     const lk = makeRowLookup(row);
@@ -200,14 +203,31 @@ async function buildPreviewRows(prisma: PrismaClient, schoolCode: string, rows: 
     if (!raw.fullName.trim()) errors.push("Full name is required.");
     if (!raw.gender.trim()) errors.push("Gender is required.");
     if (!raw.className.trim()) errors.push("Class is required.");
-    else if (!klass) errors.push(`Class "${raw.className}" does not exist. Create it first or fix the class column.`);
+    else if (!klass) errors.push(`Class "${raw.className}" does not exist. Create it first in School Structure, or fix the class column.`);
     if (!raw.streamName.trim()) errors.push("Stream is required.");
-    else if (klass && !streamId) errors.push(`Stream "${raw.streamName}" does not exist in class "${raw.className}".`);
-    if (raw.gender && !normalizeGender(raw.gender)) errors.push("Invalid gender.");
+    else if (klass && !streamId) errors.push(`Stream "${raw.streamName}" does not exist in class "${raw.className}". Create it first in School Structure.`);
     if (raw.guardianEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(raw.guardianEmail)) errors.push("Guardian email must be valid.");
     if (raw.guardianPhone && !/^[+]?[0-9\s()-]+$/.test(raw.guardianPhone)) errors.push("Guardian phone must be valid.");
 
-    const effectiveAdmission = admissionNumber || (await generateAdmissionNumber(prisma, schoolCode, raw.className, raw.streamName));
+    // Only auto-generate an admission number when the row is otherwise valid.
+    // Skipping for invalid rows avoids wasted DB queries and prevents the admission
+    // number from being consumed in the `seen` set.
+    let effectiveAdmission = admissionNumber;
+    if (!effectiveAdmission && errors.length === 0) {
+      try {
+        // Pass `seen` so the generator skips numbers already allocated earlier
+        // in this batch (otherwise every row without an admission number gets the
+        // same candidate since the DB hasn't changed yet).
+        effectiveAdmission = await generateAdmissionNumber(prisma, schoolCode, raw.className, raw.streamName, seen);
+      } catch {
+        errors.push("Could not auto-generate a unique admission number. Please provide one manually.");
+        effectiveAdmission = `__GEN_${i}`;
+      }
+    } else if (!effectiveAdmission) {
+      // Row already has errors — give it a placeholder so the duplicate check
+      // doesn't incorrectly flag a later valid row.
+      effectiveAdmission = `__INVALID_${i}`;
+    }
     if (seen.has(norm(effectiveAdmission))) {
       errors.push(`Duplicate admission number in file: ${effectiveAdmission}.`);
     }
@@ -378,6 +398,7 @@ async function processBatch(
             isPrimary: true,
             canReceiveReports: true,
           }] as never,
+          skipDuplicates: true,
         });
       }
       successCount += 1;

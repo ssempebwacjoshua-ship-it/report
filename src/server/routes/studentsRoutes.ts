@@ -460,7 +460,7 @@ export function studentsPublicRoutes() {
   const r = Router();
 
   r.get("/api/students/import/template.csv", (_req, res) => {
-    res.type("text/csv").send("admissionNumber,fullName,gender,class,stream,guardianName,guardianPhone,guardianEmail,status\n,,,Senior 1,A,,,,,ACTIVE\n");
+    res.type("text/csv").send("admissionNumber,fullName,gender,class,stream,guardianName,guardianPhone,guardianEmail,status\nSCU-001,Ada Lovelace,Female,Senior 1,A,Grace Hopper,+256 700 000000,grace@example.test,ACTIVE\n");
   });
 
   r.get("/api/students/import/template", (_req, res) => {

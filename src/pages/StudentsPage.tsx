@@ -108,25 +108,35 @@ export function StudentsPage() {
 
   async function previewImport() {
     if (!importFile) return;
-    const formData = new FormData();
-    formData.set("file", importFile);
-    const preview = await previewStudentImport(formData);
-    setImportPreview(preview);
+    setError("");
+    try {
+      const formData = new FormData();
+      formData.set("file", importFile);
+      const preview = await previewStudentImport(formData);
+      setImportPreview(preview);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Could not preview import");
+    }
   }
 
   async function commitImport() {
     if (!importFile) return;
-    const formData = new FormData();
-    formData.set("file", importFile);
-    const result = await commitStudentImport(formData);
-    if ("jobId" in result) {
-      setImportJob(result);
-      setImportPreview(null);
-      return;
+    setError("");
+    try {
+      const formData = new FormData();
+      formData.set("file", importFile);
+      const result = await commitStudentImport(formData);
+      if ("jobId" in result) {
+        setImportJob(result);
+        setImportPreview(null);
+        return;
+      }
+      setImportPreview(result);
+      const refreshed = await fetchStudents(filters);
+      setStudents(refreshed.students);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Could not commit import");
     }
-    setImportPreview(result);
-    const refreshed = await fetchStudents(filters);
-    setStudents(refreshed.students);
   }
 
   useEffect(() => {
