@@ -107,6 +107,13 @@ export interface ExtractedStat {
   value: string | number;
 }
 
+export interface ExtractedUnclearItem {
+  label: string;
+  value?: string;
+  reason: string;
+  unclear: true;
+}
+
 export interface ExtractedKnowledge {
   documentType: string;
   domain: string;
@@ -115,6 +122,14 @@ export interface ExtractedKnowledge {
   tables: ExtractedTable[];
   statistics: ExtractedStat[];
   entities: string[];
+  people?: string[];
+  dates?: string[];
+  handwrittenNotes?: ExtractedSection[];
+  keyFacts?: string[];
+  unclearItems?: ExtractedUnclearItem[];
+  suggestedDocumentType?: string;
+  ocrQualityNotes?: string[];
+  reviewWarning?: string;
   rawText?: string;
 }
 
@@ -137,6 +152,12 @@ export interface ActiveVersionSnapshot {
   instruction: string | null;
   schema: DocumentSchema;
   componentTree: ComponentNode[];
+  renderSettings?: {
+    fitToOnePage?: boolean;
+    compact?: boolean;
+    fontScale?: number;
+    spacing?: "normal" | "compact";
+  };
   createdAt: string;
 }
 

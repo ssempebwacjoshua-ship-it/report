@@ -1318,6 +1318,46 @@ body {
   .marksheet-card-wrapper {
     overflow: visible !important;
   }
+
+  @page {
+    size: A4;
+    margin: 14mm;
+  }
+
+  html,
+  body,
+  #root {
+    overflow: visible !important;
+    background: #fff !important;
+  }
+
+  .document-paper {
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    max-width: none !important;
+    overflow: visible !important;
+    break-inside: auto;
+    page-break-inside: auto;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
+  .document-block,
+  .avoid-break,
+  table,
+  svg {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  thead {
+    display: table-header-group;
+  }
+
+  tr {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
 }
 /* Mobile viewport stability: prevent horizontal scroll and mobile input zoom */
 html,

@@ -8,6 +8,7 @@ import {
   openPrintWindow,
   publishDocument,
   restoreVersion,
+  updateExtractedKnowledge,
   uploadDocumentFile,
 } from "../../client/documentIntelligenceClient";
 import { DocumentPreview } from "../../components/smart-pages/DocumentPreview";
@@ -16,6 +17,7 @@ import type {
   ComponentNode,
   DocumentSchema,
   DocumentVersionSummary,
+  ExtractedKnowledge,
   SmartDocumentDetail,
 } from "../../shared/types/documentIntelligence";
 import { DEFAULT_THEME } from "../../shared/types/documentIntelligence";
@@ -74,6 +76,95 @@ function SuggestionChips({ items, onSelect }: { items: string[]; onSelect: (s: s
           {s}
         </button>
       ))}
+    </div>
+  );
+}
+
+function ExtractionReviewPanel({
+  knowledge,
+  editing,
+  draft,
+  saving,
+  onEdit,
+  onDraftChange,
+  onSave,
+  onGenerate,
+}: {
+  knowledge: ExtractedKnowledge;
+  editing: boolean;
+  draft: string;
+  saving: boolean;
+  onEdit: () => void;
+  onDraftChange: (value: string) => void;
+  onSave: () => void;
+  onGenerate: () => void;
+}) {
+  const unclear = knowledge.unclearItems ?? [];
+  const tables = knowledge.tables ?? [];
+  const text = knowledge.rawText || knowledge.sections.map((section) => section.content).join("\n\n");
+  return (
+    <div className="mx-auto grid w-full max-w-2xl gap-3 p-4">
+      {knowledge.reviewWarning || unclear.length ? (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+          {knowledge.reviewWarning ?? "Some handwriting was unclear. Please review before publishing."}
+        </div>
+      ) : null}
+      <section className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
+        <p className="text-xs font-bold uppercase tracking-wide text-blue-600">OCR Review</p>
+        <h2 className="mt-1 text-lg font-black text-slate-950">{knowledge.title || "Untitled document"}</h2>
+        <p className="mt-1 text-sm text-slate-500">{knowledge.suggestedDocumentType ?? knowledge.documentType} - {knowledge.domain}</p>
+      </section>
+      <section className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
+        <div className="mb-2 flex items-center justify-between gap-2">
+          <h3 className="text-sm font-bold text-slate-900">Extracted text</h3>
+          <button type="button" className="text-xs font-bold text-blue-700" onClick={onEdit}>
+            Edit extracted text
+          </button>
+        </div>
+        {editing ? (
+          <textarea
+            className="min-h-48 w-full resize-y rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm leading-relaxed text-slate-800 outline-none focus:border-blue-400"
+            value={draft}
+            onChange={(event) => onDraftChange(event.target.value)}
+          />
+        ) : (
+          <p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-slate-700">{text || "No text extracted."}</p>
+        )}
+        {editing ? (
+          <button type="button" className="btn btn-primary mt-3 text-xs" onClick={onSave} disabled={saving}>
+            {saving ? "Saving..." : "Save review edits"}
+          </button>
+        ) : null}
+      </section>
+      {tables.length ? (
+        <section className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
+          <h3 className="text-sm font-bold text-slate-900">Detected tables</h3>
+          <div className="mt-3 grid gap-3">
+            {tables.map((table, index) => (
+              <div key={index} className="rounded-lg border border-slate-200 p-3">
+                <p className="text-xs font-bold uppercase text-slate-500">{table.heading || `Table ${index + 1}`}</p>
+                <p className="mt-1 text-xs text-slate-500">{table.columns.length} columns - {table.rows.length} rows</p>
+              </div>
+            ))}
+          </div>
+        </section>
+      ) : null}
+      {unclear.length ? (
+        <section className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-amber-200">
+          <h3 className="text-sm font-bold text-amber-900">Unclear items</h3>
+          <div className="mt-3 grid gap-2">
+            {unclear.map((item, index) => (
+              <div key={index} className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900">
+                <p className="font-bold">{item.label}</p>
+                <p className="text-xs">{item.reason}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+      ) : null}
+      <button type="button" className="btn btn-primary sticky bottom-3 z-10 shadow-lg" onClick={onGenerate}>
+        Looks good, generate document
+      </button>
     </div>
   );
 }
@@ -141,6 +232,7 @@ function VersionPanel({
 // ── Main editor ────────────────────────────────────────────────────────────────
 
 type Stage = "empty" | "uploaded" | "generating" | "ready";
+type RenderSettings = NonNullable<SmartDocumentDetail["activeVersion"]>["renderSettings"];
 
 export function DocumentEditorPage() {
   const { id } = useParams<{ id: string }>();
@@ -158,6 +250,11 @@ export function DocumentEditorPage() {
   const [schema, setSchema] = useState<DocumentSchema | null>(null);
   const [componentTree, setComponentTree] = useState<ComponentNode[]>([]);
   const [activeVersionId, setActiveVersionId] = useState<string | undefined>();
+  const [renderSettings, setRenderSettings] = useState<RenderSettings>();
+  const [extractedKnowledge, setExtractedKnowledge] = useState<ExtractedKnowledge | null>(null);
+  const [reviewEditing, setReviewEditing] = useState(false);
+  const [reviewDraft, setReviewDraft] = useState("");
+  const [reviewSaving, setReviewSaving] = useState(false);
 
   const [versions, setVersions] = useState<DocumentVersionSummary[]>([]);
   const [showVersions, setShowVersions] = useState(false);
@@ -165,6 +262,7 @@ export function DocumentEditorPage() {
   const [publishing, setPublishing] = useState(false);
 
   const [activeTab, setActiveTab] = useState<"chat" | "preview">("chat");
+  const [showActions, setShowActions] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
@@ -175,10 +273,13 @@ export function DocumentEditorPage() {
     getDocument(id)
       .then((d) => {
         setDoc(d);
+        setExtractedKnowledge(d.extractedKnowledge);
+        setReviewDraft(d.extractedKnowledge?.rawText || d.extractedKnowledge?.sections.map((section) => section.content).join("\n\n") || "");
         if (d.activeVersion) {
           setSchema(d.activeVersion.schema);
           setComponentTree(d.activeVersion.componentTree);
           setActiveVersionId(d.activeVersion.id);
+          setRenderSettings(d.activeVersion.renderSettings);
           setStage("ready");
         } else if (d.extractedKnowledge) {
           setStage("uploaded");
@@ -218,9 +319,13 @@ export function DocumentEditorPage() {
     try {
       const { knowledge } = await uploadDocumentFile(id, file);
       setStage("uploaded");
+      setExtractedKnowledge(knowledge);
+      setReviewDraft(knowledge.rawText || knowledge.sections.map((section) => section.content).join("\n\n"));
+      setReviewEditing(false);
+      setActiveTab("preview");
       addMessage(
         "assistant",
-        `I've read "${file.name}" and extracted ${knowledge.sections.length} section${knowledge.sections.length !== 1 ? "s" : ""}${knowledge.tables.length ? `, ${knowledge.tables.length} table${knowledge.tables.length !== 1 ? "s" : ""}` : ""}, and ${knowledge.statistics.length} statistic${knowledge.statistics.length !== 1 ? "s" : ""}. It looks like a ${knowledge.domain} ${knowledge.documentType}.\n\nNow describe how you'd like the document to look — for example: "Make it professional and include all tables" or "Create a clean one-page summary."`,
+        `I've read "${file.name}" and extracted ${knowledge.sections.length} section${knowledge.sections.length !== 1 ? "s" : ""}${knowledge.tables.length ? `, ${knowledge.tables.length} table${knowledge.tables.length !== 1 ? "s" : ""}` : ""}, and ${knowledge.statistics.length} statistic${knowledge.statistics.length !== 1 ? "s" : ""}. Please review the extraction before generating the polished document.`,
       );
       // Refresh doc to get updated title
       const refreshed = await getDocument(id);
@@ -232,11 +337,8 @@ export function DocumentEditorPage() {
     }
   }
 
-  // Send message handler
-  const handleSend = useCallback(async () => {
-    const text = input.trim();
-    if (!text || !id || busy) return;
-    setInput("");
+  const submitInstruction = useCallback(async (text: string) => {
+    if (!text.trim() || !id || busy) return;
     addMessage("user", text);
     setBusy(true);
 
@@ -249,6 +351,9 @@ export function DocumentEditorPage() {
         setSchema(result.schema);
         setComponentTree(result.componentTree);
         setActiveVersionId(result.versionId);
+        const refreshed = await getDocument(id);
+        setDoc(refreshed);
+        setRenderSettings(refreshed.activeVersion?.renderSettings);
         setStage("ready");
         setActiveTab("preview");
         addMessage("assistant", "Done! Your document is ready. Switch to Preview to see it, or keep editing here.", {
@@ -264,6 +369,9 @@ export function DocumentEditorPage() {
         setSchema(result.schema);
         setComponentTree(result.componentTree);
         setActiveVersionId(result.versionId);
+        const refreshed = await getDocument(id);
+        setDoc(refreshed);
+        setRenderSettings(refreshed.activeVersion?.renderSettings);
         addMessage("assistant", "Updated. Switch to Preview to see the changes.", {
           action: "edit",
           versionId: result.versionId,
@@ -278,11 +386,50 @@ export function DocumentEditorPage() {
     } finally {
       setBusy(false);
     }
-  }, [input, id, busy, stage]);
+  }, [id, busy, stage]);
+
+  // Send message handler
+  const handleSend = useCallback(async () => {
+    const text = input.trim();
+    if (!text) return;
+    setInput("");
+    await submitInstruction(text);
+  }, [input, submitInstruction]);
 
   const [showPublishModal, setShowPublishModal] = useState(false);
   const [publishPassword, setPublishPassword] = useState("");
   const [printing, setPrinting] = useState(false);
+
+  async function handleSaveExtractionReview() {
+    if (!id || !extractedKnowledge || reviewSaving) return;
+    setReviewSaving(true);
+    try {
+      const updated: ExtractedKnowledge = {
+        ...extractedKnowledge,
+        rawText: reviewDraft,
+        sections: reviewDraft.trim()
+          ? [{ heading: "Reviewed text", content: reviewDraft.trim() }]
+          : extractedKnowledge.sections,
+        unclearItems: [],
+        reviewWarning: undefined,
+      };
+      const saved = await updateExtractedKnowledge(id, updated);
+      setExtractedKnowledge(saved);
+      setReviewEditing(false);
+      const refreshed = await getDocument(id);
+      setDoc(refreshed);
+      addMessage("assistant", "Saved your extraction edits. You can generate the document when it looks right.");
+    } catch (e) {
+      addMessage("assistant", e instanceof Error ? e.message : "Could not save the extraction edits.");
+    } finally {
+      setReviewSaving(false);
+    }
+  }
+
+  async function handleGenerateFromReview() {
+    if (reviewEditing) await handleSaveExtractionReview();
+    await submitInstruction("Generate a professional document from the reviewed extraction. Preserve all tables and key facts.");
+  }
 
   async function handlePublish(password?: string) {
     if (!id || publishing) return;
@@ -323,6 +470,7 @@ export function DocumentEditorPage() {
         setSchema(refreshed.activeVersion.schema);
         setComponentTree(refreshed.activeVersion.componentTree);
         setActiveVersionId(refreshed.activeVersion.id);
+        setRenderSettings(refreshed.activeVersion.renderSettings);
       }
       addMessage("assistant", `Restored to: "${v.instruction ?? "initial version"}".`, {
         action: "restore",
@@ -356,30 +504,31 @@ export function DocumentEditorPage() {
   const suggestions = stage === "ready" ? POST_GENERATE_SUGGESTIONS : INITIAL_SUGGESTIONS;
 
   return (
-    <div className="flex h-[calc(100vh-4rem)] flex-col">
+    <div className="relative flex h-[calc(100vh-4rem)] flex-col overflow-hidden">
       {/* Top bar */}
-      <div className="flex items-center justify-between border-b border-slate-200 bg-white px-4 py-2.5">
-        <div className="flex items-center gap-2">
+      <div className="border-b border-slate-200 bg-white">
+        <div className="flex min-h-10 items-center gap-2 px-3 py-2">
           <button
             type="button"
             onClick={() => void navigate("/smart-pages")}
-            className="text-slate-400 hover:text-slate-700"
+            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-800"
+            aria-label="Back to documents"
           >
             <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="m15 18-6-6 6-6" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
           </button>
-          <h1 className="max-w-[180px] truncate text-sm font-bold text-slate-900 sm:max-w-xs">
+          <h1 className="min-w-0 flex-1 truncate text-sm font-bold text-slate-900">
             {doc.title}
           </h1>
           {stage === "ready" ? (
-            <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-700">
+            <span className="hidden rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-700 sm:inline-flex">
               {componentTree.length} components
             </span>
           ) : null}
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="hidden">
           {versions.length > 0 ? (
             <button
               type="button"
@@ -413,7 +562,7 @@ export function DocumentEditorPage() {
       </div>
 
       {/* Mobile tab switcher */}
-      <div className="flex border-b border-slate-200 bg-white lg:hidden">
+      <div className="sticky top-0 z-20 flex border-b border-slate-200 bg-white lg:hidden">
         {(["chat", "preview"] as const).map((tab) => (
           <button
             key={tab}
@@ -530,7 +679,18 @@ export function DocumentEditorPage() {
         <div
           className={`${activeTab === "preview" ? "flex" : "hidden"} min-w-0 flex-1 flex-col overflow-y-auto bg-slate-100 lg:flex`}
         >
-          {stage === "ready" ? (
+          {stage === "uploaded" && extractedKnowledge ? (
+            <ExtractionReviewPanel
+              knowledge={extractedKnowledge}
+              editing={reviewEditing}
+              draft={reviewDraft}
+              saving={reviewSaving}
+              onEdit={() => setReviewEditing(true)}
+              onDraftChange={setReviewDraft}
+              onSave={() => void handleSaveExtractionReview()}
+              onGenerate={() => void handleGenerateFromReview()}
+            />
+          ) : stage === "ready" ? (
             <div className="min-h-full p-4">
               <div className="mx-auto max-w-2xl">
                 {publishResult ? (
@@ -546,7 +706,7 @@ export function DocumentEditorPage() {
                     </button>
                   </div>
                 ) : null}
-                <DocumentPreview schema={currentSchema} componentTree={componentTree} />
+                <DocumentPreview schema={currentSchema} componentTree={componentTree} renderSettings={renderSettings} />
               </div>
             </div>
           ) : (
@@ -566,6 +726,52 @@ export function DocumentEditorPage() {
           )}
         </div>
       </div>
+
+      {stage === "ready" ? (
+        <div className="fixed bottom-4 right-4 z-40 print:hidden">
+          {showActions ? (
+            <div className="mb-2 grid min-w-40 gap-1 rounded-xl border border-slate-200 bg-white p-2 text-sm shadow-xl">
+              {versions.length > 0 ? (
+                <button
+                  type="button"
+                  className="rounded-lg px-3 py-2 text-left font-semibold text-slate-700 hover:bg-slate-50"
+                  onClick={() => {
+                    void getVersionHistory(id!).then(setVersions);
+                    setShowVersions(true);
+                    setShowActions(false);
+                  }}
+                >
+                  History
+                </button>
+              ) : null}
+              <button
+                type="button"
+                className="rounded-lg px-3 py-2 text-left font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                onClick={() => { setShowActions(false); void handlePrint(); }}
+                disabled={printing}
+              >
+                {printing ? "Opening..." : "Print / PDF"}
+              </button>
+              <button
+                type="button"
+                className="rounded-lg px-3 py-2 text-left font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                onClick={() => { setShowActions(false); setShowPublishModal(true); }}
+                disabled={publishing}
+              >
+                {publishing ? "Publishing..." : publishResult ? "Re-publish" : "Publish"}
+              </button>
+            </div>
+          ) : null}
+          <button
+            type="button"
+            className="rounded-full bg-blue-600 px-4 py-3 text-sm font-black text-white shadow-xl shadow-blue-900/20 hover:bg-blue-700"
+            onClick={() => setShowActions((value) => !value)}
+            aria-expanded={showActions}
+          >
+            Actions
+          </button>
+        </div>
+      ) : null}
 
       {/* Version history modal */}
       {showVersions ? (

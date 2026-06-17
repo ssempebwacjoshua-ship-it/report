@@ -46,15 +46,29 @@ export async function extractDocumentKnowledge(
 
 Return ONLY valid JSON (no markdown, no code fences):
 {
-  "documentType": "report | form | table | letter | certificate | invoice | other",
+  "documentType": "report | form | table | letter | certificate | invoice | handwritten_note | other",
   "domain": "education | healthcare | legal | business | nonprofit | general",
   "title": "inferred title",
+  "suggestedDocumentType": "best document type for polished output",
+  "people": ["person names only"],
+  "dates": ["dates exactly as written"],
   "sections": [{ "heading": "string or null", "content": "string" }],
   "tables": [{ "heading": "string or null", "columns": ["col1"], "rows": [{"col1": "val"}] }],
   "statistics": [{ "label": "string", "value": "string or number" }],
-  "entities": ["name1", "name2"],
+  "entities": ["all named entities"],
+  "handwrittenNotes": [{ "heading": "string or null", "content": "string" }],
+  "keyFacts": ["fact exactly supported by visible content"],
+  "unclearItems": [{ "label": "field or area", "value": "best visible fragment or empty", "reason": "why unclear", "unclear": true }],
   "rawText": "full text content"
 }
+
+Rules:
+- Return JSON only.
+- Do not hallucinate missing content.
+- If handwriting or a field is unclear, put it in unclearItems with "unclear": true.
+- Preserve original wording where possible.
+- Extract tables only when table structure is visible.
+- For off-frame, tilted, dark, or low-confidence content, add an unclearItems entry instead of guessing.
 
 Document filename: ${originalName}`,
       },
@@ -67,10 +81,16 @@ Document filename: ${originalName}`,
     documentType: "document",
     domain: "general",
     title: originalName.replace(/\.[^.]+$/, ""),
+    suggestedDocumentType: "document",
     sections: [{ content: text }],
     tables: [],
     statistics: [],
     entities: [],
+    people: [],
+    dates: [],
+    handwrittenNotes: [],
+    keyFacts: [],
+    unclearItems: [],
     rawText: text,
   };
 

@@ -13,6 +13,7 @@ import {
   preferenceMap,
   upsertSearchIndex,
 } from "./documentOsService";
+import { preprocessDocumentForOcr } from "./documentOcrPreprocessService";
 import type {
   SmartDocumentDetail,
   SmartDocumentSummary,
@@ -125,6 +126,7 @@ function rowToDetail(doc: any, version: any, versionCount: number): SmartDocumen
         instruction: version.instruction as string | null,
         schema: version.schema as DocumentSchema,
         componentTree: version.componentTree as ComponentNode[],
+        renderSettings: version.renderSettings as ActiveVersionSnapshot["renderSettings"],
         createdAt: (version.createdAt as Date).toISOString(),
       }
     : null;
@@ -155,7 +157,15 @@ export async function uploadAndExtract(
   const doc = await db.smartDocument.findFirst({ where: { id: documentId, creatorId } });
   if (!doc) throw Object.assign(new Error("Document not found."), { status: 404 });
 
-  const knowledge = await extractDocumentKnowledge(file.buffer, file.mimetype, file.originalname);
+  const preprocessed = await preprocessDocumentForOcr(file.buffer, file.mimetype);
+  const knowledge = await extractDocumentKnowledge(preprocessed.processedBuffer, preprocessed.processedMimeType, file.originalname);
+  const unclearItems = knowledge.unclearItems ?? [];
+  const qualityMessages = preprocessed.notes.map((note) => note.message);
+  const enrichedKnowledge: ExtractedKnowledge = {
+    ...knowledge,
+    ocrQualityNotes: qualityMessages,
+    reviewWarning: preprocessed.warning ?? (unclearItems.length > 0 ? "Some handwriting was unclear. Please review before publishing." : undefined),
+  };
 
   const sourceFile = await db.documentSourceFile.create({
     data: {
@@ -164,7 +174,16 @@ export async function uploadAndExtract(
       originalName: file.originalname,
       mimeType: file.mimetype,
       sizeBytes: file.size,
-      extractedContent: knowledge as any,
+      originalData: preprocessed.originalBuffer,
+      processedData: preprocessed.processedBuffer,
+      processedMimeType: preprocessed.processedMimeType,
+      extractedContent: enrichedKnowledge as any,
+      ocrQuality: {
+        width: preprocessed.width,
+        height: preprocessed.height,
+        notes: preprocessed.notes,
+        warning: preprocessed.warning,
+      } as any,
     },
   });
 
@@ -172,20 +191,47 @@ export async function uploadAndExtract(
   await db.smartDocument.update({
     where: { id: documentId },
     data: {
-      extractedKnowledge: knowledge as any,
-      ...(needsTitleUpdate && knowledge.title ? { title: knowledge.title } : {}),
+      extractedKnowledge: enrichedKnowledge as any,
+      ...(needsTitleUpdate && enrichedKnowledge.title ? { title: enrichedKnowledge.title } : {}),
     },
   });
-  await upsertSearchIndex(creatorId, "DOCUMENT", documentId, needsTitleUpdate && knowledge.title ? knowledge.title : doc.title, [
-    needsTitleUpdate && knowledge.title ? knowledge.title : doc.title,
+  await upsertSearchIndex(creatorId, "DOCUMENT", documentId, needsTitleUpdate && enrichedKnowledge.title ? enrichedKnowledge.title : doc.title, [
+    needsTitleUpdate && enrichedKnowledge.title ? enrichedKnowledge.title : doc.title,
+    enrichedKnowledge.documentType,
+    enrichedKnowledge.domain,
+    enrichedKnowledge.rawText ?? "",
+    JSON.stringify(enrichedKnowledge.sections ?? []),
+    JSON.stringify(enrichedKnowledge.tables ?? []),
+  ].join("\n"), { status: doc.status, sourceFileId: sourceFile.id });
+
+  return { knowledge: enrichedKnowledge, sourceFileId: sourceFile.id as string };
+}
+
+export async function updateExtractedKnowledge(
+  documentId: string,
+  creatorId: string,
+  knowledge: ExtractedKnowledge,
+): Promise<ExtractedKnowledge> {
+  const db = prisma as any;
+  const doc = await db.smartDocument.findFirst({ where: { id: documentId, creatorId } });
+  if (!doc) throw Object.assign(new Error("Document not found."), { status: 404 });
+  await db.smartDocument.update({
+    where: { id: documentId },
+    data: {
+      extractedKnowledge: knowledge as any,
+      ...(knowledge.title ? { title: knowledge.title } : {}),
+    },
+  });
+  await upsertSearchIndex(creatorId, "DOCUMENT", documentId, knowledge.title || doc.title, [
+    knowledge.title || doc.title,
     knowledge.documentType,
     knowledge.domain,
     knowledge.rawText ?? "",
     JSON.stringify(knowledge.sections ?? []),
     JSON.stringify(knowledge.tables ?? []),
-  ].join("\n"), { status: doc.status, sourceFileId: sourceFile.id });
-
-  return { knowledge, sourceFileId: sourceFile.id as string };
+    JSON.stringify(knowledge.unclearItems ?? []),
+  ].join("\n"), { status: doc.status, reviewed: true });
+  return knowledge;
 }
 
 // ── Generate schema ────────────────────────────────────────────────────────────
@@ -202,26 +248,31 @@ export async function generateSchema(
   const knowledge = doc.extractedKnowledge as ExtractedKnowledge | null;
   if (!knowledge) throw Object.assign(new Error("Upload a file first to extract content."), { status: 400 });
 
+  const fitToOnePage = wantsFitToOnePage(intent);
   const { schema, componentTree } = await generateDocumentSchema(knowledge, intent, "#2563eb", await preferenceMap(creatorId));
+  const finalSchema = fitToOnePage ? compactSchemaForPrint(schema) : schema;
+  const finalComponents = fitToOnePage ? compactComponentsForPrint(componentTree) : componentTree;
+  const renderSettings = renderSettingsForIntent(intent);
 
   const version = await db.documentVersion.create({
     data: {
       id: randomUUID(),
       documentId,
       instruction: intent,
-      schema: schema as any,
-      componentTree: componentTree as any,
+      schema: finalSchema as any,
+      componentTree: finalComponents as any,
+      renderSettings: renderSettings as any,
     },
   });
 
   await db.smartDocument.update({ where: { id: documentId }, data: { activeVersionId: version.id } });
   await upsertSearchIndex(creatorId, "VERSION", version.id, doc.title, [
     intent,
-    JSON.stringify(schema),
-    JSON.stringify(componentTree),
+    JSON.stringify(finalSchema),
+    JSON.stringify(finalComponents),
   ].join("\n"), { documentId });
 
-  return { versionId: version.id as string, schema, componentTree };
+  return { versionId: version.id as string, schema: finalSchema, componentTree: finalComponents };
 }
 
 // ── Apply conversational prompt ────────────────────────────────────────────────
@@ -239,7 +290,14 @@ export async function applyPrompt(
   if (!currentVersion) throw Object.assign(new Error("Generate a schema first."), { status: 400 });
 
   const currentSchema = currentVersion.schema as DocumentSchema;
+  const fitToOnePage = wantsFitToOnePage(instruction);
   const { schema, componentTree } = await applyPromptToSchema(currentSchema, instruction, await preferenceMap(creatorId));
+  const finalSchema = fitToOnePage ? compactSchemaForPrint(schema) : schema;
+  const finalComponents = fitToOnePage ? compactComponentsForPrint(componentTree) : componentTree;
+  const renderSettings = {
+    ...((currentVersion.renderSettings as Record<string, unknown> | null) ?? {}),
+    ...renderSettingsForIntent(instruction),
+  };
 
   const version = await db.documentVersion.create({
     data: {
@@ -247,19 +305,20 @@ export async function applyPrompt(
       documentId,
       parentId: currentVersion.id,
       instruction,
-      schema: schema as any,
-      componentTree: componentTree as any,
+      schema: finalSchema as any,
+      componentTree: finalComponents as any,
+      renderSettings: renderSettings as any,
     },
   });
 
   await db.smartDocument.update({ where: { id: documentId }, data: { activeVersionId: version.id } });
   await upsertSearchIndex(creatorId, "VERSION", version.id, doc.title, [
     instruction,
-    JSON.stringify(schema),
-    JSON.stringify(componentTree),
+    JSON.stringify(finalSchema),
+    JSON.stringify(finalComponents),
   ].join("\n"), { documentId });
 
-  return { versionId: version.id as string, schema, componentTree };
+  return { versionId: version.id as string, schema: finalSchema, componentTree: finalComponents };
 }
 
 // ── Version history ────────────────────────────────────────────────────────────
@@ -365,4 +424,48 @@ export async function getPublishedDocument(
   const detail = rowToDetail(doc, activeVersion, 0);
 
   return { document: detail, publishedAt: (published.createdAt as Date).toISOString() };
+}
+
+function wantsFitToOnePage(instruction: string): boolean {
+  return /\b(fit|make|compress|keep)\b.*\b(one page|1 page|single page|print)\b/i.test(instruction)
+    || /\bfit on one page\b/i.test(instruction)
+    || /\bcompress for print\b/i.test(instruction);
+}
+
+function renderSettingsForIntent(instruction: string): Record<string, unknown> {
+  if (!wantsFitToOnePage(instruction)) return {};
+  return { fitToOnePage: true, compact: true, fontScale: 0.9, spacing: "compact" };
+}
+
+function compactSchemaForPrint(schema: DocumentSchema): DocumentSchema {
+  return {
+    ...schema,
+    theme: {
+      ...schema.theme,
+      pageSize: schema.theme?.pageSize ?? "A4",
+      orientation: schema.theme?.orientation ?? "PORTRAIT",
+    },
+  };
+}
+
+function compactComponentsForPrint(components: ComponentNode[]): ComponentNode[] {
+  return components.map((component) => {
+    if ((component.type === "textBlock" || component.type === "aiSummary") && typeof component.props.content === "string") {
+      return {
+        ...component,
+        props: {
+          ...component.props,
+          content: shortenText(component.props.content, 420),
+        },
+      };
+    }
+    return component;
+  });
+}
+
+function shortenText(value: unknown, limit: number): string {
+  const text = String(value ?? "").trim();
+  if (text.length <= limit) return text;
+  const shortened = text.slice(0, limit);
+  return `${shortened.slice(0, shortened.lastIndexOf(" ") > 120 ? shortened.lastIndexOf(" ") : limit).trim()}...`;
 }

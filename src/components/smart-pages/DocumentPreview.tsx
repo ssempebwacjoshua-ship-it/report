@@ -2,49 +2,70 @@ import type { ComponentNode, DocumentSchema } from "../../shared/types/documentI
 
 // ── Individual component renderers ─────────────────────────────────────────────
 
-function HeaderRenderer({ props, primaryColor }: { props: Record<string, unknown>; primaryColor: string }) {
+function HeaderRenderer({ props, primaryColor, compact }: { props: Record<string, unknown>; primaryColor: string; compact: boolean }) {
   return (
     <div
-      className="rounded-xl px-6 py-5 text-white"
+      className={`${compact ? "rounded-lg px-4 py-3" : "rounded-xl px-5 py-4 sm:px-6 sm:py-5"} text-white print:rounded-none`}
       style={{ background: `linear-gradient(135deg, ${primaryColor} 0%, ${primaryColor}cc 100%)` }}
     >
       {props.logoText ? (
-        <div className="mb-3 inline-flex h-10 w-10 items-center justify-center rounded-lg bg-white/20 text-sm font-black">
+        <div className={`${compact ? "mb-2 h-8 w-8 text-xs" : "mb-3 h-10 w-10 text-sm"} inline-flex items-center justify-center rounded-lg bg-white/20 font-black`}>
           {String(props.logoText).slice(0, 2).toUpperCase()}
         </div>
       ) : null}
-      <h1 className="text-xl font-black leading-tight">{String(props.title ?? "Document")}</h1>
+      <h1 className={`${compact ? "text-lg" : "text-xl"} font-black leading-tight`}>{String(props.title ?? "Document")}</h1>
       {props.subtitle ? <p className="mt-1 text-sm opacity-85">{String(props.subtitle)}</p> : null}
       {props.date ? <p className="mt-2 text-xs opacity-70">{String(props.date)}</p> : null}
     </div>
   );
 }
 
-function TextBlockRenderer({ props }: { props: Record<string, unknown> }) {
+function TextBlockRenderer({ props, compact }: { props: Record<string, unknown>; compact: boolean }) {
   return (
-    <div>
+    <div className="break-words print:break-normal">
       {props.heading ? (
-        <h2 className="mb-2 text-sm font-bold uppercase tracking-wide text-slate-500">{String(props.heading)}</h2>
+        <h2 className={`${compact ? "mb-1 text-xs" : "mb-2 text-sm"} font-bold uppercase tracking-wide text-slate-500`}>{String(props.heading)}</h2>
       ) : null}
-      <p className="text-sm leading-relaxed text-slate-700">{String(props.content ?? "")}</p>
+      <p className={`${compact ? "text-[13px] leading-snug" : "text-sm leading-relaxed"} whitespace-pre-wrap text-slate-700`}>{String(props.content ?? "")}</p>
     </div>
   );
 }
 
-function TableRenderer({ props }: { props: Record<string, unknown> }) {
+export function MobileTableRenderer({ columns, rows }: { columns: string[]; rows: Record<string, string | number>[] }) {
+  return (
+    <div className="grid gap-3 sm:hidden print:hidden">
+      {rows.map((row, i) => (
+        <article key={i} className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm">
+          <div className="grid gap-2">
+            {columns.map((col) => (
+              <div key={col} className="grid gap-0.5">
+                <span className="text-[10px] font-bold uppercase tracking-wide text-slate-400">{col}</span>
+                <span className="break-words text-sm font-semibold text-slate-800">{String(row[col] ?? "")}</span>
+              </div>
+            ))}
+          </div>
+        </article>
+      ))}
+      {rows.length === 0 ? <p className="rounded-lg bg-slate-50 p-3 text-center text-sm text-slate-400">No data</p> : null}
+    </div>
+  );
+}
+
+function TableRenderer({ props, compact }: { props: Record<string, unknown>; compact: boolean }) {
   const columns = (props.columns as string[]) ?? [];
   const rows = (props.rows as Record<string, string | number>[]) ?? [];
   return (
-    <div>
+    <div className="document-block avoid-break">
       {props.heading ? (
-        <h2 className="mb-2 text-sm font-bold uppercase tracking-wide text-slate-500">{String(props.heading)}</h2>
+        <h2 className={`${compact ? "mb-1 text-xs" : "mb-2 text-sm"} font-bold uppercase tracking-wide text-slate-500`}>{String(props.heading)}</h2>
       ) : null}
-      <div className="overflow-x-auto rounded-lg border border-slate-200">
-        <table className="w-full text-xs">
+      <MobileTableRenderer columns={columns} rows={rows} />
+      <div className="hidden overflow-x-auto rounded-lg border border-slate-200 sm:block print:block print:overflow-visible">
+        <table className={`${compact ? "text-[11px]" : "text-xs"} w-full table-fixed border-collapse`}>
           <thead>
             <tr className="bg-slate-50">
               {columns.map((col) => (
-                <th key={col} className="px-3 py-2 text-left font-bold text-slate-600">
+                <th key={col} className={`${compact ? "px-2 py-1.5" : "px-3 py-2"} break-words text-left font-bold text-slate-600`}>
                   {col}
                 </th>
               ))}
@@ -54,7 +75,7 @@ function TableRenderer({ props }: { props: Record<string, unknown> }) {
             {rows.map((row, i) => (
               <tr key={i} className={i % 2 === 0 ? "bg-white" : "bg-slate-50/50"}>
                 {columns.map((col) => (
-                  <td key={col} className="px-3 py-2 text-slate-700">
+                  <td key={col} className={`${compact ? "px-2 py-1.5" : "px-3 py-2"} break-words text-slate-700`}>
                     {String(row[col] ?? "")}
                   </td>
                 ))}
@@ -74,18 +95,18 @@ function TableRenderer({ props }: { props: Record<string, unknown> }) {
   );
 }
 
-function StatisticsRenderer({ props }: { props: Record<string, unknown> }) {
+function StatisticsRenderer({ props, compact }: { props: Record<string, unknown>; compact: boolean }) {
   const items = (props.items as { label: string; value: string | number; change?: string }[]) ?? [];
   return (
     <div>
       {props.heading ? (
         <h2 className="mb-2 text-sm font-bold uppercase tracking-wide text-slate-500">{String(props.heading)}</h2>
       ) : null}
-      <div className="grid grid-cols-2 gap-3">
+      <div className={`${compact ? "gap-2" : "gap-3"} grid grid-cols-2`}>
         {items.map((item, i) => (
-          <div key={i} className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-3">
+          <div key={i} className={`${compact ? "px-2 py-2" : "px-3 py-3"} rounded-lg border border-slate-200 bg-slate-50`}>
             <p className="text-xs text-slate-500">{item.label}</p>
-            <p className="mt-0.5 text-lg font-black text-slate-900">{String(item.value)}</p>
+            <p className={`${compact ? "text-base" : "text-lg"} mt-0.5 font-black text-slate-900`}>{String(item.value)}</p>
             {item.change ? <p className="text-xs text-emerald-600">{item.change}</p> : null}
           </div>
         ))}
@@ -99,9 +120,8 @@ function AiSummaryRenderer({ props }: { props: Record<string, unknown> }) {
     <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3">
       <div className="mb-2 flex items-center gap-2">
         <span className="text-xs font-bold text-blue-600">
-          {props.heading ? String(props.heading) : "AI Summary"}
+          {props.heading ? String(props.heading) : "Summary"}
         </span>
-        <span className="rounded bg-blue-100 px-1.5 py-0.5 text-[10px] font-bold text-blue-500">AI</span>
       </div>
       <p className="text-sm leading-relaxed text-blue-900">{String(props.content ?? "")}</p>
     </div>
@@ -220,13 +240,13 @@ function FooterRenderer({ props }: { props: Record<string, unknown> }) {
 
 // ── Component registry ─────────────────────────────────────────────────────────
 
-function renderComponent(node: ComponentNode, primaryColor: string): React.ReactNode {
+function renderComponent(node: ComponentNode, primaryColor: string, compact: boolean): React.ReactNode {
   const key = node.id;
   switch (node.type) {
-    case "header": return <HeaderRenderer key={key} props={node.props} primaryColor={primaryColor} />;
-    case "textBlock": return <TextBlockRenderer key={key} props={node.props} />;
-    case "table": return <TableRenderer key={key} props={node.props} />;
-    case "statistics": return <StatisticsRenderer key={key} props={node.props} />;
+    case "header": return <HeaderRenderer key={key} props={node.props} primaryColor={primaryColor} compact={compact} />;
+    case "textBlock": return <TextBlockRenderer key={key} props={node.props} compact={compact} />;
+    case "table": return <TableRenderer key={key} props={node.props} compact={compact} />;
+    case "statistics": return <StatisticsRenderer key={key} props={node.props} compact={compact} />;
     case "aiSummary": return <AiSummaryRenderer key={key} props={node.props} />;
     case "profileCard": return <ProfileCardRenderer key={key} props={node.props} />;
     case "signature": return <SignatureRenderer key={key} props={node.props} />;
@@ -243,10 +263,17 @@ type Props = {
   schema: DocumentSchema;
   componentTree: ComponentNode[];
   compact?: boolean;
+  renderSettings?: {
+    fitToOnePage?: boolean;
+    compact?: boolean;
+    fontScale?: number;
+    spacing?: "normal" | "compact";
+  };
 };
 
-export function DocumentPreview({ schema, componentTree, compact = false }: Props) {
+export function DocumentPreview({ schema, componentTree, compact = false, renderSettings }: Props) {
   const primaryColor = schema.theme?.primaryColor ?? "#2563eb";
+  const isCompact = compact || renderSettings?.compact || renderSettings?.fitToOnePage || renderSettings?.spacing === "compact";
 
   if (componentTree.length === 0) {
     return (
@@ -262,8 +289,11 @@ export function DocumentPreview({ schema, componentTree, compact = false }: Prop
   }
 
   return (
-    <div className={`grid gap-4 ${compact ? "p-3" : "p-5"} bg-white rounded-xl`}>
-      {componentTree.map((node) => renderComponent(node, primaryColor))}
+    <div
+      className={`document-paper mx-auto grid w-full max-w-full overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-slate-200 print:rounded-none print:shadow-none print:ring-0 ${isCompact ? "gap-3 p-3 sm:p-4" : "gap-5 p-4 sm:p-6"}`}
+      style={{ fontSize: renderSettings?.fontScale ? `${renderSettings.fontScale}rem` : undefined }}
+    >
+      {componentTree.map((node) => renderComponent(node, primaryColor, Boolean(isCompact)))}
     </div>
   );
 }

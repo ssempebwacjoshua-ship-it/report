@@ -69,6 +69,17 @@ router.post("/:id/upload", requireCreator, upload.single("file"), async (req, re
   }
 });
 
+router.patch("/:id/extracted-knowledge", requireCreator, async (req, res) => {
+  const { knowledge } = req.body as { knowledge?: any };
+  if (!knowledge || typeof knowledge !== "object") { res.status(400).json({ error: "Extracted knowledge is required." }); return; }
+  try {
+    const updated = await svc.updateExtractedKnowledge(req.params.id, req.creator!.id, knowledge);
+    res.json({ ok: true, knowledge: updated });
+  } catch (e: any) {
+    res.status(e?.status ?? 500).json({ error: e instanceof Error ? e.message : "Could not update extracted text." });
+  }
+});
+
 // Generate initial schema from intent
 router.post("/:id/generate", requireCreator, async (req, res) => {
   const { intent } = req.body as { intent?: string };
@@ -119,7 +130,7 @@ router.get("/:id/print", requireCreator, async (req, res) => {
     const doc = await svc.getDocument(req.params.id, req.creator!.id);
     if (!doc) { res.status(404).json({ error: "Document not found." }); return; }
     if (!doc.activeVersion) { res.status(400).json({ error: "Document has no content yet." }); return; }
-    const html = renderSchemaToHtml(doc.activeVersion.schema, doc.activeVersion.componentTree, doc.title);
+    const html = renderSchemaToHtml(doc.activeVersion.schema, doc.activeVersion.componentTree, doc.title, doc.activeVersion.renderSettings);
     res.setHeader("Content-Type", "text/html; charset=utf-8");
     res.send(html);
   } catch (e: any) {
