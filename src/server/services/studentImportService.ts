@@ -9,6 +9,7 @@ import type {
 } from "../../shared/types/students";
 import { ensureAcademicSettingsBackedByDatabase } from "../repositories/settingsRepository";
 import { generateAdmissionNumber } from "./studentAdmissionNumberService";
+import { resolveCanonicalClassAndStreamInput } from "../../shared/utils/classStreamNormalization";
 
 /** Rows shown in the preview response. The full row set is always processed. */
 const PREVIEW_RESPONSE_LIMIT = 50;
@@ -302,7 +303,10 @@ async function buildPreviewRows(prisma: PrismaClient, schoolCode: string, rows: 
   for (let i = 0; i < rows.length; i += 1) {
     const raw = rows[i]!;
     const errors: string[] = [];
-    const resolved = resolveClassAndStream(maps, raw.className, raw.streamName);
+    const normalizedInput = resolveCanonicalClassAndStreamInput(raw.className, raw.streamName);
+    const effectiveClassName = normalizedInput?.className ?? raw.className;
+    const effectiveStreamName = normalizedInput?.streamName ?? raw.streamName;
+    const resolved = resolveClassAndStream(maps, effectiveClassName, effectiveStreamName);
     const klass = resolved.klass;
     const streamId = resolved.streamId;
     const admissionNumber = raw.admissionNumber?.trim() || "";
@@ -311,15 +315,15 @@ async function buildPreviewRows(prisma: PrismaClient, schoolCode: string, rows: 
     if (!raw.gender.trim()) errors.push("Gender is required.");
     if (!raw.className.trim()) errors.push("Class is required.");
     else if (!klass) errors.push(`Class "${raw.className}" does not match an existing class. Use names such as "Senior 1" or "S1".`);
-    if (!raw.streamName.trim()) errors.push("Stream is required.");
-    else if (klass && !streamId) errors.push(`Stream "${raw.streamName}" does not exist in class "${klass.name}". Create it first in School Structure or fix the stream column.`);
+    if (!effectiveStreamName.trim()) errors.push("Stream is required.");
+    else if (klass && !streamId) errors.push(`Stream "${effectiveStreamName}" does not exist in class "${klass.name}". Create it first in School Structure or fix the stream column.`);
     if (raw.guardianEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(raw.guardianEmail)) errors.push("Guardian email must be valid.");
     if (raw.guardianPhone && !/^[+]?[0-9\s()-]+$/.test(raw.guardianPhone)) errors.push("Guardian phone must be valid.");
 
     let effectiveAdmission = admissionNumber;
     if (!effectiveAdmission && errors.length === 0) {
       try {
-        effectiveAdmission = await generateAdmissionNumber(prisma, schoolCode, raw.className, raw.streamName, seen);
+        effectiveAdmission = await generateAdmissionNumber(prisma, schoolCode, effectiveClassName, effectiveStreamName, seen);
       } catch {
         errors.push("Could not auto-generate a unique admission number. Please provide one manually.");
         effectiveAdmission = `__GEN_${i}`;

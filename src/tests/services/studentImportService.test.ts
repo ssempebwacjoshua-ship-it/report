@@ -34,6 +34,7 @@ function makeFakeDb(
       { id: "stream-s1-a", classId: "class-s1", name: "A", code: "A" },
       { id: "stream-s1-b", classId: "class-s1", name: "B", code: "B" },
     ] },
+    { id: "class-p5", schoolId: school.id, name: "P5", code: "P5", streams: [{ id: "stream-p5-blue", classId: "class-p5", name: "Blue", code: "BLUE" }] },
     { id: "class-s1a", schoolId: school.id, name: "Senior 1 A", code: "S1A", streams: [{ id: "stream-a", classId: "class-s1a", name: "A", code: "A" }] },
     { id: "class-s1b", schoolId: school.id, name: "Senior 1 B", code: "S1B", streams: [{ id: "stream-b", classId: "class-s1b", name: "B", code: "B" }] },
   ];
@@ -473,11 +474,12 @@ describe("student import enrollment correctness", () => {
     const rows: StudentImportRowInput[] = [
       { admissionNumber: "ALIAS-001", fullName: "Alias One", gender: "Female", className: "S1", streamName: "A", status: "ACTIVE", guardianName: "", guardianPhone: "", guardianEmail: "" },
       { admissionNumber: "ALIAS-002", fullName: "Alias Two", gender: "Male", className: "Senior One", streamName: "Stream A", status: "ACTIVE", guardianName: "", guardianPhone: "", guardianEmail: "" },
+      { admissionNumber: "ALIAS-003", fullName: "Alias Three", gender: "Female", className: "Primary 5 Blue", streamName: "", status: "ACTIVE", guardianName: "", guardianPhone: "", guardianEmail: "" },
     ];
     const preview = await previewStudentImport(db, "SCU-PREVIEW", rows);
-    expect(preview.validRows).toBe(2);
-    expect(preview.rows.map((row) => row.classId)).toEqual(["class-s1", "class-s1"]);
-    expect(preview.rows.map((row) => row.streamId)).toEqual(["stream-s1-a", "stream-s1-a"]);
+    expect(preview.validRows).toBe(3);
+    expect(preview.rows.map((row) => row.classId)).toEqual(["class-s1", "class-s1", "class-p5"]);
+    expect(preview.rows.map((row) => row.streamId)).toEqual(["stream-s1-a", "stream-s1-a", "stream-p5-blue"]);
   });
 
   it("new students get ClassEnrollment with the correct classId and streamId", async () => {
@@ -488,9 +490,9 @@ describe("student import enrollment correctness", () => {
     const summary = JSON.parse(batch.summary!);
     expect(summary.successCount).toBe(3);
     expect(summary.failedCount).toBe(0);
-    const newEnrollments = state.enrollments.filter((e) => e.classId === "class-s1a");
+    const newEnrollments = state.enrollments.filter((e) => e.classId === "class-s1");
     expect(newEnrollments.length).toBe(3);
-    expect(newEnrollments.every((e) => e.streamId === "stream-a")).toBe(true);
+    expect(newEnrollments.every((e) => e.streamId === "stream-s1-a")).toBe(true);
     expect(newEnrollments.every((e) => e.isActive === true)).toBe(true);
     expect(newEnrollments.every((e) => e.status === "ACTIVE")).toBe(true);
   });
@@ -574,8 +576,7 @@ describe("student import enrollment correctness", () => {
     const batch = await waitForJob(state, job.jobId);
     const summary = JSON.parse(batch.summary!);
     expect(summary.successCount).toBe(7);
-    expect(state.enrollments.filter((e) => e.classId === "class-s1a").length).toBe(4);
-    expect(state.enrollments.filter((e) => e.classId === "class-s1b").length).toBe(3);
+    expect(state.enrollments.filter((e) => e.classId === "class-s1").length).toBe(7);
     expect(state.enrollments.length).toBe(7);
   });
 });
@@ -669,15 +670,15 @@ describe("auto-generated admission numbers", () => {
     // so the generator is forced to skip them.
     const school = { id: "school-1" };
     for (let i = 1; i <= 5; i += 1) {
-      // The pattern is: SCUPREVIEW-S1AA-001 ... SCUPREVIEW-S1AA-005
-      state.students.push({ id: `pre-${i}`, schoolId: school.id, admissionNumber: `SCUPREVIEW-S1AA-${String(i).padStart(3, "0")}`, firstName: `Pre${i}`, lastName: "Exist", isActive: true });
+      // The pattern is: SCUPREVIEW-S1A-001 ... SCUPREVIEW-S1A-005
+      state.students.push({ id: `pre-${i}`, schoolId: school.id, admissionNumber: `SCUPREVIEW-S1A-${String(i).padStart(3, "0")}`, firstName: `Pre${i}`, lastName: "Exist", isActive: true });
     }
     const rows = makeRowsNoAdm(3);
     const preview = await previewStudentImport(db, "SCU-PREVIEW", rows);
     expect(preview.invalidRows).toBe(0);
     const generated = preview.rows.map((r) => r.generatedAdmissionNumber?.toUpperCase()).filter(Boolean);
     // None of the generated numbers should collide with pre-seeded ones
-    const occupied = new Set(["SCUPREVIEW-S1AA-001", "SCUPREVIEW-S1AA-002", "SCUPREVIEW-S1AA-003", "SCUPREVIEW-S1AA-004", "SCUPREVIEW-S1AA-005"]);
+    const occupied = new Set(["SCUPREVIEW-S1A-001", "SCUPREVIEW-S1A-002", "SCUPREVIEW-S1A-003", "SCUPREVIEW-S1A-004", "SCUPREVIEW-S1A-005"]);
     for (const gen of generated) {
       expect(occupied.has(gen!)).toBe(false);
     }
@@ -735,12 +736,14 @@ describe("missing required field validation", () => {
     expect(preview.rows[0]!.errors.join(" ")).toContain("Class is required");
   });
 
-  it("row with missing stream is marked invalid", async () => {
+  it("row with combined class name and blank stream is accepted", async () => {
     const { db } = makeFakeDb(0);
     const rows = [{ admissionNumber: "ADM-004", fullName: "Jane Doe", gender: "Female", className: "Senior 1 A", streamName: "", status: "ACTIVE", guardianName: "", guardianPhone: "", guardianEmail: "" }];
     const preview = await previewStudentImport(db, "SCU-PREVIEW", rows);
-    expect(preview.invalidRows).toBe(1);
-    expect(preview.rows[0]!.errors.join(" ")).toContain("Stream is required");
+    expect(preview.invalidRows).toBe(0);
+    expect(preview.validRows).toBe(1);
+    expect(preview.rows[0]!.classId).toBe("class-s1");
+    expect(preview.rows[0]!.streamId).toBe("stream-s1-a");
   });
 
   it("row with unknown class does not auto-generate a real admission number (avoids wasted DB queries)", async () => {

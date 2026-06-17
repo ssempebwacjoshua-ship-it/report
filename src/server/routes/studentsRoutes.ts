@@ -119,7 +119,21 @@ export function studentsRoutes() {
       }
       const schoolCode = req.school.code;
       const input = studentCreateSchema.parse(req.body);
-      const admissionNumber = input.admissionNumber?.trim() || await generateAdmissionNumber(prisma, schoolCode, input.fullName, input.classId);
+      const [klass, stream] = await Promise.all([
+        prisma.schoolClass.findFirst({
+          where: { id: input.classId, schoolId: req.school.id },
+          select: { name: true, code: true },
+        }),
+        prisma.stream.findFirst({
+          where: { id: input.streamId, schoolId: req.school.id, classId: input.classId },
+          select: { name: true, code: true },
+        }),
+      ]);
+      if (!klass || !stream) {
+        res.status(400).json({ error: "Selected class or stream was not found." });
+        return;
+      }
+      const admissionNumber = input.admissionNumber?.trim() || await generateAdmissionNumber(prisma, schoolCode, klass.name, stream.name);
       const student = await createStudentRecord(prisma, schoolCode, {
         ...input,
         admissionNumber,
