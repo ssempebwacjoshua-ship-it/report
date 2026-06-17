@@ -16,6 +16,9 @@ import { DocumentCleanerPage } from "../pages/DocumentCleanerPage";
 import { OwnerDashboardPage } from "../pages/owner/OwnerDashboardPage";
 import { OwnerSchoolsPage } from "../pages/owner/OwnerSchoolsPage";
 import { OwnerUsersPage } from "../pages/owner/OwnerUsersPage";
+import { SmartPagesPage } from "../pages/smart-pages/SmartPagesPage";
+import { DocumentEditorPage } from "../pages/smart-pages/DocumentEditorPage";
+import { PublishedDocumentPage } from "../pages/smart-pages/PublishedDocumentPage";
 
 export const router = createBrowserRouter([
   // Public routes — no AppShell, no auth
@@ -23,6 +26,7 @@ export const router = createBrowserRouter([
   { path: "/logout", element: <LogoutPage /> },
   { path: "/parent/r/:token", element: <ParentReportPage /> },
   { path: "/verify/:code", element: <VerifyPage /> },
+  { path: "/p/:token", element: <PublishedDocumentPage /> },
 
   // Platform owner console — wrapped in OwnerShell (owner guard inside)
   {
@@ -49,6 +53,8 @@ export const router = createBrowserRouter([
       { path: "marksheets", element: <MarksheetsPage /> },
       { path: "settings", element: <SettingsPage /> },
       { path: "documents/cleaner", element: <DocumentCleanerPage /> },
+      { path: "smart-pages", element: <SmartPagesPage /> },
+      { path: "smart-pages/:id", element: <DocumentEditorPage /> },
     ],
   },
 ]);

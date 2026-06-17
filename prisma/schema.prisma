@@ -501,3 +501,98 @@ model ReportLabInvoice {
 
   @@index([subscriptionId, createdAt])
 }
+
+// ── Document Intelligence Engine ───────────────────────────────────────────────
+
+enum CreatorType {
+  SCHOOL_OPERATOR
+  EXTERNAL
+}
+
+enum DocumentStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+model Creator {
+  id           String      @id @default(uuid()) @db.Uuid
+  type         CreatorType
+  email        String      @unique
+  name         String
+  schoolId     String?     @db.Uuid
+  passwordHash String?
+  isActive     Boolean     @default(true)
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  documents SmartDocument[]
+
+  @@index([email])
+  @@index([schoolId])
+  @@index([type])
+}
+
+model SmartDocument {
+  id                 String         @id @default(uuid()) @db.Uuid
+  creatorId          String         @db.Uuid
+  title              String
+  extractedKnowledge Json?
+  activeVersionId    String?        @db.Uuid
+  status             DocumentStatus @default(DRAFT)
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+
+  creator     Creator              @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  versions    DocumentVersion[]
+  sourceFiles DocumentSourceFile[]
+  published   PublishedDocument?
+
+  @@index([creatorId, status, createdAt])
+}
+
+model DocumentVersion {
+  id             String   @id @default(uuid()) @db.Uuid
+  documentId     String   @db.Uuid
+  parentId       String?  @db.Uuid
+  instruction    String?
+  schema         Json
+  componentTree  Json
+  renderSettings Json     @default("{}")
+  createdAt      DateTime @default(now())
+
+  document SmartDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@index([documentId, createdAt])
+}
+
+model DocumentSourceFile {
+  id               String   @id @default(uuid()) @db.Uuid
+  documentId       String   @db.Uuid
+  originalName     String
+  mimeType         String
+  sizeBytes        Int?
+  geminiFileUri    String?
+  extractedContent Json?
+  createdAt        DateTime @default(now())
+
+  document SmartDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@index([documentId])
+}
+
+model PublishedDocument {
+  id            String    @id @default(uuid()) @db.Uuid
+  documentId    String    @unique @db.Uuid
+  token         String    @unique
+  passwordHash  String?
+  expiresAt     DateTime?
+  viewCount     Int       @default(0)
+  downloadCount Int       @default(0)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  document SmartDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@index([token])
+}

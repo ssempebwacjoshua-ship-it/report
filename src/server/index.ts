@@ -28,6 +28,8 @@ import { verifyRoutes } from "./routes/verifyRoutes";
 import { ocrRoutes } from "./routes/ocrRoutes";
 import { documentCleanerRoutes } from "./routes/documentCleanerRoutes";
 import { subscriptionRoutes } from "./routes/subscriptionRoutes";
+import { documentIntelligenceRoutes } from "./routes/documentIntelligenceRoutes";
+import { creatorAuthRoutes } from "./routes/creatorAuthRoutes";
 import geminiOcrRoutes from "./routes/geminiOcrRoutes";
 import geminiRosterRoutes from "./routes/geminiRosterRoutes";
 import geminiMarksImportRoutes from "./routes/geminiMarksImportRoutes";
@@ -57,6 +59,10 @@ export function createServer() {
   app.use(authRoutes());
   app.use(verifyRoutes());
   app.use(parentRoutes());
+
+  // Document Intelligence Engine — creator auth accepts both school JWTs and external creator JWTs
+  app.use("/api/creator", creatorAuthRoutes());
+  app.use("/api/smart-documents", documentIntelligenceRoutes());
 
   // Platform-owner provisioning — protected by PLATFORM_ADMIN_KEY, not by school JWT
   app.use(platformAdminRoutes());

@@ -20,6 +20,7 @@ const navItems = [
   { to: "/reports/release", label: "Release Center", icon: "send" as const },
   { to: "/imports/marks", label: "Marks Import", icon: "upload" as const },
   { to: "/marksheets", label: "Marksheets", icon: "clipboard" as const },
+  { to: "/smart-pages", label: "Smart Pages", icon: "sparkles" as const },
   { to: "/documents/cleaner", label: "Paper to PDF", icon: "cloud" as const },
   { to: "/settings", label: "Settings", icon: "settings" as const },
 ];
