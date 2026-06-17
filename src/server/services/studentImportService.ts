@@ -7,6 +7,7 @@ import type {
   StudentImportPreviewRow,
   StudentImportRowInput,
 } from "../../shared/types/students";
+import { ensureAcademicSettingsBackedByDatabase } from "../repositories/settingsRepository";
 import { generateAdmissionNumber } from "./studentAdmissionNumberService";
 
 /** Rows shown in the preview response. The full row set is always processed. */
@@ -171,6 +172,7 @@ function validateRequiredColumns(rows: StudentImportRowInput[]) {
 }
 
 async function resolveSchool(prisma: PrismaClient, schoolCode: string) {
+  await ensureAcademicSettingsBackedByDatabase(prisma, schoolCode);
   return prisma.school.findUnique({
     where: { code: schoolCode },
     include: {

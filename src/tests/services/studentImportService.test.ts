@@ -9,17 +9,22 @@ import {
 } from "../../server/services/studentImportService";
 import { utils, write } from "xlsx";
 import type { StudentImportRowInput } from "../../shared/types/students";
+import type { AcademicSetupSettings } from "../../shared/types/settings";
 
 type FakeAcademicYear = {
   id: string;
   name: string;
   isActive: boolean;
   startsOn?: Date;
-  terms: Array<{ id: string; name: string; isActive: boolean; startsOn?: Date }>;
+  endsOn?: Date;
+  terms: Array<{ id: string; name: string; isActive: boolean; startsOn?: Date; endsOn?: Date }>;
 };
 
 /** Minimal in-memory Prisma fake covering everything the import service touches. */
-function makeFakeDb(seedCount = 7, options: { academicYears?: FakeAcademicYear[] } = {}) {
+function makeFakeDb(
+  seedCount = 7,
+  options: { academicYears?: FakeAcademicYear[]; savedAcademic?: AcademicSetupSettings | null } = {},
+) {
   let idSeq = 0;
   const uid = (p: string) => `${p}-${(idSeq += 1)}`;
 
@@ -46,6 +51,7 @@ function makeFakeDb(seedCount = 7, options: { academicYears?: FakeAcademicYear[]
   const batches = new Map<string, { id: string; schoolId: string; status: string; source: string; summary: string | null; createdAt: Date; updatedAt: Date }>();
   const importRows: Array<Record<string, unknown>> = [];
   const auditLogs: Array<Record<string, unknown>> = [];
+  const savedSections = options.savedAcademic ? { academic: options.savedAcademic } : null;
 
   for (let i = 1; i <= seedCount; i += 1) {
     const id = uid("seed");
@@ -64,6 +70,72 @@ function makeFakeDb(seedCount = 7, options: { academicYears?: FakeAcademicYear[]
     school: {
       findUnique: async ({ where }: { where: { code?: string } }) => (where.code === school.code ? schoolInclude() : null),
       findUniqueOrThrow: async () => schoolInclude(),
+    },
+    appSetting: {
+      findUnique: async () => (savedSections ? { schoolCode: school.code, sections: savedSections, updatedAt: new Date(), updatedBy: "test" } : null),
+    },
+    academicYear: {
+      upsert: async ({ where, create, update }: { where: { schoolId_name: { schoolId: string; name: string } }; create: Record<string, unknown>; update: Record<string, unknown> }) => {
+        const key = where.schoolId_name;
+        const existing = academicYears.find((year) => year.name === key.name && key.schoolId === school.id);
+        if (existing) {
+          Object.assign(existing, update);
+          return existing;
+        }
+        const created = {
+          id: uid("year"),
+          name: create.name as string,
+          isActive: Boolean(create.isActive),
+          startsOn: create.startsOn as Date,
+          endsOn: create.endsOn as Date,
+          terms: [],
+        };
+        academicYears.unshift(created);
+        return created;
+      },
+      updateMany: async ({ where, data }: { where: { schoolId: string; id?: { not: string }; isActive?: boolean }; data: { isActive: boolean } }) => {
+        let count = 0;
+        for (const year of academicYears) {
+          if (where.schoolId !== school.id) continue;
+          if (where.id?.not && year.id === where.id.not) continue;
+          if (where.isActive !== undefined && year.isActive !== where.isActive) continue;
+          year.isActive = data.isActive;
+          count += 1;
+        }
+        return { count };
+      },
+    },
+    term: {
+      upsert: async ({ where, create, update }: { where: { academicYearId_name: { academicYearId: string; name: string } }; create: Record<string, unknown>; update: Record<string, unknown> }) => {
+        const year = academicYears.find((item) => item.id === where.academicYearId_name.academicYearId);
+        if (!year) throw new Error("Academic year not found.");
+        const existing = year.terms.find((term) => term.name === where.academicYearId_name.name);
+        if (existing) {
+          Object.assign(existing, update);
+          return existing;
+        }
+        const created = {
+          id: uid("term"),
+          name: create.name as string,
+          isActive: Boolean(create.isActive),
+          startsOn: create.startsOn as Date,
+          endsOn: create.endsOn as Date,
+        };
+        year.terms.unshift(created);
+        return created;
+      },
+      updateMany: async ({ where, data }: { where: { academicYearId: string; id?: { not: string }; isActive?: boolean }; data: { isActive: boolean } }) => {
+        const year = academicYears.find((item) => item.id === where.academicYearId);
+        if (!year) return { count: 0 };
+        let count = 0;
+        for (const term of year.terms) {
+          if (where.id?.not && term.id === where.id.not) continue;
+          if (where.isActive !== undefined && term.isActive !== where.isActive) continue;
+          term.isActive = data.isActive;
+          count += 1;
+        }
+        return { count };
+      },
     },
     markImportBatch: {
       create: async ({ data }: { data: Record<string, unknown> }) => {
@@ -154,7 +226,7 @@ function makeFakeDb(seedCount = 7, options: { academicYears?: FakeAcademicYear[]
     },
   };
 
-  return { db: db as unknown as PrismaClient, state: { students, enrollments, guardians, batches, importRows, auditLogs } };
+  return { db: db as unknown as PrismaClient, state: { students, enrollments, guardians, batches, importRows, auditLogs, academicYears } };
 }
 
 function makeRows(count: number, opts: { prefix?: string; className?: string; streamName?: string } = {}): StudentImportRowInput[] {
@@ -351,6 +423,30 @@ describe("student import preview", () => {
     expect(state.students.length).toBe(2);
     expect(state.enrollments.length).toBe(0);
     expect(summary.warnings[0]).toContain("enrollments will be skipped");
+  });
+
+  it("repairs missing DB academic year/term from saved academic settings before import", async () => {
+    const savedAcademic: AcademicSetupSettings = {
+      activeAcademicYear: "2030/2031",
+      activeTerm: "Term 2",
+      defaultAssessmentType: "EOT",
+      supportedAssessmentTypes: ["BOT", "MOT", "EOT", "TERM_SUMMARY"],
+      termStartDate: "2030-05-01",
+      termEndDate: "2030-08-10",
+    };
+    const { db, state } = makeFakeDb(0, {
+      academicYears: [],
+      savedAcademic,
+    });
+    const preview = await previewStudentImport(db, "SCU-PREVIEW", makeRows(2));
+    expect(preview.validRows).toBe(2);
+    expect(preview.warnings).toHaveLength(0);
+    expect(state.students).toHaveLength(0);
+
+    const repairedYear = state.academicYears.find((year) => year.name === "2030/2031");
+    expect(repairedYear?.isActive).toBe(true);
+    expect(repairedYear?.terms[0]?.name).toBe("Term 2");
+    expect(repairedYear?.terms[0]?.isActive).toBe(true);
   });
 });
 

@@ -293,7 +293,7 @@ export function StudentsPage() {
               </div>
               {context && (!context.academicYears.some((y) => y.isActive) || !context.terms.some((t) => t.isActive)) ? (
                 <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-                  <strong>No active academic year or term.</strong> Go to <strong>Preferences → Academic Years</strong> and activate a year and term before importing students.
+                  <strong>No active academic year or term.</strong> Import stays available. We will use the latest setup if one exists, or create students with a warning if enrollments cannot be attached yet.
                 </div>
               ) : null}
               <div className="flex flex-wrap justify-end gap-2">
