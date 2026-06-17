@@ -100,9 +100,18 @@ describe("Sidebar navigation", () => {
   it("renders nav links and active state for the current route", async () => {
     renderSidebar("/reports");
 
-    await waitFor(() => expect(screen.getByText("Report Generation")).toBeInTheDocument());
-    expect(screen.getByText("Report Generation").closest("a")).toHaveClass("bg-white/12");
+    await waitFor(() => expect(screen.getByRole("button", { name: "Report Lab" })).toBeInTheDocument());
+    expect(screen.getByText("Reports").closest("a")).toHaveClass("bg-white/12");
     expect(screen.getByText("Students").closest("a")).toHaveAttribute("href", "/students");
+    expect(screen.getByText("Preferences / Academic Setup").closest("a")).toHaveAttribute("href", "/settings");
+  });
+
+  it("keeps Smart Pages grouped and opens it for smart pages routes", async () => {
+    renderSidebar("/analytics");
+
+    await waitFor(() => expect(screen.getByRole("button", { name: "Smart Pages" })).toBeInTheDocument());
+    expect(screen.getByText("Analytics").closest("a")).toHaveClass("bg-white/12");
+    expect(screen.getByText("Paper to PDF").closest("a")).toHaveAttribute("href", "/documents/cleaner");
   });
 
   it("hides labels when collapsed but keeps icon buttons", async () => {
@@ -115,7 +124,7 @@ describe("Sidebar navigation", () => {
   });
 
   it("has a Paper to PDF nav link pointing to /documents/cleaner", async () => {
-    renderSidebar("/dashboard");
+    renderSidebar("/documents/cleaner");
     await waitFor(() => expect(screen.getByText("Paper to PDF")).toBeInTheDocument());
     expect(screen.getByText("Paper to PDF").closest("a")).toHaveAttribute("href", "/documents/cleaner");
   });
