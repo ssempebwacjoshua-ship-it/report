@@ -161,6 +161,39 @@ describe("DocumentEditorPage — Smart Pages flow", () => {
     await waitFor(() => expect(screen.getByText(/print window was blocked/i)).toBeInTheDocument());
   });
 
+  it("offers a high-accuracy retry when extraction confidence is low", async () => {
+    documentIntelligenceMocks.getDocument.mockResolvedValue({
+      id: "doc-1",
+      title: "Sample Smart Page",
+      status: "DRAFT",
+      extractionStatus: "READY",
+      extractionError: null,
+      domain: "school",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      versionCount: 0,
+      hasSourceFiles: true,
+      extractedKnowledge: {
+        ...extractedKnowledge,
+        confidence: 0.32,
+        handwritingDifficulty: "high",
+        needsReview: true,
+        recommendedNextStep: "high_accuracy_retry",
+        reviewWarning: "Some handwriting was difficult to read. Review the extracted text or try high accuracy extraction.",
+      },
+      activeVersion: null,
+      latestSourceFile: { id: "source-1", status: "READY" },
+    });
+    documentIntelligenceMocks.retryDocumentExtraction.mockResolvedValue({ sourceFileId: "source-1", status: "PROCESSING" });
+
+    renderPage();
+
+    await waitFor(() => expect(screen.getByText(/some handwriting was difficult to read/i)).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: /re-extract with high accuracy/i }));
+
+    await waitFor(() => expect(documentIntelligenceMocks.retryDocumentExtraction).toHaveBeenCalledWith("doc-1", "source-1", { highAccuracy: true }));
+  });
+
   it("publishes once and exposes the token clearly", async () => {
     const publish = deferred<{ token: string; url: string }>();
 

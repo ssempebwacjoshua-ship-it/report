@@ -14,7 +14,7 @@ import {
   preferenceMap,
   upsertSearchIndex,
 } from "./documentOsService";
-import { preprocessDocumentForOcr } from "./documentOcrPreprocessService";
+import { preprocessDocumentForOcr, type DocumentOcrPreprocessMode } from "./documentOcrPreprocessService";
 import type {
   SmartDocumentDetail,
   SmartDocumentSummary,
@@ -185,7 +185,7 @@ export async function uploadAndExtract(
       originalData: file.buffer,
       fileHash,
       extractionStartedAt: new Date(),
-      ocrQuality: { notes: [{ code: "QUEUED", message: "Extraction job queued.", severity: "info" }] } as any,
+      ocrQuality: { retryMode: "fast", notes: [{ code: "QUEUED", message: "Extraction job queued.", severity: "info" }] } as any,
     },
   });
   await db.smartDocument.update({
@@ -200,7 +200,12 @@ export async function uploadAndExtract(
   return { sourceFileId: sourceFile.id as string, status: "PROCESSING" };
 }
 
-export async function retryDocumentExtraction(documentId: string, creatorId: string, sourceFileId?: string): Promise<{ sourceFileId: string; status: "PROCESSING" }> {
+export async function retryDocumentExtraction(
+  documentId: string,
+  creatorId: string,
+  sourceFileId?: string,
+  highAccuracy = false,
+): Promise<{ sourceFileId: string; status: "PROCESSING" }> {
   const db = prisma as any;
   const doc = await db.smartDocument.findFirst({ where: { id: documentId, creatorId }, include: { sourceFiles: { orderBy: { createdAt: "desc" }, take: 1 } } });
   if (!doc) throw Object.assign(new Error("Document not found."), { status: 404 });
@@ -210,7 +215,17 @@ export async function retryDocumentExtraction(documentId: string, creatorId: str
   if (!sourceFile) throw Object.assign(new Error("No source file available to retry."), { status: 404 });
   await db.documentSourceFile.update({
     where: { id: sourceFile.id },
-    data: { status: "UPLOADED", extractionError: null, extractionStartedAt: new Date(), extractionCompletedAt: null },
+    data: {
+      status: "UPLOADED",
+      extractionError: null,
+      extractionStartedAt: new Date(),
+      extractionCompletedAt: null,
+      ocrQuality: {
+        ...(typeof sourceFile.ocrQuality === "object" && sourceFile.ocrQuality ? (sourceFile.ocrQuality as Record<string, unknown>) : {}),
+        retryMode: highAccuracy ? "high_accuracy" : "fast",
+        retryRequestedAt: new Date().toISOString(),
+      } as any,
+    },
   });
   await db.smartDocument.update({
     where: { id: documentId },
@@ -290,7 +305,8 @@ export async function processSourceFileExtraction(sourceFileId: string): Promise
       return;
     }
 
-    const preprocessed = await preprocessDocumentForOcr(original, sourceFile.mimeType);
+    const retryMode = resolveRetryMode(sourceFile.ocrQuality);
+    const preprocessed = await preprocessDocumentForOcr(original, sourceFile.mimeType, retryMode);
     await db.documentSourceFile.update({
       where: { id: sourceFile.id },
       data: {
@@ -301,17 +317,31 @@ export async function processSourceFileExtraction(sourceFileId: string): Promise
       },
     });
 
-    const knowledge = await extractDocumentKnowledge(preprocessed.processedBuffer, preprocessed.processedMimeType, sourceFile.originalName);
+    const knowledge = await extractDocumentKnowledge(original, sourceFile.mimeType, sourceFile.originalName, {
+      highAccuracy: retryMode === "high_accuracy",
+      processedBuffer: preprocessed.processedBuffer,
+      processedMimeType: preprocessed.processedMimeType,
+      sectionBuffers: preprocessed.sectionBuffers,
+      priorExtraction: retryMode === "high_accuracy" ? (document.extractedKnowledge as ExtractedKnowledge | null) : null,
+    });
     const unclearItems = knowledge.unclearItems ?? [];
+    const lowConfidence = typeof knowledge.confidence === "number" ? knowledge.confidence < 0.55 : false;
     const enrichedKnowledge: ExtractedKnowledge = {
       ...knowledge,
       ocrQualityNotes: preprocessed.notes.map((note) => note.message),
-      reviewWarning: preprocessed.warning ?? (unclearItems.length > 0 ? "Some handwriting was unclear. Please review before publishing." : undefined),
+      reviewWarning:
+        preprocessed.warning
+        ?? knowledge.reviewWarning
+        ?? (lowConfidence
+          ? "Some handwriting was difficult to read. Review the extracted text or try high accuracy extraction."
+          : unclearItems.length > 0
+            ? "Some handwriting was unclear. Please review before publishing."
+            : undefined),
     };
     await completeExtraction(sourceFile, enrichedKnowledge, {
       processedData: preprocessed.processedBuffer,
       processedMimeType: preprocessed.processedMimeType,
-      ocrQuality: { width: preprocessed.width, height: preprocessed.height, notes: preprocessed.notes, warning: preprocessed.warning },
+      ocrQuality: { width: preprocessed.width, height: preprocessed.height, notes: preprocessed.notes, warning: preprocessed.warning, retryMode },
     });
   } catch (error) {
     const message = friendlyExtractionError(error);
@@ -366,6 +396,13 @@ async function completeExtraction(
     JSON.stringify(knowledge.tables ?? []),
   ].join("\n"), { status: document.status, sourceFileId: sourceFile.id });
   await createNotification(sourceFile.document.creatorId, "EXTRACTION_READY", "Document ready for review", `${title} has been read and is ready to review.`);
+}
+
+function resolveRetryMode(ocrQuality: unknown): DocumentOcrPreprocessMode {
+  if (ocrQuality && typeof ocrQuality === "object" && (ocrQuality as { retryMode?: unknown }).retryMode === "high_accuracy") {
+    return "high_accuracy";
+  }
+  return "fast";
 }
 
 async function failStaleExtractionJobs() {

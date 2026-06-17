@@ -70,9 +70,9 @@ router.post("/:id/upload", requireCreator, upload.single("file"), async (req, re
 });
 
 router.post("/:id/extraction/retry", requireCreator, async (req, res) => {
-  const { sourceFileId } = req.body as { sourceFileId?: string };
+  const { sourceFileId, highAccuracy } = req.body as { sourceFileId?: string; highAccuracy?: boolean };
   try {
-    const result = await svc.retryDocumentExtraction(req.params.id, req.creator!.id, sourceFileId);
+    const result = await svc.retryDocumentExtraction(req.params.id, req.creator!.id, sourceFileId, Boolean(highAccuracy));
     res.status(202).json({ ok: true, ...result });
   } catch (e: any) {
     res.status(e?.status ?? 500).json({ error: e instanceof Error ? e.message : "Retry failed." });
