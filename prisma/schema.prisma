@@ -1,9 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -13,146 +7,75 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-enum AssessmentType {
-  BOT
-  MOT
-  EOT
-}
-
-enum MarkStatus {
-  DRAFT
-  FINALIZED
-}
-
-enum ImportStatus {
-  DRY_RUN
-  COMMITTED
-  FAILED
-}
-
-enum ReportReadiness {
-  READY
-  MISSING_MARKS
-  NO_FINALIZED_MARKS
-  NO_STUDENTS
-  NO_SUBJECTS
-  NO_ACTIVE_TERM
-}
-
-enum UserRole {
-  ADMIN_OPERATOR
-}
-
-enum IssuedReportStatus {
-  ISSUED
-  REVOKED
-  SUPERSEDED
-}
-
-enum EnrollmentStatus {
-  ACTIVE
-  TRANSFERRED
-  COMPLETED
-  INACTIVE
-}
-
-enum PreferredContactMethod {
-  PHONE
-  SMS
-  EMAIL
-  WHATSAPP
-}
-
-enum SubscriptionBillingCycle {
-  YEAR
-}
-
-enum SubscriptionStatus {
-  ACTIVE
-  TRIAL
-  EXPIRED
-  SUSPENDED
-  PENDING
-}
-
-enum InvoiceStatus {
-  UNPAID
-  PAID
-  CANCELLED
-}
-
 model School {
-  id            String            @id @default(uuid()) @db.Uuid
-  code          String            @unique
-  name          String
-  phone         String?
-  address       String?
-  isActive      Boolean           @default(true)
-  createdAt     DateTime          @default(now())
-  updatedAt     DateTime          @updatedAt
-  academicYears AcademicYear[]
-  classes       SchoolClass[]
-  streams       Stream[]
-  students      Student[]
-  subjects      Subject[]
-  imports       MarkImportBatch[]
-  auditLogs     AuditLog[]
+  id               String                 @id @default(uuid()) @db.Uuid
+  code             String                 @unique
+  name             String
+  createdAt        DateTime               @default(now())
+  updatedAt        DateTime               @updatedAt
+  phone            String?
+  address          String?
+  isActive         Boolean                @default(true)
+  academicYears    AcademicYear[]
+  auditLogs        AuditLog[]
+  enrollments      ClassEnrollment[]
   guardianContacts GuardianContact[]
-  users         User[]
-  issuedReports IssuedReport[]
-  enrollments   ClassEnrollment[]
-  subscription  ReportLabSubscription?
+  issuedReports    IssuedReport[]
+  imports          MarkImportBatch[]
+  subscription     ReportLabSubscription?
+  classes          SchoolClass[]
+  streams          Stream[]
+  students         Student[]
+  subjects         Subject[]
+  users            User[]
 }
 
 model AcademicYear {
-  id        String   @id @default(uuid()) @db.Uuid
-  schoolId  String   @db.Uuid
-  name      String
-  startsOn  DateTime
-  endsOn    DateTime
-  isActive  Boolean  @default(false)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
+  id          String            @id @default(uuid()) @db.Uuid
+  schoolId    String            @db.Uuid
+  name        String
+  startsOn    DateTime
+  endsOn      DateTime
+  isActive    Boolean           @default(false)
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
   school      School            @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  terms       Term[]
   enrollments ClassEnrollment[]
   marks       SubjectMark[]
+  terms       Term[]
 
   @@unique([schoolId, name])
   @@index([schoolId, isActive])
 }
 
 model Term {
-  id             String   @id @default(uuid()) @db.Uuid
-  academicYearId String   @db.Uuid
+  id             String            @id @default(uuid()) @db.Uuid
+  academicYearId String            @db.Uuid
   name           String
   startsOn       DateTime
   endsOn         DateTime
-  isActive       Boolean  @default(false)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-
-  academicYear AcademicYear      @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
-  enrollments  ClassEnrollment[]
-  marks        SubjectMark[]
+  isActive       Boolean           @default(false)
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+  enrollments    ClassEnrollment[]
+  marks          SubjectMark[]
+  academicYear   AcademicYear      @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
 
   @@unique([academicYearId, name])
   @@index([academicYearId, isActive])
 }
 
 model SchoolClass {
-  id        String   @id @default(uuid()) @db.Uuid
-  schoolId  String   @db.Uuid
-  name      String
-  code      String
-  level     Int
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
+  id          String            @id @default(uuid()) @db.Uuid
+  schoolId    String            @db.Uuid
+  name        String
+  code        String
+  level       Int
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  enrollments ClassEnrollment[]
   school      School            @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   streams     Stream[]
-  enrollments ClassEnrollment[]
   marks       SubjectMark[]
 
   @@unique([schoolId, name])
@@ -160,17 +83,16 @@ model SchoolClass {
 }
 
 model Stream {
-  id        String   @id @default(uuid()) @db.Uuid
-  schoolId  String   @db.Uuid
-  classId   String   @db.Uuid
-  name      String
-  code      String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  school      School            @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  class       SchoolClass       @relation(fields: [classId], references: [id], onDelete: Cascade)
+  id          String            @id @default(uuid()) @db.Uuid
+  schoolId    String            @db.Uuid
+  classId     String            @db.Uuid
+  name        String
+  code        String
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
   enrollments ClassEnrollment[]
+  class       SchoolClass       @relation(fields: [classId], references: [id], onDelete: Cascade)
+  school      School            @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   marks       SubjectMark[]
 
   @@unique([classId, code])
@@ -178,46 +100,44 @@ model Stream {
 }
 
 model Student {
-  id              String   @id @default(uuid()) @db.Uuid
-  schoolId        String   @db.Uuid
-  admissionNumber String
-  firstName       String
-  lastName        String
-  isActive        Boolean  @default(true)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-
-  school      School            @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  enrollments ClassEnrollment[]
-  marks       SubjectMark[]
+  id               String            @id @default(uuid()) @db.Uuid
+  schoolId         String            @db.Uuid
+  admissionNumber  String
+  firstName        String
+  lastName         String
+  isActive         Boolean           @default(true)
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  enrollments      ClassEnrollment[]
   guardianContacts GuardianContact[]
-  issuedReports IssuedReport[]
+  issuedReports    IssuedReport[]
+  school           School            @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  marks            SubjectMark[]
 
   @@unique([schoolId, admissionNumber])
   @@index([schoolId, isActive])
 }
 
 model ClassEnrollment {
-  id             String   @id @default(uuid()) @db.Uuid
-  schoolId       String   @db.Uuid
-  studentId      String   @db.Uuid
-  academicYearId String   @db.Uuid
-  termId         String   @db.Uuid
-  classId        String   @db.Uuid
-  streamId       String   @db.Uuid
-  isActive       Boolean  @default(true)
-  status         EnrollmentStatus @default(ACTIVE)
-  enrolledAt     DateTime @default(now())
+  id             String           @id @default(uuid()) @db.Uuid
+  studentId      String           @db.Uuid
+  academicYearId String           @db.Uuid
+  termId         String           @db.Uuid
+  classId        String           @db.Uuid
+  streamId       String           @db.Uuid
+  isActive       Boolean          @default(true)
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  enrolledAt     DateTime         @default(now())
   leftAt         DateTime?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-
-  school       School       @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  student      Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  academicYear AcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
-  term         Term         @relation(fields: [termId], references: [id], onDelete: Cascade)
-  class        SchoolClass  @relation(fields: [classId], references: [id], onDelete: Cascade)
-  stream       Stream       @relation(fields: [streamId], references: [id], onDelete: Cascade)
+  status         EnrollmentStatus @default(ACTIVE)
+  schoolId       String           @db.Uuid
+  academicYear   AcademicYear     @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
+  class          SchoolClass      @relation(fields: [classId], references: [id], onDelete: Cascade)
+  school         School           @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  stream         Stream           @relation(fields: [streamId], references: [id], onDelete: Cascade)
+  student        Student          @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  term           Term             @relation(fields: [termId], references: [id], onDelete: Cascade)
 
   @@unique([studentId, academicYearId, termId])
   @@index([schoolId, academicYearId, termId, classId, streamId, isActive, status])
@@ -239,9 +159,8 @@ model GuardianContact {
   notes                  String?
   createdAt              DateTime               @default(now())
   updatedAt              DateTime               @updatedAt
-
-  school  School  @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  school                 School                 @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  student                Student                @relation(fields: [studentId], references: [id], onDelete: Cascade)
 
   @@unique([studentId, guardianName, relationship])
   @@index([schoolId, studentId, isPrimary])
@@ -249,17 +168,16 @@ model GuardianContact {
 }
 
 model Subject {
-  id        String   @id @default(uuid()) @db.Uuid
-  schoolId  String   @db.Uuid
+  id        String        @id @default(uuid()) @db.Uuid
+  schoolId  String        @db.Uuid
   name      String
   code      String
   sortOrder Int
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  school School        @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  marks  SubjectMark[]
+  isActive  Boolean       @default(true)
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+  school    School        @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  marks     SubjectMark[]
 
   @@unique([schoolId, name])
   @@unique([schoolId, code])
@@ -267,30 +185,29 @@ model Subject {
 }
 
 model SubjectMark {
-  id             String         @id @default(uuid()) @db.Uuid
-  schoolId       String         @db.Uuid
-  studentId      String         @db.Uuid
-  academicYearId String         @db.Uuid
-  termId         String         @db.Uuid
-  classId        String         @db.Uuid
-  streamId       String         @db.Uuid
-  subjectId      String         @db.Uuid
+  id             String           @id @default(uuid()) @db.Uuid
+  schoolId       String           @db.Uuid
+  studentId      String           @db.Uuid
+  academicYearId String           @db.Uuid
+  termId         String           @db.Uuid
+  classId        String           @db.Uuid
+  streamId       String           @db.Uuid
+  subjectId      String           @db.Uuid
   assessmentType AssessmentType
-  marks          Decimal        @db.Decimal(5, 2)
-  status         MarkStatus     @default(DRAFT)
+  marks          Decimal          @db.Decimal(5, 2)
+  status         MarkStatus       @default(DRAFT)
   comments       String?
-  importBatchId  String?        @db.Uuid
+  importBatchId  String?          @db.Uuid
   seedKey        String?
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
-
-  student      Student          @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  academicYear AcademicYear     @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
-  term         Term             @relation(fields: [termId], references: [id], onDelete: Cascade)
-  class        SchoolClass      @relation(fields: [classId], references: [id], onDelete: Cascade)
-  stream       Stream           @relation(fields: [streamId], references: [id], onDelete: Cascade)
-  subject      Subject          @relation(fields: [subjectId], references: [id], onDelete: Cascade)
-  importBatch  MarkImportBatch? @relation(fields: [importBatchId], references: [id], onDelete: SetNull)
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  academicYear   AcademicYear     @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
+  class          SchoolClass      @relation(fields: [classId], references: [id], onDelete: Cascade)
+  importBatch    MarkImportBatch? @relation(fields: [importBatchId], references: [id])
+  stream         Stream           @relation(fields: [streamId], references: [id], onDelete: Cascade)
+  student        Student          @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  subject        Subject          @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  term           Term             @relation(fields: [termId], references: [id], onDelete: Cascade)
 
   @@unique([studentId, subjectId, termId, assessmentType])
   @@index([schoolId, academicYearId, termId, classId, streamId, assessmentType, status])
@@ -300,31 +217,29 @@ model SubjectMark {
 }
 
 model MarkImportBatch {
-  id        String       @id @default(uuid()) @db.Uuid
-  schoolId  String       @db.Uuid
+  id        String          @id @default(uuid()) @db.Uuid
+  schoolId  String          @db.Uuid
   status    ImportStatus
   source    String
   summary   String?
-  createdAt DateTime     @default(now())
-  updatedAt DateTime     @updatedAt
-
-  school School          @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  rows   MarkImportRow[]
-  marks  SubjectMark[]
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+  school    School          @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  rows      MarkImportRow[]
+  marks     SubjectMark[]
 
   @@index([schoolId, status, createdAt])
 }
 
 model MarkImportRow {
-  id        String   @id @default(uuid()) @db.Uuid
-  batchId   String   @db.Uuid
+  id        String          @id @default(uuid()) @db.Uuid
+  batchId   String          @db.Uuid
   rowNumber Int
   raw       Json
   isValid   Boolean
   errors    String[]
-  createdAt DateTime @default(now())
-
-  batch MarkImportBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  createdAt DateTime        @default(now())
+  batch     MarkImportBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
 
   @@unique([batchId, rowNumber])
 }
@@ -336,8 +251,7 @@ model AuditLog {
   correlationId String?
   details       Json?
   createdAt     DateTime @default(now())
-
-  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  school        School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
 
   @@index([schoolId, action, createdAt])
   @@index([schoolId, correlationId])
@@ -355,44 +269,41 @@ model AppSetting {
 }
 
 model User {
-  id              String   @id @default(uuid()) @db.Uuid
-  schoolId        String   @db.Uuid
-  name            String
-  email           String
-  passwordHash    String
-  role            UserRole @default(ADMIN_OPERATOR)
-  isActive        Boolean  @default(true)
-  isPlatformOwner Boolean  @default(false)
-  mustChangePassword Boolean @default(false)
-  lastLoginAt     DateTime?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-
-  school        School         @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  issuedReports IssuedReport[]
+  id                 String         @id @default(uuid()) @db.Uuid
+  schoolId           String         @db.Uuid
+  name               String
+  email              String
+  passwordHash       String
+  role               UserRole       @default(ADMIN_OPERATOR)
+  isActive           Boolean        @default(true)
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+  isPlatformOwner    Boolean        @default(false)
+  mustChangePassword Boolean        @default(false)
+  lastLoginAt        DateTime?
+  issuedReports      IssuedReport[]
+  school             School         @relation(fields: [schoolId], references: [id], onDelete: Cascade)
 
   @@unique([schoolId, email])
   @@index([schoolId, role])
   @@index([isPlatformOwner])
 }
 
-// ── Smart Pages / Document Cleaner billing ─────────────────────────────────
-
 model SchoolSmartPagePlan {
-  id               String   @id @default(uuid()) @db.Uuid
-  schoolId         String   @unique @db.Uuid
-  planName         String   @default("STANDARD")
-  includedPages    Int      @default(5000)
-  billingCycle     String   @default("ACADEMIC_YEAR")
-  cycleStart       DateTime
-  cycleEnd         DateTime
-  usedPages        Int      @default(0)
-  topUpPages       Int      @default(0)
-  rolloverPages    Int      @default(0)
-  status           String   @default("ACTIVE")
-  allowHighAccuracy Boolean @default(false)
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  id                String   @id @default(uuid()) @db.Uuid
+  schoolId          String   @unique @db.Uuid
+  planName          String   @default("STANDARD")
+  includedPages     Int      @default(5000)
+  billingCycle      String   @default("ACADEMIC_YEAR")
+  cycleStart        DateTime
+  cycleEnd          DateTime
+  usedPages         Int      @default(0)
+  topUpPages        Int      @default(0)
+  rolloverPages     Int      @default(0)
+  status            String   @default("ACTIVE")
+  allowHighAccuracy Boolean  @default(false)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 
   @@index([schoolId, status])
 }
@@ -454,10 +365,9 @@ model IssuedReport {
   sentAt             DateTime?
   createdAt          DateTime           @default(now())
   updatedAt          DateTime           @updatedAt
-
-  school   School  @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  student  Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  issuedBy User?   @relation(fields: [issuedById], references: [id], onDelete: SetNull)
+  issuedBy           User?              @relation(fields: [issuedById], references: [id])
+  school             School             @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  student            Student            @relation(fields: [studentId], references: [id], onDelete: Cascade)
 
   @@index([parentAccessToken])
   @@index([referenceCode])
@@ -465,74 +375,56 @@ model IssuedReport {
   @@index([studentId, status])
 }
 
-// ── Report Lab Subscription ────────────────────────────────────────────────
-
 model ReportLabSubscription {
   id                 String                   @id @default(uuid()) @db.Uuid
   schoolId           String                   @unique @db.Uuid
   planCode           String
-  billingCycle       SubscriptionBillingCycle  @default(YEAR)
+  billingCycle       SubscriptionBillingCycle @default(YEAR)
   studentLimit       Int?
   currentPeriodStart DateTime
   currentPeriodEnd   DateTime
-  status             SubscriptionStatus        @default(ACTIVE)
+  status             SubscriptionStatus       @default(ACTIVE)
   createdAt          DateTime                 @default(now())
   updatedAt          DateTime                 @updatedAt
-
-  school   School             @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  invoices ReportLabInvoice[]
+  invoices           ReportLabInvoice[]
+  school             School                   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
 
   @@index([schoolId, status])
 }
 
 model ReportLabInvoice {
-  id             String        @id @default(uuid()) @db.Uuid
-  subscriptionId String        @db.Uuid
-  setupFeeUgx    Int           @default(0)
+  id             String                @id @default(uuid()) @db.Uuid
+  subscriptionId String                @db.Uuid
+  setupFeeUgx    Int                   @default(0)
   amountUgx      Int
   totalUgx       Int
-  status         InvoiceStatus @default(UNPAID)
+  status         InvoiceStatus         @default(UNPAID)
   paidAt         DateTime?
   notes          String?
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
-
-  subscription ReportLabSubscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
+  subscription   ReportLabSubscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
 
   @@index([subscriptionId, createdAt])
 }
 
-// ── Document Intelligence Engine ───────────────────────────────────────────────
-
-enum CreatorType {
-  SCHOOL_OPERATOR
-  EXTERNAL
-}
-
-enum DocumentStatus {
-  DRAFT
-  PUBLISHED
-  ARCHIVED
-}
-
 model Creator {
-  id           String      @id @default(uuid()) @db.Uuid
-  type         CreatorType
-  email        String      @unique
-  name         String
-  schoolId     String?     @db.Uuid
-  passwordHash String?
-  isActive     Boolean     @default(true)
-  createdAt    DateTime    @default(now())
-  updatedAt    DateTime    @updatedAt
-
-  documents   SmartDocument[]
-  collections Collection[]
-  bulkJobs    BulkGenerationJob[]
-  preferences CreatorPreference[]
-  workflows   AutomationWorkflow[]
+  id            String               @id @default(uuid()) @db.Uuid
+  type          CreatorType
+  email         String               @unique
+  name          String
+  schoolId      String?              @db.Uuid
+  passwordHash  String?
+  isActive      Boolean              @default(true)
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
+  workflows     AutomationWorkflow[]
+  bulkJobs      BulkGenerationJob[]
+  collections   Collection[]
+  preferences   CreatorPreference[]
   notifications Notification[]
   searchIndexes SearchIndex[]
+  documents     SmartDocument[]
 
   @@index([email])
   @@index([schoolId])
@@ -540,64 +432,61 @@ model Creator {
 }
 
 model SmartDocument {
-  id                 String         @id @default(uuid()) @db.Uuid
-  creatorId          String         @db.Uuid
-  title              String
-  extractedKnowledge Json?
-  extractionStatus   String         @default("IDLE")
-  extractionError    String?
-  extractionStartedAt DateTime?
+  id                    String               @id @default(uuid()) @db.Uuid
+  creatorId             String               @db.Uuid
+  title                 String
+  extractedKnowledge    Json?
+  activeVersionId       String?              @db.Uuid
+  status                DocumentStatus       @default(DRAFT)
+  createdAt             DateTime             @default(now())
+  updatedAt             DateTime             @updatedAt
+  extractionStatus      String               @default("IDLE")
+  extractionError       String?
+  extractionStartedAt   DateTime?
   extractionCompletedAt DateTime?
-  activeVersionId    String?        @db.Uuid
-  status             DocumentStatus @default(DRAFT)
-  createdAt          DateTime       @default(now())
-  updatedAt          DateTime       @updatedAt
-
-  creator     Creator              @relation(fields: [creatorId], references: [id], onDelete: Cascade)
-  versions    DocumentVersion[]
-  sourceFiles DocumentSourceFile[]
-  published   PublishedDocument?
-  analytics   DocumentAnalytics?
+  analytics             DocumentAnalytics?
+  sourceFiles           DocumentSourceFile[]
+  versions              DocumentVersion[]
+  published             PublishedDocument?
+  creator               Creator              @relation(fields: [creatorId], references: [id], onDelete: Cascade)
 
   @@index([creatorId, status, createdAt])
   @@index([creatorId, extractionStatus, updatedAt])
 }
 
 model DocumentVersion {
-  id             String   @id @default(uuid()) @db.Uuid
-  documentId     String   @db.Uuid
-  parentId       String?  @db.Uuid
+  id             String        @id @default(uuid()) @db.Uuid
+  documentId     String        @db.Uuid
+  parentId       String?       @db.Uuid
   instruction    String?
   schema         Json
   componentTree  Json
-  renderSettings Json     @default("{}")
-  createdAt      DateTime @default(now())
-
-  document SmartDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  renderSettings Json          @default("{}")
+  createdAt      DateTime      @default(now())
+  document       SmartDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
 
   @@index([documentId, createdAt])
 }
 
 model DocumentSourceFile {
-  id               String   @id @default(uuid()) @db.Uuid
-  documentId       String   @db.Uuid
-  originalName     String
-  mimeType         String
-  sizeBytes        Int?
-  status           String   @default("UPLOADED")
-  originalData     Bytes?
-  processedData    Bytes?
-  processedMimeType String?
-  geminiFileUri    String?
-  extractedContent Json?
-  extractionError  String?
-  extractionStartedAt DateTime?
+  id                    String        @id @default(uuid()) @db.Uuid
+  documentId            String        @db.Uuid
+  originalName          String
+  mimeType              String
+  sizeBytes             Int?
+  geminiFileUri         String?
+  extractedContent      Json?
+  createdAt             DateTime      @default(now())
+  originalData          Bytes?
+  processedData         Bytes?
+  processedMimeType     String?
+  ocrQuality            Json?
+  status                String        @default("UPLOADED")
+  extractionError       String?
+  extractionStartedAt   DateTime?
   extractionCompletedAt DateTime?
-  fileHash         String?
-  ocrQuality       Json?
-  createdAt        DateTime @default(now())
-
-  document SmartDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  fileHash              String?
+  document              SmartDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
 
   @@index([documentId])
   @@index([status, createdAt])
@@ -605,110 +494,85 @@ model DocumentSourceFile {
 }
 
 model PublishedDocument {
-  id            String    @id @default(uuid()) @db.Uuid
-  documentId    String    @unique @db.Uuid
-  token         String    @unique
+  id            String        @id @default(uuid()) @db.Uuid
+  documentId    String        @unique @db.Uuid
+  token         String        @unique
   passwordHash  String?
   expiresAt     DateTime?
-  viewCount     Int       @default(0)
-  downloadCount Int       @default(0)
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-
-  document SmartDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  viewCount     Int           @default(0)
+  downloadCount Int           @default(0)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  document      SmartDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
 
   @@index([token])
 }
 
-// ── Collections & Bulk Generation ─────────────────────────────────────────────
-
-enum CollectionType {
-  STUDENTS
-  PATIENTS
-  CLIENTS
-  EMPLOYEES
-  CUSTOM
-}
-
-enum BulkJobStatus {
-  PENDING
-  PROCESSING
-  COMPLETED
-  FAILED
-  PARTIAL
-}
-
 model Collection {
-  id        String         @id @default(uuid()) @db.Uuid
-  creatorId String         @db.Uuid
+  id        String              @id @default(uuid()) @db.Uuid
+  creatorId String              @db.Uuid
   name      String
-  type      CollectionType @default(CUSTOM)
-  createdAt DateTime       @default(now())
-  updatedAt DateTime       @updatedAt
-
-  creator  Creator             @relation(fields: [creatorId], references: [id], onDelete: Cascade)
-  records  CollectionRecord[]
-  bulkJobs BulkGenerationJob[]
+  type      CollectionType      @default(CUSTOM)
+  createdAt DateTime            @default(now())
+  updatedAt DateTime            @updatedAt
+  bulkJobs  BulkGenerationJob[]
+  creator   Creator             @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  records   CollectionRecord[]
 
   @@index([creatorId])
 }
 
 model CollectionRecord {
-  id           String   @id @default(uuid()) @db.Uuid
-  collectionId String   @db.Uuid
+  id           String          @id @default(uuid()) @db.Uuid
+  collectionId String          @db.Uuid
   data         Json
-  sortOrder    Int      @default(0)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-
-  collection Collection      @relation(fields: [collectionId], references: [id], onDelete: Cascade)
-  outputs    BulkJobOutput[]
+  sortOrder    Int             @default(0)
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+  outputs      BulkJobOutput[]
+  collection   Collection      @relation(fields: [collectionId], references: [id], onDelete: Cascade)
 
   @@index([collectionId, sortOrder])
 }
 
 model BulkGenerationJob {
-  id               String        @id @default(uuid()) @db.Uuid
-  creatorId        String        @db.Uuid
-  collectionId     String        @db.Uuid
+  id               String          @id @default(uuid()) @db.Uuid
+  creatorId        String          @db.Uuid
+  collectionId     String          @db.Uuid
   intent           String
   templateSchema   Json?
-  status           BulkJobStatus @default(PENDING)
-  totalRecords     Int           @default(0)
-  processedRecords Int           @default(0)
-  failedRecords    Int           @default(0)
+  status           BulkJobStatus   @default(PENDING)
+  totalRecords     Int             @default(0)
+  processedRecords Int             @default(0)
+  failedRecords    Int             @default(0)
   errorMessage     String?
   startedAt        DateTime?
   completedAt      DateTime?
-  createdAt        DateTime      @default(now())
-  updatedAt        DateTime      @updatedAt
-
-  creator    Creator            @relation(fields: [creatorId], references: [id], onDelete: Cascade)
-  collection Collection         @relation(fields: [collectionId], references: [id], onDelete: Cascade)
-  outputs    BulkJobOutput[]
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  collection       Collection      @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  creator          Creator         @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  outputs          BulkJobOutput[]
 
   @@index([creatorId, status])
   @@index([status, createdAt])
 }
 
 model BulkJobOutput {
-  id           String   @id @default(uuid()) @db.Uuid
-  jobId        String   @db.Uuid
-  recordId     String   @db.Uuid
-  documentId   String?  @db.Uuid
+  id           String            @id @default(uuid()) @db.Uuid
+  jobId        String            @db.Uuid
+  recordId     String            @db.Uuid
+  documentId   String?           @db.Uuid
   publishToken String?
-  status       String   @default("PENDING")
+  status       String            @default("PENDING")
   error        String?
-  createdAt    DateTime @default(now())
-
-  job    BulkGenerationJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
-  record CollectionRecord  @relation(fields: [recordId], references: [id], onDelete: Cascade)
+  createdAt    DateTime          @default(now())
+  job          BulkGenerationJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  record       CollectionRecord  @relation(fields: [recordId], references: [id], onDelete: Cascade)
 
   @@index([jobId, status])
   @@index([recordId])
 }
-
-// Phase 3: AI Document Operating System primitives
 
 model CreatorPreference {
   id        String   @id @default(uuid()) @db.Uuid
@@ -717,25 +581,23 @@ model CreatorPreference {
   value     Json
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-
-  creator Creator @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  creator   Creator  @relation(fields: [creatorId], references: [id], onDelete: Cascade)
 
   @@unique([creatorId, key])
   @@index([creatorId])
 }
 
 model AutomationWorkflow {
-  id        String   @id @default(uuid()) @db.Uuid
-  creatorId String   @db.Uuid
+  id        String    @id @default(uuid()) @db.Uuid
+  creatorId String    @db.Uuid
   name      String
   trigger   String
   actions   Json
-  isActive  Boolean  @default(true)
+  isActive  Boolean   @default(true)
   lastRunAt DateTime?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  creator Creator @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  creator   Creator   @relation(fields: [creatorId], references: [id], onDelete: Cascade)
 
   @@index([creatorId, isActive])
   @@index([trigger, isActive])
@@ -751,8 +613,7 @@ model SearchIndex {
   metadata       Json?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
-
-  creator Creator @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  creator        Creator  @relation(fields: [creatorId], references: [id], onDelete: Cascade)
 
   @@unique([entityType, entityId])
   @@index([creatorId, entityType])
@@ -767,27 +628,120 @@ model Notification {
   message   String
   readAt    DateTime?
   createdAt DateTime  @default(now())
-
-  creator Creator @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  creator   Creator   @relation(fields: [creatorId], references: [id], onDelete: Cascade)
 
   @@index([creatorId, readAt, createdAt])
   @@index([creatorId, type])
 }
 
 model DocumentAnalytics {
-  id           String    @id @default(uuid()) @db.Uuid
-  documentId   String    @unique @db.Uuid
-  views        Int       @default(0)
-  downloads    Int       @default(0)
-  shares       Int       @default(0)
-  visitors     Int       @default(0)
+  id           String        @id @default(uuid()) @db.Uuid
+  documentId   String        @unique @db.Uuid
+  views        Int           @default(0)
+  downloads    Int           @default(0)
+  shares       Int           @default(0)
+  visitors     Int           @default(0)
   lastViewedAt DateTime?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
-
-  document SmartDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  document     SmartDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
 
   @@index([views])
   @@index([downloads])
   @@index([updatedAt])
+}
+
+enum AssessmentType {
+  BOT
+  EOT
+  MOT
+}
+
+enum MarkStatus {
+  DRAFT
+  FINALIZED
+}
+
+enum ImportStatus {
+  DRY_RUN
+  COMMITTED
+  FAILED
+}
+
+enum ReportReadiness {
+  READY
+  MISSING_MARKS
+  NO_FINALIZED_MARKS
+  NO_STUDENTS
+  NO_SUBJECTS
+  NO_ACTIVE_TERM
+}
+
+enum UserRole {
+  ADMIN_OPERATOR
+}
+
+enum IssuedReportStatus {
+  ISSUED
+  REVOKED
+  SUPERSEDED
+}
+
+enum EnrollmentStatus {
+  ACTIVE
+  TRANSFERRED
+  COMPLETED
+  INACTIVE
+}
+
+enum PreferredContactMethod {
+  PHONE
+  SMS
+  EMAIL
+  WHATSAPP
+}
+
+enum SubscriptionBillingCycle {
+  YEAR
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  EXPIRED
+  SUSPENDED
+  PENDING
+  TRIAL
+}
+
+enum InvoiceStatus {
+  UNPAID
+  PAID
+  CANCELLED
+}
+
+enum CreatorType {
+  SCHOOL_OPERATOR
+  EXTERNAL
+}
+
+enum DocumentStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum CollectionType {
+  STUDENTS
+  PATIENTS
+  CLIENTS
+  EMPLOYEES
+  CUSTOM
+}
+
+enum BulkJobStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  PARTIAL
 }

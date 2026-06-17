@@ -236,7 +236,7 @@ If a mark cell is blank or unreadable, set mark to "" and needsReview to true.
 
 /** Sends a tiny text-only ping to Gemini. Throws on network or auth failure. */
 export async function pingGemini(): Promise<{ model: string }> {
-  const model = process.env.GEMINI_MODEL ?? "gemini-2.5-flash";
+  const model = process.env.GEMINI_MODEL ?? "gemini-3.5-flash";
   await withGeminiRetry(() =>
     getGeminiClient().models.generateContent({
       model,
