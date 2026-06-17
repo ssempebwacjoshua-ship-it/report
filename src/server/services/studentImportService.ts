@@ -186,6 +186,11 @@ async function buildPreviewRows(prisma: PrismaClient, schoolCode: string, rows: 
   const t0 = Date.now();
   const school = await resolveSchool(prisma, schoolCode);
   if (!school) throw new Error(`School ${schoolCode} was not found.`);
+  const activeYear = school.academicYears[0];
+  const activeTerm = activeYear?.terms[0];
+  if (!activeYear || !activeTerm) {
+    throw new Error("No active academic year or term found. Go to Preferences → Academic Years and activate a year and term before importing students.");
+  }
   validateRequiredColumns(rows);
   const { classByKey, existingByAdm } = buildMaps(school);
 
@@ -567,5 +572,8 @@ export async function commitStudentImport(prisma: PrismaClient, schoolCode: stri
   // skipped and reported instead of killing the whole import.
   if (preview.validRows === 0) return { ...preview, status: "PREVIEW" as const };
   const queued = await createStudentImportJob(prisma, schoolCode, rows, mode);
-  return { ...preview, ...queued, status: "COMMITTED" as const };
+  // Return QUEUED (not COMMITTED) so the frontend polls for the background job result.
+  // Returning COMMITTED here causes the polling guard to exit early and the final
+  // success/failure counts are never loaded.
+  return { ...preview, ...queued };
 }

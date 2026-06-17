@@ -248,7 +248,7 @@ describe("student import error isolation", () => {
     const rows = makeRows(300);
     rows[137] = { ...rows[137]!, fullName: "", gender: "" }; // bad row
     const result = await commitStudentImport(db, "SCU-PREVIEW", rows);
-    expect(result.status).toBe("COMMITTED");
+    expect(result.status).toBe("QUEUED"); // QUEUED until background job finishes
     const jobId = (result as { jobId: string }).jobId;
     const batch = await waitForJob(state, jobId);
     const summary = JSON.parse(batch.summary!);
