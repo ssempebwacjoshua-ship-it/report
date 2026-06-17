@@ -10,6 +10,7 @@ import { StudentsPage } from "../pages/StudentsPage";
 import { SettingsPage } from "../pages/SettingsPage";
 import { LoginPage } from "../pages/LoginPage";
 import { LogoutPage } from "../pages/LogoutPage";
+import { DemoPage } from "../pages/DemoPage";
 import { ParentReportPage } from "../pages/ParentReportPage";
 import { VerifyPage } from "../pages/VerifyPage";
 import { DocumentCleanerPage } from "../pages/DocumentCleanerPage";
@@ -31,6 +32,7 @@ import { SearchPage } from "../pages/smart-pages/SearchPage";
 
 export const router = createBrowserRouter([
   // Public routes — no AppShell, no auth
+  { path: "/demo", element: <DemoPage /> },
   { path: "/login", element: <LoginPage /> },
   { path: "/logout", element: <LogoutPage /> },
   { path: "/parent/r/:token", element: <ParentReportPage /> },
