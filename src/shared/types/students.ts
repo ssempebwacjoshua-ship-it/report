@@ -103,6 +103,7 @@ export type StudentImportPreview = {
   updateRows: number;
   rows: StudentImportPreviewRow[];
   mode: StudentImportMode;
+  warnings: string[];
 };
 
 export type StudentImportCommitResult = StudentImportPreview & {
@@ -112,11 +113,22 @@ export type StudentImportCommitResult = StudentImportPreview & {
 
 export type StudentImportJob = {
   jobId: string;
-  status: "QUEUED";
+  status: "QUEUED" | "DRY_RUN" | "COMMITTED" | "FAILED";
   totalRows: number;
   validRows: number;
   invalidRows: number;
   duplicateRows: number;
+  warnings?: string[];
+  processedRows?: number;
+  successCount?: number;
+  createdCount?: number;
+  updatedCount?: number;
+  failedCount?: number;
+  created?: number;
+  updated?: number;
+  skipped?: number;
+  rowErrors?: Array<{ rowNumber: number; admissionNumber?: string; errors: string[] }>;
+  lastError?: string;
 };
 
 export type StudentListFilters = {

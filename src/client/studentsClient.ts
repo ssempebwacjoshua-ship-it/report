@@ -69,7 +69,7 @@ export async function fetchStudentImportJob(jobId: string) {
     headers: makeRequestHeaders(),
   });
   if (!response.ok) throw new Error(await parseApiError(response, "Could not load import job"));
-  return response.json() as Promise<Record<string, unknown>>;
+  return response.json() as Promise<StudentImportJob>;
 }
 
 export async function downloadStudentTemplateCsv(): Promise<string> {

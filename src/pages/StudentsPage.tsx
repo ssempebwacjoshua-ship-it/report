@@ -17,7 +17,7 @@ import { getApiBaseUrl } from "../client/apiBase";
 
 const API_BASE = getApiBaseUrl();
 import type { ReportContext, ReportFilters } from "../shared/types/reports";
-import type { GuardianContact, GuardianContactInput, StudentImportPreview, StudentListItem } from "../shared/types/students";
+import type { GuardianContact, GuardianContactInput, StudentImportJob, StudentImportPreview, StudentListItem } from "../shared/types/students";
 
 function toContactInput(contact: GuardianContact): GuardianContactInput {
   return {
@@ -60,7 +60,7 @@ export function StudentsPage() {
   });
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importPreview, setImportPreview] = useState<StudentImportPreview | null>(null);
-  const [importJob, setImportJob] = useState<Record<string, unknown> | null>(null);
+  const [importJob, setImportJob] = useState<StudentImportJob | null>(null);
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -83,10 +83,6 @@ export function StudentsPage() {
 
   const selected = useMemo(() => students.find((student) => student.id === selectedId) ?? null, [students, selectedId]);
   const streams = context?.streams.filter((stream) => stream.classId === filters.classId) ?? [];
-  const hasActiveYear = context?.academicYears?.some((y) => y.isActive) ?? false;
-  const hasActiveTerm = context?.terms?.some((t) => t.isActive) ?? false;
-  const canImport = hasActiveYear && hasActiveTerm;
-
   function editContact(contact: GuardianContact) {
     setEditingContactId(contact.id);
     setContactInput(toContactInput(contact));
@@ -155,6 +151,8 @@ export function StudentsPage() {
   }, [importJob, context?.school?.code, filters]);
 
   const previewProblemRows = importPreview?.rows.filter((row) => !row.isValid || row.action === "duplicate") ?? [];
+  const previewWarnings = importPreview?.warnings ?? [];
+  const importWarnings = importJob?.warnings ?? [];
 
   function pickImportFile() {
     importFileInputRef.current?.click();
@@ -293,19 +291,26 @@ export function StudentsPage() {
                 </button>
                 <span className="text-sm text-slate-600">{importFile ? importFile.name : "No file selected"}</span>
               </div>
-              {!canImport && context ? (
+              {context && (!context.academicYears.some((y) => y.isActive) || !context.terms.some((t) => t.isActive)) ? (
                 <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-                  <strong>No active academic year or term.</strong> Go to <strong>Preferences → Academic Years</strong> and activate a year and term before importing students.
+                  <strong>No active academic year or term.</strong> Import stays available. We will use the latest setup if one exists, or create students with a warning if enrollments cannot be attached yet.
                 </div>
               ) : null}
               <div className="flex flex-wrap justify-end gap-2">
-                <button type="button" className="btn btn-primary" onClick={() => void previewImport()} disabled={!importFile || !canImport}>
+                <button type="button" className="btn btn-primary" onClick={() => void previewImport()} disabled={!importFile}>
                   Preview
                 </button>
-                <button type="button" className="btn btn-success" onClick={() => void commitImport()} disabled={!importPreview || importPreview.validRows === 0 || !canImport}>
+                <button type="button" className="btn btn-success" onClick={() => void commitImport()} disabled={!importPreview || importPreview.validRows === 0}>
                   Commit
                 </button>
               </div>
+              {previewWarnings.length > 0 ? (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                  {previewWarnings.map((warning) => (
+                    <p key={warning}>{warning}</p>
+                  ))}
+                </div>
+              ) : null}
               {importJob ? (
                 <div className={`rounded-xl border p-3 text-sm ${String(importJob.status) === "FAILED" ? "border-red-200 bg-red-50 text-red-800" : "border-blue-200 bg-blue-50 text-blue-900"}`}>
                   <p className="font-semibold">
@@ -321,6 +326,13 @@ export function StudentsPage() {
                     <p className="mt-1 text-xs font-semibold">
                       {String(importJob.failedCount)} row{Number(importJob.failedCount) === 1 ? "" : "s"} need attention.
                     </p>
+                  ) : null}
+                  {importWarnings.length > 0 ? (
+                    <div className="mt-2 grid gap-1 text-xs font-medium">
+                      {importWarnings.map((warning) => (
+                        <p key={warning}>{warning}</p>
+                      ))}
+                    </div>
                   ) : null}
                   {Array.isArray(importJob.rowErrors) && importJob.rowErrors.length > 0 ? (
                     <button

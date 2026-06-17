@@ -4,6 +4,7 @@ import { createServer } from "../../server";
 import { defaultSettingsSections, type SettingSection, type SettingsSections } from "../../shared/types/settings";
 import { signToken } from "../../server/services/authService";
 import { prisma } from "../../server/db/prisma";
+import { previewStudentImport } from "../../server/services/studentImportService";
 
 let realSchoolId = "SCU-PREVIEW-PLACEHOLDER";
 beforeAll(async () => {
@@ -91,6 +92,82 @@ describe("settingsRoutes", () => {
       expect(res.status).toBe(200);
       expect(res.body.sections[section]).toMatchObject(sectionPayloads[section]);
     }
+  });
+
+  it("saving academic setup creates active AcademicYear and Term rows", async () => {
+    const payload = {
+      ...sectionPayloads.academic,
+      activeAcademicYear: "2031/2032",
+      activeTerm: "Term 2",
+      termStartDate: "2031-05-01",
+      termEndDate: "2031-08-10",
+    };
+
+    const res = await request(createServer())
+      .patch(`/api/settings/academic?schoolCode=${SCHOOL}`)
+      .send(payload);
+
+    expect(res.status).toBe(200);
+    expect(res.body.sections.academic.activeAcademicYear).toBe("2031/2032");
+    expect(res.body.sections.academic.activeTerm).toBe("Term 2");
+
+    const school = await prisma.school.findUniqueOrThrow({
+      where: { code: SCHOOL },
+      include: {
+        academicYears: {
+          orderBy: [{ isActive: "desc" }, { startsOn: "desc" }],
+          include: {
+            terms: {
+              orderBy: [{ isActive: "desc" }, { startsOn: "desc" }],
+            },
+          },
+        },
+      },
+    });
+
+    const activeYears = school.academicYears.filter((year) => year.isActive);
+    expect(activeYears).toHaveLength(1);
+    expect(activeYears[0]?.name).toBe("2031/2032");
+    const activeTerms = activeYears[0]?.terms.filter((term) => term.isActive) ?? [];
+    expect(activeTerms).toHaveLength(1);
+    expect(activeTerms[0]?.name).toBe("Term 2");
+  });
+
+  it("student import sees the active DB academic year/term after academic setup save", async () => {
+    const structure = await prisma.school.findUniqueOrThrow({
+      where: { code: SCHOOL },
+      include: {
+        classes: {
+          orderBy: { level: "asc" },
+          include: {
+            streams: {
+              orderBy: { code: "asc" },
+            },
+          },
+        },
+      },
+    });
+    const klass = structure.classes.find((item) => item.streams.length > 0);
+    expect(klass).toBeDefined();
+    const stream = klass!.streams[0]!;
+
+    const preview = await previewStudentImport(prisma, SCHOOL, [
+      {
+        admissionNumber: "SETTINGS-AUDIT-001",
+        fullName: "Settings Audit Student",
+        gender: "Female",
+        className: klass!.name,
+        streamName: stream.name,
+        guardianName: "Audit Guardian",
+        guardianPhone: "+256700000999",
+        guardianEmail: "",
+        status: "ACTIVE",
+      },
+    ]);
+
+    expect(preview.validRows).toBe(1);
+    expect(preview.invalidRows).toBe(0);
+    expect(preview.warnings).toHaveLength(0);
   });
 
   it("accepts blank optional school profile fields", async () => {
