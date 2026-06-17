@@ -11,6 +11,7 @@ type IconName =
   | "log-out"
   | "menu"
   | "send"
+  | "search"
   | "settings"
   | "shield"
   | "students"
@@ -36,6 +37,7 @@ const paths: Record<IconName, string[]> = {
   "log-out": ["M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4", "M16 17l5-5-5-5", "M21 12H9"],
   menu: ["M4 6h16M4 12h16M4 18h16"],
   send: ["M22 2 11 13", "m22 2-7 20-4-9-9-4z"],
+  search: ["M11 19a8 8 0 1 1 5.3-14.1A8 8 0 0 1 11 19Z", "m21 21-4.3-4.3"],
   settings: ["M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8Z", "M4 12h2M18 12h2M12 4v2M12 18v2M6.3 6.3l1.4 1.4M16.3 16.3l1.4 1.4M17.7 6.3l-1.4 1.4M7.7 16.3l-1.4 1.4"],
   shield: ["M12 2 4 5v6c0 5 3.5 9 8 11 4.5-2 8-6 8-11V5z", "M9 12l2 2 4-5"],
   students: ["M16 11a4 4 0 1 0-8 0", "M3 21a7 7 0 0 1 14 0", "M18 8a3 3 0 0 1 0 6", "M19 17a5 5 0 0 1 2 4"],
