@@ -1,0 +1,2 @@
+admissionNumber,fullName,gender,class,stream,guardianName,guardianPhone,guardianEmail,status
+SCU-001,Ada Lovelace,Female,Senior 1,A,Grace Hopper,+256 700 000000,grace@example.test,ACTIVE

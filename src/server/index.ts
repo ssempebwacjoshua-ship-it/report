@@ -14,7 +14,7 @@ import { dashboardRoutes } from "./routes/dashboardRoutes";
 import { healthRoutes } from "./routes/healthRoutes";
 import { reportsRoutes } from "./routes/reportsRoutes";
 import { importsRoutes } from "./routes/importsRoutes";
-import { studentsRoutes } from "./routes/studentsRoutes";
+import { studentsRoutes, studentsPublicRoutes } from "./routes/studentsRoutes";
 import { marksheetsRoutes } from "./routes/marksheetsRoutes";
 import { settingsRoutes } from "./routes/settingsRoutes";
 import { schoolStructureRoutes } from "./routes/schoolStructureRoutes";
@@ -34,6 +34,7 @@ import { documentIntelligenceRoutes } from "./routes/documentIntelligenceRoutes"
 import { creatorAuthRoutes } from "./routes/creatorAuthRoutes";
 import { collectionRoutes } from "./routes/collectionRoutes";
 import { bulkGenerationRoutes } from "./routes/bulkGenerationRoutes";
+import { documentOsRoutes } from "./routes/documentOsRoutes";
 import { startBulkGenerationWorker } from "./services/bulkGenerationService";
 import geminiOcrRoutes from "./routes/geminiOcrRoutes";
 import geminiRosterRoutes from "./routes/geminiRosterRoutes";
@@ -69,10 +70,12 @@ export function createServer() {
   app.use(authRoutes());
   app.use(verifyRoutes());
   app.use(parentRoutes());
+  app.use(studentsPublicRoutes());
 
   // Document Intelligence Engine — creator auth accepts both school JWTs and external creator JWTs
   app.use("/api/creator", creatorAuthRoutes());
   app.use("/api/smart-documents", documentIntelligenceRoutes());
+  app.use("/api/document-os", documentOsRoutes());
   app.use("/api/collections", collectionRoutes());
   app.use("/api/bulk-jobs", bulkGenerationRoutes());
 
@@ -161,10 +164,13 @@ export function createServer() {
       message: error instanceof Error ? error.message : String(error),
       stack: error instanceof Error ? error.stack : undefined,
     });
-    res.status(500).json({
+    const status = typeof (error as { status?: unknown })?.status === "number"
+      ? Math.max(400, Math.min(599, (error as { status: number }).status))
+      : 500;
+    res.status(status).json({
       error: true,
-      code: "SERVER_ERROR",
-      message: "A server error occurred. Please try again or contact support if the problem persists.",
+      code: status >= 500 ? "SERVER_ERROR" : "REQUEST_FAILED",
+      message: error instanceof Error && status < 500 ? error.message : "A server error occurred. Please try again or contact support if the problem persists.",
       requestId,
       details: [],
     });

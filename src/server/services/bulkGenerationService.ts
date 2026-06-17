@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { prisma } from "../db/prisma";
 import { generateBulkTemplate } from "./documentGeminiService";
+import { createNotification, executeWorkflows, preferenceMap, upsertSearchIndex } from "./documentOsService";
 
 const db = prisma as any;
 
@@ -37,6 +38,7 @@ export async function createBulkJob(
   collectionId: string,
   intent: string,
 ): Promise<BulkJobSummary> {
+  await ensureBulkGenerationAvailable();
   const collection = await db.collection.findFirst({
     where: { id: collectionId, creatorId },
     include: { records: { take: 5, orderBy: { sortOrder: "asc" } }, _count: { select: { records: true } } },
@@ -48,7 +50,7 @@ export async function createBulkJob(
 
   // Generate template from sample records
   const sampleData = collection.records.map((r: any) => r.data as Record<string, unknown>);
-  const template = await generateBulkTemplate(sampleData, intent, collection.type);
+  const template = await generateBulkTemplate(sampleData, intent, collection.type, await preferenceMap(creatorId));
 
   const job = await db.bulkGenerationJob.create({
     data: {
@@ -104,7 +106,6 @@ export async function processJob(jobId: string): Promise<void> {
       const filledJson = fillTemplate(templateJson, record.data as Record<string, unknown>);
       const filledSchema = JSON.parse(filledJson) as { theme: unknown; components: unknown[] };
 
-      const creator = await db.creator.findUnique({ where: { id: job.creatorId } });
       const docTitle = deriveTitle(record.data as Record<string, unknown>, job.collection?.name ?? "Document");
 
       const doc = await db.smartDocument.create({
@@ -136,6 +137,13 @@ export async function processJob(jobId: string): Promise<void> {
       await db.publishedDocument.create({
         data: { id: randomUUID(), documentId: doc.id, token },
       });
+      await upsertSearchIndex(job.creatorId, "DOCUMENT", doc.id, docTitle, [
+        docTitle,
+        job.intent,
+        JSON.stringify(record.data),
+      ].join("\n"), { status: "PUBLISHED", jobId, recordId: record.id });
+      await upsertSearchIndex(job.creatorId, "VERSION", version.id, docTitle, JSON.stringify(filledSchema), { documentId: doc.id });
+      await upsertSearchIndex(job.creatorId, "PUBLISHED_PAGE", doc.id, docTitle, docTitle, { token, documentId: doc.id });
 
       await db.bulkJobOutput.updateMany({
         where: { jobId, recordId: record.id },
@@ -168,14 +176,75 @@ export async function processJob(jobId: string): Promise<void> {
     where: { id: jobId },
     data: { status: finalStatus, completedAt: new Date() },
   });
+  await createNotification(
+    job.creatorId,
+    "BULK_GENERATION_COMPLETED",
+    "Bulk generation completed",
+    `${job.collection?.name ?? "Collection"} finished with ${finalJob.processedRecords} generated and ${finalJob.failedRecords} failed.`,
+  );
+  await executeWorkflows(job.creatorId, "BULK_GENERATION_COMPLETED", {
+    jobId,
+    collectionId: job.collectionId,
+    collectionName: job.collection?.name,
+    status: finalStatus,
+    processedRecords: finalJob.processedRecords,
+    failedRecords: finalJob.failedRecords,
+  });
 }
 
 // ── Polling worker ─────────────────────────────────────────────────────────────
 
 let _workerRunning = false;
+let _workerDisabledReason: string | null = null;
+
+function isMissingBulkGenerationTableError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return /BulkGenerationJob|BulkJobOutput/i.test(message) && /does not exist|not exist|P2021/i.test(message);
+}
+
+async function bulkGenerationTablesReady(): Promise<boolean> {
+  try {
+    const rows = await db.$queryRaw<Array<{ exists: string | null }>>`
+      SELECT to_regclass('"BulkGenerationJob"')::text AS exists
+    `;
+    return rows[0]?.exists === "BulkGenerationJob";
+  } catch (error) {
+    if (isMissingBulkGenerationTableError(error)) return false;
+    throw error;
+  }
+}
+
+function unavailableError(): Error & { status: number } {
+  return Object.assign(
+    new Error("Bulk generation is unavailable until database migrations are applied."),
+    { status: 503 },
+  );
+}
+
+async function ensureBulkGenerationAvailable(): Promise<void> {
+  if (_workerDisabledReason) throw unavailableError();
+  const ready = await bulkGenerationTablesReady();
+  if (!ready) {
+    _workerDisabledReason = "BulkGenerationJob table is missing. Run `npx prisma migrate deploy` against this database.";
+    throw unavailableError();
+  }
+}
 
 export function startBulkGenerationWorker(): void {
+  void bulkGenerationTablesReady()
+    .then((ready) => {
+      if (!ready) {
+        _workerDisabledReason = "BulkGenerationJob table is missing. Run `npx prisma migrate deploy` against this database.";
+        console.warn(`[bulk-worker] disabled: ${_workerDisabledReason}`);
+      }
+    })
+    .catch((error) => {
+      _workerDisabledReason = error instanceof Error ? error.message : String(error);
+      console.warn("[bulk-worker] disabled: could not verify database schema:", _workerDisabledReason);
+    });
+
   setInterval(async () => {
+    if (_workerDisabledReason) return;
     if (_workerRunning) return;
     try {
       const job = await db.bulkGenerationJob.findFirst({
@@ -186,6 +255,11 @@ export function startBulkGenerationWorker(): void {
       _workerRunning = true;
       await processJob(job.id as string);
     } catch (e) {
+      if (isMissingBulkGenerationTableError(e)) {
+        _workerDisabledReason = "BulkGenerationJob table is missing. Run `npx prisma migrate deploy` against this database.";
+        console.warn(`[bulk-worker] disabled: ${_workerDisabledReason}`);
+        return;
+      }
       console.error("[bulk-worker] error:", e instanceof Error ? e.message : e);
     } finally {
       _workerRunning = false;
@@ -196,6 +270,7 @@ export function startBulkGenerationWorker(): void {
 // ── List jobs ──────────────────────────────────────────────────────────────────
 
 export async function listBulkJobs(creatorId: string): Promise<BulkJobSummary[]> {
+  await ensureBulkGenerationAvailable();
   const jobs = await db.bulkGenerationJob.findMany({
     where: { creatorId },
     orderBy: { createdAt: "desc" },
@@ -208,6 +283,7 @@ export async function getBulkJobOutputs(
   jobId: string,
   creatorId: string,
 ): Promise<{ job: BulkJobSummary; outputs: BulkJobOutput[] }> {
+  await ensureBulkGenerationAvailable();
   const job = await db.bulkGenerationJob.findFirst({
     where: { id: jobId, creatorId },
     include: { collection: { select: { name: true } } },

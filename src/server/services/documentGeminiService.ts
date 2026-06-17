@@ -25,6 +25,13 @@ function parseJsonSafe<T>(text: string, fallback: T): T {
   }
 }
 
+function formatPreferences(preferences?: Record<string, unknown>): string {
+  if (!preferences || Object.keys(preferences).length === 0) return "No stored creator preferences.";
+  return Object.entries(preferences)
+    .map(([key, value]) => `- ${key}: ${typeof value === "string" ? value : JSON.stringify(value)}`)
+    .join("\n");
+}
+
 export async function extractDocumentKnowledge(
   fileBuffer: Buffer,
   mimeType: string,
@@ -74,6 +81,7 @@ export async function generateDocumentSchema(
   knowledge: ExtractedKnowledge,
   intent: string,
   primaryColor = "#2563eb",
+  preferences?: Record<string, unknown>,
 ): Promise<{ schema: DocumentSchema; componentTree: ComponentNode[] }> {
   const res = await getClient().models.generateContent({
     model: model(),
@@ -95,6 +103,9 @@ User intent: "${intent}"
 Domain: ${knowledge.domain}
 Document type: ${knowledge.documentType}
 
+Stored creator preferences:
+${formatPreferences(preferences)}
+
 Extracted knowledge:
 ${JSON.stringify(knowledge, null, 2)}
 
@@ -114,6 +125,7 @@ Return ONLY valid JSON (no markdown):
 Rules:
 - First component MUST be header, last MUST be footer
 - Use real data from the extracted knowledge — no placeholder text
+- Apply stored creator preferences automatically when relevant
 - Generate short unique IDs (h1, tb1, t1, s1, ai1, f1, etc.)
 - Include all tables from extracted knowledge as table components`,
       },
@@ -144,6 +156,7 @@ export async function generateBulkTemplate(
   sampleRecords: Record<string, unknown>[],
   intent: string,
   collectionType: string,
+  preferences?: Record<string, unknown>,
 ): Promise<{ theme: DocumentSchema["theme"]; components: ComponentNode[] }> {
   const res = await getClient().models.generateContent({
     model: model(),
@@ -153,6 +166,9 @@ export async function generateBulkTemplate(
 
 Collection type: ${collectionType}
 User intent: "${intent}"
+
+Stored creator preferences:
+${formatPreferences(preferences)}
 
 Sample records (${sampleRecords.length} of many):
 ${JSON.stringify(sampleRecords, null, 2)}
@@ -179,6 +195,7 @@ Return ONLY valid JSON (no markdown):
 Rules:
 - Use {{fieldName}} placeholders for all record-specific data
 - First component MUST be header, last MUST be footer
+- Apply stored creator preferences automatically when relevant
 - Use every significant field from the sample records
 - Generate unique short IDs for each component`,
       },
@@ -205,6 +222,7 @@ Rules:
 export async function applyPromptToSchema(
   currentSchema: DocumentSchema,
   instruction: string,
+  preferences?: Record<string, unknown>,
 ): Promise<{ schema: DocumentSchema; componentTree: ComponentNode[] }> {
   const res = await getClient().models.generateContent({
     model: model(),
@@ -215,6 +233,9 @@ export async function applyPromptToSchema(
 Current schema:
 ${JSON.stringify(currentSchema, null, 2)}
 
+Stored creator preferences:
+${formatPreferences(preferences)}
+
 Instruction: "${instruction}"
 
 Return ONLY the COMPLETE updated schema as valid JSON (no markdown, no explanation):
@@ -224,6 +245,7 @@ Return ONLY the COMPLETE updated schema as valid JSON (no markdown, no explanati
 }
 
 Apply the instruction exactly. Preserve all content unless explicitly told to change or remove it.
+Apply stored creator preferences automatically when relevant.
 Available component types: header, textBlock, table, statistics, aiSummary, profileCard, signature, footer`,
       },
     ],
@@ -237,4 +259,232 @@ Available component types: header, textBlock, table, statistics, aiSummary, prof
   });
 
   return { schema: { theme: parsed.theme, components: parsed.components }, componentTree: parsed.components };
+}
+
+export async function runGeminiAgent(input: {
+  systemPrompt: string;
+  instruction: string;
+  context: unknown;
+}): Promise<{ response: string; suggestedActions: string[] }> {
+  const res = await getClient().models.generateContent({
+    model: model(),
+    contents: [
+      {
+        text: `${input.systemPrompt}
+
+Instruction:
+${input.instruction}
+
+Context:
+${JSON.stringify(input.context, null, 2)}
+
+Return ONLY valid JSON:
+{
+  "response": "concise answer",
+  "suggestedActions": ["action 1", "action 2"]
+}`,
+      },
+    ],
+    config: { temperature: 0.2 },
+  });
+
+  return parseJsonSafe<{ response: string; suggestedActions: string[] }>(res.text ?? "", {
+    response: res.text ?? "",
+    suggestedActions: [],
+  });
+}
+
+export async function translateDocumentSchema(
+  currentSchema: DocumentSchema,
+  language: "Arabic" | "French" | "Swahili" | "Spanish",
+): Promise<{ schema: DocumentSchema; componentTree: ComponentNode[] }> {
+  const res = await getClient().models.generateContent({
+    model: model(),
+    contents: [
+      {
+        text: `Translate all user-facing text in this document schema to ${language}.
+
+Do not change component IDs, component types, data structure, colors, page size, or orientation.
+Never overwrite the existing version; the caller will save this as a new version.
+
+Schema:
+${JSON.stringify(currentSchema, null, 2)}
+
+Return ONLY the translated complete schema as valid JSON:
+{
+  "theme": { ... },
+  "components": [ ... ]
+}`,
+      },
+    ],
+    config: { temperature: 0 },
+  });
+
+  const parsed = parseJsonSafe<{ theme: DocumentSchema["theme"]; components: ComponentNode[] }>(res.text ?? "", {
+    theme: currentSchema.theme,
+    components: currentSchema.components,
+  });
+  return { schema: { theme: parsed.theme, components: parsed.components }, componentTree: parsed.components };
+}
+
+export async function summarizeDocumentSchema(
+  currentSchema: DocumentSchema,
+): Promise<{ summary: string; keyPoints: string[] }> {
+  const res = await getClient().models.generateContent({
+    model: model(),
+    contents: [
+      {
+        text: `Summarize this document schema for the creator.
+
+Schema:
+${JSON.stringify(currentSchema, null, 2)}
+
+Return ONLY valid JSON:
+{
+  "summary": "short plain-language summary",
+  "keyPoints": ["point 1", "point 2"]
+}`,
+      },
+    ],
+    config: { temperature: 0.1 },
+  });
+
+  return parseJsonSafe<{ summary: string; keyPoints: string[] }>(res.text ?? "", {
+    summary: "Summary unavailable.",
+    keyPoints: [],
+  });
+}
+
+export async function rewriteDocumentTone(
+  currentSchema: DocumentSchema,
+  tone: string,
+): Promise<{ schema: DocumentSchema; componentTree: ComponentNode[] }> {
+  const res = await getClient().models.generateContent({
+    model: model(),
+    contents: [
+      {
+        text: `Rewrite all user-facing text in this document schema using this tone: ${tone}.
+
+Do not change component IDs, component types, data structure, colors, page size, or orientation.
+
+Schema:
+${JSON.stringify(currentSchema, null, 2)}
+
+Return ONLY the rewritten complete schema as valid JSON:
+{
+  "theme": { ... },
+  "components": [ ... ]
+}`,
+      },
+    ],
+    config: { temperature: 0.25 },
+  });
+
+  const parsed = parseJsonSafe<{ theme: DocumentSchema["theme"]; components: ComponentNode[] }>(res.text ?? "", {
+    theme: currentSchema.theme,
+    components: currentSchema.components,
+  });
+  return { schema: { theme: parsed.theme, components: parsed.components }, componentTree: parsed.components };
+}
+
+export async function classifyDocumentSchema(
+  currentSchema: DocumentSchema,
+): Promise<{ documentType: string; domain: string; confidence: number; tags: string[] }> {
+  const res = await getClient().models.generateContent({
+    model: model(),
+    contents: [
+      {
+        text: `Classify this document schema.
+
+Schema:
+${JSON.stringify(currentSchema, null, 2)}
+
+Return ONLY valid JSON:
+{
+  "documentType": "report | form | table | letter | certificate | invoice | other",
+  "domain": "education | healthcare | legal | business | nonprofit | general",
+  "confidence": 0.0,
+  "tags": ["tag"]
+}`,
+      },
+    ],
+    config: { temperature: 0 },
+  });
+
+  return parseJsonSafe<{ documentType: string; domain: string; confidence: number; tags: string[] }>(res.text ?? "", {
+    documentType: "other",
+    domain: "general",
+    confidence: 0,
+    tags: [],
+  });
+}
+
+export async function assistSearchRanking(input: {
+  query: string;
+  results: Array<{ id: string; entityType: string; title: string | null; snippet: string; score: number }>;
+}): Promise<{ rankedIds: string[]; explanation: string }> {
+  if (input.results.length === 0) return { rankedIds: [], explanation: "No results to rank." };
+  const res = await getClient().models.generateContent({
+    model: model(),
+    contents: [
+      {
+        text: `Rank these search results for the user query using semantic relevance.
+
+Query: ${input.query}
+Results:
+${JSON.stringify(input.results, null, 2)}
+
+Return ONLY valid JSON:
+{
+  "rankedIds": ["result id in best order"],
+  "explanation": "brief reason"
+}`,
+      },
+    ],
+    config: { temperature: 0 },
+  });
+
+  return parseJsonSafe<{ rankedIds: string[]; explanation: string }>(res.text ?? "", {
+    rankedIds: input.results.map((result) => result.id),
+    explanation: "Ranked by lexical score.",
+  });
+}
+
+export async function suggestWorkflow(input: {
+  creatorPreferences: Record<string, unknown>;
+  context: unknown;
+}): Promise<{ name: string; trigger: string; actions: Array<{ type: string; config?: Record<string, unknown> }>; rationale: string }> {
+  const res = await getClient().models.generateContent({
+    model: model(),
+    contents: [
+      {
+        text: `Suggest one useful document automation workflow for this creator.
+
+Creator preferences:
+${formatPreferences(input.creatorPreferences)}
+
+Context:
+${JSON.stringify(input.context, null, 2)}
+
+Supported triggers: COLLECTION_IMPORTED, RECORD_ADDED, DOCUMENT_CREATED, BULK_GENERATION_COMPLETED, PUBLISH_COMPLETED
+Supported actions: GENERATE_DOCUMENT, PUBLISH_DOCUMENT, EXPORT_PDF, NOTIFY_CREATOR, SEND_EMAIL
+
+Return ONLY valid JSON:
+{
+  "name": "workflow name",
+  "trigger": "SUPPORTED_TRIGGER",
+  "actions": [{ "type": "SUPPORTED_ACTION", "config": {} }],
+  "rationale": "brief reason"
+}`,
+      },
+    ],
+    config: { temperature: 0.2 },
+  });
+
+  return parseJsonSafe(res.text ?? "", {
+    name: "Notify when bulk generation completes",
+    trigger: "BULK_GENERATION_COMPLETED",
+    actions: [{ type: "NOTIFY_CREATOR" }],
+    rationale: "Keeps the creator informed when automated generation has finished.",
+  });
 }

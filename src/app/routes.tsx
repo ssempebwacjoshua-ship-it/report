@@ -23,6 +23,11 @@ import { CollectionsPage } from "../pages/smart-pages/CollectionsPage";
 import { CollectionDetailPage } from "../pages/smart-pages/CollectionDetailPage";
 import { BulkGeneratePage } from "../pages/smart-pages/BulkGeneratePage";
 import { BulkJobStatusPage } from "../pages/smart-pages/BulkJobStatusPage";
+import { AutomationsPage } from "../pages/smart-pages/AutomationsPage";
+import { AnalyticsPage } from "../pages/smart-pages/AnalyticsPage";
+import { NotificationsPage } from "../pages/smart-pages/NotificationsPage";
+import { PreferencesPage } from "../pages/smart-pages/PreferencesPage";
+import { SearchPage } from "../pages/smart-pages/SearchPage";
 
 export const router = createBrowserRouter([
   // Public routes — no AppShell, no auth
@@ -63,6 +68,11 @@ export const router = createBrowserRouter([
       { path: "collections/:id", element: <CollectionDetailPage /> },
       { path: "collections/:id/bulk-generate", element: <BulkGeneratePage /> },
       { path: "bulk-jobs/:id", element: <BulkJobStatusPage /> },
+      { path: "automations", element: <AutomationsPage /> },
+      { path: "analytics", element: <AnalyticsPage /> },
+      { path: "notifications", element: <NotificationsPage /> },
+      { path: "preferences", element: <PreferencesPage /> },
+      { path: "search", element: <SearchPage /> },
     ],
   },
 ]);

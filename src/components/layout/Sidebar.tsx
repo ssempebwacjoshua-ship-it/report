@@ -21,6 +21,11 @@ const navItems = [
   { to: "/imports/marks", label: "Marks Import", icon: "upload" as const },
   { to: "/marksheets", label: "Marksheets", icon: "clipboard" as const },
   { to: "/smart-pages", label: "Smart Pages", icon: "sparkles" as const },
+  { to: "/search", label: "Search", icon: "activity" as const },
+  { to: "/automations", label: "Automations", icon: "activity" as const },
+  { to: "/analytics", label: "Analytics", icon: "activity" as const },
+  { to: "/notifications", label: "Notifications", icon: "bell" as const },
+  { to: "/preferences", label: "Preferences", icon: "settings" as const },
   { to: "/documents/cleaner", label: "Paper to PDF", icon: "cloud" as const },
   { to: "/settings", label: "Settings", icon: "settings" as const },
 ];
