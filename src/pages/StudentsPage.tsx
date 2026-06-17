@@ -141,6 +141,8 @@ export function StudentsPage() {
 
   useEffect(() => {
     if (!importJob || typeof importJob.jobId !== "string") return;
+    // Don't restart polling once the job has reached a terminal state.
+    if (importJob.status === "COMMITTED" || importJob.status === "FAILED") return;
     const timer = setInterval(() => {
       void fetchStudentImportJob(importJob.jobId)
         .then((job) => {
