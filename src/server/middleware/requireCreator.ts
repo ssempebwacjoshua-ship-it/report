@@ -40,8 +40,9 @@ export async function requireCreator(req: Request, res: Response, next: NextFunc
       req.creator = { id: creatorId, type: "SCHOOL_OPERATOR", email: schoolPayload.email, name: schoolPayload.name };
       next();
       return;
-    } catch {
-      res.status(500).json({ error: "Failed to resolve creator context." });
+    } catch (err) {
+      console.error("[requireCreator] findOrCreateSchoolOperatorCreator failed:", err instanceof Error ? err.message : err);
+      res.status(500).json({ error: "Failed to resolve creator context.", detail: err instanceof Error ? err.message : String(err) });
       return;
     }
   }

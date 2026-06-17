@@ -26,6 +26,17 @@ export async function findOrCreateSchoolOperatorCreator(
   const db = prisma as any;
   const existing = await db.creator.findFirst({ where: { schoolId } });
   if (existing) return existing.id as string;
+
+  // Also check by email in case a prior create attempt left an orphan row
+  const byEmail = await db.creator.findFirst({ where: { email } });
+  if (byEmail) {
+    // Adopt this creator for the school
+    if (!byEmail.schoolId) {
+      await db.creator.update({ where: { id: byEmail.id }, data: { schoolId, type: "SCHOOL_OPERATOR" } });
+    }
+    return byEmail.id as string;
+  }
+
   const created = await db.creator.create({
     data: { id: randomUUID(), type: "SCHOOL_OPERATOR", email, name, schoolId },
   });
