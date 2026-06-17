@@ -8,9 +8,15 @@ const mockState = vi.hoisted(() => {
   const createNotification = vi.fn();
   const executeWorkflows = vi.fn();
   const incrementDocumentAnalytics = vi.fn();
+  const preprocessDocumentForOcr = vi.fn();
 
   const prisma = {
     smartDocument: {
+      findFirst: vi.fn(),
+      update: vi.fn(),
+    },
+    documentSourceFile: {
+      findUnique: vi.fn(),
       findFirst: vi.fn(),
       update: vi.fn(),
     },
@@ -34,6 +40,7 @@ const mockState = vi.hoisted(() => {
     createNotification,
     executeWorkflows,
     incrementDocumentAnalytics,
+    preprocessDocumentForOcr,
     prisma,
   };
 });
@@ -46,6 +53,7 @@ vi.mock("../../server/services/documentGeminiService", () => ({
   generateDocumentSchema: mockState.generateDocumentSchema,
   applyPromptToSchema: mockState.applyPromptToSchema,
   extractDocumentKnowledge: vi.fn(),
+  resolveGeminiDocumentModel: () => "gemini-3.5-flash",
 }));
 
 vi.mock("../../server/services/documentOsService", () => ({
@@ -54,6 +62,10 @@ vi.mock("../../server/services/documentOsService", () => ({
   incrementDocumentAnalytics: mockState.incrementDocumentAnalytics,
   preferenceMap: mockState.preferenceMap,
   upsertSearchIndex: mockState.upsertSearchIndex,
+}));
+
+vi.mock("../../server/services/documentOcrPreprocessService", () => ({
+  preprocessDocumentForOcr: mockState.preprocessDocumentForOcr,
 }));
 
 describe("documentIntelligenceService", () => {
@@ -160,5 +172,68 @@ describe("documentIntelligenceService", () => {
 
     expect(mockState.applyPromptToSchema).toHaveBeenCalledTimes(1);
     expect(mockState.generateDocumentSchema).not.toHaveBeenCalled();
+  });
+
+  it("logs real extraction diagnostics and keeps the friendly failure message", async () => {
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    mockState.prisma.documentSourceFile.findUnique.mockResolvedValue({
+      id: "source-1",
+      documentId: "doc-1",
+      originalName: "scan.png",
+      mimeType: "image/png",
+      sizeBytes: 1024,
+      status: "UPLOADED",
+      originalData: Buffer.from("original"),
+      fileHash: "hash-1",
+      ocrQuality: { retryMode: "fast" },
+      document: {
+        id: "doc-1",
+        creatorId: "creator-1",
+        title: "Untitled Document",
+      },
+    });
+    mockState.prisma.documentSourceFile.findFirst.mockResolvedValue(null);
+    mockState.prisma.documentSourceFile.update.mockResolvedValue({});
+    mockState.prisma.smartDocument.update.mockResolvedValue({});
+    mockState.preprocessDocumentForOcr.mockResolvedValue({
+      processedBuffer: Buffer.from("processed"),
+      processedMimeType: "image/jpeg",
+      width: 100,
+      height: 100,
+      notes: [{ code: "TEST", message: "processed", severity: "info" }],
+      warning: null,
+      sectionBuffers: [],
+    });
+
+    const { extractDocumentKnowledge } = await import("../../server/services/documentGeminiService");
+    vi.mocked(extractDocumentKnowledge).mockRejectedValueOnce(new Error("Gemini 3.5 JSON parse failed"));
+
+    const { processSourceFileExtraction } = await import("../../server/services/documentIntelligenceService");
+    await processSourceFileExtraction("source-1");
+
+    expect(consoleError).toHaveBeenCalledWith(
+      "[document-intelligence] extraction failed",
+      expect.objectContaining({
+        documentId: "doc-1",
+        sourceFileId: "source-1",
+        originalName: "scan.png",
+        mimeType: "image/png",
+        sizeBytes: 1024,
+        geminiModel: "gemini-3.5-flash",
+        errorMessage: "Gemini 3.5 JSON parse failed",
+      }),
+    );
+    expect(mockState.prisma.documentSourceFile.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "source-1" },
+        data: expect.objectContaining({
+          status: "FAILED",
+          extractionError: "We could not read this document. Please retry or upload a clearer file.",
+        }),
+      }),
+    );
+
+    consoleError.mockRestore();
   });
 });
