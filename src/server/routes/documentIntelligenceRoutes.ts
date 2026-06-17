@@ -63,9 +63,19 @@ router.post("/:id/upload", requireCreator, upload.single("file"), async (req, re
   if (!req.file) { res.status(400).json({ error: "No file uploaded." }); return; }
   try {
     const result = await svc.uploadAndExtract(req.params.id, req.creator!.id, req.file);
-    res.json({ ok: true, knowledge: result.knowledge, sourceFileId: result.sourceFileId });
+    res.status(202).json({ ok: true, status: result.status, sourceFileId: result.sourceFileId });
   } catch (e: any) {
     res.status(e?.status ?? 500).json({ error: e instanceof Error ? e.message : "Upload failed." });
+  }
+});
+
+router.post("/:id/extraction/retry", requireCreator, async (req, res) => {
+  const { sourceFileId } = req.body as { sourceFileId?: string };
+  try {
+    const result = await svc.retryDocumentExtraction(req.params.id, req.creator!.id, sourceFileId);
+    res.status(202).json({ ok: true, ...result });
+  } catch (e: any) {
+    res.status(e?.status ?? 500).json({ error: e instanceof Error ? e.message : "Retry failed." });
   }
 });
 

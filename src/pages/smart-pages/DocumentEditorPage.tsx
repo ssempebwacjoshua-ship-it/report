@@ -7,6 +7,7 @@ import {
   getVersionHistory,
   openPrintWindow,
   publishDocument,
+  retryDocumentExtraction,
   restoreVersion,
   updateExtractedKnowledge,
   uploadDocumentFile,
@@ -169,6 +170,45 @@ function ExtractionReviewPanel({
   );
 }
 
+function ExtractionProcessingCard({ sourceStatus }: { sourceStatus?: string }) {
+  const steps = [
+    "Reading your document...",
+    "Improving image quality...",
+    "Extracting handwriting and tables...",
+    "Preparing review...",
+  ];
+  const activeIndex = sourceStatus === "PREPROCESSING" ? 1 : sourceStatus === "EXTRACTING" ? 2 : 0;
+  return (
+    <div className="mx-auto grid w-full max-w-md gap-4 p-4 text-center">
+      <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
+        <div className="mx-auto mb-4 h-10 w-10 animate-pulse rounded-full bg-blue-100" />
+        <h2 className="text-base font-black text-slate-950">{steps[Math.min(activeIndex, steps.length - 1)]}</h2>
+        <div className="mt-4 grid gap-2 text-left">
+          {steps.map((step, index) => (
+            <div key={step} className={`rounded-lg px-3 py-2 text-xs font-semibold ${index <= activeIndex ? "bg-blue-50 text-blue-700" : "bg-slate-50 text-slate-400"}`}>
+              {step}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ExtractionFailedCard({ message, onRetry }: { message?: string | null; onRetry: () => void }) {
+  return (
+    <div className="mx-auto grid w-full max-w-md gap-3 p-4 text-center">
+      <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-red-200">
+        <h2 className="text-base font-black text-slate-950">Extraction failed</h2>
+        <p className="mt-2 text-sm text-slate-500">{message || "We could not read this document. Please retry or upload a clearer file."}</p>
+        <button type="button" className="btn btn-primary mt-4" onClick={onRetry}>
+          Retry extraction
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ── Version history panel ──────────────────────────────────────────────────────
 
 function VersionPanel({
@@ -231,7 +271,7 @@ function VersionPanel({
 
 // ── Main editor ────────────────────────────────────────────────────────────────
 
-type Stage = "empty" | "uploaded" | "generating" | "ready";
+type Stage = "empty" | "processing" | "uploaded" | "extractionFailed" | "generating" | "ready";
 type RenderSettings = NonNullable<SmartDocumentDetail["activeVersion"]>["renderSettings"];
 
 export function DocumentEditorPage() {
@@ -281,6 +321,12 @@ export function DocumentEditorPage() {
           setActiveVersionId(d.activeVersion.id);
           setRenderSettings(d.activeVersion.renderSettings);
           setStage("ready");
+        } else if (d.extractionStatus === "PROCESSING") {
+          setStage("processing");
+          setActiveTab("preview");
+        } else if (d.extractionStatus === "FAILED") {
+          setStage("extractionFailed");
+          setActiveTab("preview");
         } else if (d.extractedKnowledge) {
           setStage("uploaded");
         }
@@ -300,6 +346,27 @@ export function DocumentEditorPage() {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  useEffect(() => {
+    if (!id || stage !== "processing") return;
+    const interval = window.setInterval(() => {
+      void getDocument(id).then((latest) => {
+        setDoc(latest);
+        setExtractedKnowledge(latest.extractedKnowledge);
+        if (latest.extractionStatus === "READY" && latest.extractedKnowledge) {
+          setReviewDraft(latest.extractedKnowledge.rawText || latest.extractedKnowledge.sections.map((section) => section.content).join("\n\n"));
+          setStage("uploaded");
+          setActiveTab("preview");
+          addMessage("assistant", "Your document is ready for review.");
+        } else if (latest.extractionStatus === "FAILED") {
+          setStage("extractionFailed");
+          setActiveTab("preview");
+          addMessage("assistant", latest.extractionError || "Extraction failed. You can retry from the preview panel.");
+        }
+      }).catch(() => undefined);
+    }, 2_500);
+    return () => window.clearInterval(interval);
+  }, [id, stage]);
+
   function addMessage(role: ChatMessage["role"], content: string, extras?: Partial<ChatMessage>) {
     setMessages((prev) => [
       ...prev,
@@ -317,15 +384,15 @@ export function DocumentEditorPage() {
     addMessage("user", `Uploading ${file.name}…`);
     setBusy(true);
     try {
-      const { knowledge } = await uploadDocumentFile(id, file);
-      setStage("uploaded");
-      setExtractedKnowledge(knowledge);
-      setReviewDraft(knowledge.rawText || knowledge.sections.map((section) => section.content).join("\n\n"));
+      await uploadDocumentFile(id, file);
+      setStage("processing");
+      setExtractedKnowledge(null);
+      setReviewDraft("");
       setReviewEditing(false);
       setActiveTab("preview");
       addMessage(
         "assistant",
-        `I've read "${file.name}" and extracted ${knowledge.sections.length} section${knowledge.sections.length !== 1 ? "s" : ""}${knowledge.tables.length ? `, ${knowledge.tables.length} table${knowledge.tables.length !== 1 ? "s" : ""}` : ""}, and ${knowledge.statistics.length} statistic${knowledge.statistics.length !== 1 ? "s" : ""}. Please review the extraction before generating the polished document.`,
+        `Upload received. I'm reading "${file.name}" in the background now.`,
       );
       // Refresh doc to get updated title
       const refreshed = await getDocument(id);
@@ -339,11 +406,35 @@ export function DocumentEditorPage() {
 
   const submitInstruction = useCallback(async (text: string) => {
     if (!text.trim() || !id || busy) return;
+    if (stage === "processing") {
+      addMessage("assistant", "Still reading your document. You can generate once the review is ready.");
+      return;
+    }
     addMessage("user", text);
     setBusy(true);
 
     try {
       if (stage === "uploaded" || stage === "empty") {
+        if (stage === "empty" && !extractedKnowledge) {
+          const manualKnowledge: ExtractedKnowledge = {
+            documentType: "document",
+            domain: "general",
+            title: doc?.title ?? "Manual document",
+            suggestedDocumentType: "document",
+            sections: [{ heading: "Manual text", content: text }],
+            tables: [],
+            statistics: [],
+            entities: [],
+            people: [],
+            dates: [],
+            handwrittenNotes: [],
+            keyFacts: [],
+            unclearItems: [],
+            rawText: text,
+          };
+          const saved = await updateExtractedKnowledge(id, manualKnowledge);
+          setExtractedKnowledge(saved);
+        }
         // First intent → generate schema
         setStage("generating");
         addMessage("assistant", "Generating your document…");
@@ -386,7 +477,7 @@ export function DocumentEditorPage() {
     } finally {
       setBusy(false);
     }
-  }, [id, busy, stage]);
+  }, [id, busy, stage, extractedKnowledge, doc?.title]);
 
   // Send message handler
   const handleSend = useCallback(async () => {
@@ -429,6 +520,20 @@ export function DocumentEditorPage() {
   async function handleGenerateFromReview() {
     if (reviewEditing) await handleSaveExtractionReview();
     await submitInstruction("Generate a professional document from the reviewed extraction. Preserve all tables and key facts.");
+  }
+
+  async function handleRetryExtraction() {
+    if (!id) return;
+    try {
+      await retryDocumentExtraction(id, doc?.latestSourceFile?.id);
+      setStage("processing");
+      setActiveTab("preview");
+      const refreshed = await getDocument(id);
+      setDoc(refreshed);
+      addMessage("assistant", "Retrying extraction in the background.");
+    } catch (e) {
+      addMessage("assistant", e instanceof Error ? e.message : "Retry failed.");
+    }
   }
 
   async function handlePublish(password?: string) {
@@ -652,18 +757,20 @@ export function DocumentEditorPage() {
                 placeholder={
                   stage === "empty"
                     ? "Upload a file or describe what you'd like to create…"
+                    : stage === "processing"
+                      ? "Reading your document..."
                     : stage === "uploaded"
                       ? "Describe how you want this document to look…"
                       : "Edit the document: Make it formal, add charts, translate…"
                 }
                 className="flex-1 resize-none rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none focus:border-blue-400 focus:bg-white"
-                disabled={busy}
+                disabled={busy || stage === "processing"}
               />
 
               <button
                 type="button"
                 className="shrink-0 rounded-xl bg-blue-600 p-2.5 text-white disabled:opacity-40 hover:bg-blue-700"
-                disabled={busy || !input.trim()}
+                disabled={busy || stage === "processing" || !input.trim()}
                 onClick={() => void handleSend()}
               >
                 <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
@@ -679,7 +786,15 @@ export function DocumentEditorPage() {
         <div
           className={`${activeTab === "preview" ? "flex" : "hidden"} min-w-0 flex-1 flex-col overflow-y-auto bg-slate-100 lg:flex`}
         >
-          {stage === "uploaded" && extractedKnowledge ? (
+          {stage === "processing" ? (
+            <div className="flex flex-1 items-center justify-center">
+              <ExtractionProcessingCard sourceStatus={doc.latestSourceFile?.status} />
+            </div>
+          ) : stage === "extractionFailed" ? (
+            <div className="flex flex-1 items-center justify-center">
+              <ExtractionFailedCard message={doc.extractionError ?? doc.latestSourceFile?.extractionError} onRetry={() => void handleRetryExtraction()} />
+            </div>
+          ) : stage === "uploaded" && extractedKnowledge ? (
             <ExtractionReviewPanel
               knowledge={extractedKnowledge}
               editing={reviewEditing}

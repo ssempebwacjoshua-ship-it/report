@@ -139,6 +139,8 @@ export interface SmartDocumentSummary {
   id: string;
   title: string;
   status: DocumentStatus;
+  extractionStatus?: "IDLE" | "PROCESSING" | "READY" | "FAILED";
+  extractionError?: string | null;
   domain?: string;
   createdAt: string;
   updatedAt: string;
@@ -164,6 +166,14 @@ export interface ActiveVersionSnapshot {
 export interface SmartDocumentDetail extends SmartDocumentSummary {
   extractedKnowledge: ExtractedKnowledge | null;
   activeVersion: ActiveVersionSnapshot | null;
+  latestSourceFile?: {
+    id: string;
+    status: "UPLOADED" | "PREPROCESSING" | "EXTRACTING" | "READY" | "FAILED";
+    originalName: string;
+    extractionError?: string | null;
+    extractionStartedAt?: string | null;
+    extractionCompletedAt?: string | null;
+  };
 }
 
 export interface DocumentVersionSummary {
