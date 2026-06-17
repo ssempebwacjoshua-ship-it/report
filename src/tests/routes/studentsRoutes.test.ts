@@ -9,11 +9,12 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const clientSource = readFileSync(resolve(__dirname, "../../client/studentsClient.ts"), "utf8");
 
 describe("students import routes", () => {
-  it("returns the student CSV template", async () => {
-    const res = await request(createServer()).get("/api/students/import/template");
+  it("serves the student CSV template as a public static asset", async () => {
+    const res = await request(createServer()).get("/templates/student-import-template.csv");
     expect(res.status).toBe(200);
     expect(res.headers["content-type"]).toContain("text/csv");
     expect(res.text).toContain("admissionNumber,fullName,gender,class,stream,guardianName,guardianPhone,guardianEmail,status");
+    expect(res.text).not.toContain("Authentication required");
   });
 
   it("accepts a valid student import CSV preview", async () => {
@@ -82,6 +83,11 @@ describe("students client — no browser call uses /internal/students", () => {
 
   it("fetchStudentContactSummary uses /api/students/contact-summary", () => {
     expect(clientSource).toContain("/api/students/contact-summary");
+  });
+
+  it("downloadStudentTemplateCsv uses the public /templates asset", () => {
+    expect(clientSource).toContain("/templates/student-import-template.csv");
+    expect(clientSource).not.toContain("/api/students/import/template.csv");
   });
 
   it("createGuardianContact uses /api/students/ (not /internal)", () => {

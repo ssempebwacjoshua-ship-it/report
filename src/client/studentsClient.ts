@@ -75,9 +75,7 @@ export async function fetchStudentImportJob(jobId: string) {
 }
 
 export async function downloadStudentTemplateCsv(): Promise<string> {
-  const response = await fetch(`${API_BASE}/api/students/import/template.csv`, {
-    headers: makeRequestHeaders(),
-  });
+  const response = await fetch(`${API_BASE}/templates/student-import-template.csv`);
   if (!response.ok) throw new Error(await parseApiError(response, "Could not download template"));
   return response.text();
 }

@@ -168,7 +168,7 @@ function DigitalImportPanel() {
   }
 
   return (
-    <div className="grid gap-5">
+    <div className="marks-import-digital-panel grid gap-5">
       {error ? (
         <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 shadow-sm">
           {error}
@@ -176,7 +176,7 @@ function DigitalImportPanel() {
       ) : null}
 
       {/* Info banner */}
-      <section className="premium-card grid gap-3 rounded-2xl px-4 py-3 lg:grid-cols-[1fr_auto]">
+      <section className="marks-import-info-card premium-card grid gap-3 rounded-2xl px-4 py-3 lg:grid-cols-[1fr_auto]">
         <div>
           <h2 className="text-sm font-bold text-slate-950">Upload a digital marks sheet or paste CSV rows.</h2>
           <p className="mt-1 text-sm text-slate-600">
@@ -184,7 +184,7 @@ function DigitalImportPanel() {
             are protected unless they belong to the same import batch.
           </p>
         </div>
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+        <div className="marks-import-template-actions flex flex-col gap-2 sm:flex-row sm:items-center">
           <button type="button" onClick={downloadCsvTemplate} className="btn btn-secondary">
             Download CSV template
           </button>
@@ -195,9 +195,9 @@ function DigitalImportPanel() {
       </section>
 
       {/* Main layout */}
-      <section className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1.1fr)_minmax(260px,0.55fr)]">
+      <section className="marks-import-workspace grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1.1fr)_minmax(260px,0.55fr)]">
         {/* Input card */}
-        <div className="premium-card min-w-0 rounded-2xl p-4">
+        <div className="marks-import-input-card premium-card min-w-0 rounded-2xl p-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <h2 className="text-sm font-bold text-slate-950">Marks sheet input</h2>
@@ -259,7 +259,7 @@ function DigitalImportPanel() {
             </label>
           )}
 
-          <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+          <div className="marks-import-primary-actions mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
             <button type="button" onClick={runDryRun} disabled={!hasInput} className="btn btn-primary">
               Dry run
             </button>
@@ -276,7 +276,7 @@ function DigitalImportPanel() {
         </div>
 
         {/* Summary sidebar */}
-        <aside className="premium-card rounded-2xl p-4">
+        <aside className="marks-import-summary-card premium-card rounded-2xl p-4">
           <p className="text-sm font-bold text-slate-950">Import summary</p>
           {!preview ? (
             <p className="mt-2 text-xs text-slate-500">Run dry-run to preview totals.</p>
@@ -319,9 +319,9 @@ export function MarksImportPage() {
   const [importMode, setImportMode] = useState<ImportMode>("digital");
 
   return (
-    <main className="grid gap-5">
+    <main className="marks-import-page grid gap-5">
       {/* Page header */}
-      <header className="page-header flex flex-wrap items-end justify-between gap-3">
+      <header className="marks-import-header page-header flex flex-wrap items-end justify-between gap-3">
         <div>
           <p className="text-xs font-bold uppercase tracking-wide text-blue-600">Marks Import</p>
           <h1 className="text-xl font-bold tracking-tight text-slate-950 sm:text-2xl">Upload and verify marks</h1>
@@ -335,7 +335,7 @@ export function MarksImportPage() {
       </header>
 
       {/* Import mode selector */}
-      <section className="grid grid-cols-2 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      <section className="marks-import-mode-grid grid grid-cols-2 gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {MODES.map((mode) => {
           const active = importMode === mode.id;
           return (
@@ -343,33 +343,33 @@ export function MarksImportPage() {
               key={mode.id}
               type="button"
               onClick={() => setImportMode(mode.id)}
-              className={`flex items-start gap-3 rounded-2xl border-2 bg-white p-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 sm:gap-4 sm:p-5 ${
+              className={`marks-import-mode-card flex items-start gap-3 rounded-2xl border-2 bg-white p-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 sm:gap-4 sm:p-5 ${
                 active
                   ? "border-blue-500 shadow-lg shadow-blue-100 ring-1 ring-blue-400"
                   : `${mode.accent} shadow-sm`
               }`}
             >
               <div
-                className={`mt-0.5 grid h-9 w-9 shrink-0 place-items-center rounded-xl sm:h-11 sm:w-11 ${
+                className={`marks-import-mode-icon mt-0.5 grid h-9 w-9 shrink-0 place-items-center rounded-xl sm:h-11 sm:w-11 ${
                   active ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-500"
                 }`}
               >
                 {mode.icon}
               </div>
-              <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap items-center gap-2">
-                  <p className={`text-sm font-bold ${active ? "text-blue-700" : "text-slate-900"}`}>
+              <div className="marks-import-mode-copy min-w-0 flex-1">
+                <div className="marks-import-mode-title-row flex flex-wrap items-center gap-2">
+                  <p className={`marks-import-mode-title text-sm font-bold ${active ? "text-blue-700" : "text-slate-900"}`}>
                     {mode.label}
                   </p>
                   {active && (
-                    <span className="rounded-full bg-blue-600 px-2 py-0.5 text-xs font-extrabold text-white">
+                    <span className="marks-import-mode-selected rounded-full bg-blue-600 px-2 py-0.5 text-xs font-extrabold text-white">
                       Selected
                     </span>
                   )}
                 </div>
-                <p className="mt-1 text-xs text-slate-500">{mode.desc}</p>
-                <p className="mt-1.5">
-                  <span className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${mode.badgeColor}`}>
+                <p className="marks-import-mode-desc mt-1 text-xs text-slate-500">{mode.desc}</p>
+                <p className="marks-import-mode-badge-row mt-1.5">
+                  <span className={`marks-import-mode-badge rounded-full px-2.5 py-0.5 text-xs font-bold ${mode.badgeColor}`}>
                     {mode.badge}
                   </span>
                 </p>

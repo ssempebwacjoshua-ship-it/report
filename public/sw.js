@@ -6,7 +6,7 @@
  *    shows the app's own honest error/offline states (no fake data, no fake login).
  *  - Versioned cache + immediate activation so users don't stay on stale bundles.
  */
-const CACHE_VERSION = "scr-v3";
+const CACHE_VERSION = "scr-v4";
 const SHELL_CACHE = `${CACHE_VERSION}-shell`;
 const ASSET_CACHE = `${CACHE_VERSION}-assets`;
 
@@ -49,7 +49,7 @@ self.addEventListener("fetch", (event) => {
   }
 
   // Hashed immutable assets + icons: cache-first.
-  if (url.pathname.startsWith("/assets/") || url.pathname.startsWith("/icons/") || url.pathname === "/manifest.webmanifest" || url.pathname === "/favicon.svg") {
+  if (url.pathname.startsWith("/assets/") || url.pathname.startsWith("/icons/") || url.pathname === "/manifest.webmanifest" || url.pathname === "/manifest.json" || url.pathname === "/favicon.svg") {
     event.respondWith(
       caches.match(req).then(
         (hit) =>
