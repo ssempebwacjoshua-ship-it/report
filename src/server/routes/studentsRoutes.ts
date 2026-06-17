@@ -146,25 +146,7 @@ export function studentsRoutes() {
     }
   });
 
-  // ── Import templates ──────────────────────────────────────────────────────────
-
-  router.get("/api/students/import/template.csv", async (_req, res) => {
-    res.type("text/csv").send("admissionNumber,fullName,gender,class,stream,guardianName,guardianPhone,guardianEmail,status\n,,,Senior 1,A,,,,,ACTIVE\n");
-  });
-
-  router.get("/api/students/import/template", async (_req, res) => {
-    res.type("text/csv").send("admissionNumber,fullName,gender,class,stream,guardianName,guardianPhone,guardianEmail,status\n");
-  });
-
-  router.get("/api/students/import/template.xlsx", async (_req, res) => {
-    const xlsx = await import("xlsx");
-    const wb = xlsx.utils.book_new();
-    const ws = xlsx.utils.aoa_to_sheet([["admissionNumber", "fullName", "gender", "class", "stream", "guardianName", "guardianPhone", "guardianEmail", "status"]]);
-    xlsx.utils.book_append_sheet(wb, ws, "Students");
-    const buffer = xlsx.write(wb, { type: "buffer", bookType: "xlsx" });
-    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
-    res.send(buffer);
-  });
+  // Import templates are public — see studentsPublicRoutes() below
 
   // ── Import preview/commit ─────────────────────────────────────────────────────
 
@@ -471,4 +453,29 @@ export function studentsRoutes() {
   });
 
   return router;
+}
+
+// Public — no school context or auth required
+export function studentsPublicRoutes() {
+  const r = Router();
+
+  r.get("/api/students/import/template.csv", (_req, res) => {
+    res.type("text/csv").send("admissionNumber,fullName,gender,class,stream,guardianName,guardianPhone,guardianEmail,status\n,,,Senior 1,A,,,,,ACTIVE\n");
+  });
+
+  r.get("/api/students/import/template", (_req, res) => {
+    res.type("text/csv").send("admissionNumber,fullName,gender,class,stream,guardianName,guardianPhone,guardianEmail,status\n");
+  });
+
+  r.get("/api/students/import/template.xlsx", async (_req, res) => {
+    const xlsx = await import("xlsx");
+    const wb = xlsx.utils.book_new();
+    const ws = xlsx.utils.aoa_to_sheet([["admissionNumber", "fullName", "gender", "class", "stream", "guardianName", "guardianPhone", "guardianEmail", "status"]]);
+    xlsx.utils.book_append_sheet(wb, ws, "Students");
+    const buf = xlsx.write(wb, { type: "buffer", bookType: "xlsx" });
+    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    res.send(buf);
+  });
+
+  return r;
 }
