@@ -102,7 +102,7 @@ function StatisticsRenderer({ props, compact }: { props: Record<string, unknown>
       {props.heading ? (
         <h2 className="mb-2 text-sm font-bold uppercase tracking-wide text-slate-500">{String(props.heading)}</h2>
       ) : null}
-      <div className={`${compact ? "gap-2" : "gap-3"} grid grid-cols-2`}>
+      <div className={`${compact ? "gap-2" : "gap-3"} grid grid-cols-1 sm:grid-cols-2`}>
         {items.map((item, i) => (
           <div key={i} className={`${compact ? "px-2 py-2" : "px-3 py-3"} rounded-lg border border-slate-200 bg-slate-50`}>
             <p className="text-xs text-slate-500">{item.label}</p>
@@ -144,7 +144,7 @@ function ProfileCardRenderer({ props }: { props: Record<string, unknown> }) {
       <div className="min-w-0 flex-1">
         <p className="font-bold text-slate-900">{String(props.name ?? "")}</p>
         {props.subtitle ? <p className="text-xs text-slate-500">{String(props.subtitle)}</p> : null}
-        <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1">
+        <div className="mt-2 grid grid-cols-1 gap-x-4 gap-y-1 sm:grid-cols-2">
           {fields.map((f, i) => (
             <div key={i}>
               <span className="text-[10px] font-medium uppercase text-slate-400">{f.label}</span>
@@ -230,7 +230,7 @@ function TimelineRenderer({ props, primaryColor }: { props: Record<string, unkno
 
 function FooterRenderer({ props }: { props: Record<string, unknown> }) {
   return (
-    <div className="flex items-center justify-between border-t border-slate-200 pt-3 text-[10px] text-slate-400">
+    <div className="flex flex-col gap-1 border-t border-slate-200 pt-3 text-[10px] text-slate-400 sm:flex-row sm:items-center sm:justify-between">
       <span>{String(props.left ?? "")}</span>
       <span>{String(props.center ?? "")}</span>
       <span>{String(props.right ?? "")}</span>

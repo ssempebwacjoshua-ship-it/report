@@ -6,6 +6,7 @@ import type {
   DocumentSchema,
   ComponentNode,
 } from "../shared/types/documentIntelligence";
+import { parseApiError } from "./apiBase";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:4300";
 
@@ -157,14 +158,13 @@ export async function publishDocument(
 
 export async function openPrintWindow(documentId: string): Promise<void> {
   const res = await fetch(`${API_BASE}/api/smart-documents/${documentId}/print`, { headers: authHeaders() });
-  if (!res.ok) throw new Error(`Print failed: ${res.status}`);
+  if (!res.ok) throw new Error(await parseApiError(res, "Print failed"));
   const html = await res.text();
   const blob = new Blob([html], { type: "text/html" });
   const url = URL.createObjectURL(blob);
   const win = window.open(url, "_blank");
-  if (win) {
-    setTimeout(() => URL.revokeObjectURL(url), 30_000);
-  }
+  if (!win) throw new Error("Print window was blocked by the browser. Please allow pop-ups and try again.");
+  setTimeout(() => URL.revokeObjectURL(url), 30_000);
 }
 
 export async function getPublishedDocument(

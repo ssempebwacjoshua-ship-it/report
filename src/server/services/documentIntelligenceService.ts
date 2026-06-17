@@ -546,6 +546,9 @@ export async function applyPrompt(
   const db = prisma as any;
   const doc = await db.smartDocument.findFirst({ where: { id: documentId, creatorId } });
   if (!doc) throw Object.assign(new Error("Document not found."), { status: 404 });
+  if (doc.extractionStatus === "PROCESSING") {
+    throw Object.assign(new Error("Document extraction is still processing. Please wait for review before editing."), { status: 409 });
+  }
 
   const currentVersion = await resolveActiveVersion(db, documentId, doc.activeVersionId);
   if (!currentVersion) throw Object.assign(new Error("Generate a schema first."), { status: 400 });
@@ -617,6 +620,11 @@ export async function restoreVersion(
   const version = await db.documentVersion.findFirst({ where: { id: versionId, documentId } });
   if (!version) throw Object.assign(new Error("Version not found."), { status: 404 });
   await db.smartDocument.update({ where: { id: documentId }, data: { activeVersionId: versionId } });
+  await upsertSearchIndex(creatorId, "VERSION", versionId, doc.title, [
+    version.instruction ?? "",
+    JSON.stringify(version.schema ?? {}),
+    JSON.stringify(version.componentTree ?? []),
+  ].join("\n"), { documentId });
   await createNotification(creatorId, "VERSION_RESTORED", "Version restored", `${doc.title} was restored to an earlier version.`);
 }
 
@@ -628,8 +636,9 @@ export async function publishDocument(
   options: { expiresInDays?: number; password?: string } = {},
 ): Promise<{ token: string; url: string }> {
   const db = prisma as any;
-  const doc = await db.smartDocument.findFirst({ where: { id: documentId, creatorId } });
+  const doc = await db.smartDocument.findFirst({ where: { id: documentId, creatorId }, include: { activeVersion: true } });
   if (!doc) throw Object.assign(new Error("Document not found."), { status: 404 });
+  if (!doc.activeVersion) throw Object.assign(new Error("Generate a document first before publishing."), { status: 400 });
 
   const token = randomUUID().replace(/-/g, "").slice(0, 16);
   const expiresAt = options.expiresInDays

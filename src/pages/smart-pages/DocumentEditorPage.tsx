@@ -306,6 +306,21 @@ export function DocumentEditorPage() {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const actionLockRef = useRef<string | null>(null);
+  const processingTimeoutRef = useRef<number | null>(null);
+  const processingStartedAtRef = useRef<number | null>(null);
+
+  function acquireActionLock(lock: string): boolean {
+    if (actionLockRef.current) return false;
+    actionLockRef.current = lock;
+    return true;
+  }
+
+  function releaseActionLock(lock: string): void {
+    if (actionLockRef.current === lock) {
+      actionLockRef.current = null;
+    }
+  }
 
   // Load document on mount
   useEffect(() => {
@@ -343,8 +358,35 @@ export function DocumentEditorPage() {
   }, [id]);
 
   useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (typeof chatEndRef.current?.scrollIntoView === "function") {
+      chatEndRef.current.scrollIntoView({ behavior: "smooth" });
+    }
   }, [messages]);
+
+  useEffect(() => {
+    if (processingTimeoutRef.current) {
+      window.clearTimeout(processingTimeoutRef.current);
+      processingTimeoutRef.current = null;
+    }
+    if (stage !== "processing") {
+      processingStartedAtRef.current = null;
+      return;
+    }
+    processingStartedAtRef.current = Date.now();
+    processingTimeoutRef.current = window.setTimeout(() => {
+      if (processingStartedAtRef.current && Date.now() - processingStartedAtRef.current >= 120_000 && stage === "processing") {
+        setStage("extractionFailed");
+        setActiveTab("preview");
+        addMessage("assistant", "Extraction is taking longer than expected. Retry extraction to try again.");
+      }
+    }, 120_000);
+    return () => {
+      if (processingTimeoutRef.current) {
+        window.clearTimeout(processingTimeoutRef.current);
+        processingTimeoutRef.current = null;
+      }
+    };
+  }, [stage]);
 
   useEffect(() => {
     if (!id || stage !== "processing") return;
@@ -381,6 +423,7 @@ export function DocumentEditorPage() {
   // File upload handler
   async function handleFileUpload(file: File) {
     if (!id) return;
+    if (!acquireActionLock("upload")) return;
     addMessage("user", `Uploading ${file.name}…`);
     setBusy(true);
     try {
@@ -401,15 +444,17 @@ export function DocumentEditorPage() {
       addMessage("assistant", `Upload failed: ${e instanceof Error ? e.message : "Unknown error."}`);
     } finally {
       setBusy(false);
+      releaseActionLock("upload");
     }
   }
 
-  const submitInstruction = useCallback(async (text: string) => {
+  const submitInstruction = useCallback(async (text: string, nested = false) => {
     if (!text.trim() || !id || busy) return;
     if (stage === "processing") {
       addMessage("assistant", "Still reading your document. You can generate once the review is ready.");
       return;
     }
+    if (!nested && !acquireActionLock("submit")) return;
     addMessage("user", text);
     setBusy(true);
 
@@ -476,6 +521,7 @@ export function DocumentEditorPage() {
       addMessage("assistant", e instanceof Error ? e.message : "Something went wrong. Try again.");
     } finally {
       setBusy(false);
+      if (!nested) releaseActionLock("submit");
     }
   }, [id, busy, stage, extractedKnowledge, doc?.title]);
 
@@ -493,6 +539,7 @@ export function DocumentEditorPage() {
 
   async function handleSaveExtractionReview() {
     if (!id || !extractedKnowledge || reviewSaving) return;
+    if (!acquireActionLock("review-save")) return;
     setReviewSaving(true);
     try {
       const updated: ExtractedKnowledge = {
@@ -514,16 +561,23 @@ export function DocumentEditorPage() {
       addMessage("assistant", e instanceof Error ? e.message : "Could not save the extraction edits.");
     } finally {
       setReviewSaving(false);
+      releaseActionLock("review-save");
     }
   }
 
   async function handleGenerateFromReview() {
-    if (reviewEditing) await handleSaveExtractionReview();
-    await submitInstruction("Generate a professional document from the reviewed extraction. Preserve all tables and key facts.");
+    if (!acquireActionLock("generate")) return;
+    try {
+      if (reviewEditing) await handleSaveExtractionReview();
+      await submitInstruction("Generate a professional document from the reviewed extraction. Preserve all tables and key facts.", true);
+    } finally {
+      releaseActionLock("generate");
+    }
   }
 
   async function handleRetryExtraction() {
     if (!id) return;
+    if (!acquireActionLock("retry")) return;
     try {
       await retryDocumentExtraction(id, doc?.latestSourceFile?.id);
       setStage("processing");
@@ -533,27 +587,36 @@ export function DocumentEditorPage() {
       addMessage("assistant", "Retrying extraction in the background.");
     } catch (e) {
       addMessage("assistant", e instanceof Error ? e.message : "Retry failed.");
+    } finally {
+      releaseActionLock("retry");
     }
   }
 
   async function handlePublish(password?: string) {
     if (!id || publishing) return;
+    if (!acquireActionLock("publish")) return;
     setPublishing(true);
     setShowPublishModal(false);
     try {
       const result = await publishDocument(id, password ? { password } : {});
       setPublishResult(result);
-      addMessage("assistant", `Published! Your document is live at:\n${result.url}${password ? "\n🔒 Password protected." : ""}`, { action: "publish" });
+      const refreshed = await getDocument(id);
+      setDoc(refreshed);
+      const history = await getVersionHistory(id);
+      setVersions(history);
+      addMessage("assistant", `Published! Your document is live at:\n${result.url}\nToken: ${result.token}${password ? "\n🔒 Password protected." : ""}`, { action: "publish" });
     } catch (e) {
       addMessage("assistant", e instanceof Error ? e.message : "Publish failed.");
     } finally {
       setPublishing(false);
       setPublishPassword("");
+      releaseActionLock("publish");
     }
   }
 
   async function handlePrint() {
     if (!id || printing) return;
+    if (!acquireActionLock("print")) return;
     setPrinting(true);
     try {
       await openPrintWindow(id);
@@ -561,6 +624,7 @@ export function DocumentEditorPage() {
       addMessage("assistant", e instanceof Error ? e.message : "Print failed.");
     } finally {
       setPrinting(false);
+      releaseActionLock("print");
     }
   }
 
@@ -577,6 +641,8 @@ export function DocumentEditorPage() {
         setActiveVersionId(refreshed.activeVersion.id);
         setRenderSettings(refreshed.activeVersion.renderSettings);
       }
+      const history = await getVersionHistory(id);
+      setVersions(history);
       addMessage("assistant", `Restored to: "${v.instruction ?? "initial version"}".`, {
         action: "restore",
         versionId: v.id,
@@ -607,6 +673,18 @@ export function DocumentEditorPage() {
 
   const currentSchema = schema ?? { theme: DEFAULT_THEME, components: [] };
   const suggestions = stage === "ready" ? POST_GENERATE_SUGGESTIONS : INITIAL_SUGGESTIONS;
+  const stageLabel =
+    stage === "ready"
+      ? "Ready"
+      : stage === "uploaded"
+        ? "Review extraction"
+        : stage === "processing"
+          ? "Reading file"
+          : stage === "generating"
+            ? "Generating"
+            : stage === "extractionFailed"
+              ? "Extraction failed"
+              : "Draft";
 
   return (
     <div className="relative flex h-[calc(100vh-4rem)] flex-col overflow-hidden">
@@ -632,6 +710,24 @@ export function DocumentEditorPage() {
             </span>
           ) : null}
         </div>
+
+        <div className="flex items-center gap-2 px-3 pb-2 lg:hidden">
+          <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-bold text-slate-600">
+            {stageLabel}
+          </span>
+          {stage === "ready" ? (
+            <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-bold text-emerald-700">
+              {componentTree.length} components
+            </span>
+          ) : null}
+        </div>
+        {publishResult ? (
+          <div className="mx-3 mb-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900 lg:hidden">
+            <p className="text-[10px] font-bold uppercase tracking-wide text-emerald-700">Published</p>
+            <p className="mt-0.5 break-all text-xs text-emerald-800">{publishResult.url}</p>
+            <p className="mt-1 text-[10px] font-semibold text-emerald-700">Token: {publishResult.token}</p>
+          </div>
+        ) : null}
 
         <div className="hidden">
           {versions.length > 0 ? (
@@ -667,21 +763,23 @@ export function DocumentEditorPage() {
       </div>
 
       {/* Mobile tab switcher */}
-      <div className="sticky top-0 z-20 flex border-b border-slate-200 bg-white lg:hidden">
-        {(["chat", "preview"] as const).map((tab) => (
-          <button
-            key={tab}
-            type="button"
-            onClick={() => setActiveTab(tab)}
-            className={`flex-1 py-2 text-sm font-semibold capitalize transition ${
-              activeTab === tab
-                ? "border-b-2 border-blue-600 text-blue-700"
-                : "text-slate-500"
-            }`}
-          >
-            {tab}
-          </button>
-        ))}
+      <div className="sticky top-0 z-20 border-b border-slate-200 bg-white/95 px-3 py-2 backdrop-blur lg:hidden">
+        <div className="grid grid-cols-2 rounded-2xl bg-slate-100 p-1 shadow-inner shadow-slate-900/5">
+          {(["chat", "preview"] as const).map((tab) => (
+            <button
+              key={tab}
+              type="button"
+              onClick={() => setActiveTab(tab)}
+              className={`rounded-xl py-2 text-sm font-semibold capitalize transition ${
+                activeTab === tab
+                  ? "bg-white text-blue-700 shadow-sm ring-1 ring-slate-200"
+                  : "text-slate-500"
+              }`}
+            >
+              {tab}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Main content: chat (left) + preview (right) */}
@@ -812,6 +910,7 @@ export function DocumentEditorPage() {
                   <div className="mb-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3">
                     <p className="text-xs font-bold text-emerald-700">Published</p>
                     <p className="mt-0.5 break-all text-xs text-emerald-600">{publishResult.url}</p>
+                    <p className="mt-1 break-all text-[10px] font-semibold text-emerald-700">Token: {publishResult.token}</p>
                     <button
                       type="button"
                       onClick={() => void navigator.clipboard.writeText(publishResult.url)}
@@ -843,13 +942,13 @@ export function DocumentEditorPage() {
       </div>
 
       {stage === "ready" ? (
-        <div className="fixed bottom-4 right-4 z-40 print:hidden">
+        <div className="fixed inset-x-3 bottom-3 z-40 print:hidden lg:inset-x-auto lg:bottom-4 lg:right-4">
           {showActions ? (
-            <div className="mb-2 grid min-w-40 gap-1 rounded-xl border border-slate-200 bg-white p-2 text-sm shadow-xl">
+            <div className="mb-2 grid w-full gap-1 rounded-2xl border border-slate-200 bg-white p-2 text-sm shadow-xl lg:min-w-40">
               {versions.length > 0 ? (
                 <button
                   type="button"
-                  className="rounded-lg px-3 py-2 text-left font-semibold text-slate-700 hover:bg-slate-50"
+                  className="rounded-xl px-3 py-2 text-left font-semibold text-slate-700 hover:bg-slate-50"
                   onClick={() => {
                     void getVersionHistory(id!).then(setVersions);
                     setShowVersions(true);
@@ -861,7 +960,7 @@ export function DocumentEditorPage() {
               ) : null}
               <button
                 type="button"
-                className="rounded-lg px-3 py-2 text-left font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                className="rounded-xl px-3 py-2 text-left font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
                 onClick={() => { setShowActions(false); void handlePrint(); }}
                 disabled={printing}
               >
@@ -869,7 +968,7 @@ export function DocumentEditorPage() {
               </button>
               <button
                 type="button"
-                className="rounded-lg px-3 py-2 text-left font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                className="rounded-xl px-3 py-2 text-left font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
                 onClick={() => { setShowActions(false); setShowPublishModal(true); }}
                 disabled={publishing}
               >
@@ -879,7 +978,7 @@ export function DocumentEditorPage() {
           ) : null}
           <button
             type="button"
-            className="rounded-full bg-blue-600 px-4 py-3 text-sm font-black text-white shadow-xl shadow-blue-900/20 hover:bg-blue-700"
+            className="flex w-full items-center justify-center rounded-2xl bg-blue-600 px-4 py-3 text-sm font-black text-white shadow-xl shadow-blue-900/20 hover:bg-blue-700 lg:w-auto"
             onClick={() => setShowActions((value) => !value)}
             aria-expanded={showActions}
           >

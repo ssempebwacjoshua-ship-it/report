@@ -99,24 +99,46 @@ export function PublishedDocumentPage() {
   const componentTree = doc.activeVersion.componentTree ?? [];
 
   return (
-    <div className="min-h-screen overflow-x-hidden bg-slate-100 print:bg-white">
+    <div className="min-h-screen overflow-x-hidden bg-slate-100 pb-[env(safe-area-inset-bottom)] print:bg-white">
       <header className="border-b border-slate-200 bg-white px-4 py-3 print:hidden">
-        <div className="mx-auto flex max-w-3xl items-center justify-between">
-          <p className="text-xs font-bold text-slate-500">Smart Pages</p>
+        <div className="mx-auto flex max-w-3xl items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-xs font-bold text-slate-500">Smart Pages</p>
+            <p className="mt-0.5 truncate text-sm font-semibold text-slate-900 sm:hidden">{doc.title}</p>
+          </div>
           <button
             type="button"
             onClick={() => window.print()}
-            className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50"
           >
             <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" strokeLinecap="round" strokeLinejoin="round" />
               <rect x="6" y="14" width="12" height="8" rx="1" />
             </svg>
-            Print
+            <span className="hidden sm:inline">Print</span>
           </button>
         </div>
       </header>
-      <main className="mx-auto w-full max-w-3xl p-3 sm:p-4 print:max-w-none print:p-0">
+      <main className="mx-auto w-full max-w-3xl p-2 sm:p-4 print:max-w-none print:p-0">
+        <div className="mb-2 rounded-2xl border border-slate-200 bg-white px-3 py-2 shadow-sm sm:hidden print:hidden">
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Published page</p>
+              <p className="truncate text-sm font-semibold text-slate-900">{doc.title}</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => window.print()}
+              className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-slate-200 text-slate-600"
+              aria-label="Print document"
+            >
+              <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" strokeLinecap="round" strokeLinejoin="round" />
+                <rect x="6" y="14" width="12" height="8" rx="1" />
+              </svg>
+            </button>
+          </div>
+        </div>
         <DocumentPreview schema={schema} componentTree={componentTree} renderSettings={doc.activeVersion.renderSettings} />
       </main>
     </div>
