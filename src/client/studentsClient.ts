@@ -2,7 +2,6 @@ import type {
   ContactSummary,
   GuardianContactInput,
   StudentCreateInput,
-  StudentImportCommitResult,
   StudentImportJob,
   StudentImportPreview,
   StudentListItem,
@@ -45,13 +44,12 @@ export async function previewStudentImport(formData: FormData): Promise<StudentI
   return response.json();
 }
 
-export async function commitStudentImport(formData: FormData): Promise<StudentImportCommitResult> {
-  const response = await fetch(`${API_BASE}/api/students/import/commit`, {
+export async function commitStudentImport(formData: FormData): Promise<StudentImportJob> {
+  const response = await fetch(`${API_BASE}/api/students/import-jobs/upload`, {
     method: "POST",
     headers: makeRequestHeaders(),
     body: formData,
   });
-  if (response.status === 202) return response.json() as Promise<StudentImportJob>;
   if (!response.ok) throw new Error(await parseApiError(response, "Could not commit import"));
   return response.json();
 }

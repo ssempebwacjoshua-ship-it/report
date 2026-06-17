@@ -83,8 +83,8 @@ export function StudentsPage() {
 
   const selected = useMemo(() => students.find((student) => student.id === selectedId) ?? null, [students, selectedId]);
   const streams = context?.streams.filter((stream) => stream.classId === filters.classId) ?? [];
-  const hasActiveYear = context?.academicYears.some((y) => y.isActive) ?? false;
-  const hasActiveTerm = context?.terms.some((t) => t.isActive) ?? false;
+  const hasActiveYear = context?.academicYears?.some((y) => y.isActive) ?? false;
+  const hasActiveTerm = context?.terms?.some((t) => t.isActive) ?? false;
   const canImport = hasActiveYear && hasActiveTerm;
 
   function editContact(contact: GuardianContact) {
@@ -129,14 +129,7 @@ export function StudentsPage() {
       const formData = new FormData();
       formData.set("file", importFile);
       const result = await commitStudentImport(formData);
-      if ("jobId" in result) {
-        setImportJob(result);
-        setImportPreview(null);
-        return;
-      }
-      setImportPreview(result);
-      const refreshed = await fetchStudents(filters);
-      setStudents(refreshed.students);
+      setImportJob(result);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Could not commit import");
     }
@@ -153,12 +146,15 @@ export function StudentsPage() {
           if (job.status === "COMMITTED" || job.status === "FAILED") {
             clearInterval(timer);
             void fetchStudents(filters).then((response) => setStudents(response.students));
+            void fetchReportContext().then(setContext);
           }
         })
-        .catch(() => undefined);
+        .catch((caught) => setError(caught instanceof Error ? caught.message : "Could not load import job"));
     }, 1500);
     return () => clearInterval(timer);
   }, [importJob, context?.school?.code, filters]);
+
+  const previewProblemRows = importPreview?.rows.filter((row) => !row.isValid || row.action === "duplicate") ?? [];
 
   function pickImportFile() {
     importFileInputRef.current?.click();
@@ -306,7 +302,7 @@ export function StudentsPage() {
                 <button type="button" className="btn btn-primary" onClick={() => void previewImport()} disabled={!importFile || !canImport}>
                   Preview
                 </button>
-                <button type="button" className="btn btn-success" onClick={() => void commitImport()} disabled={!importPreview || importPreview.invalidRows > 0 || !canImport}>
+                <button type="button" className="btn btn-success" onClick={() => void commitImport()} disabled={!importPreview || importPreview.validRows === 0 || !canImport}>
                   Commit
                 </button>
               </div>
@@ -316,11 +312,16 @@ export function StudentsPage() {
                     {String(importJob.status) === "FAILED"
                       ? `Import failed: ${String(importJob.lastError ?? "Unknown error")}`
                       : String(importJob.status) === "COMMITTED"
-                        ? `Import completed — ${String(importJob.successCount ?? 0)} added, ${String(importJob.duplicateCount ?? 0)} duplicates skipped, ${String(importJob.failedCount ?? 0)} failed`
+                        ? `Import completed - ${String(importJob.created ?? importJob.createdCount ?? importJob.successCount ?? 0)} created, ${String(importJob.updated ?? importJob.updatedCount ?? 0)} updated, ${String(importJob.skipped ?? 0)} skipped`
                         : Number(importJob.processedRows ?? 0) > 0
                           ? `Importing ${String(importJob.processedRows)} / ${String(importJob.totalRows ?? 0)}...`
                           : "Validating..."}
                   </p>
+                  {Number(importJob.failedCount ?? 0) > 0 ? (
+                    <p className="mt-1 text-xs font-semibold">
+                      {String(importJob.failedCount)} row{Number(importJob.failedCount) === 1 ? "" : "s"} need attention.
+                    </p>
+                  ) : null}
                   {Array.isArray(importJob.rowErrors) && importJob.rowErrors.length > 0 ? (
                     <button
                       type="button"
@@ -332,7 +333,28 @@ export function StudentsPage() {
                   ) : null}
                 </div>
               ) : null}
-              {importPreview ? <pre className="overflow-auto rounded-xl bg-slate-950 p-3 text-xs text-slate-100">{JSON.stringify(importPreview, null, 2)}</pre> : null}
+              {importPreview ? (
+                <div className="rounded-xl border border-slate-200 bg-white p-3 text-sm">
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                    <div><p className="text-xs font-bold uppercase text-slate-400">Rows</p><p className="font-black text-slate-950">{importPreview.totalRows}</p></div>
+                    <div><p className="text-xs font-bold uppercase text-slate-400">Valid</p><p className="font-black text-emerald-700">{importPreview.validRows}</p></div>
+                    <div><p className="text-xs font-bold uppercase text-slate-400">Invalid</p><p className="font-black text-red-700">{importPreview.invalidRows}</p></div>
+                    <div><p className="text-xs font-bold uppercase text-slate-400">Duplicates</p><p className="font-black text-amber-700">{importPreview.duplicateRows}</p></div>
+                  </div>
+                  {previewProblemRows.length > 0 ? (
+                    <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3">
+                      <p className="text-xs font-black uppercase text-amber-800">Rows needing attention</p>
+                      <div className="mt-2 grid gap-2">
+                        {previewProblemRows.slice(0, 6).map((row) => (
+                          <p key={row.rowNumber} className="text-xs text-amber-900">
+                            <strong>Row {row.rowNumber}:</strong> {row.errors.join("; ") || "Duplicate admission number."}
+                          </p>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
             </div>
           ) : null}
         </div>

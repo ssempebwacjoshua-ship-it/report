@@ -77,6 +77,11 @@ describe("students client — no browser call uses /internal/students", () => {
     expect(clientSource).toContain("/api/students/import-jobs/upload");
   });
 
+  it("commitStudentImport uses the async import-job upload route", () => {
+    expect(clientSource).toContain("/api/students/import-jobs/upload");
+    expect(clientSource).not.toContain("/api/students/import/commit");
+  });
+
   it("fetchStudentImportJob uses /api/students/import-jobs/", () => {
     expect(clientSource).toContain("/api/students/import-jobs/");
   });
