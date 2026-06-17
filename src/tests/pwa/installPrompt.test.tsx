@@ -27,9 +27,22 @@ function makeInstallEvent() {
   return e;
 }
 
+// Simulate Android Chrome UA so the banner is eligible to show
+function mockAndroidChrome() {
+  vi.stubGlobal("navigator", {
+    ...navigator,
+    userAgent:
+      "Mozilla/5.0 (Linux; Android 10; Pixel 4) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Mobile Safari/537.36",
+  });
+}
+
+const DISMISSED_KEY = "sc_pwa_dismissed_v3";
+const INSTALLED_KEY = "sc_pwa_installed";
+
 beforeEach(() => {
   localStorage.clear();
   mockMatchMedia(false);
+  mockAndroidChrome();
 });
 
 afterEach(() => {
@@ -40,6 +53,7 @@ afterEach(() => {
 describe("InstallPrompt", () => {
   it("renders nothing by default (no beforeinstallprompt, not iOS)", () => {
     const { container } = render(<InstallPrompt />);
+    // Before the 4-second fallback fires, nothing visible
     expect(container.firstChild).toBeNull();
   });
 
@@ -48,23 +62,23 @@ describe("InstallPrompt", () => {
     await act(async () => {
       window.dispatchEvent(makeInstallEvent());
     });
-    expect(screen.getByText("Install School Connect Reports")).toBeInTheDocument();
+    expect(screen.getByText("Install Smart Pages")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /install app/i })).toBeInTheDocument();
   });
 
-  it("stores a timestamp dismissal and hides when Not now is clicked", async () => {
+  it("stores a dismissal timestamp and hides when Maybe Later is clicked", async () => {
     render(<InstallPrompt />);
     await act(async () => {
       window.dispatchEvent(makeInstallEvent());
     });
 
     const before = Date.now();
-    fireEvent.click(screen.getByRole("button", { name: /not now/i }));
+    fireEvent.click(screen.getByRole("button", { name: /maybe later/i }));
 
-    const stored = localStorage.getItem("sc_reports_pwa_install_dismissed");
+    const stored = localStorage.getItem(DISMISSED_KEY);
     expect(stored).not.toBeNull();
     expect(Number(stored)).toBeGreaterThanOrEqual(before);
-    expect(screen.queryByText("Install School Connect Reports")).not.toBeInTheDocument();
+    expect(screen.queryByText("Install Smart Pages")).not.toBeInTheDocument();
   });
 
   it("calls prompt() when Install app is clicked", async () => {
@@ -87,11 +101,11 @@ describe("InstallPrompt", () => {
     await act(async () => {
       window.dispatchEvent(makeInstallEvent());
     });
-    expect(screen.queryByText("Install School Connect Reports")).not.toBeInTheDocument();
+    expect(screen.queryByText("Install Smart Pages")).not.toBeInTheDocument();
   });
 
-  it("stays hidden when dismissed within the last 7 days", async () => {
-    localStorage.setItem("sc_reports_pwa_install_dismissed", String(Date.now()));
+  it("stays hidden when dismissed within the last 3 days", async () => {
+    localStorage.setItem(DISMISSED_KEY, String(Date.now()));
     const { container } = render(<InstallPrompt />);
     await act(async () => {
       window.dispatchEvent(makeInstallEvent());
@@ -99,18 +113,18 @@ describe("InstallPrompt", () => {
     expect(container.firstChild).toBeNull();
   });
 
-  it("shows again when previous dismissal was more than 7 days ago", async () => {
-    const eightDaysAgo = Date.now() - 8 * 24 * 60 * 60 * 1000;
-    localStorage.setItem("sc_reports_pwa_install_dismissed", String(eightDaysAgo));
+  it("shows again when previous dismissal was more than 3 days ago", async () => {
+    const fourDaysAgo = Date.now() - 4 * 24 * 60 * 60 * 1000;
+    localStorage.setItem(DISMISSED_KEY, String(fourDaysAgo));
     render(<InstallPrompt />);
     await act(async () => {
       window.dispatchEvent(makeInstallEvent());
     });
-    expect(screen.getByText("Install School Connect Reports")).toBeInTheDocument();
+    expect(screen.getByText("Install Smart Pages")).toBeInTheDocument();
   });
 
-  it("stays hidden when appinstalled key is set", async () => {
-    localStorage.setItem("sc_reports_pwa_install_installed", "true");
+  it("stays hidden when already installed", async () => {
+    localStorage.setItem(INSTALLED_KEY, "true");
     const { container } = render(<InstallPrompt />);
     await act(async () => {
       window.dispatchEvent(makeInstallEvent());
@@ -123,12 +137,12 @@ describe("InstallPrompt", () => {
     await act(async () => {
       window.dispatchEvent(makeInstallEvent());
     });
-    expect(screen.getByText("Install School Connect Reports")).toBeInTheDocument();
+    expect(screen.getByText("Install Smart Pages")).toBeInTheDocument();
 
     await act(async () => {
       window.dispatchEvent(new Event("appinstalled"));
     });
-    expect(localStorage.getItem("sc_reports_pwa_install_installed")).toBe("true");
-    expect(screen.queryByText("Install School Connect Reports")).not.toBeInTheDocument();
+    expect(localStorage.getItem(INSTALLED_KEY)).toBe("true");
+    expect(screen.queryByText("Install Smart Pages")).not.toBeInTheDocument();
   });
 });

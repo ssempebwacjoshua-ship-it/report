@@ -1,6 +1,8 @@
 import "dotenv/config";
 import { randomUUID } from "node:crypto";
 import dns from "node:dns";
+import path from "node:path";
+import fs from "node:fs";
 // Force IPv4 DNS resolution — prevents "fetch failed" on Windows/IPv6 networks when reaching Gemini
 dns.setDefaultResultOrder("ipv4first");
 import cors from "cors";
@@ -57,6 +59,11 @@ export function createServer() {
   }));
   app.use(express.json({ limit: "2mb" }));
 
+  app.use(
+    "/templates",
+    express.static(path.join(process.cwd(), "public", "templates")),
+  );
+
   // Public routes — no authentication required
   app.use(healthRoutes());
   app.use(authRoutes());
@@ -97,6 +104,28 @@ export function createServer() {
   app.use(documentCleanerRoutes());
   app.use(subscriptionRoutes());
   app.use(geminiMarksImportRoutes());
+
+  // Static file serving + SPA fallback (production only — never in test env, skipped when dist absent)
+  const distDir = path.join(process.cwd(), "dist");
+  if (process.env.NODE_ENV !== "test" && fs.existsSync(path.join(distDir, "index.html"))) {
+    // /manifest.json alias — some Chrome versions probe this exact path
+    app.get("/manifest.json", (_req, res) => {
+      res.setHeader("Content-Type", "application/manifest+json");
+      res.sendFile(path.join(distDir, "manifest.webmanifest"));
+    });
+    // Serve hashed assets (1-year cache), HTML no-cache
+    app.use(express.static(distDir, {
+      maxAge: "365d",
+      setHeaders(res, filePath) {
+        if (filePath.endsWith(".html")) res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+      },
+    }));
+    // SPA fallback — non-API GET requests get index.html (React Router handles routing)
+    app.get(/^(?!\/api\/).*/, (req, res) => {
+      res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+      res.sendFile(path.join(distDir, "index.html"));
+    });
+  }
 
   const errorHandler: ErrorRequestHandler = (error, req, res, _next) => {
     if (error instanceof ZodError) {
