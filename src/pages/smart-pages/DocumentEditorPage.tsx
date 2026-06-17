@@ -607,6 +607,18 @@ export function DocumentEditorPage() {
 
   const currentSchema = schema ?? { theme: DEFAULT_THEME, components: [] };
   const suggestions = stage === "ready" ? POST_GENERATE_SUGGESTIONS : INITIAL_SUGGESTIONS;
+  const stageLabel =
+    stage === "ready"
+      ? "Ready"
+      : stage === "uploaded"
+        ? "Review extraction"
+        : stage === "processing"
+          ? "Reading file"
+          : stage === "generating"
+            ? "Generating"
+            : stage === "extractionFailed"
+              ? "Extraction failed"
+              : "Draft";
 
   return (
     <div className="relative flex h-[calc(100vh-4rem)] flex-col overflow-hidden">
@@ -628,6 +640,17 @@ export function DocumentEditorPage() {
           </h1>
           {stage === "ready" ? (
             <span className="hidden rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-700 sm:inline-flex">
+              {componentTree.length} components
+            </span>
+          ) : null}
+        </div>
+
+        <div className="flex items-center gap-2 px-3 pb-2 lg:hidden">
+          <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-bold text-slate-600">
+            {stageLabel}
+          </span>
+          {stage === "ready" ? (
+            <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-bold text-emerald-700">
               {componentTree.length} components
             </span>
           ) : null}
@@ -667,21 +690,23 @@ export function DocumentEditorPage() {
       </div>
 
       {/* Mobile tab switcher */}
-      <div className="sticky top-0 z-20 flex border-b border-slate-200 bg-white lg:hidden">
-        {(["chat", "preview"] as const).map((tab) => (
-          <button
-            key={tab}
-            type="button"
-            onClick={() => setActiveTab(tab)}
-            className={`flex-1 py-2 text-sm font-semibold capitalize transition ${
-              activeTab === tab
-                ? "border-b-2 border-blue-600 text-blue-700"
-                : "text-slate-500"
-            }`}
-          >
-            {tab}
-          </button>
-        ))}
+      <div className="sticky top-0 z-20 border-b border-slate-200 bg-white/95 px-3 py-2 backdrop-blur lg:hidden">
+        <div className="grid grid-cols-2 rounded-2xl bg-slate-100 p-1 shadow-inner shadow-slate-900/5">
+          {(["chat", "preview"] as const).map((tab) => (
+            <button
+              key={tab}
+              type="button"
+              onClick={() => setActiveTab(tab)}
+              className={`rounded-xl py-2 text-sm font-semibold capitalize transition ${
+                activeTab === tab
+                  ? "bg-white text-blue-700 shadow-sm ring-1 ring-slate-200"
+                  : "text-slate-500"
+              }`}
+            >
+              {tab}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Main content: chat (left) + preview (right) */}
@@ -843,13 +868,13 @@ export function DocumentEditorPage() {
       </div>
 
       {stage === "ready" ? (
-        <div className="fixed bottom-4 right-4 z-40 print:hidden">
+        <div className="fixed inset-x-3 bottom-3 z-40 print:hidden lg:inset-x-auto lg:bottom-4 lg:right-4">
           {showActions ? (
-            <div className="mb-2 grid min-w-40 gap-1 rounded-xl border border-slate-200 bg-white p-2 text-sm shadow-xl">
+            <div className="mb-2 grid w-full gap-1 rounded-2xl border border-slate-200 bg-white p-2 text-sm shadow-xl lg:min-w-40">
               {versions.length > 0 ? (
                 <button
                   type="button"
-                  className="rounded-lg px-3 py-2 text-left font-semibold text-slate-700 hover:bg-slate-50"
+                  className="rounded-xl px-3 py-2 text-left font-semibold text-slate-700 hover:bg-slate-50"
                   onClick={() => {
                     void getVersionHistory(id!).then(setVersions);
                     setShowVersions(true);
@@ -861,7 +886,7 @@ export function DocumentEditorPage() {
               ) : null}
               <button
                 type="button"
-                className="rounded-lg px-3 py-2 text-left font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                className="rounded-xl px-3 py-2 text-left font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
                 onClick={() => { setShowActions(false); void handlePrint(); }}
                 disabled={printing}
               >
@@ -869,7 +894,7 @@ export function DocumentEditorPage() {
               </button>
               <button
                 type="button"
-                className="rounded-lg px-3 py-2 text-left font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                className="rounded-xl px-3 py-2 text-left font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
                 onClick={() => { setShowActions(false); setShowPublishModal(true); }}
                 disabled={publishing}
               >
@@ -879,7 +904,7 @@ export function DocumentEditorPage() {
           ) : null}
           <button
             type="button"
-            className="rounded-full bg-blue-600 px-4 py-3 text-sm font-black text-white shadow-xl shadow-blue-900/20 hover:bg-blue-700"
+            className="flex w-full items-center justify-center rounded-2xl bg-blue-600 px-4 py-3 text-sm font-black text-white shadow-xl shadow-blue-900/20 hover:bg-blue-700 lg:w-auto"
             onClick={() => setShowActions((value) => !value)}
             aria-expanded={showActions}
           >
