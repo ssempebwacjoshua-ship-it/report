@@ -306,6 +306,21 @@ export function DocumentEditorPage() {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const actionLockRef = useRef<string | null>(null);
+  const processingTimeoutRef = useRef<number | null>(null);
+  const processingStartedAtRef = useRef<number | null>(null);
+
+  function acquireActionLock(lock: string): boolean {
+    if (actionLockRef.current) return false;
+    actionLockRef.current = lock;
+    return true;
+  }
+
+  function releaseActionLock(lock: string): void {
+    if (actionLockRef.current === lock) {
+      actionLockRef.current = null;
+    }
+  }
 
   // Load document on mount
   useEffect(() => {
@@ -343,8 +358,35 @@ export function DocumentEditorPage() {
   }, [id]);
 
   useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (typeof chatEndRef.current?.scrollIntoView === "function") {
+      chatEndRef.current.scrollIntoView({ behavior: "smooth" });
+    }
   }, [messages]);
+
+  useEffect(() => {
+    if (processingTimeoutRef.current) {
+      window.clearTimeout(processingTimeoutRef.current);
+      processingTimeoutRef.current = null;
+    }
+    if (stage !== "processing") {
+      processingStartedAtRef.current = null;
+      return;
+    }
+    processingStartedAtRef.current = Date.now();
+    processingTimeoutRef.current = window.setTimeout(() => {
+      if (processingStartedAtRef.current && Date.now() - processingStartedAtRef.current >= 120_000 && stage === "processing") {
+        setStage("extractionFailed");
+        setActiveTab("preview");
+        addMessage("assistant", "Extraction is taking longer than expected. Retry extraction to try again.");
+      }
+    }, 120_000);
+    return () => {
+      if (processingTimeoutRef.current) {
+        window.clearTimeout(processingTimeoutRef.current);
+        processingTimeoutRef.current = null;
+      }
+    };
+  }, [stage]);
 
   useEffect(() => {
     if (!id || stage !== "processing") return;
@@ -381,6 +423,7 @@ export function DocumentEditorPage() {
   // File upload handler
   async function handleFileUpload(file: File) {
     if (!id) return;
+    if (!acquireActionLock("upload")) return;
     addMessage("user", `Uploading ${file.name}…`);
     setBusy(true);
     try {
@@ -401,15 +444,17 @@ export function DocumentEditorPage() {
       addMessage("assistant", `Upload failed: ${e instanceof Error ? e.message : "Unknown error."}`);
     } finally {
       setBusy(false);
+      releaseActionLock("upload");
     }
   }
 
-  const submitInstruction = useCallback(async (text: string) => {
+  const submitInstruction = useCallback(async (text: string, nested = false) => {
     if (!text.trim() || !id || busy) return;
     if (stage === "processing") {
       addMessage("assistant", "Still reading your document. You can generate once the review is ready.");
       return;
     }
+    if (!nested && !acquireActionLock("submit")) return;
     addMessage("user", text);
     setBusy(true);
 
@@ -476,6 +521,7 @@ export function DocumentEditorPage() {
       addMessage("assistant", e instanceof Error ? e.message : "Something went wrong. Try again.");
     } finally {
       setBusy(false);
+      if (!nested) releaseActionLock("submit");
     }
   }, [id, busy, stage, extractedKnowledge, doc?.title]);
 
@@ -493,6 +539,7 @@ export function DocumentEditorPage() {
 
   async function handleSaveExtractionReview() {
     if (!id || !extractedKnowledge || reviewSaving) return;
+    if (!acquireActionLock("review-save")) return;
     setReviewSaving(true);
     try {
       const updated: ExtractedKnowledge = {
@@ -514,16 +561,23 @@ export function DocumentEditorPage() {
       addMessage("assistant", e instanceof Error ? e.message : "Could not save the extraction edits.");
     } finally {
       setReviewSaving(false);
+      releaseActionLock("review-save");
     }
   }
 
   async function handleGenerateFromReview() {
-    if (reviewEditing) await handleSaveExtractionReview();
-    await submitInstruction("Generate a professional document from the reviewed extraction. Preserve all tables and key facts.");
+    if (!acquireActionLock("generate")) return;
+    try {
+      if (reviewEditing) await handleSaveExtractionReview();
+      await submitInstruction("Generate a professional document from the reviewed extraction. Preserve all tables and key facts.", true);
+    } finally {
+      releaseActionLock("generate");
+    }
   }
 
   async function handleRetryExtraction() {
     if (!id) return;
+    if (!acquireActionLock("retry")) return;
     try {
       await retryDocumentExtraction(id, doc?.latestSourceFile?.id);
       setStage("processing");
@@ -533,27 +587,36 @@ export function DocumentEditorPage() {
       addMessage("assistant", "Retrying extraction in the background.");
     } catch (e) {
       addMessage("assistant", e instanceof Error ? e.message : "Retry failed.");
+    } finally {
+      releaseActionLock("retry");
     }
   }
 
   async function handlePublish(password?: string) {
     if (!id || publishing) return;
+    if (!acquireActionLock("publish")) return;
     setPublishing(true);
     setShowPublishModal(false);
     try {
       const result = await publishDocument(id, password ? { password } : {});
       setPublishResult(result);
-      addMessage("assistant", `Published! Your document is live at:\n${result.url}${password ? "\n🔒 Password protected." : ""}`, { action: "publish" });
+      const refreshed = await getDocument(id);
+      setDoc(refreshed);
+      const history = await getVersionHistory(id);
+      setVersions(history);
+      addMessage("assistant", `Published! Your document is live at:\n${result.url}\nToken: ${result.token}${password ? "\n🔒 Password protected." : ""}`, { action: "publish" });
     } catch (e) {
       addMessage("assistant", e instanceof Error ? e.message : "Publish failed.");
     } finally {
       setPublishing(false);
       setPublishPassword("");
+      releaseActionLock("publish");
     }
   }
 
   async function handlePrint() {
     if (!id || printing) return;
+    if (!acquireActionLock("print")) return;
     setPrinting(true);
     try {
       await openPrintWindow(id);
@@ -561,6 +624,7 @@ export function DocumentEditorPage() {
       addMessage("assistant", e instanceof Error ? e.message : "Print failed.");
     } finally {
       setPrinting(false);
+      releaseActionLock("print");
     }
   }
 
@@ -577,6 +641,8 @@ export function DocumentEditorPage() {
         setActiveVersionId(refreshed.activeVersion.id);
         setRenderSettings(refreshed.activeVersion.renderSettings);
       }
+      const history = await getVersionHistory(id);
+      setVersions(history);
       addMessage("assistant", `Restored to: "${v.instruction ?? "initial version"}".`, {
         action: "restore",
         versionId: v.id,
@@ -655,6 +721,13 @@ export function DocumentEditorPage() {
             </span>
           ) : null}
         </div>
+        {publishResult ? (
+          <div className="mx-3 mb-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900 lg:hidden">
+            <p className="text-[10px] font-bold uppercase tracking-wide text-emerald-700">Published</p>
+            <p className="mt-0.5 break-all text-xs text-emerald-800">{publishResult.url}</p>
+            <p className="mt-1 text-[10px] font-semibold text-emerald-700">Token: {publishResult.token}</p>
+          </div>
+        ) : null}
 
         <div className="hidden">
           {versions.length > 0 ? (
@@ -837,6 +910,7 @@ export function DocumentEditorPage() {
                   <div className="mb-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3">
                     <p className="text-xs font-bold text-emerald-700">Published</p>
                     <p className="mt-0.5 break-all text-xs text-emerald-600">{publishResult.url}</p>
+                    <p className="mt-1 break-all text-[10px] font-semibold text-emerald-700">Token: {publishResult.token}</p>
                     <button
                       type="button"
                       onClick={() => void navigator.clipboard.writeText(publishResult.url)}
