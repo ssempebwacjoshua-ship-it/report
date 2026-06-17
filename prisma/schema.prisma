@@ -579,8 +579,12 @@ model DocumentSourceFile {
   originalName     String
   mimeType         String
   sizeBytes        Int?
+  originalData     Bytes?
+  processedData    Bytes?
+  processedMimeType String?
   geminiFileUri    String?
   extractedContent Json?
+  ocrQuality       Json?
   createdAt        DateTime @default(now())
 
   document SmartDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)

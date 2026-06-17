@@ -41,7 +41,7 @@ export function PublishedDocumentPage() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-50">
+      <div className="flex min-h-screen items-center justify-center bg-slate-100 p-4">
         <p className="text-sm text-slate-500">Loading…</p>
       </div>
     );
@@ -49,8 +49,8 @@ export function PublishedDocumentPage() {
 
   if (needsPassword) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-50 p-4">
-        <div className="w-full max-w-sm rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+      <div className="flex min-h-screen items-center justify-center bg-slate-100 p-4">
+        <div className="w-full max-w-sm rounded-2xl border border-slate-200 bg-white p-6 shadow-lg shadow-slate-900/5">
           <div className="mb-4 grid h-12 w-12 place-items-center rounded-xl bg-blue-50 text-blue-600">
             <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" />
@@ -86,7 +86,7 @@ export function PublishedDocumentPage() {
 
   if (error || !doc || !doc.activeVersion) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center bg-slate-50 p-4 text-center">
+      <div className="flex min-h-screen flex-col items-center justify-center bg-slate-100 p-4 text-center">
         <div className="rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
           <h1 className="text-lg font-black text-slate-900">Document not available</h1>
           <p className="mt-2 text-sm text-slate-500">{error || "This link may have expired or been removed."}</p>
@@ -99,8 +99,8 @@ export function PublishedDocumentPage() {
   const componentTree = doc.activeVersion.componentTree ?? [];
 
   return (
-    <div className="min-h-screen bg-slate-100">
-      <header className="border-b border-slate-200 bg-white px-4 py-3">
+    <div className="min-h-screen overflow-x-hidden bg-slate-100 print:bg-white">
+      <header className="border-b border-slate-200 bg-white px-4 py-3 print:hidden">
         <div className="mx-auto flex max-w-3xl items-center justify-between">
           <p className="text-xs font-bold text-slate-500">Smart Pages</p>
           <button
@@ -116,8 +116,8 @@ export function PublishedDocumentPage() {
           </button>
         </div>
       </header>
-      <main className="mx-auto max-w-3xl p-4">
-        <DocumentPreview schema={schema} componentTree={componentTree} />
+      <main className="mx-auto w-full max-w-3xl p-3 sm:p-4 print:max-w-none print:p-0">
+        <DocumentPreview schema={schema} componentTree={componentTree} renderSettings={doc.activeVersion.renderSettings} />
       </main>
     </div>
   );

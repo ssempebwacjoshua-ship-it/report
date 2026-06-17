@@ -83,6 +83,19 @@ export async function uploadDocumentFile(
   return json<{ ok: boolean; knowledge: ExtractedKnowledge; sourceFileId: string }>(res);
 }
 
+export async function updateExtractedKnowledge(
+  documentId: string,
+  knowledge: ExtractedKnowledge,
+): Promise<ExtractedKnowledge> {
+  const res = await fetch(`${API_BASE}/api/smart-documents/${documentId}/extracted-knowledge`, {
+    method: "PATCH",
+    headers: authHeaders(),
+    body: JSON.stringify({ knowledge }),
+  });
+  const data = await json<{ ok: boolean; knowledge: ExtractedKnowledge }>(res);
+  return data.knowledge;
+}
+
 export async function generateSchema(
   documentId: string,
   intent: string,

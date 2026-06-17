@@ -271,7 +271,7 @@ export async function exportDocument(creatorId: string, documentId: string, form
   const schema = active.schema as DocumentSchema;
   const components = active.componentTree as ComponentNode[];
   if (format === "html" || format === "print") {
-    return { contentType: "text/html; charset=utf-8", body: renderSchemaToHtml(schema, components, doc.title), filename: `${slug(doc.title)}.html` };
+    return { contentType: "text/html; charset=utf-8", body: renderSchemaToHtml(schema, components, doc.title, active.renderSettings as any), filename: `${slug(doc.title)}.html` };
   }
   if (format === "schema") {
     return { contentType: "application/json; charset=utf-8", body: JSON.stringify(schema, null, 2), filename: `${slug(doc.title)}.json` };
