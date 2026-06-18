@@ -1,4 +1,4 @@
-import { createBrowserRouter, Navigate } from "react-router-dom";
+﻿import { createBrowserRouter, Navigate } from "react-router-dom";
 import { AppShell } from "../components/layout/AppShell";
 import { OwnerShell } from "../components/layout/OwnerShell";
 import { DashboardPage } from "../pages/DashboardPage";
@@ -33,7 +33,7 @@ import { PreferencesPage } from "../pages/smart-pages/PreferencesPage";
 import { SearchPage } from "../pages/smart-pages/SearchPage";
 
 export const router = createBrowserRouter([
-  // Public routes — no AppShell, no auth
+  // Public routes â€” no AppShell, no auth
   { path: "/demo", element: <DemoPage /> },
   { path: "/pricing", element: <PricingPage /> },
   { path: "/contact", element: <ContactPage /> },
@@ -43,7 +43,7 @@ export const router = createBrowserRouter([
   { path: "/verify/:code", element: <VerifyPage /> },
   { path: "/p/:token", element: <PublishedDocumentPage /> },
 
-  // Platform owner console — wrapped in OwnerShell (owner guard inside)
+  // Platform owner console â€” wrapped in OwnerShell (owner guard inside)
   {
     path: "/owner",
     element: <OwnerShell />,
@@ -54,7 +54,7 @@ export const router = createBrowserRouter([
     ],
   },
 
-  // Admin routes — wrapped in AppShell (auth guard inside)
+  // Admin routes â€” wrapped in AppShell (auth guard inside)
   {
     path: "/",
     element: <AppShell />,
@@ -82,3 +82,4 @@ export const router = createBrowserRouter([
     ],
   },
 ]);
+
