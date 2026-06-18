@@ -25,6 +25,14 @@ import type {
   ActiveVersionSnapshot,
 } from "../../shared/types/documentIntelligence";
 
+type SmartPagesActor = {
+  id: string;
+  type: "SCHOOL_OPERATOR" | "EXTERNAL";
+  email: string;
+  name: string;
+  schoolId: string | null;
+};
+
 // ── Creator helpers ────────────────────────────────────────────────────────────
 
 export async function findOrCreateSchoolOperatorCreator(
@@ -33,17 +41,22 @@ export async function findOrCreateSchoolOperatorCreator(
   name: string,
 ): Promise<string> {
   const db = prisma as any;
-  const existing = await db.creator.findFirst({ where: { schoolId } });
+  const existing = await db.creator.findFirst({ where: { schoolId, email } });
   if (existing) return existing.id as string;
 
-  // Also check by email in case a prior create attempt left an orphan row
-  const byEmail = await db.creator.findFirst({ where: { email } });
+  const byEmail = await db.creator.findUnique({ where: { email } });
   if (byEmail) {
-    // Adopt this creator for the school
-    if (!byEmail.schoolId) {
-      await db.creator.update({ where: { id: byEmail.id }, data: { schoolId, type: "SCHOOL_OPERATOR" } });
+    if (byEmail.schoolId === schoolId) {
+      return byEmail.id as string;
     }
-    return byEmail.id as string;
+    if (!byEmail.schoolId) {
+      await db.creator.update({
+        where: { id: byEmail.id },
+        data: { schoolId, type: "SCHOOL_OPERATOR", name, email },
+      });
+      return byEmail.id as string;
+    }
+    throw Object.assign(new Error("Creator email already belongs to another school."), { status: 409 });
   }
 
   const created = await db.creator.create({
@@ -56,12 +69,83 @@ export async function findCreatorById(creatorId: string) {
   return (prisma as any).creator.findUnique({ where: { id: creatorId } });
 }
 
+async function getSmartPagesActor(creatorId: string): Promise<SmartPagesActor> {
+  const db = prisma as any;
+  const creator = await db.creator.findUnique({
+    where: { id: creatorId },
+    select: { id: true, type: true, email: true, name: true, schoolId: true, isActive: true },
+  });
+  if (!creator || !creator.isActive) throw Object.assign(new Error("Creator not found."), { status: 404 });
+  return {
+    id: creator.id as string,
+    type: creator.type as SmartPagesActor["type"],
+    email: creator.email as string,
+    name: creator.name as string,
+    schoolId: (creator.schoolId as string | null) ?? null,
+  };
+}
+
+async function loadOwnedSmartDocument(db: any, actor: SmartPagesActor, documentId: string, include?: Record<string, unknown>) {
+  const doc = await db.smartDocument.findUnique({
+    where: { id: documentId },
+    ...(include ? { include } : {}),
+  });
+  if (!doc) throw Object.assign(new Error("Document not found."), { status: 404 });
+
+  const schoolOwned = actor.type === "SCHOOL_OPERATOR" && actor.schoolId
+    ? (doc.schoolId && doc.schoolId === actor.schoolId)
+    : false;
+  const legacyOwned = doc.schoolId == null && doc.creatorId === actor.id;
+  const creatorOwned = actor.type === "EXTERNAL" && doc.creatorId === actor.id && doc.schoolId == null;
+
+  if (!schoolOwned && !legacyOwned && !creatorOwned) {
+    throw Object.assign(new Error("You do not have access to this document."), { status: 403 });
+  }
+
+  return doc;
+}
+
+async function writeSmartPagesAudit(
+  actor: SmartPagesActor | null,
+  action: string,
+  correlationId: string | null,
+  details: Record<string, unknown>,
+) {
+  if (!actor?.schoolId) return;
+  const db = prisma as any;
+  await db.auditLog.create({
+    data: {
+      id: randomUUID(),
+      schoolId: actor.schoolId,
+      action,
+      correlationId,
+      details: {
+        actor: {
+          id: actor.id,
+          type: actor.type,
+          email: actor.email,
+          name: actor.name,
+        },
+        ...details,
+      },
+    },
+  });
+}
+
 // ── Document list ──────────────────────────────────────────────────────────────
 
 export async function listDocuments(creatorId: string): Promise<SmartDocumentSummary[]> {
   const db = prisma as any;
+  const actor = await getSmartPagesActor(creatorId);
   const docs = await db.smartDocument.findMany({
-    where: { creatorId },
+    where: actor.type === "SCHOOL_OPERATOR" && actor.schoolId
+      ? {
+          OR: [
+            { schoolId: actor.schoolId },
+            { creatorId: actor.id, schoolId: null },
+          ],
+        }
+      : { creatorId: actor.id, schoolId: null },
     orderBy: { updatedAt: "desc" },
     include: {
       _count: { select: { versions: true, sourceFiles: true } },
@@ -88,12 +172,20 @@ export async function listDocuments(creatorId: string): Promise<SmartDocumentSum
 
 export async function createDocument(creatorId: string, title: string): Promise<SmartDocumentDetail> {
   const db = prisma as any;
+  const actor = await getSmartPagesActor(creatorId);
   const doc = await db.smartDocument.create({
-    data: { id: randomUUID(), creatorId, title, status: "DRAFT" },
+    data: {
+      id: randomUUID(),
+      creatorId,
+      ...(actor.schoolId ? { schoolId: actor.schoolId } : {}),
+      title,
+      status: "DRAFT",
+    },
   });
-  await upsertSearchIndex(creatorId, "DOCUMENT", doc.id, doc.title, doc.title, { status: doc.status });
-  await createNotification(creatorId, "DOCUMENT_CREATED", "Document created", `${doc.title} is ready for content.`);
-  await executeWorkflows(creatorId, "DOCUMENT_CREATED", { documentId: doc.id, title: doc.title });
+  await upsertSearchIndex(actor.id, "DOCUMENT", doc.id, doc.title, doc.title, { status: doc.status });
+  await createNotification(actor.id, "DOCUMENT_CREATED", "Document created", `${doc.title} is ready for content.`);
+  await executeWorkflows(actor.id, "DOCUMENT_CREATED", { documentId: doc.id, title: doc.title });
+  await writeSmartPagesAudit(actor, "SMART_DOCUMENT_CREATED", doc.id as string, { documentId: doc.id, title: doc.title });
   return rowToDetail(doc, null, 0);
 }
 
@@ -101,16 +193,12 @@ export async function createDocument(creatorId: string, title: string): Promise<
 
 export async function getDocument(documentId: string, creatorId: string): Promise<SmartDocumentDetail | null> {
   const db = prisma as any;
-  const doc = await db.smartDocument.findFirst({
-    where: { id: documentId, creatorId },
-    include: {
-      _count: { select: { versions: true } },
-      published: { select: { token: true } },
-      sourceFiles: { orderBy: { createdAt: "desc" }, take: 1 },
-    },
+  const actor = await getSmartPagesActor(creatorId);
+  const doc = await loadOwnedSmartDocument(db, actor, documentId, {
+    _count: { select: { versions: true } },
+    published: { select: { token: true } },
+    sourceFiles: { orderBy: { createdAt: "desc" }, take: 1 },
   });
-  if (!doc) return null;
-
   const activeVersion = await resolveActiveVersion(db, documentId, doc.activeVersionId);
   return rowToDetail(doc, activeVersion, doc._count.versions);
 }
@@ -170,8 +258,8 @@ export async function uploadAndExtract(
   file: Express.Multer.File,
 ): Promise<{ sourceFileId: string; status: "PROCESSING" }> {
   const db = prisma as any;
-  const doc = await db.smartDocument.findFirst({ where: { id: documentId, creatorId } });
-  if (!doc) throw Object.assign(new Error("Document not found."), { status: 404 });
+  const actor = await getSmartPagesActor(creatorId);
+  await loadOwnedSmartDocument(db, actor, documentId);
   const fileHash = createHash("sha256").update(file.buffer).digest("hex");
 
   const sourceFile = await db.documentSourceFile.create({
@@ -197,6 +285,13 @@ export async function uploadAndExtract(
       extractionCompletedAt: null,
     },
   });
+  await writeSmartPagesAudit(actor, "SMART_DOCUMENT_FILE_UPLOADED", sourceFile.id as string, {
+    documentId,
+    sourceFileId: sourceFile.id,
+    fileName: file.originalname,
+    mimeType: file.mimetype,
+    sizeBytes: file.size,
+  });
   return { sourceFileId: sourceFile.id as string, status: "PROCESSING" };
 }
 
@@ -207,8 +302,8 @@ export async function retryDocumentExtraction(
   highAccuracy = false,
 ): Promise<{ sourceFileId: string; status: "PROCESSING" }> {
   const db = prisma as any;
-  const doc = await db.smartDocument.findFirst({ where: { id: documentId, creatorId }, include: { sourceFiles: { orderBy: { createdAt: "desc" }, take: 1 } } });
-  if (!doc) throw Object.assign(new Error("Document not found."), { status: 404 });
+  const actor = await getSmartPagesActor(creatorId);
+  const doc = await loadOwnedSmartDocument(db, actor, documentId, { sourceFiles: { orderBy: { createdAt: "desc" }, take: 1 } });
   const sourceFile = sourceFileId
     ? await db.documentSourceFile.findFirst({ where: { id: sourceFileId, documentId } })
     : doc.sourceFiles?.[0];
@@ -268,6 +363,7 @@ export async function processSourceFileExtraction(sourceFileId: string): Promise
   const sourceFile = await db.documentSourceFile.findUnique({ where: { id: sourceFileId }, include: { document: true } });
   if (!sourceFile || sourceFile.status === "READY") return;
   const document = sourceFile.document;
+  const actor = await getSmartPagesActor(document.creatorId);
   try {
     const cached = sourceFile.fileHash
       ? await db.documentSourceFile.findFirst({
@@ -280,7 +376,7 @@ export async function processSourceFileExtraction(sourceFileId: string): Promise
         })
       : null;
     if (cached?.extractedContent) {
-      await completeExtraction(sourceFile, cached.extractedContent as ExtractedKnowledge, {
+      await completeExtraction(sourceFile, cached.extractedContent as ExtractedKnowledge, actor, {
         processedData: cached.processedData,
         processedMimeType: cached.processedMimeType,
         ocrQuality: { reusedFromSourceFileId: cached.id, notes: [{ code: "CACHE_HIT", message: "Reused extraction from matching file.", severity: "info" }] },
@@ -297,7 +393,7 @@ export async function processSourceFileExtraction(sourceFileId: string): Promise
 
     const structured = parseStructuredFile(original, sourceFile.mimeType, sourceFile.originalName);
     if (structured) {
-      await completeExtraction(sourceFile, structured, {
+      await completeExtraction(sourceFile, structured, actor, {
         processedData: original,
         processedMimeType: sourceFile.mimeType,
         ocrQuality: { notes: [{ code: "LOCAL_STRUCTURED_PARSE", message: "Parsed structured file locally without Gemini.", severity: "info" }] },
@@ -338,7 +434,7 @@ export async function processSourceFileExtraction(sourceFileId: string): Promise
             ? "Some handwriting was unclear. Please review before publishing."
             : undefined),
     };
-    await completeExtraction(sourceFile, enrichedKnowledge, {
+    await completeExtraction(sourceFile, enrichedKnowledge, actor, {
       processedData: preprocessed.processedBuffer,
       processedMimeType: preprocessed.processedMimeType,
       ocrQuality: { width: preprocessed.width, height: preprocessed.height, notes: preprocessed.notes, warning: preprocessed.warning, retryMode },
@@ -369,12 +465,21 @@ export async function processSourceFileExtraction(sourceFileId: string): Promise
       where: { id: sourceFile.documentId },
       data: { extractionStatus: "FAILED", extractionError: message, extractionCompletedAt: new Date() },
     });
+    await writeSmartPagesAudit(actor, "SMART_DOCUMENT_EXTRACTION_FAILED", sourceFile.id as string, {
+      documentId: sourceFile.documentId,
+      sourceFileId: sourceFile.id,
+      originalName: sourceFile.originalName,
+      mimeType: sourceFile.mimeType,
+      sizeBytes: sourceFile.sizeBytes,
+      errorMessage: error instanceof Error ? error.message : String(error),
+    });
   }
 }
 
 async function completeExtraction(
   sourceFile: any,
   knowledge: ExtractedKnowledge,
+  actor: SmartPagesActor,
   extras: { processedData?: Buffer | null; processedMimeType?: string | null; ocrQuality?: unknown },
 ) {
   const db = prisma as any;
@@ -403,7 +508,7 @@ async function completeExtraction(
       ...(needsTitleUpdate && knowledge.title ? { title: knowledge.title } : {}),
     },
   });
-  await upsertSearchIndex(sourceFile.document.creatorId, "DOCUMENT", sourceFile.documentId, title, [
+  await upsertSearchIndex(document.creatorId, "DOCUMENT", sourceFile.documentId, title, [
     title,
     knowledge.documentType,
     knowledge.domain,
@@ -411,7 +516,13 @@ async function completeExtraction(
     JSON.stringify(knowledge.sections ?? []),
     JSON.stringify(knowledge.tables ?? []),
   ].join("\n"), { status: document.status, sourceFileId: sourceFile.id });
-  await createNotification(sourceFile.document.creatorId, "EXTRACTION_READY", "Document ready for review", `${title} has been read and is ready to review.`);
+  await createNotification(document.creatorId, "EXTRACTION_READY", "Document ready for review", `${title} has been read and is ready to review.`);
+  await writeSmartPagesAudit(actor, "SMART_DOCUMENT_EXTRACTION_COMPLETED", sourceFile.id as string, {
+    documentId: sourceFile.documentId,
+    sourceFileId: sourceFile.id,
+    title,
+    status: document.status,
+  });
 }
 
 function resolveRetryMode(ocrQuality: unknown): DocumentOcrPreprocessMode {
@@ -521,8 +632,8 @@ export async function updateExtractedKnowledge(
   knowledge: ExtractedKnowledge,
 ): Promise<ExtractedKnowledge> {
   const db = prisma as any;
-  const doc = await db.smartDocument.findFirst({ where: { id: documentId, creatorId } });
-  if (!doc) throw Object.assign(new Error("Document not found."), { status: 404 });
+  const actor = await getSmartPagesActor(creatorId);
+  const doc = await loadOwnedSmartDocument(db, actor, documentId);
   await db.smartDocument.update({
     where: { id: documentId },
     data: {
@@ -542,6 +653,10 @@ export async function updateExtractedKnowledge(
     JSON.stringify(knowledge.tables ?? []),
     JSON.stringify(knowledge.unclearItems ?? []),
   ].join("\n"), { status: doc.status, reviewed: true });
+  await writeSmartPagesAudit(actor, "SMART_DOCUMENT_KNOWLEDGE_UPDATED", documentId, {
+    documentId,
+    title: knowledge.title || doc.title,
+  });
   return knowledge;
 }
 
@@ -553,8 +668,8 @@ export async function generateSchema(
   intent: string,
 ): Promise<{ versionId: string; schema: DocumentSchema; componentTree: ComponentNode[] }> {
   const db = prisma as any;
-  const doc = await db.smartDocument.findFirst({ where: { id: documentId, creatorId } });
-  if (!doc) throw Object.assign(new Error("Document not found."), { status: 404 });
+  const actor = await getSmartPagesActor(creatorId);
+  const doc = await loadOwnedSmartDocument(db, actor, documentId);
 
   const knowledge = doc.extractedKnowledge as ExtractedKnowledge | null;
   if (!knowledge) throw Object.assign(new Error("Upload a file first to extract content."), { status: 400 });
@@ -585,6 +700,11 @@ export async function generateSchema(
     JSON.stringify(finalSchema),
     JSON.stringify(finalComponents),
   ].join("\n"), { documentId });
+  await writeSmartPagesAudit(actor, "SMART_DOCUMENT_GENERATED", version.id as string, {
+    documentId,
+    versionId: version.id,
+    instruction: intent,
+  });
 
   return { versionId: version.id as string, schema: finalSchema, componentTree: finalComponents };
 }
@@ -597,8 +717,8 @@ export async function applyPrompt(
   instruction: string,
 ): Promise<{ versionId: string; schema: DocumentSchema; componentTree: ComponentNode[] }> {
   const db = prisma as any;
-  const doc = await db.smartDocument.findFirst({ where: { id: documentId, creatorId } });
-  if (!doc) throw Object.assign(new Error("Document not found."), { status: 404 });
+  const actor = await getSmartPagesActor(creatorId);
+  const doc = await loadOwnedSmartDocument(db, actor, documentId);
   if (doc.extractionStatus === "PROCESSING") {
     throw Object.assign(new Error("Document extraction is still processing. Please wait for review before editing."), { status: 409 });
   }
@@ -639,6 +759,11 @@ export async function applyPrompt(
     JSON.stringify(finalSchema),
     JSON.stringify(finalComponents),
   ].join("\n"), { documentId });
+  await writeSmartPagesAudit(actor, "SMART_DOCUMENT_PROMPT_APPLIED", version.id as string, {
+    documentId,
+    versionId: version.id,
+    instruction,
+  });
 
   return { versionId: version.id as string, schema: finalSchema, componentTree: finalComponents };
 }
@@ -650,8 +775,8 @@ export async function getVersionHistory(
   creatorId: string,
 ): Promise<DocumentVersionSummary[]> {
   const db = prisma as any;
-  const doc = await db.smartDocument.findFirst({ where: { id: documentId, creatorId } });
-  if (!doc) throw Object.assign(new Error("Document not found."), { status: 404 });
+  const actor = await getSmartPagesActor(creatorId);
+  const doc = await loadOwnedSmartDocument(db, actor, documentId);
 
   const versions = await db.documentVersion.findMany({
     where: { documentId },
@@ -673,8 +798,8 @@ export async function restoreVersion(
   versionId: string,
 ): Promise<void> {
   const db = prisma as any;
-  const doc = await db.smartDocument.findFirst({ where: { id: documentId, creatorId } });
-  if (!doc) throw Object.assign(new Error("Document not found."), { status: 404 });
+  const actor = await getSmartPagesActor(creatorId);
+  const doc = await loadOwnedSmartDocument(db, actor, documentId);
   const version = await db.documentVersion.findFirst({ where: { id: versionId, documentId } });
   if (!version) throw Object.assign(new Error("Version not found."), { status: 404 });
   await db.smartDocument.update({ where: { id: documentId }, data: { activeVersionId: versionId } });
@@ -684,6 +809,11 @@ export async function restoreVersion(
     JSON.stringify(version.componentTree ?? []),
   ].join("\n"), { documentId });
   await createNotification(creatorId, "VERSION_RESTORED", "Version restored", `${doc.title} was restored to an earlier version.`);
+  await writeSmartPagesAudit(actor, "SMART_DOCUMENT_VERSION_RESTORED", versionId, {
+    documentId,
+    versionId,
+    title: doc.title,
+  });
 }
 
 // ── Publish ────────────────────────────────────────────────────────────────────
@@ -694,9 +824,10 @@ export async function publishDocument(
   options: { expiresInDays?: number; password?: string } = {},
 ): Promise<{ token: string; url: string }> {
   const db = prisma as any;
-  const doc = await db.smartDocument.findFirst({ where: { id: documentId, creatorId }, include: { activeVersion: true } });
-  if (!doc) throw Object.assign(new Error("Document not found."), { status: 404 });
-  if (!doc.activeVersion) throw Object.assign(new Error("Generate a document first before publishing."), { status: 400 });
+  const actor = await getSmartPagesActor(creatorId);
+  const doc = await loadOwnedSmartDocument(db, actor, documentId);
+  const activeVersion = await resolveActiveVersion(db, documentId, doc.activeVersionId);
+  if (!activeVersion) throw Object.assign(new Error("Generate a document first before publishing."), { status: 400 });
 
   const token = randomUUID().replace(/-/g, "").slice(0, 16);
   const expiresAt = options.expiresInDays
@@ -715,6 +846,11 @@ export async function publishDocument(
   await incrementDocumentAnalytics(documentId, { shares: 1 });
   await createNotification(creatorId, "DOCUMENT_PUBLISHED", "Document published", `${doc.title} is available at its public link.`);
   await executeWorkflows(creatorId, "PUBLISH_COMPLETED", { documentId, token, title: doc.title });
+  await writeSmartPagesAudit(actor, "SMART_DOCUMENT_PUBLISHED", documentId, {
+    documentId,
+    token,
+    title: doc.title,
+  });
 
   const origin = process.env.CLIENT_ORIGIN ?? "http://localhost:5173";
   return { token, url: `${origin}/p/${token}` };

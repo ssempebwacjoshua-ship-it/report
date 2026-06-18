@@ -326,6 +326,7 @@ model SmartPageLedger {
   @@index([schoolId, createdAt])
 }
 
+// Legacy DocumentCleanerJob remains in schema. Confirm no live data before safe removal migration.
 model DocumentCleanerJob {
   id             String   @id @default(uuid()) @db.Uuid
   schoolId       String?  @db.Uuid
@@ -434,6 +435,7 @@ model Creator {
 model SmartDocument {
   id                    String               @id @default(uuid()) @db.Uuid
   creatorId             String               @db.Uuid
+  schoolId              String?              @db.Uuid
   title                 String
   extractedKnowledge    Json?
   activeVersionId       String?              @db.Uuid
@@ -452,6 +454,8 @@ model SmartDocument {
 
   @@index([creatorId, status, createdAt])
   @@index([creatorId, extractionStatus, updatedAt])
+  @@index([schoolId, status, createdAt])
+  @@index([schoolId, extractionStatus, updatedAt])
 }
 
 model DocumentVersion {
