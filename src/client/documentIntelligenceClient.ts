@@ -164,11 +164,56 @@ export async function openPrintWindow(documentId: string): Promise<void> {
   const res = await fetch(`${API_BASE}/api/smart-documents/${documentId}/print`, { headers: authHeaders() });
   if (!res.ok) throw new Error(await parseApiError(res, "Print failed"));
   const html = await res.text();
-  const blob = new Blob([html], { type: "text/html" });
-  const url = URL.createObjectURL(blob);
-  const win = window.open(url, "_blank");
-  if (!win) throw new Error("Print window was blocked by the browser. Please allow pop-ups and try again.");
-  setTimeout(() => URL.revokeObjectURL(url), 30_000);
+  await new Promise<void>((resolve, reject) => {
+    const iframe = document.createElement("iframe");
+    iframe.setAttribute("aria-hidden", "true");
+    iframe.tabIndex = -1;
+    iframe.style.position = "fixed";
+    iframe.style.right = "0";
+    iframe.style.bottom = "0";
+    iframe.style.width = "0";
+    iframe.style.height = "0";
+    iframe.style.border = "0";
+    iframe.style.opacity = "0";
+    iframe.style.pointerEvents = "none";
+
+    const cleanup = () => {
+      window.removeEventListener("afterprint", handleAfterPrint);
+      iframe.remove();
+    };
+
+    const handleAfterPrint = () => {
+      cleanup();
+      resolve();
+    };
+
+    const fail = (message: string) => {
+      cleanup();
+      reject(new Error(message));
+    };
+
+    window.addEventListener("afterprint", handleAfterPrint, { once: true });
+    iframe.onload = () => {
+      const frameWindow = iframe.contentWindow;
+      if (!frameWindow) {
+        fail("Print preview could not be started.");
+        return;
+      }
+      try {
+        frameWindow.focus();
+        frameWindow.print();
+      } catch {
+        fail("Print preview could not be started.");
+      }
+    };
+    iframe.srcdoc = html;
+    document.body.appendChild(iframe);
+    window.setTimeout(() => {
+      if (document.body.contains(iframe)) {
+        fail("Print preview could not be started.");
+      }
+    }, 10_000);
+  });
 }
 
 export async function getPublishedDocument(
