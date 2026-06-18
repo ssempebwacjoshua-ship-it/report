@@ -1,15 +1,11 @@
 ﻿import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { fetchDashboardStats } from "../client/dashboardClient";
-import { fetchStudentContactSummary } from "../client/studentsClient";
-import { ActivityCard } from "../components/dashboard/ActivityCard";
-import { ReportsOverviewCard } from "../components/dashboard/ReportsOverviewCard";
 import { StatCard } from "../components/dashboard/StatCard";
 import { Icon } from "../components/layout/Icon";
 import { getSchoolDisplayName } from "../components/layout/branding";
 import { useAppSettings } from "../components/layout/SettingsContext";
 import type { DashboardStats } from "../shared/types/dashboard";
-import type { ContactSummary } from "../shared/types/students";
 
 const dashboardTabs = [
   { label: "Overview", href: null },
@@ -69,12 +65,6 @@ export function DashboardPage() {
   const [statsError, setStatsError] = useState("");
   const [statsLoading, setStatsLoading] = useState(true);
 
-  const [contacts, setContacts] = useState<ContactSummary>({
-    guardians: 0,
-    emailContacts: 0,
-    phoneContacts: 0,
-    reportRecipients: 0,
-  });
 
   useEffect(() => {
     fetchDashboardStats()
@@ -82,12 +72,8 @@ export function DashboardPage() {
       .catch((err: Error) => setStatsError(err.message))
       .finally(() => setStatsLoading(false));
 
-    fetchStudentContactSummary()
-      .then(setContacts)
-      .catch(() => {});
   }, []);
 
-  const missingRecipients = Math.max(contacts.guardians - contacts.reportRecipients, 0);
   const activeTerm = stats?.activeTerm;
   const termLabel = activeTerm
     ? `${activeTerm.name}, ${activeTerm.academicYear}`
@@ -243,235 +229,6 @@ export function DashboardPage() {
       </section>
 
       {/* ── Recent uploads + Reports overview ────────────────────────────── */}
-      <section className="grid gap-3 xl:grid-cols-[1.25fr_0.95fr]">
-        <section className="premium-card rounded-xl p-4">
-          <div className="flex flex-wrap items-start justify-between gap-2">
-            <div>
-              <h2 className="text-sm font-bold text-slate-950">Recent Marks Uploads</h2>
-              <p className="mt-0.5 text-xs text-slate-500">Latest committed import batches.</p>
-            </div>
-            <Link to="/imports/marks" className="action-link text-sm">
-              View all uploads
-              <span aria-hidden="true">&rarr;</span>
-            </Link>
-          </div>
-          <div className="mt-3 overflow-x-auto">
-            {statsLoading ? (
-              <p className="py-6 text-center text-xs text-slate-400">Loading...</p>
-            ) : stats?.recentBatches.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-slate-200 py-8 text-center">
-                <p className="text-sm font-semibold text-slate-500">No uploads yet</p>
-                <Link
-                  to="/imports/marks"
-                  className="mt-2 inline-block text-xs font-bold text-blue-600 hover:underline"
-                >
-                  Import marks now
-                </Link>
-              </div>
-            ) : (
-              <table className="w-full min-w-[480px] text-left text-sm">
-                <thead>
-                  <tr className="border-b border-slate-100 bg-slate-50 text-slate-500">
-                    <th className="rounded-l-lg px-2.5 py-2 text-[11px] font-black uppercase tracking-wide">
-                      Batch
-                    </th>
-                    <th className="px-2.5 py-2 text-[11px] font-black uppercase tracking-wide">
-                      Rows
-                    </th>
-                    <th className="px-2.5 py-2 text-[11px] font-black uppercase tracking-wide">
-                      Uploaded
-                    </th>
-                    <th className="px-2.5 py-2 text-[11px] font-black uppercase tracking-wide">
-                      Status
-                    </th>
-                    <th className="rounded-r-lg px-2.5 py-2 text-right text-[11px] font-black uppercase tracking-wide">
-                      Action
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {stats?.recentBatches.map((batch) => (
-                    <tr key={batch.id} className="hover:bg-blue-50/50">
-                      <td className="px-2.5 py-2 font-mono text-xs font-bold text-slate-700">
-                        {batch.id.slice(0, 8)}...
-                      </td>
-                      <td className="px-2.5 py-2 text-sm text-slate-700">
-                        {batch.rowCount > 0 ? batch.rowCount : "-"}
-                      </td>
-                      <td className="px-2.5 py-2 text-sm text-slate-600">
-                        {fmtDate(batch.uploadedAt)}
-                      </td>
-                      <td className="px-2.5 py-2">
-                        <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-extrabold text-amber-700 ring-1 ring-amber-200">
-                          Pending Review
-                        </span>
-                      </td>
-                      <td className="px-2.5 py-2 text-right">
-                        <Link
-                          to="/imports/marks"
-                          className="rounded-xl border border-blue-100 bg-white px-3 py-1.5 text-xs font-extrabold text-blue-700 shadow-sm hover:bg-blue-50"
-                        >
-                          Review
-                        </Link>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
-        </section>
-
-        <ReportsOverviewCard
-          workflow={
-            stats?.workflow ?? {
-              marksUploaded: 0,
-              reviewed: 0,
-              generated: 0,
-              approved: 0,
-              released: 0,
-            }
-          }
-          termLabel={termLabel}
-        />
-      </section>
-
-      {/* ── Quick actions + Contact summary ──────────────────────────────── */}
-      <section className="grid gap-3 xl:grid-cols-[1.05fr_1.15fr]">
-        <section className="premium-card rounded-xl p-4">
-          <div className="flex flex-wrap items-start justify-between gap-2">
-            <div>
-              <h2 className="text-sm font-bold text-slate-950">Quick Actions</h2>
-              <p className="mt-0.5 text-xs text-slate-500">Jump straight into the next task.</p>
-            </div>
-          </div>
-          <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-1 2xl:grid-cols-3">
-            <Link to="/reports" className="btn btn-primary justify-start">
-              <Icon name="file" className="h-4 w-4" />
-              Generate Reports
-            </Link>
-            <Link to="/imports/marks" className="btn btn-secondary justify-start">
-              <Icon name="cloud" className="h-4 w-4" />
-              Import Marks
-            </Link>
-            <Link to="/imports/marks" className="btn btn-warning justify-start">
-              <Icon name="activity" className="h-4 w-4" />
-              Review Pending
-            </Link>
-          </div>
-        </section>
-
-        <section className="premium-card rounded-xl p-4">
-          <div className="flex flex-wrap items-start justify-between gap-2">
-            <div>
-              <h2 className="text-sm font-bold text-slate-950">Student Contacts for Reports</h2>
-              <p className="mt-0.5 text-xs text-slate-500">
-                Recipients and channels needed before release.
-              </p>
-            </div>
-            <Link to="/students" className="action-link text-sm">
-              Manage Students
-              <span aria-hidden="true">&rarr;</span>
-            </Link>
-          </div>
-          <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-2 xl:grid-cols-4">
-            {(
-              [
-                ["Guardians", contacts.guardians, "Saved contacts", "green"],
-                ["Email", contacts.emailContacts, "Email addresses", "blue"],
-                ["Phone/SMS", contacts.phoneContacts, `${contacts.reportRecipients} ready`, "purple"],
-                ["Missing", missingRecipients, "Needs follow-up", "yellow"],
-              ] as const
-            ).map(([label, value, note, tone]) => (
-              <div
-                key={label}
-                className="rounded-xl border border-slate-100 bg-white p-3 shadow-sm"
-              >
-                <span
-                  className={`grid h-8 w-8 place-items-center rounded-lg ${
-                    tone === "green"
-                      ? "bg-green-100 text-green-600"
-                      : tone === "blue"
-                        ? "bg-blue-100 text-blue-600"
-                        : tone === "yellow"
-                          ? "bg-amber-100 text-amber-600"
-                          : "bg-violet-100 text-violet-600"
-                  }`}
-                >
-                  <Icon name={tone === "yellow" ? "bell" : "students"} className="h-4 w-4" />
-                </span>
-                <p className="mt-2 text-xs font-bold text-slate-500">{label}</p>
-                <p className="mt-0.5 text-lg font-bold text-slate-950">
-                  {fmt(value)}
-                </p>
-                <p
-                  className={
-                    tone === "yellow"
-                      ? "mt-0.5 text-xs font-semibold text-amber-600"
-                      : "mt-0.5 text-xs text-blue-600"
-                  }
-                >
-                  {note}
-                </p>
-              </div>
-            ))}
-          </div>
-        </section>
-      </section>
-
-      {/* ── Activity + Focus ──────────────────────────────────────────────── */}
-      <section className="grid gap-3 xl:grid-cols-[1.25fr_0.95fr]">
-        <ActivityCard activities={stats?.recentActivity ?? []} />
-        <section className="premium-card rounded-xl p-4">
-          <div className="flex items-center gap-3">
-            <div className="grid h-9 w-9 place-items-center rounded-xl bg-blue-100 text-blue-600">
-              <Icon name="check" className="h-5 w-5" />
-            </div>
-            <div>
-              <h2 className="text-sm font-bold text-slate-950">Today&apos;s Focus</h2>
-              <p className="mt-0.5 text-xs text-slate-500">
-                Clear pending marks before generating the next report batch.
-              </p>
-            </div>
-          </div>
-          <div className="mt-3 rounded-xl bg-gradient-to-br from-blue-50 to-emerald-50 p-3">
-            {statsLoading ? (
-              <p className="text-xs text-slate-400">Loading...</p>
-            ) : (
-              <p className="text-xs font-semibold text-slate-700">
-                {pendingCount > 0
-                  ? `Start with the ${fmt(pendingCount)} pending upload${pendingCount !== 1 ? "s" : ""}.`
-                  : "No pending marks uploads."}
-                {issuedCount > 0
-                  ? ` ${fmt(issuedCount)} report${issuedCount !== 1 ? "s" : ""} issued.`
-                  : " No reports issued yet."}
-                {" "}Once contacts are complete, release approved reports to parents.
-              </p>
-            )}
-          </div>
-          <div className="mt-3 flex flex-col gap-2">
-            {pendingCount > 0 && (
-              <Link to="/imports/marks" className="btn btn-warning w-full justify-start text-xs">
-                <Icon name="activity" className="h-3.5 w-3.5" />
-                Review {fmt(pendingCount)} pending upload{pendingCount !== 1 ? "s" : ""}
-              </Link>
-            )}
-            {issuedCount > 0 && (
-              <Link to="/reports/release" className="btn btn-secondary w-full justify-start text-xs">
-                <Icon name="send" className="h-3.5 w-3.5" />
-                Release {fmt(issuedCount)} report{issuedCount !== 1 ? "s" : ""} to parents
-              </Link>
-            )}
-            {pendingCount === 0 && issuedCount === 0 && !statsLoading && (
-              <Link to="/imports/marks" className="btn btn-primary w-full justify-start text-xs">
-                <Icon name="cloud" className="h-3.5 w-3.5" />
-                Import marks to get started
-              </Link>
-            )}
-          </div>
-        </section>
-      </section>
-
       <footer className="flex flex-wrap justify-between gap-3 pb-1 text-xs text-slate-400">
         <span>&copy; 2026 {schoolName}. All rights reserved.</span>
         <span>Version 1.0.0</span>
