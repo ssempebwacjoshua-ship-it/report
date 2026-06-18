@@ -1,4 +1,4 @@
-type Props = {
+﻿type Props = {
   reason: string | null;
 };
 
@@ -10,3 +10,4 @@ export function EmptyReportState({ reason }: Props) {
     </div>
   );
 }
+

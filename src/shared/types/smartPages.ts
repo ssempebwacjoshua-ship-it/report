@@ -1,4 +1,4 @@
-export type ExtractionMode = "economical" | "balanced" | "high_accuracy";
+﻿export type ExtractionMode = "economical" | "balanced" | "high_accuracy";
 
 export type PlanName = "STARTER" | "STANDARD" | "PRO" | "ENTERPRISE";
 
@@ -66,3 +66,4 @@ export type SmartPageErrorCode =
 export type CanExtractResult =
   | { allowed: true }
   | { allowed: false; code: SmartPageErrorCode; message: string };
+

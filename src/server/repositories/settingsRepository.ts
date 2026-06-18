@@ -1,4 +1,4 @@
-import type { PrismaClient } from "@prisma/client";
+﻿import type { PrismaClient } from "@prisma/client";
 import type { z } from "zod";
 import {
   academicSetupSchema,
@@ -311,3 +311,4 @@ export async function patchSettingsSection<K extends SettingSection>(
     updatedBy: saved.updatedBy,
   };
 }
+

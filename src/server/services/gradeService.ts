@@ -1,4 +1,4 @@
-import { GRADE_BANDS } from "../../shared/constants/grades";
+﻿import { GRADE_BANDS } from "../../shared/constants/grades";
 import type { GradingScaleSettings } from "../../shared/types/settings";
 
 export function gradeForAverage(average: number | null, grading?: GradingScaleSettings): string | null {
@@ -12,3 +12,4 @@ export function gradeForAverage(average: number | null, grading?: GradingScaleSe
 export function roundMark(value: number): number {
   return Math.round(value * 10) / 10;
 }
+

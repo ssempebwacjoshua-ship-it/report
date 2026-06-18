@@ -1,4 +1,4 @@
-import { Router } from "express";
+﻿import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../db/prisma";
 import { requirePlatformKey } from "../middleware/requirePlatformKey";
@@ -109,3 +109,4 @@ export function platformAdminRoutes() {
 
   return router;
 }
+

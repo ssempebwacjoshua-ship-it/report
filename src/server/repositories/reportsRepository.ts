@@ -1,4 +1,4 @@
-import type { PrismaClient } from "@prisma/client";
+﻿import type { PrismaClient } from "@prisma/client";
 import type { ReportFilters } from "../../shared/types/reports";
 import type { ContactReadiness } from "../../shared/types/students";
 import type { EngineInput } from "../services/reportEngine";
@@ -110,3 +110,4 @@ export async function loadReportEngineInput(prisma: PrismaClient, filters: Repor
     },
   };
 }
+

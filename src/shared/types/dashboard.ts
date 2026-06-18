@@ -1,4 +1,4 @@
-export type ActiveTerm = {
+﻿export type ActiveTerm = {
   id: string;
   name: string;
   academicYear: string;
@@ -39,3 +39,4 @@ export type DashboardStats = {
   recentBatches: RecentBatch[];
   recentActivity: DashboardActivity[];
 };
+

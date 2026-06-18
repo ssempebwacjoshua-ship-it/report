@@ -1,9 +1,9 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+﻿import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import { MarksheetsPage } from "../../pages/MarksheetsPage";
 
-// Lightweight stand-in — avoids pulling in qrcode.react in the test environment
+// Lightweight stand-in â€” avoids pulling in qrcode.react in the test environment
 vi.mock("../../components/marksheets/PrintableMarksheet", () => ({
   PrintableMarksheet: ({
     students,
@@ -89,7 +89,7 @@ vi.mock("../../client/importsClient", () => ({
   dryRunMarksImport: vi.fn(),
 }));
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
+// â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function renderPage() {
   render(
@@ -102,7 +102,7 @@ function renderPage() {
 async function loadStudents() {
   renderPage();
 
-  // Wait for context to load — "S1" appears as an option in the Class select
+  // Wait for context to load â€” "S1" appears as an option in the Class select
   await waitFor(() => expect(screen.getByRole("option", { name: "S1" })).toBeInTheDocument());
 
   // Filter selects in DOM order: Class(0), Stream(1), Subject(2), Term(3), ExamType(4)
@@ -114,9 +114,9 @@ async function loadStudents() {
   await waitFor(() => expect(screen.getByLabelText("Select Alice Smith")).toBeInTheDocument());
 }
 
-// ── Tests ─────────────────────────────────────────────────────────────────────
+// â”€â”€ Tests â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-describe("MarksheetsPage Print tab — filter returns multiple students", () => {
+describe("MarksheetsPage Print tab â€” filter returns multiple students", () => {
   it("shows all 3 students in the checklist when class and stream are selected", async () => {
     await loadStudents();
     // Verify all three checkboxes (unique per student in the checklist)
@@ -138,7 +138,7 @@ describe("MarksheetsPage Print tab — filter returns multiple students", () => 
   });
 });
 
-describe("MarksheetsPage Print tab — print-page DOM elements", () => {
+describe("MarksheetsPage Print tab â€” print-page DOM elements", () => {
   it("renders exactly one PrintableMarksheet inside the print-only container", async () => {
     await loadStudents();
     const printOnly = document.querySelector(".print-only");
@@ -157,7 +157,7 @@ describe("MarksheetsPage Print tab — print-page DOM elements", () => {
   });
 });
 
-describe("MarksheetsPage Print tab — student selection", () => {
+describe("MarksheetsPage Print tab â€” student selection", () => {
   it("Select All button selects all students", async () => {
     await loadStudents();
     fireEvent.click(screen.getByRole("button", { name: /select all/i }));
@@ -214,7 +214,7 @@ describe("MarksheetsPage Print tab — student selection", () => {
   });
 });
 
-describe("MarksheetsPage Print tab — print button label", () => {
+describe("MarksheetsPage Print tab â€” print button label", () => {
   it("shows 'Print All' when no students are selected", async () => {
     await loadStudents();
     expect(screen.getByRole("button", { name: /print all/i })).toBeInTheDocument();
@@ -235,3 +235,4 @@ describe("MarksheetsPage Print tab — print button label", () => {
     printSpy.mockRestore();
   });
 });
+

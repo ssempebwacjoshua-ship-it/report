@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+﻿import { render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import { Sidebar } from "../../components/layout/Sidebar";
@@ -129,3 +129,4 @@ describe("Sidebar navigation", () => {
     expect(screen.getByText("Paper to PDF").closest("a")).toHaveAttribute("href", "/documents/cleaner");
   });
 });
+

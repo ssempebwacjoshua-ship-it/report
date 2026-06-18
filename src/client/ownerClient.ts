@@ -1,4 +1,4 @@
-import { getApiBaseUrl, makeRequestHeaders, parseApiError } from "./apiBase";
+﻿import { getApiBaseUrl, makeRequestHeaders, parseApiError } from "./apiBase";
 
 const API_BASE = getApiBaseUrl();
 
@@ -151,3 +151,4 @@ export async function patchOwnerSchool(
   });
   if (!res.ok) throw new Error(await parseApiError(res, "Could not update school"));
 }
+

@@ -1,4 +1,4 @@
-const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:4300";
+﻿const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:4300";
 
 function authHeaders(): HeadersInit {
   const stored = localStorage.getItem("sc_auth_token") ?? localStorage.getItem("sp_creator_token");
@@ -12,7 +12,7 @@ async function json<T>(res: Response): Promise<T> {
   return data;
 }
 
-// ── Types ──────────────────────────────────────────────────────────────────────
+// â”€â”€ Types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export interface CollectionRecord {
   id: string;
@@ -56,7 +56,7 @@ export interface BulkJobOutput {
   error: string | null;
 }
 
-// ── Collections ────────────────────────────────────────────────────────────────
+// â”€â”€ Collections â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export async function listCollections(): Promise<Collection[]> {
   const res = await fetch(`${API_BASE}/api/collections`, { headers: authHeaders() });
@@ -124,7 +124,7 @@ export async function importCSV(collectionId: string, file: File): Promise<{ imp
   return json<{ ok: boolean; imported: number; skipped: number }>(res);
 }
 
-// ── Bulk generation jobs ───────────────────────────────────────────────────────
+// â”€â”€ Bulk generation jobs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export async function createBulkJob(collectionId: string, intent: string): Promise<BulkJobSummary> {
   const res = await fetch(`${API_BASE}/api/bulk-jobs`, {
@@ -146,3 +146,4 @@ export async function getBulkJobDetail(jobId: string): Promise<{ job: BulkJobSum
   const res = await fetch(`${API_BASE}/api/bulk-jobs/${jobId}`, { headers: authHeaders() });
   return json<{ ok: boolean; job: BulkJobSummary; outputs: BulkJobOutput[] }>(res);
 }
+

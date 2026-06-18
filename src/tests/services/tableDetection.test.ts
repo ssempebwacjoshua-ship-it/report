@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+﻿import { describe, expect, it } from "vitest";
 import sharp from "sharp";
 import {
   computeSplitZoneRects,
@@ -10,7 +10,7 @@ import {
   LAYOUT,
 } from "../../server/services/marksheetGeometryService";
 
-// ── Synthetic image helpers ───────────────────────────────────────────────────
+// â”€â”€ Synthetic image helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 /**
  * Build a white greyscale JPEG with solid black horizontal lines drawn at the
@@ -63,7 +63,7 @@ async function blankJpeg(width: number, height: number): Promise<Buffer> {
     .toBuffer();
 }
 
-// ── detectMarksheetTable ──────────────────────────────────────────────────────
+// â”€â”€ detectMarksheetTable â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 describe("detectMarksheetTable", () => {
   it("falls back gracefully when the image has no horizontal lines", async () => {
@@ -77,7 +77,7 @@ describe("detectMarksheetTable", () => {
   });
 
   it("falls back when fewer than 3 line events are found", async () => {
-    // Only 2 distinct lines — not enough to infer column header + any data rows.
+    // Only 2 distinct lines â€” not enough to infer column header + any data rows.
     const buf = await makeSyntheticMarksheet(800, 1100, [280, 320]);
     const result = await detectMarksheetTable(buf, 800, 1100);
     expect(result.method).toBe("fallback");
@@ -129,7 +129,7 @@ describe("detectMarksheetTable", () => {
     const expectedFirstRowY = Math.round(
       (LAYOUT.tableStartFrac + LAYOUT.tableHeaderHFrac) * 1100,
     );
-    // Within 5px — loose enough to survive minor rounding differences.
+    // Within 5px â€” loose enough to survive minor rounding differences.
     expect(Math.abs(result.dataRows[0]!.y - expectedFirstRowY)).toBeLessThanOrEqual(5);
   });
 
@@ -192,7 +192,7 @@ describe("final OCR crop geometry", () => {
   });
 });
 
-// ── detectedCellRect ──────────────────────────────────────────────────────────
+// â”€â”€ detectedCellRect â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 describe("detectedCellRect", () => {
   it("returns a rect inside the written mark column bounds", async () => {
@@ -232,7 +232,7 @@ describe("detectedCellRect", () => {
   });
 });
 
-// ── Crop ID → admission number mapping ───────────────────────────────────────
+// â”€â”€ Crop ID â†’ admission number mapping â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 describe("crop ID to admission number mapping", () => {
   it("written crop ID uniquely identifies each student row", () => {
@@ -250,14 +250,14 @@ describe("crop ID to admission number mapping", () => {
   });
 });
 
-// ── All roster students must appear even if detection fails ──────────────────
+// â”€â”€ All roster students must appear even if detection fails â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 describe("roster completeness when table detection falls back", () => {
   it("fallback provides a data row for every roster index up to 26", async () => {
     const buf = await blankJpeg(800, 1100);
     const detection = await detectMarksheetTable(buf, 800, 1100);
 
-    // Simulate 4-student roster: rows 0–3 must all have valid rects.
+    // Simulate 4-student roster: rows 0â€“3 must all have valid rects.
     for (let i = 0; i < 4; i++) {
       const wr = detectedCellRect(detection, "writtenMark", i, 800, 1100);
       const sr = detectedCellRect(detection, "splitMark", i, 800, 1100);
@@ -268,3 +268,4 @@ describe("roster completeness when table detection falls back", () => {
     }
   });
 });
+

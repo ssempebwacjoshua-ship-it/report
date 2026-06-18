@@ -1,8 +1,8 @@
-import request from "supertest";
+﻿import request from "supertest";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createServer } from "../../server";
 
-// ── Smart Pages service mock ──────────────────────────────────────────────────
+// â”€â”€ Smart Pages service mock â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const smartPagesMockState = vi.hoisted(() => ({
   remainingPages: 5000,
@@ -57,7 +57,7 @@ const validDocument = {
   ],
 };
 
-// ── Upload endpoint ────────────────────────────────────────────────────────────
+// â”€â”€ Upload endpoint â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 describe("POST /api/documents/cleaner/upload", () => {
   it("returns 400 MISSING_FILE when no file is attached", async () => {
@@ -144,7 +144,7 @@ describe("POST /api/documents/cleaner/upload", () => {
   });
 
   it("does not import/touch marks import routes (no cross-contamination)", async () => {
-    // Marks import is unaffected — its own health check still works
+    // Marks import is unaffected â€” its own health check still works
     const res = await request(createServer())
       .get("/api/imports/scans/context?marksheetId=MS-2026-S1-A-MATH-BOT-T1&schoolCode=SCU-PREVIEW");
     expect([200, 404]).toContain(res.status);
@@ -152,7 +152,7 @@ describe("POST /api/documents/cleaner/upload", () => {
   });
 });
 
-// ── Generate-PDF (printable HTML) endpoint ────────────────────────────────────
+// â”€â”€ Generate-PDF (printable HTML) endpoint â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 describe("POST /api/documents/cleaner/generate-pdf", () => {
   it("returns 400 when document body is missing", async () => {
@@ -244,7 +244,7 @@ describe("POST /api/documents/cleaner/generate-pdf", () => {
   });
 });
 
-// ── Smart Pages — GET summary endpoint ────────────────────────────────────────
+// â”€â”€ Smart Pages â€” GET summary endpoint â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 describe("GET /api/documents/cleaner/smart-pages", () => {
   beforeEach(() => {
@@ -273,9 +273,9 @@ describe("GET /api/documents/cleaner/smart-pages", () => {
   });
 });
 
-// ── Smart Pages — page allowance enforcement ──────────────────────────────────
+// â”€â”€ Smart Pages â€” page allowance enforcement â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-describe("Smart Pages — allowance enforcement on upload", () => {
+describe("Smart Pages â€” allowance enforcement on upload", () => {
   beforeEach(() => {
     smartPagesMockState.remainingPages = 5000;
     smartPagesMockState.allowHighAccuracy = false;
@@ -304,9 +304,9 @@ describe("Smart Pages — allowance enforcement on upload", () => {
   });
 });
 
-// ── Smart Pages — extraction mode enforcement ─────────────────────────────────
+// â”€â”€ Smart Pages â€” extraction mode enforcement â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-describe("Smart Pages — extraction mode enforcement", () => {
+describe("Smart Pages â€” extraction mode enforcement", () => {
   beforeEach(() => {
     smartPagesMockState.remainingPages = 5000;
     smartPagesMockState.allowHighAccuracy = false;
@@ -354,9 +354,9 @@ describe("Smart Pages — extraction mode enforcement", () => {
   });
 });
 
-// ── Smart Pages — generate-pdf does NOT deduct pages ─────────────────────────
+// â”€â”€ Smart Pages â€” generate-pdf does NOT deduct pages â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-describe("Smart Pages — generate-pdf billing behaviour", () => {
+describe("Smart Pages â€” generate-pdf billing behaviour", () => {
   it("generate-pdf succeeds even when schoolCode has no remaining pages (no billing check)", async () => {
     smartPagesMockState.remainingPages = 0;
     const res = await request(createServer())
@@ -367,9 +367,9 @@ describe("Smart Pages — generate-pdf billing behaviour", () => {
   });
 });
 
-// ── Smart Pages — idempotency / deduplication ─────────────────────────────────
+// â”€â”€ Smart Pages â€” idempotency / deduplication â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-describe("Smart Pages — deduplication", () => {
+describe("Smart Pages â€” deduplication", () => {
   beforeEach(() => {
     smartPagesMockState.remainingPages = 5000;
     smartPagesMockState.allowHighAccuracy = false;
@@ -388,9 +388,9 @@ describe("Smart Pages — deduplication", () => {
   });
 });
 
-// ── Smart Pages — response includes extraction metadata ───────────────────────
+// â”€â”€ Smart Pages â€” response includes extraction metadata â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-describe("Smart Pages — extraction metadata in response", () => {
+describe("Smart Pages â€” extraction metadata in response", () => {
   beforeEach(() => {
     smartPagesMockState.remainingPages = 5000;
     smartPagesMockState.isDuplicate = false;
@@ -407,7 +407,7 @@ describe("Smart Pages — extraction metadata in response", () => {
   });
 });
 
-// ── Error shape ────────────────────────────────────────────────────────────────
+// â”€â”€ Error shape â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 describe("Document cleaner error responses", () => {
   it("all error responses include error:true, code, message, details", async () => {
@@ -430,3 +430,4 @@ describe("Document cleaner error responses", () => {
     }
   });
 });
+

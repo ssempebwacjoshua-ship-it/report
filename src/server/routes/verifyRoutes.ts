@@ -1,10 +1,10 @@
-import { Router } from "express";
+﻿import { Router } from "express";
 import { prisma } from "../db/prisma";
 
 export function verifyRoutes() {
   const router = Router();
 
-  // Public — anyone can verify a reference code
+  // Public â€” anyone can verify a reference code
   router.get("/api/verify/:code", async (req, res, next) => {
     try {
       const code = req.params.code.toUpperCase();
@@ -48,3 +48,4 @@ export function verifyRoutes() {
 
   return router;
 }
+

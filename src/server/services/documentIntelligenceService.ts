@@ -1,4 +1,4 @@
-import { createHash, randomUUID } from "node:crypto";
+﻿import { createHash, randomUUID } from "node:crypto";
 import bcrypt from "bcryptjs";
 import * as XLSX from "xlsx";
 import { prisma } from "../db/prisma";
@@ -25,7 +25,7 @@ import type {
   ActiveVersionSnapshot,
 } from "../../shared/types/documentIntelligence";
 
-// ── Creator helpers ────────────────────────────────────────────────────────────
+// â”€â”€ Creator helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export async function findOrCreateSchoolOperatorCreator(
   schoolId: string,
@@ -56,7 +56,7 @@ export async function findCreatorById(creatorId: string) {
   return (prisma as any).creator.findUnique({ where: { id: creatorId } });
 }
 
-// ── Document list ──────────────────────────────────────────────────────────────
+// â”€â”€ Document list â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export async function listDocuments(creatorId: string): Promise<SmartDocumentSummary[]> {
   const db = prisma as any;
@@ -84,7 +84,7 @@ export async function listDocuments(creatorId: string): Promise<SmartDocumentSum
   }));
 }
 
-// ── Create document ────────────────────────────────────────────────────────────
+// â”€â”€ Create document â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export async function createDocument(creatorId: string, title: string): Promise<SmartDocumentDetail> {
   const db = prisma as any;
@@ -97,7 +97,7 @@ export async function createDocument(creatorId: string, title: string): Promise<
   return rowToDetail(doc, null, 0);
 }
 
-// ── Get document ───────────────────────────────────────────────────────────────
+// â”€â”€ Get document â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export async function getDocument(documentId: string, creatorId: string): Promise<SmartDocumentDetail | null> {
   const db = prisma as any;
@@ -162,7 +162,7 @@ function rowToDetail(doc: any, version: any, versionCount: number): SmartDocumen
   };
 }
 
-// ── Upload + extract ───────────────────────────────────────────────────────────
+// â”€â”€ Upload + extract â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export async function uploadAndExtract(
   documentId: string,
@@ -545,7 +545,7 @@ export async function updateExtractedKnowledge(
   return knowledge;
 }
 
-// ── Generate schema ────────────────────────────────────────────────────────────
+// â”€â”€ Generate schema â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export async function generateSchema(
   documentId: string,
@@ -589,7 +589,7 @@ export async function generateSchema(
   return { versionId: version.id as string, schema: finalSchema, componentTree: finalComponents };
 }
 
-// ── Apply conversational prompt ────────────────────────────────────────────────
+// â”€â”€ Apply conversational prompt â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export async function applyPrompt(
   documentId: string,
@@ -643,7 +643,7 @@ export async function applyPrompt(
   return { versionId: version.id as string, schema: finalSchema, componentTree: finalComponents };
 }
 
-// ── Version history ────────────────────────────────────────────────────────────
+// â”€â”€ Version history â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export async function getVersionHistory(
   documentId: string,
@@ -686,7 +686,7 @@ export async function restoreVersion(
   await createNotification(creatorId, "VERSION_RESTORED", "Version restored", `${doc.title} was restored to an earlier version.`);
 }
 
-// ── Publish ────────────────────────────────────────────────────────────────────
+// â”€â”€ Publish â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export async function publishDocument(
   documentId: string,
@@ -720,7 +720,7 @@ export async function publishDocument(
   return { token, url: `${origin}/p/${token}` };
 }
 
-// ── Public document fetch ──────────────────────────────────────────────────────
+// â”€â”€ Public document fetch â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export async function getPublishedDocument(
   token: string,
@@ -797,3 +797,4 @@ function shortenText(value: unknown, limit: number): string {
   const shortened = text.slice(0, limit);
   return `${shortened.slice(0, shortened.lastIndexOf(" ") > 120 ? shortened.lastIndexOf(" ") : limit).trim()}...`;
 }
+

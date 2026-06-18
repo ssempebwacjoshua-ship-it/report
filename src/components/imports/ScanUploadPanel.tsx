@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+﻿import { useEffect, useRef, useState } from "react";
 import {
   commitScanRows,
   detectScanContext,
@@ -19,7 +19,7 @@ import { defaultSettingsSections, type SettingsSections } from "../../shared/typ
 import { ScanReviewTable } from "./ScanReviewTable";
 import { ExtractedContextCard } from "./ExtractedContextCard";
 
-// ── Types ─────────────────────────────────────────────────────────────────────
+// â”€â”€ Types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 type Phase =
   | "idle"
@@ -35,7 +35,7 @@ const EXAM_TYPES = ["BOT", "MOT", "EOT"] as const;
 const BATCH_SESSION_KEY = "scan_batchId";
 const BATCH_QUERY_KEY = "scanBatchId";
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
+// â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function emptyContext(settings: SettingsSections = defaultSettingsSections): ScanMarksheetContext {
   return {
@@ -61,7 +61,7 @@ function detectedToForm(d: DetectedContext): ScanMarksheetContext {
   };
 }
 
-// ── Provider status badge ──────────────────────────────────────────────────────
+// â”€â”€ Provider status badge â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function ProviderBadge({ result }: { result: ScanUploadResponse }) {
   const reachable = result.providerReachable ?? false;
@@ -175,7 +175,7 @@ function BatchDebugPanel({ result }: { result: ScanUploadResponse }) {
   );
 }
 
-// ── File preview ──────────────────────────────────────────────────────────────
+// â”€â”€ File preview â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function FilePreview({ file, url }: { file: File; url: string }) {
   const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
@@ -210,7 +210,7 @@ function FilePreview({ file, url }: { file: File; url: string }) {
   );
 }
 
-// ── Manual context form ───────────────────────────────────────────────────────
+// â”€â”€ Manual context form â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function ContextForm({
   context,
@@ -279,7 +279,7 @@ function ContextForm({
   );
 }
 
-// ── Main component ────────────────────────────────────────────────────────────
+// â”€â”€ Main component â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export function ScanUploadPanel() {
   const [settings, setSettings] = useState<SettingsSections>(defaultSettingsSections);
@@ -380,7 +380,7 @@ export function ScanUploadPanel() {
     }
   }, []);
 
-  // ── File selection → auto-detect ─────────────────────────────────────────────
+  // â”€â”€ File selection â†’ auto-detect â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   async function handleFileChange(file: File | null) {
     setError("");
@@ -427,7 +427,7 @@ export function ScanUploadPanel() {
     }
   }
 
-  // ── Manual ID lookup ──────────────────────────────────────────────────────────
+  // â”€â”€ Manual ID lookup â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   async function handleIdLookup() {
     if (!manualId.trim()) {
@@ -457,7 +457,7 @@ export function ScanUploadPanel() {
     }
   }
 
-  // ── Confirm context → extract marks ──────────────────────────────────────────
+  // â”€â”€ Confirm context â†’ extract marks â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   async function handleExtractMarks(confirmedContext: ScanMarksheetContext, fileOverride?: File) {
     const fileToUpload = fileOverride ?? scanFile;
@@ -588,7 +588,7 @@ export function ScanUploadPanel() {
     ready: scanRows.filter((row) => row.status === "VALID").length,
   };
 
-  // ── Render ───────────────────────────────────────────────────────────────────
+  // â”€â”€ Render â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   return (
     <div className="grid gap-5">
@@ -630,21 +630,21 @@ export function ScanUploadPanel() {
         </div>
       )}
 
-      {/* ── Restoring session ── */}
+      {/* â”€â”€ Restoring session â”€â”€ */}
       {phase === "restoring" && (
         <div className="flex items-center gap-3 rounded-2xl border border-blue-100 bg-blue-50 p-4">
           <svg className="h-5 w-5 animate-spin text-blue-500" fill="none" viewBox="0 0 24 24">
             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
           </svg>
-          <p className="text-sm font-medium text-blue-800">Restoring previous session…</p>
+          <p className="text-sm font-medium text-blue-800">Restoring previous sessionâ€¦</p>
         </div>
       )}
 
-      {/* ── Step 1: File upload ── */}
+      {/* â”€â”€ Step 1: File upload â”€â”€ */}
       {phase !== "restoring" && (
         <div className="premium-card rounded-2xl p-4">
-          <h2 className="text-sm font-bold text-slate-950">Step 1 — Upload scanned marksheet</h2>
+          <h2 className="text-sm font-bold text-slate-950">Step 1 â€” Upload scanned marksheet</h2>
           <p className="mt-0.5 text-xs text-slate-500">Accepted: PDF, PNG, JPG, JPEG, WEBP</p>
 
           <div className="mt-3 rounded-2xl border border-dashed border-violet-200 bg-gradient-to-b from-violet-50/60 to-white p-4 shadow-inner">
@@ -675,18 +675,18 @@ export function ScanUploadPanel() {
         </div>
       )}
 
-      {/* ── Step 2a: Auto-detecting ── */}
+      {/* â”€â”€ Step 2a: Auto-detecting â”€â”€ */}
       {phase === "detecting" && (
         <div className="flex items-center gap-3 rounded-2xl border border-blue-100 bg-blue-50 p-4">
           <svg className="h-5 w-5 animate-spin text-blue-500" fill="none" viewBox="0 0 24 24">
             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
           </svg>
-          <p className="text-sm font-medium text-blue-800">Scanning header for marksheet ID…</p>
+          <p className="text-sm font-medium text-blue-800">Scanning header for marksheet IDâ€¦</p>
         </div>
       )}
 
-      {/* ── Step 2b: Detected context → confirm ── */}
+      {/* â”€â”€ Step 2b: Detected context â†’ confirm â”€â”€ */}
       {phase === "context_review" && detectedCtx && (
         <div className="grid gap-4">
           <ExtractedContextCard
@@ -699,7 +699,7 @@ export function ScanUploadPanel() {
         </div>
       )}
 
-      {/* ── Step 2c: Manual ID entry ── */}
+      {/* â”€â”€ Step 2c: Manual ID entry â”€â”€ */}
       {phase === "manual_id" && (
         <div className="premium-card grid gap-4 rounded-2xl p-4">
           <div className="flex items-start gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">
@@ -717,19 +717,19 @@ export function ScanUploadPanel() {
                 className="premium-control flex-1 rounded-xl border border-slate-200 bg-slate-50 p-2 text-sm outline-none focus:border-blue-400 focus:bg-white"
               />
               <button type="button" onClick={handleIdLookup} disabled={idLookupBusy || !manualId.trim()} className="btn btn-primary">
-                {idLookupBusy ? "Looking up…" : "Look up"}
+                {idLookupBusy ? "Looking upâ€¦" : "Look up"}
               </button>
             </div>
           </div>
           <div className="border-t border-slate-100 pt-3">
             <button type="button" onClick={() => setPhase("manual_form")} className="text-xs text-slate-500 underline hover:text-slate-800">
-              Skip — enter context manually instead
+              Skip â€” enter context manually instead
             </button>
           </div>
         </div>
       )}
 
-      {/* ── Step 2d: Full manual form ── */}
+      {/* â”€â”€ Step 2d: Full manual form â”€â”€ */}
       {phase === "manual_form" && (
         <div className="grid gap-4">
           <ContextForm
@@ -749,18 +749,18 @@ export function ScanUploadPanel() {
         </div>
       )}
 
-      {/* ── Step 3: Extracting marks ── */}
+      {/* â”€â”€ Step 3: Extracting marks â”€â”€ */}
       {phase === "extracting" && (
         <div className="flex items-center gap-3 rounded-2xl border border-blue-100 bg-blue-50 p-4">
           <svg className="h-5 w-5 animate-spin text-blue-500" fill="none" viewBox="0 0 24 24">
             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
           </svg>
-          <p className="text-sm font-medium text-blue-800">Extracting marks from scan…</p>
+          <p className="text-sm font-medium text-blue-800">Extracting marks from scanâ€¦</p>
         </div>
       )}
 
-      {/* ── Step 4: Mark extraction result + review table ── */}
+      {/* â”€â”€ Step 4: Mark extraction result + review table â”€â”€ */}
       {phase === "marks_review" && uploadResult && (
         <div className="grid gap-4">
           <div className="premium-card rounded-2xl p-4">
@@ -806,16 +806,16 @@ export function ScanUploadPanel() {
               <p>
                 <span className="font-semibold">Azure OCR:</span>{" "}
                 {uploadResult.providerReachable === false
-                  ? <span className="text-red-700">Unavailable — contact platform support.</span>
+                  ? <span className="text-red-700">Unavailable â€” contact platform support.</span>
                   : <span className="text-emerald-700 font-semibold">Succeeded</span>}
               </p>
               <p>
                 <span className="font-semibold">Table geometry:</span>{" "}
                 {uploadResult.message.includes("Table geometry not detected")
-                  ? <span className="text-amber-700 font-semibold">Fallback (estimated) — crop alignment may be off</span>
+                  ? <span className="text-amber-700 font-semibold">Fallback (estimated) â€” crop alignment may be off</span>
                   : uploadResult.message.includes("Table geometry detected")
                     ? <span className="text-emerald-700 font-semibold">Detected</span>
-                    : <span className="text-slate-500">—</span>}
+                    : <span className="text-slate-500">â€”</span>}
               </p>
             </div>
             {uploadResult.contextWarning && (
@@ -907,3 +907,4 @@ export function ScanUploadPanel() {
     </div>
   );
 }
+

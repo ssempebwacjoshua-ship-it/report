@@ -1,4 +1,4 @@
-import request from "supertest";
+﻿import request from "supertest";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import { createServer } from "../../server";
 import { defaultSettingsSections, type SettingSection, type SettingsSections } from "../../shared/types/settings";
@@ -459,3 +459,4 @@ describe("settingsRoutes", () => {
     expect(ocr).toHaveProperty("requireOperatorReviewBeforeCommit");
   });
 });
+

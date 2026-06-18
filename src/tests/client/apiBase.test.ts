@@ -1,6 +1,6 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+﻿import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-// ── getApiBaseUrl ─────────────────────────────────────────────────────────────
+// â”€â”€ getApiBaseUrl â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 describe("getApiBaseUrl", () => {
   it("rejects postgres URLs", async () => {
@@ -20,7 +20,7 @@ describe("getApiBaseUrl", () => {
   });
 });
 
-// ── parseApiError ─────────────────────────────────────────────────────────────
+// â”€â”€ parseApiError â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function fakeResponse(status: number, body: unknown): Response {
   return new Response(JSON.stringify(body), {
@@ -132,3 +132,4 @@ describe("parseApiError", () => {
     expect(msg).not.toContain("Internal Server Error");
   });
 });
+

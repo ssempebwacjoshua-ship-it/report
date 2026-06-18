@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+﻿import { render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import { ReleaseCenterPage } from "../../pages/ReleaseCenterPage";
@@ -69,3 +69,4 @@ describe("ReleaseCenterPage", () => {
     await waitFor(() => expect(screen.getAllByRole("checkbox").length).toBeGreaterThan(0));
   });
 });
+

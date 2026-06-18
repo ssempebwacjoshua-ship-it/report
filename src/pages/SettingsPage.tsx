@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+﻿import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { fetchSettings, patchSettingsSection, SettingsClientError, type SettingsFieldErrors } from "../client/settingsClient";
 import { readAzureOcr } from "../client/ocrClient";
@@ -464,3 +464,4 @@ function AppearanceSection({ value, onChange }: { value: SettingsSections["appea
     </div>
   );
 }
+

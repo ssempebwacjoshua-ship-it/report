@@ -1,6 +1,8 @@
-import { type ReactNode, type SVGProps, useState } from "react";
+﻿import { type ReactNode, type SVGProps, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
+import { FloatingWhatsAppButton } from "../components/marketing/FloatingWhatsAppButton";
+import { MarketingFeatureCard } from "../components/marketing/MarketingFeatureCard";
 import { TestimonialsSection } from "../components/marketing/TestimonialsSection";
 
 function Icon({ children, className, ...props }: SVGProps<SVGSVGElement> & { children: ReactNode }) {
@@ -16,6 +18,14 @@ function ArrowRightIcon(props: SVGProps<SVGSVGElement>) {
     <Icon {...props}>
       <path d="M5 12h14" />
       <path d="m13 5 7 7-7 7" />
+    </Icon>
+  );
+}
+
+function PlayIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <Icon {...props}>
+      <path d="m9 7 8 5-8 5V7Z" />
     </Icon>
   );
 }
@@ -151,39 +161,24 @@ function Metric({
   );
 }
 
-function SectionCard({
-  icon,
-  title,
-  body,
-  accent = "blue",
-}: {
-  icon: ReactNode;
-  title: string;
-  body: string;
-  accent?: "blue" | "emerald" | "slate";
-}) {
-  const accentClass =
-    accent === "emerald"
-      ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-      : accent === "slate"
-        ? "border-slate-200 bg-slate-50 text-slate-700"
-        : "border-blue-200 bg-blue-50 text-blue-700";
-
-  return (
-    <div className="premium-card premium-card-hover rounded-3xl p-5">
-      <div className={`mb-4 inline-flex h-11 w-11 items-center justify-center rounded-2xl border ${accentClass}`}>
-        {icon}
-      </div>
-      <h3 className="text-base font-black text-slate-950">{title}</h3>
-      <p className="mt-2 text-sm leading-6 text-slate-600">{body}</p>
-    </div>
-  );
-}
+const walkthroughCover = "https://img.youtube.com/vi/jZrp-jOhjwo/maxresdefault.jpg";
 
 export function DemoPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [videoOpen, setVideoOpen] = useState(false);
+
+  useEffect(() => {
+    if (!videoOpen) return;
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") setVideoOpen(false);
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [videoOpen]);
 
   const reportLabTarget = user ? "/dashboard" : "/login";
   const smartPagesTarget = user ? "/smart-pages" : "/login";
@@ -222,14 +217,14 @@ export function DemoPage() {
             <button
               type="button"
               onClick={() => void navigate("/login")}
-              className="btn btn-secondary rounded-full px-4 py-2 text-sm font-bold"
+              className="btn marketing-button-motion rounded-full border border-blue-200 bg-white px-4 py-2 text-sm font-bold text-blue-700 shadow-sm hover:bg-blue-50"
             >
               Sign in
             </button>
             <button
               type="button"
               onClick={() => void navigate(reportLabTarget)}
-              className="btn btn-primary rounded-full px-4 py-2 text-sm font-black"
+              className="btn marketing-button-motion rounded-full bg-gradient-to-r from-blue-600 to-blue-700 px-4 py-2 text-sm font-black text-white shadow-lg shadow-blue-600/20 hover:shadow-xl hover:shadow-blue-600/25"
             >
               Launch Demo
               <ArrowRightIcon className="h-4 w-4" />
@@ -293,14 +288,14 @@ export function DemoPage() {
               <button
                 type="button"
                 onClick={() => void navigate("/login")}
-                className="btn btn-secondary rounded-2xl px-4 py-3 text-left text-sm font-semibold"
+                className="btn marketing-button-motion rounded-2xl border border-blue-200 bg-white px-4 py-3 text-left text-sm font-semibold text-blue-700 shadow-sm hover:bg-blue-50"
               >
                 Sign in
               </button>
               <button
                 type="button"
                 onClick={() => void navigate(reportLabTarget)}
-                className="btn btn-primary rounded-2xl px-4 py-3 text-sm font-black"
+                className="btn marketing-button-motion rounded-2xl bg-gradient-to-r from-blue-600 to-blue-700 px-4 py-3 text-sm font-black text-white shadow-lg shadow-blue-600/20 hover:shadow-xl hover:shadow-blue-600/25"
               >
                 Launch Demo
                 <ArrowRightIcon className="h-4 w-4" />
@@ -319,26 +314,26 @@ export function DemoPage() {
           }}
         >
           <div className="absolute inset-0 bg-dot-grid opacity-[0.18]" />
-          <div className="relative mx-auto grid max-w-7xl gap-6 px-4 py-8 sm:px-6 lg:grid-cols-12 lg:px-8 lg:py-12">
+          <div className="relative mx-auto grid max-w-7xl gap-5 px-4 py-5 sm:px-6 lg:grid-cols-12 lg:px-8 lg:py-12">
             <div className="lg:col-span-6">
-              <div className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.2em] text-blue-50">
+              <div className="marketing-fade-up inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.2em] text-blue-50">
                 <SparklesIcon className="h-3.5 w-3.5" />
                 School Connect for smart schools
               </div>
-              <h1 className="mt-2 max-w-xl text-3xl font-black leading-tight tracking-tight text-white lg:text-4xl">
+              <h1 className="marketing-fade-up-delay-1 mt-2 max-w-xl text-3xl font-black leading-tight tracking-tight text-white lg:text-4xl">
                 Powering smart schools with digital reports and intelligent documents.
               </h1>
-              <p className="mt-2.5 max-w-xl text-sm leading-6 text-blue-50 sm:text-base">
+              <p className="marketing-fade-up-delay-2 mt-2.5 max-w-xl text-sm leading-6 text-blue-50 sm:text-base">
                 School Connect is a growing digital workspace for modern schools. Use Report Lab
                 to generate student reports faster, and Smart Pages to turn handwritten school
                 documents into ready-to-print PDFs without typing everything again.
               </p>
 
-              <div className="mt-3.5 flex flex-col gap-3 sm:flex-row">
+              <div className="marketing-fade-up-delay-3 mt-3.5 flex flex-col gap-2 sm:flex-row">
                 <button
                   type="button"
                   onClick={() => void navigate("/login")}
-                  className="btn rounded-xl bg-white px-4 py-2.5 text-sm font-black text-blue-700 hover:bg-blue-50"
+                  className="btn marketing-button-motion rounded-xl bg-white px-4 py-2.5 text-sm font-black text-blue-700 hover:bg-blue-50"
                 >
                   Launch Demo
                   <ArrowRightIcon className="h-4 w-4" />
@@ -346,48 +341,70 @@ export function DemoPage() {
                 <button
                   type="button"
                   onClick={() => void navigate(reportLabTarget)}
-                  className="btn rounded-xl border border-white/25 bg-white/10 px-4 py-2.5 text-sm font-bold text-white hover:bg-white/15"
+                  className="btn marketing-button-motion rounded-xl border border-white/25 bg-white/10 px-4 py-2.5 text-sm font-bold text-white hover:bg-white/15"
                 >
                   Explore Report Lab
                 </button>
                 <button
                   type="button"
                   onClick={() => void navigate(smartPagesTarget)}
-                  className="btn rounded-xl border border-white/25 bg-white/10 px-4 py-2.5 text-sm font-bold text-white hover:bg-white/15"
+                  className="btn marketing-button-motion rounded-xl border border-white/25 bg-white/10 px-4 py-2.5 text-sm font-bold text-white hover:bg-white/15"
                 >
                   Explore Smart Pages
                 </button>
               </div>
 
-              <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
-                <Metric value="School Connect" label="POWERING SMART SCHOOLS." />
-                <Metric value="Report Lab" label="STUDENT REPORTS FASTER." />
-                <Metric value="Smart Pages" label="HANDWRITTEN DOCS TO READY PDFS." />
+              <div className="mt-4 hidden grid-cols-1 gap-3 sm:grid-cols-3 lg:grid">
+                <div className="marketing-fade-up-delay-1"><Metric value="School Connect" label="POWERING SMART SCHOOLS." /></div>
+                <div className="marketing-fade-up-delay-2"><Metric value="Report Lab" label="STUDENT REPORTS FASTER." /></div>
+                <div className="marketing-fade-up-delay-3"><Metric value="Smart Pages" label="HANDWRITTEN DOCS TO READY PDFS." /></div>
               </div>
             </div>
 
             <div className="lg:col-span-6">
-              <div className="rounded-[1.5rem] border border-white/30 bg-white/95 p-2 shadow-xl backdrop-blur">
+              <div className="marketing-card-motion marketing-fade-up-delay-2 overflow-hidden rounded-[1.5rem] border border-white/30 bg-white/95 p-2 shadow-xl backdrop-blur">
                 <div className="mb-2 px-2 pt-1.5">
                   <p className="text-xs font-black uppercase tracking-[0.18em] text-blue-700">
                     FULL SYSTEM WALKTHROUGH
                   </p>
                   <p className="mt-1 text-sm leading-6 text-slate-600">
-                    Watch a 10-minute demo of School Connect, Report Lab, Smart Pages, and the
-                    smart school workflow.
+                    Click to watch full system walkthrough.
                   </p>
                 </div>
+                <button
+                  type="button"
+                  onClick={() => setVideoOpen(true)}
+                  className="group relative block w-full overflow-hidden rounded-[1rem] border border-slate-200 bg-slate-100 text-left"
+                >
+                  <div className="relative aspect-video w-full overflow-hidden rounded-[1rem]">
+                    <img
+                      src={walkthroughCover}
+                      alt="School Connect full system walkthrough"
+                      className="absolute inset-0 h-full w-full scale-[1.14] object-cover object-center transition duration-300 group-hover:scale-[1.18]"
+                      loading="eager"
+                    />
 
-                <div className="overflow-hidden rounded-[1rem] border border-slate-200 bg-slate-100">
-                  <iframe
-                    className="aspect-video max-h-[340px] w-full"
-                    src="https://www.youtube-nocookie.com/embed/jZrp-jOhjwo?rel=0&modestbranding=1"
-                    title="School Connect full system walkthrough"
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                    allowFullScreen
-                  />
-                </div>
+                    <div className="absolute inset-0 bg-slate-950/10 transition group-hover:bg-slate-950/20" />
+
+                    <div className="absolute inset-0 grid place-items-center">
+                      <div className="marketing-play-pulse flex h-16 w-16 items-center justify-center rounded-full bg-white/85 text-blue-700 shadow-2xl shadow-blue-600/25 backdrop-blur transition group-hover:scale-105">
+                        <PlayIcon className="h-8 w-8 translate-x-0.5" />
+                      </div>
+                    </div>
+
+                    <div className="absolute bottom-3 left-3 right-3 rounded-2xl bg-white/90 px-4 py-3 shadow-sm backdrop-blur">
+                      <p className="text-sm font-black text-slate-950">Click to watch full system walkthrough</p>
+                      <p className="mt-0.5 text-xs font-semibold text-slate-600">10-minute demo ? Report Lab + Smart Pages</p>
+                    </div>
+                  </div>
+                </button>
               </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 lg:hidden">
+              <div className="marketing-fade-up-delay-1"><Metric value="School Connect" label="POWERING SMART SCHOOLS." /></div>
+              <div className="marketing-fade-up-delay-2"><Metric value="Report Lab" label="STUDENT REPORTS FASTER." /></div>
+              <div className="marketing-fade-up-delay-3"><Metric value="Smart Pages" label="HANDWRITTEN DOCS TO READY PDFS." /></div>
             </div>
           </div>
         </section>
@@ -408,22 +425,26 @@ export function DemoPage() {
             </div>
 
             <div className="mt-4 grid gap-3 lg:grid-cols-3">
-              <SectionCard
-                icon={<FileTextIcon className="h-5 w-5" />}
+              <MarketingFeatureCard
+                step={1}
                 title="Upload marks"
                 body="Bring marks into the system by class, stream, subject, and term."
+                icon={<FileTextIcon className="h-5 w-5" />}
+                tone="blue"
               />
-              <SectionCard
-                icon={<PrinterIcon className="h-5 w-5" />}
+              <MarketingFeatureCard
+                step={2}
                 title="Generate reports"
                 body="Create professional student reports with grades, remarks, summaries, and school-ready presentation."
-                accent="slate"
+                icon={<PrinterIcon className="h-5 w-5" />}
+                tone="slate"
               />
-              <SectionCard
-                icon={<LockIcon className="h-5 w-5" />}
+              <MarketingFeatureCard
+                step={3}
                 title="Print and share"
                 body="Print, download, or share secure parent links when the school is ready."
-                accent="emerald"
+                icon={<LockIcon className="h-5 w-5" />}
+                tone="emerald"
               />
             </div>
           </div>
@@ -446,7 +467,7 @@ export function DemoPage() {
                 <button
                   type="button"
                   onClick={() => void navigate(smartPagesTarget)}
-                  className="btn btn-primary rounded-xl px-4 py-2.5 text-sm font-black"
+                  className="btn marketing-button-motion rounded-xl bg-gradient-to-r from-blue-600 to-blue-700 px-4 py-2.5 text-sm font-black text-white shadow-lg shadow-blue-600/20 hover:shadow-xl hover:shadow-blue-600/25"
                 >
                   Explore Smart Pages
                   <ArrowRightIcon className="h-4 w-4" />
@@ -454,7 +475,7 @@ export function DemoPage() {
                 <button
                   type="button"
                   onClick={() => void navigate("/login")}
-                  className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 transition hover:bg-slate-50"
+                  className="marketing-button-motion inline-flex items-center justify-center gap-2 rounded-xl border border-blue-200 bg-white px-4 py-2.5 text-sm font-bold text-blue-700 shadow-sm transition hover:bg-blue-50"
                 >
                   Sign in
                 </button>
@@ -462,52 +483,36 @@ export function DemoPage() {
             </div>
 
             <div className="lg:col-span-7">
-              <div className="rounded-[1.75rem] border border-slate-200 bg-white p-3.5 shadow-sm">
+              <div className="marketing-card-motion rounded-[1.75rem] border border-slate-200 bg-white p-3.5 shadow-sm">
                 <div className="grid gap-3 md:grid-cols-2">
-                  <div className="rounded-3xl border border-slate-200 bg-white p-3.5">
-                    <div className="flex items-center gap-3">
-                      <div className="grid h-10 w-10 place-items-center rounded-2xl bg-blue-50 text-blue-700">
-                        <GridIcon className="h-5 w-5" />
-                      </div>
-                      <div>
-                        <p className="text-sm font-black text-slate-950">Upload handwriting</p>
-                        <p className="text-sm leading-5 text-slate-500">Upload handwritten or scanned school documents.</p>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="rounded-3xl border border-slate-200 bg-white p-3.5">
-                    <div className="flex items-center gap-3">
-                      <div className="grid h-10 w-10 place-items-center rounded-2xl bg-emerald-50 text-emerald-700">
-                        <BookIcon className="h-5 w-5" />
-                      </div>
-                      <div>
-                        <p className="text-sm font-black text-slate-950">Read and clean</p>
-                        <p className="text-sm leading-5 text-slate-500">Let Smart Pages extract the important content and organize it clearly.</p>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="rounded-3xl border border-slate-200 bg-white p-3.5">
-                    <div className="flex items-center gap-3">
-                      <div className="grid h-10 w-10 place-items-center rounded-2xl bg-slate-100 text-slate-700">
-                        <SmartphoneIcon className="h-5 w-5" />
-                      </div>
-                      <div>
-                        <p className="text-sm font-black text-slate-950">Format professionally</p>
-                        <p className="text-sm leading-5 text-slate-500">Turn rough school notes into clean, structured pages.</p>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="rounded-3xl border border-slate-200 bg-white p-3.5">
-                    <div className="flex items-center gap-3">
-                      <div className="grid h-10 w-10 place-items-center rounded-2xl bg-amber-50 text-amber-700">
-                        <ShieldIcon className="h-5 w-5" />
-                      </div>
-                      <div>
-                        <p className="text-sm font-black text-slate-950">Print or share</p>
-                        <p className="text-sm leading-5 text-slate-500">Generate a ready PDF for printing, downloading, or sharing.</p>
-                      </div>
-                    </div>
-                  </div>
+                  <MarketingFeatureCard
+                    step={1}
+                    title="Upload handwriting"
+                    body="Upload handwritten or scanned school documents."
+                    icon={<GridIcon className="h-5 w-5" />}
+                    tone="blue"
+                  />
+                  <MarketingFeatureCard
+                    step={2}
+                    title="Read and clean"
+                    body="Let Smart Pages extract the important content and organize it clearly."
+                    icon={<BookIcon className="h-5 w-5" />}
+                    tone="emerald"
+                  />
+                  <MarketingFeatureCard
+                    step={3}
+                    title="Format professionally"
+                    body="Turn rough school notes into clean, structured pages."
+                    icon={<SmartphoneIcon className="h-5 w-5" />}
+                    tone="slate"
+                  />
+                  <MarketingFeatureCard
+                    step={4}
+                    title="Print or share"
+                    body="Generate a ready PDF for printing, downloading, or sharing."
+                    icon={<ShieldIcon className="h-5 w-5" />}
+                    tone="emerald"
+                  />
                 </div>
               </div>
             </div>
@@ -517,7 +522,7 @@ export function DemoPage() {
         <TestimonialsSection className="bg-white px-4 py-6 lg:py-8 sm:px-6 lg:px-8" compact />
 
         <section id="why-school-connect" className="bg-slate-50 px-4 py-6 lg:py-8 sm:px-6 lg:px-8">
-          <div className="mx-auto max-w-7xl rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm sm:p-7">
+          <div className="marketing-card-motion mx-auto max-w-7xl rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm sm:p-7">
             <div className="grid gap-6 lg:grid-cols-12 lg:items-center">
               <div className="lg:col-span-8">
                 <p className="text-xs font-black uppercase tracking-[0.2em] text-blue-700">WHY SCHOOL CONNECT</p>
@@ -534,7 +539,7 @@ export function DemoPage() {
                 <button
                   type="button"
                   onClick={() => void navigate(reportLabTarget)}
-                  className="btn btn-primary rounded-xl px-4 py-2.5 text-sm font-black"
+                  className="btn marketing-button-motion rounded-xl bg-gradient-to-r from-blue-600 to-blue-700 px-4 py-2.5 text-sm font-black text-white shadow-lg shadow-blue-600/20 hover:shadow-xl hover:shadow-blue-600/25"
                 >
                   Launch Demo
                   <ArrowRightIcon className="h-4 w-4" />
@@ -542,7 +547,7 @@ export function DemoPage() {
                 <button
                   type="button"
                   onClick={() => void navigate("/login")}
-                  className="btn btn-secondary rounded-xl px-4 py-2.5 text-sm font-bold"
+                  className="btn marketing-button-motion rounded-xl border border-blue-200 bg-white px-4 py-2.5 text-sm font-bold text-blue-700 shadow-sm hover:bg-blue-50"
                 >
                   Sign in
                 </button>
@@ -551,6 +556,51 @@ export function DemoPage() {
           </div>
         </section>
       </main>
+      {videoOpen ? (
+        <div
+          className="fixed inset-0 z-[80] grid place-items-center bg-slate-950/80 px-4 py-6 backdrop-blur-sm"
+          role="dialog"
+          aria-modal="true"
+          aria-label="School Connect full system walkthrough video"
+          onClick={() => setVideoOpen(false)}
+        >
+          <div
+            className="w-full max-w-5xl overflow-hidden rounded-3xl border border-white/10 bg-white shadow-2xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.18em] text-blue-700">FULL SYSTEM WALKTHROUGH</p>
+                <p className="text-sm font-semibold text-slate-600">10-minute demo ? Report Lab + Smart Pages</p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setVideoOpen(false)}
+                className="rounded-full border border-slate-200 px-3 py-1.5 text-sm font-black text-slate-700 transition hover:bg-slate-50"
+                aria-label="Close walkthrough video"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="aspect-video w-full bg-slate-950">
+              <iframe
+                className="h-full w-full"
+                src="https://www.youtube-nocookie.com/embed/jZrp-jOhjwo?autoplay=1&rel=0&modestbranding=1"
+                title="School Connect full system walkthrough"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                allowFullScreen
+              />
+            </div>
+          </div>
+        </div>
+      ) : null}
+      <FloatingWhatsAppButton />
     </div>
   );
 }
+
+
+
+

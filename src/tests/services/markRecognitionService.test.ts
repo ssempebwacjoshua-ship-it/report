@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+﻿import { describe, expect, it } from "vitest";
 import { normalizeMark, parseSplitCellText, parseSplitZoneTexts } from "../../server/services/markRecognitionService";
 
 describe("normalizeMark", () => {
@@ -37,7 +37,7 @@ describe("normalizeMark", () => {
   });
 
   it("rejects values above 100", () => {
-    // 101 as a 3-digit number: stripped digits = "101", 101 > 100 → ""
+    // 101 as a 3-digit number: stripped digits = "101", 101 > 100 â†’ ""
     expect(normalizeMark("101")).toBe("");
   });
 
@@ -119,3 +119,4 @@ describe("parseSplitZoneTexts", () => {
     expect(result).not.toBe("6");
   });
 });
+

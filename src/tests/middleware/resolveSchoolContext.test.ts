@@ -1,4 +1,4 @@
-import request from "supertest";
+﻿import request from "supertest";
 import express from "express";
 import { beforeAll, describe, expect, it } from "vitest";
 import { resolveSchoolContext } from "../../server/middleware/resolveSchoolContext";
@@ -26,7 +26,7 @@ beforeAll(async () => {
   });
 });
 
-describe("resolveSchoolContext — cross-tenant isolation", () => {
+describe("resolveSchoolContext â€” cross-tenant isolation", () => {
   it("passes when token school matches the requested schoolCode", async () => {
     const res = await request(createApp())
       .get("/probe?schoolCode=SCU-PREVIEW")
@@ -76,3 +76,4 @@ describe("resolveSchoolContext — cross-tenant isolation", () => {
     expect(res.status).toBe(404);
   });
 });
+

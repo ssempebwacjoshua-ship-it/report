@@ -1,6 +1,6 @@
-import type { CellCorrection, DocumentRow, UncertainCell } from "../../shared/types/documentCleaner";
+﻿import type { CellCorrection, DocumentRow, UncertainCell } from "../../shared/types/documentCleaner";
 
-// ── Column header detection ───────────────────────────────────────────────────
+// â”€â”€ Column header detection â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const TABLE_KEYWORDS = new Set([
   "NO", "NAME", "SUBJECT", "LEVEL", "MARK", "MARKS", "TEACHER", "STUDENT",
@@ -20,14 +20,14 @@ function isDirectKeyword(text: string): boolean {
   return TABLE_KEYWORDS.has(cleaned);
 }
 
-// Used by delimiter detection (body lines) — no "/" splitting
+// Used by delimiter detection (body lines) â€” no "/" splitting
 function splitLineIntoSegments(line: string): string[] {
   if ((line.match(/,/g)?.length ?? 0) >= 2) return line.split(",").map((s) => s.trim()).filter(Boolean);
   if ((line.match(/\t/g)?.length ?? 0) >= 1) return line.split("\t").map((s) => s.trim()).filter(Boolean);
   return line.split(/\s{2,}/).map((s) => s.trim()).filter(Boolean);
 }
 
-// Used by column header detection — also tries "/" as delimiter (Azure Layout OCR uses it)
+// Used by column header detection â€” also tries "/" as delimiter (Azure Layout OCR uses it)
 function splitLineIntoSegmentsAll(line: string): string[] {
   const trimmed = line.trim();
   if ((trimmed.match(/,/g)?.length ?? 0) >= 2) return trimmed.split(",").map((s) => s.trim()).filter(Boolean);
@@ -44,15 +44,15 @@ function splitLineIntoSegmentsAll(line: string): string[] {
 /**
  * Scans up to the first 20 lines for a column header row using three strategies:
  *
- * Strategy 1 — single line with ≥3 segments containing a keyword
- *   "NO  TEACHER'S NAME  Subject  Level" → 4 segments → header
+ * Strategy 1 â€” single line with â‰¥3 segments containing a keyword
+ *   "NO  TEACHER'S NAME  Subject  Level" â†’ 4 segments â†’ header
  *
- * Strategy 3 — single line with exactly 2 segments where both are keywords
- *   "NO  NAME" → 2 keyword segments → header
+ * Strategy 3 â€” single line with exactly 2 segments where both are keywords
+ *   "NO  NAME" â†’ 2 keyword segments â†’ header
  *
- * Strategy 2 — consecutive keyword lines combined into one header
+ * Strategy 2 â€” consecutive keyword lines combined into one header
  *   "NO" (1 segment, keyword) + "Teachers Name / Subject" (2 segments after "/" split)
- *   → combined ["NO", "Teachers Name", "Subject"] → header at last consumed line
+ *   â†’ combined ["NO", "Teachers Name", "Subject"] â†’ header at last consumed line
  *
  * Returns { idx: -1, columns: [] } when no header is found.
  */
@@ -62,7 +62,7 @@ export function findTableColumnHeader(lines: string[]): { idx: number; columns: 
     const line = lines[i]!.trim();
     const segs = splitLineIntoSegmentsAll(line);
 
-    // Strategy 1: single line, ≥3 segments, at least one has a keyword
+    // Strategy 1: single line, â‰¥3 segments, at least one has a keyword
     if (segs.length >= 3 && segs.some((s) => wordsContainKeyword(s))) {
       return { idx: i, columns: segs };
     }
@@ -96,7 +96,7 @@ export function findTableColumnHeader(lines: string[]): { idx: number; columns: 
   return { idx: -1, columns: [] };
 }
 
-// ── Structured table cells (Azure raw.tables) ─────────────────────────────────
+// â”€â”€ Structured table cells (Azure raw.tables) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export type TableCell = {
   rowIndex: number;
@@ -107,7 +107,7 @@ export type TableCell = {
 
 /**
  * Normalises a raw Azure OCR column header to a clean display name.
- * Applies title-casing and fixes missing possessives ("Teachers" → "Teacher's").
+ * Applies title-casing and fixes missing possessives ("Teachers" â†’ "Teacher's").
  */
 function normalizeColumnHeader(raw: string): string {
   return raw
@@ -120,13 +120,13 @@ function normalizeColumnHeader(raw: string): string {
 
 /**
  * Returns true when a cell value contains non-printable-ASCII characters
- * that suggest OCR misread (e.g. "À la001", `“ Level`).
+ * that suggest OCR misread (e.g. "Ã€ la001", `â€œ Level`).
  */
 function hasOcrNoise(text: string): boolean {
   return text.trim().length > 0 && /[^\x20-\x7E]/.test(text);
 }
 
-/** Strips trailing period/whitespace from pure row-number cells (e.g. "1." → "1"). */
+/** Strips trailing period/whitespace from pure row-number cells (e.g. "1." â†’ "1"). */
 function normalizeNumberCell(text: string): string {
   const m = text.trim().match(/^(\d+)\s*\.?\s*$/);
   return m ? m[1]! : text;
@@ -138,8 +138,8 @@ function normalizeNumberCell(text: string): string {
  *
  * - Header detection (priority order):
  *     1. Rows where any cell has kind === "columnHeader" (Azure Form Recognizer v3)
- *     2. First row within the first 4 where ≥2 cells contain table keywords
- *     3. No header — all rows returned as data
+ *     2. First row within the first 4 where â‰¥2 cells contain table keywords
+ *     3. No header â€” all rows returned as data
  * - Fully empty rows are dropped.
  * - Column headers are normalized to title-case.
  * - Cells with non-ASCII OCR noise are marked as uncertainCells.
@@ -209,7 +209,7 @@ export function normalizeFromTableCells(cells: TableCell[]): {
         uncertainCells.push({
           rowIndex: rowIdx,
           columnIndex: ci,
-          reason: "OCR noise detected — please verify",
+          reason: "OCR noise detected â€” please verify",
         });
       }
     }
@@ -220,7 +220,7 @@ export function normalizeFromTableCells(cells: TableCell[]): {
   return { columns, rows, uncertainCells };
 }
 
-// ── Marksheet schema detection & repair ──────────────────────────────────────
+// â”€â”€ Marksheet schema detection & repair â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const ADM_NO_RE = /^SC\d{4}-\d{4,5}$/i;
 
@@ -239,8 +239,8 @@ function isNumericMark(text: string): boolean {
 
 /**
  * Returns true when the columns indicate a student marksheet schema:
- * must have an Adm No column, a marks column, and a name column, with ≥ 4 cols.
- * Also accepts data-driven detection: ≥ 2 cells in the first 5 rows match the
+ * must have an Adm No column, a marks column, and a name column, with â‰¥ 4 cols.
+ * Also accepts data-driven detection: â‰¥ 2 cells in the first 5 rows match the
  * admission number pattern (for when column headers are vague).
  */
 export function detectMarksheetSchema(columns: string[], rows?: DocumentRow[]): boolean {
@@ -342,7 +342,7 @@ function validateMarksheetCells(
  * 4. If absent: runs type validation only (flags invalid marks, uncertain Adm Nos).
  *
  * Returns per-cell CellCorrection metadata so the UI can highlight corrected
- * (yellow) and invalid (red) cells. Does NOT silently save corrections —
+ * (yellow) and invalid (red) cells. Does NOT silently save corrections â€”
  * all changes are surfaced for user review.
  */
 export function repairMarksheetRows(
@@ -370,7 +370,7 @@ export function repairMarksheetRows(
         ({ cells, corrections: rowCorrections } = validateMarksheetCells(rawCells, colCount, rowIdx));
       }
     } else {
-      // Adm No is shifted right — remove the noise cells before it
+      // Adm No is shifted right â€” remove the noise cells before it
       const noise = rawCells.slice(1, admNoIdx);
       const afterAdmNo = rawCells.slice(admNoIdx + 1);
       const repairedCells = [rawCells[0] ?? "", rawCells[admNoIdx]!, ...afterAdmNo];
@@ -414,7 +414,7 @@ export function repairMarksheetRows(
   return { rows: repairedRows, uncertainCells: filteredUncertain, cellCorrections: allCorrections };
 }
 
-// ── Delimiter-based parsing ───────────────────────────────────────────────────
+// â”€â”€ Delimiter-based parsing â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 type Delimiter = "comma" | "tab" | "spaces";
 
@@ -434,7 +434,7 @@ function splitByDelimiter(line: string, delimiter: Delimiter): string[] {
   return line.split(/\s{2,}/).map((c) => c.trim()).filter(Boolean);
 }
 
-// ── Row-number grouping (when each OCR line is a single cell) ─────────────────
+// â”€â”€ Row-number grouping (when each OCR line is a single cell) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 /**
  * Pattern: a data row begins with a digit followed by a period or space.
@@ -451,7 +451,7 @@ type LineGroup = {
  * Groups single-cell OCR lines into table rows using numbered row markers.
  *
  * Lines before the first numbered row ("orphan" lines) are grouped in chunks
- * of (colCount − 1) and assigned sequential row numbers starting from 1.
+ * of (colCount âˆ’ 1) and assigned sequential row numbers starting from 1.
  *
  * For each numbered row, the number and any text on the same line become
  * the first two cells; subsequent lines fill the remaining columns.
@@ -484,7 +484,7 @@ export function groupLinesByRowNumber(
   const rows: DocumentRow[] = [];
   const uncertainCells: UncertainCell[] = [];
 
-  // Convert pre-numbered orphan lines into rows (chunk by colCount − 1)
+  // Convert pre-numbered orphan lines into rows (chunk by colCount âˆ’ 1)
   if (preLines.length > 0) {
     const chunkSize = Math.max(1, colCount - 1);
     let seq = 1;
@@ -498,7 +498,7 @@ export function groupLinesByRowNumber(
         uncertainCells.push({
           rowIndex: rowIdx,
           columnIndex: ci,
-          reason: "Row grouping estimated — please verify against original scan",
+          reason: "Row grouping estimated â€” please verify against original scan",
         }),
       );
     }
@@ -514,21 +514,21 @@ export function groupLinesByRowNumber(
   return { rows, uncertainCells };
 }
 
-// ── Main normalisation entry point ────────────────────────────────────────────
+// â”€â”€ Main normalisation entry point â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 /**
  * Normalises a flat OCR line array into structured table columns and rows.
  *
  * Strategy (tried in order):
  * 1. Locate the column header row by scanning for table keyword segments
- *    (NO, NAME, SUBJECT, LEVEL …) — works even when it falls inside the
+ *    (NO, NAME, SUBJECT, LEVEL â€¦) â€” works even when it falls inside the
  *    first 20 % of lines that the old heuristic consumed.
  * 2. If body lines already carry multiple cells per line (comma / tab /
  *    multi-space separated), use delimiter splitting.
  * 3. Otherwise fall back to row-number grouping: lines matching /^\d+[.\s]/
  *    act as row boundaries; subsequent lines fill remaining columns.
  *
- * Returns `metaEndIdx` — the number of lines before the column header that
+ * Returns `metaEndIdx` â€” the number of lines before the column header that
  * the caller should use for title / school / year / term extraction.
  */
 export function normalizeFromOcrLines(lines: string[]): {
@@ -573,7 +573,7 @@ export function normalizeFromOcrLines(lines: string[]): {
           uncertainCells.push({
             rowIndex: rowIdx,
             columnIndex: ci,
-            reason: "Row cell count doesn't match header — please review",
+            reason: "Row cell count doesn't match header â€” please review",
           }),
         );
       }
@@ -582,12 +582,12 @@ export function normalizeFromOcrLines(lines: string[]): {
     return { columns, rows, uncertainCells, metaEndIdx };
   }
 
-  // Step 3: body lines are single-cell — group by row-number pattern
+  // Step 3: body lines are single-cell â€” group by row-number pattern
   const { rows, uncertainCells } = groupLinesByRowNumber(bodyLines, colCount);
   return { columns, rows, uncertainCells, metaEndIdx };
 }
 
-// ── Legacy delimiter-only parser (CSV / tab imports) ─────────────────────────
+// â”€â”€ Legacy delimiter-only parser (CSV / tab imports) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function looksLikeHeaderRow(cells: string[]): boolean {
   if (cells.length < 2) return false;
@@ -640,8 +640,8 @@ export function normalizeTableLines(lines: string[]): {
           rowIndex: rowIdx,
           columnIndex: ci,
           reason: mismatch
-            ? "Row cell count doesn't match header — please review"
-            : "Incomplete or very short row — please review",
+            ? "Row cell count doesn't match header â€” please review"
+            : "Incomplete or very short row â€” please review",
         }),
       );
     }
@@ -650,3 +650,4 @@ export function normalizeTableLines(lines: string[]): {
 
   return { columns, rows, uncertainCells };
 }
+

@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+﻿import { randomUUID } from "node:crypto";
 import { prisma } from "../db/prisma";
 import { renderSchemaToHtml } from "./documentRenderService";
 import { pickAgent, runAgent, type AgentDomain } from "./agentRegistry";
@@ -553,3 +553,4 @@ function normalizeAction(action: string): WorkflowAction {
   if (!normalized) throw Object.assign(new Error(`Unsupported workflow action: ${action}.`), { status: 400 });
   return normalized;
 }
+

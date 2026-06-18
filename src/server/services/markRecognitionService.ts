@@ -1,22 +1,22 @@
-// ── Public types ─────────────────────────────────────────────────────────────
+﻿// â”€â”€ Public types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-// ── Mark normalisation ────────────────────────────────────────────────────────
+// â”€â”€ Mark normalisation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 /**
  * Normalise raw OCR text from a mark cell into a canonical mark string.
  *
  * Rules:
- * - "AB" / "A8" / "AB." → "AB"   (absent)
- * - "EX" → "EX"                  (exempt)
- * - digits 0-100 → numeric string (e.g. "82")
+ * - "AB" / "A8" / "AB." â†’ "AB"   (absent)
+ * - "EX" â†’ "EX"                  (exempt)
+ * - digits 0-100 â†’ numeric string (e.g. "82")
  * - OCR noise around digits: strip non-digit chars, re-parse
- * - Blank / unreadable → ""       (missing — not zero)
+ * - Blank / unreadable â†’ ""       (missing â€” not zero)
  */
 export function normalizeMark(rawText: string): string {
   const t = rawText.replace(/\s+/g, "").toUpperCase();
   if (!t) return "";
 
-  // Absent: OCR often reads "8" for "B" → accept A8/AB
+  // Absent: OCR often reads "8" for "B" â†’ accept A8/AB
   if (t === "AB" || t === "A8" || t === "A B") return "AB";
   // Exempt
   if (t === "EX") return "EX";
@@ -61,7 +61,7 @@ export function parseSplitZoneTexts(zoneTexts: string[]): string {
   if (nonEmpty.includes("AB")) return "AB";
   if (nonEmpty.includes("EX")) return "EX";
 
-  // Check if individual zone characters spell out AB or EX (e.g. ["A","B",""] → "AB")
+  // Check if individual zone characters spell out AB or EX (e.g. ["A","B",""] â†’ "AB")
   const joinedLetters = zoneTexts
     .join("")
     .replace(/\s+/g, "")
@@ -83,3 +83,4 @@ export function parseSplitZoneTexts(zoneTexts: string[]): string {
 
   return parseSplitCellText(zoneTexts.join(" "));
 }
+

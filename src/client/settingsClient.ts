@@ -1,4 +1,4 @@
-import type { SettingSection, SettingsResponse, SettingsSections } from "../shared/types/settings";
+﻿import type { SettingSection, SettingsResponse, SettingsSections } from "../shared/types/settings";
 import { getApiBaseUrl, makeRequestHeaders, parseApiError } from "./apiBase";
 
 const API_BASE = getApiBaseUrl();
@@ -30,7 +30,7 @@ async function readSettingsError(response: Response, fallback: string): Promise<
       }
     }
   } catch {
-    // ignore — field errors not available
+    // ignore â€” field errors not available
   }
   const message = await parseApiError(response, fallback);
   return new SettingsClientError(message, response.status, fieldErrors);
@@ -58,3 +58,4 @@ export async function patchSettingsSection<K extends SettingSection>(
   window.dispatchEvent(new Event("settings-updated"));
   return result;
 }
+

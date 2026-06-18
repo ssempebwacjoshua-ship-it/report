@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+﻿import { describe, expect, it } from "vitest";
 import { O_LEVEL_SUBJECTS } from "../../shared/constants/subjects";
 
 describe("seed expectations", () => {
@@ -7,3 +7,4 @@ describe("seed expectations", () => {
     expect(O_LEVEL_SUBJECTS.map((subject) => subject.name)).toContain("Fine Art");
   });
 });
+

@@ -1,6 +1,6 @@
-import { GoogleGenAI, Type } from "@google/genai";
+﻿import { GoogleGenAI, Type } from "@google/genai";
 
-// Lazy singleton — not constructed until first API call.
+// Lazy singleton â€” not constructed until first API call.
 let aiInstance: GoogleGenAI | null = null;
 
 function getGeminiClient(): GoogleGenAI {
@@ -42,14 +42,14 @@ export function resolveGeminiHealthModel(): string {
 
 /**
  * Deterministic validation pass applied after Gemini returns rows.
- * Gemini's confidenceScore and needsReview are NOT trusted for mark validity —
+ * Gemini's confidenceScore and needsReview are NOT trusted for mark validity â€”
  * we check the mark field ourselves and override when necessary.
  *
  * Rules:
- *  - trimmed empty   → needsReview true, reason "Missing mark",        confidenceScore 0
- *  - non-numeric     → needsReview true, reason "Invalid mark",         confidenceScore 0
- *  - < 0 or > 100   → needsReview true, reason "Mark outside valid range", confidenceScore 0
- *  - valid mark      → preserve Gemini's needsReview and reason as-is
+ *  - trimmed empty   â†’ needsReview true, reason "Missing mark",        confidenceScore 0
+ *  - non-numeric     â†’ needsReview true, reason "Invalid mark",         confidenceScore 0
+ *  - < 0 or > 100   â†’ needsReview true, reason "Mark outside valid range", confidenceScore 0
+ *  - valid mark      â†’ preserve Gemini's needsReview and reason as-is
  *
  * Exported for direct unit testing.
  */
@@ -81,7 +81,7 @@ export function validateMarksheetRows(rows: GeminiExtractedMarkRow[]): {
       };
     }
 
-    // Mark is valid — preserve Gemini's judgment (including any existing needsReview: true)
+    // Mark is valid â€” preserve Gemini's judgment (including any existing needsReview: true)
     return { ...row, mark };
   });
 
@@ -99,7 +99,7 @@ export function validateMarksheetRows(rows: GeminiExtractedMarkRow[]): {
   };
 }
 
-// ── Retry logic for transient network errors ─────────────────────────────────
+// â”€â”€ Retry logic for transient network errors â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const RETRYABLE_RE = /fetch failed|ECONNRESET|ENOTFOUND|ETIMEDOUT|UNAVAILABLE|503/i;
 
@@ -131,7 +131,7 @@ async function withGeminiRetry<T>(fn: () => Promise<T>): Promise<T> {
   throw lastErr;
 }
 
-// ── Public API ────────────────────────────────────────────────────────────────
+// â”€â”€ Public API â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export async function extractMarksWithGemini(
   imageBuffer: Buffer,
@@ -169,7 +169,7 @@ student names, and numeric scores or marks.
 - If it IS a student marksheet, return documentType "marksheet" and extract each row:
   - studentId: student admission number or ID exactly as written
   - studentName: full name exactly as written
-  - mark: numeric score from the marks/score column ONLY — use empty string if the cell is blank
+  - mark: numeric score from the marks/score column ONLY â€” use empty string if the cell is blank
   - confidenceScore: 0 to 1
   - needsReview: true if name, ID, or mark is unclear or missing
   - reason: short explanation when needsReview is true
@@ -256,3 +256,4 @@ export async function pingGemini(): Promise<{ model: string }> {
   );
   return { model };
 }
+

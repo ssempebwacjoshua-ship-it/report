@@ -1,4 +1,4 @@
-import type { PrismaClient } from "@prisma/client";
+﻿import type { PrismaClient } from "@prisma/client";
 import { resolveCanonicalClassAndStreamInput, resolveCanonicalClassFromInput } from "../../shared/utils/classStreamNormalization";
 
 function slug(value: string) {
@@ -59,3 +59,4 @@ export async function generateAdmissionNumber(
   }
   throw new Error("Could not generate a unique admission number. Please provide admission numbers manually.");
 }
+

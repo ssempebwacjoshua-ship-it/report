@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+﻿import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { StudentReportCard } from "../../components/reports/StudentReportCard";
 import type { StudentReportCard as Card } from "../../shared/types/reports";
@@ -41,3 +41,4 @@ describe("StudentReportCard", () => {
     expect(screen.getByText("#1 Kampala Ssempebwa")).toBeInTheDocument();
   });
 });
+

@@ -1,4 +1,4 @@
-import type { AssessmentFilter, ReportContext, ReportFilters } from "../../shared/types/reports";
+﻿import type { AssessmentFilter, ReportContext, ReportFilters } from "../../shared/types/reports";
 
 type Props = {
   context: ReportContext | null;
@@ -96,3 +96,4 @@ export function ReportFilters({ context, filters, onChange }: Props) {
     </div>
   );
 }
+

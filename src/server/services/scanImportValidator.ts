@@ -1,4 +1,4 @@
-import type { ScanImportRow, ScanMarksheetContext } from "../../shared/types/imports";
+﻿import type { ScanImportRow, ScanMarksheetContext } from "../../shared/types/imports";
 
 const VALID_EXAM_TYPES = new Set(["BOT", "MOT", "EOT"]);
 
@@ -22,17 +22,17 @@ function resolveSuggestedMark(
   const w = parseScanMark(written);
   const s = parseScanMark(split);
 
-  // Both blank → missing mark (not an error)
+  // Both blank â†’ missing mark (not an error)
   if (w === "" && s === "") return { suggested: "", conflict: false };
 
-  // One side is blank — use the other
+  // One side is blank â€” use the other
   if (w === "") return { suggested: s === "INVALID" ? "" : s, conflict: false };
   if (s === "") return { suggested: w === "INVALID" ? "" : w, conflict: false };
 
   // Both present and agree
   if (w === s) return { suggested: w === "INVALID" ? "" : w, conflict: false };
 
-  // Both present and disagree → needs review
+  // Both present and disagree â†’ needs review
   return { suggested: "", conflict: true };
 }
 
@@ -79,7 +79,7 @@ export function validateScanRows(
     const finalMark = operatorMark || extracted;
 
     if (finalMark && finalMark !== "" && parseScanMark(finalMark) === "INVALID") {
-      errors.push(`Mark "${finalMark}" is not valid. Use 0–100, AB, or EX.`);
+      errors.push(`Mark "${finalMark}" is not valid. Use 0â€“100, AB, or EX.`);
     }
 
     const operatorResolved = operatorMark !== "";
@@ -114,3 +114,4 @@ export function validateScanRows(
 }
 
 export { resolveSuggestedMark as _resolveSuggestedMark };
+

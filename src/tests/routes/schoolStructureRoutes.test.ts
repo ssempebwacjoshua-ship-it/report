@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+﻿import { beforeEach, describe, expect, it, vi } from "vitest";
 import supertest from "supertest";
 import express from "express";
 import { schoolStructureRoutes } from "../../server/routes/schoolStructureRoutes";
@@ -266,3 +266,4 @@ describe("DELETE /api/settings/school-structure/streams/:streamId", () => {
     expect(res.status).toBe(404);
   });
 });
+

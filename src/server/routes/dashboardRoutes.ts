@@ -1,4 +1,4 @@
-import { Router } from "express";
+﻿import { Router } from "express";
 import { prisma } from "../db/prisma";
 import { getDashboardStats } from "../services/dashboardService";
 
@@ -15,3 +15,4 @@ export function dashboardRoutes() {
 
   return router;
 }
+

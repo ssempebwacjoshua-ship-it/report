@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+﻿import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { commitGeminiScanRows, extractMarksWithGeminiScan, fetchScanOptions } from "../../client/importsClient";
 import { SCAN_ACCEPT } from "../../client/marksSheetHelpers";
@@ -268,15 +268,15 @@ export function GeminiScanPanel() {
         <div className="rounded-2xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>
       )}
 
-      {/* Step 1 — context + image */}
+      {/* Step 1 â€” context + image */}
       <div className="premium-card rounded-2xl p-4">
-        <h2 className="text-sm font-bold text-slate-950">Step 1 — Select context and image</h2>
+        <h2 className="text-sm font-bold text-slate-950">Step 1 â€” Select context and image</h2>
         <p className="mt-0.5 text-xs text-slate-500">
           All fields are required. Stream is required where the class uses streams.
         </p>
 
         {options.status === "loading" && (
-          <p className="mt-4 text-sm text-slate-500">Loading options…</p>
+          <p className="mt-4 text-sm text-slate-500">Loading optionsâ€¦</p>
         )}
 
         {optionsReady && (
@@ -289,7 +289,7 @@ export function GeminiScanPanel() {
                 onChange={(e) => set("classId", e.target.value)}
                 className={selectCls}
               >
-                <option value="">Select class…</option>
+                <option value="">Select classâ€¦</option>
                 {options.data.classes.map((c) => (
                   <option key={c.id} value={c.id}>{c.name} ({c.code})</option>
                 ))}
@@ -305,7 +305,7 @@ export function GeminiScanPanel() {
                   onChange={(e) => set("streamId", e.target.value)}
                   className={selectCls}
                 >
-                  <option value="">Select stream…</option>
+                  <option value="">Select streamâ€¦</option>
                   {classStreams.map((s) => (
                     <option key={s.id} value={s.id}>{s.name} ({s.code})</option>
                   ))}
@@ -321,7 +321,7 @@ export function GeminiScanPanel() {
                 onChange={(e) => set("subjectId", e.target.value)}
                 className={selectCls}
               >
-                <option value="">Select subject…</option>
+                <option value="">Select subjectâ€¦</option>
                 {options.data.subjects.map((s) => (
                   <option key={s.id} value={s.id}>{s.name} ({s.code})</option>
                 ))}
@@ -336,7 +336,7 @@ export function GeminiScanPanel() {
                 onChange={(e) => set("termId", e.target.value)}
                 className={selectCls}
               >
-                <option value="">Select term…</option>
+                <option value="">Select termâ€¦</option>
                 {options.data.terms.map((t) => (
                   <option key={t.id} value={t.id}>{t.name}</option>
                 ))}
@@ -377,7 +377,7 @@ export function GeminiScanPanel() {
             <p className="mt-3 text-center text-xs text-slate-600">
               Selected: <span className="font-semibold text-slate-900">{image.name}</span>{" "}
               {compressedSize !== null && compressedSize < image.size
-                ? `(${(image.size / 1024).toFixed(0)} KB → ${(compressedSize / 1024).toFixed(0)} KB)`
+                ? `(${(image.size / 1024).toFixed(0)} KB â†’ ${(compressedSize / 1024).toFixed(0)} KB)`
                 : `(${(image.size / 1024).toFixed(1)} KB)`}
             </p>
           )}
@@ -398,7 +398,7 @@ export function GeminiScanPanel() {
         </div>
       </div>
 
-      {/* Step 2 — progress */}
+      {/* Step 2 â€” progress */}
       {isExtracting && (
         <div className="flex items-center gap-3 rounded-2xl border border-blue-100 bg-blue-50 p-4">
           <svg className="h-5 w-5 shrink-0 animate-spin text-blue-500" fill="none" viewBox="0 0 24 24">
@@ -410,16 +410,16 @@ export function GeminiScanPanel() {
               {phase === "compressing" ? "Preparing image..." : "Extracting marks from image..."}
             </p>
             {phase === "extracting" && (
-              <p className="mt-0.5 text-xs text-blue-600">Uploading and reading marksheet — may take 15–30 s</p>
+              <p className="mt-0.5 text-xs text-blue-600">Uploading and reading marksheet â€” may take 15â€“30 s</p>
             )}
           </div>
         </div>
       )}
 
-      {/* Step 3 — review */}
+      {/* Step 3 â€” review */}
       {phase === "review" && result && (
         <div className="grid gap-4">
-          {/* Summary cards — from initial server response */}
+          {/* Summary cards â€” from initial server response */}
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
             {SUMMARY_CARDS.map((card) => (
               <div key={card.key} className={`rounded-xl px-3 py-2 ${card.color}`} data-testid={`summary-${card.key}`}>
@@ -430,7 +430,7 @@ export function GeminiScanPanel() {
           </div>
 
           <p className="text-xs text-slate-500">
-            Job ID: <code className="font-mono">{result.jobId}</code> · {result.count} rows extracted
+            Job ID: <code className="font-mono">{result.jobId}</code> Â· {result.count} rows extracted
           </p>
 
           {/* Review table */}
@@ -460,10 +460,10 @@ export function GeminiScanPanel() {
 
                     {/* Extracted Student ID (admission number from marksheet) */}
                     <td className="px-2 py-2 font-mono text-xs">
-                      {row.extractedStudentId || <span className="text-red-500">—</span>}
+                      {row.extractedStudentId || <span className="text-red-500">â€”</span>}
                     </td>
 
-                    {/* Matched Student — name + admission number, NO internal UUID */}
+                    {/* Matched Student â€” name + admission number, NO internal UUID */}
                     <td className="px-2 py-2" data-testid={`matched-student-${row.rowNumber}`}>
                       {row.matchedStudentName ? (
                         <div>
@@ -471,16 +471,16 @@ export function GeminiScanPanel() {
                           <p className="text-[11px] text-slate-500">{row.extractedStudentId}</p>
                         </div>
                       ) : (
-                        <span className="text-[11px] text-red-500">— No match</span>
+                        <span className="text-[11px] text-red-500">â€” No match</span>
                       )}
                     </td>
 
-                    {/* Extracted Name — read-only, for comparison with Matched Student */}
+                    {/* Extracted Name â€” read-only, for comparison with Matched Student */}
                     <td className="px-2 py-2 text-xs text-slate-700">
                       {row.extractedStudentName}
                     </td>
 
-                    {/* Mark — editable until committed */}
+                    {/* Mark â€” editable until committed */}
                     <td className="px-2 py-2">
                       <input
                         type="text"
@@ -510,7 +510,7 @@ export function GeminiScanPanel() {
                       )}
                     </td>
 
-                    {/* Action column — targeted resolution buttons */}
+                    {/* Action column â€” targeted resolution buttons */}
                     <td className="px-2 py-2">
                       <div className="flex flex-col gap-1">
                         {row.issues.some((i) => /name mismatch/i.test(i)) && row.matchedStudentName && (
@@ -604,3 +604,4 @@ export function GeminiScanPanel() {
     </div>
   );
 }
+

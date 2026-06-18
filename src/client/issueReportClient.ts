@@ -1,4 +1,4 @@
-const TOKEN_KEY = "sc_auth_token";
+﻿const TOKEN_KEY = "sc_auth_token";
 import { getApiBaseUrl } from "./apiBase";
 const API_BASE = getApiBaseUrl();
 
@@ -43,3 +43,4 @@ export async function issueReport(body: IssueReportRequest): Promise<IssueReport
   }
   return data;
 }
+

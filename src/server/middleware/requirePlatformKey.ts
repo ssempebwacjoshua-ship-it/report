@@ -1,4 +1,4 @@
-import type { Request, Response, NextFunction } from "express";
+﻿import type { Request, Response, NextFunction } from "express";
 
 export function requirePlatformKey(req: Request, res: Response, next: NextFunction): void {
   const configuredKey = process.env.PLATFORM_ADMIN_KEY;
@@ -14,3 +14,4 @@ export function requirePlatformKey(req: Request, res: Response, next: NextFuncti
   }
   next();
 }
+

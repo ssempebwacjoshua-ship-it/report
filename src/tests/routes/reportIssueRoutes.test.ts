@@ -1,9 +1,9 @@
-import request from "supertest";
+﻿import request from "supertest";
 import { describe, expect, it, beforeAll } from "vitest";
 import { createServer } from "../../server";
 import { COMMENT_LIMITS } from "../../shared/utils/reportComments";
 
-describe("reportIssueRoutes — POST /api/reports/issue", () => {
+describe("reportIssueRoutes â€” POST /api/reports/issue", () => {
   it("returns 401 without Authorization header", async () => {
     const res = await request(createServer())
       .post("/api/reports/issue")
@@ -28,7 +28,7 @@ describe("reportIssueRoutes — POST /api/reports/issue", () => {
   });
 
   it("returns 400 when studentId is not a valid UUID", async () => {
-    // Need a valid-looking token — use signToken directly
+    // Need a valid-looking token â€” use signToken directly
     const { signToken } = await import("../../server/services/authService");
     const { prisma } = await import("../../server/db/prisma");
     const school = await prisma.school.findUnique({ where: { code: "SCU-PREVIEW" } });
@@ -48,7 +48,7 @@ describe("reportIssueRoutes — POST /api/reports/issue", () => {
   });
 });
 
-describe("reportIssueRoutes — comment character limits", () => {
+describe("reportIssueRoutes â€” comment character limits", () => {
   let authToken: string;
 
   beforeAll(async () => {
@@ -133,14 +133,14 @@ describe("reportIssueRoutes — comment character limits", () => {
   });
 });
 
-describe("reportIssueRoutes — GET /api/reports/issued", () => {
+describe("reportIssueRoutes â€” GET /api/reports/issued", () => {
   it("returns 401 without auth", async () => {
     const res = await request(createServer()).get("/api/reports/issued");
     expect(res.status).toBe(401);
   });
 });
 
-describe("reportIssueRoutes — PATCH /api/reports/issued/:id/revoke", () => {
+describe("reportIssueRoutes â€” PATCH /api/reports/issued/:id/revoke", () => {
   it("returns 401 without auth", async () => {
     const res = await request(createServer()).patch(
       "/api/reports/issued/00000000-0000-0000-0000-000000000001/revoke",
@@ -148,3 +148,4 @@ describe("reportIssueRoutes — PATCH /api/reports/issued/:id/revoke", () => {
     expect(res.status).toBe(401);
   });
 });
+

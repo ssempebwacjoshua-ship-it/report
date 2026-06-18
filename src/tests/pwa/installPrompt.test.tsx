@@ -1,4 +1,4 @@
-import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
+﻿import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { act } from "@testing-library/react";
 import { InstallPrompt } from "../../components/pwa/InstallPrompt";
@@ -146,3 +146,4 @@ describe("InstallPrompt", () => {
     expect(screen.queryByText("Install Smart Pages")).not.toBeInTheDocument();
   });
 });
+

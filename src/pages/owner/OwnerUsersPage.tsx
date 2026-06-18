@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+﻿import { useEffect, useState } from "react";
 import {
   fetchOwnerUsers,
   fetchOwnerSchools,
@@ -139,7 +139,7 @@ export function OwnerUsersPage() {
       <div className="flex flex-wrap gap-3">
         <input
           type="search"
-          placeholder="Search by name or email…"
+          placeholder="Search by name or emailâ€¦"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="input w-64 text-sm"
@@ -166,7 +166,7 @@ export function OwnerUsersPage() {
       {/* Users table */}
       <section className="premium-card rounded-xl overflow-hidden">
         {loading ? (
-          <div className="p-6 text-center text-sm text-slate-400">Loading…</div>
+          <div className="p-6 text-center text-sm text-slate-400">Loadingâ€¦</div>
         ) : users.length === 0 ? (
           <div className="p-6 text-center text-sm text-slate-400">No users found.</div>
         ) : (
@@ -230,7 +230,7 @@ export function OwnerUsersPage() {
           <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
             <div className="mb-4 flex items-center justify-between">
               <h3 className="text-base font-black text-slate-900">Create user</h3>
-              <button type="button" onClick={() => setShowCreate(false)} className="text-slate-400 hover:text-slate-700">✕</button>
+              <button type="button" onClick={() => setShowCreate(false)} className="text-slate-400 hover:text-slate-700">âœ•</button>
             </div>
             {createError && <div className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{createError}</div>}
             <div className="grid gap-3">
@@ -241,7 +241,7 @@ export function OwnerUsersPage() {
                   onChange={(e) => setCreateForm((f) => ({ ...f, schoolId: e.target.value }))}
                   className="input w-full text-sm"
                 >
-                  <option value="">Select a school…</option>
+                  <option value="">Select a schoolâ€¦</option>
                   {schools.map((s) => <option key={s.id} value={s.id}>{s.name} ({s.code})</option>)}
                 </select>
               </div>
@@ -284,7 +284,7 @@ export function OwnerUsersPage() {
                 disabled={creating || !createForm.schoolId || !createForm.name || !createForm.email || createForm.temporaryPassword.length < 8}
                 className="btn btn-primary flex-1 text-sm"
               >
-                {creating ? "Creating…" : "Create user"}
+                {creating ? "Creatingâ€¦" : "Create user"}
               </button>
               <button type="button" onClick={() => setShowCreate(false)} className="btn flex-1 text-sm">Cancel</button>
             </div>
@@ -298,7 +298,7 @@ export function OwnerUsersPage() {
           <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl">
             <div className="mb-4 flex items-center justify-between">
               <h3 className="text-base font-black text-slate-900">Reset password</h3>
-              <button type="button" onClick={() => setResetUserId(null)} className="text-slate-400 hover:text-slate-700">✕</button>
+              <button type="button" onClick={() => setResetUserId(null)} className="text-slate-400 hover:text-slate-700">âœ•</button>
             </div>
             <p className="mb-3 text-sm text-slate-600">Enter a new temporary password. The user must change it on next login.</p>
             <input
@@ -315,7 +315,7 @@ export function OwnerUsersPage() {
                 disabled={resetting || resetPassword.length < 8}
                 className="btn btn-primary flex-1 text-sm"
               >
-                {resetting ? "Resetting…" : "Set password"}
+                {resetting ? "Resettingâ€¦" : "Set password"}
               </button>
               <button type="button" onClick={() => setResetUserId(null)} className="btn flex-1 text-sm">Cancel</button>
             </div>
@@ -325,3 +325,4 @@ export function OwnerUsersPage() {
     </div>
   );
 }
+

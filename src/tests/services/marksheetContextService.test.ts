@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+﻿import { describe, expect, it } from "vitest";
 import {
   computeMarksheetId,
   computeSheetNumber,
@@ -10,7 +10,7 @@ import {
   resolveScanMarksheetContext,
 } from "../../server/services/marksheetContextService";
 
-// ── parseMarksheetIdComponents ────────────────────────────────────────────────
+// â”€â”€ parseMarksheetIdComponents â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 describe("parseMarksheetIdComponents", () => {
   it("parses a well-formed marksheet ID", () => {
@@ -71,7 +71,7 @@ describe("normalizeMarksheetId", () => {
   it("removes spaces and normalizes dash glyphs", () => {
     expect(normalizeMarksheetId(" ms - 2026 - seni - a - math - eot - te ")).toBe("MS-2026-SEN1-A-MATH-EOT-TE");
     expect(normalizeMarksheetId("MS 2026 SENI A MATH EOT TE")).toBe("MS-2026-SEN1-A-MATH-EOT-TE");
-    expect(normalizeMarksheetId("MS–2026–SENI–A–MATH–EOT–TE")).toBe("MS-2026-SEN1-A-MATH-EOT-TE");
+    expect(normalizeMarksheetId("MSâ€“2026â€“SENIâ€“Aâ€“MATHâ€“EOTâ€“TE")).toBe("MS-2026-SEN1-A-MATH-EOT-TE");
   });
 });
 
@@ -169,30 +169,30 @@ describe("resolveScanMarksheetContext", () => {
   });
 });
 
-// ── computeMarksheetId ────────────────────────────────────────────────────────
+// â”€â”€ computeMarksheetId â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 describe("computeMarksheetId", () => {
   it("produces MS-YEAR-CLASS4-STREAM-SUBJ4-EXAMTYPE-TERM2 format", () => {
     const id = computeMarksheetId("Senior 1 A", "A", "English Language", "EOT", "Term 1", 2026);
-    // "Senior1A" → "SENI" (first 4 chars after removing spaces)
-    // "EnglishLanguage" → "ENGL"
-    // "Term1" → "TE"
+    // "Senior1A" â†’ "SENI" (first 4 chars after removing spaces)
+    // "EnglishLanguage" â†’ "ENGL"
+    // "Term1" â†’ "TE"
     expect(id).toBe("MS-2026-SENI-A-ENGL-EOT-TE");
   });
 
   it("handles short class names", () => {
     const id = computeMarksheetId("S1", "A", "Mathematics", "BOT", "T1", 2026);
-    // "S1" → "S1" (only 2 chars)
-    // "Mathematics" → "MATH"
-    // "T1" → "T1"
+    // "S1" â†’ "S1" (only 2 chars)
+    // "Mathematics" â†’ "MATH"
+    // "T1" â†’ "T1"
     expect(id).toBe("MS-2026-S1-A-MATH-BOT-T1");
   });
 
   it("strips spaces from class name before slicing", () => {
     const a = computeMarksheetId("Sen 1 A", "A", "Biology", "MOT", "Term 2", 2026);
-    // "Sen1A" → "SEN1"
-    // "Biology" → "BIOL"
-    // "Term2" → "TE"
+    // "Sen1A" â†’ "SEN1"
+    // "Biology" â†’ "BIOL"
+    // "Term2" â†’ "TE"
     expect(a).toBe("MS-2026-SEN1-A-BIOL-MOT-TE");
   });
 
@@ -211,7 +211,7 @@ describe("computeMarksheetId", () => {
   });
 });
 
-// ── computeSheetNumber ────────────────────────────────────────────────────────
+// â”€â”€ computeSheetNumber â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 describe("computeSheetNumber", () => {
   const id = "MS-2026-SEN1-A-MATH-EOT-TE";
@@ -223,7 +223,7 @@ describe("computeSheetNumber", () => {
     expect(sn.startsWith("20260611-")).toBe(true);
   });
 
-  it("is deterministic — same ID and date always gives same result", () => {
+  it("is deterministic â€” same ID and date always gives same result", () => {
     expect(computeSheetNumber(id, date)).toBe(computeSheetNumber(id, date));
   });
 
@@ -241,7 +241,7 @@ describe("computeSheetNumber", () => {
   });
 });
 
-// ── findSheetNumberInText ─────────────────────────────────────────────────────
+// â”€â”€ findSheetNumberInText â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 describe("findSheetNumberInText", () => {
   it("finds SHEET NO: YYYYMMDD-NNN in OCR text", () => {
@@ -264,7 +264,7 @@ describe("findSheetNumberInText", () => {
   });
 });
 
-// ── findMarksheetIdBySheetNumber ──────────────────────────────────────────────
+// â”€â”€ findMarksheetIdBySheetNumber â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 describe("findMarksheetIdBySheetNumber", () => {
   const targetId = "MS-2026-SEN1-A-MATH-EOT-TE";
@@ -301,7 +301,7 @@ describe("findMarksheetIdBySheetNumber", () => {
   });
 });
 
-// ── findMarksheetIdInText ─────────────────────────────────────────────────────
+// â”€â”€ findMarksheetIdInText â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 describe("findMarksheetIdInText", () => {
   it("finds an ID embedded in header OCR text", () => {
@@ -340,3 +340,4 @@ Generated: 11 June 2026
     expect(findMarksheetIdInText(text)).toBe("MS-2026-SEN1-A-ENGL-EOT-TE");
   });
 });
+

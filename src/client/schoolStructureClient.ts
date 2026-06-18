@@ -1,4 +1,4 @@
-import { getApiBaseUrl, makeRequestHeaders, parseApiError } from "./apiBase";
+﻿import { getApiBaseUrl, makeRequestHeaders, parseApiError } from "./apiBase";
 
 const API_BASE = getApiBaseUrl();
 
@@ -83,3 +83,4 @@ export async function deleteSchoolStream(
   );
   return handleResponse<{ success: true; message: string }>(res, "Could not delete stream.");
 }
+

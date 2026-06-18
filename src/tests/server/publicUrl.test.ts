@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+﻿import { describe, expect, it, vi } from "vitest";
 
 describe("getPublicAppUrl", () => {
   it("prefers APP_BASE_URL and trims trailing slash", async () => {
@@ -8,3 +8,4 @@ describe("getPublicAppUrl", () => {
     expect(getPublicAppUrl()).toBe("https://example.com");
   });
 });
+

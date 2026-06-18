@@ -1,4 +1,4 @@
-import type { NextFunction, Request, Response } from "express";
+﻿import type { NextFunction, Request, Response } from "express";
 import { verifyToken } from "../services/authService";
 import jwt from "jsonwebtoken";
 import { findOrCreateSchoolOperatorCreator, findCreatorById } from "../services/documentIntelligenceService";
@@ -72,3 +72,4 @@ export async function requireCreator(req: Request, res: Response, next: NextFunc
 
   res.status(401).json({ error: "Invalid or expired session." });
 }
+

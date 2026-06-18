@@ -1,12 +1,12 @@
-import { useEffect, useRef, useState } from "react";
+﻿import { useEffect, useRef, useState } from "react";
 
-// ── Storage keys ───────────────────────────────────────────────────────────────
+// â”€â”€ Storage keys â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const DISMISSED_KEY = "sc_pwa_dismissed_v3";
 const INSTALLED_KEY = "sc_pwa_installed";
 const DISMISS_TTL_MS = 3 * 24 * 60 * 60 * 1000; // 3 days
 
-// ── Platform detection ─────────────────────────────────────────────────────────
+// â”€â”€ Platform detection â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function isStandalone() {
   return (
@@ -46,7 +46,7 @@ function wasInstalled() {
   }
 }
 
-// ── Types ──────────────────────────────────────────────────────────────────────
+// â”€â”€ Types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 type BeforeInstallPromptEvent = Event & {
   prompt: () => Promise<void>;
@@ -55,7 +55,7 @@ type BeforeInstallPromptEvent = Event & {
 
 type BannerState = "hidden" | "chrome-prompt" | "manual-android" | "manual-ios";
 
-// ── Manual instruction modals ──────────────────────────────────────────────────
+// â”€â”€ Manual instruction modals â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function AndroidInstructions({ onDismiss }: { onDismiss: () => void }) {
   return (
@@ -70,7 +70,7 @@ function AndroidInstructions({ onDismiss }: { onDismiss: () => void }) {
         </div>
         <ol className="mb-5 grid gap-3">
           {[
-            ["1", "Tap ⋮ (three-dot menu)", "Top right corner of Chrome"],
+            ["1", "Tap â‹® (three-dot menu)", "Top right corner of Chrome"],
             ["2", 'Tap "Add to Home screen"', 'Or "Install app"'],
             ["3", 'Tap "Add" to confirm', "The app installs in seconds"],
           ].map(([num, title, sub]) => (
@@ -110,7 +110,7 @@ function IosInstructions({ onDismiss }: { onDismiss: () => void }) {
         </div>
         <ol className="mb-5 grid gap-3">
           {[
-            ["1", "Tap Share ↑", "Bottom toolbar in Safari"],
+            ["1", "Tap Share â†‘", "Bottom toolbar in Safari"],
             ["2", 'Tap "Add to Home Screen"', "Scroll down in the share sheet"],
             ["3", 'Tap "Add"', "The app installs immediately"],
           ].map(([num, title, sub]) => (
@@ -137,7 +137,7 @@ function IosInstructions({ onDismiss }: { onDismiss: () => void }) {
   );
 }
 
-// ── Big install banner (Chrome prompt available) ───────────────────────────────
+// â”€â”€ Big install banner (Chrome prompt available) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function InstallBanner({
   onInstall,
@@ -157,7 +157,7 @@ function InstallBanner({
             <img src="/icons/icon-192.png" alt="" className="h-10 w-10 rounded-xl shadow-sm" />
             <div>
               <p className="text-base font-black text-slate-900">Install Smart Pages</p>
-              <p className="text-xs text-slate-500">Faster access · Offline · Full mobile experience</p>
+              <p className="text-xs text-slate-500">Faster access Â· Offline Â· Full mobile experience</p>
             </div>
           </div>
           <button
@@ -196,7 +196,7 @@ function InstallBanner({
           >
             Maybe Later
           </button>
-          <span className="text-slate-200" aria-hidden>·</span>
+          <span className="text-slate-200" aria-hidden>Â·</span>
           <button
             type="button"
             onClick={onShowManual}
@@ -210,7 +210,7 @@ function InstallBanner({
   );
 }
 
-// ── Main component ─────────────────────────────────────────────────────────────
+// â”€â”€ Main component â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export function InstallPrompt() {
   const [bannerState, setBannerState] = useState<BannerState>("hidden");
@@ -242,7 +242,7 @@ export function InstallPrompt() {
 
     // After 4 s, if Chrome prompt never fired, show manual fallback on mobile
     const fallbackTimer = setTimeout(() => {
-      if (promptCaptured.current) return; // prompt fired — already showing
+      if (promptCaptured.current) return; // prompt fired â€” already showing
       if (isStandalone() || wasInstalled() || wasDismissedRecently()) return;
       if (isAndroidChrome()) setBannerState("manual-android");
       else if (isIos()) setBannerState("manual-ios");
@@ -294,3 +294,4 @@ export function InstallPrompt() {
     />
   );
 }
+

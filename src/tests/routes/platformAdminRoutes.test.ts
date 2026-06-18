@@ -1,12 +1,12 @@
-import request from "supertest";
+﻿import request from "supertest";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { provisionSchool } from "../../server/services/schoolProvisioningService";
 import { signToken, verifyToken } from "../../server/services/authService";
 import type { PrismaClient } from "@prisma/client";
 
-// ─── Platform provisioning: service unit tests ────────────────────────────────
+// â”€â”€â”€ Platform provisioning: service unit tests â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-describe("Phase 7 — provisionSchool service", () => {
+describe("Phase 7 â€” provisionSchool service", () => {
   const schoolId = "sc-prov-1";
   const adminId = "usr-prov-1";
 
@@ -118,7 +118,7 @@ describe("Phase 7 — provisionSchool service", () => {
   });
 });
 
-// ─── Platform provisioning: route tests (vi.mock for prisma) ─────────────────
+// â”€â”€â”€ Platform provisioning: route tests (vi.mock for prisma) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const { schoolFindUnique, schoolCreate, classUpsert, userFindFirst, userCreate, platformAuditCreate } = vi.hoisted(() => {
   const SCHOOL_ID = "sc-route-1";
@@ -146,7 +146,7 @@ vi.mock("../../server/db/prisma", () => ({
   },
 }));
 
-describe("Phase 7 — POST /api/platform/schools (route)", () => {
+describe("Phase 7 â€” POST /api/platform/schools (route)", () => {
   const PLATFORM_KEY = "test-platform-key-phase7";
   let app: ReturnType<typeof import("../../server").createServer>;
 
@@ -226,9 +226,9 @@ describe("Phase 7 — POST /api/platform/schools (route)", () => {
   }, 15000);
 });
 
-// ─── Acceptance test 4 & 5: admin token schoolId + tenant isolation ───────────
+// â”€â”€â”€ Acceptance test 4 & 5: admin token schoolId + tenant isolation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-describe("Phase 7 — acceptance tests 4 & 5 (token schoolId + tenant isolation)", () => {
+describe("Phase 7 â€” acceptance tests 4 & 5 (token schoolId + tenant isolation)", () => {
   it("admin login token contains the correct schoolId (acceptance test 4)", () => {
     const token = signToken({
       userId: "usr-t4",
@@ -241,7 +241,7 @@ describe("Phase 7 — acceptance tests 4 & 5 (token schoolId + tenant isolation)
     expect(payload?.schoolId).toBe("sc-new-school");
   });
 
-  it("admin cannot access a different school (acceptance test 5 — tenant isolation)", () => {
+  it("admin cannot access a different school (acceptance test 5 â€” tenant isolation)", () => {
     // A School B admin token must not carry SCU-PREVIEW's schoolId.
     // resolveSchoolContext enforces the cross-tenant check (see resolveSchoolContext.test.ts).
     const token = signToken({
@@ -253,7 +253,8 @@ describe("Phase 7 — acceptance tests 4 & 5 (token schoolId + tenant isolation)
     });
     const payload = verifyToken(token);
     expect(payload?.schoolId).toBe("sc-school-b");
-    // Token scoped to sc-school-b — resolveSchoolContext would 403 any request
+    // Token scoped to sc-school-b â€” resolveSchoolContext would 403 any request
     // that also sends schoolCode="SCU-PREVIEW", proving cross-school access is blocked.
   });
 });
+

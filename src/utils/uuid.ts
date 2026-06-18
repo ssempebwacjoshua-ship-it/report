@@ -1,4 +1,4 @@
-export function randomUUID(): string {
+﻿export function randomUUID(): string {
   if (typeof crypto !== "undefined" && crypto.randomUUID) {
     return crypto.randomUUID();
   }
@@ -8,3 +8,4 @@ export function randomUUID(): string {
     return v.toString(16);
   });
 }
+

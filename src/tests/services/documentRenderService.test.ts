@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+﻿import { describe, expect, it } from "vitest";
 import { renderSchemaToHtml } from "../../server/services/documentRenderService";
 import type { ComponentNode, DocumentSchema } from "../../shared/types/documentIntelligence";
 
@@ -35,3 +35,4 @@ describe("renderSchemaToHtml", () => {
     expect(html).toContain("compact-block");
   });
 });
+

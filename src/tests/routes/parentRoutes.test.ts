@@ -1,4 +1,4 @@
-import request from "supertest";
+﻿import request from "supertest";
 import { describe, expect, it } from "vitest";
 import { createServer } from "../../server";
 
@@ -48,3 +48,4 @@ describe("verifyRoutes - GET /api/verify/:code", () => {
     expect(res.body).toMatchObject({ found: false });
   });
 });
+

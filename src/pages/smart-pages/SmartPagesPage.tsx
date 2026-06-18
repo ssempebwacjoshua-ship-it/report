@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+﻿import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { createDocument, listDocuments } from "../../client/documentIntelligenceClient";
 import type { SmartDocumentSummary } from "../../shared/types/documentIntelligence";
@@ -49,7 +49,7 @@ export function SmartPagesPage() {
   if (loading) {
     return (
       <div className="flex min-h-[40vh] items-center justify-center">
-        <p className="text-sm text-slate-500">Loading documents…</p>
+        <p className="text-sm text-slate-500">Loading documentsâ€¦</p>
       </div>
     );
   }
@@ -165,7 +165,7 @@ export function SmartPagesPage() {
             <input
               autoFocus
               type="text"
-              placeholder="e.g. End of Term Report, Patient Summary…"
+              placeholder="e.g. End of Term Report, Patient Summaryâ€¦"
               value={newTitle}
               onChange={(e) => setNewTitle(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter") void handleCreate(); }}
@@ -185,7 +185,7 @@ export function SmartPagesPage() {
                 disabled={creating}
                 onClick={() => void handleCreate()}
               >
-                {creating ? "Creating…" : "Create"}
+                {creating ? "Creatingâ€¦" : "Create"}
               </button>
             </div>
           </div>
@@ -194,3 +194,4 @@ export function SmartPagesPage() {
     </div>
   );
 }
+

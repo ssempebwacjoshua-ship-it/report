@@ -1,4 +1,4 @@
-const LOCAL_API_BASE = "http://localhost:4300";
+﻿const LOCAL_API_BASE = "http://localhost:4300";
 
 function validateApiBase(url: string) {
   if (!/^https?:\/\//i.test(url)) {
@@ -59,7 +59,7 @@ export async function parseApiError(response: Response, fallback: string): Promi
     const text = await response.text();
     if (text) body = JSON.parse(text) as Record<string, unknown>;
   } catch {
-    // body stays empty — use fallback below
+    // body stays empty â€” use fallback below
   }
 
   const requestId = typeof body.requestId === "string" ? body.requestId : null;
@@ -82,3 +82,4 @@ export async function parseApiError(response: Response, fallback: string): Promi
 
   return fallback + suffix;
 }
+

@@ -1,4 +1,4 @@
-import type { StudentReportCard as Card } from "../../shared/types/reports";
+﻿import type { StudentReportCard as Card } from "../../shared/types/reports";
 
 type Props = {
   card: Card;
@@ -57,3 +57,4 @@ export function StudentReportCard({ card, selected, showPositions, onOpen }: Pro
     </div>
   );
 }
+

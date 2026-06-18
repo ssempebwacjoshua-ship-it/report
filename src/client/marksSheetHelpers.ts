@@ -1,6 +1,6 @@
-import * as XLSX from "xlsx";
+﻿import * as XLSX from "xlsx";
 
-// ── File type constants ───────────────────────────────────────────────────────
+// â”€â”€ File type constants â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export const DIGITAL_ACCEPT =
   ".csv,.xlsx,.xls,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
@@ -19,7 +19,7 @@ export function getScanFileType(file: File): string {
   return file.name.split(".").pop()?.toUpperCase() ?? "UNKNOWN";
 }
 
-// ── Digital marks template columns ───────────────────────────────────────────
+// â”€â”€ Digital marks template columns â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export const MARKS_TEMPLATE_COLUMNS = [
   "admissionNumber",
@@ -121,3 +121,4 @@ export async function parseMarksFile(file: File): Promise<ParsedMarksFile> {
 export function validatePastedCsv(csvText: string) {
   assertRequiredColumnsFromCsv(csvText);
 }
+

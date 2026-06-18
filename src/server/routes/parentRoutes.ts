@@ -1,4 +1,4 @@
-import crypto from "node:crypto";
+﻿import crypto from "node:crypto";
 import { Router } from "express";
 import { prisma } from "../db/prisma";
 
@@ -9,7 +9,7 @@ function hashToken(token: string): string {
 export function parentRoutes() {
   const router = Router();
 
-  // Public â€” URL token IS the auth. No login required.
+  // Public Ã¢â‚¬â€ URL token IS the auth. No login required.
   router.get("/api/p/:token", async (req, res, next) => {
     try {
       const { token } = req.params;
@@ -97,3 +97,4 @@ export function parentRoutes() {
 
   return router;
 }
+

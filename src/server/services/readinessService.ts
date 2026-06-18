@@ -1,4 +1,4 @@
-import type { ReportReadiness } from "../../shared/types/reports";
+﻿import type { ReportReadiness } from "../../shared/types/reports";
 
 export function emptyReasonForReadiness(readiness: ReportReadiness): string | null {
   switch (readiness) {
@@ -16,3 +16,4 @@ export function emptyReasonForReadiness(readiness: ReportReadiness): string | nu
       return null;
   }
 }
+

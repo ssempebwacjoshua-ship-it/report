@@ -1,7 +1,7 @@
-import request from "supertest";
+﻿import request from "supertest";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-// ── Mocks ───────────────────────────────────────────────────────────────────
+// â”€â”€ Mocks â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const {
   markImportBatchCreate,
   markImportBatchFindUnique,
@@ -293,7 +293,7 @@ describe("no active students", () => {
 
 describe("stream-class validation", () => {
   it("returns STREAM_NOT_FOUND with 'does not belong' message when stream is not in the selected class", async () => {
-    // stream.findFirst returns null — the stream UUID is not under the given classId
+    // stream.findFirst returns null â€” the stream UUID is not under the given classId
     const res = await request(createServer())
       .post("/api/marks-import/scan/extract")
       .attach("image", IMAGE, { filename: "marks.jpg", contentType: "image/jpeg" })
@@ -386,7 +386,7 @@ describe("GET /api/marks-import/scan/options", () => {
   });
 
   it("upserts S1-S6 (6 classes) for a secondary school when no setting is stored", async () => {
-    // appSetting returns null → defaults to SECONDARY → 6 upsert calls
+    // appSetting returns null â†’ defaults to SECONDARY â†’ 6 upsert calls
     await request(createServer())
       .get("/api/marks-import/scan/options")
       .query({ schoolCode: "SCU-PREVIEW" });
@@ -551,9 +551,9 @@ describe("file validation boundaries", () => {
   });
 });
 
-// ── POST /api/marks-import/scan/commit ────────────────────────────────────
+// â”€â”€ POST /api/marks-import/scan/commit â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-describe("POST /api/marks-import/scan/commit — input validation", () => {
+describe("POST /api/marks-import/scan/commit â€” input validation", () => {
   it("rejects missing jobId with 400 INVALID_JOB_ID", async () => {
     const res = await request(createServer())
       .post("/api/marks-import/scan/commit")
@@ -579,7 +579,7 @@ describe("POST /api/marks-import/scan/commit — input validation", () => {
   });
 });
 
-describe("POST /api/marks-import/scan/commit — batch checks", () => {
+describe("POST /api/marks-import/scan/commit â€” batch checks", () => {
   it("rejects an unknown jobId with 404 BATCH_NOT_FOUND", async () => {
     markImportBatchFindUnique.mockResolvedValueOnce(null);
     const res = await request(createServer())
@@ -604,7 +604,7 @@ describe("POST /api/marks-import/scan/commit — batch checks", () => {
   });
 });
 
-describe("POST /api/marks-import/scan/commit — row-level validation", () => {
+describe("POST /api/marks-import/scan/commit â€” row-level validation", () => {
   it("rejects a row with a missing mark with 400 ROW_VALIDATION_FAILED", async () => {
     const rows = VALID_REVIEWED_ROWS.map((r, i) =>
       i === 0 ? { ...r, mark: "" } : r,
@@ -643,7 +643,7 @@ describe("POST /api/marks-import/scan/commit — row-level validation", () => {
   });
 });
 
-describe("POST /api/marks-import/scan/commit — successful commit", () => {
+describe("POST /api/marks-import/scan/commit â€” successful commit", () => {
   it("upserts one SubjectMark per reviewed row and responds 200 with finalizedRows", async () => {
     const res = await request(createServer())
       .post("/api/marks-import/scan/commit")
@@ -764,3 +764,4 @@ describe("POST /api/marks-import/scan/commit — successful commit", () => {
     expect(txSubjectMarkUpsert).toHaveBeenCalledTimes(2); // only first commit's 2 rows
   });
 });
+

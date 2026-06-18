@@ -1,4 +1,4 @@
-import { Router } from "express";
+﻿import { Router } from "express";
 import { prisma } from "../db/prisma";
 import { getSettings, patchSettingsSection } from "../repositories/settingsRepository";
 import { SETTING_SECTIONS, type SettingSection } from "../../shared/types/settings";
@@ -38,3 +38,4 @@ export function settingsRoutes() {
 
   return router;
 }
+

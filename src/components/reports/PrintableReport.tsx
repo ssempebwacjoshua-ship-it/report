@@ -1,4 +1,4 @@
-import type { StudentReportCard } from "../../shared/types/reports";
+﻿import type { StudentReportCard } from "../../shared/types/reports";
 import { StudentReportDetail } from "./StudentReportDetail";
 
 export function PrintableReport({ card }: { card: StudentReportCard | null }) {
@@ -8,3 +8,4 @@ export function PrintableReport({ card }: { card: StudentReportCard | null }) {
     </div>
   );
 }
+

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+﻿import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { DocumentCleanerPage } from "../../pages/DocumentCleanerPage";
@@ -56,7 +56,7 @@ function renderPage() {
   );
 }
 
-describe("DocumentCleanerPage — initial state", () => {
+describe("DocumentCleanerPage â€” initial state", () => {
   beforeEach(() => {
     mockUpload.mockReset();
     mockGenerate.mockReset();
@@ -87,7 +87,7 @@ describe("DocumentCleanerPage — initial state", () => {
   });
 });
 
-describe("DocumentCleanerPage — after successful upload", () => {
+describe("DocumentCleanerPage â€” after successful upload", () => {
   beforeEach(() => {
     mockUpload.mockReset();
     mockGenerate.mockReset();
@@ -152,7 +152,7 @@ describe("DocumentCleanerPage — after successful upload", () => {
   });
 });
 
-describe("DocumentCleanerPage — editable fields", () => {
+describe("DocumentCleanerPage â€” editable fields", () => {
   beforeEach(() => {
     mockUpload.mockResolvedValue(mockDraft);
   });
@@ -173,7 +173,7 @@ describe("DocumentCleanerPage — editable fields", () => {
   });
 });
 
-// ── Smart Pages card ─────────────────────────────────────────────────────────
+// â”€â”€ Smart Pages card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const mockSummary = {
   includedPages: 5000,
@@ -185,7 +185,7 @@ const mockSummary = {
   allowHighAccuracy: false,
 };
 
-describe("DocumentCleanerPage — Smart Pages card", () => {
+describe("DocumentCleanerPage â€” Smart Pages card", () => {
   beforeEach(() => {
     mockUpload.mockReset();
     mockGenerate.mockReset();
@@ -232,9 +232,9 @@ describe("DocumentCleanerPage — Smart Pages card", () => {
   });
 });
 
-// ── Extraction mode selector ──────────────────────────────────────────────────
+// â”€â”€ Extraction mode selector â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-describe("DocumentCleanerPage — extraction mode selector", () => {
+describe("DocumentCleanerPage â€” extraction mode selector", () => {
   beforeEach(() => {
     mockUpload.mockReset();
     mockGetSummary.mockReset();
@@ -258,9 +258,9 @@ describe("DocumentCleanerPage — extraction mode selector", () => {
   });
 });
 
-// ── High Accuracy warning ─────────────────────────────────────────────────────
+// â”€â”€ High Accuracy warning â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-describe("DocumentCleanerPage — High Accuracy mode warning", () => {
+describe("DocumentCleanerPage â€” High Accuracy mode warning", () => {
   beforeEach(() => {
     mockGetSummary.mockReset();
     mockGetSummary.mockResolvedValue({ ...mockSummary, allowHighAccuracy: true });
@@ -283,9 +283,9 @@ describe("DocumentCleanerPage — High Accuracy mode warning", () => {
   });
 });
 
-// ── Route ─────────────────────────────────────────────────────────────────────
+// â”€â”€ Route â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-describe("DocumentCleanerPage — routing", () => {
+describe("DocumentCleanerPage â€” routing", () => {
   it("renders when placed at /documents/cleaner", () => {
     render(
       <MemoryRouter initialEntries={["/documents/cleaner"]}>
@@ -295,3 +295,4 @@ describe("DocumentCleanerPage — routing", () => {
     expect(screen.getByRole("heading", { name: /document cleaner|paper.to.pdf/i })).toBeInTheDocument();
   });
 });
+

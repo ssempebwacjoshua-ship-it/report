@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+﻿import { describe, expect, it } from "vitest";
 import sharp from "sharp";
 import { checkCropQuality } from "../../server/services/scanPreprocessService";
 
@@ -47,3 +47,4 @@ describe("checkCropQuality", () => {
     expect(quality.reason).toMatch(/vertical lines/i);
   });
 });
+

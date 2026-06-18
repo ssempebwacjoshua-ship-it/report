@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+﻿import { useEffect, useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import { Navigate, Outlet } from "react-router-dom";
 import { useAuth } from "../../contexts/AuthContext";
@@ -19,7 +19,7 @@ export function AppShell() {
   if (authLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-slate-50">
-        <p className="text-sm text-slate-500">Loading…</p>
+        <p className="text-sm text-slate-500">Loading...</p>
       </div>
     );
   }
@@ -70,7 +70,7 @@ function AppShellAuthenticated() {
 
   return (
     <SettingsProvider>
-      <AppShellInner
+      <AppShellWorkspaceGate
         sidebarOpen={sidebarOpen}
         setSidebarOpen={setSidebarOpen}
         sidebarCollapsed={sidebarCollapsed}
@@ -80,6 +80,69 @@ function AppShellAuthenticated() {
         setSidebarOpenAndClose={toggleSidebar}
       />
     </SettingsProvider>
+  );
+}
+
+function AppShellWorkspaceGate({
+  sidebarOpen,
+  setSidebarOpen,
+  sidebarCollapsed,
+  setSidebarCollapsed,
+  sidebarWidth,
+  setSidebarWidth,
+  setSidebarOpenAndClose,
+}: {
+  sidebarOpen: boolean;
+  setSidebarOpen: Dispatch<SetStateAction<boolean>>;
+  sidebarCollapsed: boolean;
+  setSidebarCollapsed: Dispatch<SetStateAction<boolean>>;
+  sidebarWidth: number;
+  setSidebarWidth: Dispatch<SetStateAction<number>>;
+  setSidebarOpenAndClose: () => void;
+}) {
+  const settingsState = useAppSettings();
+
+  if (settingsState?.loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-slate-50 px-4">
+        <div className="max-w-sm rounded-2xl border border-slate-200 bg-white px-5 py-4 text-center shadow-sm">
+          <p className="text-sm font-semibold text-slate-950">Loading school workspace...</p>
+          <p className="mt-1 text-sm text-slate-500">Please wait while we load your school settings.</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (settingsState?.error) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-slate-50 px-4">
+        <div className="max-w-sm rounded-2xl border border-slate-200 bg-white px-5 py-4 text-center shadow-sm">
+          <p className="text-sm font-semibold text-slate-950">Could not load school workspace.</p>
+          <p className="mt-1 text-sm text-slate-500">{settingsState.error}</p>
+          <button
+            type="button"
+            onClick={() => {
+              void settingsState.refreshSettings();
+            }}
+            className="btn btn-primary mt-4 rounded-2xl px-4 py-2 text-sm font-black"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <AppShellInner
+      sidebarOpen={sidebarOpen}
+      setSidebarOpen={setSidebarOpen}
+      sidebarCollapsed={sidebarCollapsed}
+      setSidebarCollapsed={setSidebarCollapsed}
+      sidebarWidth={sidebarWidth}
+      setSidebarWidth={setSidebarWidth}
+      setSidebarOpenAndClose={setSidebarOpenAndClose}
+    />
   );
 }
 
@@ -101,12 +164,13 @@ function AppShellInner({
   setSidebarOpenAndClose: () => void;
 }) {
   const { settings } = useAppSettings() ?? {};
+
   useEffect(() => {
     if (!settings) return;
     const widthBySetting = { compact: 224, standard: 240, wide: 260 };
     const hasManualWidth = localStorage.getItem(SIDEBAR_WIDTH_KEY);
     if (!hasManualWidth) setSidebarWidth(widthBySetting[settings.sections.appearance.sidebarWidth]);
-  }, [settings]);
+  }, [settings, setSidebarWidth]);
 
   useEffect(() => {
     try {
@@ -145,3 +209,4 @@ function AppShellInner({
     </div>
   );
 }
+

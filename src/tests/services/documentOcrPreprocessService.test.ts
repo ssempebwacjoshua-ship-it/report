@@ -1,4 +1,4 @@
-import sharp from "sharp";
+﻿import sharp from "sharp";
 import { describe, expect, it } from "vitest";
 import { preprocessDocumentForOcr } from "../../server/services/documentOcrPreprocessService";
 
@@ -39,3 +39,4 @@ describe("preprocessDocumentForOcr", () => {
     expect(result.notes.some((note) => note.code === "ORIGINAL_USED")).toBe(true);
   });
 });
+

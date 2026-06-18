@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+﻿import { randomUUID } from "node:crypto";
 import { prisma } from "../db/prisma";
 import { createNotification, executeWorkflows, upsertSearchIndex, removeSearchIndex } from "./documentOsService";
 
@@ -18,7 +18,7 @@ export interface CollectionDetail extends CollectionSummary {
   fields: string[];
 }
 
-// ── CRUD ───────────────────────────────────────────────────────────────────────
+// â”€â”€ CRUD â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export async function listCollections(creatorId: string): Promise<CollectionSummary[]> {
   const collections = await db.collection.findMany({
@@ -100,7 +100,7 @@ export async function deleteCollection(collectionId: string, creatorId: string):
   await removeSearchIndex("COLLECTION", collectionId);
 }
 
-// ── Records ────────────────────────────────────────────────────────────────────
+// â”€â”€ Records â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export async function addRecord(
   collectionId: string,
@@ -135,7 +135,7 @@ export async function deleteRecord(
   await removeSearchIndex("RECORD", recordId);
 }
 
-// ── CSV import ─────────────────────────────────────────────────────────────────
+// â”€â”€ CSV import â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export function parseCSV(content: string): Record<string, string>[] {
   const lines = content
@@ -214,7 +214,7 @@ export async function importCSVIntoCollection(
   return { imported, skipped };
 }
 
-// ── Utility ────────────────────────────────────────────────────────────────────
+// â”€â”€ Utility â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function deriveFields(records: Record<string, unknown>[]): string[] {
   const keys = new Set<string>();
@@ -223,3 +223,4 @@ function deriveFields(records: Record<string, unknown>[]): string[] {
   }
   return Array.from(keys);
 }
+

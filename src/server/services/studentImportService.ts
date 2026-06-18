@@ -1,4 +1,4 @@
-import { parse as parseCsv } from "csv-parse/sync";
+﻿import { parse as parseCsv } from "csv-parse/sync";
 import type { PrismaClient } from "@prisma/client";
 import { read, utils } from "xlsx";
 import type {
@@ -799,3 +799,4 @@ export async function commitStudentImport(prisma: PrismaClient, schoolCode: stri
   const queued = await createStudentImportJob(prisma, schoolCode, rows, mode);
   return { ...preview, ...queued };
 }
+

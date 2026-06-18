@@ -1,4 +1,4 @@
-/** Dev-only horizontal overflow detector.
+﻿/** Dev-only horizontal overflow detector.
  * Logs elements wider than their container so layout regressions are caught
  * during development. Never runs in production builds.
  */
@@ -23,3 +23,4 @@ export function installOverflowDetector() {
   window.addEventListener("load", () => setTimeout(check, 1000));
   document.addEventListener("click", () => setTimeout(check, 500), { passive: true });
 }
+

@@ -1,4 +1,4 @@
-export type DocCleanerFileType = "PNG" | "JPG" | "JPEG" | "WEBP" | "PDF";
+﻿export type DocCleanerFileType = "PNG" | "JPG" | "JPEG" | "WEBP" | "PDF";
 
 export const DOC_CLEANER_FILE_TYPES = new Set<string>(["PNG", "JPG", "JPEG", "WEBP", "PDF"]);
 
@@ -62,3 +62,4 @@ export type DocCleanerErrorCode =
   | "EXTRACTION_PROVIDER_UNAVAILABLE"
   | "DOCUMENT_EXTRACTION_FAILED"
   | "MISSING_SCHOOL_CODE";
+

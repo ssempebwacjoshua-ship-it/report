@@ -1,4 +1,4 @@
-import crypto from "node:crypto";
+﻿import crypto from "node:crypto";
 import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../db/prisma";
@@ -9,7 +9,7 @@ import { buildReports } from "../services/reportEngine";
 import type { PreferredContactMethod } from "@prisma/client";
 import { getPublicAppUrl } from "../config/publicUrl";
 
-// ── Token helpers (mirrors reportIssueRoutes.ts) ─────────────────────────────
+// â”€â”€ Token helpers (mirrors reportIssueRoutes.ts) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function generateToken(): string {
   return crypto.randomBytes(32).toString("hex");
@@ -28,7 +28,7 @@ function generateReferenceCode(): string {
   return `${y}${m}${d}-${suffix}`;
 }
 
-// ── Contact method resolution ─────────────────────────────────────────────────
+// â”€â”€ Contact method resolution â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export type ResolvedContact = {
   guardianName: string;
@@ -55,13 +55,13 @@ function resolveContact(
   if (pref === "WHATSAPP" && phone) return { guardianName, method: "WHATSAPP", contactValue: phone };
   if (pref === "SMS" && phone) return { guardianName, method: "SMS", contactValue: phone };
   if (pref === "EMAIL" && email) return { guardianName, method: "EMAIL", contactValue: email };
-  // PHONE or fallback — prefer WhatsApp over SMS
+  // PHONE or fallback â€” prefer WhatsApp over SMS
   if (phone) return { guardianName, method: "WHATSAPP", contactValue: phone };
   if (email) return { guardianName, method: "EMAIL", contactValue: email };
   return null;
 }
 
-// ── Delivery status ───────────────────────────────────────────────────────────
+// â”€â”€ Delivery status â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export type DeliveryStatus =
   | "NOT_FINALIZED"
@@ -94,7 +94,7 @@ function computeDeliveryStatus(
   return "LINK_GENERATED";
 }
 
-// ── Filters ───────────────────────────────────────────────────────────────────
+// â”€â”€ Filters â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const releaseFiltersSchema = z.object({
   classId: z.string().min(1, "classId is required."),
@@ -119,7 +119,7 @@ const bulkActionSchema = z.object({
   studentIds: z.array(z.string().uuid()).min(1),
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export function releaseCenterRoutes() {
   const router = Router();
@@ -457,3 +457,4 @@ export function releaseCenterRoutes() {
 
   return router;
 }
+

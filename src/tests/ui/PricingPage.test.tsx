@@ -1,4 +1,5 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+﻿import { fireEvent, render, screen } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { PricingPage } from "../../pages/PricingPage";
 
@@ -18,12 +19,20 @@ describe("PricingPage", () => {
   });
 
   it("renders the pricing packages and routes public actions", () => {
-    render(<PricingPage />);
+    render(
+      <MemoryRouter initialEntries={["/pricing"]}>
+        <PricingPage />
+      </MemoryRouter>,
+    );
 
     expect(screen.getByText("Simple packages for smart schools.")).toBeInTheDocument();
+    expect(screen.getAllByText("Recommended")).toHaveLength(1);
     expect(screen.getByRole("button", { name: /request report lab pricing/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /request smart pages pricing/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /request bundle pricing/i })).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: /^sign in$/i })).toHaveLength(1);
+
+    expect(screen.getByRole("button", { name: /^pricing$/i })).toHaveAttribute("aria-current", "page");
 
     fireEvent.click(screen.getAllByRole("button", { name: /watch demo/i })[0]!);
     expect(navigateMock).toHaveBeenCalledWith("/demo");
@@ -35,3 +44,4 @@ describe("PricingPage", () => {
     expect(navigateMock).toHaveBeenCalledWith("/login");
   });
 });
+

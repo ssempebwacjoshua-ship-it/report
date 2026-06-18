@@ -1,4 +1,4 @@
-import { Router } from "express";
+﻿import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../db/prisma";
 import {
@@ -243,3 +243,4 @@ export function schoolStructureRoutes() {
 
   return router;
 }
+

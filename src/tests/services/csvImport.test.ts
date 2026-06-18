@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+﻿import { describe, expect, it } from "vitest";
 import { parseMarksCsv } from "../../server/adapters/csvMarksParser";
 
 describe("csvMarksParser", () => {
@@ -9,3 +9,4 @@ S1A-001,Kampala Ssempebwa,Senior 1 A,A,English Language,Term 1,BOT,88,Good`);
     expect(rows[0]).toMatchObject({ admissionNumber: "S1A-001", examType: "BOT", marks: "88" });
   });
 });
+

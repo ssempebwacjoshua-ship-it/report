@@ -1,4 +1,4 @@
-import type { ComponentNode, DocumentSchema } from "../../shared/types/documentIntelligence";
+﻿import type { ComponentNode, DocumentSchema } from "../../shared/types/documentIntelligence";
 
 function esc(s: unknown): string {
   return String(s ?? "")
@@ -223,3 +223,4 @@ ${body}
 </body>
 </html>`;
 }
+

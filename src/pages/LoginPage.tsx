@@ -1,4 +1,4 @@
-import { type FormEvent, useState } from "react";
+﻿import { type FormEvent, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { getApiBaseUrl } from "../client/apiBase";
@@ -118,7 +118,7 @@ export function LoginPage() {
                   autoComplete="current-password"
                   required
                   className="input"
-                  placeholder="••••••••"
+                  placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   disabled={loading}
@@ -136,7 +136,7 @@ export function LoginPage() {
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.4 0 0 5.4 0 12h4z" />
                     </svg>
-                    Signing in…
+                    Signing inâ€¦
                   </span>
                 ) : "Sign in"}
               </button>
@@ -163,9 +163,10 @@ export function LoginPage() {
         ) : null}
 
         <p className="mt-6 text-center text-xs text-slate-400">
-          School Connect Reports · Powered by {API_BASE.includes("localhost") ? "local server" : "cloud"}
+          School Connect Reports Â· Powered by {API_BASE.includes("localhost") ? "local server" : "cloud"}
         </p>
       </div>
     </div>
   );
 }
+

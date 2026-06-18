@@ -1,4 +1,4 @@
-import { z } from "zod";
+﻿import { z } from "zod";
 
 function blankStringToUndefined(value: unknown) {
   if (typeof value !== "string") return value;
@@ -278,3 +278,4 @@ export const sectionSchemas = {
   approval: approvalSettingsSchema,
   appearance: appearanceSettingsSchema,
 } as const;
+

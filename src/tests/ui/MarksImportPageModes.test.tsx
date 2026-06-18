@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+﻿import { fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import { MarksImportPage } from "../../pages/MarksImportPage";
@@ -15,7 +15,7 @@ vi.mock("../../client/importsClient", () => ({
     classes: [{ id: "c1", name: "Senior 1", code: "S1" }],
     streams: [],
     subjects: [{ id: "s1", name: "Mathematics", code: "MATH" }],
-    terms: [{ id: "t1", name: "2025/2026 — Term 1", isActive: true }],
+    terms: [{ id: "t1", name: "2025/2026 â€” Term 1", isActive: true }],
     examTypes: ["BOT", "MOT", "EOT"],
   } satisfies ScanOptions),
   commitScanRows: vi.fn(),
@@ -45,3 +45,4 @@ describe("MarksImportPage modes", () => {
     expect(screen.getByRole("button", { name: "Save Reviewed Marks" })).toBeInTheDocument();
   });
 });
+

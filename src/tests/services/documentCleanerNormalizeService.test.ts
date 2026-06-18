@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+﻿import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
@@ -12,7 +12,7 @@ import {
   type TableCell,
 } from "../../server/services/documentCleanerNormalizeService";
 
-// ── Fixture helpers ───────────────────────────────────────────────────────────
+// â”€â”€ Fixture helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const FIXTURE_DIR = join(__dirname, "../fixtures/document-cleaner");
 
@@ -20,7 +20,7 @@ function loadFixture<T>(name: string): T {
   return JSON.parse(readFileSync(join(FIXTURE_DIR, name), "utf8")) as T;
 }
 
-// ── findTableColumnHeader ─────────────────────────────────────────────────────
+// â”€â”€ findTableColumnHeader â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 describe("findTableColumnHeader", () => {
   it("detects multi-space column header containing NO and NAME", () => {
@@ -60,9 +60,9 @@ describe("findTableColumnHeader", () => {
   });
 });
 
-// ── findTableColumnHeader — consecutive keyword lines (real Azure output) ────
+// â”€â”€ findTableColumnHeader â€” consecutive keyword lines (real Azure output) â”€â”€â”€â”€
 
-describe("findTableColumnHeader — consecutive keyword lines", () => {
+describe("findTableColumnHeader â€” consecutive keyword lines", () => {
   it("combines 'NO' + 'Teachers Name / Subject' into a header", () => {
     const lines = [
       "N & SB",
@@ -89,7 +89,7 @@ describe("findTableColumnHeader — consecutive keyword lines", () => {
   });
 
   it("stops collecting when a non-keyword line is hit", () => {
-    // "NO" → keyword; next: "Teachers Name / Subject" → keyword; next: "1. ALICE" → not a keyword
+    // "NO" â†’ keyword; next: "Teachers Name / Subject" â†’ keyword; next: "1. ALICE" â†’ not a keyword
     const lines = ["NO", "Teachers Name / Subject", "1. ALICE", "Physics"];
     const { idx, columns } = findTableColumnHeader(lines);
     expect(idx).toBe(1);
@@ -104,7 +104,7 @@ describe("findTableColumnHeader — consecutive keyword lines", () => {
   });
 });
 
-// ── normalizeFromTableCells ───────────────────────────────────────────────────
+// â”€â”€ normalizeFromTableCells â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 describe("normalizeFromTableCells", () => {
   it("reconstructs columns and rows using rowIndex/columnIndex", () => {
@@ -177,7 +177,7 @@ describe("normalizeFromTableCells", () => {
   });
 });
 
-// ── groupLinesByRowNumber ─────────────────────────────────────────────────────
+// â”€â”€ groupLinesByRowNumber â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 describe("groupLinesByRowNumber", () => {
   it("groups numbered lines into rows for a 4-column table", () => {
@@ -222,7 +222,7 @@ describe("groupLinesByRowNumber", () => {
       "O Level",
     ];
     const { rows, uncertainCells } = groupLinesByRowNumber(lines, 4);
-    // Orphan group: ["Galubalo","Physics","A Level"] → row with auto number "1"
+    // Orphan group: ["Galubalo","Physics","A Level"] â†’ row with auto number "1"
     const orphanRow = rows.find((r) => r.cells[0] === "1");
     expect(orphanRow).toBeDefined();
     expect(orphanRow!.cells[1]).toBe("Galubalo");
@@ -237,9 +237,9 @@ describe("groupLinesByRowNumber", () => {
   });
 });
 
-// ── normalizeFromOcrLines — NALYA-style single-cell OCR output ────────────────
+// â”€â”€ normalizeFromOcrLines â€” NALYA-style single-cell OCR output â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-describe("normalizeFromOcrLines — NALYA-style single-cell lines", () => {
+describe("normalizeFromOcrLines â€” NALYA-style single-cell lines", () => {
   const NALYA_LINES = [
     "N & SB",
     "List of Examiners",
@@ -300,9 +300,9 @@ describe("normalizeFromOcrLines — NALYA-style single-cell lines", () => {
   });
 });
 
-// ── normalizeFromOcrLines — real Azure consecutive keyword lines ───────────────
+// â”€â”€ normalizeFromOcrLines â€” real Azure consecutive keyword lines â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-describe("normalizeFromOcrLines — real Azure consecutive keyword header lines", () => {
+describe("normalizeFromOcrLines â€” real Azure consecutive keyword header lines", () => {
   const AZURE_STYLE_LINES = [
     "N & SB",
     "LIST OF EXAMINERS",
@@ -338,9 +338,9 @@ describe("normalizeFromOcrLines — real Azure consecutive keyword header lines"
   });
 });
 
-// ── normalizeFromOcrLines — delimiter-separated body ─────────────────────────
+// â”€â”€ normalizeFromOcrLines â€” delimiter-separated body â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-describe("normalizeFromOcrLines — delimiter-separated body", () => {
+describe("normalizeFromOcrLines â€” delimiter-separated body", () => {
   const lines = [
     "NO  TEACHER'S NAME  Subject  Level",
     "1, NAKOTTA LAWRENCE, Physics, A Level",
@@ -355,9 +355,9 @@ describe("normalizeFromOcrLines — delimiter-separated body", () => {
   });
 });
 
-// ── normalizeTableLines — CSV tests (kept for direct delimiter use) ───────────
+// â”€â”€ normalizeTableLines â€” CSV tests (kept for direct delimiter use) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-describe("normalizeTableLines — comma-separated", () => {
+describe("normalizeTableLines â€” comma-separated", () => {
   const HEADER = "No, Adm No, Student Name, Written Mark, Split Mark Entry, Remarks";
   const ROW1 = "1, SC226-0001, Daniel Bamwesigye, 45, 4, 5";
   const ROW2 = "2, SC226-0005, Allan Andrew Nakiwala, 71, 71, blank";
@@ -405,7 +405,7 @@ describe("normalizeTableLines — comma-separated", () => {
   });
 });
 
-describe("normalizeTableLines — tab-separated", () => {
+describe("normalizeTableLines â€” tab-separated", () => {
   it("detects tab delimiter and parses correctly", () => {
     const lines = ["No\tAdm No\tStudent Name", "1\tSC226-0001\tDaniel Bamwesigye"];
     const { columns, rows } = normalizeTableLines(lines);
@@ -414,7 +414,7 @@ describe("normalizeTableLines — tab-separated", () => {
   });
 });
 
-describe("normalizeTableLines — multi-space-separated", () => {
+describe("normalizeTableLines â€” multi-space-separated", () => {
   it("detects multi-space delimiter and parses correctly", () => {
     const lines = ["NO   TEACHER NAME   SUBJECT", "1    NAKOTTA        Physics"];
     const { columns, rows } = normalizeTableLines(lines);
@@ -423,7 +423,7 @@ describe("normalizeTableLines — multi-space-separated", () => {
   });
 });
 
-describe("normalizeTableLines — no detectable header", () => {
+describe("normalizeTableLines â€” no detectable header", () => {
   it("treats all lines as data rows when every row starts with a number", () => {
     const { columns, rows } = normalizeTableLines(["1, 45, 50", "2, 60, 70"]);
     expect(columns).toHaveLength(0);
@@ -431,9 +431,9 @@ describe("normalizeTableLines — no detectable header", () => {
   });
 });
 
-// ── Fixture-based integration: real Azure Document Intelligence table ──────────
+// â”€â”€ Fixture-based integration: real Azure Document Intelligence table â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-describe("normalizeFromTableCells — NALYA real Azure DI fixture", () => {
+describe("normalizeFromTableCells â€” NALYA real Azure DI fixture", () => {
   type AzureFixture = {
     raw: { tables: Array<{ cells: TableCell[] }> };
   };
@@ -450,7 +450,7 @@ describe("normalizeFromTableCells — NALYA real Azure DI fixture", () => {
   it("normalizes raw column headers correctly", () => {
     const { columns } = normalizeFromTableCells(cells);
     expect(columns).toEqual(expectedFixture.columns);
-    // Specifically: "NO" → "No", "Teachers Name" → "Teacher's Name"
+    // Specifically: "NO" â†’ "No", "Teachers Name" â†’ "Teacher's Name"
     expect(columns[0]).toBe("No");
     expect(columns[1]).toBe("Teacher's Name");
     expect(columns[2]).toBe("Subject");
@@ -460,13 +460,13 @@ describe("normalizeFromTableCells — NALYA real Azure DI fixture", () => {
   it("drops fully-empty rows, keeps data rows", () => {
     const { rows } = normalizeFromTableCells(cells);
     expect(rows).toHaveLength(expectedFixture.rows.length);
-    // Fixture has 4 data rows and 3 empty rows — only data rows should remain
+    // Fixture has 4 data rows and 3 empty rows â€” only data rows should remain
     expect(rows.length).toBe(4);
   });
 
   it("strips trailing period from row-number cells", () => {
     const { rows } = normalizeFromTableCells(cells);
-    // "1." → "1", "2." → "2", "3." → "3"
+    // "1." â†’ "1", "2." â†’ "2", "3." â†’ "3"
     expect(rows[0]!.cells[0]).toBe("1");
     expect(rows[1]!.cells[0]).toBe("2");
     expect(rows[2]!.cells[0]).toBe("3");
@@ -483,7 +483,7 @@ describe("normalizeFromTableCells — NALYA real Azure DI fixture", () => {
 
   it("marks non-ASCII OCR noise cells as uncertain", () => {
     const { uncertainCells } = normalizeFromTableCells(cells);
-    // row 2 col 3 ("À la001") and row 3 col 3 ("" Level") have non-ASCII chars
+    // row 2 col 3 ("Ã€ la001") and row 3 col 3 ("" Level") have non-ASCII chars
     // After empty-row filtering: row indices restart from 0
     expect(uncertainCells.length).toBeGreaterThanOrEqual(2);
     // At least one uncertain cell in column 3
@@ -516,7 +516,7 @@ describe("normalizeFromTableCells — NALYA real Azure DI fixture", () => {
   });
 });
 
-// ── detectMarksheetSchema ─────────────────────────────────────────────────────
+// â”€â”€ detectMarksheetSchema â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 describe("detectMarksheetSchema", () => {
   const MARKSHEET_COLS = ["No", "Adm No", "Student Name", "Written Mark", "Split Mark Entry", "Remarks"];
@@ -541,7 +541,7 @@ describe("detectMarksheetSchema", () => {
     expect(detectMarksheetSchema(["No", "Student Name", "Subject", "Level"])).toBe(false);
   });
 
-  it("returns true when data rows contain ≥2 admission numbers (data-driven)", () => {
+  it("returns true when data rows contain â‰¥2 admission numbers (data-driven)", () => {
     const rows = [
       { cells: ["1", "SC2026-0001", "Alice", "50", "5", ""], confidence: 0.9 },
       { cells: ["2", "SC2026-0002", "Bob", "60", "6", ""], confidence: 0.9 },
@@ -551,12 +551,12 @@ describe("detectMarksheetSchema", () => {
   });
 });
 
-// ── repairMarksheetRows ───────────────────────────────────────────────────────
+// â”€â”€ repairMarksheetRows â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 describe("repairMarksheetRows", () => {
   const COLS = ["No", "Adm No", "Student Name", "Written Mark", "Split Mark Entry", "Remarks"];
 
-  it("repairs the bad live row: 1|1|SC2026-0002|Ruth Karungi|30|2 → 1|SC2026-0002|Ruth Karungi|30|2|blank", () => {
+  it("repairs the bad live row: 1|1|SC2026-0002|Ruth Karungi|30|2 â†’ 1|SC2026-0002|Ruth Karungi|30|2|blank", () => {
     const rows = [
       { cells: ["1", "1", "SC2026-0002", "Ruth Karungi", "30", "2"], confidence: 0.9 },
     ];
@@ -624,7 +624,7 @@ describe("repairMarksheetRows", () => {
   });
 
   it("does NOT generate corrections for NALYA examiners table (schema check guards call)", () => {
-    // detectMarksheetSchema returns false for this → repairMarksheetRows is never called in prod.
+    // detectMarksheetSchema returns false for this â†’ repairMarksheetRows is never called in prod.
     // But if called directly, it finds no Adm No and only runs type validation.
     // "A' Level" at position 3 would be flagged invalid by validateMarksheetCells,
     // but the schema check prevents this in the service layer.
@@ -632,3 +632,4 @@ describe("repairMarksheetRows", () => {
     expect(detectMarksheetSchema(nalyaColumns)).toBe(false);
   });
 });
+

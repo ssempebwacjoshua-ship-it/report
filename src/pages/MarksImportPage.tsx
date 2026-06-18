@@ -1,4 +1,4 @@
-import { useState } from "react";
+﻿import { useState } from "react";
 import { commitMarksImport, dryRunMarksImport } from "../client/importsClient";
 import { DIGITAL_ACCEPT, downloadCsvTemplate, downloadExcelTemplate, parseMarksFile, validatePastedCsv } from "../client/marksSheetHelpers";
 import { ScanUploadPanel } from "../components/imports/ScanUploadPanel";
@@ -6,12 +6,12 @@ import { GeminiScanPanel } from "../components/imports/GeminiScanPanel";
 import { ImportPreviewTable } from "../components/imports/ImportPreviewTable";
 import type { ImportPreview } from "../shared/types/imports";
 
-// ── Sample CSV for the digital paste mode ────────────────────────────────────
+// â”€â”€ Sample CSV for the digital paste mode â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const SAMPLE = `admissionNumber,studentName,class,stream,subject,term,examType,marks,comments
 S1A-001,Kampala Ssempebwa,Senior 1 A,A,English Language,Term 1,BOT,81,Strong start`;
 
-// ── Import mode selector ──────────────────────────────────────────────────────
+// â”€â”€ Import mode selector â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 type ImportMode = "digital" | "scan" | "gemini";
 
@@ -70,7 +70,7 @@ const MODES: Array<{
   },
 ];
 
-// ── Digital import panel (extracted from original page) ───────────────────────
+// â”€â”€ Digital import panel (extracted from original page) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 type InputMode = "upload" | "paste";
 
@@ -313,7 +313,7 @@ function DigitalImportPanel() {
   );
 }
 
-// ── Main page ─────────────────────────────────────────────────────────────────
+// â”€â”€ Main page â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export function MarksImportPage() {
   const [importMode, setImportMode] = useState<ImportMode>("digital");
@@ -326,7 +326,7 @@ export function MarksImportPage() {
           <p className="text-xs font-bold uppercase tracking-wide text-blue-600">Marks Import</p>
           <h1 className="text-xl font-bold tracking-tight text-slate-950 sm:text-2xl">Upload and verify marks</h1>
           <p className="mt-1 text-sm text-slate-500">
-            Digital CSV/XLS import or scanned handwritten marksheet — choose your import mode below.
+            Digital CSV/XLS import or scanned handwritten marksheet â€” choose your import mode below.
           </p>
         </div>
         <a className="btn btn-primary" href="/reports">
@@ -386,3 +386,4 @@ export function MarksImportPage() {
     </main>
   );
 }
+

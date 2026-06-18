@@ -1,4 +1,4 @@
-export const COMMENT_LIMITS = {
+﻿export const COMMENT_LIMITS = {
   classTeacherComment: 500,
   headTeacherComment: 500,
   conductNote: 300,
@@ -23,3 +23,4 @@ export const EMPTY_REPORT_COMMENTS: ReportComments = {
   headTeacherName: "",
   issueDate: "",
 };
+

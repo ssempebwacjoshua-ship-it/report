@@ -1,4 +1,4 @@
-const LOCAL_APP_URL = "http://localhost:5173";
+﻿const LOCAL_APP_URL = "http://localhost:5173";
 
 export function getPublicAppUrl() {
   const configured = process.env.APP_BASE_URL ?? process.env.PUBLIC_APP_URL ?? process.env.CLIENT_ORIGIN;
@@ -8,3 +8,4 @@ export function getPublicAppUrl() {
   }
   return LOCAL_APP_URL;
 }
+

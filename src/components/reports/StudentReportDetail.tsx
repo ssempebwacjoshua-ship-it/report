@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+﻿import { useEffect, useMemo, useState } from "react";
 import type { AssessmentFilter, StudentReportCard } from "../../shared/types/reports";
 import type { GradingScaleSettings, ReportSettings, SchoolProfileSettings } from "../../shared/types/settings";
 import { defaultSettingsSections } from "../../shared/types/settings";
@@ -563,3 +563,4 @@ function SignatureLines({ name, date, mode }: { name: string; date: string; mode
     </div>
   );
 }
+

@@ -1,4 +1,4 @@
-import { getApiBaseUrl, makeRequestHeaders, parseApiError } from "./apiBase";
+﻿import { getApiBaseUrl, makeRequestHeaders, parseApiError } from "./apiBase";
 
 const API_BASE = getApiBaseUrl();
 
@@ -140,3 +140,4 @@ export async function suggestWorkflow(context: unknown) {
   const data = await json<{ suggestion: { name: string; trigger: string; actions: Array<{ type: string; config?: Record<string, unknown> }>; rationale: string } }>(res, "Could not suggest workflow");
   return data.suggestion;
 }
+

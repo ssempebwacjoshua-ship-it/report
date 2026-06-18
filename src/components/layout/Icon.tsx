@@ -1,4 +1,4 @@
-type IconName =
+﻿type IconName =
   | "activity"
   | "bell"
   | "calendar"
@@ -55,3 +55,4 @@ export function Icon({ name, className = "h-5 w-5" }: Props) {
     </svg>
   );
 }
+

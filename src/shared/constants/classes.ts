@@ -1,4 +1,4 @@
-export type SchoolSection = "NURSERY" | "PRIMARY" | "SECONDARY";
+﻿export type SchoolSection = "NURSERY" | "PRIMARY" | "SECONDARY";
 
 export type CanonicalClass = {
   name: string;
@@ -49,3 +49,4 @@ export function getClassesForSections(sections: SchoolSection[]): CanonicalClass
   const sectionSet = new Set(sections);
   return CANONICAL_CLASSES.filter((c) => sectionSet.has(c.section));
 }
+

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+﻿import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { ContactPage } from "../../pages/ContactPage";
 
@@ -17,7 +17,7 @@ describe("ContactPage", () => {
     navigateMock.mockReset();
   });
 
-  it("shows the contact options and generates a mailto request from the form", () => {
+  it("shows the contact options and generates a WhatsApp request from the form", () => {
     render(<ContactPage />);
 
     expect(screen.getByText(/let'?s help your school work smarter\./i)).toBeInTheDocument();
@@ -27,8 +27,8 @@ describe("ContactPage", () => {
 
     fireEvent.change(screen.getByLabelText("School name"), { target: { value: "Sunrise Academy" } });
 
-    const demoLink = screen.getByRole("link", { name: /request a demo/i });
-    expect(demoLink).toHaveAttribute("href", expect.stringContaining("mailto:REPLACE_WITH_BUSINESS_EMAIL"));
+    const demoLink = screen.getByRole("link", { name: /request a demo on whatsapp/i });
+    expect(demoLink).toHaveAttribute("href", expect.stringContaining("https://wa.me/256790685650"));
     expect(demoLink).toHaveAttribute("href", expect.stringContaining("Sunrise%20Academy"));
 
     fireEvent.click(screen.getByRole("button", { name: /watch walkthrough/i }));
@@ -41,3 +41,4 @@ describe("ContactPage", () => {
     expect(navigateMock).toHaveBeenCalledWith("/login");
   });
 });
+

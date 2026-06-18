@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+﻿import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { DemoPage } from "../../pages/DemoPage";
 
@@ -56,3 +56,4 @@ describe("DemoPage", () => {
     expect(navigateMock).toHaveBeenCalledWith("/dashboard");
   });
 });
+

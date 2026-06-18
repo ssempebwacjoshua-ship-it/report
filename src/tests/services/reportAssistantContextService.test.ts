@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+﻿import { describe, expect, it, vi } from "vitest";
 import { buildReportAssistantContext } from "../../server/services/reportAssistantContextService";
 import type { PrismaClient } from "@prisma/client";
 
@@ -87,9 +87,9 @@ const query = {
   assessmentType: "EOT" as const,
 };
 
-// ─── validity / edge cases ──────────────────────────────────────────────────
+// â”€â”€â”€ validity / edge cases â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-describe("reportAssistantContextService — context validity", () => {
+describe("reportAssistantContextService â€” context validity", () => {
   it("returns SCHOOL_NOT_FOUND when school does not exist", async () => {
     const ctx = await buildReportAssistantContext(
       buildMock({ school: null }),
@@ -138,9 +138,9 @@ describe("reportAssistantContextService — context validity", () => {
   });
 });
 
-// ─── readiness logic ────────────────────────────────────────────────────────
+// â”€â”€â”€ readiness logic â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-describe("reportAssistantContextService — readiness logic", () => {
+describe("reportAssistantContextService â€” readiness logic", () => {
   it("returns READY when all students have finalized marks for all subjects", async () => {
     const ctx = await buildReportAssistantContext(
       buildMock({
@@ -211,16 +211,16 @@ describe("reportAssistantContextService — readiness logic", () => {
   });
 });
 
-// ─── draft detection ─────────────────────────────────────────────────────────
+// â”€â”€â”€ draft detection â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-describe("reportAssistantContextService — draft marks", () => {
+describe("reportAssistantContextService â€” draft marks", () => {
   it("reports draftSubjectNames for subjects with only DRAFT status", async () => {
     const ctx = await buildReportAssistantContext(
       buildMock({
         enrollments: [makeEnrollment(STU_A, "001", ["Ann", "Bee"])],
         marks: [
           makeMark(STU_A, SUBJ_MATH, "EOT", "FINALIZED"),
-          makeMark(STU_A, SUBJ_ENG, "EOT", "DRAFT"), // draft — counts as missing
+          makeMark(STU_A, SUBJ_ENG, "EOT", "DRAFT"), // draft â€” counts as missing
         ],
       }),
       query,
@@ -233,9 +233,9 @@ describe("reportAssistantContextService — draft marks", () => {
   });
 });
 
-// ─── TERM_SUMMARY (requires BOT + MOT + EOT) ─────────────────────────────────
+// â”€â”€â”€ TERM_SUMMARY (requires BOT + MOT + EOT) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-describe("reportAssistantContextService — TERM_SUMMARY assessment type", () => {
+describe("reportAssistantContextService â€” TERM_SUMMARY assessment type", () => {
   const tsQuery = { ...query, assessmentType: "TERM_SUMMARY" as const };
 
   it("READY only when all three types are finalized for all subjects", async () => {
@@ -273,9 +273,9 @@ describe("reportAssistantContextService — TERM_SUMMARY assessment type", () =>
   });
 });
 
-// ─── contact readiness warning ───────────────────────────────────────────────
+// â”€â”€â”€ contact readiness warning â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-describe("reportAssistantContextService — contact readiness", () => {
+describe("reportAssistantContextService â€” contact readiness", () => {
   it("warns when a student has no valid parent contact", async () => {
     const noContactEnrollment = {
       studentId: STU_A,
@@ -299,9 +299,9 @@ describe("reportAssistantContextService — contact readiness", () => {
   });
 });
 
-// ─── output shape guarantees ─────────────────────────────────────────────────
+// â”€â”€â”€ output shape guarantees â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-describe("reportAssistantContextService — output shape", () => {
+describe("reportAssistantContextService â€” output shape", () => {
   it("returns correct class/stream/term names in the context", async () => {
     const ctx = await buildReportAssistantContext(
       buildMock({
@@ -334,3 +334,4 @@ describe("reportAssistantContextService — output shape", () => {
     expect(student.missingSubjectNames).toHaveLength(0);
   });
 });
+

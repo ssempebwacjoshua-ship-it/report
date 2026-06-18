@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+﻿import { useEffect, useState } from "react";
 import { fetchSubscription } from "../../client/subscriptionClient";
 import type { SchoolSubscription, SubscriptionInvoice } from "../../shared/types/subscription";
 import { getPlanByCode, formatUgx, REPORT_LAB_PLAN_FEATURES, REPORT_LAB_ADD_ONS } from "../../shared/constants/subscriptionPlans";
@@ -95,7 +95,7 @@ function ActiveSubscriptionView({
             <StatusBadge status={invoice.status} styleMap={INVOICE_STATUS_STYLES} />
           </div>
           <div className="divide-y divide-slate-100">
-            <InfoRow label="Setup Fee — one-time payment">{formatUgx(invoice.setupFeeUgx)}</InfoRow>
+            <InfoRow label="Setup Fee â€” one-time payment">{formatUgx(invoice.setupFeeUgx)}</InfoRow>
             <InfoRow label="Yearly Subscription">{formatUgx(invoice.amountUgx)}</InfoRow>
             <InfoRow label="Total">
               <span className="font-bold">{formatUgx(invoice.totalUgx)}</span>
@@ -116,7 +116,7 @@ function ActiveSubscriptionView({
         <ul className="grid gap-1.5 sm:grid-cols-2">
           {REPORT_LAB_PLAN_FEATURES.map((f) => (
             <li key={f} className="flex items-center gap-2 text-sm text-slate-700">
-              <span className="text-emerald-600 shrink-0">✓</span>{f}
+              <span className="text-emerald-600 shrink-0">âœ“</span>{f}
             </li>
           ))}
         </ul>
@@ -179,7 +179,7 @@ export function SubscriptionSection() {
             <div key={p.label} className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5">
               <p className="text-sm font-bold text-slate-900">{p.label}</p>
               <p className="text-xs text-slate-500">
-                Setup Fee: {p.setup} · Annual License: {p.annual}
+                Setup Fee: {p.setup} Â· Annual License: {p.annual}
               </p>
             </div>
           ))}
@@ -190,3 +190,4 @@ export function SubscriptionSection() {
 
   return <ActiveSubscriptionView sub={sub} invoice={sub.latestInvoice} />;
 }
+

@@ -1,4 +1,4 @@
-import type { NextFunction, Request, Response } from "express";
+﻿import type { NextFunction, Request, Response } from "express";
 import { Router } from "express";
 import multer from "multer";
 import { prisma } from "../db/prisma";
@@ -82,7 +82,7 @@ export default function geminiMarksImportRoutes() {
    * matching, records a (non-committing) scan job, and returns a review payload.
    * NEVER persists marks.
    *
-   * ?debugNoDb=true — skips all DB calls (school/class/student/batch) so Gemini
+   * ?debugNoDb=true â€” skips all DB calls (school/class/student/batch) so Gemini
    * can be isolated from DB wiring issues during diagnosis.
    */
   router.post(
@@ -95,7 +95,7 @@ export default function geminiMarksImportRoutes() {
       let stage = "request_received";
 
       try {
-        // ── Stage: request_received — file validation ──────────────────────
+        // â”€â”€ Stage: request_received â€” file validation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         const file = req.file;
         if (!file) {
           res.status(400).json(stageErr(reqId, stage, "MISSING_IMAGE", "No image uploaded. Attach a PNG, JPG, JPEG, WEBP, or PDF marksheet."));
@@ -116,7 +116,7 @@ export default function geminiMarksImportRoutes() {
           return;
         }
 
-        // ── Stage: validate_context ────────────────────────────────────────
+        // â”€â”€ Stage: validate_context â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         stage = "validate_context";
 
         const classId = typeof req.body.classId === "string" ? req.body.classId.trim() : "";
@@ -159,7 +159,7 @@ export default function geminiMarksImportRoutes() {
           return;
         }
 
-        // DB context validation — skipped entirely when debugNoDb=true.
+        // DB context validation â€” skipped entirely when debugNoDb=true.
         let schoolId = "";
         if (!debugNoDb) {
           console.log("[gemini-extract]", { reqId, stage, event: "resolving_context" });
@@ -202,7 +202,7 @@ export default function geminiMarksImportRoutes() {
           console.log("[gemini-extract]", { reqId, stage, event: "context_validated", schoolId });
         }
 
-        // ── Stage: load_expected_students ──────────────────────────────────
+        // â”€â”€ Stage: load_expected_students â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         stage = "load_expected_students";
         let expectedStudents: Awaited<ReturnType<typeof loadExpectedStudents>> = [];
 
@@ -224,21 +224,21 @@ export default function geminiMarksImportRoutes() {
           console.log("[gemini-extract]", { reqId, stage, event: "skipped_debug" });
         }
 
-        // ── Stage: gemini_extract ──────────────────────────────────────────
+        // â”€â”€ Stage: gemini_extract â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         stage = "gemini_extract";
         console.log("[gemini-extract]", { reqId, stage, event: "start" });
         const geminiStart = Date.now();
         const { rows: geminiRows } = await extractMarksWithGemini(file.buffer, file.mimetype || "image/jpeg");
         console.log("[gemini-extract]", { reqId, stage, event: "done", durationMs: Date.now() - geminiStart, rawRows: geminiRows.length });
 
-        // ── Stage: validate_and_match_rows ────────────────────────────────
+        // â”€â”€ Stage: validate_and_match_rows â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         stage = "validate_and_match_rows";
         console.log("[gemini-extract]", { reqId, stage, event: "start" });
         const validationStart = Date.now();
         const { rows, summary } = validateAndMatchGeminiRows(geminiRows, expectedStudents);
         console.log("[gemini-extract]", { reqId, stage, event: "done", durationMs: Date.now() - validationStart, summary });
 
-        // ── Stage: create_import_batch ─────────────────────────────────────
+        // â”€â”€ Stage: create_import_batch â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         stage = "create_import_batch";
         let jobId = `gemini-scan-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
@@ -275,7 +275,7 @@ export default function geminiMarksImportRoutes() {
           }
         }
 
-        // ── Stage: response_sent ───────────────────────────────────────────
+        // â”€â”€ Stage: response_sent â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         stage = "response_sent";
         console.log("[gemini-extract]", { reqId, stage, event: "ok", jobId, count: rows.length });
         res.json({ success: true, requestId: reqId, jobId, count: rows.length, summary, rows });
@@ -285,7 +285,7 @@ export default function geminiMarksImportRoutes() {
         const stack = error instanceof Error ? error.stack : undefined;
         console.error("[gemini-extract]", { reqId, stage, event: "uncaught_error", message, stack });
 
-        // ── Application-level 400s ─────────────────────────────────────────
+        // â”€â”€ Application-level 400s â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         if (message === "Uploaded document does not look like a marksheet.") {
           res.status(400).json(stageErr(reqId, "gemini_extract", "NOT_MARKSHEET", message));
           return;
@@ -299,7 +299,7 @@ export default function geminiMarksImportRoutes() {
           return;
         }
 
-        // ── Gemini service-level 503s ──────────────────────────────────────
+        // â”€â”€ Gemini service-level 503s â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         if (message === "Missing GEMINI_API_KEY") {
           res.status(503).json(stageErr(reqId, "gemini_extract", "GEMINI_NOT_CONFIGURED", "Gemini AI is not configured on this server. Please contact support."));
           return;
@@ -322,7 +322,7 @@ export default function geminiMarksImportRoutes() {
           return;
         }
 
-        // ── Unhandled — never call next(error) so the client always gets JSON ──
+        // â”€â”€ Unhandled â€” never call next(error) so the client always gets JSON â”€â”€
         res.status(500).json(stageErr(reqId, stage, "INTERNAL_ERROR", "An unexpected error occurred. Please try again or contact support."));
       }
     },
@@ -396,7 +396,7 @@ export default function geminiMarksImportRoutes() {
         subjects,
         terms: terms.map((t) => ({
           id: t.id,
-          name: `${t.academicYear.name} — ${t.name}`,
+          name: `${t.academicYear.name} â€” ${t.name}`,
           isActive: t.isActive,
         })),
         examTypes: ["BOT", "MOT", "EOT"],
@@ -410,10 +410,10 @@ export default function geminiMarksImportRoutes() {
    * POST /api/marks-import/scan/commit
    *
    * Saves reviewed Gemini-extracted marks to SubjectMark as DRAFT inside a
-   * Prisma transaction.  The batch status moves from DRY_RUN → COMMITTED.
+   * Prisma transaction.  The batch status moves from DRY_RUN â†’ COMMITTED.
    * An AuditLog entry is created for every successful commit.
    *
-   * The server re-validates every row before writing — the client is never
+   * The server re-validates every row before writing â€” the client is never
    * trusted to gate the write.
    */
   router.post("/api/marks-import/scan/commit", requireImportAuth, async (req: Request, res: Response) => {
@@ -421,7 +421,7 @@ export default function geminiMarksImportRoutes() {
       ?? `gc-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
 
     try {
-      // ── 1. Parse body ──────────────────────────────────────────────────────
+      // â”€â”€ 1. Parse body â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
       const body = req.body as Record<string, unknown>;
       const { jobId, reviewedRows } = body;
 
@@ -434,7 +434,7 @@ export default function geminiMarksImportRoutes() {
         return;
       }
 
-      // ── 2. Load and tenant-check the batch ────────────────────────────────
+      // â”€â”€ 2. Load and tenant-check the batch â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
       const batch = await prisma.markImportBatch.findUnique({ where: { id: jobId } });
       if (!batch) {
         res.status(404).json(importErr("BATCH_NOT_FOUND", "No import batch found for this job ID. Please re-extract the marksheet."));
@@ -449,7 +449,7 @@ export default function geminiMarksImportRoutes() {
       const schoolId = school.id;
       const schoolCode = school.code;
 
-      // ── 3. Check batch status ──────────────────────────────────────────────
+      // â”€â”€ 3. Check batch status â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
       if (batch.status === "COMMITTED") {
         res.status(409).json(importErr("ALREADY_COMMITTED", "These marks have already been saved and cannot be submitted again."));
         return;
@@ -459,7 +459,7 @@ export default function geminiMarksImportRoutes() {
         return;
       }
 
-      // ── 4. Parse batch context (classId, streamId, subjectId, termId, examType) ──
+      // â”€â”€ 4. Parse batch context (classId, streamId, subjectId, termId, examType) â”€â”€
       type BatchContext = {
         classId: string;
         streamId: string | null;
@@ -495,7 +495,7 @@ export default function geminiMarksImportRoutes() {
         return;
       }
 
-      // ── 5. Load term for academicYearId ───────────────────────────────────
+      // â”€â”€ 5. Load term for academicYearId â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
       const term = await prisma.term.findFirst({
         where: { id: batchContext.termId, academicYear: { schoolId } },
         select: { academicYearId: true },
@@ -505,7 +505,7 @@ export default function geminiMarksImportRoutes() {
         return;
       }
 
-      // ── 6. Server-side row validation ─────────────────────────────────────
+      // â”€â”€ 6. Server-side row validation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
       type RowInput = Record<string, unknown>;
       const seenStudentIds = new Set<string>();
       const rowIssues: Array<{ rowNumber: number; issues: string[] }> = [];
@@ -551,7 +551,7 @@ export default function geminiMarksImportRoutes() {
         return;
       }
 
-      // ── 7. Commit in a Prisma transaction ─────────────────────────────────
+      // â”€â”€ 7. Commit in a Prisma transaction â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
       const assessmentType = batchContext.examType as "BOT" | "MOT" | "EOT";
       const validRows = reviewedRows as Array<{
         rowNumber: number;
@@ -662,3 +662,4 @@ export default function geminiMarksImportRoutes() {
 
   return router;
 }
+

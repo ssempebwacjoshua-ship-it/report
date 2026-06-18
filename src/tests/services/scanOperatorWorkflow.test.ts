@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+﻿import { describe, expect, it } from "vitest";
 import { validateScanRows, type KnownStudent } from "../../server/services/scanImportValidator";
 import type { ScanImportRow, ScanMarksheetContext } from "../../shared/types/imports";
 
@@ -93,3 +93,4 @@ describe("scan operator-assisted workflow", () => {
     expect(rows.map((item) => item.admissionNumber)).toEqual(["S1A-001", "S1A-002", "S1A-003", "S1A-004"]);
   });
 });
+

@@ -1,4 +1,4 @@
-export type SubscriptionBillingCycle = "YEAR";
+﻿export type SubscriptionBillingCycle = "YEAR";
 export type SubscriptionStatus = "ACTIVE" | "EXPIRED" | "SUSPENDED" | "PENDING";
 export type InvoiceStatus = "UNPAID" | "PAID" | "CANCELLED";
 
@@ -41,3 +41,4 @@ export type AssignSubscriptionInput = {
     notes?: string;
   };
 };
+

@@ -1,4 +1,4 @@
-import request from "supertest";
+﻿import request from "supertest";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createServer } from "../../server";
 
@@ -47,3 +47,4 @@ describe("CORS origin control", () => {
     expect(res.headers["access-control-allow-origin"]).toBe("https://any-origin.example.com");
   });
 });
+

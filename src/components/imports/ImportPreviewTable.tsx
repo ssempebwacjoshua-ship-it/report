@@ -1,4 +1,4 @@
-import type { ImportPreview } from "../../shared/types/imports";
+﻿import type { ImportPreview } from "../../shared/types/imports";
 
 function duplicateRows(preview: ImportPreview) {
   const seen = new Set<string>();
@@ -86,3 +86,4 @@ export function ImportPreviewTable({ preview }: { preview: ImportPreview | null 
     </div>
   );
 }
+

@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+﻿import { afterEach, describe, expect, it, vi } from "vitest";
 
 const generateContent = vi.fn();
 
@@ -188,3 +188,4 @@ describe("documentGeminiService", () => {
     );
   });
 });
+

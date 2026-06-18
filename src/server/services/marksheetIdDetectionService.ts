@@ -1,4 +1,4 @@
-import fs from "node:fs/promises";
+﻿import fs from "node:fs/promises";
 import path from "node:path";
 import jsQR from "jsqr";
 import sharp from "sharp";
@@ -104,7 +104,7 @@ function topRightIdRect(width: number, height: number): PixelRect {
 }
 
 /**
- * Expanded top-right crop — wider horizontal margin for skewed / shifted scans.
+ * Expanded top-right crop â€” wider horizontal margin for skewed / shifted scans.
  * Starts at 34 % to catch prints shifted to the left.
  */
 function expandedTopRightIdRect(width: number, height: number): PixelRect {
@@ -136,7 +136,7 @@ async function preparePrintedTextCrop(imageBuffer: Buffer, rect: PixelRect): Pro
 
 /**
  * Higher-quality preprocessing for the specific marksheet ID zone.
- * Applies a 4× upscale, aggressive contrast, and binarization so that printed
+ * Applies a 4Ã— upscale, aggressive contrast, and binarization so that printed
  * text at the top-right corner reads cleanly even from phone/flatbed photos.
  */
 async function prepareIdCropForOcr(imageBuffer: Buffer, rect: PixelRect): Promise<Buffer> {
@@ -218,7 +218,7 @@ export function extractMarksheetIdCandidatesFromOcrText(
 
   const tokens = text
     .toUpperCase()
-    .replace(/[–—−]/g, "-")
+    .replace(/[â€“â€”âˆ’]/g, "-")
     .replace(/\|/g, "I")
     .match(/[A-Z0-9]+/g) ?? [];
   for (let index = 0; index <= tokens.length - 7; index += 1) {
@@ -297,7 +297,7 @@ export async function detectMarksheetIdFromScan(
     prepareIdCropForOcr(scan.buffer, expandedRect),
   ]);
 
-  // Save debug crops (best effort — filesystem may not be writable on all platforms)
+  // Save debug crops (best effort â€” filesystem may not be writable on all platforms)
   const headerCropPath = path.join(DEBUG_DIR, "marksheet-id-header-crop.jpg");
   const topRightCropPath = path.join(DEBUG_DIR, "marksheet-id-topright-crop.jpg");
   const expandedTopRightCropPath = path.join(DEBUG_DIR, "marksheet-id-topright-expanded-crop.jpg");
@@ -359,7 +359,7 @@ export async function detectMarksheetIdFromScan(
     findSheetNumberInText(footerOcr.text) ??
     null;
 
-  // Best OCR text for display — prefer top-right zone which targets the ID specifically
+  // Best OCR text for display â€” prefer top-right zone which targets the ID specifically
   const primaryHeaderText = topRightOcr.text || expandedOcr.text || headerOcr.text;
 
   const firstError = topRightOcr.error || headerOcr.error || footerOcr.error || expandedOcr.error;
@@ -395,3 +395,4 @@ export async function detectMarksheetIdFromScan(
   try { await writeDebugArtifacts(result); } catch { /* best effort */ }
   return result;
 }
+
