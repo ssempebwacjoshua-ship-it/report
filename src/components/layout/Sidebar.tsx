@@ -11,7 +11,7 @@ import {
   SettingsRegular,
   SparkleRegular,
 } from "@fluentui/react-icons";
-import { getSchoolDisplayName, getSchoolInitials } from "./branding";
+import { getSchoolDisplayName } from "./branding";
 import { useAppSettings } from "./SettingsContext";
 import { getProductFromPath, isActiveNavPath, navItemsByProduct, type NavItem, type ProductKey } from "./navConfig";
 
@@ -97,11 +97,11 @@ function SidebarSection({
   return (
     <>
       {!collapsed ? (
-        <div className="px-3 pb-2 pt-1 text-[11px] font-black uppercase tracking-[0.18em] text-white/75">
+        <div className="px-2 pb-1 pt-0.5 text-[11px] font-black uppercase tracking-[0.18em] text-white/75">
           {sectionLabel}
         </div>
       ) : null}
-      <div className="grid gap-1 px-2">
+      <div className="grid gap-1 px-1.5">
         {items.map((item) => (
           <NavLinkRow
             key={item.to}
@@ -123,7 +123,6 @@ export function Sidebar({ open, onClose, collapsed, onToggleCollapsed, width }: 
   const { settings } = useAppSettings() ?? {};
   const school = settings?.sections.school;
   const schoolName = getSchoolDisplayName(school, "School Connect");
-  const initials = getSchoolInitials(schoolName);
   const sidebarWidth = collapsed ? 72 : width;
   const product = getProductFromPath(location.pathname);
 
@@ -144,29 +143,17 @@ export function Sidebar({ open, onClose, collapsed, onToggleCollapsed, width }: 
           background: "var(--sc-primary)",
         } as CSSProperties}
       >
-        <div className={`flex items-center gap-3 ${collapsed ? "px-2 pt-3" : "px-3 pt-3"}`}>
-          <div
-            className={`grid ${collapsed ? "h-8 w-8" : "h-9 w-9"} place-items-center rounded-xl bg-white/15 ring-1 ring-white/25`}
-          >
-            {school?.logoUrl ? (
-              <img
-                src={school.logoUrl}
-                alt={`${schoolName} logo`}
-                className="h-8 w-8 rounded-xl bg-white/10 object-contain"
-              />
-            ) : (
-              <span className="text-sm font-black text-white">{initials}</span>
-            )}
-          </div>
+        <div className={`flex items-center ${collapsed ? "px-2 pt-3" : "px-3 pt-3"}`}>
           {!collapsed ? (
             <div className="min-w-0 flex-1">
               <p className="line-clamp-2 text-sm font-bold leading-tight text-white">{schoolName}</p>
-              <p className="mt-0.5 text-[11px] font-medium text-white/80">{school?.schoolCode ?? "-"}</p>
             </div>
-          ) : null}
+          ) : (
+            <p className="sr-only">{schoolName}</p>
+          )}
         </div>
 
-        <nav className="mt-4 grid flex-1 content-start gap-3 overflow-y-auto px-2 pb-4">
+        <nav className="mt-3 grid flex-1 content-start gap-2 overflow-y-auto px-2 pb-4">
           <SidebarSection
             product={product}
             pathname={location.pathname}
