@@ -45,7 +45,7 @@ function NavLinkRow({
       onClick={onClick}
       className={`group flex items-center gap-3 rounded-full border px-3 py-2 text-sm font-semibold transition ${
         active
-          ? "border-white/25 bg-[color:var(--sc-primary-soft)] text-[color:var(--sc-primary-active)] shadow-[0_10px_24px_rgba(15,23,42,0.14)]"
+          ? "border-white/25 bg-[color:var(--sc-primary-soft)] text-[color:var(--sc-primary)] shadow-[0_10px_24px_rgba(15,23,42,0.14)]"
           : "border-transparent text-blue-100 hover:border-white/10 hover:bg-white/10 hover:text-white"
       }`}
     >
@@ -56,7 +56,7 @@ function NavLinkRow({
 }
 
 function ShellNavIcon({ name, active }: { name: NavItem["icon"]; active: boolean }) {
-  const className = `h-5 w-5 shrink-0 transition ${active ? "text-[color:var(--sc-primary-active)]" : "text-blue-100 group-hover:text-white"}`;
+  const className = `h-5 w-5 shrink-0 transition ${active ? "text-[color:var(--sc-primary)]" : "text-blue-100 group-hover:text-white"}`;
 
   switch (name) {
     case "home":
@@ -97,7 +97,7 @@ function SidebarSection({
   return (
     <>
       {!collapsed ? (
-        <div className="px-3 pb-2 pt-1 text-[11px] font-black uppercase tracking-[0.18em] text-blue-200/75">
+        <div className="px-3 pb-2 pt-1 text-[11px] font-black uppercase tracking-[0.18em] text-white/75">
           {sectionLabel}
         </div>
       ) : null}
@@ -136,10 +136,13 @@ export function Sidebar({ open, onClose, collapsed, onToggleCollapsed, width }: 
         onClick={onClose}
       />
       <aside
-        style={{ "--sidebar-width": `${sidebarWidth}px` } as CSSProperties}
-        className={`app-shell-sidebar fixed inset-y-0 left-0 z-40 flex w-[var(--sidebar-width)] transform flex-col overflow-y-auto overscroll-contain bg-gradient-to-b from-blue-950 via-blue-900 to-sky-900 text-white shadow-2xl transition-transform duration-200 lg:sticky lg:top-0 lg:h-screen lg:translate-x-0 ${
+        className={`app-shell-sidebar fixed inset-y-0 left-0 z-40 flex w-[var(--sidebar-width)] transform flex-col overflow-y-auto overscroll-contain text-white shadow-2xl transition-transform duration-200 lg:sticky lg:top-0 lg:h-screen lg:translate-x-0 ${
           open ? "translate-x-0" : "-translate-x-full"
         }`}
+        style={{
+          "--sidebar-width": `${sidebarWidth}px`,
+          background: "var(--sc-primary)",
+        } as CSSProperties}
       >
         <div className={`flex items-center gap-3 ${collapsed ? "px-2 pt-3" : "px-3 pt-3"}`}>
           <div
@@ -157,8 +160,8 @@ export function Sidebar({ open, onClose, collapsed, onToggleCollapsed, width }: 
           </div>
           {!collapsed ? (
             <div className="min-w-0 flex-1">
-              <p className="line-clamp-2 text-sm font-bold leading-tight">{schoolName}</p>
-              <p className="mt-0.5 text-[11px] font-medium text-blue-200">{school?.schoolCode ?? "-"}</p>
+              <p className="line-clamp-2 text-sm font-bold leading-tight text-white">{schoolName}</p>
+              <p className="mt-0.5 text-[11px] font-medium text-white/80">{school?.schoolCode ?? "-"}</p>
             </div>
           ) : null}
         </div>
@@ -175,7 +178,7 @@ export function Sidebar({ open, onClose, collapsed, onToggleCollapsed, width }: 
           <button
             type="button"
             aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-            className="no-print hidden h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/10 text-blue-100 transition hover:bg-white/15 hover:text-white lg:inline-flex"
+            className="no-print hidden h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/10 text-white/80 transition hover:bg-white/15 hover:text-white lg:inline-flex"
             onClick={onToggleCollapsed}
             title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
           >

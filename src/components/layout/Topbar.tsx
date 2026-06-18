@@ -43,7 +43,7 @@ export function Topbar({ onMenuClick }: Props) {
             onClick={() => switchProduct("reportLab")}
             className={`rounded-full px-3 py-1.5 text-xs font-black transition ${
               currentProduct === "reportLab"
-                ? "bg-white text-[color:var(--sc-primary-active)] shadow-sm"
+                ? "bg-white text-[color:var(--sc-primary)] shadow-sm"
                 : "text-white/90 hover:bg-white/10 hover:text-white"
             }`}
           >
@@ -54,7 +54,7 @@ export function Topbar({ onMenuClick }: Props) {
             onClick={() => switchProduct("smartPages")}
             className={`rounded-full px-3 py-1.5 text-xs font-black transition ${
               currentProduct === "smartPages"
-                ? "bg-white text-[color:var(--sc-primary-active)] shadow-sm"
+                ? "bg-white text-[color:var(--sc-primary)] shadow-sm"
                 : "text-white/90 hover:bg-white/10 hover:text-white"
             }`}
           >

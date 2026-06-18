@@ -11,7 +11,7 @@ const toneClass: Record<ToneKey, string> = {
   green: "bg-green-100 text-green-600",
   yellow: "bg-amber-100 text-amber-600",
   purple: "bg-violet-100 text-violet-600",
-  blue: "bg-blue-100 text-blue-600",
+  blue: "bg-[color:var(--sc-primary-soft)] text-[color:var(--sc-primary-active)]",
 };
 
 const actionTone: Record<string, ToneKey> = {

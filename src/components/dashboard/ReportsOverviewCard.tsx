@@ -15,14 +15,14 @@ type Row = {
 };
 
 const toneClass = {
-  blue: "bg-blue-100 text-blue-600",
+  blue: "bg-[color:var(--sc-primary-soft)] text-[color:var(--sc-primary-active)]",
   yellow: "bg-amber-100 text-amber-600",
   green: "bg-green-100 text-green-600",
   purple: "bg-violet-100 text-violet-600",
 };
 
 const barClass = {
-  blue: "bg-blue-500",
+  blue: "bg-[color:var(--sc-primary)]",
   yellow: "bg-amber-400",
   green: "bg-green-500",
   purple: "bg-violet-500",
@@ -62,7 +62,7 @@ export function ReportsOverviewCard({ workflow, termLabel }: Props) {
           <h2 className="text-sm font-black text-slate-950">Reports Overview</h2>
           <p className="mt-0.5 text-xs text-slate-500">Live report status for this term.</p>
         </div>
-        <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-extrabold text-blue-700 ring-1 ring-blue-100">
+        <span className="rounded-full bg-[color:var(--sc-primary-soft)] px-3 py-1 text-xs font-extrabold text-[color:var(--sc-primary-active)] ring-1 ring-[color:var(--sc-primary-soft)]">
           {termLabel}
         </span>
       </div>

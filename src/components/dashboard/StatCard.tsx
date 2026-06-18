@@ -27,9 +27,9 @@ const tones = {
     badge: "bg-violet-50 text-violet-700 ring-violet-100",
   },
   blue: {
-    icon: "bg-blue-500 text-white shadow-blue-200",
-    accent: "from-blue-500 to-cyan-500",
-    badge: "bg-blue-50 text-blue-700 ring-blue-100",
+    icon: "bg-[color:var(--sc-primary)] text-white shadow-[0_10px_20px_rgba(0,120,212,0.22)]",
+    accent: "from-[color:var(--sc-primary)] to-[color:var(--sc-primary-active)]",
+    badge: "bg-[color:var(--sc-primary-soft)] text-[color:var(--sc-primary-active)] ring-[color:var(--sc-primary-soft)]",
   },
 };
 
@@ -37,7 +37,7 @@ const noteColors = {
   green: "text-green-600",
   yellow: "text-amber-600",
   purple: "text-violet-600",
-  blue: "text-blue-600",
+  blue: "text-[color:var(--sc-primary-active)]",
 };
 
 export function StatCard({ label, value, note, trend, tone, icon, href }: Props) {
@@ -57,7 +57,7 @@ export function StatCard({ label, value, note, trend, tone, icon, href }: Props)
             </span>
           </div>
           <p className={`mt-1 text-xs font-semibold ${noteColors[tone]}`}>{note}</p>
-          <p className="mt-1.5 text-[11px] font-bold text-slate-400 transition-colors group-hover:text-blue-600">
+          <p className="mt-1.5 text-[11px] font-bold text-slate-400 transition-colors group-hover:text-[color:var(--sc-primary)]">
             Open workflow
           </p>
         </div>
