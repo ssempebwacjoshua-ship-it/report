@@ -59,11 +59,12 @@ export function TestimonialsSection({
         </div>
 
         <p className="mt-3 text-sm leading-6 text-slate-600">
-          Real school testimonials will be added as schools complete onboarding.
+          
         </p>
       </div>
     </section>
   );
 }
+
 
 
