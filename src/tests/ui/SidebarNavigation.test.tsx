@@ -123,10 +123,6 @@ describe("Sidebar navigation", () => {
 
     await waitFor(() => expect(screen.getByText("SMART PAGES")).toBeInTheDocument());
     expect(screen.getByRole("link", { name: /dashboard/i })).toHaveAttribute("href", "/dashboard");
-    expect(screen.getByRole("link", { name: /clean document/i })).toHaveAttribute(
-      "href",
-      "/documents/cleaner",
-    );
     expect(screen.getByRole("link", { name: /document history/i })).toHaveAttribute(
       "href",
       "/smart-pages",

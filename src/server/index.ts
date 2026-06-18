@@ -28,7 +28,6 @@ import { releaseCenterRoutes } from "./routes/releaseCenterRoutes";
 import { parentRoutes } from "./routes/parentRoutes";
 import { verifyRoutes } from "./routes/verifyRoutes";
 import { ocrRoutes } from "./routes/ocrRoutes";
-import { documentCleanerRoutes } from "./routes/documentCleanerRoutes";
 import { subscriptionRoutes } from "./routes/subscriptionRoutes";
 import { documentIntelligenceRoutes } from "./routes/documentIntelligenceRoutes";
 import { creatorAuthRoutes } from "./routes/creatorAuthRoutes";
@@ -105,7 +104,6 @@ export function createServer() {
   app.use(schoolStructureRoutes());
   app.use(settingsRoutes());
   app.use(ocrRoutes());
-  app.use(documentCleanerRoutes());
   app.use(subscriptionRoutes());
   app.use(geminiMarksImportRoutes());
 

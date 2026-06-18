@@ -35,7 +35,6 @@ export const navItemsByProduct: Record<ProductKey, NavItem[]> = {
   ],
   smartPages: [
     { to: "/dashboard", label: "Dashboard", icon: "home" },
-    { to: "/documents/cleaner", label: "Clean Document", icon: "cloud" },
     { to: "/smart-pages", label: "Document History", icon: "file" },
     { to: "/collections", label: "Templates", icon: "clipboard" },
     { to: "/preferences", label: "Settings", icon: "settings" },
@@ -50,7 +49,6 @@ const smartPagesPrefixes = [
   "/analytics",
   "/notifications",
   "/preferences",
-  "/documents/cleaner",
 ];
 
 export function getProductFromPath(pathname: string): ProductKey {

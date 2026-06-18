@@ -15,7 +15,6 @@ import { PricingPage } from "../pages/PricingPage";
 import { ContactPage } from "../pages/ContactPage";
 import { ParentReportPage } from "../pages/ParentReportPage";
 import { VerifyPage } from "../pages/VerifyPage";
-import { DocumentCleanerPage } from "../pages/DocumentCleanerPage";
 import { OwnerDashboardPage } from "../pages/owner/OwnerDashboardPage";
 import { OwnerSchoolsPage } from "../pages/owner/OwnerSchoolsPage";
 import { OwnerUsersPage } from "../pages/owner/OwnerUsersPage";
@@ -67,7 +66,6 @@ export const router = createBrowserRouter([
       { path: "imports/marks", element: <MarksImportPage /> },
       { path: "marksheets", element: <MarksheetsPage /> },
       { path: "settings", element: <SettingsPage /> },
-      { path: "documents/cleaner", element: <DocumentCleanerPage /> },
       { path: "smart-pages", element: <SmartPagesPage /> },
       { path: "smart-pages/:id", element: <DocumentEditorPage /> },
       { path: "collections", element: <CollectionsPage /> },
