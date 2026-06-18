@@ -1,7 +1,6 @@
 ﻿import { useState } from "react";
 import { commitMarksImport, dryRunMarksImport } from "../client/importsClient";
 import { DIGITAL_ACCEPT, downloadCsvTemplate, downloadExcelTemplate, parseMarksFile, validatePastedCsv } from "../client/marksSheetHelpers";
-import { ScanUploadPanel } from "../components/imports/ScanUploadPanel";
 import { GeminiScanPanel } from "../components/imports/GeminiScanPanel";
 import { ImportPreviewTable } from "../components/imports/ImportPreviewTable";
 import type { ImportPreview } from "../shared/types/imports";
@@ -13,7 +12,7 @@ S1A-001,Kampala Ssempebwa,Senior 1 A,A,English Language,Term 1,BOT,81,Strong sta
 
 // ── Import mode selector ──────────────────────────────────────────────────────
 
-type ImportMode = "digital" | "scan" | "gemini";
+type ImportMode = "digital" | "gemini";
 
 const MODES: Array<{
   id: ImportMode;
@@ -38,21 +37,6 @@ const MODES: Array<{
     ),
     accent: "border-blue-200 hover:border-blue-400",
     badgeColor: "bg-blue-100 text-blue-700",
-  },
-  {
-    id: "scan",
-    label: "Scanned Handwritten Marksheet",
-    badge: "PDF / PNG / JPG / JPEG / WEBP",
-    desc: "Upload a scanned PDF or image of a printed handwritten marksheet.",
-    formats: "PDF, PNG, JPG, JPEG, WEBP",
-    icon: (
-      <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z" />
-        <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0zM18.75 10.5h.008v.008h-.008V10.5z" />
-      </svg>
-    ),
-    accent: "border-violet-200 hover:border-violet-400",
-    badgeColor: "bg-violet-100 text-violet-700",
   },
   {
     id: "gemini",
@@ -326,7 +310,7 @@ export function MarksImportPage() {
           <p className="text-xs font-bold uppercase tracking-wide text-blue-600">Marks Import</p>
           <h1 className="text-xl font-bold tracking-tight text-slate-950 sm:text-2xl">Upload and verify marks</h1>
           <p className="mt-1 text-sm text-slate-500">
-            Digital CSV/XLS import or scanned handwritten marksheet - choose your import mode below.
+            Digital CSV/XLS import or Smart Marksheet Import - choose your import mode below.
           </p>
         </div>
         <a className="btn btn-primary" href="/reports">
@@ -335,7 +319,7 @@ export function MarksImportPage() {
       </header>
 
       {/* Import mode selector */}
-      <section className="marks-import-mode-grid grid grid-cols-2 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      <section className="marks-import-mode-grid grid grid-cols-2 gap-3 sm:grid-cols-2">
         {MODES.map((mode) => {
           const active = importMode === mode.id;
           return (
@@ -381,7 +365,6 @@ export function MarksImportPage() {
 
       {/* Tab content */}
       {importMode === "digital" && <DigitalImportPanel />}
-      {importMode === "scan" && <ScanUploadPanel />}
       {importMode === "gemini" && <GeminiScanPanel />}
     </main>
   );

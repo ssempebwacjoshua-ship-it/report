@@ -33,6 +33,9 @@ describe("MarksImportPage modes", () => {
   it("renders the existing digital CSV/Excel import UI by default", () => {
     render(<MemoryRouter><MarksImportPage /></MemoryRouter>);
     expect(screen.getByText("Digital Marksheet")).toBeInTheDocument();
+    expect(screen.getByText("Smart Marksheet Import")).toBeInTheDocument();
+    expect(screen.queryByText("Scanned Handwritten Marksheet")).not.toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: /marksheet/i }).length).toBe(2);
     expect(screen.getByText("Download CSV template")).toBeInTheDocument();
     expect(screen.getByText("Download Excel template")).toBeInTheDocument();
   });
