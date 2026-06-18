@@ -200,7 +200,7 @@ function AppShellInner({
         width={sidebarWidth}
       />
       <div className="min-w-0">
-        <Topbar onMenuClick={setSidebarOpenAndClose} sidebarCollapsed={sidebarCollapsed} />
+        <Topbar onMenuClick={setSidebarOpenAndClose} />
         <div className="app-page mx-auto w-full max-w-[1540px]">
           <Outlet />
         </div>

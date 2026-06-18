@@ -1,6 +1,5 @@
 import type { CSSProperties } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { useAuth } from "../../contexts/AuthContext";
 import { getSchoolDisplayName, getSchoolInitials } from "./branding";
 import { Icon } from "./Icon";
 import { useAppSettings } from "./SettingsContext";
@@ -89,7 +88,6 @@ function SidebarSection({
 
 export function Sidebar({ open, onClose, collapsed, onToggleCollapsed, width }: Props) {
   const location = useLocation();
-  const { user } = useAuth();
   const { settings } = useAppSettings() ?? {};
   const school = settings?.sections.school;
   const schoolName = getSchoolDisplayName(school, "School Connect");
@@ -133,7 +131,7 @@ export function Sidebar({ open, onClose, collapsed, onToggleCollapsed, width }: 
           ) : null}
         </div>
 
-        <nav className="mt-4 grid flex-1 content-start gap-3 overflow-y-auto px-2 pb-3">
+        <nav className="mt-4 grid flex-1 content-start gap-3 overflow-y-auto px-2 pb-4">
           <SidebarSection
             product={product}
             pathname={location.pathname}
@@ -141,25 +139,11 @@ export function Sidebar({ open, onClose, collapsed, onToggleCollapsed, width }: 
             onNavigate={onClose}
           />
         </nav>
-
-        <div className={`mt-auto border-t border-white/10 ${collapsed ? "px-2 py-3" : "px-3 py-3"}`}>
-          <div className={`flex items-center gap-3 ${collapsed ? "justify-center" : ""}`}>
-            <div className="grid h-8 w-8 place-items-center rounded-full bg-white text-blue-700">
-              <Icon name="user" className="h-4 w-4" />
-            </div>
-            {!collapsed ? (
-              <div className="min-w-0">
-                <p className="truncate text-sm font-semibold">{user?.name ?? "School Admin"}</p>
-                <p className="truncate text-xs text-blue-200">
-                  {user?.role === "ADMIN_OPERATOR" ? "Administrator" : user?.role ?? "Administrator"}
-                </p>
-              </div>
-            ) : null}
-          </div>
+        <div className={`${collapsed ? "px-2 py-3" : "px-3 py-3"}`}>
           <button
             type="button"
             aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-            className="no-print mt-3 hidden h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/10 text-blue-100 transition hover:bg-white/15 hover:text-white lg:inline-flex"
+            className="no-print hidden h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/10 text-blue-100 transition hover:bg-white/15 hover:text-white lg:inline-flex"
             onClick={onToggleCollapsed}
             title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
           >

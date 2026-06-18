@@ -1,21 +1,16 @@
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../../contexts/AuthContext";
-import { useAppSettings } from "./SettingsContext";
 import { Icon } from "./Icon";
-import { getSchoolDisplayName } from "./branding";
 import { getProductFromPath, productSwitcherItems } from "./navConfig";
 
 type Props = {
   onMenuClick: () => void;
-  sidebarCollapsed: boolean;
 };
 
-export function Topbar({ onMenuClick, sidebarCollapsed }: Props) {
-  const { settings } = useAppSettings() ?? {};
+export function Topbar({ onMenuClick }: Props) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const schoolName = getSchoolDisplayName(settings?.sections.school, "School Connect");
   const currentProduct = getProductFromPath(location.pathname);
 
   function handleLogout() {
@@ -64,9 +59,6 @@ export function Topbar({ onMenuClick, sidebarCollapsed }: Props) {
           </button>
         </div>
 
-        <div className="hidden min-w-0 items-center gap-2 text-sm font-semibold text-slate-600 sm:flex">
-          <span className="truncate">{sidebarCollapsed ? "School Connect" : schoolName}</span>
-        </div>
       </div>
 
       <div className="flex items-center gap-2.5">

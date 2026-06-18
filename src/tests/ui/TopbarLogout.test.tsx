@@ -14,7 +14,7 @@ describe("Topbar navigation + logout", () => {
   it("renders the product switcher", () => {
     render(
       <MemoryRouter initialEntries={["/dashboard"]}>
-        <Topbar onMenuClick={() => {}} sidebarCollapsed={false} />
+        <Topbar onMenuClick={() => {}} />
       </MemoryRouter>,
     );
 
@@ -25,7 +25,7 @@ describe("Topbar navigation + logout", () => {
   it("renders a visible logout button and calls logout on click", async () => {
     render(
       <MemoryRouter initialEntries={["/dashboard"]}>
-        <Topbar onMenuClick={() => {}} sidebarCollapsed={false} />
+        <Topbar onMenuClick={() => {}} />
       </MemoryRouter>,
     );
     const logoutButton = screen.getByRole("button", { name: /sign out/i });
@@ -37,7 +37,7 @@ describe("Topbar navigation + logout", () => {
   it("renders the menu button for mobile navigation", () => {
     render(
       <MemoryRouter initialEntries={["/dashboard"]}>
-        <Topbar onMenuClick={() => {}} sidebarCollapsed={false} />
+        <Topbar onMenuClick={() => {}} />
       </MemoryRouter>,
     );
     expect(screen.getByRole("button", { name: /open navigation/i })).toBeInTheDocument();
