@@ -159,14 +159,11 @@ export function ContactPage() {
             <a href="#contact-form" className="transition hover:text-blue-700">
               Contact
             </a>
-            <button type="button" onClick={() => void navigate("/login")} className="transition hover:text-blue-700">
-              Sign in
-            </button>
           </nav>
 
           <div className="flex items-center gap-2">
-            <button type="button" onClick={() => void navigate("/pricing")} className="btn marketing-button-motion rounded-full border border-blue-200 bg-white px-4 py-2 text-sm font-bold text-blue-700 shadow-sm hover:bg-blue-50">
-              Pricing
+            <button type="button" onClick={() => void navigate("/login")} className="btn marketing-button-motion rounded-full border border-blue-200 bg-white px-4 py-2 text-sm font-bold text-blue-700 shadow-sm hover:bg-blue-50">
+              Sign in
             </button>
             <button type="button" onClick={() => void navigate("/demo")} className="btn marketing-button-motion rounded-full bg-gradient-to-r from-blue-600 to-blue-700 px-4 py-2 text-sm font-black text-white shadow-lg shadow-blue-600/20 hover:shadow-xl hover:shadow-blue-600/25">
               Watch Demo
@@ -212,19 +209,19 @@ export function ContactPage() {
                 <InfoCard
                   title="Book a school demo"
                   body="See how Report Lab and Smart Pages can reduce paperwork, speed up reporting, and support your school's daily work."
-                  cta="Request Demo on WhatsApp"
+                  cta="Request Demo"
                   href={demoHref}
                 />
                 <InfoCard
                   title="Ask about pricing"
                   body="Tell us your school size and the products you need. We'll recommend the best starting package."
-                  cta="Ask about pricing on WhatsApp"
+                  cta="Ask About Pricing"
                   href={pricingHref}
                 />
                 <InfoCard
                   title="Setup support"
                   body="Need help with branding, student data, marks import, or school document setup? We can guide you."
-                  cta="Chat on WhatsApp"
+                  cta="Chat Now"
                   href={supportHref}
                 />
               </div>
@@ -235,11 +232,11 @@ export function ContactPage() {
         <section id="contact-form" className="border-b border-slate-200 bg-white px-4 py-8 sm:px-6 lg:px-8">
           <div className="mx-auto grid max-w-7xl gap-6 lg:grid-cols-12">
             <div className="lg:col-span-7">
-              <div className="marketing-card-motion rounded-[1.75rem] border border-slate-200 bg-white p-5 shadow-sm">
-                <div className="flex items-center gap-3">
-                  <div className="grid h-11 w-11 place-items-center rounded-2xl bg-blue-50 text-blue-700">
-                    <PhoneIcon className="h-5 w-5" />
-                  </div>
+                <div className="marketing-card-motion rounded-[1.75rem] border border-slate-200 bg-white p-5 shadow-sm">
+                  <div className="flex items-center gap-3">
+                    <div className="grid h-11 w-11 place-items-center rounded-2xl bg-blue-50 text-blue-700">
+                      <PhoneIcon className="h-5 w-5" />
+                    </div>
                   <div>
                     <h2 className="text-2xl font-black tracking-tight text-slate-950">Request a WhatsApp chat</h2>
                     <p className="text-sm leading-6 text-slate-600">
@@ -327,7 +324,7 @@ export function ContactPage() {
 
                 <div className="mt-5 flex flex-col gap-3 sm:flex-row">
                   <a href={demoHref} target="_blank" rel="noreferrer" className="btn marketing-button-motion rounded-xl bg-gradient-to-r from-blue-600 to-blue-700 px-4 py-3 text-sm font-black text-white shadow-lg shadow-blue-600/20 hover:shadow-xl hover:shadow-blue-600/25">
-                    Request a demo on WhatsApp
+                    Request Demo
                   </a>
                   <a
                     href={pricingHref}
@@ -335,7 +332,7 @@ export function ContactPage() {
                     rel="noreferrer"
                     className="btn marketing-button-motion rounded-xl border border-blue-200 bg-white px-4 py-3 text-sm font-bold text-blue-700 shadow-sm hover:bg-blue-50"
                   >
-                    Ask about pricing on WhatsApp
+                    Ask About Pricing
                   </a>
                 </div>
 
@@ -410,6 +407,7 @@ export function ContactPage() {
     </div>
   );
 }
+
 
 
 

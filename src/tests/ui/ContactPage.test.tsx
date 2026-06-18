@@ -27,7 +27,7 @@ describe("ContactPage", () => {
 
     fireEvent.change(screen.getByLabelText("School name"), { target: { value: "Sunrise Academy" } });
 
-    const demoLink = screen.getByRole("link", { name: /request a demo on whatsapp/i });
+    const demoLink = screen.getAllByRole("link", { name: /^request demo$/i })[0]!;
     expect(demoLink).toHaveAttribute("href", expect.stringContaining("https://wa.me/256790685650"));
     expect(demoLink).toHaveAttribute("href", expect.stringContaining("Sunrise%20Academy"));
 

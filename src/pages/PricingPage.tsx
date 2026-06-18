@@ -68,6 +68,7 @@ function PricingCard({
   description,
   items,
   cta,
+  href,
   highlighted = false,
 }: {
   title: string;
@@ -75,6 +76,7 @@ function PricingCard({
   description: string;
   items: string[];
   cta: string;
+  href: string;
   highlighted?: boolean;
 }) {
   return (
@@ -104,8 +106,10 @@ function PricingCard({
         ))}
       </ul>
 
-      <button
-        type="button"
+      <a
+        href={href}
+        target="_blank"
+        rel="noreferrer"
         className={[
           "btn marketing-button-motion mt-5 w-full rounded-2xl px-4 py-3 text-sm font-black",
           highlighted
@@ -114,7 +118,7 @@ function PricingCard({
         ].join(" ")}
       >
         {cta}
-      </button>
+      </a>
     </article>
   );
 }
@@ -138,10 +142,30 @@ const buildPricingWhatsAppHref = () =>
     ].join("\n"),
   );
 
+const buildPackageWhatsAppHref = (message: string) => buildWhatsAppUrl(message);
+
 export function PricingPage() {
   const navigate = useNavigate();
   const { pathname } = useLocation();
   const pricingChatHref = buildPricingWhatsAppHref();
+  const reportLabPricingHref = buildPackageWhatsAppHref(
+    [
+      "Hello School Connect, I would like pricing for Report Lab.",
+      "I want to generate, review, print, and share student reports faster.",
+    ].join("\n"),
+  );
+  const smartPagesPricingHref = buildPackageWhatsAppHref(
+    [
+      "Hello School Connect, I would like pricing for Smart Pages.",
+      "I want to turn handwritten or scanned school documents into ready-to-print PDFs.",
+    ].join("\n"),
+  );
+  const bundlePricingHref = buildPackageWhatsAppHref(
+    [
+      "Hello School Connect, I would like pricing for the School Connect Bundle.",
+      "I want Report Lab and Smart Pages together for my school.",
+    ].join("\n"),
+  );
 
   const navItemClass = (active: boolean) =>
     active ? "font-black text-blue-700" : "transition hover:text-blue-700";
@@ -168,10 +192,10 @@ export function PricingPage() {
             <button type="button" onClick={() => void navigate("/demo")} className={navItemClass(pathname === "/demo")}>
               Demo
             </button>
-            <a href="#report-lab" className={navItemClass(false)}>
+            <a href="/demo#report-lab" className={navItemClass(false)}>
               Report Lab
             </a>
-            <a href="#smart-pages" className={navItemClass(false)}>
+            <a href="/demo#smart-pages" className={navItemClass(false)}>
               Smart Pages
             </a>
             <button
@@ -226,13 +250,14 @@ export function PricingPage() {
               </p>
 
               <div className="mt-5 flex flex-col gap-3 sm:flex-row">
-                <button
-                  type="button"
-                  onClick={() => document.getElementById("contact")?.scrollIntoView({ behavior: "smooth", block: "start" })}
+                <a
+                  href={pricingChatHref}
+                  target="_blank"
+                  rel="noreferrer"
                   className="btn marketing-button-motion rounded-xl bg-gradient-to-r from-blue-600 to-blue-700 px-4 py-3 text-sm font-black text-white shadow-lg shadow-blue-600/20 hover:shadow-xl hover:shadow-blue-600/25"
                 >
                   Request Pricing
-                </button>
+                </a>
                 <button
                   type="button"
                   onClick={() => void navigate("/demo")}
@@ -285,6 +310,7 @@ export function PricingPage() {
                   "Staff onboarding support",
                 ]}
                 cta="Request Report Lab Pricing"
+                href={reportLabPricingHref}
               />
               <PricingCard
                 title="Smart Pages"
@@ -300,6 +326,7 @@ export function PricingPage() {
                   "Useful for letters, forms, notices, and school records",
                 ]}
                 cta="Request Smart Pages Pricing"
+                href={smartPagesPricingHref}
               />
               <PricingCard
                 title="School Connect Bundle"
@@ -316,6 +343,7 @@ export function PricingPage() {
                   "Room to add future School Connect tools",
                 ]}
                 cta="Request Bundle Pricing"
+                href={bundlePricingHref}
                 highlighted
               />
             </div>
@@ -411,5 +439,6 @@ export function PricingPage() {
     </div>
   );
 }
+
 
 
