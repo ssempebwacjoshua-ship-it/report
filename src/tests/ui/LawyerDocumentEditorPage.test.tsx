@@ -82,5 +82,36 @@ describe("Lawyer Smart Pages editor", () => {
     expect(documentIntelligenceMocks.generateSchema.mock.calls[0][1]).toContain("Template ID: legal-notice-demand-letter");
     expect(documentIntelligenceMocks.generateSchema.mock.calls[0][1]).toContain("Acacia Legal");
   });
+
+  it("auto-generates a first lawyer draft when opened from a template query", async () => {
+    documentIntelligenceMocks.getDocument.mockResolvedValue({
+      id: "doc-2",
+      title: "Template draft",
+      status: "DRAFT",
+      extractionStatus: "PENDING",
+      extractionError: null,
+      domain: "legal",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      versionCount: 0,
+      hasSourceFiles: false,
+      extractedKnowledge: null,
+      activeVersion: null,
+      latestSourceFile: null,
+    });
+    documentIntelligenceMocks.generateSchema.mockResolvedValue({ versionId: "version-2", schema: { theme: { primaryColor: "#2563eb" }, components: [] }, componentTree: [] });
+
+    render(
+      <MemoryRouter initialEntries={["/lawyers/documents/doc-2?template=legal-notice-demand-letter"]}>
+        <Routes>
+          <Route path="/lawyers/documents/:id" element={<DocumentEditorPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => expect(documentIntelligenceMocks.generateSchema).toHaveBeenCalledTimes(1));
+    expect(documentIntelligenceMocks.generateSchema.mock.calls[0][1]).toContain("Template ID: legal-notice-demand-letter");
+    expect(documentIntelligenceMocks.generateSchema.mock.calls[0][1]).toContain("Template Name: Legal Notice / Demand Letter");
+  });
 });
 

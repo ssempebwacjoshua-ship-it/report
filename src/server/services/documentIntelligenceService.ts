@@ -50,6 +50,13 @@ export async function findOrCreateSchoolOperatorCreator(
     if (byEmail.schoolId === schoolId) {
       return byEmail.id as string;
     }
+    if (byEmail.type === "SCHOOL_OPERATOR") {
+      await db.creator.update({
+        where: { id: byEmail.id },
+        data: { schoolId, type: "SCHOOL_OPERATOR", name, email },
+      });
+      return byEmail.id as string;
+    }
     if (!byEmail.schoolId) {
       await db.creator.update({
         where: { id: byEmail.id },

@@ -1,5 +1,5 @@
 ﻿import { useCallback, useEffect, useRef, useState } from "react";
-import { useLocation, useNavigate, useParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import {
   applyPrompt,
   downloadDocumentExport,
@@ -17,7 +17,7 @@ import { listPreferences } from "../../client/documentOsClient";
 import { DocumentPreview } from "../../components/smart-pages/DocumentPreview";
 import { SmartPageTemplatePicker } from "../../components/smart-pages/SmartPageTemplatePicker";
 import { getSmartPageTemplates, type SmartPageTemplateDefinition } from "../../shared/smartPagesTemplates";
-import { getLawyerPageTemplates } from "../../shared/lawyerTemplates";
+import { getLawyerPageTemplateById, getLawyerPageTemplates } from "../../shared/lawyerTemplates";
 import type {
   ChatMessage,
   ComponentNode,
@@ -329,7 +329,9 @@ export function DocumentEditorPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const location = useLocation();
+  const [searchParams] = useSearchParams();
   const isLawyerWorkspace = location.pathname.startsWith("/lawyers");
+  const templateId = searchParams.get("template");
 
   const [doc, setDoc] = useState<SmartDocumentDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -358,6 +360,7 @@ export function DocumentEditorPage() {
 
   const [activeTab, setActiveTab] = useState<"chat" | "preview">("chat");
   const [showActions, setShowActions] = useState(false);
+  const autoTemplateRef = useRef<string | null>(null);
   const hasActiveVersion = Boolean(activeVersionId);
   const parsedTemplates = isLawyerWorkspace ? getLawyerPageTemplates("parsed") : getSmartPageTemplates("parsed");
   const readyTemplates = getSmartPageTemplates("ready");
@@ -636,6 +639,39 @@ export function DocumentEditorPage() {
       prompt,
     ].join("\n"));
   }, [creatorPreferences, doc?.title, extractedKnowledge, submitInstruction]);
+
+  useEffect(() => {
+    if (!isLawyerWorkspace || !id || !doc || !templateId) return;
+    if (hasActiveVersion || busy || stage === "processing" || stage === "generating") return;
+    if (autoTemplateRef.current === templateId) return;
+
+    const template = getLawyerPageTemplateById(templateId);
+    if (!template) return;
+
+    autoTemplateRef.current = templateId;
+    const prompt = template.buildPrompt({
+      documentTitle: doc.title,
+      extractedKnowledge: extractedKnowledge ?? undefined,
+      preferences: creatorPreferences,
+    });
+
+    void (async () => {
+      try {
+        await submitInstruction([
+          `Template ID: ${template.id}`,
+          `Template Name: ${template.name}`,
+          "",
+          prompt,
+        ].join("\n"));
+      } finally {
+        if (location.pathname === `/lawyers/documents/${id}` || location.pathname === `/lawyers/documents/${id}/`) {
+          navigate(`/lawyers/documents/${id}`, { replace: true });
+        } else {
+          navigate(location.pathname, { replace: true });
+        }
+      }
+    })();
+  }, [busy, creatorPreferences, doc, extractedKnowledge, hasActiveVersion, id, isLawyerWorkspace, location.pathname, navigate, stage, submitInstruction, templateId]);
 
   const [showPublishModal, setShowPublishModal] = useState(false);
   const [publishPassword, setPublishPassword] = useState("");

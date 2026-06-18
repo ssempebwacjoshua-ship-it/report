@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { listPreferences, savePreference, type CreatorPreference } from "../../client/documentOsClient";
 
 const PRACTICE_AREAS = [
@@ -45,7 +45,6 @@ function readBoolean(value: unknown, fallback = false): boolean {
 }
 
 export function LawyerOnboardingPage() {
-  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState("");
@@ -197,12 +196,12 @@ export function LawyerOnboardingPage() {
       </div>
 
       <div className="flex flex-wrap gap-2">
-        <button type="button" className="btn btn-primary" onClick={() => void saveSettings()} disabled={saving}>
+        <button type="button" className="btn btn-primary min-h-11 px-4" onClick={() => void saveSettings()} disabled={saving}>
           {saving ? "Saving..." : "Save lawyer profile"}
         </button>
-        <button type="button" className="rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50" onClick={() => void navigate("/lawyers/dashboard")}>
-          Continue to dashboard
-        </button>
+        <Link to="/lawyers/documents" className="inline-flex min-h-11 items-center rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 hover:bg-slate-50">
+          Continue
+        </Link>
         {profileComplete ? <span className="self-center text-xs font-semibold text-emerald-700">Profile details saved in this workspace.</span> : null}
       </div>
     </div>

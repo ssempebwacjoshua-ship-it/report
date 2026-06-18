@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { createDocument, listDocuments } from "../../client/documentIntelligenceClient";
 import type { SmartDocumentSummary } from "../../shared/types/documentIntelligence";
 
@@ -59,23 +59,26 @@ export function LawyerDashboardPage() {
           Upload client notes, agreements, court papers, IDs, evidence, or scanned documents. Smart Pages for Lawyers turns them into editable drafts for lawyer review before final export.
         </p>
         <div className="mt-4 flex flex-wrap gap-2">
-          <button type="button" className="btn btn-primary" onClick={() => void handleCreateDocument()} disabled={creating}>
+          <button
+            type="button"
+            className="btn btn-primary min-h-11 px-4"
+            onClick={() => void handleCreateDocument()}
+            disabled={creating}
+          >
             {creating ? "Creating..." : "New Legal Document"}
           </button>
-          <button
-            type="button"
-            className="rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"
-            onClick={() => void navigate("/lawyers/onboarding")}
+          <Link
+            to="/lawyers/onboarding"
+            className="inline-flex min-h-11 items-center rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 hover:bg-slate-50"
           >
-            Lawyer Profile / Firm Settings
-          </button>
-          <button
-            type="button"
-            className="rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"
-            onClick={() => void navigate("/lawyers/documents")}
+            Start onboarding
+          </Link>
+          <Link
+            to="/lawyers/documents"
+            className="inline-flex min-h-11 items-center rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 hover:bg-slate-50"
           >
-            Upload Client Papers
-          </button>
+            View documents
+          </Link>
         </div>
       </section>
 
@@ -107,7 +110,9 @@ export function LawyerDashboardPage() {
               <p className="text-xs font-black uppercase tracking-[0.18em] text-[color:var(--sc-primary)]">Recent Matters / Documents</p>
               <h2 className="mt-1 text-lg font-black text-slate-950">Recent legal work</h2>
             </div>
-            <button type="button" className="rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50" onClick={() => void navigate("/lawyers/documents")}>View all</button>
+            <Link to="/lawyers/documents" className="inline-flex min-h-11 items-center rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-slate-700 hover:bg-slate-50">
+              View all
+            </Link>
           </div>
 
           {recent.length === 0 ? (

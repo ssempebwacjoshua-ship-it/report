@@ -272,3 +272,7 @@ export function getLawyerPageTemplates(scope: SmartPageTemplateScope): SmartPage
   return LAWYER_TEMPLATES.filter((template) => template.scope.includes(scope));
 }
 
+export function getLawyerPageTemplateById(templateId: string): SmartPageTemplateDefinition | undefined {
+  return LAWYER_TEMPLATES.find((template) => template.id === templateId);
+}
+
