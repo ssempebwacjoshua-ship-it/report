@@ -35,13 +35,13 @@ function NavLinkRow({
       onClick={onClick}
       className={`group flex items-center gap-3 rounded-full border px-3 py-2 text-sm font-semibold transition ${
         active
-          ? "border-white/25 bg-white text-blue-700 shadow-[0_10px_24px_rgba(15,23,42,0.14)]"
+          ? "border-white/25 bg-[#EFF6FF] text-[#005A9E] shadow-[0_10px_24px_rgba(15,23,42,0.14)]"
           : "border-transparent text-blue-100 hover:border-white/10 hover:bg-white/10 hover:text-white"
       }`}
     >
       <Icon
         name={icon}
-        className={`h-4 w-4 shrink-0 transition ${active ? "text-blue-700" : "text-blue-200 group-hover:text-white"}`}
+        className={`h-5 w-5 shrink-0 transition ${active ? "text-[#005A9E]" : "text-blue-100 group-hover:text-white"}`}
       />
       {!collapsed ? <span className="truncate">{label}</span> : null}
     </Link>

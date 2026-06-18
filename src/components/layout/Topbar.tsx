@@ -23,25 +23,28 @@ export function Topbar({ onMenuClick }: Props) {
   }
 
   return (
-    <header className="app-shell-topbar sticky top-0 z-20 flex items-center justify-between border-b border-slate-200 bg-white/95 px-4 py-3 backdrop-blur-xl md:px-6">
+    <header
+      className="app-shell-topbar sticky top-0 z-20 flex items-center justify-between border-b border-[#005A9E]/30 px-4 py-3 shadow-[0_1px_0_rgba(255,255,255,0.08)] md:px-6"
+      style={{ backgroundColor: "#0078D4" }}
+    >
       <div className="flex min-w-0 items-center gap-3">
         <button
           type="button"
           onClick={onMenuClick}
           aria-label="Open navigation"
-          className="grid h-9 w-9 place-items-center rounded-xl text-slate-500 transition hover:bg-slate-100 hover:text-slate-950"
+          className="grid h-9 w-9 place-items-center rounded-xl text-white/90 transition hover:bg-white/10 hover:text-white"
         >
           <Icon name="menu" className="h-5 w-5" />
         </button>
 
-        <div className="flex items-center gap-1 rounded-full border border-slate-200 bg-slate-100 p-1">
+        <div className="flex items-center gap-1 rounded-full border border-white/20 bg-white/10 p-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.1)]">
           <button
             type="button"
             onClick={() => switchProduct("reportLab")}
             className={`rounded-full px-3 py-1.5 text-xs font-black transition ${
               currentProduct === "reportLab"
-                ? "bg-white text-blue-700 shadow-sm"
-                : "text-slate-600 hover:text-slate-950"
+                ? "bg-white text-[#005A9E] shadow-sm"
+                : "text-white/90 hover:bg-white/10 hover:text-white"
             }`}
           >
             Report Lab
@@ -51,8 +54,8 @@ export function Topbar({ onMenuClick }: Props) {
             onClick={() => switchProduct("smartPages")}
             className={`rounded-full px-3 py-1.5 text-xs font-black transition ${
               currentProduct === "smartPages"
-                ? "bg-white text-blue-700 shadow-sm"
-                : "text-slate-600 hover:text-slate-950"
+                ? "bg-white text-[#005A9E] shadow-sm"
+                : "text-white/90 hover:bg-white/10 hover:text-white"
             }`}
           >
             Smart Pages
@@ -63,22 +66,22 @@ export function Topbar({ onMenuClick }: Props) {
 
       <div className="flex items-center gap-2.5">
         <div className="flex items-center gap-2.5">
-          <div className="grid h-8 w-8 place-items-center rounded-full bg-gradient-to-br from-blue-500 to-blue-700 text-white shadow-sm">
+          <div className="grid h-8 w-8 place-items-center rounded-full border border-white/25 bg-white/15 text-white shadow-sm">
             <Icon name="user" className="h-4 w-4" />
           </div>
           <div className="hidden sm:block">
-            <p className="text-sm font-semibold leading-tight text-slate-950">{user?.name ?? "Admin"}</p>
-            <p className="text-xs leading-tight text-slate-500">Administrator</p>
+            <p className="text-sm font-semibold leading-tight text-white">{user?.name ?? "Admin"}</p>
+            <p className="text-xs leading-tight text-white/80">Administrator</p>
           </div>
         </div>
         <button
           type="button"
           onClick={handleLogout}
-          className="ml-1 grid h-8 w-8 place-items-center rounded-xl text-slate-500 transition hover:bg-slate-100 hover:text-slate-950"
+          className="ml-1 grid h-8 w-8 place-items-center rounded-xl text-white/90 transition hover:bg-white/10 hover:text-white"
           title="Sign out"
           aria-label="Sign out"
         >
-          <Icon name="log-out" className="h-4 w-4" />
+          <Icon name="log-out" className="h-5 w-5" />
         </button>
       </div>
     </header>
