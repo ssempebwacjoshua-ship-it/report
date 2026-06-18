@@ -27,9 +27,24 @@ describe("PricingPage", () => {
 
     expect(screen.getByText("Simple packages for smart schools.")).toBeInTheDocument();
     expect(screen.getAllByText("Recommended")).toHaveLength(1);
-    expect(screen.getByRole("link", { name: /request report lab pricing/i })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /request smart pages pricing/i })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /request bundle pricing/i })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /^report lab$/i })).toHaveAttribute("href", "/demo#report-lab");
+    expect(screen.getByRole("link", { name: /^smart pages$/i })).toHaveAttribute("href", "/demo#smart-pages");
+    expect(screen.getByRole("link", { name: /^request pricing$/i })).toHaveAttribute(
+      "href",
+      expect.stringContaining("https://wa.me/256790685650"),
+    );
+    expect(screen.getByRole("link", { name: /request report lab pricing/i })).toHaveAttribute(
+      "href",
+      expect.stringContaining("https://wa.me/256790685650"),
+    );
+    expect(screen.getByRole("link", { name: /request smart pages pricing/i })).toHaveAttribute(
+      "href",
+      expect.stringContaining("https://wa.me/256790685650"),
+    );
+    expect(screen.getByRole("link", { name: /request bundle pricing/i })).toHaveAttribute(
+      "href",
+      expect.stringContaining("https://wa.me/256790685650"),
+    );
     expect(screen.getAllByRole("button", { name: /^sign in$/i })).toHaveLength(1);
 
     expect(screen.getByRole("button", { name: /^pricing$/i })).toHaveAttribute("aria-current", "page");
@@ -39,6 +54,9 @@ describe("PricingPage", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /contact/i }));
     expect(navigateMock).toHaveBeenCalledWith("/contact");
+
+    fireEvent.click(screen.getByRole("button", { name: /school connect/i }));
+    expect(navigateMock).toHaveBeenCalledWith("/demo");
 
     fireEvent.click(screen.getAllByRole("button", { name: /^sign in$/i })[0]!);
     expect(navigateMock).toHaveBeenCalledWith("/login");

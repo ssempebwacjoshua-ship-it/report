@@ -192,10 +192,10 @@ export function PricingPage() {
             <button type="button" onClick={() => void navigate("/demo")} className={navItemClass(pathname === "/demo")}>
               Demo
             </button>
-            <a href="#report-lab" className={navItemClass(false)}>
+            <a href="/demo#report-lab" className={navItemClass(false)}>
               Report Lab
             </a>
-            <a href="#smart-pages" className={navItemClass(false)}>
+            <a href="/demo#smart-pages" className={navItemClass(false)}>
               Smart Pages
             </a>
             <button
@@ -250,13 +250,14 @@ export function PricingPage() {
               </p>
 
               <div className="mt-5 flex flex-col gap-3 sm:flex-row">
-                <button
-                  type="button"
-                  onClick={() => document.getElementById("contact")?.scrollIntoView({ behavior: "smooth", block: "start" })}
+                <a
+                  href={pricingChatHref}
+                  target="_blank"
+                  rel="noreferrer"
                   className="btn marketing-button-motion rounded-xl bg-gradient-to-r from-blue-600 to-blue-700 px-4 py-3 text-sm font-black text-white shadow-lg shadow-blue-600/20 hover:shadow-xl hover:shadow-blue-600/25"
                 >
                   Request Pricing
-                </button>
+                </a>
                 <button
                   type="button"
                   onClick={() => void navigate("/demo")}
