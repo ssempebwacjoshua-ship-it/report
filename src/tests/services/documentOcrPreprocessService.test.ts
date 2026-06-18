@@ -38,5 +38,13 @@ describe("preprocessDocumentForOcr", () => {
     expect(result.processedBuffer.equals(original)).toBe(true);
     expect(result.notes.some((note) => note.code === "ORIGINAL_USED")).toBe(true);
   });
+
+  it("warns that only the first PDF page is read for OCR", async () => {
+    const original = Buffer.from("%PDF-1.4\n1 0 obj\n<<>>\nendobj\ntrailer\n<<>>\n%%EOF");
+
+    const result = await preprocessDocumentForOcr(original, "application/pdf");
+    expect(result.notes.some((note) => note.code === "PDF_FIRST_PAGE")).toBe(true);
+    expect(result.warning).toMatch(/first pdf page/i);
+  });
 });
 

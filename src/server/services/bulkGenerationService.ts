@@ -312,16 +312,99 @@ export async function getBulkJobOutputs(
 
 // ── Utilities ─────────────────────────────────────────────────────────────────
 
-function fillTemplate(templateJson: string, data: Record<string, unknown>): string {
-  return templateJson.replace(/\{\{(\w+)\}\}/g, (_, key: string) => {
-    const val = data[key];
-    return val !== undefined && val !== null ? String(val) : "";
+export function fillTemplate(templateJson: string, data: Record<string, unknown>): string {
+  const parsed = JSON.parse(templateJson) as unknown;
+  const filled = fillTemplateNode(parsed, data);
+  return JSON.stringify(filled);
+}
+
+function fillTemplateNode(value: unknown, data: Record<string, unknown>): unknown {
+  if (typeof value === "string") {
+    return value.replace(/\{\{([^}]+)\}\}/g, (_, placeholder: string) => {
+      const resolved = resolvePlaceholder(data, placeholder.trim());
+      return resolved === undefined || resolved === null ? "" : String(resolved);
+    });
+  }
+  if (Array.isArray(value)) return value.map((item) => fillTemplateNode(item, data));
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>).map(([key, entry]) => [key, fillTemplateNode(entry, data)]),
+    );
+  }
+  return value;
+}
+
+export function resolvePlaceholder(data: Record<string, unknown>, placeholderName: string): unknown {
+  const trimmed = placeholderName.trim();
+  if (!trimmed) return "";
+
+  const exactPath = resolvePath(data, trimmed, (segment, key) => segment === key);
+  if (exactPath !== undefined) return exactPath;
+
+  const caseInsensitivePath = resolvePath(data, trimmed, (segment, key) => segment.toLowerCase() === key.toLowerCase());
+  if (caseInsensitivePath !== undefined) return caseInsensitivePath;
+
+  const normalizedTarget = normalizePlaceholderToken(trimmed);
+  const candidates = flattenEntries(data);
+  const match = candidates.find((candidate) => {
+    const normalizedPath = normalizePlaceholderToken(candidate.path);
+    const normalizedKey = normalizePlaceholderToken(candidate.key);
+    return normalizedPath === normalizedTarget || normalizedKey === normalizedTarget;
   });
+  return match?.value ?? "";
+}
+
+function resolvePath(
+  source: Record<string, unknown>,
+  placeholderName: string,
+  compare: (segment: string, key: string) => boolean,
+): unknown {
+  const segments = placeholderName.split(".").map((segment) => segment.trim()).filter(Boolean);
+  if (segments.length === 0) return undefined;
+  let current: unknown = source;
+  for (const segment of segments) {
+    if (!current || typeof current !== "object" || Array.isArray(current)) return undefined;
+    const entries = Object.entries(current as Record<string, unknown>);
+    const match = entries.find(([key]) => compare(segment, key));
+    if (!match) return undefined;
+    current = match[1];
+  }
+  return current;
+}
+
+function flattenEntries(
+  value: unknown,
+  path = "",
+  entries: Array<{ path: string; key: string; value: unknown }> = [],
+): Array<{ path: string; key: string; value: unknown }> {
+  if (Array.isArray(value)) {
+    value.forEach((item, index) => {
+      flattenEntries(item, path ? `${path}.${index}` : String(index), entries);
+    });
+    return entries;
+  }
+  if (value && typeof value === "object") {
+    for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
+      const childPath = path ? `${path}.${key}` : key;
+      if (child && typeof child === "object") {
+        flattenEntries(child, childPath, entries);
+      } else {
+        entries.push({ path: childPath, key, value: child });
+      }
+    }
+    return entries;
+  }
+  if (path) entries.push({ path, key: path.split(".").at(-1) ?? path, value });
+  return entries;
+}
+
+function normalizePlaceholderToken(value: string): string {
+  return value.toLowerCase().replace(/[^a-z0-9]/g, "");
 }
 
 function deriveTitle(data: Record<string, unknown>, collectionName: string): string {
   const nameField = data.name ?? data.Name ?? data.studentName ?? data.fullName ?? data.firstName;
-  return nameField ? `${collectionName} ? ${String(nameField)}` : collectionName;
+  return nameField ? `${collectionName} - ${String(nameField)}` : collectionName;
 }
 
 function jobToSummary(job: any, collectionName: string): BulkJobSummary {

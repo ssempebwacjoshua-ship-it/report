@@ -10,6 +10,7 @@ const documentIntelligenceMocks = vi.hoisted(() => ({
   getVersionHistory: vi.fn(),
   updateExtractedKnowledge: vi.fn(),
   publishDocument: vi.fn(),
+  downloadDocumentExport: vi.fn(),
   openPrintWindow: vi.fn(),
   retryDocumentExtraction: vi.fn(),
   restoreVersion: vi.fn(),
@@ -254,8 +255,50 @@ describe("DocumentEditorPage ? Smart Pages flow", () => {
 
     await waitFor(() => expect(screen.getByText(/generate document from extraction/i)).toBeInTheDocument());
     expect(screen.queryByRole("button", { name: /actions/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /publish/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /print \/ pdf/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /publish secure link/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^print$/i })).not.toBeInTheDocument();
+  });
+
+  it("shows export actions and starts the requested download for active smart pages", async () => {
+    documentIntelligenceMocks.getDocument.mockResolvedValue({
+      id: "doc-1",
+      title: "Sample Smart Page",
+      status: "DRAFT",
+      extractionStatus: "READY",
+      extractionError: null,
+      domain: "school",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      versionCount: 1,
+      hasSourceFiles: true,
+      extractedKnowledge,
+      activeVersion: {
+        id: "version-1",
+        instruction: "Generate a professional document from the reviewed extraction. Preserve all tables and key facts.",
+        schema: { theme: { primaryColor: "#2563eb" }, components: [] },
+        componentTree: [],
+        renderSettings: {},
+        createdAt: new Date().toISOString(),
+      },
+      latestSourceFile: { id: "source-1", status: "READY" },
+    });
+    documentIntelligenceMocks.downloadDocumentExport.mockResolvedValue(undefined);
+
+    renderPage();
+
+    await waitFor(() => expect(screen.getByRole("button", { name: /actions/i })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: /actions/i }));
+
+    expect(screen.getAllByRole("button", { name: /^print$/i }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole("button", { name: /download pdf/i }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole("button", { name: /download docx/i }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole("button", { name: /export markdown/i }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole("button", { name: /export schema/i }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole("button", { name: /publish secure link/i }).length).toBeGreaterThan(0);
+
+    fireEvent.click(screen.getAllByRole("button", { name: /download pdf/i })[0]);
+
+    await waitFor(() => expect(documentIntelligenceMocks.downloadDocumentExport).toHaveBeenCalledWith("doc-1", "pdf"));
   });
 
   it("shows a visible print error in chat", async () => {
@@ -287,7 +330,7 @@ describe("DocumentEditorPage ? Smart Pages flow", () => {
 
     await waitFor(() => expect(screen.getByRole("button", { name: /actions/i })).toBeInTheDocument());
     fireEvent.click(screen.getByRole("button", { name: /actions/i }));
-    const printButton = screen.getAllByRole("button", { name: /print \/ pdf/i }).at(-1);
+    const printButton = screen.getAllByRole("button", { name: /^print$/i }).at(-1);
     expect(printButton).toBeTruthy();
     fireEvent.click(printButton!);
 
@@ -359,11 +402,11 @@ describe("DocumentEditorPage ? Smart Pages flow", () => {
 
     await waitFor(() => expect(screen.getByRole("button", { name: /actions/i })).toBeInTheDocument());
     fireEvent.click(screen.getByRole("button", { name: /actions/i }));
-    const publishMenuButton = screen.getAllByRole("button", { name: /^publish$/i }).at(-1);
+    const publishMenuButton = screen.getAllByRole("button", { name: /publish secure link/i }).at(-1);
     expect(publishMenuButton).toBeTruthy();
     fireEvent.click(publishMenuButton!);
 
-    const publishButton = await waitFor(() => screen.getAllByRole("button", { name: /^publish$/i }).at(-1));
+    const publishButton = await waitFor(() => screen.getByRole("button", { name: /^publish$/i }));
     expect(publishButton).toBeTruthy();
     fireEvent.click(publishButton!);
     fireEvent.click(publishButton!);

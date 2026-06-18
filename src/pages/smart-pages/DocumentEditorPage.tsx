@@ -2,6 +2,7 @@
 import { useNavigate, useParams } from "react-router-dom";
 import {
   applyPrompt,
+  downloadDocumentExport,
   generateSchema,
   getDocument,
   getVersionHistory,
@@ -611,6 +612,7 @@ export function DocumentEditorPage() {
   const [showPublishModal, setShowPublishModal] = useState(false);
   const [publishPassword, setPublishPassword] = useState("");
   const [printing, setPrinting] = useState(false);
+  const [exportingFormat, setExportingFormat] = useState<"pdf" | "docx" | "markdown" | "schema" | null>(null);
 
   async function handleSaveExtractionReview() {
     if (!id || !extractedKnowledge || reviewSaving) return;
@@ -685,7 +687,7 @@ export function DocumentEditorPage() {
       setDoc(refreshed);
       const history = await getVersionHistory(id);
       setVersions(history);
-      addMessage("assistant", `Published! Your document is live at:\n${result.url}\nToken: ${result.token}${password ? "\nðŸ”’ Password protected." : ""}`, { action: "publish" });
+      addMessage("assistant", `Published! Your document is live at:\n${result.url}\nToken: ${result.token}${password ? "\nPassword protected." : ""}`, { action: "publish" });
     } catch (e) {
       addMessage("assistant", e instanceof Error ? e.message : "Publish failed.");
     } finally {
@@ -710,6 +712,25 @@ export function DocumentEditorPage() {
     } finally {
       setPrinting(false);
       releaseActionLock("print");
+    }
+  }
+
+  async function handleDownloadExport(format: "pdf" | "docx" | "markdown" | "schema") {
+    if (!id || exportingFormat) return;
+    if (!hasActiveVersion) {
+      addMessage("assistant", "Generate a document first before downloading.");
+      return;
+    }
+    if (!acquireActionLock(`export-${format}`)) return;
+    setExportingFormat(format);
+    try {
+      await downloadDocumentExport(id, format);
+      addMessage("assistant", `${format.toUpperCase()} download started.`, { action: "generate" });
+    } catch (e) {
+      addMessage("assistant", e instanceof Error ? e.message : `Could not download ${format.toUpperCase()}.`);
+    } finally {
+      setExportingFormat(null);
+      releaseActionLock(`export-${format}`);
     }
   }
 
@@ -824,7 +845,7 @@ export function DocumentEditorPage() {
               onClick={() => { void getVersionHistory(id!).then(setVersions); setShowVersions(true); }}
               className="hidden text-xs font-semibold text-slate-500 hover:text-slate-800 sm:block"
             >
-              History
+              Version History
             </button>
           ) : null}
           {stage === "ready" && hasActiveVersion ? (
@@ -835,7 +856,39 @@ export function DocumentEditorPage() {
                 disabled={printing}
                 className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50"
               >
-                {printing ? "Opening?" : "Print / PDF"}
+                {printing ? "Opening..." : "Print"}
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleDownloadExport("pdf")}
+                disabled={exportingFormat === "pdf"}
+                className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+              >
+                {exportingFormat === "pdf" ? "Downloading..." : "Download PDF"}
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleDownloadExport("docx")}
+                disabled={exportingFormat === "docx"}
+                className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+              >
+                {exportingFormat === "docx" ? "Downloading..." : "Download DOCX"}
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleDownloadExport("markdown")}
+                disabled={exportingFormat === "markdown"}
+                className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+              >
+                {exportingFormat === "markdown" ? "Downloading..." : "Export Markdown"}
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleDownloadExport("schema")}
+                disabled={exportingFormat === "schema"}
+                className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+              >
+                {exportingFormat === "schema" ? "Downloading..." : "Export Schema"}
               </button>
               <button
                 type="button"
@@ -843,7 +896,7 @@ export function DocumentEditorPage() {
                 disabled={publishing}
                 className="btn btn-primary text-xs"
               >
-                {publishing ? "Publishing?" : publishResult ? "Re-publish" : "Publish"}
+                {publishing ? "Publishing..." : publishResult ? "Re-publish Secure Link" : "Publish Secure Link"}
               </button>
             </>
           ) : null}
@@ -922,7 +975,7 @@ export function DocumentEditorPage() {
                 ref={fileInputRef}
                 type="file"
                 className="hidden"
-                accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.csv"
+                accept="image/*,application/pdf,.xls,.xlsx,.csv"
                 onChange={(e) => {
                   const file = e.target.files?.[0];
                   if (file) void handleFileUpload(file);
@@ -1043,7 +1096,7 @@ export function DocumentEditorPage() {
                   </svg>
                 </div>
                 <p className="text-sm font-medium text-slate-400">
-                  {stage === "generating" ? "Generating?" : "Preview will appear here"}
+                  {stage === "generating" ? "Generating..." : "Preview will appear here"}
                 </p>
               </div>
             </div>
@@ -1065,7 +1118,7 @@ export function DocumentEditorPage() {
                     setShowActions(false);
                   }}
                 >
-                  History
+                  Version History
                 </button>
               ) : null}
               <button
@@ -1074,7 +1127,39 @@ export function DocumentEditorPage() {
                 onClick={() => { setShowActions(false); void handlePrint(); }}
                 disabled={printing}
               >
-                {printing ? "Opening..." : "Print / PDF"}
+                {printing ? "Opening..." : "Print"}
+              </button>
+              <button
+                type="button"
+                className="rounded-xl px-3 py-2 text-left font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                onClick={() => { setShowActions(false); void handleDownloadExport("pdf"); }}
+                disabled={exportingFormat === "pdf"}
+              >
+                {exportingFormat === "pdf" ? "Downloading..." : "Download PDF"}
+              </button>
+              <button
+                type="button"
+                className="rounded-xl px-3 py-2 text-left font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                onClick={() => { setShowActions(false); void handleDownloadExport("docx"); }}
+                disabled={exportingFormat === "docx"}
+              >
+                {exportingFormat === "docx" ? "Downloading..." : "Download DOCX"}
+              </button>
+              <button
+                type="button"
+                className="rounded-xl px-3 py-2 text-left font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                onClick={() => { setShowActions(false); void handleDownloadExport("markdown"); }}
+                disabled={exportingFormat === "markdown"}
+              >
+                {exportingFormat === "markdown" ? "Downloading..." : "Export Markdown"}
+              </button>
+              <button
+                type="button"
+                className="rounded-xl px-3 py-2 text-left font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                onClick={() => { setShowActions(false); void handleDownloadExport("schema"); }}
+                disabled={exportingFormat === "schema"}
+              >
+                {exportingFormat === "schema" ? "Downloading..." : "Export Schema"}
               </button>
               <button
                 type="button"
@@ -1082,7 +1167,7 @@ export function DocumentEditorPage() {
                 onClick={() => { setShowActions(false); setShowPublishModal(true); }}
                 disabled={publishing}
               >
-                {publishing ? "Publishing..." : publishResult ? "Re-publish" : "Publish"}
+                {publishing ? "Publishing..." : publishResult ? "Re-publish Secure Link" : "Publish Secure Link"}
               </button>
             </div>
           ) : null}

@@ -14,6 +14,7 @@ import {
   preferenceMap,
   upsertSearchIndex,
 } from "./documentOsService";
+import { renderSchemaToPdf } from "./documentExportService";
 import { preprocessDocumentForOcr, type DocumentOcrPreprocessMode } from "./documentOcrPreprocessService";
 import type {
   SmartDocumentDetail,
@@ -260,6 +261,12 @@ export async function uploadAndExtract(
   const db = prisma as any;
   const actor = await getSmartPagesActor(creatorId);
   await loadOwnedSmartDocument(db, actor, documentId);
+  if (isWordDocumentUpload(file.mimetype, file.originalname)) {
+    throw Object.assign(
+      new Error("Word documents are coming soon. Please upload PDF, image, CSV, or Excel."),
+      { status: 415 },
+    );
+  }
   const fileHash = createHash("sha256").update(file.buffer).digest("hex");
 
   const sourceFile = await db.documentSourceFile.create({
@@ -660,6 +667,11 @@ export async function updateExtractedKnowledge(
   return knowledge;
 }
 
+function isWordDocumentUpload(mimeType: string, originalName: string): boolean {
+  const lowerName = originalName.toLowerCase();
+  return /(\.docx?|application\/vnd\.openxmlformats-officedocument\.wordprocessingml\.document|application\/msword)/i.test(lowerName + " " + mimeType);
+}
+
 // ── Generate schema ────────────────────────────────────────────────────────────
 
 export async function generateSchema(
@@ -863,6 +875,46 @@ export async function getPublishedDocument(
   password?: string,
 ): Promise<{ document: SmartDocumentDetail; publishedAt: string } | null | "PASSWORD_REQUIRED" | "WRONG_PASSWORD"> {
   const db = prisma as any;
+  const resolved = await resolvePublishedDocumentByToken(token, password);
+  if (resolved === null || resolved === "PASSWORD_REQUIRED" || resolved === "WRONG_PASSWORD") return resolved;
+  const { published, document: doc } = resolved;
+  const activeVersion = await resolveActiveVersion(db, doc.id, doc.activeVersionId);
+  const detail = rowToDetail(doc, activeVersion, 0);
+
+  return { document: detail, publishedAt: (published.createdAt as Date).toISOString() };
+}
+
+export async function downloadPublishedDocumentPdf(
+  token: string,
+  password?: string,
+): Promise<{ contentType: string; body: Buffer; filename: string } | null | "PASSWORD_REQUIRED" | "WRONG_PASSWORD"> {
+  const resolved = await resolvePublishedDocumentByToken(token, password);
+  if (resolved === null || resolved === "PASSWORD_REQUIRED" || resolved === "WRONG_PASSWORD") return resolved;
+  const { published, document: doc } = resolved;
+  const activeVersion = await resolveActiveVersion(db, doc.id, doc.activeVersionId);
+  if (!activeVersion) throw Object.assign(new Error("Document has no active version."), { status: 400 });
+  await db.publishedDocument.update({
+    where: { token },
+    data: { downloadCount: { increment: 1 } },
+  });
+  await incrementDocumentAnalytics(published.documentId as string, { downloads: 1 });
+  return {
+    contentType: "application/pdf",
+    body: renderSchemaToPdf(doc.title, activeVersion.schema as DocumentSchema, activeVersion.componentTree as ComponentNode[]),
+    filename: `${slug(doc.title)}.pdf`,
+  };
+}
+
+async function resolvePublishedDocumentByToken(
+  token: string,
+  password?: string,
+): Promise<
+  | { published: any; document: any }
+  | null
+  | "PASSWORD_REQUIRED"
+  | "WRONG_PASSWORD"
+> {
+  const db = prisma as any;
   const published = await db.publishedDocument.findUnique({
     where: { token },
     include: { document: true },
@@ -883,11 +935,7 @@ export async function getPublishedDocument(
   });
   await incrementDocumentAnalytics(published.documentId as string, { views: 1, visitors: 1 });
 
-  const doc = published.document;
-  const activeVersion = await resolveActiveVersion(db, doc.id, doc.activeVersionId);
-  const detail = rowToDetail(doc, activeVersion, 0);
-
-  return { document: detail, publishedAt: (published.createdAt as Date).toISOString() };
+  return { published, document: published.document };
 }
 
 function wantsFitToOnePage(instruction: string): boolean {
