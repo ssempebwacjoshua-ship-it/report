@@ -23,7 +23,7 @@ const workflowStageHrefs = [
 ] as const;
 
 const workflowTone = {
-  blue: "bg-blue-600 text-white shadow-blue-200",
+  blue: "bg-[color:var(--sc-primary)] text-white shadow-[0_10px_20px_rgba(0,127,255,0.24)]",
   green: "bg-green-500 text-white shadow-green-200",
   purple: "bg-violet-500 text-white shadow-violet-200",
   yellow: "bg-amber-400 text-white shadow-amber-200",
@@ -91,7 +91,13 @@ export function DashboardPage() {
   return (
     <main className="grid gap-3">
       {/* ── Hero ──────────────────────────────────────────────────────────── */}
-      <section className="overflow-hidden rounded-2xl border border-blue-100 bg-gradient-to-br from-slate-950 via-blue-950 to-blue-700 p-4 text-white shadow-[0_12px_32px_rgba(15,23,42,0.18)]">
+      <section
+        className="overflow-hidden rounded-2xl border p-4 text-white shadow-[0_12px_32px_rgba(15,23,42,0.18)]"
+        style={{
+          background: "var(--sc-primary)",
+          borderColor: "rgba(255,255,255,0.18)",
+        }}
+      >
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div className="max-w-3xl">
             <div className="flex flex-wrap items-center gap-2">
@@ -114,14 +120,14 @@ export function DashboardPage() {
           <div className="flex flex-col gap-3 sm:flex-row">
             <Link
               to="/reports"
-              className="btn w-full bg-white text-blue-700 shadow-xl shadow-blue-950/20 hover:bg-blue-50 sm:w-auto"
+              className="btn w-full bg-white text-[color:var(--sc-primary)] shadow-[0_14px_26px_rgba(0,127,255,0.22)] hover:bg-[color:var(--sc-primary-soft)] sm:w-auto"
             >
               <Icon name="file" className="h-4 w-4" />
               Generate Reports
             </Link>
             <Link
               to="/imports/marks"
-              className="btn w-full border border-white/25 bg-white/10 text-white shadow-xl shadow-blue-950/20 hover:bg-white/15 sm:w-auto"
+              className="btn w-full border border-white/25 bg-white/10 text-white shadow-[0_14px_26px_rgba(0,127,255,0.18)] hover:bg-white/15 sm:w-auto"
             >
               <Icon name="cloud" className="h-4 w-4" />
               Import Marks
@@ -204,11 +210,11 @@ export function DashboardPage() {
           {workflowStageMeta.map((stage, index) => {
             const value = stats?.workflow[stage.key] ?? 0;
             return (
-              <Link
-                key={stage.label}
-                to={workflowStageHrefs[index]}
-                className="relative rounded-xl border border-slate-100 bg-white p-3 shadow-sm transition hover:border-blue-200 hover:bg-blue-50/40"
-              >
+            <Link
+              key={stage.label}
+              to={workflowStageHrefs[index]}
+              className="relative rounded-xl border border-slate-100 bg-white p-3 shadow-sm transition hover:border-blue-200 hover:bg-blue-50/40"
+            >
                 {index < workflowStageMeta.length - 1 ? (
                   <div className="absolute left-[calc(50%+1.5rem)] top-5 hidden h-0.5 w-[calc(100%-3rem)] bg-slate-200 md:block" />
                 ) : null}

@@ -32,6 +32,7 @@
     "verify:report-lab": "npm run verify:parent-report && npm run verify:marksheets && npm run verify:dashboard && npm run verify:release && npm run verify:imports && npm run build"
   },
   "dependencies": {
+    "@fluentui/react-icons": "^2.0.330",
     "@google/genai": "^2.8.0",
     "@prisma/client": "^6.19.0",
     "@tailwindcss/vite": "^4.3.0",

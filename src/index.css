@@ -124,14 +124,16 @@ body {
 
 /* ── Global density tokens ── */
 :root {
+  --sc-primary: #007FFF;
+  --sc-primary-soft: #EFF6FF;
   --app-page-padding: 1rem;
   --app-section-gap: 0.75rem;
   --app-card-padding: 0.8125rem;
   --app-card-radius: 0.75rem;
   --app-control-height: 2.25rem;
   --app-button-height: 2.125rem;
-  --app-topbar-height: 3.25rem;
-  --app-sidebar-width: 228px;
+  --app-topbar-height: 2.75rem;
+  --app-sidebar-width: 232px;
   --font-page-title: 1.25rem;
   --font-section-title: 1rem;
   --font-body: 0.875rem;
@@ -192,7 +194,7 @@ body {
 }
 
 .premium-control:focus {
-  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.12), 0 1px 2px rgba(15, 23, 42, 0.05);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--sc-primary) 14%, transparent), 0 1px 2px rgba(15, 23, 42, 0.05);
 }
 
 .input {
@@ -213,8 +215,8 @@ body {
 }
 
 .input:focus {
-  border-color: rgb(59 130 246);
-  box-shadow: 0 0 0 3px rgba(59,130,246,0.15), 0 1px 2px rgba(15,23,42,0.04);
+  border-color: var(--sc-primary);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--sc-primary) 15%, transparent), 0 1px 2px rgba(15,23,42,0.04);
 }
 
 .input:disabled {
@@ -257,18 +259,18 @@ body {
 
 .tab-button:hover {
   transform: translateY(-1px);
-  border-color: rgb(219 234 254);
+  border-color: var(--sc-primary-soft);
   background: rgba(255, 255, 255, 0.86);
-  color: rgb(30 64 175);
+  color: var(--sc-primary);
   box-shadow: 0 6px 14px rgba(15, 23, 42, 0.07);
 }
 
 .tab-button-active {
   transform: translateY(-1px);
-  border-color: rgba(147, 197, 253, 0.9);
-  background: linear-gradient(135deg, rgb(37 99 235), rgb(29 78 216));
+  border-color: var(--sc-primary);
+  background: var(--sc-primary);
   color: white;
-  box-shadow: 0 10px 20px rgba(37, 99, 235, 0.24), inset 0 1px 0 rgba(255, 255, 255, 0.18);
+  box-shadow: 0 10px 20px rgba(0, 127, 255, 0.24), inset 0 1px 0 rgba(255, 255, 255, 0.18);
 }
 
 .btn {
@@ -302,27 +304,27 @@ body {
 }
 
 .btn-primary {
-  border: 1px solid rgb(37 99 235);
-  background: linear-gradient(135deg, rgb(37 99 235), rgb(29 78 216));
+  border: 1px solid var(--sc-primary);
+  background: var(--sc-primary);
   color: white;
-  box-shadow: 0 10px 20px rgba(37, 99, 235, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.18);
+  box-shadow: 0 10px 20px rgba(0, 127, 255, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.18);
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: linear-gradient(135deg, rgb(29 78 216), rgb(30 64 175));
-  box-shadow: 0 14px 26px rgba(37, 99, 235, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.16);
+  filter: brightness(0.96);
+  box-shadow: 0 14px 26px rgba(0, 127, 255, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.16);
 }
 
 .btn-secondary {
-  border: 1px solid rgb(191 219 254);
+  border: 1px solid var(--sc-primary-soft);
   background: linear-gradient(180deg, #ffffff, rgb(248 250 252));
-  color: rgb(29 78 216);
+  color: var(--sc-primary);
   box-shadow: 0 5px 12px rgba(15, 23, 42, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.85);
 }
 
 .btn-secondary:hover:not(:disabled) {
-  background: rgb(239 246 255);
-  box-shadow: 0 9px 18px rgba(37, 99, 235, 0.12);
+  background: var(--sc-primary-soft);
+  box-shadow: 0 9px 18px rgba(0, 127, 255, 0.12);
 }
 
 .btn-success {
@@ -377,7 +379,7 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
-  color: rgb(37 99 235);
+  color: var(--sc-primary);
   font-size: 0.75rem;
   font-weight: 800;
   transition: color 200ms ease, gap 200ms ease, transform 200ms ease;
@@ -385,7 +387,7 @@ body {
 
 .action-link:hover {
   gap: 0.6rem;
-  color: rgb(29 78 216);
+  opacity: 0.9;
   transform: translateY(-1px);
 }
 
