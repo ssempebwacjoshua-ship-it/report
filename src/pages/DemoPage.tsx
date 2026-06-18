@@ -332,18 +332,31 @@ export function DemoPage() {
               <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
                 <Metric value="School Connect" label="Powering smart schools." />
                 <Metric value="Report Lab" label="Generate student reports faster." />
-                <Metric value="Smart Pages" label="Digitize and polish school documents." />
+                <Metric value="Smart Pages" label="Handwritten docs to ready PDFs." />
               </div>
             </div>
 
             <div className="lg:col-span-6">
-              <div className="rounded-[1.75rem] border border-slate-200 bg-white p-2.5 shadow-sm">
-                <img
-                  src={solutionImage}
-                  alt="Digital school report dashboard on tablet and phone"
-                  className="aspect-[16/10] max-h-[390px] w-full rounded-[1.25rem] object-cover"
-                  loading="eager"
-                />
+              <div className="rounded-[1.5rem] border border-slate-200 bg-white p-2.5 shadow-sm">
+                <div className="mb-3 px-2 pt-2">
+                  <p className="text-xs font-black uppercase tracking-[0.18em] text-blue-700">
+                    Full System Walkthrough
+                  </p>
+                  <p className="mt-1 text-sm text-slate-600">
+                    Watch a 10-minute demo of School Connect, Report Lab, Smart Pages, and the
+                    smart school workflow.
+                  </p>
+                </div>
+
+                <div className="overflow-hidden rounded-[1rem] border border-slate-200 bg-slate-100">
+                  <iframe
+                    className="aspect-video w-full"
+                    src="https://www.youtube-nocookie.com/embed/jZrp-jOhjwo?rel=0&modestbranding=1"
+                    title="School Connect full system walkthrough"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                    allowFullScreen
+                  />
+                </div>
               </div>
               <div className="mt-3 grid gap-3 sm:grid-cols-2">
                 <div className="rounded-3xl border border-slate-200 bg-white p-2.5 shadow-sm">
@@ -423,12 +436,12 @@ export function DemoPage() {
             <div className="lg:col-span-5">
               <p className="text-xs font-black uppercase tracking-[0.2em] text-blue-700">SMART PAGES</p>
               <h2 className="mt-1 text-3xl font-black tracking-tight text-slate-950">
-                Turn school documents into clean digital pages.
+                From handwritten school documents to ready-to-print PDFs.
               </h2>
               <p className="mt-2 text-sm leading-7 text-slate-600">
-                Smart Pages is the intelligent document side of School Connect. It helps schools
-                upload rough notes, scanned files, letters, forms, tables, and school records, then
-                turn them into clean pages that can be reviewed, edited, published, and reused.
+                Upload a handwritten note, scanned letter, form, table, or school document. Smart
+                Pages reads it, cleans it, formats it, and helps you produce a polished PDF you can
+                print or share - without typing it all again.
               </p>
 
               <div className="mt-4 flex flex-col gap-3 sm:flex-row">
@@ -459,8 +472,8 @@ export function DemoPage() {
                         <GridIcon className="h-5 w-5" />
                       </div>
                       <div>
-                        <p className="text-sm font-black text-slate-950">Upload and extract</p>
-                        <p className="text-sm leading-5 text-slate-500">Upload a school document and let Smart Pages read the important content.</p>
+                        <p className="text-sm font-black text-slate-950">Upload handwriting</p>
+                        <p className="text-sm leading-5 text-slate-500">Upload handwritten or scanned school documents.</p>
                       </div>
                     </div>
                   </div>
@@ -470,8 +483,8 @@ export function DemoPage() {
                         <BookIcon className="h-5 w-5" />
                       </div>
                       <div>
-                        <p className="text-sm font-black text-slate-950">Review and polish</p>
-                        <p className="text-sm leading-5 text-slate-500">Correct unclear areas, improve the wording, and shape the document professionally.</p>
+                        <p className="text-sm font-black text-slate-950">Read and clean</p>
+                        <p className="text-sm leading-5 text-slate-500">Let Smart Pages extract the important content and organize it clearly.</p>
                       </div>
                     </div>
                   </div>
@@ -481,8 +494,8 @@ export function DemoPage() {
                         <SmartphoneIcon className="h-5 w-5" />
                       </div>
                       <div>
-                        <p className="text-sm font-black text-slate-950">Publish safely</p>
-                        <p className="text-sm leading-5 text-slate-500">Keep documents organized and share only what is ready.</p>
+                        <p className="text-sm font-black text-slate-950">Format professionally</p>
+                        <p className="text-sm leading-5 text-slate-500">Turn rough school notes into clean, structured pages.</p>
                       </div>
                     </div>
                   </div>
@@ -492,8 +505,8 @@ export function DemoPage() {
                         <ShieldIcon className="h-5 w-5" />
                       </div>
                       <div>
-                        <p className="text-sm font-black text-slate-950">Built for school work</p>
-                        <p className="text-sm leading-5 text-slate-500">Useful for letters, notices, forms, reports, summaries, and internal records.</p>
+                        <p className="text-sm font-black text-slate-950">Print or share</p>
+                        <p className="text-sm leading-5 text-slate-500">Generate a ready PDF for printing, downloading, or sharing.</p>
                       </div>
                     </div>
                   </div>
