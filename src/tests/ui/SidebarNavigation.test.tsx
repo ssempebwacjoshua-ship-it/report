@@ -1,11 +1,17 @@
-﻿import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import { Sidebar } from "../../components/layout/Sidebar";
 import { SettingsProvider } from "../../components/layout/SettingsContext";
 
 vi.mock("../../contexts/AuthContext", () => ({
-  useAuth: () => ({ user: { name: "Test Admin", role: "ADMIN_OPERATOR" }, token: "tok", loading: false, login: vi.fn(), logout: vi.fn() }),
+  useAuth: () => ({
+    user: { name: "Test Admin", role: "ADMIN_OPERATOR" },
+    token: "tok",
+    loading: false,
+    login: vi.fn(),
+    logout: vi.fn(),
+  }),
 }));
 
 vi.mock("../../client/settingsClient", () => ({
@@ -97,21 +103,37 @@ function renderSidebar(pathname = "/dashboard", collapsed = false) {
 }
 
 describe("Sidebar navigation", () => {
-  it("renders nav links and active state for the current route", async () => {
+  it("shows the Report Lab workflow links", async () => {
     renderSidebar("/reports");
 
-    await waitFor(() => expect(screen.getByRole("button", { name: "Report Lab" })).toBeInTheDocument());
-    expect(screen.getByText("Reports").closest("a")).toHaveClass("bg-white/12");
-    expect(screen.getByText("Students").closest("a")).toHaveAttribute("href", "/students");
-    expect(screen.getByText("Preferences / Academic Setup").closest("a")).toHaveAttribute("href", "/settings");
+    await waitFor(() => expect(screen.getByText("REPORT LAB")).toBeInTheDocument());
+    expect(screen.getByRole("link", { name: /dashboard/i })).toHaveAttribute("href", "/dashboard");
+    expect(screen.getByRole("link", { name: /students/i })).toHaveAttribute("href", "/students");
+    expect(screen.getByRole("link", { name: /marks import/i })).toHaveAttribute("href", "/imports/marks");
+    expect(screen.getByRole("link", { name: /marksheets/i })).toHaveAttribute("href", "/marksheets");
+    expect(screen.getByRole("link", { name: /^reports$/i })).toHaveAttribute("href", "/reports");
+    expect(screen.getByRole("link", { name: /release center/i })).toHaveAttribute("href", "/reports/release");
+    expect(screen.getByRole("link", { name: /academic setup/i })).toHaveAttribute("href", "/settings");
+    expect(screen.queryByRole("button", { name: /report lab/i })).not.toBeInTheDocument();
+    expect(screen.queryByText(/smart pages/i)).not.toBeInTheDocument();
   });
 
-  it("keeps Smart Pages grouped and opens it for smart pages routes", async () => {
-    renderSidebar("/analytics");
+  it("shows the Smart Pages workflow links without a fake dropdown group", async () => {
+    renderSidebar("/smart-pages");
 
-    await waitFor(() => expect(screen.getByRole("button", { name: "Smart Pages" })).toBeInTheDocument());
-    expect(screen.getByText("Analytics").closest("a")).toHaveClass("bg-white/12");
-    expect(screen.getByText("Paper to PDF").closest("a")).toHaveAttribute("href", "/documents/cleaner");
+    await waitFor(() => expect(screen.getByText("SMART PAGES")).toBeInTheDocument());
+    expect(screen.getByRole("link", { name: /dashboard/i })).toHaveAttribute("href", "/dashboard");
+    expect(screen.getByRole("link", { name: /clean document/i })).toHaveAttribute(
+      "href",
+      "/documents/cleaner",
+    );
+    expect(screen.getByRole("link", { name: /document history/i })).toHaveAttribute(
+      "href",
+      "/smart-pages",
+    );
+    expect(screen.getByRole("link", { name: /templates/i })).toHaveAttribute("href", "/collections");
+    expect(screen.getByRole("link", { name: /^settings$/i })).toHaveAttribute("href", "/preferences");
+    expect(screen.queryByRole("button", { name: /smart pages/i })).not.toBeInTheDocument();
   });
 
   it("hides labels when collapsed but keeps icon buttons", async () => {
@@ -123,10 +145,10 @@ describe("Sidebar navigation", () => {
     expect(screen.getByLabelText("Expand sidebar")).toBeInTheDocument();
   });
 
-  it("has a Paper to PDF nav link pointing to /documents/cleaner", async () => {
-    renderSidebar("/documents/cleaner");
-    await waitFor(() => expect(screen.getByText("Paper to PDF")).toBeInTheDocument());
-    expect(screen.getByText("Paper to PDF").closest("a")).toHaveAttribute("href", "/documents/cleaner");
+  it("does not render dead hrefs", async () => {
+    renderSidebar("/dashboard");
+
+    await waitFor(() => expect(screen.getByRole("link", { name: /dashboard/i })).toBeInTheDocument());
+    expect(document.querySelectorAll('a[href="#"]').length).toBe(0);
   });
 });
-

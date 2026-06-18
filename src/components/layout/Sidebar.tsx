@@ -1,10 +1,10 @@
-﻿import { Link, useLocation } from "react-router-dom";
-import { useEffect, useState } from "react";
 import type { CSSProperties } from "react";
-import { Icon } from "./Icon";
-import { getSchoolDisplayName, getSchoolInitials } from "./branding";
-import { useAppSettings } from "./SettingsContext";
+import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "../../contexts/AuthContext";
+import { getSchoolDisplayName, getSchoolInitials } from "./branding";
+import { Icon } from "./Icon";
+import { useAppSettings } from "./SettingsContext";
+import { getProductFromPath, isActiveNavPath, navItemsByProduct, type NavItem, type ProductKey } from "./navConfig";
 
 type Props = {
   open: boolean;
@@ -14,164 +14,76 @@ type Props = {
   width: number;
 };
 
-type NavItem = {
-  to: string;
-  label: string;
-  icon: "activity" | "bell" | "clipboard" | "cloud" | "file" | "home" | "search" | "send" | "settings" | "sparkles" | "students" | "upload";
-};
-
-type NavGroup = {
-  key: "reportLab" | "smartPages";
-  label: string;
-  icon: NavItem["icon"];
-  items: NavItem[];
-};
-
-const dashboardItem: NavItem = { to: "/dashboard", label: "Dashboard", icon: "home" };
-
-const reportLabGroup: NavGroup = {
-  key: "reportLab",
-  label: "Report Lab",
-  icon: "file",
-  items: [
-    { to: "/students", label: "Students", icon: "students" },
-    { to: "/reports", label: "Reports", icon: "file" },
-    { to: "/reports/release", label: "Release Center", icon: "send" },
-    { to: "/imports/marks", label: "Marks Import", icon: "upload" },
-    { to: "/marksheets", label: "Marksheets", icon: "clipboard" },
-    { to: "/settings", label: "Preferences / Academic Setup", icon: "settings" },
-  ],
-};
-
-const smartPagesGroup: NavGroup = {
-  key: "smartPages",
-  label: "Smart Pages",
-  icon: "sparkles",
-  items: [
-    { to: "/smart-pages", label: "Documents", icon: "file" },
-    { to: "/collections", label: "Collections", icon: "clipboard" },
-    { to: "/search", label: "Search", icon: "search" },
-    { to: "/automations", label: "Automations", icon: "activity" },
-    { to: "/analytics", label: "Analytics", icon: "activity" },
-    { to: "/notifications", label: "Notifications", icon: "bell" },
-    { to: "/documents/cleaner", label: "Paper to PDF", icon: "cloud" },
-    { to: "/preferences", label: "Preferences", icon: "settings" },
-  ],
-};
-
-function isActivePath(pathname: string, to: string) {
-  return pathname === to || pathname.startsWith(`${to}/`);
-}
-
-function isReportLabPath(pathname: string) {
-  return [
-    "/students",
-    "/reports",
-    "/reports/release",
-    "/imports/marks",
-    "/marksheets",
-    "/settings",
-  ].some((path) => isActivePath(pathname, path));
-}
-
-function isSmartPagesPath(pathname: string) {
-  return [
-    "/smart-pages",
-    "/collections",
-    "/search",
-    "/automations",
-    "/analytics",
-    "/notifications",
-    "/preferences",
-    "/documents/cleaner",
-  ].some((path) => isActivePath(pathname, path));
-}
-
 function NavLinkRow({
-  item,
+  to,
+  label,
+  icon,
   active,
   collapsed,
   onClick,
 }: {
-  item: NavItem;
+  to: string;
+  label: string;
+  icon: NavItem["icon"];
   active: boolean;
   collapsed: boolean;
   onClick: () => void;
 }) {
   return (
     <Link
-      to={item.to}
-      title={collapsed ? item.label : undefined}
+      to={to}
+      title={collapsed ? label : undefined}
       onClick={onClick}
-      className={`group flex items-center gap-3 rounded-xl border px-3 py-1.5 text-sm font-semibold transition ${
+      className={`group flex items-center gap-3 rounded-full border px-3 py-2 text-sm font-semibold transition ${
         active
-          ? "border-blue-300/40 bg-white/12 text-white shadow-[0_10px_20px_rgba(15,23,42,0.16)] ring-1 ring-blue-300/20"
-          : "border-transparent text-blue-100 hover:border-white/10 hover:bg-white/8 hover:text-white"
+          ? "border-white/25 bg-white text-blue-700 shadow-[0_10px_24px_rgba(15,23,42,0.14)]"
+          : "border-transparent text-blue-100 hover:border-white/10 hover:bg-white/10 hover:text-white"
       }`}
     >
       <Icon
-        name={item.icon}
-        className={`h-4 w-4 shrink-0 ${active ? "text-white" : "text-blue-300"} transition group-hover:text-white`}
+        name={icon}
+        className={`h-4 w-4 shrink-0 transition ${active ? "text-blue-700" : "text-blue-200 group-hover:text-white"}`}
       />
-      {!collapsed ? <span className="truncate">{item.label}</span> : null}
+      {!collapsed ? <span className="truncate">{label}</span> : null}
     </Link>
   );
 }
 
-function NavGroupCard({
-  group,
-  open,
-  active,
-  collapsed,
+function SidebarSection({
+  product,
   pathname,
-  onToggle,
+  collapsed,
   onNavigate,
 }: {
-  group: NavGroup;
-  open: boolean;
-  active: boolean;
-  collapsed: boolean;
+  product: ProductKey;
   pathname: string;
-  onToggle: () => void;
+  collapsed: boolean;
   onNavigate: () => void;
 }) {
+  const items = navItemsByProduct[product];
+  const sectionLabel = product === "reportLab" ? "REPORT LAB" : "SMART PAGES";
+
   return (
-    <div className={`rounded-2xl border border-white/10 ${active ? "bg-white/8" : "bg-white/4"}`}>
-      <button
-        type="button"
-        aria-expanded={open}
-        aria-label={group.label}
-        title={collapsed ? group.label : undefined}
-        className={`flex w-full items-center gap-3 rounded-2xl px-3 py-2 text-left transition ${
-          active ? "text-white" : "text-blue-100 hover:bg-white/6 hover:text-white"
-        } ${collapsed ? "justify-center" : ""}`}
-        onClick={onToggle}
-      >
-        <Icon
-          name={group.icon}
-          className={`h-4 w-4 shrink-0 ${active ? "text-white" : "text-blue-300"} transition`}
-        />
-        {!collapsed ? (
-          <>
-            <span className="min-w-0 flex-1 truncate text-sm font-bold">{group.label}</span>
-            <Icon name="chevron" className={`h-4 w-4 shrink-0 transition ${open ? "rotate-180" : ""}`} />
-          </>
-        ) : null}
-      </button>
-      {open ? (
-        <div className={`grid gap-1 pb-2 ${collapsed ? "px-1" : "px-2"}`}>
-          {group.items.map((item) => (
-            <NavLinkRow
-              key={item.to}
-              item={item}
-              active={isActivePath(pathname, item.to)}
-              collapsed={collapsed}
-              onClick={onNavigate}
-            />
-          ))}
+    <>
+      {!collapsed ? (
+        <div className="px-3 pb-2 pt-1 text-[11px] font-black uppercase tracking-[0.18em] text-blue-200/75">
+          {sectionLabel}
         </div>
       ) : null}
-    </div>
+      <div className="grid gap-1 px-2">
+        {items.map((item) => (
+          <NavLinkRow
+            key={item.to}
+            to={item.to}
+            label={item.label}
+            icon={item.icon}
+            active={isActiveNavPath(pathname, item.to)}
+            collapsed={collapsed}
+            onClick={onNavigate}
+          />
+        ))}
+      </div>
+    </>
   );
 }
 
@@ -183,23 +95,7 @@ export function Sidebar({ open, onClose, collapsed, onToggleCollapsed, width }: 
   const schoolName = getSchoolDisplayName(school, "School Connect");
   const initials = getSchoolInitials(schoolName);
   const sidebarWidth = collapsed ? 72 : width;
-  const reportActive = isReportLabPath(location.pathname);
-  const smartActive = isSmartPagesPath(location.pathname);
-  const [openGroups, setOpenGroups] = useState(() => ({
-    reportLab: true,
-    smartPages: smartActive,
-  }));
-
-  useEffect(() => {
-    setOpenGroups((current) => ({
-      reportLab: reportActive ? true : current.reportLab,
-      smartPages: smartActive ? true : current.smartPages,
-    }));
-  }, [location.pathname, reportActive, smartActive]);
-
-  function toggleGroup(key: NavGroup["key"]) {
-    setOpenGroups((current) => ({ ...current, [key]: !current[key] }));
-  }
+  const product = getProductFromPath(location.pathname);
 
   return (
     <>
@@ -216,7 +112,9 @@ export function Sidebar({ open, onClose, collapsed, onToggleCollapsed, width }: 
         }`}
       >
         <div className={`flex items-center gap-3 ${collapsed ? "px-2 pt-3" : "px-3 pt-3"}`}>
-          <div className={`grid ${collapsed ? "h-8 w-8" : "h-9 w-9"} place-items-center rounded-xl bg-white/15 ring-1 ring-white/25`}>
+          <div
+            className={`grid ${collapsed ? "h-8 w-8" : "h-9 w-9"} place-items-center rounded-xl bg-white/15 ring-1 ring-white/25`}
+          >
             {school?.logoUrl ? (
               <img
                 src={school.logoUrl}
@@ -235,31 +133,11 @@ export function Sidebar({ open, onClose, collapsed, onToggleCollapsed, width }: 
           ) : null}
         </div>
 
-        <nav className="mt-4 grid flex-1 content-start gap-2 overflow-y-auto px-2 pb-3">
-          <NavLinkRow
-            item={dashboardItem}
-            active={isActivePath(location.pathname, dashboardItem.to)}
-            collapsed={collapsed}
-            onClick={onClose}
-          />
-
-          <NavGroupCard
-            group={reportLabGroup}
-            open={openGroups.reportLab}
-            active={reportActive}
-            collapsed={collapsed}
+        <nav className="mt-4 grid flex-1 content-start gap-3 overflow-y-auto px-2 pb-3">
+          <SidebarSection
+            product={product}
             pathname={location.pathname}
-            onToggle={() => toggleGroup("reportLab")}
-            onNavigate={onClose}
-          />
-
-          <NavGroupCard
-            group={smartPagesGroup}
-            open={openGroups.smartPages}
-            active={smartActive}
             collapsed={collapsed}
-            pathname={location.pathname}
-            onToggle={() => toggleGroup("smartPages")}
             onNavigate={onClose}
           />
         </nav>
@@ -272,7 +150,9 @@ export function Sidebar({ open, onClose, collapsed, onToggleCollapsed, width }: 
             {!collapsed ? (
               <div className="min-w-0">
                 <p className="truncate text-sm font-semibold">{user?.name ?? "School Admin"}</p>
-                <p className="truncate text-xs text-blue-200">{user?.role === "ADMIN_OPERATOR" ? "Administrator" : (user?.role ?? "Administrator")}</p>
+                <p className="truncate text-xs text-blue-200">
+                  {user?.role === "ADMIN_OPERATOR" ? "Administrator" : user?.role ?? "Administrator"}
+                </p>
               </div>
             ) : null}
           </div>
@@ -290,4 +170,3 @@ export function Sidebar({ open, onClose, collapsed, onToggleCollapsed, width }: 
     </>
   );
 }
-
