@@ -28,13 +28,19 @@ describe("DemoPage", () => {
   it("routes public CTAs to the real login flow", () => {
     render(<DemoPage />);
 
-    fireEvent.click(screen.getByRole("button", { name: /open demo/i }));
+    fireEvent.click(screen.getAllByRole("button", { name: /launch demo/i })[0]!);
     expect(navigateMock).toHaveBeenCalledWith("/login");
 
-    fireEvent.click(screen.getAllByRole("button", { name: /try report lab/i })[0]!);
+    fireEvent.click(screen.getByRole("button", { name: /pricing/i }));
+    expect(navigateMock).toHaveBeenCalledWith("/pricing");
+
+    fireEvent.click(screen.getByRole("button", { name: /contact/i }));
+    expect(navigateMock).toHaveBeenCalledWith("/contact");
+
+    fireEvent.click(screen.getAllByRole("button", { name: /explore report lab/i })[0]!);
     expect(navigateMock).toHaveBeenCalledWith("/login");
 
-    fireEvent.click(screen.getByRole("button", { name: /^smart pages$/i }));
+    fireEvent.click(screen.getAllByRole("button", { name: /^explore smart pages$/i })[0]!);
     expect(navigateMock).toHaveBeenCalledWith("/login");
   });
 
@@ -43,10 +49,10 @@ describe("DemoPage", () => {
 
     render(<DemoPage />);
 
-    fireEvent.click(screen.getByRole("button", { name: /^smart pages$/i }));
+    fireEvent.click(screen.getAllByRole("button", { name: /^explore smart pages$/i })[0]!);
     expect(navigateMock).toHaveBeenCalledWith("/smart-pages");
 
-    fireEvent.click(screen.getAllByRole("button", { name: /try report lab/i })[0]!);
+    fireEvent.click(screen.getAllByRole("button", { name: /explore report lab/i })[0]!);
     expect(navigateMock).toHaveBeenCalledWith("/dashboard");
   });
 });
