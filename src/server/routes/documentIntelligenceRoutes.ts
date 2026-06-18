@@ -134,7 +134,7 @@ router.post("/:id/versions/:versionId/restore", requireCreator, async (req, res)
   }
 });
 
-// Print export ? returns full print-ready HTML page (no auth for now so owner can open in new tab)
+// Print export ? returns full print-ready HTML page used by the in-app print flow
 router.get("/:id/print", requireCreator, async (req, res) => {
   try {
     const doc = await svc.getDocument(req.params.id, req.creator!.id);
