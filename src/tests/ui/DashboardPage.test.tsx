@@ -3,7 +3,7 @@ import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { DashboardPage } from "../../pages/DashboardPage";
 
-// â”€â”€ Mocks â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Mocks ──────────────────────────────────────────────────────────────────────
 
 vi.mock("../../client/dashboardClient", () => ({
   fetchDashboardStats: vi.fn(),
@@ -77,9 +77,9 @@ function renderPage() {
   );
 }
 
-// â”€â”€ Live data fetching â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Live data fetching ─────────────────────────────────────────────────────────
 
-describe("DashboardPage â€” live data", () => {
+describe("DashboardPage ? live data", () => {
   it("fetches dashboard stats from API on mount", async () => {
     mockFetchStats.mockResolvedValueOnce(statsPayload);
     mockFetchContacts.mockResolvedValueOnce(contactsPayload);
@@ -100,9 +100,9 @@ describe("DashboardPage â€” live data", () => {
     await waitFor(() => expect(screen.getByText("342")).toBeInTheDocument());
     // marks pending review (unique value)
     expect(screen.getByText("7")).toBeInTheDocument();
-    // reports issued â€” also appears in workflow + ReportsOverviewCard, so use getAllByText
+    // reports issued ? also appears in workflow + ReportsOverviewCard, so use getAllByText
     expect(screen.getAllByText("15").length).toBeGreaterThanOrEqual(1);
-    // reports released â€” also appears in workflow + ReportsOverviewCard
+    // reports released ? also appears in workflow + ReportsOverviewCard
     expect(screen.getAllByText("9").length).toBeGreaterThanOrEqual(1);
   });
 
@@ -145,17 +145,17 @@ describe("DashboardPage â€” live data", () => {
   });
 });
 
-// â”€â”€ Error and loading states â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Error and loading states ───────────────────────────────────────────────────
 
-describe("DashboardPage â€” state handling", () => {
+describe("DashboardPage ? state handling", () => {
   it("shows loading dashes before stats arrive", () => {
     mockFetchStats.mockImplementationOnce(() => new Promise(() => {})); // never resolves
     mockFetchContacts.mockResolvedValueOnce(contactsPayload);
 
     renderPage();
 
-    // KPI values show â€” while loading
-    expect(screen.getAllByText("â€”").length).toBeGreaterThan(0);
+    // KPI values show ? while loading
+    expect(screen.getAllByText("?").length).toBeGreaterThan(0);
   });
 
   it("shows error message in hero when API fails", async () => {
@@ -180,9 +180,9 @@ describe("DashboardPage â€” state handling", () => {
   });
 });
 
-// â”€â”€ Button and link wiring â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Button and link wiring ─────────────────────────────────────────────────────
 
-describe("DashboardPage â€” all buttons and links wired", () => {
+describe("DashboardPage ? all buttons and links wired", () => {
   it("Generate Reports hero button links to /reports", async () => {
     mockFetchStats.mockResolvedValueOnce(statsPayload);
     mockFetchContacts.mockResolvedValueOnce(contactsPayload);
@@ -202,7 +202,7 @@ describe("DashboardPage â€” all buttons and links wired", () => {
 
     renderPage();
 
-    // Multiple "Import Marks" links exist (hero + quick actions) â€” all must point to /imports/marks
+    // Multiple "Import Marks" links exist (hero + quick actions) ? all must point to /imports/marks
     const links = screen.getAllByRole("link", { name: /import marks/i });
     expect(links.length).toBeGreaterThanOrEqual(1);
     for (const link of links) {
@@ -293,9 +293,9 @@ describe("DashboardPage â€” all buttons and links wired", () => {
   });
 });
 
-// â”€â”€ Tab navigation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Tab navigation ─────────────────────────────────────────────────────────────
 
-describe("DashboardPage â€” tab navigation", () => {
+describe("DashboardPage ? tab navigation", () => {
   it("Marks Review tab is rendered", async () => {
     mockFetchStats.mockResolvedValueOnce(statsPayload);
     mockFetchContacts.mockResolvedValueOnce(contactsPayload);
@@ -324,9 +324,9 @@ describe("DashboardPage â€” tab navigation", () => {
   });
 });
 
-// â”€â”€ No static preview values â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── No static preview values ───────────────────────────────────────────────────
 
-describe("DashboardPage â€” no hardcoded preview values", () => {
+describe("DashboardPage ? no hardcoded preview values", () => {
   it("does not show the hardcoded 1,248 enrolled value", async () => {
     mockFetchStats.mockResolvedValueOnce(statsPayload);
     mockFetchContacts.mockResolvedValueOnce(contactsPayload);
@@ -353,7 +353,7 @@ describe("DashboardPage â€” no hardcoded preview values", () => {
 
     renderPage();
 
-    // Multiple dashboard elements may legitimately display "99" â€” use getAllByText.
+    // Multiple dashboard elements may legitimately display "99" ? use getAllByText.
     await waitFor(() => expect(screen.getAllByText("99").length).toBeGreaterThanOrEqual(1));
     expect(screen.queryByText("24")).not.toBeInTheDocument();
   });

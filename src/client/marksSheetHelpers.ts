@@ -1,6 +1,6 @@
 ﻿import * as XLSX from "xlsx";
 
-// â”€â”€ File type constants â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── File type constants ───────────────────────────────────────────────────────
 
 export const DIGITAL_ACCEPT =
   ".csv,.xlsx,.xls,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
@@ -19,7 +19,7 @@ export function getScanFileType(file: File): string {
   return file.name.split(".").pop()?.toUpperCase() ?? "UNKNOWN";
 }
 
-// â”€â”€ Digital marks template columns â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Digital marks template columns ───────────────────────────────────────────
 
 export const MARKS_TEMPLATE_COLUMNS = [
   "admissionNumber",

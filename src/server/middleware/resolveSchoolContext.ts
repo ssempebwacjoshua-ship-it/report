@@ -17,10 +17,10 @@ declare global {
  *
  * When a valid JWT is present:
  *   - schoolId comes from the token (token wins; client-supplied schoolCode is secondary).
- *   - If the client also sent a schoolCode that resolves to a DIFFERENT school â†’ 403.
+ *   - If the client also sent a schoolCode that resolves to a DIFFERENT school ? 403.
  *   - req.user and req.school are both set.
  *
- * In production without a token â†’ 401 (no fallback, no guessing).
+ * In production without a token ? 401 (no fallback, no guessing).
  *
  * In dev/test (NODE_ENV !== "production") without a token:
  *   - Falls back to schoolCode from query string or request body.
@@ -71,7 +71,7 @@ export async function resolveSchoolContext(
       return;
     }
 
-    // Dev/test fallback â€” resolve school from request params
+    // Dev/test fallback ? resolve school from request params
     const schoolCode = extractClientSchoolCode(req) ?? "SCU-PREVIEW";
     const school = await prisma.school.findUnique({
       where: { code: schoolCode },

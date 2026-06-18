@@ -42,21 +42,21 @@ async function verifySchoolClasses(prisma: PrismaClient, schoolCode: string): Pr
   const archived = classes.filter((c) => c.name.startsWith("ARCHIVED:"));
   const orphans = classes.filter((c) => !isCanonicalClassCode(c.code) && !c.name.startsWith("ARCHIVED:"));
 
-  console.log(`\n=== ${schoolCode} â€” Class Inventory ===\n`);
+  console.log(`\n=== ${schoolCode} ? Class Inventory ===\n`);
   console.log(`Canonical classes (${canonical.length}):`);
   for (const c of canonical) {
     const classStreams = streamsByClass.get(c.id) ?? [];
     const classEnrollCount = allEnrollments.filter((e) => e.classId === c.id).length;
-    console.log(`  [${c.code}] ${c.name}  (id: ${c.id.slice(0, 8)}...)  â€” ${classEnrollCount} enrolled`);
+    console.log(`  [${c.code}] ${c.name}  (id: ${c.id.slice(0, 8)}...)  ? ${classEnrollCount} enrolled`);
     for (const s of classStreams.sort((a, b) => a.code.localeCompare(b.code))) {
       const count = enrollCountByStream.get(`${c.id}:${s.id}`) ?? 0;
-      console.log(`      stream [${s.code}] ${s.name} â€” ${count} enrolled`);
+      console.log(`      stream [${s.code}] ${s.name} ? ${count} enrolled`);
     }
     if (classStreams.length === 0) console.log(`      (no streams)`);
   }
 
   if (orphans.length > 0) {
-    console.log(`\nOrphan classes â€” non-canonical, non-archived (${orphans.length}) â€” RUN REPAIR SCRIPT:`);
+    console.log(`\nOrphan classes ? non-canonical, non-archived (${orphans.length}) ? RUN REPAIR SCRIPT:`);
     for (const c of orphans) console.log(`  [${c.code}] ${c.name}  (id: ${c.id.slice(0, 8)}...)`);
   }
 

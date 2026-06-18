@@ -38,7 +38,7 @@ beforeEach(() => {
   ocrMockState.idCropTexts = [];
 });
 
-// Tiny dummy buffer â€” not a valid image; Sharp will reject it gracefully
+// Tiny dummy buffer ? not a valid image; Sharp will reject it gracefully
 const FAKE_PNG = Buffer.from("not-a-real-png");
 const FAKE_PDF = Buffer.from("%PDF-1.4 fake");
 const TOP_RIGHT_ID_MESSAGE = "Could not read the marksheet ID from the top-right corner. Please upload a clearer image or enter the sheet ID manually.";
@@ -56,7 +56,7 @@ async function makeMarksheetScan(): Promise<Buffer> {
   return sharp(Buffer.from(svg)).png().toBuffer();
 }
 
-// â”€â”€ Scan upload endpoint â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Scan upload endpoint ──────────────────────────────────────────────────────
 
 describe("POST /api/imports/scans/upload", () => {
   it("returns 400 when no file is attached", async () => {
@@ -71,7 +71,7 @@ describe("POST /api/imports/scans/upload", () => {
   });
 
   it("returns 400 SHEET_ID_NOT_DETECTED when file is uploaded but no context given", async () => {
-    // No context or marksheetId provided â€” OCR on fake image finds nothing.
+    // No context or marksheetId provided ? OCR on fake image finds nothing.
     // Should return SHEET_ID_NOT_DETECTED (not CONTEXT_REQUIRED, not 500).
     const res = await request(createServer())
       .post("/api/imports/scans/upload")
@@ -126,7 +126,7 @@ describe("POST /api/imports/scans/upload", () => {
     expect(res.body.message).toMatch(/unsupported file type/i);
   });
 
-  it("accepts PDF â€” returns 404 for unknown school (format accepted, school missing)", async () => {
+  it("accepts PDF ? returns 404 for unknown school (format accepted, school missing)", async () => {
     const res = await request(createServer())
       .post("/api/imports/scans/upload")
       .query({ schoolCode: UNKNOWN })
@@ -135,7 +135,7 @@ describe("POST /api/imports/scans/upload", () => {
     expect(res.status).toBe(404);
   });
 
-  it("accepts PNG â€” returns 404 for unknown school", async () => {
+  it("accepts PNG ? returns 404 for unknown school", async () => {
     const res = await request(createServer())
       .post("/api/imports/scans/upload")
       .query({ schoolCode: UNKNOWN })
@@ -144,7 +144,7 @@ describe("POST /api/imports/scans/upload", () => {
     expect(res.status).toBe(404);
   });
 
-  it("accepts JPG â€” returns 404 for unknown school", async () => {
+  it("accepts JPG ? returns 404 for unknown school", async () => {
     const res = await request(createServer())
       .post("/api/imports/scans/upload")
       .query({ schoolCode: UNKNOWN })
@@ -153,7 +153,7 @@ describe("POST /api/imports/scans/upload", () => {
     expect(res.status).toBe(404);
   });
 
-  it("accepts JPEG â€” returns 404 for unknown school", async () => {
+  it("accepts JPEG ? returns 404 for unknown school", async () => {
     const res = await request(createServer())
       .post("/api/imports/scans/upload")
       .query({ schoolCode: UNKNOWN })
@@ -162,7 +162,7 @@ describe("POST /api/imports/scans/upload", () => {
     expect(res.status).toBe(404);
   });
 
-  it("accepts WEBP â€” returns 404 for unknown school", async () => {
+  it("accepts WEBP ? returns 404 for unknown school", async () => {
     const res = await request(createServer())
       .post("/api/imports/scans/upload")
       .query({ schoolCode: UNKNOWN })
@@ -171,7 +171,7 @@ describe("POST /api/imports/scans/upload", () => {
     expect(res.status).toBe(404);
   });
 
-  it("returns 200 with batchId for SCU-PREVIEW â€” extraction may fail on fake image", async () => {
+  it("returns 200 with batchId for SCU-PREVIEW ? extraction may fail on fake image", async () => {
     const res = await request(createServer())
       .post("/api/imports/scans/upload")
       .field("schoolCode", SCHOOL)
@@ -183,20 +183,20 @@ describe("POST /api/imports/scans/upload", () => {
     expect(res.body.batchId.length).toBeGreaterThan(0);
     expect(res.body.contextSource).toBe("selected-context");
     expect(res.body.resolvedContext).toBeDefined();
-    // Extraction on a fake file returns PARSED or FAILED â€” both are valid
+    // Extraction on a fake file returns PARSED or FAILED ? both are valid
     expect(["PARSED", "FAILED"]).toContain(res.body.parseStatus);
     expect(typeof res.body.message).toBe("string");
     expect(Array.isArray(res.body.rows)).toBe(true);
   });
 
-  it("does not auto-commit scanned rows â€” rows never committed without operator approval", async () => {
+  it("does not auto-commit scanned rows ? rows never committed without operator approval", async () => {
     const res = await request(createServer())
       .post("/api/imports/scans/upload")
       .field("schoolCode", SCHOOL)
       .field("context", validContext)
       .attach("file", FAKE_PNG, { filename: "test.png", contentType: "image/png" });
     expect(res.status).toBe(200);
-    // Any returned rows must be in PARSED/NEEDS_REVIEW/VALID/INVALID â€” never COMMITTED
+    // Any returned rows must be in PARSED/NEEDS_REVIEW/VALID/INVALID ? never COMMITTED
     const rows = (res.body.rows ?? []) as { status: string }[];
     for (const row of rows) {
       expect(row.status).not.toBe("COMMITTED");
@@ -266,7 +266,7 @@ describe("POST /api/imports/scans/dry-run", () => {
   });
 });
 
-// â”€â”€ Context detection endpoints â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Context detection endpoints ───────────────────────────────────────────────
 
 describe("POST /api/imports/scans/detect-context", () => {
   it("returns 404 for unknown school", async () => {
@@ -387,7 +387,7 @@ describe("GET /api/imports/scans/context", () => {
   });
 });
 
-// â”€â”€ Scan batches list â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Scan batches list ─────────────────────────────────────────────────────────
 
 describe("GET /api/imports/scans/batches", () => {
   it("returns 404 for unknown school", async () => {
@@ -406,7 +406,7 @@ describe("GET /api/imports/scans/batches", () => {
   }, 15000);
 });
 
-// â”€â”€ Digital import still works â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Digital import still works ────────────────────────────────────────────────
 
 describe("POST /api/imports/marks/dry-run (digital)", () => {
   it("returns 400 when csvText is missing", async () => {
@@ -443,9 +443,9 @@ S1A-001,Kampala Ssempebwa,Senior 1 A,A,English Language,Term 1,BOT,81,guard`;
   });
 });
 
-// â”€â”€ Sheet ID top-right corner detection â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Sheet ID top-right corner detection ──────────────────────────────────────
 
-describe("Sheet ID detection â€” top-right corner", () => {
+describe("Sheet ID detection ? top-right corner", () => {
   it("detect-context with file shows top-right corner message when ID not found", async () => {
     const res = await request(createServer())
       .post("/api/imports/scans/detect-context")
@@ -469,7 +469,7 @@ describe("Sheet ID detection â€” top-right corner", () => {
     expect(res.body.message).not.toMatch(/unexpected server error/i);
   });
 
-  it("detect-context never crashes â€” returns structured response even for unreadable image", async () => {
+  it("detect-context never crashes ? returns structured response even for unreadable image", async () => {
     const res = await request(createServer())
       .post("/api/imports/scans/detect-context")
       .field("schoolCode", SCHOOL)
@@ -480,11 +480,11 @@ describe("Sheet ID detection â€” top-right corner", () => {
   });
 });
 
-// â”€â”€ Multer error handling â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Multer error handling ──────────────────────────────────────────────────────
 
 describe("Multer errors return structured 400, not generic 500", () => {
   it("oversized file on /upload returns 400 FILE_TOO_LARGE (not 500)", async () => {
-    // 21 MB > the 20 MB multer limit â€” triggers MulterError LIMIT_FILE_SIZE
+    // 21 MB > the 20 MB multer limit ? triggers MulterError LIMIT_FILE_SIZE
     const bigFile = Buffer.alloc(21 * 1024 * 1024, 0);
     const res = await request(createServer())
       .post("/api/imports/scans/upload")
@@ -513,17 +513,17 @@ describe("Multer errors return structured 400, not generic 500", () => {
   }, 15000);
 });
 
-// â”€â”€ Structured error shape tests â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Structured error shape tests ─────────────────────────────────────────────
 
 describe("Import error responses always use structured shape", () => {
   it("bad file template (malformed CSV) returns TEMPLATE_ERROR with safe message", async () => {
-    // csv-parse throws on mismatched quotes â€” not a ZodError, but should be caught and structured
+    // csv-parse throws on mismatched quotes ? not a ZodError, but should be caught and structured
     const malformedCsv = `admissionNumber,class\n"unclosed quote,Senior 1 A`;
     const res = await request(createServer()).post("/api/imports/marks/dry-run").send({
       schoolCode: SCHOOL,
       csvText: malformedCsv,
     });
-    // Either caught as TEMPLATE_ERROR (csv-parse throw) or returns DRY_RUN with empty rows â€” both safe
+    // Either caught as TEMPLATE_ERROR (csv-parse throw) or returns DRY_RUN with empty rows ? both safe
     if (res.status === 400) {
       expect(res.body.error).toBe(true);
       expect(res.body.code).toBe("TEMPLATE_ERROR");
@@ -550,8 +550,8 @@ describe("Import error responses always use structured shape", () => {
       .field("schoolCode", SCHOOL)
       .field("context", incompleteContext)
       .attach("file", FAKE_PNG, { filename: "test.png", contentType: "image/png" });
-    // className and streamName required by scanContextSchema â†’ ZodError â†’ IMPORT_VALIDATION_FAILED
-    // OR resolvedContext is null â†’ CONTEXT_REQUIRED â€” both are structured
+    // className and streamName required by scanContextSchema ? ZodError ? IMPORT_VALIDATION_FAILED
+    // OR resolvedContext is null ? CONTEXT_REQUIRED ? both are structured
     expect([400, 200]).toContain(res.status);
     if (res.status === 400) {
       expect(res.body.error).toBe(true);
@@ -577,11 +577,11 @@ describe("Import error responses always use structured shape", () => {
     }
   });
 
-  it("server 500 returns safe structured error â€” not 'Unexpected error'", async () => {
-    // ZodError on malformed request body hits the global handler â†’ structured response
+  it("server 500 returns safe structured error ? not 'Unexpected error'", async () => {
+    // ZodError on malformed request body hits the global handler ? structured response
     const res = await request(createServer()).post("/api/imports/scans/dry-run").send({
       schoolCode: SCHOOL,
-      // context is required but missing â†’ ZodError â†’ IMPORT_VALIDATION_FAILED
+      // context is required but missing ? ZodError ? IMPORT_VALIDATION_FAILED
     });
     expect(res.status).toBe(400);
     expect(res.body.error).toBe(true);
@@ -615,7 +615,7 @@ describe("Import error responses always use structured shape", () => {
     const res = await request(createServer())
       .post("/api/imports/scans/dry-run")
       .send({ schoolCode: SCHOOL, context: unknownClassContext, rows });
-    // Empty roster â†’ admission numbers not enrolled â†’ rows come back INVALID
+    // Empty roster ? admission numbers not enrolled ? rows come back INVALID
     expect(res.status).toBe(200);
     expect(res.body.validRows).toBe(0);
     expect(res.body.invalidRows).toBeGreaterThan(0);
@@ -626,14 +626,14 @@ describe("Import error responses always use structured shape", () => {
 
   it("route-level error responses include error:true, code, message, details fields", async () => {
     const errorEndpoints = [
-      // 400 â€” missing file (route-level validation, school is valid)
+      // 400 ? missing file (route-level validation, school is valid)
       () => request(createServer())
         .post("/api/imports/scans/upload")
         .field("schoolCode", SCHOOL)
         .field("context", validContext),
-      // 400 â€” missing csvText ZodError
+      // 400 ? missing csvText ZodError
       () => request(createServer()).post("/api/imports/marks/dry-run").send({ schoolCode: SCHOOL }),
-      // 400 â€” missing marksheetId
+      // 400 ? missing marksheetId
       () => request(createServer()).get(`/api/imports/scans/context?schoolCode=${SCHOOL}`),
     ];
 

@@ -2,7 +2,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { normalizeSchoolClassStreams, repairSchoolClasses } from "../../scripts/repairPreviewClasses";
 
-// â”€â”€ Fixture data â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Fixture data ─────────────────────────────────────────────────────────────
 
 const SCHOOL_ID = "school-1";
 const SCHOOL_CODE = "SCU-PREVIEW";
@@ -22,7 +22,7 @@ const badClasses = [
 const streamsUnderS1A = [{ id: STREAM_A_ID, schoolId: SCHOOL_ID, classId: BAD_S1A_ID, name: "A", code: "A" }];
 const streamsUnderS1B = [{ id: STREAM_B_ID, schoolId: SCHOOL_ID, classId: BAD_S1B_ID, name: "B", code: "B" }];
 
-// â”€â”€ Prisma mock builder â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Prisma mock builder ───────────────────────────────────────────────────────
 
 function makePrisma(overrides: {
   classes?: object[];
@@ -124,9 +124,9 @@ function makePrisma(overrides: {
   } as unknown as PrismaClient;
 }
 
-// â”€â”€ Tests â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Tests ─────────────────────────────────────────────────────────────────────
 
-describe("repairSchoolClasses â€” school not found", () => {
+describe("repairSchoolClasses ? school not found", () => {
   it("returns skipped entry when school does not exist", async () => {
     const prisma = {
       school: { findUnique: vi.fn(async () => null) },
@@ -138,7 +138,7 @@ describe("repairSchoolClasses â€” school not found", () => {
   });
 });
 
-describe("repairSchoolClasses â€” canonical class creation", () => {
+describe("repairSchoolClasses ? canonical class creation", () => {
   it("creates the canonical S1 class when it does not exist", async () => {
     const prisma = makePrisma({ classes: [badClasses[0]], canonicalClassExists: false });
     const tx = (prisma as unknown as { _tx: { schoolClass: { create: ReturnType<typeof vi.fn> } } })._tx;
@@ -163,7 +163,7 @@ describe("repairSchoolClasses â€” canonical class creation", () => {
   });
 });
 
-describe("repairSchoolClasses â€” stream re-parenting", () => {
+describe("repairSchoolClasses ? stream re-parenting", () => {
   it("re-parents stream A from S1A to canonical S1", async () => {
     const prisma = makePrisma({ classes: [badClasses[0]] });
     const tx = (prisma as unknown as { _tx: { stream: { update: ReturnType<typeof vi.fn>; delete: ReturnType<typeof vi.fn> } } })._tx;
@@ -193,7 +193,7 @@ describe("repairSchoolClasses â€” stream re-parenting", () => {
   });
 });
 
-describe("repairSchoolClasses â€” enrollment and mark migration", () => {
+describe("repairSchoolClasses ? enrollment and mark migration", () => {
   it("updates ClassEnrollment.classId to canonical class", async () => {
     const prisma = makePrisma({ classes: [badClasses[0]] });
     const tx = (prisma as unknown as { _tx: { classEnrollment: { updateMany: ReturnType<typeof vi.fn> } } })._tx;
@@ -226,13 +226,13 @@ describe("repairSchoolClasses â€” enrollment and mark migration", () => {
     const prisma = makePrisma({ classes: badClasses });
     const result = await repairSchoolClasses(prisma, SCHOOL_CODE);
 
-    // mock returns { count: 3 } for enrollments, { count: 5 } for marks â€” times 2 bad classes
+    // mock returns { count: 3 } for enrollments, { count: 5 } for marks ? times 2 bad classes
     expect(result.enrollmentsMigrated).toBe(6);
     expect(result.marksMigrated).toBe(10);
   });
 });
 
-describe("repairSchoolClasses â€” bad class archiving", () => {
+describe("repairSchoolClasses ? bad class archiving", () => {
   it("renames bad class to ARCHIVED: prefix", async () => {
     const prisma = makePrisma({ classes: [badClasses[0]] });
     const tx = (prisma as unknown as { _tx: { schoolClass: { update: ReturnType<typeof vi.fn> } } })._tx;
@@ -267,7 +267,7 @@ describe("repairSchoolClasses â€” bad class archiving", () => {
   });
 });
 
-describe("repairSchoolClasses â€” result summary", () => {
+describe("repairSchoolClasses ? result summary", () => {
   it("returns correct counts for two bad classes", async () => {
     const prisma = makePrisma({ classes: badClasses });
     const result = await repairSchoolClasses(prisma, SCHOOL_CODE);
@@ -295,7 +295,7 @@ describe("repairSchoolClasses â€” result summary", () => {
   });
 });
 
-describe("normalizeSchoolClassStreams â€” dry run", () => {
+describe("normalizeSchoolClassStreams ? dry run", () => {
   it("reports planned repairs without mutating records", async () => {
     const prisma = makePrisma({ classes: [badClasses[0]] });
     const tx = (prisma as unknown as {

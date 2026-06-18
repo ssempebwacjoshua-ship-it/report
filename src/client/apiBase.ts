@@ -59,7 +59,7 @@ export async function parseApiError(response: Response, fallback: string): Promi
     const text = await response.text();
     if (text) body = JSON.parse(text) as Record<string, unknown>;
   } catch {
-    // body stays empty â€” use fallback below
+    // body stays empty ? use fallback below
   }
 
   const requestId = typeof body.requestId === "string" ? body.requestId : null;

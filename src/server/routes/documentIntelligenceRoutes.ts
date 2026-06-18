@@ -12,7 +12,7 @@ const upload = multer({
   limits: { fileSize: 20 * 1024 * 1024 },
 });
 
-// Public document page â€” no auth required (before :id route to avoid conflict)
+// Public document page ? no auth required (before :id route to avoid conflict)
 router.get("/p/:token", async (req, res) => {
   try {
     const password = req.query.password as string | undefined;
@@ -58,7 +58,7 @@ router.get("/:id", requireCreator, async (req, res) => {
   }
 });
 
-// Upload file â†’ Gemini extraction
+// Upload file ? Gemini extraction
 router.post("/:id/upload", requireCreator, upload.single("file"), async (req, res) => {
   if (!req.file) { res.status(400).json({ error: "No file uploaded." }); return; }
   try {
@@ -102,7 +102,7 @@ router.post("/:id/generate", requireCreator, async (req, res) => {
   }
 });
 
-// Apply conversational prompt â†’ new version
+// Apply conversational prompt ? new version
 router.post("/:id/prompt", requireCreator, async (req, res) => {
   const { instruction } = req.body as { instruction?: string };
   if (!instruction?.trim()) { res.status(400).json({ error: "Instruction is required." }); return; }
@@ -134,7 +134,7 @@ router.post("/:id/versions/:versionId/restore", requireCreator, async (req, res)
   }
 });
 
-// Print export â€” returns full print-ready HTML page (no auth for now so owner can open in new tab)
+// Print export ? returns full print-ready HTML page (no auth for now so owner can open in new tab)
 router.get("/:id/print", requireCreator, async (req, res) => {
   try {
     const doc = await svc.getDocument(req.params.id, req.creator!.id);

@@ -41,7 +41,7 @@ describe("classifyMark", () => {
   });
 });
 
-describe("validateAndMatchGeminiRows â€” mark validation", () => {
+describe("validateAndMatchGeminiRows ? mark validation", () => {
   it("empty mark becomes REVIEW_REQUIRED with 'Missing mark'", () => {
     const { rows } = validateAndMatchGeminiRows([row({ mark: "" })], STUDENTS);
     expect(rows[0]!.status).toBe("REVIEW_REQUIRED");
@@ -54,7 +54,7 @@ describe("validateAndMatchGeminiRows â€” mark validation", () => {
       studentName: "Faith Mukulu",
       mark: "",
       confidenceScore: 1,
-      needsReview: false, // Gemini wrongly said no review â€” backend must override
+      needsReview: false, // Gemini wrongly said no review ? backend must override
     });
     const { rows, summary } = validateAndMatchGeminiRows([faith], STUDENTS);
     expect(rows[0]!.status).toBe("REVIEW_REQUIRED");
@@ -68,12 +68,12 @@ describe("validateAndMatchGeminiRows â€” mark validation", () => {
     expect(rows[0]!.issues).toContain("Invalid mark");
   });
 
-  it("mark 0 is valid â†’ READY", () => {
+  it("mark 0 is valid ? READY", () => {
     const { rows } = validateAndMatchGeminiRows([row({ mark: "0" })], STUDENTS);
     expect(rows[0]!.status).toBe("READY");
   });
 
-  it("mark 100 is valid â†’ READY", () => {
+  it("mark 100 is valid ? READY", () => {
     const { rows } = validateAndMatchGeminiRows([row({ mark: "100" })], STUDENTS);
     expect(rows[0]!.status).toBe("READY");
   });
@@ -91,7 +91,7 @@ describe("validateAndMatchGeminiRows â€” mark validation", () => {
   });
 });
 
-describe("validateAndMatchGeminiRows â€” student matching", () => {
+describe("validateAndMatchGeminiRows ? student matching", () => {
   it("matches by studentId and surfaces matchedStudentId/Name separately", () => {
     const { rows } = validateAndMatchGeminiRows([row()], STUDENTS);
     expect(rows[0]!.matchedStudentId).toBe("db-1");
@@ -141,7 +141,7 @@ describe("validateAndMatchGeminiRows â€” student matching", () => {
   });
 });
 
-describe("validateAndMatchGeminiRows â€” summary", () => {
+describe("validateAndMatchGeminiRows ? summary", () => {
   it("computes a complete summary", () => {
     const { summary } = validateAndMatchGeminiRows(
       [

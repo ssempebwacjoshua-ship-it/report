@@ -65,7 +65,7 @@ export function reportAssistantRoutes() {
    * - Returns CONTEXT_INCOMPLETE for students with missing marks (honest, no invented data).
    * - Returns UNAVAILABLE if Gemini is down or not configured (honest fallback).
    * - Comments are capped at MAX_COMMENT_LENGTH characters server-side.
-   * - These are DRAFTS â€” they must be explicitly accepted via the /accept endpoint.
+   * - These are DRAFTS ? they must be explicitly accepted via the /accept endpoint.
    */
   router.post("/api/reports/assistant-comment/generate", async (req, res, next) => {
     try {
@@ -83,7 +83,7 @@ export function reportAssistantRoutes() {
         assessmentType: parsed.data.assessmentType,
       });
 
-      // Honest about missing data â€” don't call AI when context is broken
+      // Honest about missing data ? don't call AI when context is broken
       if (!context.schoolFound) {
         res.status(404).json({ error: "School not found.", readinessCode: context.readinessCode });
         return;
@@ -128,7 +128,7 @@ export function reportAssistantRoutes() {
    * POST /api/reports/assistant-comment/accept
    *
    * Operator explicitly accepts an AI-generated comment draft.
-   * Writes an audit.ai.suggestion.accepted row â€” approval is required, not automatic.
+   * Writes an audit.ai.suggestion.accepted row ? approval is required, not automatic.
    */
   router.post("/api/reports/assistant-comment/accept", async (req, res, next) => {
     try {

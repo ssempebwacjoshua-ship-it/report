@@ -1,9 +1,9 @@
 ﻿import { describe, expect, it } from "vitest";
 import { validateEnv } from "../../server/middleware/validateEnv";
 
-// â”€â”€ Non-production: only VITE_ key leaks are checked â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Non-production: only VITE_ key leaks are checked ─────────────────────────
 
-describe("validateEnv â€” non-production", () => {
+describe("validateEnv ? non-production", () => {
   it("passes with no env vars set (dev default)", () => {
     const result = validateEnv({ NODE_ENV: "development" });
     expect(result.valid).toBe(true);
@@ -28,9 +28,9 @@ describe("validateEnv â€” non-production", () => {
   });
 });
 
-// â”€â”€ Production: JWT_SECRET enforcement â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Production: JWT_SECRET enforcement ───────────────────────────────────────
 
-describe("validateEnv â€” production JWT_SECRET checks", () => {
+describe("validateEnv ? production JWT_SECRET checks", () => {
   const prodBase = {
     NODE_ENV: "production",
     DATABASE_URL: "postgresql://...",
@@ -62,9 +62,9 @@ describe("validateEnv â€” production JWT_SECRET checks", () => {
   });
 });
 
-// â”€â”€ Production: required vars â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Production: required vars ─────────────────────────────────────────────────
 
-describe("validateEnv â€” production required vars", () => {
+describe("validateEnv ? production required vars", () => {
   const prodWithJwt = {
     NODE_ENV: "production",
     JWT_SECRET: "a".repeat(32),

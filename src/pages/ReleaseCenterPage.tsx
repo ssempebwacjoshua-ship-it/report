@@ -18,7 +18,7 @@ import { fetchSettings as loadSettings } from "../client/settingsClient";
 import { buildParentReportReleaseMessage, formatTermLabel } from "../shared/reportReleaseMessage";
 import type { ReportContext } from "../shared/types/reports";
 
-// â”€â”€ Status display â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Status display ────────────────────────────────────────────────────────────
 
 const STATUS_CONFIG: Record<DeliveryStatus, { label: string; classes: string }> = {
   NOT_FINALIZED: { label: "Not finalized", classes: "bg-slate-100 text-slate-500" },
@@ -42,7 +42,7 @@ function StatusPill({ status }: { status: DeliveryStatus }) {
   );
 }
 
-// â”€â”€ Message builder â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Message builder ───────────────────────────────────────────────────────────
 
 function buildMessage(
   row: ReleaseRow,
@@ -71,7 +71,7 @@ function buildEmailBody(
   return buildMessage(row, link, schoolName, meta);
 }
 
-// â”€â”€ Summary cards â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Summary cards ─────────────────────────────────────────────────────────────
 
 function SummaryCard({ label, value, tone }: { label: string; value: number; tone: string }) {
   const toneMap: Record<string, string> = {
@@ -93,7 +93,7 @@ function SummaryCard({ label, value, tone }: { label: string; value: number; ton
   );
 }
 
-// â”€â”€ Action row â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Action row ────────────────────────────────────────────────────────────────
 
 function RowActions({
   row,
@@ -145,7 +145,7 @@ function RowActions({
           onClick={onIssue}
           disabled={issuing}
         >
-          {issuing ? "Issuingâ€¦" : row.issuedReport ? "Reissue" : "Issue link"}
+          {issuing ? "Issuing?" : row.issuedReport ? "Reissue" : "Issue link"}
         </button>
       )}
 
@@ -232,12 +232,12 @@ function RowActions({
   );
 }
 
-// â”€â”€ Filters select â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Filters select ────────────────────────────────────────────────────────────
 
 const selectCls =
   "premium-control h-9 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-semibold text-slate-900 outline-none transition focus:border-blue-400 focus:bg-white";
 
-// â”€â”€ Main page â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Main page ─────────────────────────────────────────────────────────────────
 
 export function ReleaseCenterPage() {
   const [context, setContext] = useState<ReportContext | null>(null);
@@ -256,7 +256,7 @@ export function ReleaseCenterPage() {
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  // Tokens returned at issue time (raw, not hashed) â€” keyed by studentId
+  // Tokens returned at issue time (raw, not hashed) ? keyed by studentId
   const [issuedLinks, setIssuedLinks] = useState<Map<string, IssuedLinkData>>(new Map());
   const [issuingIds, setIssuingIds] = useState<Set<string>>(new Set());
   const [bulkIssuing, setBulkIssuing] = useState(false);
@@ -327,7 +327,7 @@ export function ReleaseCenterPage() {
     };
   }, [filters, search, loadStatus]);
 
-  // â”€â”€ Issue single student â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Issue single student ──────────────────────────────────────────────────
 
   async function handleIssueOne(row: ReleaseRow) {
     setIssuingIds((prev) => new Set(prev).add(row.studentId));
@@ -352,7 +352,7 @@ export function ReleaseCenterPage() {
     }
   }
 
-  // â”€â”€ Bulk issue â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Bulk issue ────────────────────────────────────────────────────────────
 
   async function handleBulkIssue() {
     setBulkIssuing(true);
@@ -404,7 +404,7 @@ export function ReleaseCenterPage() {
     void loadStatus(filters, search);
   }
 
-  // â”€â”€ Mark sent â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Mark sent ─────────────────────────────────────────────────────────────
 
   async function handleMarkSent(row: ReleaseRow) {
     const id = issuedLinks.get(row.studentId)?.issuedReportId ?? row.issuedReport?.id;
@@ -417,7 +417,7 @@ export function ReleaseCenterPage() {
     }
   }
 
-  // â”€â”€ Revoke â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Revoke ────────────────────────────────────────────────────────────────
 
   async function handleRevoke(row: ReleaseRow) {
     const id = issuedLinks.get(row.studentId)?.issuedReportId ?? row.issuedReport?.id;
@@ -436,7 +436,7 @@ export function ReleaseCenterPage() {
     }
   }
 
-  // â”€â”€ Export â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Export ────────────────────────────────────────────────────────────────
 
   function exportCsv() {
     const header = "Student,Adm No,Guardian,Method,Contact,Status,Ref Code,Link\n";
@@ -517,7 +517,7 @@ export function ReleaseCenterPage() {
         <div>
           <div className="flex items-center gap-2">
             <Link to="/reports" className="text-xs font-bold text-blue-600 hover:underline">
-              â† Reports
+              ? Reports
             </Link>
           </div>
           <h1 className="mt-1 text-xl font-bold tracking-tight text-slate-950 sm:text-2xl">Release Center</h1>
@@ -719,7 +719,7 @@ export function ReleaseCenterPage() {
         </div>
       ) : loading ? (
         <div className="rounded-xl border border-slate-100 bg-white p-4 text-center text-xs text-slate-400">
-          Loadingâ€¦
+          Loading?
         </div>
       ) : visibleRows.length === 0 ? (
         <div className="rounded-xl border border-slate-100 bg-white p-4 text-center text-xs text-slate-400">
@@ -763,7 +763,7 @@ export function ReleaseCenterPage() {
                       </td>
                       <td className="px-4 py-3 font-semibold text-slate-800">{row.studentName}</td>
                       <td className="px-4 py-3 font-mono text-slate-600">{row.admissionNumber}</td>
-                      <td className="px-4 py-3 text-slate-600">{row.primaryContact?.guardianName ?? <span className="text-red-400">â€”</span>}</td>
+                      <td className="px-4 py-3 text-slate-600">{row.primaryContact?.guardianName ?? <span className="text-red-400">?</span>}</td>
                       <td className="px-4 py-3">
                         {row.primaryContact ? (
                           <span className={`rounded px-1.5 py-0.5 text-xs font-bold ${
@@ -773,15 +773,15 @@ export function ReleaseCenterPage() {
                           }`}>
                             {row.primaryContact.method}
                           </span>
-                        ) : <span className="text-slate-300 text-xs">â€”</span>}
+                        ) : <span className="text-slate-300 text-xs">?</span>}
                       </td>
                       <td className="px-4 py-3 font-mono text-xs text-slate-500 max-w-[140px] truncate">
-                        {row.primaryContact?.contactValue ?? "â€”"}
+                        {row.primaryContact?.contactValue ?? "?"}
                       </td>
                       <td className="px-4 py-3">
                         <StatusPill status={row.deliveryStatus} />
                       </td>
-                      <td className="px-4 py-3 font-mono text-xs text-slate-500">{ref ?? "â€”"}</td>
+                      <td className="px-4 py-3 font-mono text-xs text-slate-500">{ref ?? "?"}</td>
                       <td className="px-4 py-3">
                         <RowActions
                           row={row}
@@ -824,7 +824,7 @@ export function ReleaseCenterPage() {
                   </div>
                   {row.primaryContact ? (
                     <p className="mt-2 text-xs text-slate-600">
-                      {row.primaryContact.guardianName} Â· <span className="font-semibold">{row.primaryContact.method}</span> Â· {row.primaryContact.contactValue}
+                      {row.primaryContact.guardianName} ? <span className="font-semibold">{row.primaryContact.method}</span> ? {row.primaryContact.contactValue}
                     </p>
                   ) : (
                     <p className="mt-2 text-xs text-red-400">No parent contact</p>

@@ -42,7 +42,7 @@ export function PublishedDocumentPage() {
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-slate-100 p-4">
-        <p className="text-sm text-slate-500">Loadingâ€¦</p>
+        <p className="text-sm text-slate-500">Loading?</p>
       </div>
     );
   }
@@ -76,7 +76,7 @@ export function PublishedDocumentPage() {
               disabled={checking || !password}
               className="rounded-lg bg-blue-600 py-2.5 text-sm font-bold text-white hover:bg-blue-700 disabled:opacity-50"
             >
-              {checking ? "Checkingâ€¦" : "Unlock"}
+              {checking ? "Checking?" : "Unlock"}
             </button>
           </form>
         </div>

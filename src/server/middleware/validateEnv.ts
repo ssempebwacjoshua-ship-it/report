@@ -9,7 +9,7 @@ export type EnvValidationResult = {
 
 /**
  * Validate that required environment variables are present and safe.
- * Accepts an env object for testability â€” defaults to process.env.
+ * Accepts an env object for testability ? defaults to process.env.
  *
  * Production rules (NODE_ENV=production):
  *  - JWT_SECRET must be set, not the dev default, and at least 32 characters.
@@ -17,7 +17,7 @@ export type EnvValidationResult = {
  *  - CLIENT_ORIGIN must be set (without it CORS allows all origins).
  *
  * Always (all environments):
- *  - Any VITE_-prefixed var that looks like an API key is an error â€” it would
+ *  - Any VITE_-prefixed var that looks like an API key is an error ? it would
  *    be bundled into the frontend and exposed to the browser.
  */
 export function validateEnv(env: Record<string, string | undefined> = process.env): EnvValidationResult {
@@ -53,7 +53,7 @@ export function validateEnv(env: Record<string, string | undefined> = process.en
     }
   }
 
-  // Any VITE_-prefixed API key is bundled into the frontend JS bundle â€” a secret leak.
+  // Any VITE_-prefixed API key is bundled into the frontend JS bundle ? a secret leak.
   for (const key of Object.keys(env)) {
     if (key.startsWith("VITE_") && /API.?KEY|SECRET|TOKEN/i.test(key)) {
       errors.push(

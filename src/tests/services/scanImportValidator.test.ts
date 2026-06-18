@@ -43,7 +43,7 @@ describe("validateScanRows", () => {
     expect(result.suggestedMark).toBe("75");
   });
 
-  it("written mark and split mark mismatch â†’ NEEDS_REVIEW", () => {
+  it("written mark and split mark mismatch ? NEEDS_REVIEW", () => {
     const [result] = validateScanRows(
       [makeRow({ writtenMark: "70", splitMark: "75" })],
       context,
@@ -53,7 +53,7 @@ describe("validateScanRows", () => {
     expect(result.suggestedMark).toBe("");
   });
 
-  it("low confidence â†’ NEEDS_REVIEW", () => {
+  it("low confidence ? NEEDS_REVIEW", () => {
     const [result] = validateScanRows(
       [makeRow({ confidence: 0.5 })],
       context,
@@ -62,13 +62,13 @@ describe("validateScanRows", () => {
     expect(result.status).toBe("NEEDS_REVIEW");
   });
 
-  it("blank written mark and blank split mark â†’ PARSED (missing, not zero)", () => {
+  it("blank written mark and blank split mark ? PARSED (missing, not zero)", () => {
     const [result] = validateScanRows(
       [makeRow({ writtenMark: "", splitMark: "" })],
       context,
       students,
     );
-    // Blank means missing â€” not an error, not zero
+    // Blank means missing ? not an error, not zero
     expect(result.validationErrors).toHaveLength(0);
     expect(result.suggestedMark).toBe("");
     expect(result.status).toBe("MISSING");
@@ -89,7 +89,7 @@ describe("validateScanRows", () => {
     expect(result.statusReason).toMatch(/Final crop failed quality check/);
   });
 
-  it("blank written mark but valid split mark â†’ uses split as suggestion", () => {
+  it("blank written mark but valid split mark ? uses split as suggestion", () => {
     const [result] = validateScanRows(
       [makeRow({ writtenMark: "", splitMark: "68" })],
       context,
@@ -99,7 +99,7 @@ describe("validateScanRows", () => {
     expect(result.status).toBe("VALID");
   });
 
-  it("valid written mark, blank split mark â†’ uses written as suggestion", () => {
+  it("valid written mark, blank split mark ? uses written as suggestion", () => {
     const [result] = validateScanRows(
       [makeRow({ writtenMark: "88", splitMark: "" })],
       context,
@@ -109,7 +109,7 @@ describe("validateScanRows", () => {
     expect(result.status).toBe("VALID");
   });
 
-  it("unknown admission number â†’ INVALID", () => {
+  it("unknown admission number ? INVALID", () => {
     const [result] = validateScanRows(
       [makeRow({ admissionNumber: "S1A-UNKNOWN" })],
       context,
@@ -119,7 +119,7 @@ describe("validateScanRows", () => {
     expect(result.validationErrors.some((e) => e.includes("not enrolled"))).toBe(true);
   });
 
-  it("missing admission number â†’ INVALID", () => {
+  it("missing admission number ? INVALID", () => {
     const [result] = validateScanRows(
       [makeRow({ admissionNumber: "" })],
       context,
@@ -150,7 +150,7 @@ describe("validateScanRows", () => {
     expect(result.validationErrors).toHaveLength(0);
   });
 
-  it("mark above 100 â†’ INVALID after operator correction", () => {
+  it("mark above 100 ? INVALID after operator correction", () => {
     const [result] = validateScanRows(
       [makeRow({ writtenMark: "105", splitMark: "105", operatorCorrection: "105" })],
       context,
@@ -166,19 +166,19 @@ describe("validateScanRows", () => {
       context,
       students,
     );
-    // Conflict between written/split, but operator provided correction â†’ VALID
+    // Conflict between written/split, but operator provided correction ? VALID
     expect(result.validationErrors).toHaveLength(0);
     expect(result.status).toBe("VALID");
   });
 
-  it("invalid exam type context â†’ all rows INVALID", () => {
+  it("invalid exam type context ? all rows INVALID", () => {
     const badContext = { ...context, examType: "MIDYEAR" };
     const [result] = validateScanRows([makeRow()], badContext, students);
     expect(result.status).toBe("INVALID");
     expect(result.validationErrors.some((e) => e.includes("BOT, MOT, or EOT"))).toBe(true);
   });
 
-  it("never silently drops rows â€” returns one result per input row", () => {
+  it("never silently drops rows ? returns one result per input row", () => {
     const rows = [
       makeRow({ rowNumber: 1 }),
       makeRow({ rowNumber: 2, admissionNumber: "S1A-002" }),

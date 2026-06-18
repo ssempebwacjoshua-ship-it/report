@@ -21,7 +21,7 @@ export function healthRoutes() {
   /**
    * GET /api/health/env
    *
-   * Returns SET / MISSING for each required env var â€” never the actual values.
+   * Returns SET / MISSING for each required env var ? never the actual values.
    * Protected by INTERNAL_TEST_KEY so it is not publicly accessible.
    */
   router.get("/api/health/env", (req: Request, res: Response) => {

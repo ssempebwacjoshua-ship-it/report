@@ -9,7 +9,7 @@ import { buildReports } from "../services/reportEngine";
 import type { PreferredContactMethod } from "@prisma/client";
 import { getPublicAppUrl } from "../config/publicUrl";
 
-// â”€â”€ Token helpers (mirrors reportIssueRoutes.ts) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Token helpers (mirrors reportIssueRoutes.ts) ─────────────────────────────
 
 function generateToken(): string {
   return crypto.randomBytes(32).toString("hex");
@@ -28,7 +28,7 @@ function generateReferenceCode(): string {
   return `${y}${m}${d}-${suffix}`;
 }
 
-// â”€â”€ Contact method resolution â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Contact method resolution ─────────────────────────────────────────────────
 
 export type ResolvedContact = {
   guardianName: string;
@@ -55,13 +55,13 @@ function resolveContact(
   if (pref === "WHATSAPP" && phone) return { guardianName, method: "WHATSAPP", contactValue: phone };
   if (pref === "SMS" && phone) return { guardianName, method: "SMS", contactValue: phone };
   if (pref === "EMAIL" && email) return { guardianName, method: "EMAIL", contactValue: email };
-  // PHONE or fallback â€” prefer WhatsApp over SMS
+  // PHONE or fallback ? prefer WhatsApp over SMS
   if (phone) return { guardianName, method: "WHATSAPP", contactValue: phone };
   if (email) return { guardianName, method: "EMAIL", contactValue: email };
   return null;
 }
 
-// â”€â”€ Delivery status â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Delivery status ───────────────────────────────────────────────────────────
 
 export type DeliveryStatus =
   | "NOT_FINALIZED"
@@ -94,7 +94,7 @@ function computeDeliveryStatus(
   return "LINK_GENERATED";
 }
 
-// â”€â”€ Filters â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Filters ───────────────────────────────────────────────────────────────────
 
 const releaseFiltersSchema = z.object({
   classId: z.string().min(1, "classId is required."),
@@ -119,7 +119,7 @@ const bulkActionSchema = z.object({
   studentIds: z.array(z.string().uuid()).min(1),
 });
 
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─────────────────────────────────────────────────────────────────────────────
 
 export function releaseCenterRoutes() {
   const router = Router();

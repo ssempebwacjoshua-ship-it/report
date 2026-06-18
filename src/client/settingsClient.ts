@@ -30,7 +30,7 @@ async function readSettingsError(response: Response, fallback: string): Promise<
       }
     }
   } catch {
-    // ignore â€” field errors not available
+    // ignore ? field errors not available
   }
   const message = await parseApiError(response, fallback);
   return new SettingsClientError(message, response.status, fieldErrors);

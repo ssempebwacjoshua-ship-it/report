@@ -52,7 +52,7 @@ const revokeSchema = z.object({
 export function reportIssueRoutes() {
   const router = Router();
 
-  // POST /api/reports/issue â€” create or reissue a report snapshot for a student
+  // POST /api/reports/issue ? create or reissue a report snapshot for a student
   router.post("/api/reports/issue", requireAuth, async (req, res, next) => {
     try {
       const body = issueSchema.parse(req.body);
@@ -179,7 +179,7 @@ export function reportIssueRoutes() {
     }
   });
 
-  // GET /api/reports/issued â€” list issued reports for a school
+  // GET /api/reports/issued ? list issued reports for a school
   router.get("/api/reports/issued", requireAuth, async (req, res, next) => {
     try {
       const user = req.user!;
@@ -214,7 +214,7 @@ export function reportIssueRoutes() {
     }
   });
 
-  // PATCH /api/reports/issued/:id/revoke â€” revoke an issued report
+  // PATCH /api/reports/issued/:id/revoke ? revoke an issued report
   router.patch("/api/reports/issued/:id/revoke", requireAuth, async (req, res, next) => {
     try {
       const { id } = req.params;

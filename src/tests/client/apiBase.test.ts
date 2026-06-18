@@ -1,6 +1,6 @@
 ﻿import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-// â”€â”€ getApiBaseUrl â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── getApiBaseUrl ─────────────────────────────────────────────────────────────
 
 describe("getApiBaseUrl", () => {
   it("rejects postgres URLs", async () => {
@@ -20,7 +20,7 @@ describe("getApiBaseUrl", () => {
   });
 });
 
-// â”€â”€ parseApiError â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── parseApiError ─────────────────────────────────────────────────────────────
 
 function fakeResponse(status: number, body: unknown): Response {
   return new Response(JSON.stringify(body), {

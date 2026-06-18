@@ -78,7 +78,7 @@ const generatePdfSchema = z.object({
 export function documentCleanerRoutes() {
   const router = express.Router();
 
-  // â”€â”€ GET /api/documents/cleaner/smart-pages â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── GET /api/documents/cleaner/smart-pages ─────────────────────────────────
   router.get("/api/documents/cleaner/smart-pages", async (req, res) => {
     const schoolCode = req.query["schoolCode"];
     if (typeof schoolCode !== "string" || !schoolCode.trim()) {
@@ -91,7 +91,7 @@ export function documentCleanerRoutes() {
     res.status(200).json(summary);
   });
 
-  // â”€â”€ POST /api/documents/cleaner/upload â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── POST /api/documents/cleaner/upload ─────────────────────────────────────
   router.post(
     "/api/documents/cleaner/upload",
     upload.single("file"),
@@ -115,7 +115,7 @@ export function documentCleanerRoutes() {
         return;
       }
 
-      // â”€â”€ Extraction mode â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+      // ── Extraction mode ─────────────────────────────────────────────────────
       const rawMode = (req.body as Record<string, string | undefined>)["extractionMode"];
       const mode: ExtractionMode = rawMode && isValidExtractionMode(rawMode)
         ? rawMode
@@ -123,7 +123,7 @@ export function documentCleanerRoutes() {
 
       const pageEstimate = estimatePageCount(mime);
 
-      // â”€â”€ Smart Pages checks (only when schoolCode provided) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+      // ── Smart Pages checks (only when schoolCode provided) ─────────────────
       const schoolCode = (req.body as Record<string, string | undefined>)["schoolCode"];
 
       if (schoolCode) {
@@ -157,7 +157,7 @@ export function documentCleanerRoutes() {
         const hash = fileHash(req.file.buffer);
         const isDup = await isDuplicateJob(schoolCode, hash);
         if (isDup) {
-          // Return a cache-hit response â€” no charge, signal to client
+          // Return a cache-hit response ? no charge, signal to client
           res.status(200).json({
             draftId: randomUUID(),
             document: {
@@ -197,14 +197,14 @@ export function documentCleanerRoutes() {
         return;
       }
 
-      // No schoolCode â€” extract without billing
+      // No schoolCode ? extract without billing
       const result = await extractDocumentFromImage(req.file.buffer, mime);
       res.status(200).json({ ...result, pageEstimate, extractionMode: mode });
     },
   );
 
-  // â”€â”€ POST /api/documents/cleaner/generate-pdf â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  // NOTE: No smart pages check â€” editing/reviewing/downloading is always free.
+  // ── POST /api/documents/cleaner/generate-pdf ───────────────────────────────
+  // NOTE: No smart pages check ? editing/reviewing/downloading is always free.
   router.post("/api/documents/cleaner/generate-pdf", async (req, res) => {
     const parsed = generatePdfSchema.safeParse(req.body);
     if (!parsed.success) {

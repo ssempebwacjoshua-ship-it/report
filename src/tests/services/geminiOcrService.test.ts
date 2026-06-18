@@ -20,7 +20,7 @@ function makeRow(
   };
 }
 
-describe("validateMarksheetRows â€” mark field validation", () => {
+describe("validateMarksheetRows ? mark field validation", () => {
   it("empty mark forces needsReview true with reason 'Missing mark'", () => {
     const { rows } = validateMarksheetRows([makeRow("")]);
     expect(rows[0]!.needsReview).toBe(true);
@@ -89,7 +89,7 @@ describe("validateMarksheetRows â€” mark field validation", () => {
   });
 });
 
-describe("validateMarksheetRows â€” summary totals", () => {
+describe("validateMarksheetRows ? summary totals", () => {
   it("counts totalRows correctly", () => {
     const { summary } = validateMarksheetRows([makeRow("30"), makeRow("45"), makeRow("")]);
     expect(summary.totalRows).toBe(3);
@@ -126,11 +126,11 @@ describe("validateMarksheetRows â€” summary totals", () => {
   });
 });
 
-// â”€â”€ Lazy client + network resilience â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Lazy client + network resilience ─────────────────────────────────────────
 // These tests use a separate describe scope with a vi.mock for @google/genai so
 // they never hit the real Gemini API.
 
-describe("geminiOcrService â€” lazy client initialization and network errors", () => {
+describe("geminiOcrService ? lazy client initialization and network errors", () => {
   // We need to isolate the module so the aiInstance singleton resets per describe.
   // vitest runs each test file in its own module scope, but within this file the
   // singleton persists. We verify the invariant by observing constructor call counts

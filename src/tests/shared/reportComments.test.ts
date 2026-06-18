@@ -49,7 +49,7 @@ describe("EMPTY_REPORT_COMMENTS", () => {
   });
 });
 
-describe("comment limit enforcement â€” overflow boundary", () => {
+describe("comment limit enforcement ? overflow boundary", () => {
   it("a 501-char classTeacherComment exceeds the 500-char limit", () => {
     const oversized = "A".repeat(COMMENT_LIMITS.classTeacherComment + 1);
     expect(oversized.length).toBeGreaterThan(COMMENT_LIMITS.classTeacherComment);

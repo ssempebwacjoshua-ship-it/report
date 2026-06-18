@@ -12,7 +12,7 @@ async function json<T>(res: Response): Promise<T> {
   return data;
 }
 
-// â”€â”€ Types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Types ──────────────────────────────────────────────────────────────────────
 
 export interface CollectionRecord {
   id: string;
@@ -56,7 +56,7 @@ export interface BulkJobOutput {
   error: string | null;
 }
 
-// â”€â”€ Collections â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Collections ────────────────────────────────────────────────────────────────
 
 export async function listCollections(): Promise<Collection[]> {
   const res = await fetch(`${API_BASE}/api/collections`, { headers: authHeaders() });
@@ -124,7 +124,7 @@ export async function importCSV(collectionId: string, file: File): Promise<{ imp
   return json<{ ok: boolean; imported: number; skipped: number }>(res);
 }
 
-// â”€â”€ Bulk generation jobs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Bulk generation jobs ───────────────────────────────────────────────────────
 
 export async function createBulkJob(collectionId: string, intent: string): Promise<BulkJobSummary> {
   const res = await fetch(`${API_BASE}/api/bulk-jobs`, {

@@ -18,7 +18,7 @@ import {
 import { cropFailureReason } from "../../server/services/scanExtractionService";
 import type { PixelRect } from "../../server/services/marksheetGeometryService";
 
-// â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
 async function blankJpeg(width: number, height: number): Promise<Buffer> {
   return sharp({
@@ -31,7 +31,7 @@ async function blankJpeg(width: number, height: number): Promise<Buffer> {
 const IMG_W = 800;
 const IMG_H = 1100;
 
-// â”€â”€ buildFallback roster-count propagation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── buildFallback roster-count propagation ────────────────────────────────────
 
 describe("buildFallback with large rosterCount", () => {
   it("creates exactly rosterCount data rows when rosterCount > 26", async () => {
@@ -42,7 +42,7 @@ describe("buildFallback with large rosterCount", () => {
     expect(result.dataRows).toHaveLength(254);
   });
 
-  it("still uses 26 rows when rosterCount â‰¤ 26 (default)", async () => {
+  it("still uses 26 rows when rosterCount ≤ 26 (default)", async () => {
     const buf = await blankJpeg(IMG_W, IMG_H);
     const result = await detectMarksheetTable(buf, IMG_W, IMG_H);
 
@@ -57,11 +57,11 @@ describe("buildFallback with large rosterCount", () => {
   });
 });
 
-// â”€â”€ Minimum crop size enforcement â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Minimum crop size enforcement ─────────────────────────────────────────────
 
 describe("fallback geometry does not produce tiny crops", () => {
   it("all 254 fallback rows produce written crop rects with h >= 1", async () => {
-    // 254 rows on an 800Ã—1100 image gives ~3px per row â€” too small for MIN_CROP_H.
+    // 254 rows on an 800×1100 image gives ~3px per row ? too small for MIN_CROP_H.
     // We verify positive height (not 0 or negative) as the baseline guard.
     const buf = await blankJpeg(IMG_W, IMG_H);
     const detection = await detectMarksheetTable(buf, IMG_W, IMG_H, 254);
@@ -73,7 +73,7 @@ describe("fallback geometry does not produce tiny crops", () => {
   });
 
   it("all 26 fallback rows (normal marksheet) produce written crop rects with h >= MIN_CROP_H", async () => {
-    // At 26 rows on an 800Ã—1100 image each row is ~30px â€” big enough for full minimum.
+    // At 26 rows on an 800×1100 image each row is ~30px ? big enough for full minimum.
     const buf = await blankJpeg(IMG_W, IMG_H);
     const detection = await detectMarksheetTable(buf, IMG_W, IMG_H, 26);
 
@@ -124,23 +124,23 @@ describe("fallback geometry does not produce tiny crops", () => {
     const detection254 = await detectMarksheetTable(buf, IMG_W, IMG_H, 254);
 
     // 254-row fallback should have shorter rows than 26-row fallback
-    // (same body height Ã· more rows = smaller rows per row, or at least â‰¤)
+    // (same body height ÷ more rows = smaller rows per row, or at least ≤)
     expect(detection254.dataRows[0]!.h).toBeLessThanOrEqual(detection26.dataRows[0]!.h);
   });
 });
 
-// â”€â”€ finalCropRect adaptive padding â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── finalCropRect adaptive padding ────────────────────────────────────────────
 
 describe("finalCropRect adaptive padding", () => {
   it("reduces vPad when raw row height is too small to meet MIN_CROP_H", () => {
-    // Row height 20px, normal vPad=15 â†’ would give 20-30 = -10 â†’ must use adaptive
+    // Row height 20px, normal vPad=15 ? would give 20-30 = -10 ? must use adaptive
     const rect = finalCropRect(100, 200, 300, 320, 8, 15);
     expect(rect.h).toBeGreaterThanOrEqual(MIN_CROP_H);
     expect(rect.w).toBeGreaterThanOrEqual(1);
   });
 
   it("uses full vPad when row is large enough", () => {
-    // Row height 100px, vPad=15 â†’ gives 100-30=70 â‰¥ MIN_CROP_H: use full vPad
+    // Row height 100px, vPad=15 ? gives 100-30=70 ≥ MIN_CROP_H: use full vPad
     const rect = finalCropRect(100, 200, 300, 400, 8, 15);
     expect(rect.h).toBe(400 - 300 - 2 * 15);
     expect(rect.w).toBe(200 - 100 - 2 * 8);
@@ -158,7 +158,7 @@ describe("finalCropRect adaptive padding", () => {
   });
 });
 
-// â”€â”€ Azure OCR success but table not detected â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Azure OCR success but table not detected ───────────────────────────────────
 
 describe("OCR success with geometry failure", () => {
   it("fallback geometry still creates processable rows (not 0 rows)", async () => {
@@ -191,7 +191,7 @@ describe("OCR success with geometry failure", () => {
   });
 });
 
-// â”€â”€ Detected table extended to rosterCount â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Detected table extended to rosterCount ────────────────────────────────────
 
 describe("detected table extends dataRows to rosterCount", () => {
   it("produces at least rosterCount rows even for detected tables with fewer lines", async () => {
@@ -218,12 +218,12 @@ describe("detected table extends dataRows to rosterCount", () => {
   });
 });
 
-// â”€â”€ Crop fallback geometry â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Crop fallback geometry ──────────────────────────────────────────────────────
 //
 // These cover the bug where the written/split crops land on a row border, a blank
 // cell, or a horizontal line instead of the handwritten mark. The fix generates
 // fallback recrop candidates, scores them by quality, and selects the best one
-// before OCR â€” rather than rejecting the cell outright.
+// before OCR ? rather than rejecting the cell outright.
 
 /**
  * Build a single-channel raw image (white background) with optional dark regions,
@@ -389,12 +389,12 @@ describe("cropFailureReason", () => {
   });
 });
 
-// â”€â”€ Row-band geometry (tiny-row / border-line root cause) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Row-band geometry (tiny-row / border-line root cause) ────────────────────────
 //
 // On real scans the horizontal-line detector can lock onto printed row borders,
-// producing data rows only ~14â€“18px tall. Cropping row.y..row.y+row.h then lands
+// producing data rows only ~14–18px tall. Cropping row.y..row.y+row.h then lands
 // on the border, not the handwriting. The fix reconstructs a usable row band and
-// crops its inner 20â€“80% region.
+// crops its inner 20–80% region.
 
 import {
   MIN_ROW_BAND_H,
@@ -444,9 +444,9 @@ describe("minimum crop height rule", () => {
 });
 
 describe("innerRowBandRect", () => {
-  it("crops the inner 20â€“80% of the band, inset horizontally", () => {
+  it("crops the inner 20–80% of the band, inset horizontally", () => {
     const rect = innerRowBandRect(1000, 1180, 2514, 739);
-    // Vertical: y â‰ˆ top + 20%, h â‰ˆ 60%
+    // Vertical: y ≈ top + 20%, h ≈ 60%
     expect(rect.y).toBeGreaterThanOrEqual(1030);
     expect(rect.y).toBeLessThanOrEqual(1042);
     expect(rect.h).toBeGreaterThanOrEqual(100);

@@ -2,7 +2,7 @@
 import { acceptedExtractedMark, ocrFailureReason } from "../../server/services/scanExtractionService";
 import { normalizeMark, parseSplitZoneTexts } from "../../server/services/markRecognitionService";
 
-// â”€â”€ acceptedExtractedMark acceptance logic â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── acceptedExtractedMark acceptance logic ────────────────────────────────────
 
 describe("acceptedExtractedMark", () => {
   it("accepts when written and split agree with high confidence", () => {
@@ -23,7 +23,7 @@ describe("acceptedExtractedMark", () => {
   });
 
   it("rejects when confidence is below 0.75 (low confidence)", () => {
-    // Both marks agree but confidence is low â€” must NOT produce an extracted mark
+    // Both marks agree but confidence is low ? must NOT produce an extracted mark
     const { mark } = acceptedExtractedMark("76", "76", 0.41, 0.39);
     expect(mark).toBe("");
   });
@@ -36,7 +36,7 @@ describe("acceptedExtractedMark", () => {
 
   it("accepts written mark when split zones are a numeric suffix (partial zone OCR failure)", () => {
     // PaddleOCR misread zone 1's '7' as a CJK character; zones combine to '6' not '76'.
-    // Written mark correctly reads '76'. Suffix match: '76'.endsWith('6') â†’ accept '76'.
+    // Written mark correctly reads '76'. Suffix match: '76'.endsWith('6') ? accept '76'.
     const { mark, reason } = acceptedExtractedMark("76", "6", 0.70, 0.70);
     expect(mark).toBe("76");
     expect(reason).toMatch(/confirmed|accepted/i);
@@ -49,7 +49,7 @@ describe("acceptedExtractedMark", () => {
   });
 
   it("does not treat non-suffix partial matches as agreement", () => {
-    // '7' is not a suffix of '82' â€” genuine disagreement
+    // '7' is not a suffix of '82' ? genuine disagreement
     const { mark, reason } = acceptedExtractedMark("82", "7", 0.80, 0.80);
     expect(mark).toBe("");
     expect(reason).toMatch(/disagree/i);
@@ -71,14 +71,14 @@ describe("acceptedExtractedMark", () => {
   });
 });
 
-// â”€â”€ Extracted text must not be silently discarded â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Extracted text must not be silently discarded ─────────────────────────────
 //
 // These tests confirm that OCR text flows through normalisation correctly even
 // when the mark will ultimately be rejected (low confidence, out of range, etc.).
 
 describe("OCR text not silently discarded", () => {
   it("normalizeMark passes through digit text even when it will be rejected later", () => {
-    // "7" normalises to "7" â€” acceptance threshold is checked by acceptedExtractedMark, not here
+    // "7" normalises to "7" ? acceptance threshold is checked by acceptedExtractedMark, not here
     expect(normalizeMark("7")).toBe("7");
     expect(normalizeMark("82")).toBe("82");
   });
@@ -89,7 +89,7 @@ describe("OCR text not silently discarded", () => {
   });
 
   it("parseSplitZoneTexts returns combined mark even for low-confidence zones", () => {
-    // Zone texts from low-confidence OCR â€” the combination still yields a parseable mark
+    // Zone texts from low-confidence OCR ? the combination still yields a parseable mark
     expect(parseSplitZoneTexts(["7", "6", ""])).toBe("76");
     expect(parseSplitZoneTexts(["9", "4", ""])).toBe("94");
   });
@@ -99,7 +99,7 @@ describe("OCR text not silently discarded", () => {
   });
 });
 
-// â”€â”€ Crop ID â†’ student row mapping â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Crop ID ? student row mapping ─────────────────────────────────────────────
 //
 // Verifies the crop ID convention used in scanExtractionService matches what
 // remoteCropOcrProvider reads back from the OCR service response.
@@ -129,13 +129,13 @@ describe("crop ID mapping convention", () => {
   });
 });
 
-// â”€â”€ Low confidence in debug, not accepted as valid â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Low confidence in debug, not accepted as valid ────────────────────────────
 
 describe("low confidence rejection behaviour", () => {
   it("confidence 0.41 produces blank extractedMark but raw text is still available", () => {
     // Simulate what happens when OCR returns "7" at 0.41 confidence
     const rawText = "7";
-    const normalised = normalizeMark(rawText);          // "7" â€” text preserved
+    const normalised = normalizeMark(rawText);          // "7" ? text preserved
     const { mark } = acceptedExtractedMark(normalised, normalised, 0.41, 0.41);
 
     // The raw text is visible (not discarded), but the accepted mark is blank
@@ -151,23 +151,23 @@ describe("low confidence rejection behaviour", () => {
   });
 
   it("confidence exactly at threshold boundary", () => {
-    // 0.75 on both sides â€” accepted
+    // 0.75 on both sides ? accepted
     expect(acceptedExtractedMark("76", "76", 0.75, 0.75).mark).toBe("76");
-    // 0.74 â€” just below threshold â€” rejected
+    // 0.74 ? just below threshold ? rejected
     expect(acceptedExtractedMark("76", "76", 0.74, 0.74).mark).toBe("");
-    // 0.85 split-only â€” accepted
+    // 0.85 split-only ? accepted
     expect(acceptedExtractedMark("", "76", 0.85, 0).mark).toBe("76");
-    // 0.84 split-only â€” rejected
+    // 0.84 split-only ? rejected
     expect(acceptedExtractedMark("", "76", 0.84, 0).mark).toBe("");
   });
 });
 
-// â”€â”€ All roster students must appear even if OCR fails â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── All roster students must appear even if OCR fails ────────────────────────
 //
 // This is covered by scanOperatorWorkflow.test.ts (keeps all roster rows).
 // The normalisation layer also must never throw for any OCR output.
 
-// â”€â”€ ocrFailureReason message accuracy â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── ocrFailureReason message accuracy ─────────────────────────────────────────
 
 describe("ocrFailureReason", () => {
   it("reachable Azure message says 'no text', not 'unavailable'", () => {
@@ -187,7 +187,7 @@ describe("ocrFailureReason", () => {
   });
 });
 
-// â”€â”€ OCR auto-commit guard â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── OCR auto-commit guard ──────────────────────────────────────────────────────
 
 describe("OCR never auto-commits", () => {
   it("acceptedExtractedMark never returns a mark without at least one valid signal", () => {

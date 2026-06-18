@@ -8,7 +8,7 @@ import type {
   TopUpBundle,
 } from "../../shared/types/smartPages";
 
-// â”€â”€ Store interface â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Store interface ────────────────────────────────────────────────────────────
 
 export interface SmartPageStore {
   getPlan(schoolId: string): Promise<SmartPagePlan | null>;
@@ -17,7 +17,7 @@ export interface SmartPageStore {
   getLedgerByHash(schoolId: string, fileHash: string): Promise<SmartPageLedgerEntry | null>;
 }
 
-// â”€â”€ In-memory store (for tests and development) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── In-memory store (for tests and development) ────────────────────────────────
 
 export function createInMemorySmartPageStore(): SmartPageStore & {
   addLedgerEntry(entry: SmartPageLedgerEntry): Promise<void>;
@@ -48,7 +48,7 @@ export function createInMemorySmartPageStore(): SmartPageStore & {
   };
 }
 
-// â”€â”€ Default Prisma-backed store (lazy to avoid import issues in tests) â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Default Prisma-backed store (lazy to avoid import issues in tests) ─────────
 
 let _defaultStore: SmartPageStore | null = null;
 
@@ -164,7 +164,7 @@ function prismaLedgerToEntry(row: Record<string, unknown>): SmartPageLedgerEntry
   };
 }
 
-// â”€â”€ Service factory â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Service factory ────────────────────────────────────────────────────────────
 
 export interface DeductPagesInput {
   jobId: string;
@@ -257,11 +257,11 @@ export function createSmartPagesService(store: SmartPageStore) {
   };
 }
 
-// â”€â”€ Pure utility functions (exported at module level) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Pure utility functions (exported at module level) ─────────────────────────
 
 export function estimatePageCount(_mimeType: string): number {
   // Both images and PDFs count as 1 page for estimation.
-  // Actual multi-page PDF counting requires full parse â€” charge on extraction.
+  // Actual multi-page PDF counting requires full parse ? charge on extraction.
   return 1;
 }
 
@@ -269,7 +269,7 @@ export function getDefaultExtractionMode(): ExtractionMode {
   return "balanced";
 }
 
-// â”€â”€ Module-level API backed by Prisma (used by routes) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Module-level API backed by Prisma (used by routes) ───────────────────────
 
 export async function canExtract(schoolId: string, pageCount: number): Promise<CanExtractResult> {
   return createSmartPagesService(getDefaultStore()).canExtract(schoolId, pageCount);

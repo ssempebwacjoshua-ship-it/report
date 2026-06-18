@@ -49,7 +49,7 @@ export function SmartPagesPage() {
   if (loading) {
     return (
       <div className="flex min-h-[40vh] items-center justify-center">
-        <p className="text-sm text-slate-500">Loading documentsâ€¦</p>
+        <p className="text-sm text-slate-500">Loading documents?</p>
       </div>
     );
   }
@@ -165,7 +165,7 @@ export function SmartPagesPage() {
             <input
               autoFocus
               type="text"
-              placeholder="e.g. End of Term Report, Patient Summaryâ€¦"
+              placeholder="e.g. End of Term Report, Patient Summary?"
               value={newTitle}
               onChange={(e) => setNewTitle(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter") void handleCreate(); }}
@@ -185,7 +185,7 @@ export function SmartPagesPage() {
                 disabled={creating}
                 onClick={() => void handleCreate()}
               >
-                {creating ? "Creatingâ€¦" : "Create"}
+                {creating ? "Creating?" : "Create"}
               </button>
             </div>
           </div>

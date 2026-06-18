@@ -55,7 +55,7 @@ export function acceptedExtractedMark(
     if (splitConfidence >= minimumConfidence && writtenConfidence >= minimumConfidence) {
       return { mark: writtenMark, reason: "Written and split marks agree with high confidence." };
     }
-    // Agree but one side is low confidence â€” fall through to split-only check
+    // Agree but one side is low confidence ? fall through to split-only check
   }
 
   // Suffix match: split zones captured only trailing digit(s) of the written mark.
@@ -106,7 +106,7 @@ export function ocrFailureReason(providerName: string, providerReachable: boolea
 
 /**
  * Reason shown when crop geometry could not isolate the handwritten mark for any
- * fallback recrop. This is a CROP problem, not an OCR-provider problem â€” the
+ * fallback recrop. This is a CROP problem, not an OCR-provider problem ? the
  * operator should enter the mark manually rather than being told OCR is down.
  */
 export function cropFailureReason(): string {
@@ -140,7 +140,7 @@ async function loadRoster(
   }));
 }
 
-// â”€â”€ Debug crop disk saving â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Debug crop disk saving ─────────────────────────────────────────────────────
 
 const DEBUG_DIR = path.join(process.cwd(), "tmp", "ocr-debug", "latest");
 let ocrDebugEnabled = process.env.OCR_DEBUG === "1";
@@ -168,7 +168,7 @@ function saveAlways(name: string, data: string | Buffer): void {
   } catch { /* Best effort */ }
 }
 
-// â”€â”€ Detection overlay â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Detection overlay ──────────────────────────────────────────────────────────
 
 async function saveDetectionOverlay(
   colorBuffer: Buffer,
@@ -303,7 +303,7 @@ async function saveFinalOcrCropOverlay(
     .toFile(path.join(DEBUG_DIR, "overlay-final-ocr-crops.jpg"));
 }
 
-// â”€â”€ Extraction â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Extraction ─────────────────────────────────────────────────────────────────
 
 export type ExtractionResult = {
   parseStatus: "PARSED" | "FAILED";
@@ -410,7 +410,7 @@ export async function extractMarksFromScan(
   // Detect table geometry, passing roster count so fallback creates enough rows.
   const detection = await detectMarksheetTable(scan.buffer, scan.width, scan.height, roster.length);
 
-  // Save geometry metadata (always â€” operators need this for alignment diagnostics)
+  // Save geometry metadata (always ? operators need this for alignment diagnostics)
   saveAlways(
     "geometry.json",
     JSON.stringify(
@@ -497,7 +497,7 @@ export async function extractMarksFromScan(
     let cropQualityReason: string | undefined;
 
     try {
-      // Original (computed) written crop â€” kept for debug comparison.
+      // Original (computed) written crop ? kept for debug comparison.
       const originalWrittenPreview = await cropPreview(scan.buffer, writtenRect);
       originalWrittenCropDataUrl = bufferToDataUrl(originalWrittenPreview);
 
@@ -613,7 +613,7 @@ export async function extractMarksFromScan(
       if (ocrInputs.length === 0) {
         const failure = qualityFailures[0];
         cropRejectionReason = failure ? `${failure.label}: ${failure.reason}` : "no usable OCR crops";
-        // Bad crop geometry â€” ask for manual entry, NOT "OCR unavailable".
+        // Bad crop geometry ? ask for manual entry, NOT "OCR unavailable".
         extractionNote = cropFailureReason();
       }
 
@@ -769,11 +769,11 @@ export async function extractMarksFromScan(
   const azureStatus = "Azure OCR succeeded.";
   const detectionNote = detection.method === "detected"
     ? `Table geometry detected (confidence ${Math.round(detection.geometryConfidence * 100)}%, col: ${detection.colDetectionMethod}).`
-    : "Table geometry not detected â€” using estimated geometry. Crop quality may be reduced.";
+    : "Table geometry not detected ? using estimated geometry. Crop quality may be reduced.";
 
   const allMissing = countByStatus["MISSING"] === roster.length && roster.length > 0;
   const geometryNote = allMissing && detection.method === "fallback"
-    ? " Geometry is estimated â€” verify crop alignment in debug view."
+    ? " Geometry is estimated ? verify crop alignment in debug view."
     : "";
 
   return {

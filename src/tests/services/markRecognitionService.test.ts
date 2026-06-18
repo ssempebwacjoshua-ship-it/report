@@ -37,7 +37,7 @@ describe("normalizeMark", () => {
   });
 
   it("rejects values above 100", () => {
-    // 101 as a 3-digit number: stripped digits = "101", 101 > 100 â†’ ""
+    // 101 as a 3-digit number: stripped digits = "101", 101 > 100 ? ""
     expect(normalizeMark("101")).toBe("");
   });
 

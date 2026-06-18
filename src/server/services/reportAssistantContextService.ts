@@ -55,7 +55,7 @@ export type ReportAssistantContext = {
   issues: string[];
   warnings: string[];
 
-  // per-student detail (no DB calls inside this â€” assembled from Maps)
+  // per-student detail (no DB calls inside this ? assembled from Maps)
   students: StudentReadinessSummary[];
 };
 
@@ -69,7 +69,7 @@ export async function buildReportAssistantContext(
 ): Promise<ReportAssistantContext> {
   const settings = await getSettingsSections(prisma, query.schoolCode);
 
-  // â”€â”€ Batch query 1: school with subjects and active academic year/term â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Batch query 1: school with subjects and active academic year/term ────────
   const school = await prisma.school.findUnique({
     where: { code: query.schoolCode },
     include: {
@@ -92,7 +92,7 @@ export async function buildReportAssistantContext(
     return emptyContext({ readinessCode: "NO_ACTIVE_TERM", issues: ["No active term is configured."] });
   }
 
-  // â”€â”€ Batch query 2: class and stream records â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Batch query 2: class and stream records ──────────────────────────────────
   const [classRecord, streamRecord] = await Promise.all([
     prisma.schoolClass.findFirst({ where: { id: query.classId, schoolId: school.id } }),
     query.streamId ? prisma.stream.findFirst({ where: { id: query.streamId, schoolId: school.id } }) : Promise.resolve(null),
@@ -122,7 +122,7 @@ export async function buildReportAssistantContext(
     };
   }
 
-  // â”€â”€ Batch query 3: all active enrollments for this class/stream â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Batch query 3: all active enrollments for this class/stream ──────────────
   const enrollments = await prisma.classEnrollment.findMany({
     where: {
       schoolId: school.id,
@@ -164,7 +164,7 @@ export async function buildReportAssistantContext(
 
   const studentIds = enrollments.map((e) => e.studentId);
 
-  // â”€â”€ Batch query 4: ALL marks for enrolled students (FINALIZED + DRAFT) â”€â”€â”€â”€â”€â”€â”€
+  // ── Batch query 4: ALL marks for enrolled students (FINALIZED + DRAFT) ───────
   const allMarks = await prisma.subjectMark.findMany({
     where: {
       schoolId: school.id,
@@ -178,9 +178,9 @@ export async function buildReportAssistantContext(
     select: { studentId: true, subjectId: true, assessmentType: true, status: true, marks: true },
   });
 
-  // â”€â”€ Assemble with Maps (zero DB calls below this line) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Assemble with Maps (zero DB calls below this line) ───────────────────────
 
-  // Map: studentId + subjectId + assessmentType â†’ mark status
+  // Map: studentId + subjectId + assessmentType ? mark status
   type MarkKey = string;
   const markMap = new Map<MarkKey, "FINALIZED" | "DRAFT">();
   let finalizedMarkCount = 0;
@@ -198,7 +198,7 @@ export async function buildReportAssistantContext(
     else draftMarkCount++;
   }
 
-  // Map: subjectId â†’ subjectName
+  // Map: subjectId ? subjectName
   const subjectNameMap = new Map(subjects.map((s) => [s.id, s.name]));
 
   // Per-student readiness assembly
@@ -253,7 +253,7 @@ export async function buildReportAssistantContext(
     if (hasAllFinalized) studentsReadyToIssue++;
   }
 
-  // â”€â”€ Build issue / warning lists â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Build issue / warning lists ───────────────────────────────────────────────
   const issues: string[] = [];
   const warnings: string[] = [];
 
@@ -265,11 +265,11 @@ export async function buildReportAssistantContext(
   if (draftMarkCount > 0)
     warnings.push(`${draftMarkCount} mark entry(s) are still in DRAFT status and will not appear in reports.`);
   if (!gradingConfigured)
-    warnings.push("No grading scale is configured â€” grades will not appear on reports.");
+    warnings.push("No grading scale is configured ? grades will not appear on reports.");
   if (studentSummaries.some((s) => !s.contactReady))
     warnings.push(`${studentSummaries.filter((s) => !s.contactReady).length} student(s) have no valid parent contact for report delivery.`);
 
-  // â”€â”€ Determine overall readiness â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Determine overall readiness ────────────────────────────────────────────────
   let readinessCode: ReportAssistantContext["readinessCode"];
   if (finalizedMarkCount === 0) readinessCode = "NO_FINALIZED_MARKS";
   else if (studentsWithMissingMarks > 0 || studentsWithNoMarks > 0) readinessCode = "MISSING_MARKS";

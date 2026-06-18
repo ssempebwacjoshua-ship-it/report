@@ -4,7 +4,7 @@ import { createServer } from "../../server";
 import { signToken } from "../../server/services/authService";
 import type { PrismaClient } from "@prisma/client";
 
-// â”€â”€â”€ Shared tokens â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Shared tokens ────────────────────────────────────────────────────────────
 
 const ownerToken = signToken({
   userId: "owner-usr-1",
@@ -33,9 +33,9 @@ const noOwnerFlagToken = signToken({
   // no isPlatformOwner field
 });
 
-// â”€â”€â”€ 1. Non-owner cannot access owner APIs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── 1. Non-owner cannot access owner APIs ───────────────────────────────────
 
-describe("platformOwnerRoutes â€” auth guard", () => {
+describe("platformOwnerRoutes ? auth guard", () => {
   it("rejects request with no token (401)", async () => {
     const res = await request(createServer()).get("/api/owner/schools");
     expect(res.status).toBe(401);
@@ -65,7 +65,7 @@ describe("platformOwnerRoutes â€” auth guard", () => {
   });
 });
 
-// â”€â”€â”€ 2. Platform owner can list schools â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── 2. Platform owner can list schools ──────────────────────────────────────
 
 describe("platformOwnerRoutes GET /api/owner/schools", () => {
   it("returns 200 and a schools array for platform owner", async () => {
@@ -85,7 +85,7 @@ describe("platformOwnerRoutes GET /api/owner/schools", () => {
   });
 });
 
-// â”€â”€â”€ 3. Platform owner dashboard has real data â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── 3. Platform owner dashboard has real data ───────────────────────────────
 
 describe("platformOwnerRoutes GET /api/owner/dashboard", () => {
   it("returns 200 and numeric stats (no static placeholder values)", async () => {
@@ -106,7 +106,7 @@ describe("platformOwnerRoutes GET /api/owner/dashboard", () => {
   });
 });
 
-// â”€â”€â”€ 4. Platform owner can list users â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── 4. Platform owner can list users ────────────────────────────────────────
 
 describe("platformOwnerRoutes GET /api/owner/users", () => {
   it("returns 200 and a users array", async () => {
@@ -129,7 +129,7 @@ describe("platformOwnerRoutes GET /api/owner/users", () => {
   });
 });
 
-// â”€â”€â”€ 5. Platform owner can create a school admin user â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── 5. Platform owner can create a school admin user ────────────────────────
 
 describe("platformOwnerRoutes POST /api/owner/users", () => {
   it("creates a user and sets mustChangePassword: true", async () => {
@@ -140,7 +140,7 @@ describe("platformOwnerRoutes POST /api/owner/users", () => {
     expect(schoolsRes.status).toBe(200);
     const schools = schoolsRes.body.schools as Array<{ id: string }>;
     if (schools.length === 0) {
-      // No schools in test DB â€” skip the creation assertion, just verify validation works
+      // No schools in test DB ? skip the creation assertion, just verify validation works
       const res = await request(createServer())
         .post("/api/owner/users")
         .set("Authorization", `Bearer ${ownerToken}`)
@@ -179,7 +179,7 @@ describe("platformOwnerRoutes POST /api/owner/users", () => {
       .set("Authorization", `Bearer ${ownerToken}`)
       .send({ schoolId, name: "Dup User", email: uniqueEmail, role: "ADMIN_OPERATOR", temporaryPassword: "Temp1234!" });
 
-    // Create second time â€” same email, same school
+    // Create second time ? same email, same school
     const res = await request(createServer())
       .post("/api/owner/users")
       .set("Authorization", `Bearer ${ownerToken}`)
@@ -198,7 +198,7 @@ describe("platformOwnerRoutes POST /api/owner/users", () => {
   });
 });
 
-// â”€â”€â”€ 6. Platform owner can reset a user's password â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── 6. Platform owner can reset a user's password ───────────────────────────
 
 describe("platformOwnerRoutes POST /api/owner/users/:userId/reset-password", () => {
   it("resets password and sets mustChangePassword: true", async () => {
@@ -238,9 +238,9 @@ describe("platformOwnerRoutes POST /api/owner/users/:userId/reset-password", () 
   });
 });
 
-// â”€â”€â”€ 7. Disabled user cannot login â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── 7. Disabled user cannot login ───────────────────────────────────────────
 
-describe("platformOwnerRoutes â€” disable/enable user", () => {
+describe("platformOwnerRoutes ? disable/enable user", () => {
   it("disabling and re-enabling a user returns ok:true", async () => {
     const schoolsRes = await request(createServer())
       .get("/api/owner/schools")
@@ -272,9 +272,9 @@ describe("platformOwnerRoutes â€” disable/enable user", () => {
   });
 });
 
-// â”€â”€â”€ 8. Owner action creates audit log â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── 8. Owner action creates audit log ───────────────────────────────────────
 
-describe("platformOwnerRoutes â€” audit log (unit mock)", () => {
+describe("platformOwnerRoutes ? audit log (unit mock)", () => {
   it("calls auditLog.create when a user is disabled", async () => {
     const auditLogCreate = vi.fn(async () => ({ id: "audit-1" }));
     const targetUser = {

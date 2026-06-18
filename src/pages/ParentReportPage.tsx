@@ -100,7 +100,7 @@ export function ParentReportPage() {
 
   return (
     <div className="report-parent-page min-h-screen bg-slate-50">
-      {/* Screen-only action card â€” hidden in print via .no-print */}
+      {/* Screen-only action card ? hidden in print via .no-print */}
       <div className="no-print flex min-h-screen flex-col items-center justify-center px-4 py-8">
         {(status === "REVOKED" || status === "SUPERSEDED") && (
           <div
@@ -134,7 +134,7 @@ export function ParentReportPage() {
           <div className="mt-4 text-center">
             <h1 className="text-xl font-bold text-slate-900">{card.studentName}</h1>
             <p className="mt-1 text-sm text-slate-500">
-              {card.className} Â· {card.academicYear} {card.term}
+              {card.className} ? {card.academicYear} {card.term}
             </p>
           </div>
 
@@ -168,7 +168,7 @@ export function ParentReportPage() {
         </div>
       </div>
 
-      {/* Print-only container â€” hidden on screen via .print-only CSS class */}
+      {/* Print-only container ? hidden on screen via .print-only CSS class */}
       {/* No wrapper divs here: extra height causes 2-page overflow on mobile print */}
       <div className="print-only">
         <StudentReportDetail

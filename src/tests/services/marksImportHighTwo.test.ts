@@ -3,7 +3,7 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { commitMarksImport } from "../../server/services/marksImportService";
 import type { PrismaClient } from "@prisma/client";
 
-// â”€â”€ Shared test fixtures â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Shared test fixtures ──────────────────────────────────────────────────────
 
 function makeSchool() {
   return {
@@ -57,9 +57,9 @@ function buildServiceMock(txImpl?: (ops: Array<Promise<unknown>>) => Promise<unk
   return { mockPrisma, txFn, auditLogCreate, batchUpdate };
 }
 
-// â”€â”€ Service tests â€” chunked commit â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Service tests ? chunked commit ────────────────────────────────────────────
 
-describe("HIGH 2 â€” commitMarksImport: chunked $transaction", () => {
+describe("HIGH 2 ? commitMarksImport: chunked $transaction", () => {
   it("uses $transaction for upserts (not individual awaits)", async () => {
     const { mockPrisma, txFn } = buildServiceMock();
     const result = await commitMarksImport(mockPrisma, "H2SCHOOL", makeCSV(1));
@@ -91,7 +91,7 @@ describe("HIGH 2 â€” commitMarksImport: chunked $transaction", () => {
       return Promise.all(ops as Promise<unknown>[]);
     });
 
-    // 51 rows â†’ chunk 1 (50 rows) succeeds, chunk 2 (1 row) fails
+    // 51 rows ? chunk 1 (50 rows) succeeds, chunk 2 (1 row) fails
     const result = await commitMarksImport(mockPrisma, "H2SCHOOL", makeCSV(51));
 
     // Partial commit: some rows succeeded, some failed
@@ -157,7 +157,7 @@ describe("HIGH 2 â€” commitMarksImport: chunked $transaction", () => {
   });
 });
 
-// â”€â”€ Route tests â€” GET /api/imports/marks/errors/:batchId â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Route tests ? GET /api/imports/marks/errors/:batchId ─────────────────────
 
 const { batchFindFirst, rowFindMany, errorSchoolFindUnique } = vi.hoisted(() => ({
   batchFindFirst: vi.fn(async () => null as unknown),
@@ -174,7 +174,7 @@ vi.mock("../../server/db/prisma", () => ({
   },
 }));
 
-describe("HIGH 2 â€” GET /api/imports/marks/errors/:batchId", () => {
+describe("HIGH 2 ? GET /api/imports/marks/errors/:batchId", () => {
   let app: ReturnType<typeof import("../../server").createServer>;
   let authToken: string;
 
@@ -252,7 +252,7 @@ describe("HIGH 2 â€” GET /api/imports/marks/errors/:batchId", () => {
 
     expect(res.status).toBe(200);
     const lines = (res.text as string).trim().split("\n");
-    // Only the header line â€” no error rows
+    // Only the header line ? no error rows
     expect(lines).toHaveLength(1);
     expect(lines[0]).toBe("rowNumber,admissionNumber,class,stream,subject,term,examType,marks,errors");
   }, 15000);

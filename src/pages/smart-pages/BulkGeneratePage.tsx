@@ -48,7 +48,7 @@ export function BulkGeneratePage() {
 
   const records = collection?.records ?? [];
 
-  if (loading) return <div className="p-8 text-center text-sm text-slate-500">Loadingâ€¦</div>;
+  if (loading) return <div className="p-8 text-center text-sm text-slate-500">Loading?</div>;
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-8">
@@ -57,7 +57,7 @@ export function BulkGeneratePage() {
           onClick={() => navigate(`/collections/${id}`)}
           className="text-sm text-slate-400 hover:text-slate-700"
         >
-          â† {collection?.name ?? "Collection"}
+          ? {collection?.name ?? "Collection"}
         </button>
         <span className="text-slate-200">/</span>
         <h1 className="text-xl font-black text-slate-900">Generate Documents</h1>
@@ -84,7 +84,7 @@ export function BulkGeneratePage() {
           value={intent}
           onChange={(e) => setIntent(e.target.value)}
           rows={4}
-          placeholder="Describe the document you want to generate for each recordâ€¦"
+          placeholder="Describe the document you want to generate for each record?"
           className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm leading-relaxed focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
         />
 
@@ -96,7 +96,7 @@ export function BulkGeneratePage() {
               onClick={() => setIntent(s)}
               className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs text-slate-600 hover:bg-blue-50 hover:border-blue-200 hover:text-blue-700 transition-colors"
             >
-              {s.length > 60 ? s.slice(0, 58) + "â€¦" : s}
+              {s.length > 60 ? s.slice(0, 58) + "?" : s}
             </button>
           ))}
         </div>
@@ -107,7 +107,7 @@ export function BulkGeneratePage() {
             disabled={submitting || !intent.trim() || records.length === 0}
             className="flex-1 rounded-xl bg-blue-600 py-3 text-sm font-bold text-white hover:bg-blue-700 disabled:opacity-50"
           >
-            {submitting ? "Startingâ€¦" : `Generate ${records.length} Document${records.length !== 1 ? "s" : ""}`}
+            {submitting ? "Starting?" : `Generate ${records.length} Document${records.length !== 1 ? "s" : ""}`}
           </button>
           <button
             type="button"

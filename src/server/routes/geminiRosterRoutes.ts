@@ -42,7 +42,7 @@ router.post("/test-gemini-roster", requireInternalKey, upload.single("image"), a
         const parsed: unknown = JSON.parse(body.knownTeachers);
         if (Array.isArray(parsed)) knownTeachers.push(...(parsed as string[]));
       } catch {
-        // ignore malformed JSON â€” proceed without known teachers
+        // ignore malformed JSON ? proceed without known teachers
       }
     }
 

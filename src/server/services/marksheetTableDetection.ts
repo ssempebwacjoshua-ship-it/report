@@ -40,9 +40,9 @@ export type ColumnBoundaries = {
   tableRight: number;
 };
 
-// â”€â”€ Constants â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Constants ──────────────────────────────────────────────────────────────────
 
-// A row is a horizontal table border if â‰¥35% of its width is dark.
+// A row is a horizontal table border if ≥35% of its width is dark.
 const DARK_THRESHOLD = 100;
 const H_LINE_FRAC = 0.35;
 // Search only between 18% and 92% of page height.
@@ -66,20 +66,20 @@ const SPLIT_VERT_LINE_FRAC = 0.40;
 /**
  * Fixed-pixel crop padding constants (for DETECTED geometry only).
  *
- * CELL_H_PAD   â€“ horizontal inset from the detected column boundary into the cell (px).
- * CELL_V_PAD   â€“ vertical inset from the detected row-line centre into the cell (px).
+ * CELL_H_PAD   – horizontal inset from the detected column boundary into the cell (px).
+ * CELL_V_PAD   – vertical inset from the detected row-line centre into the cell (px).
  *               Must clear the border half-width + JPEG ringing (~8 px each = 14 px total);
  *               15 px gives 1 px of clear margin at 600 dpi.
- * ZONE_DIV_PAD â€“ padding from an internal split-zone divider centre to the zone crop edge.
+ * ZONE_DIV_PAD – padding from an internal split-zone divider centre to the zone crop edge.
  *
- * FALLBACK_H_PAD / FALLBACK_V_PAD â€“ used when method="fallback" (no detected borders to clear).
- * MIN_CROP_W / MIN_CROP_H â€“ absolute minimums enforced regardless of row size.
+ * FALLBACK_H_PAD / FALLBACK_V_PAD – used when method="fallback" (no detected borders to clear).
+ * MIN_CROP_W / MIN_CROP_H – absolute minimums enforced regardless of row size.
  */
 export const CELL_H_PAD = 8;
 export const CELL_V_PAD = 15;
 export const ZONE_DIV_PAD = 8;
 
-// Fallback pads are small â€” no printed border to clear in estimated geometry.
+// Fallback pads are small ? no printed border to clear in estimated geometry.
 const FALLBACK_H_PAD = 2;
 const FALLBACK_V_PAD = 2;
 
@@ -90,15 +90,15 @@ export const MIN_CROP_H = 18;
 /**
  * Minimum row-band height (ORIGINAL image px) for a detected row to be trusted.
  *
- * On high-resolution scans (e.g. 5100Ã—7013) a real marksheet row is ~150â€“200px
+ * On high-resolution scans (e.g. 5100×7013) a real marksheet row is ~150–200px
  * tall. When the horizontal-line detector locks onto closely-spaced printed
- * borders it can emit rows only ~14â€“18px tall â€” far too short to contain a
+ * borders it can emit rows only ~14–18px tall ? far too short to contain a
  * handwritten mark. Anything below this threshold is treated as border noise and
  * the row band is reconstructed from the overall table-body height instead.
  */
 export const MIN_ROW_BAND_H = 40;
 
-// â”€â”€ Fallback geometry â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Fallback geometry ──────────────────────────────────────────────────────────
 
 const CALIBRATED_BOUNDARY_FRACS = {
   noRight: 0.058,
@@ -183,10 +183,10 @@ function buildFallback(imgW: number, imgH: number, warnings: string[], rosterCou
   };
 }
 
-// â”€â”€ Horizontal line detection â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Horizontal line detection ──────────────────────────────────────────────────
 
 /**
- * Group consecutive "dark rows" (rows where â‰¥35% of pixels are dark) into
+ * Group consecutive "dark rows" (rows where ≥35% of pixels are dark) into
  * line events. Returns sorted Y positions (centre of each dark group).
  */
 type HorizontalLineEvent = { y: number; start: number; end: number };
@@ -238,7 +238,7 @@ function findHorizontalLineEvents(
   return lineEvents;
 }
 
-// â”€â”€ Table boundary detection â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Table boundary detection ───────────────────────────────────────────────────
 
 /**
  * Find tableLeft and tableRight using the median of leftmost/rightmost dark
@@ -285,7 +285,7 @@ function findTableHorizExtent(
   return { tableLeft, tableRight };
 }
 
-// â”€â”€ Vertical line detection â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Vertical line detection ────────────────────────────────────────────────────
 
 /**
  * Detect vertical column boundary lines within the marks table.
@@ -347,13 +347,13 @@ function detectVerticalLines(
   return colEvents;
 }
 
-// â”€â”€ Split-zone divider detection â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Split-zone divider detection ───────────────────────────────────────────────
 
 /**
  * Detect the 2 internal vertical divider lines within the split mark column.
  *
  * Unlike column-boundary detection (which searches only the header row to avoid
- * handwriting), these internal dividers ONLY appear in the data rows â€” the header
+ * handwriting), these internal dividers ONLY appear in the data rows ? the header
  * cell is a single merged "Split Mark Entry" cell with no sub-dividers.
  *
  * Returns sorted x positions of internal dividers (excluding outer column borders).
@@ -413,7 +413,7 @@ function detectSplitZoneDividers(
     .sort((a, b) => a - b);
 }
 
-// â”€â”€ Column position derivation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Column position derivation ─────────────────────────────────────────────────
 
 type ColDef = { x: number; w: number };
 
@@ -562,7 +562,7 @@ function deriveColumnPositions(
   };
 }
 
-// â”€â”€ Public API â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Public API ─────────────────────────────────────────────────────────────────
 
 export async function detectMarksheetTable(
   buffer: Buffer,
@@ -589,7 +589,7 @@ export async function detectMarksheetTable(
 
   if (lineEvents.length < 3) {
     warnings.push(
-      `Only ${lineEvents.length} horizontal line event(s) detected (need â‰¥3). Using fraction-based geometry.`,
+      `Only ${lineEvents.length} horizontal line event(s) detected (need ≥3). Using fraction-based geometry.`,
     );
     return buildFallback(imgW, imgH, warnings, rosterCount);
   }
@@ -704,7 +704,7 @@ export async function detectMarksheetTable(
   };
 }
 
-// â”€â”€ Final crop rect helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Final crop rect helpers ────────────────────────────────────────────────────
 
 /**
  * Build a crop rectangle from absolute left/right/top/bottom cell boundaries,
@@ -715,7 +715,7 @@ export async function detectMarksheetTable(
  * JPEG ringing (empirically ~15 px total at 600 dpi).
  *
  * Padding is automatically reduced if the raw cell is smaller than the minimum
- * crop dimensions, so we never produce a crop below MIN_CROP_W Ã— MIN_CROP_H.
+ * crop dimensions, so we never produce a crop below MIN_CROP_W × MIN_CROP_H.
  * The crop is never expanded beyond the supplied cell boundaries.
  */
 export function finalCropRect(
@@ -742,7 +742,7 @@ export function finalCropRect(
   return { x, y, w, h };
 }
 
-// â”€â”€ Row-band resolution â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Row-band resolution ──────────────────────────────────────────────────────
 
 export type RowBand = { top: number; bottom: number; height: number; reconstructed: boolean };
 
@@ -756,7 +756,7 @@ export function isCropHeightValid(height: number): boolean {
  *
  * When the detected row height is implausibly small (the detector locked onto a
  * printed border line), the band is reconstructed by dividing the table body
- * evenly across the roster â€” giving a realistic ~150â€“200px band on hi-res scans
+ * evenly across the roster ? giving a realistic ~150–200px band on hi-res scans
  * instead of a 14px border sliver. Also handles rowIndex beyond the detected
  * rows by extrapolating within the table body.
  */
@@ -795,7 +795,7 @@ export function effectiveRowBand(
 }
 
 /**
- * Crop the INNER portion of a row band (vertical 20%â€“80%) to avoid the printed
+ * Crop the INNER portion of a row band (vertical 20%–80%) to avoid the printed
  * top/bottom border lines, and inset horizontally to clear vertical column
  * borders. Targets the handwritten-mark area, not the grid.
  */
@@ -815,8 +815,8 @@ export function innerRowBandRect(top: number, bottom: number, colX: number, colW
 /**
  * Compute the crop rect for the Written Mark cell of a given row.
  *
- * For detected (or reconstructed) geometry the crop targets the inner 20â€“80% of
- * the row band, avoiding the printed borders that previously produced 14â€“18px
+ * For detected (or reconstructed) geometry the crop targets the inner 20–80% of
+ * the row band, avoiding the printed borders that previously produced 14–18px
  * border-only crops. For small estimated geometry it falls back to the adaptive
  * finalCropRect padding so minimum-size guards still hold.
  */
@@ -879,7 +879,7 @@ export function computeSplitZoneRects(
 
   const splitLeft = sc.x;
   const splitRight = sc.x + sc.w;
-  // Use the inner 20â€“80% of the (possibly reconstructed) row band so the printed
+  // Use the inner 20–80% of the (possibly reconstructed) row band so the printed
   // top/bottom row borders are excluded from the split-zone crops.
   const band = effectiveRowBand(detection, rowIndex, imgH);
   const useInner = band.height >= MIN_ROW_BAND_H;
@@ -895,7 +895,7 @@ export function computeSplitZoneRects(
   let zones: Array<[number, number, "outer-left" | "outer-right" | "inner", "outer-left" | "outer-right" | "inner"]>;
 
   if (dividers.length >= 2) {
-    // Use detected dividers â€” each internal boundary uses ZONE_DIV_PAD,
+    // Use detected dividers ? each internal boundary uses ZONE_DIV_PAD,
     // outer boundaries use CELL_H_PAD.
     zones = [
       [splitLeft, dividers[0]!, "outer-left", "inner"],
@@ -963,7 +963,7 @@ export function computeSplitFullRect(
   return finalCropRect(sc.x, sc.x + sc.w, band.top, band.bottom, hPad, vPad);
 }
 
-// â”€â”€ Fallback crop candidates â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Fallback crop candidates ─────────────────────────────────────────────────
 //
 // When the primary (computed) crop lands on a row border, a blank cell, or a
 // horizontal grid line instead of the handwritten mark, these helpers generate

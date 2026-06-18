@@ -499,7 +499,7 @@ describe("student import enrollment correctness", () => {
 
   it("re-import (upsert) corrects enrollment classId when student has wrong class from prior import", async () => {
     // Simulate: student exists in DB with enrollment in the WRONG class (s1b instead of s1a).
-    // This is the exact bug: student.upsert â†’ classEnrollment.upsert must update classId.
+    // This is the exact bug: student.upsert ? classEnrollment.upsert must update classId.
     const { db, state } = makeFakeDb(0);
     // Manually plant an existing student + wrong enrollment
     state.students.push({ id: "st-misplaced", schoolId: "school-1", admissionNumber: "NEW-WRONG", firstName: "Wrong", lastName: "Class", isActive: true });
@@ -510,9 +510,9 @@ describe("student import enrollment correctness", () => {
     const job = await createStudentImportJob(db, "SCU-PREVIEW", rows, "CREATE_AND_UPDATE_EXISTING");
     const batch = await waitForJob(state, job.jobId);
     const summary = JSON.parse(batch.summary!);
-    // Student already existed â€” counted as a name update success
+    // Student already existed ? counted as a name update success
     expect(summary.successCount).toBe(1);
-    // Enrollment should NOT be updated by the update path (only name changes) â€” this is existing behaviour.
+    // Enrollment should NOT be updated by the update path (only name changes) ? this is existing behaviour.
     // The upsert path applies only to new creates. Verify enrollment is still present.
     const enrollment = state.enrollments.find((e) => e.studentId === "st-misplaced");
     expect(enrollment).toBeDefined();
@@ -541,7 +541,7 @@ describe("student import enrollment correctness", () => {
     const enrollmentCountAfterFirst = state.enrollments.length;
     expect(enrollmentCountAfterFirst).toBe(3);
 
-    // Second import with same rows (students now exist â†’ duplicates in append mode)
+    // Second import with same rows (students now exist ? duplicates in append mode)
     const job2 = await createStudentImportJob(db, "SCU-PREVIEW", rows);
     const batch2 = await waitForJob(state, job2.jobId);
     const summary2 = JSON.parse(batch2.summary!);
@@ -607,7 +607,7 @@ describe("fuzzy header parsing", () => {
   });
 
   it("parseStudentsCsv does not throw on CSV with extra trailing columns (relax_column_count)", () => {
-    // Some users export CSVs that have trailing empty commas â€” must not 500.
+    // Some users export CSVs that have trailing empty commas ? must not 500.
     const csv = "admissionNumber,fullName,gender,class,stream,guardianName,guardianPhone,guardianEmail,status\nADM-001,Jane Doe,Female,Senior 1 A,A,Mary,0700000001,jane@example.com,ACTIVE,EXTRA,EXTRA2\n";
     expect(() => parseStudentsCsv(csv)).not.toThrow();
     const rows = parseStudentsCsv(csv);

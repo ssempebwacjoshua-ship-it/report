@@ -1,7 +1,7 @@
 ﻿import { describe, expect, it, afterEach } from "vitest";
 import { generateStudentCommentDraft, MAX_COMMENT_LENGTH } from "../../server/services/reportCommentService";
 
-// â”€â”€ Test fixtures â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Test fixtures ─────────────────────────────────────────────────────────────
 
 const context = {
   className: "Senior 1",
@@ -30,9 +30,9 @@ afterEach(() => {
   process.env.GEMINI_API_KEY = savedKey;
 });
 
-// â”€â”€ CONTEXT_INCOMPLETE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── CONTEXT_INCOMPLETE ────────────────────────────────────────────────────────
 
-describe("reportCommentService â€” CONTEXT_INCOMPLETE", () => {
+describe("reportCommentService ? CONTEXT_INCOMPLETE", () => {
   it("returns CONTEXT_INCOMPLETE when student has missing marks (no Gemini call)", async () => {
     delete process.env.GEMINI_API_KEY; // ensure no accidental Gemini calls
     const result = await generateStudentCommentDraft(
@@ -46,9 +46,9 @@ describe("reportCommentService â€” CONTEXT_INCOMPLETE", () => {
   });
 });
 
-// â”€â”€ UNAVAILABLE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── UNAVAILABLE ───────────────────────────────────────────────────────────────
 
-describe("reportCommentService â€” UNAVAILABLE fallback", () => {
+describe("reportCommentService ? UNAVAILABLE fallback", () => {
   it("returns UNAVAILABLE when GEMINI_API_KEY is not set", async () => {
     delete process.env.GEMINI_API_KEY;
     const result = await generateStudentCommentDraft(makeStudent(), context);
@@ -79,9 +79,9 @@ describe("reportCommentService â€” UNAVAILABLE fallback", () => {
   });
 });
 
-// â”€â”€ DRAFT â€” comment length enforcement â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── DRAFT ? comment length enforcement ───────────────────────────────────────
 
-describe("reportCommentService â€” DRAFT and max length", () => {
+describe("reportCommentService ? DRAFT and max length", () => {
   it("returns DRAFT status with the comment when Gemini succeeds", async () => {
     process.env.GEMINI_API_KEY = "fake-key-for-test";
     const mockGemini = async (_prompt: string) =>
@@ -129,7 +129,7 @@ describe("reportCommentService â€” DRAFT and max length", () => {
       capturingGemini,
     );
 
-    // Prompt must contain only what we passed â€” no fabricated data
+    // Prompt must contain only what we passed ? no fabricated data
     expect(capturedPrompt).toContain("Bob Cee");
     expect(capturedPrompt).toContain("P3");
     expect(capturedPrompt).toContain("Term 2");

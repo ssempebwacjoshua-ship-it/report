@@ -55,7 +55,7 @@ const extractedKnowledge = {
   rawText: "Hello world",
 };
 
-describe("DocumentEditorPage â€” Smart Pages flow", () => {
+describe("DocumentEditorPage ? Smart Pages flow", () => {
   beforeEach(() => {
     vi.resetAllMocks();
     documentIntelligenceMocks.getVersionHistory.mockResolvedValue([]);
