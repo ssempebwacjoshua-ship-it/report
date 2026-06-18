@@ -34,6 +34,7 @@ import { AnalyticsPage } from "../pages/smart-pages/AnalyticsPage";
 import { NotificationsPage } from "../pages/smart-pages/NotificationsPage";
 import { PreferencesPage } from "../pages/smart-pages/PreferencesPage";
 import { SearchPage } from "../pages/smart-pages/SearchPage";
+import { RouteErrorPage } from "../pages/RouteErrorPage";
 
 export const router = createBrowserRouter([
   // Public routes ? no AppShell, no auth
@@ -50,6 +51,7 @@ export const router = createBrowserRouter([
   {
     path: "/lawyers",
     element: <LawyerShell />,
+    errorElement: <RouteErrorPage />,
     children: [
       { index: true, element: <LawyerDashboardPage /> },
       { path: "dashboard", element: <LawyerDashboardPage /> },
@@ -64,6 +66,7 @@ export const router = createBrowserRouter([
   {
     path: "/owner",
     element: <OwnerShell />,
+    errorElement: <RouteErrorPage />,
     children: [
       { index: true, element: <OwnerDashboardPage /> },
       { path: "schools", element: <OwnerSchoolsPage /> },
@@ -75,6 +78,7 @@ export const router = createBrowserRouter([
   {
     path: "/",
     element: <AppShell />,
+    errorElement: <RouteErrorPage />,
     children: [
       { index: true, element: <Navigate to="/dashboard" replace /> },
       { path: "dashboard", element: <DashboardPage /> },

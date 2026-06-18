@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Navigate, Outlet, useLocation, useNavigate } from "react-router-dom";
-import { DocumentRegular, NavigationRegular, PersonRegular, SettingsRegular, SignOutRegular } from "@fluentui/react-icons";
+import { DocumentRegular, HomeRegular, NavigationRegular, PersonRegular, SettingsRegular, SignOutRegular } from "@fluentui/react-icons";
 import { useAuth } from "../../contexts/AuthContext";
 
 const navItems = [
