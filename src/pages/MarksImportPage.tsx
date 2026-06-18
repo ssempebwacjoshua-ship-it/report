@@ -326,7 +326,7 @@ export function MarksImportPage() {
           <p className="text-xs font-bold uppercase tracking-wide text-blue-600">Marks Import</p>
           <h1 className="text-xl font-bold tracking-tight text-slate-950 sm:text-2xl">Upload and verify marks</h1>
           <p className="mt-1 text-sm text-slate-500">
-            Digital CSV/XLS import or scanned handwritten marksheet ? choose your import mode below.
+            Digital CSV/XLS import or scanned handwritten marksheet - choose your import mode below.
           </p>
         </div>
         <a className="btn btn-primary" href="/reports">

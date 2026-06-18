@@ -154,8 +154,8 @@ describe("DashboardPage ? state handling", () => {
 
     renderPage();
 
-    // KPI values show ? while loading
-    expect(screen.getAllByText("?").length).toBeGreaterThan(0);
+    // KPI values show dashes while loading
+    expect(screen.getAllByText("-").length).toBeGreaterThan(0);
   });
 
   it("shows error message in hero when API fails", async () => {

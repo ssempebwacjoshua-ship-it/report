@@ -37,7 +37,7 @@ function FieldRow({
           uncertain ? "italic text-amber-700" : "text-slate-900"
         }`}
       >
-        {value || <span className="text-slate-300">?</span>}
+        {value || <span className="text-slate-300">-</span>}
       </span>
       {uncertain && (
         <span className="rounded-full bg-amber-100 px-1.5 py-px text-xs font-semibold text-amber-700">

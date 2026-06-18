@@ -2,9 +2,9 @@
 import type { MarksheetStudent } from "../../shared/types/marksheets";
 
 const EXAM_LABELS: Record<string, string> = {
-  BOT: "BOT ? Beginning of Term",
-  MOT: "MOT ? Mid Term",
-  EOT: "EOT ? End of Term",
+  BOT: "BOT - Beginning of Term",
+  MOT: "MOT - Mid Term",
+  EOT: "EOT - End of Term",
 };
 
 // Rows that fit comfortably on first page (full header) and continuation pages (compact header)
@@ -79,7 +79,7 @@ function formatDate(date: Date): string {
   return date.toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" });
 }
 
-// ── Table header ? repeated on every page
+// ── Table header - repeated on every page
 function TableHead() {
   return (
     <thead>
@@ -298,7 +298,7 @@ export function PrintableMarksheet({
                     <span className="marksheet-footer-internal-id">{marksheetId}</span>
                   ) : null}
                   <span>
-                    {totalPages > 1 ? `Page ${pageIndex + 1} of ${totalPages} ? ` : ""}
+                    {totalPages > 1 ? `Page ${pageIndex + 1} of ${totalPages} - ` : ""}
                     {todayStr}
                   </span>
                 </span>

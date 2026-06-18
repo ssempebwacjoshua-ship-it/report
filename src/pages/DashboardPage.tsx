@@ -97,10 +97,10 @@ export function DashboardPage() {
   const issuedCount = stats?.reportsIssuedCount ?? 0;
 
   const heroDescription = statsLoading
-    ? "Loading live stats?"
+    ? "Loading live stats..."
     : statsError
       ? "Could not load live stats. Check your connection."
-      : `${fmt(issuedCount)} reports issued ? ${fmt(pendingCount)} marks uploads pending review`;
+      : `${fmt(issuedCount)} reports issued - ${fmt(pendingCount)} marks uploads pending review`;
 
   return (
     <main className="grid gap-3">
@@ -164,16 +164,16 @@ export function DashboardPage() {
       <section className="grid grid-cols-2 gap-3 sm:grid-cols-2 md:gap-4 xl:grid-cols-4">
         <StatCard
           label="Enrolled Students"
-          value={statsLoading ? "?" : fmt(stats?.enrolledStudents ?? 0)}
+          value={statsLoading ? "-" : fmt(stats?.enrolledStudents ?? 0)}
           note="Active enrollment this term"
-          trend={statsLoading ? "?" : activeTerm ? "Live" : "No term"}
+          trend={statsLoading ? "-" : activeTerm ? "Live" : "No term"}
           tone="green"
           icon="students"
           href="/students"
         />
         <StatCard
           label="Marks Pending Review"
-          value={statsLoading ? "?" : fmt(pendingCount)}
+          value={statsLoading ? "-" : fmt(pendingCount)}
           note="Uploaded but not yet finalized"
           trend={pendingCount > 0 ? "Action" : "Clear"}
           tone="yellow"
@@ -182,7 +182,7 @@ export function DashboardPage() {
         />
         <StatCard
           label="Reports Issued"
-          value={statsLoading ? "?" : fmt(issuedCount)}
+          value={statsLoading ? "-" : fmt(issuedCount)}
           note="Active issued reports"
           trend={issuedCount > 0 ? "Live" : "None"}
           tone="purple"
@@ -191,7 +191,7 @@ export function DashboardPage() {
         />
         <StatCard
           label="Reports Released"
-          value={statsLoading ? "?" : fmt(stats?.reportsReleasedCount ?? 0)}
+          value={statsLoading ? "-" : fmt(stats?.reportsReleasedCount ?? 0)}
           note="Sent to parents this term"
           trend={stats?.reportsReleasedCount ? "Sent" : "None"}
           tone="blue"
@@ -233,7 +233,7 @@ export function DashboardPage() {
                 </div>
                 <p className="mt-2 text-xs font-bold text-slate-950">{stage.label}</p>
                 <p className="mt-0.5 text-lg font-bold tabular-nums text-slate-950">
-                  {statsLoading ? "?" : fmt(value)}
+                  {statsLoading ? "-" : fmt(value)}
                 </p>
                 <p className="mt-0.5 text-xs text-slate-500">{stage.note}</p>
               </Link>
@@ -257,7 +257,7 @@ export function DashboardPage() {
           </div>
           <div className="mt-3 overflow-x-auto">
             {statsLoading ? (
-              <p className="py-6 text-center text-xs text-slate-400">Loading?</p>
+              <p className="py-6 text-center text-xs text-slate-400">Loading...</p>
             ) : stats?.recentBatches.length === 0 ? (
               <div className="rounded-xl border border-dashed border-slate-200 py-8 text-center">
                 <p className="text-sm font-semibold text-slate-500">No uploads yet</p>
@@ -265,7 +265,7 @@ export function DashboardPage() {
                   to="/imports/marks"
                   className="mt-2 inline-block text-xs font-bold text-blue-600 hover:underline"
                 >
-                  Import marks now ?
+                  Import marks now
                 </Link>
               </div>
             ) : (
@@ -293,10 +293,10 @@ export function DashboardPage() {
                   {stats?.recentBatches.map((batch) => (
                     <tr key={batch.id} className="hover:bg-blue-50/50">
                       <td className="px-2.5 py-2 font-mono text-xs font-bold text-slate-700">
-                        {batch.id.slice(0, 8)}?
+                        {batch.id.slice(0, 8)}...
                       </td>
                       <td className="px-2.5 py-2 text-sm text-slate-700">
-                        {batch.rowCount > 0 ? batch.rowCount : "?"}
+                        {batch.rowCount > 0 ? batch.rowCount : "-"}
                       </td>
                       <td className="px-2.5 py-2 text-sm text-slate-600">
                         {fmtDate(batch.uploadedAt)}
@@ -436,7 +436,7 @@ export function DashboardPage() {
           </div>
           <div className="mt-3 rounded-xl bg-gradient-to-br from-blue-50 to-emerald-50 p-3">
             {statsLoading ? (
-              <p className="text-xs text-slate-400">Loading?</p>
+              <p className="text-xs text-slate-400">Loading...</p>
             ) : (
               <p className="text-xs font-semibold text-slate-700">
                 {pendingCount > 0
@@ -479,4 +479,5 @@ export function DashboardPage() {
     </main>
   );
 }
+
 

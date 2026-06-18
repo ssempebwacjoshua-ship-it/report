@@ -157,7 +157,7 @@ export function DocumentCleanerPage() {
             </p>
           </div>
 
-          {/* Smart Pages card ? always visible */}
+          {/* Smart Pages card - always visible */}
           <div className={`shrink-0 rounded-lg border px-4 py-3 text-sm ${
             spStatus === "error" ? "border-red-200 bg-red-50" :
             spStatus === "ok" ? "border-blue-200 bg-blue-50" :
@@ -166,7 +166,7 @@ export function DocumentCleanerPage() {
             {spStatus === "loading" && (
               <>
                 <p className="font-semibold text-gray-600">Smart Pages</p>
-                <p className="mt-0.5 text-gray-400">Loading Smart Pages?</p>
+                <p className="mt-0.5 text-gray-400">Loading Smart Pages...</p>
               </>
             )}
             {spStatus === "no-settings" && (
@@ -225,7 +225,7 @@ export function DocumentCleanerPage() {
           </div>
         )}
 
-        {/* Upload area ? before upload */}
+        {/* Upload area - before upload */}
         {!ready && (
           <>
             {/* Mode selector */}
@@ -278,7 +278,7 @@ export function DocumentCleanerPage() {
                 onChange={handleFileInputChange}
               />
               <p className="mb-3 text-sm font-medium text-gray-700">
-                {uploading ? "Extracting text from your document?" : "Drag & drop a file here"}
+                {uploading ? "Extracting text from your document..." : "Drag & drop a file here"}
               </p>
               {!uploading && (
                 <button
@@ -289,7 +289,7 @@ export function DocumentCleanerPage() {
                   Browse files
                 </button>
               )}
-              <p className="mt-3 text-xs text-gray-400">PNG, JPG, WEBP, or PDF ? max 20 MB</p>
+              <p className="mt-3 text-xs text-gray-400">PNG, JPG, WEBP, or PDF - max 20 MB</p>
               {schoolCode && remainingPages !== null && remainingPages !== Infinity && (
                 <p className="mt-2 text-xs text-gray-500">
                   This will use <span className="font-medium">1 Smart Page</span>
@@ -459,7 +459,7 @@ export function DocumentCleanerPage() {
                 {(doc.cellCorrections?.length ?? 0) > 0 && (
                   <span className="text-amber-700">
                     <span className="font-semibold">{doc.cellCorrections!.length}</span> cell
-                    {doc.cellCorrections!.length !== 1 ? "s" : ""} auto-corrected ? highlighted
+                    {doc.cellCorrections!.length !== 1 ? "s" : ""} auto-corrected - highlighted
                     yellow (corrected) or red (invalid). Review before saving.
                   </span>
                 )}

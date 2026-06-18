@@ -95,7 +95,7 @@ function ActiveSubscriptionView({
             <StatusBadge status={invoice.status} styleMap={INVOICE_STATUS_STYLES} />
           </div>
           <div className="divide-y divide-slate-100">
-            <InfoRow label="Setup Fee ? one-time payment">{formatUgx(invoice.setupFeeUgx)}</InfoRow>
+            <InfoRow label="Setup Fee - one-time payment">{formatUgx(invoice.setupFeeUgx)}</InfoRow>
             <InfoRow label="Yearly Subscription">{formatUgx(invoice.amountUgx)}</InfoRow>
             <InfoRow label="Total">
               <span className="font-bold">{formatUgx(invoice.totalUgx)}</span>
@@ -179,7 +179,7 @@ export function SubscriptionSection() {
             <div key={p.label} className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5">
               <p className="text-sm font-bold text-slate-900">{p.label}</p>
               <p className="text-xs text-slate-500">
-                Setup Fee: {p.setup} ? Annual License: {p.annual}
+                Setup Fee: {p.setup} - Annual License: {p.annual}
               </p>
             </div>
           ))}
