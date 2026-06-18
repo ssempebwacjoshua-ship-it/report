@@ -1,6 +1,7 @@
 import "dotenv/config";
 import { prisma } from "../src/server/db/prisma";
 import { hashPassword } from "../src/server/services/authService";
+import { O_LEVEL_SUBJECTS } from "../src/shared/constants/subjects";
 
 const SCHOOL_CODE = process.env.SCHOOL_CODE ?? "SCU-PREVIEW";
 const SCHOOL_NAME = process.env.SCHOOL_NAME ?? "School Connect Preview";
@@ -18,6 +19,14 @@ async function seedAdmin() {
     console.log(`Created school: ${school.name} (${school.code})`);
   } else {
     console.log(`School found: ${school.name} (${school.code})`);
+  }
+
+  for (const [index, subject] of O_LEVEL_SUBJECTS.entries()) {
+    await prisma.subject.upsert({
+      where: { schoolId_code: { schoolId: school.id, code: subject.code } },
+      update: { name: subject.name, sortOrder: index + 1, isActive: true },
+      create: { schoolId: school.id, code: subject.code, name: subject.name, sortOrder: index + 1, isActive: true },
+    });
   }
 
   const passwordHash = await hashPassword(ADMIN_PASSWORD);
