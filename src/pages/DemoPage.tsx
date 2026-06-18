@@ -394,7 +394,7 @@ export function DemoPage() {
 
                     <div className="absolute bottom-3 left-3 right-3 rounded-2xl bg-white/90 px-4 py-3 shadow-sm backdrop-blur">
                       <p className="text-sm font-black text-slate-950">Click to watch full system walkthrough</p>
-                      <p className="mt-0.5 text-xs font-semibold text-slate-600">10-minute demo ? Report Lab + Smart Pages</p>
+                      <p className="mt-0.5 text-xs font-semibold text-slate-600">10-minute demo - Report Lab + Smart Pages</p>
                     </div>
                   </div>
                 </button>
@@ -460,7 +460,7 @@ export function DemoPage() {
               <p className="mt-2 text-sm leading-6 text-slate-600">
                 Upload a handwritten note, scanned letter, form, table, or school document. Smart
                 Pages reads it, cleans it, formats it, and helps you produce a polished PDF you can
-                print or share - without typing it all again.
+                print or share without typing it all again.
               </p>
 
               <div className="mt-3.5 flex flex-col gap-3 sm:flex-row">
@@ -571,7 +571,7 @@ export function DemoPage() {
             <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
               <div>
                 <p className="text-xs font-black uppercase tracking-[0.18em] text-blue-700">FULL SYSTEM WALKTHROUGH</p>
-                <p className="text-sm font-semibold text-slate-600">10-minute demo ? Report Lab + Smart Pages</p>
+                <p className="text-sm font-semibold text-slate-600">10-minute demo - Report Lab + Smart Pages</p>
               </div>
 
               <button

@@ -27,9 +27,9 @@ describe("PricingPage", () => {
 
     expect(screen.getByText("Simple packages for smart schools.")).toBeInTheDocument();
     expect(screen.getAllByText("Recommended")).toHaveLength(1);
-    expect(screen.getByRole("button", { name: /request report lab pricing/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /request smart pages pricing/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /request bundle pricing/i })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /request report lab pricing/i })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /request smart pages pricing/i })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /request bundle pricing/i })).toBeInTheDocument();
     expect(screen.getAllByRole("button", { name: /^sign in$/i })).toHaveLength(1);
 
     expect(screen.getByRole("button", { name: /^pricing$/i })).toHaveAttribute("aria-current", "page");
