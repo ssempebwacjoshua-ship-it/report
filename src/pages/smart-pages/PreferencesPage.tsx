@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+﻿import { useEffect, useState } from "react";
 import { listPreferences, savePreference, type CreatorPreference } from "../../client/documentOsClient";
 
 const DEFAULT_KEYS = ["primaryColor", "language", "tone", "preferredLayout", "paperSize"];
@@ -45,3 +45,4 @@ export function PreferencesPage() {
     </main>
   );
 }
+

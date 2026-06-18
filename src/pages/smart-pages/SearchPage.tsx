@@ -1,4 +1,4 @@
-import { useState } from "react";
+﻿import { useState } from "react";
 import { reindexDocumentOs, searchDocumentOs, type SearchResult } from "../../client/documentOsClient";
 
 export function SearchPage() {
@@ -44,3 +44,4 @@ export function SearchPage() {
     </main>
   );
 }
+

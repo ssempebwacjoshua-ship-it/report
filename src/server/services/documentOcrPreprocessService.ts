@@ -1,4 +1,4 @@
-import sharp from "sharp";
+﻿import sharp from "sharp";
 
 export type OcrQualityNote = {
   code: string;
@@ -167,3 +167,4 @@ async function analyzeImageQuality(buffer: Buffer): Promise<OcrQualityNote[]> {
   }
   return notes;
 }
+

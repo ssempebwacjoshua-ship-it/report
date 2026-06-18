@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+﻿import { describe, expect, it } from "vitest";
 import {
   createInMemorySmartPageStore,
   createSmartPagesService,
@@ -24,7 +24,7 @@ function starterPlan(overrides: Partial<SmartPagePlan> = {}): SmartPagePlan {
   };
 }
 
-// ── 1. estimatePageCount ──────────────────────────────────────────────────────
+// â”€â”€ 1. estimatePageCount â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 describe("estimatePageCount", () => {
   it("returns 1 for image files", () => {
@@ -38,7 +38,7 @@ describe("estimatePageCount", () => {
   });
 });
 
-// ── 2. getDefaultExtractionMode ────────────────────────────────────────────────
+// â”€â”€ 2. getDefaultExtractionMode â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 describe("getDefaultExtractionMode", () => {
   it("returns balanced as the default mode", () => {
@@ -46,7 +46,7 @@ describe("getDefaultExtractionMode", () => {
   });
 });
 
-// ── 3–5. canExtract ───────────────────────────────────────────────────────────
+// â”€â”€ 3â€“5. canExtract â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 describe("canExtract", () => {
   it("allows extraction when pages are available", async () => {
@@ -75,7 +75,7 @@ describe("canExtract", () => {
   });
 });
 
-// ── 6. deductPages ────────────────────────────────────────────────────────────
+// â”€â”€ 6. deductPages â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 describe("deductPages", () => {
   it("increases usedPages by pageCount", async () => {
@@ -118,7 +118,7 @@ describe("deductPages", () => {
   });
 });
 
-// ── 7. isDuplicateJob ────────────────────────────────────────────────────────
+// â”€â”€ 7. isDuplicateJob â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 describe("isDuplicateJob", () => {
   it("returns true when same fileHash already has a CHARGED entry", async () => {
@@ -172,7 +172,7 @@ describe("isDuplicateJob", () => {
   });
 });
 
-// ── 8. addTopUp ──────────────────────────────────────────────────────────────
+// â”€â”€ 8. addTopUp â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 describe("addTopUp", () => {
   it("increases topUpPages by bundle size and remaining pages accordingly", async () => {
@@ -191,7 +191,7 @@ describe("addTopUp", () => {
   });
 });
 
-// ── 9–10. isHighAccuracyAllowed ───────────────────────────────────────────────
+// â”€â”€ 9â€“10. isHighAccuracyAllowed â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 describe("isHighAccuracyAllowed", () => {
   it("returns false for STARTER plan", async () => {
@@ -229,13 +229,13 @@ describe("isHighAccuracyAllowed", () => {
   });
 });
 
-// ── 11. Provider failure does not charge pages ────────────────────────────────
+// â”€â”€ 11. Provider failure does not charge pages â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 describe("provider failure handling", () => {
   it("recording a FAILED ledger entry does not increment usedPages", async () => {
     const store = createInMemorySmartPageStore();
     await store.savePlan(starterPlan({ usedPages: 10 }));
-    // Record failure directly — route would call this when extraction throws
+    // Record failure directly â€” route would call this when extraction throws
     await store.addLedgerEntry({
       schoolId: "school-1",
       jobId: "job-fail",
@@ -250,6 +250,7 @@ describe("provider failure handling", () => {
     });
     const svc = createSmartPagesService(store);
     const summary = await svc.getSummary("school-1");
-    expect(summary.usedPages).toBe(10); // unchanged — FAILED entries don't charge
+    expect(summary.usedPages).toBe(10); // unchanged â€” FAILED entries don't charge
   });
 });
+

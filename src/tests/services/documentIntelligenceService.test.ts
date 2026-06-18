@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+﻿import { afterEach, describe, expect, it, vi } from "vitest";
 
 const mockState = vi.hoisted(() => {
   const generateDocumentSchema = vi.fn();
@@ -237,3 +237,4 @@ describe("documentIntelligenceService", () => {
     consoleError.mockRestore();
   });
 });
+

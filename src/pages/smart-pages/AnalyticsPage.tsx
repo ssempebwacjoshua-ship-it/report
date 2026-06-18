@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+﻿import { useEffect, useState } from "react";
 import { getAnalytics, type AnalyticsSummary } from "../../client/documentOsClient";
 
 export function AnalyticsPage() {
@@ -62,3 +62,4 @@ function AnalyticsList({ title, rows, valueKey }: { title: string; rows: Array<R
     </div>
   );
 }
+

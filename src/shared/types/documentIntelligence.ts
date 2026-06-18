@@ -1,8 +1,8 @@
-export type CreatorType = "SCHOOL_OPERATOR" | "EXTERNAL";
+﻿export type CreatorType = "SCHOOL_OPERATOR" | "EXTERNAL";
 
 export type DocumentStatus = "DRAFT" | "PUBLISHED" | "ARCHIVED";
 
-// ── Component system ───────────────────────────────────────────────────────────
+// â”€â”€ Component system â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export type ComponentType =
   | "header"
@@ -68,7 +68,7 @@ export interface ComponentNode {
   props: Record<string, unknown>;
 }
 
-// ── Document schema ────────────────────────────────────────────────────────────
+// â”€â”€ Document schema â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export interface DocumentTheme {
   primaryColor: string;
@@ -89,7 +89,7 @@ export const DEFAULT_THEME: DocumentTheme = {
   orientation: "PORTRAIT",
 };
 
-// ── Extracted knowledge ────────────────────────────────────────────────────────
+// â”€â”€ Extracted knowledge â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export interface ExtractedSection {
   heading?: string;
@@ -148,7 +148,7 @@ export interface ExtractedKnowledge {
   rawText?: string;
 }
 
-// ── API types ──────────────────────────────────────────────────────────────────
+// â”€â”€ API types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export interface SmartDocumentSummary {
   id: string;
@@ -205,7 +205,7 @@ export interface CreatorProfile {
   name: string;
 }
 
-// ── Chat message model ─────────────────────────────────────────────────────────
+// â”€â”€ Chat message model â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export type ChatRole = "user" | "assistant" | "system";
 
@@ -217,3 +217,4 @@ export interface ChatMessage {
   action?: "upload" | "generate" | "edit" | "publish" | "restore";
   versionId?: string;
 }
+

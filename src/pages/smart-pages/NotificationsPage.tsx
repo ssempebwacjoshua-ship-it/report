@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+﻿import { useEffect, useState } from "react";
 import { listNotifications, markNotificationRead, type NotificationItem } from "../../client/documentOsClient";
 
 export function NotificationsPage() {
@@ -39,3 +39,4 @@ export function NotificationsPage() {
     </main>
   );
 }
+

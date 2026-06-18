@@ -1,4 +1,4 @@
-import type { NextFunction, Request, Response } from "express";
+﻿import type { NextFunction, Request, Response } from "express";
 import { Router } from "express";
 import multer from "multer";
 import { extractMarksWithGemini, pingGemini } from "../services/geminiOcrService";
@@ -104,3 +104,4 @@ router.get("/test-gemini-health", requireInternalKey, async (_req, res) => {
 });
 
 export default router;
+

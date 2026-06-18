@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+﻿import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { DocumentEditorPage } from "../../pages/smart-pages/DocumentEditorPage";
@@ -55,7 +55,7 @@ const extractedKnowledge = {
   rawText: "Hello world",
 };
 
-describe("DocumentEditorPage — Smart Pages flow", () => {
+describe("DocumentEditorPage â€” Smart Pages flow", () => {
   beforeEach(() => {
     vi.resetAllMocks();
     documentIntelligenceMocks.getVersionHistory.mockResolvedValue([]);
@@ -308,3 +308,4 @@ describe("DocumentEditorPage — Smart Pages flow", () => {
     expect(screen.getAllByText("https://example.com/p/tok-1234")).toHaveLength(2);
   });
 });
+

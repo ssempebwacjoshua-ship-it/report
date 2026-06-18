@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+﻿import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate, useParams } from "react-router";
 import { getBulkJobDetail, type BulkJobSummary, type BulkJobOutput } from "../../client/collectionsClient";
 
@@ -62,7 +62,7 @@ export function BulkJobStatusPage() {
 
   const origin = window.location.origin;
 
-  if (loading) return <div className="p-8 text-center text-sm text-slate-500">Loading…</div>;
+  if (loading) return <div className="p-8 text-center text-sm text-slate-500">Loadingâ€¦</div>;
   if (!job) return <div className="p-8 text-center text-sm text-red-500">{error ?? "Job not found."}</div>;
 
   const isActive = job.status === "PENDING" || job.status === "PROCESSING";
@@ -74,7 +74,7 @@ export function BulkJobStatusPage() {
           onClick={() => navigate("/collections")}
           className="text-sm text-slate-400 hover:text-slate-700"
         >
-          ← Collections
+          â† Collections
         </button>
         <span className="text-slate-200">/</span>
         <h1 className="text-xl font-black text-slate-900">Bulk Job</h1>
@@ -176,8 +176,9 @@ export function BulkJobStatusPage() {
       ) : null}
 
       {isActive ? (
-        <p className="mt-6 text-center text-xs text-slate-400">Auto-refreshing every 3 seconds…</p>
+        <p className="mt-6 text-center text-xs text-slate-400">Auto-refreshing every 3 secondsâ€¦</p>
       ) : null}
     </div>
   );
 }
+

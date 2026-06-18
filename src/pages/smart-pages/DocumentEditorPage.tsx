@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+﻿import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   applyPrompt,
@@ -24,7 +24,7 @@ import type {
 import { DEFAULT_THEME } from "../../shared/types/documentIntelligence";
 import { randomUUID } from "../../utils/uuid";
 
-// ── Chat bubble ───────────────────────────────────────────────────────────────
+// â”€â”€ Chat bubble â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function ChatBubble({ msg }: { msg: ChatMessage }) {
   const isUser = msg.role === "user";
@@ -46,7 +46,7 @@ function ChatBubble({ msg }: { msg: ChatMessage }) {
   );
 }
 
-// ── Suggestion chips ───────────────────────────────────────────────────────────
+// â”€â”€ Suggestion chips â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const INITIAL_SUGGESTIONS = [
   "Make it professional",
@@ -233,7 +233,7 @@ function isMissingSchemaError(error: unknown): boolean {
   return error instanceof Error && /generate a schema first/i.test(error.message);
 }
 
-// ── Version history panel ──────────────────────────────────────────────────────
+// â”€â”€ Version history panel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function VersionPanel({
   versions,
@@ -293,7 +293,7 @@ function VersionPanel({
   );
 }
 
-// ── Main editor ────────────────────────────────────────────────────────────────
+// â”€â”€ Main editor â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 type Stage = "empty" | "processing" | "uploaded" | "extractionFailed" | "generating" | "ready";
 type RenderSettings = NonNullable<SmartDocumentDetail["activeVersion"]>["renderSettings"];
@@ -373,7 +373,7 @@ export function DocumentEditorPage() {
         }
         addSystemMessage(
           d.activeVersion
-            ? `Loaded "${d.title}" — ${d.versionCount} version${d.versionCount !== 1 ? "s" : ""}. Keep editing below.`
+            ? `Loaded "${d.title}" â€” ${d.versionCount} version${d.versionCount !== 1 ? "s" : ""}. Keep editing below.`
             : d.extractedKnowledge
               ? `Content extracted from "${d.title}". Generate a document from extraction first, then keep editing below.`
               : `New document "${d.title}". Upload a file or describe what you'd like to create.`,
@@ -450,7 +450,7 @@ export function DocumentEditorPage() {
   async function handleFileUpload(file: File) {
     if (!id) return;
     if (!acquireActionLock("upload")) return;
-    addMessage("user", `Uploading ${file.name}…`);
+    addMessage("user", `Uploading ${file.name}â€¦`);
     setBusy(true);
     try {
       await uploadDocumentFile(id, file);
@@ -507,9 +507,9 @@ export function DocumentEditorPage() {
           const saved = await updateExtractedKnowledge(id, manualKnowledge);
           setExtractedKnowledge(saved);
         }
-        // First intent → generate schema
+        // First intent â†’ generate schema
         setStage("generating");
-        addMessage("assistant", "Generating your document…");
+        addMessage("assistant", "Generating your documentâ€¦");
         const result = await generateSchema(id, text);
         setSchema(result.schema);
         setComponentTree(result.componentTree);
@@ -655,7 +655,7 @@ export function DocumentEditorPage() {
       setDoc(refreshed);
       const history = await getVersionHistory(id);
       setVersions(history);
-      addMessage("assistant", `Published! Your document is live at:\n${result.url}\nToken: ${result.token}${password ? "\n🔒 Password protected." : ""}`, { action: "publish" });
+      addMessage("assistant", `Published! Your document is live at:\n${result.url}\nToken: ${result.token}${password ? "\nðŸ”’ Password protected." : ""}`, { action: "publish" });
     } catch (e) {
       addMessage("assistant", e instanceof Error ? e.message : "Publish failed.");
     } finally {
@@ -710,7 +710,7 @@ export function DocumentEditorPage() {
   if (loading) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center">
-        <p className="text-sm text-slate-500">Loading document…</p>
+        <p className="text-sm text-slate-500">Loading documentâ€¦</p>
       </div>
     );
   }
@@ -805,7 +805,7 @@ export function DocumentEditorPage() {
                 disabled={printing}
                 className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50"
               >
-                {printing ? "Opening…" : "Print / PDF"}
+                {printing ? "Openingâ€¦" : "Print / PDF"}
               </button>
               <button
                 type="button"
@@ -813,7 +813,7 @@ export function DocumentEditorPage() {
                 disabled={publishing}
                 className="btn btn-primary text-xs"
               >
-                {publishing ? "Publishing…" : publishResult ? "Re-publish" : "Publish"}
+                {publishing ? "Publishingâ€¦" : publishResult ? "Re-publish" : "Publish"}
               </button>
             </>
           ) : null}
@@ -912,12 +912,12 @@ export function DocumentEditorPage() {
                 }}
                 placeholder={
                   stage === "empty"
-                    ? "Upload a file or describe what you'd like to create…"
+                    ? "Upload a file or describe what you'd like to createâ€¦"
                     : stage === "processing"
                       ? "Reading your document..."
                     : stage === "uploaded"
-                      ? "Describe how you want this document to look…"
-                      : "Edit the document: Make it formal, add charts, translate…"
+                      ? "Describe how you want this document to lookâ€¦"
+                      : "Edit the document: Make it formal, add charts, translateâ€¦"
                 }
                 className="flex-1 resize-none rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none focus:border-blue-400 focus:bg-white"
                 disabled={busy || stage === "processing"}
@@ -994,7 +994,7 @@ export function DocumentEditorPage() {
                   </svg>
                 </div>
                 <p className="text-sm font-medium text-slate-400">
-                  {stage === "generating" ? "Generating…" : "Preview will appear here"}
+                  {stage === "generating" ? "Generatingâ€¦" : "Preview will appear here"}
                 </p>
               </div>
             </div>
@@ -1096,3 +1096,4 @@ export function DocumentEditorPage() {
     </div>
   );
 }
+

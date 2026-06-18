@@ -1,4 +1,4 @@
-import type { ExtractionMode } from "../../shared/types/smartPages";
+﻿import type { ExtractionMode } from "../../shared/types/smartPages";
 
 export type ProviderConfig = {
   provider: string;
@@ -35,3 +35,4 @@ export function estimatePageCount(_mimeType: string): number {
 export function getModeLabel(mode: ExtractionMode): string {
   return PROVIDER_CONFIGS[mode].displayName;
 }
+

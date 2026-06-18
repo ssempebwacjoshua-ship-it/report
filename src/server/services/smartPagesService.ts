@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+﻿import { randomUUID } from "node:crypto";
 import type {
   CanExtractResult,
   ExtractionMode,
@@ -8,7 +8,7 @@ import type {
   TopUpBundle,
 } from "../../shared/types/smartPages";
 
-// ── Store interface ────────────────────────────────────────────────────────────
+// â”€â”€ Store interface â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export interface SmartPageStore {
   getPlan(schoolId: string): Promise<SmartPagePlan | null>;
@@ -17,7 +17,7 @@ export interface SmartPageStore {
   getLedgerByHash(schoolId: string, fileHash: string): Promise<SmartPageLedgerEntry | null>;
 }
 
-// ── In-memory store (for tests and development) ────────────────────────────────
+// â”€â”€ In-memory store (for tests and development) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export function createInMemorySmartPageStore(): SmartPageStore & {
   addLedgerEntry(entry: SmartPageLedgerEntry): Promise<void>;
@@ -48,7 +48,7 @@ export function createInMemorySmartPageStore(): SmartPageStore & {
   };
 }
 
-// ── Default Prisma-backed store (lazy to avoid import issues in tests) ─────────
+// â”€â”€ Default Prisma-backed store (lazy to avoid import issues in tests) â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 let _defaultStore: SmartPageStore | null = null;
 
@@ -164,7 +164,7 @@ function prismaLedgerToEntry(row: Record<string, unknown>): SmartPageLedgerEntry
   };
 }
 
-// ── Service factory ────────────────────────────────────────────────────────────
+// â”€â”€ Service factory â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export interface DeductPagesInput {
   jobId: string;
@@ -257,11 +257,11 @@ export function createSmartPagesService(store: SmartPageStore) {
   };
 }
 
-// ── Pure utility functions (exported at module level) ─────────────────────────
+// â”€â”€ Pure utility functions (exported at module level) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export function estimatePageCount(_mimeType: string): number {
   // Both images and PDFs count as 1 page for estimation.
-  // Actual multi-page PDF counting requires full parse — charge on extraction.
+  // Actual multi-page PDF counting requires full parse â€” charge on extraction.
   return 1;
 }
 
@@ -269,7 +269,7 @@ export function getDefaultExtractionMode(): ExtractionMode {
   return "balanced";
 }
 
-// ── Module-level API backed by Prisma (used by routes) ───────────────────────
+// â”€â”€ Module-level API backed by Prisma (used by routes) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export async function canExtract(schoolId: string, pageCount: number): Promise<CanExtractResult> {
   return createSmartPagesService(getDefaultStore()).canExtract(schoolId, pageCount);
@@ -294,3 +294,4 @@ export async function getSummary(schoolId: string): Promise<SmartPageSummary> {
 export async function addTopUp(schoolId: string, bundle: TopUpBundle): Promise<void> {
   return createSmartPagesService(getDefaultStore()).addTopUp(schoolId, bundle);
 }
+

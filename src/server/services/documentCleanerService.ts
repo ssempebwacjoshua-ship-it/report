@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+﻿import { randomUUID } from "node:crypto";
 import sharp from "sharp";
 import type { CellCorrection, ExtractedDocument } from "../../shared/types/documentCleaner";
 import { isAzureOcrConfigured } from "./azureOcrService";
@@ -10,13 +10,13 @@ import {
   type TableCell,
 } from "./documentCleanerNormalizeService";
 
-// ── OCR helpers ───────────────────────────────────────────────────────────────
+// â”€â”€ OCR helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 /**
  * Calls the Azure OCR Function directly (one fetch) so we can capture both
  * the flat `lines[]` array AND the structured `raw.tables[].cells[]` that
  * carry rowIndex/columnIndex. The azureOcrService helper discards `raw`, so
- * we bypass it here — but we still gate on isAzureOcrConfigured().
+ * we bypass it here â€” but we still gate on isAzureOcrConfigured().
  */
 async function ocrWithStructure(
   buffer: Buffer,
@@ -78,7 +78,7 @@ async function ocrWithStructure(
 
     // Extract table cells from the raw Azure Layout response.
     // The Azure Function may return raw as the full analyzeResult object (raw.tables)
-    // or as the full API response (raw.analyzeResult.tables) — handle both.
+    // or as the full API response (raw.analyzeResult.tables) â€” handle both.
     const rawData = data.raw as Record<string, unknown> | null | undefined;
     let tableCells: TableCell[] | null = null;
 
@@ -119,7 +119,7 @@ async function ocrWithStructure(
   }
 }
 
-// ── Document structure parsing ────────────────────────────────────────────────
+// â”€â”€ Document structure parsing â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 /**
  * Try to find the document title from the first non-empty OCR lines.
@@ -157,7 +157,7 @@ function extractMeta(lines: string[]): { schoolName: string; academicYear: strin
 }
 
 
-// ── Image preview ─────────────────────────────────────────────────────────────
+// â”€â”€ Image preview â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 async function makePreviewDataUrl(buffer: Buffer, _mimeType: string): Promise<string> {
   try {
@@ -171,7 +171,7 @@ async function makePreviewDataUrl(buffer: Buffer, _mimeType: string): Promise<st
   }
 }
 
-// ── Public API ────────────────────────────────────────────────────────────────
+// â”€â”€ Public API â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 /** Empty template returned when OCR is unavailable or produces no useful output. */
 function emptyDocument(): ExtractedDocument {
@@ -208,7 +208,7 @@ export async function extractDocumentFromImage(
   let metaEndIdx: number;
 
   if (tableCells && tableCells.length > 0) {
-    // Azure returned structured table cells with rowIndex/columnIndex — use them
+    // Azure returned structured table cells with rowIndex/columnIndex â€” use them
     // directly to avoid the interleaved-row problem in flat OCR line output.
     const result = normalizeFromTableCells(tableCells);
     columns = result.columns;
@@ -255,7 +255,7 @@ export async function extractDocumentFromImage(
   return { draftId, document, imagePreviewUrl };
 }
 
-// ── HTML PDF generation ───────────────────────────────────────────────────────
+// â”€â”€ HTML PDF generation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function escapeHtml(text: string): string {
   return text
@@ -268,7 +268,7 @@ function escapeHtml(text: string): string {
 export function renderDocumentHtml(doc: ExtractedDocument, primaryColor = "#1e40af"): string {
   const title = escapeHtml(doc.title || "DOCUMENT");
   const school = escapeHtml(doc.schoolName);
-  const yearTerm = [doc.academicYear, doc.term].filter(Boolean).map(escapeHtml).join(" — ");
+  const yearTerm = [doc.academicYear, doc.term].filter(Boolean).map(escapeHtml).join(" â€” ");
 
   const colHeaders = doc.columns.length > 0
     ? `<tr>${doc.columns.map((c) => `<th>${escapeHtml(c)}</th>`).join("")}</tr>`
@@ -359,3 +359,4 @@ export function renderDocumentHtml(doc: ExtractedDocument, primaryColor = "#1e40
 </body>
 </html>`;
 }
+

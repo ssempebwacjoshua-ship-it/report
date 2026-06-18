@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+﻿import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate, useParams } from "react-router";
 import {
   getCollection,
@@ -85,7 +85,7 @@ export function CollectionDetailPage() {
   async function handleCSVImport(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file || !id) return;
-    setImportStatus("Importing…");
+    setImportStatus("Importingâ€¦");
     setError(null);
     try {
       const result = await importCSV(id, file);
@@ -103,7 +103,7 @@ export function CollectionDetailPage() {
     ? Array.from(new Set(records.flatMap((r) => Object.keys(r.data))))
     : [];
 
-  if (loading) return <div className="p-8 text-center text-sm text-slate-500">Loading…</div>;
+  if (loading) return <div className="p-8 text-center text-sm text-slate-500">Loadingâ€¦</div>;
   if (!collection) return <div className="p-8 text-center text-sm text-red-500">{error ?? "Collection not found."}</div>;
 
   return (
@@ -113,7 +113,7 @@ export function CollectionDetailPage() {
           onClick={() => navigate("/collections")}
           className="text-sm text-slate-400 hover:text-slate-700"
         >
-          ← Collections
+          â† Collections
         </button>
         <span className="text-slate-200">/</span>
         <h1 className="text-xl font-black text-slate-900">{collection.name}</h1>
@@ -175,7 +175,7 @@ export function CollectionDetailPage() {
               disabled={addingRecord}
               className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-bold text-white hover:bg-blue-700 disabled:opacity-50"
             >
-              {addingRecord ? "Adding…" : "Add"}
+              {addingRecord ? "Addingâ€¦" : "Add"}
             </button>
             <button
               type="button"
@@ -208,7 +208,7 @@ export function CollectionDetailPage() {
                 <tr key={record.id} className={i % 2 === 0 ? "bg-white" : "bg-slate-50/50"}>
                   {fieldKeys.map((key) => (
                     <td key={key} className="max-w-[200px] truncate px-4 py-3 text-slate-700">
-                      {record.data[key] != null ? String(record.data[key]) : <span className="text-slate-300">—</span>}
+                      {record.data[key] != null ? String(record.data[key]) : <span className="text-slate-300">â€”</span>}
                     </td>
                   ))}
                   <td className="px-4 py-3 text-right">
@@ -229,3 +229,4 @@ export function CollectionDetailPage() {
     </div>
   );
 }
+

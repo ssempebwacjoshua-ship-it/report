@@ -1,6 +1,6 @@
-import type { ComponentNode, DocumentSchema } from "../../shared/types/documentIntelligence";
+﻿import type { ComponentNode, DocumentSchema } from "../../shared/types/documentIntelligence";
 
-// ── Individual component renderers ─────────────────────────────────────────────
+// â”€â”€ Individual component renderers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function HeaderRenderer({ props, primaryColor, compact }: { props: Record<string, unknown>; primaryColor: string; compact: boolean }) {
   return (
@@ -238,7 +238,7 @@ function FooterRenderer({ props }: { props: Record<string, unknown> }) {
   );
 }
 
-// ── Component registry ─────────────────────────────────────────────────────────
+// â”€â”€ Component registry â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function renderComponent(node: ComponentNode, primaryColor: string, compact: boolean): React.ReactNode {
   const key = node.id;
@@ -257,7 +257,7 @@ function renderComponent(node: ComponentNode, primaryColor: string, compact: boo
   }
 }
 
-// ── Main DocumentPreview ───────────────────────────────────────────────────────
+// â”€â”€ Main DocumentPreview â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 type Props = {
   schema: DocumentSchema;
@@ -297,3 +297,4 @@ export function DocumentPreview({ schema, componentTree, compact = false, render
     </div>
   );
 }
+

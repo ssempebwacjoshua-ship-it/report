@@ -1,4 +1,4 @@
-import type { ComponentNode, DocumentSchema } from "../../shared/types/documentIntelligence";
+﻿import type { ComponentNode, DocumentSchema } from "../../shared/types/documentIntelligence";
 
 function text(value: unknown): string {
   return String(value ?? "").replace(/\s+/g, " ").trim();
@@ -309,3 +309,4 @@ function createZip(entries: ZipEntry[]): Buffer {
   end.writeUInt16LE(0, 20);
   return Buffer.concat([...localParts, ...centralParts, end]);
 }
+

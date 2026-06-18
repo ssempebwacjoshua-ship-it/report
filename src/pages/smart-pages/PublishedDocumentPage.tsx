@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+﻿import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { getPublishedDocument } from "../../client/documentIntelligenceClient";
 import { DocumentPreview } from "../../components/smart-pages/DocumentPreview";
@@ -42,7 +42,7 @@ export function PublishedDocumentPage() {
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-slate-100 p-4">
-        <p className="text-sm text-slate-500">Loading…</p>
+        <p className="text-sm text-slate-500">Loadingâ€¦</p>
       </div>
     );
   }
@@ -76,7 +76,7 @@ export function PublishedDocumentPage() {
               disabled={checking || !password}
               className="rounded-lg bg-blue-600 py-2.5 text-sm font-bold text-white hover:bg-blue-700 disabled:opacity-50"
             >
-              {checking ? "Checking…" : "Unlock"}
+              {checking ? "Checkingâ€¦" : "Unlock"}
             </button>
           </form>
         </div>
@@ -144,3 +144,4 @@ export function PublishedDocumentPage() {
     </div>
   );
 }
+

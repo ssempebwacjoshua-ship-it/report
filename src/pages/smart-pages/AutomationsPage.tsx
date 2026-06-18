@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+﻿import { useEffect, useState } from "react";
 import { createWorkflow, listWorkflows, type AutomationWorkflow } from "../../client/documentOsClient";
 
 const TRIGGERS = ["COLLECTION_IMPORTED", "RECORD_ADDED", "DOCUMENT_CREATED", "BULK_GENERATION_COMPLETED", "PUBLISH_COMPLETED"];
@@ -50,3 +50,4 @@ export function AutomationsPage() {
     </main>
   );
 }
+
