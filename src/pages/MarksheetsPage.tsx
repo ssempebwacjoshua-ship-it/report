@@ -34,9 +34,9 @@ type MarkEntry = {
 };
 
 const EXAM_OPTIONS: Array<{ value: "BOT" | "MOT" | "EOT"; label: string }> = [
-  { value: "BOT", label: "BOT ? Beginning of Term" },
-  { value: "MOT", label: "MOT ? Mid Term" },
-  { value: "EOT", label: "EOT ? End of Term" },
+  { value: "BOT", label: "BOT - Beginning of Term" },
+  { value: "MOT", label: "MOT - Mid Term" },
+  { value: "EOT", label: "EOT - End of Term" },
 ];
 
 function csvCell(value: string): string {
@@ -83,10 +83,12 @@ function findOption(opts: ReportContextOption[], id: string): ReportContextOptio
 type ContextSelectorProps = {
   ctx: ReportContext | null;
   filters: MarksheetFilters;
+  subjectsLoading: boolean;
+  subjectOptions: ReportContextOption[];
   onChange: (filters: MarksheetFilters) => void;
 };
 
-function ContextSelector({ ctx, filters, onChange }: ContextSelectorProps) {
+function ContextSelector({ ctx, filters, subjectsLoading, subjectOptions, onChange }: ContextSelectorProps) {
   const filteredStreams = filters.classId
     ? (ctx?.streams ?? []).filter((s) => !s.classId || s.classId === filters.classId)
     : (ctx?.streams ?? []);
@@ -104,7 +106,7 @@ function ContextSelector({ ctx, filters, onChange }: ContextSelectorProps) {
       <div>
         <label className="mb-1 block text-xs font-semibold text-slate-500 uppercase tracking-wide">Class</label>
         <select className={selectClass} value={filters.classId} onChange={(e) => set("classId", e.target.value)}>
-          <option value="">? select ?</option>
+          <option value="">Select...</option>
           {(ctx?.classes ?? []).map((c) => (
             <option key={c.id} value={c.id}>{c.name}</option>
           ))}
@@ -113,7 +115,7 @@ function ContextSelector({ ctx, filters, onChange }: ContextSelectorProps) {
       <div>
         <label className="mb-1 block text-xs font-semibold text-slate-500 uppercase tracking-wide">Stream</label>
         <select className={selectClass} value={filters.streamId} onChange={(e) => set("streamId", e.target.value)} disabled={!filters.classId}>
-          <option value="">? select ?</option>
+          <option value="">Select...</option>
           {filteredStreams.map((s) => (
             <option key={s.id} value={s.id}>{s.name}</option>
           ))}
@@ -121,17 +123,37 @@ function ContextSelector({ ctx, filters, onChange }: ContextSelectorProps) {
       </div>
       <div>
         <label className="mb-1 block text-xs font-semibold text-slate-500 uppercase tracking-wide">Subject</label>
-        <select className={selectClass} value={filters.subjectId} onChange={(e) => set("subjectId", e.target.value)}>
-          <option value="">? select ?</option>
-          {(ctx?.subjects ?? []).map((s) => (
-            <option key={s.id} value={s.id}>{s.name}</option>
-          ))}
+        <select
+          className={selectClass}
+          value={filters.subjectId}
+          onChange={(e) => set("subjectId", e.target.value)}
+          disabled={subjectsLoading || subjectOptions.length === 0}
+        >
+          {subjectsLoading ? (
+            <option value="">Loading subjects...</option>
+          ) : subjectOptions.length === 0 ? (
+            <option value="">No subjects found</option>
+          ) : (
+            <>
+              <option value="">Select...</option>
+              {subjectOptions.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                </option>
+              ))}
+            </>
+          )}
         </select>
+        {!subjectsLoading && subjectOptions.length === 0 ? (
+          <p className="mt-1 text-xs text-amber-700">
+            No subjects found. Add subjects in Settings &gt; School Structure.
+          </p>
+        ) : null}
       </div>
       <div>
         <label className="mb-1 block text-xs font-semibold text-slate-500 uppercase tracking-wide">Term</label>
         <select className={selectClass} value={filters.termId} onChange={(e) => set("termId", e.target.value)}>
-          <option value="">? select ?</option>
+          <option value="">Select...</option>
           {(ctx?.terms ?? []).map((t) => (
             <option key={t.id} value={t.id}>{t.name}</option>
           ))}
@@ -157,17 +179,28 @@ type PrintTabProps = {
   filters: MarksheetFilters;
   students: MarksheetStudent[];
   loadingStudents: boolean;
+  subjectsLoading: boolean;
+  subjectOptions: ReportContextOption[];
   onChange: (filters: MarksheetFilters) => void;
 };
 
-function PrintTab({ ctx, settings, filters, students, loadingStudents, onChange }: PrintTabProps) {
+function PrintTab({
+  ctx,
+  settings,
+  filters,
+  students,
+  loadingStudents,
+  subjectsLoading,
+  subjectOptions,
+  onChange,
+}: PrintTabProps) {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     setSelectedIds(new Set());
   }, [filters.classId, filters.streamId]);
 
-  // Subject is optional for printing ? a blank roster is still useful
+  // Subject is optional for printing - a blank roster is still useful
   const ready = !!(filters.classId && filters.streamId && filters.termId);
   const schoolName = getSchoolDisplayName(settings.school, ctx?.school?.name ?? "");
   const academicYear =
@@ -223,7 +256,13 @@ function PrintTab({ ctx, settings, filters, students, loadingStudents, onChange 
     <div>
       <div className="no-print premium-card mb-6 rounded-2xl p-5">
         <h2 className="mb-4 text-sm font-bold uppercase tracking-wide text-slate-500">Select Marksheet Context</h2>
-        <ContextSelector ctx={ctx} filters={filters} onChange={onChange} />
+        <ContextSelector
+          ctx={ctx}
+          filters={filters}
+          subjectsLoading={subjectsLoading}
+          subjectOptions={subjectOptions}
+          onChange={onChange}
+        />
       </div>
 
       {ready && (
@@ -233,10 +272,10 @@ function PrintTab({ ctx, settings, filters, students, loadingStudents, onChange 
             <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <p className="text-sm text-slate-500">
                 {loadingStudents
-                  ? "Loading students?"
+                  ? "Loading students..."
                   : selectedIds.size > 0
-                    ? `${selectedIds.size} of ${students.length} selected ? ${selectedIds.size} marksheet${selectedIds.size !== 1 ? "s" : ""} will print`
-                    : `${students.length} student${students.length !== 1 ? "s" : ""} ? all ${students.length} marksheets will print`}
+                    ? `${selectedIds.size} of ${students.length} selected - ${selectedIds.size} marksheet${selectedIds.size !== 1 ? "s" : ""} will print`
+                    : `${students.length} student${students.length !== 1 ? "s" : ""} - all ${students.length} marksheets will print`}
               </p>
               <div className="flex items-center gap-2">
                 <button
@@ -323,7 +362,7 @@ function PrintTab({ ctx, settings, filters, students, loadingStudents, onChange 
             )}
           </div>
 
-          {/* ── Screen preview ? no-print ── */}
+          {/* ── Screen preview - no-print ── */}
           <div className="marksheet-card-wrapper no-print premium-card rounded-2xl p-4 sm:p-6">
             <PrintableMarksheet {...commonMarksheetProps} students={students} />
           </div>
@@ -352,6 +391,8 @@ type EnterTabProps = {
   filters: MarksheetFilters;
   students: MarksheetStudent[];
   loadingStudents: boolean;
+  subjectsLoading: boolean;
+  subjectOptions: ReportContextOption[];
   onChange: (filters: MarksheetFilters) => void;
 };
 
@@ -360,10 +401,18 @@ function validateMark(value: string): { ok: boolean; message?: string } {
   if (v === "" || v === "AB" || v === "EX") return { ok: true };
   const num = Number(v);
   if (!Number.isNaN(num) && Number.isInteger(num) && num >= 0 && num <= 100) return { ok: true };
-  return { ok: false, message: "Enter 0–100, AB, EX, or leave blank" };
+  return { ok: false, message: "Enter 0-100, AB, EX, or leave blank" };
 }
 
-function EnterTab({ ctx, filters, students, loadingStudents, onChange }: EnterTabProps) {
+function EnterTab({
+  ctx,
+  filters,
+  students,
+  loadingStudents,
+  subjectsLoading,
+  subjectOptions,
+  onChange,
+}: EnterTabProps) {
   const [entries, setEntries] = useState<MarkEntry[]>([]);
   const [dryResult, setDryResult] = useState<ImportPreview | null>(null);
   const [committed, setCommitted] = useState<ImportPreview | null>(null);
@@ -449,7 +498,13 @@ function EnterTab({ ctx, filters, students, loadingStudents, onChange }: EnterTa
       <div>
         <div className="premium-card mb-6 rounded-2xl p-5">
           <h2 className="mb-4 text-sm font-bold uppercase tracking-wide text-slate-500">Select Marksheet Context</h2>
-          <ContextSelector ctx={ctx} filters={filters} onChange={onChange} />
+          <ContextSelector
+            ctx={ctx}
+            filters={filters}
+            subjectsLoading={subjectsLoading}
+            subjectOptions={subjectOptions}
+            onChange={onChange}
+          />
         </div>
         <div className="rounded-2xl border-2 border-dashed border-slate-200 py-16 text-center text-slate-400">
           <Icon name="clipboard" className="mx-auto mb-3 h-10 w-10 opacity-30" />
@@ -464,7 +519,13 @@ function EnterTab({ ctx, filters, students, loadingStudents, onChange }: EnterTa
       <div>
         <div className="premium-card mb-6 rounded-2xl p-5">
           <h2 className="mb-4 text-sm font-bold uppercase tracking-wide text-slate-500">Select Marksheet Context</h2>
-          <ContextSelector ctx={ctx} filters={filters} onChange={onChange} />
+          <ContextSelector
+            ctx={ctx}
+            filters={filters}
+            subjectsLoading={subjectsLoading}
+            subjectOptions={subjectOptions}
+            onChange={onChange}
+          />
         </div>
         <div className="flex flex-col items-center gap-4 rounded-2xl border-2 border-green-200 bg-green-50 py-12">
           <div className="flex h-10 w-10 items-center justify-center rounded-full bg-green-100">
@@ -473,7 +534,7 @@ function EnterTab({ ctx, filters, students, loadingStudents, onChange }: EnterTa
           <div className="text-center">
             <p className="text-lg font-bold text-green-800">Marks Committed Successfully</p>
             <p className="mt-1 text-sm text-green-700">
-              {committed.validRows} mark{committed.validRows !== 1 ? "s" : ""} saved for {subjectName} ? {termName} ? {filters.examType}
+              {committed.validRows} mark{committed.validRows !== 1 ? "s" : ""} saved for {subjectName} - {termName} - {filters.examType}
             </p>
             {committed.batchId && (
               <p className="mt-1 font-mono text-xs text-green-600">Batch: {committed.batchId}</p>
@@ -500,11 +561,17 @@ function EnterTab({ ctx, filters, students, loadingStudents, onChange }: EnterTa
     <div>
       <div className="premium-card mb-6 rounded-2xl p-5">
         <h2 className="mb-4 text-sm font-bold uppercase tracking-wide text-slate-500">Select Marksheet Context</h2>
-        <ContextSelector ctx={ctx} filters={filters} onChange={onChange} />
+        <ContextSelector
+          ctx={ctx}
+          filters={filters}
+          subjectsLoading={subjectsLoading}
+          subjectOptions={subjectOptions}
+          onChange={onChange}
+        />
       </div>
 
       {loadingStudents ? (
-        <div className="py-12 text-center text-slate-400">Loading students?</div>
+        <div className="py-12 text-center text-slate-400">Loading students...</div>
       ) : students.length === 0 ? (
         <div className="rounded-2xl border-2 border-dashed border-slate-200 py-12 text-center text-slate-400">
           <p className="text-sm font-medium">No students enrolled for this class and stream.</p>
@@ -516,11 +583,11 @@ function EnterTab({ ctx, filters, students, loadingStudents, onChange }: EnterTa
             <div className="border-b border-slate-100 px-5 py-3 flex items-center justify-between">
               <div>
                 <p className="font-semibold text-slate-800">
-                  {className} ? {streamName} ? {subjectName} ? {termName} ? {filters.examType}
+                  {className} - {streamName} - {subjectName} - {termName} - {filters.examType}
                 </p>
                 <p className="mt-0.5 text-xs text-slate-500">
-                  {students.length} students ? {marksEntered} marks entered
-                  {hasValidationErrors ? ` ? ${validationErrors.length} invalid` : ""}
+                  {students.length} students - {marksEntered} marks entered
+                  {hasValidationErrors ? ` - ${validationErrors.length} invalid` : ""}
                 </p>
               </div>
               {hasValidationErrors && (
@@ -557,7 +624,7 @@ function EnterTab({ ctx, filters, students, loadingStudents, onChange }: EnterTa
                             type="text"
                             value={entry.marks}
                             maxLength={3}
-                            placeholder="?"
+                            placeholder="-"
                             onChange={(e) => updateEntry(index, "marks", e.target.value)}
                             className={`premium-control w-full rounded-lg border px-2.5 py-1.5 text-center text-sm font-semibold uppercase focus:outline-none ${
                               !validation.ok
@@ -607,7 +674,7 @@ function EnterTab({ ctx, filters, students, loadingStudents, onChange }: EnterTa
               }`}
             >
               <p className={`mb-1 font-semibold ${dryResult.invalidRows > 0 ? "text-red-700" : "text-green-700"}`}>
-                Dry Run: {dryResult.validRows} valid ? {dryResult.invalidRows} invalid ? {dryResult.totalRows} total
+                Dry Run: {dryResult.validRows} valid - {dryResult.invalidRows} invalid - {dryResult.totalRows} total
               </p>
               {dryResult.rows
                 .filter((r) => !r.isValid)
@@ -630,7 +697,7 @@ function EnterTab({ ctx, filters, students, loadingStudents, onChange }: EnterTa
               onClick={handleDryRun}
               disabled={loading || !csvText || hasValidationErrors}
             >
-              {loading ? "Running?" : "Dry Run"}
+              {loading ? "Running..." : "Dry Run"}
             </button>
             <button
               type="button"
@@ -638,7 +705,7 @@ function EnterTab({ ctx, filters, students, loadingStudents, onChange }: EnterTa
               onClick={handleCommit}
               disabled={loading || !csvText || hasValidationErrors || !dryResult || dryResult.invalidRows > 0}
             >
-              {loading ? "Committing?" : "Commit Marks"}
+              {loading ? "Committing..." : "Commit Marks"}
             </button>
             <p className="ml-auto text-xs text-slate-400">
               AB / EX entries are noted on the physical sheet but not submitted to the system.
@@ -725,19 +792,19 @@ function HmReviewTab() {
 
   function batchTitle(batch: MarksheetBatch): string {
     const c = batch.parsedContext;
-    if (c) return `${c.className} ? ${c.streamName} ? ${c.subjectName} ? ${c.examType}`;
+    if (c) return `${c.className} - ${c.streamName} - ${c.subjectName} - ${c.examType}`;
     return batch.summary ?? `Batch ${batch.id.slice(0, 8)}`;
   }
 
   function batchMeta(batch: MarksheetBatch): string {
     const c = batch.parsedContext;
     if (c) {
-      return `${c.termName} ? ${c.marksEntered} of ${c.studentsCount} marks entered ? by ${c.operatorName}`;
+      return `${c.termName} - ${c.marksEntered} of ${c.studentsCount} marks entered - by ${c.operatorName}`;
     }
     return `${batch.marksCount} marks`;
   }
 
-  if (loading) return <div className="py-16 text-center text-slate-400">Loading batches?</div>;
+  if (loading) return <div className="py-16 text-center text-slate-400">Loading batches...</div>;
 
   return (
     <div>
@@ -793,7 +860,7 @@ function HmReviewTab() {
                         onClick={() => handleApprove(batch.id)}
                         disabled={isActing}
                       >
-                        {isActing && !showingReturn ? "Approving?" : "Approve"}
+                        {isActing && !showingReturn ? "Approving..." : "Approve"}
                       </button>
                       <button
                         type="button"
@@ -815,7 +882,7 @@ function HmReviewTab() {
                     <textarea
                       className="premium-control w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none"
                       rows={2}
-                      placeholder="e.g. Marks for row 4 appear incorrect ? please verify and resubmit."
+                      placeholder="e.g. Marks for row 4 appear incorrect - please verify and resubmit."
                       value={returnNotes[batch.id] ?? ""}
                       onChange={(e) => setReturnNotes((prev) => ({ ...prev, [batch.id]: e.target.value }))}
                     />
@@ -826,7 +893,7 @@ function HmReviewTab() {
                         onClick={() => handleReturn(batch.id)}
                         disabled={isActing || !(returnNotes[batch.id]?.trim())}
                       >
-                        {isActing ? "Returning?" : "Confirm Return"}
+                        {isActing ? "Returning..." : "Confirm Return"}
                       </button>
                       <button type="button" className="btn btn-secondary" onClick={() => setShowReturn(null)}>
                         Cancel
@@ -860,8 +927,10 @@ export function MarksheetsPage() {
   const [filters, setFilters] = useState<MarksheetFilters>(EMPTY_FILTERS);
   const [students, setStudents] = useState<MarksheetStudent[]>([]);
   const [loadingStudents, setLoadingStudents] = useState(false);
+  const [contextLoading, setContextLoading] = useState(true);
 
   useEffect(() => {
+    setContextLoading(true);
     Promise.all([fetchReportContext(), fetchSettings()])
       .then(([data, loadedSettings]) => {
         setCtx(data);
@@ -878,8 +947,11 @@ export function MarksheetsPage() {
           }));
         }
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => setContextLoading(false));
   }, []);
+
+  const subjectOptions = ctx?.subjects ?? [];
 
   useEffect(() => {
     if (!filters.classId || !filters.streamId) {
@@ -910,7 +982,7 @@ export function MarksheetsPage() {
             </div>
             <div>
               <h1 className="text-2xl font-bold text-slate-900">Marksheets</h1>
-              <p className="text-sm text-slate-500">Print handwritten templates ? Enter marks ? HM approval</p>
+              <p className="text-sm text-slate-500">Print handwritten templates - Enter marks - HM approval</p>
             </div>
           </div>
         </div>
@@ -937,6 +1009,8 @@ export function MarksheetsPage() {
             filters={filters}
             students={students}
             loadingStudents={loadingStudents}
+            subjectsLoading={contextLoading}
+            subjectOptions={subjectOptions}
             onChange={setFilters}
           />
         )}
@@ -946,6 +1020,8 @@ export function MarksheetsPage() {
             filters={filters}
             students={students}
             loadingStudents={loadingStudents}
+            subjectsLoading={contextLoading}
+            subjectOptions={subjectOptions}
             onChange={setFilters}
           />
         )}

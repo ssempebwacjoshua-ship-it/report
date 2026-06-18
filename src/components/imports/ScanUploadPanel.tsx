@@ -637,14 +637,14 @@ export function ScanUploadPanel() {
             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
           </svg>
-          <p className="text-sm font-medium text-blue-800">Restoring previous session?</p>
+          <p className="text-sm font-medium text-blue-800">Restoring previous session...</p>
         </div>
       )}
 
       {/* ── Step 1: File upload ── */}
       {phase !== "restoring" && (
         <div className="premium-card rounded-2xl p-4">
-          <h2 className="text-sm font-bold text-slate-950">Step 1 ? Upload scanned marksheet</h2>
+          <h2 className="text-sm font-bold text-slate-950">Step 1 - Upload scanned marksheet</h2>
           <p className="mt-0.5 text-xs text-slate-500">Accepted: PDF, PNG, JPG, JPEG, WEBP</p>
 
           <div className="mt-3 rounded-2xl border border-dashed border-violet-200 bg-gradient-to-b from-violet-50/60 to-white p-4 shadow-inner">
@@ -682,11 +682,11 @@ export function ScanUploadPanel() {
             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
           </svg>
-          <p className="text-sm font-medium text-blue-800">Scanning header for marksheet ID?</p>
+          <p className="text-sm font-medium text-blue-800">Scanning header for marksheet ID...</p>
         </div>
       )}
 
-      {/* ── Step 2b: Detected context ? confirm ── */}
+      {/* ── Step 2b: Detected context - confirm ── */}
       {phase === "context_review" && detectedCtx && (
         <div className="grid gap-4">
           <ExtractedContextCard
@@ -717,13 +717,13 @@ export function ScanUploadPanel() {
                 className="premium-control flex-1 rounded-xl border border-slate-200 bg-slate-50 p-2 text-sm outline-none focus:border-blue-400 focus:bg-white"
               />
               <button type="button" onClick={handleIdLookup} disabled={idLookupBusy || !manualId.trim()} className="btn btn-primary">
-                {idLookupBusy ? "Looking up?" : "Look up"}
+                {idLookupBusy ? "Looking up..." : "Look up"}
               </button>
             </div>
           </div>
           <div className="border-t border-slate-100 pt-3">
             <button type="button" onClick={() => setPhase("manual_form")} className="text-xs text-slate-500 underline hover:text-slate-800">
-              Skip ? enter context manually instead
+              Skip - enter context manually instead
             </button>
           </div>
         </div>
@@ -756,7 +756,7 @@ export function ScanUploadPanel() {
             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
           </svg>
-          <p className="text-sm font-medium text-blue-800">Extracting marks from scan?</p>
+          <p className="text-sm font-medium text-blue-800">Extracting marks from scan...</p>
         </div>
       )}
 
@@ -806,16 +806,16 @@ export function ScanUploadPanel() {
               <p>
                 <span className="font-semibold">Azure OCR:</span>{" "}
                 {uploadResult.providerReachable === false
-                  ? <span className="text-red-700">Unavailable ? contact platform support.</span>
+                  ? <span className="text-red-700">Unavailable - contact platform support.</span>
                   : <span className="text-emerald-700 font-semibold">Succeeded</span>}
               </p>
               <p>
                 <span className="font-semibold">Table geometry:</span>{" "}
                 {uploadResult.message.includes("Table geometry not detected")
-                  ? <span className="text-amber-700 font-semibold">Fallback (estimated) ? crop alignment may be off</span>
+                  ? <span className="text-amber-700 font-semibold">Fallback (estimated) - crop alignment may be off</span>
                   : uploadResult.message.includes("Table geometry detected")
                     ? <span className="text-emerald-700 font-semibold">Detected</span>
-                    : <span className="text-slate-500">?</span>}
+                    : <span className="text-slate-500">-</span>}
               </p>
             </div>
             {uploadResult.contextWarning && (

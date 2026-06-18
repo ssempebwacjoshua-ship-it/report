@@ -2,6 +2,7 @@
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import { MarksheetsPage } from "../../pages/MarksheetsPage";
+import { fetchReportContext } from "../../client/reportsClient";
 
 // Lightweight stand-in ? avoids pulling in qrcode.react in the test environment
 vi.mock("../../components/marksheets/PrintableMarksheet", () => ({
@@ -24,7 +25,21 @@ vi.mock("../../client/reportsClient", () => ({
   fetchReportContext: vi.fn().mockResolvedValue({
     classes: [{ id: "cls-1", name: "S1" }],
     streams: [{ id: "str-1", name: "A", classId: "cls-1" }],
-    subjects: [{ id: "sub-1", name: "Mathematics" }],
+    subjects: [
+      { id: "ENG", name: "English Language", code: "ENG" },
+      { id: "MATH", name: "Mathematics", code: "MATH" },
+      { id: "BIO", name: "Biology", code: "BIO" },
+      { id: "CHEM", name: "Chemistry", code: "CHEM" },
+      { id: "PHY", name: "Physics", code: "PHY" },
+      { id: "GEO", name: "Geography", code: "GEO" },
+      { id: "HIST", name: "History", code: "HIST" },
+      { id: "CRE", name: "Christian Religious Education", code: "CRE" },
+      { id: "AGR", name: "Agriculture", code: "AGR" },
+      { id: "ENT", name: "Entrepreneurship", code: "ENT" },
+      { id: "LIT", name: "Literature in English", code: "LIT" },
+      { id: "KIS", name: "Kiswahili", code: "KIS" },
+      { id: "ICT", name: "Computer Studies / ICT", code: "ICT" },
+    ],
     terms: [{ id: "term-1", name: "Term 1", isActive: true }],
     academicYears: [{ id: "year-1", name: "2025/2026", isActive: true }],
     school: { name: "Test School", code: "TEST" },
@@ -136,6 +151,25 @@ describe("MarksheetsPage Print tab ? filter returns multiple students", () => {
     await loadStudents();
     expect(screen.getByLabelText("Select all students")).toBeInTheDocument();
   });
+
+  it("renders subject options after the school context loads", async () => {
+    await loadStudents();
+    expect(screen.getByRole("option", { name: "Mathematics" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Biology" })).toBeInTheDocument();
+  });
+
+  it("keeps the subject list when class and stream change", async () => {
+    await loadStudents();
+    const selects = screen.getAllByRole("combobox");
+    const subjectSelect = selects[2] as HTMLSelectElement;
+    const initialOptionCount = subjectSelect.options.length;
+
+    fireEvent.change(selects[0]!, { target: { value: "cls-1" } });
+    fireEvent.change(selects[1]!, { target: { value: "str-1" } });
+
+    expect(subjectSelect.options.length).toBe(initialOptionCount);
+    expect(screen.getByRole("option", { name: "Mathematics" })).toBeInTheDocument();
+  });
 });
 
 describe("MarksheetsPage Print tab ? print-page DOM elements", () => {
@@ -211,6 +245,25 @@ describe("MarksheetsPage Print tab ? student selection", () => {
     expect(
       printOnly!.querySelectorAll("[data-testid='marksheet-student-row']"),
     ).toHaveLength(3);
+  });
+});
+
+describe("MarksheetsPage subject empty state", () => {
+  it("shows a helpful message when no subjects exist", async () => {
+    vi.mocked(fetchReportContext).mockResolvedValueOnce({
+      school: { code: "SCU-PREVIEW" },
+      academicYears: [{ id: "year-1", name: "2025/2026", isActive: true }],
+      terms: [{ id: "term-1", name: "Term 1", isActive: true }],
+      classes: [{ id: "class-1", name: "S1" }],
+      streams: [{ id: "stream-1", name: "A", classId: "class-1" }],
+      subjects: [],
+    });
+
+    renderPage();
+
+    expect(
+      await screen.findByText(/No subjects found\. Add subjects in Settings > School Structure\./i),
+    ).toBeInTheDocument();
   });
 });
 

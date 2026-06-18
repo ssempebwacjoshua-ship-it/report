@@ -157,7 +157,7 @@ function InstallBanner({
             <img src="/icons/icon-192.png" alt="" className="h-10 w-10 rounded-xl shadow-sm" />
             <div>
               <p className="text-base font-black text-slate-900">Install Smart Pages</p>
-              <p className="text-xs text-slate-500">Faster access ? Offline ? Full mobile experience</p>
+              <p className="text-xs text-slate-500">Faster access - Offline - Full mobile experience</p>
             </div>
           </div>
           <button
@@ -196,7 +196,7 @@ function InstallBanner({
           >
             Maybe Later
           </button>
-          <span className="text-slate-200" aria-hidden>?</span>
+          <span className="text-slate-200" aria-hidden>-</span>
           <button
             type="button"
             onClick={onShowManual}
@@ -242,7 +242,7 @@ export function InstallPrompt() {
 
     // After 4 s, if Chrome prompt never fired, show manual fallback on mobile
     const fallbackTimer = setTimeout(() => {
-      if (promptCaptured.current) return; // prompt fired ? already showing
+       if (promptCaptured.current) return; // prompt fired - already showing
       if (isStandalone() || wasInstalled() || wasDismissedRecently()) return;
       if (isAndroidChrome()) setBannerState("manual-android");
       else if (isIos()) setBannerState("manual-ios");

@@ -42,11 +42,11 @@ function handleMarkKeyDown(event: KeyboardEvent<HTMLInputElement>) {
 
 /** Confidence label used only in the debug panel. */
 function confidenceLabel(confidence: number, rawText: string): { label: string; tone: string } {
-  if (!rawText) return { label: "0% ? no text", tone: "text-slate-400" };
+  if (!rawText) return { label: "0% - no text", tone: "text-slate-400" };
   const pct = Math.round(confidence * 100);
-  if (confidence >= 0.85) return { label: `${pct}% ? high`, tone: "text-emerald-600 font-semibold" };
-  if (confidence >= 0.60) return { label: `${pct}% ? medium`, tone: "text-amber-600" };
-  return { label: `${pct}% ? low`, tone: "text-red-500" };
+  if (confidence >= 0.85) return { label: `${pct}% - high`, tone: "text-emerald-600 font-semibold" };
+  if (confidence >= 0.60) return { label: `${pct}% - medium`, tone: "text-amber-600" };
+  return { label: `${pct}% - low`, tone: "text-red-500" };
 }
 
 /** Decision label shown next to the parsed mark in debug. */
@@ -56,11 +56,11 @@ function parsedDecision(row: ScanImportRow): { text: string; tone: string } {
 
   // Has a parsed mark but it wasn't accepted
   const parsed = row.writtenMark || row.splitMark;
-  if (parsed) return { text: `Parsed: ${parsed} ? not accepted`, tone: "text-amber-700" };
+  if (parsed) return { text: `Parsed: ${parsed} - not accepted`, tone: "text-amber-700" };
 
   // Raw text present but couldn't parse a valid mark
   const rawText = row.debugRawOcr?.written || row.writtenMarkRaw;
-  if (rawText) return { text: `Raw: "${rawText}" ? not parseable`, tone: "text-red-500" };
+  if (rawText) return { text: `Raw: "${rawText}" - not parseable`, tone: "text-red-500" };
 
   return { text: "No text detected", tone: "text-slate-400" };
 }
@@ -109,7 +109,7 @@ function GeometryDebugPanel({ rows }: { rows: ScanImportRow[] }) {
   return (
     <details className="rounded-2xl border border-violet-200 bg-violet-50/40 p-4">
       <summary className="cursor-pointer text-sm font-bold text-slate-800">
-        Geometry debug ? crop alignment
+        Geometry debug - crop alignment
       </summary>
       <div className="mt-4 grid gap-3">
         <p className="text-xs text-slate-500">
@@ -157,7 +157,7 @@ function GeometryDebugPanel({ rows }: { rows: ScanImportRow[] }) {
                           className="h-8 w-20 rounded border object-contain opacity-80"
                         />
                       ) : (
-                        <span className="text-slate-300">?</span>
+                        <span className="text-slate-300">-</span>
                       )}
                     </td>
                     <td className="px-3 py-2">
@@ -168,7 +168,7 @@ function GeometryDebugPanel({ rows }: { rows: ScanImportRow[] }) {
                           className="h-8 w-20 rounded border object-contain"
                         />
                       ) : (
-                        <span className="text-slate-300">?</span>
+                        <span className="text-slate-300">-</span>
                       )}
                     </td>
                     <td className="px-3 py-2">
@@ -394,7 +394,7 @@ export function ScanReviewTable({
                         <div className={decision.tone}>{decision.text}</div>
                         {(row.writtenMark || row.splitMark) && (
                           <div className="mt-1 text-slate-400">
-                            W norm: {row.writtenMark || "?"} / S norm: {row.splitMark || "?"}
+                            W norm: {row.writtenMark || "-"} / S norm: {row.splitMark || "-"}
                           </div>
                         )}
                       </td>
