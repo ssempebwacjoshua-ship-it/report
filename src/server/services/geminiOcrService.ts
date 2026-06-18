@@ -37,7 +37,7 @@ export function resolveGeminiOcrModel(): string {
 
 export function resolveGeminiHealthModel(): string {
   const model = process.env.GEMINI_MODEL?.trim();
-  return model || "gemini-3.5-flash";
+  return model || "gemini-2.5-flash";
 }
 
 /**

@@ -53,7 +53,7 @@ vi.mock("../../server/services/documentGeminiService", () => ({
   generateDocumentSchema: mockState.generateDocumentSchema,
   applyPromptToSchema: mockState.applyPromptToSchema,
   extractDocumentKnowledge: vi.fn(),
-  resolveGeminiDocumentModel: () => "gemini-3.5-flash",
+  resolveGeminiDocumentModel: () => "gemini-2.5-flash",
 }));
 
 vi.mock("../../server/services/documentOsService", () => ({
@@ -220,7 +220,7 @@ describe("documentIntelligenceService", () => {
         originalName: "scan.png",
         mimeType: "image/png",
         sizeBytes: 1024,
-        geminiModel: "gemini-3.5-flash",
+        geminiModel: "gemini-2.5-flash",
         errorMessage: "Gemini 3.5 JSON parse failed",
       }),
     );
