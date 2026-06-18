@@ -1,7 +1,17 @@
 import type { CSSProperties } from "react";
 import { Link, useLocation } from "react-router-dom";
+import {
+  ArrowUploadRegular,
+  ChevronLeftRegular,
+  DocumentRegular,
+  DocumentTextRegular,
+  HomeRegular,
+  PeopleRegular,
+  SendRegular,
+  SettingsRegular,
+  SparkleRegular,
+} from "@fluentui/react-icons";
 import { getSchoolDisplayName, getSchoolInitials } from "./branding";
-import { Icon } from "./Icon";
 import { useAppSettings } from "./SettingsContext";
 import { getProductFromPath, isActiveNavPath, navItemsByProduct, type NavItem, type ProductKey } from "./navConfig";
 
@@ -35,17 +45,39 @@ function NavLinkRow({
       onClick={onClick}
       className={`group flex items-center gap-3 rounded-full border px-3 py-2 text-sm font-semibold transition ${
         active
-          ? "border-white/25 bg-[#EFF6FF] text-[#005A9E] shadow-[0_10px_24px_rgba(15,23,42,0.14)]"
+          ? "border-white/25 bg-[color:var(--sc-primary-soft)] text-[color:var(--sc-primary-active)] shadow-[0_10px_24px_rgba(15,23,42,0.14)]"
           : "border-transparent text-blue-100 hover:border-white/10 hover:bg-white/10 hover:text-white"
       }`}
     >
-      <Icon
-        name={icon}
-        className={`h-5 w-5 shrink-0 transition ${active ? "text-[#005A9E]" : "text-blue-100 group-hover:text-white"}`}
-      />
+      <ShellNavIcon name={icon} active={active} />
       {!collapsed ? <span className="truncate">{label}</span> : null}
     </Link>
   );
+}
+
+function ShellNavIcon({ name, active }: { name: NavItem["icon"]; active: boolean }) {
+  const className = `h-5 w-5 shrink-0 transition ${active ? "text-[color:var(--sc-primary-active)]" : "text-blue-100 group-hover:text-white"}`;
+
+  switch (name) {
+    case "home":
+      return <HomeRegular className={className} />;
+    case "students":
+      return <PeopleRegular className={className} />;
+    case "upload":
+      return <ArrowUploadRegular className={className} />;
+    case "clipboard":
+      return <DocumentTextRegular className={className} />;
+    case "file":
+      return <DocumentRegular className={className} />;
+    case "send":
+      return <SendRegular className={className} />;
+    case "settings":
+      return <SettingsRegular className={className} />;
+    case "sparkles":
+      return <SparkleRegular className={className} />;
+    default:
+      return <DocumentRegular className={className} />;
+  }
 }
 
 function SidebarSection({
@@ -105,7 +137,7 @@ export function Sidebar({ open, onClose, collapsed, onToggleCollapsed, width }: 
       />
       <aside
         style={{ "--sidebar-width": `${sidebarWidth}px` } as CSSProperties}
-        className={`app-shell-sidebar fixed inset-y-0 left-0 z-40 flex w-[260px] transform flex-col overflow-y-auto overscroll-contain bg-gradient-to-b from-blue-950 via-blue-900 to-sky-900 text-white shadow-2xl transition-transform duration-200 lg:sticky lg:top-0 lg:h-screen lg:w-[var(--sidebar-width)] lg:translate-x-0 ${
+        className={`app-shell-sidebar fixed inset-y-0 left-0 z-40 flex w-[var(--sidebar-width)] transform flex-col overflow-y-auto overscroll-contain bg-gradient-to-b from-blue-950 via-blue-900 to-sky-900 text-white shadow-2xl transition-transform duration-200 lg:sticky lg:top-0 lg:h-screen lg:translate-x-0 ${
           open ? "translate-x-0" : "-translate-x-full"
         }`}
       >
@@ -147,7 +179,7 @@ export function Sidebar({ open, onClose, collapsed, onToggleCollapsed, width }: 
             onClick={onToggleCollapsed}
             title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
           >
-            <Icon name="chevron" className={`h-4 w-4 transition ${collapsed ? "" : "rotate-180"}`} />
+            <ChevronLeftRegular className={`h-4 w-4 transition ${collapsed ? "" : "rotate-180"}`} />
           </button>
         </div>
       </aside>

@@ -1,6 +1,6 @@
 import { useNavigate, useLocation } from "react-router-dom";
+import { NavigationRegular, PersonRegular, SignOutRegular } from "@fluentui/react-icons";
 import { useAuth } from "../../contexts/AuthContext";
-import { Icon } from "./Icon";
 import { getProductFromPath, productSwitcherItems } from "./navConfig";
 
 type Props = {
@@ -24,17 +24,17 @@ export function Topbar({ onMenuClick }: Props) {
 
   return (
     <header
-      className="app-shell-topbar sticky top-0 z-20 flex items-center justify-between border-b border-[#005A9E]/30 px-4 py-3 shadow-[0_1px_0_rgba(255,255,255,0.08)] md:px-6"
-      style={{ backgroundColor: "#0078D4" }}
+      className="app-shell-topbar sticky top-0 z-20 flex items-center justify-between border-b border-white/15 px-3 shadow-[0_1px_0_rgba(255,255,255,0.08)] md:px-4"
+      style={{ backgroundColor: "var(--sc-primary)" }}
     >
       <div className="flex min-w-0 items-center gap-3">
         <button
           type="button"
           onClick={onMenuClick}
           aria-label="Open navigation"
-          className="grid h-9 w-9 place-items-center rounded-xl text-white/90 transition hover:bg-white/10 hover:text-white"
+          className="grid h-9 w-9 place-items-center rounded-lg text-white/90 transition hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60 focus-visible:ring-offset-0"
         >
-          <Icon name="menu" className="h-5 w-5" />
+          <NavigationRegular className="h-5 w-5" />
         </button>
 
         <div className="flex items-center gap-1 rounded-full border border-white/20 bg-white/10 p-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.1)]">
@@ -43,7 +43,7 @@ export function Topbar({ onMenuClick }: Props) {
             onClick={() => switchProduct("reportLab")}
             className={`rounded-full px-3 py-1.5 text-xs font-black transition ${
               currentProduct === "reportLab"
-                ? "bg-white text-[#005A9E] shadow-sm"
+                ? "bg-white text-[color:var(--sc-primary-active)] shadow-sm"
                 : "text-white/90 hover:bg-white/10 hover:text-white"
             }`}
           >
@@ -54,7 +54,7 @@ export function Topbar({ onMenuClick }: Props) {
             onClick={() => switchProduct("smartPages")}
             className={`rounded-full px-3 py-1.5 text-xs font-black transition ${
               currentProduct === "smartPages"
-                ? "bg-white text-[#005A9E] shadow-sm"
+                ? "bg-white text-[color:var(--sc-primary-active)] shadow-sm"
                 : "text-white/90 hover:bg-white/10 hover:text-white"
             }`}
           >
@@ -67,7 +67,7 @@ export function Topbar({ onMenuClick }: Props) {
       <div className="flex items-center gap-2.5">
         <div className="flex items-center gap-2.5">
           <div className="grid h-8 w-8 place-items-center rounded-full border border-white/25 bg-white/15 text-white shadow-sm">
-            <Icon name="user" className="h-4 w-4" />
+            <PersonRegular className="h-5 w-5" />
           </div>
           <div className="hidden sm:block">
             <p className="text-sm font-semibold leading-tight text-white">{user?.name ?? "Admin"}</p>
@@ -77,11 +77,11 @@ export function Topbar({ onMenuClick }: Props) {
         <button
           type="button"
           onClick={handleLogout}
-          className="ml-1 grid h-8 w-8 place-items-center rounded-xl text-white/90 transition hover:bg-white/10 hover:text-white"
+          className="ml-1 grid h-8 w-8 place-items-center rounded-lg text-white/90 transition hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60 focus-visible:ring-offset-0"
           title="Sign out"
           aria-label="Sign out"
         >
-          <Icon name="log-out" className="h-5 w-5" />
+          <SignOutRegular className="h-5 w-5" />
         </button>
       </div>
     </header>
