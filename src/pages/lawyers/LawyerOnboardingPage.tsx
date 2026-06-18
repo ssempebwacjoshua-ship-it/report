@@ -127,10 +127,10 @@ export function LawyerOnboardingPage() {
   }
 
   return (
-    <div className="mx-auto max-w-4xl space-y-5">
-      <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+    <div className="mx-auto max-w-4xl space-y-4">
+      <section className="premium-card premium-card-hover rounded-2xl p-4 sm:p-5">
         <p className="text-xs font-black uppercase tracking-[0.18em] text-[color:var(--sc-primary)]">Lawyer onboarding</p>
-        <h1 className="mt-2 text-2xl font-black text-slate-950">Set up your firm profile and drafting defaults.</h1>
+        <h1 className="mt-2 text-xl font-black text-slate-950 sm:text-2xl">Set up your firm profile and drafting defaults.</h1>
         <p className="mt-2 text-sm leading-6 text-slate-600">
           Smart Pages prepares legal drafts for lawyer review. Review and approve before sending, filing, or signing. Applicable law, court rules, and citations must be verified by the lawyer.
         </p>
@@ -139,7 +139,7 @@ export function LawyerOnboardingPage() {
       {notice ? <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">{notice}</div> : null}
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+        <section className="premium-card premium-card-hover rounded-2xl p-4 sm:p-5">
           <h2 className="text-lg font-black text-slate-950">Profile</h2>
           <div className="mt-4 grid gap-3">
             <Field label="Lawyer name" value={profile.name} onChange={(value) => setProfile((current) => ({ ...current, name: value }))} />
@@ -158,7 +158,7 @@ export function LawyerOnboardingPage() {
           </div>
         </section>
 
-        <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+        <section className="premium-card premium-card-hover rounded-2xl p-4 sm:p-5">
           <h2 className="text-lg font-black text-slate-950">Preferences</h2>
           <div className="mt-4 grid gap-4">
             <div>
@@ -199,7 +199,7 @@ export function LawyerOnboardingPage() {
         <button type="button" className="btn btn-primary min-h-11 px-4" onClick={() => void saveSettings()} disabled={saving}>
           {saving ? "Saving..." : "Save lawyer profile"}
         </button>
-        <Link to="/lawyers/documents" className="inline-flex min-h-11 items-center rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 hover:bg-slate-50">
+        <Link to="/lawyers/documents" className="btn btn-secondary min-h-11 px-4">
           Continue
         </Link>
         {profileComplete ? <span className="self-center text-xs font-semibold text-emerald-700">Profile details saved in this workspace.</span> : null}
@@ -226,14 +226,14 @@ function Field({
         <textarea
           value={value}
           onChange={(event) => onChange(event.target.value)}
-          className="min-h-24 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none focus:border-[color:var(--sc-primary)]"
+          className="premium-control min-h-24 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none focus:border-[color:var(--sc-primary)]"
         />
       ) : (
         <input
           type="text"
           value={value}
           onChange={(event) => onChange(event.target.value)}
-          className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none focus:border-[color:var(--sc-primary)]"
+          className="premium-control rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none focus:border-[color:var(--sc-primary)]"
         />
       )}
     </label>

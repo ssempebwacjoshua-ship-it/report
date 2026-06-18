@@ -44,11 +44,11 @@ export function LawyerDocumentsPage() {
   }
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="text-xs font-black uppercase tracking-[0.18em] text-[color:var(--sc-primary)]">Smart Pages for Lawyers</p>
-          <h1 className="mt-1 text-2xl font-black text-slate-950">Documents</h1>
+          <h1 className="mt-1 text-xl font-black text-slate-950 sm:text-2xl">Documents</h1>
           <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-600">Recent matters, drafts, published client links, and starting points for new legal documents.</p>
         </div>
         <button type="button" className="btn btn-primary min-h-11 px-4" onClick={() => void handleCreateDocument()} disabled={creating}>
@@ -56,14 +56,14 @@ export function LawyerDocumentsPage() {
         </button>
       </div>
 
-      <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+      <section className="premium-card premium-card-hover rounded-2xl p-4 sm:p-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <p className="text-xs font-black uppercase tracking-[0.18em] text-[color:var(--sc-primary)]">Start here</p>
             <h2 className="mt-1 text-lg font-black text-slate-950">Choose a lawyer template</h2>
             <p className="mt-1 text-sm text-slate-600">Create a new draft from a common legal workflow, then refine it in the editor.</p>
           </div>
-          <Link to="/lawyers/onboarding" className="inline-flex min-h-11 items-center rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 hover:bg-slate-50">
+          <Link to="/lawyers/onboarding" className="btn btn-secondary min-h-11 px-4">
             Update profile
           </Link>
         </div>
@@ -98,7 +98,7 @@ export function LawyerDocumentsPage() {
 
       {loadError ? <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{loadError}</div> : null}
 
-      <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+      <section className="premium-card premium-card-hover rounded-2xl p-4 sm:p-5">
         <div className="flex items-center justify-between gap-3">
           <div>
             <p className="text-xs font-black uppercase tracking-[0.18em] text-[color:var(--sc-primary)]">Recent matters</p>
@@ -112,7 +112,7 @@ export function LawyerDocumentsPage() {
             Loading lawyer documents...
           </div>
         ) : documents.length === 0 ? (
-          <div className="mt-4 rounded-3xl border border-dashed border-slate-200 bg-white p-8 text-center shadow-sm">
+          <div className="mt-4 rounded-2xl border border-dashed border-slate-200 bg-white p-8 text-center shadow-sm">
             <p className="text-lg font-black text-slate-950">No legal documents yet</p>
             <p className="mt-2 text-sm text-slate-500">Create a draft or upload client papers to begin.</p>
             <button type="button" className="btn btn-primary mt-4 min-h-11 px-4" onClick={() => void handleCreateDocument()} disabled={creating}>

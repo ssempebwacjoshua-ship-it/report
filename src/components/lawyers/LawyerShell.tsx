@@ -39,8 +39,8 @@ export function LawyerShell() {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-950">
-      <header className="sticky top-0 z-30 border-b border-[color:var(--sc-primary)]/15 bg-[color:var(--sc-primary)] text-white shadow-sm">
-        <div className="mx-auto flex min-h-12 max-w-7xl items-center justify-between gap-2 px-3 py-1.5 sm:px-4">
+      <header className="app-shell-topbar sticky top-0 z-30 border-b border-white/15 bg-[color:var(--sc-primary)] text-white shadow-sm">
+        <div className="mx-auto flex min-h-11 max-w-7xl items-center justify-between gap-2 px-3 py-1.5 sm:px-4">
           <Link
             to="/lawyers/dashboard"
             className="flex min-w-0 items-center gap-2 text-left"
@@ -50,7 +50,7 @@ export function LawyerShell() {
             </div>
             <div className="min-w-0">
               <p className="truncate text-sm font-black leading-tight text-white">Smart Pages for Lawyers</p>
-              <p className="truncate text-[11px] font-semibold leading-tight text-white/90">Built for Ugandan legal practice</p>
+              <p className="truncate text-[11px] font-semibold leading-tight text-white">Built for Ugandan legal practice</p>
             </div>
           </Link>
 
@@ -81,7 +81,7 @@ export function LawyerShell() {
               </div>
               <div className="hidden min-w-0 sm:block">
                 <p className="truncate text-sm font-semibold leading-tight text-white">{user.name ?? "Lawyer"}</p>
-                <p className="truncate text-xs leading-tight text-white/90">Legal workspace</p>
+                <p className="truncate text-xs leading-tight text-white">Legal workspace</p>
               </div>
             </div>
             <button
@@ -105,10 +105,10 @@ export function LawyerShell() {
         </div>
 
         {menuOpen ? (
-          <div className="border-t border-white/15 bg-[color:var(--sc-primary-active)] md:hidden">
-            <div className="mx-auto grid max-w-7xl gap-1 px-3 py-2">
-              {navItems.map((item) => {
-                return (
+            <div className="border-t border-white/15 bg-[color:var(--sc-primary-active)] md:hidden">
+              <div className="mx-auto grid max-w-7xl gap-1 px-3 py-2">
+                {navItems.map((item) => {
+                  return (
                   <NavLink
                     key={item.to}
                     to={item.to}

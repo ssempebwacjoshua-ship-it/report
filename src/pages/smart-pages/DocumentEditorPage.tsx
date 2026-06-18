@@ -145,7 +145,7 @@ function ExtractionReviewPanel({
           </div>
         </div>
       ) : null}
-      <section className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
+      <section className="premium-card premium-card-hover rounded-2xl p-4">
         <p className="text-xs font-bold uppercase tracking-wide text-[color:var(--sc-primary)]">{pickerLabel}</p>
         <h2 className="mt-1 text-lg font-black text-slate-950">{pickerHeading}</h2>
         <p className="mt-1 text-sm text-slate-500">{pickerDescription}</p>
@@ -157,12 +157,12 @@ function ExtractionReviewPanel({
           />
         </div>
       </section>
-      <section className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
+      <section className="premium-card premium-card-hover rounded-2xl p-4">
         <p className="text-xs font-bold uppercase tracking-wide text-blue-600">OCR Review</p>
         <h2 className="mt-1 text-lg font-black text-slate-950">{knowledge.title || "Untitled document"}</h2>
         <p className="mt-1 text-sm text-slate-500">{knowledge.suggestedDocumentType ?? knowledge.documentType} - {knowledge.domain}</p>
       </section>
-      <section className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
+      <section className="premium-card premium-card-hover rounded-2xl p-4">
         <div className="mb-2 flex items-center justify-between gap-2">
           <h3 className="text-sm font-bold text-slate-900">Extracted text</h3>
           <button type="button" className="text-xs font-bold text-blue-700" onClick={onEdit}>
@@ -185,7 +185,7 @@ function ExtractionReviewPanel({
         ) : null}
       </section>
       {tables.length ? (
-        <section className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
+        <section className="premium-card premium-card-hover rounded-2xl p-4">
           <h3 className="text-sm font-bold text-slate-900">Detected tables</h3>
           <div className="mt-3 grid gap-3">
             {tables.map((table, index) => (
@@ -198,7 +198,7 @@ function ExtractionReviewPanel({
         </section>
       ) : null}
       {unclear.length ? (
-        <section className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-amber-200">
+        <section className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-amber-200">
           <h3 className="text-sm font-bold text-amber-900">Unclear items</h3>
           <div className="mt-3 grid gap-2">
             {unclear.map((item, index) => (
@@ -226,8 +226,8 @@ function ExtractionProcessingCard({ sourceStatus }: { sourceStatus?: string }) {
   ];
   const activeIndex = sourceStatus === "PREPROCESSING" ? 1 : sourceStatus === "EXTRACTING" ? 2 : 0;
   return (
-    <div className="mx-auto grid w-full max-w-md gap-4 p-4 text-center">
-      <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
+      <div className="mx-auto grid w-full max-w-md gap-4 p-4 text-center">
+      <div className="premium-card premium-card-hover rounded-2xl p-5">
         <div className="mx-auto mb-4 h-10 w-10 animate-pulse rounded-full bg-blue-100" />
         <h2 className="text-base font-black text-slate-950">{steps[Math.min(activeIndex, steps.length - 1)]}</h2>
         <div className="mt-4 grid gap-2 text-left">
@@ -244,8 +244,8 @@ function ExtractionProcessingCard({ sourceStatus }: { sourceStatus?: string }) {
 
 function ExtractionFailedCard({ message, onRetry }: { message?: string | null; onRetry: () => void }) {
   return (
-    <div className="mx-auto grid w-full max-w-md gap-3 p-4 text-center">
-      <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-red-200">
+      <div className="mx-auto grid w-full max-w-md gap-3 p-4 text-center">
+      <div className="premium-card premium-card-hover rounded-2xl p-5">
         <h2 className="text-base font-black text-slate-950">Extraction failed</h2>
         <p className="mt-2 text-sm text-slate-500">{message || "We could not read this document. Please retry or upload a clearer file."}</p>
         <button type="button" className="btn btn-primary mt-4" onClick={onRetry}>

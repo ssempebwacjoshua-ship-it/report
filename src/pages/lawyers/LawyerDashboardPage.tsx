@@ -51,10 +51,10 @@ export function LawyerDashboardPage() {
   const recent = documents.slice(0, 6);
 
   return (
-    <div className="space-y-5">
-      <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+    <div className="space-y-4">
+      <section className="premium-card premium-card-hover rounded-2xl p-4">
         <p className="text-xs font-black uppercase tracking-[0.18em] text-[color:var(--sc-primary)]">Smart Pages for Lawyers</p>
-        <h1 className="mt-2 text-2xl font-black text-slate-950">Built for Ugandan legal practice.</h1>
+        <h1 className="mt-2 text-xl font-black text-slate-950 sm:text-2xl">Built for Ugandan legal practice.</h1>
         <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
           Upload client notes, agreements, court papers, IDs, evidence, or scanned documents. Smart Pages for Lawyers turns them into editable drafts for lawyer review before final export.
         </p>
@@ -67,16 +67,10 @@ export function LawyerDashboardPage() {
           >
             {creating ? "Creating..." : "New Legal Document"}
           </button>
-          <Link
-            to="/lawyers/onboarding"
-            className="inline-flex min-h-11 items-center rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 hover:bg-slate-50"
-          >
+          <Link to="/lawyers/onboarding" className="btn btn-secondary min-h-11 px-4">
             Start onboarding
           </Link>
-          <Link
-            to="/lawyers/documents"
-            className="inline-flex min-h-11 items-center rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 hover:bg-slate-50"
-          >
+          <Link to="/lawyers/documents" className="btn btn-secondary min-h-11 px-4">
             View documents
           </Link>
         </div>
@@ -95,22 +89,22 @@ export function LawyerDashboardPage() {
           { label: "Contracts Reviewed", value: contractCount, hint: "Keyword-derived from real documents" },
           { label: "Evidence Bundles", value: evidenceCount, hint: "Keyword-derived from real documents" },
         ].map((card) => (
-          <article key={card.label} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <article key={card.label} className="premium-card premium-card-hover rounded-2xl p-4">
             <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">{card.label}</p>
-            <p className="mt-3 text-3xl font-black text-slate-950">{card.value}</p>
+            <p className="mt-3 text-2xl font-black text-slate-950 sm:text-3xl">{card.value}</p>
             <p className="mt-2 text-xs leading-5 text-slate-500">{card.hint}</p>
           </article>
         ))}
       </section>
 
       <section className="grid gap-4 lg:grid-cols-[1.3fr_0.7fr]">
-        <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="premium-card premium-card-hover rounded-2xl p-4 sm:p-5">
           <div className="flex items-center justify-between gap-3">
             <div>
               <p className="text-xs font-black uppercase tracking-[0.18em] text-[color:var(--sc-primary)]">Recent Matters / Documents</p>
               <h2 className="mt-1 text-lg font-black text-slate-950">Recent legal work</h2>
             </div>
-            <Link to="/lawyers/documents" className="inline-flex min-h-11 items-center rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-slate-700 hover:bg-slate-50">
+            <Link to="/lawyers/documents" className="btn btn-secondary min-h-11 px-3">
               View all
             </Link>
           </div>
@@ -126,14 +120,14 @@ export function LawyerDashboardPage() {
                   key={doc.id}
                   type="button"
                   onClick={() => void navigate(`/lawyers/documents/${doc.id}`)}
-                  className="rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-[color:var(--sc-primary)] hover:shadow-lg"
+                  className="premium-card premium-card-hover rounded-2xl p-4 text-left"
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <p className="text-sm font-black text-slate-950">{doc.title}</p>
                       <p className="mt-0.5 text-xs text-slate-500">{doc.domain ?? "legal"} - {doc.status.toLowerCase()}</p>
                     </div>
-                    <span className="rounded-full bg-slate-100 px-2 py-1 text-[10px] font-bold text-slate-600">{doc.versionCount} versions</span>
+                    <span className="rounded-full bg-[color:var(--sc-primary-soft)] px-2 py-1 text-[10px] font-bold text-[color:var(--sc-primary)]">{doc.versionCount} versions</span>
                   </div>
                   <div className="mt-3 flex items-center justify-between text-[11px] text-slate-400">
                     <span>{new Date(doc.updatedAt).toLocaleDateString()}</span>
@@ -152,7 +146,7 @@ export function LawyerDashboardPage() {
             { title: "Contracts", body: "Review agreements, risks, and missing clauses quickly." },
             { title: "Evidence Bundles", body: "Index supporting files and exhibits for court prep." },
           ].map((card) => (
-            <article key={card.title} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <article key={card.title} className="premium-card premium-card-hover rounded-2xl p-4">
               <p className="text-sm font-black text-slate-950">{card.title}</p>
               <p className="mt-1 text-sm leading-6 text-slate-600">{card.body}</p>
             </article>
