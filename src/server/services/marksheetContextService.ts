@@ -24,7 +24,7 @@ import type {
   ScanMarksheetContext,
 } from "../../shared/types/imports";
 
-// â”€â”€ ID codec â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── ID codec ─────────────────────────────────────────────────────────────────
 
 export type MarksheetIdComponents = {
   valid: boolean;
@@ -135,7 +135,7 @@ export function normalizeMarksheetId(input: string): string {
   const cleaned = input
     .trim()
     .toUpperCase()
-    .replace(/[â€“â€”âˆ’]/g, "-")
+    .replace(/[–?−]/g, "-")
     .replace(/\|/g, "I")
     .replace(/[^A-Z0-9]+/g, "-")
     .replace(/-+/g, "-")
@@ -257,7 +257,7 @@ export function findSheetNumberInText(text: string): string | null {
  *
  * Candidates come from:
  *   1. Previously committed batches (batch lookup)
- *   2. Cross-product of live school data (classes Ã— streams Ã— subjects Ã— terms Ã— exam types)
+ *   2. Cross-product of live school data (classes × streams × subjects × terms × exam types)
  */
 export async function findMarksheetIdBySheetNumber(
   prisma: PrismaClient,
@@ -285,7 +285,7 @@ export async function findMarksheetIdBySheetNumber(
     if (!cn || !su || !et || !tn) continue;
     const year = new Date(batch.createdAt).getFullYear();
     const id = computeMarksheetId(cn, sn, su, et, tn, year);
-    // sheetNumberSuffix normalizes before hashing â€” return the normalized form
+    // sheetNumberSuffix normalizes before hashing ? return the normalized form
     if (sheetNumberSuffix(id) === targetSuffix) return normalizeMarksheetId(id);
   }
 
@@ -319,7 +319,7 @@ export async function findMarksheetIdBySheetNumber(
   return null;
 }
 
-// â”€â”€ DB lookups â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── DB lookups ────────────────────────────────────────────────────────────────
 
 /**
  * Search committed/dry-run MarkImportBatch records.
@@ -401,7 +401,7 @@ async function resolveFromSchoolData(
     }),
   ]);
 
-  // â”€â”€ Class â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Class ──────────────────────────────────────────────────────────────────
   let className = "";
   let streamName = c.stream; // fallback: use stream code directly
   const classMatches: Array<{
@@ -425,7 +425,7 @@ async function resolveFromSchoolData(
     if (bestClassMatch.streamMatch) streamName = bestClassMatch.streamMatch.name;
   }
 
-  // â”€â”€ Subject â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Subject ────────────────────────────────────────────────────────────────
   let subjectName = "";
 
   for (const sub of subjects) {
@@ -437,7 +437,7 @@ async function resolveFromSchoolData(
     }
   }
 
-  // â”€â”€ Academic year & term â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Academic year & term ───────────────────────────────────────────────────
   const targetYear = parseInt(c.year, 10);
 
   // Filter terms belonging to the target academic year
@@ -459,7 +459,7 @@ async function resolveFromSchoolData(
 
     // "Term 1", "Term 2", "Term 3" all produce "TE" (first 2 chars of "TERM*").
     // When there are multiple matches, the examType gives a weak hint:
-    //   EOT â†’ Term 3 (end-of-year), MOT â†’ Term 2, BOT â†’ Term 1
+    //   EOT ? Term 3 (end-of-year), MOT ? Term 2, BOT ? Term 1
     const picked =
       matching.length === 1
         ? matching[0]!
@@ -496,7 +496,7 @@ async function resolveFromSchoolData(
   };
 }
 
-// â”€â”€ Public API â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Public API ────────────────────────────────────────────────────────────────
 
 /**
  * Resolve context from a marksheet ID string.
@@ -550,7 +550,7 @@ export function findMarksheetIdCandidatesInText(ocrText: string): string[] {
 
   const text = ocrText
     .toUpperCase()
-    .replace(/[â€“â€”âˆ’]/g, "-")
+    .replace(/[–?−]/g, "-")
     .replace(/\|/g, "I")
     .replace(/\bSENL\b/g, "SEN1")
     .replace(/\bSENI\b/g, "SEN1");

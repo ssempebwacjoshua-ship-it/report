@@ -1,6 +1,6 @@
 ﻿import type { ContextSource, DetectedContext } from "../../shared/types/imports";
 
-// â”€â”€ Source badge â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Source badge ──────────────────────────────────────────────────────────────
 
 const SOURCE_LABELS: Record<ContextSource, string> = {
   BATCH_LOOKUP:  "From committed batch",
@@ -18,7 +18,7 @@ const SOURCE_COLORS: Record<ContextSource, string> = {
   NOT_EXTRACTED: "bg-red-100 text-red-700",
 };
 
-// â”€â”€ Field display â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Field display ─────────────────────────────────────────────────────────────
 
 function FieldRow({
   label,
@@ -37,7 +37,7 @@ function FieldRow({
           uncertain ? "italic text-amber-700" : "text-slate-900"
         }`}
       >
-        {value || <span className="text-slate-300">â€”</span>}
+        {value || <span className="text-slate-300">?</span>}
       </span>
       {uncertain && (
         <span className="rounded-full bg-amber-100 px-1.5 py-px text-xs font-semibold text-amber-700">
@@ -48,7 +48,7 @@ function FieldRow({
   );
 }
 
-// â”€â”€ Main component â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Main component ────────────────────────────────────────────────────────────
 
 export function ExtractedContextCard({
   context,

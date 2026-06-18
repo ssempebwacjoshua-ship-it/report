@@ -29,7 +29,7 @@ function makePrisma(subjectMarkFindMany: ReturnType<typeof vi.fn>) {
   } as unknown as PrismaClient;
 }
 
-describe("loadReportEngineInput â€” mark status filtering", () => {
+describe("loadReportEngineInput ? mark status filtering", () => {
   const filters = {
     schoolCode: SCHOOL_CODE,
     classId: CLS,

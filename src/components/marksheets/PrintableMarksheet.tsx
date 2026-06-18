@@ -2,9 +2,9 @@
 import type { MarksheetStudent } from "../../shared/types/marksheets";
 
 const EXAM_LABELS: Record<string, string> = {
-  BOT: "BOT â€” Beginning of Term",
-  MOT: "MOT â€” Mid Term",
-  EOT: "EOT â€” End of Term",
+  BOT: "BOT ? Beginning of Term",
+  MOT: "MOT ? Mid Term",
+  EOT: "EOT ? End of Term",
 };
 
 // Rows that fit comfortably on first page (full header) and continuation pages (compact header)
@@ -40,12 +40,12 @@ function computeMarksheetId(
 }
 
 // Deterministic 3-digit suffix from marksheet ID (mirrors marksheetContextService.ts).
-// Apply the same basic normalization as the server side (SENIâ†’SEN1, M5â†’MS, O/0 swaps)
+// Apply the same basic normalization as the server side (SENI->SEN1, M5->MS, O/0 swaps)
 // so the printed sheet number matches what the lookup will compute.
 function normalizeIdForHash(id: string): string {
   return id
     .toUpperCase()
-    .replace(/[â€“â€”âˆ’]/g, "-")
+    .replace(/[–—−]/g, "-")
     .replace(/\|/g, "I")
     .replace(/[^A-Z0-9]+/g, "-")
     .replace(/-+/g, "-")
@@ -79,7 +79,7 @@ function formatDate(date: Date): string {
   return date.toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" });
 }
 
-// â”€â”€ Table header â€” repeated on every page
+// ── Table header ? repeated on every page
 function TableHead() {
   return (
     <thead>
@@ -161,10 +161,10 @@ export function PrintableMarksheet({
             key={pageIndex}
             className={`marksheet-page${!isLast ? " marksheet-page-break" : ""}`}
           >
-            {/* â•â• FULL HEADER â€” first page only â•â• */}
+            {/* FULL HEADER - first page only */}
             {isFirst && (
               <div className="marksheet-header-box">
-                {/* Sheet Number + QR block â€” top right, absolute */}
+                {/* Sheet Number + QR block - top right, absolute */}
                 <div className="marksheet-id-qr-block">
                   <span className="marksheet-sheet-number-label">SHEET NO</span>
                   <span className="marksheet-sheet-number-value">{sheetNumber}</span>
@@ -212,17 +212,17 @@ export function PrintableMarksheet({
               </div>
             )}
 
-            {/* â•â• CONTINUATION HEADER â€” subsequent pages â•â• */}
+            {/* CONTINUATION HEADER - subsequent pages */}
             {!isFirst && (
               <div className="marksheet-cont-header">
                 <div className="marksheet-cont-inner">
                   <div>
                     <p className="marksheet-cont-title">
-                      {schoolName} â€” ACADEMIC MARKSHEET â€” CONTINUATION
+                      {schoolName} - ACADEMIC MARKSHEET - CONTINUATION
                     </p>
                     <div className="marksheet-cont-meta">
                       <span>
-                        {className} / {streamName} / {subjectName} / {examType} â€” {termName}
+                        {className} / {streamName} / {subjectName} / {examType} - {termName}
                       </span>
                       <span className="marksheet-cont-page">
                         Page {pageIndex + 1} of {totalPages}
@@ -243,7 +243,7 @@ export function PrintableMarksheet({
               </div>
             )}
 
-            {/* â•â• TABLE â•â• */}
+            {/* TABLE */}
             <table className="marksheet-table">
               <TableHead />
               <tbody>
@@ -267,9 +267,9 @@ export function PrintableMarksheet({
                       <td className="marksheet-td marksheet-td-name">
                         {student.firstName} {student.lastName}
                       </td>
-                      {/* Written Mark â€” clean empty writing cell */}
+                      {/* Written Mark - clean empty writing cell */}
                       <td className="marksheet-td" />
-                      {/* Split mark entry â€” one cell, three equal sections divided by thin vertical lines */}
+                      {/* Split mark entry - one cell, three equal sections divided by thin vertical lines */}
                       <td className="marksheet-td marksheet-td-split">
                         <div className="marksheet-split-inner">
                           <span className="marksheet-split-part" />
@@ -277,7 +277,7 @@ export function PrintableMarksheet({
                           <span className="marksheet-split-part marksheet-split-last" />
                         </div>
                       </td>
-                      {/* Remarks â€” clean empty writing cell */}
+                      {/* Remarks - clean empty writing cell */}
                       <td className="marksheet-td" />
                     </tr>
                   );
@@ -285,20 +285,20 @@ export function PrintableMarksheet({
               </tbody>
             </table>
 
-            {/* â•â• FOOTER â•â• */}
+            {/* FOOTER */}
             <div className="marksheet-footer">
               <span className="marksheet-footer-legend">
                 Valid entries: {validMarkValues} &nbsp;|&nbsp; {footerText}
               </span>
               {!isLast ? (
-                <span className="marksheet-footer-continued">Continued on next page â†’</span>
+                <span className="marksheet-footer-continued">Continued on next page</span>
               ) : (
                 <span className="marksheet-footer-id">
                   {includeHumanReadableMarksheetId ? (
                     <span className="marksheet-footer-internal-id">{marksheetId}</span>
                   ) : null}
                   <span>
-                    {totalPages > 1 ? `Page ${pageIndex + 1} of ${totalPages} Â· ` : ""}
+                    {totalPages > 1 ? `Page ${pageIndex + 1} of ${totalPages} ? ` : ""}
                     {todayStr}
                   </span>
                 </span>

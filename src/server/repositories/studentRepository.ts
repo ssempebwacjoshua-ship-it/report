@@ -73,7 +73,7 @@ async function loadStudentEnrollmentRows(
   if (!school || !academicYear || !term) return [];
 
   const search = filters?.search?.trim();
-  // Do NOT include class/stream relations here â€” Prisma throws "Inconsistent query
+  // Do NOT include class/stream relations here ? Prisma throws "Inconsistent query
   // result" when classId/streamId FKs point to deleted records (orphaned rows in
   // the live DB).  Classes and streams are fetched separately below.
   return prisma.classEnrollment.findMany({
@@ -101,7 +101,7 @@ async function loadStudentEnrollmentRows(
     include: {
       student: { include: { guardianContacts: { orderBy: [{ isPrimary: "desc" }, { guardianName: "asc" }] } } },
     },
-    // No orderBy on relation fields â€” sorted in JS after class/stream maps are built
+    // No orderBy on relation fields ? sorted in JS after class/stream maps are built
   });
 }
 

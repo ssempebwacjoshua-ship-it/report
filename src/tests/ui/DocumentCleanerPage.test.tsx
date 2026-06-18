@@ -56,7 +56,7 @@ function renderPage() {
   );
 }
 
-describe("DocumentCleanerPage â€” initial state", () => {
+describe("DocumentCleanerPage ? initial state", () => {
   beforeEach(() => {
     mockUpload.mockReset();
     mockGenerate.mockReset();
@@ -87,7 +87,7 @@ describe("DocumentCleanerPage â€” initial state", () => {
   });
 });
 
-describe("DocumentCleanerPage â€” after successful upload", () => {
+describe("DocumentCleanerPage ? after successful upload", () => {
   beforeEach(() => {
     mockUpload.mockReset();
     mockGenerate.mockReset();
@@ -152,7 +152,7 @@ describe("DocumentCleanerPage â€” after successful upload", () => {
   });
 });
 
-describe("DocumentCleanerPage â€” editable fields", () => {
+describe("DocumentCleanerPage ? editable fields", () => {
   beforeEach(() => {
     mockUpload.mockResolvedValue(mockDraft);
   });
@@ -173,7 +173,7 @@ describe("DocumentCleanerPage â€” editable fields", () => {
   });
 });
 
-// â”€â”€ Smart Pages card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Smart Pages card ─────────────────────────────────────────────────────────
 
 const mockSummary = {
   includedPages: 5000,
@@ -185,7 +185,7 @@ const mockSummary = {
   allowHighAccuracy: false,
 };
 
-describe("DocumentCleanerPage â€” Smart Pages card", () => {
+describe("DocumentCleanerPage ? Smart Pages card", () => {
   beforeEach(() => {
     mockUpload.mockReset();
     mockGenerate.mockReset();
@@ -232,9 +232,9 @@ describe("DocumentCleanerPage â€” Smart Pages card", () => {
   });
 });
 
-// â”€â”€ Extraction mode selector â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Extraction mode selector ──────────────────────────────────────────────────
 
-describe("DocumentCleanerPage â€” extraction mode selector", () => {
+describe("DocumentCleanerPage ? extraction mode selector", () => {
   beforeEach(() => {
     mockUpload.mockReset();
     mockGetSummary.mockReset();
@@ -258,9 +258,9 @@ describe("DocumentCleanerPage â€” extraction mode selector", () => {
   });
 });
 
-// â”€â”€ High Accuracy warning â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── High Accuracy warning ─────────────────────────────────────────────────────
 
-describe("DocumentCleanerPage â€” High Accuracy mode warning", () => {
+describe("DocumentCleanerPage ? High Accuracy mode warning", () => {
   beforeEach(() => {
     mockGetSummary.mockReset();
     mockGetSummary.mockResolvedValue({ ...mockSummary, allowHighAccuracy: true });
@@ -283,9 +283,9 @@ describe("DocumentCleanerPage â€” High Accuracy mode warning", () => {
   });
 });
 
-// â”€â”€ Route â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Route ─────────────────────────────────────────────────────────────────────
 
-describe("DocumentCleanerPage â€” routing", () => {
+describe("DocumentCleanerPage ? routing", () => {
   it("renders when placed at /documents/cleaner", () => {
     render(
       <MemoryRouter initialEntries={["/documents/cleaner"]}>

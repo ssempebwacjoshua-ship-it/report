@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ReportsPage } from "../../pages/ReportsPage";
 import type { ReportContext } from "../../shared/types/reports";
 
-// Silence matchMedia â€” unavailable in JSDOM
+// Silence matchMedia ? unavailable in JSDOM
 beforeEach(() => {
   Object.defineProperty(window, "matchMedia", {
     writable: true,
@@ -72,7 +72,7 @@ function renderAtUrl(url: string) {
   );
 }
 
-describe("ReportsPage â€” URL params applied as initial filters", () => {
+describe("ReportsPage ? URL params applied as initial filters", () => {
   it("uses classId from URL instead of context default", async () => {
     const { fetchReports } = await import("../../client/reportsClient");
     const mockFetchReports = vi.mocked(fetchReports);
@@ -129,7 +129,7 @@ describe("ReportsPage â€” URL params applied as initial filters", () => {
     const mockFetchReports = vi.mocked(fetchReports);
     mockFetchReports.mockClear();
 
-    // No classId in URL â€” page should start with empty classId and not fetch until context loads
+    // No classId in URL ? page should start with empty classId and not fetch until context loads
     renderAtUrl("/reports");
 
     await waitFor(() => {

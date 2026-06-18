@@ -347,7 +347,7 @@ Return ONLY valid JSON (no markdown):
 
 Rules:
 - First component MUST be header, last MUST be footer
-- Use real data from the extracted knowledge â€” no placeholder text
+- Use real data from the extracted knowledge ? no placeholder text
 - Apply stored creator preferences automatically when relevant
 - Generate short unique IDs (h1, tb1, t1, s1, ai1, f1, etc.)
 - Include all tables from extracted knowledge as table components`,
@@ -431,7 +431,7 @@ Rules:
     {
       id: "h1",
       type: "header",
-      props: { title: `${collectionType} Document â€” {{name}}`, date: new Date().toLocaleDateString() },
+      props: { title: `${collectionType} Document ? {{name}}`, date: new Date().toLocaleDateString() },
     },
     { id: "f1", type: "footer", props: { center: collectionType } },
   ];

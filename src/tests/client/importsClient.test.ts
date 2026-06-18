@@ -1,10 +1,10 @@
 ﻿import { afterEach, describe, expect, it, vi } from "vitest";
 
 // The Gemini scan client function must call the real production route and must
-// never send x-internal-test-key â€” that header belongs only on pilot test
+// never send x-internal-test-key ? that header belongs only on pilot test
 // routes called by developers, not by the frontend UI.
 
-describe("extractMarksWithGeminiScan â€” security contract", () => {
+describe("extractMarksWithGeminiScan ? security contract", () => {
   afterEach(() => {
     vi.restoreAllMocks();
     vi.unstubAllEnvs();

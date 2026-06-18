@@ -73,7 +73,7 @@ function logStudentImport(req: { method: string; url: string; school?: { id: str
 export function studentsRoutes() {
   const router = Router();
 
-  // â”€â”€ Student list â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Student list ──────────────────────────────────────────────────────────────
 
   router.get("/api/students", async (req, res, next) => {
     try {
@@ -109,7 +109,7 @@ export function studentsRoutes() {
     }
   });
 
-  // â”€â”€ Student create / update â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Student create / update ───────────────────────────────────────────────────
 
   router.post("/api/students", async (req, res, next) => {
     try {
@@ -185,9 +185,9 @@ export function studentsRoutes() {
     }
   });
 
-  // Import templates are public â€” see studentsPublicRoutes() below
+  // Import templates are public ? see studentsPublicRoutes() below
 
-  // â”€â”€ Import preview/commit â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Import preview/commit ─────────────────────────────────────────────────────
 
   router.post("/api/students/import/preview", upload.single("file"), async (req, res, next) => {
     try {
@@ -243,7 +243,7 @@ export function studentsRoutes() {
     }
   });
 
-  // â”€â”€ Import jobs (browser-facing) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Import jobs (browser-facing) ──────────────────────────────────────────────
 
   router.post("/api/students/import-jobs/upload", upload.single("file"), async (req, res, next) => {
     try {
@@ -328,7 +328,7 @@ export function studentsRoutes() {
     }
   });
 
-  // â”€â”€ Import history â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Import history ────────────────────────────────────────────────────────────
 
   router.get("/api/students/import/history", async (req, res, next) => {
     try {
@@ -382,7 +382,7 @@ export function studentsRoutes() {
     }
   });
 
-  // â”€â”€ Contact summary (browser-facing) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Contact summary (browser-facing) ─────────────────────────────────────────
 
   router.get("/api/students/contact-summary", async (req, res, next) => {
     try {
@@ -409,7 +409,7 @@ export function studentsRoutes() {
     }
   });
 
-  // â”€â”€ Single student (internal use) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Single student (internal use) ─────────────────────────────────────────────
 
   router.get("/internal/students/:id", async (req, res, next) => {
     try {
@@ -428,7 +428,7 @@ export function studentsRoutes() {
     }
   });
 
-  // â”€â”€ Guardian contacts (browser-facing) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Guardian contacts (browser-facing) ───────────────────────────────────────
 
   router.post("/api/students/:id/contacts", async (req, res, next) => {
     try {
@@ -512,7 +512,7 @@ export function studentsRoutes() {
   return router;
 }
 
-// Public â€” no school context or auth required
+// Public ? no school context or auth required
 export function studentsPublicRoutes() {
   const r = Router();
 

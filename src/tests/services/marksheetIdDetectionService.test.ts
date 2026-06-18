@@ -8,7 +8,7 @@ import {
 } from "../../server/services/marksheetIdDetectionService";
 import { findSheetNumberInText } from "../../server/services/marksheetContextService";
 
-describe("marksheetIdDetectionService â€” sheet number OCR", () => {
+describe("marksheetIdDetectionService ? sheet number OCR", () => {
   it("extracts SHEET NO from header OCR text", () => {
     const text = "UGHS SCHOOL\nACADEMIC MARKSHEET\nSHEET NO: 20260611-042\nAcademic Year: 2025/2026";
     expect(findSheetNumberInText(text)).toBe("20260611-042");

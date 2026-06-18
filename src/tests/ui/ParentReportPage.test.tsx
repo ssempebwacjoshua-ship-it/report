@@ -67,7 +67,7 @@ function renderPage() {
   );
 }
 
-describe("ParentReportPage â€” public action card", () => {
+describe("ParentReportPage ? public action card", () => {
   it("shows Print Report and Download PDF buttons", async () => {
     fetchMock.mockResolvedValueOnce({ ok: true, json: async () => issuedPayload });
 
@@ -153,8 +153,8 @@ describe("ParentReportPage â€” public action card", () => {
   });
 });
 
-describe("ParentReportPage â€” one-report-only enforcement", () => {
-  it("renders exactly one report page â€” no multi-student list", async () => {
+describe("ParentReportPage ? one-report-only enforcement", () => {
+  it("renders exactly one report page ? no multi-student list", async () => {
     fetchMock.mockResolvedValueOnce({ ok: true, json: async () => issuedPayload });
 
     renderPage();
@@ -207,7 +207,7 @@ describe("ParentReportPage â€” one-report-only enforcement", () => {
     expect(screen.queryByText(/choose student/i)).not.toBeInTheDocument();
   });
 
-  it("has no bulk report list â€” only one student's data shown", async () => {
+  it("has no bulk report list ? only one student's data shown", async () => {
     fetchMock.mockResolvedValueOnce({ ok: true, json: async () => issuedPayload });
 
     renderPage();
@@ -224,7 +224,7 @@ describe("ParentReportPage â€” one-report-only enforcement", () => {
   });
 });
 
-describe("ParentReportPage â€” single-page layout enforcement", () => {
+describe("ParentReportPage ? single-page layout enforcement", () => {
   it("print-only wrapper has no extra page-break containers between it and the report", async () => {
     fetchMock.mockResolvedValueOnce({ ok: true, json: async () => issuedPayload });
 

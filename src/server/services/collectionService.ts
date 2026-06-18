@@ -18,7 +18,7 @@ export interface CollectionDetail extends CollectionSummary {
   fields: string[];
 }
 
-// â”€â”€ CRUD â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── CRUD ───────────────────────────────────────────────────────────────────────
 
 export async function listCollections(creatorId: string): Promise<CollectionSummary[]> {
   const collections = await db.collection.findMany({
@@ -100,7 +100,7 @@ export async function deleteCollection(collectionId: string, creatorId: string):
   await removeSearchIndex("COLLECTION", collectionId);
 }
 
-// â”€â”€ Records â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Records ────────────────────────────────────────────────────────────────────
 
 export async function addRecord(
   collectionId: string,
@@ -135,7 +135,7 @@ export async function deleteRecord(
   await removeSearchIndex("RECORD", recordId);
 }
 
-// â”€â”€ CSV import â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── CSV import ─────────────────────────────────────────────────────────────────
 
 export function parseCSV(content: string): Record<string, string>[] {
   const lines = content
@@ -214,7 +214,7 @@ export async function importCSVIntoCollection(
   return { imported, skipped };
 }
 
-// â”€â”€ Utility â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Utility ────────────────────────────────────────────────────────────────────
 
 function deriveFields(records: Record<string, unknown>[]): string[] {
   const keys = new Set<string>();

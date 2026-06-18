@@ -23,7 +23,7 @@ const mockPingGemini = vi.mocked(pingGemini);
 
 const FAKE_IMAGE = Buffer.from("fake-image-data");
 
-// â”€â”€ Marks route â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Marks route ───────────────────────────────────────────────────────────────
 
 describe("GET /api/test-gemini-marks/health", () => {
   it("returns 200 and route confirmation", async () => {
@@ -93,7 +93,7 @@ describe("POST /api/test-gemini-marks", () => {
   });
 });
 
-// â”€â”€ Roster route â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Roster route ──────────────────────────────────────────────────────────────
 
 describe("GET /api/test-gemini-roster/health", () => {
   it("returns 200 and route confirmation", async () => {
@@ -118,7 +118,7 @@ describe("POST /api/test-gemini-roster", () => {
     expect(res.body.error).toMatch(/no image/i);
   });
 
-  it("maps teacher level field correctly â€” A' Level and O' Level are not marks", async () => {
+  it("maps teacher level field correctly ? A' Level and O' Level are not marks", async () => {
     const mockRows: PerfectRosterRow[] = [
       {
         no: "1",
@@ -175,7 +175,7 @@ describe("POST /api/test-gemini-roster", () => {
   });
 });
 
-// â”€â”€ Health endpoint â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Health endpoint ───────────────────────────────────────────────────────────
 
 describe("GET /api/test-gemini-health", () => {
   afterEach(() => {
@@ -243,11 +243,11 @@ describe("GET /api/test-gemini-health", () => {
   });
 });
 
-// â”€â”€ Production key-protection boundary tests â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Production key-protection boundary tests ──────────────────────────────────
 //
 // These tests verify the separation of concerns:
-//   /api/test-gemini-*  â†’ protected by x-internal-test-key in production
-//   /api/marks-import/* â†’ protected by normal app auth, NOT x-internal-test-key
+//   /api/test-gemini-*  ? protected by x-internal-test-key in production
+//   /api/marks-import/* ? protected by normal app auth, NOT x-internal-test-key
 //
 // Root cause that was fixed: router.use(requireInternalKey) gated ALL /api/*
 // traffic because the router is mounted with app.use("/api", ...). Moving the
@@ -291,14 +291,14 @@ describe("production x-internal-test-key protection", () => {
     vi.stubEnv("NODE_ENV", "production");
     vi.stubEnv("INTERNAL_TEST_KEY", "test-secret");
     const app = createServer();
-    // Send without the internal key â€” the real route uses normal app auth, not the test key.
+    // Send without the internal key ? the real route uses normal app auth, not the test key.
     // Without a bearer token in production, resolveSchoolContext returns 401.
-    // If the x-internal-test-key guard were blocking here it would return 403 â€” that would be wrong.
+    // If the x-internal-test-key guard were blocking here it would return 403 ? that would be wrong.
     const res = await request(app)
       .post("/api/marks-import/scan/extract")
       .attach("image", FAKE_IMAGE, { filename: "marks.jpg", contentType: "image/jpeg" })
       .field("classId", "c1").field("subjectId", "s1").field("termId", "t1").field("examType", "BOT");
-    expect(res.status).toBe(401); // auth required â€” not 403 key-guard
+    expect(res.status).toBe(401); // auth required ? not 403 key-guard
   });
 });
 

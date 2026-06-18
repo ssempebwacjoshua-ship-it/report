@@ -15,7 +15,7 @@ function ownerAudit(actorId: string, schoolId: string, action: string, details?:
 export function platformOwnerRoutes() {
   const router = Router();
 
-  // â”€â”€ Dashboard stats â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Dashboard stats ──────────────────────────────────────────────────────────
 
   router.get("/api/owner/dashboard", requirePlatformOwner, async (req, res, next) => {
     try {
@@ -49,7 +49,7 @@ export function platformOwnerRoutes() {
     }
   });
 
-  // â”€â”€ Schools â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Schools ──────────────────────────────────────────────────────────────────
 
   router.get("/api/owner/schools", requirePlatformOwner, async (_req, res, next) => {
     try {
@@ -88,7 +88,7 @@ export function platformOwnerRoutes() {
     }
   });
 
-  // â”€â”€ Users â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Users ────────────────────────────────────────────────────────────────────
 
   router.get("/api/owner/users", requirePlatformOwner, async (req, res, next) => {
     try {
@@ -256,7 +256,7 @@ export function platformOwnerRoutes() {
     }
   });
 
-  // â”€â”€ School creation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── School creation ──────────────────────────────────────────────────────────
 
   const createSchoolSchema = z.object({
     schoolName: z.string().min(2, "School name must be at least 2 characters.").max(200),
@@ -408,7 +408,7 @@ export function platformOwnerRoutes() {
     }
   });
 
-  // â”€â”€ Single school â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Single school ────────────────────────────────────────────────────────────
 
   router.get("/api/owner/schools/:schoolId", requirePlatformOwner, async (req, res, next) => {
     try {
@@ -454,7 +454,7 @@ export function platformOwnerRoutes() {
     }
   });
 
-  // â”€â”€ Update / disable school â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Update / disable school ──────────────────────────────────────────────────
 
   const patchSchoolSchema = z.object({
     name: z.string().min(2).max(200).optional(),

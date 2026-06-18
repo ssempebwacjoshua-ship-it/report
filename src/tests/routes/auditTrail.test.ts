@@ -3,9 +3,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { commitMarksImport } from "../../server/services/marksImportService";
 import type { PrismaClient } from "@prisma/client";
 
-// â”€â”€â”€ marks.imported: service unit test â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── marks.imported: service unit test ───────────────────────────────────────
 
-describe("Phase 6 audit trail â€” marks.imported (CSV commit)", () => {
+describe("Phase 6 audit trail ? marks.imported (CSV commit)", () => {
   it("writes a marks.imported audit row after a successful commit", async () => {
     const auditLogCreate = vi.fn(async () => ({}));
 
@@ -91,7 +91,7 @@ describe("Phase 6 audit trail â€” marks.imported (CSV commit)", () => {
   });
 });
 
-// â”€â”€â”€ report.revoke audit: route test â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── report.revoke audit: route test ─────────────────────────────────────────
 
 const { auditLogCreateMock, issuedReportFindFirst, issuedReportUpdate, schoolFindUniqueMock } = vi.hoisted(() => ({
   auditLogCreateMock: vi.fn(async () => ({})),
@@ -114,7 +114,7 @@ vi.mock("../../server/db/prisma", () => ({
   },
 }));
 
-describe("Phase 6 audit trail â€” report.revoke", () => {
+describe("Phase 6 audit trail ? report.revoke", () => {
   let app: ReturnType<typeof import("../../server").createServer>;
   let authToken: string;
 

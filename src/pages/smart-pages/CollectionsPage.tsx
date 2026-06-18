@@ -64,7 +64,7 @@ export function CollectionsPage() {
     }
   }
 
-  if (loading) return <div className="p-8 text-center text-sm text-slate-500">Loading collectionsâ€¦</div>;
+  if (loading) return <div className="p-8 text-center text-sm text-slate-500">Loading collections?</div>;
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-8">
@@ -121,7 +121,7 @@ export function CollectionsPage() {
               disabled={creating || !newName.trim()}
               className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-bold text-white hover:bg-blue-700 disabled:opacity-50"
             >
-              {creating ? "Creatingâ€¦" : "Create"}
+              {creating ? "Creating?" : "Create"}
             </button>
             <button
               type="button"
@@ -150,7 +150,7 @@ export function CollectionsPage() {
               </div>
               <div className="min-w-0 flex-1 cursor-pointer" onClick={() => navigate(`/collections/${col.id}`)}>
                 <p className="font-bold text-slate-900">{col.name}</p>
-                <p className="text-xs text-slate-400">{col.type.charAt(0) + col.type.slice(1).toLowerCase()} Â· {new Date(col.updatedAt).toLocaleDateString()}</p>
+                <p className="text-xs text-slate-400">{col.type.charAt(0) + col.type.slice(1).toLowerCase()} ? {new Date(col.updatedAt).toLocaleDateString()}</p>
               </div>
               <div className="flex items-center gap-2 opacity-0 transition-opacity group-hover:opacity-100">
                 <button

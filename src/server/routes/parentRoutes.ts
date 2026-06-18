@@ -9,7 +9,7 @@ function hashToken(token: string): string {
 export function parentRoutes() {
   const router = Router();
 
-  // Public Ã¢â‚¬â€ URL token IS the auth. No login required.
+  // Public URL token is the auth. No login required.
   router.get("/api/p/:token", async (req, res, next) => {
     try {
       const { token } = req.params;

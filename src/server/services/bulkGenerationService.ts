@@ -31,7 +31,7 @@ export interface BulkJobOutput {
   error: string | null;
 }
 
-// â”€â”€ Create job â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Create job ─────────────────────────────────────────────────────────────────
 
 export async function createBulkJob(
   creatorId: string,
@@ -83,7 +83,7 @@ export async function createBulkJob(
   return jobToSummary(job, collection.name);
 }
 
-// â”€â”€ Process a single job â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Process a single job ───────────────────────────────────────────────────────
 
 export async function processJob(jobId: string): Promise<void> {
   const job = await db.bulkGenerationJob.findUnique({ where: { id: jobId }, include: { collection: true } });
@@ -192,7 +192,7 @@ export async function processJob(jobId: string): Promise<void> {
   });
 }
 
-// â”€â”€ Polling worker â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Polling worker ─────────────────────────────────────────────────────────────
 
 let _workerRunning = false;
 let _workerDisabledReason: string | null = null;
@@ -267,7 +267,7 @@ export function startBulkGenerationWorker(): void {
   }, 5_000);
 }
 
-// â”€â”€ List jobs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── List jobs ──────────────────────────────────────────────────────────────────
 
 export async function listBulkJobs(creatorId: string): Promise<BulkJobSummary[]> {
   await ensureBulkGenerationAvailable();
@@ -310,7 +310,7 @@ export async function getBulkJobOutputs(
   };
 }
 
-// â”€â”€ Utilities â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Utilities ─────────────────────────────────────────────────────────────────
 
 function fillTemplate(templateJson: string, data: Record<string, unknown>): string {
   return templateJson.replace(/\{\{(\w+)\}\}/g, (_, key: string) => {
@@ -321,7 +321,7 @@ function fillTemplate(templateJson: string, data: Record<string, unknown>): stri
 
 function deriveTitle(data: Record<string, unknown>, collectionName: string): string {
   const nameField = data.name ?? data.Name ?? data.studentName ?? data.fullName ?? data.firstName;
-  return nameField ? `${collectionName} â€” ${String(nameField)}` : collectionName;
+  return nameField ? `${collectionName} ? ${String(nameField)}` : collectionName;
 }
 
 function jobToSummary(job: any, collectionName: string): BulkJobSummary {

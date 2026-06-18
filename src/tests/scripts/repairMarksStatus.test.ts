@@ -2,7 +2,7 @@
 import { repairMarksStatus } from "../../../scripts/repair-marks-status";
 import type { PrismaClient } from "@prisma/client";
 
-// â”€â”€ Shared fixtures â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Shared fixtures ───────────────────────────────────────────────────────────
 
 const SCHOOL_ID = "sch-repair-1";
 const MARK_ID_1 = "mark-1";
@@ -31,9 +31,9 @@ function buildMock(stuckMarks: typeof stuckMark[] = [stuckMark]) {
   };
 }
 
-// â”€â”€ Dry-run: never writes â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Dry-run: never writes ─────────────────────────────────────────────────────
 
-describe("repairMarksStatus â€” dry-run mode", () => {
+describe("repairMarksStatus ? dry-run mode", () => {
   it("returns wouldRepair count but does NOT call updateMany", async () => {
     const { db, updateMany } = buildMock();
 
@@ -55,9 +55,9 @@ describe("repairMarksStatus â€” dry-run mode", () => {
   });
 });
 
-// â”€â”€ Live repair: writes updateMany â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Live repair: writes updateMany ────────────────────────────────────────────
 
-describe("repairMarksStatus â€” live mode", () => {
+describe("repairMarksStatus ? live mode", () => {
   it("calls updateMany with the stuck mark IDs when dryRun is false", async () => {
     const { db, updateMany } = buildMock();
 
@@ -87,9 +87,9 @@ describe("repairMarksStatus â€” live mode", () => {
   });
 });
 
-// â”€â”€ School not found â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── School not found ──────────────────────────────────────────────────────────
 
-describe("repairMarksStatus â€” school not found", () => {
+describe("repairMarksStatus ? school not found", () => {
   it("returns repaired=0 and does not call updateMany when school is missing", async () => {
     const updateMany = vi.fn();
     const db = {

@@ -30,7 +30,7 @@ describe("students import routes", () => {
   });
 });
 
-describe("students routes â€” new /api routes exist and do not 404", () => {
+describe("students routes ? new /api routes exist and do not 404", () => {
   it("GET /api/students responds (school context resolved in dev)", async () => {
     const res = await request(createServer()).get("/api/students");
     expect(res.status).not.toBe(404);
@@ -43,17 +43,17 @@ describe("students routes â€” new /api routes exist and do not 404", () => 
     expect(res.status).not.toBe(500);
   });
 
-  it("GET /api/students/import-jobs/:jobId with valid UUID â†’ 404 not found, not a routing 404", async () => {
+  it("GET /api/students/import-jobs/:jobId with valid UUID ? 404 not found, not a routing 404", async () => {
     const res = await request(createServer()).get("/api/students/import-jobs/00000000-0000-0000-0000-000000000000");
-    // 404 means the route matched but the job wasn't found â€” correct
-    // 401 means school context required â€” also correct
-    // 500 would mean we crashed â€” not acceptable
+    // 404 means the route matched but the job wasn't found ? correct
+    // 401 means school context required ? also correct
+    // 500 would mean we crashed ? not acceptable
     expect([401, 404]).toContain(res.status);
   });
 
   it("POST /api/students/import-jobs/upload route exists (not 404)", async () => {
     const res = await request(createServer()).post("/api/students/import-jobs/upload");
-    // Route must exist â€” any status other than 404 confirms it
+    // Route must exist ? any status other than 404 confirms it
     expect(res.status).not.toBe(404);
   });
 
@@ -72,7 +72,7 @@ describe("students routes â€” new /api routes exist and do not 404", () => 
   });
 });
 
-describe("students client â€” no browser call uses /internal/students", () => {
+describe("students client ? no browser call uses /internal/students", () => {
   it("createStudentImportJob uses /api/students/import-jobs/upload", () => {
     expect(clientSource).toContain("/api/students/import-jobs/upload");
   });

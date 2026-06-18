@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { createServer } from "../../server";
 import { signToken } from "../../server/services/authService";
 
-// â”€â”€â”€ Tokens â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Tokens ───────────────────────────────────────────────────────────────────
 
 const ownerToken = signToken({
   userId: "owner-usr-sc",
@@ -40,7 +40,7 @@ function schoolPayload(overrides: Record<string, unknown> = {}) {
   };
 }
 
-// â”€â”€â”€ 1. Owner can create a school â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── 1. Owner can create a school ─────────────────────────────────────────────
 
 describe("ownerSchoolCreation POST /api/owner/schools", () => {
   it("creates a school and returns 201 with full result", async () => {
@@ -58,7 +58,7 @@ describe("ownerSchoolCreation POST /api/owner/schools", () => {
     expect(body).toHaveProperty("admin");
   });
 
-  // â”€â”€â”€ 2. Non-owner cannot create school â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ─── 2. Non-owner cannot create school ──────────────────────────────────────
 
   it("returns 403 for a normal user token", async () => {
     const res = await request(createServer())
@@ -75,7 +75,7 @@ describe("ownerSchoolCreation POST /api/owner/schools", () => {
     expect(res.status).toBe(401);
   });
 
-  // â”€â”€â”€ 3. Duplicate school code is rejected â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ─── 3. Duplicate school code is rejected ───────────────────────────────────
 
   it("returns 409 when school code already exists", async () => {
     const code = `DUP${run}`;
@@ -93,7 +93,7 @@ describe("ownerSchoolCreation POST /api/owner/schools", () => {
     expect(res.body).toHaveProperty("error");
   });
 
-  // â”€â”€â”€ 4. School creation creates subscription â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ─── 4. School creation creates subscription ────────────────────────────────
 
   it("sets subscription status to TRIAL when trialDays > 0", async () => {
     const res = await request(createServer())
@@ -118,7 +118,7 @@ describe("ownerSchoolCreation POST /api/owner/schools", () => {
     expect(sub.status).toBe("ACTIVE");
   });
 
-  // â”€â”€â”€ 5. School creation creates invoice â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ─── 5. School creation creates invoice ─────────────────────────────────────
 
   it("creates an UNPAID invoice with correct amounts for REPORT_LAB_500", async () => {
     const res = await request(createServer())
@@ -134,7 +134,7 @@ describe("ownerSchoolCreation POST /api/owner/schools", () => {
     expect(invoice.totalUgx).toBe(800_000);
   });
 
-  // â”€â”€â”€ 6. School creation creates admin user â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ─── 6. School creation creates admin user ──────────────────────────────────
 
   it("creates an admin user with mustChangePassword flag", async () => {
     const res = await request(createServer())
@@ -149,7 +149,7 @@ describe("ownerSchoolCreation POST /api/owner/schools", () => {
     expect(admin.mustChangePassword).toBe(true);
   });
 
-  // â”€â”€â”€ 7. Created admin can login with school code â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ─── 7. Created admin can login with school code ─────────────────────────────
 
   it("allows the created admin to login with the school code", async () => {
     const code = `LOGIN${run}`;
@@ -172,7 +172,7 @@ describe("ownerSchoolCreation POST /api/owner/schools", () => {
     expect(loginRes.body.user.email).toBe(email.toLowerCase());
   });
 
-  // â”€â”€â”€ 8. Failed creation rolls back â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ─── 8. Failed creation rolls back ──────────────────────────────────────────
 
   it("returns 400 and does not create school when sections is empty", async () => {
     const res = await request(createServer())
@@ -192,7 +192,7 @@ describe("ownerSchoolCreation POST /api/owner/schools", () => {
     expect(found).toBe(false);
   });
 
-  // â”€â”€â”€ 9. Owner action creates audit log â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ─── 9. Owner action creates audit log ──────────────────────────────────────
 
   it("school creation with valid data results in a retrievable school in the list", async () => {
     const code = `AUDIT${run}`;
@@ -212,7 +212,7 @@ describe("ownerSchoolCreation POST /api/owner/schools", () => {
     expect(schools.some((s) => s.code === code)).toBe(true);
   });
 
-  // â”€â”€â”€ 10. Schools table uses live backend data â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ─── 10. Schools table uses live backend data ────────────────────────────────
 
   it("GET /api/owner/schools returns live array (not static numbers)", async () => {
     const res = await request(createServer())

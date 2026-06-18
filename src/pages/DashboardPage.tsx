@@ -97,14 +97,14 @@ export function DashboardPage() {
   const issuedCount = stats?.reportsIssuedCount ?? 0;
 
   const heroDescription = statsLoading
-    ? "Loading live statsâ€¦"
+    ? "Loading live stats?"
     : statsError
       ? "Could not load live stats. Check your connection."
-      : `${fmt(issuedCount)} reports issued â€¢ ${fmt(pendingCount)} marks uploads pending review`;
+      : `${fmt(issuedCount)} reports issued ? ${fmt(pendingCount)} marks uploads pending review`;
 
   return (
     <main className="grid gap-3">
-      {/* â”€â”€ Hero â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/* ── Hero ──────────────────────────────────────────────────────────── */}
       <section className="overflow-hidden rounded-2xl border border-blue-100 bg-gradient-to-br from-slate-950 via-blue-950 to-blue-700 p-4 text-white shadow-[0_12px_32px_rgba(15,23,42,0.18)]">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div className="max-w-3xl">
@@ -144,7 +144,7 @@ export function DashboardPage() {
         </div>
       </section>
 
-      {/* â”€â”€ Tabs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/* ── Tabs ─────────────────────────────────────────────────────────── */}
       <section className="flex overflow-x-auto pb-1">
         <div className="tab-tray">
           {dashboardTabs.map((tab, index) => (
@@ -160,20 +160,20 @@ export function DashboardPage() {
         </div>
       </section>
 
-      {/* â”€â”€ KPI cards â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/* ── KPI cards ────────────────────────────────────────────────────── */}
       <section className="grid grid-cols-2 gap-3 sm:grid-cols-2 md:gap-4 xl:grid-cols-4">
         <StatCard
           label="Enrolled Students"
-          value={statsLoading ? "â€”" : fmt(stats?.enrolledStudents ?? 0)}
+          value={statsLoading ? "?" : fmt(stats?.enrolledStudents ?? 0)}
           note="Active enrollment this term"
-          trend={statsLoading ? "â€¦" : activeTerm ? "Live" : "No term"}
+          trend={statsLoading ? "?" : activeTerm ? "Live" : "No term"}
           tone="green"
           icon="students"
           href="/students"
         />
         <StatCard
           label="Marks Pending Review"
-          value={statsLoading ? "â€”" : fmt(pendingCount)}
+          value={statsLoading ? "?" : fmt(pendingCount)}
           note="Uploaded but not yet finalized"
           trend={pendingCount > 0 ? "Action" : "Clear"}
           tone="yellow"
@@ -182,7 +182,7 @@ export function DashboardPage() {
         />
         <StatCard
           label="Reports Issued"
-          value={statsLoading ? "â€”" : fmt(issuedCount)}
+          value={statsLoading ? "?" : fmt(issuedCount)}
           note="Active issued reports"
           trend={issuedCount > 0 ? "Live" : "None"}
           tone="purple"
@@ -191,7 +191,7 @@ export function DashboardPage() {
         />
         <StatCard
           label="Reports Released"
-          value={statsLoading ? "â€”" : fmt(stats?.reportsReleasedCount ?? 0)}
+          value={statsLoading ? "?" : fmt(stats?.reportsReleasedCount ?? 0)}
           note="Sent to parents this term"
           trend={stats?.reportsReleasedCount ? "Sent" : "None"}
           tone="blue"
@@ -200,7 +200,7 @@ export function DashboardPage() {
         />
       </section>
 
-      {/* â”€â”€ Workflow pipeline â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/* ── Workflow pipeline ─────────────────────────────────────────────── */}
       <section className="premium-card rounded-xl p-4">
         <div className="flex flex-wrap items-start justify-between gap-2">
           <div>
@@ -233,7 +233,7 @@ export function DashboardPage() {
                 </div>
                 <p className="mt-2 text-xs font-bold text-slate-950">{stage.label}</p>
                 <p className="mt-0.5 text-lg font-bold tabular-nums text-slate-950">
-                  {statsLoading ? "â€”" : fmt(value)}
+                  {statsLoading ? "?" : fmt(value)}
                 </p>
                 <p className="mt-0.5 text-xs text-slate-500">{stage.note}</p>
               </Link>
@@ -242,7 +242,7 @@ export function DashboardPage() {
         </div>
       </section>
 
-      {/* â”€â”€ Recent uploads + Reports overview â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/* ── Recent uploads + Reports overview ────────────────────────────── */}
       <section className="grid gap-3 xl:grid-cols-[1.25fr_0.95fr]">
         <section className="premium-card rounded-xl p-4">
           <div className="flex flex-wrap items-start justify-between gap-2">
@@ -257,7 +257,7 @@ export function DashboardPage() {
           </div>
           <div className="mt-3 overflow-x-auto">
             {statsLoading ? (
-              <p className="py-6 text-center text-xs text-slate-400">Loadingâ€¦</p>
+              <p className="py-6 text-center text-xs text-slate-400">Loading?</p>
             ) : stats?.recentBatches.length === 0 ? (
               <div className="rounded-xl border border-dashed border-slate-200 py-8 text-center">
                 <p className="text-sm font-semibold text-slate-500">No uploads yet</p>
@@ -265,7 +265,7 @@ export function DashboardPage() {
                   to="/imports/marks"
                   className="mt-2 inline-block text-xs font-bold text-blue-600 hover:underline"
                 >
-                  Import marks now â†’
+                  Import marks now ?
                 </Link>
               </div>
             ) : (
@@ -293,10 +293,10 @@ export function DashboardPage() {
                   {stats?.recentBatches.map((batch) => (
                     <tr key={batch.id} className="hover:bg-blue-50/50">
                       <td className="px-2.5 py-2 font-mono text-xs font-bold text-slate-700">
-                        {batch.id.slice(0, 8)}â€¦
+                        {batch.id.slice(0, 8)}?
                       </td>
                       <td className="px-2.5 py-2 text-sm text-slate-700">
-                        {batch.rowCount > 0 ? batch.rowCount : "â€”"}
+                        {batch.rowCount > 0 ? batch.rowCount : "?"}
                       </td>
                       <td className="px-2.5 py-2 text-sm text-slate-600">
                         {fmtDate(batch.uploadedAt)}
@@ -336,7 +336,7 @@ export function DashboardPage() {
         />
       </section>
 
-      {/* â”€â”€ Quick actions + Contact summary â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/* ── Quick actions + Contact summary ──────────────────────────────── */}
       <section className="grid gap-3 xl:grid-cols-[1.05fr_1.15fr]">
         <section className="premium-card rounded-xl p-4">
           <div className="flex flex-wrap items-start justify-between gap-2">
@@ -419,7 +419,7 @@ export function DashboardPage() {
         </section>
       </section>
 
-      {/* â”€â”€ Activity + Focus â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/* ── Activity + Focus ──────────────────────────────────────────────── */}
       <section className="grid gap-3 xl:grid-cols-[1.25fr_0.95fr]">
         <ActivityCard activities={stats?.recentActivity ?? []} />
         <section className="premium-card rounded-xl p-4">
@@ -436,7 +436,7 @@ export function DashboardPage() {
           </div>
           <div className="mt-3 rounded-xl bg-gradient-to-br from-blue-50 to-emerald-50 p-3">
             {statsLoading ? (
-              <p className="text-xs text-slate-400">Loadingâ€¦</p>
+              <p className="text-xs text-slate-400">Loading?</p>
             ) : (
               <p className="text-xs font-semibold text-slate-700">
                 {pendingCount > 0

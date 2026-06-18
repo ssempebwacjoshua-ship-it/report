@@ -24,7 +24,7 @@ import type {
 import { DEFAULT_THEME } from "../../shared/types/documentIntelligence";
 import { randomUUID } from "../../utils/uuid";
 
-// â”€â”€ Chat bubble â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Chat bubble ───────────────────────────────────────────────────────────────
 
 function ChatBubble({ msg }: { msg: ChatMessage }) {
   const isUser = msg.role === "user";
@@ -46,7 +46,7 @@ function ChatBubble({ msg }: { msg: ChatMessage }) {
   );
 }
 
-// â”€â”€ Suggestion chips â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Suggestion chips ───────────────────────────────────────────────────────────
 
 const INITIAL_SUGGESTIONS = [
   "Make it professional",
@@ -233,7 +233,7 @@ function isMissingSchemaError(error: unknown): boolean {
   return error instanceof Error && /generate a schema first/i.test(error.message);
 }
 
-// â”€â”€ Version history panel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Version history panel ──────────────────────────────────────────────────────
 
 function VersionPanel({
   versions,
@@ -293,7 +293,7 @@ function VersionPanel({
   );
 }
 
-// â”€â”€ Main editor â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Main editor ────────────────────────────────────────────────────────────────
 
 type Stage = "empty" | "processing" | "uploaded" | "extractionFailed" | "generating" | "ready";
 type RenderSettings = NonNullable<SmartDocumentDetail["activeVersion"]>["renderSettings"];
@@ -373,7 +373,7 @@ export function DocumentEditorPage() {
         }
         addSystemMessage(
           d.activeVersion
-            ? `Loaded "${d.title}" â€” ${d.versionCount} version${d.versionCount !== 1 ? "s" : ""}. Keep editing below.`
+            ? `Loaded "${d.title}" ? ${d.versionCount} version${d.versionCount !== 1 ? "s" : ""}. Keep editing below.`
             : d.extractedKnowledge
               ? `Content extracted from "${d.title}". Generate a document from extraction first, then keep editing below.`
               : `New document "${d.title}". Upload a file or describe what you'd like to create.`,
@@ -450,7 +450,7 @@ export function DocumentEditorPage() {
   async function handleFileUpload(file: File) {
     if (!id) return;
     if (!acquireActionLock("upload")) return;
-    addMessage("user", `Uploading ${file.name}â€¦`);
+    addMessage("user", `Uploading ${file.name}?`);
     setBusy(true);
     try {
       await uploadDocumentFile(id, file);
@@ -507,9 +507,9 @@ export function DocumentEditorPage() {
           const saved = await updateExtractedKnowledge(id, manualKnowledge);
           setExtractedKnowledge(saved);
         }
-        // First intent â†’ generate schema
+        // First intent ? generate schema
         setStage("generating");
-        addMessage("assistant", "Generating your documentâ€¦");
+        addMessage("assistant", "Generating your document?");
         const result = await generateSchema(id, text);
         setSchema(result.schema);
         setComponentTree(result.componentTree);
@@ -710,7 +710,7 @@ export function DocumentEditorPage() {
   if (loading) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center">
-        <p className="text-sm text-slate-500">Loading documentâ€¦</p>
+        <p className="text-sm text-slate-500">Loading document?</p>
       </div>
     );
   }
@@ -805,7 +805,7 @@ export function DocumentEditorPage() {
                 disabled={printing}
                 className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50"
               >
-                {printing ? "Openingâ€¦" : "Print / PDF"}
+                {printing ? "Opening?" : "Print / PDF"}
               </button>
               <button
                 type="button"
@@ -813,7 +813,7 @@ export function DocumentEditorPage() {
                 disabled={publishing}
                 className="btn btn-primary text-xs"
               >
-                {publishing ? "Publishingâ€¦" : publishResult ? "Re-publish" : "Publish"}
+                {publishing ? "Publishing?" : publishResult ? "Re-publish" : "Publish"}
               </button>
             </>
           ) : null}
@@ -912,12 +912,12 @@ export function DocumentEditorPage() {
                 }}
                 placeholder={
                   stage === "empty"
-                    ? "Upload a file or describe what you'd like to createâ€¦"
+                    ? "Upload a file or describe what you'd like to create?"
                     : stage === "processing"
                       ? "Reading your document..."
                     : stage === "uploaded"
-                      ? "Describe how you want this document to lookâ€¦"
-                      : "Edit the document: Make it formal, add charts, translateâ€¦"
+                      ? "Describe how you want this document to look?"
+                      : "Edit the document: Make it formal, add charts, translate?"
                 }
                 className="flex-1 resize-none rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none focus:border-blue-400 focus:bg-white"
                 disabled={busy || stage === "processing"}
@@ -994,7 +994,7 @@ export function DocumentEditorPage() {
                   </svg>
                 </div>
                 <p className="text-sm font-medium text-slate-400">
-                  {stage === "generating" ? "Generatingâ€¦" : "Preview will appear here"}
+                  {stage === "generating" ? "Generating?" : "Preview will appear here"}
                 </p>
               </div>
             </div>

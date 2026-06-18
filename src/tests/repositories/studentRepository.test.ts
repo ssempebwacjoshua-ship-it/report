@@ -81,7 +81,7 @@ function makeFakeDb(options: {
   } as unknown as PrismaClient;
 }
 
-describe("listEnrolledStudents â€” null class/stream fallbacks", () => {
+describe("listEnrolledStudents ? null class/stream fallbacks", () => {
   it("returns 'Unknown class' when classId has no matching SchoolClass record", async () => {
     const db = makeFakeDb({
       enrollmentRow: makeEnrollmentRow({ classId: "class-orphaned", streamId: "stream-1" }),

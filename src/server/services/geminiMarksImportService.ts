@@ -2,12 +2,12 @@
 import type { GeminiExtractedMarkRow } from "./geminiOcrService";
 
 /**
- * Gemini marksheet â†’ production review pipeline.
+ * Gemini marksheet ? production review pipeline.
  *
  * This module deliberately does NOT trust Gemini's confidenceScore or needsReview
  * flags to decide safety. Every extracted row is re-validated with deterministic
  * backend rules and matched against the students actually enrolled in the selected
- * class/stream/term. Marks are NEVER persisted here â€” extraction only produces a
+ * class/stream/term. Marks are NEVER persisted here ? extraction only produces a
  * review payload for an operator.
  */
 
@@ -49,7 +49,7 @@ export interface GeminiImportResult {
   summary: GeminiImportSummary;
 }
 
-// â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Helpers ─────────────────────────────────────────────────────────────────
 
 function norm(value: string): string {
   return value.trim().toLowerCase().replace(/\s+/g, " ");
@@ -71,7 +71,7 @@ function escalate(current: RowStatus, next: RowStatus): RowStatus {
 }
 
 /**
- * Classifies a raw mark string. Returns the validation issue (if any) â€” the
+ * Classifies a raw mark string. Returns the validation issue (if any) ? the
  * single source of truth for mark safety, independent of Gemini's confidence.
  */
 export function classifyMark(raw: string): { issue: string | null; kind: "missing" | "invalid" | "valid" } {
@@ -88,7 +88,7 @@ export function classifyMark(raw: string): { issue: string | null; kind: "missin
  *
  * Pure function (no IO) so it can be unit-tested directly. Matching strategy:
  *   1. Match by studentId / admission number (authoritative).
- *   2. If no ID match, optionally fuzzy-match by name â†’ REVIEW_REQUIRED.
+ *   2. If no ID match, optionally fuzzy-match by name ? REVIEW_REQUIRED.
  *   3. If neither, the row is BLOCKED (cannot be safely assigned to a student).
  *
  * Extracted OCR text is always preserved in extractedStudentId / extractedStudentName;
@@ -123,14 +123,14 @@ export function validateAndMatchGeminiRows(
     const issues: string[] = [];
     let status: RowStatus = "READY";
 
-    // â”€â”€ Mark validation (deterministic â€” overrides Gemini confidence) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── Mark validation (deterministic ? overrides Gemini confidence) ──────────
     const markCheck = classifyMark(mark);
     if (markCheck.issue) {
       issues.push(markCheck.issue);
       status = escalate(status, "REVIEW_REQUIRED");
     }
 
-    // â”€â”€ Identity matching â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── Identity matching ──────────────────────────────────────────────────────
     let matched: ExpectedStudent | null = null;
     let matchKind: "id" | "name" | "none" = "none";
 
@@ -152,7 +152,7 @@ export function validateAndMatchGeminiRows(
       if (nameMatches && nameMatches.length === 1) {
         matched = nameMatches[0]!;
         matchKind = "name";
-        issues.push("Matched by name only â€” verify student");
+        issues.push("Matched by name only ? verify student");
         status = escalate(status, "REVIEW_REQUIRED");
       }
     }
@@ -162,7 +162,7 @@ export function validateAndMatchGeminiRows(
       status = escalate(status, "BLOCKED");
     }
 
-    // â”€â”€ Name mismatch (only meaningful when matched by ID) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── Name mismatch (only meaningful when matched by ID) ─────────────────────
     if (matchKind === "id" && matched && extractedStudentName &&
         norm(extractedStudentName) !== norm(matched.studentName)) {
       issues.push("Name mismatch with enrolled student");
@@ -170,7 +170,7 @@ export function validateAndMatchGeminiRows(
       status = escalate(status, "REVIEW_REQUIRED");
     }
 
-    // â”€â”€ Duplicate studentId across extracted rows â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── Duplicate studentId across extracted rows ──────────────────────────────
     const normalizedId = normId(extractedStudentId);
     if (normalizedId && (idCounts.get(normalizedId) ?? 0) > 1) {
       issues.push("Duplicate student ID in scan");
@@ -207,7 +207,7 @@ export function validateAndMatchGeminiRows(
   return { rows, summary };
 }
 
-// â”€â”€ Database access â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Database access ───────────────────────────────────────────────────────────
 
 export interface LoadExpectedStudentsParams {
   schoolId: string;
@@ -218,7 +218,7 @@ export interface LoadExpectedStudentsParams {
 
 /**
  * Fetch the students enrolled in the selected class/stream/term for a school.
- * Uses the existing ClassEnrollment model â€” students are never hardcoded.
+ * Uses the existing ClassEnrollment model ? students are never hardcoded.
  */
 export async function loadExpectedStudents(
   prisma: PrismaClient,

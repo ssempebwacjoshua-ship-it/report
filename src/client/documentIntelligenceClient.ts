@@ -25,7 +25,7 @@ async function json<T>(res: Response): Promise<T> {
   return data;
 }
 
-// â”€â”€ Creator auth (external users) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Creator auth (external users) ─────────────────────────────────────────────
 
 export async function creatorSignup(email: string, name: string, password: string) {
   const res = await fetch(`${API_BASE}/api/creator/signup`, {
@@ -45,7 +45,7 @@ export async function creatorLogin(email: string, password: string) {
   return json<{ ok: boolean; token: string; creator: { id: string; email: string; name: string; type: string } }>(res);
 }
 
-// â”€â”€ Documents â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Documents ──────────────────────────────────────────────────────────────────
 
 export async function listDocuments(): Promise<SmartDocumentSummary[]> {
   const res = await fetch(`${API_BASE}/api/smart-documents`, { headers: authHeaders() });

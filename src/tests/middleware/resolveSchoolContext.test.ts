@@ -26,7 +26,7 @@ beforeAll(async () => {
   });
 });
 
-describe("resolveSchoolContext â€” cross-tenant isolation", () => {
+describe("resolveSchoolContext ? cross-tenant isolation", () => {
   it("passes when token school matches the requested schoolCode", async () => {
     const res = await request(createApp())
       .get("/probe?schoolCode=SCU-PREVIEW")

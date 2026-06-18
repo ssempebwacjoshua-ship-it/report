@@ -31,7 +31,7 @@ export function OwnerDashboardPage() {
     );
   }
 
-  const dash = stats ? stats.totalSchools : "â€”";
+  const dash = stats ? stats.totalSchools : "?";
 
   return (
     <div className="grid gap-6">
@@ -41,20 +41,20 @@ export function OwnerDashboardPage() {
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard label="Total schools" value={stats ? stats.totalSchools : "â€”"} />
-        <StatCard label="Active subscriptions" value={stats ? stats.activeSchools : "â€”"} />
-        <StatCard label="Expired / suspended" value={stats ? stats.expiredSchools + stats.suspendedSchools : "â€”"} />
-        <StatCard label="No subscription" value={stats ? stats.noSubscriptionSchools : "â€”"} />
+        <StatCard label="Total schools" value={stats ? stats.totalSchools : "?"} />
+        <StatCard label="Active subscriptions" value={stats ? stats.activeSchools : "?"} />
+        <StatCard label="Expired / suspended" value={stats ? stats.expiredSchools + stats.suspendedSchools : "?"} />
+        <StatCard label="No subscription" value={stats ? stats.noSubscriptionSchools : "?"} />
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2">
-        <StatCard label="Total users (all schools)" value={stats ? stats.totalUsers : "â€”"} />
+        <StatCard label="Total users (all schools)" value={stats ? stats.totalUsers : "?"} />
         <div className="premium-card rounded-xl p-4 flex items-center gap-3">
           <div>
             <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Quick links</p>
             <div className="mt-2 flex flex-col gap-1">
-              <Link to="/owner/schools" className="text-sm font-semibold text-blue-600 hover:underline">Manage schools â†’</Link>
-              <Link to="/owner/users" className="text-sm font-semibold text-blue-600 hover:underline">Manage users â†’</Link>
+              <Link to="/owner/schools" className="text-sm font-semibold text-blue-600 hover:underline">Manage schools ?</Link>
+              <Link to="/owner/users" className="text-sm font-semibold text-blue-600 hover:underline">Manage users ?</Link>
             </div>
           </div>
         </div>
@@ -74,7 +74,7 @@ export function OwnerDashboardPage() {
         </section>
       )}
 
-      {/* Surface the fake-number warning as a dummy â€” this card pulls real API data */}
+      {/* Surface the fake-number warning as a dummy ? this card pulls real API data */}
       {stats === null && !error && (
         <div className="text-center py-8 text-sm text-slate-400">Loading...</div>
       )}
