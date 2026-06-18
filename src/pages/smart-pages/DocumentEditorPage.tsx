@@ -69,7 +69,7 @@ const POST_GENERATE_SUGGESTIONS = [
   "Simplify the layout",
 ];
 
-function SuggestionChips({ items, onSelect }: { items: string[]; onSelect: (s: string) => void }) {
+function SuggestionChips({ items, onSelect, disabled = false }: { items: string[]; onSelect: (s: string) => void; disabled?: boolean }) {
   return (
     <div className="flex flex-wrap gap-2 px-4 py-2">
       {items.map((s) => (
@@ -77,7 +77,8 @@ function SuggestionChips({ items, onSelect }: { items: string[]; onSelect: (s: s
           key={s}
           type="button"
           onClick={() => onSelect(s)}
-          className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700 hover:bg-blue-100"
+          disabled={disabled}
+          className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700 hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {s}
         </button>
@@ -95,9 +96,11 @@ function ExtractionReviewPanel({
   onDraftChange,
   onSave,
   onGenerate,
+  generateDisabled,
   templates,
   onPickTemplate,
   onHighAccuracyRetry,
+  highAccuracyDisabled,
   retryingHighAccuracy,
   primaryActionLabel,
   pickerLabel,
@@ -112,9 +115,11 @@ function ExtractionReviewPanel({
   onDraftChange: (value: string) => void;
   onSave: () => void;
   onGenerate: () => void;
+  generateDisabled: boolean;
   templates: SmartPageTemplateDefinition[];
   onPickTemplate: (template: SmartPageTemplateDefinition, options?: { summaryStyleId?: string }) => void;
   onHighAccuracyRetry: () => void;
+  highAccuracyDisabled: boolean;
   retryingHighAccuracy: boolean;
   primaryActionLabel: string;
   pickerLabel: string;
@@ -127,7 +132,7 @@ function ExtractionReviewPanel({
   const text = knowledge.rawText || knowledge.sections.map((section) => section.content).join("\n\n");
   const needsReview = Boolean(knowledge.needsReview || knowledge.reviewWarning || unclear.length || (typeof knowledge.confidence === "number" && knowledge.confidence < 0.7));
   return (
-    <div className="mx-auto grid w-full max-w-2xl gap-3 p-4">
+    <div className="grid w-full gap-3">
       {needsReview ? (
         <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
           <p>{knowledge.reviewWarning ?? "Some handwriting was difficult to read. Review the extracted text or try high accuracy extraction."}</p>
@@ -137,8 +142,9 @@ function ExtractionReviewPanel({
             <button
               type="button"
               onClick={onHighAccuracyRetry}
-              disabled={retryingHighAccuracy}
-              className="rounded-full bg-amber-600 px-3 py-1.5 text-white disabled:opacity-60"
+              disabled={retryingHighAccuracy || highAccuracyDisabled}
+              className="rounded-full bg-amber-600 px-3 py-1.5 text-white disabled:cursor-not-allowed disabled:opacity-60"
+              title={highAccuracyDisabled ? "AI generation is not available in this environment." : undefined}
             >
               {retryingHighAccuracy ? "Re-extracting..." : "Re-extract with high accuracy"}
             </button>
@@ -153,6 +159,7 @@ function ExtractionReviewPanel({
           <SmartPageTemplatePicker
             templates={templates}
             scope="parsed"
+            disabled={generateDisabled}
             onPickTemplate={onPickTemplate}
           />
         </div>
@@ -171,7 +178,7 @@ function ExtractionReviewPanel({
         </div>
         {editing ? (
           <textarea
-            className="min-h-48 w-full resize-y rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm leading-relaxed text-slate-800 outline-none focus:border-blue-400"
+            className="min-h-[26rem] w-full resize-y rounded-[24px] border border-slate-200 bg-slate-50 p-4 text-sm leading-relaxed text-slate-800 outline-none focus:border-[color:var(--sc-primary)]"
             value={draft}
             onChange={(event) => onDraftChange(event.target.value)}
           />
@@ -210,7 +217,13 @@ function ExtractionReviewPanel({
           </div>
         </section>
       ) : null}
-      <button type="button" className="btn btn-primary sticky bottom-3 z-10 shadow-lg" onClick={onGenerate}>
+      <button
+        type="button"
+        className="btn btn-primary sticky bottom-3 z-10 shadow-lg disabled:cursor-not-allowed disabled:opacity-50"
+        onClick={onGenerate}
+        disabled={generateDisabled}
+        title={generateDisabled ? "AI generation is not available. You can still edit the document manually." : undefined}
+      >
         {primaryActionLabel}
       </button>
     </div>
@@ -256,8 +269,126 @@ function ExtractionFailedCard({ message, onRetry }: { message?: string | null; o
   );
 }
 
+function ManualDraftPanel({
+  title,
+  draft,
+  onDraftChange,
+  onSave,
+  saving,
+  onGenerate,
+  generateDisabled,
+  generateLabel,
+  aiNotice,
+}: {
+  title: string;
+  draft: string;
+  onDraftChange: (value: string) => void;
+  onSave: () => void;
+  saving: boolean;
+  onGenerate: () => void;
+  generateDisabled: boolean;
+  generateLabel: string;
+  aiNotice: string | null;
+}) {
+  return (
+    <section className="premium-card premium-card-hover rounded-[28px] p-4 sm:p-6">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-xs font-bold uppercase tracking-wide text-[color:var(--sc-primary)]">Document workspace</p>
+          <h2 className="mt-1 text-lg font-black text-slate-950">{title}</h2>
+          <p className="mt-1 text-sm text-slate-500">
+            Edit the document directly in this workspace. AI actions stay secondary and can be skipped if the environment is not configured.
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <button type="button" onClick={onSave} disabled={saving} className="btn btn-secondary text-xs">
+            {saving ? "Saving..." : "Save draft"}
+          </button>
+          <button
+            type="button"
+            onClick={onGenerate}
+            disabled={generateDisabled}
+            className="btn btn-primary text-xs disabled:cursor-not-allowed disabled:opacity-50"
+            title={aiNotice ?? undefined}
+          >
+            {generateLabel}
+          </button>
+        </div>
+      </div>
+      <textarea
+        className="mt-4 min-h-[22rem] w-full resize-y rounded-[24px] border border-slate-200 bg-slate-50 p-4 text-sm leading-7 text-slate-800 outline-none focus:border-[color:var(--sc-primary)] focus:bg-white"
+        value={draft}
+        onChange={(event) => onDraftChange(event.target.value)}
+        aria-label="Manual document draft"
+      />
+    </section>
+  );
+}
+
 function isMissingSchemaError(error: unknown): boolean {
   return error instanceof Error && /generate a schema first/i.test(error.message);
+}
+
+function isAiConfigurationError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error ?? "");
+  return /GEMINI_API_KEY|Gemini is not configured|AI generation is not configured/i.test(message);
+}
+
+function buildStarterDraft(title: string, isLawyerWorkspace: boolean): string {
+  return isLawyerWorkspace
+    ? [
+        title || "Legal draft",
+        "",
+        "Client / Matter:",
+        "",
+        "Background:",
+        "",
+        "Requested outcome:",
+        "",
+        "Key facts:",
+        "",
+        "Draft body:",
+        "",
+        "Next steps:",
+        "",
+        "Signature block:",
+      ].join("\n")
+    : [
+        title || "Document draft",
+        "",
+        "Title:",
+        "",
+        "Background:",
+        "",
+        "Key points:",
+        "",
+        "Draft body:",
+        "",
+        "Action items:",
+        "",
+        "Notes:",
+    ].join("\n");
+}
+
+function createManualKnowledge(title: string, draft: string): ExtractedKnowledge {
+  return {
+    documentType: "document",
+    domain: "general",
+    title: title || "Manual document",
+    suggestedDocumentType: "document",
+    sections: draft.trim()
+      ? [{ heading: "Manual text", content: draft.trim() }]
+      : [{ heading: "Manual text", content: "" }],
+    tables: [],
+    statistics: [],
+    entities: [],
+    people: [],
+    dates: [],
+    handwrittenNotes: [],
+    keyFacts: [],
+    unclearItems: [],
+    rawText: draft,
+  };
 }
 
 // ── Version history panel ──────────────────────────────────────────────────────
@@ -340,6 +471,7 @@ export function DocumentEditorPage() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
+  const [aiNotice, setAiNotice] = useState<string | null>(null);
 
   const [stage, setStage] = useState<Stage>("empty");
   const [schema, setSchema] = useState<DocumentSchema | null>(null);
@@ -358,7 +490,7 @@ export function DocumentEditorPage() {
   const [publishResult, setPublishResult] = useState<{ token: string; url: string } | null>(null);
   const [publishing, setPublishing] = useState(false);
 
-  const [activeTab, setActiveTab] = useState<"chat" | "preview">("chat");
+  const [, setActiveTab] = useState<"chat" | "preview">("chat");
   const [showActions, setShowActions] = useState(false);
   const autoTemplateRef = useRef<string | null>(null);
   const hasActiveVersion = Boolean(activeVersionId);
@@ -390,7 +522,13 @@ export function DocumentEditorPage() {
       .then((d) => {
         setDoc(d);
         setExtractedKnowledge(d.extractedKnowledge);
-        setReviewDraft(d.extractedKnowledge?.rawText || d.extractedKnowledge?.sections.map((section) => section.content).join("\n\n") || "");
+        const nextDraft = d.extractedKnowledge?.rawText || d.extractedKnowledge?.sections.map((section) => section.content).join("\n\n") || buildStarterDraft(d.title, isLawyerWorkspace);
+        setReviewDraft(nextDraft);
+        if (d.extractionError && isAiConfigurationError(d.extractionError)) {
+          setAiNotice("AI generation is not configured in this environment. You can still edit this document manually.");
+        } else if (d.latestSourceFile?.extractionError && isAiConfigurationError(d.latestSourceFile.extractionError)) {
+          setAiNotice("AI generation is not configured in this environment. You can still edit this document manually.");
+        }
         if (d.activeVersion) {
           setSchema(d.activeVersion.schema);
           setComponentTree(d.activeVersion.componentTree);
@@ -401,14 +539,21 @@ export function DocumentEditorPage() {
           setStage("processing");
           setActiveTab("preview");
         } else if (d.extractionStatus === "FAILED") {
-          setStage("extractionFailed");
-          setActiveTab("preview");
+          if (d.extractionError && isAiConfigurationError(d.extractionError)) {
+            setStage("empty");
+            setActiveTab("preview");
+          } else {
+            setStage("extractionFailed");
+            setActiveTab("preview");
+          }
         } else if (d.extractedKnowledge) {
           setStage("uploaded");
+        } else {
+          setStage("empty");
         }
         addSystemMessage(
           d.activeVersion
-            ? `Loaded "${d.title}" ? ${d.versionCount} version${d.versionCount !== 1 ? "s" : ""}. Keep editing below.`
+            ? `Loaded "${d.title}" - ${d.versionCount} version${d.versionCount !== 1 ? "s" : ""}. Keep editing below.`
             : d.extractedKnowledge
               ? `Content extracted from "${d.title}". Generate a document from extraction first, then keep editing below.`
               : `New document "${d.title}". Upload a file or describe what you'd like to create.`,
@@ -496,7 +641,7 @@ export function DocumentEditorPage() {
   async function handleFileUpload(file: File) {
     if (!id) return;
     if (!acquireActionLock("upload")) return;
-    addMessage("user", `Uploading ${file.name}?`);
+    addMessage("user", `Uploading ${file.name}...`);
     setBusy(true);
     try {
       await uploadDocumentFile(id, file);
@@ -513,7 +658,13 @@ export function DocumentEditorPage() {
       const refreshed = await getDocument(id);
       setDoc(refreshed);
     } catch (e) {
-      addMessage("assistant", `Upload failed: ${e instanceof Error ? e.message : "Unknown error."}`);
+      if (isAiConfigurationError(e)) {
+        setAiNotice("AI generation is not configured in this environment. You can still edit this document manually.");
+        setStage("empty");
+        setReviewDraft(buildStarterDraft(doc?.title ?? "Document draft", isLawyerWorkspace));
+      } else {
+        addMessage("assistant", `Upload failed: ${e instanceof Error ? e.message : "Unknown error."}`);
+      }
     } finally {
       setBusy(false);
       releaseActionLock("upload");
@@ -526,6 +677,9 @@ export function DocumentEditorPage() {
       addMessage("assistant", "Still reading your document. You can generate once the review is ready.");
       return;
     }
+    if (aiNotice) {
+      return;
+    }
     if (!nested && !acquireActionLock("submit")) return;
     addMessage("user", text);
     setBusy(true);
@@ -534,12 +688,13 @@ export function DocumentEditorPage() {
       const shouldGenerateFirst = stage === "uploaded" || stage === "empty" || !hasActiveVersion;
       if (shouldGenerateFirst) {
         if (stage === "empty" && !extractedKnowledge) {
+          const draftText = reviewDraft.trim() ? reviewDraft : text;
           const manualKnowledge: ExtractedKnowledge = {
             documentType: "document",
             domain: "general",
             title: doc?.title ?? "Manual document",
             suggestedDocumentType: "document",
-            sections: [{ heading: "Manual text", content: text }],
+            sections: [{ heading: "Manual text", content: draftText }],
             tables: [],
             statistics: [],
             entities: [],
@@ -548,14 +703,14 @@ export function DocumentEditorPage() {
             handwrittenNotes: [],
             keyFacts: [],
             unclearItems: [],
-            rawText: text,
+            rawText: draftText,
           };
           const saved = await updateExtractedKnowledge(id, manualKnowledge);
           setExtractedKnowledge(saved);
         }
-        // First intent ? generate schema
+        // First intent - generate schema
         setStage("generating");
-        addMessage("assistant", "Generating your document?");
+        addMessage("assistant", "Generating your document...");
         const result = await generateSchema(id, text);
         setSchema(result.schema);
         setComponentTree(result.componentTree);
@@ -609,12 +764,21 @@ export function DocumentEditorPage() {
         }
       }
     } catch (e) {
-      addMessage("assistant", e instanceof Error ? e.message : "Something went wrong. Try again.");
+      if (isAiConfigurationError(e)) {
+        setAiNotice("AI generation is not configured in this environment. You can still edit this document manually.");
+        setStage(hasActiveVersion ? "ready" : extractedKnowledge ? "uploaded" : "empty");
+        setActiveTab("preview");
+        if (!hasActiveVersion && !extractedKnowledge) {
+          setReviewDraft(buildStarterDraft(doc?.title ?? "Document draft", isLawyerWorkspace));
+        }
+      } else {
+        addMessage("assistant", e instanceof Error ? e.message : "Something went wrong. Try again.");
+      }
     } finally {
       setBusy(false);
       if (!nested) releaseActionLock("submit");
     }
-  }, [id, busy, stage, extractedKnowledge, doc?.title, hasActiveVersion]);
+  }, [id, busy, stage, extractedKnowledge, doc?.title, hasActiveVersion, aiNotice, isLawyerWorkspace, reviewDraft]);
 
   // Send message handler
   const handleSend = useCallback(async () => {
@@ -679,24 +843,27 @@ export function DocumentEditorPage() {
   const [exportingFormat, setExportingFormat] = useState<"pdf" | "docx" | "markdown" | "schema" | null>(null);
 
   async function handleSaveExtractionReview() {
-    if (!id || !extractedKnowledge || reviewSaving) return;
+    if (!id || reviewSaving) return;
     if (!acquireActionLock("review-save")) return;
     setReviewSaving(true);
     try {
+      const baseKnowledge = extractedKnowledge ?? createManualKnowledge(doc?.title ?? "Manual document", reviewDraft);
       const updated: ExtractedKnowledge = {
-        ...extractedKnowledge,
+        ...baseKnowledge,
         rawText: reviewDraft,
         sections: reviewDraft.trim()
           ? [{ heading: "Reviewed text", content: reviewDraft.trim() }]
-          : extractedKnowledge.sections,
+          : baseKnowledge.sections,
         unclearItems: [],
         reviewWarning: undefined,
       };
       const saved = await updateExtractedKnowledge(id, updated);
       setExtractedKnowledge(saved);
       setReviewEditing(false);
+      setStage(hasActiveVersion ? "ready" : "uploaded");
       const refreshed = await getDocument(id);
       setDoc(refreshed);
+      setReviewDraft(refreshed.extractedKnowledge?.rawText || refreshed.extractedKnowledge?.sections.map((section) => section.content).join("\n\n") || buildStarterDraft(refreshed.title, isLawyerWorkspace));
       addMessage("assistant", "Saved your extraction edits. You can generate the document when it looks right.");
     } catch (e) {
       addMessage("assistant", e instanceof Error ? e.message : "Could not save the extraction edits.");
@@ -709,7 +876,7 @@ export function DocumentEditorPage() {
   async function handleGenerateFromReview() {
     if (!acquireActionLock("generate")) return;
     try {
-      if (reviewEditing) await handleSaveExtractionReview();
+      if (reviewEditing || !extractedKnowledge) await handleSaveExtractionReview();
       await submitInstruction("Generate a professional document from the reviewed extraction. Preserve all tables and key facts.", true);
     } finally {
       releaseActionLock("generate");
@@ -728,7 +895,13 @@ export function DocumentEditorPage() {
       setDoc(refreshed);
       addMessage("assistant", highAccuracy ? "Retrying extraction with high accuracy in the background." : "Retrying extraction in the background.");
     } catch (e) {
-      addMessage("assistant", e instanceof Error ? e.message : "Retry failed.");
+      if (isAiConfigurationError(e)) {
+        setAiNotice("AI generation is not configured in this environment. You can still edit this document manually.");
+        setStage(extractedKnowledge ? "uploaded" : "empty");
+        setActiveTab("preview");
+      } else {
+        addMessage("assistant", e instanceof Error ? e.message : "Retry failed.");
+      }
     } finally {
       if (highAccuracy) setRetryingHighAccuracy(false);
       releaseActionLock("retry");
@@ -825,7 +998,7 @@ export function DocumentEditorPage() {
   if (loading) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center">
-        <p className="text-sm text-slate-500">Loading document?</p>
+        <p className="text-sm text-slate-500">Loading document...</p>
       </div>
     );
   }
@@ -864,8 +1037,7 @@ export function DocumentEditorPage() {
               : "Draft";
 
   return (
-    <div className="relative flex h-[calc(100vh-4rem)] flex-col overflow-hidden">
-      {/* Top bar */}
+    <div className="relative flex h-[calc(100vh-4rem)] flex-col overflow-hidden bg-slate-100">
       <div className="border-b border-slate-200 bg-white">
         <div className="flex min-h-10 items-center gap-2 px-3 py-2">
           <button
@@ -888,7 +1060,7 @@ export function DocumentEditorPage() {
           ) : null}
         </div>
 
-        <div className="flex items-center gap-2 px-3 pb-2 lg:hidden">
+        <div className="flex flex-wrap items-center gap-2 px-3 pb-3">
           <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-bold text-slate-600">
             {stageLabel}
           </span>
@@ -897,254 +1069,168 @@ export function DocumentEditorPage() {
               {componentTree.length} components
             </span>
           ) : null}
-        </div>
-        {publishResult ? (
-          <div className="mx-3 mb-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900 lg:hidden">
-            <p className="text-[10px] font-bold uppercase tracking-wide text-emerald-700">Published</p>
-            <p className="mt-0.5 break-all text-xs text-emerald-800">{publishResult.url}</p>
-            <p className="mt-1 text-[10px] font-semibold text-emerald-700">Token: {publishResult.token}</p>
-          </div>
-        ) : null}
-
-        <div className="hidden">
-          {versions.length > 0 && hasActiveVersion ? (
-            <button
-              type="button"
-              onClick={() => { void getVersionHistory(id!).then(setVersions); setShowVersions(true); }}
-              className="hidden text-xs font-semibold text-slate-500 hover:text-slate-800 sm:block"
-            >
-              Version History
-            </button>
+          {aiNotice ? (
+            <span className="rounded-full bg-amber-100 px-2.5 py-1 text-[11px] font-bold text-amber-800">
+              AI unavailable
+            </span>
           ) : null}
-          {stage === "ready" && hasActiveVersion ? (
-            <>
-              <button
-                type="button"
-                onClick={() => void handlePrint()}
-                disabled={printing}
-                className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50"
-              >
-                {printing ? "Opening..." : "Print"}
-              </button>
-              <button
-                type="button"
-                onClick={() => void handleDownloadExport("pdf")}
-                disabled={exportingFormat === "pdf"}
-                className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50"
-              >
-                {exportingFormat === "pdf" ? "Downloading..." : "Download PDF"}
-              </button>
-              <button
-                type="button"
-                onClick={() => void handleDownloadExport("docx")}
-                disabled={exportingFormat === "docx"}
-                className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50"
-              >
-                {exportingFormat === "docx" ? "Downloading..." : "Download DOCX"}
-              </button>
-              <button
-                type="button"
-                onClick={() => void handleDownloadExport("markdown")}
-                disabled={exportingFormat === "markdown"}
-                className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50"
-              >
-                {exportingFormat === "markdown" ? "Downloading..." : "Export Markdown"}
-              </button>
-              <button
-                type="button"
-                onClick={() => void handleDownloadExport("schema")}
-                disabled={exportingFormat === "schema"}
-                className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50"
-              >
-                {exportingFormat === "schema" ? "Downloading..." : "Export Schema"}
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowPublishModal(true)}
-                disabled={publishing}
-                className="btn btn-primary text-xs"
-              >
-                {publishing ? "Publishing..." : publishResult ? "Re-publish Secure Link" : "Publish Secure Link"}
-              </button>
-            </>
+          {publishResult ? (
+            <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-[11px] font-bold text-emerald-800">
+              Published secure link ready
+            </span>
           ) : null}
         </div>
       </div>
 
-      {/* Mobile tab switcher */}
-      <div className="sticky top-0 z-20 border-b border-slate-200 bg-white/95 px-3 py-2 backdrop-blur lg:hidden">
-        <div className="grid grid-cols-2 rounded-2xl bg-slate-100 p-1 shadow-inner shadow-slate-900/5">
-          {(["chat", "preview"] as const).map((tab) => (
-            <button
-              key={tab}
-              type="button"
-              onClick={() => setActiveTab(tab)}
-              className={`rounded-xl py-2 text-sm font-semibold capitalize transition ${
-                activeTab === tab
-                  ? "bg-white text-blue-700 shadow-sm ring-1 ring-slate-200"
-                  : "text-slate-500"
-              }`}
-            >
-              {tab}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Main content: chat (left) + preview (right) */}
-      <div className="flex min-h-0 flex-1 overflow-hidden">
-        {/* Chat panel */}
-        <div
-          className={`flex flex-col ${activeTab === "chat" ? "flex" : "hidden"} w-full border-r border-slate-200 bg-slate-50 lg:flex lg:w-[400px] lg:shrink-0`}
-        >
-          {/* Messages */}
-          <div className="flex-1 overflow-y-auto space-y-3 p-4">
-            {messages.map((msg) => <ChatBubble key={msg.id} msg={msg} />)}
-            {busy ? (
-              <div className="flex justify-start">
-                <div className="rounded-2xl border border-slate-200 bg-white px-3.5 py-2.5 shadow-sm">
-                  <span className="inline-flex gap-1">
-                    <span className="h-1.5 w-1.5 rounded-full bg-slate-400 animate-bounce [animation-delay:0ms]" />
-                    <span className="h-1.5 w-1.5 rounded-full bg-slate-400 animate-bounce [animation-delay:150ms]" />
-                    <span className="h-1.5 w-1.5 rounded-full bg-slate-400 animate-bounce [animation-delay:300ms]" />
-                  </span>
-                </div>
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        <div className="grid min-h-full gap-4 p-4 lg:grid-cols-[minmax(0,1fr)_340px]">
+          <main className="min-w-0 space-y-4">
+            <section className="premium-card premium-card-hover rounded-[28px] p-4 sm:p-5">
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => void navigate(isLawyerWorkspace ? "/lawyers/dashboard" : "/smart-pages")}
+                  className="btn btn-secondary text-xs"
+                >
+                  Back to documents
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleSaveExtractionReview()}
+                  className="btn btn-secondary text-xs"
+                  disabled={reviewSaving}
+                >
+                  {reviewSaving ? "Saving..." : "Save draft"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { void getVersionHistory(id!).then(setVersions); setShowVersions(true); }}
+                  className="btn btn-secondary text-xs"
+                  disabled={versions.length === 0 && !hasActiveVersion}
+                  title={versions.length === 0 && !hasActiveVersion ? "No saved versions yet." : undefined}
+                >
+                  Version history
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handlePrint()}
+                  disabled={printing || !hasActiveVersion}
+                  className="btn btn-secondary text-xs disabled:cursor-not-allowed disabled:opacity-50"
+                  title={!hasActiveVersion ? "Generate a first version before printing." : undefined}
+                >
+                  {printing ? "Opening..." : "Print"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleDownloadExport("pdf")}
+                  disabled={exportingFormat === "pdf" || !hasActiveVersion}
+                  className="btn btn-secondary text-xs disabled:cursor-not-allowed disabled:opacity-50"
+                  title={!hasActiveVersion ? "Generate a first version before downloading." : undefined}
+                >
+                  {exportingFormat === "pdf" ? "Downloading..." : "Download PDF"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleDownloadExport("docx")}
+                  disabled={exportingFormat === "docx" || !hasActiveVersion}
+                  className="btn btn-secondary text-xs disabled:cursor-not-allowed disabled:opacity-50"
+                  title={!hasActiveVersion ? "Generate a first version before downloading." : undefined}
+                >
+                  {exportingFormat === "docx" ? "Downloading..." : "Download DOCX"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleDownloadExport("markdown")}
+                  disabled={exportingFormat === "markdown" || !hasActiveVersion}
+                  className="btn btn-secondary text-xs disabled:cursor-not-allowed disabled:opacity-50"
+                  title={!hasActiveVersion ? "Generate a first version before exporting." : undefined}
+                >
+                  {exportingFormat === "markdown" ? "Downloading..." : "Export Markdown"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleDownloadExport("schema")}
+                  disabled={exportingFormat === "schema" || !hasActiveVersion}
+                  className="btn btn-secondary text-xs disabled:cursor-not-allowed disabled:opacity-50"
+                  title={!hasActiveVersion ? "Generate a first version before exporting." : undefined}
+                >
+                  {exportingFormat === "schema" ? "Downloading..." : "Export Schema"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowPublishModal(true)}
+                  disabled={publishing || !hasActiveVersion}
+                  className="btn btn-primary text-xs disabled:cursor-not-allowed disabled:opacity-50"
+                  title={!hasActiveVersion ? "Generate a first version before publishing." : undefined}
+                >
+                  {publishing ? "Publishing..." : publishResult ? "Re-publish Secure Link" : "Publish Secure Link"}
+                </button>
               </div>
-            ) : null}
-            <div ref={chatEndRef} />
-          </div>
+            </section>
 
-          {/* Suggestion chips */}
-          {!busy && messages.length > 0 ? (
-            <SuggestionChips
-              items={suggestions}
-              onSelect={(s) => { setInput(s); }}
-            />
-          ) : null}
-
-          {/* Input area */}
-          <div className="border-t border-slate-200 bg-white p-3">
-            <div className="flex items-end gap-2">
-              {/* File upload button */}
-              <button
-                type="button"
-                title="Upload file"
-                className="shrink-0 rounded-lg border border-slate-200 p-2 text-slate-500 hover:border-blue-400 hover:text-blue-600 disabled:opacity-40"
-                disabled={busy}
-                onClick={() => fileInputRef.current?.click()}
-              >
-                <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" strokeLinecap="round" strokeLinejoin="round" />
-                  <polyline points="17 8 12 3 7 8" />
-                  <line x1="12" y1="3" x2="12" y2="15" />
-                </svg>
-              </button>
-              <input
-                ref={fileInputRef}
-                type="file"
-                className="hidden"
-                accept="image/*,application/pdf,.xls,.xlsx,.csv"
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (file) void handleFileUpload(file);
-                  e.target.value = "";
-                }}
+            {stage === "processing" ? (
+              <div className="flex min-h-[24rem] items-center justify-center">
+                <ExtractionProcessingCard sourceStatus={doc.latestSourceFile?.status} />
+              </div>
+            ) : stage === "extractionFailed" ? (
+              <div className="flex min-h-[24rem] items-center justify-center">
+                <ExtractionFailedCard message={doc.extractionError ?? doc.latestSourceFile?.extractionError} onRetry={() => void handleRetryExtraction()} />
+              </div>
+            ) : stage === "uploaded" && extractedKnowledge ? (
+              <ExtractionReviewPanel
+                knowledge={extractedKnowledge}
+                editing={reviewEditing}
+                draft={reviewDraft}
+                saving={reviewSaving}
+                onEdit={() => setReviewEditing(true)}
+                onDraftChange={setReviewDraft}
+                onSave={() => void handleSaveExtractionReview()}
+                onGenerate={() => void handleGenerateFromReview()}
+                generateDisabled={Boolean(aiNotice)}
+                templates={parsedTemplates}
+                onPickTemplate={handleTemplatePick}
+                onHighAccuracyRetry={() => void handleRetryExtraction(true)}
+                highAccuracyDisabled={Boolean(aiNotice)}
+                retryingHighAccuracy={retryingHighAccuracy}
+                primaryActionLabel={extractionPrimaryActionLabel}
+                pickerLabel={isLawyerWorkspace ? "What would you like to create from this legal material?" : "What would you like to create?"}
+                pickerHeading={isLawyerWorkspace ? "Choose a legal drafting template" : "Choose a processing template"}
+                pickerDescription={isLawyerWorkspace ? "Pick a structure for the parsed legal material and keep the output editable before export." : "Pick how the parsed content should be turned into an editable output."}
               />
-
-              <textarea
-                rows={1}
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && !e.shiftKey) {
-                    e.preventDefault();
-                    void handleSend();
-                  }
-                }}
-                placeholder={
-                  stage === "empty"
-                    ? "Upload a file or describe what you'd like to create?"
-                    : stage === "processing"
-                      ? "Reading your document..."
-                    : stage === "uploaded"
-                      ? "Describe how you want this document to look?"
-                      : "Edit the document: Make it formal, add charts, translate?"
-                }
-                className="flex-1 resize-none rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none focus:border-blue-400 focus:bg-white"
-                disabled={busy || stage === "processing"}
+            ) : stage === "empty" ? (
+              <ManualDraftPanel
+                title={doc.title || (isLawyerWorkspace ? "Legal draft workspace" : "Document draft workspace")}
+                draft={reviewDraft}
+                onDraftChange={setReviewDraft}
+                onSave={() => void handleSaveExtractionReview()}
+                saving={reviewSaving}
+                onGenerate={() => void handleGenerateFromReview()}
+                generateDisabled={Boolean(aiNotice)}
+                generateLabel={isLawyerWorkspace ? "Generate legal draft" : "Generate document"}
+                aiNotice={aiNotice}
               />
-
-              <button
-                type="button"
-                className="shrink-0 rounded-xl bg-blue-600 p-2.5 text-white disabled:opacity-40 hover:bg-blue-700"
-                disabled={busy || stage === "processing" || !input.trim()}
-                onClick={() => void handleSend()}
-              >
-                <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="m22 2-7 20-4-9-9-4Z" strokeLinecap="round" strokeLinejoin="round" />
-                  <path d="M22 2 11 13" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Preview panel */}
-        <div
-          className={`${activeTab === "preview" ? "flex" : "hidden"} min-w-0 flex-1 flex-col overflow-y-auto bg-slate-100 lg:flex`}
-        >
-          {stage === "processing" ? (
-            <div className="flex flex-1 items-center justify-center">
-              <ExtractionProcessingCard sourceStatus={doc.latestSourceFile?.status} />
-            </div>
-          ) : stage === "extractionFailed" ? (
-            <div className="flex flex-1 items-center justify-center">
-              <ExtractionFailedCard message={doc.extractionError ?? doc.latestSourceFile?.extractionError} onRetry={() => void handleRetryExtraction()} />
-            </div>
-          ) : stage === "uploaded" && extractedKnowledge ? (
-            <ExtractionReviewPanel
-              knowledge={extractedKnowledge}
-              editing={reviewEditing}
-              draft={reviewDraft}
-              saving={reviewSaving}
-              onEdit={() => setReviewEditing(true)}
-              onDraftChange={setReviewDraft}
-              onSave={() => void handleSaveExtractionReview()}
-              onGenerate={() => void handleGenerateFromReview()}
-              templates={parsedTemplates}
-              onPickTemplate={handleTemplatePick}
-              onHighAccuracyRetry={() => void handleRetryExtraction(true)}
-              retryingHighAccuracy={retryingHighAccuracy}
-              primaryActionLabel={extractionPrimaryActionLabel}
-              pickerLabel={isLawyerWorkspace ? "What would you like to create from this legal material?" : "What would you like to create?"}
-              pickerHeading={isLawyerWorkspace ? "Choose a legal drafting template" : "Choose a processing template"}
-              pickerDescription={isLawyerWorkspace ? "Pick a structure for the parsed legal material and keep the output editable before export." : "Pick how the parsed content should be turned into an editable output."}
-            />
-          ) : stage === "ready" && hasActiveVersion ? (
-            <div className="min-h-full p-4">
-              <div className="mx-auto max-w-2xl">
-                {publishResult ? (
-                  <div className="mb-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3">
-                    <p className="text-xs font-bold text-emerald-700">Published</p>
-                    <p className="mt-0.5 break-all text-xs text-emerald-600">{publishResult.url}</p>
-                    <p className="mt-1 break-all text-[10px] font-semibold text-emerald-700">Token: {publishResult.token}</p>
-                    <button
-                      type="button"
-                      onClick={() => void navigator.clipboard.writeText(publishResult.url)}
-                      className="mt-1.5 text-xs font-semibold text-emerald-700 hover:underline"
-                    >
-                      Copy link
-                    </button>
-                  </div>
-                ) : null}
+            ) : stage === "ready" && hasActiveVersion ? (
+              <>
+                <ManualDraftPanel
+                  title={doc.title || (isLawyerWorkspace ? "Legal draft workspace" : "Document draft workspace")}
+                  draft={reviewDraft}
+                  onDraftChange={setReviewDraft}
+                  onSave={() => void handleSaveExtractionReview()}
+                  saving={reviewSaving}
+                  onGenerate={() => void handleGenerateFromReview()}
+                  generateDisabled={Boolean(aiNotice)}
+                  generateLabel={isLawyerWorkspace ? "Regenerate legal draft" : "Update document"}
+                  aiNotice={aiNotice}
+                />
                 {readyTemplates.length > 0 ? (
-                  <div className="mb-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                  <section className="premium-card premium-card-hover rounded-[28px] p-4 sm:p-6">
                     <p className="text-xs font-bold uppercase tracking-wide text-[color:var(--sc-primary)]">Delivery options</p>
                     <h3 className="mt-1 text-sm font-black text-slate-950">Publish or hand off the finished Smart Page</h3>
                     <div className="mt-3">
                       <SmartPageTemplatePicker
                         templates={readyTemplates}
                         scope="ready"
+                        disabled={Boolean(aiNotice)}
                         onPickTemplate={(template) => {
                           if (template.id === "publish-secure-link") {
                             setShowPublishModal(true);
@@ -1152,106 +1238,188 @@ export function DocumentEditorPage() {
                         }}
                       />
                     </div>
-                  </div>
+                  </section>
                 ) : null}
-                <DocumentPreview schema={currentSchema} componentTree={componentTree} renderSettings={renderSettings} />
+                <section className="premium-card premium-card-hover rounded-[28px] p-4 sm:p-6">
+                  {publishResult ? (
+                    <div className="mb-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3">
+                      <p className="text-xs font-bold text-emerald-700">Published</p>
+                      <p className="mt-0.5 break-all text-xs text-emerald-600">{publishResult.url}</p>
+                      <p className="mt-1 break-all text-[10px] font-semibold text-emerald-700">Token: {publishResult.token}</p>
+                      <button
+                        type="button"
+                        onClick={() => void navigator.clipboard.writeText(publishResult.url)}
+                        className="mt-1.5 text-xs font-semibold text-emerald-700 hover:underline"
+                      >
+                        Copy link
+                      </button>
+                    </div>
+                  ) : null}
+                  <DocumentPreview schema={currentSchema} componentTree={componentTree} renderSettings={renderSettings} />
+                </section>
+              </>
+            ) : stage === "generating" ? (
+              <div className="flex min-h-[24rem] items-center justify-center">
+                <ExtractionProcessingCard sourceStatus="EXTRACTING" />
               </div>
-            </div>
-          ) : (
-            <div className="flex flex-1 items-center justify-center">
-              <div className="text-center">
-                <div className="mx-auto mb-3 h-14 w-14 rounded-2xl bg-white grid place-items-center shadow-sm">
-                  <svg viewBox="0 0 24 24" className="h-7 w-7 text-slate-300" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
-                    <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2Z" />
-                    <path d="M14 2v6h6" />
-                  </svg>
-                </div>
-                <p className="text-sm font-medium text-slate-400">
-                  {stage === "generating" ? "Generating..." : "Preview will appear here"}
-                </p>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
+            ) : null}
+          </main>
 
-      {stage === "ready" && hasActiveVersion ? (
-        <div className="fixed inset-x-3 bottom-3 z-40 print:hidden lg:inset-x-auto lg:bottom-4 lg:right-4">
-          {showActions ? (
-            <div className="mb-2 grid w-full gap-1 rounded-2xl border border-slate-200 bg-white p-2 text-sm shadow-xl lg:min-w-40">
-              {versions.length > 0 ? (
+          <aside className="min-w-0 space-y-4 lg:sticky lg:top-4 lg:self-start">
+            <section className="premium-card premium-card-hover rounded-[28px] p-4">
+              <div className="flex items-center justify-between gap-2">
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-wide text-[color:var(--sc-primary)]">AI assistant</p>
+                  <h2 className="mt-1 text-sm font-black text-slate-950">Smart actions and guidance</h2>
+                </div>
                 <button
                   type="button"
-                  className="rounded-xl px-3 py-2 text-left font-semibold text-slate-700 hover:bg-slate-50"
-                  onClick={() => {
-                    void getVersionHistory(id!).then(setVersions);
-                    setShowVersions(true);
-                    setShowActions(false);
-                  }}
+                  className="rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                  onClick={() => setShowActions((value) => !value)}
+                  disabled={Boolean(aiNotice)}
+                  title={aiNotice ?? undefined}
                 >
-                  Version History
+                  {showActions ? "Hide" : "Show"} actions
                 </button>
-              ) : null}
-              <button
-                type="button"
-                className="rounded-xl px-3 py-2 text-left font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-                onClick={() => { setShowActions(false); void handlePrint(); }}
-                disabled={printing}
-              >
-                {printing ? "Opening..." : "Print"}
-              </button>
-              <button
-                type="button"
-                className="rounded-xl px-3 py-2 text-left font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-                onClick={() => { setShowActions(false); void handleDownloadExport("pdf"); }}
-                disabled={exportingFormat === "pdf"}
-              >
-                {exportingFormat === "pdf" ? "Downloading..." : "Download PDF"}
-              </button>
-              <button
-                type="button"
-                className="rounded-xl px-3 py-2 text-left font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-                onClick={() => { setShowActions(false); void handleDownloadExport("docx"); }}
-                disabled={exportingFormat === "docx"}
-              >
-                {exportingFormat === "docx" ? "Downloading..." : "Download DOCX"}
-              </button>
-              <button
-                type="button"
-                className="rounded-xl px-3 py-2 text-left font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-                onClick={() => { setShowActions(false); void handleDownloadExport("markdown"); }}
-                disabled={exportingFormat === "markdown"}
-              >
-                {exportingFormat === "markdown" ? "Downloading..." : "Export Markdown"}
-              </button>
-              <button
-                type="button"
-                className="rounded-xl px-3 py-2 text-left font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-                onClick={() => { setShowActions(false); void handleDownloadExport("schema"); }}
-                disabled={exportingFormat === "schema"}
-              >
-                {exportingFormat === "schema" ? "Downloading..." : "Export Schema"}
-              </button>
-              <button
-                type="button"
-                className="rounded-xl px-3 py-2 text-left font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-                onClick={() => { setShowActions(false); setShowPublishModal(true); }}
-                disabled={publishing}
-              >
-                {publishing ? "Publishing..." : publishResult ? "Re-publish Secure Link" : "Publish Secure Link"}
-              </button>
-            </div>
-          ) : null}
-          <button
-            type="button"
-            className="flex w-full items-center justify-center rounded-2xl bg-blue-600 px-4 py-3 text-sm font-black text-white shadow-xl shadow-blue-900/20 hover:bg-blue-700 lg:w-auto"
-            onClick={() => setShowActions((value) => !value)}
-            aria-expanded={showActions}
-          >
-            Actions
-          </button>
+              </div>
+              {aiNotice ? (
+                <div className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+                  {aiNotice}
+                </div>
+              ) : stage === "processing" ? (
+                <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
+                  Reading the document in the background. You can keep editing the draft below once parsing is ready.
+                </div>
+              ) : (
+                <div className="mt-3 rounded-2xl border border-blue-100 bg-blue-50 px-3 py-2 text-sm text-blue-900">
+                  Use the draft editor first, then ask AI to polish, summarize, or reformat the document when needed.
+                </div>
+              )}
+            </section>
+
+            <section className="premium-card premium-card-hover rounded-[28px] p-4">
+              <div className="flex items-center justify-between gap-2">
+                <h3 className="text-sm font-black text-slate-950">Assistant messages</h3>
+                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-500">
+                  {messages.length}
+                </span>
+              </div>
+              <div className="mt-3 max-h-[24rem] space-y-3 overflow-y-auto pr-1">
+                {messages.length > 0 ? messages.map((msg) => <ChatBubble key={msg.id} msg={msg} />) : (
+                  <p className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-3 text-sm text-slate-500">
+                    Messages from AI and system events will appear here.
+                  </p>
+                )}
+                {busy ? (
+                  <div className="flex justify-start">
+                    <div className="rounded-2xl border border-slate-200 bg-white px-3.5 py-2.5 shadow-sm">
+                      <span className="inline-flex gap-1">
+                        <span className="h-1.5 w-1.5 rounded-full bg-slate-400 animate-bounce [animation-delay:0ms]" />
+                        <span className="h-1.5 w-1.5 rounded-full bg-slate-400 animate-bounce [animation-delay:150ms]" />
+                        <span className="h-1.5 w-1.5 rounded-full bg-slate-400 animate-bounce [animation-delay:300ms]" />
+                      </span>
+                    </div>
+                  </div>
+                ) : null}
+                <div ref={chatEndRef} />
+              </div>
+            </section>
+
+            <section className="premium-card premium-card-hover rounded-[28px] p-4">
+              <div className="flex items-center justify-between gap-2">
+                <h3 className="text-sm font-black text-slate-950">Assistant actions</h3>
+                <button
+                  type="button"
+                  className="rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                  onClick={() => setShowActions((value) => !value)}
+                  disabled={Boolean(aiNotice)}
+                  title={aiNotice ?? undefined}
+                >
+                  {showActions ? "Hide" : "Show"} actions
+                </button>
+              </div>
+              {showActions ? (
+                <>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <SuggestionChips
+                      items={suggestions}
+                      disabled={Boolean(aiNotice)}
+                      onSelect={(s) => {
+                        if (!aiNotice) setInput(s);
+                      }}
+                    />
+                  </div>
+                  <div className="mt-2 flex items-end gap-2">
+                    <button
+                      type="button"
+                      title="Upload file"
+                      className="shrink-0 rounded-lg border border-slate-200 p-2 text-slate-500 hover:border-blue-400 hover:text-blue-600 disabled:opacity-40"
+                      disabled={busy}
+                      onClick={() => fileInputRef.current?.click()}
+                    >
+                      <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" strokeLinecap="round" strokeLinejoin="round" />
+                        <polyline points="17 8 12 3 7 8" />
+                        <line x1="12" y1="3" x2="12" y2="15" />
+                      </svg>
+                    </button>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      className="hidden"
+                      accept="image/*,application/pdf,.xls,.xlsx,.csv"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) void handleFileUpload(file);
+                        e.target.value = "";
+                      }}
+                    />
+                    <textarea
+                      rows={2}
+                      value={input}
+                      onChange={(e) => setInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && !e.shiftKey) {
+                          e.preventDefault();
+                          void handleSend();
+                        }
+                      }}
+                      placeholder={
+                        aiNotice
+                          ? "AI is unavailable. Edit the draft on the left."
+                          : stage === "empty"
+                            ? "Describe what you'd like to create?"
+                            : stage === "processing"
+                              ? "Reading your document..."
+                              : stage === "uploaded"
+                                ? "Describe how you want this document to look?"
+                                : "Edit the document: make it formal, add charts, translate..."
+                      }
+                      className="flex-1 resize-none rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none focus:border-[color:var(--sc-primary)] focus:bg-white disabled:cursor-not-allowed disabled:opacity-50"
+                      disabled={busy || stage === "processing" || Boolean(aiNotice)}
+                    />
+                    <button
+                      type="button"
+                      className="shrink-0 rounded-xl bg-[color:var(--sc-primary)] p-2.5 text-white hover:bg-[color:var(--sc-primary-hover)] disabled:cursor-not-allowed disabled:opacity-40"
+                      disabled={busy || stage === "processing" || !input.trim() || Boolean(aiNotice)}
+                      onClick={() => void handleSend()}
+                    >
+                      <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="m22 2-7 20-4-9-9-4Z" strokeLinecap="round" strokeLinejoin="round" />
+                        <path d="M22 2 11 13" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <p className="mt-3 rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-500">
+                  Open actions to use template prompts or ask AI to reshape the draft. Manual editing stays available on the left.
+                </p>
+              )}
+            </section>
+          </aside>
         </div>
-      ) : null}
+      </div>
 
       {/* Version history modal */}
       {showVersions ? (

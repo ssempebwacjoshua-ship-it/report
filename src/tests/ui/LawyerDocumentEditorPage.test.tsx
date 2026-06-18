@@ -113,5 +113,37 @@ describe("Lawyer Smart Pages editor", () => {
     expect(documentIntelligenceMocks.generateSchema.mock.calls[0][1]).toContain("Template ID: legal-notice-demand-letter");
     expect(documentIntelligenceMocks.generateSchema.mock.calls[0][1]).toContain("Template Name: Legal Notice / Demand Letter");
   });
+
+  it("shows a manual draft workspace and a friendly AI notice when Gemini is unavailable", async () => {
+    documentIntelligenceMocks.getDocument.mockResolvedValue({
+      id: "doc-3",
+      title: "Offline draft",
+      status: "DRAFT",
+      extractionStatus: "FAILED",
+      extractionError: "GEMINI_API_KEY is not configured.",
+      domain: "legal",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      versionCount: 0,
+      hasSourceFiles: true,
+      extractedKnowledge: null,
+      activeVersion: null,
+      latestSourceFile: { id: "source-3", status: "FAILED", extractionError: "GEMINI_API_KEY is not configured." },
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/lawyers/documents/doc-3"]}>
+        <Routes>
+          <Route path="/lawyers/documents/:id" element={<DocumentEditorPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => expect(screen.getAllByText(/ai generation is not configured in this environment/i).length).toBeGreaterThan(0));
+    expect(screen.queryByText(/GEMINI_API_KEY is not configured/i)).not.toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: /manual document draft/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /generate legal draft/i })).toBeDisabled();
+    expect(screen.queryByText(/Generating\.\.\./i)).not.toBeInTheDocument();
+  });
 });
 
