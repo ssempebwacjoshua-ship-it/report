@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+﻿import { render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { MemoryRouter } from "react-router-dom";
 import { Sidebar } from "../../components/layout/Sidebar";
@@ -107,3 +107,4 @@ describe("App shell branding", () => {
     expect(screen.queryByText("UHS")).not.toBeInTheDocument();
   });
 });
+

@@ -1,4 +1,4 @@
-import { useNavigate } from "react-router-dom";
+﻿import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../contexts/AuthContext";
 import { Icon } from "./Icon";
 import { getSchoolDisplayName } from "./branding";
@@ -59,3 +59,4 @@ export function Topbar({ onMenuClick, sidebarCollapsed }: Props) {
     </header>
   );
 }
+

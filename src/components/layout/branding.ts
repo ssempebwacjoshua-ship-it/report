@@ -1,4 +1,4 @@
-import type { SchoolProfileSettings } from "../../shared/types/settings";
+﻿import type { SchoolProfileSettings } from "../../shared/types/settings";
 
 export function getSchoolInitials(name: string) {
   const parts = name
@@ -32,3 +32,4 @@ export function getSchoolBranding(settings?: SchoolProfileSettings | null, fallb
     logoUrl: settings?.logoUrl?.trim() || "",
   };
 }
+
