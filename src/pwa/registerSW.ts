@@ -1,4 +1,4 @@
-/** Registers the service worker in production builds only.
+﻿/** Registers the service worker in production builds only.
  * Checks for updates on load and on tab focus so users pick up new bundles quickly.
  */
 export function registerServiceWorker() {
@@ -27,3 +27,4 @@ export function registerServiceWorker() {
     window.location.reload();
   });
 }
+

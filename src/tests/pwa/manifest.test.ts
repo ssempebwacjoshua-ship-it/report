@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+﻿import { describe, expect, it } from "vitest";
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
@@ -64,3 +64,4 @@ describe("service worker safety", () => {
     expect(sw).toContain("clients.claim");
   });
 });
+
