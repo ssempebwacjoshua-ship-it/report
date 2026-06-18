@@ -11,14 +11,23 @@ const mockState = vi.hoisted(() => {
   const preprocessDocumentForOcr = vi.fn();
 
   const prisma = {
+    creator: {
+      findUnique: vi.fn(),
+      findFirst: vi.fn(),
+      create: vi.fn(),
+      update: vi.fn(),
+    },
     smartDocument: {
+      findUnique: vi.fn(),
       findFirst: vi.fn(),
       update: vi.fn(),
+      create: vi.fn(),
     },
     documentSourceFile: {
       findUnique: vi.fn(),
       findFirst: vi.fn(),
       update: vi.fn(),
+      create: vi.fn(),
     },
     documentVersion: {
       findUnique: vi.fn(),
@@ -29,6 +38,9 @@ const mockState = vi.hoisted(() => {
       upsert: vi.fn(),
       findUnique: vi.fn(),
       update: vi.fn(),
+    },
+    auditLog: {
+      create: vi.fn(),
     },
   };
 
@@ -74,8 +86,23 @@ describe("documentIntelligenceService", () => {
     vi.unstubAllEnvs();
   });
 
+  const schoolActor = {
+    id: "creator-1",
+    type: "SCHOOL_OPERATOR",
+    email: "creator@example.com",
+    name: "Creator One",
+    schoolId: "school-1",
+    isActive: true,
+  };
+
+  beforeEach(() => {
+    mockState.prisma.creator.findUnique.mockResolvedValue(schoolActor);
+    mockState.prisma.creator.findFirst.mockResolvedValue(null);
+    mockState.prisma.auditLog.create.mockResolvedValue({ id: "audit-1" });
+  });
+
   it("falls back to generateSchema when extractedKnowledge exists but no activeVersion is present", async () => {
-    mockState.prisma.smartDocument.findFirst.mockResolvedValue({
+    mockState.prisma.smartDocument.findUnique.mockResolvedValue({
       id: "doc-1",
       creatorId: "creator-1",
       title: "Untitled Document",
@@ -122,7 +149,7 @@ describe("documentIntelligenceService", () => {
   });
 
   it("uses applyPromptToSchema when an activeVersion exists", async () => {
-    mockState.prisma.smartDocument.findFirst.mockResolvedValue({
+    mockState.prisma.smartDocument.findUnique.mockResolvedValue({
       id: "doc-1",
       creatorId: "creator-1",
       title: "Untitled Document",
@@ -235,6 +262,113 @@ describe("documentIntelligenceService", () => {
     );
 
     consoleError.mockRestore();
+  });
+
+  it("creates school-owned documents with an audit log", async () => {
+    mockState.prisma.smartDocument.create.mockResolvedValue({
+      id: "doc-new",
+      creatorId: "creator-1",
+      schoolId: "school-1",
+      title: "Term Report",
+      status: "DRAFT",
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+
+    const { createDocument } = await import("../../server/services/documentIntelligenceService");
+    await createDocument("creator-1", "Term Report");
+
+    expect(mockState.prisma.smartDocument.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          creatorId: "creator-1",
+          schoolId: "school-1",
+          title: "Term Report",
+        }),
+      }),
+    );
+    expect(mockState.prisma.auditLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          schoolId: "school-1",
+          action: "SMART_DOCUMENT_CREATED",
+          correlationId: "doc-new",
+          details: expect.objectContaining({ documentId: "doc-new", title: "Term Report" }),
+        }),
+      }),
+    );
+  });
+
+  it("blocks access to another school's SmartDocument", async () => {
+    mockState.prisma.smartDocument.findUnique.mockResolvedValue({
+      id: "doc-b",
+      creatorId: "creator-b",
+      schoolId: "school-2",
+      title: "Other School Document",
+      status: "DRAFT",
+      extractionStatus: "READY",
+      extractedKnowledge: null,
+      activeVersionId: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      published: null,
+      sourceFiles: [],
+      _count: { versions: 0 },
+    });
+
+    const { getDocument } = await import("../../server/services/documentIntelligenceService");
+    await expect(getDocument("doc-b", "creator-1")).rejects.toMatchObject({ status: 403 });
+  });
+
+  it("blocks upload and publish for another school's SmartDocument", async () => {
+    mockState.prisma.smartDocument.findUnique.mockResolvedValue({
+      id: "doc-b",
+      creatorId: "creator-b",
+      schoolId: "school-2",
+      title: "Other School Document",
+      status: "DRAFT",
+      extractionStatus: "READY",
+      extractedKnowledge: null,
+      activeVersionId: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      published: null,
+      sourceFiles: [],
+      _count: { versions: 0 },
+    });
+
+    const { uploadAndExtract, publishDocument } = await import("../../server/services/documentIntelligenceService");
+    await expect(
+      uploadAndExtract("doc-b", "creator-1", {
+        originalname: "scan.png",
+        mimetype: "image/png",
+        size: 100,
+        buffer: Buffer.from("file"),
+      } as Express.Multer.File),
+    ).rejects.toMatchObject({ status: 403 });
+    await expect(publishDocument("doc-b", "creator-1")).rejects.toMatchObject({ status: 403 });
+  });
+
+  it("does not collapse school operators into a school-wide creator record", async () => {
+    mockState.prisma.creator.findFirst.mockResolvedValueOnce(null);
+    mockState.prisma.creator.findUnique.mockResolvedValueOnce(null);
+    mockState.prisma.creator.create.mockResolvedValue({ id: "creator-new" });
+
+    const { findOrCreateSchoolOperatorCreator } = await import("../../server/services/documentIntelligenceService");
+    const creatorId = await findOrCreateSchoolOperatorCreator("school-1", "admin3@example.com", "Admin Three");
+
+    expect(creatorId).toBe("creator-new");
+    expect(mockState.prisma.creator.findFirst).toHaveBeenCalledWith({ where: { schoolId: "school-1", email: "admin3@example.com" } });
+    expect(mockState.prisma.creator.findUnique).toHaveBeenCalledWith({ where: { email: "admin3@example.com" } });
+    expect(mockState.prisma.creator.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          schoolId: "school-1",
+          email: "admin3@example.com",
+          name: "Admin Three",
+        }),
+      }),
+    );
   });
 });
 

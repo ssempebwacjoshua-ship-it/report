@@ -46,7 +46,7 @@ function NavLinkRow({
       className={`group flex items-center gap-3 rounded-full border px-3 py-2 text-sm font-semibold transition ${
         active
           ? "border-white/25 bg-[color:var(--sc-primary-soft)] text-[color:var(--sc-primary)] shadow-[0_10px_24px_rgba(15,23,42,0.14)]"
-          : "border-transparent text-blue-100 hover:border-white/10 hover:bg-white/10 hover:text-white"
+          : "border-transparent text-white hover:border-white/10 hover:bg-white/10 hover:text-white"
       }`}
     >
       <ShellNavIcon name={icon} active={active} />
@@ -56,7 +56,7 @@ function NavLinkRow({
 }
 
 function ShellNavIcon({ name, active }: { name: NavItem["icon"]; active: boolean }) {
-  const className = `h-5 w-5 shrink-0 transition ${active ? "text-[color:var(--sc-primary)]" : "text-blue-100 group-hover:text-white"}`;
+  const className = `h-5 w-5 shrink-0 transition ${active ? "text-[color:var(--sc-primary)]" : "text-white group-hover:text-white"}`;
 
   switch (name) {
     case "home":
@@ -97,7 +97,7 @@ function SidebarSection({
   return (
     <>
       {!collapsed ? (
-        <div className="px-2 pb-1 pt-0.5 text-[11px] font-black uppercase tracking-[0.18em] text-white/75">
+        <div className="px-2 pb-1 pt-0.5 text-[11px] font-black uppercase tracking-[0.18em] text-white">
           {sectionLabel}
         </div>
       ) : null}
@@ -165,7 +165,7 @@ export function Sidebar({ open, onClose, collapsed, onToggleCollapsed, width }: 
           <button
             type="button"
             aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-            className="no-print hidden h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/10 text-white/80 transition hover:bg-white/15 hover:text-white lg:inline-flex"
+            className="no-print hidden h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/10 text-white transition hover:bg-white/15 hover:text-white lg:inline-flex"
             onClick={onToggleCollapsed}
             title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
           >

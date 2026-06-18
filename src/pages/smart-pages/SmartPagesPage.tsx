@@ -49,7 +49,7 @@ export function SmartPagesPage() {
   if (loading) {
     return (
       <div className="flex min-h-[40vh] items-center justify-center">
-        <p className="text-sm text-slate-500">Loading documents?</p>
+        <p className="text-sm text-slate-500">Loading documents...</p>
       </div>
     );
   }
@@ -185,7 +185,7 @@ export function SmartPagesPage() {
                 disabled={creating}
                 onClick={() => void handleCreate()}
               >
-                {creating ? "Creating?" : "Create"}
+                {creating ? "Creating..." : "Create"}
               </button>
             </div>
           </div>

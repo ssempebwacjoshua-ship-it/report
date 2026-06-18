@@ -8,6 +8,7 @@ export interface CreatorContext {
   type: "SCHOOL_OPERATOR" | "EXTERNAL";
   email: string;
   name: string;
+  schoolId?: string | null;
 }
 
 declare global {
@@ -37,7 +38,13 @@ export async function requireCreator(req: Request, res: Response, next: NextFunc
         schoolPayload.email,
         schoolPayload.name,
       );
-      req.creator = { id: creatorId, type: "SCHOOL_OPERATOR", email: schoolPayload.email, name: schoolPayload.name };
+      req.creator = {
+        id: creatorId,
+        type: "SCHOOL_OPERATOR",
+        email: schoolPayload.email,
+        name: schoolPayload.name,
+        schoolId: schoolPayload.schoolId,
+      };
       next();
       return;
     } catch (err) {
@@ -62,6 +69,7 @@ export async function requireCreator(req: Request, res: Response, next: NextFunc
         type: creator.type as "EXTERNAL",
         email: creator.email as string,
         name: creator.name as string,
+        schoolId: null,
       };
       next();
       return;

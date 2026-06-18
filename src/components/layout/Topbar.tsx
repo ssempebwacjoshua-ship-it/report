@@ -32,7 +32,7 @@ export function Topbar({ onMenuClick }: Props) {
           type="button"
           onClick={onMenuClick}
           aria-label="Open navigation"
-          className="grid h-9 w-9 place-items-center rounded-lg text-white/90 transition hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60 focus-visible:ring-offset-0"
+          className="grid h-9 w-9 place-items-center rounded-lg text-white transition hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60 focus-visible:ring-offset-0"
         >
           <NavigationRegular className="h-5 w-5" />
         </button>
@@ -44,7 +44,7 @@ export function Topbar({ onMenuClick }: Props) {
             className={`rounded-full px-3 py-1.5 text-xs font-black transition ${
               currentProduct === "reportLab"
                 ? "bg-white text-[color:var(--sc-primary)] shadow-sm"
-                : "text-white/90 hover:bg-white/10 hover:text-white"
+                : "text-white hover:bg-white/10 hover:text-white"
             }`}
           >
             Report Lab
@@ -55,7 +55,7 @@ export function Topbar({ onMenuClick }: Props) {
             className={`rounded-full px-3 py-1.5 text-xs font-black transition ${
               currentProduct === "smartPages"
                 ? "bg-white text-[color:var(--sc-primary)] shadow-sm"
-                : "text-white/90 hover:bg-white/10 hover:text-white"
+                : "text-white hover:bg-white/10 hover:text-white"
             }`}
           >
             Smart Pages
@@ -71,13 +71,13 @@ export function Topbar({ onMenuClick }: Props) {
           </div>
           <div className="hidden sm:block">
             <p className="text-sm font-semibold leading-tight text-white">{user?.name ?? "Admin"}</p>
-            <p className="text-xs leading-tight text-white/80">Administrator</p>
+            <p className="text-xs leading-tight text-white">Administrator</p>
           </div>
         </div>
         <button
           type="button"
           onClick={handleLogout}
-          className="ml-1 grid h-8 w-8 place-items-center rounded-lg text-white/90 transition hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60 focus-visible:ring-offset-0"
+          className="ml-1 grid h-8 w-8 place-items-center rounded-lg text-white transition hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60 focus-visible:ring-offset-0"
           title="Sign out"
           aria-label="Sign out"
         >

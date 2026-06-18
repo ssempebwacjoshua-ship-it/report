@@ -15,6 +15,46 @@ import type { ComponentNode, DocumentSchema, ExtractedKnowledge } from "../../sh
 
 const db = prisma as any;
 
+type SmartPagesActor = {
+  id: string;
+  type: "SCHOOL_OPERATOR" | "EXTERNAL";
+  email: string;
+  name: string;
+  schoolId: string | null;
+};
+
+async function getSmartPagesActor(creatorId: string): Promise<SmartPagesActor> {
+  const creator = await db.creator.findUnique({
+    where: { id: creatorId },
+    select: { id: true, type: true, email: true, name: true, schoolId: true, isActive: true },
+  });
+  if (!creator || !creator.isActive) throw Object.assign(new Error("Creator not found."), { status: 404 });
+  return {
+    id: creator.id,
+    type: creator.type as SmartPagesActor["type"],
+    email: creator.email,
+    name: creator.name,
+    schoolId: creator.schoolId ?? null,
+  };
+}
+
+async function loadOwnedSmartDocument(actor: SmartPagesActor, documentId: string) {
+  const doc = await db.smartDocument.findUnique({ where: { id: documentId } });
+  if (!doc) throw Object.assign(new Error("Document not found."), { status: 404 });
+
+  const schoolOwned = actor.type === "SCHOOL_OPERATOR" && actor.schoolId
+    ? doc.schoolId === actor.schoolId
+    : false;
+  const legacyOwned = doc.schoolId == null && doc.creatorId === actor.id;
+  const creatorOwned = actor.type === "EXTERNAL" && doc.creatorId === actor.id && doc.schoolId == null;
+
+  if (!schoolOwned && !legacyOwned && !creatorOwned) {
+    throw Object.assign(new Error("You do not have access to this document."), { status: 403 });
+  }
+
+  return doc;
+}
+
 export type WorkflowTrigger = "COLLECTION_IMPORTED" | "RECORD_ADDED" | "DOCUMENT_CREATED" | "BULK_GENERATION_COMPLETED" | "PUBLISH_COMPLETED";
 export type WorkflowAction = "GENERATE_DOCUMENT" | "PUBLISH_DOCUMENT" | "EXPORT_PDF" | "NOTIFY_CREATOR" | "SEND_EMAIL";
 export type SearchEntityType = "DOCUMENT" | "COLLECTION" | "RECORD" | "VERSION" | "PUBLISHED_PAGE";
@@ -228,8 +268,9 @@ export async function searchCreatorContent(creatorId: string, query: string, ent
 }
 
 export async function runDocumentAgent(creatorId: string, input: { domain?: AgentDomain; instruction: string; documentId?: string }) {
+  const actor = await getSmartPagesActor(creatorId);
   const doc = input.documentId
-    ? await db.smartDocument.findFirst({ where: { id: input.documentId, creatorId } })
+    ? await loadOwnedSmartDocument(actor, input.documentId)
     : null;
   const active = doc ? await resolveActiveVersion(doc.id, doc.activeVersionId) : null;
   const knowledge = doc?.extractedKnowledge as ExtractedKnowledge | null | undefined;
@@ -242,8 +283,8 @@ export async function runDocumentAgent(creatorId: string, input: { domain?: Agen
 }
 
 export async function translateDocument(creatorId: string, documentId: string, language: "Arabic" | "French" | "Swahili" | "Spanish") {
-  const doc = await db.smartDocument.findFirst({ where: { id: documentId, creatorId } });
-  if (!doc) throw Object.assign(new Error("Document not found."), { status: 404 });
+  const actor = await getSmartPagesActor(creatorId);
+  const doc = await loadOwnedSmartDocument(actor, documentId);
   const active = await resolveActiveVersion(documentId, doc.activeVersionId);
   if (!active) throw Object.assign(new Error("Document has no active version."), { status: 400 });
   const translated = await translateDocumentSchema(active.schema as DocumentSchema, language);
@@ -264,8 +305,8 @@ export async function translateDocument(creatorId: string, documentId: string, l
 }
 
 export async function exportDocument(creatorId: string, documentId: string, format: ExportFormat) {
-  const doc = await db.smartDocument.findFirst({ where: { id: documentId, creatorId } });
-  if (!doc) throw Object.assign(new Error("Document not found."), { status: 404 });
+  const actor = await getSmartPagesActor(creatorId);
+  const doc = await loadOwnedSmartDocument(actor, documentId);
   const active = await resolveActiveVersion(documentId, doc.activeVersionId);
   if (!active) throw Object.assign(new Error("Document has no active version."), { status: 400 });
   const schema = active.schema as DocumentSchema;
@@ -462,8 +503,8 @@ async function executeWorkflowAction(
 }
 
 async function publishOwnedDocument(creatorId: string, documentId: string, config: Record<string, unknown>) {
-  const doc = await db.smartDocument.findFirst({ where: { id: documentId, creatorId } });
-  if (!doc) throw Object.assign(new Error("Document not found."), { status: 404 });
+  const actor = await getSmartPagesActor(creatorId);
+  const doc = await loadOwnedSmartDocument(actor, documentId);
   const token = randomUUID().replace(/-/g, "").slice(0, 16);
   const expiresInDays = Number(config.expiresInDays ?? 0);
   const expiresAt = Number.isFinite(expiresInDays) && expiresInDays > 0
@@ -481,8 +522,8 @@ async function publishOwnedDocument(creatorId: string, documentId: string, confi
 }
 
 async function getOwnedActiveVersion(creatorId: string, documentId: string) {
-  const doc = await db.smartDocument.findFirst({ where: { id: documentId, creatorId } });
-  if (!doc) throw Object.assign(new Error("Document not found."), { status: 404 });
+  const actor = await getSmartPagesActor(creatorId);
+  const doc = await loadOwnedSmartDocument(actor, documentId);
   const active = await resolveActiveVersion(documentId, doc.activeVersionId);
   if (!active) throw Object.assign(new Error("Document has no active version."), { status: 400 });
   return { doc, active };
