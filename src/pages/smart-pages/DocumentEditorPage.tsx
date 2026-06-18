@@ -1,5 +1,5 @@
 ﻿import { useCallback, useEffect, useRef, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import {
   applyPrompt,
   downloadDocumentExport,
@@ -13,9 +13,11 @@ import {
   updateExtractedKnowledge,
   uploadDocumentFile,
 } from "../../client/documentIntelligenceClient";
+import { listPreferences } from "../../client/documentOsClient";
 import { DocumentPreview } from "../../components/smart-pages/DocumentPreview";
 import { SmartPageTemplatePicker } from "../../components/smart-pages/SmartPageTemplatePicker";
 import { getSmartPageTemplates, type SmartPageTemplateDefinition } from "../../shared/smartPagesTemplates";
+import { getLawyerPageTemplates } from "../../shared/lawyerTemplates";
 import type {
   ChatMessage,
   ComponentNode,
@@ -98,6 +100,9 @@ function ExtractionReviewPanel({
   onHighAccuracyRetry,
   retryingHighAccuracy,
   primaryActionLabel,
+  pickerLabel,
+  pickerHeading,
+  pickerDescription,
 }: {
   knowledge: ExtractedKnowledge;
   editing: boolean;
@@ -112,6 +117,9 @@ function ExtractionReviewPanel({
   onHighAccuracyRetry: () => void;
   retryingHighAccuracy: boolean;
   primaryActionLabel: string;
+  pickerLabel: string;
+  pickerHeading: string;
+  pickerDescription: string;
 }) {
   const unclear = knowledge.unclearItems ?? [];
   const confidence = typeof knowledge.confidence === "number" ? Math.round(knowledge.confidence * 100) : null;
@@ -138,9 +146,9 @@ function ExtractionReviewPanel({
         </div>
       ) : null}
       <section className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
-        <p className="text-xs font-bold uppercase tracking-wide text-[color:var(--sc-primary)]">What would you like to create?</p>
-        <h2 className="mt-1 text-lg font-black text-slate-950">Choose a processing template</h2>
-        <p className="mt-1 text-sm text-slate-500">Pick how the parsed content should be turned into an editable output.</p>
+        <p className="text-xs font-bold uppercase tracking-wide text-[color:var(--sc-primary)]">{pickerLabel}</p>
+        <h2 className="mt-1 text-lg font-black text-slate-950">{pickerHeading}</h2>
+        <p className="mt-1 text-sm text-slate-500">{pickerDescription}</p>
         <div className="mt-4">
           <SmartPageTemplatePicker
             templates={templates}
@@ -320,6 +328,8 @@ type RenderSettings = NonNullable<SmartDocumentDetail["activeVersion"]>["renderS
 export function DocumentEditorPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
+  const isLawyerWorkspace = location.pathname.startsWith("/lawyers");
 
   const [doc, setDoc] = useState<SmartDocumentDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -339,6 +349,7 @@ export function DocumentEditorPage() {
   const [reviewDraft, setReviewDraft] = useState("");
   const [reviewSaving, setReviewSaving] = useState(false);
   const [retryingHighAccuracy, setRetryingHighAccuracy] = useState(false);
+  const [creatorPreferences, setCreatorPreferences] = useState<Record<string, unknown> | null>(null);
 
   const [versions, setVersions] = useState<DocumentVersionSummary[]>([]);
   const [showVersions, setShowVersions] = useState(false);
@@ -348,7 +359,7 @@ export function DocumentEditorPage() {
   const [activeTab, setActiveTab] = useState<"chat" | "preview">("chat");
   const [showActions, setShowActions] = useState(false);
   const hasActiveVersion = Boolean(activeVersionId);
-  const parsedTemplates = getSmartPageTemplates("parsed");
+  const parsedTemplates = isLawyerWorkspace ? getLawyerPageTemplates("parsed") : getSmartPageTemplates("parsed");
   const readyTemplates = getSmartPageTemplates("ready");
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -403,6 +414,17 @@ export function DocumentEditorPage() {
       .catch((e: Error) => setLoadError(e.message || "Failed to load document."))
       .finally(() => setLoading(false));
   }, [id]);
+
+  useEffect(() => {
+    if (!isLawyerWorkspace) return;
+    listPreferences()
+      .then((prefs) => {
+        setCreatorPreferences(Object.fromEntries(prefs.map((pref) => [pref.key, pref.value])));
+      })
+      .catch(() => {
+        setCreatorPreferences(null);
+      });
+  }, [isLawyerWorkspace]);
 
   useEffect(() => {
     if (typeof chatEndRef.current?.scrollIntoView === "function") {
@@ -605,9 +627,15 @@ export function DocumentEditorPage() {
       documentTitle: doc?.title,
       extractedKnowledge,
       summaryStyleId: options?.summaryStyleId,
+      preferences: creatorPreferences,
     });
-    void submitInstruction(prompt);
-  }, [doc?.title, extractedKnowledge, submitInstruction]);
+    void submitInstruction([
+      `Template ID: ${template.id}`,
+      `Template Name: ${template.name}`,
+      "",
+      prompt,
+    ].join("\n"));
+  }, [creatorPreferences, doc?.title, extractedKnowledge, submitInstruction]);
 
   const [showPublishModal, setShowPublishModal] = useState(false);
   const [publishPassword, setPublishPassword] = useState("");
@@ -770,7 +798,7 @@ export function DocumentEditorPage() {
     return (
       <div className="mx-auto max-w-lg py-12 text-center">
         <p className="text-sm text-red-600">{loadError || "Document not found."}</p>
-        <button type="button" className="btn btn-primary mt-4" onClick={() => void navigate("/smart-pages")}>
+        <button type="button" className="btn btn-primary mt-4" onClick={() => void navigate(isLawyerWorkspace ? "/lawyers/dashboard" : "/smart-pages")}>
           Back to Documents
         </button>
       </div>
@@ -780,8 +808,12 @@ export function DocumentEditorPage() {
   const currentSchema = schema ?? { theme: DEFAULT_THEME, components: [] };
   const suggestions = stage === "ready" ? POST_GENERATE_SUGGESTIONS : INITIAL_SUGGESTIONS;
   const extractionPrimaryActionLabel = hasActiveVersion
-    ? "Looks good, generate document"
-    : "Generate document from extraction.";
+    ? isLawyerWorkspace
+      ? "Looks good, generate legal draft"
+      : "Looks good, generate document"
+    : isLawyerWorkspace
+      ? "Generate legal draft from extraction."
+      : "Generate document from extraction.";
   const stageLabel =
     stage === "ready"
       ? "Ready"
@@ -802,7 +834,7 @@ export function DocumentEditorPage() {
         <div className="flex min-h-10 items-center gap-2 px-3 py-2">
           <button
             type="button"
-            onClick={() => void navigate("/smart-pages")}
+            onClick={() => void navigate(isLawyerWorkspace ? "/lawyers/dashboard" : "/smart-pages")}
             className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-800"
             aria-label="Back to documents"
           >
@@ -1048,6 +1080,9 @@ export function DocumentEditorPage() {
               onHighAccuracyRetry={() => void handleRetryExtraction(true)}
               retryingHighAccuracy={retryingHighAccuracy}
               primaryActionLabel={extractionPrimaryActionLabel}
+              pickerLabel={isLawyerWorkspace ? "What would you like to create from this legal material?" : "What would you like to create?"}
+              pickerHeading={isLawyerWorkspace ? "Choose a legal drafting template" : "Choose a processing template"}
+              pickerDescription={isLawyerWorkspace ? "Pick a structure for the parsed legal material and keep the output editable before export." : "Pick how the parsed content should be turned into an editable output."}
             />
           ) : stage === "ready" && hasActiveVersion ? (
             <div className="min-h-full p-4">

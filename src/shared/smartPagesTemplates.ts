@@ -24,6 +24,7 @@ export type SmartPageTemplateContext = {
   collectionName?: string | null;
   recordCount?: number | null;
   summaryStyleId?: string | null;
+  preferences?: Record<string, unknown> | null;
 };
 
 export type SmartPageTemplateDefinition = {
@@ -329,4 +330,3 @@ export function getSmartPageTemplates(scope: SmartPageTemplateScope): SmartPageT
 export function getSmartPageTemplateById(templateId: string): SmartPageTemplateDefinition | undefined {
   return SMART_PAGE_TEMPLATES.find((template) => template.id === templateId);
 }
-

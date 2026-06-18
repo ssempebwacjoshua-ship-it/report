@@ -1,0 +1,86 @@
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { DocumentEditorPage } from "../../pages/smart-pages/DocumentEditorPage";
+
+const documentIntelligenceMocks = vi.hoisted(() => ({
+  getDocument: vi.fn(),
+  generateSchema: vi.fn(),
+  applyPrompt: vi.fn(),
+  getVersionHistory: vi.fn(),
+  updateExtractedKnowledge: vi.fn(),
+  publishDocument: vi.fn(),
+  downloadDocumentExport: vi.fn(),
+  openPrintWindow: vi.fn(),
+  retryDocumentExtraction: vi.fn(),
+  restoreVersion: vi.fn(),
+  uploadDocumentFile: vi.fn(),
+}));
+
+const documentOsMocks = vi.hoisted(() => ({
+  listPreferences: vi.fn(),
+}));
+
+vi.mock("../../client/documentIntelligenceClient", () => documentIntelligenceMocks);
+vi.mock("../../client/documentOsClient", () => documentOsMocks);
+
+describe("Lawyer Smart Pages editor", () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+    documentIntelligenceMocks.getVersionHistory.mockResolvedValue([]);
+    documentOsMocks.listPreferences.mockResolvedValue([
+      { id: "pref-1", key: "lawyer.firm", value: { name: "Acacia Legal", contact: "+256 700 000000" }, updatedAt: new Date().toISOString() },
+      { id: "pref-2", key: "lawyer.profile", value: { name: "Jane Lawyer", location: "Kampala" }, updatedAt: new Date().toISOString() },
+    ]);
+  });
+
+  it("shows lawyer templates and sends a legal prompt from the selected template", async () => {
+    documentIntelligenceMocks.getDocument.mockResolvedValue({
+      id: "doc-1",
+      title: "Client notes",
+      status: "DRAFT",
+      extractionStatus: "READY",
+      extractionError: null,
+      domain: "legal",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      versionCount: 0,
+      hasSourceFiles: true,
+      extractedKnowledge: {
+        documentType: "legal note",
+        domain: "legal",
+        title: "Client notes",
+        suggestedDocumentType: "legal note",
+        sections: [{ heading: "Facts", content: "Client wants a demand letter." }],
+        tables: [],
+        statistics: [],
+        entities: [],
+        people: [],
+        dates: [],
+        handwrittenNotes: [],
+        keyFacts: [],
+        unclearItems: [],
+        rawText: "Client wants a demand letter.",
+      },
+      activeVersion: null,
+      latestSourceFile: { id: "source-1", status: "READY" },
+    });
+    documentIntelligenceMocks.generateSchema.mockResolvedValue({ versionId: "version-1", schema: { theme: { primaryColor: "#2563eb" }, components: [] }, componentTree: [] });
+
+    render(
+      <MemoryRouter initialEntries={["/lawyers/documents/doc-1"]}>
+        <Routes>
+          <Route path="/lawyers/documents/:id" element={<DocumentEditorPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => expect(screen.getByText(/what would you like to create from this legal material/i)).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: /legal notice \/ demand letter/i }));
+
+    await waitFor(() => expect(documentIntelligenceMocks.generateSchema).toHaveBeenCalledTimes(1));
+    expect(documentIntelligenceMocks.generateSchema.mock.calls[0][1]).toContain("Template ID: legal-notice-demand-letter");
+    expect(documentIntelligenceMocks.generateSchema.mock.calls[0][1]).toContain("Acacia Legal");
+  });
+});
+

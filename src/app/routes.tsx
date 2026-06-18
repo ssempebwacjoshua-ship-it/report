@@ -18,6 +18,10 @@ import { VerifyPage } from "../pages/VerifyPage";
 import { OwnerDashboardPage } from "../pages/owner/OwnerDashboardPage";
 import { OwnerSchoolsPage } from "../pages/owner/OwnerSchoolsPage";
 import { OwnerUsersPage } from "../pages/owner/OwnerUsersPage";
+import { LawyerShell } from "../components/lawyers/LawyerShell";
+import { LawyerDashboardPage } from "../pages/lawyers/LawyerDashboardPage";
+import { LawyerDocumentsPage } from "../pages/lawyers/LawyerDocumentsPage";
+import { LawyerOnboardingPage } from "../pages/lawyers/LawyerOnboardingPage";
 import { SmartPagesPage } from "../pages/smart-pages/SmartPagesPage";
 import { DocumentEditorPage } from "../pages/smart-pages/DocumentEditorPage";
 import { PublishedDocumentPage } from "../pages/smart-pages/PublishedDocumentPage";
@@ -41,6 +45,20 @@ export const router = createBrowserRouter([
   { path: "/parent/r/:token", element: <ParentReportPage /> },
   { path: "/verify/:code", element: <VerifyPage /> },
   { path: "/p/:token", element: <PublishedDocumentPage /> },
+
+  // Lawyer product routes
+  {
+    path: "/lawyers",
+    element: <LawyerShell />,
+    children: [
+      { index: true, element: <LawyerDashboardPage /> },
+      { path: "dashboard", element: <LawyerDashboardPage /> },
+      { path: "documents", element: <LawyerDocumentsPage /> },
+      { path: "documents/:id", element: <DocumentEditorPage /> },
+      { path: "onboarding", element: <LawyerOnboardingPage /> },
+      { path: "settings", element: <LawyerOnboardingPage /> },
+    ],
+  },
 
   // Platform owner console ? wrapped in OwnerShell (owner guard inside)
   {
