@@ -349,6 +349,38 @@ describe("documentIntelligenceService", () => {
     await expect(publishDocument("doc-b", "creator-1")).rejects.toMatchObject({ status: 403 });
   });
 
+  it("rejects Word document uploads with a friendly unsupported-file message", async () => {
+    mockState.prisma.smartDocument.findUnique.mockResolvedValue({
+      id: "doc-1",
+      creatorId: "creator-1",
+      schoolId: "school-1",
+      title: "Untitled Document",
+      status: "DRAFT",
+      extractionStatus: "READY",
+      extractedKnowledge: null,
+      activeVersionId: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      published: null,
+      sourceFiles: [],
+      _count: { versions: 0 },
+    });
+
+    const { uploadAndExtract } = await import("../../server/services/documentIntelligenceService");
+    await expect(
+      uploadAndExtract("doc-1", "creator-1", {
+        originalname: "letter.docx",
+        mimetype: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        size: 100,
+        buffer: Buffer.from("file"),
+      } as Express.Multer.File),
+    ).rejects.toMatchObject({
+      status: 415,
+      message: "Word documents are coming soon. Please upload PDF, image, CSV, or Excel.",
+    });
+    expect(mockState.prisma.documentSourceFile.create).not.toHaveBeenCalled();
+  });
+
   it("does not collapse school operators into a school-wide creator record", async () => {
     mockState.prisma.creator.findFirst.mockResolvedValueOnce(null);
     mockState.prisma.creator.findUnique.mockResolvedValueOnce(null);

@@ -26,6 +26,21 @@ router.get("/p/:token", async (req, res) => {
   }
 });
 
+router.get("/p/:token/download/pdf", async (req, res) => {
+  try {
+    const password = req.query.password as string | undefined;
+    const result = await svc.downloadPublishedDocumentPdf(req.params.token, password);
+    if (!result) { res.status(404).json({ error: "Document not found or link has expired." }); return; }
+    if (result === "PASSWORD_REQUIRED") { res.status(401).json({ error: "Password required.", code: "PASSWORD_REQUIRED" }); return; }
+    if (result === "WRONG_PASSWORD") { res.status(401).json({ error: "Incorrect password.", code: "WRONG_PASSWORD" }); return; }
+    res.setHeader("Content-Type", result.contentType);
+    res.setHeader("Content-Disposition", `attachment; filename="${result.filename}"`);
+    res.send(result.body);
+  } catch (e) {
+    res.status(500).json({ error: e instanceof Error ? e.message : "Failed to download document." });
+  }
+});
+
 // List documents
 router.get("/", requireCreator, async (req, res) => {
   try {

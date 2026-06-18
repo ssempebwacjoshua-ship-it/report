@@ -28,6 +28,7 @@ export async function preprocessDocumentForOcr(
   mode: DocumentOcrPreprocessMode = "fast",
 ): Promise<DocumentOcrPreprocessResult> {
   const mime = mimeType.toLowerCase().trim();
+  const isPdf = PDF_MIME_TYPES.has(mime);
   const notes: OcrQualityNote[] = [];
 
   if (!IMAGE_MIME_RE.test(mime) && !PDF_MIME_TYPES.has(mime)) {
@@ -40,6 +41,10 @@ export async function preprocessDocumentForOcr(
       height: 0,
       notes,
     };
+  }
+
+  if (isPdf) {
+    notes.push({ code: "PDF_FIRST_PAGE", message: "Only the first PDF page is being read for OCR right now.", severity: "warning" });
   }
 
   try {
@@ -70,10 +75,6 @@ export async function preprocessDocumentForOcr(
     const qualityNotes = await analyzeImageQuality(processedBuffer);
     notes.push(...qualityNotes);
 
-    if (PDF_MIME_TYPES.has(mime)) {
-      notes.push({ code: "PDF_FIRST_PAGE", message: "The first PDF page was rasterized for OCR.", severity: "info" });
-    }
-
     const sectionBuffers = mode === "high_accuracy"
       ? await buildSectionBuffers(processedBuffer, notes)
       : undefined;
@@ -88,9 +89,11 @@ export async function preprocessDocumentForOcr(
       width: processedMeta.width ?? metadata.width ?? 0,
       height: processedMeta.height ?? metadata.height ?? 0,
       notes,
-      warning: qualityNotes.some((note) => note.severity === "warning")
-        ? "Some handwriting was unclear. Please review before publishing."
-        : undefined,
+      warning: isPdf
+        ? "Only the first PDF page is being read for OCR right now. Please review the result before publishing."
+        : qualityNotes.some((note) => note.severity === "warning")
+          ? "Some handwriting was unclear. Please review before publishing."
+          : undefined,
       sectionBuffers,
     };
   } catch (error) {
@@ -106,7 +109,9 @@ export async function preprocessDocumentForOcr(
       width: 0,
       height: 0,
       notes,
-      warning: "Some handwriting was unclear. Please review before publishing.",
+      warning: isPdf
+        ? "Only the first PDF page is being read for OCR right now. Please review the result before publishing."
+        : "Some handwriting was unclear. Please review before publishing.",
     };
   }
 }

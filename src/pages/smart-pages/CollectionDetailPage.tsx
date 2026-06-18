@@ -103,7 +103,7 @@ export function CollectionDetailPage() {
     ? Array.from(new Set(records.flatMap((r) => Object.keys(r.data))))
     : [];
 
-  if (loading) return <div className="p-8 text-center text-sm text-slate-500">Loading?</div>;
+  if (loading) return <div className="p-8 text-center text-sm text-slate-500">Loading...</div>;
   if (!collection) return <div className="p-8 text-center text-sm text-red-500">{error ?? "Collection not found."}</div>;
 
   return (

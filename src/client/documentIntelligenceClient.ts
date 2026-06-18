@@ -15,6 +15,29 @@ function authHeaders(token?: string | null): HeadersInit {
   return stored ? { Authorization: `Bearer ${stored}`, "Content-Type": "application/json" } : { "Content-Type": "application/json" };
 }
 
+function downloadBlob(blob: Blob, fileName: string): void {
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = fileName;
+  anchor.rel = "noreferrer";
+  document.body.append(anchor);
+  anchor.click();
+  anchor.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 0);
+}
+
+function filenameFromDisposition(disposition: string | null, fallback: string): string {
+  if (!disposition) return fallback;
+  const match = /filename\*?=(?:UTF-8''|")?([^";]+)"?/i.exec(disposition);
+  if (!match?.[1]) return fallback;
+  try {
+    return decodeURIComponent(match[1].replace(/%22/g, ""));
+  } catch {
+    return match[1];
+  }
+}
+
 async function json<T>(res: Response): Promise<T> {
   const text = await res.text();
   const data = text ? (JSON.parse(text) as T) : ({} as T);
@@ -158,6 +181,29 @@ export async function publishDocument(
     body: JSON.stringify(options),
   });
   return json(res);
+}
+
+export async function downloadDocumentExport(
+  documentId: string,
+  format: "pdf" | "docx" | "markdown" | "schema",
+): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/document-os/documents/${documentId}/export/${format}`, {
+    headers: authHeaders(),
+  });
+  if (!res.ok) throw new Error(await parseApiError(res, `Could not download ${format.toUpperCase()}`));
+  const blob = await res.blob();
+  const filename = filenameFromDisposition(res.headers.get("content-disposition"), `smart-document.${format === "schema" ? "json" : format}`);
+  downloadBlob(blob, filename);
+}
+
+export async function downloadPublishedDocumentPdf(token: string, password?: string): Promise<void> {
+  const url = new URL(`${API_BASE}/api/smart-documents/p/${token}/download/pdf`);
+  if (password) url.searchParams.set("password", password);
+  const res = await fetch(url.toString());
+  if (!res.ok) throw new Error(await parseApiError(res, "Could not download PDF"));
+  const blob = await res.blob();
+  const filename = filenameFromDisposition(res.headers.get("content-disposition"), "smart-document.pdf");
+  downloadBlob(blob, filename);
 }
 
 export async function openPrintWindow(documentId: string): Promise<void> {

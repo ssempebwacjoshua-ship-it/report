@@ -62,7 +62,7 @@ export function BulkJobStatusPage() {
 
   const origin = window.location.origin;
 
-  if (loading) return <div className="p-8 text-center text-sm text-slate-500">Loading?</div>;
+  if (loading) return <div className="p-8 text-center text-sm text-slate-500">Loading...</div>;
   if (!job) return <div className="p-8 text-center text-sm text-red-500">{error ?? "Job not found."}</div>;
 
   const isActive = job.status === "PENDING" || job.status === "PROCESSING";
