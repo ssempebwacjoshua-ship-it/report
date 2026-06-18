@@ -104,10 +104,10 @@ describe("documentGeminiService", () => {
     expect(request.config?.responseMimeType).toBe("application/json");
   });
 
-  it("falls back to gemini-3.5-flash when GEMINI_MODEL is blank", async () => {
+  it("falls back to gemini-2.5-flash when GEMINI_MODEL is blank", async () => {
     vi.stubEnv("GEMINI_MODEL", "");
     const { resolveGeminiDocumentModel } = await import("../../server/services/documentGeminiService");
-    expect(resolveGeminiDocumentModel()).toBe("gemini-3.5-flash");
+    expect(resolveGeminiDocumentModel()).toBe("gemini-2.5-flash");
   });
 
   it("uses the processed buffer in fast extraction when one is supplied", async () => {
@@ -151,9 +151,9 @@ describe("documentGeminiService", () => {
     expect(request.contents?.[0]?.inlineData?.mimeType).toBe("image/jpeg");
   });
 
-  it("reports the Smart Pages probe using gemini-3.5-flash", async () => {
+  it("reports the Smart Pages probe using gemini-2.5-flash", async () => {
     vi.stubEnv("GEMINI_API_KEY", "test-key");
-    vi.stubEnv("GEMINI_MODEL", "gemini-3.5-flash");
+    vi.stubEnv("GEMINI_MODEL", "gemini-2.5-flash");
     generateContent.mockResolvedValueOnce({
       text: JSON.stringify({
         documentType: "report",
@@ -181,10 +181,10 @@ describe("documentGeminiService", () => {
     const { probeSmartPagesGeminiExtraction } = await import("../../server/services/documentGeminiService");
     const result = await probeSmartPagesGeminiExtraction();
 
-    expect(result.model).toBe("gemini-3.5-flash");
+    expect(result.model).toBe("gemini-2.5-flash");
     expect(result.success).toBe(true);
     expect(generateContent).toHaveBeenCalledWith(
-      expect.objectContaining({ model: "gemini-3.5-flash" }),
+      expect.objectContaining({ model: "gemini-2.5-flash" }),
     );
   });
 });

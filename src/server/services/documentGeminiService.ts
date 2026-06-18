@@ -17,7 +17,7 @@ function getClient(): GoogleGenAI {
 
 export function resolveGeminiDocumentModel() {
   const model = process.env.GEMINI_MODEL?.trim();
-  return model || "gemini-3.5-flash";
+  return model || "gemini-2.5-flash";
 }
 
 function model() {

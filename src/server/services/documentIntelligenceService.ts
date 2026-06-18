@@ -346,7 +346,7 @@ export async function processSourceFileExtraction(sourceFileId: string): Promise
   } catch (error) {
     const statusValue = (error as { status?: unknown } | null)?.status;
     const causeValue = error instanceof Error ? (error as { cause?: unknown }).cause : undefined;
-    const geminiModel = process.env.GEMINI_MODEL?.trim() || "gemini-3.5-flash";
+    const geminiModel = process.env.GEMINI_MODEL?.trim() || "gemini-2.5-flash";
     const diagnostic = {
       documentId: sourceFile.documentId,
       sourceFileId: sourceFile.id,
