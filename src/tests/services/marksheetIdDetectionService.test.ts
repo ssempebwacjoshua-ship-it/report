@@ -1,4 +1,4 @@
-import fs from "node:fs/promises";
+﻿import fs from "node:fs/promises";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import {
@@ -8,7 +8,7 @@ import {
 } from "../../server/services/marksheetIdDetectionService";
 import { findSheetNumberInText } from "../../server/services/marksheetContextService";
 
-describe("marksheetIdDetectionService — sheet number OCR", () => {
+describe("marksheetIdDetectionService â€” sheet number OCR", () => {
   it("extracts SHEET NO from header OCR text", () => {
     const text = "UGHS SCHOOL\nACADEMIC MARKSHEET\nSHEET NO: 20260611-042\nAcademic Year: 2025/2026";
     expect(findSheetNumberInText(text)).toBe("20260611-042");
@@ -111,3 +111,4 @@ describe("marksheetIdDetectionService", () => {
     expect(debug.lookupResult.matchedMarksheetId).toBe("MS-2026-SEN1-A-MATH-EOT-TE");
   });
 });
+

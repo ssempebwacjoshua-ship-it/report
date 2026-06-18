@@ -1,4 +1,4 @@
-import { GoogleGenAI } from "@google/genai";
+﻿import { GoogleGenAI } from "@google/genai";
 import type { ReportAssistantContext, StudentReadinessSummary } from "./reportAssistantContextService";
 
 export const MAX_COMMENT_LENGTH = 500;
@@ -33,12 +33,12 @@ Class: ${className}
 Term: ${termName}
 Subjects assessed: ${subjectCount}
 
-Write a single sincere, encouraging comment (1–2 sentences, under 500 characters) for this student's report card.
+Write a single sincere, encouraging comment (1â€“2 sentences, under 500 characters) for this student's report card.
 Rules:
 - Do NOT invent marks, grades, positions, attendance figures, or subject names.
 - Do NOT make specific claims about individual subjects without evidence.
 - Write in positive, constructive language appropriate for a school report card.
-- Respond with ONLY the comment text — no preamble, no labels, no quotation marks.`;
+- Respond with ONLY the comment text â€” no preamble, no labels, no quotation marks.`;
 }
 
 export async function callGeminiForComment(prompt: string): Promise<string> {
@@ -99,3 +99,4 @@ export async function generateStudentCommentDraft(
     };
   }
 }
+

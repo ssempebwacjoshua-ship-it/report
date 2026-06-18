@@ -1,4 +1,4 @@
-export type EnrollmentStatus = "ACTIVE" | "TRANSFERRED" | "COMPLETED" | "INACTIVE";
+﻿export type EnrollmentStatus = "ACTIVE" | "TRANSFERRED" | "COMPLETED" | "INACTIVE";
 export type PreferredContactMethod = "PHONE" | "SMS" | "EMAIL" | "WHATSAPP";
 export type ContactReadiness = "READY" | "NO_RECIPIENT" | "MISSING_PHONE_EMAIL";
 
@@ -138,3 +138,4 @@ export type StudentListFilters = {
   search?: string;
   isActive?: string;
 };
+

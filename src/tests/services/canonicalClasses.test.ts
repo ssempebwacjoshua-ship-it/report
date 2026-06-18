@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+﻿import { describe, expect, it } from "vitest";
 import {
   CANONICAL_CLASSES,
   CANONICAL_CLASSES_BY_SECTION,
@@ -6,15 +6,15 @@ import {
   isCanonicalClassCode,
 } from "../../shared/constants/classes";
 
-describe("canonical class catalog — Primary section", () => {
+describe("canonical class catalog â€” Primary section", () => {
   const primary = CANONICAL_CLASSES_BY_SECTION.PRIMARY;
 
-  it("defines exactly P1–P7", () => {
+  it("defines exactly P1â€“P7", () => {
     expect(primary).toHaveLength(7);
     expect(primary.map((c) => c.code)).toEqual(["P1", "P2", "P3", "P4", "P5", "P6", "P7"]);
   });
 
-  it("uses P1–P7 as both name and code", () => {
+  it("uses P1â€“P7 as both name and code", () => {
     for (const cls of primary) {
       expect(cls.name).toBe(cls.code);
     }
@@ -26,10 +26,10 @@ describe("canonical class catalog — Primary section", () => {
   });
 });
 
-describe("canonical class catalog — Secondary section", () => {
+describe("canonical class catalog â€” Secondary section", () => {
   const secondary = CANONICAL_CLASSES_BY_SECTION.SECONDARY;
 
-  it("defines exactly S1–S6", () => {
+  it("defines exactly S1â€“S6", () => {
     expect(secondary).toHaveLength(6);
     expect(secondary.map((c) => c.code)).toEqual(["S1", "S2", "S3", "S4", "S5", "S6"]);
   });
@@ -52,7 +52,7 @@ describe("canonical class catalog — Secondary section", () => {
   });
 });
 
-describe("canonical class catalog — Nursery section", () => {
+describe("canonical class catalog â€” Nursery section", () => {
   const nursery = CANONICAL_CLASSES_BY_SECTION.NURSERY;
 
   it("defines Baby Class, Middle Class, Top Class", () => {
@@ -65,7 +65,7 @@ describe("canonical class catalog — Nursery section", () => {
   });
 });
 
-describe("canonical class catalog — full list", () => {
+describe("canonical class catalog â€” full list", () => {
   it("has 16 classes total (3 nursery + 7 primary + 6 secondary)", () => {
     expect(CANONICAL_CLASSES).toHaveLength(16);
   });
@@ -168,3 +168,4 @@ describe("getClassesForSections", () => {
     expect(levels).toEqual([...levels].sort((a, b) => a - b));
   });
 });
+

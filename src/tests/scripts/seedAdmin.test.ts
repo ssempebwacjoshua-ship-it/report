@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+﻿import { describe, expect, it } from "vitest";
 import { hashPassword, verifyPassword } from "../../server/services/authService";
 
 describe("seed admin password contract", () => {
@@ -7,3 +7,4 @@ describe("seed admin password contract", () => {
     await expect(verifyPassword("password123", hash)).resolves.toBe(true);
   });
 });
+

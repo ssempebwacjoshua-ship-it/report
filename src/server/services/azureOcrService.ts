@@ -1,4 +1,4 @@
-import { z } from "zod";
+﻿import { z } from "zod";
 
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
 const FRIENDLY_OCR_ERROR = "OCR is temporarily unavailable. Contact platform support.";
@@ -127,3 +127,4 @@ export async function readAzureOcrFromUrl(url: string): Promise<AzureOcrResult> 
 export async function readAzureOcrFromImage(input: AzureOcrImageInput): Promise<AzureOcrResult> {
   return readAzureOcr(input);
 }
+

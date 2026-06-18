@@ -1,4 +1,4 @@
-import type { PrismaClient } from "@prisma/client";
+﻿import type { PrismaClient } from "@prisma/client";
 import { hashPassword } from "./authService";
 import { getClassesForSections, type SchoolSection } from "../../shared/constants/classes";
 
@@ -80,3 +80,4 @@ export async function provisionSchool(
     admin: { id: admin.id, email: admin.email, schoolId: admin.schoolId, role: admin.role },
   };
 }
+

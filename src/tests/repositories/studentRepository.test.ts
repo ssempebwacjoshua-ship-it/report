@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+﻿import { describe, expect, it } from "vitest";
 import type { PrismaClient } from "@prisma/client";
 import { listEnrolledStudents } from "../../server/repositories/studentRepository";
 
@@ -81,7 +81,7 @@ function makeFakeDb(options: {
   } as unknown as PrismaClient;
 }
 
-describe("listEnrolledStudents — null class/stream fallbacks", () => {
+describe("listEnrolledStudents â€” null class/stream fallbacks", () => {
   it("returns 'Unknown class' when classId has no matching SchoolClass record", async () => {
     const db = makeFakeDb({
       enrollmentRow: makeEnrollmentRow({ classId: "class-orphaned", streamId: "stream-1" }),
@@ -151,3 +151,4 @@ describe("listEnrolledStudents — null class/stream fallbacks", () => {
     expect(result).toHaveLength(0);
   });
 });
+

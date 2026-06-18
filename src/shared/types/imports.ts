@@ -1,4 +1,4 @@
-export type RawMarkImportRow = {
+﻿export type RawMarkImportRow = {
   admissionNumber: string;
   studentName: string;
   class: string;
@@ -26,7 +26,7 @@ export type ImportPreview = {
   batchId?: string;
 };
 
-// ── Scan / handwritten marksheet import ──────────────────────────────────────
+// â”€â”€ Scan / handwritten marksheet import â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export type ScanRowStatus =
   | "PARSED"
@@ -247,7 +247,7 @@ export type ScanRowsCommitResponse = Omit<ScanRowsValidationResponse, "status"> 
   message: string;
 };
 
-// ── Context detection for scanned marksheet upload ────────────────────────────
+// â”€â”€ Context detection for scanned marksheet upload â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 /** How the context was obtained. Ordered from most to least authoritative. */
 export type ContextSource =
@@ -265,7 +265,7 @@ export type DetectedContext = {
   termName: string;
   examType: string;
   academicYear: string;
-  overallConfidence: number; // 0–1
+  overallConfidence: number; // 0â€“1
   source: ContextSource;
   partial: boolean;          // true when one or more fields could not be resolved
   message: string;
@@ -289,7 +289,7 @@ export type DetectContextResponse = {
   contextWarning?: string;
 };
 
-// ── Structured import error shape ─────────────────────────────────────────────
+// â”€â”€ Structured import error shape â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export type ImportErrorCode =
   | "MISSING_FILE"
@@ -313,7 +313,7 @@ export type ImportErrorResponse = {
   details: string[];
 };
 
-// ── Gemini marksheet scan import ───────────────────────────────
+// â”€â”€ Gemini marksheet scan import â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export type GeminiRowStatus = "READY" | "REVIEW_REQUIRED" | "BLOCKED";
 
@@ -387,3 +387,4 @@ export type GeminiCommitResponse = {
   subjectId: string;
   assessmentType: string;
 };
+

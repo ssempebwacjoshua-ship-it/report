@@ -1,11 +1,11 @@
-import { describe, it, expect, vi } from "vitest";
+﻿import { describe, it, expect, vi } from "vitest";
 import type { PrismaClient } from "@prisma/client";
 import {
   provisionCanonicalClasses,
   repairSchoolClasses,
 } from "../../scripts/repairPreviewClasses";
 
-// ── Prisma mock helpers ───────────────────────────────────────────────────────
+// â”€â”€ Prisma mock helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 type UpsertCall = { where: { schoolId_code: { code: string } }; create: { code: string } };
 
@@ -17,9 +17,9 @@ function makeUpsertMock() {
   return vi.fn(async ({ create }: UpsertCall) => create);
 }
 
-// ── provisionCanonicalClasses ─────────────────────────────────────────────────
+// â”€â”€ provisionCanonicalClasses â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-describe("provisionCanonicalClasses — secondary school", () => {
+describe("provisionCanonicalClasses â€” secondary school", () => {
   it("upserts exactly S1 through S6 for sections = [SECONDARY]", async () => {
     const upsert = makeUpsertMock();
     const mockPrisma = {
@@ -50,7 +50,7 @@ describe("provisionCanonicalClasses — secondary school", () => {
   });
 });
 
-describe("provisionCanonicalClasses — primary school", () => {
+describe("provisionCanonicalClasses â€” primary school", () => {
   it("upserts exactly P1 through P7 for sections = [PRIMARY]", async () => {
     const upsert = makeUpsertMock();
     const mockPrisma = {
@@ -66,7 +66,7 @@ describe("provisionCanonicalClasses — primary school", () => {
   });
 });
 
-describe("provisionCanonicalClasses — nursery school", () => {
+describe("provisionCanonicalClasses â€” nursery school", () => {
   it("upserts Baby/Middle/Top for sections = [NURSERY]", async () => {
     const upsert = makeUpsertMock();
     const mockPrisma = {
@@ -82,7 +82,7 @@ describe("provisionCanonicalClasses — nursery school", () => {
   });
 });
 
-describe("provisionCanonicalClasses — multi-section school", () => {
+describe("provisionCanonicalClasses â€” multi-section school", () => {
   it("upserts 13 classes for PRIMARY + SECONDARY", async () => {
     const upsert = makeUpsertMock();
     const mockPrisma = {
@@ -106,7 +106,7 @@ describe("provisionCanonicalClasses — multi-section school", () => {
   });
 });
 
-// ── repairSchoolClasses ───────────────────────────────────────────────────────
+// â”€â”€ repairSchoolClasses â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function makeTxMock(overrides: Record<string, unknown> = {}) {
   return {
@@ -127,7 +127,7 @@ function makeTxMock(overrides: Record<string, unknown> = {}) {
   };
 }
 
-describe("repairSchoolClasses — S1B migration", () => {
+describe("repairSchoolClasses â€” S1B migration", () => {
   it("migrates old S1B enrollments to canonical S1", async () => {
     const oldClass = { id: "old-s1b", code: "S1B", name: "Senior 1 B", schoolId: "school-1" };
     const tx = makeTxMock({
@@ -256,3 +256,4 @@ describe("repairSchoolClasses — S1B migration", () => {
     expect(result.classesRepaired).toBe(0);
   });
 });
+

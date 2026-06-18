@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+﻿import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { GeminiScanPanel } from "../../components/imports/GeminiScanPanel";
@@ -20,7 +20,7 @@ const OPTIONS: ScanOptions = {
   classes: [{ id: "class-1", name: "Senior 1", code: "S1" }],
   streams: [],
   subjects: [{ id: "subject-1", name: "Mathematics", code: "MATH" }],
-  terms: [{ id: "term-1", name: "2025/2026 — Term 1", isActive: true }],
+  terms: [{ id: "term-1", name: "2025/2026 â€” Term 1", isActive: true }],
   examTypes: ["BOT", "MOT", "EOT"],
 };
 
@@ -235,7 +235,7 @@ describe("GeminiScanPanel", () => {
   });
 });
 
-describe("GeminiScanPanel — matched student display", () => {
+describe("GeminiScanPanel â€” matched student display", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockFetchOptions.mockResolvedValue(OPTIONS);
@@ -264,7 +264,7 @@ describe("GeminiScanPanel — matched student display", () => {
   });
 });
 
-describe("GeminiScanPanel — row resolution", () => {
+describe("GeminiScanPanel â€” row resolution", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockFetchOptions.mockResolvedValue(OPTIONS);
@@ -320,13 +320,13 @@ describe("GeminiScanPanel — row resolution", () => {
     await extractAndWait();
     const saveBtn = screen.getByRole("button", { name: "Save Reviewed Marks" });
     expect(saveBtn).toBeDisabled();
-    // Tick the review-confirmed checkbox — blocked rows still prevent enabling.
+    // Tick the review-confirmed checkbox â€” blocked rows still prevent enabling.
     fireEvent.click(screen.getByLabelText(/reviewed every flagged row/i));
     expect(saveBtn).toBeDisabled();
   });
 });
 
-describe("GeminiScanPanel — commit flow", () => {
+describe("GeminiScanPanel â€” commit flow", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockFetchOptions.mockResolvedValue(OPTIONS);
@@ -384,3 +384,4 @@ describe("GeminiScanPanel — commit flow", () => {
     expect(href).toContain("academicYearId=year-1");
   });
 });
+

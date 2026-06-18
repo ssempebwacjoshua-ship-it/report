@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+﻿import { describe, expect, it } from "vitest";
 import {
   COLUMNS,
   LAYOUT,
@@ -12,7 +12,7 @@ const A4_W = 1240; // 150 DPI A4 width in pixels
 const A4_H = 1754; // 150 DPI A4 height in pixels
 
 describe("Column layout fractions", () => {
-  it("all column x+w values sum to ≤ 1 (no overflow)", () => {
+  it("all column x+w values sum to â‰¤ 1 (no overflow)", () => {
     for (const col of Object.values(COLUMNS)) {
       expect(col.x + col.w).toBeLessThanOrEqual(1.001); // tiny float tolerance
       expect(col.x).toBeGreaterThanOrEqual(0);
@@ -20,7 +20,7 @@ describe("Column layout fractions", () => {
   });
 
   it("written mark column starts after ~61% of table width", () => {
-    // x ≈ 453/733 ≈ 0.618
+    // x â‰ˆ 453/733 â‰ˆ 0.618
     expect(COLUMNS.writtenMark.x).toBeCloseTo(0.618, 2);
   });
 
@@ -53,7 +53,7 @@ describe("Page layout fractions", () => {
     expect(row0.yFrac).toBeGreaterThan(LAYOUT.tableStartFrac);
   });
 
-  it("rows are spaced correctly — each row starts after the previous", () => {
+  it("rows are spaced correctly â€” each row starts after the previous", () => {
     for (let i = 0; i < 5; i++) {
       const row = dataRowRegion(i);
       const next = dataRowRegion(i + 1);
@@ -106,7 +106,7 @@ describe("cellToPixel", () => {
     expect(rect.h).toBeGreaterThan(2);
   });
 
-  it("page margin is applied — number column does not start at pixel 0", () => {
+  it("page margin is applied â€” number column does not start at pixel 0", () => {
     const rowFrac = dataRowRegion(0);
     const rect = cellToPixel(COLUMNS.number, rowFrac, A4_W, A4_H);
     const minExpected = Math.round(PAGE_MARGIN_LEFT_FRAC * A4_W * 0.5);
@@ -131,3 +131,4 @@ describe("cellToPixel", () => {
     expect(zones.reduce((sum, zone) => sum + zone.w, 0)).toBe(rect.w);
   });
 });
+

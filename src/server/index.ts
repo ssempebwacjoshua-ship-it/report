@@ -1,9 +1,9 @@
-import "dotenv/config";
+﻿import "dotenv/config";
 import { randomUUID } from "node:crypto";
 import dns from "node:dns";
 import path from "node:path";
 import fs from "node:fs";
-// Force IPv4 DNS resolution — prevents "fetch failed" on Windows/IPv6 networks when reaching Gemini
+// Force IPv4 DNS resolution â€” prevents "fetch failed" on Windows/IPv6 networks when reaching Gemini
 dns.setDefaultResultOrder("ipv4first");
 import cors from "cors";
 import express, { type ErrorRequestHandler } from "express";
@@ -53,7 +53,7 @@ export function createServer() {
       if (allowed) {
         return callback(null, origin === allowed || /^https?:\/\/localhost(:\d+)?$/.test(origin));
       }
-      return callback(null, true); // no CLIENT_ORIGIN — allow all (local dev)
+      return callback(null, true); // no CLIENT_ORIGIN â€” allow all (local dev)
     },
     credentials: true,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
@@ -66,34 +66,34 @@ export function createServer() {
     express.static(path.join(process.cwd(), "public", "templates")),
   );
 
-  // Public routes — no authentication required
+  // Public routes â€” no authentication required
   app.use(healthRoutes());
   app.use(authRoutes());
   app.use(verifyRoutes());
   app.use(parentRoutes());
   app.use(studentsPublicRoutes());
 
-  // Document Intelligence Engine — creator auth accepts both school JWTs and external creator JWTs
+  // Document Intelligence Engine â€” creator auth accepts both school JWTs and external creator JWTs
   app.use("/api/creator", creatorAuthRoutes());
   app.use("/api/smart-documents", documentIntelligenceRoutes());
   app.use("/api/document-os", documentOsRoutes());
   app.use("/api/collections", collectionRoutes());
   app.use("/api/bulk-jobs", bulkGenerationRoutes());
 
-  // Platform-owner provisioning — protected by PLATFORM_ADMIN_KEY, not by school JWT
+  // Platform-owner provisioning â€” protected by PLATFORM_ADMIN_KEY, not by school JWT
   app.use(platformAdminRoutes());
 
-  // Platform owner console APIs — protected by JWT with isPlatformOwner, not by school context
+  // Platform owner console APIs â€” protected by JWT with isPlatformOwner, not by school context
   app.use(platformOwnerRoutes());
 
-  // Internal diagnostic routes — protected by their own x-internal-test-key, not by school context
+  // Internal diagnostic routes â€” protected by their own x-internal-test-key, not by school context
   app.use("/api", geminiOcrRoutes);
   app.use("/api", geminiRosterRoutes);
 
   // Tenant isolation: resolve school context from JWT or (dev-only) schoolCode param
   app.use(resolveSchoolContext);
 
-  // Protected data routes — all have req.school set by the middleware above
+  // Protected data routes â€” all have req.school set by the middleware above
   app.use(dashboardRoutes());
   app.use(reportsRoutes());
   app.use(reportIssueRoutes());
@@ -109,10 +109,10 @@ export function createServer() {
   app.use(subscriptionRoutes());
   app.use(geminiMarksImportRoutes());
 
-  // Static file serving + SPA fallback (production only — never in test env, skipped when dist absent)
+  // Static file serving + SPA fallback (production only â€” never in test env, skipped when dist absent)
   const distDir = path.join(process.cwd(), "dist");
   if (process.env.NODE_ENV !== "test" && fs.existsSync(path.join(distDir, "index.html"))) {
-    // /manifest.json alias — some Chrome versions probe this exact path
+    // /manifest.json alias â€” some Chrome versions probe this exact path
     app.get("/manifest.json", (_req, res) => {
       res.setHeader("Content-Type", "application/manifest+json");
       res.sendFile(path.join(distDir, "manifest.webmanifest"));
@@ -124,7 +124,7 @@ export function createServer() {
         if (filePath.endsWith(".html")) res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
       },
     }));
-    // SPA fallback — non-API GET requests get index.html (React Router handles routing)
+    // SPA fallback â€” non-API GET requests get index.html (React Router handles routing)
     app.get(/^(?!\/api\/).*/, (req, res) => {
       res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
       res.sendFile(path.join(distDir, "index.html"));
@@ -207,3 +207,4 @@ if (process.env.NODE_ENV !== "test") {
     console.log(`Reports lab API listening on port ${port}`);
   });
 }
+

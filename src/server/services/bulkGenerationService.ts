@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+﻿import { randomUUID } from "node:crypto";
 import { prisma } from "../db/prisma";
 import { generateBulkTemplate } from "./documentGeminiService";
 import { createNotification, executeWorkflows, preferenceMap, upsertSearchIndex } from "./documentOsService";
@@ -31,7 +31,7 @@ export interface BulkJobOutput {
   error: string | null;
 }
 
-// ── Create job ─────────────────────────────────────────────────────────────────
+// â”€â”€ Create job â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export async function createBulkJob(
   creatorId: string,
@@ -83,7 +83,7 @@ export async function createBulkJob(
   return jobToSummary(job, collection.name);
 }
 
-// ── Process a single job ───────────────────────────────────────────────────────
+// â”€â”€ Process a single job â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export async function processJob(jobId: string): Promise<void> {
   const job = await db.bulkGenerationJob.findUnique({ where: { id: jobId }, include: { collection: true } });
@@ -192,7 +192,7 @@ export async function processJob(jobId: string): Promise<void> {
   });
 }
 
-// ── Polling worker ─────────────────────────────────────────────────────────────
+// â”€â”€ Polling worker â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 let _workerRunning = false;
 let _workerDisabledReason: string | null = null;
@@ -267,7 +267,7 @@ export function startBulkGenerationWorker(): void {
   }, 5_000);
 }
 
-// ── List jobs ──────────────────────────────────────────────────────────────────
+// â”€â”€ List jobs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export async function listBulkJobs(creatorId: string): Promise<BulkJobSummary[]> {
   await ensureBulkGenerationAvailable();
@@ -310,7 +310,7 @@ export async function getBulkJobOutputs(
   };
 }
 
-// ── Utilities ─────────────────────────────────────────────────────────────────
+// â”€â”€ Utilities â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function fillTemplate(templateJson: string, data: Record<string, unknown>): string {
   return templateJson.replace(/\{\{(\w+)\}\}/g, (_, key: string) => {
@@ -321,7 +321,7 @@ function fillTemplate(templateJson: string, data: Record<string, unknown>): stri
 
 function deriveTitle(data: Record<string, unknown>, collectionName: string): string {
   const nameField = data.name ?? data.Name ?? data.studentName ?? data.fullName ?? data.firstName;
-  return nameField ? `${collectionName} — ${String(nameField)}` : collectionName;
+  return nameField ? `${collectionName} â€” ${String(nameField)}` : collectionName;
 }
 
 function jobToSummary(job: any, collectionName: string): BulkJobSummary {
@@ -344,3 +344,4 @@ function jobToSummary(job: any, collectionName: string): BulkJobSummary {
     createdAt: (job.createdAt as Date).toISOString(),
   };
 }
+

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+﻿import { describe, expect, it } from "vitest";
 import { COMMENT_LIMITS, EMPTY_REPORT_COMMENTS } from "../../shared/utils/reportComments";
 
 describe("COMMENT_LIMITS", () => {
@@ -49,7 +49,7 @@ describe("EMPTY_REPORT_COMMENTS", () => {
   });
 });
 
-describe("comment limit enforcement — overflow boundary", () => {
+describe("comment limit enforcement â€” overflow boundary", () => {
   it("a 501-char classTeacherComment exceeds the 500-char limit", () => {
     const oversized = "A".repeat(COMMENT_LIMITS.classTeacherComment + 1);
     expect(oversized.length).toBeGreaterThan(COMMENT_LIMITS.classTeacherComment);
@@ -65,3 +65,4 @@ describe("comment limit enforcement — overflow boundary", () => {
     expect(oversized.length).toBeGreaterThan(COMMENT_LIMITS.conductNote);
   });
 });
+

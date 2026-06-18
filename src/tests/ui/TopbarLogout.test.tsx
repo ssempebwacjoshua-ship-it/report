@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+﻿import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { MemoryRouter } from "react-router-dom";
@@ -32,3 +32,4 @@ describe("Topbar (mobile nav + logout)", () => {
     expect(screen.getByRole("button", { name: /open navigation/i })).toBeInTheDocument();
   });
 });
+

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+﻿import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ScanUploadPanel } from "../../components/imports/ScanUploadPanel";
 import {
@@ -248,3 +248,4 @@ describe("ScanUploadPanel", () => {
     expect(screen.queryByText(/^Server error$/i)).not.toBeInTheDocument();
   });
 });
+

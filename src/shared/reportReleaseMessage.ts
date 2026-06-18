@@ -1,4 +1,4 @@
-export type ReportReleaseMessageInput = {
+﻿export type ReportReleaseMessageInput = {
   studentName: string;
   termName: string;
   schoolName: string;
@@ -37,3 +37,4 @@ export function buildParentReportReleaseMessage({
 Please open the secure link below to view, print, or download the report:
 ${reportLink}`;
 }
+

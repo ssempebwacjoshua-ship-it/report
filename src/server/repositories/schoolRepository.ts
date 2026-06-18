@@ -1,4 +1,4 @@
-import type { PrismaClient } from "@prisma/client";
+﻿import type { PrismaClient } from "@prisma/client";
 import type { ReportContext } from "../../shared/types/reports";
 
 export async function getReportContext(prisma: PrismaClient, schoolCode: string): Promise<ReportContext> {
@@ -31,3 +31,4 @@ export async function getReportContext(prisma: PrismaClient, schoolCode: string)
     subjects: school.subjects.map((subject) => ({ id: subject.id, name: subject.name, code: subject.code })),
   };
 }
+

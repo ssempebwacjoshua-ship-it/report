@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+﻿import { describe, expect, it } from "vitest";
 import { toAssessmentType } from "../../server/services/marksImportValidator";
 
 describe("toAssessmentType", () => {
@@ -22,3 +22,4 @@ describe("toAssessmentType", () => {
     expect(toAssessmentType("  Mid Term  ")).toBe("MOT");
   });
 });
+

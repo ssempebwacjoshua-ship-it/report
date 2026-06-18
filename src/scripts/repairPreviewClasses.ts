@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Repairs non-canonical SchoolClass records.
  *
  * Bad pattern: classes with codes like "S1A" or "S1B" that embed both
@@ -246,3 +246,4 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
 }
 
 export {};
+

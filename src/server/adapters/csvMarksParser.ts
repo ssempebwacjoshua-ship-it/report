@@ -1,4 +1,4 @@
-import { parse } from "csv-parse/sync";
+﻿import { parse } from "csv-parse/sync";
 import type { RawMarkImportRow } from "../../shared/types/imports";
 
 const COLUMNS = ["admissionNumber", "studentName", "class", "stream", "subject", "term", "examType", "marks", "comments"] as const;
@@ -15,3 +15,4 @@ export function parseMarksCsv(input: string): RawMarkImportRow[] {
     return normalized as RawMarkImportRow;
   });
 }
+

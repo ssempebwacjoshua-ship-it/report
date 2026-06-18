@@ -1,10 +1,10 @@
-import sharp from "sharp";
+﻿import sharp from "sharp";
 import type { PixelRect } from "./marksheetGeometryService";
 import type { CropCandidate, CropStrategy } from "./marksheetTableDetection";
 
 export type PreprocessedScan = {
-  buffer: Buffer;       // greyscale, normalized, sharpened JPEG — used for geometry detection and display
-  colorBuffer: Buffer;  // normalized color JPEG — used for blue ink isolation and debug overlay
+  buffer: Buffer;       // greyscale, normalized, sharpened JPEG â€” used for geometry detection and display
+  colorBuffer: Buffer;  // normalized color JPEG â€” used for blue ink isolation and debug overlay
   width: number;
   height: number;
 };
@@ -134,7 +134,7 @@ export function bufferToDataUrl(buffer: Buffer, mimeType = "image/jpeg"): string
 export type CropQuality = {
   ok: boolean;
   reason: string;
-  /** 0–1 quality score; higher is a better OCR target. Used to rank fallback crops. */
+  /** 0â€“1 quality score; higher is a better OCR target. Used to rank fallback crops. */
   score: number;
 };
 
@@ -235,7 +235,7 @@ export async function analyzeCropQuality(croppedBuffer: Buffer): Promise<CropQua
 
   let reason = "";
   let ok = true;
-  if (m.darkFrac < 0.002) { ok = false; reason = "Blank crop — no ink detected"; }
+  if (m.darkFrac < 0.002) { ok = false; reason = "Blank crop â€” no ink detected"; }
   else if (m.darkFrac > 0.4) { ok = false; reason = "Crop mostly dark (border or solid region)"; }
   else if (m.edgeMaxFrac > 0.35) { ok = false; reason = "Vertical border line attached to crop edge"; }
   else if (m.vertColsFrac > 0.03) { ok = false; reason = "Prominent vertical lines (grid border contamination)"; }
@@ -245,7 +245,7 @@ export async function analyzeCropQuality(croppedBuffer: Buffer): Promise<CropQua
   let score = foregroundScore(m.darkFrac);
   if (m.edgeMaxFrac > 0.35) score *= 0.3;
   if (m.vertColsFrac > 0.03) score *= 0.4;
-  if (m.horizRowsFrac > 0.1) score *= 0.15; // horizontal row borders are the core bug — penalise hard
+  if (m.horizRowsFrac > 0.1) score *= 0.15; // horizontal row borders are the core bug â€” penalise hard
   // Soft penalty for partial horizontal contamination below the hard threshold.
   score *= 1 - Math.min(0.5, Math.max(0, m.horizRowsFrac - 0.03) * 3);
   score = Math.max(0, Math.min(1, score));
@@ -261,7 +261,7 @@ export async function checkCropQuality(croppedBuffer: Buffer): Promise<{ ok: boo
   return { ok, reason };
 }
 
-/** Numeric-only quality score (0–1) for a crop. Convenience wrapper. */
+/** Numeric-only quality score (0â€“1) for a crop. Convenience wrapper. */
 export async function scoreCropQuality(croppedBuffer: Buffer): Promise<number> {
   return (await analyzeCropQuality(croppedBuffer)).score;
 }
@@ -419,7 +419,7 @@ export async function selectBestCrop(
 
   if (best) return best;
 
-  // No candidate could even be cropped — synthesise a failing selection.
+  // No candidate could even be cropped â€” synthesise a failing selection.
   const fallback = candidates[0]?.rect ?? { x: 0, y: 0, w: 1, h: 1 };
   return {
     rect: fallback,
@@ -429,3 +429,4 @@ export async function selectBestCrop(
   };
 }
 // crop fallback geometry: candidate scoring + best-crop selection
+

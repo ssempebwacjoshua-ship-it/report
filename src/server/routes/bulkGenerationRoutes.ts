@@ -1,4 +1,4 @@
-import { Router } from "express";
+﻿import { Router } from "express";
 import { requireCreator } from "../middleware/requireCreator";
 import * as svc from "../services/bulkGenerationService";
 
@@ -40,3 +40,4 @@ router.get("/:id", requireCreator, async (req, res) => {
 export function bulkGenerationRoutes() {
   return router;
 }
+

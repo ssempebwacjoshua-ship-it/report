@@ -1,4 +1,4 @@
-import { CANONICAL_CLASSES, type CanonicalClass } from "../constants/classes";
+﻿import { CANONICAL_CLASSES, type CanonicalClass } from "../constants/classes";
 
 const WORD_NUMBERS: Record<string, string> = {
   one: "1",
@@ -118,3 +118,4 @@ export function parseLegacyCombinedClassCode(
     streamSuffix: normalizeStreamSuffix(classMatch.remainder),
   };
 }
+

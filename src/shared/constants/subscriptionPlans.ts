@@ -1,4 +1,4 @@
-export type PlanCode =
+﻿export type PlanCode =
   | "REPORT_LAB_500"
   | "REPORT_LAB_1000"
   | "REPORT_LAB_1500"
@@ -96,3 +96,4 @@ export function getPlanByCode(code: string): ReportLabPlan | null {
 export function formatUgx(amount: number): string {
   return `UGX ${amount.toLocaleString("en-UG")}`;
 }
+

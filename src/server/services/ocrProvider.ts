@@ -1,4 +1,4 @@
-import { isAzureOcrConfigured, readAzureOcrFromImage } from "./azureOcrService";
+﻿import { isAzureOcrConfigured, readAzureOcrFromImage } from "./azureOcrService";
 
 export type OcrProviderName = "azure";
 
@@ -69,3 +69,4 @@ export async function resolveOcrProviderWithMeta(): Promise<OcrProviderResolutio
 export async function resolveOcrProvider(): Promise<OcrProvider> {
   return (await resolveOcrProviderWithMeta()).provider;
 }
+

@@ -1,4 +1,4 @@
-import request from "supertest";
+﻿import request from "supertest";
 import { describe, expect, it } from "vitest";
 import { createServer } from "../../server";
 
@@ -15,9 +15,9 @@ async function makeToken() {
   });
 }
 
-// ── GET /api/reports/release-status ──────────────────────────────────────────
+// â”€â”€ GET /api/reports/release-status â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-describe("releaseCenterRoutes — GET /api/reports/release-status", () => {
+describe("releaseCenterRoutes â€” GET /api/reports/release-status", () => {
   it("returns 401 without Authorization header", async () => {
     const res = await request(createServer())
       .get("/api/reports/release-status")
@@ -47,7 +47,7 @@ describe("releaseCenterRoutes — GET /api/reports/release-status", () => {
       .get("/api/reports/release-status")
       .set("Authorization", `Bearer ${token}`)
       .query({ classId: "00000000-0000-0000-0000-000000000099", schoolCode: "SCU-PREVIEW" });
-    // May be 200 with empty rows or 404 — just ensure it returns parseable JSON
+    // May be 200 with empty rows or 404 â€” just ensure it returns parseable JSON
     expect([200, 404, 500]).toContain(res.status);
     if (res.status === 200) {
       expect(res.body).toHaveProperty("rows");
@@ -78,9 +78,9 @@ describe("releaseCenterRoutes bulk action endpoints", () => {
   });
 });
 
-// ── POST /api/reports/issue-bulk ─────────────────────────────────────────────
+// â”€â”€ POST /api/reports/issue-bulk â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-describe("releaseCenterRoutes — POST /api/reports/issue-bulk", () => {
+describe("releaseCenterRoutes â€” POST /api/reports/issue-bulk", () => {
   it("returns 401 without Authorization header", async () => {
     const res = await request(createServer())
       .post("/api/reports/issue-bulk")
@@ -126,7 +126,7 @@ describe("releaseCenterRoutes — POST /api/reports/issue-bulk", () => {
         schoolCode: "SCU-PREVIEW",
         classId: "00000000-0000-0000-0000-000000000099",
       });
-    // Empty class — all skipped, none issued
+    // Empty class â€” all skipped, none issued
     expect([201, 404, 500]).toContain(res.status);
     if (res.status === 201) {
       expect(res.body).toHaveProperty("issued");
@@ -137,9 +137,9 @@ describe("releaseCenterRoutes — POST /api/reports/issue-bulk", () => {
   });
 });
 
-// ── POST /api/reports/release/:id/mark-sent ──────────────────────────────────
+// â”€â”€ POST /api/reports/release/:id/mark-sent â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-describe("releaseCenterRoutes — POST /api/reports/release/:id/mark-sent", () => {
+describe("releaseCenterRoutes â€” POST /api/reports/release/:id/mark-sent", () => {
   it("returns 401 without auth", async () => {
     const res = await request(createServer())
       .post("/api/reports/release/00000000-0000-0000-0000-000000000001/mark-sent");
@@ -156,9 +156,9 @@ describe("releaseCenterRoutes — POST /api/reports/release/:id/mark-sent", () =
   });
 });
 
-// ── POST /api/reports/release/:id/revoke ─────────────────────────────────────
+// â”€â”€ POST /api/reports/release/:id/revoke â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-describe("releaseCenterRoutes — POST /api/reports/release/:id/revoke", () => {
+describe("releaseCenterRoutes â€” POST /api/reports/release/:id/revoke", () => {
   it("returns 401 without auth", async () => {
     const res = await request(createServer())
       .post("/api/reports/release/00000000-0000-0000-0000-000000000001/revoke");
@@ -175,12 +175,12 @@ describe("releaseCenterRoutes — POST /api/reports/release/:id/revoke", () => {
   });
 });
 
-// ── Contact method resolution (unit-level via backend logic) ─────────────────
+// â”€â”€ Contact method resolution (unit-level via backend logic) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-describe("releaseCenterRoutes — delivery status contract", () => {
+describe("releaseCenterRoutes â€” delivery status contract", () => {
   it("issue-bulk response never exposes parentAccessToken hash (only raw token)", async () => {
     // The raw token is 64 hex chars; a SHA256 hash is also 64 hex chars.
-    // We can only verify the contract structurally — parentAccessToken present if issued.
+    // We can only verify the contract structurally â€” parentAccessToken present if issued.
     const token = await makeToken();
     const res = await request(createServer())
       .post("/api/reports/issue-bulk")
@@ -237,3 +237,4 @@ describe("releaseCenterRoutes — delivery status contract", () => {
     }
   });
 });
+

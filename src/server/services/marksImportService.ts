@@ -1,4 +1,4 @@
-import type { PrismaClient } from "@prisma/client";
+﻿import type { PrismaClient } from "@prisma/client";
 import { createHash } from "node:crypto";
 import type { ImportPreview, RawMarkImportRow } from "../../shared/types/imports";
 import { parseMarksCsv } from "../adapters/csvMarksParser";
@@ -219,3 +219,4 @@ export async function commitMarksImport(prisma: PrismaClient, schoolCode: string
     rows: resultRows,
   };
 }
+

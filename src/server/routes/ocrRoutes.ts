@@ -1,4 +1,4 @@
-import { Router } from "express";
+﻿import { Router } from "express";
 import { z } from "zod";
 import { requireAuth } from "../middleware/requireAuth";
 import { readAzureOcrFromImage, readAzureOcrFromUrl } from "../services/azureOcrService";
@@ -44,3 +44,4 @@ export function ocrRoutes() {
 
   return router;
 }
+

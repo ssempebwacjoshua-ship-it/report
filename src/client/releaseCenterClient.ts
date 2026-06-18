@@ -1,4 +1,4 @@
-import { getApiBaseUrl, makeRequestHeaders, parseApiError } from "./apiBase";
+﻿import { getApiBaseUrl, makeRequestHeaders, parseApiError } from "./apiBase";
 
 const API_BASE = getApiBaseUrl();
 
@@ -155,3 +155,4 @@ export async function revokeBulk(body: { studentIds: string[]; classId: string; 
   if (!res.ok) throw new Error(await parseApiError(res, "Could not revoke reports"));
   return res.json() as Promise<BulkReleaseResult>;
 }
+

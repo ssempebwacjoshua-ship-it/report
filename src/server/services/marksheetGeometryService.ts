@@ -1,4 +1,4 @@
-// Template geometry for the School Connect A4 handwritten marksheet.
+﻿// Template geometry for the School Connect A4 handwritten marksheet.
 //
 // Based on PrintableMarksheet.tsx + index.css print rules:
 //   @page { size: A4 portrait; margin: 8mm; }
@@ -15,7 +15,7 @@ export const PAGE_MARGIN_LEFT_FRAC = 8 / 210;
 /** Usable content width as fraction of page width (194mm / 210mm). */
 export const TABLE_WIDTH_FRAC = 194 / 210;
 
-/** Column definitions — x and w are fractions of usable TABLE width. */
+/** Column definitions â€” x and w are fractions of usable TABLE width. */
 export const COLUMNS = {
   number:      { x:   0 / TABLE_WIDTH_PX, w:  32 / TABLE_WIDTH_PX },
   admNumber:   { x:  32 / TABLE_WIDTH_PX, w:  78 / TABLE_WIDTH_PX },
@@ -31,15 +31,15 @@ export const COLUMNS = {
  * Header block (~193 px at 96 dpi out of ~1122 px total page):
  *   - School name title row (~18 px)
  *   - "ACADEMIC MARKSHEET" row (~15 px)
- *   - Meta grid 8 items × ~12.7 px + padding = ~59 px
- *   - Signature section 3 rows × ~22 px + padding = ~70 px
+ *   - Meta grid 8 items Ã— ~12.7 px + padding = ~59 px
+ *   - Signature section 3 rows Ã— ~22 px + padding = ~70 px
  *   - Box padding/margin = ~13 px
- *   Total ≈ 175 px → ~15.6% of 1122 px
+ *   Total â‰ˆ 175 px â†’ ~15.6% of 1122 px
  *
  * We use slightly conservative estimates to account for real-world scan variation.
  */
 export const LAYOUT = {
-  /** Y where usable content starts — top margin (8mm/297mm). */
+  /** Y where usable content starts â€” top margin (8mm/297mm). */
   marginTopFrac: 8 / 297,
   /** Approximate header block height as fraction of page. */
   headerHFrac: 0.195,
@@ -125,3 +125,4 @@ export function tableToPixel(imgW: number, imgH: number): PixelRect {
     h: Math.max(1, Math.round((LAYOUT.tableHeaderHFrac + LAYOUT.dataRowHFrac * 26) * imgH)),
   };
 }
+

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+﻿import { describe, expect, it } from "vitest";
 import { buildReports, type EngineInput } from "../../server/services/reportEngine";
 import { gradeForAverage } from "../../server/services/gradeService";
 import { defaultSettingsSections } from "../../shared/types/settings";
@@ -142,3 +142,4 @@ describe("gradeService", () => {
     expect(gradeForAverage(39)).toBe("F9");
   });
 });
+

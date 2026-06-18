@@ -1,4 +1,4 @@
-import type { AssessmentType, MarkStatus, PrismaClient } from "@prisma/client";
+﻿import type { AssessmentType, MarkStatus, PrismaClient } from "@prisma/client";
 import type { RawMarkImportRow, ValidatedMarkImportRow } from "../../shared/types/imports";
 import type { SettingsSections } from "../../shared/types/settings";
 import { getSettingsSections } from "../repositories/settingsRepository";
@@ -92,3 +92,4 @@ export function toAssessmentType(value: string): AssessmentType {
 export function finalizedStatus(): MarkStatus {
   return "FINALIZED";
 }
+

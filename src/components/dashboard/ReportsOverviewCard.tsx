@@ -1,4 +1,4 @@
-import type { DashboardWorkflow } from "../../shared/types/dashboard";
+﻿import type { DashboardWorkflow } from "../../shared/types/dashboard";
 import { Icon } from "../layout/Icon";
 
 type Props = {
@@ -101,3 +101,4 @@ export function ReportsOverviewCard({ workflow, termLabel }: Props) {
     </section>
   );
 }
+

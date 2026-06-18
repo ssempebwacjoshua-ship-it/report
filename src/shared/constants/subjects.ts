@@ -1,4 +1,4 @@
-export const O_LEVEL_SUBJECTS = [
+﻿export const O_LEVEL_SUBJECTS = [
   { code: "ENG", name: "English Language" },
   { code: "MATH", name: "Mathematics" },
   { code: "BIO", name: "Biology" },
@@ -15,3 +15,4 @@ export const O_LEVEL_SUBJECTS = [
   { code: "PE", name: "Physical Education" },
   { code: "ART", name: "Fine Art" },
 ] as const;
+

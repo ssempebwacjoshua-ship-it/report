@@ -1,4 +1,4 @@
-import type {
+﻿import type {
   ContactSummary,
   GuardianContactInput,
   StudentCreateInput,
@@ -122,3 +122,4 @@ export const EMPTY_CONTACT_INPUT: GuardianContactInput = {
   canReceiveReports: true,
   notes: "",
 };
+

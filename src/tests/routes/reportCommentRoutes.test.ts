@@ -1,8 +1,8 @@
-import request from "supertest";
+﻿import request from "supertest";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { signToken } from "../../server/services/authService";
 
-// ── Module-level mocks (hoisted) ──────────────────────────────────────────────
+// â”€â”€ Module-level mocks (hoisted) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const { auditLogCreate, schoolFindUnique, appSettingFindUnique } = vi.hoisted(() => ({
   auditLogCreate: vi.fn(async () => ({})),
@@ -31,9 +31,9 @@ vi.mock("../../server/db/prisma", () => ({
   },
 }));
 
-// ── Shared test setup ─────────────────────────────────────────────────────────
+// â”€â”€ Shared test setup â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-describe("HIGH 3 — report comment routes", () => {
+describe("HIGH 3 â€” report comment routes", () => {
   let app: ReturnType<typeof import("../../server").createServer>;
   let authToken: string;
 
@@ -55,7 +55,7 @@ describe("HIGH 3 — report comment routes", () => {
     auditLogCreate.mockResolvedValue({});
   });
 
-  // ── Accept: audit trail ───────────────────────────────────────────────────
+  // â”€â”€ Accept: audit trail â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   describe("POST /api/reports/assistant-comment/accept", () => {
     it("writes ai.suggestion.accepted audit row", async () => {
@@ -108,7 +108,7 @@ describe("HIGH 3 — report comment routes", () => {
     }, 15000);
   });
 
-  // ── Reject: audit trail ───────────────────────────────────────────────────
+  // â”€â”€ Reject: audit trail â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   describe("POST /api/reports/assistant-comment/reject", () => {
     it("writes ai.suggestion.rejected audit row", async () => {
@@ -162,9 +162,9 @@ describe("HIGH 3 — report comment routes", () => {
     }, 15000);
   });
 
-  // ── Generate: honest context handling ────────────────────────────────────
+  // â”€â”€ Generate: honest context handling â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-  describe("POST /api/reports/assistant-comment/generate — honest about missing data", () => {
+  describe("POST /api/reports/assistant-comment/generate â€” honest about missing data", () => {
     it("returns 422 when there is no active term (UI explains missing data honestly)", async () => {
       // The prisma mock has no academicYears, so buildReportAssistantContext returns NO_ACTIVE_TERM
       const res = await request(app)
@@ -172,9 +172,10 @@ describe("HIGH 3 — report comment routes", () => {
         .set("Authorization", `Bearer ${authToken}`)
         .send({ classId: "cls-missing" });
 
-      // 422 or 404 — not a 200 with invented content
+      // 422 or 404 â€” not a 200 with invented content
       expect([404, 422]).toContain(res.status);
       expect(auditLogCreate).not.toHaveBeenCalled();
     }, 15000);
   });
 });
+

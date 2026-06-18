@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+﻿import { describe, expect, it } from "vitest";
 import { buildParentReportReleaseMessage, formatTermLabel } from "../../shared/reportReleaseMessage";
 
 describe("report release parent messages", () => {
@@ -26,3 +26,4 @@ https://reports.schoolconnect.example/parent/r/secure-token`);
     expect(formatTermLabel("TERM_SUMMARY")).toBe("current term");
   });
 });
+

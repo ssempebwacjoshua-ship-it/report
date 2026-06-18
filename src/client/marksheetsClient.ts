@@ -1,4 +1,4 @@
-import type { ImportPreview } from "../shared/types/imports";
+﻿import type { ImportPreview } from "../shared/types/imports";
 import type { MarksheetBatchContext, MarksheetBatchesResponse, MarksheetStudentsResponse } from "../shared/types/marksheets";
 import { getApiBaseUrl, makeRequestHeaders, parseApiError } from "./apiBase";
 
@@ -66,3 +66,4 @@ export async function returnMarksheetBatch(
   );
   if (!response.ok) throw new Error(await parseApiError(response, "Could not return batch"));
 }
+

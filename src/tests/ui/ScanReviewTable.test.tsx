@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+﻿import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { ScanReviewTable } from "../../components/imports/ScanReviewTable";
 import type { GeometryDebugInfo, ScanImportRow } from "../../shared/types/imports";
@@ -102,3 +102,4 @@ describe("ScanReviewTable fallback crop debug", () => {
     expect(original.src).toContain("ORIGINAL");
   });
 });
+

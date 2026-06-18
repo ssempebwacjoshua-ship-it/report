@@ -1,7 +1,7 @@
-import request from "supertest";
+﻿import request from "supertest";
 import { describe, expect, it, beforeEach, beforeAll, vi } from "vitest";
 
-// ── Mock Prisma ───────────────────────────────────────────────────────────────
+// â”€â”€ Mock Prisma â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const schoolFindUnique = vi.fn();
 const subFindUnique = vi.fn();
@@ -19,7 +19,7 @@ vi.mock("../../server/db/prisma", () => ({
   },
 }));
 
-// ── Helpers ────────────────────────────────────────────────────────────────────
+// â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const SCHOOL_ID = "00000000-0000-0000-0000-000000000099";
 const SCHOOL_CODE = "SCU-PREVIEW";
@@ -39,7 +39,7 @@ async function makeToken() {
   });
 }
 
-// ── GET /api/subscription ─────────────────────────────────────────────────────
+// â”€â”€ GET /api/subscription â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 describe("GET /api/subscription", () => {
   let app: ReturnType<typeof import("../../server").createServer>;
@@ -137,7 +137,7 @@ describe("GET /api/subscription", () => {
   });
 });
 
-// ── POST /api/platform/schools/:schoolCode/subscription ────────────────────────
+// â”€â”€ POST /api/platform/schools/:schoolCode/subscription â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 describe("POST /api/platform/schools/:schoolCode/subscription", () => {
   const PLATFORM_KEY = "test-platform-key-sub";
@@ -215,3 +215,4 @@ describe("POST /api/platform/schools/:schoolCode/subscription", () => {
     expect(res.body.invoice.totalUgx).toBe(1_100_000);
   });
 });
+

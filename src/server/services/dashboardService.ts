@@ -1,4 +1,4 @@
-import type { PrismaClient } from "@prisma/client";
+﻿import type { PrismaClient } from "@prisma/client";
 import type { DashboardActivity, DashboardStats, RecentBatch } from "../../shared/types/dashboard";
 
 function extractRowCount(summary: string | null): number {
@@ -163,3 +163,4 @@ export async function getDashboardStats(
     recentActivity,
   };
 }
+

@@ -1,4 +1,4 @@
-import type { DashboardActivity } from "../../shared/types/dashboard";
+﻿import type { DashboardActivity } from "../../shared/types/dashboard";
 import { Icon } from "../layout/Icon";
 
 type Props = {
@@ -81,3 +81,4 @@ export function ActivityCard({ activities }: Props) {
     </section>
   );
 }
+

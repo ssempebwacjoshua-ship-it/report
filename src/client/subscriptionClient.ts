@@ -1,4 +1,4 @@
-import type { SubscriptionResponse } from "../shared/types/subscription";
+﻿import type { SubscriptionResponse } from "../shared/types/subscription";
 import { getApiBaseUrl, makeRequestHeaders, parseApiError } from "./apiBase";
 
 const API_BASE = getApiBaseUrl();
@@ -10,3 +10,4 @@ export async function fetchSubscription(): Promise<SubscriptionResponse> {
   if (!response.ok) throw new Error(await parseApiError(response, "Could not load subscription"));
   return response.json();
 }
+

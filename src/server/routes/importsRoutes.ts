@@ -1,4 +1,4 @@
-import { Router } from "express";
+﻿import { Router } from "express";
 import { createHash } from "node:crypto";
 import multer from "multer";
 import { z } from "zod";
@@ -116,7 +116,7 @@ const upload = multer({
 export function importsRoutes() {
   const router = Router();
 
-  // ── Digital import (CSV / XLS / XLSX) ─────────────────────────────────────
+  // â”€â”€ Digital import (CSV / XLS / XLSX) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   router.post("/api/imports/marks/dry-run", async (req, res, next) => {
     try {
@@ -196,13 +196,13 @@ export function importsRoutes() {
     }
   });
 
-  // ── Scanned handwritten marksheet import ───────────────────────────────────
+  // â”€â”€ Scanned handwritten marksheet import â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   /**
    * POST /api/imports/scans/detect-context
    *
-   * Upload a scanned image → OCR the header region to find the Marksheet ID
-   * → resolve full context from committed batches or school data.
+   * Upload a scanned image â†’ OCR the header region to find the Marksheet ID
+   * â†’ resolve full context from committed batches or school data.
    *
    * This is a lightweight, non-committing call meant to be the first step in
    * the scan upload flow.  It does NOT extract marks or persist anything.
@@ -337,7 +337,7 @@ export function importsRoutes() {
   /**
    * POST /api/imports/scans/upload
    *
-   * Upload a scanned image + confirmed context → extract marks → return rows.
+   * Upload a scanned image + confirmed context â†’ extract marks â†’ return rows.
    * Context must already be confirmed by the operator (from detect-context or manual entry).
    */
   router.post(
@@ -803,7 +803,7 @@ export function importsRoutes() {
         try {
           parsed = JSON.parse(b.summary ?? "{}") as Record<string, unknown>;
         } catch {
-          // summary is not valid JSON — leave parsed empty
+          // summary is not valid JSON â€” leave parsed empty
         }
         return {
           id: b.id,
@@ -837,3 +837,4 @@ export function importsRoutes() {
 
   return router;
 }
+

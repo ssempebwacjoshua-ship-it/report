@@ -1,4 +1,4 @@
-import request from "supertest";
+﻿import request from "supertest";
 import { describe, expect, it } from "vitest";
 import { createServer } from "../../server";
 
@@ -81,3 +81,4 @@ describe("authRoutes /api/auth/logout", () => {
     expect(res.body).toEqual({ ok: true });
   });
 });
+

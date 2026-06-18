@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+﻿import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { SettingsPage } from "../../pages/SettingsPage";
 import { SettingsClientError, fetchSettings, patchSettingsSection } from "../../client/settingsClient";
@@ -105,3 +105,4 @@ describe("SettingsPage", () => {
     expect(screen.queryByText("Invalid request")).not.toBeInTheDocument();
   });
 });
+

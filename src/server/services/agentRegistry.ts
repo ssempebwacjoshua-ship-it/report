@@ -1,4 +1,4 @@
-import type { DocumentSchema, ExtractedKnowledge } from "../../shared/types/documentIntelligence";
+﻿import type { DocumentSchema, ExtractedKnowledge } from "../../shared/types/documentIntelligence";
 import { runGeminiAgent } from "./documentGeminiService";
 
 export type AgentDomain = "school" | "medical" | "legal" | "business" | "general";
@@ -92,3 +92,4 @@ export async function runAgent(
     };
   }
 }
+

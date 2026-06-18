@@ -1,4 +1,4 @@
-import type { REPORT_ASSESSMENT_FILTERS } from "../constants/assessmentTypes";
+﻿import type { REPORT_ASSESSMENT_FILTERS } from "../constants/assessmentTypes";
 import type { GradingScaleSettings, ReportSettings, SchoolProfileSettings } from "./settings";
 import type { ContactReadiness } from "./students";
 
@@ -85,3 +85,4 @@ export type ReportsResponse = {
     grading: GradingScaleSettings;
   };
 };
+

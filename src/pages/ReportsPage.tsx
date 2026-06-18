@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+﻿import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { EmptyReportState } from "../components/reports/EmptyReportState";
 import { ReportFilters } from "../components/reports/ReportFilters";
@@ -118,7 +118,7 @@ export function ReportsPage() {
     return Math.round((averages.reduce((sum, value) => sum + value, 0) / averages.length) * 10) / 10;
   }, [report]);
 
-  // ── Resizable split pane ──────────────────────────────────────────────────
+  // â”€â”€ Resizable split pane â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const isDesktop = useDesktopMatch();
 
   const [leftWidth, setLeftWidth] = useState<number>(() => {
@@ -174,7 +174,7 @@ export function ReportsPage() {
       window.removeEventListener("mouseup", onMouseUp);
     };
   }, []);
-  // ─────────────────────────────────────────────────────────────────────────
+  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   async function handleIssueReport() {
     if (!selectedCard || !filters.classId) return;
@@ -357,7 +357,7 @@ export function ReportsPage() {
           </div>
         </div>
 
-        {/* Resize handle — desktop only, hidden on print */}
+        {/* Resize handle â€” desktop only, hidden on print */}
         <div
           role="separator"
           aria-label="Resize panels"
@@ -365,7 +365,7 @@ export function ReportsPage() {
           onMouseDown={onHandleMouseDown}
         >
           <div className="rounded-full bg-slate-200 px-0.5 py-3 text-sm leading-none text-slate-400 shadow-inner transition-colors hover:bg-blue-100 hover:text-blue-500">
-            ⋮
+            â‹®
           </div>
         </div>
 
@@ -387,3 +387,4 @@ export function ReportsPage() {
     </main>
   );
 }
+

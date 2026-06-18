@@ -1,4 +1,4 @@
-import type { Request, Response, NextFunction } from "express";
+﻿import type { Request, Response, NextFunction } from "express";
 import { verifyToken } from "../services/authService";
 
 export function requirePlatformOwner(req: Request, res: Response, next: NextFunction): void {
@@ -24,3 +24,4 @@ export function requirePlatformOwner(req: Request, res: Response, next: NextFunc
   req.user = payload;
   next();
 }
+

@@ -391,8 +391,8 @@ export function PricingPage() {
 
               <div className="mt-5 grid gap-3 md:grid-cols-3">
                 <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3.5">
-                  <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">WhatsApp</p>
-                  <p className="mt-2 text-sm font-semibold text-slate-950">{WHATSAPP_DISPLAY}</p>
+                  <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">Direct line</p>
+                  <p className="mt-2 text-sm font-semibold text-slate-950">Fast replies on WhatsApp</p>
                 </div>
                 <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3.5">
                   <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">WhatsApp</p>

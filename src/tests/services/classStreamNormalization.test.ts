@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+﻿import { describe, expect, it } from "vitest";
 import {
   parseLegacyCombinedClassCode,
   resolveCanonicalClassAndStreamInput,
@@ -52,4 +52,5 @@ describe("class/stream normalization", () => {
     expect(parseLegacyCombinedClassCode("Primary 5 Blue")).toEqual({ parentCode: "P5", streamSuffix: "Blue" });
   });
 });
+
 

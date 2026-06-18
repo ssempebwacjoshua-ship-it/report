@@ -1,4 +1,4 @@
-import type { DocumentUploadResponse, ExtractedDocument } from "../shared/types/documentCleaner";
+﻿import type { DocumentUploadResponse, ExtractedDocument } from "../shared/types/documentCleaner";
 import type { ExtractionMode, SmartPageSummary } from "../shared/types/smartPages";
 import { getApiBaseUrl } from "./apiBase";
 
@@ -52,3 +52,4 @@ export async function getSmartPagesSummary(schoolCode: string): Promise<SmartPag
   }
   return res.json() as Promise<SmartPageSummary>;
 }
+

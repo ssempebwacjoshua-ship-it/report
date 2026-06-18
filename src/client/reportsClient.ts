@@ -1,4 +1,4 @@
-import type { ReportContext, ReportFilters, ReportsResponse } from "../shared/types/reports";
+﻿import type { ReportContext, ReportFilters, ReportsResponse } from "../shared/types/reports";
 import { getApiBaseUrl, makeRequestHeaders, parseApiError } from "./apiBase";
 
 const API_BASE = getApiBaseUrl();
@@ -22,3 +22,4 @@ export async function fetchReports(filters: ReportFilters): Promise<ReportsRespo
   if (!response.ok) throw new Error(await parseApiError(response, "Could not load reports"));
   return response.json();
 }
+

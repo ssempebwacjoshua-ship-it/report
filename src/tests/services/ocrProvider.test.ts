@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+﻿import { afterEach, describe, expect, it, vi } from "vitest";
 import { resolveOcrProvider, resolveOcrProviderWithMeta } from "../../server/services/ocrProvider";
 
 const originalFetch = globalThis.fetch;
@@ -90,7 +90,7 @@ describe("Azure OCR provider", () => {
     await expect(provider.recognizeCrops([
       { cropId: "S1A-001-written", buffer: Buffer.from("image-bytes"), mimeType: "image/jpeg" },
     ])).rejects.toMatchObject({ name: "ProviderUnavailableError" });
-    // Exactly one fetch call — no second provider was attempted
+    // Exactly one fetch call â€” no second provider was attempted
     expect(globalThis.fetch as ReturnType<typeof vi.fn>).toHaveBeenCalledTimes(1);
   });
 
@@ -112,7 +112,7 @@ describe("Azure OCR provider", () => {
       name: "ProviderUnavailableError",
       message: "OCR image payload is too large.",
     });
-    // Validation is local — no network call should have been made
+    // Validation is local â€” no network call should have been made
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
@@ -140,3 +140,4 @@ describe("Azure OCR provider", () => {
     expect(JSON.stringify(body)).not.toMatch(/code=|VISION_KEY|AzureWebJobsStorage/);
   });
 });
+

@@ -1,4 +1,4 @@
-export type MarksheetStudent = {
+﻿export type MarksheetStudent = {
   id: string;
   admissionNumber: string;
   firstName: string;
@@ -34,3 +34,4 @@ export type MarksheetBatch = {
 export type MarksheetBatchesResponse = {
   batches: MarksheetBatch[];
 };
+

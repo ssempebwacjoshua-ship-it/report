@@ -1,4 +1,4 @@
-import type { AssessmentFilter, ReportFilters, ReportsResponse, StudentReportCard } from "../../shared/types/reports";
+﻿import type { AssessmentFilter, ReportFilters, ReportsResponse, StudentReportCard } from "../../shared/types/reports";
 import type { GradingScaleSettings, ReportSettings, SchoolProfileSettings } from "../../shared/types/settings";
 import { defaultSettingsSections } from "../../shared/types/settings";
 import type { ContactReadiness } from "../../shared/types/students";
@@ -176,3 +176,4 @@ export function buildReports(input: EngineInput): ReportsResponse {
     settings,
   };
 }
+

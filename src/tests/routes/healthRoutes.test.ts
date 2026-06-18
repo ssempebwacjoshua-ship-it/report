@@ -1,8 +1,8 @@
-import request from "supertest";
+﻿import request from "supertest";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { createServer } from "../../server";
 
-describe("healthRoutes — /health (public)", () => {
+describe("healthRoutes â€” /health (public)", () => {
   it("returns JSON ok status", async () => {
     const res = await request(createServer()).get("/health");
     expect(res.status).toBe(200);
@@ -16,10 +16,10 @@ describe("healthRoutes — /health (public)", () => {
   });
 });
 
-// ── HIGH 4: public health endpoint must not leak secrets ─────────────────────
+// â”€â”€ HIGH 4: public health endpoint must not leak secrets â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-describe("healthRoutes — /api/health does not leak secrets", () => {
-  it("returns only ok and service fields — no env values", async () => {
+describe("healthRoutes â€” /api/health does not leak secrets", () => {
+  it("returns only ok and service fields â€” no env values", async () => {
     const res = await request(createServer()).get("/api/health");
     expect(res.status).toBe(200);
     expect(res.body.ok).toBe(true);
@@ -29,9 +29,9 @@ describe("healthRoutes — /api/health does not leak secrets", () => {
   });
 });
 
-// ── HIGH 4: /api/health/env is internal-only ─────────────────────────────────
+// â”€â”€ HIGH 4: /api/health/env is internal-only â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-describe("healthRoutes — /api/health/env (internal key required)", () => {
+describe("healthRoutes â€” /api/health/env (internal key required)", () => {
   const TEST_KEY = "test-internal-key-health-h4";
   let app: ReturnType<typeof createServer>;
   const savedKey = process.env.INTERNAL_TEST_KEY;
@@ -67,7 +67,7 @@ describe("healthRoutes — /api/health/env (internal key required)", () => {
     process.env.INTERNAL_TEST_KEY = savedKey;
   });
 
-  it("returns SET/MISSING statuses — never the actual secret values", async () => {
+  it("returns SET/MISSING statuses â€” never the actual secret values", async () => {
     process.env.JWT_SECRET = "a-strong-secret-value-32-characters-long";
     const res = await request(app)
       .get("/api/health/env")
@@ -83,3 +83,4 @@ describe("healthRoutes — /api/health/env (internal key required)", () => {
     expect(JSON.stringify(res.body)).not.toContain("a-strong-secret-value");
   });
 });
+

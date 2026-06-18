@@ -1,4 +1,4 @@
-import { Router } from "express";
+﻿import { Router } from "express";
 import { randomUUID } from "node:crypto";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
@@ -94,3 +94,4 @@ router.post("/login", async (req, res) => {
 export function creatorAuthRoutes() {
   return router;
 }
+

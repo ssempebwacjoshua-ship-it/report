@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+﻿import { useEffect, useState } from "react";
 import {
   createSchoolStream,
   deleteSchoolStream,
@@ -130,7 +130,7 @@ export function SchoolStructureSection() {
   if (loading) {
     return (
       <section className="premium-card rounded-xl p-4">
-        <div className="text-sm text-slate-500">Loading school structure…</div>
+        <div className="text-sm text-slate-500">Loading school structureâ€¦</div>
       </section>
     );
   }
@@ -160,7 +160,7 @@ export function SchoolStructureSection() {
               onClick={() => void handleSaveSections()}
               disabled={savingSections}
             >
-              {savingSections ? "Saving…" : "Save Changes"}
+              {savingSections ? "Savingâ€¦" : "Save Changes"}
             </button>
           </div>
         </div>
@@ -244,7 +244,7 @@ export function SchoolStructureSection() {
                             aria-label={`Remove stream ${stream.name} from ${cls.name}`}
                             title="Remove stream"
                           >
-                            ×
+                            Ã—
                           </button>
                           {deleteStreamErrors[stream.id] ? (
                             <span className="text-xs text-red-600">{deleteStreamErrors[stream.id]}</span>
@@ -279,7 +279,7 @@ export function SchoolStructureSection() {
                         disabled={streamState.saving || !streamState.name.trim()}
                         onClick={() => void handleAddStream(cls)}
                       >
-                        {streamState.saving ? "Adding…" : "Add stream"}
+                        {streamState.saving ? "Addingâ€¦" : "Add stream"}
                       </button>
                       {streamState.error ? (
                         <span className="text-xs text-red-600">{streamState.error}</span>
@@ -295,3 +295,4 @@ export function SchoolStructureSection() {
     </div>
   );
 }
+

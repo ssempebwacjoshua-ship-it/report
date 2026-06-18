@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+﻿import { describe, expect, it, vi } from "vitest";
 import type { PrismaClient } from "@prisma/client";
 import { loadReportEngineInput } from "../../server/repositories/reportsRepository";
 
@@ -29,7 +29,7 @@ function makePrisma(subjectMarkFindMany: ReturnType<typeof vi.fn>) {
   } as unknown as PrismaClient;
 }
 
-describe("loadReportEngineInput — mark status filtering", () => {
+describe("loadReportEngineInput â€” mark status filtering", () => {
   const filters = {
     schoolCode: SCHOOL_CODE,
     classId: CLS,
@@ -75,3 +75,4 @@ describe("loadReportEngineInput — mark status filtering", () => {
     expect(result.marks[0].marks).toBe(82);
   });
 });
+

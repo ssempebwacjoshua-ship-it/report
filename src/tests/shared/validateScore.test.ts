@@ -1,7 +1,7 @@
-import { describe, expect, it } from "vitest";
+﻿import { describe, expect, it } from "vitest";
 import { validateScore } from "../../shared/utils/validateScore";
 
-describe("validateScore — valid inputs", () => {
+describe("validateScore â€” valid inputs", () => {
   it("accepts 0", () => {
     const result = validateScore("0");
     expect(result.valid).toBe(true);
@@ -39,7 +39,7 @@ describe("validateScore — valid inputs", () => {
   });
 });
 
-describe("validateScore — rejected inputs", () => {
+describe("validateScore â€” rejected inputs", () => {
   it("rejects empty string", () => {
     const result = validateScore("");
     expect(result.valid).toBe(false);
@@ -91,7 +91,7 @@ describe("validateScore — rejected inputs", () => {
   });
 });
 
-describe("validateScore — error messages", () => {
+describe("validateScore â€” error messages", () => {
   it("error is null when valid", () => {
     const result = validateScore("50");
     expect(result.error).toBeNull();
@@ -112,3 +112,4 @@ describe("validateScore — error messages", () => {
     if (!result.valid) expect(result.value).toBeNull();
   });
 });
+

@@ -1,4 +1,4 @@
-import type { KeyboardEvent } from "react";
+﻿import type { KeyboardEvent } from "react";
 import type { GeometryDebugInfo, ScanImportRow, ScanRowStatus, ScanUploadResponse } from "../../shared/types/imports";
 
 const STATUS_STYLES: Record<ScanRowStatus, string> = {
@@ -42,11 +42,11 @@ function handleMarkKeyDown(event: KeyboardEvent<HTMLInputElement>) {
 
 /** Confidence label used only in the debug panel. */
 function confidenceLabel(confidence: number, rawText: string): { label: string; tone: string } {
-  if (!rawText) return { label: "0% — no text", tone: "text-slate-400" };
+  if (!rawText) return { label: "0% â€” no text", tone: "text-slate-400" };
   const pct = Math.round(confidence * 100);
-  if (confidence >= 0.85) return { label: `${pct}% — high`, tone: "text-emerald-600 font-semibold" };
-  if (confidence >= 0.60) return { label: `${pct}% — medium`, tone: "text-amber-600" };
-  return { label: `${pct}% — low`, tone: "text-red-500" };
+  if (confidence >= 0.85) return { label: `${pct}% â€” high`, tone: "text-emerald-600 font-semibold" };
+  if (confidence >= 0.60) return { label: `${pct}% â€” medium`, tone: "text-amber-600" };
+  return { label: `${pct}% â€” low`, tone: "text-red-500" };
 }
 
 /** Decision label shown next to the parsed mark in debug. */
@@ -56,22 +56,22 @@ function parsedDecision(row: ScanImportRow): { text: string; tone: string } {
 
   // Has a parsed mark but it wasn't accepted
   const parsed = row.writtenMark || row.splitMark;
-  if (parsed) return { text: `Parsed: ${parsed} — not accepted`, tone: "text-amber-700" };
+  if (parsed) return { text: `Parsed: ${parsed} â€” not accepted`, tone: "text-amber-700" };
 
   // Raw text present but couldn't parse a valid mark
   const rawText = row.debugRawOcr?.written || row.writtenMarkRaw;
-  if (rawText) return { text: `Raw: "${rawText}" — not parseable`, tone: "text-red-500" };
+  if (rawText) return { text: `Raw: "${rawText}" â€” not parseable`, tone: "text-red-500" };
 
   return { text: "No text detected", tone: "text-slate-400" };
 }
 
-// ── Geometry Debug Panel ──────────────────────────────────────────────────────
+// â”€â”€ Geometry Debug Panel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function GeometryDebugSummary({ info }: { info: GeometryDebugInfo }) {
   return (
     <div className="grid gap-1 rounded-xl border border-slate-100 bg-white px-3 py-2 text-xs text-slate-600">
       <div className="flex flex-wrap gap-x-4 gap-y-0.5">
-        <span><span className="font-semibold">Image:</span> {info.imageWidth}×{info.imageHeight}px</span>
+        <span><span className="font-semibold">Image:</span> {info.imageWidth}Ã—{info.imageHeight}px</span>
         <span>
           <span className="font-semibold">Geometry:</span>{" "}
           <span className={info.detectionMethod === "detected" ? "text-emerald-700 font-semibold" : "text-amber-700 font-semibold"}>
@@ -109,7 +109,7 @@ function GeometryDebugPanel({ rows }: { rows: ScanImportRow[] }) {
   return (
     <details className="rounded-2xl border border-violet-200 bg-violet-50/40 p-4">
       <summary className="cursor-pointer text-sm font-bold text-slate-800">
-        Geometry debug — crop alignment
+        Geometry debug â€” crop alignment
       </summary>
       <div className="mt-4 grid gap-3">
         <p className="text-xs text-slate-500">
@@ -143,7 +143,7 @@ function GeometryDebugPanel({ rows }: { rows: ScanImportRow[] }) {
                     <td className="px-3 py-2 font-mono text-slate-500">{row.admissionNumber}</td>
                     <td className="px-3 py-2">
                       <span className={`font-mono ${tooSmall ? "text-red-600 font-semibold" : "text-slate-600"}`}>
-                        x={rect.x} y={rect.y} {rect.w}×{rect.h}px
+                        x={rect.x} y={rect.y} {rect.w}Ã—{rect.h}px
                       </span>
                       {tooSmall && (
                         <span className="ml-1 rounded bg-red-100 px-1 text-red-700">too small</span>
@@ -157,7 +157,7 @@ function GeometryDebugPanel({ rows }: { rows: ScanImportRow[] }) {
                           className="h-8 w-20 rounded border object-contain opacity-80"
                         />
                       ) : (
-                        <span className="text-slate-300">—</span>
+                        <span className="text-slate-300">â€”</span>
                       )}
                     </td>
                     <td className="px-3 py-2">
@@ -168,7 +168,7 @@ function GeometryDebugPanel({ rows }: { rows: ScanImportRow[] }) {
                           className="h-8 w-20 rounded border object-contain"
                         />
                       ) : (
-                        <span className="text-slate-300">—</span>
+                        <span className="text-slate-300">â€”</span>
                       )}
                     </td>
                     <td className="px-3 py-2">
@@ -394,7 +394,7 @@ export function ScanReviewTable({
                         <div className={decision.tone}>{decision.text}</div>
                         {(row.writtenMark || row.splitMark) && (
                           <div className="mt-1 text-slate-400">
-                            W norm: {row.writtenMark || "—"} / S norm: {row.splitMark || "—"}
+                            W norm: {row.writtenMark || "â€”"} / S norm: {row.splitMark || "â€”"}
                           </div>
                         )}
                       </td>
@@ -410,3 +410,4 @@ export function ScanReviewTable({
     </div>
   );
 }
+

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+﻿import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import { ParentReportPage } from "../../pages/ParentReportPage";
@@ -67,7 +67,7 @@ function renderPage() {
   );
 }
 
-describe("ParentReportPage — public action card", () => {
+describe("ParentReportPage â€” public action card", () => {
   it("shows Print Report and Download PDF buttons", async () => {
     fetchMock.mockResolvedValueOnce({ ok: true, json: async () => issuedPayload });
 
@@ -153,8 +153,8 @@ describe("ParentReportPage — public action card", () => {
   });
 });
 
-describe("ParentReportPage — one-report-only enforcement", () => {
-  it("renders exactly one report page — no multi-student list", async () => {
+describe("ParentReportPage â€” one-report-only enforcement", () => {
+  it("renders exactly one report page â€” no multi-student list", async () => {
     fetchMock.mockResolvedValueOnce({ ok: true, json: async () => issuedPayload });
 
     renderPage();
@@ -207,7 +207,7 @@ describe("ParentReportPage — one-report-only enforcement", () => {
     expect(screen.queryByText(/choose student/i)).not.toBeInTheDocument();
   });
 
-  it("has no bulk report list — only one student's data shown", async () => {
+  it("has no bulk report list â€” only one student's data shown", async () => {
     fetchMock.mockResolvedValueOnce({ ok: true, json: async () => issuedPayload });
 
     renderPage();
@@ -224,7 +224,7 @@ describe("ParentReportPage — one-report-only enforcement", () => {
   });
 });
 
-describe("ParentReportPage — single-page layout enforcement", () => {
+describe("ParentReportPage â€” single-page layout enforcement", () => {
   it("print-only wrapper has no extra page-break containers between it and the report", async () => {
     fetchMock.mockResolvedValueOnce({ ok: true, json: async () => issuedPayload });
 
@@ -263,3 +263,4 @@ describe("ParentReportPage — single-page layout enforcement", () => {
     expect(printOnly?.parentElement).toBe(parentPage);
   });
 });
+

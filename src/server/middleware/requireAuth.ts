@@ -1,4 +1,4 @@
-import type { Request, Response, NextFunction } from "express";
+﻿import type { Request, Response, NextFunction } from "express";
 import { verifyToken, type AuthPayload } from "../services/authService";
 
 declare global {
@@ -27,3 +27,4 @@ export function requireAuth(req: Request, res: Response, next: NextFunction): vo
   req.user = payload;
   next();
 }
+

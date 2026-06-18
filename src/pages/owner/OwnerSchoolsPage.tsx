@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+﻿import { useEffect, useState } from "react";
 import {
   fetchOwnerSchools,
   createOwnerSchool,
@@ -163,7 +163,7 @@ export function OwnerSchoolsPage() {
 
       <section className="premium-card rounded-xl overflow-hidden">
         {loading ? (
-          <div className="p-6 text-center text-sm text-slate-400">Loading…</div>
+          <div className="p-6 text-center text-sm text-slate-400">Loadingâ€¦</div>
         ) : schools.length === 0 ? (
           <div className="p-6 text-center text-sm text-slate-400">No schools yet. Create one above.</div>
         ) : (
@@ -188,7 +188,7 @@ export function OwnerSchoolsPage() {
                       <span className="font-semibold text-slate-900">{s.name}</span>
                       <span className="ml-1.5 font-mono text-xs text-slate-400">({s.code})</span>
                     </td>
-                    <td className="px-4 py-3 font-mono text-xs text-slate-600">{s.subscription?.planCode ?? "—"}</td>
+                    <td className="px-4 py-3 font-mono text-xs text-slate-600">{s.subscription?.planCode ?? "â€”"}</td>
                     <td className="px-4 py-3">
                       {s.subscription ? (
                         <StatusBadge status={s.subscription.status} />
@@ -197,7 +197,7 @@ export function OwnerSchoolsPage() {
                       )}
                     </td>
                     <td className="px-4 py-3 text-slate-600">{s.studentCount}</td>
-                    <td className="px-4 py-3 text-slate-600 text-xs">{s.primaryAdmin?.email ?? "—"}</td>
+                    <td className="px-4 py-3 text-slate-600 text-xs">{s.primaryAdmin?.email ?? "â€”"}</td>
                     <td className="px-4 py-3"><SchoolBadge active={s.isActive} /></td>
                     <td className="px-4 py-3 text-slate-500 text-xs">{formatDate(s.createdAt)}</td>
                     <td className="px-4 py-3">
@@ -224,10 +224,10 @@ export function OwnerSchoolsPage() {
         <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 p-4 py-8">
           <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl">
             {creationResult ? (
-              /* ── Success panel ── */
+              /* â”€â”€ Success panel â”€â”€ */
               <div className="grid gap-4">
                 <div className="flex items-center gap-2">
-                  <span className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-100 text-emerald-700 text-lg">✓</span>
+                  <span className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-100 text-emerald-700 text-lg">âœ“</span>
                   <h3 className="text-base font-black text-slate-900">School created successfully</h3>
                 </div>
                 <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 font-mono text-sm grid gap-2">
@@ -272,11 +272,11 @@ export function OwnerSchoolsPage() {
                 <button type="button" onClick={closeModal} className="btn btn-primary w-full">Done</button>
               </div>
             ) : (
-              /* ── Create form ── */
+              /* â”€â”€ Create form â”€â”€ */
               <>
                 <div className="mb-4 flex items-center justify-between">
                   <h3 className="text-base font-black text-slate-900">Create school</h3>
-                  <button type="button" onClick={closeModal} className="text-slate-400 hover:text-slate-700">✕</button>
+                  <button type="button" onClick={closeModal} className="text-slate-400 hover:text-slate-700">âœ•</button>
                 </div>
                 {createError && (
                   <div className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{createError}</div>
@@ -339,12 +339,12 @@ export function OwnerSchoolsPage() {
                         <label className="mb-1 block text-xs font-bold text-slate-700">Plan</label>
                         <select value={form.planCode} onChange={(e) => setForm((f) => ({ ...f, planCode: e.target.value }))} className="input w-full text-sm">
                           {REPORT_LAB_PLANS.map((p) => (
-                            <option key={p.code} value={p.code}>{p.name} — {p.code}</option>
+                            <option key={p.code} value={p.code}>{p.name} â€” {p.code}</option>
                           ))}
                         </select>
                         {selectedPlan && selectedPlan.setupFeeUgx !== null && (
                           <p className="mt-1 text-xs text-slate-400">
-                            Setup: {formatUgx(selectedPlan.setupFeeUgx)} · Annual: {formatUgx(selectedPlan.annualLicenseUgx ?? 0)} · Total: {formatUgx((selectedPlan.setupFeeUgx ?? 0) + (selectedPlan.annualLicenseUgx ?? 0))}
+                            Setup: {formatUgx(selectedPlan.setupFeeUgx)} Â· Annual: {formatUgx(selectedPlan.annualLicenseUgx ?? 0)} Â· Total: {formatUgx((selectedPlan.setupFeeUgx ?? 0) + (selectedPlan.annualLicenseUgx ?? 0))}
                           </p>
                         )}
                       </div>
@@ -391,7 +391,7 @@ export function OwnerSchoolsPage() {
                     }
                     className="btn btn-primary flex-1 text-sm"
                   >
-                    {creating ? "Creating school…" : "Create school"}
+                    {creating ? "Creating schoolâ€¦" : "Create school"}
                   </button>
                   <button type="button" onClick={closeModal} className="btn flex-1 text-sm">Cancel</button>
                 </div>
@@ -403,3 +403,4 @@ export function OwnerSchoolsPage() {
     </div>
   );
 }
+

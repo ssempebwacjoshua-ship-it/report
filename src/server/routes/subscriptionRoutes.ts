@@ -1,4 +1,4 @@
-import { Router } from "express";
+﻿import { Router } from "express";
 import { prisma } from "../db/prisma";
 import type { SubscriptionResponse } from "../../shared/types/subscription";
 
@@ -59,3 +59,4 @@ export function subscriptionRoutes() {
 
   return router;
 }
+

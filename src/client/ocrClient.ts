@@ -1,4 +1,4 @@
-import { getApiBaseUrl } from "./apiBase";
+﻿import { getApiBaseUrl } from "./apiBase";
 
 const API_BASE = getApiBaseUrl();
 
@@ -25,3 +25,4 @@ export async function readAzureOcr(url: string, token?: string | null): Promise<
   if (!response.ok) throw new Error(await readOcrError(response, "Could not extract text"));
   return response.json();
 }
+

@@ -1,4 +1,4 @@
-import { Icon } from "../layout/Icon";
+﻿import { Icon } from "../layout/Icon";
 
 type Props = {
   label: string;
@@ -65,3 +65,4 @@ export function StatCard({ label, value, note, trend, tone, icon, href }: Props)
     </a>
   );
 }
+

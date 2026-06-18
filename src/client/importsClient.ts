@@ -1,4 +1,4 @@
-import type {
+﻿import type {
   DetectContextResponse,
   GeminiCommitResponse,
   GeminiScanContext,
@@ -19,7 +19,7 @@ import { getApiBaseUrl, makeRequestHeaders, parseApiError } from "./apiBase";
 
 const API_BASE = getApiBaseUrl();
 
-// ── Digital import (CSV / XLS / XLSX) ────────────────────────────────────────
+// â”€â”€ Digital import (CSV / XLS / XLSX) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export async function dryRunMarksImport(csvText: string): Promise<ImportPreview> {
   const response = await fetch(`${API_BASE}/api/imports/marks/dry-run`, {
@@ -41,11 +41,11 @@ export async function commitMarksImport(csvText: string): Promise<ImportPreview>
   return response.json();
 }
 
-// ── Scanned marksheet context detection ──────────────────────────────────────
+// â”€â”€ Scanned marksheet context detection â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 /**
  * Upload a scan image and auto-detect the marksheet context from the header.
- * This is a non-committing call — it never persists marks.
+ * This is a non-committing call â€” it never persists marks.
  */
 export async function detectScanContext(
   file: File,
@@ -55,7 +55,7 @@ export async function detectScanContext(
 
   const response = await fetch(`${API_BASE}/api/imports/scans/detect-context`, {
     method: "POST",
-    headers: makeRequestHeaders(), // No Content-Type — browser sets multipart boundary
+    headers: makeRequestHeaders(), // No Content-Type â€” browser sets multipart boundary
     body: form,
   });
   if (!response.ok) throw new Error(await parseApiError(response, "Context detection failed"));
@@ -77,7 +77,7 @@ export async function lookupMarksheetContext(
   return response.json();
 }
 
-// ── Scanned handwritten marksheet import ─────────────────────────────────────
+// â”€â”€ Scanned handwritten marksheet import â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 /** @deprecated Use uploadScanFile instead (sends actual file bytes for OCR). */
 export async function uploadScanMetadata(payload: ScanUploadPayload): Promise<ScanUploadResponse> {
@@ -92,7 +92,7 @@ export async function uploadScanMetadata(payload: ScanUploadPayload): Promise<Sc
  * Upload a scanned marksheet image and run the extraction engine.
  *
  * Sends the file as multipart/form-data. The server returns extracted mark rows
- * for mandatory operator review — rows are never auto-committed.
+ * for mandatory operator review â€” rows are never auto-committed.
  */
 export async function uploadScanFile(
   file: File,
@@ -107,7 +107,7 @@ export async function uploadScanFile(
 
   const response = await fetch(`${API_BASE}/api/imports/scans/upload`, {
     method: "POST",
-    headers: makeRequestHeaders(), // No Content-Type — browser/fetch sets it with boundary
+    headers: makeRequestHeaders(), // No Content-Type â€” browser/fetch sets it with boundary
     body: form,
   });
   if (!response.ok) throw new Error(await parseApiError(response, "Could not upload scan"));
@@ -162,7 +162,7 @@ export async function commitScanRows(
   return response.json();
 }
 
-// ── Gemini marksheet scan options ────────────────────────────────
+// â”€â”€ Gemini marksheet scan options â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 /**
  * Fetch the dropdown options (classes, streams, subjects, terms) for the
@@ -176,12 +176,12 @@ export async function fetchScanOptions(): Promise<ScanOptions> {
   return response.json();
 }
 
-// ── Gemini marksheet scan extraction ─────────────────────────────
+// â”€â”€ Gemini marksheet scan extraction â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 /**
  * Upload a marksheet image to the Gemini extraction endpoint. Returns the
  * validated, student-matched review rows. Never commits marks. The Gemini API
- * key stays on the server — the client only sends the image and context IDs.
+ * key stays on the server â€” the client only sends the image and context IDs.
  */
 export async function extractMarksWithGeminiScan(
   image: File,
@@ -197,7 +197,7 @@ export async function extractMarksWithGeminiScan(
 
   const response = await fetch(`${API_BASE}/api/marks-import/scan/extract`, {
     method: "POST",
-    headers: makeRequestHeaders(), // No Content-Type — browser/fetch sets it with boundary
+    headers: makeRequestHeaders(), // No Content-Type â€” browser/fetch sets it with boundary
     body: form,
   });
   if (!response.ok) throw new Error(await parseApiError(response, "Gemini extraction failed"));
@@ -216,3 +216,4 @@ export async function commitGeminiScanRows(
   if (!response.ok) throw new Error(await parseApiError(response, "Could not save marks"));
   return response.json();
 }
+

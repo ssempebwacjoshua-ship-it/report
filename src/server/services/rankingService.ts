@@ -1,4 +1,4 @@
-export type Rankable = { id: string; score: number | null };
+﻿export type Rankable = { id: string; score: number | null };
 
 export function rankByScore(items: Rankable[]): Map<string, number | null> {
   const ranked = items
@@ -23,3 +23,4 @@ export function rankByScore(items: Rankable[]): Map<string, number | null> {
 
   return positions;
 }
+
