@@ -13,6 +13,8 @@ import {
   uploadDocumentFile,
 } from "../../client/documentIntelligenceClient";
 import { DocumentPreview } from "../../components/smart-pages/DocumentPreview";
+import { SmartPageTemplatePicker } from "../../components/smart-pages/SmartPageTemplatePicker";
+import { getSmartPageTemplates, type SmartPageTemplateDefinition } from "../../shared/smartPagesTemplates";
 import type {
   ChatMessage,
   ComponentNode,
@@ -90,6 +92,8 @@ function ExtractionReviewPanel({
   onDraftChange,
   onSave,
   onGenerate,
+  templates,
+  onPickTemplate,
   onHighAccuracyRetry,
   retryingHighAccuracy,
   primaryActionLabel,
@@ -102,6 +106,8 @@ function ExtractionReviewPanel({
   onDraftChange: (value: string) => void;
   onSave: () => void;
   onGenerate: () => void;
+  templates: SmartPageTemplateDefinition[];
+  onPickTemplate: (template: SmartPageTemplateDefinition, options?: { summaryStyleId?: string }) => void;
   onHighAccuracyRetry: () => void;
   retryingHighAccuracy: boolean;
   primaryActionLabel: string;
@@ -130,6 +136,18 @@ function ExtractionReviewPanel({
           </div>
         </div>
       ) : null}
+      <section className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
+        <p className="text-xs font-bold uppercase tracking-wide text-[color:var(--sc-primary)]">What would you like to create?</p>
+        <h2 className="mt-1 text-lg font-black text-slate-950">Choose a processing template</h2>
+        <p className="mt-1 text-sm text-slate-500">Pick how the parsed content should be turned into an editable output.</p>
+        <div className="mt-4">
+          <SmartPageTemplatePicker
+            templates={templates}
+            scope="parsed"
+            onPickTemplate={onPickTemplate}
+          />
+        </div>
+      </section>
       <section className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
         <p className="text-xs font-bold uppercase tracking-wide text-blue-600">OCR Review</p>
         <h2 className="mt-1 text-lg font-black text-slate-950">{knowledge.title || "Untitled document"}</h2>
@@ -329,6 +347,8 @@ export function DocumentEditorPage() {
   const [activeTab, setActiveTab] = useState<"chat" | "preview">("chat");
   const [showActions, setShowActions] = useState(false);
   const hasActiveVersion = Boolean(activeVersionId);
+  const parsedTemplates = getSmartPageTemplates("parsed");
+  const readyTemplates = getSmartPageTemplates("ready");
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
@@ -577,6 +597,16 @@ export function DocumentEditorPage() {
     setInput("");
     await submitInstruction(text);
   }, [input, submitInstruction]);
+
+  const handleTemplatePick = useCallback((template: SmartPageTemplateDefinition, options?: { summaryStyleId?: string }) => {
+    if (!extractedKnowledge) return;
+    const prompt = template.buildPrompt({
+      documentTitle: doc?.title,
+      extractedKnowledge,
+      summaryStyleId: options?.summaryStyleId,
+    });
+    void submitInstruction(prompt);
+  }, [doc?.title, extractedKnowledge, submitInstruction]);
 
   const [showPublishModal, setShowPublishModal] = useState(false);
   const [publishPassword, setPublishPassword] = useState("");
@@ -960,6 +990,8 @@ export function DocumentEditorPage() {
               onDraftChange={setReviewDraft}
               onSave={() => void handleSaveExtractionReview()}
               onGenerate={() => void handleGenerateFromReview()}
+              templates={parsedTemplates}
+              onPickTemplate={handleTemplatePick}
               onHighAccuracyRetry={() => void handleRetryExtraction(true)}
               retryingHighAccuracy={retryingHighAccuracy}
               primaryActionLabel={extractionPrimaryActionLabel}
@@ -979,6 +1011,23 @@ export function DocumentEditorPage() {
                     >
                       Copy link
                     </button>
+                  </div>
+                ) : null}
+                {readyTemplates.length > 0 ? (
+                  <div className="mb-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                    <p className="text-xs font-bold uppercase tracking-wide text-[color:var(--sc-primary)]">Delivery options</p>
+                    <h3 className="mt-1 text-sm font-black text-slate-950">Publish or hand off the finished Smart Page</h3>
+                    <div className="mt-3">
+                      <SmartPageTemplatePicker
+                        templates={readyTemplates}
+                        scope="ready"
+                        onPickTemplate={(template) => {
+                          if (template.id === "publish-secure-link") {
+                            setShowPublishModal(true);
+                          }
+                        }}
+                      />
+                    </div>
                   </div>
                 ) : null}
                 <DocumentPreview schema={currentSchema} componentTree={componentTree} renderSettings={renderSettings} />

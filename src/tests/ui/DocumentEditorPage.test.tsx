@@ -165,6 +165,74 @@ describe("DocumentEditorPage ? Smart Pages flow", () => {
     expect(documentIntelligenceMocks.generateSchema).not.toHaveBeenCalled();
   });
 
+  it.each([
+    [
+      "Clean & Rebuild Document",
+      "Recreate the parsed document as a clean professional document",
+    ],
+    [
+      "Extract to Table",
+      "Convert the parsed rows, lists, and tables into structured table data",
+    ],
+    [
+      "Create Formal Letter",
+      "Turn the parsed notes or instructions into a formal letter",
+    ],
+  ])("uses the %s template and sends the right generation prompt", async (buttonName, promptFragment) => {
+    documentIntelligenceMocks.getDocument
+      .mockResolvedValueOnce({
+        id: "doc-1",
+        title: "Sample Smart Page",
+        status: "DRAFT",
+        extractionStatus: "READY",
+        extractionError: null,
+        domain: "school",
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        versionCount: 0,
+        hasSourceFiles: true,
+        extractedKnowledge,
+        activeVersion: null,
+        latestSourceFile: { id: "source-1", status: "READY" },
+      })
+      .mockResolvedValueOnce({
+        id: "doc-1",
+        title: "Sample Smart Page",
+        status: "DRAFT",
+        extractionStatus: "READY",
+        extractionError: null,
+        domain: "school",
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        versionCount: 1,
+        hasSourceFiles: true,
+        extractedKnowledge,
+        activeVersion: {
+          id: "version-1",
+          instruction: promptFragment,
+          schema: { theme: { primaryColor: "#2563eb" }, components: [] },
+          componentTree: [],
+          renderSettings: {},
+          createdAt: new Date().toISOString(),
+        },
+        latestSourceFile: { id: "source-1", status: "READY" },
+      });
+    documentIntelligenceMocks.generateSchema.mockResolvedValue({
+      versionId: "version-1",
+      schema: { theme: { primaryColor: "#2563eb" }, components: [] },
+      componentTree: [],
+    });
+
+    renderPage();
+
+    await waitFor(() => expect(screen.getByText(/what would you like to create/i)).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: buttonName }));
+
+    await waitFor(() => expect(documentIntelligenceMocks.generateSchema).toHaveBeenCalledTimes(1));
+    expect(documentIntelligenceMocks.generateSchema.mock.calls[0][1]).toContain(promptFragment);
+    await waitFor(() => expect(screen.getByText(/done! your document is ready/i)).toBeInTheDocument());
+  });
+
   it("hides publish and print actions until a version exists", async () => {
     documentIntelligenceMocks.getDocument.mockResolvedValue({
       id: "doc-1",
