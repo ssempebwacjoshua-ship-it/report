@@ -17,7 +17,7 @@ import { listPreferences } from "../../client/documentOsClient";
 import { DocumentPreview } from "../../components/smart-pages/DocumentPreview";
 import { SmartPageTemplatePicker } from "../../components/smart-pages/SmartPageTemplatePicker";
 import { getSmartPageTemplates, type SmartPageTemplateDefinition } from "../../shared/smartPagesTemplates";
-import { getLawyerPageTemplateById, getLawyerPageTemplates } from "../../shared/lawyerTemplates";
+import { buildLawyerTemplateStarterDraft, getLawyerPageTemplateById, getLawyerPageTemplates } from "../../shared/lawyerTemplates";
 import type {
   ChatMessage,
   ComponentNode,
@@ -370,6 +370,18 @@ function buildStarterDraft(title: string, isLawyerWorkspace: boolean): string {
     ].join("\n");
 }
 
+function buildInitialDraft(
+  title: string,
+  isLawyerWorkspace: boolean,
+  template?: SmartPageTemplateDefinition | null,
+): string {
+  if (isLawyerWorkspace && template) {
+    return buildLawyerTemplateStarterDraft(template, title);
+  }
+
+  return buildStarterDraft(title, isLawyerWorkspace);
+}
+
 function createManualKnowledge(title: string, draft: string): ExtractedKnowledge {
   return {
     documentType: "document",
@@ -463,6 +475,7 @@ export function DocumentEditorPage() {
   const [searchParams] = useSearchParams();
   const isLawyerWorkspace = location.pathname.startsWith("/lawyers");
   const templateId = searchParams.get("template");
+  const lawyerTemplate = isLawyerWorkspace && templateId ? getLawyerPageTemplateById(templateId) ?? null : null;
 
   const [doc, setDoc] = useState<SmartDocumentDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -522,7 +535,9 @@ export function DocumentEditorPage() {
       .then((d) => {
         setDoc(d);
         setExtractedKnowledge(d.extractedKnowledge);
-        const nextDraft = d.extractedKnowledge?.rawText || d.extractedKnowledge?.sections.map((section) => section.content).join("\n\n") || buildStarterDraft(d.title, isLawyerWorkspace);
+        const nextDraft = d.extractedKnowledge?.rawText
+          || d.extractedKnowledge?.sections.map((section) => section.content).join("\n\n")
+          || buildInitialDraft(d.title, isLawyerWorkspace, lawyerTemplate);
         setReviewDraft(nextDraft);
         if (d.extractionError && isAiConfigurationError(d.extractionError)) {
           setAiNotice("AI generation is not configured in this environment. You can still edit this document manually.");
@@ -561,7 +576,7 @@ export function DocumentEditorPage() {
       })
       .catch((e: Error) => setLoadError(e.message || "Failed to load document."))
       .finally(() => setLoading(false));
-  }, [id]);
+  }, [id, isLawyerWorkspace, lawyerTemplate]);
 
   useEffect(() => {
     if (!isLawyerWorkspace) return;
@@ -661,7 +676,7 @@ export function DocumentEditorPage() {
       if (isAiConfigurationError(e)) {
         setAiNotice("AI generation is not configured in this environment. You can still edit this document manually.");
         setStage("empty");
-        setReviewDraft(buildStarterDraft(doc?.title ?? "Document draft", isLawyerWorkspace));
+        setReviewDraft(buildInitialDraft(doc?.title ?? "Document draft", isLawyerWorkspace, lawyerTemplate));
       } else {
         addMessage("assistant", `Upload failed: ${e instanceof Error ? e.message : "Unknown error."}`);
       }
@@ -769,7 +784,7 @@ export function DocumentEditorPage() {
         setStage(hasActiveVersion ? "ready" : extractedKnowledge ? "uploaded" : "empty");
         setActiveTab("preview");
         if (!hasActiveVersion && !extractedKnowledge) {
-          setReviewDraft(buildStarterDraft(doc?.title ?? "Document draft", isLawyerWorkspace));
+          setReviewDraft(buildInitialDraft(doc?.title ?? "Document draft", isLawyerWorkspace, lawyerTemplate));
         }
       } else {
         addMessage("assistant", e instanceof Error ? e.message : "Something went wrong. Try again.");
@@ -778,7 +793,7 @@ export function DocumentEditorPage() {
       setBusy(false);
       if (!nested) releaseActionLock("submit");
     }
-  }, [id, busy, stage, extractedKnowledge, doc?.title, hasActiveVersion, aiNotice, isLawyerWorkspace, reviewDraft]);
+  }, [id, busy, stage, extractedKnowledge, doc?.title, hasActiveVersion, aiNotice, isLawyerWorkspace, lawyerTemplate, reviewDraft]);
 
   // Send message handler
   const handleSend = useCallback(async () => {
@@ -806,6 +821,7 @@ export function DocumentEditorPage() {
 
   useEffect(() => {
     if (!isLawyerWorkspace || !id || !doc || !templateId) return;
+    if (aiNotice) return;
     if (hasActiveVersion || busy || stage === "processing" || stage === "generating") return;
     if (autoTemplateRef.current === templateId) return;
 
@@ -835,7 +851,7 @@ export function DocumentEditorPage() {
         }
       }
     })();
-  }, [busy, creatorPreferences, doc, extractedKnowledge, hasActiveVersion, id, isLawyerWorkspace, location.pathname, navigate, stage, submitInstruction, templateId]);
+  }, [aiNotice, busy, creatorPreferences, doc, extractedKnowledge, hasActiveVersion, id, isLawyerWorkspace, location.pathname, navigate, stage, submitInstruction, templateId]);
 
   const [showPublishModal, setShowPublishModal] = useState(false);
   const [publishPassword, setPublishPassword] = useState("");
@@ -863,7 +879,7 @@ export function DocumentEditorPage() {
       setStage(hasActiveVersion ? "ready" : "uploaded");
       const refreshed = await getDocument(id);
       setDoc(refreshed);
-      setReviewDraft(refreshed.extractedKnowledge?.rawText || refreshed.extractedKnowledge?.sections.map((section) => section.content).join("\n\n") || buildStarterDraft(refreshed.title, isLawyerWorkspace));
+      setReviewDraft(refreshed.extractedKnowledge?.rawText || refreshed.extractedKnowledge?.sections.map((section) => section.content).join("\n\n") || buildInitialDraft(refreshed.title, isLawyerWorkspace, lawyerTemplate));
       addMessage("assistant", "Saved your extraction edits. You can generate the document when it looks right.");
     } catch (e) {
       addMessage("assistant", e instanceof Error ? e.message : "Could not save the extraction edits.");
@@ -1081,6 +1097,12 @@ export function DocumentEditorPage() {
           ) : null}
         </div>
       </div>
+
+      {isLawyerWorkspace ? (
+        <div className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-xs font-medium text-amber-900">
+          Generated documents are drafts and must be reviewed by a qualified legal professional before use.
+        </div>
+      ) : null}
 
       <div className="min-h-0 flex-1 overflow-y-auto">
         <div className="grid min-h-full gap-4 p-4 lg:grid-cols-[minmax(0,1fr)_340px]">

@@ -45,6 +45,8 @@ describe("LawyerDocumentsPage", () => {
     render(<RouterProvider router={router} />);
 
     await screen.findByRole("heading", { name: /choose a lawyer template/i });
+    expect(screen.getByText(/generated documents are drafts and must be reviewed/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /use client intake summary/i })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: /use legal notice \/ demand letter/i }));
 
     await waitFor(() => expect(documentMocks.createDocument).toHaveBeenCalledWith("Legal Notice / Demand Letter"));

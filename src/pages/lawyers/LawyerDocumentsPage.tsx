@@ -10,7 +10,7 @@ export function LawyerDocumentsPage() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [creating, setCreating] = useState(false);
-  const templates = useMemo(() => getLawyerPageTemplates("parsed").slice(0, 6), []);
+  const templates = useMemo(() => getLawyerPageTemplates("parsed"), []);
 
   useEffect(() => {
     listDocuments()
@@ -54,6 +54,10 @@ export function LawyerDocumentsPage() {
         <button type="button" className="btn btn-primary min-h-11 px-4" onClick={() => void handleCreateDocument()} disabled={creating}>
           {creating ? "Creating..." : "New Legal Document"}
         </button>
+      </div>
+
+      <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+        Generated documents are drafts and must be reviewed by a qualified legal professional before use.
       </div>
 
       <section className="premium-card premium-card-hover rounded-2xl p-4 sm:p-5">
