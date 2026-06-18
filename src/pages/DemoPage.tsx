@@ -1,8 +1,7 @@
 import { type ReactNode, type SVGProps, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
-import problemImage from "../assets/images/problems_manual_chaos_1781722176857.jpg";
-import solutionImage from "../assets/images/solutions_report_lab_digital_1781722193278.jpg";
+import { TestimonialsSection } from "../components/marketing/TestimonialsSection";
 
 function Icon({ children, className, ...props }: SVGProps<SVGSVGElement> & { children: ReactNode }) {
   return (
@@ -145,9 +144,9 @@ function Metric({
   label: string;
 }) {
   return (
-    <div className="premium-card rounded-2xl px-4 py-3">
-      <p className="text-lg font-black text-blue-700">{value}</p>
-      <p className="mt-0.5 text-[11px] uppercase tracking-[0.16em] text-slate-500">{label}</p>
+    <div className="rounded-2xl border border-white/15 bg-white/10 px-4 py-3 backdrop-blur">
+      <p className="text-lg font-black text-white">{value}</p>
+      <p className="mt-0.5 text-[11px] uppercase tracking-[0.16em] text-blue-100">{label}</p>
     </div>
   );
 }
@@ -192,7 +191,7 @@ export function DemoPage() {
   return (
     <div className="min-h-screen bg-slate-50 text-slate-950">
       <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/95 backdrop-blur-xl">
-        <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-3 sm:px-6 lg:px-8">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-2 sm:px-6 lg:px-8">
           <button
             type="button"
             onClick={() => void navigate("/demo")}
@@ -210,6 +209,12 @@ export function DemoPage() {
           <nav className="hidden items-center gap-6 text-sm font-semibold text-slate-600 md:flex">
             <a href="#report-lab" className="transition hover:text-blue-700">Report Lab</a>
             <a href="#smart-pages" className="transition hover:text-blue-700">Smart Pages</a>
+            <button type="button" onClick={() => void navigate("/pricing")} className="transition hover:text-blue-700">
+              Pricing
+            </button>
+            <button type="button" onClick={() => void navigate("/contact")} className="transition hover:text-blue-700">
+              Contact
+            </button>
             <a href="#why-school-connect" className="transition hover:text-blue-700">Why School Connect</a>
           </nav>
 
@@ -258,6 +263,26 @@ export function DemoPage() {
               >
                 Smart Pages
               </a>
+              <button
+                type="button"
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  void navigate("/pricing");
+                }}
+                className="rounded-2xl border border-slate-200 px-4 py-3 text-left text-sm font-semibold text-slate-700"
+              >
+                Pricing
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  void navigate("/contact");
+                }}
+                className="rounded-2xl border border-slate-200 px-4 py-3 text-left text-sm font-semibold text-slate-700"
+              >
+                Contact
+              </button>
               <a
                 href="#why-school-connect"
                 onClick={() => setMobileMenuOpen(false)}
@@ -286,29 +311,34 @@ export function DemoPage() {
       </header>
 
       <main>
-        <section className="relative overflow-hidden border-b border-slate-200 bg-gradient-to-br from-white via-blue-50 to-slate-50">
-          <div className="absolute inset-0 bg-dot-grid opacity-[0.25]" />
+        <section
+          className="relative overflow-hidden border-b border-blue-100 text-white"
+          style={{
+            backgroundImage:
+              "linear-gradient(90deg, rgba(8, 18, 55, 0.92), rgba(10, 76, 160, 0.72))",
+          }}
+        >
+          <div className="absolute inset-0 bg-dot-grid opacity-[0.18]" />
           <div className="relative mx-auto grid max-w-7xl gap-6 px-4 py-8 sm:px-6 lg:grid-cols-12 lg:px-8 lg:py-12">
             <div className="lg:col-span-6">
-              <div className="inline-flex items-center gap-2 rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.2em] text-blue-700">
+              <div className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.2em] text-blue-50">
                 <SparklesIcon className="h-3.5 w-3.5" />
                 School Connect for smart schools
               </div>
-              <h1 className="mt-3 max-w-xl text-4xl font-black tracking-tight text-slate-950 sm:text-5xl">
+              <h1 className="mt-2 max-w-xl text-3xl font-black leading-tight tracking-tight text-white lg:text-4xl">
                 Powering smart schools with digital reports and intelligent documents.
               </h1>
-              <p className="mt-3 max-w-2xl text-base leading-7 text-slate-600 sm:text-lg">
-                School Connect is a growing digital workspace for modern schools. Start with
-                Report Lab and Smart Pages - two powerful tools that help schools reduce
-                paperwork, speed up reporting, and turn school documents into clean digital
-                workflows.
+              <p className="mt-2.5 max-w-xl text-sm leading-6 text-blue-50 sm:text-base">
+                School Connect is a growing digital workspace for modern schools. Use Report Lab
+                to generate student reports faster, and Smart Pages to turn handwritten school
+                documents into ready-to-print PDFs without typing everything again.
               </p>
 
-              <div className="mt-4 flex flex-col gap-3 sm:flex-row">
+              <div className="mt-3.5 flex flex-col gap-3 sm:flex-row">
                 <button
                   type="button"
                   onClick={() => void navigate("/login")}
-                  className="btn btn-primary rounded-2xl px-5 py-3.5 text-sm font-black"
+                  className="btn rounded-xl bg-white px-4 py-2.5 text-sm font-black text-blue-700 hover:bg-blue-50"
                 >
                   Launch Demo
                   <ArrowRightIcon className="h-4 w-4" />
@@ -316,33 +346,33 @@ export function DemoPage() {
                 <button
                   type="button"
                   onClick={() => void navigate(reportLabTarget)}
-                  className="btn btn-secondary rounded-2xl px-5 py-3.5 text-sm font-bold"
+                  className="btn rounded-xl border border-white/25 bg-white/10 px-4 py-2.5 text-sm font-bold text-white hover:bg-white/15"
                 >
                   Explore Report Lab
                 </button>
                 <button
                   type="button"
                   onClick={() => void navigate(smartPagesTarget)}
-                  className="btn btn-secondary rounded-2xl border-slate-200 px-5 py-3.5 text-sm font-bold text-slate-700"
+                  className="btn rounded-xl border border-white/25 bg-white/10 px-4 py-2.5 text-sm font-bold text-white hover:bg-white/15"
                 >
                   Explore Smart Pages
                 </button>
               </div>
 
-              <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
-                <Metric value="School Connect" label="Powering smart schools." />
-                <Metric value="Report Lab" label="Generate student reports faster." />
-                <Metric value="Smart Pages" label="Handwritten docs to ready PDFs." />
+              <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <Metric value="School Connect" label="POWERING SMART SCHOOLS." />
+                <Metric value="Report Lab" label="STUDENT REPORTS FASTER." />
+                <Metric value="Smart Pages" label="HANDWRITTEN DOCS TO READY PDFS." />
               </div>
             </div>
 
             <div className="lg:col-span-6">
-              <div className="rounded-[1.5rem] border border-slate-200 bg-white p-2.5 shadow-sm">
-                <div className="mb-3 px-2 pt-2">
+              <div className="rounded-[1.5rem] border border-white/30 bg-white/95 p-2 shadow-xl backdrop-blur">
+                <div className="mb-2 px-2 pt-1.5">
                   <p className="text-xs font-black uppercase tracking-[0.18em] text-blue-700">
-                    Full System Walkthrough
+                    FULL SYSTEM WALKTHROUGH
                   </p>
-                  <p className="mt-1 text-sm text-slate-600">
+                  <p className="mt-1 text-sm leading-6 text-slate-600">
                     Watch a 10-minute demo of School Connect, Report Lab, Smart Pages, and the
                     smart school workflow.
                   </p>
@@ -350,7 +380,7 @@ export function DemoPage() {
 
                 <div className="overflow-hidden rounded-[1rem] border border-slate-200 bg-slate-100">
                   <iframe
-                    className="aspect-video w-full"
+                    className="aspect-video max-h-[340px] w-full"
                     src="https://www.youtube-nocookie.com/embed/jZrp-jOhjwo?rel=0&modestbranding=1"
                     title="School Connect full system walkthrough"
                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
@@ -358,50 +388,18 @@ export function DemoPage() {
                   />
                 </div>
               </div>
-              <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                <div className="rounded-3xl border border-slate-200 bg-white p-2.5 shadow-sm">
-                  <img
-                    src={problemImage}
-                    alt="Manual paperwork and records stacked on a desk"
-                    className="aspect-[4/3] w-full rounded-[1rem] object-cover"
-                  />
-                  <p className="mt-2 text-sm font-bold text-slate-950">Before</p>
-                  <p className="mt-1 text-sm leading-5 text-slate-600">
-                    Manual work, scattered files, and slow report preparation.
-                  </p>
-                </div>
-                <div className="rounded-3xl border border-emerald-200 bg-emerald-50 p-2.5 shadow-sm">
-                  <div className="grid aspect-[4/3] place-items-center rounded-[1rem] border border-emerald-100 bg-white">
-                    <div className="grid gap-2.5 text-center">
-                      <div className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-emerald-50 text-emerald-700">
-                        <CheckCircleIcon className="h-6 w-6" />
-                      </div>
-                      <div>
-                        <p className="text-sm font-black text-slate-950">Production-ready flow</p>
-                        <p className="mt-1 text-sm leading-5 text-slate-600">
-                          Generate, review, publish, and print from the live app.
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                  <p className="mt-2 text-sm font-bold text-slate-950">After</p>
-                  <p className="mt-1 text-sm leading-5 text-slate-600">
-                    Structured reports and Smart Pages connected to the existing system.
-                  </p>
-                </div>
-              </div>
             </div>
           </div>
         </section>
 
-        <section id="report-lab" className="border-b border-slate-200 bg-white px-4 py-9 lg:py-10 sm:px-6 lg:px-8">
+        <section id="report-lab" className="border-b border-slate-200 bg-white px-4 py-6 lg:py-8 sm:px-6 lg:px-8">
           <div className="mx-auto max-w-7xl">
             <div className="max-w-2xl">
               <p className="text-xs font-black uppercase tracking-[0.2em] text-blue-700">REPORT LAB</p>
-              <h2 className="mt-1 text-3xl font-black tracking-tight text-slate-950">
+              <h2 className="mt-2 text-3xl font-black tracking-tight text-slate-950">
                 A smarter way to prepare school reports.
               </h2>
-              <p className="mt-2 text-sm leading-7 text-slate-600">
+              <p className="mt-2 text-sm leading-6 text-slate-600">
                 Report Lab is a School Connect product built to help schools move from manual
                 marksheets and formatting delays to clean, professional student reports. Upload
                 marks, review results, generate reports, print them, and share parent-ready links
@@ -409,7 +407,7 @@ export function DemoPage() {
               </p>
             </div>
 
-            <div className="mt-5 grid gap-4 lg:grid-cols-3">
+            <div className="mt-4 grid gap-3 lg:grid-cols-3">
               <SectionCard
                 icon={<FileTextIcon className="h-5 w-5" />}
                 title="Upload marks"
@@ -431,24 +429,24 @@ export function DemoPage() {
           </div>
         </section>
 
-        <section id="smart-pages" className="border-b border-slate-200 bg-blue-50/50 px-4 py-9 lg:py-10 sm:px-6 lg:px-8">
-          <div className="mx-auto grid max-w-7xl gap-8 lg:grid-cols-12 lg:items-center">
+        <section id="smart-pages" className="border-b border-slate-200 bg-slate-50 px-4 py-6 lg:py-8 sm:px-6 lg:px-8">
+          <div className="mx-auto grid max-w-7xl gap-6 lg:grid-cols-12 lg:items-center">
             <div className="lg:col-span-5">
               <p className="text-xs font-black uppercase tracking-[0.2em] text-blue-700">SMART PAGES</p>
-              <h2 className="mt-1 text-3xl font-black tracking-tight text-slate-950">
+              <h2 className="mt-2 text-3xl font-black tracking-tight text-slate-950">
                 From handwritten school documents to ready-to-print PDFs.
               </h2>
-              <p className="mt-2 text-sm leading-7 text-slate-600">
+              <p className="mt-2 text-sm leading-6 text-slate-600">
                 Upload a handwritten note, scanned letter, form, table, or school document. Smart
                 Pages reads it, cleans it, formats it, and helps you produce a polished PDF you can
                 print or share - without typing it all again.
               </p>
 
-              <div className="mt-4 flex flex-col gap-3 sm:flex-row">
+              <div className="mt-3.5 flex flex-col gap-3 sm:flex-row">
                 <button
                   type="button"
                   onClick={() => void navigate(smartPagesTarget)}
-                  className="btn btn-primary rounded-2xl px-5 py-3.5 text-sm font-black"
+                  className="btn btn-primary rounded-xl px-4 py-2.5 text-sm font-black"
                 >
                   Explore Smart Pages
                   <ArrowRightIcon className="h-4 w-4" />
@@ -456,7 +454,7 @@ export function DemoPage() {
                 <button
                   type="button"
                   onClick={() => void navigate("/login")}
-                  className="inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-5 py-3.5 text-sm font-bold text-slate-700 transition hover:bg-slate-50"
+                  className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 transition hover:bg-slate-50"
                 >
                   Sign in
                 </button>
@@ -464,11 +462,11 @@ export function DemoPage() {
             </div>
 
             <div className="lg:col-span-7">
-              <div className="rounded-[1.75rem] border border-slate-200 bg-white p-4 shadow-sm">
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="rounded-3xl border border-slate-200 bg-white p-4">
+              <div className="rounded-[1.75rem] border border-slate-200 bg-white p-3.5 shadow-sm">
+                <div className="grid gap-3 md:grid-cols-2">
+                  <div className="rounded-3xl border border-slate-200 bg-white p-3.5">
                     <div className="flex items-center gap-3">
-                      <div className="grid h-11 w-11 place-items-center rounded-2xl bg-blue-50 text-blue-700">
+                      <div className="grid h-10 w-10 place-items-center rounded-2xl bg-blue-50 text-blue-700">
                         <GridIcon className="h-5 w-5" />
                       </div>
                       <div>
@@ -477,9 +475,9 @@ export function DemoPage() {
                       </div>
                     </div>
                   </div>
-                  <div className="rounded-3xl border border-slate-200 bg-white p-4">
+                  <div className="rounded-3xl border border-slate-200 bg-white p-3.5">
                     <div className="flex items-center gap-3">
-                      <div className="grid h-11 w-11 place-items-center rounded-2xl bg-emerald-50 text-emerald-700">
+                      <div className="grid h-10 w-10 place-items-center rounded-2xl bg-emerald-50 text-emerald-700">
                         <BookIcon className="h-5 w-5" />
                       </div>
                       <div>
@@ -488,9 +486,9 @@ export function DemoPage() {
                       </div>
                     </div>
                   </div>
-                  <div className="rounded-3xl border border-slate-200 bg-white p-4">
+                  <div className="rounded-3xl border border-slate-200 bg-white p-3.5">
                     <div className="flex items-center gap-3">
-                      <div className="grid h-11 w-11 place-items-center rounded-2xl bg-slate-100 text-slate-700">
+                      <div className="grid h-10 w-10 place-items-center rounded-2xl bg-slate-100 text-slate-700">
                         <SmartphoneIcon className="h-5 w-5" />
                       </div>
                       <div>
@@ -499,9 +497,9 @@ export function DemoPage() {
                       </div>
                     </div>
                   </div>
-                  <div className="rounded-3xl border border-slate-200 bg-white p-4">
+                  <div className="rounded-3xl border border-slate-200 bg-white p-3.5">
                     <div className="flex items-center gap-3">
-                      <div className="grid h-11 w-11 place-items-center rounded-2xl bg-amber-50 text-amber-700">
+                      <div className="grid h-10 w-10 place-items-center rounded-2xl bg-amber-50 text-amber-700">
                         <ShieldIcon className="h-5 w-5" />
                       </div>
                       <div>
@@ -516,15 +514,17 @@ export function DemoPage() {
           </div>
         </section>
 
-        <section id="why-school-connect" className="bg-slate-50 px-4 py-9 lg:py-10 sm:px-6 lg:px-8">
-          <div className="mx-auto max-w-7xl rounded-[2rem] border border-slate-200 bg-gradient-to-br from-blue-600 to-blue-700 p-6 shadow-lg sm:p-8">
-            <div className="grid gap-8 lg:grid-cols-12 lg:items-center">
+        <TestimonialsSection className="bg-white px-4 py-6 lg:py-8 sm:px-6 lg:px-8" compact />
+
+        <section id="why-school-connect" className="bg-slate-50 px-4 py-6 lg:py-8 sm:px-6 lg:px-8">
+          <div className="mx-auto max-w-7xl rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm sm:p-7">
+            <div className="grid gap-6 lg:grid-cols-12 lg:items-center">
               <div className="lg:col-span-8">
-                <p className="text-xs font-black uppercase tracking-[0.2em] text-blue-100">WHY SCHOOL CONNECT</p>
-                <h2 className="mt-1 text-3xl font-black tracking-tight text-white">
+                <p className="text-xs font-black uppercase tracking-[0.2em] text-blue-700">WHY SCHOOL CONNECT</p>
+                <h2 className="mt-2 text-3xl font-black tracking-tight text-slate-950">
                   One platform, growing with your school.
                 </h2>
-                <p className="mt-2 max-w-3xl text-sm leading-7 text-blue-50">
+                <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
                   School Connect starts with practical tools schools need today - Report Lab for
                   academic reporting and Smart Pages for intelligent documents. More smart school
                   workflows can be added as the school grows.
@@ -534,7 +534,7 @@ export function DemoPage() {
                 <button
                   type="button"
                   onClick={() => void navigate(reportLabTarget)}
-                  className="btn rounded-2xl bg-white px-5 py-3.5 text-sm font-black text-blue-700 hover:bg-blue-50"
+                  className="btn btn-primary rounded-xl px-4 py-2.5 text-sm font-black"
                 >
                   Launch Demo
                   <ArrowRightIcon className="h-4 w-4" />
@@ -542,7 +542,7 @@ export function DemoPage() {
                 <button
                   type="button"
                   onClick={() => void navigate("/login")}
-                  className="btn rounded-2xl border border-blue-100 bg-white px-5 py-3.5 text-sm font-bold text-blue-700 hover:bg-blue-50"
+                  className="btn btn-secondary rounded-xl px-4 py-2.5 text-sm font-bold"
                 >
                   Sign in
                 </button>
