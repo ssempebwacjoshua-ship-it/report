@@ -3,6 +3,7 @@ export type ProductKey = "reportLab" | "smartPages";
 export type NavItem = {
   to: string;
   label: string;
+  exact?: boolean;
   icon:
     | "activity"
     | "bell"
@@ -25,18 +26,18 @@ export const productSwitcherItems: Record<ProductKey, { label: string; to: strin
 
 export const navItemsByProduct: Record<ProductKey, NavItem[]> = {
   reportLab: [
-    { to: "/dashboard", label: "Dashboard", icon: "home" },
-    { to: "/students", label: "Students", icon: "students" },
-    { to: "/imports/marks", label: "Marks Import", icon: "upload" },
-    { to: "/marksheets", label: "Marksheets", icon: "clipboard" },
-    { to: "/reports", label: "Reports", icon: "file" },
-    { to: "/reports/release", label: "Release Center", icon: "send" },
+    { to: "/dashboard", label: "Dashboard", icon: "home", exact: true },
+    { to: "/students", label: "Students", icon: "students", exact: true },
+    { to: "/imports/marks", label: "Marks Import", icon: "upload", exact: true },
+    { to: "/marksheets", label: "Marksheets", icon: "clipboard", exact: true },
+    { to: "/reports", label: "Reports", icon: "file", exact: true },
+    { to: "/reports/release", label: "Release Center", icon: "send", exact: true },
     { to: "/settings", label: "Academic Setup", icon: "settings" },
   ],
   smartPages: [
-    { to: "/dashboard", label: "Dashboard", icon: "home" },
-    { to: "/smart-pages", label: "Document History", icon: "file" },
-    { to: "/collections", label: "Templates", icon: "clipboard" },
+    { to: "/dashboard", label: "Dashboard", icon: "home", exact: true },
+    { to: "/smart-pages", label: "Document History", icon: "file", exact: true },
+    { to: "/collections", label: "Templates", icon: "clipboard", exact: true },
     { to: "/preferences", label: "Settings", icon: "settings" },
   ],
 };
@@ -57,6 +58,6 @@ export function getProductFromPath(pathname: string): ProductKey {
     : "reportLab";
 }
 
-export function isActiveNavPath(pathname: string, to: string) {
-  return pathname === to || pathname.startsWith(`${to}/`);
+export function isActiveNavPath(pathname: string, to: string, exact = false) {
+  return exact ? pathname === to : pathname === to || pathname.startsWith(`${to}/`);
 }

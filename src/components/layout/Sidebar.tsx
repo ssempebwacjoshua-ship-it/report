@@ -43,7 +43,7 @@ function NavLinkRow({
       to={to}
       title={collapsed ? label : undefined}
       onClick={onClick}
-      className={`group flex items-center gap-3 rounded-full border px-3 py-2 text-sm font-semibold transition ${
+      className={`group flex items-center gap-3 rounded-full border px-3 py-2 text-sm font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-white/80 focus-visible:ring-offset-0 ${
         active
           ? "border-white/25 bg-[color:var(--sc-primary-soft)] text-[color:var(--sc-primary)] shadow-[0_10px_24px_rgba(15,23,42,0.14)]"
           : "border-transparent text-white hover:border-white/10 hover:bg-white/10 hover:text-white"
@@ -108,7 +108,7 @@ function SidebarSection({
             to={item.to}
             label={item.label}
             icon={item.icon}
-            active={isActiveNavPath(pathname, item.to)}
+            active={isActiveNavPath(pathname, item.to, item.exact)}
             collapsed={collapsed}
             onClick={onNavigate}
           />
