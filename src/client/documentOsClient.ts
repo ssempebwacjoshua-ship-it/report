@@ -53,8 +53,11 @@ export interface AnalyticsSummary {
   mostActiveCollections?: Array<{ collectionId: string; name: string; recordCount: number; bulkJobCount: number; activityScore: number; updatedAt: string }>;
 }
 
-export async function listPreferences(): Promise<CreatorPreference[]> {
-  const res = await fetch(`${API_BASE}/api/document-os/preferences`, { headers: makeRequestHeaders() });
+export async function listPreferences(scope?: "school" | "lawyer"): Promise<CreatorPreference[]> {
+  const url = scope
+    ? `${API_BASE}/api/document-os/preferences?scope=${scope}`
+    : `${API_BASE}/api/document-os/preferences`;
+  const res = await fetch(url, { headers: makeRequestHeaders() });
   const data = await json<{ preferences: CreatorPreference[] }>(res, "Could not load preferences");
   return data.preferences;
 }
