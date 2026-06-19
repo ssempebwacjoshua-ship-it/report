@@ -12,6 +12,7 @@ import { SettingsPage } from "../pages/SettingsPage";
 import { LoginPage } from "../pages/LoginPage";
 import { LogoutPage } from "../pages/LogoutPage";
 import { DemoPage } from "../pages/DemoPage";
+import { FeaturesDemoPage } from "../pages/FeaturesDemoPage";
 import { PricingPage } from "../pages/PricingPage";
 import { ContactPage } from "../pages/ContactPage";
 import { ParentReportPage } from "../pages/ParentReportPage";
@@ -51,6 +52,7 @@ function lazyElement(Component: ComponentType) {
 export const router = createBrowserRouter([
   // Public routes ? no AppShell, no auth
   { path: "/demo", element: <DemoPage /> },
+  { path: "/features-demo", element: <FeaturesDemoPage /> },
   { path: "/pricing", element: <PricingPage /> },
   { path: "/contact", element: <ContactPage /> },
   { path: "/login", element: <LoginPage /> },

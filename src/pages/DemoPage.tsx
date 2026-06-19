@@ -204,6 +204,9 @@ export function DemoPage() {
           <nav className="hidden items-center gap-6 text-sm font-semibold text-slate-600 md:flex">
             <a href="#report-lab" className="transition hover:text-blue-700">Report Lab</a>
             <a href="#smart-pages" className="transition hover:text-blue-700">Smart Pages</a>
+            <button type="button" onClick={() => void navigate("/features-demo")} className="transition hover:text-blue-700">
+              Features Demo
+            </button>
             <button type="button" onClick={() => void navigate("/pricing")} className="transition hover:text-blue-700">
               Pricing
             </button>
@@ -258,6 +261,16 @@ export function DemoPage() {
               >
                 Smart Pages
               </a>
+              <button
+                type="button"
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  void navigate("/features-demo");
+                }}
+                className="rounded-2xl border border-slate-200 px-4 py-3 text-left text-sm font-semibold text-slate-700"
+              >
+                Features Demo
+              </button>
               <button
                 type="button"
                 onClick={() => {

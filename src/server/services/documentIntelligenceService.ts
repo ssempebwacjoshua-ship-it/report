@@ -24,7 +24,8 @@ import {
   calculatePriceUgx,
   calculatePublishCredits,
   canUseCredits as canUseSmartPageCredits,
-  deductPages as deductSmartPageCredits,
+  deductPagesInTransaction,
+  recordFailedPagesInTransaction,
   estimateGeminiCostUgx,
   estimatePageCount,
 } from "./smartPagesService";
@@ -161,6 +162,18 @@ async function assertSmartPageCredits(actor: SmartPagesActor, credits: number) {
   if (!allowed.allowed) {
     throw Object.assign(new Error(allowed.message), { status: 402, code: allowed.code });
   }
+}
+
+function smartPagesChargeKey(parts: Array<string | number | null | undefined>): string {
+  return parts.map((part) => String(part ?? "")).join(":");
+}
+
+function isSmartPagesProviderFailure(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return /timeout|timed out|503|unavailable|model overloaded|overloaded|high traffic|provider error|failed to fetch|etimedout|econnreset|enotfound|resource_exhausted|quota|not found|404|500/i.test(message)
+    || Boolean((error as { providerErrorCode?: unknown } | null)?.providerErrorCode)
+    || [503, "503", "UNAVAILABLE", "MODEL_OVERLOADED", "TIMEOUT"].includes((error as { status?: unknown; code?: unknown } | null)?.status as never)
+    || [503, "503", "UNAVAILABLE", "MODEL_OVERLOADED", "TIMEOUT"].includes((error as { status?: unknown; code?: unknown } | null)?.code as never);
 }
 
 // ── Document list ──────────────────────────────────────────────────────────────
@@ -709,25 +722,22 @@ export async function processSourceFileExtraction(sourceFileId: string): Promise
         highAccuracyUsed: isHighAccuracy,
         originalImageRef: sourceFile.originalName,
       },
-    });
-    if (actor.schoolId) {
-      await deductSmartPageCredits(actor.schoolId, {
-        jobId: sourceFile.id as string,
-        fileHash: sourceFile.fileHash as string,
-        pagesCharged: extractionCredits,
-        creditsCharged: extractionCredits,
-        operation: isHighAccuracy ? "HIGH_ACCURACY_EXTRACT" : "EXTRACT",
-        pagesProcessed,
-        priceUgx: extractionPriceUgx,
-        extractionMode: retryMode,
-        provider: "gemini",
-        model: knowledge._meta.selectedModel,
-        reason: isHighAccuracy ? "High accuracy handwriting extraction" : "Normal document extraction",
-        tokenUsage: knowledge._meta.tokenUsage,
-        geminiCostEstimateUgx,
-        marginEstimateUgx: extractionPriceUgx - geminiCostEstimateUgx,
-      });
-    }
+    }, actor.schoolId ? {
+      jobId: sourceFile.id as string,
+      fileHash: sourceFile.fileHash as string,
+      pagesCharged: extractionCredits,
+      creditsCharged: extractionCredits,
+      operation: isHighAccuracy ? "HIGH_ACCURACY_EXTRACT" : "EXTRACT",
+      pagesProcessed,
+      priceUgx: extractionPriceUgx,
+      extractionMode: retryMode,
+      provider: "gemini",
+      model: knowledge._meta.selectedModel,
+      reason: isHighAccuracy ? "High accuracy handwriting extraction" : "Normal document extraction",
+      tokenUsage: knowledge._meta.tokenUsage,
+      geminiCostEstimateUgx,
+      marginEstimateUgx: extractionPriceUgx - geminiCostEstimateUgx,
+    } : undefined);
   } catch (error) {
     const statusValue = (error as { status?: unknown } | null)?.status;
     const causeValue = error instanceof Error ? (error as { cause?: unknown }).cause : undefined;
@@ -745,6 +755,27 @@ export async function processSourceFileExtraction(sourceFileId: string): Promise
       errorStatus: typeof statusValue === "number" ? statusValue : undefined,
     };
     console.error("[document-intelligence] extraction failed", diagnostic);
+    if (actor.schoolId && isSmartPagesProviderFailure(error)) {
+      const retryMode = resolveRetryMode(sourceFile.ocrQuality);
+      const pagesProcessed = estimatePageCount(sourceFile.mimeType);
+      const extractionCredits = calculateExtractionCredits(pagesProcessed, retryMode);
+      const extractionPriceUgx = calculatePriceUgx(extractionCredits);
+      await db.$transaction(async (tx: any) => {
+        await recordFailedPagesInTransaction(tx, actor.schoolId!, {
+          jobId: sourceFile.id as string,
+          fileHash: sourceFile.fileHash as string,
+          extractionMode: retryMode,
+          operation: retryMode === "high_accuracy" ? "HIGH_ACCURACY_EXTRACT" : "EXTRACT",
+          pagesProcessed,
+          reason: error instanceof Error ? error.message : String(error),
+          provider: "gemini",
+          model: geminiModel,
+          tokenUsage: null,
+          geminiCostEstimateUgx: 0,
+          marginEstimateUgx: extractionPriceUgx,
+        });
+      });
+    }
     const message = friendlyExtractionError(error);
     await db.documentSourceFile.update({
       where: { id: sourceFile.id },
@@ -770,32 +801,68 @@ async function completeExtraction(
   knowledge: ExtractedKnowledge,
   actor: SmartPagesActor,
   extras: { processedData?: Buffer | null; processedMimeType?: string | null; ocrQuality?: unknown },
+  billing?: {
+    jobId: string;
+    fileHash: string;
+    pagesCharged: number;
+    creditsCharged: number;
+    operation: "EXTRACT" | "HIGH_ACCURACY_EXTRACT";
+    pagesProcessed: number;
+    priceUgx: number;
+    extractionMode: DocumentOcrPreprocessMode | "balanced";
+    provider: string;
+    model: string;
+    reason: string;
+    tokenUsage?: Record<string, unknown> | null;
+    geminiCostEstimateUgx?: number | null;
+    marginEstimateUgx?: number | null;
+  },
 ) {
   const db = prisma as any;
   const document = sourceFile.document ?? await db.smartDocument.findUnique({ where: { id: sourceFile.documentId } });
   const needsTitleUpdate = !document.title || document.title === "Untitled Document";
   const title = needsTitleUpdate && knowledge.title ? knowledge.title : document.title;
-  await db.documentSourceFile.update({
-    where: { id: sourceFile.id },
-    data: {
-      status: "READY",
-      processedData: extras.processedData ?? sourceFile.processedData,
-      processedMimeType: extras.processedMimeType ?? sourceFile.processedMimeType,
-      extractedContent: knowledge as any,
-      ocrQuality: extras.ocrQuality as any,
-      extractionError: null,
-      extractionCompletedAt: new Date(),
-    },
-  });
-  await db.smartDocument.update({
-    where: { id: sourceFile.documentId },
-    data: {
-      extractedKnowledge: knowledge as any,
-      extractionStatus: "READY",
-      extractionError: null,
-      extractionCompletedAt: new Date(),
-      ...(needsTitleUpdate && knowledge.title ? { title: knowledge.title } : {}),
-    },
+  await db.$transaction(async (tx: any) => {
+    await tx.documentSourceFile.update({
+      where: { id: sourceFile.id },
+      data: {
+        status: "READY",
+        processedData: extras.processedData ?? sourceFile.processedData,
+        processedMimeType: extras.processedMimeType ?? sourceFile.processedMimeType,
+        extractedContent: knowledge as any,
+        ocrQuality: extras.ocrQuality as any,
+        extractionError: null,
+        extractionCompletedAt: new Date(),
+      },
+    });
+    await tx.smartDocument.update({
+      where: { id: sourceFile.documentId },
+      data: {
+        extractedKnowledge: knowledge as any,
+        extractionStatus: "READY",
+        extractionError: null,
+        extractionCompletedAt: new Date(),
+        ...(needsTitleUpdate && knowledge.title ? { title: knowledge.title } : {}),
+      },
+    });
+    if (actor.schoolId && billing) {
+      await deductPagesInTransaction(tx, actor.schoolId, {
+        jobId: billing.jobId,
+        fileHash: billing.fileHash,
+        pagesCharged: billing.pagesCharged,
+        creditsCharged: billing.creditsCharged,
+        operation: billing.operation,
+        pagesProcessed: billing.pagesProcessed,
+        priceUgx: billing.priceUgx,
+        extractionMode: billing.extractionMode,
+        provider: billing.provider,
+        model: billing.model,
+        reason: billing.reason,
+        tokenUsage: billing.tokenUsage ?? null,
+        geminiCostEstimateUgx: billing.geminiCostEstimateUgx ?? null,
+        marginEstimateUgx: billing.marginEstimateUgx ?? null,
+      });
+    }
   });
   await upsertSearchIndex(document.creatorId, "DOCUMENT", sourceFile.documentId, title, [
     title,
@@ -977,53 +1044,79 @@ export async function generateSchema(
   await assertSmartPageCredits(actor, credits);
 
   const fitToOnePage = wantsFitToOnePage(intent);
-  const { schema, componentTree } = await generateDocumentSchema(knowledge, intent, "#2563eb", await preferenceMap(creatorId));
-  const finalSchema = fitToOnePage ? compactSchemaForPrint(schema) : schema;
-  const finalComponents = fitToOnePage ? compactComponentsForPrint(componentTree) : componentTree;
-  const renderSettings = renderSettingsForIntent(intent);
+  const generateChargeKey = smartPagesChargeKey(["generate", documentId, doc.activeVersionId ?? "none", intent]);
+  try {
+    const { schema, componentTree } = await generateDocumentSchema(knowledge, intent, "#2563eb", await preferenceMap(creatorId));
+    const finalSchema = fitToOnePage ? compactSchemaForPrint(schema) : schema;
+    const finalComponents = fitToOnePage ? compactComponentsForPrint(componentTree) : componentTree;
+    const renderSettings = renderSettingsForIntent(intent);
 
-  const version = await db.documentVersion.create({
-    data: {
-      id: randomUUID(),
-      documentId,
-      instruction: intent,
-      schema: finalSchema as any,
-      componentTree: finalComponents as any,
-      renderSettings: renderSettings as any,
-    },
-  });
+    const version = await db.$transaction(async (tx: any) => {
+      const createdVersion = await tx.documentVersion.create({
+        data: {
+          id: randomUUID(),
+          documentId,
+          instruction: intent,
+          schema: finalSchema as any,
+          componentTree: finalComponents as any,
+          renderSettings: renderSettings as any,
+        },
+      });
 
-  await db.smartDocument.update({ where: { id: documentId }, data: { activeVersionId: version.id } });
-  await upsertSearchIndex(creatorId, "VERSION", version.id, doc.title, [
-    intent,
-    JSON.stringify(finalSchema),
-    JSON.stringify(finalComponents),
-  ].join("\n"), { documentId });
-  await writeSmartPagesAudit(actor, "SMART_DOCUMENT_GENERATED", version.id as string, {
-    documentId,
-    versionId: version.id,
-    instruction: intent,
-  });
-  if (actor.schoolId) {
-    await deductSmartPageCredits(actor.schoolId, {
-      jobId: version.id as string,
-      fileHash: `generate:${version.id}`,
-      pagesCharged: credits,
-      creditsCharged: credits,
-      operation: "GENERATE_DOCUMENT",
-      pagesProcessed: outputPages,
-      priceUgx: calculatePriceUgx(credits),
-      extractionMode: "balanced",
-      provider: "gemini",
-      model: resolveGeminiDocumentModel(),
-      reason: "Generate clean/editable document",
-      tokenUsage: null,
-      geminiCostEstimateUgx: 0,
-      marginEstimateUgx: calculatePriceUgx(credits),
+      await tx.smartDocument.update({ where: { id: documentId }, data: { activeVersionId: createdVersion.id } });
+      if (actor.schoolId) {
+        await deductPagesInTransaction(tx, actor.schoolId, {
+          jobId: createdVersion.id as string,
+          fileHash: generateChargeKey,
+          pagesCharged: credits,
+          creditsCharged: credits,
+          operation: "GENERATE_DOCUMENT",
+          pagesProcessed: outputPages,
+          priceUgx: calculatePriceUgx(credits),
+          extractionMode: "balanced",
+          provider: "gemini",
+          model: resolveGeminiDocumentModel(),
+          reason: "Generate clean/editable document",
+          tokenUsage: null,
+          geminiCostEstimateUgx: 0,
+          marginEstimateUgx: calculatePriceUgx(credits),
+        });
+      }
+      return createdVersion;
     });
-  }
 
-  return { versionId: version.id as string, schema: finalSchema, componentTree: finalComponents };
+    await upsertSearchIndex(creatorId, "VERSION", version.id, doc.title, [
+      intent,
+      JSON.stringify(finalSchema),
+      JSON.stringify(finalComponents),
+    ].join("\n"), { documentId });
+    await writeSmartPagesAudit(actor, "SMART_DOCUMENT_GENERATED", version.id as string, {
+      documentId,
+      versionId: version.id,
+      instruction: intent,
+    });
+
+    return { versionId: version.id as string, schema: finalSchema, componentTree: finalComponents };
+  } catch (error) {
+    if (actor.schoolId && isSmartPagesProviderFailure(error)) {
+      await db.$transaction(async (tx: any) => {
+        await recordFailedPagesInTransaction(tx, actor.schoolId!, {
+          jobId: documentId,
+          fileHash: generateChargeKey,
+          extractionMode: "balanced",
+          operation: "GENERATE_DOCUMENT",
+          pagesProcessed: outputPages,
+          reason: error instanceof Error ? error.message : String(error),
+          provider: "gemini",
+          model: resolveGeminiDocumentModel(),
+          tokenUsage: null,
+          geminiCostEstimateUgx: 0,
+          marginEstimateUgx: 0,
+        });
+      });
+    }
+    throw error;
+  }
 }
 
 // ── Apply conversational prompt ────────────────────────────────────────────────
@@ -1053,57 +1146,83 @@ export async function applyPrompt(
   const credits = calculateGenerateDocumentCredits(outputPages);
   await assertSmartPageCredits(actor, credits);
   const fitToOnePage = wantsFitToOnePage(instruction);
-  const { schema, componentTree } = await applyPromptToSchema(currentSchema, instruction, await preferenceMap(creatorId));
-  const finalSchema = fitToOnePage ? compactSchemaForPrint(schema) : schema;
-  const finalComponents = fitToOnePage ? compactComponentsForPrint(componentTree) : componentTree;
-  const renderSettings = {
-    ...((currentVersion.renderSettings as Record<string, unknown> | null) ?? {}),
-    ...renderSettingsForIntent(instruction),
-  };
+  const promptChargeKey = smartPagesChargeKey(["prompt", documentId, currentVersion.id, instruction]);
+  try {
+    const { schema, componentTree } = await applyPromptToSchema(currentSchema, instruction, await preferenceMap(creatorId));
+    const finalSchema = fitToOnePage ? compactSchemaForPrint(schema) : schema;
+    const finalComponents = fitToOnePage ? compactComponentsForPrint(componentTree) : componentTree;
+    const renderSettings = {
+      ...((currentVersion.renderSettings as Record<string, unknown> | null) ?? {}),
+      ...renderSettingsForIntent(instruction),
+    };
 
-  const version = await db.documentVersion.create({
-    data: {
-      id: randomUUID(),
-      documentId,
-      parentId: currentVersion.id,
-      instruction,
-      schema: finalSchema as any,
-      componentTree: finalComponents as any,
-      renderSettings: renderSettings as any,
-    },
-  });
+    const version = await db.$transaction(async (tx: any) => {
+      const createdVersion = await tx.documentVersion.create({
+        data: {
+          id: randomUUID(),
+          documentId,
+          parentId: currentVersion.id,
+          instruction,
+          schema: finalSchema as any,
+          componentTree: finalComponents as any,
+          renderSettings: renderSettings as any,
+        },
+      });
 
-  await db.smartDocument.update({ where: { id: documentId }, data: { activeVersionId: version.id } });
-  await upsertSearchIndex(creatorId, "VERSION", version.id, doc.title, [
-    instruction,
-    JSON.stringify(finalSchema),
-    JSON.stringify(finalComponents),
-  ].join("\n"), { documentId });
-  await writeSmartPagesAudit(actor, "SMART_DOCUMENT_PROMPT_APPLIED", version.id as string, {
-    documentId,
-    versionId: version.id,
-    instruction,
-  });
-  if (actor.schoolId) {
-    await deductSmartPageCredits(actor.schoolId, {
-      jobId: version.id as string,
-      fileHash: `generate:${version.id}`,
-      pagesCharged: credits,
-      creditsCharged: credits,
-      operation: "GENERATE_DOCUMENT",
-      pagesProcessed: outputPages,
-      priceUgx: calculatePriceUgx(credits),
-      extractionMode: "balanced",
-      provider: "gemini",
-      model: resolveGeminiDocumentModel(),
-      reason: "Generate clean/editable document",
-      tokenUsage: null,
-      geminiCostEstimateUgx: 0,
-      marginEstimateUgx: calculatePriceUgx(credits),
+      await tx.smartDocument.update({ where: { id: documentId }, data: { activeVersionId: createdVersion.id } });
+      if (actor.schoolId) {
+        await deductPagesInTransaction(tx, actor.schoolId, {
+          jobId: createdVersion.id as string,
+          fileHash: promptChargeKey,
+          pagesCharged: credits,
+          creditsCharged: credits,
+          operation: "GENERATE_DOCUMENT",
+          pagesProcessed: outputPages,
+          priceUgx: calculatePriceUgx(credits),
+          extractionMode: "balanced",
+          provider: "gemini",
+          model: resolveGeminiDocumentModel(),
+          reason: "Generate clean/editable document",
+          tokenUsage: null,
+          geminiCostEstimateUgx: 0,
+          marginEstimateUgx: calculatePriceUgx(credits),
+        });
+      }
+      return createdVersion;
     });
-  }
 
-  return { versionId: version.id as string, schema: finalSchema, componentTree: finalComponents };
+    await upsertSearchIndex(creatorId, "VERSION", version.id, doc.title, [
+      instruction,
+      JSON.stringify(finalSchema),
+      JSON.stringify(finalComponents),
+    ].join("\n"), { documentId });
+    await writeSmartPagesAudit(actor, "SMART_DOCUMENT_PROMPT_APPLIED", version.id as string, {
+      documentId,
+      versionId: version.id,
+      instruction,
+    });
+
+    return { versionId: version.id as string, schema: finalSchema, componentTree: finalComponents };
+  } catch (error) {
+    if (actor.schoolId && isSmartPagesProviderFailure(error)) {
+      await db.$transaction(async (tx: any) => {
+        await recordFailedPagesInTransaction(tx, actor.schoolId!, {
+          jobId: documentId,
+          fileHash: promptChargeKey,
+          extractionMode: "balanced",
+          operation: "GENERATE_DOCUMENT",
+          pagesProcessed: outputPages,
+          reason: error instanceof Error ? error.message : String(error),
+          provider: "gemini",
+          model: resolveGeminiDocumentModel(),
+          tokenUsage: null,
+          geminiCostEstimateUgx: 0,
+          marginEstimateUgx: 0,
+        });
+      });
+    }
+    throw error;
+  }
 }
 
 export async function getLawyerDocumentEditPlan(
@@ -1212,13 +1331,35 @@ export async function publishDocument(
     : null;
   const passwordHash = options.password ? await bcrypt.hash(options.password, 10) : null;
 
-  await db.publishedDocument.upsert({
-    where: { documentId },
-    update: { token, expiresAt, passwordHash, updatedAt: new Date() },
-    create: { id: randomUUID(), documentId, token, expiresAt, passwordHash },
+  const publishChargeKey = smartPagesChargeKey(["publish", documentId, activeVersion.id]);
+  await db.$transaction(async (tx: any) => {
+    await tx.publishedDocument.upsert({
+      where: { documentId },
+      update: { token, expiresAt, passwordHash, updatedAt: new Date() },
+      create: { id: randomUUID(), documentId, token, expiresAt, passwordHash },
+    });
+
+    await tx.smartDocument.update({ where: { id: documentId }, data: { status: "PUBLISHED" } });
+    if (actor.schoolId) {
+      await deductPagesInTransaction(tx, actor.schoolId, {
+        jobId: token,
+        fileHash: publishChargeKey,
+        pagesCharged: credits,
+        creditsCharged: credits,
+        operation: "PUBLISH_DOCUMENT",
+        pagesProcessed: 1,
+        priceUgx: calculatePriceUgx(credits),
+        extractionMode: "balanced",
+        provider: "smart-pages",
+        model: "",
+        reason: "Publish secure link/PDF",
+        tokenUsage: null,
+        geminiCostEstimateUgx: 0,
+        marginEstimateUgx: calculatePriceUgx(credits),
+      });
+    }
   });
 
-  await db.smartDocument.update({ where: { id: documentId }, data: { status: "PUBLISHED" } });
   await upsertSearchIndex(creatorId, "PUBLISHED_PAGE", documentId, doc.title, doc.title, { token, documentId });
   await incrementDocumentAnalytics(documentId, { shares: 1 });
   await createNotification(creatorId, "DOCUMENT_PUBLISHED", "Document published", `${doc.title} is available at its public link.`);
@@ -1228,24 +1369,6 @@ export async function publishDocument(
     token,
     title: doc.title,
   });
-  if (actor.schoolId) {
-    await deductSmartPageCredits(actor.schoolId, {
-      jobId: token,
-      fileHash: `publish:${documentId}:${token}`,
-      pagesCharged: credits,
-      creditsCharged: credits,
-      operation: "PUBLISH_DOCUMENT",
-      pagesProcessed: 1,
-      priceUgx: calculatePriceUgx(credits),
-      extractionMode: "balanced",
-      provider: "smart-pages",
-      model: "",
-      reason: "Publish secure link/PDF",
-      tokenUsage: null,
-      geminiCostEstimateUgx: 0,
-      marginEstimateUgx: calculatePriceUgx(credits),
-    });
-  }
 
   const origin = process.env.CLIENT_ORIGIN ?? "http://localhost:5173";
   return { token, url: `${origin}/p/${token}` };

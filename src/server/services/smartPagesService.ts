@@ -48,6 +48,17 @@ export interface SmartPageStore {
   listLedger?(schoolId: string, limit?: number): Promise<SmartPageLedgerEntry[]>;
 }
 
+export interface SmartPagesBillingTransactionClient {
+  schoolSmartPagePlan: {
+    findUnique(args: { where: { schoolId: string } }): Promise<Record<string, unknown> | null>;
+    updateMany(args: { where: Record<string, unknown>; data: Record<string, unknown> }): Promise<{ count: number }>;
+  };
+  smartPageLedger: {
+    findFirst(args: { where: Record<string, unknown>; orderBy?: Record<string, unknown> }): Promise<Record<string, unknown> | null>;
+    create(args: { data: Record<string, unknown> }): Promise<unknown>;
+  };
+}
+
 // ── In-memory store (for tests and development) ────────────────────────────────
 
 export function createInMemorySmartPageStore(): SmartPageStore {
@@ -65,6 +76,8 @@ export function createInMemorySmartPageStore(): SmartPageStore {
       ledger.push(entry);
     },
     async atomicDeduct(schoolId, creditsToDeduct, entry) {
+      const existing = ledger.find((row) => row.schoolId === schoolId && row.fileHash === entry.fileHash && row.status === "CHARGED");
+      if (existing) return;
       const plan = plans.get(schoolId);
       if (!plan) {
         throw Object.assign(
@@ -157,29 +170,11 @@ function createPrismaSmartPageStore(prisma: import("@prisma/client").PrismaClien
 
     async atomicDeduct(schoolId, creditsToDeduct, entry) {
       await (prisma as any).$transaction(async (tx: any) => {
-        const row = await tx.schoolSmartPagePlan.findUnique({ where: { schoolId } });
-        if (!row) {
-          throw Object.assign(
-            new Error("No billing plan found. Please contact support."),
-            { code: "SMART_PAGES_BILLING_NOT_INITIALIZED", status: 402 },
-          );
-        }
-        const plan = prismaRowToPlan(row);
-        const total = plan.includedPages + plan.topUpPages + plan.rolloverPages;
-        const remaining = total - plan.usedPages;
-        if (remaining < creditsToDeduct) {
-          throw Object.assign(
-            new Error(
-              `Insufficient credits. Need ${creditsToDeduct}, have ${remaining}. Buy credits to continue.`,
-            ),
-            { code: "SMART_PAGES_EXHAUSTED", status: 402 },
-          );
-        }
-        await tx.schoolSmartPagePlan.update({
-          where: { schoolId },
-          data: { usedPages: plan.usedPages + creditsToDeduct },
+        await deductPagesInTransaction(tx, schoolId, {
+          ...entry,
+          pagesCharged: creditsToDeduct,
+          creditsCharged: entry.creditsCharged ?? creditsToDeduct,
         });
-        await tx.smartPageLedger.create({ data: buildLedgerData(entry) });
       });
     },
 
@@ -207,6 +202,118 @@ function createPrismaSmartPageStore(prisma: import("@prisma/client").PrismaClien
         return [];
       }
     },
+  };
+}
+
+export async function deductPagesInTransaction(
+  tx: SmartPagesBillingTransactionClient,
+  schoolId: string,
+  input: DeductPagesInput,
+): Promise<void> {
+  const creditsCharged = input.creditsCharged ?? input.pagesCharged;
+  const priceUgx = input.priceUgx ?? calculatePriceUgx(creditsCharged);
+  const existing = await tx.smartPageLedger.findFirst({
+    where: { schoolId, fileHash: input.fileHash, status: "CHARGED" },
+    orderBy: { createdAt: "desc" },
+  });
+  if (existing) return;
+
+  const row = await tx.schoolSmartPagePlan.findUnique({ where: { schoolId } });
+  if (!row) {
+    throw Object.assign(
+      new Error("No billing plan found. Please contact support."),
+      { code: "SMART_PAGES_BILLING_NOT_INITIALIZED", status: 402 },
+    );
+  }
+  const plan = prismaRowToPlan(row);
+  const total = plan.includedPages + plan.topUpPages + plan.rolloverPages;
+  const remaining = total - plan.usedPages;
+  if (remaining < creditsCharged) {
+    throw Object.assign(
+      new Error(`Insufficient credits. Need ${creditsCharged}, have ${remaining}. Buy credits to continue.`),
+      { code: "SMART_PAGES_EXHAUSTED", status: 402 },
+    );
+  }
+
+  const updated = await tx.schoolSmartPagePlan.updateMany({
+    where: { schoolId, usedPages: plan.usedPages },
+    data: { usedPages: { increment: creditsCharged } },
+  });
+  if (!updated.count) {
+    throw Object.assign(
+      new Error("Smart Pages credits changed while processing this request. Please retry."),
+      { code: "SMART_PAGES_CONFLICT", status: 409 },
+    );
+  }
+
+  await tx.smartPageLedger.create({
+    data: buildLedgerData(buildChargedLedgerEntry(schoolId, input, creditsCharged, priceUgx)),
+  });
+}
+
+export async function recordFailedPagesInTransaction(
+  tx: SmartPagesBillingTransactionClient,
+  schoolId: string,
+  input: Omit<DeductPagesInput, "pagesCharged" | "creditsCharged" | "priceUgx"> & {
+    operation: SmartPagesBillingOperation;
+    reason: string;
+  },
+): Promise<void> {
+  const existing = await tx.smartPageLedger.findFirst({
+    where: { schoolId, fileHash: input.fileHash, status: "FAILED" },
+    orderBy: { createdAt: "desc" },
+  });
+  if (existing) return;
+
+  await tx.smartPageLedger.create({
+    data: buildLedgerData({
+      schoolId,
+      jobId: input.jobId,
+      fileHash: input.fileHash,
+      pagesCharged: 0,
+      creditsCharged: 0,
+      operation: input.operation,
+      pagesProcessed: input.pagesProcessed ?? 0,
+      priceUgx: 0,
+      action: input.operation,
+      reason: input.reason,
+      provider: input.provider,
+      model: input.model,
+      extractionMode: input.extractionMode,
+      status: "FAILED",
+      tokenUsage: input.tokenUsage ?? null,
+      geminiCostEstimateUgx: input.geminiCostEstimateUgx ?? null,
+      marginEstimateUgx: input.marginEstimateUgx ?? null,
+    }),
+  });
+}
+
+function buildChargedLedgerEntry(
+  schoolId: string,
+  input: DeductPagesInput,
+  creditsCharged: number,
+  priceUgx: number,
+): SmartPageLedgerEntry {
+  return {
+    schoolId,
+    jobId: input.jobId,
+    fileHash: input.fileHash,
+    pagesCharged: input.pagesCharged,
+    creditsCharged,
+    operation: input.operation ?? (input.extractionMode === "high_accuracy" ? "HIGH_ACCURACY_EXTRACT" : "EXTRACT"),
+    pagesProcessed: input.pagesProcessed ?? input.pagesCharged,
+    priceUgx,
+    action: input.operation ?? (input.extractionMode === "high_accuracy" ? "HIGH_ACCURACY_EXTRACT" : "EXTRACT"),
+    reason: input.reason,
+    provider: input.provider,
+    model: input.model,
+    extractionMode: input.extractionMode,
+    status: "CHARGED",
+    tokenUsage: input.tokenUsage ?? null,
+    geminiCostEstimateUgx: input.geminiCostEstimateUgx ?? null,
+    marginEstimateUgx:
+      input.marginEstimateUgx ??
+      (input.geminiCostEstimateUgx != null ? priceUgx - input.geminiCostEstimateUgx : null),
   };
 }
 

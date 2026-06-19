@@ -31,6 +31,9 @@ describe("DemoPage", () => {
     fireEvent.click(screen.getAllByRole("button", { name: /launch demo/i })[0]!);
     expect(navigateMock).toHaveBeenCalledWith("/login");
 
+    fireEvent.click(screen.getByRole("button", { name: /features demo/i }));
+    expect(navigateMock).toHaveBeenCalledWith("/features-demo");
+
     fireEvent.click(screen.getByRole("button", { name: /pricing/i }));
     expect(navigateMock).toHaveBeenCalledWith("/pricing");
 

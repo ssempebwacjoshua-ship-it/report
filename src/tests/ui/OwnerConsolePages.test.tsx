@@ -1,0 +1,156 @@
+import { render, screen, waitFor } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
+import type { ReactElement } from "react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { OwnerDashboardPage } from "../../pages/owner/OwnerDashboardPage";
+import { OwnerSchoolsPage } from "../../pages/owner/OwnerSchoolsPage";
+import { OwnerUsersPage } from "../../pages/owner/OwnerUsersPage";
+
+const ownerClientMocks = vi.hoisted(() => ({
+  fetchOwnerDashboard: vi.fn(),
+  fetchOwnerSmartPagesPayments: vi.fn(),
+  fetchOwnerSmartPagesUsage: vi.fn(),
+  confirmOwnerSmartPagesPayment: vi.fn(),
+  rejectOwnerSmartPagesPayment: vi.fn(),
+  fetchOwnerSchools: vi.fn(),
+  createOwnerSchool: vi.fn(),
+  patchOwnerSchool: vi.fn(),
+  fetchOwnerUsers: vi.fn(),
+  createOwnerUser: vi.fn(),
+  ownerResetPassword: vi.fn(),
+  ownerDisableUser: vi.fn(),
+  ownerEnableUser: vi.fn(),
+}));
+
+vi.mock("../../client/ownerClient", () => ownerClientMocks);
+
+function renderInRouter(element: ReactElement) {
+  return render(<MemoryRouter>{element}</MemoryRouter>);
+}
+
+describe("Owner console responsive layouts", () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+  });
+
+  it("renders Smart Pages usage and payments as mobile cards while keeping desktop tables", async () => {
+    ownerClientMocks.fetchOwnerDashboard.mockResolvedValue({
+      totalSchools: 3,
+      activeSchools: 2,
+      expiredSchools: 1,
+      suspendedSchools: 0,
+      noSubscriptionSchools: 0,
+      totalUsers: 18,
+      recentSchools: [{ id: "school-1", code: "SCH-01", name: "St. Marys College Very Long Campus Name", createdAt: new Date().toISOString() }],
+    });
+    ownerClientMocks.fetchOwnerSmartPagesPayments.mockResolvedValue({
+      payments: [
+        {
+          id: "pay-1",
+          schoolId: "school-1",
+          schoolName: "St. Marys College Very Long Campus Name That Should Clamp Nicely",
+          packageCode: "STANDARD",
+          packageName: "Standard",
+          credits: 500,
+          amountUgx: 225000,
+          network: "MTN",
+          merchantCode: "98642335",
+          merchantName: "MTN MoMo",
+          paymentReference: "SMARTPAGES-pay-1",
+          transactionId: "TX-1234567890",
+          payerPhone: "256700000000",
+          status: "PENDING",
+          createdAt: new Date().toISOString(),
+        },
+      ],
+    });
+    ownerClientMocks.fetchOwnerSmartPagesUsage.mockResolvedValue({
+      ledger: [
+        {
+          id: "ledger-1",
+          schoolId: "school-1",
+          schoolName: "St. Marys College Very Long Campus Name That Should Clamp Nicely",
+          operation: "EXTRACT",
+          pagesProcessed: 4,
+          creditsUsed: 4,
+          priceUgx: 2000,
+          status: "CHARGED",
+          createdAt: new Date().toISOString(),
+          provider: "gemini",
+          model: "gemini-3.5-flash",
+          tokenUsage: { totalTokenCount: 1200 },
+          geminiCostEstimateUgx: 280,
+          marginEstimateUgx: 1720,
+        },
+      ],
+    });
+
+    renderInRouter(<OwnerDashboardPage />);
+
+    await waitFor(() => expect(screen.getByRole("heading", { name: /pending mobile money confirmations/i })).toBeInTheDocument());
+    expect(screen.getAllByText(/^Extract$/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/^Top-up$/).length).toBeGreaterThan(0);
+    expect(screen.getByText(/view technical details/i)).toBeInTheDocument();
+    expect(screen.getAllByRole("table")).toHaveLength(2);
+    expect(screen.getAllByText(/st\. marys college very long campus name that should clamp nicely/i)[0]?.closest("article")?.className).toContain("rounded-2xl");
+  });
+
+  it("renders owner schools as cards on mobile and a table on desktop", async () => {
+    ownerClientMocks.fetchOwnerSchools.mockResolvedValue({
+      schools: [
+        {
+          id: "school-1",
+          code: "SCH-01",
+          name: "St. Marys College of Excellence with an Extremely Long Campus Name for Testing",
+          phone: null,
+          address: null,
+          isActive: true,
+          createdAt: new Date().toISOString(),
+          subscription: { planCode: "STARTER", status: "ACTIVE", currentPeriodEnd: new Date().toISOString(), studentLimit: 100 },
+          primaryAdmin: { id: "admin-1", name: "Admin User", email: "admin@school.ac.ug" },
+          studentCount: 430,
+        },
+      ],
+    });
+
+    renderInRouter(<OwnerSchoolsPage />);
+
+    await waitFor(() => expect(screen.getByRole("heading", { name: /schools/i, level: 2 })).toBeInTheDocument());
+    expect(screen.getAllByText(/st\. marys college of excellence/i)[0]?.className).toContain("line-clamp-2");
+    expect(screen.getByText(/manage all onboarded schools/i)).toBeInTheDocument();
+    expect(screen.queryByText(/loading schools/i)).not.toBeInTheDocument();
+    expect(screen.getByRole("table")).toBeInTheDocument();
+    expect(screen.getByText(/create school/i)).toBeInTheDocument();
+  });
+
+  it("renders owner users as cards on mobile and a table on desktop", async () => {
+    ownerClientMocks.fetchOwnerUsers.mockResolvedValue({
+      users: [
+        {
+          id: "user-1",
+          name: "Patricia Christine Nankabirwa Very Long Name for Layout Testing",
+          email: "patricia.nankabirwa@school.ac.ug",
+          role: "ADMIN_OPERATOR",
+          isActive: true,
+          mustChangePassword: true,
+          lastLoginAt: new Date().toISOString(),
+          createdAt: new Date().toISOString(),
+          school: { id: "school-1", code: "SCH-01", name: "St. Marys College of Excellence", },
+        },
+      ],
+    });
+    ownerClientMocks.fetchOwnerSchools.mockResolvedValue({
+      schools: [
+        { id: "school-1", code: "SCH-01", name: "St. Marys College of Excellence", phone: null, address: null, isActive: true, createdAt: new Date().toISOString(), subscription: null, primaryAdmin: null, studentCount: 0 },
+      ],
+    });
+
+    renderInRouter(<OwnerUsersPage />);
+
+    await waitFor(() => expect(screen.getByRole("heading", { name: /users/i, level: 2 })).toBeInTheDocument());
+    expect(screen.getAllByText(/patricia christine nankabirwa/i)[0]?.className).toContain("line-clamp-2");
+    expect(screen.getByPlaceholderText(/search by name or email/i)).toBeInTheDocument();
+    expect(screen.getByRole("table")).toBeInTheDocument();
+    expect(screen.getByText(/create user/i)).toBeInTheDocument();
+  });
+});

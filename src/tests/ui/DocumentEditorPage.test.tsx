@@ -285,6 +285,44 @@ describe("DocumentEditorPage ? Smart Pages flow", () => {
     expect(screen.getByRole("button", { name: /^print$/i })).toBeDisabled();
   });
 
+  it("keeps the mobile workspace full width and the primary actions visible", async () => {
+    documentIntelligenceMocks.getDocument.mockResolvedValue({
+      id: "doc-1",
+      title: "Sample Smart Page",
+      status: "DRAFT",
+      extractionStatus: "READY",
+      extractionError: null,
+      domain: "school",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      versionCount: 1,
+      hasSourceFiles: true,
+      extractedKnowledge,
+      activeVersion: {
+        id: "version-1",
+        instruction: "Generate a professional document from the reviewed extraction. Preserve all tables and key facts.",
+        schema: { theme: { primaryColor: "#2563eb" }, components: [] },
+        componentTree: [],
+        renderSettings: {},
+        createdAt: new Date().toISOString(),
+      },
+      latestSourceFile: { id: "source-1", status: "READY" },
+    });
+
+    renderPage();
+
+    await waitFor(() => expect(screen.getByTestId("smart-pages-workspace")).toBeInTheDocument());
+    expect(screen.getByTestId("smart-pages-workspace").className).toContain("overflow-x-hidden");
+    expect(screen.getByTestId("smart-pages-action-bar").className).toContain("overflow-x-auto");
+    expect(screen.getByTestId("smart-pages-action-bar").className).toContain("flex-nowrap");
+    expect(screen.getByTestId("smart-pages-editor").className).toContain("w-full");
+    expect(screen.getByTestId("smart-pages-editor").className).toContain("max-w-none");
+    expect(screen.getAllByRole("button", { name: /save draft/i }).length).toBeGreaterThan(0);
+    expect(screen.getByRole("button", { name: /^print$/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /version history/i })).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: /publish secure link/i }).length).toBeGreaterThan(0);
+  });
+
   it("shows export actions and starts the requested download for active smart pages", async () => {
     documentIntelligenceMocks.getDocument.mockResolvedValue({
       id: "doc-1",

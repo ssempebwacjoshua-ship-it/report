@@ -34,6 +34,14 @@ const mockState = vi.hoisted(() => {
       findFirst: vi.fn(),
       create: vi.fn(),
     },
+    schoolSmartPagePlan: {
+      findUnique: vi.fn(),
+      updateMany: vi.fn(),
+    },
+    smartPageLedger: {
+      findFirst: vi.fn(),
+      create: vi.fn(),
+    },
     publishedDocument: {
       upsert: vi.fn(),
       findUnique: vi.fn(),
@@ -42,6 +50,7 @@ const mockState = vi.hoisted(() => {
     auditLog: {
       create: vi.fn(),
     },
+    $transaction: vi.fn(async (callback: (tx: any) => Promise<unknown>) => callback(prisma)),
   };
 
   return {
@@ -99,6 +108,23 @@ describe("documentIntelligenceService", () => {
     mockState.prisma.creator.findUnique.mockResolvedValue(schoolActor);
     mockState.prisma.creator.findFirst.mockResolvedValue(null);
     mockState.prisma.auditLog.create.mockResolvedValue({ id: "audit-1" });
+    mockState.prisma.schoolSmartPagePlan.findUnique.mockResolvedValue({
+      schoolId: "school-1",
+      planName: "STARTER",
+      includedPages: 100,
+      billingCycle: "ACADEMIC_YEAR",
+      cycleStart: new Date("2026-01-01T00:00:00Z"),
+      cycleEnd: new Date("2026-12-31T00:00:00Z"),
+      usedPages: 0,
+      topUpPages: 0,
+      rolloverPages: 0,
+      status: "ACTIVE",
+      allowHighAccuracy: false,
+    });
+    mockState.prisma.schoolSmartPagePlan.updateMany.mockResolvedValue({ count: 1 });
+    mockState.prisma.smartPageLedger.findFirst.mockResolvedValue(null);
+    mockState.prisma.smartPageLedger.create.mockResolvedValue({ id: "ledger-1" });
+    mockState.prisma.$transaction.mockImplementation(async (callback: (tx: any) => Promise<unknown>) => callback(mockState.prisma));
   });
 
   it("falls back to generateSchema when extractedKnowledge exists but no activeVersion is present", async () => {
@@ -201,6 +227,89 @@ describe("documentIntelligenceService", () => {
     expect(mockState.generateDocumentSchema).not.toHaveBeenCalled();
   });
 
+  it("successful generateSchema deducts exactly once", async () => {
+    mockState.prisma.smartDocument.findUnique.mockResolvedValue({
+      id: "doc-1",
+      creatorId: "creator-1",
+      title: "Untitled Document",
+      status: "DRAFT",
+      extractionStatus: "READY",
+      extractedKnowledge: {
+        title: "Sample extraction",
+        documentType: "report",
+        domain: "school",
+        suggestedDocumentType: "report",
+        sections: [],
+        tables: [],
+        statistics: [],
+        entities: [],
+        people: [],
+        dates: [],
+        handwrittenNotes: [],
+        keyFacts: [],
+        unclearItems: [],
+        rawText: "hello",
+      },
+      activeVersionId: null,
+      activeVersion: null,
+    });
+    mockState.prisma.documentVersion.create.mockResolvedValue({ id: "version-1" });
+    mockState.generateDocumentSchema.mockResolvedValue({
+      schema: { theme: { primaryColor: "#2563eb" }, components: [] },
+      componentTree: [{ id: "root", type: "page", props: {}, children: [] }],
+    });
+    mockState.preferenceMap.mockResolvedValue({});
+
+    const { generateSchema } = await import("../../server/services/documentIntelligenceService");
+    const result = await generateSchema("doc-1", "creator-1", "Generate the document");
+
+    expect(result.versionId).toBe("version-1");
+    expect(mockState.prisma.schoolSmartPagePlan.updateMany).toHaveBeenCalledTimes(1);
+    expect(mockState.prisma.smartPageLedger.create).toHaveBeenCalledTimes(1);
+  });
+
+  it("deduction failure does not leave active generated output behind", async () => {
+    mockState.prisma.smartDocument.findUnique.mockResolvedValue({
+      id: "doc-1",
+      creatorId: "creator-1",
+      title: "Untitled Document",
+      status: "DRAFT",
+      extractionStatus: "READY",
+      extractedKnowledge: {
+        title: "Sample extraction",
+        documentType: "report",
+        domain: "school",
+        suggestedDocumentType: "report",
+        sections: [],
+        tables: [],
+        statistics: [],
+        entities: [],
+        people: [],
+        dates: [],
+        handwrittenNotes: [],
+        keyFacts: [],
+        unclearItems: [],
+        rawText: "hello",
+      },
+      activeVersionId: null,
+      activeVersion: null,
+    });
+    mockState.prisma.documentVersion.create.mockResolvedValue({ id: "version-1" });
+    mockState.generateDocumentSchema.mockResolvedValue({
+      schema: { theme: { primaryColor: "#2563eb" }, components: [] },
+      componentTree: [{ id: "root", type: "page", props: {}, children: [] }],
+    });
+    mockState.preferenceMap.mockResolvedValue({});
+    mockState.prisma.schoolSmartPagePlan.updateMany.mockResolvedValueOnce({ count: 0 });
+
+    const { generateSchema } = await import("../../server/services/documentIntelligenceService");
+    await expect(generateSchema("doc-1", "creator-1", "Generate the document")).rejects.toMatchObject({
+      code: "SMART_PAGES_CONFLICT",
+    });
+    expect(mockState.upsertSearchIndex).not.toHaveBeenCalled();
+    expect(mockState.prisma.smartPageLedger.create).not.toHaveBeenCalled();
+  });
+
   it("logs real extraction diagnostics and keeps the friendly failure message", async () => {
     const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
 
@@ -239,15 +348,15 @@ describe("documentIntelligenceService", () => {
     const { processSourceFileExtraction } = await import("../../server/services/documentIntelligenceService");
     await processSourceFileExtraction("source-1");
 
-    expect(consoleError).toHaveBeenCalledWith(
-      "[document-intelligence] extraction failed",
+      expect(consoleError).toHaveBeenCalledWith(
+        "[document-intelligence] extraction failed",
       expect.objectContaining({
         documentId: "doc-1",
         sourceFileId: "source-1",
         originalName: "scan.png",
         mimeType: "image/png",
         sizeBytes: 1024,
-        geminiModel: "gemini-2.5-flash",
+        geminiModel: "gemini-3.5-flash",
         errorMessage: "Gemini 3.5 JSON parse failed",
       }),
     );
@@ -257,6 +366,61 @@ describe("documentIntelligenceService", () => {
         data: expect.objectContaining({
           status: "FAILED",
           extractionError: "We could not read this document. Please retry or upload a clearer file.",
+        }),
+      }),
+    );
+    expect(mockState.prisma.schoolSmartPagePlan.updateMany).not.toHaveBeenCalled();
+    expect(mockState.prisma.smartPageLedger.create).not.toHaveBeenCalled();
+
+    consoleError.mockRestore();
+  });
+
+  it("503/model overloaded extraction records a failed ledger row without deducting credits", async () => {
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    mockState.prisma.documentSourceFile.findUnique.mockResolvedValue({
+      id: "source-1",
+      documentId: "doc-1",
+      originalName: "scan.png",
+      mimeType: "image/png",
+      sizeBytes: 1024,
+      status: "UPLOADED",
+      originalData: Buffer.from("original"),
+      fileHash: "hash-1",
+      ocrQuality: { retryMode: "fast" },
+      document: {
+        id: "doc-1",
+        creatorId: "creator-1",
+        title: "Untitled Document",
+      },
+    });
+    mockState.prisma.documentSourceFile.findFirst.mockResolvedValue(null);
+    mockState.prisma.documentSourceFile.update.mockResolvedValue({});
+    mockState.prisma.smartDocument.update.mockResolvedValue({});
+    mockState.preprocessDocumentForOcr.mockResolvedValue({
+      processedBuffer: Buffer.from("processed"),
+      processedMimeType: "image/jpeg",
+      width: 100,
+      height: 100,
+      notes: [],
+      warning: null,
+      sectionBuffers: [],
+    });
+
+    const { extractDocumentKnowledge } = await import("../../server/services/documentGeminiService");
+    vi.mocked(extractDocumentKnowledge).mockRejectedValueOnce(new Error("503 model overloaded"));
+
+    const { processSourceFileExtraction } = await import("../../server/services/documentIntelligenceService");
+    await processSourceFileExtraction("source-1");
+
+    expect(mockState.prisma.schoolSmartPagePlan.updateMany).not.toHaveBeenCalled();
+    expect(mockState.prisma.smartPageLedger.create).toHaveBeenCalledTimes(1);
+    expect(mockState.prisma.smartPageLedger.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          status: "FAILED",
+          pagesCharged: 0,
+          creditsCharged: 0,
         }),
       }),
     );
@@ -294,6 +458,116 @@ describe("documentIntelligenceService", () => {
           action: "SMART_DOCUMENT_CREATED",
           correlationId: "doc-new",
           details: expect.objectContaining({ documentId: "doc-new", title: "Term Report" }),
+        }),
+      }),
+    );
+  });
+
+  it("publishDocument deducts exactly once", async () => {
+    mockState.prisma.smartDocument.findUnique.mockResolvedValue({
+      id: "doc-1",
+      creatorId: "creator-1",
+      title: "Term Report",
+      status: "DRAFT",
+      extractionStatus: "READY",
+      extractedKnowledge: null,
+      activeVersionId: "version-0",
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      published: null,
+      sourceFiles: [],
+      _count: { versions: 1 },
+    });
+    mockState.prisma.documentVersion.findUnique.mockResolvedValue({
+      id: "version-0",
+      instruction: "Initial",
+      schema: { theme: { primaryColor: "#111111" }, components: [] },
+      componentTree: [],
+      renderSettings: {},
+    });
+    mockState.prisma.publishedDocument.upsert.mockResolvedValue({ id: "pub-1", token: "token-1" });
+    mockState.prisma.smartDocument.update.mockResolvedValue({});
+
+    const { publishDocument } = await import("../../server/services/documentIntelligenceService");
+    await publishDocument("doc-1", "creator-1", {});
+
+    expect(mockState.prisma.schoolSmartPagePlan.updateMany).toHaveBeenCalledTimes(1);
+    expect(mockState.prisma.smartPageLedger.create).toHaveBeenCalledTimes(1);
+  });
+
+  it("successful extraction deducts exactly once", async () => {
+    mockState.prisma.documentSourceFile.findUnique.mockResolvedValue({
+      id: "source-1",
+      documentId: "doc-1",
+      originalName: "scan.png",
+      mimeType: "image/png",
+      sizeBytes: 1024,
+      status: "UPLOADED",
+      originalData: Buffer.from("original"),
+      fileHash: "hash-1",
+      ocrQuality: { retryMode: "fast" },
+      document: {
+        id: "doc-1",
+        creatorId: "creator-1",
+        title: "Untitled Document",
+      },
+    });
+    mockState.prisma.documentSourceFile.findFirst.mockResolvedValue(null);
+    mockState.prisma.documentSourceFile.update.mockResolvedValue({});
+    mockState.prisma.smartDocument.update.mockResolvedValue({});
+    mockState.preprocessDocumentForOcr.mockResolvedValue({
+      processedBuffer: Buffer.from("processed"),
+      processedMimeType: "image/jpeg",
+      width: 100,
+      height: 100,
+      notes: [],
+      warning: null,
+      sectionBuffers: [],
+    });
+
+    const { extractDocumentKnowledge } = await import("../../server/services/documentGeminiService");
+    vi.mocked(extractDocumentKnowledge).mockResolvedValueOnce({
+      title: "Sample extraction",
+      documentType: "report",
+      domain: "school",
+      suggestedDocumentType: "report",
+      confidence: 0.95,
+      handwritingDifficulty: "low",
+      needsReview: false,
+      recommendedNextStep: "accept",
+      people: [],
+      dates: [],
+      sections: [],
+      tables: [],
+      statistics: [],
+      entities: [],
+      handwrittenNotes: [],
+      keyFacts: [],
+      unclearItems: [],
+      rawText: "hello",
+      _meta: {
+        requestedModel: "gemini-3.5-flash",
+        attemptedModels: ["gemini-3.5-flash"],
+        selectedModel: "gemini-3.5-flash",
+        retryCount: 0,
+        fallbackUsed: false,
+        tokenUsage: null,
+        extractionTimeMs: 25,
+        highAccuracy: false,
+      },
+    } as any);
+
+    const { processSourceFileExtraction } = await import("../../server/services/documentIntelligenceService");
+    await processSourceFileExtraction("source-1");
+
+    expect(mockState.prisma.schoolSmartPagePlan.updateMany).toHaveBeenCalledTimes(1);
+    expect(mockState.prisma.smartPageLedger.create).toHaveBeenCalledTimes(1);
+    expect(mockState.prisma.smartPageLedger.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          status: "CHARGED",
+          pagesCharged: 1,
+          creditsCharged: 1,
         }),
       }),
     );

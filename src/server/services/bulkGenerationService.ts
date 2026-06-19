@@ -2,6 +2,7 @@
 import { prisma } from "../db/prisma";
 import { generateBulkTemplate } from "./documentGeminiService";
 import { createNotification, executeWorkflows, preferenceMap, upsertSearchIndex } from "./documentOsService";
+import { calculateGenerateDocumentCredits, calculatePriceUgx, deductPagesInTransaction } from "./smartPagesService";
 
 const db = prisma as any;
 
@@ -105,49 +106,73 @@ export async function processJob(jobId: string): Promise<void> {
     try {
       const filledJson = fillTemplate(templateJson, record.data as Record<string, unknown>);
       const filledSchema = JSON.parse(filledJson) as { theme: unknown; components: unknown[] };
-
       const docTitle = deriveTitle(record.data as Record<string, unknown>, job.collection?.name ?? "Document");
-
-      const doc = await db.smartDocument.create({
-        data: {
-          id: randomUUID(),
-          creatorId: job.creatorId,
-          title: docTitle,
-          extractedKnowledge: { source: "bulk_generation", jobId, recordId: record.id },
-          status: "PUBLISHED",
-        },
-      });
-
-      const version = await db.documentVersion.create({
-        data: {
-          id: randomUUID(),
-          documentId: doc.id,
-          instruction: job.intent,
-          schema: filledSchema as any,
-          componentTree: (filledSchema.components ?? []) as any,
-        },
-      });
-
-      await db.smartDocument.update({
-        where: { id: doc.id },
-        data: { activeVersionId: version.id },
-      });
-
       const token = randomUUID().replace(/-/g, "").slice(0, 16);
-      await db.publishedDocument.create({
-        data: { id: randomUUID(), documentId: doc.id, token },
+      const outputCreditCount = calculateGenerateDocumentCredits(1);
+      const chargeKey = `bulk:${jobId}:${record.id}`;
+      const result = await db.$transaction(async (tx: any) => {
+        const doc = await tx.smartDocument.create({
+          data: {
+            id: randomUUID(),
+            creatorId: job.creatorId,
+            title: docTitle,
+            extractedKnowledge: { source: "bulk_generation", jobId, recordId: record.id },
+            status: "PUBLISHED",
+          },
+        });
+
+        const version = await tx.documentVersion.create({
+          data: {
+            id: randomUUID(),
+            documentId: doc.id,
+            instruction: job.intent,
+            schema: filledSchema as any,
+            componentTree: (filledSchema.components ?? []) as any,
+          },
+        });
+
+        await tx.smartDocument.update({
+          where: { id: doc.id },
+          data: { activeVersionId: version.id },
+        });
+
+        await tx.publishedDocument.create({
+          data: { id: randomUUID(), documentId: doc.id, token },
+        });
+
+        if (job.creator?.schoolId) {
+          await deductPagesInTransaction(tx, job.creator.schoolId, {
+            jobId: version.id as string,
+            fileHash: chargeKey,
+            pagesCharged: outputCreditCount,
+            creditsCharged: outputCreditCount,
+            operation: "GENERATE_DOCUMENT",
+            pagesProcessed: 1,
+            priceUgx: calculatePriceUgx(outputCreditCount),
+            extractionMode: "balanced",
+            provider: "gemini",
+            model: "",
+            reason: "Bulk generation output",
+            tokenUsage: null,
+            geminiCostEstimateUgx: 0,
+            marginEstimateUgx: calculatePriceUgx(outputCreditCount),
+          });
+        }
+
+        return { doc, version };
       });
-      await upsertSearchIndex(job.creatorId, "DOCUMENT", doc.id, docTitle, [
+
+      await upsertSearchIndex(job.creatorId, "DOCUMENT", result.doc.id, docTitle, [
         docTitle,
         job.intent,
         JSON.stringify(record.data),
       ].join("\n"), { status: "PUBLISHED", jobId, recordId: record.id });
-      await upsertSearchIndex(job.creatorId, "VERSION", version.id, docTitle, JSON.stringify(filledSchema), { documentId: doc.id });
-      await upsertSearchIndex(job.creatorId, "PUBLISHED_PAGE", doc.id, docTitle, docTitle, { token, documentId: doc.id });
+      await upsertSearchIndex(job.creatorId, "VERSION", result.version.id, docTitle, JSON.stringify(filledSchema), { documentId: result.doc.id });
+      await upsertSearchIndex(job.creatorId, "PUBLISHED_PAGE", result.doc.id, docTitle, docTitle, { token, documentId: result.doc.id });
 
       await db.bulkJobOutput.updateMany({
         where: { jobId, recordId: record.id },
-        data: { documentId: doc.id, publishToken: token, status: "DONE" },
+        data: { documentId: result.doc.id, publishToken: token, status: "DONE" },
       });
 
       await db.bulkGenerationJob.update({
