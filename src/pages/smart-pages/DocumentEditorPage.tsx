@@ -10,12 +10,14 @@ import {
   publishDocument,
   retryDocumentExtraction,
   restoreVersion,
+  requestLawyerDocumentEditPlan,
   updateExtractedKnowledge,
   uploadDocumentFile,
 } from "../../client/documentIntelligenceClient";
 import { listPreferences } from "../../client/documentOsClient";
 import { DocumentPreview } from "../../components/smart-pages/DocumentPreview";
 import { SmartPageTemplatePicker } from "../../components/smart-pages/SmartPageTemplatePicker";
+import { applyDocumentPatches, parseAiEditResponse } from "../../shared/documentPatch";
 import { getSmartPageTemplates, type SmartPageTemplateDefinition } from "../../shared/smartPagesTemplates";
 import { buildLawyerTemplateStarterDraft, getLawyerPageTemplateById, getLawyerPageTemplates } from "../../shared/lawyerTemplates";
 import type {
@@ -795,13 +797,80 @@ export function DocumentEditorPage() {
     }
   }, [id, busy, stage, extractedKnowledge, doc?.title, hasActiveVersion, aiNotice, isLawyerWorkspace, lawyerTemplate, reviewDraft]);
 
+  const submitLawyerPatchInstruction = useCallback(async (instruction: string) => {
+    if (!instruction.trim() || !id || busy) return;
+    if (stage === "processing") {
+      addMessage("assistant", "Still reading your document. You can make edits once the review is ready.");
+      return;
+    }
+    if (aiNotice) return;
+    if (!acquireActionLock("lawyer-patch")) return;
+
+    const currentDraft = reviewDraft.trim()
+      || extractedKnowledge?.rawText?.trim()
+      || buildInitialDraft(doc?.title ?? "Legal draft workspace", true, lawyerTemplate);
+
+    addMessage("user", instruction);
+    addMessage("assistant", "Preparing proposed edits...");
+    setBusy(true);
+
+    try {
+      const aiResponse = await requestLawyerDocumentEditPlan(id, instruction.trim(), currentDraft);
+      const parsed = parseAiEditResponse(aiResponse);
+      const applied = applyDocumentPatches(currentDraft, parsed.operations);
+      const warnings = [...new Set([...(parsed.warnings ?? []), ...parsed.rejectedOperations.map((item) => item.reason), ...applied.rejectedOperations.map((item) => item.reason)])];
+
+      if (!applied.changed) {
+        const rejectedCount = parsed.rejectedOperations.length + applied.rejectedCount;
+        addMessage(
+          "assistant",
+          rejectedCount > 0
+            ? `No document changes were applied. ${rejectedCount} proposed change${rejectedCount === 1 ? "" : "s"} were rejected.`
+            : "No document changes were applied.",
+        );
+        if (warnings.length) addMessage("system", warnings.join(" "));
+        return;
+      }
+
+      const nextDraft = applied.after;
+      setReviewDraft(nextDraft);
+      const updatedKnowledge = createManualKnowledge(doc?.title ?? "Legal draft workspace", nextDraft);
+      const savedKnowledge = await updateExtractedKnowledge(id, updatedKnowledge);
+      setExtractedKnowledge(savedKnowledge);
+      const refreshed = await getDocument(id);
+      setDoc(refreshed);
+      const history = await getVersionHistory(id);
+      setVersions(history);
+      addMessage(
+        "assistant",
+        `Applied ${applied.appliedCount} change${applied.appliedCount === 1 ? "" : "s"}${applied.rejectedCount || parsed.rejectedOperations.length ? `; ${parsed.rejectedOperations.length + applied.rejectedCount} proposed change${parsed.rejectedOperations.length + applied.rejectedCount === 1 ? "" : "s"} were rejected.` : "."}`,
+      );
+      if (warnings.length) addMessage("system", warnings.join(" "));
+    } catch (error) {
+      if (isAiConfigurationError(error)) {
+        setAiNotice("AI generation is not configured in this environment. You can still edit this document manually.");
+        setStage(hasActiveVersion ? "ready" : extractedKnowledge ? "uploaded" : "empty");
+        setActiveTab("preview");
+      } else {
+        addMessage("assistant", error instanceof Error ? error.message : "Something went wrong. Try again.");
+      }
+    } finally {
+      setBusy(false);
+      releaseActionLock("lawyer-patch");
+    }
+  }, [aiNotice, busy, doc?.title, extractedKnowledge, extractedKnowledge?.rawText, getDocument, getVersionHistory, hasActiveVersion, id, lawyerTemplate, reviewDraft, setActiveTab, setBusy, setDoc, setExtractedKnowledge, setReviewDraft, stage]);
+
   // Send message handler
   const handleSend = useCallback(async () => {
     const text = input.trim();
     if (!text) return;
     setInput("");
+    if (isLawyerWorkspace) {
+      await submitLawyerPatchInstruction(text);
+      return;
+    }
     await submitInstruction(text);
-  }, [input, submitInstruction]);
+  }, [input, isLawyerWorkspace, submitInstruction, submitLawyerPatchInstruction]);
 
   const handleTemplatePick = useCallback((template: SmartPageTemplateDefinition, options?: { summaryStyleId?: string }) => {
     if (!extractedKnowledge) return;
@@ -1367,7 +1436,12 @@ export function DocumentEditorPage() {
                       items={suggestions}
                       disabled={Boolean(aiNotice)}
                       onSelect={(s) => {
-                        if (!aiNotice) setInput(s);
+                        if (aiNotice) return;
+                        if (isLawyerWorkspace) {
+                          void submitLawyerPatchInstruction(s);
+                          return;
+                        }
+                        setInput(s);
                       }}
                     />
                   </div>

@@ -1,4 +1,4 @@
-﻿import type {
+import type {
   SmartDocumentSummary,
   SmartDocumentDetail,
   DocumentVersionSummary,
@@ -6,6 +6,7 @@
   DocumentSchema,
   ComponentNode,
 } from "../shared/types/documentIntelligence";
+import type { AiEditResponse } from "../shared/documentPatch";
 import { parseApiError } from "./apiBase";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:4300";
@@ -48,7 +49,7 @@ async function json<T>(res: Response): Promise<T> {
   return data;
 }
 
-// ── Creator auth (external users) ─────────────────────────────────────────────
+// -- Creator auth (external users) ---------------------------------------------
 
 export async function creatorSignup(email: string, name: string, password: string) {
   const res = await fetch(`${API_BASE}/api/creator/signup`, {
@@ -68,7 +69,7 @@ export async function creatorLogin(email: string, password: string) {
   return json<{ ok: boolean; token: string; creator: { id: string; email: string; name: string; type: string } }>(res);
 }
 
-// ── Documents ──────────────────────────────────────────────────────────────────
+// -- Documents ------------------------------------------------------------------
 
 export async function listDocuments(): Promise<SmartDocumentSummary[]> {
   const res = await fetch(`${API_BASE}/api/smart-documents`, { headers: authHeaders() });
@@ -157,6 +158,23 @@ export async function applyPrompt(
   return json(res);
 }
 
+export async function requestLawyerDocumentEditPlan(
+  documentId: string,
+  instruction: string,
+  currentContent: string,
+): Promise<AiEditResponse> {
+  const res = await fetch(`${API_BASE}/api/smart-documents/${documentId}/lawyer-edit-plan`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify({ instruction, currentContent }),
+  });
+  const data = await json<{ ok: boolean } & AiEditResponse>(res);
+  return {
+    summary: data.summary,
+    operations: data.operations,
+    warnings: data.warnings ?? [],
+  };
+}
 export async function getVersionHistory(documentId: string): Promise<DocumentVersionSummary[]> {
   const res = await fetch(`${API_BASE}/api/smart-documents/${documentId}/versions`, { headers: authHeaders() });
   const data = await json<{ ok: boolean; versions: DocumentVersionSummary[] }>(res);
@@ -278,4 +296,6 @@ export async function getPublishedDocument(
   }
   return res.json() as Promise<{ document: SmartDocumentDetail; publishedAt: string }>;
 }
+
+
 

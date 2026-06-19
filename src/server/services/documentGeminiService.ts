@@ -6,6 +6,7 @@ import type {
   HandwritingDifficulty,
   ExtractionRecommendation,
 } from "../../shared/types/documentIntelligence";
+import type { AiEditResponse } from "../../shared/documentPatch";
 
 let _client: GoogleGenAI | null = null;
 
@@ -95,6 +96,67 @@ function buildExtractionConfig() {
     responseMimeType: "application/json",
   };
 }
+
+const LAWYER_EDIT_RESPONSE_SCHEMA = {
+  type: "object",
+  properties: {
+    summary: { type: "string" },
+    operations: {
+      type: "array",
+      items: {
+        oneOf: [
+          {
+            type: "object",
+            properties: {
+              type: { const: "replace_text" },
+              oldText: { type: "string" },
+              newText: { type: "string" },
+              reason: { type: "string" },
+            },
+            required: ["type", "oldText", "newText"],
+            additionalProperties: false,
+          },
+          {
+            type: "object",
+            properties: {
+              type: { const: "insert_after" },
+              anchorText: { type: "string" },
+              insertText: { type: "string" },
+              reason: { type: "string" },
+            },
+            required: ["type", "anchorText", "insertText"],
+            additionalProperties: false,
+          },
+          {
+            type: "object",
+            properties: {
+              type: { const: "append_section" },
+              heading: { type: "string" },
+              body: { type: "string" },
+              reason: { type: "string" },
+            },
+            required: ["type", "heading", "body"],
+            additionalProperties: false,
+          },
+          {
+            type: "object",
+            properties: {
+              type: { const: "replace_section" },
+              heading: { type: "string" },
+              newBody: { type: "string" },
+              reason: { type: "string" },
+            },
+            required: ["type", "heading", "newBody"],
+            additionalProperties: false,
+          },
+        ],
+      },
+    },
+    warnings: { type: "array", items: { type: "string" } },
+  },
+  required: ["summary", "operations"],
+  additionalProperties: false,
+};
 
 function buildExtractionFallback(text: string, originalName: string, highAccuracy: boolean): ExtractedKnowledge {
   return {
@@ -482,6 +544,90 @@ Available component types: header, textBlock, table, statistics, aiSummary, prof
   });
 
   return { schema: { theme: parsed.theme, components: parsed.components }, componentTree: parsed.components };
+}
+
+export async function generateLawyerDocumentEditPlan(input: {
+  title: string;
+  currentContent: string;
+  instruction: string;
+  extractedKnowledge?: ExtractedKnowledge | null;
+  preferences?: Record<string, unknown>;
+}): Promise<AiEditResponse> {
+  const safeContent = input.currentContent.trim() || input.title;
+  const safeKnowledge = input.extractedKnowledge
+    ? JSON.stringify({
+        title: input.extractedKnowledge.title,
+        documentType: input.extractedKnowledge.documentType,
+        domain: input.extractedKnowledge.domain,
+        sections: input.extractedKnowledge.sections,
+        keyFacts: input.extractedKnowledge.keyFacts,
+        unclearItems: input.extractedKnowledge.unclearItems,
+        confidence: input.extractedKnowledge.confidence,
+        handwritingDifficulty: input.extractedKnowledge.handwritingDifficulty,
+        needsReview: input.extractedKnowledge.needsReview,
+      }, null, 2)
+    : "No extracted knowledge provided.";
+
+  const res = await generateContentWithRetry({
+    model: model(),
+    contents: [
+      {
+        text: `You are editing a lawyer draft inside a document editor.
+
+Return ONLY valid JSON with this exact shape:
+{
+  "summary": "short description of the proposed edits",
+  "operations": [
+    { "type": "replace_text", "oldText": "...exact substring...", "newText": "...new text...", "reason": "optional" },
+    { "type": "insert_after", "anchorText": "...exact substring...", "insertText": "...text...", "reason": "optional" },
+    { "type": "append_section", "heading": "Section heading", "body": "section body", "reason": "optional" },
+    { "type": "replace_section", "heading": "Section heading", "newBody": "new body", "reason": "optional" }
+  ],
+  "warnings": ["optional warning"]
+}
+
+Rules:
+- Return JSON only. No markdown. No commentary. No claim that the document was changed.
+- Use only exact substrings that already exist in the current document content for replace_text and insert_after.
+- Do not invent names, dates, amounts, parties, deadlines, laws, or facts.
+- Missing legal facts must be marked [NEEDS REVIEW].
+- Prefer the smallest possible set of changes.
+- If no safe edit exists, return an empty operations array and explain why in summary or warnings.
+- Keep the output suitable for Ugandan legal practice and lawyer review.
+
+Document title: ${input.title}
+
+Current document content:
+${safeContent}
+
+Current extracted knowledge or review context:
+${safeKnowledge}
+
+User instruction:
+${input.instruction}
+
+Stored preferences:
+${formatPreferences(input.preferences)}`,
+      },
+    ],
+    config: {
+      temperature: 0,
+      responseMimeType: "application/json",
+      responseSchema: LAWYER_EDIT_RESPONSE_SCHEMA as any,
+    } as any,
+  });
+
+  const parsed = parseJsonSafe<AiEditResponse>(res.text ?? "", {
+    summary: "No changes applied.",
+    operations: [],
+    warnings: [],
+  }, model());
+
+  return {
+    summary: typeof parsed.summary === "string" ? parsed.summary : "No changes applied.",
+    operations: Array.isArray(parsed.operations) ? parsed.operations : [],
+    warnings: Array.isArray(parsed.warnings) ? parsed.warnings.filter((warning) => typeof warning === "string") : [],
+  };
 }
 
 export async function runGeminiAgent(input: {

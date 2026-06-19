@@ -6,6 +6,7 @@ import {
   extractDocumentKnowledge,
   generateDocumentSchema,
   applyPromptToSchema,
+  generateLawyerDocumentEditPlan,
 } from "./documentGeminiService";
 import {
   createNotification,
@@ -785,6 +786,42 @@ export async function applyPrompt(
   });
 
   return { versionId: version.id as string, schema: finalSchema, componentTree: finalComponents };
+}
+
+export async function getLawyerDocumentEditPlan(
+  documentId: string,
+  creatorId: string,
+  instruction: string,
+  currentContent: string,
+): Promise<{ summary: string; operations: unknown[]; warnings: string[] }> {
+  const db = prisma as any;
+  const actor = await getSmartPagesActor(creatorId);
+  const doc = await loadOwnedSmartDocument(db, actor, documentId);
+  if (!currentContent.trim()) {
+    throw Object.assign(new Error("Current document content is required."), { status: 400 });
+  }
+  if (doc.extractionStatus === "PROCESSING") {
+    throw Object.assign(new Error("Document extraction is still processing. Please wait for review before editing."), { status: 409 });
+  }
+
+  const plan = await generateLawyerDocumentEditPlan({
+    title: doc.title,
+    currentContent,
+    instruction,
+    extractedKnowledge: doc.extractedKnowledge ?? null,
+    preferences: await preferenceMap(creatorId),
+  });
+
+  await writeSmartPagesAudit(actor, "SMART_DOCUMENT_LAWYER_EDIT_PLANNED", null, {
+    documentId,
+    title: doc.title,
+    instruction,
+    summary: plan.summary,
+    operationCount: plan.operations.length,
+    warnings: plan.warnings,
+  });
+
+  return plan;
 }
 
 // ── Version history ────────────────────────────────────────────────────────────
