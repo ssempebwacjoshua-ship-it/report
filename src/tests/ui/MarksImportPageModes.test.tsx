@@ -18,6 +18,7 @@ vi.mock("../../client/importsClient", () => ({
     terms: [{ id: "t1", name: "2025/2026 ? Term 1", isActive: true }],
     examTypes: ["BOT", "MOT", "EOT"],
   } satisfies ScanOptions),
+  fetchSmartPagesBalance: vi.fn().mockResolvedValue({ remainingPages: 10, trialClaimed: true }),
   commitScanRows: vi.fn(),
   detectScanContext: vi.fn(),
   dryRunScanRows: vi.fn(),

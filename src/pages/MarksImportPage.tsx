@@ -1,5 +1,5 @@
-﻿import { useState } from "react";
-import { commitMarksImport, dryRunMarksImport } from "../client/importsClient";
+﻿import { useEffect, useState } from "react";
+import { commitMarksImport, dryRunMarksImport, fetchSmartPagesBalance } from "../client/importsClient";
 import { DIGITAL_ACCEPT, downloadCsvTemplate, downloadExcelTemplate, parseMarksFile, validatePastedCsv } from "../client/marksSheetHelpers";
 import { GeminiScanPanel } from "../components/imports/GeminiScanPanel";
 import { ImportPreviewTable } from "../components/imports/ImportPreviewTable";
@@ -301,6 +301,13 @@ function DigitalImportPanel() {
 
 export function MarksImportPage() {
   const [importMode, setImportMode] = useState<ImportMode>("digital");
+  const [pagesBalance, setPagesBalance] = useState<number | null>(null);
+
+  useEffect(() => {
+    fetchSmartPagesBalance()
+      .then(({ remainingPages }) => setPagesBalance(remainingPages >= 0 ? remainingPages : null))
+      .catch(() => {});
+  }, []);
 
   return (
     <main className="marks-import-page grid gap-5">
@@ -357,6 +364,11 @@ export function MarksImportPage() {
                     {mode.badge}
                   </span>
                 </p>
+                {mode.id === "gemini" && pagesBalance !== null && (
+                  <p className={`mt-1 text-xs font-semibold ${pagesBalance === 0 ? "text-red-600" : "text-violet-600"}`}>
+                    {pagesBalance === 0 ? "No pages remaining" : `${pagesBalance} pages remaining`}
+                  </p>
+                )}
               </div>
             </button>
           );

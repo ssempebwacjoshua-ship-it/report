@@ -217,3 +217,19 @@ export async function commitGeminiScanRows(
   return response.json();
 }
 
+export async function fetchSmartPagesBalance(): Promise<{ remainingPages: number; trialClaimed: boolean }> {
+  try {
+    const response = await fetch(`${API_BASE}/api/smart-pages/billing/summary`, {
+      headers: makeRequestHeaders(),
+    });
+    if (!response.ok) return { remainingPages: -1, trialClaimed: false };
+    const data = await response.json() as { summary?: { remainingPages?: number; trialClaimed?: boolean } };
+    return {
+      remainingPages: data?.summary?.remainingPages ?? -1,
+      trialClaimed: data?.summary?.trialClaimed ?? false,
+    };
+  } catch {
+    return { remainingPages: -1, trialClaimed: false };
+  }
+}
+

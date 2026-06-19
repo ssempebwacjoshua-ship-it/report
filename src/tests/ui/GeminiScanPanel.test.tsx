@@ -9,6 +9,7 @@ vi.mock("../../client/importsClient", () => ({
   extractMarksWithGeminiScan: vi.fn(),
   fetchScanOptions: vi.fn(),
   commitGeminiScanRows: vi.fn(),
+  fetchSmartPagesBalance: vi.fn().mockResolvedValue({ remainingPages: 10, trialClaimed: true }),
 }));
 
 const mockExtract = vi.mocked(extractMarksWithGeminiScan);

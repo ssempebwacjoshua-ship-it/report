@@ -1,6 +1,6 @@
 ﻿import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { commitGeminiScanRows, extractMarksWithGeminiScan, fetchScanOptions } from "../../client/importsClient";
+import { commitGeminiScanRows, extractMarksWithGeminiScan, fetchScanOptions, fetchSmartPagesBalance } from "../../client/importsClient";
 import { SCAN_ACCEPT } from "../../client/marksSheetHelpers";
 import type {
   GeminiCommitResponse,
@@ -102,6 +102,7 @@ export function GeminiScanPanel() {
   const [commitPhase, setCommitPhase] = useState<CommitPhase>("idle");
   const [commitError, setCommitError] = useState("");
   const [commitResponse, setCommitResponse] = useState<GeminiCommitResponse | null>(null);
+  const [pagesBalance, setPagesBalance] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -111,6 +112,12 @@ export function GeminiScanPanel() {
         status: "error",
         message: err instanceof Error ? err.message : "Could not load options",
       }));
+  }, []);
+
+  useEffect(() => {
+    fetchSmartPagesBalance()
+      .then(({ remainingPages }) => setPagesBalance(remainingPages >= 0 ? remainingPages : null))
+      .catch(() => {});
   }, []);
 
   function set<K extends keyof GeminiScanContext>(key: K, value: GeminiScanContext[K]) {
@@ -135,7 +142,7 @@ export function GeminiScanPanel() {
     context.examType !== "";
 
   const isExtracting = phase === "compressing" || phase === "extracting";
-  const canExtract = requiredFilled && image !== null && !isExtracting;
+  const canExtract = requiredFilled && image !== null && !isExtracting && (pagesBalance === null || pagesBalance > 0);
 
   // Commit is blocked until every row is READY.
   const hasBlockingIssues = useMemo(
@@ -247,14 +254,35 @@ export function GeminiScanPanel() {
     <div className="grid gap-5">
       {/* Banner */}
       <div className="flex items-start gap-3 rounded-2xl border border-violet-200 bg-violet-50 p-4">
-        <div>
+        <div className="flex-1">
           <p className="text-sm font-bold text-violet-900">Smart Marksheet Import</p>
           <p className="mt-0.5 text-sm text-violet-700">
             Upload a photo or scan of a marksheet. The system reads the marks and prepares them
             for your review before anything is saved.
           </p>
         </div>
+        {pagesBalance !== null && (
+          <div className="shrink-0 text-right">
+            <p className={`text-sm font-bold ${pagesBalance === 0 ? "text-red-700" : "text-violet-800"}`}>
+              {pagesBalance} pages remaining
+            </p>
+            {pagesBalance === 0 && (
+              <Link to="/smart-pages/billing" className="text-xs font-semibold text-violet-700 underline">
+                Buy pages
+              </Link>
+            )}
+          </div>
+        )}
       </div>
+
+      {/* No balance warning */}
+      {pagesBalance === 0 && (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+          You have no Smart Pages remaining.{" "}
+          <Link to="/smart-pages/billing" className="font-semibold underline">Buy more pages</Link>{" "}
+          to continue using Smart Marksheet Import. Digital CSV/XLS import is free.
+        </div>
+      )}
 
       {/* Options load error */}
       {options.status === "error" && (
