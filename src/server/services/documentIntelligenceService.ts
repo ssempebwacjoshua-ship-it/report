@@ -7,6 +7,7 @@ import {
   generateDocumentSchema,
   applyPromptToSchema,
   generateLawyerDocumentEditPlan,
+  resolveGeminiDocumentModel,
 } from "./documentGeminiService";
 import {
   createNotification,
@@ -17,6 +18,16 @@ import {
 } from "./documentOsService";
 import { renderSchemaToPdf } from "./documentExportService";
 import { preprocessDocumentForOcr, type DocumentOcrPreprocessMode } from "./documentOcrPreprocessService";
+import {
+  calculateExtractionCredits,
+  calculateGenerateDocumentCredits,
+  calculatePriceUgx,
+  calculatePublishCredits,
+  canUseCredits as canUseSmartPageCredits,
+  deductPages as deductSmartPageCredits,
+  estimateGeminiCostUgx,
+  estimatePageCount,
+} from "./smartPagesService";
 import type {
   SmartDocumentDetail,
   SmartDocumentSummary,
@@ -36,6 +47,7 @@ type SmartPagesActor = {
 };
 
 const LAWYER_PRIMARY_COLOR = "#007FFF";
+const SMART_PAGES_STABLE_MODEL_MESSAGE = "Smart Pages is retrying with a stable model.";
 
 // ── Creator helpers ────────────────────────────────────────────────────────────
 
@@ -141,6 +153,14 @@ async function writeSmartPagesAudit(
       },
     },
   });
+}
+
+async function assertSmartPageCredits(actor: SmartPagesActor, credits: number) {
+  if (!actor.schoolId || credits <= 0) return;
+  const allowed = await canUseSmartPageCredits(actor.schoolId, credits);
+  if (!allowed.allowed) {
+    throw Object.assign(new Error(allowed.message), { status: 402, code: allowed.code });
+  }
 }
 
 // ── Document list ──────────────────────────────────────────────────────────────
@@ -429,6 +449,7 @@ function rowToDetail(doc: any, version: any, versionCount: number): SmartDocumen
           extractionError: doc.sourceFiles[0].extractionError,
           extractionStartedAt: doc.sourceFiles[0].extractionStartedAt?.toISOString() ?? null,
           extractionCompletedAt: doc.sourceFiles[0].extractionCompletedAt?.toISOString() ?? null,
+          ocrQuality: doc.sourceFiles[0].ocrQuality as Record<string, unknown> | null,
         }
       : undefined,
   };
@@ -594,6 +615,9 @@ export async function processSourceFileExtraction(sourceFileId: string): Promise
 
     const retryMode = resolveRetryMode(sourceFile.ocrQuality);
     const isHighAccuracy = retryMode === "high_accuracy";
+    const pagesProcessed = estimatePageCount(sourceFile.mimeType);
+    const extractionCredits = calculateExtractionCredits(pagesProcessed, retryMode);
+    await assertSmartPageCredits(actor, extractionCredits);
 
     const preprocessed = await preprocessDocumentForOcr(original, sourceFile.mimeType, retryMode);
     await db.documentSourceFile.update({
@@ -612,8 +636,36 @@ export async function processSourceFileExtraction(sourceFileId: string): Promise
       processedMimeType: preprocessed.processedMimeType,
       sectionBuffers: preprocessed.sectionBuffers,
       priorExtraction: isHighAccuracy ? (document.extractedKnowledge as ExtractedKnowledge | null) : null,
+      onStableFallback: async (info) => {
+        await db.documentSourceFile.update({
+          where: { id: sourceFile.id },
+          data: {
+            ocrQuality: {
+              width: preprocessed.width,
+              height: preprocessed.height,
+              notes: [
+                ...preprocessed.notes,
+                { code: "STABLE_MODEL_FALLBACK", message: SMART_PAGES_STABLE_MODEL_MESSAGE, severity: "info" },
+              ],
+              warning: SMART_PAGES_STABLE_MODEL_MESSAGE,
+              retryMode,
+              requestedModel: info.requestedModel,
+              selectedModel: info.stableModel,
+              attemptedModels: [info.requestedModel, info.stableModel],
+              fallbackUsed: true,
+              fallbackReason: info.fallbackReason,
+              providerErrorCode: info.providerErrorCode,
+              retryCount: info.retryCount,
+              highAccuracyUsed: isHighAccuracy,
+              originalImageRef: sourceFile.originalName,
+            } as any,
+          },
+        });
+      },
     });
     intendedModel = knowledge._meta.selectedModel;
+    const geminiCostEstimateUgx = estimateGeminiCostUgx(knowledge._meta.tokenUsage);
+    const extractionPriceUgx = calculatePriceUgx(extractionCredits);
 
     const unclearItems = knowledge.unclearItems ?? [];
     const lowConfidence = typeof knowledge.confidence === "number" ? knowledge.confidence < 0.55 : false;
@@ -635,19 +687,47 @@ export async function processSourceFileExtraction(sourceFileId: string): Promise
       ocrQuality: {
         width: preprocessed.width,
         height: preprocessed.height,
-        notes: preprocessed.notes,
-        warning: preprocessed.warning,
+        notes: knowledge._meta.fallbackUsed
+          ? [
+              ...preprocessed.notes,
+              { code: "STABLE_MODEL_FALLBACK", message: SMART_PAGES_STABLE_MODEL_MESSAGE, severity: "info" },
+            ]
+          : preprocessed.notes,
+        warning: preprocessed.warning ?? (knowledge._meta.fallbackUsed ? SMART_PAGES_STABLE_MODEL_MESSAGE : undefined),
         retryMode,
         requestedModel: knowledge._meta.requestedModel,
         selectedModel: knowledge._meta.selectedModel,
         attemptedModels: knowledge._meta.attemptedModels,
+        retryCount: knowledge._meta.retryCount,
         fallbackUsed: knowledge._meta.fallbackUsed,
         fallbackReason: knowledge._meta.fallbackReason,
+        providerErrorCode: knowledge._meta.providerErrorCode,
         extractionTimeMs: knowledge._meta.extractionTimeMs,
+        tokenUsage: knowledge._meta.tokenUsage,
+        geminiCostEstimateUgx,
+        marginEstimateUgx: extractionPriceUgx - geminiCostEstimateUgx,
         highAccuracyUsed: isHighAccuracy,
         originalImageRef: sourceFile.originalName,
       },
     });
+    if (actor.schoolId) {
+      await deductSmartPageCredits(actor.schoolId, {
+        jobId: sourceFile.id as string,
+        fileHash: sourceFile.fileHash as string,
+        pagesCharged: extractionCredits,
+        creditsCharged: extractionCredits,
+        operation: isHighAccuracy ? "HIGH_ACCURACY_EXTRACT" : "EXTRACT",
+        pagesProcessed,
+        priceUgx: extractionPriceUgx,
+        extractionMode: retryMode,
+        provider: "gemini",
+        model: knowledge._meta.selectedModel,
+        reason: isHighAccuracy ? "High accuracy handwriting extraction" : "Normal document extraction",
+        tokenUsage: knowledge._meta.tokenUsage,
+        geminiCostEstimateUgx,
+        marginEstimateUgx: extractionPriceUgx - geminiCostEstimateUgx,
+      });
+    }
   } catch (error) {
     const statusValue = (error as { status?: unknown } | null)?.status;
     const causeValue = error instanceof Error ? (error as { cause?: unknown }).cause : undefined;
@@ -832,6 +912,7 @@ function friendlyExtractionError(error: unknown): string {
   const message = error instanceof Error ? error.message : String(error);
   if (/timeout|timed out/i.test(message)) return "Reading took too long. Please retry extraction.";
   if (/GEMINI_API_KEY/i.test(message)) return "Gemini is not configured. Add a Gemini API key and retry extraction.";
+  if (/503|unavailable|model overloaded|overloaded|high traffic/i.test(message)) return SMART_PAGES_STABLE_MODEL_MESSAGE;
   return "We could not read this document. Please retry or upload a clearer file.";
 }
 
@@ -891,6 +972,10 @@ export async function generateSchema(
     throw Object.assign(new Error("Document extraction is still processing. Please wait for review before generating."), { status: 409 });
   }
 
+  const outputPages = 1;
+  const credits = calculateGenerateDocumentCredits(outputPages);
+  await assertSmartPageCredits(actor, credits);
+
   const fitToOnePage = wantsFitToOnePage(intent);
   const { schema, componentTree } = await generateDocumentSchema(knowledge, intent, "#2563eb", await preferenceMap(creatorId));
   const finalSchema = fitToOnePage ? compactSchemaForPrint(schema) : schema;
@@ -919,6 +1004,24 @@ export async function generateSchema(
     versionId: version.id,
     instruction: intent,
   });
+  if (actor.schoolId) {
+    await deductSmartPageCredits(actor.schoolId, {
+      jobId: version.id as string,
+      fileHash: `generate:${version.id}`,
+      pagesCharged: credits,
+      creditsCharged: credits,
+      operation: "GENERATE_DOCUMENT",
+      pagesProcessed: outputPages,
+      priceUgx: calculatePriceUgx(credits),
+      extractionMode: "balanced",
+      provider: "gemini",
+      model: resolveGeminiDocumentModel(),
+      reason: "Generate clean/editable document",
+      tokenUsage: null,
+      geminiCostEstimateUgx: 0,
+      marginEstimateUgx: calculatePriceUgx(credits),
+    });
+  }
 
   return { versionId: version.id as string, schema: finalSchema, componentTree: finalComponents };
 }
@@ -946,6 +1049,9 @@ export async function applyPrompt(
   }
 
   const currentSchema = currentVersion.schema as DocumentSchema;
+  const outputPages = 1;
+  const credits = calculateGenerateDocumentCredits(outputPages);
+  await assertSmartPageCredits(actor, credits);
   const fitToOnePage = wantsFitToOnePage(instruction);
   const { schema, componentTree } = await applyPromptToSchema(currentSchema, instruction, await preferenceMap(creatorId));
   const finalSchema = fitToOnePage ? compactSchemaForPrint(schema) : schema;
@@ -978,6 +1084,24 @@ export async function applyPrompt(
     versionId: version.id,
     instruction,
   });
+  if (actor.schoolId) {
+    await deductSmartPageCredits(actor.schoolId, {
+      jobId: version.id as string,
+      fileHash: `generate:${version.id}`,
+      pagesCharged: credits,
+      creditsCharged: credits,
+      operation: "GENERATE_DOCUMENT",
+      pagesProcessed: outputPages,
+      priceUgx: calculatePriceUgx(credits),
+      extractionMode: "balanced",
+      provider: "gemini",
+      model: resolveGeminiDocumentModel(),
+      reason: "Generate clean/editable document",
+      tokenUsage: null,
+      geminiCostEstimateUgx: 0,
+      marginEstimateUgx: calculatePriceUgx(credits),
+    });
+  }
 
   return { versionId: version.id as string, schema: finalSchema, componentTree: finalComponents };
 }
@@ -1079,6 +1203,9 @@ export async function publishDocument(
   const activeVersion = await resolveActiveVersion(db, documentId, doc.activeVersionId);
   if (!activeVersion) throw Object.assign(new Error("Generate a document first before publishing."), { status: 400 });
 
+  const credits = calculatePublishCredits();
+  await assertSmartPageCredits(actor, credits);
+
   const token = randomUUID().replace(/-/g, "").slice(0, 16);
   const expiresAt = options.expiresInDays
     ? new Date(Date.now() + options.expiresInDays * 86_400_000)
@@ -1101,6 +1228,24 @@ export async function publishDocument(
     token,
     title: doc.title,
   });
+  if (actor.schoolId) {
+    await deductSmartPageCredits(actor.schoolId, {
+      jobId: token,
+      fileHash: `publish:${documentId}:${token}`,
+      pagesCharged: credits,
+      creditsCharged: credits,
+      operation: "PUBLISH_DOCUMENT",
+      pagesProcessed: 1,
+      priceUgx: calculatePriceUgx(credits),
+      extractionMode: "balanced",
+      provider: "smart-pages",
+      model: "",
+      reason: "Publish secure link/PDF",
+      tokenUsage: null,
+      geminiCostEstimateUgx: 0,
+      marginEstimateUgx: calculatePriceUgx(credits),
+    });
+  }
 
   const origin = process.env.CLIENT_ORIGIN ?? "http://localhost:5173";
   return { token, url: `${origin}/p/${token}` };
@@ -1219,4 +1364,3 @@ function shortenText(value: unknown, limit: number): string {
   const shortened = text.slice(0, limit);
   return `${shortened.slice(0, shortened.lastIndexOf(" ") > 120 ? shortened.lastIndexOf(" ") : limit).trim()}...`;
 }
-
