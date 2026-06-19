@@ -20,19 +20,50 @@ export function resolveGeminiDocumentModel(): string {
   return (
     process.env.SMART_PAGES_GEMINI_FAST_MODEL?.trim() ||
     process.env.GEMINI_MODEL?.trim() ||
-    "gemini-2.5-flash"
+    "gemini-3.5-flash"
   );
 }
 
 export function resolveGeminiHighAccuracyDocumentModel(): { primary: string; stable: string } {
+  const fast = resolveGeminiDocumentModel();
   return {
-    primary: process.env.SMART_PAGES_GEMINI_HIGH_ACCURACY_MODEL?.trim() || "",
-    stable: process.env.SMART_PAGES_GEMINI_STABLE_ACCURACY_MODEL?.trim() || "gemini-2.5-pro",
+    primary: process.env.SMART_PAGES_GEMINI_HIGH_ACCURACY_MODEL?.trim() || fast,
+    stable: process.env.SMART_PAGES_GEMINI_STABLE_ACCURACY_MODEL?.trim() || "gemini-2.5-flash",
   };
 }
 
 function model() {
   return resolveGeminiDocumentModel();
+}
+
+export interface DocExtractionMeta {
+  requestedModel: string;
+  attemptedModels: string[];
+  selectedModel: string;
+  fallbackUsed: boolean;
+  fallbackReason?: string;
+  extractionTimeMs: number;
+  highAccuracy: boolean;
+}
+
+const DOC_FALLBACK_RE =
+  /429|quota|resource_exhausted|timed out|etimedout|unavailable|503|model not found|not_found|model_not_found|404|internal server error|500/i;
+
+function isDocFallbackEligible(err: unknown): boolean {
+  if (!(err instanceof Error)) return true;
+  const msg = err.message + " " + String((err as NodeJS.ErrnoException).cause ?? "");
+  return DOC_FALLBACK_RE.test(msg);
+}
+
+function getDocFallbackReason(err: unknown): string {
+  if (!(err instanceof Error)) return "Unknown error";
+  const msg = err.message;
+  if (/429|quota|resource_exhausted/i.test(msg)) return "Quota exceeded (429)";
+  if (/timed out|etimedout/i.test(msg)) return "Request timed out";
+  if (/503|unavailable/i.test(msg)) return "Service unavailable (503)";
+  if (/model not found|not_found|404/i.test(msg)) return "Model unavailable (404)";
+  if (/500|internal/i.test(msg)) return "Provider error (500)";
+  return msg.slice(0, 120);
 }
 async function generateContentWithRetry(request: Parameters<GoogleGenAI["models"]["generateContent"]>[0]) {
   const timeoutMs = Number(process.env.GEMINI_TIMEOUT_MS ?? 45_000);
@@ -232,7 +263,7 @@ export async function extractDocumentKnowledge(
     sectionBuffers?: Array<{ label: string; buffer: Buffer; mimeType: string }>;
     priorExtraction?: ExtractedKnowledge | null;
   } = {},
-): Promise<ExtractedKnowledge> {
+): Promise<ExtractedKnowledge & { _meta: DocExtractionMeta }> {
   const basePrompt = `You are a Document Intelligence Engine. Analyze this document and extract all content.
 
 Return ONLY valid JSON (no markdown, no code fences):
@@ -317,30 +348,51 @@ ${priorExtractionText}`,
 
   const { primary: primaryHighAccuracy, stable: stableModel } = resolveGeminiHighAccuracyDocumentModel();
   const fastModel = model();
-  const extractionModel = options.highAccuracy
-    ? (primaryHighAccuracy || stableModel)
-    : fastModel;
+  const requestedModel = options.highAccuracy ? primaryHighAccuracy : fastModel;
+  let selectedModel = requestedModel;
+  const attemptedModels: string[] = [requestedModel];
+  let fallbackUsed = false;
+  let fallbackReason: string | undefined;
+  const extractionStartMs = Date.now();
 
   let res: Awaited<ReturnType<GoogleGenAI["models"]["generateContent"]>>;
-  if (options.highAccuracy && primaryHighAccuracy) {
-    try {
-      res = await generateContentWithRetry({ model: primaryHighAccuracy, contents, config: buildExtractionConfig() });
-    } catch (primaryErr) {
-      console.warn("[document-gemini] high-accuracy primary model failed, falling back to stable", {
-        primaryModel: primaryHighAccuracy,
+  try {
+    res = await generateContentWithRetry({ model: requestedModel, contents, config: buildExtractionConfig() });
+  } catch (primaryErr) {
+    if (isDocFallbackEligible(primaryErr) && requestedModel !== stableModel) {
+      fallbackReason = getDocFallbackReason(primaryErr);
+      console.warn("[document-gemini] primary model failed, falling back to stable", {
+        requestedModel,
         stableModel,
+        reason: fallbackReason,
         error: primaryErr instanceof Error ? primaryErr.message : String(primaryErr),
       });
+      fallbackUsed = true;
+      selectedModel = stableModel;
+      attemptedModels.push(stableModel);
       res = await generateContentWithRetry({ model: stableModel, contents, config: buildExtractionConfig() });
+    } else {
+      throw primaryErr;
     }
-  } else {
-    res = await generateContentWithRetry({ model: extractionModel, contents, config: buildExtractionConfig() });
   }
 
   const text = res.text ?? "";
   const fallback = buildExtractionFallback(text, originalName, Boolean(options.highAccuracy));
-
-  return normalizeExtraction(parseJsonSafe<ExtractedKnowledge>(text, fallback, extractionModel), fallback, options.highAccuracy ?? false);
+  const knowledge = normalizeExtraction(
+    parseJsonSafe<ExtractedKnowledge>(text, fallback, selectedModel),
+    fallback,
+    options.highAccuracy ?? false,
+  );
+  const _meta: DocExtractionMeta = {
+    requestedModel,
+    attemptedModels,
+    selectedModel,
+    fallbackUsed,
+    fallbackReason,
+    extractionTimeMs: Date.now() - extractionStartMs,
+    highAccuracy: Boolean(options.highAccuracy),
+  };
+  return { ...knowledge, _meta };
 }
 
 function normalizeExtraction(knowledge: ExtractedKnowledge, fallback: ExtractedKnowledge, highAccuracy: boolean): ExtractedKnowledge {

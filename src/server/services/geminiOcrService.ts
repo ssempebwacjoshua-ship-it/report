@@ -34,14 +34,14 @@ export function resolveGeminiOcrModel(): string {
   return (
     process.env.SMART_PAGES_GEMINI_FAST_MODEL?.trim() ||
     process.env.GEMINI_MODEL?.trim() ||
-    "gemini-2.5-flash"
+    "gemini-3.5-flash"
   );
 }
 
 export function resolveGeminiOcrHighAccuracyModel(): { primary: string; stable: string } {
   return {
-    primary: process.env.SMART_PAGES_GEMINI_HIGH_ACCURACY_MODEL?.trim() || "",
-    stable: process.env.SMART_PAGES_GEMINI_STABLE_ACCURACY_MODEL?.trim() || "gemini-2.5-pro",
+    primary: process.env.SMART_PAGES_GEMINI_HIGH_ACCURACY_MODEL?.trim() || resolveGeminiOcrModel(),
+    stable: process.env.SMART_PAGES_GEMINI_STABLE_ACCURACY_MODEL?.trim() || "gemini-2.5-flash",
   };
 }
 
@@ -49,14 +49,38 @@ export function resolveGeminiHealthModel(): string {
   return (
     process.env.SMART_PAGES_GEMINI_FAST_MODEL?.trim() ||
     process.env.GEMINI_MODEL?.trim() ||
-    "gemini-2.5-flash"
+    "gemini-3.5-flash"
   );
 }
 
 export interface ExtractionMeta {
-  model: string;
+  requestedModel: string;
+  attemptedModels: string[];
+  selectedModel: string;
+  fallbackUsed: boolean;
+  fallbackReason?: string;
   extractionTimeMs: number;
   highAccuracy: boolean;
+}
+
+const FALLBACK_ELIGIBLE_RE =
+  /429|quota|resource_exhausted|timed out|etimedout|unavailable|503|model not found|not_found|model_not_found|404|internal server error|500/i;
+
+function isFallbackEligible(err: unknown): boolean {
+  if (!(err instanceof Error)) return true;
+  const msg = err.message + " " + String((err as NodeJS.ErrnoException).cause ?? "");
+  return FALLBACK_ELIGIBLE_RE.test(msg);
+}
+
+function getFallbackReason(err: unknown): string {
+  if (!(err instanceof Error)) return "Unknown error";
+  const msg = err.message;
+  if (/429|quota|resource_exhausted/i.test(msg)) return "Quota exceeded (429)";
+  if (/timed out|etimedout/i.test(msg)) return "Request timed out";
+  if (/503|unavailable/i.test(msg)) return "Service unavailable (503)";
+  if (/model not found|not_found|404/i.test(msg)) return "Model unavailable (404)";
+  if (/500|internal/i.test(msg)) return "Provider error (500)";
+  return msg.slice(0, 120);
 }
 
 /**
@@ -231,30 +255,42 @@ export async function extractMarksWithGemini(
   const { primary: primaryModel, stable: stableModel } = resolveGeminiOcrHighAccuracyModel();
   const fastModel = resolveGeminiOcrModel();
 
-  let selectedModel = options.modelOverride?.trim()
-    || (options.highAccuracy ? (primaryModel || stableModel) : fastModel);
+  const requestedModel = options.modelOverride?.trim()
+    || (options.highAccuracy ? primaryModel : fastModel);
+  let selectedModel = requestedModel;
+  const attemptedModels: string[] = [];
+  let fallbackUsed = false;
+  let fallbackReason: string | undefined;
   const startMs = Date.now();
 
   let response: Awaited<ReturnType<GoogleGenAI["models"]["generateContent"]>>;
   try {
-    if (!options.modelOverride && options.highAccuracy && primaryModel) {
-      try {
-        response = await callGeminiMarksExtract(primaryModel, imageBuffer, mimeType);
-      } catch (primaryErr) {
-        console.warn("[gemini-ocr] high-accuracy primary model failed, falling back to stable", {
-          primaryModel,
+    attemptedModels.push(requestedModel);
+    try {
+      response = await callGeminiMarksExtract(requestedModel, imageBuffer, mimeType);
+    } catch (primaryErr) {
+      const eligible = !options.modelOverride && isFallbackEligible(primaryErr) && requestedModel !== stableModel;
+      if (eligible) {
+        fallbackReason = getFallbackReason(primaryErr);
+        console.warn("[gemini-ocr] primary model failed, falling back to stable", {
+          requestedModel,
           stableModel,
+          reason: fallbackReason,
           error: primaryErr instanceof Error ? primaryErr.message : String(primaryErr),
         });
+        fallbackUsed = true;
         selectedModel = stableModel;
+        attemptedModels.push(stableModel);
         response = await callGeminiMarksExtract(stableModel, imageBuffer, mimeType);
+      } else {
+        throw primaryErr;
       }
-    } else {
-      response = await callGeminiMarksExtract(selectedModel, imageBuffer, mimeType);
     }
   } catch (error: unknown) {
     console.error("[gemini-ocr] Gemini call failed", {
-      model: selectedModel,
+      requestedModel,
+      selectedModel,
+      attemptedModels,
       mimeType,
       imageSizeKb: Math.round(imageBuffer.byteLength / 1024),
       durationMs: Date.now() - startMs,
@@ -287,7 +323,15 @@ export async function extractMarksWithGemini(
   return {
     rows,
     summary,
-    meta: { model: selectedModel, extractionTimeMs: Date.now() - startMs, highAccuracy: Boolean(options.highAccuracy) },
+    meta: {
+      requestedModel,
+      attemptedModels,
+      selectedModel,
+      fallbackUsed,
+      fallbackReason,
+      extractionTimeMs: Date.now() - startMs,
+      highAccuracy: Boolean(options.highAccuracy),
+    } satisfies ExtractionMeta,
   };
 }
 

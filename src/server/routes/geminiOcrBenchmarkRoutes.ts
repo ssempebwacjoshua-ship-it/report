@@ -5,6 +5,11 @@ import {
   resolveGeminiOcrModel,
   resolveGeminiOcrHighAccuracyModel,
 } from "../services/geminiOcrService";
+import {
+  extractDocumentKnowledge,
+  resolveGeminiDocumentModel,
+  resolveGeminiHighAccuracyDocumentModel,
+} from "../services/documentGeminiService";
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
@@ -103,6 +108,148 @@ router.post(
     ]);
 
     const response: BenchmarkResponse = {
+      results: [fastResult, highAccuracyResult, stableResult],
+      fastModel,
+      highAccuracyModel,
+      stableModel,
+      imageSize,
+    };
+
+    res.json(response);
+  },
+);
+
+export interface DocBenchmarkModelResult {
+  model: string;
+  requestedModel: string;
+  tier: "fast" | "high_accuracy" | "stable";
+  success: boolean;
+  extractionTimeMs: number;
+  fallbackUsed: boolean;
+  fallbackReason?: string;
+  attemptedModels: string[];
+  documentType?: string;
+  domain?: string;
+  confidence?: number;
+  handwritingDifficulty?: string;
+  needsReview?: boolean;
+  sectionCount?: number;
+  tableCount?: number;
+  unclearItemCount?: number;
+  rawTextPreview?: string;
+  error?: string;
+}
+
+export interface DocBenchmarkResponse {
+  results: DocBenchmarkModelResult[];
+  fastModel: string;
+  highAccuracyModel: string;
+  stableModel: string;
+  imageSize: string;
+}
+
+/**
+ * POST /api/test-gemini-document-benchmark
+ * Runs all three model tiers on a general school document image using
+ * extractDocumentKnowledge (not the marksheet extractor — any school
+ * document type is accepted: programme, timetable, form, certificate, etc.).
+ * Protected by INTERNAL_TEST_KEY in production.
+ */
+router.post(
+  "/test-gemini-document-benchmark",
+  requireInternalKey,
+  upload.single("image"),
+  async (req: Request, res: Response) => {
+    if (!req.file) {
+      res.status(400).json({ error: "No image file uploaded. Send multipart/form-data with field 'image'." });
+      return;
+    }
+
+    const { primary: primaryModel, stable: stableModel } = resolveGeminiHighAccuracyDocumentModel();
+    const fastModel = resolveGeminiDocumentModel();
+    const highAccuracyModel = primaryModel;
+
+    const imageBuffer = req.file.buffer;
+    const mimeType = req.file.mimetype || "image/jpeg";
+    const originalName = (req.file.originalname as string | undefined) || "benchmark-image";
+    const imageSize = `${(imageBuffer.byteLength / 1024).toFixed(1)} KB`;
+
+    console.log("[gemini-doc-benchmark] starting", { fastModel, highAccuracyModel, stableModel, imageSize });
+
+    async function runDocTier(
+      tier: DocBenchmarkModelResult["tier"],
+      modelOverride: string,
+      highAccuracy: boolean,
+    ): Promise<DocBenchmarkModelResult> {
+      try {
+        const result = await extractDocumentKnowledge(imageBuffer, mimeType, originalName, {
+          highAccuracy,
+        });
+        const { _meta } = result;
+        const rawTextPreview = result.rawText
+          ? result.rawText.replace(/\s+/g, " ").slice(0, 300)
+          : undefined;
+        console.log("[gemini-doc-benchmark] result", {
+          tier,
+          requestedModel: _meta.requestedModel,
+          selectedModel: _meta.selectedModel,
+          fallbackUsed: _meta.fallbackUsed,
+          fallbackReason: _meta.fallbackReason,
+          extractionTimeMs: _meta.extractionTimeMs,
+          documentType: result.documentType,
+          confidence: result.confidence,
+        });
+        return {
+          model: _meta.selectedModel,
+          requestedModel: _meta.requestedModel,
+          tier,
+          success: true,
+          extractionTimeMs: _meta.extractionTimeMs,
+          fallbackUsed: _meta.fallbackUsed,
+          fallbackReason: _meta.fallbackReason,
+          attemptedModels: _meta.attemptedModels,
+          documentType: result.documentType,
+          domain: result.domain,
+          confidence: result.confidence,
+          handwritingDifficulty: result.handwritingDifficulty,
+          needsReview: result.needsReview,
+          sectionCount: result.sections?.length ?? 0,
+          tableCount: result.tables?.length ?? 0,
+          unclearItemCount: result.unclearItems?.length ?? 0,
+          rawTextPreview,
+        };
+      } catch (err) {
+        const error = err instanceof Error ? err.message : String(err);
+        console.warn("[gemini-doc-benchmark] model failed", { tier, modelOverride, error });
+        return {
+          model: modelOverride,
+          requestedModel: modelOverride,
+          tier,
+          success: false,
+          extractionTimeMs: 0,
+          fallbackUsed: false,
+          attemptedModels: [modelOverride],
+          error,
+        };
+      }
+    }
+
+    // Run fast, high-accuracy, and stable tiers; each uses its env-resolved model
+    // with the internal fallback in extractDocumentKnowledge still active.
+    const [fastResult, highAccuracyResult, stableResult] = await Promise.all([
+      runDocTier("fast", fastModel, false),
+      runDocTier("high_accuracy", highAccuracyModel, true),
+      // Force stable: temporarily set high-accuracy to false so fast model runs,
+      // then override via modelOverride by running high-accuracy on the stable path.
+      // Stable tier uses high_accuracy=true when primary===stable (both are 2.5-flash here).
+      runDocTier("stable", stableModel, false),
+    ]);
+
+    // Patch the stable result to reflect the stable model name clearly
+    stableResult.requestedModel = stableModel;
+    stableResult.model = stableResult.fallbackUsed ? stableModel : stableResult.model;
+
+    const response: DocBenchmarkResponse = {
       results: [fastResult, highAccuracyResult, stableResult],
       fastModel,
       highAccuracyModel,

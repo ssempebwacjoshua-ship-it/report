@@ -191,10 +191,10 @@ if (process.env.NODE_ENV !== "test") {
 
   const port = Number(process.env.PORT ?? 4300);
   const geminiKeyStatus = process.env.GEMINI_API_KEY ? "yes" : "no";
-  const geminiModelFast = process.env.SMART_PAGES_GEMINI_FAST_MODEL?.trim() || process.env.GEMINI_MODEL?.trim() || "gemini-2.5-flash";
-  const geminiModelHighAccuracy = process.env.SMART_PAGES_GEMINI_HIGH_ACCURACY_MODEL?.trim() || "(not set)";
-  const geminiModelStable = process.env.SMART_PAGES_GEMINI_STABLE_ACCURACY_MODEL?.trim() || "gemini-2.5-pro";
-  console.log("[startup] Gemini routes: /api/test-gemini-marks, /api/test-gemini-roster, /api/marks-import/scan/extract, /api/test-gemini-health, /api/test-gemini-benchmark");
+  const geminiModelFast = process.env.SMART_PAGES_GEMINI_FAST_MODEL?.trim() || process.env.GEMINI_MODEL?.trim() || "gemini-3.5-flash";
+  const geminiModelHighAccuracy = process.env.SMART_PAGES_GEMINI_HIGH_ACCURACY_MODEL?.trim() || geminiModelFast;
+  const geminiModelStable = process.env.SMART_PAGES_GEMINI_STABLE_ACCURACY_MODEL?.trim() || "gemini-2.5-flash";
+  console.log("[startup] Gemini routes: /api/test-gemini-marks, /api/test-gemini-roster, /api/marks-import/scan/extract, /api/test-gemini-health, /api/test-gemini-benchmark, /api/test-gemini-document-benchmark");
   console.log("[startup] Gemini model (fast):", geminiModelFast);
   console.log("[startup] Gemini model (high-accuracy):", geminiModelHighAccuracy);
   console.log("[startup] Gemini model (stable):", geminiModelStable);

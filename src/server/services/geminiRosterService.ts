@@ -23,7 +23,7 @@ export async function parseRosterImagePerfect(
   }
 
   const response = await ai.models.generateContent({
-    model: process.env.SMART_PAGES_GEMINI_FAST_MODEL?.trim() || process.env.GEMINI_MODEL?.trim() || "gemini-2.5-flash",
+    model: process.env.SMART_PAGES_GEMINI_FAST_MODEL?.trim() || process.env.GEMINI_MODEL?.trim() || "gemini-3.5-flash",
     contents: [
       {
         inlineData: {

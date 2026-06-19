@@ -7,8 +7,6 @@ import {
   generateDocumentSchema,
   applyPromptToSchema,
   generateLawyerDocumentEditPlan,
-  resolveGeminiDocumentModel,
-  resolveGeminiHighAccuracyDocumentModel,
 } from "./documentGeminiService";
 import {
   createNotification,
@@ -596,10 +594,6 @@ export async function processSourceFileExtraction(sourceFileId: string): Promise
 
     const retryMode = resolveRetryMode(sourceFile.ocrQuality);
     const isHighAccuracy = retryMode === "high_accuracy";
-    const { primary: highAccuracyPrimary, stable: highAccuracyStable } = resolveGeminiHighAccuracyDocumentModel();
-    intendedModel = isHighAccuracy
-      ? (highAccuracyPrimary || highAccuracyStable)
-      : resolveGeminiDocumentModel();
 
     const preprocessed = await preprocessDocumentForOcr(original, sourceFile.mimeType, retryMode);
     await db.documentSourceFile.update({
@@ -612,7 +606,6 @@ export async function processSourceFileExtraction(sourceFileId: string): Promise
       },
     });
 
-    const extractionStartMs = Date.now();
     const knowledge = await extractDocumentKnowledge(original, sourceFile.mimeType, sourceFile.originalName, {
       highAccuracy: isHighAccuracy,
       processedBuffer: preprocessed.processedBuffer,
@@ -620,7 +613,8 @@ export async function processSourceFileExtraction(sourceFileId: string): Promise
       sectionBuffers: preprocessed.sectionBuffers,
       priorExtraction: isHighAccuracy ? (document.extractedKnowledge as ExtractedKnowledge | null) : null,
     });
-    const extractionTimeMs = Date.now() - extractionStartMs;
+    intendedModel = knowledge._meta.selectedModel;
+
     const unclearItems = knowledge.unclearItems ?? [];
     const lowConfidence = typeof knowledge.confidence === "number" ? knowledge.confidence < 0.55 : false;
     const enrichedKnowledge: ExtractedKnowledge = {
@@ -644,8 +638,12 @@ export async function processSourceFileExtraction(sourceFileId: string): Promise
         notes: preprocessed.notes,
         warning: preprocessed.warning,
         retryMode,
-        geminiModel: intendedModel,
-        extractionTimeMs,
+        requestedModel: knowledge._meta.requestedModel,
+        selectedModel: knowledge._meta.selectedModel,
+        attemptedModels: knowledge._meta.attemptedModels,
+        fallbackUsed: knowledge._meta.fallbackUsed,
+        fallbackReason: knowledge._meta.fallbackReason,
+        extractionTimeMs: knowledge._meta.extractionTimeMs,
         highAccuracyUsed: isHighAccuracy,
         originalImageRef: sourceFile.originalName,
       },
@@ -653,7 +651,7 @@ export async function processSourceFileExtraction(sourceFileId: string): Promise
   } catch (error) {
     const statusValue = (error as { status?: unknown } | null)?.status;
     const causeValue = error instanceof Error ? (error as { cause?: unknown }).cause : undefined;
-    const geminiModel = intendedModel ?? (process.env.SMART_PAGES_GEMINI_FAST_MODEL?.trim() || process.env.GEMINI_MODEL?.trim() || "gemini-2.5-flash");
+    const geminiModel = intendedModel ?? (process.env.SMART_PAGES_GEMINI_FAST_MODEL?.trim() || process.env.GEMINI_MODEL?.trim() || "gemini-3.5-flash");
     const diagnostic = {
       documentId: sourceFile.documentId,
       sourceFileId: sourceFile.id,
