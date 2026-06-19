@@ -1,7 +1,8 @@
 ﻿import { getApiBaseUrl, makeRequestHeaders, parseApiError } from "./apiBase";
 
-const API_BASE = getApiBaseUrl();
+import type { SmartPagesAdminLedgerRow, SmartPagesPaymentRequest } from "../shared/types/smartPages";
 
+const API_BASE = getApiBaseUrl();
 export type OwnerDashboardStats = {
   totalSchools: number;
   activeSchools: number;
@@ -150,5 +151,44 @@ export async function patchOwnerSchool(
     body: JSON.stringify(data),
   });
   if (!res.ok) throw new Error(await parseApiError(res, "Could not update school"));
+}
+
+export async function fetchOwnerSmartPagesPayments(status = "PENDING"): Promise<{ payments: SmartPagesPaymentRequest[] }> {
+  const params = new URLSearchParams({ status });
+  const res = await fetch(`${API_BASE}/api/owner/smart-pages/payments?${params.toString()}`, {
+    headers: makeRequestHeaders(),
+  });
+  if (!res.ok) throw new Error(await parseApiError(res, "Could not load Smart Pages payments"));
+  return res.json();
+}
+
+export async function fetchOwnerSmartPagesUsage(): Promise<{ ledger: Array<SmartPagesAdminLedgerRow & { schoolName?: string; schoolId: string }> }> {
+  const res = await fetch(`${API_BASE}/api/owner/smart-pages/usage`, {
+    headers: makeRequestHeaders(),
+  });
+  if (!res.ok) throw new Error(await parseApiError(res, "Could not load Smart Pages usage"));
+  return res.json();
+}
+
+export async function confirmOwnerSmartPagesPayment(paymentId: string, notes?: string): Promise<SmartPagesPaymentRequest> {
+  const res = await fetch(`${API_BASE}/api/owner/smart-pages/payments/${encodeURIComponent(paymentId)}/confirm`, {
+    method: "POST",
+    headers: makeRequestHeaders({ "Content-Type": "application/json" }),
+    body: JSON.stringify({ notes }),
+  });
+  if (!res.ok) throw new Error(await parseApiError(res, "Could not confirm Smart Pages payment"));
+  const data = await res.json() as { payment: SmartPagesPaymentRequest };
+  return data.payment;
+}
+
+export async function rejectOwnerSmartPagesPayment(paymentId: string, notes?: string): Promise<SmartPagesPaymentRequest> {
+  const res = await fetch(`${API_BASE}/api/owner/smart-pages/payments/${encodeURIComponent(paymentId)}/reject`, {
+    method: "POST",
+    headers: makeRequestHeaders({ "Content-Type": "application/json" }),
+    body: JSON.stringify({ notes }),
+  });
+  if (!res.ok) throw new Error(await parseApiError(res, "Could not reject Smart Pages payment"));
+  const data = await res.json() as { payment: SmartPagesPaymentRequest };
+  return data.payment;
 }
 

@@ -7,6 +7,7 @@ import {
   DocumentTextRegular,
   HomeRegular,
   PeopleRegular,
+  ReceiptRegular,
   SendRegular,
   SettingsRegular,
   SparkleRegular,
@@ -71,6 +72,8 @@ function ShellNavIcon({ name, active }: { name: NavItem["icon"]; active: boolean
       return <DocumentRegular className={className} />;
     case "send":
       return <SendRegular className={className} />;
+    case "credit-card":
+      return <ReceiptRegular className={className} />;
     case "settings":
       return <SettingsRegular className={className} />;
     case "sparkles":

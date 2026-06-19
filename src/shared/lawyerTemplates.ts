@@ -1,4 +1,4 @@
-import type { SmartPageTemplateContext, SmartPageTemplateDefinition, SmartPageTemplateScope } from "./smartPagesTemplates";
+import { LAWYER_VERTICAL, type SmartPageTemplateContext, type SmartPageTemplateDefinition, type SmartPageTemplateScope } from "./smartPagesTemplates";
 
 function readString(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
@@ -128,7 +128,7 @@ export function buildLawyerTemplateStarterDraft(
   ].join("\n");
 }
 
-export const LAWYER_TEMPLATES: SmartPageTemplateDefinition[] = [
+const LAWYER_TEMPLATE_DEFINITIONS: Array<Omit<SmartPageTemplateDefinition, "vertical" | "isActive">> = [
   {
     id: "client-intake-summary",
     name: "Client Intake Summary",
@@ -281,11 +281,17 @@ export const LAWYER_TEMPLATES: SmartPageTemplateDefinition[] = [
   },
 ];
 
+export const LAWYER_TEMPLATES: SmartPageTemplateDefinition[] = LAWYER_TEMPLATE_DEFINITIONS.map((template) => ({
+  ...template,
+  vertical: LAWYER_VERTICAL,
+  isActive: true,
+}));
+
 export function getLawyerPageTemplates(scope: SmartPageTemplateScope): SmartPageTemplateDefinition[] {
-  return LAWYER_TEMPLATES.filter((template) => template.scope.includes(scope));
+  return LAWYER_TEMPLATES.filter((template) => template.isActive && template.vertical === LAWYER_VERTICAL && template.scope.includes(scope));
 }
 
 export function getLawyerPageTemplateById(templateId: string): SmartPageTemplateDefinition | undefined {
-  return LAWYER_TEMPLATES.find((template) => template.id === templateId);
+  return LAWYER_TEMPLATES.find((template) => template.isActive && template.vertical === LAWYER_VERTICAL && template.id === templateId);
 }
 

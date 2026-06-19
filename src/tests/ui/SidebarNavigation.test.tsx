@@ -128,6 +128,7 @@ describe("Sidebar navigation", () => {
       "/smart-pages",
     );
     expect(screen.getByRole("link", { name: /templates/i })).toHaveAttribute("href", "/collections");
+    expect(screen.getByRole("link", { name: /^billing$/i })).toHaveAttribute("href", "/smart-pages/billing");
     expect(screen.getByRole("link", { name: /^settings$/i })).toHaveAttribute("href", "/preferences");
     expect(screen.queryByRole("button", { name: /smart pages/i })).not.toBeInTheDocument();
   });

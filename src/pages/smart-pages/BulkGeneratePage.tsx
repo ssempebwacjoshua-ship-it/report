@@ -2,13 +2,13 @@
 import { useNavigate, useParams } from "react-router";
 import { getCollection, createBulkJob, type Collection } from "../../client/collectionsClient";
 import { SmartPageTemplatePicker } from "../../components/smart-pages/SmartPageTemplatePicker";
-import { getSmartPageTemplates } from "../../shared/smartPagesTemplates";
+import { SCHOOL_VERTICAL, getSmartPageTemplates } from "../../shared/smartPagesTemplates";
 
 const INTENT_SUGGESTIONS = [
   "Generate a student report card with name, score, grade, and teacher remarks",
-  "Create a patient summary with diagnosis, treatment, and appointment details",
-  "Build an employee performance review with goals and feedback",
-  "Design a client profile with contact info and account status",
+  "Create a parent notice for term opening dates and school requirements",
+  "Build attendance sheets for each class stream",
+  "Design a student profile with guardian contact and class details",
 ];
 
 export function BulkGeneratePage() {
@@ -19,7 +19,7 @@ export function BulkGeneratePage() {
   const [intent, setIntent] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const bulkTemplates = getSmartPageTemplates("bulk");
+  const bulkTemplates = getSmartPageTemplates("bulk", SCHOOL_VERTICAL);
 
   const load = useCallback(async () => {
     if (!id) return;

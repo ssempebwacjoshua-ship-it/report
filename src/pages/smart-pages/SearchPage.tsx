@@ -27,7 +27,7 @@ export function SearchPage() {
       </header>
       {notice ? <div className="premium-card rounded-xl p-3 text-sm text-slate-700">{notice}</div> : null}
       <section className="premium-card flex flex-col gap-2 rounded-xl p-4 sm:flex-row">
-        <input className="input" value={query} onChange={(event) => setQuery(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") void search(); }} placeholder="Joshua math report, blood pressure report, case timeline..." />
+        <input className="input" value={query} onChange={(event) => setQuery(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") void search(); }} placeholder="Joshua math report, attendance sheet, parent notice..." />
         <button type="button" className="btn btn-primary" onClick={() => void search()}>Search</button>
       </section>
       <section className="grid gap-2">

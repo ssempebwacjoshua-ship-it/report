@@ -19,8 +19,7 @@ import { listPreferences } from "../../client/documentOsClient";
 import { DocumentPreview } from "../../components/smart-pages/DocumentPreview";
 import { SmartPageTemplatePicker } from "../../components/smart-pages/SmartPageTemplatePicker";
 import { applyDocumentPatches, parseAiEditResponse } from "../../shared/documentPatch";
-import { getSmartPageTemplates, type SmartPageTemplateDefinition } from "../../shared/smartPagesTemplates";
-import { buildLawyerTemplateStarterDraft, getLawyerPageTemplateById, getLawyerPageTemplates } from "../../shared/lawyerTemplates";
+import { SCHOOL_VERTICAL, getSmartPageTemplates, type SmartPageTemplateDefinition } from "../../shared/smartPagesTemplates";
 import type {
   ChatMessage,
   ComponentNode,
@@ -233,7 +232,7 @@ function ExtractionReviewPanel({
   );
 }
 
-function ExtractionProcessingCard({ sourceStatus }: { sourceStatus?: string }) {
+function ExtractionProcessingCard({ sourceStatus, message }: { sourceStatus?: string; message?: string }) {
   const steps = [
     "Reading your document...",
     "Improving image quality...",
@@ -246,6 +245,7 @@ function ExtractionProcessingCard({ sourceStatus }: { sourceStatus?: string }) {
       <div className="premium-card premium-card-hover rounded-2xl p-5">
         <div className="mx-auto mb-4 h-10 w-10 animate-pulse rounded-full bg-blue-100" />
         <h2 className="text-base font-black text-slate-950">{steps[Math.min(activeIndex, steps.length - 1)]}</h2>
+        {message ? <p className="mt-2 text-sm font-semibold text-blue-700">{message}</p> : null}
         <div className="mt-4 grid gap-2 text-left">
           {steps.map((step, index) => (
             <div key={step} className={`rounded-lg px-3 py-2 text-xs font-semibold ${index <= activeIndex ? "bg-blue-50 text-blue-700" : "bg-slate-50 text-slate-400"}`}>
@@ -381,9 +381,10 @@ function buildInitialDraft(
   title: string,
   isLawyerWorkspace: boolean,
   template?: SmartPageTemplateDefinition | null,
+  lawyerStarterDraftBuilder?: LawyerStarterDraftBuilder | null,
 ): string {
-  if (isLawyerWorkspace && template) {
-    return buildLawyerTemplateStarterDraft(template, title);
+  if (isLawyerWorkspace && template && lawyerStarterDraftBuilder) {
+    return lawyerStarterDraftBuilder(template, title);
   }
 
   return buildStarterDraft(title, isLawyerWorkspace);
@@ -473,6 +474,7 @@ function VersionPanel({
 // ── Main editor ────────────────────────────────────────────────────────────────
 
 type Stage = "empty" | "processing" | "uploaded" | "extractionFailed" | "generating" | "ready";
+type LawyerStarterDraftBuilder = (template: SmartPageTemplateDefinition, documentTitle?: string | null) => string;
 type RenderSettings = NonNullable<SmartDocumentDetail["activeVersion"]>["renderSettings"];
 
 export function DocumentEditorPage() {
@@ -482,7 +484,6 @@ export function DocumentEditorPage() {
   const [searchParams] = useSearchParams();
   const isLawyerWorkspace = location.pathname.startsWith("/lawyers");
   const templateId = searchParams.get("template");
-  const lawyerTemplate = isLawyerWorkspace && templateId ? getLawyerPageTemplateById(templateId) ?? null : null;
 
   const [doc, setDoc] = useState<SmartDocumentDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -504,6 +505,9 @@ export function DocumentEditorPage() {
   const [reviewSaving, setReviewSaving] = useState(false);
   const [retryingHighAccuracy, setRetryingHighAccuracy] = useState(false);
   const [creatorPreferences, setCreatorPreferences] = useState<Record<string, unknown> | null>(null);
+  const [lawyerTemplates, setLawyerTemplates] = useState<SmartPageTemplateDefinition[]>([]);
+  const [lawyerTemplate, setLawyerTemplate] = useState<SmartPageTemplateDefinition | null>(null);
+  const [lawyerStarterDraftBuilder, setLawyerStarterDraftBuilder] = useState<LawyerStarterDraftBuilder | null>(null);
 
   const [versions, setVersions] = useState<DocumentVersionSummary[]>([]);
   const [showVersions, setShowVersions] = useState(false);
@@ -514,8 +518,8 @@ export function DocumentEditorPage() {
   const [showActions, setShowActions] = useState(false);
   const autoTemplateRef = useRef<string | null>(null);
   const hasActiveVersion = Boolean(activeVersionId);
-  const parsedTemplates = isLawyerWorkspace ? getLawyerPageTemplates("parsed") : getSmartPageTemplates("parsed");
-  const readyTemplates = getSmartPageTemplates("ready");
+  const parsedTemplates = isLawyerWorkspace ? lawyerTemplates : getSmartPageTemplates("parsed", SCHOOL_VERTICAL);
+  const readyTemplates = getSmartPageTemplates("ready", SCHOOL_VERTICAL);
   const aiActionsDisabled = Boolean(aiNotice);
   const lawyerSuggestions = stage === "ready"
     ? ["Add a signature block", "Tighten the deadline", "Make it more formal", "Clarify the parties"]
@@ -526,6 +530,7 @@ export function DocumentEditorPage() {
   const actionLockRef = useRef<string | null>(null);
   const processingTimeoutRef = useRef<number | null>(null);
   const processingStartedAtRef = useRef<number | null>(null);
+  const loadedDocumentKeyRef = useRef<string | null>(null);
 
   function acquireActionLock(lock: string): boolean {
     if (actionLockRef.current) return false;
@@ -539,18 +544,48 @@ export function DocumentEditorPage() {
     }
   }
 
+  useEffect(() => {
+    let active = true;
+    if (!isLawyerWorkspace) {
+      setLawyerTemplates([]);
+      setLawyerTemplate(null);
+      setLawyerStarterDraftBuilder(null);
+      return () => { active = false; };
+    }
+
+    import("../../shared/lawyerTemplates")
+      .then((module) => {
+        if (!active) return;
+        setLawyerTemplates(module.getLawyerPageTemplates("parsed"));
+        setLawyerTemplate(templateId ? module.getLawyerPageTemplateById(templateId) ?? null : null);
+        setLawyerStarterDraftBuilder(() => module.buildLawyerTemplateStarterDraft);
+      })
+      .catch(() => {
+        if (!active) return;
+        setLawyerTemplates([]);
+        setLawyerTemplate(null);
+        setLawyerStarterDraftBuilder(null);
+      });
+
+    return () => { active = false; };
+  }, [isLawyerWorkspace, templateId]);
+
   // Load document on mount
   useEffect(() => {
     if (!id) return;
+    if (isLawyerWorkspace && templateId && !lawyerStarterDraftBuilder) return;
+    const loadKey = `${id}:${isLawyerWorkspace ? "lawyer" : "school"}:${templateId ?? ""}:${Boolean(lawyerStarterDraftBuilder)}`;
+    if (loadedDocumentKeyRef.current === loadKey) return;
+    loadedDocumentKeyRef.current = loadKey;
     getDocument(id)
       .then((d) => {
         setDoc(d);
         setExtractedKnowledge(d.extractedKnowledge);
         const nextDraft = isLawyerWorkspace && lawyerTemplate
-          ? buildInitialDraft(d.title, true, lawyerTemplate)
+          ? buildInitialDraft(d.title, true, lawyerTemplate, lawyerStarterDraftBuilder)
           : d.extractedKnowledge?.rawText
             || d.extractedKnowledge?.sections.map((section) => section.content).join("\n\n")
-            || buildInitialDraft(d.title, isLawyerWorkspace, lawyerTemplate);
+            || buildInitialDraft(d.title, isLawyerWorkspace, lawyerTemplate, lawyerStarterDraftBuilder);
         setReviewDraft(nextDraft);
         if (d.extractionError && isAiConfigurationError(d.extractionError)) {
           setAiNotice("AI generation is not configured in this environment. You can still edit this document manually.");
@@ -594,7 +629,7 @@ export function DocumentEditorPage() {
       })
       .catch((e: Error) => setLoadError(e.message || "Failed to load document."))
       .finally(() => setLoading(false));
-  }, [id, isLawyerWorkspace, lawyerTemplate]);
+  }, [id, isLawyerWorkspace, lawyerStarterDraftBuilder, lawyerTemplate, templateId]);
 
   useEffect(() => {
     if (!isLawyerWorkspace) return;
@@ -694,7 +729,7 @@ export function DocumentEditorPage() {
       if (isAiConfigurationError(e)) {
         setAiNotice("AI generation is not configured in this environment. You can still edit this document manually.");
         setStage("empty");
-        setReviewDraft(buildInitialDraft(doc?.title ?? "Document draft", isLawyerWorkspace, lawyerTemplate));
+        setReviewDraft(buildInitialDraft(doc?.title ?? "Document draft", isLawyerWorkspace, lawyerTemplate, lawyerStarterDraftBuilder));
       } else {
         addMessage("assistant", `Upload failed: ${e instanceof Error ? e.message : "Unknown error."}`);
       }
@@ -704,7 +739,7 @@ export function DocumentEditorPage() {
     }
   }
 
-  const submitInstruction = useCallback(async (text: string, nested = false) => {
+  const submitInstruction = useCallback(async (text: string, nested = false, options?: { templateId?: string }) => {
     if (!text.trim() || !id || busy) return;
     if (stage === "processing") {
       addMessage("assistant", "Still reading your document. You can generate once the review is ready.");
@@ -744,7 +779,7 @@ export function DocumentEditorPage() {
         // First intent - generate schema
         setStage("generating");
         addMessage("assistant", "Generating your document...");
-        const result = await generateSchema(id, text);
+        const result = await generateSchema(id, text, options?.templateId);
         setSchema(result.schema);
         setComponentTree(result.componentTree);
         setActiveVersionId(result.versionId);
@@ -802,7 +837,7 @@ export function DocumentEditorPage() {
         setStage(hasActiveVersion ? "ready" : extractedKnowledge ? "uploaded" : "empty");
         setActiveTab("preview");
         if (!hasActiveVersion && !extractedKnowledge) {
-          setReviewDraft(buildInitialDraft(doc?.title ?? "Document draft", isLawyerWorkspace, lawyerTemplate));
+          setReviewDraft(buildInitialDraft(doc?.title ?? "Document draft", isLawyerWorkspace, lawyerTemplate, lawyerStarterDraftBuilder));
         }
       } else {
         addMessage("assistant", e instanceof Error ? e.message : "Something went wrong. Try again.");
@@ -811,7 +846,7 @@ export function DocumentEditorPage() {
       setBusy(false);
       if (!nested) releaseActionLock("submit");
     }
-  }, [id, busy, stage, extractedKnowledge, doc?.title, hasActiveVersion, aiNotice, isLawyerWorkspace, lawyerTemplate, reviewDraft]);
+  }, [id, busy, stage, extractedKnowledge, doc?.title, hasActiveVersion, aiNotice, isLawyerWorkspace, lawyerTemplate, lawyerStarterDraftBuilder, reviewDraft]);
 
   const submitLawyerPatchInstruction = useCallback(async (instruction: string) => {
     if (!instruction.trim() || !id || busy) return;
@@ -824,7 +859,7 @@ export function DocumentEditorPage() {
 
     const currentDraft = reviewDraft.trim()
       || extractedKnowledge?.rawText?.trim()
-      || buildInitialDraft(doc?.title ?? "Legal draft workspace", true, lawyerTemplate);
+      || buildInitialDraft(doc?.title ?? "Legal draft workspace", true, lawyerTemplate, lawyerStarterDraftBuilder);
 
     addMessage("user", instruction);
     addMessage("assistant", "Preparing proposed edits...");
@@ -874,7 +909,7 @@ export function DocumentEditorPage() {
       setBusy(false);
       releaseActionLock("lawyer-patch");
     }
-  }, [aiNotice, busy, doc?.title, extractedKnowledge, extractedKnowledge?.rawText, getDocument, getVersionHistory, hasActiveVersion, id, lawyerTemplate, reviewDraft, setActiveTab, setBusy, setDoc, setExtractedKnowledge, setReviewDraft, stage]);
+  }, [aiNotice, busy, doc?.title, extractedKnowledge, extractedKnowledge?.rawText, getDocument, getVersionHistory, hasActiveVersion, id, lawyerTemplate, lawyerStarterDraftBuilder, reviewDraft, setActiveTab, setBusy, setDoc, setExtractedKnowledge, setReviewDraft, stage]);
 
   // Send message handler
   const handleSend = useCallback(async () => {
@@ -890,14 +925,14 @@ export function DocumentEditorPage() {
 
   const handleTemplatePick = useCallback((template: SmartPageTemplateDefinition, options?: { summaryStyleId?: string }) => {
     if (isLawyerWorkspace) {
-      const draft = buildInitialDraft(doc?.title ?? template.name, true, template);
+      const draft = buildInitialDraft(doc?.title ?? template.name, true, template, lawyerStarterDraftBuilder);
       setReviewDraft(draft);
       setStage("empty");
       setActiveTab("preview");
       addSystemMessage(`Created an editable draft from "${template.name}".`);
       return;
     }
-    if (!extractedKnowledge) return;
+    if (!extractedKnowledge || template.vertical !== SCHOOL_VERTICAL) return;
     const prompt = template.buildPrompt({
       documentTitle: doc?.title,
       extractedKnowledge,
@@ -909,19 +944,19 @@ export function DocumentEditorPage() {
       `Template Name: ${template.name}`,
       "",
       prompt,
-    ].join("\n"));
-  }, [creatorPreferences, doc?.title, extractedKnowledge, isLawyerWorkspace, setActiveTab, setReviewDraft, setStage, submitInstruction]);
+    ].join("\n"), false, { templateId: template.id });
+  }, [creatorPreferences, doc?.title, extractedKnowledge, isLawyerWorkspace, lawyerStarterDraftBuilder, setActiveTab, setReviewDraft, setStage, submitInstruction]);
 
   useEffect(() => {
     if (!isLawyerWorkspace || !id || !doc || !templateId) return;
     if (hasActiveVersion || busy || stage === "processing" || stage === "generating") return;
     if (autoTemplateRef.current === templateId) return;
 
-    const template = getLawyerPageTemplateById(templateId);
+    const template = lawyerTemplate;
     if (!template) return;
 
     autoTemplateRef.current = templateId;
-    setReviewDraft(buildInitialDraft(doc.title, true, template));
+    setReviewDraft(buildInitialDraft(doc.title, true, template, lawyerStarterDraftBuilder));
     setStage("empty");
     setActiveTab("preview");
     addSystemMessage(`Created an editable draft from "${template.name}".`);
@@ -930,7 +965,7 @@ export function DocumentEditorPage() {
     } else {
       navigate(location.pathname, { replace: true });
     }
-  }, [busy, doc, hasActiveVersion, id, isLawyerWorkspace, location.pathname, navigate, setActiveTab, setReviewDraft, setStage, stage, templateId]);
+  }, [busy, doc, hasActiveVersion, id, isLawyerWorkspace, lawyerStarterDraftBuilder, lawyerTemplate, location.pathname, navigate, setActiveTab, setReviewDraft, setStage, stage, templateId]);
 
   const [showPublishModal, setShowPublishModal] = useState(false);
   const [publishPassword, setPublishPassword] = useState("");
@@ -958,7 +993,7 @@ export function DocumentEditorPage() {
       setStage(hasActiveVersion ? "ready" : isLawyerWorkspace ? "empty" : "uploaded");
       const refreshed = await getDocument(id);
       setDoc(refreshed);
-      setReviewDraft(refreshed.extractedKnowledge?.rawText || refreshed.extractedKnowledge?.sections.map((section) => section.content).join("\n\n") || buildInitialDraft(refreshed.title, isLawyerWorkspace, lawyerTemplate));
+      setReviewDraft(refreshed.extractedKnowledge?.rawText || refreshed.extractedKnowledge?.sections.map((section) => section.content).join("\n\n") || buildInitialDraft(refreshed.title, isLawyerWorkspace, lawyerTemplate, lawyerStarterDraftBuilder));
       addMessage("assistant", isLawyerWorkspace ? "Saved your legal draft. You can keep editing, previewing, or downloading it." : "Saved your extraction edits. You can generate the document when it looks right.");
     } catch (e) {
       addMessage("assistant", e instanceof Error ? e.message : "Could not save the extraction edits.");
@@ -975,7 +1010,7 @@ export function DocumentEditorPage() {
       if (isLawyerWorkspace) {
         const draft = reviewDraft.trim()
           || extractedKnowledge?.rawText?.trim()
-          || buildInitialDraft(doc?.title ?? "Legal draft workspace", true, lawyerTemplate);
+          || buildInitialDraft(doc?.title ?? "Legal draft workspace", true, lawyerTemplate, lawyerStarterDraftBuilder);
         addMessage("assistant", "Preparing your legal draft...");
         const result = await createManualDocumentVersion(id, { draft, title: doc?.title ?? "Legal draft workspace" });
         const refreshed = await getDocument(id);
@@ -1294,7 +1329,10 @@ export function DocumentEditorPage() {
 
             {stage === "processing" ? (
               <div className="flex min-h-[24rem] items-center justify-center">
-                <ExtractionProcessingCard sourceStatus={doc.latestSourceFile?.status} />
+                <ExtractionProcessingCard
+                  sourceStatus={doc.latestSourceFile?.status}
+                  message={typeof doc.latestSourceFile?.ocrQuality?.warning === "string" ? doc.latestSourceFile.ocrQuality.warning : undefined}
+                />
               </div>
             ) : stage === "extractionFailed" ? (
               <div className="flex min-h-[24rem] items-center justify-center">

@@ -42,6 +42,7 @@ export interface BenchmarkResponse {
   highAccuracyModel: string;
   stableModel: string;
   imageSize: string;
+  mode: "sequential" | "parallel";
 }
 
 const router = Router();
@@ -69,7 +70,8 @@ router.post(
     const mimeType = req.file.mimetype || "image/jpeg";
     const imageSize = `${(imageBuffer.byteLength / 1024).toFixed(1)} KB`;
 
-    console.log("[gemini-benchmark] starting", { fastModel, highAccuracyModel, stableModel, imageSize });
+    const mode = req.query.parallel === "true" ? "parallel" : "sequential";
+    console.log("[gemini-benchmark] starting", { fastModel, highAccuracyModel, stableModel, imageSize, mode });
 
     async function runTier(
       tier: BenchmarkModelResult["tier"],
@@ -79,13 +81,13 @@ router.post(
         const result = await extractMarksWithGemini(imageBuffer, mimeType, { modelOverride: modelName });
         console.log("[gemini-benchmark] result", {
           tier,
-          model: result.meta.model,
+          model: result.meta.selectedModel,
           extractionTimeMs: result.meta.extractionTimeMs,
           rowCount: result.summary.totalRows,
           reviewRowCount: result.summary.reviewRows,
         });
         return {
-          model: result.meta.model,
+          model: result.meta.selectedModel,
           tier,
           success: true,
           extractionTimeMs: result.meta.extractionTimeMs,
@@ -101,18 +103,27 @@ router.post(
       }
     }
 
-    const [fastResult, highAccuracyResult, stableResult] = await Promise.all([
-      runTier("fast", fastModel),
-      runTier("high_accuracy", highAccuracyModel),
-      runTier("stable", stableModel),
-    ]);
+    const runners = [
+      () => runTier("fast", fastModel),
+      () => runTier("high_accuracy", highAccuracyModel),
+      () => runTier("stable", stableModel),
+    ];
+    const results = mode === "parallel"
+      ? await Promise.all(runners.map((runner) => runner()))
+      : [];
+    if (mode === "sequential") {
+      for (const runner of runners) {
+        results.push(await runner());
+      }
+    }
 
     const response: BenchmarkResponse = {
-      results: [fastResult, highAccuracyResult, stableResult],
+      results,
       fastModel,
       highAccuracyModel,
       stableModel,
       imageSize,
+      mode,
     };
 
     res.json(response);
@@ -125,8 +136,10 @@ export interface DocBenchmarkModelResult {
   tier: "fast" | "high_accuracy" | "stable";
   success: boolean;
   extractionTimeMs: number;
+  retryCount: number;
   fallbackUsed: boolean;
   fallbackReason?: string;
+  providerErrorCode?: string;
   attemptedModels: string[];
   documentType?: string;
   domain?: string;
@@ -146,6 +159,7 @@ export interface DocBenchmarkResponse {
   highAccuracyModel: string;
   stableModel: string;
   imageSize: string;
+  mode: "sequential" | "parallel";
 }
 
 /**
@@ -174,7 +188,8 @@ router.post(
     const originalName = (req.file.originalname as string | undefined) || "benchmark-image";
     const imageSize = `${(imageBuffer.byteLength / 1024).toFixed(1)} KB`;
 
-    console.log("[gemini-doc-benchmark] starting", { fastModel, highAccuracyModel, stableModel, imageSize });
+    const mode = req.query.parallel === "true" ? "parallel" : "sequential";
+    console.log("[gemini-doc-benchmark] starting", { fastModel, highAccuracyModel, stableModel, imageSize, mode });
 
     async function runDocTier(
       tier: DocBenchmarkModelResult["tier"],
@@ -184,6 +199,7 @@ router.post(
       try {
         const result = await extractDocumentKnowledge(imageBuffer, mimeType, originalName, {
           highAccuracy,
+          modelOverride,
         });
         const { _meta } = result;
         const rawTextPreview = result.rawText
@@ -205,8 +221,10 @@ router.post(
           tier,
           success: true,
           extractionTimeMs: _meta.extractionTimeMs,
+          retryCount: _meta.retryCount,
           fallbackUsed: _meta.fallbackUsed,
           fallbackReason: _meta.fallbackReason,
+          providerErrorCode: _meta.providerErrorCode,
           attemptedModels: _meta.attemptedModels,
           documentType: result.documentType,
           domain: result.domain,
@@ -227,6 +245,7 @@ router.post(
           tier,
           success: false,
           extractionTimeMs: 0,
+          retryCount: 0,
           fallbackUsed: false,
           attemptedModels: [modelOverride],
           error,
@@ -234,27 +253,27 @@ router.post(
       }
     }
 
-    // Run fast, high-accuracy, and stable tiers; each uses its env-resolved model
-    // with the internal fallback in extractDocumentKnowledge still active.
-    const [fastResult, highAccuracyResult, stableResult] = await Promise.all([
-      runDocTier("fast", fastModel, false),
-      runDocTier("high_accuracy", highAccuracyModel, true),
-      // Force stable: temporarily set high-accuracy to false so fast model runs,
-      // then override via modelOverride by running high-accuracy on the stable path.
-      // Stable tier uses high_accuracy=true when primary===stable (both are 2.5-flash here).
-      runDocTier("stable", stableModel, false),
-    ]);
-
-    // Patch the stable result to reflect the stable model name clearly
-    stableResult.requestedModel = stableModel;
-    stableResult.model = stableResult.fallbackUsed ? stableModel : stableResult.model;
+    const runners = [
+      () => runDocTier("fast", fastModel, false),
+      () => runDocTier("high_accuracy", highAccuracyModel, true),
+      () => runDocTier("stable", stableModel, false),
+    ];
+    const results = mode === "parallel"
+      ? await Promise.all(runners.map((runner) => runner()))
+      : [];
+    if (mode === "sequential") {
+      for (const runner of runners) {
+        results.push(await runner());
+      }
+    }
 
     const response: DocBenchmarkResponse = {
-      results: [fastResult, highAccuracyResult, stableResult],
+      results,
       fastModel,
       highAccuracyModel,
       stableModel,
       imageSize,
+      mode,
     };
 
     res.json(response);

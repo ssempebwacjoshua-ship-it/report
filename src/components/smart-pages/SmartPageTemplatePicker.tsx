@@ -14,6 +14,8 @@ const categoryStyles: Record<string, { badge: string; accent: string }> = {
   Table: { badge: "bg-emerald-50 text-emerald-700", accent: "bg-emerald-500" },
   Form: { badge: "bg-cyan-50 text-cyan-700", accent: "bg-cyan-500" },
   Letter: { badge: "bg-fuchsia-50 text-fuchsia-700", accent: "bg-fuchsia-500" },
+  Notice: { badge: "bg-rose-50 text-rose-700", accent: "bg-rose-500" },
+  Schedule: { badge: "bg-teal-50 text-teal-700", accent: "bg-teal-500" },
   Report: { badge: "bg-amber-50 text-amber-700", accent: "bg-amber-500" },
   Meetings: { badge: "bg-sky-50 text-sky-700", accent: "bg-sky-500" },
   Planning: { badge: "bg-lime-50 text-lime-700", accent: "bg-lime-500" },
