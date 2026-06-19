@@ -7,6 +7,8 @@ import {
   generateDocumentSchema,
   applyPromptToSchema,
   generateLawyerDocumentEditPlan,
+  resolveGeminiDocumentModel,
+  resolveGeminiHighAccuracyDocumentModel,
 } from "./documentGeminiService";
 import {
   createNotification,
@@ -554,6 +556,7 @@ export async function processSourceFileExtraction(sourceFileId: string): Promise
   if (!sourceFile || sourceFile.status === "READY") return;
   const document = sourceFile.document;
   const actor = await getSmartPagesActor(document.creatorId);
+  let intendedModel: string | undefined;
   try {
     const cached = sourceFile.fileHash
       ? await db.documentSourceFile.findFirst({
@@ -592,6 +595,12 @@ export async function processSourceFileExtraction(sourceFileId: string): Promise
     }
 
     const retryMode = resolveRetryMode(sourceFile.ocrQuality);
+    const isHighAccuracy = retryMode === "high_accuracy";
+    const { primary: highAccuracyPrimary, stable: highAccuracyStable } = resolveGeminiHighAccuracyDocumentModel();
+    intendedModel = isHighAccuracy
+      ? (highAccuracyPrimary || highAccuracyStable)
+      : resolveGeminiDocumentModel();
+
     const preprocessed = await preprocessDocumentForOcr(original, sourceFile.mimeType, retryMode);
     await db.documentSourceFile.update({
       where: { id: sourceFile.id },
@@ -603,13 +612,15 @@ export async function processSourceFileExtraction(sourceFileId: string): Promise
       },
     });
 
+    const extractionStartMs = Date.now();
     const knowledge = await extractDocumentKnowledge(original, sourceFile.mimeType, sourceFile.originalName, {
-      highAccuracy: retryMode === "high_accuracy",
+      highAccuracy: isHighAccuracy,
       processedBuffer: preprocessed.processedBuffer,
       processedMimeType: preprocessed.processedMimeType,
       sectionBuffers: preprocessed.sectionBuffers,
-      priorExtraction: retryMode === "high_accuracy" ? (document.extractedKnowledge as ExtractedKnowledge | null) : null,
+      priorExtraction: isHighAccuracy ? (document.extractedKnowledge as ExtractedKnowledge | null) : null,
     });
+    const extractionTimeMs = Date.now() - extractionStartMs;
     const unclearItems = knowledge.unclearItems ?? [];
     const lowConfidence = typeof knowledge.confidence === "number" ? knowledge.confidence < 0.55 : false;
     const enrichedKnowledge: ExtractedKnowledge = {
@@ -627,12 +638,22 @@ export async function processSourceFileExtraction(sourceFileId: string): Promise
     await completeExtraction(sourceFile, enrichedKnowledge, actor, {
       processedData: preprocessed.processedBuffer,
       processedMimeType: preprocessed.processedMimeType,
-      ocrQuality: { width: preprocessed.width, height: preprocessed.height, notes: preprocessed.notes, warning: preprocessed.warning, retryMode },
+      ocrQuality: {
+        width: preprocessed.width,
+        height: preprocessed.height,
+        notes: preprocessed.notes,
+        warning: preprocessed.warning,
+        retryMode,
+        geminiModel: intendedModel,
+        extractionTimeMs,
+        highAccuracyUsed: isHighAccuracy,
+        originalImageRef: sourceFile.originalName,
+      },
     });
   } catch (error) {
     const statusValue = (error as { status?: unknown } | null)?.status;
     const causeValue = error instanceof Error ? (error as { cause?: unknown }).cause : undefined;
-    const geminiModel = process.env.GEMINI_MODEL?.trim() || "gemini-2.5-flash";
+    const geminiModel = intendedModel ?? (process.env.SMART_PAGES_GEMINI_FAST_MODEL?.trim() || process.env.GEMINI_MODEL?.trim() || "gemini-2.5-flash");
     const diagnostic = {
       documentId: sourceFile.documentId,
       sourceFileId: sourceFile.id,

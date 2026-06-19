@@ -39,6 +39,7 @@ import { startDocumentExtractionWorker } from "./services/documentIntelligenceSe
 import geminiOcrRoutes from "./routes/geminiOcrRoutes";
 import geminiRosterRoutes from "./routes/geminiRosterRoutes";
 import geminiMarksImportRoutes from "./routes/geminiMarksImportRoutes";
+import geminiOcrBenchmarkRoutes from "./routes/geminiOcrBenchmarkRoutes";
 import { prisma } from "./db/prisma";
 import { recoverStaleStudentImportJobs } from "./services/studentImportService";
 import { validateEnv } from "./middleware/validateEnv";
@@ -87,6 +88,7 @@ export function createServer() {
 
   // Internal diagnostic routes ? protected by their own x-internal-test-key, not by school context
   app.use("/api", geminiOcrRoutes);
+  app.use("/api", geminiOcrBenchmarkRoutes);
   app.use("/api", geminiRosterRoutes);
 
   // Tenant isolation: resolve school context from JWT or (dev-only) schoolCode param
@@ -188,10 +190,14 @@ if (process.env.NODE_ENV !== "test") {
   }
 
   const port = Number(process.env.PORT ?? 4300);
-  const geminiModel = process.env.GEMINI_MODEL ?? "gemini-2.5-flash (default)";
   const geminiKeyStatus = process.env.GEMINI_API_KEY ? "yes" : "no";
-  console.log("[startup] Gemini routes: /api/test-gemini-marks, /api/test-gemini-roster, /api/marks-import/scan/extract, /api/test-gemini-health");
-  console.log("[startup] Gemini model:", geminiModel);
+  const geminiModelFast = process.env.SMART_PAGES_GEMINI_FAST_MODEL?.trim() || process.env.GEMINI_MODEL?.trim() || "gemini-2.5-flash";
+  const geminiModelHighAccuracy = process.env.SMART_PAGES_GEMINI_HIGH_ACCURACY_MODEL?.trim() || "(not set)";
+  const geminiModelStable = process.env.SMART_PAGES_GEMINI_STABLE_ACCURACY_MODEL?.trim() || "gemini-2.5-pro";
+  console.log("[startup] Gemini routes: /api/test-gemini-marks, /api/test-gemini-roster, /api/marks-import/scan/extract, /api/test-gemini-health, /api/test-gemini-benchmark");
+  console.log("[startup] Gemini model (fast):", geminiModelFast);
+  console.log("[startup] Gemini model (high-accuracy):", geminiModelHighAccuracy);
+  console.log("[startup] Gemini model (stable):", geminiModelStable);
   console.log("[startup] Gemini key configured:", geminiKeyStatus);
   console.log("[startup] Node DNS result order: ipv4first (forced)");
   console.log("[startup] Node version:", process.version);

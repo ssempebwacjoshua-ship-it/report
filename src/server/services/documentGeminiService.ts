@@ -16,9 +16,19 @@ function getClient(): GoogleGenAI {
   return _client;
 }
 
-export function resolveGeminiDocumentModel() {
-  const model = process.env.GEMINI_MODEL?.trim();
-  return model || "gemini-2.5-flash";
+export function resolveGeminiDocumentModel(): string {
+  return (
+    process.env.SMART_PAGES_GEMINI_FAST_MODEL?.trim() ||
+    process.env.GEMINI_MODEL?.trim() ||
+    "gemini-2.5-flash"
+  );
+}
+
+export function resolveGeminiHighAccuracyDocumentModel(): { primary: string; stable: string } {
+  return {
+    primary: process.env.SMART_PAGES_GEMINI_HIGH_ACCURACY_MODEL?.trim() || "",
+    stable: process.env.SMART_PAGES_GEMINI_STABLE_ACCURACY_MODEL?.trim() || "gemini-2.5-pro",
+  };
 }
 
 function model() {
@@ -94,7 +104,8 @@ function buildExtractionConfig() {
   return {
     temperature: 0,
     responseMimeType: "application/json",
-  };
+    mediaResolution: "MEDIA_RESOLUTION_HIGH",
+  } as any;
 }
 
 const LAWYER_EDIT_RESPONSE_SCHEMA = {
@@ -304,16 +315,32 @@ ${priorExtractionText}`,
     );
   }
 
-  const res = await generateContentWithRetry({
-    model: model(),
-    contents,
-    config: buildExtractionConfig(),
-  });
+  const { primary: primaryHighAccuracy, stable: stableModel } = resolveGeminiHighAccuracyDocumentModel();
+  const fastModel = model();
+  const extractionModel = options.highAccuracy
+    ? (primaryHighAccuracy || stableModel)
+    : fastModel;
+
+  let res: Awaited<ReturnType<GoogleGenAI["models"]["generateContent"]>>;
+  if (options.highAccuracy && primaryHighAccuracy) {
+    try {
+      res = await generateContentWithRetry({ model: primaryHighAccuracy, contents, config: buildExtractionConfig() });
+    } catch (primaryErr) {
+      console.warn("[document-gemini] high-accuracy primary model failed, falling back to stable", {
+        primaryModel: primaryHighAccuracy,
+        stableModel,
+        error: primaryErr instanceof Error ? primaryErr.message : String(primaryErr),
+      });
+      res = await generateContentWithRetry({ model: stableModel, contents, config: buildExtractionConfig() });
+    }
+  } else {
+    res = await generateContentWithRetry({ model: extractionModel, contents, config: buildExtractionConfig() });
+  }
 
   const text = res.text ?? "";
   const fallback = buildExtractionFallback(text, originalName, Boolean(options.highAccuracy));
 
-  return normalizeExtraction(parseJsonSafe<ExtractedKnowledge>(text, fallback, model()), fallback, options.highAccuracy ?? false);
+  return normalizeExtraction(parseJsonSafe<ExtractedKnowledge>(text, fallback, extractionModel), fallback, options.highAccuracy ?? false);
 }
 
 function normalizeExtraction(knowledge: ExtractedKnowledge, fallback: ExtractedKnowledge, highAccuracy: boolean): ExtractedKnowledge {
