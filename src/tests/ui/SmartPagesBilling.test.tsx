@@ -68,7 +68,7 @@ vi.mock("../../client/smartPagesBillingClient", () => ({
       { network: "MTN", label: "MTN Mobile Money", merchantCode: "98642335", merchantName: "School Connect" },
     ],
     packages: [
-      { code: "TRIAL", name: "Trial", credits: 20, priceUgx: 0 },
+      { code: "TRIAL", name: "Trial", credits: 10, priceUgx: 0 },
       { code: "STARTER", name: "Starter", credits: 100, priceUgx: 50000 },
       { code: "STANDARD", name: "Standard", credits: 500, priceUgx: 225000 },
       { code: "SCHOOL_PRO", name: "School Pro", credits: 1000, priceUgx: 400000 },

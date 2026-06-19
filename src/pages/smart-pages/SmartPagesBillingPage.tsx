@@ -234,33 +234,41 @@ export function SmartPagesBillingPage() {
         <h2 className="mb-3 text-sm font-black uppercase tracking-wide text-slate-700">Credit Packages</h2>
         <div className="grid gap-3 sm:grid-cols-2">
           {SMART_PAGES_PACKAGES.map((pkg) => (
-            <div key={pkg.code} className="premium-card rounded-xl p-4">
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="font-bold text-slate-900">{pkg.name}</p>
-                  <p className="mt-0.5 text-2xl font-black text-slate-950">
-                    {pkg.credits.toLocaleString()}
-                    <span className="ml-1 text-sm font-semibold text-slate-500">credits</span>
-                  </p>
-                </div>
-                <p className="text-sm font-bold text-blue-700">{fmtUgx(pkg.priceUgx)}</p>
+            <div key={pkg.code} className="premium-card flex flex-col rounded-xl p-4">
+              <p className="font-bold text-slate-900">{pkg.name}</p>
+              <p className="mt-1 text-2xl font-black text-slate-950">
+                {pkg.credits.toLocaleString()}
+                <span className="ml-1 text-base font-semibold text-slate-600">pages</span>
+              </p>
+              <p className="mt-0.5 text-xs text-slate-500">{pkg.credits.toLocaleString()} credits</p>
+              <p className="mt-2 text-sm font-bold text-blue-700">{fmtUgx(pkg.priceUgx)}</p>
+              <div className="mt-auto pt-3">
+                {pkg.priceUgx === 0 ? (
+                  <p className="text-xs text-emerald-600">One-time free trial — no payment needed</p>
+                ) : (
+                  <button
+                    type="button"
+                    className="w-full rounded-lg border border-blue-200 bg-blue-50 py-1.5 text-xs font-bold text-blue-700 hover:bg-blue-100"
+                    onClick={() => {
+                      setSelectedPackage(pkg);
+                      setBuyStep("network");
+                    }}
+                  >
+                    Buy {pkg.name}
+                  </button>
+                )}
               </div>
-              {pkg.priceUgx === 0 ? (
-                <p className="mt-2 text-xs text-emerald-600">One-time free starter credits</p>
-              ) : (
-                <button
-                  type="button"
-                  className="mt-3 w-full rounded-lg border border-blue-200 bg-blue-50 py-1.5 text-xs font-bold text-blue-700 hover:bg-blue-100"
-                  onClick={() => {
-                    setSelectedPackage(pkg);
-                    setBuyStep("network");
-                  }}
-                >
-                  Buy {pkg.credits.toLocaleString()} credits
-                </button>
-              )}
             </div>
           ))}
+        </div>
+        <p className="mt-3 text-xs text-slate-500">
+          Pages are based on normal extraction. High-accuracy handwriting uses 2 credits per page.
+        </p>
+        <div className="mt-2 rounded-lg bg-slate-50 px-4 py-3 text-xs text-slate-600 space-y-1">
+          <p><span className="font-semibold">Normal extraction</span> — 1 credit per page</p>
+          <p><span className="font-semibold">High-accuracy (handwriting)</span> — 2 credits per page</p>
+          <p><span className="font-semibold">Generate editable document</span> — +1 credit per output page</p>
+          <p><span className="font-semibold">Publish secure link / PDF</span> — +1 credit per document</p>
         </div>
       </div>
 
@@ -384,9 +392,12 @@ export function SmartPagesBillingPage() {
                     >
                       <div>
                         <p className="font-bold text-slate-900">{pkg.name}</p>
-                        <p className="text-xs text-slate-500">{pkg.credits.toLocaleString()} credits</p>
+                        <p className="text-sm font-semibold text-slate-700">
+                          {pkg.credits.toLocaleString()} pages
+                        </p>
+                        <p className="text-xs text-slate-400">{pkg.credits.toLocaleString()} credits</p>
                       </div>
-                      <p className="font-bold text-blue-700">{fmtUgx(pkg.priceUgx)}</p>
+                      <p className="shrink-0 font-bold text-blue-700">{fmtUgx(pkg.priceUgx)}</p>
                     </button>
                   ))}
                 </div>
@@ -412,7 +423,7 @@ export function SmartPagesBillingPage() {
                 </button>
                 <h2 className="text-base font-black text-slate-900">Pay via Mobile Money</h2>
                 <p className="mt-1 text-sm text-slate-500">
-                  {selectedPackage.credits.toLocaleString()} credits · {fmtUgx(selectedPackage.priceUgx)}
+                  {selectedPackage.credits.toLocaleString()} pages · {selectedPackage.credits.toLocaleString()} credits · {fmtUgx(selectedPackage.priceUgx)}
                 </p>
                 <p className="mt-3 text-sm font-semibold text-slate-700">Select your network</p>
                 <div className="mt-2 grid grid-cols-2 gap-3">
