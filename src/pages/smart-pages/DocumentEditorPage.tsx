@@ -281,6 +281,7 @@ function ManualDraftPanel({
   generateDisabled,
   generateLabel,
   aiNotice,
+  guidance,
 }: {
   title: string;
   draft: string;
@@ -291,6 +292,7 @@ function ManualDraftPanel({
   generateDisabled: boolean;
   generateLabel: string;
   aiNotice: string | null;
+  guidance?: string;
 }) {
   return (
     <section className="premium-card premium-card-hover rounded-[28px] p-4 sm:p-6">
@@ -298,9 +300,8 @@ function ManualDraftPanel({
         <div className="min-w-0">
           <p className="text-xs font-bold uppercase tracking-wide text-[color:var(--sc-primary)]">Document workspace</p>
           <h2 className="mt-1 text-lg font-black text-slate-950">{title}</h2>
-          <p className="mt-1 text-sm text-slate-500">
-            Edit the document directly in this workspace. AI actions stay secondary and can be skipped if the environment is not configured.
-          </p>
+          <p className="mt-1 text-sm text-slate-500">Edit the document directly in this workspace.</p>
+          {guidance ? <p className="mt-1 text-sm text-slate-600">{guidance}</p> : null}
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <button type="button" onClick={onSave} disabled={saving} className="btn btn-secondary text-xs">
@@ -354,6 +355,9 @@ function buildStarterDraft(title: string, isLawyerWorkspace: boolean): string {
         "Next steps:",
         "",
         "Signature block:",
+        "",
+        "Review note:",
+        "AI generation is optional. You can keep editing this draft manually.",
       ].join("\n")
     : [
         title || "Document draft",
@@ -511,6 +515,10 @@ export function DocumentEditorPage() {
   const hasActiveVersion = Boolean(activeVersionId);
   const parsedTemplates = isLawyerWorkspace ? getLawyerPageTemplates("parsed") : getSmartPageTemplates("parsed");
   const readyTemplates = getSmartPageTemplates("ready");
+  const aiActionsDisabled = Boolean(aiNotice);
+  const lawyerSuggestions = stage === "ready"
+    ? ["Add a signature block", "Tighten the deadline", "Make it more formal", "Clarify the parties"]
+    : ["Draft a legal notice", "Add a signature block", "Summarize the matter", "Clarify the deadline"];
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
@@ -537,9 +545,11 @@ export function DocumentEditorPage() {
       .then((d) => {
         setDoc(d);
         setExtractedKnowledge(d.extractedKnowledge);
-        const nextDraft = d.extractedKnowledge?.rawText
-          || d.extractedKnowledge?.sections.map((section) => section.content).join("\n\n")
-          || buildInitialDraft(d.title, isLawyerWorkspace, lawyerTemplate);
+        const nextDraft = isLawyerWorkspace && lawyerTemplate
+          ? buildInitialDraft(d.title, true, lawyerTemplate)
+          : d.extractedKnowledge?.rawText
+            || d.extractedKnowledge?.sections.map((section) => section.content).join("\n\n")
+            || buildInitialDraft(d.title, isLawyerWorkspace, lawyerTemplate);
         setReviewDraft(nextDraft);
         if (d.extractionError && isAiConfigurationError(d.extractionError)) {
           setAiNotice("AI generation is not configured in this environment. You can still edit this document manually.");
@@ -552,6 +562,9 @@ export function DocumentEditorPage() {
           setActiveVersionId(d.activeVersion.id);
           setRenderSettings(d.activeVersion.renderSettings);
           setStage("ready");
+        } else if (isLawyerWorkspace) {
+          setStage("empty");
+          setActiveTab("preview");
         } else if (d.extractionStatus === "PROCESSING") {
           setStage("processing");
           setActiveTab("preview");
@@ -571,7 +584,9 @@ export function DocumentEditorPage() {
         addSystemMessage(
           d.activeVersion
             ? `Loaded "${d.title}" - ${d.versionCount} version${d.versionCount !== 1 ? "s" : ""}. Keep editing below.`
-            : d.extractedKnowledge
+            : isLawyerWorkspace
+              ? `Loaded "${d.title}" as an editable legal draft. Keep the starter content open on the left and use AI only when needed.`
+              : d.extractedKnowledge
               ? `Content extracted from "${d.title}". Generate a document from extraction first, then keep editing below.`
               : `New document "${d.title}". Upload a file or describe what you'd like to create.`,
         );
@@ -873,6 +888,14 @@ export function DocumentEditorPage() {
   }, [input, isLawyerWorkspace, submitInstruction, submitLawyerPatchInstruction]);
 
   const handleTemplatePick = useCallback((template: SmartPageTemplateDefinition, options?: { summaryStyleId?: string }) => {
+    if (isLawyerWorkspace) {
+      const draft = buildInitialDraft(doc?.title ?? template.name, true, template);
+      setReviewDraft(draft);
+      setStage("empty");
+      setActiveTab("preview");
+      addSystemMessage(`Created an editable draft from "${template.name}".`);
+      return;
+    }
     if (!extractedKnowledge) return;
     const prompt = template.buildPrompt({
       documentTitle: doc?.title,
@@ -886,11 +909,10 @@ export function DocumentEditorPage() {
       "",
       prompt,
     ].join("\n"));
-  }, [creatorPreferences, doc?.title, extractedKnowledge, submitInstruction]);
+  }, [creatorPreferences, doc?.title, extractedKnowledge, isLawyerWorkspace, setActiveTab, setReviewDraft, setStage, submitInstruction]);
 
   useEffect(() => {
     if (!isLawyerWorkspace || !id || !doc || !templateId) return;
-    if (aiNotice) return;
     if (hasActiveVersion || busy || stage === "processing" || stage === "generating") return;
     if (autoTemplateRef.current === templateId) return;
 
@@ -898,29 +920,16 @@ export function DocumentEditorPage() {
     if (!template) return;
 
     autoTemplateRef.current = templateId;
-    const prompt = template.buildPrompt({
-      documentTitle: doc.title,
-      extractedKnowledge: extractedKnowledge ?? undefined,
-      preferences: creatorPreferences,
-    });
-
-    void (async () => {
-      try {
-        await submitInstruction([
-          `Template ID: ${template.id}`,
-          `Template Name: ${template.name}`,
-          "",
-          prompt,
-        ].join("\n"));
-      } finally {
-        if (location.pathname === `/lawyers/documents/${id}` || location.pathname === `/lawyers/documents/${id}/`) {
-          navigate(`/lawyers/documents/${id}`, { replace: true });
-        } else {
-          navigate(location.pathname, { replace: true });
-        }
-      }
-    })();
-  }, [aiNotice, busy, creatorPreferences, doc, extractedKnowledge, hasActiveVersion, id, isLawyerWorkspace, location.pathname, navigate, stage, submitInstruction, templateId]);
+    setReviewDraft(buildInitialDraft(doc.title, true, template));
+    setStage("empty");
+    setActiveTab("preview");
+    addSystemMessage(`Created an editable draft from "${template.name}".`);
+    if (location.pathname === `/lawyers/documents/${id}` || location.pathname === `/lawyers/documents/${id}/`) {
+      navigate(`/lawyers/documents/${id}`, { replace: true });
+    } else {
+      navigate(location.pathname, { replace: true });
+    }
+  }, [busy, doc, hasActiveVersion, id, isLawyerWorkspace, location.pathname, navigate, setActiveTab, setReviewDraft, setStage, stage, templateId]);
 
   const [showPublishModal, setShowPublishModal] = useState(false);
   const [publishPassword, setPublishPassword] = useState("");
@@ -945,11 +954,11 @@ export function DocumentEditorPage() {
       const saved = await updateExtractedKnowledge(id, updated);
       setExtractedKnowledge(saved);
       setReviewEditing(false);
-      setStage(hasActiveVersion ? "ready" : "uploaded");
+      setStage(hasActiveVersion ? "ready" : isLawyerWorkspace ? "empty" : "uploaded");
       const refreshed = await getDocument(id);
       setDoc(refreshed);
       setReviewDraft(refreshed.extractedKnowledge?.rawText || refreshed.extractedKnowledge?.sections.map((section) => section.content).join("\n\n") || buildInitialDraft(refreshed.title, isLawyerWorkspace, lawyerTemplate));
-      addMessage("assistant", "Saved your extraction edits. You can generate the document when it looks right.");
+      addMessage("assistant", isLawyerWorkspace ? "Saved your legal draft. You can keep editing, previewing, or downloading it." : "Saved your extraction edits. You can generate the document when it looks right.");
     } catch (e) {
       addMessage("assistant", e instanceof Error ? e.message : "Could not save the extraction edits.");
     } finally {
@@ -962,6 +971,10 @@ export function DocumentEditorPage() {
     if (!acquireActionLock("generate")) return;
     try {
       if (reviewEditing || !extractedKnowledge) await handleSaveExtractionReview();
+      if (isLawyerWorkspace && aiNotice) {
+        addMessage("assistant", "Created an editable legal draft. You can keep editing, previewing, or downloading it.");
+        return;
+      }
       await submitInstruction("Generate a professional document from the reviewed extraction. Preserve all tables and key facts.", true);
     } finally {
       releaseActionLock("generate");
@@ -1100,7 +1113,7 @@ export function DocumentEditorPage() {
   }
 
   const currentSchema = schema ?? { theme: DEFAULT_THEME, components: [] };
-  const suggestions = stage === "ready" ? POST_GENERATE_SUGGESTIONS : INITIAL_SUGGESTIONS;
+  const suggestions = isLawyerWorkspace ? lawyerSuggestions : (stage === "ready" ? POST_GENERATE_SUGGESTIONS : INITIAL_SUGGESTIONS);
   const extractionPrimaryActionLabel = hasActiveVersion
     ? isLawyerWorkspace
       ? "Looks good, generate legal draft"
@@ -1277,11 +1290,11 @@ export function DocumentEditorPage() {
                 onDraftChange={setReviewDraft}
                 onSave={() => void handleSaveExtractionReview()}
                 onGenerate={() => void handleGenerateFromReview()}
-                generateDisabled={Boolean(aiNotice)}
+                generateDisabled={!isLawyerWorkspace && aiActionsDisabled}
                 templates={parsedTemplates}
                 onPickTemplate={handleTemplatePick}
                 onHighAccuracyRetry={() => void handleRetryExtraction(true)}
-                highAccuracyDisabled={Boolean(aiNotice)}
+                highAccuracyDisabled={aiActionsDisabled}
                 retryingHighAccuracy={retryingHighAccuracy}
                 primaryActionLabel={extractionPrimaryActionLabel}
                 pickerLabel={isLawyerWorkspace ? "What would you like to create from this legal material?" : "What would you like to create?"}
@@ -1296,9 +1309,10 @@ export function DocumentEditorPage() {
                 onSave={() => void handleSaveExtractionReview()}
                 saving={reviewSaving}
                 onGenerate={() => void handleGenerateFromReview()}
-                generateDisabled={Boolean(aiNotice)}
-                generateLabel={isLawyerWorkspace ? "Generate legal draft" : "Generate document"}
+                generateDisabled={!isLawyerWorkspace && aiActionsDisabled}
+                generateLabel={isLawyerWorkspace ? (hasActiveVersion ? "Update draft" : "Create draft") : "Generate document"}
                 aiNotice={aiNotice}
+                guidance={isLawyerWorkspace && aiNotice ? "AI actions are disabled because Gemini is not configured in this environment. You can still edit, save, preview, print, and download." : undefined}
               />
             ) : stage === "ready" && hasActiveVersion ? (
               <>
@@ -1309,9 +1323,10 @@ export function DocumentEditorPage() {
                   onSave={() => void handleSaveExtractionReview()}
                   saving={reviewSaving}
                   onGenerate={() => void handleGenerateFromReview()}
-                  generateDisabled={Boolean(aiNotice)}
-                  generateLabel={isLawyerWorkspace ? "Regenerate legal draft" : "Update document"}
+                  generateDisabled={!isLawyerWorkspace && aiActionsDisabled}
+                  generateLabel={isLawyerWorkspace ? "Update draft" : "Update document"}
                   aiNotice={aiNotice}
+                  guidance={isLawyerWorkspace && aiNotice ? "AI actions are disabled because Gemini is not configured in this environment. You can still edit, save, preview, print, and download." : undefined}
                 />
                 {readyTemplates.length > 0 ? (
                   <section className="premium-card premium-card-hover rounded-[28px] p-4 sm:p-6">
@@ -1321,7 +1336,7 @@ export function DocumentEditorPage() {
                       <SmartPageTemplatePicker
                         templates={readyTemplates}
                         scope="ready"
-                        disabled={Boolean(aiNotice)}
+                        disabled={false}
                         onPickTemplate={(template) => {
                           if (template.id === "publish-secure-link") {
                             setShowPublishModal(true);
@@ -1360,14 +1375,15 @@ export function DocumentEditorPage() {
             <section className="premium-card premium-card-hover rounded-[28px] p-4">
               <div className="flex items-center justify-between gap-2">
                 <div>
-                  <p className="text-xs font-bold uppercase tracking-wide text-[color:var(--sc-primary)]">AI assistant</p>
+                  <p className="text-xs font-bold uppercase tracking-wide text-[color:var(--sc-primary)]">
+                    {isLawyerWorkspace ? "Legal assistant" : "AI assistant"}
+                  </p>
                   <h2 className="mt-1 text-sm font-black text-slate-950">Smart actions and guidance</h2>
                 </div>
                 <button
                   type="button"
                   className="rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
                   onClick={() => setShowActions((value) => !value)}
-                  disabled={Boolean(aiNotice)}
                   title={aiNotice ?? undefined}
                 >
                   {showActions ? "Hide" : "Show"} actions
@@ -1375,7 +1391,9 @@ export function DocumentEditorPage() {
               </div>
               {aiNotice ? (
                 <div className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
-                  {aiNotice}
+                  {isLawyerWorkspace
+                    ? "AI actions are disabled because Gemini is not configured in this environment. You can still edit, save, preview, print, and download."
+                    : aiNotice}
                 </div>
               ) : stage === "processing" ? (
                 <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
@@ -1418,12 +1436,13 @@ export function DocumentEditorPage() {
 
             <section className="premium-card premium-card-hover rounded-[28px] p-4">
               <div className="flex items-center justify-between gap-2">
-                <h3 className="text-sm font-black text-slate-950">Assistant actions</h3>
+                <h3 className="text-sm font-black text-slate-950">
+                  {isLawyerWorkspace ? "Legal actions" : "Assistant actions"}
+                </h3>
                 <button
                   type="button"
                   className="rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
                   onClick={() => setShowActions((value) => !value)}
-                  disabled={Boolean(aiNotice)}
                   title={aiNotice ?? undefined}
                 >
                   {showActions ? "Hide" : "Show"} actions
@@ -1434,9 +1453,12 @@ export function DocumentEditorPage() {
                   <div className="mt-3 flex flex-wrap gap-2">
                     <SuggestionChips
                       items={suggestions}
-                      disabled={Boolean(aiNotice)}
+                      disabled={aiActionsDisabled}
                       onSelect={(s) => {
-                        if (aiNotice) return;
+                        if (aiActionsDisabled) {
+                          addMessage("assistant", "AI actions are disabled in this environment. You can still edit the draft manually.");
+                          return;
+                        }
                         if (isLawyerWorkspace) {
                           void submitLawyerPatchInstruction(s);
                           return;
@@ -1492,12 +1514,12 @@ export function DocumentEditorPage() {
                                 : "Edit the document: make it formal, add charts, translate..."
                       }
                       className="flex-1 resize-none rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none focus:border-[color:var(--sc-primary)] focus:bg-white disabled:cursor-not-allowed disabled:opacity-50"
-                      disabled={busy || stage === "processing" || Boolean(aiNotice)}
+                      disabled={busy || stage === "processing" || aiActionsDisabled}
                     />
                     <button
                       type="button"
                       className="shrink-0 rounded-xl bg-[color:var(--sc-primary)] p-2.5 text-white hover:bg-[color:var(--sc-primary-hover)] disabled:cursor-not-allowed disabled:opacity-40"
-                      disabled={busy || stage === "processing" || !input.trim() || Boolean(aiNotice)}
+                      disabled={busy || stage === "processing" || !input.trim() || aiActionsDisabled}
                       onClick={() => void handleSend()}
                     >
                       <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">

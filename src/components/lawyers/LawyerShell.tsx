@@ -15,10 +15,15 @@ export function LawyerShell() {
   const navigate = useNavigate();
   const location = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
+  const displayName = user.name && !/school admin/i.test(user.name) ? user.name : "Legal Admin";
 
   useEffect(() => {
     setMenuOpen(false);
   }, [location.pathname]);
+
+  useEffect(() => {
+    document.title = "Smart Pages for Lawyers | School Connect";
+  }, []);
 
   if (authLoading || (!user && token)) {
     return (
@@ -80,7 +85,7 @@ export function LawyerShell() {
                 <PersonRegular className="h-5 w-5" />
               </div>
               <div className="hidden min-w-0 sm:block">
-                <p className="truncate text-sm font-semibold leading-tight text-white">{user.name ?? "Lawyer"}</p>
+                <p className="truncate text-sm font-semibold leading-tight text-white">{displayName}</p>
                 <p className="truncate text-xs leading-tight text-white">Legal workspace</p>
               </div>
             </div>

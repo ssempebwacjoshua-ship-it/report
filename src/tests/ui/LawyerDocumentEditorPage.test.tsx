@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes, RouterProvider, createMemoryRouter } from "react-router-dom";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -28,7 +28,7 @@ vi.mock("../../client/documentIntelligenceClient", () => documentIntelligenceMoc
 vi.mock("../../client/documentOsClient", () => documentOsMocks);
 vi.mock("../../contexts/AuthContext", () => ({
   useAuth: () => ({
-    user: { name: "Lawyer User" },
+    user: { name: "School Admin" },
     token: "token",
     loading: false,
     logout: vi.fn(),
@@ -52,7 +52,7 @@ describe("Lawyer Smart Pages editor", () => {
     ]);
   });
 
-  it("shows lawyer templates and sends a legal prompt from the selected template", async () => {
+  it("shows a starter lawyer draft when a template is opened", async () => {
     documentIntelligenceMocks.getDocument.mockResolvedValue({
       id: "doc-1",
       title: "Client notes",
@@ -83,25 +83,25 @@ describe("Lawyer Smart Pages editor", () => {
       activeVersion: null,
       latestSourceFile: { id: "source-1", status: "READY" },
     });
-    documentIntelligenceMocks.generateSchema.mockResolvedValue({ versionId: "version-1", schema: { theme: { primaryColor: "#2563eb" }, components: [] }, componentTree: [] });
-
     render(
-      <MemoryRouter initialEntries={["/lawyers/documents/doc-1"]}>
+      <MemoryRouter initialEntries={["/lawyers/documents/doc-1?template=legal-notice-demand-letter"]}>
         <Routes>
           <Route path="/lawyers/documents/:id" element={<DocumentEditorPage />} />
         </Routes>
       </MemoryRouter>,
     );
 
-    await waitFor(() => expect(screen.getByText(/what would you like to create from this legal material/i)).toBeInTheDocument());
-    fireEvent.click(screen.getByRole("button", { name: /legal notice \/ demand letter/i }));
-
-    await waitFor(() => expect(documentIntelligenceMocks.generateSchema).toHaveBeenCalledTimes(1));
-    expect(documentIntelligenceMocks.generateSchema.mock.calls[0][1]).toContain("Template ID: legal-notice-demand-letter");
-    expect(documentIntelligenceMocks.generateSchema.mock.calls[0][1]).toContain("Acacia Legal");
+    const draft = await screen.findByRole("textbox", { name: /manual document draft/i });
+    expect((draft as HTMLTextAreaElement).value).toContain("Muwanga & Co. Advocates");
+    expect((draft as HTMLTextAreaElement).value).toContain("Pearl Office Supplies Ltd");
+    expect((draft as HTMLTextAreaElement).value).toContain("Kato Builders Ltd");
+    expect((draft as HTMLTextAreaElement).value).toContain("UGX 12,500,000");
+    expect((draft as HTMLTextAreaElement).value).toContain("7 days");
+    expect((draft as HTMLTextAreaElement).value).toContain("Counsel Daniel Muwanga");
+    expect(documentIntelligenceMocks.generateSchema).not.toHaveBeenCalled();
   });
 
-  it("auto-generates a first lawyer draft when opened from a template query", async () => {
+  it("opens a first lawyer draft from a template query without requiring Gemini", async () => {
     documentIntelligenceMocks.getDocument.mockResolvedValue({
       id: "doc-2",
       title: "Template draft",
@@ -127,9 +127,11 @@ describe("Lawyer Smart Pages editor", () => {
       </MemoryRouter>,
     );
 
-    await waitFor(() => expect(documentIntelligenceMocks.generateSchema).toHaveBeenCalledTimes(1));
-    expect(documentIntelligenceMocks.generateSchema.mock.calls[0][1]).toContain("Template ID: legal-notice-demand-letter");
-    expect(documentIntelligenceMocks.generateSchema.mock.calls[0][1]).toContain("Template Name: Legal Notice / Demand Letter");
+    const draft = await screen.findByRole("textbox", { name: /manual document draft/i });
+    expect((draft as HTMLTextAreaElement).value).toContain("Muwanga & Co. Advocates");
+    expect((draft as HTMLTextAreaElement).value).toContain("Re: Legal Notice / Demand Letter");
+    expect((draft as HTMLTextAreaElement).value).toContain("Pearl Office Supplies Ltd");
+    expect(documentIntelligenceMocks.generateSchema).not.toHaveBeenCalled();
   });
 
   it("shows a manual draft workspace and a friendly AI notice when Gemini is unavailable", async () => {
@@ -157,10 +159,11 @@ describe("Lawyer Smart Pages editor", () => {
       </MemoryRouter>,
     );
 
-    await waitFor(() => expect(screen.getAllByText(/ai generation is not configured in this environment/i).length).toBeGreaterThan(0));
+    await waitFor(() => expect(screen.getAllByText(/ai actions are disabled because gemini is not configured in this environment/i).length).toBeGreaterThan(0));
     expect(screen.queryByText(/GEMINI_API_KEY is not configured/i)).not.toBeInTheDocument();
     expect(screen.getByRole("textbox", { name: /manual document draft/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /generate legal draft/i })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /create draft/i })).toBeEnabled();
+    expect(screen.queryByText(/school admin/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/Generating\.\.\./i)).not.toBeInTheDocument();
   });
 
@@ -192,8 +195,8 @@ describe("Lawyer Smart Pages editor", () => {
     );
 
     const draft = await screen.findByRole("textbox", { name: /manual document draft/i });
-    expect((draft as HTMLTextAreaElement).value).toContain("Template: Legal Notice / Demand Letter");
     expect((draft as HTMLTextAreaElement).value).toContain("Parties:");
+    expect((draft as HTMLTextAreaElement).value).toContain("Muwanga & Co. Advocates");
     expect(screen.queryByText(/Generating\.\.\./i)).not.toBeInTheDocument();
   });
 

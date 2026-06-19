@@ -21,7 +21,7 @@ describe("LawyerDocumentsPage", () => {
   beforeEach(() => {
     vi.resetAllMocks();
     authMocks.useAuth.mockReturnValue({
-      user: { id: "user-1", name: "Jane Lawyer", email: "jane@example.com", role: "ADMIN_OPERATOR" },
+      user: { id: "user-1", name: "School Admin", email: "jane@example.com", role: "ADMIN_OPERATOR" },
       loading: false,
       logout: vi.fn(),
     });
@@ -45,6 +45,8 @@ describe("LawyerDocumentsPage", () => {
     render(<RouterProvider router={router} />);
 
     await screen.findByRole("heading", { name: /choose a lawyer template/i });
+    expect(screen.queryByText(/school admin/i)).not.toBeInTheDocument();
+    expect(screen.getByText(/legal admin/i)).toBeInTheDocument();
     expect(screen.getByText(/generated documents are drafts and must be reviewed/i)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /use client intake summary/i })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: /use legal notice \/ demand letter/i }));

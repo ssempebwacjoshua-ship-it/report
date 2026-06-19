@@ -78,6 +78,39 @@ export function buildLawyerTemplateStarterDraft(
   template: SmartPageTemplateDefinition,
   documentTitle?: string | null,
 ): string {
+  if (template.id === "legal-notice-demand-letter") {
+    return [
+      documentTitle?.trim() || template.name,
+      "",
+      "Muwanga & Co. Advocates",
+      "Counsel Daniel Muwanga",
+      "",
+      "Re: Legal Notice / Demand Letter",
+      "To: Pearl Office Supplies Ltd",
+      "Attention: Managing Director",
+      "",
+      "We act for Kato Builders Ltd.",
+      "Our client supplied goods and services valued at UGX 12,500,000.",
+      "Despite repeated requests, the amount remains unpaid.",
+      "",
+      "You are hereby given 7 days to settle the full amount of UGX 12,500,000.",
+      "If payment is not received within the deadline, our client will take further legal action without further notice.",
+      "",
+      "Yours faithfully,",
+      "Counsel Daniel Muwanga",
+      "",
+      "Draft outline:",
+      "Parties:",
+      "Background:",
+      "Demand:",
+      "Deadline:",
+      "Consequences:",
+      "Signature block:",
+      "",
+      "Review required: Generated documents are drafts and must be reviewed by a qualified legal professional before use.",
+    ].join("\n");
+  }
+
   return [
     documentTitle?.trim() || template.name,
     "",

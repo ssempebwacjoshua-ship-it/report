@@ -33,7 +33,12 @@ describe("lawyer template registry", () => {
 
     const draft = buildLawyerTemplateStarterDraft(template!, "Acacia Legal Notice");
     expect(draft).toContain("Acacia Legal Notice");
-    expect(draft).toContain("Template: Legal Notice / Demand Letter");
+    expect(draft).toContain("Muwanga & Co. Advocates");
+    expect(draft).toContain("Pearl Office Supplies Ltd");
+    expect(draft).toContain("Kato Builders Ltd");
+    expect(draft).toContain("UGX 12,500,000");
+    expect(draft).toContain("7 days");
+    expect(draft).toContain("Counsel Daniel Muwanga");
     expect(draft).toContain("Review required: Generated documents are drafts and must be reviewed by a qualified legal professional before use.");
     expect(draft).toContain("Parties:");
   });
