@@ -168,15 +168,15 @@ describe("DocumentEditorPage ? Smart Pages flow", () => {
   it.each([
     [
       "Clean & Rebuild Document",
-      "Recreate the parsed document as a clean professional document",
+      "Recreate the parsed school document as a clean professional document",
     ],
     [
       "Extract to Table",
       "Convert the parsed rows, lists, and tables into structured table data",
     ],
     [
-      "Create Formal Letter",
-      "Turn the parsed notes or instructions into a formal letter",
+      "Letter to Parents",
+      "Turn the parsed notes or instructions into a letter to parents or guardians",
     ],
   ])("uses the %s template and sends the right generation prompt", async (buttonName, promptFragment) => {
     documentIntelligenceMocks.getDocument
@@ -231,6 +231,33 @@ describe("DocumentEditorPage ? Smart Pages flow", () => {
     await waitFor(() => expect(documentIntelligenceMocks.generateSchema).toHaveBeenCalledTimes(1));
     expect(documentIntelligenceMocks.generateSchema.mock.calls[0][1]).toContain(promptFragment);
     await waitFor(() => expect(screen.getByText(/done! your document is ready/i)).toBeInTheDocument());
+  });
+
+  it("does not render lawyer or legal template names in the school Smart Pages picker", async () => {
+    documentIntelligenceMocks.getDocument.mockResolvedValue({
+      id: "doc-1",
+      title: "Sample Smart Page",
+      status: "DRAFT",
+      extractionStatus: "READY",
+      extractionError: null,
+      domain: "school",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      versionCount: 0,
+      hasSourceFiles: true,
+      extractedKnowledge,
+      activeVersion: null,
+      latestSourceFile: { id: "source-1", status: "READY" },
+    });
+
+    renderPage();
+
+    await waitFor(() => expect(screen.getByText(/what would you like to create/i)).toBeInTheDocument());
+    expect(screen.queryByText(/legal notice/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/affidavit/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/contract/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/client intake/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/case brief/i)).not.toBeInTheDocument();
   });
 
   it("hides publish and print actions until a version exists", async () => {

@@ -19,3 +19,5 @@ local.settings.json
 
 db-audit/
 db-audit.zip
+
+.env

@@ -14,6 +14,7 @@ vi.mock("@google/genai", () => {
 
 describe("documentGeminiService", () => {
   afterEach(() => {
+    vi.useRealTimers();
     vi.resetModules();
     vi.clearAllMocks();
     vi.unstubAllEnvs();
@@ -98,16 +99,74 @@ describe("documentGeminiService", () => {
     );
 
     expect(generateContent).toHaveBeenCalledTimes(1);
-    const request = generateContent.mock.calls[0]?.[0] as { contents?: Array<{ inlineData?: unknown; text?: string }> };
+    const request = generateContent.mock.calls[0]?.[0] as {
+      contents?: Array<{ inlineData?: unknown; text?: string }>;
+      config?: { responseMimeType?: string };
+    };
     expect(request.contents?.filter((part) => Boolean(part.inlineData)).length).toBe(4);
     expect(request.contents?.some((part) => typeof part.text === "string" && part.text.includes("High accuracy mode"))).toBe(true);
     expect(request.config?.responseMimeType).toBe("application/json");
   });
 
-  it("falls back to gemini-2.5-flash when GEMINI_MODEL is blank", async () => {
+  it("uses gemini-3.5-flash as the default fast model when GEMINI_MODEL is blank", async () => {
     vi.stubEnv("GEMINI_MODEL", "");
-    const { resolveGeminiDocumentModel } = await import("../../server/services/documentGeminiService");
-    expect(resolveGeminiDocumentModel()).toBe("gemini-2.5-flash");
+    const { resolveGeminiDocumentModel, resolveGeminiHighAccuracyDocumentModel } = await import("../../server/services/documentGeminiService");
+    expect(resolveGeminiDocumentModel()).toBe("gemini-3.5-flash");
+    expect(resolveGeminiHighAccuracyDocumentModel().stable).toBe("gemini-2.5-flash");
+  });
+
+  it("retries 503s, falls back to stable model, and returns success metadata", async () => {
+    vi.useFakeTimers();
+    vi.stubEnv("GEMINI_API_KEY", "test-key");
+    vi.stubEnv("SMART_PAGES_GEMINI_FAST_MODEL", "gemini-3.5-flash");
+    vi.stubEnv("SMART_PAGES_GEMINI_STABLE_ACCURACY_MODEL", "gemini-2.5-flash");
+    const overloaded = new Error("503 UNAVAILABLE: model overloaded");
+    generateContent
+      .mockRejectedValueOnce(overloaded)
+      .mockRejectedValueOnce(overloaded)
+      .mockRejectedValueOnce(overloaded)
+      .mockRejectedValueOnce(overloaded)
+      .mockResolvedValueOnce({
+        text: JSON.stringify({
+          documentType: "report",
+          domain: "education",
+          title: "Fallback Report",
+          suggestedDocumentType: "report",
+          confidence: 0.84,
+          handwritingDifficulty: "low",
+          needsReview: false,
+          recommendedNextStep: "accept",
+          sections: [{ heading: "Body", content: "Recovered" }],
+          tables: [],
+          statistics: [],
+          entities: [],
+          people: [],
+          dates: [],
+          handwrittenNotes: [],
+          keyFacts: [],
+          unclearItems: [],
+          unclearTableCells: [],
+          rawText: "Recovered",
+        }),
+      });
+
+    const { extractDocumentKnowledge } = await import("../../server/services/documentGeminiService");
+    const pending = extractDocumentKnowledge(Buffer.from("fake"), "image/jpeg", "report.jpg");
+    await vi.runAllTimersAsync();
+    const result = await pending;
+
+    expect(result.title).toBe("Fallback Report");
+    expect(result._meta.requestedModel).toBe("gemini-3.5-flash");
+    expect(result._meta.selectedModel).toBe("gemini-2.5-flash");
+    expect(result._meta.attemptedModels).toEqual(["gemini-3.5-flash", "gemini-2.5-flash"]);
+    expect(result._meta.retryCount).toBe(3);
+    expect(result._meta.fallbackUsed).toBe(true);
+    expect(result._meta.fallbackReason).toBe("Model overloaded");
+    expect(result._meta.providerErrorCode).toBe("MODEL_OVERLOADED");
+    expect(generateContent).toHaveBeenCalledTimes(5);
+    expect(generateContent.mock.calls[0]?.[0]).toEqual(expect.objectContaining({ model: "gemini-3.5-flash" }));
+    expect(generateContent.mock.calls[4]?.[0]).toEqual(expect.objectContaining({ model: "gemini-2.5-flash" }));
+    vi.useRealTimers();
   });
 
   it("uses the processed buffer in fast extraction when one is supplied", async () => {

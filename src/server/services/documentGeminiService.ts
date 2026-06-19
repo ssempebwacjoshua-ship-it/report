@@ -40,14 +40,21 @@ export interface DocExtractionMeta {
   requestedModel: string;
   attemptedModels: string[];
   selectedModel: string;
+  retryCount: number;
   fallbackUsed: boolean;
   fallbackReason?: string;
+  providerErrorCode?: string;
+  tokenUsage?: Record<string, unknown> | null;
   extractionTimeMs: number;
   highAccuracy: boolean;
 }
 
 const DOC_FALLBACK_RE =
-  /429|quota|resource_exhausted|timed out|etimedout|unavailable|503|model not found|not_found|model_not_found|404|internal server error|500/i;
+  /429|quota|resource_exhausted|timed out|etimedout|unavailable|503|model overloaded|overloaded|high traffic|model not found|not_found|model_not_found|404|internal server error|500/i;
+const DOC_RETRYABLE_RE =
+  /fetch failed|ECONNRESET|ENOTFOUND|ETIMEDOUT|timed out|unavailable|503|model overloaded|overloaded|high traffic/i;
+const DOC_RETRY_DELAYS_MS = [1_000, 2_000, 4_000];
+const MAX_GEMINI_ATTEMPT_TIMEOUT_MS = 60_000;
 
 function isDocFallbackEligible(err: unknown): boolean {
   if (!(err instanceof Error)) return true;
@@ -60,25 +67,104 @@ function getDocFallbackReason(err: unknown): string {
   const msg = err.message;
   if (/429|quota|resource_exhausted/i.test(msg)) return "Quota exceeded (429)";
   if (/timed out|etimedout/i.test(msg)) return "Request timed out";
+  if (/model overloaded|overloaded|high traffic/i.test(msg)) return "Model overloaded";
   if (/503|unavailable/i.test(msg)) return "Service unavailable (503)";
   if (/model not found|not_found|404/i.test(msg)) return "Model unavailable (404)";
   if (/500|internal/i.test(msg)) return "Provider error (500)";
   return msg.slice(0, 120);
 }
-async function generateContentWithRetry(request: Parameters<GoogleGenAI["models"]["generateContent"]>[0]) {
-  const timeoutMs = Number(process.env.GEMINI_TIMEOUT_MS ?? 45_000);
+
+function providerErrorCode(err: unknown): string | undefined {
+  if (!(err instanceof Error)) return undefined;
+  const anyErr = err as Error & { status?: unknown; code?: unknown; retryCount?: unknown; providerErrorCode?: unknown };
+  if (typeof anyErr.providerErrorCode === "string") return anyErr.providerErrorCode;
+  if (typeof anyErr.status === "number") return String(anyErr.status);
+  if (typeof anyErr.code === "string") return anyErr.code;
+  const msg = `${err.message} ${String((err as NodeJS.ErrnoException).cause ?? "")}`;
+  if (/resource_exhausted|quota|429/i.test(msg)) return "RESOURCE_EXHAUSTED";
+  if (/model overloaded|overloaded|high traffic/i.test(msg)) return "MODEL_OVERLOADED";
+  if (/unavailable/i.test(msg)) return "UNAVAILABLE";
+  if (/503/i.test(msg)) return "503";
+  if (/timed out|etimedout/i.test(msg)) return "TIMEOUT";
+  if (/not_found|model not found|404/i.test(msg)) return "404";
+  if (/internal server error|500/i.test(msg)) return "500";
+  return undefined;
+}
+
+function errorRetryCount(err: unknown): number {
+  if (!(err instanceof Error)) return 0;
+  const value = (err as Error & { retryCount?: unknown }).retryCount;
+  return typeof value === "number" && Number.isFinite(value) ? value : 0;
+}
+
+function isDocRetryable(err: unknown): boolean {
+  if (!(err instanceof Error)) return false;
+  const msg = `${err.message} ${String((err as NodeJS.ErrnoException).cause ?? "")}`;
+  return DOC_RETRYABLE_RE.test(msg);
+}
+
+function resolveGeminiAttemptTimeoutMs(): number {
+  const configured = Number(process.env.GEMINI_TIMEOUT_MS ?? MAX_GEMINI_ATTEMPT_TIMEOUT_MS);
+  if (!Number.isFinite(configured) || configured <= 0) return MAX_GEMINI_ATTEMPT_TIMEOUT_MS;
+  return Math.min(configured, MAX_GEMINI_ATTEMPT_TIMEOUT_MS);
+}
+
+function jitterMs(): number {
+  return Math.floor(Math.random() * 250);
+}
+
+async function delay(ms: number): Promise<void> {
+  await new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function generateContentWithRetryResult(request: Parameters<GoogleGenAI["models"]["generateContent"]>[0]) {
+  const timeoutMs = resolveGeminiAttemptTimeoutMs();
   let lastError: unknown;
-  for (let attempt = 0; attempt < 2; attempt++) {
+  let retryCount = 0;
+  for (let attempt = 0; attempt <= DOC_RETRY_DELAYS_MS.length; attempt++) {
     try {
-      return await withTimeout(getClient().models.generateContent(request), timeoutMs);
+      const response = await withTimeout(getClient().models.generateContent(request), timeoutMs);
+      return {
+        response,
+        retryCount,
+        providerErrorCode: providerErrorCode(lastError),
+        tokenUsage: extractGeminiTokenUsage(response),
+      };
     } catch (error) {
       lastError = error;
-      if (attempt === 0) await new Promise((resolve) => setTimeout(resolve, 750));
+      if (!isDocRetryable(error) || attempt >= DOC_RETRY_DELAYS_MS.length) break;
+      const delayMs = DOC_RETRY_DELAYS_MS[attempt] + jitterMs();
+      retryCount++;
+      console.warn("[document-gemini] transient error, will retry", {
+        model: request.model,
+        attempt: attempt + 1,
+        maxRetries: DOC_RETRY_DELAYS_MS.length,
+        delayMs,
+        providerErrorCode: providerErrorCode(error),
+        message: error instanceof Error ? error.message : String(error),
+      });
+      await delay(delayMs);
     }
   }
-  throw lastError instanceof Error
+  const error = lastError instanceof Error
     ? lastError
     : new Error("Gemini request failed. Please retry.");
+  Object.assign(error, {
+    retryCount,
+    providerErrorCode: providerErrorCode(error),
+  });
+  throw error;
+}
+
+function extractGeminiTokenUsage(response: unknown): Record<string, unknown> | null {
+  if (!response || typeof response !== "object") return null;
+  const usage = (response as { usageMetadata?: unknown }).usageMetadata;
+  return usage && typeof usage === "object" ? usage as Record<string, unknown> : null;
+}
+
+async function generateContentWithRetry(request: Parameters<GoogleGenAI["models"]["generateContent"]>[0]) {
+  const { response } = await generateContentWithRetryResult(request);
+  return response;
 }
 
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
@@ -262,14 +348,22 @@ export async function extractDocumentKnowledge(
     processedMimeType?: string;
     sectionBuffers?: Array<{ label: string; buffer: Buffer; mimeType: string }>;
     priorExtraction?: ExtractedKnowledge | null;
+    modelOverride?: string;
+    onStableFallback?: (info: {
+      requestedModel: string;
+      stableModel: string;
+      fallbackReason: string;
+      providerErrorCode?: string;
+      retryCount: number;
+    }) => void | Promise<void>;
   } = {},
 ): Promise<ExtractedKnowledge & { _meta: DocExtractionMeta }> {
-  const basePrompt = `You are a Document Intelligence Engine. Analyze this document and extract all content.
+  const basePrompt = `You are processing a school document for School Connect Smart Pages. Analyze this document and extract all content for school administration, teaching, parent communication, or learner records.
 
 Return ONLY valid JSON (no markdown, no code fences):
 {
   "documentType": "report | form | table | letter | certificate | invoice | handwritten_note | other",
-  "domain": "education | healthcare | legal | business | nonprofit | general",
+  "domain": "education | school_admin | finance | general",
   "title": "inferred title",
   "suggestedDocumentType": "best document type for polished output",
   "confidence": 0,
@@ -348,29 +442,57 @@ ${priorExtractionText}`,
 
   const { primary: primaryHighAccuracy, stable: stableModel } = resolveGeminiHighAccuracyDocumentModel();
   const fastModel = model();
-  const requestedModel = options.highAccuracy ? primaryHighAccuracy : fastModel;
+  const requestedModel = options.modelOverride?.trim() || (options.highAccuracy ? primaryHighAccuracy : fastModel);
   let selectedModel = requestedModel;
   const attemptedModels: string[] = [requestedModel];
+  let retryCount = 0;
   let fallbackUsed = false;
   let fallbackReason: string | undefined;
+  let providerErrorCodeValue: string | undefined;
+  let tokenUsage: Record<string, unknown> | null = null;
   const extractionStartMs = Date.now();
 
   let res: Awaited<ReturnType<GoogleGenAI["models"]["generateContent"]>>;
   try {
-    res = await generateContentWithRetry({ model: requestedModel, contents, config: buildExtractionConfig() });
+    const primaryResult = await generateContentWithRetryResult({ model: requestedModel, contents, config: buildExtractionConfig() });
+    res = primaryResult.response;
+    retryCount += primaryResult.retryCount;
+    providerErrorCodeValue = primaryResult.providerErrorCode;
+    tokenUsage = primaryResult.tokenUsage;
   } catch (primaryErr) {
-    if (isDocFallbackEligible(primaryErr) && requestedModel !== stableModel) {
+    retryCount += errorRetryCount(primaryErr);
+    providerErrorCodeValue = providerErrorCode(primaryErr);
+    if (!options.modelOverride && isDocFallbackEligible(primaryErr) && requestedModel !== stableModel) {
       fallbackReason = getDocFallbackReason(primaryErr);
       console.warn("[document-gemini] primary model failed, falling back to stable", {
         requestedModel,
         stableModel,
         reason: fallbackReason,
+        providerErrorCode: providerErrorCodeValue,
+        retryCount,
         error: primaryErr instanceof Error ? primaryErr.message : String(primaryErr),
       });
       fallbackUsed = true;
       selectedModel = stableModel;
       attemptedModels.push(stableModel);
-      res = await generateContentWithRetry({ model: stableModel, contents, config: buildExtractionConfig() });
+      await options.onStableFallback?.({
+        requestedModel,
+        stableModel,
+        fallbackReason,
+        providerErrorCode: providerErrorCodeValue,
+        retryCount,
+      });
+      try {
+        const fallbackResult = await generateContentWithRetryResult({ model: stableModel, contents, config: buildExtractionConfig() });
+        res = fallbackResult.response;
+        retryCount += fallbackResult.retryCount;
+        providerErrorCodeValue ??= fallbackResult.providerErrorCode;
+        tokenUsage = fallbackResult.tokenUsage;
+      } catch (fallbackErr) {
+        retryCount += errorRetryCount(fallbackErr);
+        providerErrorCodeValue ??= providerErrorCode(fallbackErr);
+        throw fallbackErr;
+      }
     } else {
       throw primaryErr;
     }
@@ -387,8 +509,11 @@ ${priorExtractionText}`,
     requestedModel,
     attemptedModels,
     selectedModel,
+    retryCount,
     fallbackUsed,
     fallbackReason,
+    providerErrorCode: providerErrorCodeValue,
+    tokenUsage,
     extractionTimeMs: Date.now() - extractionStartMs,
     highAccuracy: Boolean(options.highAccuracy),
   };
@@ -850,7 +975,7 @@ ${JSON.stringify(currentSchema, null, 2)}
 Return ONLY valid JSON:
 {
   "documentType": "report | form | table | letter | certificate | invoice | other",
-  "domain": "education | healthcare | legal | business | nonprofit | general",
+  "domain": "education | school_admin | finance | general",
   "confidence": 0.0,
   "tags": ["tag"]
 }`,

@@ -1,15 +1,41 @@
 ﻿import { Router } from "express";
 import { z } from "zod";
+import { randomUUID } from "node:crypto";
 import { prisma } from "../db/prisma";
 import { requirePlatformOwner } from "../middleware/requirePlatformOwner";
 import { hashPassword } from "../services/authService";
 import { REPORT_LAB_PLANS, getPlanByCode } from "../../shared/constants/subscriptionPlans";
 import { getClassesForSections } from "../../shared/constants/classes";
+import { getSmartPagesPackage } from "../services/smartPagesService";
+import type { SmartPagesPackageCode, SmartPagesPaymentNetwork, SmartPagesPaymentRequest } from "../../shared/types/smartPages";
 
 const validPlanCodes = REPORT_LAB_PLANS.map((p) => p.code) as [string, ...string[]];
 
 function ownerAudit(actorId: string, schoolId: string, action: string, details?: Record<string, unknown>) {
   return prisma.auditLog.create({ data: { schoolId, action, details: { actorUserId: actorId, ...details } } });
+}
+
+function smartPagesPaymentToDto(row: any): SmartPagesPaymentRequest {
+  return {
+    id: row.id as string,
+    schoolId: row.schoolId as string,
+    schoolName: row.school?.name as string | undefined,
+    packageCode: row.packageCode as SmartPagesPackageCode,
+    packageName: row.packageName as string,
+    credits: row.credits as number,
+    amountUgx: row.amountUgx as number,
+    network: row.network as SmartPagesPaymentNetwork,
+    merchantCode: row.merchantCode as string,
+    merchantName: row.merchantName as string,
+    paymentReference: row.paymentReference as string,
+    transactionId: row.transactionId as string | null,
+    payerPhone: row.payerPhone as string | null,
+    proofScreenshotUrl: row.proofScreenshotUrl as string | null,
+    status: row.status as SmartPagesPaymentRequest["status"],
+    adminNotes: row.adminNotes as string | null,
+    createdAt: (row.createdAt as Date).toISOString(),
+    updatedAt: row.updatedAt ? (row.updatedAt as Date).toISOString() : undefined,
+  };
 }
 
 export function platformOwnerRoutes() {
@@ -488,6 +514,209 @@ export function platformOwnerRoutes() {
       const action = body.isActive === false ? "OWNER_DISABLE_SCHOOL" : body.isActive === true ? "OWNER_ENABLE_SCHOOL" : "OWNER_UPDATE_SCHOOL";
       void ownerAudit(req.user!.userId, schoolId, action, { changes: body }).catch(() => {});
       res.json({ ok: true, school: updated });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // ── Smart Pages payments ───────────────────────────────────────────────────
+
+  router.get("/api/owner/smart-pages/payments", requirePlatformOwner, async (req, res, next) => {
+    try {
+      const status = typeof req.query.status === "string" ? req.query.status : "PENDING";
+      const payments = await (prisma as any).smartPagePaymentRequest.findMany({
+        where: status === "ALL" ? {} : { status },
+        orderBy: { createdAt: "desc" },
+        take: 100,
+        include: { school: { select: { id: true, code: true, name: true } } },
+      });
+      res.json({ payments: payments.map(smartPagesPaymentToDto) });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.get("/api/owner/smart-pages/usage", requirePlatformOwner, async (_req, res, next) => {
+    try {
+      const rows = await (prisma as any).smartPageLedger.findMany({
+        orderBy: { createdAt: "desc" },
+        take: 100,
+      });
+      const schoolIds = [...new Set(rows.map((row: any) => row.schoolId as string))];
+      const schools = await prisma.school.findMany({
+        where: { id: { in: schoolIds } },
+        select: { id: true, name: true, code: true },
+      });
+      const schoolMap = new Map(schools.map((school) => [school.id, school]));
+      res.json({
+        ledger: rows.map((row: any) => {
+          const school = schoolMap.get(row.schoolId as string);
+          return {
+            id: row.id,
+            schoolId: row.schoolId,
+            schoolName: school ? `${school.name} (${school.code})` : undefined,
+            operation: row.operation ?? row.action,
+            pagesProcessed: row.pagesProcessed ?? row.pagesCharged,
+            creditsUsed: row.creditsCharged ?? row.pagesCharged,
+            creditsRemainingAfter: null,
+            priceUgx: row.priceUgx ?? 0,
+            status: row.status,
+            createdAt: (row.createdAt as Date).toISOString(),
+            model: row.model ?? "",
+            tokenUsage: row.tokenUsage ?? null,
+            geminiCostEstimateUgx: row.geminiCostEstimateUgx ?? null,
+            marginEstimateUgx: row.marginEstimateUgx ?? null,
+          };
+        }),
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  const paymentDecisionSchema = z.object({
+    notes: z.string().max(1000).optional(),
+  });
+
+  router.post("/api/owner/smart-pages/payments/:paymentId/confirm", requirePlatformOwner, async (req, res, next) => {
+    try {
+      const { paymentId } = req.params;
+      const body = paymentDecisionSchema.parse(req.body);
+      const payment = await (prisma as any).smartPagePaymentRequest.findUnique({
+        where: { id: paymentId },
+        include: { school: { select: { id: true, code: true, name: true } } },
+      });
+      if (!payment) {
+        res.status(404).json({ error: "Payment request not found." });
+        return;
+      }
+      if (payment.status !== "PENDING") {
+        res.status(409).json({ error: "Only pending payments can be confirmed." });
+        return;
+      }
+      if (!payment.transactionId) {
+        res.status(400).json({ error: "Transaction ID is required before confirmation." });
+        return;
+      }
+
+      const pkg = getSmartPagesPackage(payment.packageCode as SmartPagesPackageCode);
+      if (!pkg || pkg.priceUgx !== payment.amountUgx || pkg.credits !== payment.credits) {
+        res.status(400).json({ error: "Payment package no longer matches Smart Pages pricing." });
+        return;
+      }
+
+      const now = new Date();
+      const cycleEnd = new Date(now.getFullYear() + 1, now.getMonth(), now.getDate());
+      const db = prisma as any;
+      const updated = await db.$transaction(async (tx: any) => {
+        const confirmed = await tx.smartPagePaymentRequest.update({
+          where: { id: payment.id },
+          data: {
+            status: "CONFIRMED",
+            adminNotes: body.notes ?? null,
+            confirmedByUserId: req.user!.userId,
+            confirmedAt: now,
+          },
+          include: { school: { select: { id: true, code: true, name: true } } },
+        });
+
+        await tx.schoolSmartPagePlan.upsert({
+          where: { schoolId: payment.schoolId },
+          update: {
+            topUpPages: { increment: payment.credits },
+            status: "ACTIVE",
+          },
+          create: {
+            schoolId: payment.schoolId,
+            planName: payment.packageCode,
+            includedPages: payment.credits,
+            billingCycle: "ACADEMIC_YEAR",
+            cycleStart: now,
+            cycleEnd,
+            usedPages: 0,
+            topUpPages: 0,
+            rolloverPages: 0,
+            status: "ACTIVE",
+            allowHighAccuracy: payment.packageCode === "SCHOOL_PRO",
+          },
+        });
+
+        await tx.smartPageLedger.create({
+          data: {
+            id: randomUUID(),
+            schoolId: payment.schoolId,
+            jobId: payment.id,
+            fileHash: payment.paymentReference,
+            pagesCharged: 0,
+            creditsCharged: payment.credits,
+            operation: "TOP_UP",
+            pagesProcessed: 0,
+            priceUgx: payment.amountUgx,
+            action: "TOP_UP",
+            reason: `Confirmed ${payment.packageName} payment`,
+            provider: payment.network,
+            model: "",
+            extractionMode: "balanced",
+            status: "CHARGED",
+            tokenUsage: null,
+            geminiCostEstimateUgx: 0,
+            marginEstimateUgx: payment.amountUgx,
+          },
+        });
+
+        await tx.auditLog.create({
+          data: {
+            schoolId: payment.schoolId,
+            action: "SMART_PAGES_PAYMENT_CONFIRMED",
+            correlationId: payment.id,
+            details: {
+              actorUserId: req.user!.userId,
+              network: payment.network,
+              merchantCode: payment.merchantCode,
+              transactionId: payment.transactionId,
+              packageCode: payment.packageCode,
+              credits: payment.credits,
+              amountUgx: payment.amountUgx,
+            },
+          },
+        });
+        return confirmed;
+      });
+
+      res.json({ payment: smartPagesPaymentToDto(updated) });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/api/owner/smart-pages/payments/:paymentId/reject", requirePlatformOwner, async (req, res, next) => {
+    try {
+      const { paymentId } = req.params;
+      const body = paymentDecisionSchema.parse(req.body);
+      const payment = await (prisma as any).smartPagePaymentRequest.findUnique({
+        where: { id: paymentId },
+        include: { school: { select: { id: true, code: true, name: true } } },
+      });
+      if (!payment) {
+        res.status(404).json({ error: "Payment request not found." });
+        return;
+      }
+      if (payment.status !== "PENDING") {
+        res.status(409).json({ error: "Only pending payments can be rejected." });
+        return;
+      }
+      const updated = await (prisma as any).smartPagePaymentRequest.update({
+        where: { id: payment.id },
+        data: { status: "REJECTED", adminNotes: body.notes ?? null, rejectedAt: new Date() },
+        include: { school: { select: { id: true, code: true, name: true } } },
+      });
+      void ownerAudit(req.user!.userId, payment.schoolId, "SMART_PAGES_PAYMENT_REJECTED", {
+        paymentId: payment.id,
+        network: payment.network,
+        transactionId: payment.transactionId,
+        notes: body.notes ?? null,
+      }).catch(() => {});
+      res.json({ payment: smartPagesPaymentToDto(updated) });
     } catch (error) {
       next(error);
     }

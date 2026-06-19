@@ -25,6 +25,8 @@ describe("lawyer template registry", () => {
     const schoolIds = getSmartPageTemplates("parsed").map((template) => template.id);
 
     expect(schoolIds).not.toEqual(expect.arrayContaining(lawyerIds));
+    expect(getLawyerPageTemplates("parsed").every((template) => template.vertical === "LAWYER")).toBe(true);
+    expect(getSmartPageTemplates("parsed").every((template) => template.vertical === "SCHOOL")).toBe(true);
   });
 
   it("builds a useful starter draft outline for lawyers", () => {

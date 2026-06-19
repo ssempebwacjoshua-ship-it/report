@@ -34,6 +34,8 @@ import { creatorAuthRoutes } from "./routes/creatorAuthRoutes";
 import { collectionRoutes } from "./routes/collectionRoutes";
 import { bulkGenerationRoutes } from "./routes/bulkGenerationRoutes";
 import { documentOsRoutes } from "./routes/documentOsRoutes";
+import { smartPagesBillingRoutes } from "./routes/smartPagesBillingRoutes";
+import { smartPagesTemplateRoutes } from "./routes/smartPagesTemplateRoutes";
 import { startBulkGenerationWorker } from "./services/bulkGenerationService";
 import { startDocumentExtractionWorker } from "./services/documentIntelligenceService";
 import geminiOcrRoutes from "./routes/geminiOcrRoutes";
@@ -79,6 +81,7 @@ export function createServer() {
   app.use("/api/document-os", documentOsRoutes());
   app.use("/api/collections", collectionRoutes());
   app.use("/api/bulk-jobs", bulkGenerationRoutes());
+  app.use(smartPagesTemplateRoutes());
 
   // Platform-owner provisioning ? protected by PLATFORM_ADMIN_KEY, not by school JWT
   app.use(platformAdminRoutes());
@@ -107,6 +110,7 @@ export function createServer() {
   app.use(settingsRoutes());
   app.use(ocrRoutes());
   app.use(subscriptionRoutes());
+  app.use(smartPagesBillingRoutes());
   app.use(geminiMarksImportRoutes());
 
   // Static file serving + SPA fallback (production only ? never in test env, skipped when dist absent)

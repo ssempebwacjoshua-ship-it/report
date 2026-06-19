@@ -137,11 +137,12 @@ export async function updateExtractedKnowledge(
 export async function generateSchema(
   documentId: string,
   intent: string,
+  templateId?: string,
 ): Promise<{ versionId: string; schema: DocumentSchema; componentTree: ComponentNode[] }> {
   const res = await fetch(`${API_BASE}/api/smart-documents/${documentId}/generate`, {
     method: "POST",
     headers: authHeaders(),
-    body: JSON.stringify({ intent }),
+    body: JSON.stringify({ intent, templateId }),
   });
   return json(res);
 }

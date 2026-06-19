@@ -5,6 +5,7 @@ import { requireCreator } from "../middleware/requireCreator";
 import * as svc from "../services/documentIntelligenceService";
 import { renderSchemaToHtml } from "../services/documentRenderService";
 import type { DocumentSchema, ComponentNode } from "../../shared/types/documentIntelligence";
+import { getSmartPageTemplateById } from "../../shared/smartPagesTemplates";
 
 const router = Router();
 const upload = multer({
@@ -107,8 +108,12 @@ router.patch("/:id/extracted-knowledge", requireCreator, async (req, res) => {
 
 // Generate initial schema from intent
 router.post("/:id/generate", requireCreator, async (req, res) => {
-  const { intent } = req.body as { intent?: string };
+  const { intent, templateId } = req.body as { intent?: string; templateId?: string };
   if (!intent?.trim()) { res.status(400).json({ error: "Describe how you want the document to look." }); return; }
+  if (templateId && !getSmartPageTemplateById(templateId, "SCHOOL")) {
+    res.status(400).json({ error: "Template is not available for School Connect Smart Pages." });
+    return;
+  }
   try {
     const result = await svc.generateSchema(req.params.id, req.creator!.id, intent.trim());
     res.json({ ok: true, ...result });

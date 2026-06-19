@@ -188,6 +188,7 @@ export interface SmartDocumentDetail extends SmartDocumentSummary {
     extractionError?: string | null;
     extractionStartedAt?: string | null;
     extractionCompletedAt?: string | null;
+    ocrQuality?: Record<string, unknown> | null;
   };
 }
 
