@@ -10,7 +10,7 @@ import {
   getSmartPagesPaymentConfig,
   getSummary,
 } from "../services/smartPagesService";
-import { notifySmartPagesPayment } from "../services/telegramService";
+import { notifySmartPagesPayment, type SmartPagesPaymentNotificationOpts } from "../services/telegramService";
 import type {
   SmartPageLedgerEntry,
   SmartPagesPaymentNetwork,
@@ -85,25 +85,29 @@ export function smartPagesBillingRoutes() {
     try {
       const schoolId = req.school!.id;
       const db = prisma as any;
-      const [summary, ledger, payments] = await Promise.all([
+      const [summary, ledger, paymentsRaw] = await Promise.all([
         getSummary(schoolId),
         getLedger(schoolId, 50),
         // Guard against the table not yet existing after a fresh deployment
         // before migrations have been applied.
         db.smartPagePaymentRequest
-          ? db.smartPagePaymentRequest.findMany({
+          ? (db.smartPagePaymentRequest.findMany({
               where: { schoolId },
               orderBy: { createdAt: "desc" },
               take: 20,
-            }).catch(() => [])
-          : Promise.resolve([]),
+            }) as Promise<unknown[]>).catch((e: unknown) => {
+              console.error("[smart-pages-billing] payments query failed", e instanceof Error ? e.message : e);
+              return [] as unknown[];
+            })
+          : Promise.resolve([] as unknown[]),
       ]);
       res.json({
         summary,
         ledger: ledger.map(ledgerToSchoolRow),
-        payments: payments.map((payment: any) => paymentToDto(payment, req.school!.name)),
+        payments: paymentsRaw.map((payment: unknown) => paymentToDto(payment, req.school!.name)),
       });
     } catch (error) {
+      console.error("[smart-pages-billing] summary route error", error instanceof Error ? error.message : error);
       next(error);
     }
   });
@@ -181,6 +185,8 @@ export function smartPagesBillingRoutes() {
         res.status(503).json({ error: "Billing system is initialising. Please try again in a few minutes." });
         return;
       }
+
+      // ── 1. Validate and save receipt ───────────────────────────────────────
       const body = receiptSchema.parse(req.body);
       const payment = await db.smartPagePaymentRequest.findFirst({
         where: { id: req.params.paymentId, schoolId: req.school!.id },
@@ -222,8 +228,14 @@ export function smartPagesBillingRoutes() {
         },
       });
 
-      // Notify admin via Telegram — best-effort, never blocks the response.
-      void (async () => {
+      // ── 2. Telegram notification (awaited; errors never reach the customer) ─
+      const paymentId = updated.id as string;
+      console.log("[smart-pages-billing] sending Telegram payment notification", { paymentId });
+
+      let telegramSentAt: Date | null = null;
+      let telegramError: string | null = null;
+
+      try {
         const result = await notifySmartPagesPayment({
           schoolName: req.school!.name,
           userName: req.user?.name || req.user?.email || "School user",
@@ -232,20 +244,34 @@ export function smartPagesBillingRoutes() {
           amountUgx: updated.amountUgx as number,
           network: updated.network as string,
           transactionId: body.transactionId,
-          paymentId: updated.id as string,
+          paymentId,
           paymentReference: updated.paymentReference as string,
           submittedAt: new Date().toISOString(),
         });
-        // Store Telegram outcome on the record — metadata only, failure is non-critical.
-        db.smartPagePaymentRequest.update({
-          where: { id: updated.id },
-          data: {
-            telegramSentAt: result.ok ? new Date() : null,
-            telegramError: result.ok ? null : (result.error ?? "Unknown error"),
-          },
-        }).catch(() => {/* ignore — Telegram status is informational only */});
-      })();
+        if (result.ok) {
+          console.log("[smart-pages-billing] Telegram payment notification sent", { paymentId });
+          telegramSentAt = new Date();
+        } else {
+          console.error("[smart-pages-billing] Telegram payment notification failed", { paymentId, error: result.error });
+          telegramError = result.error ?? "Telegram notification failed";
+        }
+      } catch (telegramErr) {
+        const errMsg = telegramErr instanceof Error ? telegramErr.message : "Unknown Telegram error";
+        console.error("[smart-pages-billing] Telegram payment notification failed", { paymentId, error: errMsg });
+        telegramError = errMsg;
+      }
 
+      // ── 3. Persist Telegram outcome — always one of the two fields is set ──
+      try {
+        await db.smartPagePaymentRequest.update({
+          where: { id: paymentId },
+          data: { telegramSentAt, telegramError },
+        });
+      } catch {
+        console.error("[smart-pages-billing] Failed to persist Telegram status", { paymentId });
+      }
+
+      // ── 4. Respond to customer (Telegram outcome never blocks this) ─────────
       res.json({ payment: paymentToDto(updated, req.school!.name) });
     } catch (error) {
       next(error);

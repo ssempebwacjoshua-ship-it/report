@@ -1241,91 +1241,46 @@ export function DocumentEditorPage() {
         </div>
       ) : null}
 
-      <div className="min-h-0 flex-1 overflow-y-auto">
-        <div className="grid min-h-full gap-4 p-4 lg:grid-cols-[minmax(0,1fr)_340px]">
+      <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
+        <div className="grid min-h-full gap-4 p-4 lg:grid-cols-[minmax(0,1fr)_320px]">
           <main className="min-w-0 space-y-4">
-            <section className="premium-card premium-card-hover rounded-[28px] p-4 sm:p-5">
-              <div className="flex flex-wrap items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => void navigate(isLawyerWorkspace ? "/lawyers/dashboard" : "/smart-pages")}
-                  className="btn btn-secondary text-xs"
-                >
-                  Back to documents
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void handleSaveExtractionReview()}
-                  className="btn btn-secondary text-xs"
-                  disabled={reviewSaving}
-                >
-                  {reviewSaving ? "Saving..." : "Save draft"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => { void getVersionHistory(id!).then(setVersions); setShowVersions(true); }}
-                  className="btn btn-secondary text-xs"
-                  disabled={versions.length === 0 && !hasActiveVersion}
-                  title={versions.length === 0 && !hasActiveVersion ? "No saved versions yet." : undefined}
-                >
-                  Version history
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void handlePrint()}
-                  disabled={printing || !hasActiveVersion}
-                  className="btn btn-secondary text-xs disabled:cursor-not-allowed disabled:opacity-50"
-                  title={!hasActiveVersion ? "Generate a first version before printing." : undefined}
-                >
-                  {printing ? "Opening..." : "Print"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void handleDownloadExport("pdf")}
-                  disabled={exportingFormat === "pdf" || !hasActiveVersion}
-                  className="btn btn-secondary text-xs disabled:cursor-not-allowed disabled:opacity-50"
-                  title={!hasActiveVersion ? "Generate a first version before downloading." : undefined}
-                >
-                  {exportingFormat === "pdf" ? "Downloading..." : "Download PDF"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void handleDownloadExport("docx")}
-                  disabled={exportingFormat === "docx" || !hasActiveVersion}
-                  className="btn btn-secondary text-xs disabled:cursor-not-allowed disabled:opacity-50"
-                  title={!hasActiveVersion ? "Generate a first version before downloading." : undefined}
-                >
-                  {exportingFormat === "docx" ? "Downloading..." : "Download DOCX"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void handleDownloadExport("markdown")}
-                  disabled={exportingFormat === "markdown" || !hasActiveVersion}
-                  className="btn btn-secondary text-xs disabled:cursor-not-allowed disabled:opacity-50"
-                  title={!hasActiveVersion ? "Generate a first version before exporting." : undefined}
-                >
-                  {exportingFormat === "markdown" ? "Downloading..." : "Export Markdown"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void handleDownloadExport("schema")}
-                  disabled={exportingFormat === "schema" || !hasActiveVersion}
-                  className="btn btn-secondary text-xs disabled:cursor-not-allowed disabled:opacity-50"
-                  title={!hasActiveVersion ? "Generate a first version before exporting." : undefined}
-                >
-                  {exportingFormat === "schema" ? "Downloading..." : "Export Schema"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowPublishModal(true)}
-                  disabled={publishing || !hasActiveVersion}
-                  className="btn btn-primary text-xs disabled:cursor-not-allowed disabled:opacity-50"
-                  title={!hasActiveVersion ? "Generate a first version before publishing." : undefined}
-                >
-                  {publishing ? "Publishing..." : publishResult ? "Re-publish Secure Link" : "Publish Secure Link"}
-                </button>
-              </div>
-            </section>
+            <div className="flex flex-wrap items-center gap-2 rounded-2xl bg-white px-3 py-2 shadow-sm ring-1 ring-slate-100">
+              <button
+                type="button"
+                onClick={() => void handleSaveExtractionReview()}
+                className="btn btn-secondary text-xs"
+                disabled={reviewSaving}
+              >
+                {reviewSaving ? "Saving..." : "Save draft"}
+              </button>
+              <button
+                type="button"
+                onClick={() => void handlePrint()}
+                disabled={printing || !hasActiveVersion}
+                className="btn btn-secondary text-xs disabled:cursor-not-allowed disabled:opacity-50"
+                title={!hasActiveVersion ? "Generate a first version before printing." : undefined}
+              >
+                {printing ? "Opening..." : "Print"}
+              </button>
+              <button
+                type="button"
+                onClick={() => { void getVersionHistory(id!).then(setVersions); setShowVersions(true); }}
+                className="btn btn-secondary text-xs"
+                disabled={versions.length === 0 && !hasActiveVersion}
+                title={versions.length === 0 && !hasActiveVersion ? "No saved versions yet." : undefined}
+              >
+                Version history
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowPublishModal(true)}
+                disabled={publishing || !hasActiveVersion}
+                className="btn btn-primary text-xs disabled:cursor-not-allowed disabled:opacity-50"
+                title={!hasActiveVersion ? "Generate a first version before publishing." : undefined}
+              >
+                {publishing ? "Publishing..." : publishResult ? "Re-publish Secure Link" : "Publish Secure Link"}
+              </button>
+            </div>
 
             {stage === "processing" ? (
               <div className="flex min-h-[24rem] items-center justify-center">
@@ -1500,6 +1455,53 @@ export function DocumentEditorPage() {
               </div>
               {showActions ? (
                 <>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => void handleDownloadExport("pdf")}
+                      disabled={exportingFormat === "pdf" || !hasActiveVersion}
+                      className="btn btn-secondary text-xs disabled:cursor-not-allowed disabled:opacity-50"
+                      title={!hasActiveVersion ? "Generate a first version before downloading." : undefined}
+                    >
+                      {exportingFormat === "pdf" ? "Downloading..." : "Download PDF"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void handleDownloadExport("docx")}
+                      disabled={exportingFormat === "docx" || !hasActiveVersion}
+                      className="btn btn-secondary text-xs disabled:cursor-not-allowed disabled:opacity-50"
+                      title={!hasActiveVersion ? "Generate a first version before downloading." : undefined}
+                    >
+                      {exportingFormat === "docx" ? "Downloading..." : "Download DOCX"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void handleDownloadExport("markdown")}
+                      disabled={exportingFormat === "markdown" || !hasActiveVersion}
+                      className="btn btn-secondary text-xs disabled:cursor-not-allowed disabled:opacity-50"
+                      title={!hasActiveVersion ? "Generate a first version before exporting." : undefined}
+                    >
+                      {exportingFormat === "markdown" ? "Downloading..." : "Export Markdown"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void handleDownloadExport("schema")}
+                      disabled={exportingFormat === "schema" || !hasActiveVersion}
+                      className="btn btn-secondary text-xs disabled:cursor-not-allowed disabled:opacity-50"
+                      title={!hasActiveVersion ? "Generate a first version before exporting." : undefined}
+                    >
+                      {exportingFormat === "schema" ? "Downloading..." : "Export Schema"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowPublishModal(true)}
+                      disabled={publishing || !hasActiveVersion}
+                      className="btn btn-primary text-xs disabled:cursor-not-allowed disabled:opacity-50"
+                      title={!hasActiveVersion ? "Generate a first version before publishing." : undefined}
+                    >
+                      {publishing ? "Publishing..." : publishResult ? "Re-publish Secure Link" : "Publish Secure Link"}
+                    </button>
+                  </div>
                   <div className="mt-3 flex flex-wrap gap-2">
                     <SuggestionChips
                       items={suggestions}

@@ -4,7 +4,7 @@ export interface TelegramResult {
 }
 
 /**
- * Send a plain-text or HTML message to the configured admin Telegram chat.
+ * Send a plain-text message to the configured admin Telegram chat.
  * Returns { ok: true } on success, { ok: false, error } on any failure.
  * Never throws — callers treat Telegram as best-effort.
  */
@@ -12,7 +12,7 @@ export async function sendTelegramMessage(text: string): Promise<TelegramResult>
   const botToken = process.env.TELEGRAM_BOT_TOKEN?.trim();
   const chatId = process.env.TELEGRAM_ADMIN_CHAT_ID?.trim();
   if (!botToken || !chatId) {
-    return { ok: false, error: "TELEGRAM_BOT_TOKEN or TELEGRAM_ADMIN_CHAT_ID not configured" };
+    return { ok: false, error: "Telegram not configured: missing TELEGRAM_BOT_TOKEN or TELEGRAM_ADMIN_CHAT_ID" };
   }
   try {
     const response = await fetch(
@@ -20,7 +20,8 @@ export async function sendTelegramMessage(text: string): Promise<TelegramResult>
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ chat_id: chatId, text, parse_mode: "HTML" }),
+        // No parse_mode — plain text is safe with any school/user/transaction content
+        body: JSON.stringify({ chat_id: chatId, text }),
       },
     );
     const data = (await response.json()) as { ok: boolean; description?: string };
@@ -55,30 +56,22 @@ export function buildSmartPagesPaymentMessage(opts: SmartPagesPaymentNotificatio
     time = opts.submittedAt;
   }
   return [
-    "<b>🧾 New Smart Pages Payment Request</b>",
+    "=== New Smart Pages Payment Request ===",
     "",
-    `<b>School:</b> ${escape(opts.schoolName)}`,
-    `<b>User:</b> ${escape(opts.userName)}`,
-    `<b>Package:</b> ${escape(opts.packageName)}`,
-    `<b>Pages:</b> ${opts.pages.toLocaleString()}`,
-    `<b>Amount:</b> ${amount}`,
-    `<b>Network:</b> ${escape(opts.network)}`,
-    `<b>Transaction ID:</b> <code>${escape(opts.transactionId)}</code>`,
-    `<b>Request ID:</b> <code>${escape(opts.paymentId)}</code>`,
-    `<b>Ref:</b> <code>${escape(opts.paymentReference)}</code>`,
-    `<b>Status:</b> PENDING`,
-    `<b>Submitted:</b> ${time}`,
+    `School: ${opts.schoolName}`,
+    `User: ${opts.userName}`,
+    `Package: ${opts.packageName}`,
+    `Pages: ${opts.pages.toLocaleString()}`,
+    `Amount: ${amount}`,
+    `Network: ${opts.network}`,
+    `Transaction ID: ${opts.transactionId}`,
+    `Request ID: ${opts.paymentId}`,
+    `Ref: ${opts.paymentReference}`,
+    `Status: PENDING`,
+    `Submitted: ${time}`,
     "",
     "Open the Smart Pages Billing Admin page to approve or reject.",
   ].join("\n");
-}
-
-/** Escape special HTML characters for Telegram HTML parse mode. */
-function escape(text: string): string {
-  return text
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
 }
 
 /**

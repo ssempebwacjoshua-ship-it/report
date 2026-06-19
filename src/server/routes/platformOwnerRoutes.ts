@@ -722,6 +722,24 @@ export function platformOwnerRoutes() {
     }
   });
 
+  // ── Telegram connectivity test ────────────────────────────────────────────────
+
+  router.post("/api/owner/test-telegram", requirePlatformOwner, async (req, res, next) => {
+    try {
+      const { sendTelegramMessage } = await import("../services/telegramService");
+      const result = await sendTelegramMessage(
+        `[School Connect] Telegram test from Smart Pages billing — ENV: ${process.env.NODE_ENV ?? "unknown"}`,
+      );
+      if (result.ok) {
+        res.json({ ok: true });
+      } else {
+        res.json({ ok: false, error: result.error });
+      }
+    } catch (error) {
+      next(error);
+    }
+  });
+
   return router;
 }
 

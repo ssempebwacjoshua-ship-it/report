@@ -80,9 +80,14 @@ const triggerAliases: Record<string, WorkflowTrigger> = {
   PUBLISH_COMPLETED: "PUBLISH_COMPLETED",
 };
 
-export async function listPreferences(creatorId: string) {
+export async function listPreferences(creatorId: string, scope?: "school" | "lawyer") {
   const rows = await db.creatorPreference.findMany({ where: { creatorId }, orderBy: { key: "asc" } });
-  return rows.map((row: any) => ({ id: row.id, key: row.key, value: row.value, updatedAt: row.updatedAt.toISOString() }));
+  const filtered = scope === "school"
+    ? rows.filter((row: any) => !String(row.key).toLowerCase().startsWith("lawyer."))
+    : scope === "lawyer"
+      ? rows.filter((row: any) => String(row.key).toLowerCase().startsWith("lawyer."))
+      : rows;
+  return filtered.map((row: any) => ({ id: row.id, key: row.key, value: row.value, updatedAt: row.updatedAt.toISOString() }));
 }
 
 export async function preferenceMap(creatorId: string): Promise<Record<string, unknown>> {

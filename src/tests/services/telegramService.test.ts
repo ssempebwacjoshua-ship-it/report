@@ -36,14 +36,20 @@ describe("buildSmartPagesPaymentMessage", () => {
     expect(msg).toContain("approve or reject");
   });
 
-  it("escapes HTML special characters in school name", () => {
+  it("includes school name verbatim (plain text — no HTML escaping)", () => {
     const msg = buildSmartPagesPaymentMessage({
       ...OPTS,
       schoolName: "School <A&B> 'Test'",
     });
-    expect(msg).toContain("&lt;");
-    expect(msg).toContain("&amp;");
-    expect(msg).not.toContain("<A&B>");
+    // Plain text mode: raw characters are safe, no HTML entity conversion
+    expect(msg).toContain("School <A&B> 'Test'");
+    expect(msg).not.toContain("&lt;");
+    expect(msg).not.toContain("&amp;");
+  });
+
+  it("does not contain HTML tags", () => {
+    const msg = buildSmartPagesPaymentMessage(OPTS);
+    expect(msg).not.toMatch(/<b>|<\/b>|<code>|<\/code>/);
   });
 });
 
@@ -61,14 +67,27 @@ describe("sendTelegramMessage", () => {
     vi.stubEnv("TELEGRAM_BOT_TOKEN", "");
     const result = await sendTelegramMessage("test");
     expect(result.ok).toBe(false);
-    expect(result.error).toMatch(/not configured/i);
+    expect(result.error).toMatch(/Telegram not configured/i);
+    expect(result.error).toContain("TELEGRAM_BOT_TOKEN");
   });
 
   it("returns ok=false if TELEGRAM_ADMIN_CHAT_ID is not set", async () => {
     vi.stubEnv("TELEGRAM_ADMIN_CHAT_ID", "");
     const result = await sendTelegramMessage("test");
     expect(result.ok).toBe(false);
-    expect(result.error).toMatch(/not configured/i);
+    expect(result.error).toMatch(/Telegram not configured/i);
+    expect(result.error).toContain("TELEGRAM_ADMIN_CHAT_ID");
+  });
+
+  it("sends without parse_mode (plain text)", async () => {
+    let capturedBody: Record<string, unknown> = {};
+    vi.stubGlobal("fetch", vi.fn().mockImplementation(async (_url: string, init: RequestInit) => {
+      capturedBody = JSON.parse(init.body as string) as Record<string, unknown>;
+      return { json: async () => ({ ok: true }) };
+    }));
+    await sendTelegramMessage("hello world");
+    expect(capturedBody).not.toHaveProperty("parse_mode");
+    expect(capturedBody.text).toBe("hello world");
   });
 
   it("returns ok=true when Telegram API returns ok=true", async () => {

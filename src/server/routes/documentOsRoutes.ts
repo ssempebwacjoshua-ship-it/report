@@ -41,7 +41,9 @@ const toneSchema = z.object({
 
 router.get("/preferences", requireCreator, async (req, res, next) => {
   try {
-    res.json({ ok: true, preferences: await os.listPreferences(req.creator!.id) });
+    const rawScope = typeof req.query.scope === "string" ? req.query.scope : undefined;
+    const scope = rawScope === "school" || rawScope === "lawyer" ? rawScope : undefined;
+    res.json({ ok: true, preferences: await os.listPreferences(req.creator!.id, scope) });
   } catch (error) {
     next(error);
   }
