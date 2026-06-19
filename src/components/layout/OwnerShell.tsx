@@ -18,8 +18,8 @@ export function OwnerShell() {
   return (
     <div className="flex min-h-screen flex-col bg-slate-50">
       {/* Top banner */}
-      <header className="border-b border-slate-200 bg-white">
-        <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3">
+      <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/95 backdrop-blur">
+        <div className="mx-auto flex w-full max-w-none items-center justify-between gap-4 px-3 py-3 sm:px-4 lg:px-6">
           <div className="flex items-center gap-3">
             <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600 text-white">
               <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -41,8 +41,8 @@ export function OwnerShell() {
             </button>
           </div>
         </div>
-        <nav className="mx-auto max-w-6xl px-4 pb-0">
-          <div className="flex gap-0.5 border-b border-transparent">
+        <nav className="mx-auto w-full max-w-none px-3 pb-0 sm:px-4 lg:px-6">
+          <div className="flex gap-1 overflow-x-auto border-b border-transparent pb-0.5">
             <NavLink
               to="/owner"
               end
@@ -73,7 +73,7 @@ export function OwnerShell() {
       </header>
 
       {/* Page content */}
-      <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6">
+      <main className="mx-auto w-full max-w-none flex-1 px-3 py-4 sm:px-4 lg:px-6 lg:py-6">
         <Outlet />
       </main>
     </div>

@@ -136,7 +136,7 @@ function ExtractionReviewPanel({
   return (
     <div className="grid w-full gap-3">
       {needsReview ? (
-        <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+        <div className="rounded-none border-y border-amber-200 bg-amber-50 px-0 py-3 text-sm text-amber-800 md:rounded-xl md:border md:px-3">
           <p>{knowledge.reviewWarning ?? "Some handwriting was difficult to read. Review the extracted text or try high accuracy extraction."}</p>
           <div className="mt-2 flex flex-wrap items-center gap-2 text-xs font-semibold">
             {confidence !== null ? <span className="rounded-full bg-amber-100 px-2 py-1 text-amber-900">Confidence {confidence}%</span> : null}
@@ -153,7 +153,7 @@ function ExtractionReviewPanel({
           </div>
         </div>
       ) : null}
-      <section className="premium-card premium-card-hover rounded-2xl p-4">
+      <section className="bg-transparent px-0 py-2 md:rounded-2xl md:border md:border-slate-200 md:bg-white md:p-4 md:shadow-sm">
         <p className="text-xs font-bold uppercase tracking-wide text-[color:var(--sc-primary)]">{pickerLabel}</p>
         <h2 className="mt-1 text-lg font-black text-slate-950">{pickerHeading}</h2>
         <p className="mt-1 text-sm text-slate-500">{pickerDescription}</p>
@@ -166,12 +166,12 @@ function ExtractionReviewPanel({
           />
         </div>
       </section>
-      <section className="premium-card premium-card-hover rounded-2xl p-4">
+      <section className="bg-transparent px-0 py-2 md:rounded-2xl md:border md:border-slate-200 md:bg-white md:p-4 md:shadow-sm">
         <p className="text-xs font-bold uppercase tracking-wide text-blue-600">OCR Review</p>
         <h2 className="mt-1 text-lg font-black text-slate-950">{knowledge.title || "Untitled document"}</h2>
         <p className="mt-1 text-sm text-slate-500">{knowledge.suggestedDocumentType ?? knowledge.documentType} - {knowledge.domain}</p>
       </section>
-      <section className="premium-card premium-card-hover rounded-2xl p-4">
+      <section className="bg-transparent px-0 py-2 md:rounded-2xl md:border md:border-slate-200 md:bg-white md:p-4 md:shadow-sm">
         <div className="mb-2 flex items-center justify-between gap-2">
           <h3 className="text-sm font-bold text-slate-900">Extracted text</h3>
           <button type="button" className="text-xs font-bold text-blue-700" onClick={onEdit}>
@@ -180,7 +180,7 @@ function ExtractionReviewPanel({
         </div>
         {editing ? (
           <textarea
-            className="min-h-[26rem] w-full resize-y rounded-[24px] border border-slate-200 bg-slate-50 p-4 text-sm leading-relaxed text-slate-800 outline-none focus:border-[color:var(--sc-primary)]"
+            className="min-h-[42vh] w-full resize-none rounded-none border-0 border-y border-slate-200 bg-slate-50 px-0 py-3 text-sm leading-relaxed text-slate-800 outline-none focus:bg-white md:min-h-[26rem] md:resize-y md:rounded-[24px] md:border md:p-4 md:focus:border-[color:var(--sc-primary)]"
             value={draft}
             onChange={(event) => onDraftChange(event.target.value)}
           />
@@ -194,7 +194,7 @@ function ExtractionReviewPanel({
         ) : null}
       </section>
       {tables.length ? (
-        <section className="premium-card premium-card-hover rounded-2xl p-4">
+        <section className="bg-transparent px-0 py-2 md:rounded-2xl md:border md:border-slate-200 md:bg-white md:p-4 md:shadow-sm">
           <h3 className="text-sm font-bold text-slate-900">Detected tables</h3>
           <div className="mt-3 grid gap-3">
             {tables.map((table, index) => (
@@ -207,7 +207,7 @@ function ExtractionReviewPanel({
         </section>
       ) : null}
       {unclear.length ? (
-        <section className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-amber-200">
+        <section className="rounded-none border-y border-amber-200 bg-white px-0 py-3 shadow-none ring-0 md:rounded-2xl md:bg-white md:p-4 md:shadow-sm md:ring-1 md:ring-amber-200">
           <h3 className="text-sm font-bold text-amber-900">Unclear items</h3>
           <div className="mt-3 grid gap-2">
             {unclear.map((item, index) => (
@@ -221,7 +221,7 @@ function ExtractionReviewPanel({
       ) : null}
       <button
         type="button"
-        className="btn btn-primary sticky bottom-3 z-10 shadow-lg disabled:cursor-not-allowed disabled:opacity-50"
+        className="btn btn-primary sticky bottom-3 z-10 w-full shadow-lg disabled:cursor-not-allowed disabled:opacity-50 md:w-auto"
         onClick={onGenerate}
         disabled={generateDisabled}
         title={generateDisabled ? "AI generation is not available. You can still edit the document manually." : undefined}
@@ -241,8 +241,8 @@ function ExtractionProcessingCard({ sourceStatus, message }: { sourceStatus?: st
   ];
   const activeIndex = sourceStatus === "PREPROCESSING" ? 1 : sourceStatus === "EXTRACTING" ? 2 : 0;
   return (
-      <div className="mx-auto grid w-full max-w-md gap-4 p-4 text-center">
-      <div className="premium-card premium-card-hover rounded-2xl p-5">
+    <div className="mx-auto grid w-full max-w-md gap-4 px-0 py-4 text-center md:p-4">
+      <div className="bg-transparent px-0 py-2 md:rounded-2xl md:border md:border-slate-200 md:bg-white md:p-5 md:shadow-sm">
         <div className="mx-auto mb-4 h-10 w-10 animate-pulse rounded-full bg-blue-100" />
         <h2 className="text-base font-black text-slate-950">{steps[Math.min(activeIndex, steps.length - 1)]}</h2>
         {message ? <p className="mt-2 text-sm font-semibold text-blue-700">{message}</p> : null}
@@ -260,11 +260,11 @@ function ExtractionProcessingCard({ sourceStatus, message }: { sourceStatus?: st
 
 function ExtractionFailedCard({ message, onRetry }: { message?: string | null; onRetry: () => void }) {
   return (
-      <div className="mx-auto grid w-full max-w-md gap-3 p-4 text-center">
-      <div className="premium-card premium-card-hover rounded-2xl p-5">
+    <div className="mx-auto grid w-full max-w-md gap-3 px-0 py-4 text-center md:p-4">
+      <div className="bg-transparent px-0 py-2 md:rounded-2xl md:border md:border-slate-200 md:bg-white md:p-5 md:shadow-sm">
         <h2 className="text-base font-black text-slate-950">Extraction failed</h2>
         <p className="mt-2 text-sm text-slate-500">{message || "We could not read this document. Please retry or upload a clearer file."}</p>
-        <button type="button" className="btn btn-primary mt-4" onClick={onRetry}>
+        <button type="button" className="btn btn-primary mt-4 w-full md:w-auto" onClick={onRetry}>
           Retry extraction
         </button>
       </div>
@@ -296,23 +296,23 @@ function ManualDraftPanel({
   guidance?: string;
 }) {
   return (
-    <section className="premium-card premium-card-hover rounded-[28px] p-4 sm:p-6">
+    <section className="w-full bg-transparent px-0 py-2 md:rounded-[28px] md:border md:border-slate-200 md:bg-white md:p-4 md:shadow-sm lg:p-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="text-xs font-bold uppercase tracking-wide text-[color:var(--sc-primary)]">Document workspace</p>
-          <h2 className="mt-1 text-lg font-black text-slate-950">{title}</h2>
-          <p className="mt-1 text-sm text-slate-500">Edit the document directly in this workspace.</p>
-          {guidance ? <p className="mt-1 text-sm text-slate-600">{guidance}</p> : null}
+        <div className="min-w-0 space-y-1">
+          <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[color:var(--sc-primary)]">Document Workspace</p>
+          <h2 className="text-lg font-black text-slate-950">{title}</h2>
+          <p className="text-sm text-slate-500">Edit the document directly in this workspace.</p>
+          {guidance ? <p className="text-sm text-slate-600">{guidance}</p> : null}
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <button type="button" onClick={onSave} disabled={saving} className="btn btn-secondary text-xs">
+          <button type="button" onClick={onSave} disabled={saving} className="btn btn-secondary shrink-0 text-xs">
             {saving ? "Saving..." : "Save draft"}
           </button>
           <button
             type="button"
             onClick={onGenerate}
             disabled={generateDisabled}
-            className="btn btn-primary text-xs disabled:cursor-not-allowed disabled:opacity-50"
+            className="btn btn-primary shrink-0 text-xs disabled:cursor-not-allowed disabled:opacity-50"
             title={aiNotice ?? undefined}
           >
             {generateLabel}
@@ -320,7 +320,7 @@ function ManualDraftPanel({
         </div>
       </div>
       <textarea
-        className="mt-4 min-h-[22rem] w-full resize-y rounded-[24px] border border-slate-200 bg-slate-50 p-4 text-sm leading-7 text-slate-800 outline-none focus:border-[color:var(--sc-primary)] focus:bg-white"
+        className="mt-3 min-h-[58vh] w-full resize-none rounded-none border-0 border-y border-slate-200 bg-slate-50 px-0 py-3 text-sm leading-7 text-slate-800 outline-none focus:bg-white md:min-h-[22rem] md:resize-y md:rounded-[24px] md:border md:p-4 md:focus:border-[color:var(--sc-primary)]"
         value={draft}
         onChange={(event) => onDraftChange(event.target.value)}
         aria-label="Manual document draft"
@@ -425,8 +425,8 @@ function VersionPanel({
   onClose: () => void;
 }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/50 p-4 sm:items-center">
-      <div className="w-full max-w-sm rounded-2xl bg-white p-4 shadow-2xl">
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/50 p-0 sm:items-center sm:p-4">
+      <div className="max-h-[88vh] w-full overflow-y-auto rounded-t-2xl bg-white px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-4 shadow-2xl sm:max-w-sm sm:rounded-2xl sm:p-4">
         <div className="mb-3 flex items-center justify-between">
           <h3 className="text-sm font-black text-slate-900">Version History</h3>
           <button type="button" onClick={onClose} className="text-slate-400 hover:text-slate-700">
@@ -1190,9 +1190,9 @@ export function DocumentEditorPage() {
               : "Draft";
 
   return (
-    <div className="relative flex h-[calc(100vh-4rem)] flex-col overflow-hidden bg-slate-100">
-      <div className="border-b border-slate-200 bg-white">
-        <div className="flex min-h-10 items-center gap-2 px-3 py-2">
+    <div data-testid="smart-pages-workspace" className="relative flex h-[calc(100vh-4rem)] flex-col overflow-hidden overflow-x-hidden bg-slate-100">
+      <div className="sticky top-0 z-20 border-b border-slate-200 bg-white/95 backdrop-blur">
+        <div className="flex min-h-10 items-center gap-2 px-3 py-2 md:px-4">
           <button
             type="button"
             onClick={() => void navigate(isLawyerWorkspace ? "/lawyers/dashboard" : "/smart-pages")}
@@ -1213,7 +1213,7 @@ export function DocumentEditorPage() {
           ) : null}
         </div>
 
-        <div className="flex flex-wrap items-center gap-2 px-3 pb-3">
+        <div className="flex flex-wrap items-center gap-2 overflow-x-auto px-3 pb-3 md:overflow-visible">
           <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-bold text-slate-600">
             {stageLabel}
           </span>
@@ -1242,13 +1242,16 @@ export function DocumentEditorPage() {
       ) : null}
 
       <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
-        <div className="grid min-h-full gap-4 p-4 lg:grid-cols-[minmax(0,1fr)_320px]">
-          <main className="min-w-0 space-y-4">
-            <div className="flex flex-wrap items-center gap-2 rounded-2xl bg-white px-3 py-2 shadow-sm ring-1 ring-slate-100">
+        <div className="grid min-h-full gap-0 px-0 py-3 sm:gap-3 sm:px-3 md:p-4 lg:grid-cols-[minmax(0,1fr)_320px]">
+          <main className="min-w-0 space-y-4 px-0 sm:px-0">
+            <div
+              data-testid="smart-pages-action-bar"
+              className="flex snap-x snap-mandatory flex-nowrap items-center gap-2 overflow-x-auto border-y border-slate-200 bg-white px-3 py-2 shadow-none ring-0 sm:flex-wrap sm:overflow-visible sm:rounded-2xl sm:border sm:ring-1 sm:ring-slate-100"
+            >
               <button
                 type="button"
                 onClick={() => void handleSaveExtractionReview()}
-                className="btn btn-secondary text-xs"
+                className="btn btn-secondary shrink-0 rounded-full text-xs"
                 disabled={reviewSaving}
               >
                 {reviewSaving ? "Saving..." : "Save draft"}
@@ -1257,7 +1260,7 @@ export function DocumentEditorPage() {
                 type="button"
                 onClick={() => void handlePrint()}
                 disabled={printing || !hasActiveVersion}
-                className="btn btn-secondary text-xs disabled:cursor-not-allowed disabled:opacity-50"
+                className="btn btn-secondary shrink-0 rounded-full text-xs disabled:cursor-not-allowed disabled:opacity-50"
                 title={!hasActiveVersion ? "Generate a first version before printing." : undefined}
               >
                 {printing ? "Opening..." : "Print"}
@@ -1265,7 +1268,7 @@ export function DocumentEditorPage() {
               <button
                 type="button"
                 onClick={() => { void getVersionHistory(id!).then(setVersions); setShowVersions(true); }}
-                className="btn btn-secondary text-xs"
+                className="btn btn-secondary shrink-0 rounded-full text-xs"
                 disabled={versions.length === 0 && !hasActiveVersion}
                 title={versions.length === 0 && !hasActiveVersion ? "No saved versions yet." : undefined}
               >
@@ -1275,7 +1278,7 @@ export function DocumentEditorPage() {
                 type="button"
                 onClick={() => setShowPublishModal(true)}
                 disabled={publishing || !hasActiveVersion}
-                className="btn btn-primary text-xs disabled:cursor-not-allowed disabled:opacity-50"
+                className="btn btn-primary shrink-0 rounded-full text-xs disabled:cursor-not-allowed disabled:opacity-50"
                 title={!hasActiveVersion ? "Generate a first version before publishing." : undefined}
               >
                 {publishing ? "Publishing..." : publishResult ? "Re-publish Secure Link" : "Publish Secure Link"}
@@ -1315,20 +1318,7 @@ export function DocumentEditorPage() {
                 pickerDescription={isLawyerWorkspace ? "Pick a structure for the parsed legal material and keep the output editable before export." : "Pick how the parsed content should be turned into an editable output."}
               />
             ) : stage === "empty" ? (
-              <ManualDraftPanel
-                title={doc.title || (isLawyerWorkspace ? "Legal draft workspace" : "Document draft workspace")}
-                draft={reviewDraft}
-                onDraftChange={setReviewDraft}
-                onSave={() => void handleSaveExtractionReview()}
-                saving={reviewSaving}
-                onGenerate={() => void handleGenerateFromReview()}
-                generateDisabled={!isLawyerWorkspace && aiActionsDisabled}
-                generateLabel={isLawyerWorkspace ? (hasActiveVersion ? "Update draft" : "Create draft") : "Generate document"}
-                aiNotice={aiNotice}
-                guidance={isLawyerWorkspace && aiNotice ? "AI actions are disabled because Gemini is not configured in this environment. You can still edit, save, preview, print, and download." : undefined}
-              />
-            ) : stage === "ready" && hasActiveVersion ? (
-              <>
+              <div data-testid="smart-pages-editor" className="w-full max-w-none">
                 <ManualDraftPanel
                   title={doc.title || (isLawyerWorkspace ? "Legal draft workspace" : "Document draft workspace")}
                   draft={reviewDraft}
@@ -1337,31 +1327,55 @@ export function DocumentEditorPage() {
                   saving={reviewSaving}
                   onGenerate={() => void handleGenerateFromReview()}
                   generateDisabled={!isLawyerWorkspace && aiActionsDisabled}
-                  generateLabel={isLawyerWorkspace ? "Update draft" : "Update document"}
+                  generateLabel={isLawyerWorkspace ? (hasActiveVersion ? "Update draft" : "Create draft") : "Generate document"}
                   aiNotice={aiNotice}
                   guidance={isLawyerWorkspace && aiNotice ? "AI actions are disabled because Gemini is not configured in this environment. You can still edit, save, preview, print, and download." : undefined}
                 />
+              </div>
+            ) : stage === "ready" && hasActiveVersion ? (
+              <>
+                <div data-testid="smart-pages-editor" className="w-full max-w-none">
+                  <ManualDraftPanel
+                    title={doc.title || (isLawyerWorkspace ? "Legal draft workspace" : "Document draft workspace")}
+                    draft={reviewDraft}
+                    onDraftChange={setReviewDraft}
+                    onSave={() => void handleSaveExtractionReview()}
+                    saving={reviewSaving}
+                    onGenerate={() => void handleGenerateFromReview()}
+                    generateDisabled={!isLawyerWorkspace && aiActionsDisabled}
+                    generateLabel={isLawyerWorkspace ? "Update draft" : "Update document"}
+                    aiNotice={aiNotice}
+                    guidance={isLawyerWorkspace && aiNotice ? "AI actions are disabled because Gemini is not configured in this environment. You can still edit, save, preview, print, and download." : undefined}
+                  />
+                </div>
                 {readyTemplates.length > 0 ? (
-                  <section className="premium-card premium-card-hover rounded-[28px] p-4 sm:p-6">
-                    <p className="text-xs font-bold uppercase tracking-wide text-[color:var(--sc-primary)]">Delivery options</p>
-                    <h3 className="mt-1 text-sm font-black text-slate-950">Publish or hand off the finished Smart Page</h3>
-                    <div className="mt-3">
-                      <SmartPageTemplatePicker
-                        templates={readyTemplates}
-                        scope="ready"
-                        disabled={false}
-                        onPickTemplate={(template) => {
-                          if (template.id === "publish-secure-link") {
-                            setShowPublishModal(true);
-                          }
-                        }}
-                      />
-                    </div>
+                  <section className="bg-transparent px-0 py-2 md:rounded-[28px] md:border md:border-slate-200 md:bg-white md:p-4 md:shadow-sm lg:p-6">
+                    <details className="group rounded-none border-y border-slate-200 bg-white/70 px-0 py-2 md:rounded-[24px] md:border md:bg-white md:px-4 md:py-3" open={false}>
+                      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-sm font-black text-slate-950">
+                        <span>
+                          <p className="text-xs font-bold uppercase tracking-wide text-[color:var(--sc-primary)]">Delivery options</p>
+                          <span className="mt-1 block text-sm font-black text-slate-950">Publish or hand off the finished Smart Page</span>
+                        </span>
+                        <span className="text-xs font-semibold text-slate-500 md:hidden">Tap to expand</span>
+                      </summary>
+                      <div className="mt-3">
+                        <SmartPageTemplatePicker
+                          templates={readyTemplates}
+                          scope="ready"
+                          disabled={false}
+                          onPickTemplate={(template) => {
+                            if (template.id === "publish-secure-link") {
+                              setShowPublishModal(true);
+                            }
+                          }}
+                        />
+                      </div>
+                    </details>
                   </section>
                 ) : null}
-                <section className="premium-card premium-card-hover rounded-[28px] p-4 sm:p-6">
+                <section className="bg-transparent px-0 py-2 md:rounded-[28px] md:border md:border-slate-200 md:bg-white md:p-4 md:shadow-sm lg:p-6">
                   {publishResult ? (
-                    <div className="mb-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3">
+                    <div className="mb-3 rounded-none border-y border-emerald-200 bg-emerald-50 px-0 py-3 md:rounded-2xl md:border md:px-4">
                       <p className="text-xs font-bold text-emerald-700">Published</p>
                       <p className="mt-0.5 break-all text-xs text-emerald-600">{publishResult.url}</p>
                       <p className="mt-1 break-all text-[10px] font-semibold text-emerald-700">Token: {publishResult.token}</p>
@@ -1384,14 +1398,14 @@ export function DocumentEditorPage() {
             ) : null}
           </main>
 
-          <aside className="min-w-0 space-y-4 lg:sticky lg:top-4 lg:self-start">
-            <section className="premium-card premium-card-hover rounded-[28px] p-4">
+          <aside className="min-w-0 space-y-4 border-t border-slate-200 px-0 pt-4 lg:sticky lg:top-4 lg:self-start lg:border-0 lg:pt-0">
+            <section className="bg-transparent px-0 py-2 md:rounded-[28px] md:border md:border-slate-200 md:bg-white md:p-4 md:shadow-sm">
               <div className="flex items-center justify-between gap-2">
                 <div>
                   <p className="text-xs font-bold uppercase tracking-wide text-[color:var(--sc-primary)]">
                     {isLawyerWorkspace ? "Legal assistant" : "AI assistant"}
                   </p>
-                  <h2 className="mt-1 text-sm font-black text-slate-950">Legal guidance</h2>
+                  <h2 className="mt-1 text-sm font-black text-slate-950">{isLawyerWorkspace ? "Legal guidance" : "Workspace guidance"}</h2>
                 </div>
               </div>
               {aiNotice ? (
@@ -1411,7 +1425,7 @@ export function DocumentEditorPage() {
               )}
             </section>
 
-            <section className="premium-card premium-card-hover rounded-[28px] p-4">
+            <section className="bg-transparent px-0 py-2 md:rounded-[28px] md:border md:border-slate-200 md:bg-white md:p-4 md:shadow-sm">
               <div className="flex items-center justify-between gap-2">
                 <h3 className="text-sm font-black text-slate-950">Assistant messages</h3>
                 <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-500">
@@ -1439,7 +1453,7 @@ export function DocumentEditorPage() {
               </div>
             </section>
 
-            <section className="premium-card premium-card-hover rounded-[28px] p-4">
+            <section className="bg-transparent px-0 py-2 md:rounded-[28px] md:border md:border-slate-200 md:bg-white md:p-4 md:shadow-sm">
               <div className="flex items-center justify-between gap-2">
                 <h3 className="text-sm font-black text-slate-950">
                   {isLawyerWorkspace ? "Legal actions" : "Assistant actions"}
@@ -1455,12 +1469,12 @@ export function DocumentEditorPage() {
               </div>
               {showActions ? (
                 <>
-                  <div className="mt-3 flex flex-wrap gap-2">
+                  <div className="mt-3 flex flex-nowrap gap-2 overflow-x-auto pb-1 sm:flex-wrap sm:overflow-visible">
                     <button
                       type="button"
                       onClick={() => void handleDownloadExport("pdf")}
                       disabled={exportingFormat === "pdf" || !hasActiveVersion}
-                      className="btn btn-secondary text-xs disabled:cursor-not-allowed disabled:opacity-50"
+                      className="btn btn-secondary shrink-0 rounded-full text-xs disabled:cursor-not-allowed disabled:opacity-50"
                       title={!hasActiveVersion ? "Generate a first version before downloading." : undefined}
                     >
                       {exportingFormat === "pdf" ? "Downloading..." : "Download PDF"}
@@ -1469,7 +1483,7 @@ export function DocumentEditorPage() {
                       type="button"
                       onClick={() => void handleDownloadExport("docx")}
                       disabled={exportingFormat === "docx" || !hasActiveVersion}
-                      className="btn btn-secondary text-xs disabled:cursor-not-allowed disabled:opacity-50"
+                      className="btn btn-secondary shrink-0 rounded-full text-xs disabled:cursor-not-allowed disabled:opacity-50"
                       title={!hasActiveVersion ? "Generate a first version before downloading." : undefined}
                     >
                       {exportingFormat === "docx" ? "Downloading..." : "Download DOCX"}
@@ -1478,7 +1492,7 @@ export function DocumentEditorPage() {
                       type="button"
                       onClick={() => void handleDownloadExport("markdown")}
                       disabled={exportingFormat === "markdown" || !hasActiveVersion}
-                      className="btn btn-secondary text-xs disabled:cursor-not-allowed disabled:opacity-50"
+                      className="btn btn-secondary shrink-0 rounded-full text-xs disabled:cursor-not-allowed disabled:opacity-50"
                       title={!hasActiveVersion ? "Generate a first version before exporting." : undefined}
                     >
                       {exportingFormat === "markdown" ? "Downloading..." : "Export Markdown"}
@@ -1487,7 +1501,7 @@ export function DocumentEditorPage() {
                       type="button"
                       onClick={() => void handleDownloadExport("schema")}
                       disabled={exportingFormat === "schema" || !hasActiveVersion}
-                      className="btn btn-secondary text-xs disabled:cursor-not-allowed disabled:opacity-50"
+                      className="btn btn-secondary shrink-0 rounded-full text-xs disabled:cursor-not-allowed disabled:opacity-50"
                       title={!hasActiveVersion ? "Generate a first version before exporting." : undefined}
                     >
                       {exportingFormat === "schema" ? "Downloading..." : "Export Schema"}
@@ -1496,7 +1510,7 @@ export function DocumentEditorPage() {
                       type="button"
                       onClick={() => setShowPublishModal(true)}
                       disabled={publishing || !hasActiveVersion}
-                      className="btn btn-primary text-xs disabled:cursor-not-allowed disabled:opacity-50"
+                      className="btn btn-primary shrink-0 rounded-full text-xs disabled:cursor-not-allowed disabled:opacity-50"
                       title={!hasActiveVersion ? "Generate a first version before publishing." : undefined}
                     >
                       {publishing ? "Publishing..." : publishResult ? "Re-publish Secure Link" : "Publish Secure Link"}
@@ -1523,7 +1537,7 @@ export function DocumentEditorPage() {
                     <button
                       type="button"
                       title="Upload file"
-                      className="shrink-0 rounded-lg border border-slate-200 p-2 text-slate-500 hover:border-blue-400 hover:text-blue-600 disabled:opacity-40"
+                      className="shrink-0 rounded-full border border-slate-200 p-2 text-slate-500 hover:border-blue-400 hover:text-blue-600 disabled:opacity-40"
                       disabled={busy}
                       onClick={() => fileInputRef.current?.click()}
                     >
@@ -1565,12 +1579,12 @@ export function DocumentEditorPage() {
                                 ? "Describe how you want this document to look?"
                                 : "Edit the document: make it formal, add charts, translate..."
                       }
-                      className="flex-1 resize-none rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none focus:border-[color:var(--sc-primary)] focus:bg-white disabled:cursor-not-allowed disabled:opacity-50"
+                      className="flex-1 resize-none rounded-none border-0 border-y border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none focus:bg-white disabled:cursor-not-allowed disabled:opacity-50 md:rounded-xl md:border md:focus:border-[color:var(--sc-primary)]"
                       disabled={busy || stage === "processing" || aiActionsDisabled}
                     />
                     <button
                       type="button"
-                      className="shrink-0 rounded-xl bg-[color:var(--sc-primary)] p-2.5 text-white hover:bg-[color:var(--sc-primary-hover)] disabled:cursor-not-allowed disabled:opacity-40"
+                      className="shrink-0 rounded-full bg-[color:var(--sc-primary)] p-2.5 text-white hover:bg-[color:var(--sc-primary-hover)] disabled:cursor-not-allowed disabled:opacity-40"
                       disabled={busy || stage === "processing" || !input.trim() || aiActionsDisabled}
                       onClick={() => void handleSend()}
                     >
@@ -1603,8 +1617,8 @@ export function DocumentEditorPage() {
 
       {/* Publish modal */}
       {showPublishModal ? (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/50 p-4 sm:items-center">
-          <div className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-2xl">
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/50 p-0 sm:items-center sm:p-4">
+          <div className="max-h-[88vh] w-full overflow-y-auto rounded-t-2xl bg-white px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-4 shadow-2xl sm:max-w-sm sm:rounded-2xl sm:p-5">
             <h2 className="text-base font-black text-slate-900">Publish Document</h2>
             <p className="mt-1 text-sm text-slate-500">Create a shareable link. Optionally add a password.</p>
             <div className="mt-4">

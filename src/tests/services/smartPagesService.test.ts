@@ -255,6 +255,21 @@ describe("deductPages (atomic)", () => {
     expect(entry!.creditsCharged).toBe(1);
   });
 
+  it("retrying the same charge key does not double-charge", async () => {
+    const store = createInMemorySmartPageStore();
+    await store.savePlan(activePlan({ includedPages: 10, usedPages: 0 }));
+    const svc = createSmartPagesService(store);
+    const charge = { ...baseDeduct, fileHash: "idempotent-key" };
+
+    await svc.deductPages("school-1", charge);
+    await svc.deductPages("school-1", charge);
+
+    const summary = await svc.getSummary("school-1");
+    expect(summary.usedCredits).toBe(1);
+    expect(summary.remainingCredits).toBe(9);
+    expect((await svc.getLedger("school-1", 10)).filter((entry) => entry.fileHash === "idempotent-key" && entry.status === "CHARGED")).toHaveLength(1);
+  });
+
   it("atomicDeduct throws and leaves plan unchanged when ledger write fails", async () => {
     const store = createInMemorySmartPageStore();
     await store.savePlan(activePlan({ includedPages: 10, usedPages: 0 }));

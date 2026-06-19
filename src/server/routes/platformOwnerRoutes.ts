@@ -562,6 +562,7 @@ export function platformOwnerRoutes() {
             priceUgx: row.priceUgx ?? 0,
             status: row.status,
             createdAt: (row.createdAt as Date).toISOString(),
+            provider: row.provider ?? "",
             model: row.model ?? "",
             tokenUsage: row.tokenUsage ?? null,
             geminiCostEstimateUgx: row.geminiCostEstimateUgx ?? null,

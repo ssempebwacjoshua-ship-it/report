@@ -67,7 +67,13 @@ export type SmartPagePlan = {
   allowHighAccuracy: boolean;
 };
 
-export type SmartPageLedgerAction = "EXTRACT" | "TOP_UP" | "REFUND";
+export type SmartPageLedgerAction =
+  | "EXTRACT"
+  | "HIGH_ACCURACY_EXTRACT"
+  | "GENERATE_DOCUMENT"
+  | "PUBLISH_DOCUMENT"
+  | "TOP_UP"
+  | "REFUND";
 export type SmartPageLedgerStatus = "CHARGED" | "REFUNDED" | "FAILED";
 
 export type SmartPageLedgerEntry = {
@@ -120,6 +126,7 @@ export type SmartPagesSchoolLedgerRow = {
 };
 
 export type SmartPagesAdminLedgerRow = SmartPagesSchoolLedgerRow & {
+  provider?: string;
   model: string;
   tokenUsage?: Record<string, unknown> | null;
   geminiCostEstimateUgx?: number | null;
