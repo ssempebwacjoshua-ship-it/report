@@ -82,14 +82,19 @@ export function smartPagesBillingRoutes() {
   router.get("/api/smart-pages/billing/summary", async (req, res, next) => {
     try {
       const schoolId = req.school!.id;
+      const db = prisma as any;
       const [summary, ledger, payments] = await Promise.all([
         getSummary(schoolId),
         getLedger(schoolId, 50),
-        (prisma as any).smartPagePaymentRequest.findMany({
-          where: { schoolId },
-          orderBy: { createdAt: "desc" },
-          take: 20,
-        }),
+        // Guard against the table not yet existing after a fresh deployment
+        // before migrations have been applied.
+        db.smartPagePaymentRequest
+          ? db.smartPagePaymentRequest.findMany({
+              where: { schoolId },
+              orderBy: { createdAt: "desc" },
+              take: 20,
+            }).catch(() => [])
+          : Promise.resolve([]),
       ]);
       res.json({
         summary,
@@ -119,8 +124,13 @@ export function smartPagesBillingRoutes() {
         return;
       }
 
+      const db = prisma as any;
+      if (!db.smartPagePaymentRequest) {
+        res.status(503).json({ error: "Billing system is initialising. Please try again in a few minutes." });
+        return;
+      }
       const id = randomUUID();
-      const payment = await (prisma as any).smartPagePaymentRequest.create({
+      const payment = await db.smartPagePaymentRequest.create({
         data: {
           id,
           schoolId: req.school!.id,
@@ -137,6 +147,7 @@ export function smartPagesBillingRoutes() {
       });
 
       res.status(201).json({ payment: paymentToDto(payment, req.school!.name) });
+
     } catch (error) {
       next(error);
     }
@@ -144,8 +155,13 @@ export function smartPagesBillingRoutes() {
 
   router.patch("/api/smart-pages/billing/payments/:paymentId/receipt", async (req, res, next) => {
     try {
+      const db2 = prisma as any;
+      if (!db2.smartPagePaymentRequest) {
+        res.status(503).json({ error: "Billing system is initialising. Please try again in a few minutes." });
+        return;
+      }
       const body = receiptSchema.parse(req.body);
-      const payment = await (prisma as any).smartPagePaymentRequest.findFirst({
+      const payment = await db2.smartPagePaymentRequest.findFirst({
         where: { id: req.params.paymentId, schoolId: req.school!.id },
       });
       if (!payment) {
@@ -164,7 +180,7 @@ export function smartPagesBillingRoutes() {
         res.status(400).json({ error: "Amount must match the selected Smart Pages package." });
         return;
       }
-      const duplicate = await (prisma as any).smartPagePaymentRequest.findFirst({
+      const duplicate = await db2.smartPagePaymentRequest.findFirst({
         where: {
           network: body.network,
           transactionId: body.transactionId,
@@ -176,7 +192,7 @@ export function smartPagesBillingRoutes() {
         return;
       }
 
-      const updated = await (prisma as any).smartPagePaymentRequest.update({
+      const updated = await db2.smartPagePaymentRequest.update({
         where: { id: payment.id },
         data: {
           transactionId: body.transactionId,

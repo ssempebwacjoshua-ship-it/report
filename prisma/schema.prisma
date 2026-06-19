@@ -28,6 +28,7 @@ model School {
   students         Student[]
   subjects         Subject[]
   users            User[]
+  smartPagePayments SmartPagePaymentRequest[]
 }
 
 model AcademicYear {
@@ -314,16 +315,51 @@ model SmartPageLedger {
   jobId          String
   fileHash       String
   pagesCharged   Int      @default(0)
+  creditsCharged Int      @default(0)
+  operation      String   @default("EXTRACT")
+  pagesProcessed Int      @default(0)
+  priceUgx       Int      @default(0)
   action         String   @default("EXTRACT")
   reason         String   @default("")
   provider       String   @default("")
   model          String   @default("")
   extractionMode String   @default("balanced")
   status         String   @default("CHARGED")
+  tokenUsage     Json?
+  geminiCostEstimateUgx Int?
+  marginEstimateUgx     Int?
   createdAt      DateTime @default(now())
 
   @@index([schoolId, fileHash, status])
   @@index([schoolId, createdAt])
+}
+
+model SmartPagePaymentRequest {
+  id                 String   @id @default(uuid()) @db.Uuid
+  schoolId           String   @db.Uuid
+  school             School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  packageCode        String
+  packageName        String
+  credits            Int
+  amountUgx          Int
+  network            String
+  merchantCode       String
+  merchantName       String   @default("")
+  paymentReference   String   @unique
+  transactionId      String?
+  payerPhone         String?
+  proofScreenshotUrl String?
+  status             String   @default("PENDING")
+  adminNotes         String?
+  confirmedByUserId  String?  @db.Uuid
+  confirmedAt        DateTime?
+  rejectedAt         DateTime?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@unique([network, transactionId])
+  @@index([schoolId, status, createdAt])
+  @@index([status, createdAt])
 }
 
 // Legacy DocumentCleanerJob remains in schema. Confirm no live data before safe removal migration.
