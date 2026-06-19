@@ -9,6 +9,7 @@ export type NavItem = {
     | "bell"
     | "clipboard"
     | "cloud"
+    | "credit-card"
     | "file"
     | "home"
     | "search"
@@ -38,6 +39,7 @@ export const navItemsByProduct: Record<ProductKey, NavItem[]> = {
     { to: "/dashboard", label: "Dashboard", icon: "home", exact: true },
     { to: "/smart-pages", label: "Document History", icon: "file", exact: true },
     { to: "/collections", label: "Templates", icon: "clipboard", exact: true },
+    { to: "/smart-pages/billing", label: "Billing", icon: "credit-card", exact: true },
     { to: "/preferences", label: "Settings", icon: "settings" },
   ],
 };
@@ -50,6 +52,7 @@ const smartPagesPrefixes = [
   "/analytics",
   "/notifications",
   "/preferences",
+  "/smart-pages/billing",
 ];
 
 export function getProductFromPath(pathname: string): ProductKey {

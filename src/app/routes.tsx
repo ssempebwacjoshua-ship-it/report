@@ -1,5 +1,6 @@
 ﻿import { createBrowserRouter, Navigate } from "react-router-dom";
 import { AppShell } from "../components/layout/AppShell";
+import { lazy, Suspense, type ComponentType } from "react";
 import { OwnerShell } from "../components/layout/OwnerShell";
 import { DashboardPage } from "../pages/DashboardPage";
 import { ReleaseCenterPage } from "../pages/ReleaseCenterPage";
@@ -18,11 +19,8 @@ import { VerifyPage } from "../pages/VerifyPage";
 import { OwnerDashboardPage } from "../pages/owner/OwnerDashboardPage";
 import { OwnerSchoolsPage } from "../pages/owner/OwnerSchoolsPage";
 import { OwnerUsersPage } from "../pages/owner/OwnerUsersPage";
-import { LawyerShell } from "../components/lawyers/LawyerShell";
-import { LawyerDashboardPage } from "../pages/lawyers/LawyerDashboardPage";
-import { LawyerDocumentsPage } from "../pages/lawyers/LawyerDocumentsPage";
-import { LawyerOnboardingPage } from "../pages/lawyers/LawyerOnboardingPage";
 import { SmartPagesPage } from "../pages/smart-pages/SmartPagesPage";
+import { SmartPagesBillingPage } from "../pages/smart-pages/SmartPagesBillingPage";
 import { DocumentEditorPage } from "../pages/smart-pages/DocumentEditorPage";
 import { PublishedDocumentPage } from "../pages/smart-pages/PublishedDocumentPage";
 import { CollectionsPage } from "../pages/smart-pages/CollectionsPage";
@@ -36,6 +34,20 @@ import { PreferencesPage } from "../pages/smart-pages/PreferencesPage";
 import { SearchPage } from "../pages/smart-pages/SearchPage";
 import { RouteErrorPage } from "../pages/RouteErrorPage";
 
+const lawyerSmartPagesEnabled = import.meta.env.VITE_ENABLE_SMART_PAGES_LAWYERS === "true";
+const LawyerShell = lazy(() => import("../components/lawyers/LawyerShell").then((module) => ({ default: module.LawyerShell })));
+const LawyerDashboardPage = lazy(() => import("../pages/lawyers/LawyerDashboardPage").then((module) => ({ default: module.LawyerDashboardPage })));
+const LawyerDocumentsPage = lazy(() => import("../pages/lawyers/LawyerDocumentsPage").then((module) => ({ default: module.LawyerDocumentsPage })));
+const LawyerOnboardingPage = lazy(() => import("../pages/lawyers/LawyerOnboardingPage").then((module) => ({ default: module.LawyerOnboardingPage })));
+
+function lazyElement(Component: ComponentType) {
+  return (
+    <Suspense fallback={<div className="p-8 text-sm text-slate-500">Loading...</div>}>
+      <Component />
+    </Suspense>
+  );
+}
+
 export const router = createBrowserRouter([
   // Public routes ? no AppShell, no auth
   { path: "/demo", element: <DemoPage /> },
@@ -47,20 +59,21 @@ export const router = createBrowserRouter([
   { path: "/verify/:code", element: <VerifyPage /> },
   { path: "/p/:token", element: <PublishedDocumentPage /> },
 
-  // Lawyer product routes
-  {
+  ...(lawyerSmartPagesEnabled ? [{
     path: "/lawyers",
-    element: <LawyerShell />,
+    element: lazyElement(LawyerShell),
     errorElement: <RouteErrorPage />,
     children: [
-      { index: true, element: <LawyerDashboardPage /> },
-      { path: "dashboard", element: <LawyerDashboardPage /> },
-      { path: "documents", element: <LawyerDocumentsPage /> },
+      { index: true, element: lazyElement(LawyerDashboardPage) },
+      { path: "dashboard", element: lazyElement(LawyerDashboardPage) },
+      { path: "smart-pages", element: lazyElement(LawyerDocumentsPage) },
+      { path: "smart-pages/:id", element: <DocumentEditorPage /> },
+      { path: "documents", element: lazyElement(LawyerDocumentsPage) },
       { path: "documents/:id", element: <DocumentEditorPage /> },
-      { path: "onboarding", element: <LawyerOnboardingPage /> },
-      { path: "settings", element: <LawyerOnboardingPage /> },
+      { path: "onboarding", element: lazyElement(LawyerOnboardingPage) },
+      { path: "settings", element: lazyElement(LawyerOnboardingPage) },
     ],
-  },
+  }] : []),
 
   // Platform owner console ? wrapped in OwnerShell (owner guard inside)
   {
@@ -88,7 +101,10 @@ export const router = createBrowserRouter([
       { path: "imports/marks", element: <MarksImportPage /> },
       { path: "marksheets", element: <MarksheetsPage /> },
       { path: "settings", element: <SettingsPage /> },
+      { path: "school/smart-pages", element: <SmartPagesPage /> },
+      { path: "school/smart-pages/:id", element: <DocumentEditorPage /> },
       { path: "smart-pages", element: <SmartPagesPage /> },
+      { path: "smart-pages/billing", element: <SmartPagesBillingPage /> },
       { path: "smart-pages/:id", element: <DocumentEditorPage /> },
       { path: "collections", element: <CollectionsPage /> },
       { path: "collections/:id", element: <CollectionDetailPage /> },

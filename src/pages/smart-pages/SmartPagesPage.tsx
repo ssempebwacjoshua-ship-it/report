@@ -1,7 +1,9 @@
-﻿import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useCallback, useEffect, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import { createDocument, listDocuments } from "../../client/documentIntelligenceClient";
+import { fetchSmartPagesBillingSummary } from "../../client/smartPagesBillingClient";
 import type { SmartDocumentSummary } from "../../shared/types/documentIntelligence";
+import type { SmartPageSummary } from "../../shared/types/smartPages";
 
 const STATUS_LABELS: Record<string, string> = {
   DRAFT: "Draft",
@@ -15,6 +17,11 @@ const STATUS_COLORS: Record<string, string> = {
   ARCHIVED: "bg-amber-100 text-amber-700",
 };
 
+function friendlyError(e: unknown, fallback: string): string {
+  if (e instanceof TypeError) return fallback;
+  return (e instanceof Error ? e.message : null) || fallback;
+}
+
 export function SmartPagesPage() {
   const navigate = useNavigate();
   const [documents, setDocuments] = useState<SmartDocumentSummary[]>([]);
@@ -23,12 +30,25 @@ export function SmartPagesPage() {
   const [creating, setCreating] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [newTitle, setNewTitle] = useState("");
+  const [creditSummary, setCreditSummary] = useState<SmartPageSummary | null>(null);
 
-  useEffect(() => {
+  const loadDocuments = useCallback(() => {
+    setLoading(true);
+    setLoadError("");
     listDocuments()
       .then(setDocuments)
-      .catch((e: Error) => setLoadError(e.message || "Failed to load documents."))
+      .catch((e: unknown) => setLoadError(friendlyError(e, "Could not load documents. Please refresh or try again.")))
       .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => {
+    loadDocuments();
+  }, [loadDocuments]);
+
+  useEffect(() => {
+    fetchSmartPagesBillingSummary()
+      .then((data) => setCreditSummary(data.summary))
+      .catch(() => {/* silently degrade — billing is on the dedicated billing page */});
   }, []);
 
   async function handleCreate() {
@@ -38,7 +58,7 @@ export function SmartPagesPage() {
       const doc = await createDocument(title);
       void navigate(`/smart-pages/${doc.id}`);
     } catch (e) {
-      setLoadError(e instanceof Error ? e.message : "Failed to create document.");
+      setLoadError(friendlyError(e, "Could not create document. Please try again."));
     } finally {
       setCreating(false);
       setShowModal(false);
@@ -84,10 +104,36 @@ export function SmartPagesPage() {
       </div>
 
       {loadError ? (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          {loadError}
+        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3">
+          <p className="text-sm text-red-700">{loadError}</p>
+          <button
+            type="button"
+            onClick={loadDocuments}
+            className="mt-2 text-sm font-semibold text-red-600 underline underline-offset-2"
+          >
+            Try again
+          </button>
         </div>
       ) : null}
+
+      {/* Credit balance widget */}
+      <Link
+        to="/smart-pages/billing"
+        className="premium-card flex items-center justify-between gap-4 rounded-2xl p-4 no-underline hover:border-blue-200 hover:shadow-md"
+      >
+        <div>
+          <p className="text-xs font-bold uppercase tracking-wide text-blue-600">Smart Pages credits</p>
+          <p className="mt-1 font-black text-slate-950">
+            {creditSummary ? `${creditSummary.remainingCredits} credits remaining` : "View credit balance"}
+          </p>
+          <p className="mt-0.5 text-sm text-slate-500">
+            Smart Page credits are used to process, generate, and publish documents.
+          </p>
+        </div>
+        <span className="shrink-0 text-sm font-semibold text-blue-600">
+          Manage billing →
+        </span>
+      </Link>
 
       {/* Document grid */}
       {documents.length === 0 ? (
@@ -165,7 +211,7 @@ export function SmartPagesPage() {
             <input
               autoFocus
               type="text"
-              placeholder="e.g. End of Term Report, Patient Summary?"
+              placeholder="e.g. End of Term Report, Patient Summary…"
               value={newTitle}
               onChange={(e) => setNewTitle(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter") void handleCreate(); }}
@@ -194,4 +240,3 @@ export function SmartPagesPage() {
     </div>
   );
 }
-
