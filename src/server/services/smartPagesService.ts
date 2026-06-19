@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { prisma as _dbPrisma } from "../db/prisma";
 import type {
   CanExtractResult,
   ExtractionMode,
@@ -100,14 +101,13 @@ export function createInMemorySmartPageStore(): SmartPageStore {
   };
 }
 
-// ── Default Prisma-backed store (lazy to avoid import issues in tests) ─────────
+// ── Default Prisma-backed store ───────────────────────────────────────────────
 
 let _defaultStore: SmartPageStore | null = null;
 
 function getDefaultStore(): SmartPageStore {
   if (_defaultStore) return _defaultStore;
-  const { prisma } = require("../db/prisma") as { prisma: import("@prisma/client").PrismaClient };
-  _defaultStore = createPrismaSmartPageStore(prisma);
+  _defaultStore = createPrismaSmartPageStore(_dbPrisma);
   return _defaultStore;
 }
 

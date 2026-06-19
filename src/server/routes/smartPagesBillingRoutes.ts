@@ -85,25 +85,29 @@ export function smartPagesBillingRoutes() {
     try {
       const schoolId = req.school!.id;
       const db = prisma as any;
-      const [summary, ledger, payments] = await Promise.all([
+      const [summary, ledger, paymentsRaw] = await Promise.all([
         getSummary(schoolId),
         getLedger(schoolId, 50),
         // Guard against the table not yet existing after a fresh deployment
         // before migrations have been applied.
         db.smartPagePaymentRequest
-          ? db.smartPagePaymentRequest.findMany({
+          ? (db.smartPagePaymentRequest.findMany({
               where: { schoolId },
               orderBy: { createdAt: "desc" },
               take: 20,
-            }).catch(() => [])
-          : Promise.resolve([]),
+            }) as Promise<unknown[]>).catch((e: unknown) => {
+              console.error("[smart-pages-billing] payments query failed", e instanceof Error ? e.message : e);
+              return [] as unknown[];
+            })
+          : Promise.resolve([] as unknown[]),
       ]);
       res.json({
         summary,
         ledger: ledger.map(ledgerToSchoolRow),
-        payments: payments.map((payment: any) => paymentToDto(payment, req.school!.name)),
+        payments: paymentsRaw.map((payment: unknown) => paymentToDto(payment, req.school!.name)),
       });
     } catch (error) {
+      console.error("[smart-pages-billing] summary route error", error instanceof Error ? error.message : error);
       next(error);
     }
   });
