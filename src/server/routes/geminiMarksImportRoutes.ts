@@ -14,6 +14,8 @@ import {
   validateAndMatchGeminiRows,
 } from "../services/geminiMarksImportService";
 import { validateScore } from "../../shared/utils/validateScore";
+import { createHash } from "node:crypto";
+import { canUseCredits, deductPages, isDuplicateJob } from "../services/smartPagesService";
 
 const MAX_FILE_BYTES = 10 * 1024 * 1024;
 const SCAN_MIME_TYPES = new Set([
@@ -53,6 +55,13 @@ function stageErr(
 // Kept for auth middleware responses (no stage concept there).
 function importErr(code: string, message: string) {
   return { success: false as const, code, message };
+}
+
+function estimatePdfPageCount(buffer: Buffer, mimeType: string): number {
+  if (!mimeType.toLowerCase().includes("pdf")) return 1;
+  const str = buffer.toString("binary");
+  const matches = str.match(/\/Type\s*\/Page[^s]/g);
+  return Math.max(1, matches?.length ?? 1);
 }
 
 function requireImportAuth(req: Request, res: Response, next: NextFunction): void {
@@ -202,6 +211,42 @@ export default function geminiMarksImportRoutes() {
           console.log("[gemini-extract]", { reqId, stage, event: "context_validated", schoolId });
         }
 
+        // ── Stage: check_billing ───────────────────────────────────────────
+        stage = "check_billing";
+        let compoundHash = "";
+        let estimatedPages = 1;
+
+        if (!debugNoDb) {
+          const contextStr = `${classId}|${streamId}|${subjectId}|${termId}|${examType}`;
+          const fileContentHash = createHash("sha256").update(file.buffer).digest("hex");
+          compoundHash = createHash("sha256")
+            .update(`${fileContentHash}:${contextStr}`)
+            .digest("hex");
+          estimatedPages = estimatePdfPageCount(file.buffer, file.mimetype);
+
+          if (req.user?.role === "TEACHER") {
+            res.status(403).json(stageErr(reqId, stage, "TEACHER_NOT_PERMITTED",
+              "Teachers are not allowed to use Smart Marksheet Import. Contact your school administrator."));
+            return;
+          }
+
+          const isDuplicate = await isDuplicateJob(schoolId, compoundHash);
+          if (isDuplicate) {
+            res.status(409).json(stageErr(reqId, stage, "DUPLICATE_JOB",
+              "This marksheet has already been processed for the same class and subject. Resubmit with a new image to run another extraction."));
+            return;
+          }
+
+          const balanceCheck = await canUseCredits(schoolId, estimatedPages);
+          if (!balanceCheck.allowed) {
+            res.status(402).json(stageErr(reqId, stage, balanceCheck.code ?? "SMART_PAGES_EXHAUSTED",
+              balanceCheck.message ?? "You have no Smart Pages remaining. Go to Billing to buy more pages."));
+            return;
+          }
+
+          console.log("[gemini-extract]", { reqId, stage, event: "billing_ok", estimatedPages });
+        }
+
         // ── Stage: load_expected_students ──────────────────────────────────
         stage = "load_expected_students";
         let expectedStudents: Awaited<ReturnType<typeof loadExpectedStudents>> = [];
@@ -272,6 +317,30 @@ export default function geminiMarksImportRoutes() {
             console.error("[gemini-extract]", { reqId, stage, event: "error", message: batchMsg, stack: batchStack });
             res.status(400).json(stageErr(reqId, stage, "BATCH_CREATE_FAILED", "Could not create import review batch."));
             return;
+          }
+
+          // Deduct Smart Pages for the marksheet extraction.
+          if (compoundHash) {
+            stage = "bill_pages";
+            try {
+              await deductPages(schoolId, {
+                jobId,
+                fileHash: compoundHash,
+                pagesCharged: estimatedPages,
+                extractionMode: "balanced",
+                provider: "gemini",
+                model: "gemini-2.0-flash",
+                reason: `marksheet-import:${file.originalname.slice(0, 80)}`,
+              });
+              console.log("[gemini-extract]", { reqId, stage, event: "billed", pages: estimatedPages, jobId });
+            } catch (billErr: unknown) {
+              const billMsg = billErr instanceof Error ? billErr.message : String(billErr);
+              const billCode = (billErr as { code?: string }).code;
+              console.error("[gemini-extract]", { reqId, stage, event: "billing_failed", message: billMsg });
+              res.status(402).json(stageErr(reqId, stage, billCode ?? "BILLING_ERROR",
+                billMsg || "Could not record page usage. Please contact support."));
+              return;
+            }
           }
         }
 
