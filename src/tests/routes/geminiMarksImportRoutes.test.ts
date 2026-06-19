@@ -91,6 +91,14 @@ vi.mock("../../server/db/prisma", () => ({
   },
 }));
 
+vi.mock("../../server/services/smartPagesService", () => ({
+  canUseCredits: vi.fn().mockResolvedValue({ allowed: true }),
+  deductPages: vi.fn().mockResolvedValue(undefined),
+  isDuplicateJob: vi.fn().mockResolvedValue(false),
+  estimatePageCount: vi.fn().mockReturnValue(1),
+  getDefaultExtractionMode: vi.fn().mockReturnValue("balanced"),
+}));
+
 vi.mock("../../server/services/geminiOcrService", () => ({
   extractMarksWithGemini: vi.fn(async () => ({
     rows: [

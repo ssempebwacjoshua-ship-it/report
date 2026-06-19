@@ -354,6 +354,9 @@ model SmartPagePaymentRequest {
   confirmedByUserId  String?  @db.Uuid
   confirmedAt        DateTime?
   rejectedAt         DateTime?
+  rejectedByUserId   String?  @db.Uuid
+  telegramSentAt     DateTime?
+  telegramError      String?
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 

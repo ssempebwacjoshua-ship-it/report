@@ -43,6 +43,14 @@ export async function prepareSmartPagesPayment(input: {
   return data.payment;
 }
 
+export async function claimFreeTrial(): Promise<{ summary: SmartPageSummary }> {
+  const res = await fetch(`${API_BASE}/api/smart-pages/billing/claim-trial`, {
+    method: "POST",
+    headers: makeRequestHeaders({ "Content-Type": "application/json" }),
+  });
+  return json(res, "Could not claim free trial");
+}
+
 export async function submitSmartPagesPaymentReceipt(
   paymentId: string,
   input: {

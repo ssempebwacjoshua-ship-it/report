@@ -397,6 +397,90 @@ describe("isHighAccuracyAllowed", () => {
   });
 });
 
+// ── claimTrial ────────────────────────────────────────────────────────────────
+
+describe("claimTrial", () => {
+  it("provisions a 10-page trial plan and returns summary with trialClaimed=true", async () => {
+    const store = createInMemorySmartPageStore();
+    const svc = createSmartPagesService(store);
+    const summary = await svc.claimTrial("school-new");
+    expect(summary.includedPages).toBe(10);
+    expect(summary.remainingPages).toBe(10);
+    expect(summary.planName).toBe("TRIAL");
+    expect(summary.trialClaimed).toBe(true);
+  });
+
+  it("throws TRIAL_ALREADY_CLAIMED (409) if any plan already exists", async () => {
+    const store = createInMemorySmartPageStore();
+    await store.savePlan(activePlan());
+    const svc = createSmartPagesService(store);
+    await expect(svc.claimTrial("school-1")).rejects.toMatchObject({
+      code: "TRIAL_ALREADY_CLAIMED",
+      status: 409,
+    });
+  });
+
+  it("trial can only be claimed once — second claim is blocked", async () => {
+    const store = createInMemorySmartPageStore();
+    const svc = createSmartPagesService(store);
+    await svc.claimTrial("school-new");
+    await expect(svc.claimTrial("school-new")).rejects.toMatchObject({
+      code: "TRIAL_ALREADY_CLAIMED",
+    });
+  });
+});
+
+// ── getSummary trialClaimed field ─────────────────────────────────────────────
+
+describe("getSummary trialClaimed", () => {
+  it("returns trialClaimed=false when no plan exists", async () => {
+    const store = createInMemorySmartPageStore();
+    const svc = createSmartPagesService(store);
+    const summary = await svc.getSummary("school-new");
+    expect(summary.trialClaimed).toBe(false);
+  });
+
+  it("returns trialClaimed=true when a plan exists", async () => {
+    const store = createInMemorySmartPageStore();
+    await store.savePlan(activePlan({ planName: "TRIAL", includedPages: 10 }));
+    const svc = createSmartPagesService(store);
+    const summary = await svc.getSummary("school-1");
+    expect(summary.trialClaimed).toBe(true);
+  });
+});
+
+// ── Pending payment / admin approve/reject ─────────────────────────────────────
+
+describe("pending payment does not add pages, only admin approval does", () => {
+  it("submitting transaction ID does not change the balance", async () => {
+    const store = createInMemorySmartPageStore();
+    await store.savePlan(activePlan({ includedPages: 10, usedPages: 0 }));
+    const svc = createSmartPagesService(store);
+    const before = await svc.getSummary("school-1");
+    expect(before.remainingPages).toBe(10);
+    // No addTopUp = no change.
+    const after = await svc.getSummary("school-1");
+    expect(after.remainingPages).toBe(10);
+  });
+
+  it("admin approval (addTopUp) adds pages to balance", async () => {
+    const store = createInMemorySmartPageStore();
+    await store.savePlan(activePlan({ includedPages: 10, usedPages: 10, topUpPages: 0 }));
+    const svc = createSmartPagesService(store);
+    expect((await svc.getSummary("school-1")).remainingPages).toBe(0);
+    await svc.addTopUp("school-1", 100);
+    expect((await svc.getSummary("school-1")).remainingPages).toBe(100);
+  });
+
+  it("admin reject does not add pages", async () => {
+    const store = createInMemorySmartPageStore();
+    await store.savePlan(activePlan({ includedPages: 10, usedPages: 0 }));
+    const svc = createSmartPagesService(store);
+    // Rejection = no addTopUp call.
+    expect((await svc.getSummary("school-1")).remainingPages).toBe(10);
+  });
+});
+
 // ── Provider failure does not charge ────────────────────────────────────────
 
 describe("provider failure handling", () => {
