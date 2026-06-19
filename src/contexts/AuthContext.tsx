@@ -2,6 +2,7 @@
 import { getApiBaseUrl } from "../client/apiBase";
 
 const TOKEN_KEY = "sc_auth_token";
+const USER_KEY = "sc_auth_user";
 const API_BASE = getApiBaseUrl();
 
 export type AuthUser = {
@@ -33,7 +34,14 @@ async function readAuthBody(response: Response) {
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<AuthUser | null>(null);
+  const [user, setUser] = useState<AuthUser | null>(() => {
+    try {
+      const raw = localStorage.getItem(USER_KEY);
+      return raw ? (JSON.parse(raw) as AuthUser) : null;
+    } catch {
+      return null;
+    }
+  });
   const [token, setToken] = useState<string | null>(() => {
     try {
       return localStorage.getItem(TOKEN_KEY);
@@ -49,22 +57,56 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    fetch(`${API_BASE}/api/auth/me`, { headers: { Authorization: `Bearer ${token}` } })
-      .then((res) => {
-        if (!res.ok) throw new Error("Invalid session");
-        return res.json() as Promise<{ user: AuthUser }>;
-      })
-      .then(({ user: loaded }) => setUser(loaded))
-      .catch(() => {
+    let cancelled = false;
+
+    async function refreshSession() {
+      for (let attempt = 0; attempt < 2; attempt += 1) {
         try {
-          localStorage.removeItem(TOKEN_KEY);
+          const res = await fetch(`${API_BASE}/api/auth/me`, { headers: { Authorization: `Bearer ${token}` } });
+          if (cancelled) return;
+          if (res.status === 401) {
+            try {
+              localStorage.removeItem(TOKEN_KEY);
+              localStorage.removeItem(USER_KEY);
+            } catch {
+              /* noop */
+            }
+            setToken(null);
+            setUser(null);
+            setLoading(false);
+            return;
+          }
+          if (!res.ok) {
+            throw new Error(`Auth check failed (${res.status}).`);
+          }
+
+          const { user: loaded } = (await res.json()) as { user: AuthUser };
+          if (cancelled) return;
+          setUser(loaded);
+          try {
+            localStorage.setItem(USER_KEY, JSON.stringify(loaded));
+          } catch {
+            /* noop */
+          }
+          setLoading(false);
+          return;
         } catch {
-          /* noop */
+          if (cancelled) return;
+          if (attempt === 0) {
+            await new Promise((resolve) => window.setTimeout(resolve, 250));
+            continue;
+          }
+
+          setLoading(false);
+          return;
         }
-        setToken(null);
-        setUser(null);
-      })
-      .finally(() => setLoading(false));
+      }
+    }
+
+    void refreshSession();
+    return () => {
+      cancelled = true;
+    };
   }, [token]);
 
   async function login(email: string, password: string, schoolCode: string): Promise<AuthUser> {
@@ -89,6 +131,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { token: newToken, user: newUser } = body as { token: string; user: AuthUser };
     try {
       localStorage.setItem(TOKEN_KEY, newToken);
+      localStorage.setItem(USER_KEY, JSON.stringify(newUser));
     } catch {
       /* noop */
     }
@@ -100,6 +143,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   function logout() {
     try {
       localStorage.removeItem(TOKEN_KEY);
+      localStorage.removeItem(USER_KEY);
     } catch {
       /* noop */
     }

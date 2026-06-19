@@ -6,6 +6,7 @@ import type {
   HandwritingDifficulty,
   ExtractionRecommendation,
 } from "../../shared/types/documentIntelligence";
+import type { AiEditResponse } from "../../shared/documentPatch";
 
 let _client: GoogleGenAI | null = null;
 
@@ -15,13 +16,54 @@ function getClient(): GoogleGenAI {
   return _client;
 }
 
-export function resolveGeminiDocumentModel() {
-  const model = process.env.GEMINI_MODEL?.trim();
-  return model || "gemini-2.5-flash";
+export function resolveGeminiDocumentModel(): string {
+  return (
+    process.env.SMART_PAGES_GEMINI_FAST_MODEL?.trim() ||
+    process.env.GEMINI_MODEL?.trim() ||
+    "gemini-3.5-flash"
+  );
+}
+
+export function resolveGeminiHighAccuracyDocumentModel(): { primary: string; stable: string } {
+  const fast = resolveGeminiDocumentModel();
+  return {
+    primary: process.env.SMART_PAGES_GEMINI_HIGH_ACCURACY_MODEL?.trim() || fast,
+    stable: process.env.SMART_PAGES_GEMINI_STABLE_ACCURACY_MODEL?.trim() || "gemini-2.5-flash",
+  };
 }
 
 function model() {
   return resolveGeminiDocumentModel();
+}
+
+export interface DocExtractionMeta {
+  requestedModel: string;
+  attemptedModels: string[];
+  selectedModel: string;
+  fallbackUsed: boolean;
+  fallbackReason?: string;
+  extractionTimeMs: number;
+  highAccuracy: boolean;
+}
+
+const DOC_FALLBACK_RE =
+  /429|quota|resource_exhausted|timed out|etimedout|unavailable|503|model not found|not_found|model_not_found|404|internal server error|500/i;
+
+function isDocFallbackEligible(err: unknown): boolean {
+  if (!(err instanceof Error)) return true;
+  const msg = err.message + " " + String((err as NodeJS.ErrnoException).cause ?? "");
+  return DOC_FALLBACK_RE.test(msg);
+}
+
+function getDocFallbackReason(err: unknown): string {
+  if (!(err instanceof Error)) return "Unknown error";
+  const msg = err.message;
+  if (/429|quota|resource_exhausted/i.test(msg)) return "Quota exceeded (429)";
+  if (/timed out|etimedout/i.test(msg)) return "Request timed out";
+  if (/503|unavailable/i.test(msg)) return "Service unavailable (503)";
+  if (/model not found|not_found|404/i.test(msg)) return "Model unavailable (404)";
+  if (/500|internal/i.test(msg)) return "Provider error (500)";
+  return msg.slice(0, 120);
 }
 async function generateContentWithRetry(request: Parameters<GoogleGenAI["models"]["generateContent"]>[0]) {
   const timeoutMs = Number(process.env.GEMINI_TIMEOUT_MS ?? 45_000);
@@ -93,8 +135,70 @@ function buildExtractionConfig() {
   return {
     temperature: 0,
     responseMimeType: "application/json",
-  };
+    mediaResolution: "MEDIA_RESOLUTION_HIGH",
+  } as any;
 }
+
+const LAWYER_EDIT_RESPONSE_SCHEMA = {
+  type: "object",
+  properties: {
+    summary: { type: "string" },
+    operations: {
+      type: "array",
+      items: {
+        oneOf: [
+          {
+            type: "object",
+            properties: {
+              type: { const: "replace_text" },
+              oldText: { type: "string" },
+              newText: { type: "string" },
+              reason: { type: "string" },
+            },
+            required: ["type", "oldText", "newText"],
+            additionalProperties: false,
+          },
+          {
+            type: "object",
+            properties: {
+              type: { const: "insert_after" },
+              anchorText: { type: "string" },
+              insertText: { type: "string" },
+              reason: { type: "string" },
+            },
+            required: ["type", "anchorText", "insertText"],
+            additionalProperties: false,
+          },
+          {
+            type: "object",
+            properties: {
+              type: { const: "append_section" },
+              heading: { type: "string" },
+              body: { type: "string" },
+              reason: { type: "string" },
+            },
+            required: ["type", "heading", "body"],
+            additionalProperties: false,
+          },
+          {
+            type: "object",
+            properties: {
+              type: { const: "replace_section" },
+              heading: { type: "string" },
+              newBody: { type: "string" },
+              reason: { type: "string" },
+            },
+            required: ["type", "heading", "newBody"],
+            additionalProperties: false,
+          },
+        ],
+      },
+    },
+    warnings: { type: "array", items: { type: "string" } },
+  },
+  required: ["summary", "operations"],
+  additionalProperties: false,
+};
 
 function buildExtractionFallback(text: string, originalName: string, highAccuracy: boolean): ExtractedKnowledge {
   return {
@@ -159,7 +263,7 @@ export async function extractDocumentKnowledge(
     sectionBuffers?: Array<{ label: string; buffer: Buffer; mimeType: string }>;
     priorExtraction?: ExtractedKnowledge | null;
   } = {},
-): Promise<ExtractedKnowledge> {
+): Promise<ExtractedKnowledge & { _meta: DocExtractionMeta }> {
   const basePrompt = `You are a Document Intelligence Engine. Analyze this document and extract all content.
 
 Return ONLY valid JSON (no markdown, no code fences):
@@ -242,16 +346,53 @@ ${priorExtractionText}`,
     );
   }
 
-  const res = await generateContentWithRetry({
-    model: model(),
-    contents,
-    config: buildExtractionConfig(),
-  });
+  const { primary: primaryHighAccuracy, stable: stableModel } = resolveGeminiHighAccuracyDocumentModel();
+  const fastModel = model();
+  const requestedModel = options.highAccuracy ? primaryHighAccuracy : fastModel;
+  let selectedModel = requestedModel;
+  const attemptedModels: string[] = [requestedModel];
+  let fallbackUsed = false;
+  let fallbackReason: string | undefined;
+  const extractionStartMs = Date.now();
+
+  let res: Awaited<ReturnType<GoogleGenAI["models"]["generateContent"]>>;
+  try {
+    res = await generateContentWithRetry({ model: requestedModel, contents, config: buildExtractionConfig() });
+  } catch (primaryErr) {
+    if (isDocFallbackEligible(primaryErr) && requestedModel !== stableModel) {
+      fallbackReason = getDocFallbackReason(primaryErr);
+      console.warn("[document-gemini] primary model failed, falling back to stable", {
+        requestedModel,
+        stableModel,
+        reason: fallbackReason,
+        error: primaryErr instanceof Error ? primaryErr.message : String(primaryErr),
+      });
+      fallbackUsed = true;
+      selectedModel = stableModel;
+      attemptedModels.push(stableModel);
+      res = await generateContentWithRetry({ model: stableModel, contents, config: buildExtractionConfig() });
+    } else {
+      throw primaryErr;
+    }
+  }
 
   const text = res.text ?? "";
   const fallback = buildExtractionFallback(text, originalName, Boolean(options.highAccuracy));
-
-  return normalizeExtraction(parseJsonSafe<ExtractedKnowledge>(text, fallback, model()), fallback, options.highAccuracy ?? false);
+  const knowledge = normalizeExtraction(
+    parseJsonSafe<ExtractedKnowledge>(text, fallback, selectedModel),
+    fallback,
+    options.highAccuracy ?? false,
+  );
+  const _meta: DocExtractionMeta = {
+    requestedModel,
+    attemptedModels,
+    selectedModel,
+    fallbackUsed,
+    fallbackReason,
+    extractionTimeMs: Date.now() - extractionStartMs,
+    highAccuracy: Boolean(options.highAccuracy),
+  };
+  return { ...knowledge, _meta };
 }
 
 function normalizeExtraction(knowledge: ExtractedKnowledge, fallback: ExtractedKnowledge, highAccuracy: boolean): ExtractedKnowledge {
@@ -482,6 +623,90 @@ Available component types: header, textBlock, table, statistics, aiSummary, prof
   });
 
   return { schema: { theme: parsed.theme, components: parsed.components }, componentTree: parsed.components };
+}
+
+export async function generateLawyerDocumentEditPlan(input: {
+  title: string;
+  currentContent: string;
+  instruction: string;
+  extractedKnowledge?: ExtractedKnowledge | null;
+  preferences?: Record<string, unknown>;
+}): Promise<AiEditResponse> {
+  const safeContent = input.currentContent.trim() || input.title;
+  const safeKnowledge = input.extractedKnowledge
+    ? JSON.stringify({
+        title: input.extractedKnowledge.title,
+        documentType: input.extractedKnowledge.documentType,
+        domain: input.extractedKnowledge.domain,
+        sections: input.extractedKnowledge.sections,
+        keyFacts: input.extractedKnowledge.keyFacts,
+        unclearItems: input.extractedKnowledge.unclearItems,
+        confidence: input.extractedKnowledge.confidence,
+        handwritingDifficulty: input.extractedKnowledge.handwritingDifficulty,
+        needsReview: input.extractedKnowledge.needsReview,
+      }, null, 2)
+    : "No extracted knowledge provided.";
+
+  const res = await generateContentWithRetry({
+    model: model(),
+    contents: [
+      {
+        text: `You are editing a lawyer draft inside a document editor.
+
+Return ONLY valid JSON with this exact shape:
+{
+  "summary": "short description of the proposed edits",
+  "operations": [
+    { "type": "replace_text", "oldText": "...exact substring...", "newText": "...new text...", "reason": "optional" },
+    { "type": "insert_after", "anchorText": "...exact substring...", "insertText": "...text...", "reason": "optional" },
+    { "type": "append_section", "heading": "Section heading", "body": "section body", "reason": "optional" },
+    { "type": "replace_section", "heading": "Section heading", "newBody": "new body", "reason": "optional" }
+  ],
+  "warnings": ["optional warning"]
+}
+
+Rules:
+- Return JSON only. No markdown. No commentary. No claim that the document was changed.
+- Use only exact substrings that already exist in the current document content for replace_text and insert_after.
+- Do not invent names, dates, amounts, parties, deadlines, laws, or facts.
+- Missing legal facts must be marked [NEEDS REVIEW].
+- Prefer the smallest possible set of changes.
+- If no safe edit exists, return an empty operations array and explain why in summary or warnings.
+- Keep the output suitable for Ugandan legal practice and lawyer review.
+
+Document title: ${input.title}
+
+Current document content:
+${safeContent}
+
+Current extracted knowledge or review context:
+${safeKnowledge}
+
+User instruction:
+${input.instruction}
+
+Stored preferences:
+${formatPreferences(input.preferences)}`,
+      },
+    ],
+    config: {
+      temperature: 0,
+      responseMimeType: "application/json",
+      responseSchema: LAWYER_EDIT_RESPONSE_SCHEMA as any,
+    } as any,
+  });
+
+  const parsed = parseJsonSafe<AiEditResponse>(res.text ?? "", {
+    summary: "No changes applied.",
+    operations: [],
+    warnings: [],
+  }, model());
+
+  return {
+    summary: typeof parsed.summary === "string" ? parsed.summary : "No changes applied.",
+    operations: Array.isArray(parsed.operations) ? parsed.operations : [],
+    warnings: Array.isArray(parsed.warnings) ? parsed.warnings.filter((warning) => typeof warning === "string") : [],
+  };
 }
 
 export async function runGeminiAgent(input: {

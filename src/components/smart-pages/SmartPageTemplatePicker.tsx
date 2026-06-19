@@ -5,6 +5,7 @@ type Props = {
   templates: SmartPageTemplateDefinition[];
   scope: SmartPageTemplateScope;
   onPickTemplate: (template: SmartPageTemplateDefinition, options?: { summaryStyleId?: string }) => void;
+  disabled?: boolean;
 };
 
 const categoryStyles: Record<string, { badge: string; accent: string }> = {
@@ -22,7 +23,7 @@ const categoryStyles: Record<string, { badge: string; accent: string }> = {
   Bulk: { badge: "bg-slate-100 text-slate-700", accent: "bg-slate-500" },
 };
 
-export function SmartPageTemplatePicker({ templates, scope, onPickTemplate }: Props) {
+export function SmartPageTemplatePicker({ templates, scope, onPickTemplate, disabled = false }: Props) {
   const [summaryStyleId, setSummaryStyleId] = useState(SUMMARY_STYLES[0].id);
   const visibleTemplates = useMemo(
     () => templates.filter((template) => template.scope.includes(scope)),
@@ -63,6 +64,7 @@ export function SmartPageTemplatePicker({ templates, scope, onPickTemplate }: Pr
                       key={style.id}
                       type="button"
                       onClick={() => setSummaryStyleId(style.id)}
+                      disabled={disabled}
                       className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${
                         style.id === summaryStyleId
                           ? "bg-[color:var(--sc-primary-soft)] text-[color:var(--sc-primary)]"
@@ -116,7 +118,9 @@ export function SmartPageTemplatePicker({ templates, scope, onPickTemplate }: Pr
                 aria-label={template.name}
                 title={template.name}
                 onClick={() => onPickTemplate(template, template.id === "summarize-document" ? { summaryStyleId } : undefined)}
-                className="btn btn-primary rounded-full px-4 py-2 text-xs font-black shadow-sm"
+                className="btn btn-primary rounded-full px-4 py-2 text-xs font-black shadow-sm disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={disabled}
+                title={disabled ? "AI generation is not available in this environment." : template.name}
               >
                 {template.primaryAction}
               </button>

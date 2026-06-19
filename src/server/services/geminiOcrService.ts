@@ -31,13 +31,56 @@ export interface MarksheetValidationSummary {
 }
 
 export function resolveGeminiOcrModel(): string {
-  const model = process.env.GEMINI_MODEL?.trim();
-  return model || "gemini-2.5-flash";
+  return (
+    process.env.SMART_PAGES_GEMINI_FAST_MODEL?.trim() ||
+    process.env.GEMINI_MODEL?.trim() ||
+    "gemini-3.5-flash"
+  );
+}
+
+export function resolveGeminiOcrHighAccuracyModel(): { primary: string; stable: string } {
+  return {
+    primary: process.env.SMART_PAGES_GEMINI_HIGH_ACCURACY_MODEL?.trim() || resolveGeminiOcrModel(),
+    stable: process.env.SMART_PAGES_GEMINI_STABLE_ACCURACY_MODEL?.trim() || "gemini-2.5-flash",
+  };
 }
 
 export function resolveGeminiHealthModel(): string {
-  const model = process.env.GEMINI_MODEL?.trim();
-  return model || "gemini-2.5-flash";
+  return (
+    process.env.SMART_PAGES_GEMINI_FAST_MODEL?.trim() ||
+    process.env.GEMINI_MODEL?.trim() ||
+    "gemini-3.5-flash"
+  );
+}
+
+export interface ExtractionMeta {
+  requestedModel: string;
+  attemptedModels: string[];
+  selectedModel: string;
+  fallbackUsed: boolean;
+  fallbackReason?: string;
+  extractionTimeMs: number;
+  highAccuracy: boolean;
+}
+
+const FALLBACK_ELIGIBLE_RE =
+  /429|quota|resource_exhausted|timed out|etimedout|unavailable|503|model not found|not_found|model_not_found|404|internal server error|500/i;
+
+function isFallbackEligible(err: unknown): boolean {
+  if (!(err instanceof Error)) return true;
+  const msg = err.message + " " + String((err as NodeJS.ErrnoException).cause ?? "");
+  return FALLBACK_ELIGIBLE_RE.test(msg);
+}
+
+function getFallbackReason(err: unknown): string {
+  if (!(err instanceof Error)) return "Unknown error";
+  const msg = err.message;
+  if (/429|quota|resource_exhausted/i.test(msg)) return "Quota exceeded (429)";
+  if (/timed out|etimedout/i.test(msg)) return "Request timed out";
+  if (/503|unavailable/i.test(msg)) return "Service unavailable (503)";
+  if (/model not found|not_found|404/i.test(msg)) return "Model unavailable (404)";
+  if (/500|internal/i.test(msg)) return "Provider error (500)";
+  return msg.slice(0, 120);
 }
 
 /**
@@ -133,31 +176,18 @@ async function withGeminiRetry<T>(fn: () => Promise<T>): Promise<T> {
 
 // ── Public API ────────────────────────────────────────────────────────────────
 
-export async function extractMarksWithGemini(
+async function callGeminiMarksExtract(
+  model: string,
   imageBuffer: Buffer,
-  mimeType = "image/jpeg",
-): Promise<{ rows: GeminiExtractedMarkRow[]; summary: MarksheetValidationSummary }> {
-  if (!process.env.GEMINI_API_KEY) {
-    throw new Error("Missing GEMINI_API_KEY");
-  }
-
-  const model = resolveGeminiOcrModel();
-  const startMs = Date.now();
-
-  let response: Awaited<ReturnType<GoogleGenAI["models"]["generateContent"]>>;
-  try {
-    response = await withGeminiRetry(() =>
-      getGeminiClient().models.generateContent({
-        model,
-        contents: [
-          {
-            inlineData: {
-              data: imageBuffer.toString("base64"),
-              mimeType,
-            },
-          },
-          {
-            text: `
+  mimeType: string,
+): Promise<Awaited<ReturnType<GoogleGenAI["models"]["generateContent"]>>> {
+  return withGeminiRetry(() =>
+    getGeminiClient().models.generateContent({
+      model,
+      contents: [
+        { inlineData: { data: imageBuffer.toString("base64"), mimeType } },
+        {
+          text: `
 You are reading a school document image.
 
 First, determine if this is a student marksheet: a table containing student IDs (admission numbers),
@@ -169,50 +199,98 @@ student names, and numeric scores or marks.
 - If it IS a student marksheet, return documentType "marksheet" and extract each row:
   - studentId: student admission number or ID exactly as written
   - studentName: full name exactly as written
-  - mark: numeric score from the marks/score column ONLY ? use empty string if the cell is blank
+  - mark: numeric score from the marks/score column ONLY — use empty string if the cell is blank
   - confidenceScore: 0 to 1
   - needsReview: true if name, ID, or mark is unclear or missing
   - reason: short explanation when needsReview is true
 
 IMPORTANT: "A' Level" and "O' Level" are education levels, not marks. Do not put them in mark.
 If a mark cell is blank or unreadable, set mark to "" and needsReview to true.
-        `,
-          },
-        ],
-        config: {
-          temperature: 0,
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: Type.OBJECT,
-            properties: {
-              documentType: {
-                type: Type.STRING,
-                description: "Either 'marksheet' or 'not_marksheet'",
-              },
-              rows: {
-                type: Type.ARRAY,
-                items: {
-                  type: Type.OBJECT,
-                  properties: {
-                    studentId: { type: Type.STRING },
-                    studentName: { type: Type.STRING },
-                    mark: { type: Type.STRING },
-                    confidenceScore: { type: Type.NUMBER },
-                    needsReview: { type: Type.BOOLEAN },
-                    reason: { type: Type.STRING },
-                  },
-                  required: ["studentId", "studentName", "mark", "confidenceScore", "needsReview"],
+          `,
+        },
+      ],
+      config: {
+        temperature: 0,
+        responseMimeType: "application/json",
+        mediaResolution: "MEDIA_RESOLUTION_HIGH",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            documentType: {
+              type: Type.STRING,
+              description: "Either 'marksheet' or 'not_marksheet'",
+            },
+            rows: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  studentId: { type: Type.STRING },
+                  studentName: { type: Type.STRING },
+                  mark: { type: Type.STRING },
+                  confidenceScore: { type: Type.NUMBER },
+                  needsReview: { type: Type.BOOLEAN },
+                  reason: { type: Type.STRING },
                 },
+                required: ["studentId", "studentName", "mark", "confidenceScore", "needsReview"],
               },
             },
-            required: ["documentType", "rows"],
           },
+          required: ["documentType", "rows"],
         },
-      }),
-    );
+      } as any,
+    }),
+  );
+}
+
+export async function extractMarksWithGemini(
+  imageBuffer: Buffer,
+  mimeType = "image/jpeg",
+  options: { highAccuracy?: boolean; modelOverride?: string } = {},
+): Promise<{ rows: GeminiExtractedMarkRow[]; summary: MarksheetValidationSummary; meta: ExtractionMeta }> {
+  if (!process.env.GEMINI_API_KEY) {
+    throw new Error("Missing GEMINI_API_KEY");
+  }
+
+  const { primary: primaryModel, stable: stableModel } = resolveGeminiOcrHighAccuracyModel();
+  const fastModel = resolveGeminiOcrModel();
+
+  const requestedModel = options.modelOverride?.trim()
+    || (options.highAccuracy ? primaryModel : fastModel);
+  let selectedModel = requestedModel;
+  const attemptedModels: string[] = [];
+  let fallbackUsed = false;
+  let fallbackReason: string | undefined;
+  const startMs = Date.now();
+
+  let response: Awaited<ReturnType<GoogleGenAI["models"]["generateContent"]>>;
+  try {
+    attemptedModels.push(requestedModel);
+    try {
+      response = await callGeminiMarksExtract(requestedModel, imageBuffer, mimeType);
+    } catch (primaryErr) {
+      const eligible = !options.modelOverride && isFallbackEligible(primaryErr) && requestedModel !== stableModel;
+      if (eligible) {
+        fallbackReason = getFallbackReason(primaryErr);
+        console.warn("[gemini-ocr] primary model failed, falling back to stable", {
+          requestedModel,
+          stableModel,
+          reason: fallbackReason,
+          error: primaryErr instanceof Error ? primaryErr.message : String(primaryErr),
+        });
+        fallbackUsed = true;
+        selectedModel = stableModel;
+        attemptedModels.push(stableModel);
+        response = await callGeminiMarksExtract(stableModel, imageBuffer, mimeType);
+      } else {
+        throw primaryErr;
+      }
+    }
   } catch (error: unknown) {
     console.error("[gemini-ocr] Gemini call failed", {
-      model,
+      requestedModel,
+      selectedModel,
+      attemptedModels,
       mimeType,
       imageSizeKb: Math.round(imageBuffer.byteLength / 1024),
       durationMs: Date.now() - startMs,
@@ -241,7 +319,20 @@ If a mark cell is blank or unreadable, set mark to "" and needsReview to true.
     throw new Error("Gemini response missing rows array");
   }
 
-  return validateMarksheetRows(parsed.rows);
+  const { rows, summary } = validateMarksheetRows(parsed.rows);
+  return {
+    rows,
+    summary,
+    meta: {
+      requestedModel,
+      attemptedModels,
+      selectedModel,
+      fallbackUsed,
+      fallbackReason,
+      extractionTimeMs: Date.now() - startMs,
+      highAccuracy: Boolean(options.highAccuracy),
+    } satisfies ExtractionMeta,
+  };
 }
 
 /** Sends a tiny text-only ping to Gemini. Throws on network or auth failure. */

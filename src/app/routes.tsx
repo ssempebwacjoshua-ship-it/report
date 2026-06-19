@@ -18,6 +18,10 @@ import { VerifyPage } from "../pages/VerifyPage";
 import { OwnerDashboardPage } from "../pages/owner/OwnerDashboardPage";
 import { OwnerSchoolsPage } from "../pages/owner/OwnerSchoolsPage";
 import { OwnerUsersPage } from "../pages/owner/OwnerUsersPage";
+import { LawyerShell } from "../components/lawyers/LawyerShell";
+import { LawyerDashboardPage } from "../pages/lawyers/LawyerDashboardPage";
+import { LawyerDocumentsPage } from "../pages/lawyers/LawyerDocumentsPage";
+import { LawyerOnboardingPage } from "../pages/lawyers/LawyerOnboardingPage";
 import { SmartPagesPage } from "../pages/smart-pages/SmartPagesPage";
 import { DocumentEditorPage } from "../pages/smart-pages/DocumentEditorPage";
 import { PublishedDocumentPage } from "../pages/smart-pages/PublishedDocumentPage";
@@ -30,6 +34,7 @@ import { AnalyticsPage } from "../pages/smart-pages/AnalyticsPage";
 import { NotificationsPage } from "../pages/smart-pages/NotificationsPage";
 import { PreferencesPage } from "../pages/smart-pages/PreferencesPage";
 import { SearchPage } from "../pages/smart-pages/SearchPage";
+import { RouteErrorPage } from "../pages/RouteErrorPage";
 
 export const router = createBrowserRouter([
   // Public routes ? no AppShell, no auth
@@ -42,10 +47,26 @@ export const router = createBrowserRouter([
   { path: "/verify/:code", element: <VerifyPage /> },
   { path: "/p/:token", element: <PublishedDocumentPage /> },
 
+  // Lawyer product routes
+  {
+    path: "/lawyers",
+    element: <LawyerShell />,
+    errorElement: <RouteErrorPage />,
+    children: [
+      { index: true, element: <LawyerDashboardPage /> },
+      { path: "dashboard", element: <LawyerDashboardPage /> },
+      { path: "documents", element: <LawyerDocumentsPage /> },
+      { path: "documents/:id", element: <DocumentEditorPage /> },
+      { path: "onboarding", element: <LawyerOnboardingPage /> },
+      { path: "settings", element: <LawyerOnboardingPage /> },
+    ],
+  },
+
   // Platform owner console ? wrapped in OwnerShell (owner guard inside)
   {
     path: "/owner",
     element: <OwnerShell />,
+    errorElement: <RouteErrorPage />,
     children: [
       { index: true, element: <OwnerDashboardPage /> },
       { path: "schools", element: <OwnerSchoolsPage /> },
@@ -57,6 +78,7 @@ export const router = createBrowserRouter([
   {
     path: "/",
     element: <AppShell />,
+    errorElement: <RouteErrorPage />,
     children: [
       { index: true, element: <Navigate to="/dashboard" replace /> },
       { path: "dashboard", element: <DashboardPage /> },
