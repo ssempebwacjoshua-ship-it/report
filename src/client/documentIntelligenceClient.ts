@@ -158,6 +158,18 @@ export async function applyPrompt(
   return json(res);
 }
 
+export async function createManualDocumentVersion(
+  documentId: string,
+  options: { draft: string; title?: string },
+): Promise<{ versionId: string; schema: DocumentSchema; componentTree: ComponentNode[] }> {
+  const res = await fetch(`${API_BASE}/api/smart-documents/${documentId}/manual-version`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify(options),
+  });
+  return json(res);
+}
+
 export async function requestLawyerDocumentEditPlan(
   documentId: string,
   instruction: string,

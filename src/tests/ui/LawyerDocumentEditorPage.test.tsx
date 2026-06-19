@@ -9,6 +9,7 @@ const documentIntelligenceMocks = vi.hoisted(() => ({
   getDocument: vi.fn(),
   generateSchema: vi.fn(),
   applyPrompt: vi.fn(),
+  createManualDocumentVersion: vi.fn(),
   requestLawyerDocumentEditPlan: vi.fn(),
   getVersionHistory: vi.fn(),
   updateExtractedKnowledge: vi.fn(),
@@ -45,6 +46,31 @@ describe("Lawyer Smart Pages editor", () => {
         { type: "replace_text", oldText: "Client wants a demand letter.", newText: "Client requests a formal demand letter." },
       ],
       warnings: [],
+    });
+    documentIntelligenceMocks.updateExtractedKnowledge.mockResolvedValue({
+      documentType: "legal draft",
+      domain: "legal",
+      title: "Demand letter draft",
+      suggestedDocumentType: "legal draft",
+      sections: [{ heading: "Draft text", content: "Muwanga & Co. Advocates" }],
+      tables: [],
+      statistics: [],
+      entities: [],
+      people: [],
+      dates: [],
+      handwrittenNotes: [],
+      keyFacts: ["Muwanga & Co. Advocates"],
+      unclearItems: [],
+      rawText: "Muwanga & Co. Advocates",
+      confidence: 1,
+      handwritingDifficulty: "low",
+      needsReview: true,
+      recommendedNextStep: "review",
+    });
+    documentIntelligenceMocks.createManualDocumentVersion.mockResolvedValue({
+      versionId: "version-manual",
+      schema: { theme: { primaryColor: "#007FFF" }, components: [] },
+      componentTree: [],
     });
     documentOsMocks.listPreferences.mockResolvedValue([
       { id: "pref-1", key: "lawyer.firm", value: { name: "Acacia Legal", contact: "+256 700 000000" }, updatedAt: new Date().toISOString() },
@@ -198,6 +224,123 @@ describe("Lawyer Smart Pages editor", () => {
     expect((draft as HTMLTextAreaElement).value).toContain("Parties:");
     expect((draft as HTMLTextAreaElement).value).toContain("Muwanga & Co. Advocates");
     expect(screen.queryByText(/Generating\.\.\./i)).not.toBeInTheDocument();
+  });
+
+  it("creates an active lawyer version without Gemini when Create draft is pressed", async () => {
+    documentIntelligenceMocks.getDocument
+      .mockResolvedValueOnce({
+        id: "doc-6",
+        title: "Demand letter draft",
+        status: "DRAFT",
+        extractionStatus: "PENDING",
+        extractionError: null,
+        domain: "legal",
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        versionCount: 0,
+        hasSourceFiles: false,
+        extractedKnowledge: null,
+        activeVersion: null,
+        latestSourceFile: null,
+      })
+      .mockResolvedValueOnce({
+        id: "doc-6",
+        title: "Demand letter draft",
+        status: "DRAFT",
+        extractionStatus: "READY",
+        extractionError: null,
+        domain: "legal",
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        versionCount: 0,
+        hasSourceFiles: false,
+        extractedKnowledge: {
+          documentType: "legal draft",
+          domain: "legal",
+          title: "Demand letter draft",
+          suggestedDocumentType: "legal draft",
+          sections: [{ heading: "Draft text", content: "Muwanga & Co. Advocates" }],
+          tables: [],
+          statistics: [],
+          entities: [],
+          people: [],
+          dates: [],
+          handwrittenNotes: [],
+          keyFacts: ["Muwanga & Co. Advocates"],
+          unclearItems: [],
+          rawText: "Muwanga & Co. Advocates",
+          confidence: 1,
+          handwritingDifficulty: "low",
+          needsReview: true,
+          recommendedNextStep: "review",
+        },
+        activeVersion: null,
+        latestSourceFile: null,
+      })
+      .mockResolvedValueOnce({
+        id: "doc-6",
+        title: "Demand letter draft",
+        status: "DRAFT",
+        extractionStatus: "READY",
+        extractionError: null,
+        domain: "legal",
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        versionCount: 1,
+        hasSourceFiles: false,
+        extractedKnowledge: {
+          documentType: "legal draft",
+          domain: "legal",
+          title: "Demand letter draft",
+          suggestedDocumentType: "legal draft",
+          sections: [{ heading: "Draft text", content: "Muwanga & Co. Advocates" }],
+          tables: [],
+          statistics: [],
+          entities: [],
+          people: [],
+          dates: [],
+          handwrittenNotes: [],
+          keyFacts: ["Muwanga & Co. Advocates"],
+          unclearItems: [],
+          rawText: "Muwanga & Co. Advocates",
+          confidence: 1,
+          handwritingDifficulty: "low",
+          needsReview: true,
+          recommendedNextStep: "review",
+        },
+        activeVersion: {
+          id: "version-manual",
+          instruction: "Manual lawyer draft",
+          schema: { theme: { primaryColor: "#007FFF", fontFamily: "Inter", pageSize: "A4", orientation: "PORTRAIT" }, components: [] },
+          componentTree: [],
+          createdAt: new Date().toISOString(),
+        },
+        latestSourceFile: null,
+      });
+
+    render(
+      <MemoryRouter initialEntries={["/lawyers/documents/doc-6?template=legal-notice-demand-letter"]}>
+        <Routes>
+          <Route path="/lawyers/documents/:id" element={<DocumentEditorPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    const draft = await screen.findByRole("textbox", { name: /manual document draft/i });
+    await userEvent.click(screen.getByRole("button", { name: /create draft/i }));
+
+    await waitFor(() => expect(documentIntelligenceMocks.createManualDocumentVersion).toHaveBeenCalledWith(
+      "doc-6",
+      expect.objectContaining({
+        draft: expect.stringContaining("Muwanga & Co. Advocates"),
+        title: "Demand letter draft",
+      }),
+    ));
+    await waitFor(() => expect(screen.getByRole("button", { name: /print/i })).toBeEnabled());
+    await waitFor(() => expect(screen.getAllByRole("button", { name: /publish secure link/i })[0]).toBeEnabled());
+    expect((draft as HTMLTextAreaElement).value).toContain("Muwanga & Co. Advocates");
+    expect(screen.queryByText(/GEMINI_API_KEY is not configured/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/School Admin/i)).not.toBeInTheDocument();
   });
 
   it("applies lawyer smart actions only after real document patches are produced", async () => {

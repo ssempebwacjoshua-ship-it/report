@@ -39,6 +39,7 @@ describe("lawyer template registry", () => {
     expect(draft).toContain("UGX 12,500,000");
     expect(draft).toContain("7 days");
     expect(draft).toContain("Counsel Daniel Muwanga");
+    expect(draft).toContain("We act for Pearl Office Supplies Ltd.");
     expect(draft).toContain("Review required: Generated documents are drafts and must be reviewed by a qualified legal professional before use.");
     expect(draft).toContain("Parties:");
   });

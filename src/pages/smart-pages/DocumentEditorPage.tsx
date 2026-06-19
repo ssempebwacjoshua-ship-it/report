@@ -3,6 +3,7 @@ import { useLocation, useNavigate, useParams, useSearchParams } from "react-rout
 import {
   applyPrompt,
   downloadDocumentExport,
+  createManualDocumentVersion,
   generateSchema,
   getDocument,
   getVersionHistory,
@@ -971,8 +972,27 @@ export function DocumentEditorPage() {
     if (!acquireActionLock("generate")) return;
     try {
       if (reviewEditing || !extractedKnowledge) await handleSaveExtractionReview();
-      if (isLawyerWorkspace && aiNotice) {
-        addMessage("assistant", "Created an editable legal draft. You can keep editing, previewing, or downloading it.");
+      if (isLawyerWorkspace) {
+        const draft = reviewDraft.trim()
+          || extractedKnowledge?.rawText?.trim()
+          || buildInitialDraft(doc?.title ?? "Legal draft workspace", true, lawyerTemplate);
+        addMessage("assistant", "Preparing your legal draft...");
+        const result = await createManualDocumentVersion(id, { draft, title: doc?.title ?? "Legal draft workspace" });
+        const refreshed = await getDocument(id);
+        setDoc(refreshed);
+        setSchema(result.schema);
+        setComponentTree(result.componentTree);
+        setActiveVersionId(result.versionId);
+        setRenderSettings(refreshed.activeVersion?.renderSettings);
+        setStage("ready");
+        setActiveTab("preview");
+        const history = await getVersionHistory(id);
+        setVersions(history);
+        setReviewDraft(refreshed.extractedKnowledge?.rawText || draft);
+        addMessage("assistant", "Created a real editable legal draft. You can keep editing, previewing, printing, or downloading it.", {
+          action: "generate",
+          versionId: result.versionId,
+        });
         return;
       }
       await submitInstruction("Generate a professional document from the reviewed extraction. Preserve all tables and key facts.", true);
@@ -1378,16 +1398,8 @@ export function DocumentEditorPage() {
                   <p className="text-xs font-bold uppercase tracking-wide text-[color:var(--sc-primary)]">
                     {isLawyerWorkspace ? "Legal assistant" : "AI assistant"}
                   </p>
-                  <h2 className="mt-1 text-sm font-black text-slate-950">Smart actions and guidance</h2>
+                  <h2 className="mt-1 text-sm font-black text-slate-950">Legal guidance</h2>
                 </div>
-                <button
-                  type="button"
-                  className="rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-                  onClick={() => setShowActions((value) => !value)}
-                  title={aiNotice ?? undefined}
-                >
-                  {showActions ? "Hide" : "Show"} actions
-                </button>
               </div>
               {aiNotice ? (
                 <div className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">

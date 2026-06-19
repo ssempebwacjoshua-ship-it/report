@@ -35,6 +35,8 @@ type SmartPagesActor = {
   schoolId: string | null;
 };
 
+const LAWYER_PRIMARY_COLOR = "#007FFF";
+
 // ── Creator helpers ────────────────────────────────────────────────────────────
 
 export async function findOrCreateSchoolOperatorCreator(
@@ -196,6 +198,179 @@ export async function createDocument(creatorId: string, title: string): Promise<
   await executeWorkflows(actor.id, "DOCUMENT_CREATED", { documentId: doc.id, title: doc.title });
   await writeSmartPagesAudit(actor, "SMART_DOCUMENT_CREATED", doc.id as string, { documentId: doc.id, title: doc.title });
   return rowToDetail(doc, null, 0);
+}
+
+function splitDraftParagraphs(draft: string): string[] {
+  return draft
+    .replace(/\r\n/g, "\n")
+    .split(/\n\s*\n+/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+}
+
+function parseDraftParagraph(paragraph: string): { heading?: string; content: string } {
+  const text = paragraph.replace(/\r\n/g, "\n").trim();
+  if (!text) return { content: "" };
+  const lines = text.split("\n").map((line) => line.trim()).filter(Boolean);
+  const first = lines[0] ?? "";
+  const match = /^([^:]{2,120}):\s*(.*)$/.exec(first);
+  if (match) {
+    const heading = match[1].trim();
+    const rest = [match[2], ...lines.slice(1)].map((line) => line.trim()).filter(Boolean).join(" ");
+    return rest ? { heading, content: rest } : { heading, content: heading };
+  }
+  return lines.length > 1
+    ? { heading: lines[0], content: lines.slice(1).join(" ") }
+    : { content: lines[0] };
+}
+
+function buildManualDraftKnowledge(title: string, draft: string): ExtractedKnowledge {
+  const paragraphs = splitDraftParagraphs(draft);
+  const sections = paragraphs.map((paragraph, index) => {
+    const parsed = parseDraftParagraph(paragraph);
+    return parsed.heading
+      ? { heading: parsed.heading, content: parsed.content || parsed.heading || `Section ${index + 1}` }
+      : { heading: index === 0 ? "Draft text" : `Section ${index + 1}`, content: parsed.content };
+  }).filter((section) => section.content.trim() || section.heading?.trim());
+
+  return {
+    documentType: "legal draft",
+    domain: "legal",
+    title,
+    sections,
+    tables: [],
+    statistics: [],
+    entities: [],
+    people: [],
+    dates: [],
+    handwrittenNotes: [],
+    keyFacts: paragraphs.slice(0, 5),
+    unclearItems: [],
+    reviewWarning: "Manual draft created without AI. Review before final use.",
+    confidence: 1,
+    handwritingDifficulty: "low",
+    needsReview: true,
+    recommendedNextStep: "review",
+    rawText: draft,
+  };
+}
+
+function buildManualDraftSchema(title: string, draft: string): { schema: DocumentSchema; componentTree: ComponentNode[] } {
+  const paragraphs = splitDraftParagraphs(draft);
+  const contentBlocks: ComponentNode[] = paragraphs.map((paragraph, index) => {
+    const parsed = parseDraftParagraph(paragraph);
+    const heading = parsed.heading ?? (index === 0 ? "Draft text" : undefined);
+    return {
+      id: randomUUID(),
+      type: "textBlock",
+      props: heading
+        ? { heading, content: parsed.content || heading }
+        : { content: parsed.content },
+    };
+  });
+
+  const signatureName = /(?:^|\n)\s*(Counsel\s+[^\n]+|[A-Z][A-Za-z&.'’\-\s]{6,})\s*$/m.exec(draft)?.[1]?.trim();
+
+  const components: ComponentNode[] = [
+    {
+      id: randomUUID(),
+      type: "header",
+      props: {
+        title,
+        subtitle: "Smart Pages for Lawyers",
+        logoText: "Smart Pages",
+        primaryColor: LAWYER_PRIMARY_COLOR,
+      },
+    },
+    ...contentBlocks,
+    ...(signatureName ? [{
+      id: randomUUID(),
+      type: "signature" as const,
+      props: {
+        label: "Prepared by",
+        name: signatureName,
+      },
+    }] : []),
+    {
+      id: randomUUID(),
+      type: "footer",
+      props: {
+        left: "Smart Pages for Lawyers",
+        right: "Draft for legal review",
+      },
+    },
+  ];
+
+  return {
+    schema: {
+      theme: {
+        primaryColor: LAWYER_PRIMARY_COLOR,
+        fontFamily: "Inter",
+        pageSize: "A4",
+        orientation: "PORTRAIT",
+      },
+      components,
+    },
+    componentTree: components,
+  };
+}
+
+export async function createManualDocumentVersion(
+  documentId: string,
+  creatorId: string,
+  options: { draft: string; title?: string },
+): Promise<{ versionId: string; schema: DocumentSchema; componentTree: ComponentNode[] }> {
+  const db = prisma as any;
+  const actor = await getSmartPagesActor(creatorId);
+  const doc = await loadOwnedSmartDocument(db, actor, documentId);
+  const draft = options.draft.trim();
+  if (!draft) {
+    throw Object.assign(new Error("Manual draft content is required."), { status: 400 });
+  }
+
+  const title = options.title?.trim() || doc.title;
+  const { schema, componentTree } = buildManualDraftSchema(title, draft);
+  const knowledge = buildManualDraftKnowledge(title, draft);
+
+  const version = await db.documentVersion.create({
+    data: {
+      id: randomUUID(),
+      documentId,
+      instruction: "Manual lawyer draft",
+      schema: schema as any,
+      componentTree: componentTree as any,
+      renderSettings: {} as any,
+    },
+  });
+
+  await db.smartDocument.update({
+    where: { id: documentId },
+    data: {
+      title,
+      extractedKnowledge: knowledge as any,
+      extractionStatus: "READY",
+      extractionError: null,
+      extractionCompletedAt: new Date(),
+      activeVersionId: version.id,
+      status: "DRAFT",
+    },
+  });
+
+  await upsertSearchIndex(actor.id, "DOCUMENT", documentId, title, [title, draft].join("\n"), {
+    status: "DRAFT",
+    manualVersion: true,
+  });
+  await upsertSearchIndex(actor.id, "VERSION", version.id, title, [draft, JSON.stringify(schema), JSON.stringify(componentTree)].join("\n"), {
+    documentId,
+    manualVersion: true,
+  });
+  await writeSmartPagesAudit(actor, "SMART_DOCUMENT_MANUAL_VERSION_CREATED", version.id as string, {
+    documentId,
+    versionId: version.id,
+    title,
+  });
+
+  return { versionId: version.id as string, schema, componentTree };
 }
 
 // ── Get document ───────────────────────────────────────────────────────────────

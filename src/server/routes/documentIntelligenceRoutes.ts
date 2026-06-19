@@ -129,6 +129,20 @@ router.post("/:id/prompt", requireCreator, async (req, res) => {
   }
 });
 
+router.post("/:id/manual-version", requireCreator, async (req, res) => {
+  const { draft, title } = req.body as { draft?: string; title?: string };
+  if (!draft?.trim()) { res.status(400).json({ error: "Manual draft content is required." }); return; }
+  try {
+    const result = await svc.createManualDocumentVersion(req.params.id, req.creator!.id, {
+      draft: draft.trim(),
+      title,
+    });
+    res.json({ ok: true, ...result });
+  } catch (e: any) {
+    res.status(e?.status ?? 500).json({ error: e instanceof Error ? e.message : "Could not create manual version." });
+  }
+});
+
 router.post("/:id/lawyer-edit-plan", requireCreator, async (req, res) => {
   const { instruction, currentContent } = req.body as { instruction?: string; currentContent?: string };
   if (!instruction?.trim()) { res.status(400).json({ error: "Instruction is required." }); return; }
