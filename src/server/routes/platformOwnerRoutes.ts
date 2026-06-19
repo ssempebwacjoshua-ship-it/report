@@ -707,7 +707,7 @@ export function platformOwnerRoutes() {
       }
       const updated = await (prisma as any).smartPagePaymentRequest.update({
         where: { id: payment.id },
-        data: { status: "REJECTED", adminNotes: body.notes ?? null, rejectedAt: new Date() },
+        data: { status: "REJECTED", adminNotes: body.notes ?? null, rejectedAt: new Date(), rejectedByUserId: req.user!.userId },
         include: { school: { select: { id: true, code: true, name: true } } },
       });
       void ownerAudit(req.user!.userId, payment.schoolId, "SMART_PAGES_PAYMENT_REJECTED", {

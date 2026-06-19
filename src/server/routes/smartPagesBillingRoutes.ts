@@ -3,12 +3,14 @@ import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../db/prisma";
 import {
+  claimTrial,
   getLedger,
   getPaymentNetworkConfig,
   getSmartPagesPackage,
   getSmartPagesPaymentConfig,
   getSummary,
 } from "../services/smartPagesService";
+import { notifySmartPagesPayment } from "../services/telegramService";
 import type {
   SmartPageLedgerEntry,
   SmartPagesPaymentNetwork,
@@ -106,6 +108,24 @@ export function smartPagesBillingRoutes() {
     }
   });
 
+  // ── Claim free trial ──────────────────────────────────────────────────────────
+
+  router.post("/api/smart-pages/billing/claim-trial", async (req, res, next) => {
+    try {
+      const schoolId = req.school!.id;
+      const summary = await claimTrial(schoolId);
+      res.status(201).json({ summary });
+    } catch (error: any) {
+      if (error?.code === "TRIAL_ALREADY_CLAIMED") {
+        res.status(409).json({ error: error.message });
+        return;
+      }
+      next(error);
+    }
+  });
+
+  // ── Prepare payment request ───────────────────────────────────────────────────
+
   router.post("/api/smart-pages/billing/payments", async (req, res, next) => {
     try {
       const body = preparePaymentSchema.parse(req.body);
@@ -147,21 +167,22 @@ export function smartPagesBillingRoutes() {
       });
 
       res.status(201).json({ payment: paymentToDto(payment, req.school!.name) });
-
     } catch (error) {
       next(error);
     }
   });
 
+  // ── Submit payment receipt (transaction ID) ───────────────────────────────────
+
   router.patch("/api/smart-pages/billing/payments/:paymentId/receipt", async (req, res, next) => {
     try {
-      const db2 = prisma as any;
-      if (!db2.smartPagePaymentRequest) {
+      const db = prisma as any;
+      if (!db.smartPagePaymentRequest) {
         res.status(503).json({ error: "Billing system is initialising. Please try again in a few minutes." });
         return;
       }
       const body = receiptSchema.parse(req.body);
-      const payment = await db2.smartPagePaymentRequest.findFirst({
+      const payment = await db.smartPagePaymentRequest.findFirst({
         where: { id: req.params.paymentId, schoolId: req.school!.id },
       });
       if (!payment) {
@@ -180,7 +201,7 @@ export function smartPagesBillingRoutes() {
         res.status(400).json({ error: "Amount must match the selected Smart Pages package." });
         return;
       }
-      const duplicate = await db2.smartPagePaymentRequest.findFirst({
+      const duplicate = await db.smartPagePaymentRequest.findFirst({
         where: {
           network: body.network,
           transactionId: body.transactionId,
@@ -192,7 +213,7 @@ export function smartPagesBillingRoutes() {
         return;
       }
 
-      const updated = await db2.smartPagePaymentRequest.update({
+      const updated = await db.smartPagePaymentRequest.update({
         where: { id: payment.id },
         data: {
           transactionId: body.transactionId,
@@ -200,6 +221,30 @@ export function smartPagesBillingRoutes() {
           proofScreenshotUrl: body.proofScreenshotUrl || null,
         },
       });
+
+      // Notify admin via Telegram — best-effort, never blocks the response.
+      void (async () => {
+        const result = await notifySmartPagesPayment({
+          schoolName: req.school!.name,
+          userName: req.user?.name || req.user?.email || "School user",
+          packageName: updated.packageName as string,
+          pages: updated.credits as number,
+          amountUgx: updated.amountUgx as number,
+          network: updated.network as string,
+          transactionId: body.transactionId,
+          paymentId: updated.id as string,
+          paymentReference: updated.paymentReference as string,
+          submittedAt: new Date().toISOString(),
+        });
+        // Store Telegram outcome on the record — metadata only, failure is non-critical.
+        db.smartPagePaymentRequest.update({
+          where: { id: updated.id },
+          data: {
+            telegramSentAt: result.ok ? new Date() : null,
+            telegramError: result.ok ? null : (result.error ?? "Unknown error"),
+          },
+        }).catch(() => {/* ignore — Telegram status is informational only */});
+      })();
 
       res.json({ payment: paymentToDto(updated, req.school!.name) });
     } catch (error) {

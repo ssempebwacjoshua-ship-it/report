@@ -411,6 +411,7 @@ export function createSmartPagesService(store: SmartPageStore) {
           planName: null,
           billingCycle: "ACADEMIC_YEAR",
           allowHighAccuracy: false,
+          trialClaimed: false,
         };
       }
       const total = plan.includedPages + plan.topUpPages + plan.rolloverPages;
@@ -428,7 +429,25 @@ export function createSmartPagesService(store: SmartPageStore) {
         planName: plan.planName,
         billingCycle: plan.billingCycle,
         allowHighAccuracy: plan.allowHighAccuracy,
+        trialClaimed: true,
       };
+    },
+
+    /**
+     * Explicitly claim the 10-page free trial for this workspace.
+     * Throws with code TRIAL_ALREADY_CLAIMED (409) if any plan already exists.
+     */
+    async claimTrial(schoolId: string): Promise<SmartPageSummary> {
+      const existing = await store.getPlan(schoolId);
+      if (existing) {
+        throw Object.assign(
+          new Error("Trial has already been claimed for this workspace."),
+          { code: "TRIAL_ALREADY_CLAIMED", status: 409 },
+        );
+      }
+      const trial = buildTrialPlan(schoolId);
+      await store.savePlan(trial);
+      return this.getSummary(schoolId);
     },
 
     /**
@@ -548,6 +567,10 @@ export async function isHighAccuracyAllowed(schoolId: string): Promise<boolean> 
 
 export async function getSummary(schoolId: string): Promise<SmartPageSummary> {
   return createSmartPagesService(getDefaultStore()).getSummary(schoolId);
+}
+
+export async function claimTrial(schoolId: string): Promise<SmartPageSummary> {
+  return createSmartPagesService(getDefaultStore()).claimTrial(schoolId);
 }
 
 export async function addTopUp(schoolId: string, bundle: TopUpBundle): Promise<void> {

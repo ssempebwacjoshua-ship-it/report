@@ -104,6 +104,8 @@ export type SmartPageSummary = {
   planName: PlanName | null;
   billingCycle: string;
   allowHighAccuracy: boolean;
+  /** True when any plan exists for this workspace (trial claimed or paid). */
+  trialClaimed: boolean;
 };
 
 export type SmartPagesSchoolLedgerRow = {
