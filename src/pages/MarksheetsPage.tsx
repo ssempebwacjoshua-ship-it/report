@@ -146,7 +146,9 @@ function ContextSelector({ ctx, filters, subjectsLoading, subjectOptions, onChan
         </select>
         {!subjectsLoading && subjectOptions.length === 0 ? (
           <p className="mt-1 text-xs text-amber-700">
-            No subjects found. Add subjects in Settings &gt; School Structure.
+            {(ctx?.classes ?? []).length === 0
+              ? "Select your school sections in Settings > School Structure and subjects will be created automatically."
+              : "Subjects were not created for these classes. Open Settings > School Structure, save again, and retry."}
           </p>
         ) : null}
       </div>

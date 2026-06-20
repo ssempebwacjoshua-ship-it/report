@@ -8,6 +8,7 @@ import {
   type SchoolSection,
 } from "../../shared/constants/classes";
 import { getSettingsSections, patchSettingsSection } from "../repositories/settingsRepository";
+import { ensureDefaultSubjectsForSections } from "../services/subjectProvisioningService";
 
 const AVAILABLE_SECTIONS = [
   { code: "NURSERY" as const, label: "Nursery / Pre-primary" },
@@ -150,6 +151,12 @@ export function schoolStructureRoutes() {
           update: {},
         });
       }
+      await ensureDefaultSubjectsForSections(
+        prisma,
+        school.id,
+        newSections,
+        classDefs.map((def) => def.code),
+      );
 
       await patchSettingsSection(prisma, schoolCode, "school", {
         ...currentSettings.school,

@@ -17,6 +17,14 @@ function makeUpsertMock() {
   return vi.fn(async ({ create }: UpsertCall) => create);
 }
 
+function makeSubjectMock(existing: object | null = null) {
+  return {
+    findFirst: vi.fn(async () => existing),
+    create: vi.fn(async ({ data }: { data: Record<string, unknown> }) => ({ id: `subject-${data.code}`, ...data })),
+    update: vi.fn(async ({ data }: { data: Record<string, unknown> }) => ({ id: "subject-existing", ...data })),
+  };
+}
+
 // ── provisionCanonicalClasses ─────────────────────────────────────────────────
 
 describe("provisionCanonicalClasses ? secondary school", () => {
@@ -25,6 +33,7 @@ describe("provisionCanonicalClasses ? secondary school", () => {
     const mockPrisma = {
       school: makeSchoolMock(),
       schoolClass: { upsert },
+      subject: makeSubjectMock(),
     } as unknown as PrismaClient;
 
     await provisionCanonicalClasses(mockPrisma, "TEST-SCHOOL", ["SECONDARY"]);
@@ -39,6 +48,7 @@ describe("provisionCanonicalClasses ? secondary school", () => {
     const mockPrisma = {
       school: makeSchoolMock(),
       schoolClass: { upsert },
+      subject: makeSubjectMock(),
     } as unknown as PrismaClient;
 
     await provisionCanonicalClasses(mockPrisma, "TEST-SCHOOL", ["SECONDARY"]);
@@ -56,6 +66,7 @@ describe("provisionCanonicalClasses ? primary school", () => {
     const mockPrisma = {
       school: makeSchoolMock(),
       schoolClass: { upsert },
+      subject: makeSubjectMock(),
     } as unknown as PrismaClient;
 
     await provisionCanonicalClasses(mockPrisma, "TEST-SCHOOL", ["PRIMARY"]);
@@ -63,6 +74,38 @@ describe("provisionCanonicalClasses ? primary school", () => {
     const codes = upsert.mock.calls.map((c) => (c[0] as UpsertCall).create.code);
     expect(codes).toHaveLength(7);
     expect(codes).toEqual(expect.arrayContaining(["P1", "P2", "P3", "P4", "P5", "P6", "P7"]));
+  });
+
+  it("seeds primary subjects when primary classes are provisioned", async () => {
+    const subjects = makeSubjectMock();
+    const mockPrisma = {
+      school: makeSchoolMock(),
+      schoolClass: { upsert: makeUpsertMock() },
+      subject: subjects,
+    } as unknown as PrismaClient;
+
+    await provisionCanonicalClasses(mockPrisma, "TEST-SCHOOL", ["PRIMARY"]);
+
+    expect(subjects.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ name: "Mathematics", code: "MATH" }),
+    });
+    expect(subjects.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ name: "Social Studies", code: "SST" }),
+    });
+  });
+
+  it("does not duplicate subjects when provisioning is re-run", async () => {
+    const subjects = makeSubjectMock({ id: "subject-existing", schoolId: "school-uuid-1", name: "Mathematics", code: "MATH" });
+    const mockPrisma = {
+      school: makeSchoolMock(),
+      schoolClass: { upsert: makeUpsertMock() },
+      subject: subjects,
+    } as unknown as PrismaClient;
+
+    await provisionCanonicalClasses(mockPrisma, "TEST-SCHOOL", ["PRIMARY"]);
+
+    expect(subjects.create).not.toHaveBeenCalled();
+    expect(subjects.update).toHaveBeenCalled();
   });
 });
 
@@ -72,6 +115,7 @@ describe("provisionCanonicalClasses ? nursery school", () => {
     const mockPrisma = {
       school: makeSchoolMock(),
       schoolClass: { upsert },
+      subject: makeSubjectMock(),
     } as unknown as PrismaClient;
 
     await provisionCanonicalClasses(mockPrisma, "TEST-SCHOOL", ["NURSERY"]);
@@ -88,6 +132,7 @@ describe("provisionCanonicalClasses ? multi-section school", () => {
     const mockPrisma = {
       school: makeSchoolMock(),
       schoolClass: { upsert },
+      subject: makeSubjectMock(),
     } as unknown as PrismaClient;
 
     await provisionCanonicalClasses(mockPrisma, "TEST-SCHOOL", ["PRIMARY", "SECONDARY"]);
@@ -98,6 +143,7 @@ describe("provisionCanonicalClasses ? multi-section school", () => {
     const mockPrisma = {
       school: { findUnique: vi.fn(async () => null) },
       schoolClass: { upsert: makeUpsertMock() },
+      subject: makeSubjectMock(),
     } as unknown as PrismaClient;
 
     await expect(
@@ -152,6 +198,8 @@ describe("repairSchoolClasses ? S1B migration", () => {
         update: vi.fn(async () => ({})),
       },
       stream: { findMany: vi.fn(async () => []) },
+      classEnrollment: { count: vi.fn(async () => 5) },
+      subjectMark: { count: vi.fn(async () => 30) },
       $transaction: vi.fn(async (fn: (t: typeof tx) => Promise<unknown>) => fn(tx)),
     } as unknown as PrismaClient;
 
@@ -188,6 +236,8 @@ describe("repairSchoolClasses ? S1B migration", () => {
         update: vi.fn(async () => ({})),
       },
       stream: { findMany: vi.fn(async () => []) },
+      classEnrollment: { count: vi.fn(async () => 3) },
+      subjectMark: { count: vi.fn(async () => 135) },
       $transaction: vi.fn(async (fn: (t: typeof tx) => Promise<unknown>) => fn(tx)),
     } as unknown as PrismaClient;
 
@@ -222,7 +272,9 @@ describe("repairSchoolClasses ? S1B migration", () => {
         create: vi.fn(async ({ data }: { data: Record<string, unknown> }) => ({ ...data, id: "new-s1" })),
         update: vi.fn(async () => ({})),
       },
-      stream: { findMany: vi.fn(async () => []) },
+      stream: { findMany: vi.fn(async () => [streamB]) },
+      classEnrollment: { count: vi.fn(async () => 0) },
+      subjectMark: { count: vi.fn(async () => 0) },
       $transaction: vi.fn(async (fn: (t: typeof tx) => Promise<unknown>) => fn(tx)),
     } as unknown as PrismaClient;
 
