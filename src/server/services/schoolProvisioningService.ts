@@ -1,6 +1,7 @@
 ﻿import type { PrismaClient } from "@prisma/client";
 import { hashPassword } from "./authService";
 import { getClassesForSections, type SchoolSection } from "../../shared/constants/classes";
+import { ensureDefaultSubjectsForSections } from "./subjectProvisioningService";
 
 export type ProvisionSchoolInput = {
   schoolCode: string;
@@ -37,6 +38,12 @@ export async function provisionSchool(
     });
   }
   const classesSeeded = classDefs.length;
+  await ensureDefaultSubjectsForSections(
+    prisma,
+    school.id,
+    input.sections,
+    classDefs.map((def) => def.code),
+  );
 
   const passwordHash = await hashPassword(input.adminPassword);
   const normalizedEmail = input.adminEmail.toLowerCase();

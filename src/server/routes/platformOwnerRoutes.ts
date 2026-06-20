@@ -6,6 +6,7 @@ import { requirePlatformOwner } from "../middleware/requirePlatformOwner";
 import { hashPassword } from "../services/authService";
 import { REPORT_LAB_PLANS, getPlanByCode } from "../../shared/constants/subscriptionPlans";
 import { getClassesForSections } from "../../shared/constants/classes";
+import { getDefaultSubjectsForSections } from "../../shared/constants/subjects";
 import { getSmartPagesPackage } from "../services/smartPagesService";
 import type { SmartPagesPackageCode, SmartPagesPaymentNetwork, SmartPagesPaymentRequest } from "../../shared/types/smartPages";
 
@@ -314,6 +315,7 @@ export function platformOwnerRoutes() {
       const passwordHash = await hashPassword(body.adminTemporaryPassword);
       const plan = getPlanByCode(body.planCode);
       const classDefs = getClassesForSections(body.sections);
+      const subjectDefs = getDefaultSubjectsForSections(body.sections, classDefs.map((def) => def.code));
 
       const result = await prisma.$transaction(async (tx) => {
         const school = await tx.school.create({
@@ -334,6 +336,19 @@ export function platformOwnerRoutes() {
               code: def.code,
               level: def.level,
             })),
+          });
+        }
+
+        if (subjectDefs.length > 0) {
+          await tx.subject.createMany({
+            data: subjectDefs.map((subject, index) => ({
+              schoolId: school.id,
+              name: subject.name,
+              code: subject.code,
+              sortOrder: index + 1,
+              isActive: true,
+            })),
+            skipDuplicates: true,
           });
         }
 

@@ -249,7 +249,24 @@ describe("MarksheetsPage Print tab ? student selection", () => {
 });
 
 describe("MarksheetsPage subject empty state", () => {
-  it("shows a helpful message when no subjects exist", async () => {
+  it("tells the user to configure school structure when no classes or subjects exist", async () => {
+    vi.mocked(fetchReportContext).mockResolvedValueOnce({
+      school: { code: "SCU-PREVIEW" },
+      academicYears: [{ id: "year-1", name: "2025/2026", isActive: true }],
+      terms: [{ id: "term-1", name: "Term 1", isActive: true }],
+      classes: [],
+      streams: [],
+      subjects: [],
+    });
+
+    renderPage();
+
+    expect(
+      await screen.findByText(/Select your school sections in Settings > School Structure and subjects will be created automatically\./i),
+    ).toBeInTheDocument();
+  });
+
+  it("shows a retry message when classes exist but subject provisioning has not produced subjects", async () => {
     vi.mocked(fetchReportContext).mockResolvedValueOnce({
       school: { code: "SCU-PREVIEW" },
       academicYears: [{ id: "year-1", name: "2025/2026", isActive: true }],
@@ -262,7 +279,7 @@ describe("MarksheetsPage subject empty state", () => {
     renderPage();
 
     expect(
-      await screen.findByText(/No subjects found\. Add subjects in Settings > School Structure\./i),
+      await screen.findByText(/Subjects were not created for these classes\. Open Settings > School Structure, save again, and retry\./i),
     ).toBeInTheDocument();
   });
 });

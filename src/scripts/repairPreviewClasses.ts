@@ -17,6 +17,7 @@ import {
   isCanonicalClassCode,
   type SchoolSection,
 } from "../shared/constants/classes";
+import { ensureDefaultSubjectsForSections } from "../server/services/subjectProvisioningService";
 import { parseLegacyCombinedClassCode } from "../shared/utils/classStreamNormalization";
 
 export type ProvisionResult = {
@@ -45,6 +46,12 @@ export async function provisionCanonicalClasses(
       update: {},
     });
   }
+  await ensureDefaultSubjectsForSections(
+    prisma,
+    school.id,
+    sections,
+    defs.map((def) => def.code),
+  );
   return { schoolCode, sectionsProvisioned: sections, totalClassesProcessed: defs.length };
 }
 

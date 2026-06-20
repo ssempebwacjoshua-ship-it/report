@@ -13,6 +13,7 @@ describe("Phase 7 ? provisionSchool service", () => {
   const buildMock = () => {
     const auditLogCreate = vi.fn(async () => ({}));
     const schoolClassUpsert = vi.fn(async () => ({}));
+    const subjectCreate = vi.fn(async () => ({}));
 
     const mockPrisma = {
       school: {
@@ -20,6 +21,11 @@ describe("Phase 7 ? provisionSchool service", () => {
         create: vi.fn(async () => ({ id: schoolId, code: "NEWSCH", name: "New School" })),
       },
       schoolClass: { upsert: schoolClassUpsert },
+      subject: {
+        findFirst: vi.fn(async () => null),
+        create: subjectCreate,
+        update: vi.fn(async () => ({})),
+      },
       user: {
         findFirst: vi.fn(async () => null),
         create: vi.fn(async () => ({
@@ -38,7 +44,7 @@ describe("Phase 7 ? provisionSchool service", () => {
       auditLog: { create: auditLogCreate },
     } as unknown as PrismaClient;
 
-    return { mockPrisma, auditLogCreate, schoolClassUpsert };
+    return { mockPrisma, auditLogCreate, schoolClassUpsert, subjectCreate };
   };
 
   it("creates the school record when it does not exist", async () => {
@@ -68,6 +74,21 @@ describe("Phase 7 ? provisionSchool service", () => {
     // PRIMARY has 7 classes (P1-P7)
     expect(result.classesSeeded).toBe(7);
     expect(schoolClassUpsert).toHaveBeenCalledTimes(7);
+  });
+
+  it("seeds default subjects for the selected sections", async () => {
+    const { mockPrisma, subjectCreate } = buildMock();
+    await provisionSchool(mockPrisma, {
+      schoolCode: "NEWSCH",
+      schoolName: "New School",
+      sections: ["PRIMARY"],
+      adminEmail: "admin@newsch.test",
+      adminName: "School Admin",
+      adminPassword: "SecurePass1!",
+    });
+    expect(subjectCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({ schoolId, name: "Mathematics", code: "MATH" }),
+    });
   });
 
   it("creates the first admin user and assigns them to the new school", async () => {
@@ -120,12 +141,25 @@ describe("Phase 7 ? provisionSchool service", () => {
 
 // ─── Platform provisioning: route tests (vi.mock for prisma) ─────────────────
 
-const { schoolFindUnique, schoolCreate, classUpsert, userFindFirst, userCreate, platformAuditCreate } = vi.hoisted(() => {
+const {
+  schoolFindUnique,
+  schoolCreate,
+  classUpsert,
+  routeSubjectFindFirst,
+  routeSubjectCreate,
+  routeSubjectUpdate,
+  userFindFirst,
+  userCreate,
+  platformAuditCreate,
+} = vi.hoisted(() => {
   const SCHOOL_ID = "sc-route-1";
   return {
     schoolFindUnique: vi.fn(async () => null),
     schoolCreate: vi.fn(async () => ({ id: SCHOOL_ID, code: "ROUTESCH", name: "Route School" })),
     classUpsert: vi.fn(async () => ({})),
+    routeSubjectFindFirst: vi.fn(async () => null),
+    routeSubjectCreate: vi.fn(async () => ({})),
+    routeSubjectUpdate: vi.fn(async () => ({})),
     userFindFirst: vi.fn(async () => null),
     userCreate: vi.fn(async () => ({
       id: "usr-route-1",
@@ -141,6 +175,11 @@ vi.mock("../../server/db/prisma", () => ({
   prisma: {
     school: { findUnique: schoolFindUnique, create: schoolCreate },
     schoolClass: { upsert: classUpsert },
+    subject: {
+      findFirst: routeSubjectFindFirst,
+      create: routeSubjectCreate,
+      update: routeSubjectUpdate,
+    },
     user: { findFirst: userFindFirst, create: userCreate, update: vi.fn() },
     auditLog: { create: platformAuditCreate },
   },
@@ -162,6 +201,9 @@ describe("Phase 7 ? POST /api/platform/schools (route)", () => {
     schoolFindUnique.mockResolvedValue(null);
     schoolCreate.mockResolvedValue({ id: SCHOOL_ID, code: "ROUTESCH", name: "Route School" });
     classUpsert.mockResolvedValue({});
+    routeSubjectFindFirst.mockResolvedValue(null);
+    routeSubjectCreate.mockResolvedValue({});
+    routeSubjectUpdate.mockResolvedValue({});
     userFindFirst.mockResolvedValue(null);
     userCreate.mockResolvedValue({ id: "usr-route-1", email: "admin@routesch.test", schoolId: SCHOOL_ID, role: "ADMIN_OPERATOR" });
     platformAuditCreate.mockResolvedValue({});

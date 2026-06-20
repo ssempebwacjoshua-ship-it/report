@@ -18,6 +18,10 @@ const {
   streamDelete,
   enrollmentCount,
   markCount,
+  subjectFindFirst,
+  subjectCreate,
+  subjectUpdate,
+  subjectDelete,
   transactionMock,
 } = vi.hoisted(() => ({
   schoolFindUnique: vi.fn(),
@@ -33,6 +37,10 @@ const {
   streamDelete: vi.fn(),
   enrollmentCount: vi.fn(),
   markCount: vi.fn(),
+  subjectFindFirst: vi.fn(),
+  subjectCreate: vi.fn(),
+  subjectUpdate: vi.fn(),
+  subjectDelete: vi.fn(),
   transactionMock: vi.fn(),
 }));
 
@@ -54,6 +62,12 @@ vi.mock("../../server/db/prisma", () => ({
     },
     classEnrollment: { count: enrollmentCount },
     subjectMark: { count: markCount },
+    subject: {
+      findFirst: subjectFindFirst,
+      create: subjectCreate,
+      update: subjectUpdate,
+      delete: subjectDelete,
+    },
     $transaction: transactionMock,
   },
 }));
@@ -121,6 +135,10 @@ beforeEach(() => {
   streamDelete.mockResolvedValue({});
   enrollmentCount.mockResolvedValue(0);
   markCount.mockResolvedValue(0);
+  subjectFindFirst.mockResolvedValue(null);
+  subjectCreate.mockImplementation(async ({ data }) => ({ id: `subject-${data.code}`, ...data }));
+  subjectUpdate.mockImplementation(async ({ data }) => ({ id: "subject-existing", ...data }));
+  subjectDelete.mockResolvedValue({});
 });
 
 describe("GET /api/settings/school-structure", () => {
@@ -168,6 +186,68 @@ describe("PATCH /api/settings/school-structure", () => {
     expect(schoolClassUpsert).toHaveBeenCalledTimes(6);
   });
 
+  it("selecting Secondary creates secondary and A-Level subjects", async () => {
+    const res = await supertest(createApp())
+      .patch("/api/settings/school-structure")
+      .send({ schoolCode: "SCU-PREVIEW", selectedSections: ["SECONDARY"] });
+
+    expect(res.status).toBe(200);
+    expect(subjectCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({ schoolId: "school-1", name: "Biology", code: "BIO" }),
+    });
+    expect(subjectCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({ schoolId: "school-1", name: "General Paper", code: "GP" }),
+    });
+  });
+
+  it("selecting Primary creates primary subjects", async () => {
+    const res = await supertest(createApp())
+      .patch("/api/settings/school-structure")
+      .send({ schoolCode: "SCU-PREVIEW", selectedSections: ["PRIMARY"] });
+
+    expect(res.status).toBe(200);
+    expect(subjectCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({ schoolId: "school-1", name: "Social Studies", code: "SST" }),
+    });
+  });
+
+  it("selecting Nursery creates nursery subjects", async () => {
+    const res = await supertest(createApp())
+      .patch("/api/settings/school-structure")
+      .send({ schoolCode: "SCU-PREVIEW", selectedSections: ["NURSERY"] });
+
+    expect(res.status).toBe(200);
+    expect(subjectCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({ schoolId: "school-1", name: "Literacy", code: "LITCY" }),
+    });
+  });
+
+  it("re-running subject provisioning updates existing defaults instead of duplicating them", async () => {
+    subjectFindFirst.mockResolvedValue({ id: "subject-existing", schoolId: "school-1", name: "English", code: "ENG" });
+
+    const res = await supertest(createApp())
+      .patch("/api/settings/school-structure")
+      .send({ schoolCode: "SCU-PREVIEW", selectedSections: ["PRIMARY"] });
+
+    expect(res.status).toBe(200);
+    expect(subjectCreate).not.toHaveBeenCalled();
+    expect(subjectUpdate).toHaveBeenCalled();
+  });
+
+  it("preserves existing custom subjects", async () => {
+    const res = await supertest(createApp())
+      .patch("/api/settings/school-structure")
+      .send({ schoolCode: "SCU-PREVIEW", selectedSections: ["PRIMARY"] });
+
+    expect(res.status).toBe(200);
+    expect(subjectDelete).not.toHaveBeenCalled();
+    expect(subjectCreate).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ name: "Robotics" }),
+      }),
+    );
+  });
+
   it("provisions 13 classes (7 primary + 6 secondary) for PRIMARY + SECONDARY", async () => {
     const res = await supertest(createApp())
       .patch("/api/settings/school-structure")
@@ -188,6 +268,7 @@ describe("PATCH /api/settings/school-structure", () => {
 
     expect(res.status).toBe(409);
     expect(res.body.code).toBe("SECTION_HAS_DATA");
+    expect(subjectDelete).not.toHaveBeenCalled();
   });
 
   it("returns 400 when selectedSections is missing", async () => {
@@ -290,4 +371,7 @@ describe("DELETE /api/settings/school-structure/streams/:streamId", () => {
     expect(res.status).toBe(404);
   });
 });
+
+
+
 
