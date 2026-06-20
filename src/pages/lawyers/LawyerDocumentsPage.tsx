@@ -13,7 +13,7 @@ export function LawyerDocumentsPage() {
   const templates = useMemo(() => getLawyerPageTemplates("parsed"), []);
 
   useEffect(() => {
-    listDocuments()
+    listDocuments({ vertical: "LAWYER", authMode: "creator" })
       .then(setDocuments)
       .catch((error: Error) => setLoadError(error.message || "Failed to load documents."))
       .finally(() => setLoading(false));
@@ -22,7 +22,7 @@ export function LawyerDocumentsPage() {
   async function handleCreateDocument(title = "Untitled Legal Draft") {
     setCreating(true);
     try {
-      const document = await createDocument(title);
+      const document = await createDocument(title, { vertical: "LAWYER", authMode: "creator" });
       void navigate(`/lawyers/documents/${document.id}`);
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "Failed to create document.");
@@ -34,7 +34,7 @@ export function LawyerDocumentsPage() {
   async function handleCreateFromTemplate(template: SmartPageTemplateDefinition) {
     setCreating(true);
     try {
-      const document = await createDocument(template.name);
+      const document = await createDocument(template.name, { vertical: "LAWYER", authMode: "creator" });
       void navigate(`/lawyers/documents/${document.id}?template=${encodeURIComponent(template.id)}`);
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "Failed to create document.");

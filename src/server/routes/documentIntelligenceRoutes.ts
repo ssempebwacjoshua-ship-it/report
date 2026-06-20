@@ -4,7 +4,7 @@ import bcrypt from "bcryptjs";
 import { requireCreator } from "../middleware/requireCreator";
 import * as svc from "../services/documentIntelligenceService";
 import { renderSchemaToHtml } from "../services/documentRenderService";
-import type { DocumentSchema, ComponentNode } from "../../shared/types/documentIntelligence";
+import type { DocumentSchema, ComponentNode, SmartDocumentVertical } from "../../shared/types/documentIntelligence";
 import { getSmartPageTemplateById } from "../../shared/smartPagesTemplates";
 
 const router = Router();
@@ -42,24 +42,32 @@ router.get("/p/:token/download/pdf", async (req, res) => {
   }
 });
 
+function parseSmartDocumentVertical(value: unknown): SmartDocumentVertical | undefined {
+  if (value === "SCHOOL" || value === "LAWYER" || value === "GENERAL") return value;
+  if (value === undefined || value === null || value === "") return undefined;
+  throw Object.assign(new Error("Invalid Smart Pages vertical."), { status: 400 });
+}
+
 // List documents
 router.get("/", requireCreator, async (req, res) => {
   try {
-    const documents = await svc.listDocuments(req.creator!.id);
+    const vertical = parseSmartDocumentVertical(req.query.vertical);
+    const documents = await svc.listDocuments(req.creator!.id, vertical);
     res.json({ ok: true, documents });
-  } catch (e) {
-    res.status(500).json({ error: e instanceof Error ? e.message : "Failed to list documents." });
+  } catch (e: any) {
+    res.status(e?.status ?? 500).json({ error: e instanceof Error ? e.message : "Failed to list documents." });
   }
 });
 
 // Create document
 router.post("/", requireCreator, async (req, res) => {
-  const { title } = req.body as { title?: string };
   try {
-    const document = await svc.createDocument(req.creator!.id, title?.trim() || "Untitled Document");
+    const { title, vertical } = req.body;
+    const parsedVertical = parseSmartDocumentVertical(vertical ?? "SCHOOL") ?? "SCHOOL";
+    const document = await svc.createDocument(req.creator!.id, title?.trim() || "Untitled Document", parsedVertical);
     res.status(201).json({ ok: true, document });
-  } catch (e) {
-    res.status(500).json({ error: e instanceof Error ? e.message : "Failed to create document." });
+  } catch (e: any) {
+    res.status(e?.status ?? 500).json({ error: e instanceof Error ? e.message : "Failed to create document." });
   }
 });
 
@@ -74,7 +82,7 @@ router.get("/:id", requireCreator, async (req, res) => {
   }
 });
 
-// Upload file ? Gemini extraction
+// Upload file — school OCR flow only (LAWYER vertical is rejected in service)
 router.post("/:id/upload", requireCreator, upload.single("file"), async (req, res) => {
   if (!req.file) { res.status(400).json({ error: "No file uploaded." }); return; }
   try {
@@ -148,6 +156,7 @@ router.post("/:id/manual-version", requireCreator, async (req, res) => {
   }
 });
 
+// Lawyer edit plan — LAWYER vertical only (service enforces)
 router.post("/:id/lawyer-edit-plan", requireCreator, async (req, res) => {
   const { instruction, currentContent } = req.body as { instruction?: string; currentContent?: string };
   if (!instruction?.trim()) { res.status(400).json({ error: "Instruction is required." }); return; }

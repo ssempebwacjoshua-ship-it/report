@@ -35,7 +35,7 @@ export function SmartPagesPage() {
   const loadDocuments = useCallback(() => {
     setLoading(true);
     setLoadError("");
-    listDocuments()
+    listDocuments({ vertical: "SCHOOL", authMode: "school" })
       .then(setDocuments)
       .catch((e: unknown) => setLoadError(friendlyError(e, "Could not load documents. Please refresh or try again.")))
       .finally(() => setLoading(false));
@@ -55,7 +55,7 @@ export function SmartPagesPage() {
     const title = newTitle.trim() || "Untitled Document";
     setCreating(true);
     try {
-      const doc = await createDocument(title);
+      const doc = await createDocument(title, { vertical: "SCHOOL", authMode: "school" });
       void navigate(`/smart-pages/${doc.id}`);
     } catch (e) {
       setLoadError(friendlyError(e, "Could not create document. Please try again."));

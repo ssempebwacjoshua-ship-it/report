@@ -32,6 +32,7 @@ import {
 import type {
   SmartDocumentDetail,
   SmartDocumentSummary,
+  SmartDocumentVertical,
   DocumentVersionSummary,
   DocumentSchema,
   ComponentNode,
@@ -126,7 +127,34 @@ async function loadOwnedSmartDocument(db: any, actor: SmartPagesActor, documentI
     throw Object.assign(new Error("You do not have access to this document."), { status: 403 });
   }
 
+  // Vertical cross-access guard: school operators cannot access lawyer documents.
+  if (actor.type === "SCHOOL_OPERATOR" && doc.vertical === "LAWYER") {
+    throw Object.assign(new Error("You do not have access to this document."), { status: 403 });
+  }
+
   return doc;
+}
+
+// Asserts that a document belongs to the expected vertical.
+// Used as a defence-in-depth guard on vertical-specific operations.
+// Throws 400 so the caller knows the request was directed at the wrong document type.
+function assertDocumentVertical(
+  doc: { vertical?: string | null; id: string },
+  expectedVertical: SmartDocumentVertical,
+  message?: string,
+): void {
+  const actual = doc.vertical ?? "SCHOOL";
+  if (actual !== expectedVertical) {
+    const label = expectedVertical === "SCHOOL"
+      ? "School Smart Pages"
+      : expectedVertical === "LAWYER"
+      ? "Lawyer Smart Pages"
+      : expectedVertical;
+    throw Object.assign(
+      new Error(message ?? `This action is only available for ${label}.`),
+      { status: 400 },
+    );
+  }
 }
 
 async function writeSmartPagesAudit(
@@ -178,18 +206,20 @@ function isSmartPagesProviderFailure(error: unknown): boolean {
 
 // ── Document list ──────────────────────────────────────────────────────────────
 
-export async function listDocuments(creatorId: string): Promise<SmartDocumentSummary[]> {
+export async function listDocuments(creatorId: string, vertical?: SmartDocumentVertical): Promise<SmartDocumentSummary[]> {
   const db = prisma as any;
   const actor = await getSmartPagesActor(creatorId);
+
+  const ownershipFilter = actor.type === "SCHOOL_OPERATOR" && actor.schoolId
+    ? { OR: [{ schoolId: actor.schoolId }, { creatorId: actor.id, schoolId: null }] }
+    : { creatorId: actor.id, schoolId: null };
+
+  const where = vertical
+    ? { ...ownershipFilter, vertical }
+    : ownershipFilter;
+
   const docs = await db.smartDocument.findMany({
-    where: actor.type === "SCHOOL_OPERATOR" && actor.schoolId
-      ? {
-          OR: [
-            { schoolId: actor.schoolId },
-            { creatorId: actor.id, schoolId: null },
-          ],
-        }
-      : { creatorId: actor.id, schoolId: null },
+    where,
     orderBy: { updatedAt: "desc" },
     include: {
       _count: { select: { versions: true, sourceFiles: true } },
@@ -201,6 +231,7 @@ export async function listDocuments(creatorId: string): Promise<SmartDocumentSum
     id: d.id as string,
     title: d.title as string,
     status: d.status as string,
+    vertical: (d.vertical ?? "SCHOOL") as SmartDocumentVertical,
     extractionStatus: d.extractionStatus as SmartDocumentSummary["extractionStatus"],
     extractionError: d.extractionError as string | null,
     domain: (d.extractedKnowledge as any)?.domain as string | undefined,
@@ -214,15 +245,34 @@ export async function listDocuments(creatorId: string): Promise<SmartDocumentSum
 
 // ── Create document ────────────────────────────────────────────────────────────
 
-export async function createDocument(creatorId: string, title: string): Promise<SmartDocumentDetail> {
+export async function createDocument(creatorId: string, title: string, vertical: SmartDocumentVertical = "SCHOOL"): Promise<SmartDocumentDetail> {
   const db = prisma as any;
   const actor = await getSmartPagesActor(creatorId);
+
+  // Cross-vertical token guard: prevent auth tokens from crossing verticals.
+  if (actor.type === "SCHOOL_OPERATOR" && vertical === "LAWYER") {
+    throw Object.assign(
+      new Error("School accounts cannot create Lawyer Smart Pages documents."),
+      { status: 403 },
+    );
+  }
+  if (actor.type === "EXTERNAL" && vertical === "SCHOOL") {
+    throw Object.assign(
+      new Error("Lawyer accounts cannot create School Smart Pages documents."),
+      { status: 403 },
+    );
+  }
+
+  // LAWYER documents must never be attached to a school — keep verticals fully separate.
+  const attachSchoolId = actor.schoolId && vertical !== "LAWYER";
+
   const doc = await db.smartDocument.create({
     data: {
       id: randomUUID(),
       creatorId,
-      ...(actor.schoolId ? { schoolId: actor.schoolId } : {}),
+      ...(attachSchoolId ? { schoolId: actor.schoolId } : {}),
       title,
+      vertical,
       status: "DRAFT",
     },
   });
@@ -444,6 +494,7 @@ function rowToDetail(doc: any, version: any, versionCount: number): SmartDocumen
     id: doc.id as string,
     title: doc.title as string,
     status: doc.status as string,
+    vertical: (doc.vertical ?? "SCHOOL") as SmartDocumentVertical,
     extractionStatus: doc.extractionStatus as SmartDocumentSummary["extractionStatus"],
     extractionError: doc.extractionError as string | null,
     domain: knowledge?.domain,
@@ -477,7 +528,8 @@ export async function uploadAndExtract(
 ): Promise<{ sourceFileId: string; status: "PROCESSING" }> {
   const db = prisma as any;
   const actor = await getSmartPagesActor(creatorId);
-  await loadOwnedSmartDocument(db, actor, documentId);
+  const doc = await loadOwnedSmartDocument(db, actor, documentId);
+  assertDocumentVertical(doc, "SCHOOL", "File uploads and OCR extraction are only available for School Smart Pages.");
   if (isWordDocumentUpload(file.mimetype, file.originalname)) {
     throw Object.assign(
       new Error("Word documents are coming soon. Please upload PDF, image, CSV, or Excel."),
@@ -528,6 +580,7 @@ export async function retryDocumentExtraction(
   const db = prisma as any;
   const actor = await getSmartPagesActor(creatorId);
   const doc = await loadOwnedSmartDocument(db, actor, documentId, { sourceFiles: { orderBy: { createdAt: "desc" }, take: 1 } });
+  assertDocumentVertical(doc, "SCHOOL", "OCR extraction retry is only available for School Smart Pages.");
   const sourceFile = sourceFileId
     ? await db.documentSourceFile.findFirst({ where: { id: sourceFileId, documentId } })
     : doc.sourceFiles?.[0];
@@ -1033,6 +1086,8 @@ export async function generateSchema(
   const actor = await getSmartPagesActor(creatorId);
   const doc = await loadOwnedSmartDocument(db, actor, documentId);
 
+  assertDocumentVertical(doc, "SCHOOL", "Schema generation from OCR is only available for School Smart Pages. Use the lawyer edit plan for Lawyer documents.");
+
   const knowledge = doc.extractedKnowledge as ExtractedKnowledge | null;
   if (!knowledge) throw Object.assign(new Error("Upload a file first to extract content."), { status: 400 });
   if (doc.extractionStatus === "PROCESSING") {
@@ -1129,6 +1184,7 @@ export async function applyPrompt(
   const db = prisma as any;
   const actor = await getSmartPagesActor(creatorId);
   const doc = await loadOwnedSmartDocument(db, actor, documentId);
+  assertDocumentVertical(doc, "SCHOOL", "Schema prompt editing is only available for School Smart Pages. Use the lawyer edit plan for Lawyer documents.");
   if (doc.extractionStatus === "PROCESSING") {
     throw Object.assign(new Error("Document extraction is still processing. Please wait for review before editing."), { status: 409 });
   }
@@ -1234,6 +1290,7 @@ export async function getLawyerDocumentEditPlan(
   const db = prisma as any;
   const actor = await getSmartPagesActor(creatorId);
   const doc = await loadOwnedSmartDocument(db, actor, documentId);
+  assertDocumentVertical(doc, "LAWYER", "Lawyer edit plan is only available for Lawyer Smart Pages.");
   if (!currentContent.trim()) {
     throw Object.assign(new Error("Current document content is required."), { status: 400 });
   }

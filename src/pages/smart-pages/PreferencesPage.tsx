@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { listPreferences, savePreference, type CreatorPreference } from "../../client/documentOsClient";
+import { isNonSchoolPreferenceKey } from "../../shared/verticalPreferences";
 
 const SCHOOL_KEYS: Array<{ key: string; label: string; placeholder: string }> = [
   { key: "primaryColor", label: "Primary Color", placeholder: "#2563eb" },
@@ -13,9 +14,6 @@ const SCHOOL_KEYS: Array<{ key: string; label: string; placeholder: string }> = 
   { key: "defaultTemplateStyle", label: "Default Template Style", placeholder: "clean" },
 ];
 
-function isLawyerKey(key: string): boolean {
-  return key.toLowerCase().startsWith("lawyer.");
-}
 
 function formatValue(value: unknown): string {
   if (value === null || value === undefined) return "";
@@ -32,13 +30,13 @@ export function PreferencesPage() {
   const [notice, setNotice] = useState("");
 
   useEffect(() => {
-    listPreferences("school")
-      .then((prefs) => setPreferences(prefs.filter((p) => !isLawyerKey(p.key))))
+    listPreferences("school", { authMode: "school" })
+      .then((prefs) => setPreferences(prefs.filter((p) => !isNonSchoolPreferenceKey(p.key))))
       .catch((error: Error) => setNotice(error.message));
   }, []);
 
   async function save() {
-    const saved = await savePreference(key.trim(), value.trim());
+    const saved = await savePreference(key.trim(), value.trim(), { authMode: "school" });
     setPreferences((current) =>
       [saved, ...current.filter((item) => item.key !== saved.key)].sort((a, b) =>
         a.key.localeCompare(b.key),

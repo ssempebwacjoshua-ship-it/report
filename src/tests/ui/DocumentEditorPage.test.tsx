@@ -161,7 +161,7 @@ describe("DocumentEditorPage ? Smart Pages flow", () => {
     fireEvent.change(promptInput, { target: { value: "Make it more formal" } });
     fireEvent.keyDown(promptInput, { key: "Enter", code: "Enter" });
 
-    await waitFor(() => expect(documentIntelligenceMocks.applyPrompt).toHaveBeenCalledWith("doc-1", "Make it more formal"));
+    await waitFor(() => expect(documentIntelligenceMocks.applyPrompt).toHaveBeenCalledWith("doc-1", "Make it more formal", { authMode: "school" }));
     expect(documentIntelligenceMocks.generateSchema).not.toHaveBeenCalled();
   });
 
@@ -362,7 +362,7 @@ describe("DocumentEditorPage ? Smart Pages flow", () => {
 
     fireEvent.click(screen.getAllByRole("button", { name: /download pdf/i })[0]);
 
-    await waitFor(() => expect(documentIntelligenceMocks.downloadDocumentExport).toHaveBeenCalledWith("doc-1", "pdf"));
+    await waitFor(() => expect(documentIntelligenceMocks.downloadDocumentExport).toHaveBeenCalledWith("doc-1", "pdf", { authMode: "school" }));
   });
 
   it("shows a visible print error in chat", async () => {
@@ -431,7 +431,7 @@ describe("DocumentEditorPage ? Smart Pages flow", () => {
     await waitFor(() => expect(screen.getByText(/some handwriting was difficult to read/i)).toBeInTheDocument());
     fireEvent.click(screen.getByRole("button", { name: /re-extract with high accuracy/i }));
 
-    await waitFor(() => expect(documentIntelligenceMocks.retryDocumentExtraction).toHaveBeenCalledWith("doc-1", "source-1", { highAccuracy: true }));
+    await waitFor(() => expect(documentIntelligenceMocks.retryDocumentExtraction).toHaveBeenCalledWith("doc-1", "source-1", { highAccuracy: true, authMode: "school" }));
   });
 
   it("publishes once and exposes the token clearly", async () => {

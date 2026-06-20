@@ -472,16 +472,17 @@ model Creator {
 }
 
 model SmartDocument {
-  id                    String               @id @default(uuid()) @db.Uuid
-  creatorId             String               @db.Uuid
-  schoolId              String?              @db.Uuid
+  id                    String                  @id @default(uuid()) @db.Uuid
+  creatorId             String                  @db.Uuid
+  schoolId              String?                 @db.Uuid
   title                 String
+  vertical              SmartDocumentVertical   @default(SCHOOL)
   extractedKnowledge    Json?
-  activeVersionId       String?              @db.Uuid
-  status                DocumentStatus       @default(DRAFT)
-  createdAt             DateTime             @default(now())
-  updatedAt             DateTime             @updatedAt
-  extractionStatus      String               @default("IDLE")
+  activeVersionId       String?                 @db.Uuid
+  status                DocumentStatus          @default(DRAFT)
+  createdAt             DateTime                @default(now())
+  updatedAt             DateTime                @updatedAt
+  extractionStatus      String                  @default("IDLE")
   extractionError       String?
   extractionStartedAt   DateTime?
   extractionCompletedAt DateTime?
@@ -489,12 +490,16 @@ model SmartDocument {
   sourceFiles           DocumentSourceFile[]
   versions              DocumentVersion[]
   published             PublishedDocument?
-  creator               Creator              @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  creator               Creator                 @relation(fields: [creatorId], references: [id], onDelete: Cascade)
 
   @@index([creatorId, status, createdAt])
   @@index([creatorId, extractionStatus, updatedAt])
+  @@index([creatorId, vertical, status, createdAt])
+  @@index([creatorId, vertical, extractionStatus, updatedAt])
   @@index([schoolId, status, createdAt])
   @@index([schoolId, extractionStatus, updatedAt])
+  @@index([schoolId, vertical, status, createdAt])
+  @@index([schoolId, vertical, extractionStatus, updatedAt])
 }
 
 model DocumentVersion {
@@ -771,6 +776,12 @@ enum DocumentStatus {
   DRAFT
   PUBLISHED
   ARCHIVED
+}
+
+enum SmartDocumentVertical {
+  SCHOOL
+  LAWYER
+  GENERAL
 }
 
 enum CollectionType {
