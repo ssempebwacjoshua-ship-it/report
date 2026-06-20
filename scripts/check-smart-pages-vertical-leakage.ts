@@ -170,6 +170,30 @@ const STRUCTURAL_CHECKS: StructuralCheck[] = [
     pattern: /requestLawyerDocumentEditPlan[\s\S]{0,400}lawyerAuthHeaders/,
     mustMatch: true,
   },
+  {
+    description: "documentIntelligenceRoutes must have parseSmartDocumentVertical (throws 400 on invalid vertical)",
+    file: "src/server/routes/documentIntelligenceRoutes.ts",
+    pattern: /parseSmartDocumentVertical/,
+    mustMatch: true,
+  },
+  {
+    description: "POST /api/smart-documents route must use parsedVertical when calling createDocument",
+    file: "src/server/routes/documentIntelligenceRoutes.ts",
+    pattern: /parsedVertical/,
+    mustMatch: true,
+  },
+  {
+    description: "shared types must export SmartDocumentVertical",
+    file: "src/shared/types/documentIntelligence.ts",
+    pattern: /export type SmartDocumentVertical/,
+    mustMatch: true,
+  },
+  {
+    description: "SmartDocumentSummary must include vertical field typed as SmartDocumentVertical",
+    file: "src/shared/types/documentIntelligence.ts",
+    pattern: /vertical\s*:\s*SmartDocumentVertical/,
+    mustMatch: true,
+  },
 ];
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
