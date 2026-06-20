@@ -18,6 +18,7 @@ const {
   streamDelete,
   enrollmentCount,
   markCount,
+  transactionMock,
 } = vi.hoisted(() => ({
   schoolFindUnique: vi.fn(),
   appSettingFindUnique: vi.fn(),
@@ -32,6 +33,7 @@ const {
   streamDelete: vi.fn(),
   enrollmentCount: vi.fn(),
   markCount: vi.fn(),
+  transactionMock: vi.fn(),
 }));
 
 vi.mock("../../server/db/prisma", () => ({
@@ -52,10 +54,29 @@ vi.mock("../../server/db/prisma", () => ({
     },
     classEnrollment: { count: enrollmentCount },
     subjectMark: { count: markCount },
+    $transaction: transactionMock,
   },
 }));
 
-const MOCK_SCHOOL = { id: "school-1", code: "SCU-PREVIEW", name: "Preview School" };
+const MOCK_SCHOOL = {
+  id: "school-1",
+  code: "SCU-PREVIEW",
+  name: "Preview School",
+  academicYears: [{
+    id: "year-1",
+    name: "2025/2026",
+    isActive: true,
+    startsOn: new Date("2025-01-01T00:00:00.000Z"),
+    endsOn: new Date("2026-12-31T00:00:00.000Z"),
+    terms: [{
+      id: "term-1",
+      name: "Term 1",
+      isActive: true,
+      startsOn: new Date("2026-02-01T00:00:00.000Z"),
+      endsOn: new Date("2026-05-31T00:00:00.000Z"),
+    }],
+  }],
+};
 const MOCK_SECONDARY_CLASSES = [
   { id: "cs1", name: "Senior 1", code: "S1", level: 20 },
   { id: "cs2", name: "Senior 2", code: "S2", level: 21 },
@@ -90,6 +111,9 @@ beforeEach(() => {
   schoolClassFindMany.mockResolvedValue(MOCK_SECONDARY_CLASSES);
   schoolClassFindFirst.mockResolvedValue(MOCK_SECONDARY_CLASSES[0]);
   schoolClassUpsert.mockResolvedValue({});
+  transactionMock.mockImplementation(async (fn) =>
+    fn({ appSetting: { upsert: appSettingUpsert } }),
+  );
   streamFindMany.mockResolvedValue(MOCK_STREAMS);
   streamFindUnique.mockResolvedValue(null);
   streamFindFirst.mockResolvedValue(MOCK_STREAMS[0]);

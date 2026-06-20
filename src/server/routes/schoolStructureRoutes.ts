@@ -1,4 +1,5 @@
 ﻿import { Router } from "express";
+import type { Request, Response } from "express";
 import { z } from "zod";
 import { prisma } from "../db/prisma";
 import {
@@ -88,12 +89,26 @@ const streamCreateSchema = z.object({
   code: z.string().min(1),
 });
 
+function requireSchoolContext(
+  req: Request,
+  res: Response,
+): { id: string; code: string; name: string } | null {
+  const school = req.school;
+  if (!school) {
+    res.status(401).json({ success: false, error: "Authentication required." });
+    return null;
+  }
+  return school;
+}
+
 export function schoolStructureRoutes() {
   const router = Router();
 
   router.get("/api/settings/school-structure", async (req, res, next) => {
     try {
-      res.json(await buildStructureResponse(req.school!));
+      const school = requireSchoolContext(req, res);
+      if (!school) return;
+      res.json(await buildStructureResponse(school));
     } catch (error) {
       next(error);
     }
@@ -110,7 +125,8 @@ export function schoolStructureRoutes() {
         return;
       }
       const { selectedSections: newSections } = parsed.data;
-      const school = req.school!;
+      const school = requireSchoolContext(req, res);
+      if (!school) return;
       const schoolCode = school.code;
 
       const currentSettings = await getSettingsSections(prisma, schoolCode);
@@ -172,7 +188,8 @@ export function schoolStructureRoutes() {
       const { classId, name, code } = parsed.data;
       const streamCode = code.trim().toUpperCase();
       const streamName = name.trim();
-      const school = req.school!;
+      const school = requireSchoolContext(req, res);
+      if (!school) return;
 
       const klass = await prisma.schoolClass.findFirst({ where: { id: classId, schoolId: school.id } });
       if (!klass) {
@@ -212,7 +229,8 @@ export function schoolStructureRoutes() {
   router.delete("/api/settings/school-structure/streams/:streamId", async (req, res, next) => {
     try {
       const { streamId } = req.params;
-      const school = req.school!;
+      const school = requireSchoolContext(req, res);
+      if (!school) return;
 
       const stream = await prisma.stream.findFirst({ where: { id: streamId, schoolId: school.id } });
       if (!stream) {

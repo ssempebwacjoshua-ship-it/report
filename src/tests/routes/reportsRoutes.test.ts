@@ -15,7 +15,15 @@ function makePrisma(subjectMarkFindMany: ReturnType<typeof vi.fn>) {
       id: "year-1",
       name: "2025/2026",
       isActive: true,
-      terms: [{ id: "term-1", name: "Term 1", isActive: true }],
+      startsOn: new Date("2025-01-01T00:00:00.000Z"),
+      endsOn: new Date("2026-12-31T00:00:00.000Z"),
+      terms: [{
+        id: "term-1",
+        name: "Term 1",
+        isActive: true,
+        startsOn: new Date("2026-02-01T00:00:00.000Z"),
+        endsOn: new Date("2026-05-31T00:00:00.000Z"),
+      }],
     }],
     subjects: [{ id: "subject-1", name: "Mathematics", sortOrder: 1 }],
   };
