@@ -2,6 +2,7 @@
 import {
   validateMarksheetRows,
   resolveGeminiHealthModel,
+  resolveGeminiOcrHighAccuracyModel,
   resolveGeminiOcrModel,
   type GeminiExtractedMarkRow,
 } from "../../server/services/geminiOcrService";
@@ -161,10 +162,11 @@ describe("geminiOcrService ? lazy client initialization and network errors", () 
     await expect(fn()).rejects.toThrow("Missing GEMINI_API_KEY");
   });
 
-  it("uses gemini-2.5-flash for OCR and health checks when GEMINI_MODEL is unset", () => {
+  it("uses gemini-3.5-flash for fast OCR and health checks when GEMINI_MODEL is unset", () => {
     vi.stubEnv("GEMINI_MODEL", "");
-    expect(resolveGeminiOcrModel()).toBe("gemini-2.5-flash");
-    expect(resolveGeminiHealthModel()).toBe("gemini-2.5-flash");
+    expect(resolveGeminiOcrModel()).toBe("gemini-3.5-flash");
+    expect(resolveGeminiHealthModel()).toBe("gemini-3.5-flash");
+    expect(resolveGeminiOcrHighAccuracyModel().stable).toBe("gemini-2.5-flash");
   });
 });
 

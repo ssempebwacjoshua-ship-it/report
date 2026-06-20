@@ -21,7 +21,12 @@ export function reportsRoutes() {
 
   router.get("/api/context", async (req, res, next) => {
     try {
-      res.json(await getReportContext(prisma, req.school!.code));
+      const school = req.school;
+      if (!school) {
+        res.status(401).json({ error: "Authentication required." });
+        return;
+      }
+      res.json(await getReportContext(prisma, school.code));
     } catch (error) {
       next(error);
     }
@@ -29,7 +34,12 @@ export function reportsRoutes() {
 
   router.get("/api/reports", async (req, res, next) => {
     try {
-      const schoolCode = req.school!.code;
+      const school = req.school;
+      if (!school) {
+        res.status(401).json({ error: "Authentication required." });
+        return;
+      }
+      const schoolCode = school.code;
       const rawFilters = { ...reportsQuery.parse(req.query), schoolCode };
       const settings = await getSettingsSections(prisma, schoolCode);
       const filters = {

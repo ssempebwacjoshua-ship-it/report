@@ -13,7 +13,20 @@ function makeSchool() {
     classes: [{ id: "cls-1", name: "P1", code: "P1", streams: [{ id: "str-1", name: "A", code: "A" }] }],
     students: [{ id: "std-1", admissionNumber: "001", firstName: "Ann", lastName: "Bee", isActive: true }],
     subjects: [{ id: "sub-1", name: "Mathematics", code: "MATH", isActive: true }],
-    academicYears: [{ id: "yr-1", isActive: true, terms: [{ id: "trm-1", name: "Term 1", isActive: true }] }],
+    academicYears: [{
+      id: "yr-1",
+      name: "2025/2026",
+      isActive: true,
+      startsOn: new Date("2025-01-01T00:00:00.000Z"),
+      endsOn: new Date("2026-12-31T00:00:00.000Z"),
+      terms: [{
+        id: "trm-1",
+        name: "Term 1",
+        isActive: true,
+        startsOn: new Date("2026-02-01T00:00:00.000Z"),
+        endsOn: new Date("2026-05-31T00:00:00.000Z"),
+      }],
+    }],
   };
 }
 
