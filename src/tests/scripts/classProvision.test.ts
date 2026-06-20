@@ -152,6 +152,8 @@ describe("repairSchoolClasses ? S1B migration", () => {
         update: vi.fn(async () => ({})),
       },
       stream: { findMany: vi.fn(async () => []) },
+      classEnrollment: { count: vi.fn(async () => 5) },
+      subjectMark: { count: vi.fn(async () => 30) },
       $transaction: vi.fn(async (fn: (t: typeof tx) => Promise<unknown>) => fn(tx)),
     } as unknown as PrismaClient;
 
@@ -188,6 +190,8 @@ describe("repairSchoolClasses ? S1B migration", () => {
         update: vi.fn(async () => ({})),
       },
       stream: { findMany: vi.fn(async () => []) },
+      classEnrollment: { count: vi.fn(async () => 3) },
+      subjectMark: { count: vi.fn(async () => 135) },
       $transaction: vi.fn(async (fn: (t: typeof tx) => Promise<unknown>) => fn(tx)),
     } as unknown as PrismaClient;
 
@@ -222,7 +226,9 @@ describe("repairSchoolClasses ? S1B migration", () => {
         create: vi.fn(async ({ data }: { data: Record<string, unknown> }) => ({ ...data, id: "new-s1" })),
         update: vi.fn(async () => ({})),
       },
-      stream: { findMany: vi.fn(async () => []) },
+      stream: { findMany: vi.fn(async () => [streamB]) },
+      classEnrollment: { count: vi.fn(async () => 0) },
+      subjectMark: { count: vi.fn(async () => 0) },
       $transaction: vi.fn(async (fn: (t: typeof tx) => Promise<unknown>) => fn(tx)),
     } as unknown as PrismaClient;
 
