@@ -1,15 +1,8 @@
-﻿import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { DemoPage } from "../../pages/DemoPage";
 
-const authState = vi.hoisted(() => ({
-  user: null as null | { name: string; role: "ADMIN_OPERATOR" },
-}));
 const navigateMock = vi.hoisted(() => vi.fn());
-
-vi.mock("../../contexts/AuthContext", () => ({
-  useAuth: () => ({ user: authState.user, loading: false }),
-}));
 
 vi.mock("react-router-dom", async () => {
   const actual = await vi.importActual<typeof import("react-router-dom")>("react-router-dom");
@@ -22,14 +15,41 @@ vi.mock("react-router-dom", async () => {
 describe("DemoPage", () => {
   beforeEach(() => {
     navigateMock.mockReset();
-    authState.user = null;
   });
 
-  it("routes public CTAs to the real login flow", () => {
+  it("Watch Demo buttons open the video modal without navigating to login", () => {
     render(<DemoPage />);
 
-    fireEvent.click(screen.getAllByRole("button", { name: /launch demo/i })[0]!);
+    const watchButtons = screen.getAllByRole("button", { name: /watch demo/i });
+    expect(watchButtons.length).toBeGreaterThan(0);
+    fireEvent.click(watchButtons[0]!);
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(navigateMock).not.toHaveBeenCalled();
+  });
+
+  it("Explore Report Lab is an anchor link that scrolls to #report-lab", () => {
+    render(<DemoPage />);
+
+    const link = screen.getByRole("link", { name: /explore report lab/i });
+    expect(link).toHaveAttribute("href", "#report-lab");
+  });
+
+  it("Explore Smart Pages anchor in the hero scrolls to #smart-pages", () => {
+    render(<DemoPage />);
+
+    const link = screen.getByRole("link", { name: /^explore smart pages$/i });
+    expect(link).toHaveAttribute("href", "#smart-pages");
+  });
+
+  it("Sign in buttons navigate to /login", () => {
+    render(<DemoPage />);
+
+    fireEvent.click(screen.getAllByRole("button", { name: /sign in/i })[0]!);
     expect(navigateMock).toHaveBeenCalledWith("/login");
+  });
+
+  it("navigation buttons route correctly", () => {
+    render(<DemoPage />);
 
     fireEvent.click(screen.getByRole("button", { name: /features demo/i }));
     expect(navigateMock).toHaveBeenCalledWith("/features-demo");
@@ -39,24 +59,11 @@ describe("DemoPage", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /contact/i }));
     expect(navigateMock).toHaveBeenCalledWith("/contact");
-
-    fireEvent.click(screen.getAllByRole("button", { name: /explore report lab/i })[0]!);
-    expect(navigateMock).toHaveBeenCalledWith("/login");
-
-    fireEvent.click(screen.getAllByRole("button", { name: /^explore smart pages$/i })[0]!);
-    expect(navigateMock).toHaveBeenCalledWith("/login");
   });
 
-  it("sends signed-in users straight to Smart Pages", () => {
-    authState.user = { name: "Test Admin", role: "ADMIN_OPERATOR" };
-
+  it("no '10-minute' wording exists on the page", () => {
     render(<DemoPage />);
 
-    fireEvent.click(screen.getAllByRole("button", { name: /^explore smart pages$/i })[0]!);
-    expect(navigateMock).toHaveBeenCalledWith("/smart-pages");
-
-    fireEvent.click(screen.getAllByRole("button", { name: /explore report lab/i })[0]!);
-    expect(navigateMock).toHaveBeenCalledWith("/dashboard");
+    expect(screen.queryByText(/10.minute/i)).toBeNull();
   });
 });
-
