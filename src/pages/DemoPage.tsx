@@ -822,80 +822,17 @@ export function DemoPage() {
                   />
                 </div>
 
-                {/* Smart Pages before/after: structured document mockup */}
+                {/* Smart Pages before/after: real screenshot */}
                 <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
                   <div className="border-b border-slate-100 px-4 py-2.5">
                     <p className="text-[11px] font-black uppercase tracking-[0.2em] text-blue-700">FROM MESSY SCHOOL PAPER TO CLEAN DIGITAL PAGE</p>
                   </div>
-                  <div className="grid gap-px bg-slate-100 sm:grid-cols-3">
-
-                    {/* Before: handwritten circular */}
-                    <div className="bg-orange-50 p-3">
-                      <div className="mb-2 flex items-center gap-1.5">
-                        <div className="h-2 w-2 rounded-full bg-orange-400" />
-                        <p className="text-[10px] font-black uppercase tracking-wider text-orange-700">Before</p>
-                      </div>
-                      <div className="space-y-1.5 text-[11px]">
-                        <p className="inline-block font-semibold text-orange-900" style={{ fontFamily: "Georgia, serif", transform: "rotate(-0.8deg)" }}>
-                          Date: 15/03/2025
-                        </p>
-                        <div className="h-px bg-orange-200" />
-                        <p className="inline-block text-orange-800" style={{ fontFamily: "Georgia, serif", transform: "rotate(0.4deg)" }}>
-                          Circular No.12
-                        </p>
-                        <p className="inline-block text-orange-700 opacity-80" style={{ fontFamily: "Georgia, serif", transform: "rotate(-0.5deg)" }}>
-                          Dear parent/guardian,
-                        </p>
-                        <p className="inline-block text-orange-600 opacity-70" style={{ fontFamily: "Georgia, serif", transform: "rotate(0.3deg)" }}>
-                          You are invited...
-                        </p>
-                        <p className="inline-block text-orange-600 opacity-60" style={{ fontFamily: "Georgia, serif", transform: "rotate(-0.4deg)" }}>
-                          monday 17th march
-                        </p>
-                      </div>
-                      <p className="mt-2.5 text-[10px] font-semibold text-orange-600">Handwritten circular</p>
-                    </div>
-
-                    {/* Middle: Smart Pages extraction */}
-                    <div className="flex flex-col items-center justify-center gap-2 bg-white p-3">
-                      <div className="rounded-2xl bg-blue-600 px-3 py-1.5 text-center shadow-md shadow-blue-600/20">
-                        <p className="text-[9px] font-black uppercase tracking-[0.15em] text-blue-200">Smart Pages</p>
-                        <p className="text-[11px] font-black text-white">Extract &amp; Clean</p>
-                      </div>
-                      <div className="flex flex-col items-center gap-1">
-                        <div className="h-1.5 w-1.5 rounded-full bg-blue-400" />
-                        <div className="h-1.5 w-1.5 rounded-full bg-blue-300" />
-                        <div className="h-1.5 w-1.5 rounded-full bg-blue-200" />
-                      </div>
-                      <p className="text-center text-[10px] leading-4 text-slate-500">Reads, organises, formats</p>
-                    </div>
-
-                    {/* After: clean formatted circular */}
-                    <div className="bg-white p-3">
-                      <div className="mb-2 flex items-center gap-1.5">
-                        <div className="h-2 w-2 rounded-full bg-emerald-500" />
-                        <p className="text-[10px] font-black uppercase tracking-wider text-emerald-700">After</p>
-                      </div>
-                      <div className="overflow-hidden rounded-xl border border-slate-200 text-[10px]">
-                        <div className="border-b border-blue-100 bg-gradient-to-r from-blue-600 to-blue-700 px-3 py-1.5">
-                          <p className="font-black uppercase tracking-wide text-white">SCHOOL CIRCULAR</p>
-                          <p className="text-blue-200">No. 12 · March 2025</p>
-                        </div>
-                        <div className="space-y-1.5 p-2.5">
-                          <p className="font-black text-slate-900">Parent Meeting Notice</p>
-                          <div className="h-1.5 w-full rounded bg-slate-100" />
-                          <div className="h-1.5 w-4/5 rounded bg-slate-100" />
-                          <div className="h-1.5 w-full rounded bg-slate-100" />
-                          <div className="h-1.5 w-3/4 rounded bg-slate-100" />
-                          <div className="mt-2 flex items-center gap-1 border-t border-slate-100 pt-1.5">
-                            <PrinterIcon className="h-3 w-3 text-blue-600" />
-                            <p className="text-slate-500">Ready to print or share</p>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                  </div>
+                  <img
+                    src="/marketing/smart-pages-before-after-website.png"
+                    alt="Smart Pages before and after: handwritten school circular converted into a clean, ready-to-print PDF"
+                    className="w-full object-contain"
+                    loading="lazy"
+                  />
                 </div>
               </div>
             </div>
