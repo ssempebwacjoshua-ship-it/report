@@ -51,7 +51,7 @@ describe("LawyerDocumentsPage", () => {
     expect(screen.getByRole("button", { name: /use client intake summary/i })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: /use legal notice \/ demand letter/i }));
 
-    await waitFor(() => expect(documentMocks.createDocument).toHaveBeenCalledWith("Legal Notice / Demand Letter"));
+    await waitFor(() => expect(documentMocks.createDocument).toHaveBeenCalledWith("Legal Notice / Demand Letter", { vertical: "LAWYER", authMode: "creator" }));
     await waitFor(() => expect(router.state.location.pathname).toBe("/lawyers/documents/doc-1"));
     expect(router.state.location.search).toBe("?template=legal-notice-demand-letter");
   });
@@ -74,7 +74,7 @@ describe("LawyerDocumentsPage", () => {
     await screen.findByRole("heading", { name: /^documents$/i });
     await user.click(screen.getByRole("button", { name: /new legal document/i }));
 
-    await waitFor(() => expect(documentMocks.createDocument).toHaveBeenCalledWith("Untitled Legal Draft"));
+    await waitFor(() => expect(documentMocks.createDocument).toHaveBeenCalledWith("Untitled Legal Draft", { vertical: "LAWYER", authMode: "creator" }));
     await waitFor(() => expect(router.state.location.pathname).toBe("/lawyers/documents/doc-1"));
   });
 });

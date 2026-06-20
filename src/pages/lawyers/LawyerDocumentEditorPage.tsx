@@ -276,9 +276,13 @@ export function LawyerDocumentEditorPage() {
   // Load document on mount
   useEffect(() => {
     if (!id) return;
-    getDocument(id)
+    getDocument(id, { authMode: "creator" })
       .then((d) => {
         setDoc(d);
+        const extractionErr = d.latestSourceFile?.extractionError ?? "";
+        if (extractionErr && /GEMINI_API_KEY|Gemini is not configured|AI generation is not configured/i.test(extractionErr)) {
+          setAiNotice("AI actions are disabled because Gemini is not configured in this environment. You can still edit, save, preview, print, and download.");
+        }
         if (d.activeVersion) {
           setSchema(d.activeVersion.schema);
           setComponentTree(d.activeVersion.componentTree);
@@ -346,8 +350,8 @@ export function LawyerDocumentEditorPage() {
       const nextDraft = applied.after;
       setReviewDraft(nextDraft);
       const updatedKnowledge = createManualKnowledge(doc?.title ?? "Legal draft", nextDraft);
-      const savedKnowledge = await updateExtractedKnowledge(id, updatedKnowledge);
-      const refreshed = await getDocument(id);
+      const savedKnowledge = await updateExtractedKnowledge(id, updatedKnowledge, { authMode: "creator" });
+      const refreshed = await getDocument(id, { authMode: "creator" });
       setDoc(refreshed);
 
       const summary = parsed.operations.length > 0
@@ -356,7 +360,7 @@ export function LawyerDocumentEditorPage() {
       addMessage("assistant", warnings.length > 0 ? `${summary} Notes: ${warnings.join("; ")}` : summary, { action: "generate" });
 
       if (savedKnowledge) {
-        const history = await getVersionHistory(id);
+        const history = await getVersionHistory(id, { authMode: "creator" });
         setVersions(history);
       }
     } catch (e) {
@@ -394,7 +398,7 @@ export function LawyerDocumentEditorPage() {
     setReviewSaving(true);
     try {
       const knowledge = createManualKnowledge(doc?.title ?? "Legal draft", reviewDraft);
-      await updateExtractedKnowledge(id, knowledge);
+      await updateExtractedKnowledge(id, knowledge, { authMode: "creator" });
       addMessage("system", "Draft saved.");
     } catch (e) {
       addMessage("assistant", e instanceof Error ? e.message : "Could not save the draft.");
@@ -412,15 +416,15 @@ export function LawyerDocumentEditorPage() {
     setBusy(true);
     setStage("generating");
     try {
-      const result = await createManualDocumentVersion(id, { draft, title: doc?.title ?? "Legal draft" });
-      const refreshed = await getDocument(id);
+      const result = await createManualDocumentVersion(id, { draft, title: doc?.title ?? "Legal draft" }, { authMode: "creator" });
+      const refreshed = await getDocument(id, { authMode: "creator" });
       setDoc(refreshed);
       setSchema(result.schema);
       setComponentTree(result.componentTree);
       setActiveVersionId(result.versionId);
       setRenderSettings(refreshed.activeVersion?.renderSettings);
       setStage("ready");
-      const history = await getVersionHistory(id);
+      const history = await getVersionHistory(id, { authMode: "creator" });
       setVersions(history);
       setReviewDraft(refreshed.extractedKnowledge?.rawText || draft);
       addMessage("assistant", "Created a real editable legal draft. You can keep editing, previewing, printing, or downloading it.", { action: "generate" });
@@ -443,9 +447,9 @@ export function LawyerDocumentEditorPage() {
     setPublishing(true);
     setShowPublishModal(false);
     try {
-      const result = await publishDocument(id, password ? { password } : {});
+      const result = await publishDocument(id, password ? { password } : {}, { authMode: "creator" });
       setPublishResult(result);
-      const refreshed = await getDocument(id);
+      const refreshed = await getDocument(id, { authMode: "creator" });
       setDoc(refreshed);
       addMessage("assistant", `Published! Your document is live at:\n${result.url}\nToken: ${result.token}${password ? "\nPassword protected." : ""}`, { action: "publish" });
     } catch (e) {
@@ -466,7 +470,7 @@ export function LawyerDocumentEditorPage() {
     if (!acquireActionLock("print")) return;
     setPrinting(true);
     try {
-      await openPrintWindow(id);
+      await openPrintWindow(id, { authMode: "creator" });
     } catch (e) {
       addMessage("assistant", e instanceof Error ? e.message : "Print failed.");
     } finally {
@@ -484,7 +488,7 @@ export function LawyerDocumentEditorPage() {
     if (!acquireActionLock(`export-${format}`)) return;
     setExportingFormat(format);
     try {
-      await downloadDocumentExport(id, format);
+      await downloadDocumentExport(id, format, { authMode: "creator" });
       addMessage("assistant", `${format.toUpperCase()} download started.`, { action: "generate" });
     } catch (e) {
       addMessage("assistant", e instanceof Error ? e.message : `Could not download ${format.toUpperCase()}.`);
@@ -498,15 +502,15 @@ export function LawyerDocumentEditorPage() {
     if (!id) return;
     setShowVersions(false);
     try {
-      await restoreVersion(id, v.id);
-      const refreshed = await getDocument(id);
+      await restoreVersion(id, v.id, { authMode: "creator" });
+      const refreshed = await getDocument(id, { authMode: "creator" });
       if (refreshed.activeVersion) {
         setSchema(refreshed.activeVersion.schema);
         setComponentTree(refreshed.activeVersion.componentTree);
         setActiveVersionId(refreshed.activeVersion.id);
         setRenderSettings(refreshed.activeVersion.renderSettings);
       }
-      const history = await getVersionHistory(id);
+      const history = await getVersionHistory(id, { authMode: "creator" });
       setVersions(history);
       addMessage("assistant", `Restored to: "${v.instruction ?? "initial version"}".`, { action: "restore", versionId: v.id });
     } catch (e) {
@@ -599,7 +603,7 @@ export function LawyerDocumentEditorPage() {
               </button>
               <button
                 type="button"
-                onClick={() => { void getVersionHistory(id!).then(setVersions); setShowVersions(true); }}
+                onClick={() => { void getVersionHistory(id!, { authMode: "creator" }).then(setVersions); setShowVersions(true); }}
                 className="btn btn-secondary shrink-0 rounded-full text-xs"
                 disabled={versions.length === 0 && !hasActiveVersion}
               >
@@ -645,7 +649,7 @@ export function LawyerDocumentEditorPage() {
                 className="mt-3 min-h-[58vh] w-full resize-none rounded-none border-0 border-y border-slate-200 bg-slate-50 px-0 py-3 text-sm leading-7 text-slate-800 outline-none focus:bg-white md:min-h-[22rem] md:resize-y md:rounded-[24px] md:border md:p-4 md:focus:border-[color:var(--sc-primary)]"
                 value={reviewDraft}
                 onChange={(e) => setReviewDraft(e.target.value)}
-                aria-label="Legal document draft"
+                aria-label="Manual document draft"
               />
             </section>
 

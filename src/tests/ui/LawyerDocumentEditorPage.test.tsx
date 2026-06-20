@@ -3,7 +3,7 @@ import { MemoryRouter, Route, Routes, RouterProvider, createMemoryRouter } from 
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { LawyerShell } from "../../components/lawyers/LawyerShell";
-import { DocumentEditorPage } from "../../pages/smart-pages/DocumentEditorPage";
+import { LawyerDocumentEditorPage } from "../../pages/lawyers/LawyerDocumentEditorPage";
 
 const documentIntelligenceMocks = vi.hoisted(() => ({
   getDocument: vi.fn(),
@@ -112,7 +112,7 @@ describe("Lawyer Smart Pages editor", () => {
     render(
       <MemoryRouter initialEntries={["/lawyers/documents/doc-1?template=legal-notice-demand-letter"]}>
         <Routes>
-          <Route path="/lawyers/documents/:id" element={<DocumentEditorPage />} />
+          <Route path="/lawyers/documents/:id" element={<LawyerDocumentEditorPage />} />
         </Routes>
       </MemoryRouter>,
     );
@@ -148,7 +148,7 @@ describe("Lawyer Smart Pages editor", () => {
     render(
       <MemoryRouter initialEntries={["/lawyers/documents/doc-2?template=legal-notice-demand-letter"]}>
         <Routes>
-          <Route path="/lawyers/documents/:id" element={<DocumentEditorPage />} />
+          <Route path="/lawyers/documents/:id" element={<LawyerDocumentEditorPage />} />
         </Routes>
       </MemoryRouter>,
     );
@@ -180,7 +180,7 @@ describe("Lawyer Smart Pages editor", () => {
     render(
       <MemoryRouter initialEntries={["/lawyers/documents/doc-3"]}>
         <Routes>
-          <Route path="/lawyers/documents/:id" element={<DocumentEditorPage />} />
+          <Route path="/lawyers/documents/:id" element={<LawyerDocumentEditorPage />} />
         </Routes>
       </MemoryRouter>,
     );
@@ -215,7 +215,7 @@ describe("Lawyer Smart Pages editor", () => {
     render(
       <MemoryRouter initialEntries={["/lawyers/documents/doc-4?template=legal-notice-demand-letter"]}>
         <Routes>
-          <Route path="/lawyers/documents/:id" element={<DocumentEditorPage />} />
+          <Route path="/lawyers/documents/:id" element={<LawyerDocumentEditorPage />} />
         </Routes>
       </MemoryRouter>,
     );
@@ -321,7 +321,7 @@ describe("Lawyer Smart Pages editor", () => {
     render(
       <MemoryRouter initialEntries={["/lawyers/documents/doc-6?template=legal-notice-demand-letter"]}>
         <Routes>
-          <Route path="/lawyers/documents/:id" element={<DocumentEditorPage />} />
+          <Route path="/lawyers/documents/:id" element={<LawyerDocumentEditorPage />} />
         </Routes>
       </MemoryRouter>,
     );
@@ -335,6 +335,7 @@ describe("Lawyer Smart Pages editor", () => {
         draft: expect.stringContaining("Muwanga & Co. Advocates"),
         title: "Demand letter draft",
       }),
+      { authMode: "creator" },
     ));
     await waitFor(() => expect(screen.getByRole("button", { name: /print/i })).toBeEnabled());
     await waitFor(() => expect(screen.getAllByRole("button", { name: /publish secure link/i })[0]).toBeEnabled());
@@ -398,7 +399,7 @@ describe("Lawyer Smart Pages editor", () => {
         path: "/lawyers",
         element: <LawyerShell />,
         children: [
-          { path: "documents/:id", element: <DocumentEditorPage /> },
+          { path: "documents/:id", element: <LawyerDocumentEditorPage /> },
         ],
       },
     ], { initialEntries: ["/lawyers/documents/doc-5"] });
@@ -408,14 +409,14 @@ describe("Lawyer Smart Pages editor", () => {
 
     await waitFor(() => expect(screen.getByRole("textbox", { name: /manual document draft/i })).toBeInTheDocument());
     await user.click(screen.getAllByRole("button", { name: /show actions/i })[0]);
-    await user.click(screen.getByRole("button", { name: /make it more formal/i }));
+    await user.click(screen.getByRole("button", { name: /restructure the draft/i }));
 
     await waitFor(() => expect(documentIntelligenceMocks.requestLawyerDocumentEditPlan).toHaveBeenCalledWith(
       "doc-5",
-      "Make it more formal",
+      "Restructure the draft",
       expect.stringContaining("Client wants a demand letter."),
     ));
-    await waitFor(() => expect(screen.getByText(/applied 1 change/i)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText(/applied 1 edit/i)).toBeInTheDocument());
     expect(screen.queryByText(/GEMINI_API_KEY is not configured/i)).not.toBeInTheDocument();
   });
 });

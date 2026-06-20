@@ -1,6 +1,7 @@
 import type {
   SmartDocumentSummary,
   SmartDocumentDetail,
+  SmartDocumentVertical,
   DocumentVersionSummary,
   ExtractedKnowledge,
   DocumentSchema,
@@ -11,9 +12,35 @@ import { parseApiError } from "./apiBase";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:4300";
 
-function authHeaders(token?: string | null): HeadersInit {
-  const stored = token ?? localStorage.getItem("sc_auth_token") ?? localStorage.getItem("sp_creator_token");
-  return stored ? { Authorization: `Bearer ${stored}`, "Content-Type": "application/json" } : { "Content-Type": "application/json" };
+function buildHeaders(token: string | null | undefined): HeadersInit {
+  return token ? { Authorization: `Bearer ${token}`, "Content-Type": "application/json" } : { "Content-Type": "application/json" };
+}
+
+// School pages must use sc_auth_token only.
+function schoolAuthHeaders(): HeadersInit {
+  return buildHeaders(localStorage.getItem("sc_auth_token"));
+}
+
+// Lawyer pages must use sp_creator_token only (never sc_auth_token).
+function lawyerAuthHeaders(): HeadersInit {
+  return buildHeaders(localStorage.getItem("sp_creator_token"));
+}
+
+// Shared operations (public or vertical-agnostic) may fall back across both.
+function authHeaders(): HeadersInit {
+  return buildHeaders(localStorage.getItem("sc_auth_token") ?? localStorage.getItem("sp_creator_token"));
+}
+
+type AuthMode = "school" | "creator";
+
+// Resolve auth headers from explicit authMode, then vertical, then fallback.
+// authMode always wins: "school" → sc_auth_token only; "creator" → sp_creator_token only.
+function resolveAuthHeaders(options?: { authMode?: AuthMode; vertical?: SmartDocumentVertical }): HeadersInit {
+  if (options?.authMode === "school") return schoolAuthHeaders();
+  if (options?.authMode === "creator") return lawyerAuthHeaders();
+  if (options?.vertical === "SCHOOL") return schoolAuthHeaders();
+  if (options?.vertical === "LAWYER") return lawyerAuthHeaders();
+  return authHeaders();
 }
 
 function downloadBlob(blob: Blob, fileName: string): void {
@@ -71,24 +98,26 @@ export async function creatorLogin(email: string, password: string) {
 
 // -- Documents ------------------------------------------------------------------
 
-export async function listDocuments(): Promise<SmartDocumentSummary[]> {
-  const res = await fetch(`${API_BASE}/api/smart-documents`, { headers: authHeaders() });
+export async function listDocuments(options?: { vertical?: SmartDocumentVertical; authMode?: AuthMode }): Promise<SmartDocumentSummary[]> {
+  const url = new URL(`${API_BASE}/api/smart-documents`);
+  if (options?.vertical) url.searchParams.set("vertical", options.vertical);
+  const res = await fetch(url.toString(), { headers: resolveAuthHeaders(options) });
   const data = await json<{ ok: boolean; documents: SmartDocumentSummary[] }>(res);
   return data.documents;
 }
 
-export async function createDocument(title?: string): Promise<SmartDocumentDetail> {
+export async function createDocument(title?: string, options?: { vertical?: SmartDocumentVertical; authMode?: AuthMode }): Promise<SmartDocumentDetail> {
   const res = await fetch(`${API_BASE}/api/smart-documents`, {
     method: "POST",
-    headers: authHeaders(),
-    body: JSON.stringify({ title: title ?? "Untitled Document" }),
+    headers: resolveAuthHeaders(options),
+    body: JSON.stringify({ title: title ?? "Untitled Document", vertical: options?.vertical ?? "SCHOOL" }),
   });
   const data = await json<{ ok: boolean; document: SmartDocumentDetail }>(res);
   return data.document;
 }
 
-export async function getDocument(documentId: string): Promise<SmartDocumentDetail> {
-  const res = await fetch(`${API_BASE}/api/smart-documents/${documentId}`, { headers: authHeaders() });
+export async function getDocument(documentId: string, options?: { authMode?: AuthMode }): Promise<SmartDocumentDetail> {
+  const res = await fetch(`${API_BASE}/api/smart-documents/${documentId}`, { headers: resolveAuthHeaders(options) });
   const data = await json<{ ok: boolean; document: SmartDocumentDetail }>(res);
   return data.document;
 }
@@ -96,8 +125,13 @@ export async function getDocument(documentId: string): Promise<SmartDocumentDeta
 export async function uploadDocumentFile(
   documentId: string,
   file: File,
+  options?: { authMode?: AuthMode },
 ): Promise<{ status: "PROCESSING"; sourceFileId: string }> {
-  const token = localStorage.getItem("sc_auth_token") ?? localStorage.getItem("sp_creator_token");
+  // Upload is school-only (OCR flow); default to school auth.
+  const effectiveMode = options?.authMode ?? "school";
+  const token = effectiveMode === "school"
+    ? localStorage.getItem("sc_auth_token")
+    : localStorage.getItem("sp_creator_token");
   const formData = new FormData();
   formData.append("file", file);
   const res = await fetch(`${API_BASE}/api/smart-documents/${documentId}/upload`, {
@@ -111,11 +145,11 @@ export async function uploadDocumentFile(
 export async function retryDocumentExtraction(
   documentId: string,
   sourceFileId?: string,
-  options: { highAccuracy?: boolean } = {},
+  options: { highAccuracy?: boolean; authMode?: AuthMode } = {},
 ): Promise<{ status: "PROCESSING"; sourceFileId: string }> {
   const res = await fetch(`${API_BASE}/api/smart-documents/${documentId}/extraction/retry`, {
     method: "POST",
-    headers: authHeaders(),
+    headers: resolveAuthHeaders(options),
     body: JSON.stringify({ sourceFileId, highAccuracy: options.highAccuracy ?? false }),
   });
   return json(res);
@@ -124,10 +158,11 @@ export async function retryDocumentExtraction(
 export async function updateExtractedKnowledge(
   documentId: string,
   knowledge: ExtractedKnowledge,
+  options?: { authMode?: AuthMode },
 ): Promise<ExtractedKnowledge> {
   const res = await fetch(`${API_BASE}/api/smart-documents/${documentId}/extracted-knowledge`, {
     method: "PATCH",
-    headers: authHeaders(),
+    headers: resolveAuthHeaders(options),
     body: JSON.stringify({ knowledge }),
   });
   const data = await json<{ ok: boolean; knowledge: ExtractedKnowledge }>(res);
@@ -138,10 +173,11 @@ export async function generateSchema(
   documentId: string,
   intent: string,
   templateId?: string,
+  options?: { authMode?: AuthMode },
 ): Promise<{ versionId: string; schema: DocumentSchema; componentTree: ComponentNode[] }> {
   const res = await fetch(`${API_BASE}/api/smart-documents/${documentId}/generate`, {
     method: "POST",
-    headers: authHeaders(),
+    headers: resolveAuthHeaders(options),
     body: JSON.stringify({ intent, templateId }),
   });
   return json(res);
@@ -150,10 +186,11 @@ export async function generateSchema(
 export async function applyPrompt(
   documentId: string,
   instruction: string,
+  options?: { authMode?: AuthMode },
 ): Promise<{ versionId: string; schema: DocumentSchema; componentTree: ComponentNode[] }> {
   const res = await fetch(`${API_BASE}/api/smart-documents/${documentId}/prompt`, {
     method: "POST",
-    headers: authHeaders(),
+    headers: resolveAuthHeaders(options),
     body: JSON.stringify({ instruction }),
   });
   return json(res);
@@ -161,12 +198,13 @@ export async function applyPrompt(
 
 export async function createManualDocumentVersion(
   documentId: string,
-  options: { draft: string; title?: string },
+  content: { draft: string; title?: string },
+  options?: { authMode?: AuthMode },
 ): Promise<{ versionId: string; schema: DocumentSchema; componentTree: ComponentNode[] }> {
   const res = await fetch(`${API_BASE}/api/smart-documents/${documentId}/manual-version`, {
     method: "POST",
-    headers: authHeaders(),
-    body: JSON.stringify(options),
+    headers: resolveAuthHeaders(options),
+    body: JSON.stringify(content),
   });
   return json(res);
 }
@@ -178,7 +216,7 @@ export async function requestLawyerDocumentEditPlan(
 ): Promise<AiEditResponse> {
   const res = await fetch(`${API_BASE}/api/smart-documents/${documentId}/lawyer-edit-plan`, {
     method: "POST",
-    headers: authHeaders(),
+    headers: lawyerAuthHeaders(),
     body: JSON.stringify({ instruction, currentContent }),
   });
   const data = await json<{ ok: boolean } & AiEditResponse>(res);
@@ -188,28 +226,30 @@ export async function requestLawyerDocumentEditPlan(
     warnings: data.warnings ?? [],
   };
 }
-export async function getVersionHistory(documentId: string): Promise<DocumentVersionSummary[]> {
-  const res = await fetch(`${API_BASE}/api/smart-documents/${documentId}/versions`, { headers: authHeaders() });
+
+export async function getVersionHistory(documentId: string, options?: { authMode?: AuthMode }): Promise<DocumentVersionSummary[]> {
+  const res = await fetch(`${API_BASE}/api/smart-documents/${documentId}/versions`, { headers: resolveAuthHeaders(options) });
   const data = await json<{ ok: boolean; versions: DocumentVersionSummary[] }>(res);
   return data.versions;
 }
 
-export async function restoreVersion(documentId: string, versionId: string): Promise<void> {
+export async function restoreVersion(documentId: string, versionId: string, options?: { authMode?: AuthMode }): Promise<void> {
   const res = await fetch(`${API_BASE}/api/smart-documents/${documentId}/versions/${versionId}/restore`, {
     method: "POST",
-    headers: authHeaders(),
+    headers: resolveAuthHeaders(options),
   });
   await json(res);
 }
 
 export async function publishDocument(
   documentId: string,
-  options: { expiresInDays?: number; password?: string } = {},
+  publishOptions: { expiresInDays?: number; password?: string } = {},
+  options?: { authMode?: AuthMode },
 ): Promise<{ token: string; url: string }> {
   const res = await fetch(`${API_BASE}/api/smart-documents/${documentId}/publish`, {
     method: "POST",
-    headers: authHeaders(),
-    body: JSON.stringify(options),
+    headers: resolveAuthHeaders(options),
+    body: JSON.stringify(publishOptions),
   });
   return json(res);
 }
@@ -217,9 +257,10 @@ export async function publishDocument(
 export async function downloadDocumentExport(
   documentId: string,
   format: "pdf" | "docx" | "markdown" | "schema",
+  options?: { authMode?: AuthMode },
 ): Promise<void> {
   const res = await fetch(`${API_BASE}/api/document-os/documents/${documentId}/export/${format}`, {
-    headers: authHeaders(),
+    headers: resolveAuthHeaders(options),
   });
   if (!res.ok) throw new Error(await parseApiError(res, `Could not download ${format.toUpperCase()}`));
   const blob = await res.blob();
@@ -237,8 +278,8 @@ export async function downloadPublishedDocumentPdf(token: string, password?: str
   downloadBlob(blob, filename);
 }
 
-export async function openPrintWindow(documentId: string): Promise<void> {
-  const res = await fetch(`${API_BASE}/api/smart-documents/${documentId}/print`, { headers: authHeaders() });
+export async function openPrintWindow(documentId: string, options?: { authMode?: AuthMode }): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/smart-documents/${documentId}/print`, { headers: resolveAuthHeaders(options) });
   if (!res.ok) throw new Error(await parseApiError(res, "Print failed"));
   const html = await res.text();
   await new Promise<void>((resolve, reject) => {
@@ -309,6 +350,3 @@ export async function getPublishedDocument(
   }
   return res.json() as Promise<{ document: SmartDocumentDetail; publishedAt: string }>;
 }
-
-
-

@@ -495,7 +495,7 @@ export function DocumentEditorPage() {
     const loadKey = `${id}`;
     if (loadedDocumentKeyRef.current === loadKey) return;
     loadedDocumentKeyRef.current = loadKey;
-    getDocument(id)
+    getDocument(id, { authMode: "school" })
       .then((d) => {
         setDoc(d);
         setExtractedKnowledge(d.extractedKnowledge);
@@ -568,7 +568,7 @@ export function DocumentEditorPage() {
   useEffect(() => {
     if (!id || stage !== "processing") return;
     const interval = window.setInterval(() => {
-      void getDocument(id).then((latest) => {
+      void getDocument(id, { authMode: "school" }).then((latest) => {
         setDoc(latest);
         setExtractedKnowledge(latest.extractedKnowledge);
         if (latest.extractionStatus === "READY" && latest.extractedKnowledge) {
@@ -602,7 +602,7 @@ export function DocumentEditorPage() {
     addMessage("user", `Uploading ${file.name}...`);
     setBusy(true);
     try {
-      await uploadDocumentFile(id, file);
+      await uploadDocumentFile(id, file, { authMode: "school" });
       setStage("processing");
       setExtractedKnowledge(null);
       setReviewDraft("");
@@ -611,7 +611,7 @@ export function DocumentEditorPage() {
         "assistant",
         `Upload received. I'm reading "${file.name}" in the background now.`,
       );
-      const refreshed = await getDocument(id);
+      const refreshed = await getDocument(id, { authMode: "school" });
       setDoc(refreshed);
     } catch (e) {
       if (isAiConfigurationError(e)) {
@@ -661,16 +661,16 @@ export function DocumentEditorPage() {
             unclearItems: [],
             rawText: draftText,
           };
-          const saved = await updateExtractedKnowledge(id, manualKnowledge);
+          const saved = await updateExtractedKnowledge(id, manualKnowledge, { authMode: "school" });
           setExtractedKnowledge(saved);
         }
         setStage("generating");
         addMessage("assistant", "Generating your document...");
-        const result = await generateSchema(id, text, options?.templateId);
+        const result = await generateSchema(id, text, options?.templateId, { authMode: "school" });
         setSchema(result.schema);
         setComponentTree(result.componentTree);
         setActiveVersionId(result.versionId);
-        const refreshed = await getDocument(id);
+        const refreshed = await getDocument(id, { authMode: "school" });
         setDoc(refreshed);
         setRenderSettings(refreshed.activeVersion?.renderSettings);
         setStage("ready");
@@ -678,35 +678,35 @@ export function DocumentEditorPage() {
           action: "generate",
           versionId: result.versionId,
         });
-        const v = await getVersionHistory(id);
+        const v = await getVersionHistory(id, { authMode: "school" });
         setVersions(v);
       } else {
         try {
-          const result = await applyPrompt(id, text);
+          const result = await applyPrompt(id, text, { authMode: "school" });
           setSchema(result.schema);
           setComponentTree(result.componentTree);
           setActiveVersionId(result.versionId);
-          const refreshed = await getDocument(id);
+          const refreshed = await getDocument(id, { authMode: "school" });
           setDoc(refreshed);
           setRenderSettings(refreshed.activeVersion?.renderSettings);
           addMessage("assistant", "Updated. Switch to Preview to see the changes.", {
             action: "edit",
             versionId: result.versionId,
           });
-          const v = await getVersionHistory(id);
+          const v = await getVersionHistory(id, { authMode: "school" });
           setVersions(v);
         } catch (error) {
           if (!hasActiveVersion && isMissingSchemaError(error)) {
             addMessage("assistant", "No schema existed yet, so I generated one from your extraction instead.");
-            const result = await generateSchema(id, text);
+            const result = await generateSchema(id, text, undefined, { authMode: "school" });
             setSchema(result.schema);
             setComponentTree(result.componentTree);
             setActiveVersionId(result.versionId);
-            const refreshed = await getDocument(id);
+            const refreshed = await getDocument(id, { authMode: "school" });
             setDoc(refreshed);
             setRenderSettings(refreshed.activeVersion?.renderSettings);
             setStage("ready");
-            const v = await getVersionHistory(id);
+            const v = await getVersionHistory(id, { authMode: "school" });
             setVersions(v);
           } else {
             throw error;
@@ -772,11 +772,11 @@ export function DocumentEditorPage() {
         unclearItems: [],
         reviewWarning: undefined,
       };
-      const saved = await updateExtractedKnowledge(id, updated);
+      const saved = await updateExtractedKnowledge(id, updated, { authMode: "school" });
       setExtractedKnowledge(saved);
       setReviewEditing(false);
       setStage(hasActiveVersion ? "ready" : "uploaded");
-      const refreshed = await getDocument(id);
+      const refreshed = await getDocument(id, { authMode: "school" });
       setDoc(refreshed);
       setReviewDraft(refreshed.extractedKnowledge?.rawText || refreshed.extractedKnowledge?.sections.map((section) => section.content).join("\n\n") || buildStarterDraft(refreshed.title));
       addMessage("assistant", "Saved your extraction edits. You can generate the document when it looks right.");
@@ -803,9 +803,9 @@ export function DocumentEditorPage() {
     if (!acquireActionLock("retry")) return;
     if (highAccuracy) setRetryingHighAccuracy(true);
     try {
-      await retryDocumentExtraction(id, doc?.latestSourceFile?.id, { highAccuracy });
+      await retryDocumentExtraction(id, doc?.latestSourceFile?.id, { highAccuracy, authMode: "school" });
       setStage("processing");
-      const refreshed = await getDocument(id);
+      const refreshed = await getDocument(id, { authMode: "school" });
       setDoc(refreshed);
       addMessage("assistant", highAccuracy ? "Retrying extraction with high accuracy in the background." : "Retrying extraction in the background.");
     } catch (e) {
@@ -831,11 +831,11 @@ export function DocumentEditorPage() {
     setPublishing(true);
     setShowPublishModal(false);
     try {
-      const result = await publishDocument(id, password ? { password } : {});
+      const result = await publishDocument(id, password ? { password } : {}, { authMode: "school" });
       setPublishResult(result);
-      const refreshed = await getDocument(id);
+      const refreshed = await getDocument(id, { authMode: "school" });
       setDoc(refreshed);
-      const history = await getVersionHistory(id);
+      const history = await getVersionHistory(id, { authMode: "school" });
       setVersions(history);
       addMessage("assistant", `Published! Your document is live at:\n${result.url}\nToken: ${result.token}${password ? "\nPassword protected." : ""}`, { action: "publish" });
     } catch (e) {
@@ -856,7 +856,7 @@ export function DocumentEditorPage() {
     if (!acquireActionLock("print")) return;
     setPrinting(true);
     try {
-      await openPrintWindow(id);
+      await openPrintWindow(id, { authMode: "school" });
     } catch (e) {
       addMessage("assistant", e instanceof Error ? e.message : "Print failed.");
     } finally {
@@ -874,7 +874,7 @@ export function DocumentEditorPage() {
     if (!acquireActionLock(`export-${format}`)) return;
     setExportingFormat(format);
     try {
-      await downloadDocumentExport(id, format);
+      await downloadDocumentExport(id, format, { authMode: "school" });
       addMessage("assistant", `${format.toUpperCase()} download started.`, { action: "generate" });
     } catch (e) {
       addMessage("assistant", e instanceof Error ? e.message : `Could not download ${format.toUpperCase()}.`);
@@ -888,15 +888,15 @@ export function DocumentEditorPage() {
     if (!id) return;
     setShowVersions(false);
     try {
-      await restoreVersion(id, v.id);
-      const refreshed = await getDocument(id);
+      await restoreVersion(id, v.id, { authMode: "school" });
+      const refreshed = await getDocument(id, { authMode: "school" });
       if (refreshed.activeVersion) {
         setSchema(refreshed.activeVersion.schema);
         setComponentTree(refreshed.activeVersion.componentTree);
         setActiveVersionId(refreshed.activeVersion.id);
         setRenderSettings(refreshed.activeVersion.renderSettings);
       }
-      const history = await getVersionHistory(id);
+      const history = await getVersionHistory(id, { authMode: "school" });
       setVersions(history);
       addMessage("assistant", `Restored to: "${v.instruction ?? "initial version"}".`, {
         action: "restore",
@@ -1016,7 +1016,7 @@ export function DocumentEditorPage() {
               </button>
               <button
                 type="button"
-                onClick={() => { void getVersionHistory(id!).then(setVersions); setShowVersions(true); }}
+                onClick={() => { void getVersionHistory(id!, { authMode: "school" }).then(setVersions); setShowVersions(true); }}
                 className="btn btn-secondary shrink-0 rounded-full text-xs"
                 disabled={versions.length === 0 && !hasActiveVersion}
                 title={versions.length === 0 && !hasActiveVersion ? "No saved versions yet." : undefined}
