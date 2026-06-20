@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { listPreferences, savePreference, type CreatorPreference } from "../../client/documentOsClient";
-import { LAWYER_VERTICAL } from "../../shared/smartPagesTemplates";
+import { isNonSchoolPreferenceKey } from "../../shared/verticalPreferences";
 
 const SCHOOL_KEYS: Array<{ key: string; label: string; placeholder: string }> = [
   { key: "primaryColor", label: "Primary Color", placeholder: "#2563eb" },
@@ -14,11 +14,6 @@ const SCHOOL_KEYS: Array<{ key: string; label: string; placeholder: string }> = 
   { key: "defaultTemplateStyle", label: "Default Template Style", placeholder: "clean" },
 ];
 
-const NON_SCHOOL_PREFIX = `${LAWYER_VERTICAL.toLowerCase()}.`;
-
-function isNonSchoolKey(key: string): boolean {
-  return key.toLowerCase().startsWith(NON_SCHOOL_PREFIX);
-}
 
 function formatValue(value: unknown): string {
   if (value === null || value === undefined) return "";
@@ -36,7 +31,7 @@ export function PreferencesPage() {
 
   useEffect(() => {
     listPreferences("school")
-      .then((prefs) => setPreferences(prefs.filter((p) => !isNonSchoolKey(p.key))))
+      .then((prefs) => setPreferences(prefs.filter((p) => !isNonSchoolPreferenceKey(p.key))))
       .catch((error: Error) => setNotice(error.message));
   }, []);
 

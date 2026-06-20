@@ -150,10 +150,13 @@ export interface ExtractedKnowledge {
 
 // ── API types ──────────────────────────────────────────────────────────────────
 
+export type SmartDocumentVertical = "SCHOOL" | "LAWYER" | "GENERAL";
+
 export interface SmartDocumentSummary {
   id: string;
   title: string;
   status: DocumentStatus;
+  vertical: SmartDocumentVertical;
   extractionStatus?: "IDLE" | "PROCESSING" | "READY" | "FAILED";
   extractionError?: string | null;
   domain?: string;

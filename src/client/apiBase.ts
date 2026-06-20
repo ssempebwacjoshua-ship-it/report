@@ -18,16 +18,18 @@ export function getApiBaseUrl() {
 }
 
 export const TOKEN_KEY = "sc_auth_token";
+export const CREATOR_TOKEN_KEY = "sp_creator_token";
 
 export function authHeaders(): HeadersInit {
-  const token = localStorage.getItem(TOKEN_KEY);
+  const token = localStorage.getItem(TOKEN_KEY) ?? localStorage.getItem(CREATOR_TOKEN_KEY);
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
 // Returns auth + request-id headers for every outbound API call.
 // Pass extra to add Content-Type or other per-request headers.
+// Falls back to sp_creator_token so lawyer (external) creators can authenticate.
 export function makeRequestHeaders(extra?: Record<string, string>): Record<string, string> {
-  const token = localStorage.getItem(TOKEN_KEY);
+  const token = localStorage.getItem(TOKEN_KEY) ?? localStorage.getItem(CREATOR_TOKEN_KEY);
   return {
     "x-request-id": crypto.randomUUID(),
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
