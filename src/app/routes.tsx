@@ -39,6 +39,7 @@ const lawyerSmartPagesEnabled = import.meta.env.VITE_ENABLE_SMART_PAGES_LAWYERS 
 const LawyerShell = lazy(() => import("../components/lawyers/LawyerShell").then((module) => ({ default: module.LawyerShell })));
 const LawyerDashboardPage = lazy(() => import("../pages/lawyers/LawyerDashboardPage").then((module) => ({ default: module.LawyerDashboardPage })));
 const LawyerDocumentsPage = lazy(() => import("../pages/lawyers/LawyerDocumentsPage").then((module) => ({ default: module.LawyerDocumentsPage })));
+const LawyerDocumentEditorPage = lazy(() => import("../pages/lawyers/LawyerDocumentEditorPage").then((module) => ({ default: module.LawyerDocumentEditorPage })));
 const LawyerOnboardingPage = lazy(() => import("../pages/lawyers/LawyerOnboardingPage").then((module) => ({ default: module.LawyerOnboardingPage })));
 
 function lazyElement(Component: ComponentType) {
@@ -69,9 +70,9 @@ export const router = createBrowserRouter([
       { index: true, element: lazyElement(LawyerDashboardPage) },
       { path: "dashboard", element: lazyElement(LawyerDashboardPage) },
       { path: "smart-pages", element: lazyElement(LawyerDocumentsPage) },
-      { path: "smart-pages/:id", element: <DocumentEditorPage /> },
+      { path: "smart-pages/:id", element: lazyElement(LawyerDocumentEditorPage) },
       { path: "documents", element: lazyElement(LawyerDocumentsPage) },
-      { path: "documents/:id", element: <DocumentEditorPage /> },
+      { path: "documents/:id", element: lazyElement(LawyerDocumentEditorPage) },
       { path: "onboarding", element: lazyElement(LawyerOnboardingPage) },
       { path: "settings", element: lazyElement(LawyerOnboardingPage) },
     ],
