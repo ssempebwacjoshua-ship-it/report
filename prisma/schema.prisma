@@ -29,6 +29,8 @@ model School {
   subjects         Subject[]
   users            User[]
   smartPagePayments SmartPagePaymentRequest[]
+  promotionBatches  PromotionBatch[]
+  promotionActions  PromotionAction[]
 }
 
 model AcademicYear {
@@ -112,6 +114,7 @@ model Student {
   enrollments      ClassEnrollment[]
   guardianContacts GuardianContact[]
   issuedReports    IssuedReport[]
+  promotionActions PromotionAction[]
   school           School            @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   marks            SubjectMark[]
 
@@ -384,6 +387,54 @@ model DocumentCleanerJob {
 
   @@index([schoolId, fileHash])
   @@index([schoolId, status, createdAt])
+}
+
+model PromotionBatch {
+  id             String              @id @default(uuid()) @db.Uuid
+  schoolId       String              @db.Uuid
+  academicYearId String              @db.Uuid
+  termId         String              @db.Uuid
+  assessmentType String
+  classId        String?             @db.Uuid
+  streamId       String?             @db.Uuid
+  scoreThreshold Float               @default(40)
+  status         PromotionBatchStatus @default(APPLIED)
+  appliedAt      DateTime            @default(now())
+  appliedByName  String?
+  reversedAt     DateTime?
+  reversedByName String?
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+  school         School              @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  actions        PromotionAction[]
+
+  @@index([schoolId, status, createdAt])
+  @@index([schoolId, academicYearId, termId])
+}
+
+model PromotionAction {
+  id               String              @id @default(uuid()) @db.Uuid
+  batchId          String              @db.Uuid
+  schoolId         String              @db.Uuid
+  studentId        String              @db.Uuid
+  studentName      String
+  fromEnrollmentId String              @db.Uuid
+  toEnrollmentId   String?             @db.Uuid
+  fromClassName    String
+  fromStreamName   String
+  toClassName      String?
+  toStreamName     String?
+  averageScore     Float?
+  decision         PromotionDecision
+  status           PromotionActionStatus @default(APPLIED)
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+  batch            PromotionBatch      @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  school           School              @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  student          Student             @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@index([batchId])
+  @@index([schoolId, studentId, status])
 }
 
 model IssuedReport {
@@ -798,4 +849,20 @@ enum BulkJobStatus {
   COMPLETED
   FAILED
   PARTIAL
+}
+
+enum PromotionBatchStatus {
+  APPLIED
+  REVERSED
+}
+
+enum PromotionDecision {
+  PROMOTE
+  REPEAT
+  GRADUATE
+}
+
+enum PromotionActionStatus {
+  APPLIED
+  REVERSED
 }

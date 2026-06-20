@@ -4,6 +4,7 @@ import type { GradingScaleSettings, ReportSettings, SchoolProfileSettings } from
 import { defaultSettingsSections } from "../../shared/types/settings";
 import { getSchoolInitials } from "../layout/branding";
 import type { ReportComments } from "../../shared/utils/reportComments";
+import { generateRemarks } from "../../shared/utils/remarksEngine";
 
 type Props = {
   card: StudentReportCard | null;
@@ -62,9 +63,13 @@ function buildDefaultDraft(
   school: SchoolProfileSettings,
   reports: ReportSettings,
 ): ReportDraft {
+  const ctTemplate = card.comments || reports.defaultClassTeacherCommentTemplate;
+  const htTemplate = reports.defaultHmCommentTemplate;
+  // Auto-fill from score band when both templates are absent and average is available
+  const autoRemarks = !ctTemplate && !htTemplate ? generateRemarks(card.average) : null;
   return {
-    classTeacherComment: card.comments || reports.defaultClassTeacherCommentTemplate,
-    headTeacherComment: reports.defaultHmCommentTemplate,
+    classTeacherComment: ctTemplate || autoRemarks?.classTeacherComment || "",
+    headTeacherComment: htTemplate || autoRemarks?.headTeacherComment || "",
     conductNote: "",
     classTeacherName: "",
     headTeacherName: school.headTeacherName || "Head Teacher",
@@ -258,32 +263,70 @@ function StudentReportDetailContent({
             </div>
           </div>
 
-          <div className="mt-4 flex flex-wrap justify-end gap-2">
-            <button type="button" className="btn btn-secondary" onClick={() => setDraft(defaultDraft)}>
-              Reset Changes
-            </button>
-            <button
-              type="button"
-              className="btn btn-secondary"
-              onClick={() => {
-                setDraftState("saved");
-              }}
-            >
-              Save Draft
-            </button>
-            <button type="button" className="btn btn-secondary" onClick={() => setEditingOpen(false)}>
-              Preview Report
-            </button>
-            <button
-              type="button"
-              className="btn btn-primary"
-              onClick={() => {
-                setDraftState("ready");
-                setEditingOpen(false);
-              }}
-            >
-              Approve / Mark Ready
-            </button>
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                className="btn btn-secondary text-xs"
+                title="Fill remarks from score band only when both comment fields are empty"
+                onClick={() => {
+                  const remarks = generateRemarks(card.average);
+                  if (!remarks) return;
+                  setDraft((current) => ({
+                    ...current,
+                    classTeacherComment: current.classTeacherComment || remarks.classTeacherComment,
+                    headTeacherComment: current.headTeacherComment || remarks.headTeacherComment,
+                  }));
+                  setDraftState("idle");
+                }}
+              >
+                Auto-generate remarks
+              </button>
+              <button
+                type="button"
+                className="btn btn-secondary text-xs"
+                title="Replace current comments with auto-generated remarks based on the student's score band"
+                onClick={() => {
+                  const remarks = generateRemarks(card.average);
+                  if (!remarks) return;
+                  setDraft((current) => ({
+                    ...current,
+                    classTeacherComment: remarks.classTeacherComment,
+                    headTeacherComment: remarks.headTeacherComment,
+                  }));
+                  setDraftState("idle");
+                }}
+              >
+                Regenerate remarks
+              </button>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button type="button" className="btn btn-secondary" onClick={() => setDraft(defaultDraft)}>
+                Reset Changes
+              </button>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => {
+                  setDraftState("saved");
+                }}
+              >
+                Save Draft
+              </button>
+              <button type="button" className="btn btn-secondary" onClick={() => setEditingOpen(false)}>
+                Preview Report
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={() => {
+                  setDraftState("ready");
+                  setEditingOpen(false);
+                }}
+              >
+                Approve / Mark Ready
+              </button>
+            </div>
           </div>
         </div>
       ) : null}

@@ -24,6 +24,7 @@ import { platformAdminRoutes } from "./routes/platformAdminRoutes";
 import { platformOwnerRoutes } from "./routes/platformOwnerRoutes";
 import { reportIssueRoutes } from "./routes/reportIssueRoutes";
 import { reportAssistantRoutes } from "./routes/reportAssistantRoutes";
+import { promotionRoutes } from "./routes/promotionRoutes";
 import { releaseCenterRoutes } from "./routes/releaseCenterRoutes";
 import { parentRoutes } from "./routes/parentRoutes";
 import { verifyRoutes } from "./routes/verifyRoutes";
@@ -112,6 +113,7 @@ export function createServer() {
   app.use(subscriptionRoutes());
   app.use(smartPagesBillingRoutes());
   app.use(geminiMarksImportRoutes());
+  app.use(promotionRoutes());
 
   // Static file serving + SPA fallback (production only ? never in test env, skipped when dist absent)
   const distDir = path.join(process.cwd(), "dist");
