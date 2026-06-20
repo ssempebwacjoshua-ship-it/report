@@ -308,7 +308,7 @@ export function LawyerDocumentEditorPage() {
 
   // Load preferences for context injection into AI prompts
   useEffect(() => {
-    listPreferences()
+    listPreferences("lawyer", { authMode: "creator" })
       .then((prefs) => {
         setCreatorPreferences(Object.fromEntries(prefs.map((p) => [p.key, p.value])));
       })

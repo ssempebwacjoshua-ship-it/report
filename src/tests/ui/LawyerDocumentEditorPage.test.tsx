@@ -78,6 +78,36 @@ describe("Lawyer Smart Pages editor", () => {
     ]);
   });
 
+  it("calls listPreferences with authMode creator to use sp_creator_token exclusively", async () => {
+    documentIntelligenceMocks.getDocument.mockResolvedValue({
+      id: "doc-pref",
+      title: "Pref test doc",
+      status: "DRAFT",
+      extractionStatus: "PENDING",
+      extractionError: null,
+      domain: "legal",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      versionCount: 0,
+      hasSourceFiles: false,
+      extractedKnowledge: null,
+      activeVersion: null,
+      latestSourceFile: null,
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/lawyers/documents/doc-pref"]}>
+        <Routes>
+          <Route path="/lawyers/documents/:id" element={<LawyerDocumentEditorPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    await waitFor(() =>
+      expect(documentOsMocks.listPreferences).toHaveBeenCalledWith("lawyer", { authMode: "creator" }),
+    );
+  });
+
   it("shows a starter lawyer draft when a template is opened", async () => {
     documentIntelligenceMocks.getDocument.mockResolvedValue({
       id: "doc-1",

@@ -350,6 +350,63 @@ describe("client auth header selection", () => {
   });
 });
 
+describe("apiBase auth header isolation", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("makeSchoolRequestHeaders uses sc_auth_token only — never reads sp_creator_token", async () => {
+    const getItem = vi.fn((key: string) => {
+      if (key === "sc_auth_token") return "school-tok";
+      if (key === "sp_creator_token") return "creator-tok";
+      return null;
+    });
+    vi.stubGlobal("localStorage", { getItem });
+    vi.stubGlobal("crypto", { randomUUID: () => "test-uuid" });
+
+    const { makeSchoolRequestHeaders } = await import("../../client/apiBase");
+    const headers = makeSchoolRequestHeaders();
+
+    expect(headers.Authorization).toBe("Bearer school-tok");
+    expect(getItem).toHaveBeenCalledWith("sc_auth_token");
+    expect(getItem).not.toHaveBeenCalledWith("sp_creator_token");
+  });
+
+  it("makeCreatorRequestHeaders uses sp_creator_token only — never reads sc_auth_token", async () => {
+    const getItem = vi.fn((key: string) => {
+      if (key === "sc_auth_token") return "school-tok";
+      if (key === "sp_creator_token") return "creator-tok";
+      return null;
+    });
+    vi.stubGlobal("localStorage", { getItem });
+    vi.stubGlobal("crypto", { randomUUID: () => "test-uuid" });
+
+    const { makeCreatorRequestHeaders } = await import("../../client/apiBase");
+    const headers = makeCreatorRequestHeaders();
+
+    expect(headers.Authorization).toBe("Bearer creator-tok");
+    expect(getItem).toHaveBeenCalledWith("sp_creator_token");
+    expect(getItem).not.toHaveBeenCalledWith("sc_auth_token");
+  });
+
+  it("both tokens present: makeCreatorRequestHeaders still uses sp_creator_token exclusively", async () => {
+    vi.stubGlobal("localStorage", {
+      getItem: (key: string) => {
+        if (key === "sc_auth_token") return "school-tok";
+        if (key === "sp_creator_token") return "creator-tok";
+        return null;
+      },
+    });
+    vi.stubGlobal("crypto", { randomUUID: () => "test-uuid" });
+
+    const { makeCreatorRequestHeaders } = await import("../../client/apiBase");
+    const headers = makeCreatorRequestHeaders();
+
+    expect(headers.Authorization).toBe("Bearer creator-tok");
+    expect(headers.Authorization).not.toBe("Bearer school-tok");
+  });
+});
+
 describe("guardrail script catches LAWYER_VERTICAL import in school pages", () => {
   it("isNonSchoolPreferenceKey in verticalPreferences is importable from school pages", async () => {
     const { isNonSchoolPreferenceKey } = await import("../../shared/verticalPreferences");

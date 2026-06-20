@@ -37,6 +37,24 @@ export function makeRequestHeaders(extra?: Record<string, string>): Record<strin
   };
 }
 
+export function makeSchoolRequestHeaders(extra?: Record<string, string>): Record<string, string> {
+  const token = localStorage.getItem(TOKEN_KEY);
+  return {
+    "x-request-id": crypto.randomUUID(),
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...extra,
+  };
+}
+
+export function makeCreatorRequestHeaders(extra?: Record<string, string>): Record<string, string> {
+  const token = localStorage.getItem(CREATOR_TOKEN_KEY);
+  return {
+    "x-request-id": crypto.randomUUID(),
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...extra,
+  };
+}
+
 export function handleSessionExpiry(): void {
   localStorage.removeItem(TOKEN_KEY);
   window.location.href = "/login?reason=session_expired";

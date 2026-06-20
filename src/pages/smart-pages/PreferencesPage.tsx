@@ -30,13 +30,13 @@ export function PreferencesPage() {
   const [notice, setNotice] = useState("");
 
   useEffect(() => {
-    listPreferences("school")
+    listPreferences("school", { authMode: "school" })
       .then((prefs) => setPreferences(prefs.filter((p) => !isNonSchoolPreferenceKey(p.key))))
       .catch((error: Error) => setNotice(error.message));
   }, []);
 
   async function save() {
-    const saved = await savePreference(key.trim(), value.trim());
+    const saved = await savePreference(key.trim(), value.trim(), { authMode: "school" });
     setPreferences((current) =>
       [saved, ...current.filter((item) => item.key !== saved.key)].sort((a, b) =>
         a.key.localeCompare(b.key),

@@ -1,6 +1,14 @@
-﻿import { getApiBaseUrl, makeRequestHeaders, parseApiError } from "./apiBase";
+﻿import { getApiBaseUrl, makeRequestHeaders, makeSchoolRequestHeaders, makeCreatorRequestHeaders, parseApiError } from "./apiBase";
 
 const API_BASE = getApiBaseUrl();
+
+type OsAuthMode = "school" | "creator";
+
+function resolveOsHeaders(authMode?: OsAuthMode, extra?: Record<string, string>): Record<string, string> {
+  if (authMode === "creator") return makeCreatorRequestHeaders(extra);
+  if (authMode === "school") return makeSchoolRequestHeaders(extra);
+  return makeRequestHeaders(extra);
+}
 
 async function json<T>(response: Response, fallback: string): Promise<T> {
   if (!response.ok) throw new Error(await parseApiError(response, fallback));
@@ -53,19 +61,19 @@ export interface AnalyticsSummary {
   mostActiveCollections?: Array<{ collectionId: string; name: string; recordCount: number; bulkJobCount: number; activityScore: number; updatedAt: string }>;
 }
 
-export async function listPreferences(scope?: "school" | "lawyer"): Promise<CreatorPreference[]> {
+export async function listPreferences(scope?: "school" | "lawyer", options?: { authMode?: OsAuthMode }): Promise<CreatorPreference[]> {
   const url = scope
     ? `${API_BASE}/api/document-os/preferences?scope=${scope}`
     : `${API_BASE}/api/document-os/preferences`;
-  const res = await fetch(url, { headers: makeRequestHeaders() });
+  const res = await fetch(url, { headers: resolveOsHeaders(options?.authMode) });
   const data = await json<{ preferences: CreatorPreference[] }>(res, "Could not load preferences");
   return data.preferences;
 }
 
-export async function savePreference(key: string, value: unknown): Promise<CreatorPreference> {
+export async function savePreference(key: string, value: unknown, options?: { authMode?: OsAuthMode }): Promise<CreatorPreference> {
   const res = await fetch(`${API_BASE}/api/document-os/preferences`, {
     method: "PUT",
-    headers: makeRequestHeaders({ "Content-Type": "application/json" }),
+    headers: resolveOsHeaders(options?.authMode, { "Content-Type": "application/json" }),
     body: JSON.stringify({ key, value }),
   });
   const data = await json<{ preference: CreatorPreference }>(res, "Could not save preference");

@@ -194,6 +194,24 @@ const STRUCTURAL_CHECKS: StructuralCheck[] = [
     pattern: /vertical\s*:\s*SmartDocumentVertical/,
     mustMatch: true,
   },
+  {
+    description: "documentOsClient must use makeCreatorRequestHeaders for explicit creator auth isolation",
+    file: "src/client/documentOsClient.ts",
+    pattern: /makeCreatorRequestHeaders/,
+    mustMatch: true,
+  },
+  {
+    description: "LawyerDocumentEditorPage must call listPreferences with authMode creator",
+    file: "src/pages/lawyers/LawyerDocumentEditorPage.tsx",
+    pattern: /listPreferences\("lawyer",\s*\{.*authMode:\s*"creator"/,
+    mustMatch: true,
+  },
+  {
+    description: "School PreferencesPage must call listPreferences with authMode school",
+    file: "src/pages/smart-pages/PreferencesPage.tsx",
+    pattern: /listPreferences\("school",\s*\{.*authMode:\s*"school"/,
+    mustMatch: true,
+  },
 ];
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
