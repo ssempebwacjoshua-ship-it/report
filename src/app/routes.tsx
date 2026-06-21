@@ -1,4 +1,4 @@
-﻿import { createBrowserRouter } from "react-router-dom";
+﻿import { createBrowserRouter, Navigate } from "react-router-dom";
 import { AppShell } from "../components/layout/AppShell";
 import { lazy, Suspense, type ComponentType } from "react";
 import { OwnerShell } from "../components/layout/OwnerShell";
@@ -67,18 +67,24 @@ export const router = createBrowserRouter([
   {
     element: <PublicLayout />,
     children: [
-      { path: "/",         element: <SSAMENJHomePage /> },
-      { path: "/products", element: <ProductsPage /> },
-      { path: "/demos",    element: <DemosPage /> },
-      { path: "/about",    element: <AboutPage /> },
-      { path: "/contact",  element: <ContactPage /> },
-      { path: "/pricing",  element: <PricingPage /> },
+      { path: "/",                              element: <SSAMENJHomePage /> },
+      { path: "/products",                      element: <ProductsPage /> },
+      { path: "/products/report-lab",           element: <Navigate to="/products" replace /> },
+      { path: "/products/smart-pages",          element: <Navigate to="/products" replace /> },
+      { path: "/products/school-connect",       element: <Navigate to="/products" replace /> },
+      { path: "/products/legal-smart-pages",    element: <Navigate to="/products" replace /> },
+      { path: "/products/kids-wallet",          element: <Navigate to="/products" replace /> },
+      { path: "/products/nfc-wristbands",       element: <Navigate to="/products" replace /> },
+      { path: "/demos",                         element: <DemosPage /> },
+      { path: "/about",                         element: <AboutPage /> },
+      { path: "/contact",                       element: <ContactPage /> },
+      { path: "/pricing",                       element: <PricingPage /> },
     ],
   },
 
-  // ── Preserved legacy / app public routes (own layout) ──
-  { path: "/dem",           element: <DemoPage /> },          // Report Lab demo — DO NOT REMOVE
-  { path: "/demo",          element: <DemoPage /> },          // Legacy landing page — keep working
+  // ── Legacy route redirects ──
+  { path: "/dem",  element: <Navigate to="/demos" replace /> }, // was Report Lab demo page
+  { path: "/demo", element: <Navigate to="/demos" replace /> }, // legacy landing page
   { path: "/features-demo", element: <FeaturesDemoPage /> },
   { path: "/login", element: <LoginPage /> },
   { path: "/logout", element: <LogoutPage /> },

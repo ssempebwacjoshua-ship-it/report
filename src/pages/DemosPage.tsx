@@ -65,7 +65,7 @@ const DEMOS: Demo[] = [
       "See how schools enter marks, generate professional student report cards, review results, approve reports, and share them securely with parents — all from one dashboard.",
     icon: <ReportIcon className="w-7 h-7" />,
     status: "available",
-    demoHref: "/dem",
+    demoHref: "/login",
     tags: ["Schools", "Reports", "Parents", "Live"],
   },
   {

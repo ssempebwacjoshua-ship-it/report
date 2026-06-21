@@ -2,21 +2,31 @@ import { useEffect, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { buildWhatsAppUrl } from "../../config/contact";
 
-function SSAMENJLogo() {
-  return (
-    <a href="/" className="flex items-center gap-2.5 flex-shrink-0" style={{ textDecoration: "none" }}>
-      <img src="/ssamenj-logo.png" alt="SSAMENJ Technologies" className="w-9 h-9 object-contain" />
-      <div>
-        <div className="text-[15px] font-extrabold leading-none tracking-tight" style={{ color: "#0B2F6B" }}>
-          SSAMENJ
-        </div>
-        <div className="text-[10px] font-semibold leading-none mt-[3px] tracking-widest uppercase" style={{ color: "#0F5BD8" }}>
-          Technologies
-        </div>
-      </div>
-    </a>
-  );
-}
+const BOOK_DEMO_URL = buildWhatsAppUrl(
+  "Hello SSAMENJ Technologies! I'd like to book a product demo for my organisation.",
+);
+
+// ── Nav data ──────────────────────────────────────────────────────────────────
+
+type NavItem = { label: string; href: string; shortLabel?: string };
+
+const PRODUCT_NAV: NavItem[] = [
+  { label: "Report Lab",        href: "/products/report-lab" },
+  { label: "Smart Pages",       href: "/products/smart-pages" },
+  { label: "School Connect",    href: "/products/school-connect" },
+  { label: "Legal Smart Pages", href: "/products/legal-smart-pages", shortLabel: "Legal Smart" },
+  { label: "Kids Wallet",       href: "/products/kids-wallet" },
+  { label: "NFC Wristbands",    href: "/products/nfc-wristbands",    shortLabel: "NFC Bands" },
+];
+
+const MAIN_NAV: NavItem[] = [
+  { label: "Home",    href: "/" },
+  { label: "Demos",   href: "/demos" },
+  { label: "About",   href: "/about" },
+  { label: "Contact", href: "/contact" },
+];
+
+// ── Icons ─────────────────────────────────────────────────────────────────────
 
 function MenuIcon() {
   return (
@@ -34,23 +44,31 @@ function XIcon() {
   );
 }
 
-const NAV = [
-  { label: "Home",     href: "/" },
-  { label: "Products", href: "/products" },
-  { label: "Demos",    href: "/demos" },
-  { label: "About",    href: "/about" },
-  { label: "Contact",  href: "/contact" },
-];
+// ── Logo ──────────────────────────────────────────────────────────────────────
+
+function SSAMENJLogo() {
+  return (
+    <a href="/" className="flex items-center gap-2.5 flex-shrink-0" style={{ textDecoration: "none" }}>
+      <img src="/ssamenj-logo.png" alt="SSAMENJ Technologies" className="w-8 h-8 object-contain" />
+      <div>
+        <div className="text-[14px] font-extrabold leading-none tracking-tight" style={{ color: "#0B2F6B" }}>
+          SSAMENJ
+        </div>
+        <div className="text-[9px] font-semibold leading-none mt-[3px] tracking-widest uppercase" style={{ color: "#0F5BD8" }}>
+          Technologies
+        </div>
+      </div>
+    </a>
+  );
+}
+
+// ── Main component ────────────────────────────────────────────────────────────
 
 export function MarketingHeader() {
   const { pathname } = useLocation();
   const [open, setOpen] = useState(false);
   const [hidden, setHidden] = useState(false);
   const lastScrollY = useRef(0);
-
-  const bookDemoUrl = buildWhatsAppUrl(
-    "Hello SSAMENJ Technologies! I'd like to book a product demo for my organisation.",
-  );
 
   function isActive(href: string) {
     if (href === "/") return pathname === "/";
@@ -74,65 +92,104 @@ export function MarketingHeader() {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
-  // Close mobile menu on route change
+  // Close drawer on route change
   useEffect(() => { setOpen(false); }, [pathname]);
+
+  const navLinkStyle = (href: string) => ({
+    color: isActive(href) ? "#0F5BD8" : "#0B0F19",
+    background: isActive(href) ? "#EAF3FF" : "transparent",
+    fontWeight: 700,
+  });
 
   return (
     <header
       className="fixed top-0 inset-x-0 z-50"
       style={{
-        background: "rgba(255,255,255,0.97)",
+        background: "rgba(255,255,255,0.98)",
         backdropFilter: "blur(12px)",
         WebkitBackdropFilter: "blur(12px)",
         transform: hidden && !open ? "translateY(-100%)" : "translateY(0)",
         transition: "transform 250ms ease",
       }}
     >
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16">
+      <div className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="flex items-center justify-between h-14 gap-2">
+
+          {/* Logo */}
           <SSAMENJLogo />
 
-          {/* Desktop nav */}
-          <nav className="hidden md:flex items-center gap-0.5" aria-label="Main navigation">
-            {NAV.map((link) => (
+          {/* Desktop nav — visible only on xl+ */}
+          <nav
+            className="hidden xl:flex items-center flex-1 min-w-0 mx-3"
+            aria-label="Main navigation"
+          >
+            {/* Home */}
+            <a
+              href="/"
+              className="px-2.5 py-1.5 text-[12px] rounded-lg whitespace-nowrap transition-colors hover:bg-[#F5F8FF]"
+              style={navLinkStyle("/")}
+            >
+              Home
+            </a>
+
+            {/* Thin separator */}
+            <div className="mx-2 w-px h-4 flex-shrink-0" style={{ background: "#D8E2F0" }} />
+
+            {/* Product links */}
+            {PRODUCT_NAV.map((item) => (
               <a
-                key={link.label}
-                href={link.href}
-                className="px-3.5 py-2 text-sm font-medium rounded-lg transition-colors"
-                style={{
-                  color:      isActive(link.href) ? "#0F5BD8" : "#374151",
-                  background: isActive(link.href) ? "#EAF3FF"  : "transparent",
-                }}
+                key={item.href}
+                href={item.href}
+                className="px-2 py-1.5 text-[11.5px] rounded-lg whitespace-nowrap transition-colors hover:bg-[#F5F8FF] hover:text-[#0F5BD8]"
+                style={navLinkStyle(item.href)}
               >
-                {link.label}
+                {item.shortLabel ?? item.label}
               </a>
             ))}
+
+            {/* Thin separator */}
+            <div className="mx-2 w-px h-4 flex-shrink-0" style={{ background: "#D8E2F0" }} />
+
+            {/* Company links */}
+            {["Demos", "About", "Contact"].map((label) => {
+              const href = `/${label.toLowerCase()}`;
+              return (
+                <a
+                  key={href}
+                  href={href}
+                  className="px-2.5 py-1.5 text-[12px] rounded-lg whitespace-nowrap transition-colors hover:bg-[#F5F8FF] hover:text-[#0F5BD8]"
+                  style={navLinkStyle(href)}
+                >
+                  {label}
+                </a>
+              );
+            })}
           </nav>
 
-          {/* Desktop CTAs */}
-          <div className="hidden md:flex items-center gap-2">
+          {/* Desktop CTA buttons — visible only on xl+ */}
+          <div className="hidden xl:flex items-center gap-2 flex-shrink-0">
             <a
               href="/demos"
-              className="px-3.5 py-2 text-sm font-semibold rounded-lg transition-colors hover:bg-[#EAF3FF]"
+              className="px-3.5 py-1.5 text-[12px] font-bold rounded-lg transition-colors hover:bg-[#EAF3FF]"
               style={{ color: "#0F5BD8" }}
             >
               View Demos
             </a>
             <a
-              href={bookDemoUrl}
+              href={BOOK_DEMO_URL}
               target="_blank"
               rel="noreferrer"
-              className="px-4 py-2 text-sm font-semibold text-white rounded-lg shadow-sm transition-all hover:opacity-90 active:scale-95"
+              className="px-3.5 py-1.5 text-[12px] font-bold text-white rounded-lg shadow-sm transition-all hover:opacity-90 active:scale-95"
               style={{ background: "#0F5BD8" }}
             >
               Book Demo
             </a>
           </div>
 
-          {/* Mobile burger */}
+          {/* Hamburger — visible below xl */}
           <button
-            className="md:hidden p-2 rounded-lg transition-colors"
-            style={{ color: "#0B2F6B" }}
+            className="xl:hidden p-2 rounded-lg"
+            style={{ color: "#0B0F19" }}
             onClick={() => setOpen((v) => !v)}
             aria-label={open ? "Close menu" : "Open menu"}
           >
@@ -141,38 +198,86 @@ export function MarketingHeader() {
         </div>
       </div>
 
-      {/* Mobile drawer */}
+      {/* Mobile / tablet drawer */}
       {open && (
-        <div className="md:hidden border-t py-2 px-4" style={{ background: "white", borderColor: "#D8E2F0" }}>
-          {NAV.map((link) => (
+        <div
+          className="xl:hidden border-t"
+          style={{ background: "white", borderColor: "#D8E2F0" }}
+        >
+          <div className="max-w-[1440px] mx-auto px-4 sm:px-6 py-3 space-y-0.5">
+
+            {/* Home */}
             <a
-              key={link.label}
-              href={link.href}
-              className="block px-3 py-2.5 text-sm font-medium rounded-lg mb-0.5 transition-colors"
-              style={{
-                color:      isActive(link.href) ? "#0F5BD8" : "#374151",
-                background: isActive(link.href) ? "#EAF3FF"  : "transparent",
-              }}
+              href="/"
+              className="block px-3 py-2.5 text-sm rounded-lg"
+              style={navLinkStyle("/")}
               onClick={() => setOpen(false)}
             >
-              {link.label}
+              Home
             </a>
-          ))}
-          <div className="pt-3 pb-2 mt-2 border-t" style={{ borderColor: "#EAF3FF" }}>
-            <a
-              href={bookDemoUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="flex items-center justify-center w-full px-4 py-2.5 text-sm font-semibold text-white rounded-lg"
-              style={{ background: "#0F5BD8" }}
-            >
-              Book a Demo
-            </a>
+
+            {/* Products group */}
+            <div className="pt-2 pb-1">
+              <p className="px-3 text-[10px] font-black uppercase tracking-widest mb-1" style={{ color: "#94A3B8" }}>
+                Products
+              </p>
+              {PRODUCT_NAV.map((item) => (
+                <a
+                  key={item.href}
+                  href={item.href}
+                  className="block px-3 py-2.5 text-sm rounded-lg"
+                  style={navLinkStyle(item.href)}
+                  onClick={() => setOpen(false)}
+                >
+                  {item.label}
+                </a>
+              ))}
+            </div>
+
+            {/* Company */}
+            <div className="pt-1 pb-1 border-t" style={{ borderColor: "#EAF3FF" }}>
+              {["Demos", "About", "Contact"].map((label) => {
+                const href = `/${label.toLowerCase()}`;
+                return (
+                  <a
+                    key={href}
+                    href={href}
+                    className="block px-3 py-2.5 text-sm rounded-lg"
+                    style={navLinkStyle(href)}
+                    onClick={() => setOpen(false)}
+                  >
+                    {label}
+                  </a>
+                );
+              })}
+            </div>
+
+            {/* CTA */}
+            <div className="pt-3 pb-2 border-t" style={{ borderColor: "#EAF3FF" }}>
+              <a
+                href={BOOK_DEMO_URL}
+                target="_blank"
+                rel="noreferrer"
+                className="flex items-center justify-center w-full px-4 py-2.5 text-sm font-bold text-white rounded-xl"
+                style={{ background: "#0F5BD8" }}
+                onClick={() => setOpen(false)}
+              >
+                Book a Demo
+              </a>
+              <a
+                href="/demos"
+                className="flex items-center justify-center w-full mt-2 px-4 py-2.5 text-sm font-bold rounded-xl border"
+                style={{ color: "#0F5BD8", borderColor: "#D8E2F0" }}
+                onClick={() => setOpen(false)}
+              >
+                View Demos
+              </a>
+            </div>
           </div>
         </div>
       )}
 
-      {/* Gradient accent line */}
+      {/* Faint blue gradient line */}
       <div
         aria-hidden="true"
         style={{
