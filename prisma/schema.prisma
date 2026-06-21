@@ -32,6 +32,7 @@ model School {
   promotionBatches  PromotionBatch[]
   promotionActions  PromotionAction[]
   studentCredentials StudentCredential[]
+  attendanceEvents StudentAttendanceEvent[]
 }
 
 model AcademicYear {
@@ -117,6 +118,7 @@ model Student {
   issuedReports    IssuedReport[]
   promotionActions PromotionAction[]
   credentials      StudentCredential[]
+  attendanceEvents StudentAttendanceEvent[]
   school           School            @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   marks            SubjectMark[]
 
@@ -387,12 +389,34 @@ model StudentCredential {
   school              School           @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   student             Student          @relation(fields: [studentId], references: [id], onDelete: Cascade)
   issuedBy            User?            @relation("StudentCredentialIssuedBy", fields: [issuedById], references: [id], onDelete: SetNull)
+  attendanceEvents    StudentAttendanceEvent[]
 
   @@unique([schoolId, type, credentialUID])
   @@index([schoolId])
   @@index([studentId])
   @@index([schoolId, status])
   @@index([schoolId, type, status])
+}
+
+model StudentAttendanceEvent {
+  id           String              @id @default(uuid()) @db.Uuid
+  schoolId     String              @db.Uuid
+  studentId    String              @db.Uuid
+  credentialId String              @db.Uuid
+  classId      String?             @db.Uuid
+  streamId     String?             @db.Uuid
+  direction    AttendanceDirection
+  scanSource   AttendanceScanSource @default(NFC_WRISTBAND)
+  scannedAt    DateTime            @default(now())
+  createdAt    DateTime            @default(now())
+  school       School              @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  student      Student             @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  credential   StudentCredential   @relation(fields: [credentialId], references: [id], onDelete: Cascade)
+
+  @@index([schoolId, scannedAt])
+  @@index([schoolId, studentId, scannedAt])
+  @@index([schoolId, credentialId, scannedAt])
+  @@index([schoolId, direction, scannedAt])
 }
 
 // Legacy DocumentCleanerJob remains in schema. Confirm no live data before safe removal migration.
@@ -814,6 +838,15 @@ enum CredentialType {
 enum CredentialStatus {
   ACTIVE
   DEACTIVATED
+}
+
+enum AttendanceDirection {
+  TAP_IN
+  TAP_OUT
+}
+
+enum AttendanceScanSource {
+  NFC_WRISTBAND
 }
 
 enum IssuedReportStatus {

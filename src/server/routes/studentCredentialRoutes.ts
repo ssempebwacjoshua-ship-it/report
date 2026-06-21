@@ -1,4 +1,4 @@
-import { CredentialStatus, CredentialType } from "@prisma/client";
+import { AttendanceDirection, CredentialStatus, CredentialType } from "@prisma/client";
 import { Router } from "express";
 import { z } from "zod";
 import {
@@ -8,6 +8,7 @@ import {
   scanStudentCredential,
   type CredentialScanContext,
 } from "../services/studentCredentialService";
+import { scanStudentAttendance } from "../services/studentAttendanceService";
 
 const issueSchema = z.object({
   studentId: z.string().uuid(),
@@ -27,6 +28,11 @@ const deactivateSchema = z.object({
 const scanSchema = z.object({
   credentialUID: z.string().trim().min(1, "Credential UID is required."),
   context: z.enum(["GATE", "CLASS", "WALLET", "VERIFY"]).optional(),
+});
+
+const attendanceScanSchema = z.object({
+  credentialUID: z.string().trim().min(1, "Credential UID is required."),
+  direction: z.enum(AttendanceDirection).default(AttendanceDirection.TAP_IN),
 });
 
 function credentialContext(req: Express.Request) {
@@ -83,6 +89,20 @@ export function studentCredentialRoutes() {
       const result = await scanStudentCredential(credentialContext(req), {
         credentialUID: input.credentialUID,
         context: input.context as CredentialScanContext | undefined,
+        type: CredentialType.NFC_WRISTBAND,
+      });
+      res.json(result);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/api/student-credentials/attendance-scan", async (req, res, next) => {
+    try {
+      const input = attendanceScanSchema.parse(req.body);
+      const result = await scanStudentAttendance(credentialContext(req), {
+        credentialUID: input.credentialUID,
+        direction: input.direction,
         type: CredentialType.NFC_WRISTBAND,
       });
       res.json(result);
