@@ -263,7 +263,10 @@ export function StudentCredentialsPage() {
                       {credential.student.admissionNumber} - {credential.student.className ?? "No class"} / {credential.student.streamName ?? "No stream"}
                     </p>
                   </td>
-                  <td className="border-y border-slate-200 px-3 py-3 font-mono font-bold text-slate-800">{credential.credentialUID}</td>
+                  <td className="border-y border-slate-200 px-3 py-3">
+                    <p className="font-mono font-bold text-slate-800">{credential.credentialUID}</p>
+                    {credential.nfcUrl ? <p className="mt-1 break-all font-mono text-xs text-slate-500">Tag URL: {credential.nfcUrl}</p> : null}
+                  </td>
                   <td className="border-y border-slate-200 px-3 py-3">
                     <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-bold ${statusTone(credential.status)}`}>{credential.status}</span>
                     {credential.deactivatedReason ? <p className="mt-1 text-xs text-slate-500">{credential.deactivatedReason}</p> : null}

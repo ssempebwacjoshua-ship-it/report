@@ -31,6 +31,7 @@ import { verifyRoutes } from "./routes/verifyRoutes";
 import { ocrRoutes } from "./routes/ocrRoutes";
 import { subscriptionRoutes } from "./routes/subscriptionRoutes";
 import { studentCredentialRoutes } from "./routes/studentCredentialRoutes";
+import { nfcOperationsRoutes, nfcPublicRoutes } from "./routes/nfcOperationsRoutes";
 import { documentIntelligenceRoutes } from "./routes/documentIntelligenceRoutes";
 import { creatorAuthRoutes } from "./routes/creatorAuthRoutes";
 import { collectionRoutes } from "./routes/collectionRoutes";
@@ -76,6 +77,7 @@ export function createServer() {
   app.use(verifyRoutes());
   app.use(parentRoutes());
   app.use(studentsPublicRoutes());
+  app.use(nfcPublicRoutes());
 
   // Document Intelligence Engine ? creator auth accepts both school JWTs and external creator JWTs
   app.use("/api/creator", creatorAuthRoutes());
@@ -113,6 +115,7 @@ export function createServer() {
   app.use(ocrRoutes());
   app.use(subscriptionRoutes());
   app.use(studentCredentialRoutes());
+  app.use(nfcOperationsRoutes());
   app.use(smartPagesBillingRoutes());
   app.use(geminiMarksImportRoutes());
   app.use(promotionRoutes());

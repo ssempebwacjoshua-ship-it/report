@@ -4,12 +4,14 @@ import bcrypt from "bcryptjs";
 const JWT_SECRET = process.env.JWT_SECRET ?? "dev-secret-change-in-production";
 const JWT_EXPIRES_IN = "7d";
 
+export type SchoolUserRole = "ADMIN_OPERATOR" | "TEACHER" | "CASHIER" | "CANTEEN" | "SECURITY" | "GATE_SECURITY";
+
 export type AuthPayload = {
   userId: string;
   schoolId: string;
   name: string;
   email: string;
-  role: "ADMIN_OPERATOR";
+  role: SchoolUserRole;
   isPlatformOwner?: boolean;
 };
 
