@@ -1,14 +1,11 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useLocation } from "react-router-dom";
 import { buildWhatsAppUrl } from "../../config/contact";
 
 function SSAMENJLogo() {
   return (
     <a href="/" className="flex items-center gap-2.5 flex-shrink-0" style={{ textDecoration: "none" }}>
-      <img
-        src="/ssamenj-logo.png"
-        alt="SSAMENJ Technologies"
-        className="w-9 h-9 object-contain"
-      />
+      <img src="/ssamenj-logo.png" alt="SSAMENJ Technologies" className="w-9 h-9 object-contain" />
       <div>
         <div className="text-[15px] font-extrabold leading-none tracking-tight" style={{ color: "#0B2F6B" }}>
           SSAMENJ
@@ -38,27 +35,58 @@ function XIcon() {
 }
 
 const NAV = [
-  { label: "Home", href: "/" },
+  { label: "Home",     href: "/" },
   { label: "Products", href: "/products" },
-  { label: "Demos", href: "/demos" },
-  { label: "About", href: "/about" },
-  { label: "Contact", href: "/contact" },
+  { label: "Demos",    href: "/demos" },
+  { label: "About",    href: "/about" },
+  { label: "Contact",  href: "/contact" },
 ];
 
-export function MarketingHeader({ activePath = "" }: { activePath?: string }) {
+export function MarketingHeader() {
+  const { pathname } = useLocation();
   const [open, setOpen] = useState(false);
+  const [hidden, setHidden] = useState(false);
+  const lastScrollY = useRef(0);
+
   const bookDemoUrl = buildWhatsAppUrl(
     "Hello SSAMENJ Technologies! I'd like to book a product demo for my organisation.",
   );
 
   function isActive(href: string) {
-    return activePath === href || activePath.startsWith(href + "/");
+    if (href === "/") return pathname === "/";
+    return pathname === href || pathname.startsWith(href + "/");
   }
+
+  // Scroll-hide / reveal
+  useEffect(() => {
+    function onScroll() {
+      const current = window.scrollY;
+      if (current < 20) {
+        setHidden(false);
+      } else if (current > lastScrollY.current && current > 80) {
+        setHidden(true);
+      } else if (current < lastScrollY.current) {
+        setHidden(false);
+      }
+      lastScrollY.current = current;
+    }
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  // Close mobile menu on route change
+  useEffect(() => { setOpen(false); }, [pathname]);
 
   return (
     <header
-      className="fixed top-0 inset-x-0 z-50 border-b"
-      style={{ background: "rgba(255,255,255,0.97)", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)", borderColor: "#D8E2F0" }}
+      className="fixed top-0 inset-x-0 z-50"
+      style={{
+        background: "rgba(255,255,255,0.97)",
+        backdropFilter: "blur(12px)",
+        WebkitBackdropFilter: "blur(12px)",
+        transform: hidden && !open ? "translateY(-100%)" : "translateY(0)",
+        transition: "transform 250ms ease",
+      }}
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
@@ -72,8 +100,8 @@ export function MarketingHeader({ activePath = "" }: { activePath?: string }) {
                 href={link.href}
                 className="px-3.5 py-2 text-sm font-medium rounded-lg transition-colors"
                 style={{
-                  color: isActive(link.href) ? "#0F5BD8" : "#374151",
-                  background: isActive(link.href) ? "#EAF3FF" : "transparent",
+                  color:      isActive(link.href) ? "#0F5BD8" : "#374151",
+                  background: isActive(link.href) ? "#EAF3FF"  : "transparent",
                 }}
               >
                 {link.label}
@@ -122,8 +150,8 @@ export function MarketingHeader({ activePath = "" }: { activePath?: string }) {
               href={link.href}
               className="block px-3 py-2.5 text-sm font-medium rounded-lg mb-0.5 transition-colors"
               style={{
-                color: isActive(link.href) ? "#0F5BD8" : "#374151",
-                background: isActive(link.href) ? "#EAF3FF" : "transparent",
+                color:      isActive(link.href) ? "#0F5BD8" : "#374151",
+                background: isActive(link.href) ? "#EAF3FF"  : "transparent",
               }}
               onClick={() => setOpen(false)}
             >
@@ -143,6 +171,15 @@ export function MarketingHeader({ activePath = "" }: { activePath?: string }) {
           </div>
         </div>
       )}
+
+      {/* Gradient accent line */}
+      <div
+        aria-hidden="true"
+        style={{
+          height: "1px",
+          background: "linear-gradient(to right, rgba(15,91,216,0.35), rgba(15,91,216,0.08), transparent)",
+        }}
+      />
     </header>
   );
 }

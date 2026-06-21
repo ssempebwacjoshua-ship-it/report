@@ -1,7 +1,3 @@
-import { MarketingHeader } from "../components/marketing/MarketingHeader";
-import { MarketingFooter } from "../components/marketing/MarketingFooter";
-import { FloatingWhatsAppButton } from "../components/marketing/FloatingWhatsAppButton";
-
 // ── SVG icon helpers ──────────────────────────────────────────────────────────
 
 function Icon({ children, className = "w-5 h-5" }: { children: React.ReactNode; className?: string }) {
@@ -272,8 +268,6 @@ const WHY_CARDS = [
 export function AboutPage() {
   return (
     <div className="min-h-screen" style={{ background: "#FFFFFF" }}>
-      <MarketingHeader activePath="/about" />
-
       {/* ── Hero ── */}
       <section
         className="relative pt-20 pb-12 lg:pt-28 lg:pb-16 overflow-hidden"
@@ -638,8 +632,6 @@ export function AboutPage() {
         </div>
       </section>
 
-      <MarketingFooter />
-      <FloatingWhatsAppButton />
     </div>
   );
 }

@@ -1,6 +1,3 @@
-import { MarketingHeader } from "../components/marketing/MarketingHeader";
-import { MarketingFooter } from "../components/marketing/MarketingFooter";
-import { FloatingWhatsAppButton } from "../components/marketing/FloatingWhatsAppButton";
 import { buildWhatsAppUrl } from "../config/contact";
 
 const BOOK_DEMO_URL = buildWhatsAppUrl(
@@ -386,8 +383,6 @@ export function ProductsPage() {
 
   return (
     <div className="min-h-screen" style={{ background: "#FFFFFF" }}>
-      <MarketingHeader activePath="/products" />
-
       {/* ── Hero ── */}
       <section
         className="relative pt-24 pb-14 lg:pt-32 lg:pb-20 overflow-hidden"
@@ -485,8 +480,6 @@ export function ProductsPage() {
         </div>
       </section>
 
-      <MarketingFooter />
-      <FloatingWhatsAppButton />
     </div>
   );
 }

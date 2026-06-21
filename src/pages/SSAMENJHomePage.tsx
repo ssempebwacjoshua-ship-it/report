@@ -1,9 +1,6 @@
 import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
-import { MarketingHeader } from "../components/marketing/MarketingHeader";
-import { MarketingFooter } from "../components/marketing/MarketingFooter";
-import { FloatingWhatsAppButton } from "../components/marketing/FloatingWhatsAppButton";
 import { buildWhatsAppUrl } from "../config/contact";
 
 const BOOK_DEMO_URL = buildWhatsAppUrl(
@@ -288,8 +285,6 @@ export function SSAMENJHomePage() {
 
   return (
     <div className="min-h-screen" style={{ background: "#FFFFFF", fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif" }}>
-      <MarketingHeader activePath="/" />
-
       {/* ── Hero ─────────────────────────────────────────────────────────── */}
       <section
         className="relative pt-24 pb-0 overflow-hidden"
@@ -596,8 +591,6 @@ export function SSAMENJHomePage() {
         </div>
       </section>
 
-      <MarketingFooter />
-      <FloatingWhatsAppButton />
     </div>
   );
 }

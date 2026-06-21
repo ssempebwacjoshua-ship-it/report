@@ -1,6 +1,5 @@
 ﻿import { useMemo, useState, type ReactNode, type SVGProps } from "react";
 import { useNavigate } from "react-router-dom";
-import { FloatingWhatsAppButton } from "../components/marketing/FloatingWhatsAppButton";
 import { TestimonialsSection } from "../components/marketing/TestimonialsSection";
 import { WHATSAPP_DISPLAY, buildWhatsAppUrl } from "../config/contact";
 
@@ -403,7 +402,6 @@ export function ContactPage() {
           </div>
         </section>
       </main>
-      <FloatingWhatsAppButton />
     </div>
   );
 }

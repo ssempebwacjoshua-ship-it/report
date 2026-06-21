@@ -1,6 +1,5 @@
 ﻿import { type ReactNode, type SVGProps } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { FloatingWhatsAppButton } from "../components/marketing/FloatingWhatsAppButton";
 import { TestimonialsSection } from "../components/marketing/TestimonialsSection";
 import { WHATSAPP_DISPLAY, buildWhatsAppUrl } from "../config/contact";
 
@@ -434,7 +433,6 @@ export function PricingPage() {
             </div>
           </div>
         </section>
-        <FloatingWhatsAppButton />
       </main>
     </div>
   );

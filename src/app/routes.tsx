@@ -20,6 +20,7 @@ import { SSAMENJHomePage } from "../pages/SSAMENJHomePage";
 import { DemosPage } from "../pages/DemosPage";
 import { ProductsPage } from "../pages/ProductsPage";
 import { AboutPage } from "../pages/AboutPage";
+import { PublicLayout } from "../components/marketing/PublicLayout";
 import { ParentReportPage } from "../pages/ParentReportPage";
 import { VerifyPage } from "../pages/VerifyPage";
 import { NfcAttendancePage } from "../pages/NfcAttendancePage";
@@ -62,18 +63,23 @@ function lazyElement(Component: ComponentType) {
 }
 
 export const router = createBrowserRouter([
-  // ── SSAMENJ public website ── (no auth required)
-  { path: "/", element: <SSAMENJHomePage /> },
-  { path: "/products", element: <ProductsPage /> },
-  { path: "/demos", element: <DemosPage /> },
-  { path: "/about", element: <AboutPage /> },
+  // ── SSAMENJ public website ── shared header/footer via PublicLayout
+  {
+    element: <PublicLayout />,
+    children: [
+      { path: "/",         element: <SSAMENJHomePage /> },
+      { path: "/products", element: <ProductsPage /> },
+      { path: "/demos",    element: <DemosPage /> },
+      { path: "/about",    element: <AboutPage /> },
+      { path: "/contact",  element: <ContactPage /> },
+      { path: "/pricing",  element: <PricingPage /> },
+    ],
+  },
 
-  // ── Preserved legacy / app public routes ──
-  { path: "/dem", element: <DemoPage /> },          // Report Lab demo — DO NOT REMOVE
-  { path: "/demo", element: <DemoPage /> },          // Legacy landing page — keep working
+  // ── Preserved legacy / app public routes (own layout) ──
+  { path: "/dem",           element: <DemoPage /> },          // Report Lab demo — DO NOT REMOVE
+  { path: "/demo",          element: <DemoPage /> },          // Legacy landing page — keep working
   { path: "/features-demo", element: <FeaturesDemoPage /> },
-  { path: "/pricing", element: <PricingPage /> },
-  { path: "/contact", element: <ContactPage /> },
   { path: "/login", element: <LoginPage /> },
   { path: "/logout", element: <LogoutPage /> },
   { path: "/parent/r/:token", element: <ParentReportPage /> },
