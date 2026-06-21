@@ -180,8 +180,8 @@ export function DemoPage() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [videoOpen]);
 
-  const reportLabTarget = user ? "/dashboard" : "/contact";
-  const smartPagesTarget = user ? "/smart-pages" : "/contact";
+  const reportLabTarget = user ? "/dashboard" : "/login";
+  const smartPagesTarget = user ? "/smart-pages" : "/login";
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-950">
@@ -189,7 +189,7 @@ export function DemoPage() {
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-2 sm:px-6 lg:px-8">
           <button
             type="button"
-            onClick={() => void navigate("/")}
+            onClick={() => void navigate("/demo")}
             className="flex items-center gap-3 text-left"
           >
             <div className="grid h-10 w-10 place-items-center rounded-2xl bg-blue-600 text-white shadow-lg shadow-blue-500/10">
@@ -219,10 +219,10 @@ export function DemoPage() {
           <div className="hidden items-center gap-2 sm:flex">
             <button
               type="button"
-              onClick={() => void navigate("/contact")}
+              onClick={() => void navigate("/login")}
               className="btn marketing-button-motion rounded-full border border-blue-200 bg-white px-4 py-2 text-sm font-bold text-blue-700 shadow-sm hover:bg-blue-50"
             >
-              Contact
+              Sign in
             </button>
             <button
               type="button"
@@ -300,10 +300,10 @@ export function DemoPage() {
               </a>
               <button
                 type="button"
-                onClick={() => void navigate("/contact")}
+                onClick={() => void navigate("/login")}
                 className="btn marketing-button-motion rounded-2xl border border-blue-200 bg-white px-4 py-3 text-left text-sm font-semibold text-blue-700 shadow-sm hover:bg-blue-50"
               >
-                Contact
+                Sign in
               </button>
               <button
                 type="button"
@@ -345,7 +345,7 @@ export function DemoPage() {
               <div className="marketing-fade-up-delay-3 mt-3.5 flex flex-col gap-2 sm:flex-row">
                 <button
                   type="button"
-                  onClick={() => void navigate("/contact")}
+                  onClick={() => void navigate("/login")}
                   className="btn marketing-button-motion rounded-xl bg-white px-4 py-2.5 text-sm font-black text-blue-700 hover:bg-blue-50"
                 >
                   Launch Demo
@@ -487,10 +487,10 @@ export function DemoPage() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => void navigate("/contact")}
+                  onClick={() => void navigate("/login")}
                   className="marketing-button-motion inline-flex items-center justify-center gap-2 rounded-xl border border-blue-200 bg-white px-4 py-2.5 text-sm font-bold text-blue-700 shadow-sm transition hover:bg-blue-50"
                 >
-                  Contact
+                  Sign in
                 </button>
               </div>
             </div>
@@ -559,10 +559,10 @@ export function DemoPage() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => void navigate("/contact")}
+                  onClick={() => void navigate("/login")}
                   className="btn marketing-button-motion rounded-xl border border-blue-200 bg-white px-4 py-2.5 text-sm font-bold text-blue-700 shadow-sm hover:bg-blue-50"
                 >
-                  Contact
+                  Sign in
                 </button>
               </div>
             </div>

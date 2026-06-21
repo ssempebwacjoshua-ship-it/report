@@ -104,21 +104,21 @@ export function FeaturesDemoPage() {
             <div className="flex flex-wrap gap-2">
               <button
                 type="button"
-                onClick={() => void navigate("/demos#report-lab")}
+                onClick={() => void navigate("/demo#report-lab")}
                 className="rounded-full border border-blue-200 bg-white px-4 py-2 text-sm font-bold text-blue-700 shadow-sm hover:bg-blue-50"
               >
                 Open Report Lab
               </button>
               <button
                 type="button"
-                onClick={() => void navigate("/demos#smart-pages")}
+                onClick={() => void navigate("/demo#smart-pages")}
                 className="rounded-full border border-blue-200 bg-white px-4 py-2 text-sm font-bold text-blue-700 shadow-sm hover:bg-blue-50"
               >
                 Open Smart Pages
               </button>
               <button
                 type="button"
-                onClick={() => void navigate("/demos")}
+                onClick={() => void navigate("/demo")}
                 className="rounded-full bg-blue-600 px-4 py-2 text-sm font-black text-white shadow-sm hover:bg-blue-700"
               >
                 Back to Main Demo
@@ -170,24 +170,24 @@ export function FeaturesDemoPage() {
             <div className="mt-3 flex flex-col gap-2">
               <button
                 type="button"
-                onClick={() => void navigate("/demos")}
+                onClick={() => void navigate("/demo")}
                 className="rounded-xl border border-slate-200 px-4 py-3 text-left text-sm font-semibold text-slate-700 hover:bg-slate-50"
               >
-                Back to /demos
+                Back to /demo
               </button>
               <button
                 type="button"
-                onClick={() => void navigate("/demos#report-lab")}
+                onClick={() => void navigate("/demo#report-lab")}
                 className="rounded-xl border border-slate-200 px-4 py-3 text-left text-sm font-semibold text-slate-700 hover:bg-slate-50"
               >
-                Open /demos#report-lab
+                Open /demo#report-lab
               </button>
               <button
                 type="button"
-                onClick={() => void navigate("/demos#smart-pages")}
+                onClick={() => void navigate("/demo#smart-pages")}
                 className="rounded-xl border border-slate-200 px-4 py-3 text-left text-sm font-semibold text-slate-700 hover:bg-slate-50"
               >
-                Open /demos#smart-pages
+                Open /demo#smart-pages
               </button>
             </div>
           </div>
