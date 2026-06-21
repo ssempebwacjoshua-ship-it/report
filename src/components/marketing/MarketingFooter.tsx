@@ -25,16 +25,10 @@ function SSAMENJLogoLight() {
   return (
     <div className="flex items-center gap-2.5">
       <div
-        className="w-9 h-9 rounded-xl flex items-center justify-center"
+        className="w-9 h-9 rounded-xl flex items-center justify-center p-1"
         style={{ background: "rgba(255,255,255,0.12)", border: "1px solid rgba(255,255,255,0.15)" }}
       >
-        <svg viewBox="0 0 24 24" fill="none" className="w-5 h-5" aria-hidden="true">
-          <path d="M12 3 4.5 7.5v9L12 21l7.5-4.5v-9L12 3Z" fill="white" fillOpacity="0.15" />
-          <path d="M12 3 4.5 7.5l7.5 4.5 7.5-4.5L12 3Z" fill="white" fillOpacity="0.55" />
-          <path d="M12 12v9" stroke="white" strokeWidth="1.5" strokeOpacity="0.85" strokeLinecap="round" />
-          <path d="M4.5 7.5v9L12 21" stroke="white" strokeWidth="1.5" strokeOpacity="0.6" strokeLinecap="round" strokeLinejoin="round" />
-          <path d="M19.5 7.5v9L12 21" stroke="white" strokeWidth="1.5" strokeOpacity="0.6" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
+        <img src="/ssamenj-logo.png" alt="SSAMENJ Technologies" className="w-full h-full object-contain" />
       </div>
       <div>
         <div className="text-[15px] font-extrabold leading-none text-white tracking-tight">SSAMENJ</div>

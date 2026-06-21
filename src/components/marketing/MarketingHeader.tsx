@@ -4,18 +4,11 @@ import { buildWhatsAppUrl } from "../../config/contact";
 function SSAMENJLogo() {
   return (
     <a href="/" className="flex items-center gap-2.5 flex-shrink-0" style={{ textDecoration: "none" }}>
-      <div
-        className="w-9 h-9 rounded-xl flex items-center justify-center shadow-sm"
-        style={{ background: "linear-gradient(135deg, #0F5BD8 0%, #0B2F6B 100%)" }}
-      >
-        <svg viewBox="0 0 24 24" fill="none" className="w-5 h-5" aria-hidden="true">
-          <path d="M12 3 4.5 7.5v9L12 21l7.5-4.5v-9L12 3Z" fill="white" fillOpacity="0.2" />
-          <path d="M12 3 4.5 7.5l7.5 4.5 7.5-4.5L12 3Z" fill="white" fillOpacity="0.6" />
-          <path d="M12 12v9" stroke="white" strokeWidth="1.5" strokeOpacity="0.85" strokeLinecap="round" />
-          <path d="M4.5 7.5v9L12 21" stroke="white" strokeWidth="1.5" strokeOpacity="0.6" strokeLinecap="round" strokeLinejoin="round" />
-          <path d="M19.5 7.5v9L12 21" stroke="white" strokeWidth="1.5" strokeOpacity="0.6" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-      </div>
+      <img
+        src="/ssamenj-logo.png"
+        alt="SSAMENJ Technologies"
+        className="w-9 h-9 object-contain"
+      />
       <div>
         <div className="text-[15px] font-extrabold leading-none tracking-tight" style={{ color: "#0B2F6B" }}>
           SSAMENJ
