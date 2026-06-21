@@ -8,6 +8,7 @@ import { ReportsPage } from "../pages/ReportsPage";
 import { MarksImportPage } from "../pages/MarksImportPage";
 import { MarksheetsPage } from "../pages/MarksheetsPage";
 import { StudentsPage } from "../pages/StudentsPage";
+import { StudentCredentialsPage } from "../pages/StudentCredentialsPage";
 import { SettingsPage } from "../pages/SettingsPage";
 import { LoginPage } from "../pages/LoginPage";
 import { LogoutPage } from "../pages/LogoutPage";
@@ -100,6 +101,7 @@ export const router = createBrowserRouter([
       { index: true, element: <Navigate to="/dashboard" replace /> },
       { path: "dashboard", element: <DashboardPage /> },
       { path: "students", element: <StudentsPage /> },
+      { path: "student-credentials", element: <StudentCredentialsPage /> },
       { path: "reports", element: <ReportsPage /> },
       { path: "reports/release", element: <ReleaseCenterPage /> },
       { path: "promotions", element: <PromotionWorkspacePage /> },

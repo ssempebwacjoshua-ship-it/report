@@ -31,6 +31,7 @@ model School {
   smartPagePayments SmartPagePaymentRequest[]
   promotionBatches  PromotionBatch[]
   promotionActions  PromotionAction[]
+  studentCredentials StudentCredential[]
 }
 
 model AcademicYear {
@@ -115,6 +116,7 @@ model Student {
   guardianContacts GuardianContact[]
   issuedReports    IssuedReport[]
   promotionActions PromotionAction[]
+  credentials      StudentCredential[]
   school           School            @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   marks            SubjectMark[]
 
@@ -286,6 +288,7 @@ model User {
   mustChangePassword Boolean        @default(false)
   lastLoginAt        DateTime?
   issuedReports      IssuedReport[]
+  studentCredentialsIssued StudentCredential[] @relation("StudentCredentialIssuedBy")
   school             School         @relation(fields: [schoolId], references: [id], onDelete: Cascade)
 
   @@unique([schoolId, email])
@@ -366,6 +369,30 @@ model SmartPagePaymentRequest {
   @@unique([network, transactionId])
   @@index([schoolId, status, createdAt])
   @@index([status, createdAt])
+}
+
+model StudentCredential {
+  id                  String           @id @default(uuid()) @db.Uuid
+  schoolId            String           @db.Uuid
+  studentId           String           @db.Uuid
+  type                CredentialType
+  credentialUID       String
+  status              CredentialStatus @default(ACTIVE)
+  issuedAt            DateTime         @default(now())
+  deactivatedAt       DateTime?
+  deactivatedReason   String?
+  issuedById          String?          @db.Uuid
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+  school              School           @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  student             Student          @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  issuedBy            User?            @relation("StudentCredentialIssuedBy", fields: [issuedById], references: [id], onDelete: SetNull)
+
+  @@unique([schoolId, type, credentialUID])
+  @@index([schoolId])
+  @@index([studentId])
+  @@index([schoolId, status])
+  @@index([schoolId, type, status])
 }
 
 // Legacy DocumentCleanerJob remains in schema. Confirm no live data before safe removal migration.
@@ -778,6 +805,15 @@ enum ReportReadiness {
 
 enum UserRole {
   ADMIN_OPERATOR
+}
+
+enum CredentialType {
+  NFC_WRISTBAND
+}
+
+enum CredentialStatus {
+  ACTIVE
+  DEACTIVATED
 }
 
 enum IssuedReportStatus {

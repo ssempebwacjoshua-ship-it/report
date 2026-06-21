@@ -15,6 +15,7 @@ export type NavItem = {
     | "search"
     | "send"
     | "settings"
+    | "shield"
     | "sparkles"
     | "students"
     | "upload";
@@ -29,6 +30,7 @@ export const navItemsByProduct: Record<ProductKey, NavItem[]> = {
   reportLab: [
     { to: "/dashboard", label: "Dashboard", icon: "home", exact: true },
     { to: "/students", label: "Students", icon: "students", exact: true },
+    { to: "/student-credentials", label: "NFC Wristbands", icon: "shield", exact: true },
     { to: "/imports/marks", label: "Marks Import", icon: "upload", exact: true },
     { to: "/marksheets", label: "Marksheets", icon: "clipboard", exact: true },
     { to: "/reports", label: "Reports", icon: "file", exact: true },
