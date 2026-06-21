@@ -41,7 +41,7 @@ export function RouteErrorPage() {
             </>
           ) : (
             <>
-              <Link className="btn btn-primary" to="/app/dashboard">
+              <Link className="btn btn-primary" to="/dashboard">
                 Go to dashboard
               </Link>
               <Link className="rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50" to="/lawyers/dashboard">

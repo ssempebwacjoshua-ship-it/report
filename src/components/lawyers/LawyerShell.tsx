@@ -34,12 +34,12 @@ export function LawyerShell() {
   }
 
   if (!user) {
-    return <Navigate to="/app/login" replace />;
+    return <Navigate to="/login" replace />;
   }
 
   function handleLogout() {
     logout();
-    navigate("/app/login", { replace: true });
+    navigate("/login", { replace: true });
   }
 
   return (

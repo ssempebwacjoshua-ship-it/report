@@ -20,7 +20,7 @@ export function LoginPage() {
     setLoading(true);
     try {
       const result = await login(email.trim(), password, schoolCode.trim());
-      navigate(result?.isPlatformOwner ? "/owner" : "/app/dashboard", { replace: true });
+      navigate(result?.isPlatformOwner ? "/owner" : "/dashboard", { replace: true });
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Login failed.");
     } finally {

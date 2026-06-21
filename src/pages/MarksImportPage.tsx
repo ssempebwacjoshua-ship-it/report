@@ -320,7 +320,7 @@ export function MarksImportPage() {
             Digital CSV/XLS import or Smart Marksheet Import - choose your import mode below.
           </p>
         </div>
-        <a className="btn btn-primary" href="/app/reports">
+        <a className="btn btn-primary" href="/reports">
           Reports
         </a>
       </header>

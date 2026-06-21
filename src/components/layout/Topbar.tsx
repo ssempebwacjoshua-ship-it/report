@@ -15,7 +15,7 @@ export function Topbar({ onMenuClick }: Props) {
 
   function handleLogout() {
     logout();
-    navigate("/app/login", { replace: true });
+    navigate("/login", { replace: true });
   }
 
   function switchProduct(nextProduct: "reportLab" | "smartPages") {

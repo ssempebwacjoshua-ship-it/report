@@ -211,7 +211,7 @@ export function StudentsPage() {
           <button type="button" className="btn btn-secondary" onClick={() => setShowImport(true)}>
             Import Batch
           </button>
-          <Link className="btn btn-primary" to="/app/reports">
+          <Link className="btn btn-primary" to="/reports">
             Report Generation
           </Link>
         </div>
@@ -451,7 +451,7 @@ export function StudentsPage() {
                   <h2 className="mt-1 text-xl font-bold text-slate-950 sm:text-2xl">{selected.studentName}</h2>
                   <p className="text-sm text-slate-500">{selected.admissionNumber}</p>
                 </div>
-                <Link className="btn btn-primary" to={`/app/reports?studentId=${encodeURIComponent(selected.id)}`}>
+                <Link className="btn btn-primary" to={`/reports?studentId=${encodeURIComponent(selected.id)}`}>
                   <Icon name="file" className="h-4 w-4" />
                   View Report
                 </Link>

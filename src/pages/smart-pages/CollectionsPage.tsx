@@ -148,13 +148,13 @@ export function CollectionsPage() {
               <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-blue-50 text-base font-black text-blue-600">
                 {col.name.charAt(0).toUpperCase()}
               </div>
-              <div className="min-w-0 flex-1 cursor-pointer" onClick={() => navigate(`/app/collections/${col.id}`)}>
+              <div className="min-w-0 flex-1 cursor-pointer" onClick={() => navigate(`/collections/${col.id}`)}>
                 <p className="font-bold text-slate-900">{col.name}</p>
                 <p className="text-xs text-slate-400">{col.type.charAt(0) + col.type.slice(1).toLowerCase()} ? {new Date(col.updatedAt).toLocaleDateString()}</p>
               </div>
               <div className="flex items-center gap-2 opacity-0 transition-opacity group-hover:opacity-100">
                 <button
-                  onClick={() => navigate(`/app/collections/${col.id}/bulk-generate`)}
+                  onClick={() => navigate(`/collections/${col.id}/bulk-generate`)}
                   className="rounded-lg bg-blue-50 px-3 py-1.5 text-xs font-bold text-blue-700 hover:bg-blue-100"
                 >
                   Generate

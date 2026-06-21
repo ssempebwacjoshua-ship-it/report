@@ -180,8 +180,8 @@ export function DemoPage() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [videoOpen]);
 
-  const reportLabTarget = user ? "/app/dashboard" : "/contact";
-  const smartPagesTarget = user ? "/app/smart-pages" : "/contact";
+  const reportLabTarget = user ? "/dashboard" : "/contact";
+  const smartPagesTarget = user ? "/smart-pages" : "/contact";
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-950">
