@@ -18,18 +18,18 @@ const BOOK_DEMO_URL = buildWhatsAppUrl(
 export function SSAMENJHomePage() {
   return (
     <div className="bg-slate-50 text-slate-950">
-      <section className="site-hero-blue site-hero-compact border-b text-white" style={{ borderColor: "rgba(15,91,216,0.3)" }}>
-        <div className="absolute inset-0 bg-dot-grid opacity-[0.15]" />
-        <div className="relative mx-auto grid max-w-7xl gap-5 px-4 sm:px-6 lg:grid-cols-12 lg:px-8">
-          <div className="lg:col-span-6">
+      <section className="home-hero-image-bg site-hero-compact border-b text-white" style={{ borderColor: "rgba(15,91,216,0.3)" }}>
+        <div className="absolute inset-0 bg-dot-grid opacity-[0.12]" />
+        <div className="home-hero-content mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="max-w-xl">
             <div className="marketing-fade-up inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.2em] text-blue-50">
               <SparklesIcon className="h-3.5 w-3.5" />
               SSAMENJ Technologies
             </div>
-            <h1 className="marketing-fade-up-delay-1 mt-2 max-w-xl text-3xl font-black leading-tight tracking-tight text-white lg:text-4xl">
+            <h1 className="marketing-fade-up-delay-1 mt-2 text-3xl font-black leading-tight tracking-tight text-white lg:text-4xl">
               Smart systems. Simple work.
             </h1>
-            <p className="marketing-fade-up-delay-2 mt-2.5 max-w-xl text-sm leading-6 text-blue-50 sm:text-base">
+            <p className="marketing-fade-up-delay-2 mt-2.5 text-sm leading-6 text-blue-50 sm:text-base">
               SSAMENJ Technologies builds practical digital products for schools, legal teams, and growing organizations. Start with Report Lab, Smart Pages, and School Connect, then add more tools as the workflow grows.
             </p>
 
@@ -46,43 +46,19 @@ export function SSAMENJHomePage() {
               </a>
             </div>
 
-            <div className="mt-4 hidden grid-cols-1 gap-3 sm:grid-cols-3 lg:grid">
+            <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
               <div className="marketing-fade-up-delay-1 rounded-2xl border border-white/15 bg-white/10 px-4 py-3 backdrop-blur">
-                <p className="text-lg font-black text-white">School Connect</p>
+                <p className="text-sm font-black text-white">School Connect</p>
                 <p className="mt-0.5 text-[11px] uppercase tracking-[0.16em] text-blue-100">POWERING SMART SCHOOLS.</p>
               </div>
               <div className="marketing-fade-up-delay-2 rounded-2xl border border-white/15 bg-white/10 px-4 py-3 backdrop-blur">
-                <p className="text-lg font-black text-white">Report Lab</p>
+                <p className="text-sm font-black text-white">Report Lab</p>
                 <p className="mt-0.5 text-[11px] uppercase tracking-[0.16em] text-blue-100">STUDENT REPORTS FASTER.</p>
               </div>
               <div className="marketing-fade-up-delay-3 rounded-2xl border border-white/15 bg-white/10 px-4 py-3 backdrop-blur">
-                <p className="text-lg font-black text-white">Smart Pages</p>
+                <p className="text-sm font-black text-white">Smart Pages</p>
                 <p className="mt-0.5 text-[11px] uppercase tracking-[0.16em] text-blue-100">HANDWRITTEN DOCS TO READY PDFS.</p>
               </div>
-            </div>
-          </div>
-
-          <div className="flex items-center justify-center lg:col-span-6">
-            <img
-              src="/ssamenj-hero-ecosystem.png"
-              alt="SSAMENJ Technologies digital ecosystem"
-              className="marketing-fade-up-delay-2 w-full max-w-[540px] object-contain drop-shadow-2xl lg:max-h-[420px]"
-              loading="eager"
-            />
-          </div>
-
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 lg:hidden">
-            <div className="marketing-fade-up-delay-1 rounded-2xl border border-white/15 bg-white/10 px-4 py-3 backdrop-blur">
-              <p className="text-lg font-black text-white">School Connect</p>
-              <p className="mt-0.5 text-[11px] uppercase tracking-[0.16em] text-blue-100">POWERING SMART SCHOOLS.</p>
-            </div>
-            <div className="marketing-fade-up-delay-2 rounded-2xl border border-white/15 bg-white/10 px-4 py-3 backdrop-blur">
-              <p className="text-lg font-black text-white">Report Lab</p>
-              <p className="mt-0.5 text-[11px] uppercase tracking-[0.16em] text-blue-100">STUDENT REPORTS FASTER.</p>
-            </div>
-            <div className="marketing-fade-up-delay-3 rounded-2xl border border-white/15 bg-white/10 px-4 py-3 backdrop-blur">
-              <p className="text-lg font-black text-white">Smart Pages</p>
-              <p className="mt-0.5 text-[11px] uppercase tracking-[0.16em] text-blue-100">HANDWRITTEN DOCS TO READY PDFS.</p>
             </div>
           </div>
         </div>
