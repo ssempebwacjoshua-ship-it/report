@@ -38,10 +38,10 @@ export function SSAMENJHomePage() {
                 View Demos
                 <ArrowRightIcon className="h-4 w-4" />
               </Link>
-              <Link to="/products" className="btn marketing-button-motion rounded-xl border border-white/40 bg-white/15 px-4 py-2.5 text-sm font-bold text-white hover:bg-white/25">
+              <Link to="/products" className="btn marketing-button-motion rounded-xl border border-white bg-white/15 px-4 py-2.5 text-sm font-bold text-white hover:bg-white/25">
                 Explore Products
               </Link>
-              <a href={BOOK_DEMO_URL} target="_blank" rel="noreferrer" className="btn marketing-button-motion rounded-xl border border-white/40 bg-white/15 px-4 py-2.5 text-sm font-bold text-white hover:bg-white/25">
+              <a href={BOOK_DEMO_URL} target="_blank" rel="noreferrer" className="btn marketing-button-motion rounded-xl border border-white bg-white/15 px-4 py-2.5 text-sm font-bold text-white hover:bg-white/25">
                 Book Demo
               </a>
             </div>
