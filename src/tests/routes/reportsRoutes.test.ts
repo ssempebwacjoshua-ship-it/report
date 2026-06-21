@@ -36,6 +36,7 @@ function makePrisma(subjectMarkFindMany: ReturnType<typeof vi.fn>) {
     classEnrollment: { findMany: vi.fn(async () => []) },
     subjectMark: { findMany: subjectMarkFindMany },
     promotionAction: { findMany: vi.fn(async () => []) },
+    issuedReport: { findMany: vi.fn(async () => []) },
     appSetting: { findUnique: vi.fn(async () => null) },
   } as unknown as PrismaClient;
 }
@@ -212,6 +213,7 @@ function makePrismaWithEnrollments(
     classEnrollment: { findMany: vi.fn(async () => enrollments) },
     subjectMark: { findMany: vi.fn(async () => []) },
     promotionAction: { findMany: vi.fn(async () => promotionActions) },
+    issuedReport: { findMany: vi.fn(async () => []) },
     appSetting: { findUnique: vi.fn(async () => null) },
   } as unknown as PrismaClient;
 }
@@ -256,6 +258,33 @@ describe("loadReportEngineInput ? progressionText from promotion actions", () =>
     const prisma = makePrismaWithEnrollments([ENROLLMENT_MOCK], []);
     const input = await loadReportEngineInput(prisma, filters);
     expect(input.promotionsByStudentId![STUDENT_ID]).toBeUndefined();
+  });
+});
+
+describe("loadReportEngineInput ? issuedStudentIds from IssuedReport table", () => {
+  const filters = {
+    schoolCode: SCHOOL_CODE,
+    classId: CLS,
+    streamId: "",
+    assessmentType: "TERM_SUMMARY" as const,
+  };
+
+  it("includes studentId from an ISSUED report in issuedStudentIds", async () => {
+    const prisma = {
+      ...makePrismaWithEnrollments([ENROLLMENT_MOCK], []),
+      issuedReport: {
+        findMany: vi.fn(async () => [{ studentId: STUDENT_ID }]),
+      },
+    } as unknown as PrismaClient;
+
+    const input = await loadReportEngineInput(prisma, filters);
+    expect(input.issuedStudentIds).toContain(STUDENT_ID);
+  });
+
+  it("returns empty issuedStudentIds when no reports have been issued", async () => {
+    const prisma = makePrismaWithEnrollments([ENROLLMENT_MOCK], []);
+    const input = await loadReportEngineInput(prisma, filters);
+    expect(input.issuedStudentIds).toEqual([]);
   });
 });
 

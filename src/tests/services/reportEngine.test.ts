@@ -1,7 +1,8 @@
 ﻿import { describe, expect, it } from "vitest";
-import { buildReports, type EngineInput } from "../../server/services/reportEngine";
+import { buildReports, computeReadinessCounts, type EngineInput } from "../../server/services/reportEngine";
 import { gradeForAverage } from "../../server/services/gradeService";
 import { defaultSettingsSections } from "../../shared/types/settings";
+import type { StudentReportCard } from "../../shared/types/reports";
 
 const baseInput: EngineInput = {
   filters: { schoolCode: "SCU-PREVIEW", classId: "c1", assessmentType: "TERM_SUMMARY" },
@@ -170,6 +171,160 @@ describe("gradeService", () => {
     expect(gradeForAverage(80)).toBe("D1");
     expect(gradeForAverage(52)).toBe("C6");
     expect(gradeForAverage(39)).toBe("F9");
+  });
+});
+
+// ── Helpers for readiness tests ──────────────────────────────────────────────
+
+function makeCard(overrides: Partial<StudentReportCard>): StudentReportCard {
+  return {
+    studentId: "s1",
+    admissionNumber: "ADM-001",
+    studentName: "Test Student",
+    className: "S1",
+    streamName: "A",
+    academicYear: "2026",
+    term: "Term 1",
+    marksFound: 2,
+    totalSubjects: 2,
+    average: 75,
+    grade: "D1",
+    overallPosition: null,
+    readiness: "READY",
+    missingMarks: [],
+    comments: "",
+    contactReadiness: "READY",
+    contactSummary: "Parent - 0700000001",
+    subjects: [],
+    progressionText: null,
+    ...overrides,
+  };
+}
+
+describe("computeReadinessCounts", () => {
+  it("counts total students correctly", () => {
+    const cards = [makeCard({ studentId: "s1" }), makeCard({ studentId: "s2" })];
+    const counts = computeReadinessCounts(cards, new Set());
+    expect(counts.total).toBe(2);
+  });
+
+  it("counts students with reports (marksFound > 0)", () => {
+    const cards = [
+      makeCard({ studentId: "s1", marksFound: 2 }),
+      makeCard({ studentId: "s2", marksFound: 0 }),
+    ];
+    expect(computeReadinessCounts(cards, new Set()).withReports).toBe(1);
+  });
+
+  it("counts students with no reports (marksFound === 0)", () => {
+    const cards = [
+      makeCard({ studentId: "s1", marksFound: 2 }),
+      makeCard({ studentId: "s2", marksFound: 0 }),
+    ];
+    expect(computeReadinessCounts(cards, new Set()).noReports).toBe(1);
+  });
+
+  it("counts ready-to-issue: marksFound > 0 and contactReadiness READY", () => {
+    const cards = [
+      makeCard({ studentId: "s1", marksFound: 2, contactReadiness: "READY" }),
+      makeCard({ studentId: "s2", marksFound: 2, contactReadiness: "NO_RECIPIENT" }),
+      makeCard({ studentId: "s3", marksFound: 0, contactReadiness: "READY" }),
+    ];
+    expect(computeReadinessCounts(cards, new Set()).readyToIssue).toBe(1);
+  });
+
+  it("counts blocked: marksFound > 0 and contactReadiness not READY", () => {
+    const cards = [
+      makeCard({ studentId: "s1", marksFound: 2, contactReadiness: "READY" }),
+      makeCard({ studentId: "s2", marksFound: 2, contactReadiness: "NO_RECIPIENT" }),
+      makeCard({ studentId: "s3", marksFound: 2, contactReadiness: "MISSING_PHONE_EMAIL" }),
+    ];
+    expect(computeReadinessCounts(cards, new Set()).blockedContact).toBe(2);
+  });
+
+  it("counts issued from the issued set", () => {
+    const cards = [makeCard({ studentId: "s1" }), makeCard({ studentId: "s2" })];
+    expect(computeReadinessCounts(cards, new Set(["s1"])).issued).toBe(1);
+  });
+
+  it("counts notIssued as withReports minus issued", () => {
+    const cards = [
+      makeCard({ studentId: "s1", marksFound: 2 }),
+      makeCard({ studentId: "s2", marksFound: 2 }),
+      makeCard({ studentId: "s3", marksFound: 0 }),
+    ];
+    const counts = computeReadinessCounts(cards, new Set(["s1"]));
+    expect(counts.notIssued).toBe(1); // 2 withReports - 1 issued
+  });
+});
+
+describe("buildReports ? readinessCounts in response", () => {
+  it("includes readinessCounts with correct totals", () => {
+    const report = buildReports(baseInput);
+    expect(report.readinessCounts.total).toBe(2);
+  });
+
+  it("returns issuedStudentIds from input", () => {
+    const report = buildReports({ ...baseInput, issuedStudentIds: ["s1"] });
+    expect(report.issuedStudentIds).toContain("s1");
+  });
+
+  it("returns empty readinessCounts for NO_ACTIVE_TERM", () => {
+    const report = buildReports({ ...baseInput, hasActiveTerm: false });
+    expect(report.readinessCounts.total).toBe(0);
+  });
+});
+
+describe("buildReports ? readinessFilter", () => {
+  const inputWithMarks: EngineInput = {
+    ...baseInput,
+    students: [
+      { id: "s1", admissionNumber: "ADM-001", firstName: "Alice", lastName: "A", className: "S1", streamName: "A", contactReadiness: "READY", contactSummary: "" },
+      { id: "s2", admissionNumber: "ADM-002", firstName: "Bob", lastName: "B", className: "S1", streamName: "A", contactReadiness: "NO_RECIPIENT", contactSummary: "" },
+      { id: "s3", admissionNumber: "ADM-003", firstName: "Carol", lastName: "C", className: "S1", streamName: "A", contactReadiness: "READY", contactSummary: "" },
+    ],
+    marks: [
+      { studentId: "s1", subjectId: "eng", assessmentType: "BOT", marks: 80 },
+      { studentId: "s2", subjectId: "eng", assessmentType: "BOT", marks: 70 },
+      // s3 has no marks
+    ],
+    issuedStudentIds: ["s1"],
+  };
+
+  it("ALL filter returns all students", () => {
+    const report = buildReports({ ...inputWithMarks, filters: { ...inputWithMarks.filters, readinessFilter: "ALL" } });
+    expect(report.cards).toHaveLength(3);
+  });
+
+  it("WITH_REPORTS filter returns only students with marks", () => {
+    const report = buildReports({ ...inputWithMarks, filters: { ...inputWithMarks.filters, readinessFilter: "WITH_REPORTS" } });
+    expect(report.cards.map((c) => c.studentId)).toEqual(expect.arrayContaining(["s1", "s2"]));
+    expect(report.cards.map((c) => c.studentId)).not.toContain("s3");
+  });
+
+  it("NO_REPORTS filter returns only students with no marks", () => {
+    const report = buildReports({ ...inputWithMarks, filters: { ...inputWithMarks.filters, readinessFilter: "NO_REPORTS" } });
+    expect(report.cards.map((c) => c.studentId)).toEqual(["s3"]);
+  });
+
+  it("READY_TO_ISSUE filter returns students with marks and READY contact", () => {
+    const report = buildReports({ ...inputWithMarks, filters: { ...inputWithMarks.filters, readinessFilter: "READY_TO_ISSUE" } });
+    expect(report.cards.map((c) => c.studentId)).toEqual(["s1"]);
+  });
+
+  it("BLOCKED_CONTACT filter returns students with marks but missing contact", () => {
+    const report = buildReports({ ...inputWithMarks, filters: { ...inputWithMarks.filters, readinessFilter: "BLOCKED_CONTACT" } });
+    expect(report.cards.map((c) => c.studentId)).toEqual(["s2"]);
+  });
+
+  it("ISSUED filter returns only issued students", () => {
+    const report = buildReports({ ...inputWithMarks, filters: { ...inputWithMarks.filters, readinessFilter: "ISSUED" } });
+    expect(report.cards.map((c) => c.studentId)).toEqual(["s1"]);
+  });
+
+  it("NOT_ISSUED filter returns students with marks and not yet issued", () => {
+    const report = buildReports({ ...inputWithMarks, filters: { ...inputWithMarks.filters, readinessFilter: "NOT_ISSUED" } });
+    expect(report.cards.map((c) => c.studentId)).toEqual(["s2"]);
   });
 });
 

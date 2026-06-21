@@ -14,6 +14,7 @@ const reportsQuery = z.object({
   assessmentType: z.enum(["BOT", "MOT", "EOT", "TERM_SUMMARY"]).optional(),
   studentId: z.string().optional(),
   search: z.string().optional(),
+  readinessFilter: z.enum(["ALL", "WITH_REPORTS", "NO_REPORTS", "READY_TO_ISSUE", "BLOCKED_CONTACT", "ISSUED", "NOT_ISSUED"]).optional(),
 });
 
 export function reportsRoutes() {

@@ -1,4 +1,4 @@
-﻿import type { AssessmentFilter, ReportFilters, ReportsResponse, StudentReportCard } from "../../shared/types/reports";
+import type { AssessmentFilter, ReadinessCounts, ReadinessFilter, ReportFilters, ReportsResponse, StudentReportCard } from "../../shared/types/reports";
 import type { GradingScaleSettings, ReportSettings, SchoolProfileSettings } from "../../shared/types/settings";
 import { defaultSettingsSections } from "../../shared/types/settings";
 import type { ContactReadiness } from "../../shared/types/students";
@@ -41,11 +41,23 @@ export type EngineInput = {
   marks: EngineMark[];
   /** studentId → human-readable progression text from PromotionAction */
   promotionsByStudentId?: Record<string, string>;
+  /** IDs of students who already have an active issued report for this year/term/type */
+  issuedStudentIds?: string[];
   settings?: {
     school: SchoolProfileSettings;
     reports: ReportSettings;
     grading: GradingScaleSettings;
   };
+};
+
+const EMPTY_COUNTS: ReadinessCounts = {
+  total: 0,
+  withReports: 0,
+  noReports: 0,
+  readyToIssue: 0,
+  blockedContact: 0,
+  issued: 0,
+  notIssued: 0,
 };
 
 function requiredTypes(assessmentType: AssessmentFilter): Array<"BOT" | "MOT" | "EOT"> {
@@ -58,6 +70,35 @@ function averageForMarks(values: Array<number | null>): number | null {
   return roundMark(present.reduce((sum, value) => sum + value, 0) / present.length);
 }
 
+function applyReadinessFilter(cards: StudentReportCard[], filter: ReadinessFilter | undefined, issuedSet: Set<string>): StudentReportCard[] {
+  if (!filter || filter === "ALL") return cards;
+  return cards.filter((card) => {
+    switch (filter) {
+      case "WITH_REPORTS":    return card.marksFound > 0;
+      case "NO_REPORTS":     return card.marksFound === 0;
+      case "READY_TO_ISSUE": return card.marksFound > 0 && card.contactReadiness === "READY";
+      case "BLOCKED_CONTACT":return card.marksFound > 0 && card.contactReadiness !== "READY";
+      case "ISSUED":         return issuedSet.has(card.studentId);
+      case "NOT_ISSUED":     return card.marksFound > 0 && !issuedSet.has(card.studentId);
+    }
+  });
+}
+
+export function computeReadinessCounts(cards: StudentReportCard[], issuedSet: Set<string>): ReadinessCounts {
+  const withReports = cards.filter((c) => c.marksFound > 0).length;
+  const noReports = cards.filter((c) => c.marksFound === 0).length;
+  const issued = cards.filter((c) => issuedSet.has(c.studentId)).length;
+  return {
+    total: cards.length,
+    withReports,
+    noReports,
+    readyToIssue: cards.filter((c) => c.marksFound > 0 && c.contactReadiness === "READY").length,
+    blockedContact: cards.filter((c) => c.marksFound > 0 && c.contactReadiness !== "READY").length,
+    issued,
+    notIssued: withReports - issued,
+  };
+}
+
 export function buildReports(input: EngineInput): ReportsResponse {
   const required = requiredTypes(input.filters.assessmentType);
   const settings = input.settings ?? {
@@ -65,15 +106,16 @@ export function buildReports(input: EngineInput): ReportsResponse {
     reports: defaultSettingsSections.reports,
     grading: defaultSettingsSections.grading,
   };
+  const issuedSet = new Set(input.issuedStudentIds ?? []);
 
   if (!input.hasActiveTerm) {
-    return { filters: input.filters, readiness: "NO_ACTIVE_TERM", emptyReason: emptyReasonForReadiness("NO_ACTIVE_TERM"), cards: [], settings };
+    return { filters: input.filters, readiness: "NO_ACTIVE_TERM", emptyReason: emptyReasonForReadiness("NO_ACTIVE_TERM"), cards: [], readinessCounts: EMPTY_COUNTS, issuedStudentIds: [], settings };
   }
   if (input.subjects.length === 0) {
-    return { filters: input.filters, readiness: "NO_SUBJECTS", emptyReason: emptyReasonForReadiness("NO_SUBJECTS"), cards: [], settings };
+    return { filters: input.filters, readiness: "NO_SUBJECTS", emptyReason: emptyReasonForReadiness("NO_SUBJECTS"), cards: [], readinessCounts: EMPTY_COUNTS, issuedStudentIds: [], settings };
   }
   if (input.students.length === 0) {
-    return { filters: input.filters, readiness: "NO_STUDENTS", emptyReason: emptyReasonForReadiness("NO_STUDENTS"), cards: [], settings };
+    return { filters: input.filters, readiness: "NO_STUDENTS", emptyReason: emptyReasonForReadiness("NO_STUDENTS"), cards: [], readinessCounts: EMPTY_COUNTS, issuedStudentIds: [], settings };
   }
 
   const marksByStudentSubject = new Map<string, EngineMark[]>();
@@ -164,9 +206,14 @@ export function buildReports(input: EngineInput): ReportsResponse {
     ...card,
     overallPosition: settings.reports.showOverallPosition ? (overallPositions.get(card.studentId) ?? null) : null,
   }));
-  const filteredCards = input.filters.search
+
+  const readinessCounts = computeReadinessCounts(cards, issuedSet);
+
+  // Apply text search then readiness filter
+  const afterSearch = input.filters.search
     ? cards.filter((card) => `${card.studentName} ${card.admissionNumber}`.toLowerCase().includes(input.filters.search!.toLowerCase()))
     : cards;
+  const filteredCards = applyReadinessFilter(afterSearch, input.filters.readinessFilter, issuedSet);
 
   const hasAnyMarks = cards.some((card) => card.marksFound > 0);
   const readiness = !hasAnyMarks ? "NO_FINALIZED_MARKS" : cards.some((card) => card.readiness === "MISSING_MARKS") ? "MISSING_MARKS" : "READY";
@@ -176,7 +223,8 @@ export function buildReports(input: EngineInput): ReportsResponse {
     readiness,
     emptyReason: filteredCards.length === 0 ? "Filters returned no report data." : emptyReasonForReadiness(readiness),
     cards: filteredCards,
+    readinessCounts,
+    issuedStudentIds: [...issuedSet],
     settings,
   };
 }
-

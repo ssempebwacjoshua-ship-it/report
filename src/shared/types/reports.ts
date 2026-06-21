@@ -1,4 +1,4 @@
-﻿import type { REPORT_ASSESSMENT_FILTERS } from "../constants/assessmentTypes";
+import type { REPORT_ASSESSMENT_FILTERS } from "../constants/assessmentTypes";
 import type { GradingScaleSettings, ReportSettings, SchoolProfileSettings } from "./settings";
 import type { ContactReadiness } from "./students";
 
@@ -11,6 +11,25 @@ export type ReportReadiness =
   | "NO_SUBJECTS"
   | "NO_ACTIVE_TERM";
 
+export type ReadinessFilter =
+  | "ALL"
+  | "WITH_REPORTS"
+  | "NO_REPORTS"
+  | "READY_TO_ISSUE"
+  | "BLOCKED_CONTACT"
+  | "ISSUED"
+  | "NOT_ISSUED";
+
+export type ReadinessCounts = {
+  total: number;
+  withReports: number;
+  noReports: number;
+  readyToIssue: number;
+  blockedContact: number;
+  issued: number;
+  notIssued: number;
+};
+
 export type ReportFilters = {
   schoolCode: string;
   academicYearId?: string;
@@ -20,6 +39,7 @@ export type ReportFilters = {
   assessmentType: AssessmentFilter;
   studentId?: string;
   search?: string;
+  readinessFilter?: ReadinessFilter;
 };
 
 export type SubjectReportRow = {
@@ -81,10 +101,11 @@ export type ReportsResponse = {
   readiness: ReportReadiness;
   emptyReason: string | null;
   cards: StudentReportCard[];
+  readinessCounts: ReadinessCounts;
+  issuedStudentIds: string[];
   settings: {
     school: SchoolProfileSettings;
     reports: ReportSettings;
     grading: GradingScaleSettings;
   };
 };
-

@@ -44,6 +44,7 @@ export async function loadReportEngineInput(prisma: PrismaClient, filters: Repor
       subjects: school?.subjects.map((subject) => ({ id: subject.id, name: subject.name, sortOrder: subject.sortOrder })) ?? [],
       marks: [],
       promotionsByStudentId: {},
+      issuedStudentIds: [],
       settings: {
         school: settings.school,
         reports: settings.reports,
@@ -96,6 +97,22 @@ export async function loadReportEngineInput(prisma: PrismaClient, filters: Repor
     }
   }
 
+  // Load student IDs of already-issued reports for this class/year/term/type
+  const issuedReports = studentIds.length > 0
+    ? await prisma.issuedReport.findMany({
+        where: {
+          schoolId: school.id,
+          studentId: { in: studentIds },
+          academicYear: academicYear.name,
+          term: term.name,
+          assessmentType: filters.assessmentType === "TERM_SUMMARY" ? "TERM_SUMMARY" : filters.assessmentType,
+          status: "ISSUED",
+        },
+        select: { studentId: true },
+      })
+    : [];
+  const issuedStudentIds = issuedReports.map((r) => r.studentId);
+
   const marks = await prisma.subjectMark.findMany({
     where: {
       schoolId: school.id,
@@ -115,6 +132,7 @@ export async function loadReportEngineInput(prisma: PrismaClient, filters: Repor
     termName: term.name,
     hasActiveTerm: true,
     promotionsByStudentId,
+    issuedStudentIds,
     students: enrollments.map((enrollment) => ({
       id: enrollment.student.id,
       admissionNumber: enrollment.student.admissionNumber,
