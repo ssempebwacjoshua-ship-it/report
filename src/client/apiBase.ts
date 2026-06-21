@@ -57,7 +57,7 @@ export function makeCreatorRequestHeaders(extra?: Record<string, string>): Recor
 
 export function handleSessionExpiry(): void {
   localStorage.removeItem(TOKEN_KEY);
-  window.location.href = "/login?reason=session_expired";
+  window.location.href = "/app/login?reason=session_expired";
 }
 
 // Parse an API error response into a human-readable string.

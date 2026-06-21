@@ -15,6 +15,10 @@ import { DemoPage } from "../pages/DemoPage";
 import { FeaturesDemoPage } from "../pages/FeaturesDemoPage";
 import { PricingPage } from "../pages/PricingPage";
 import { ContactPage } from "../pages/ContactPage";
+import { SSAMENJHomePage } from "../pages/SSAMENJHomePage";
+import { ProductsPage } from "../pages/ProductsPage";
+import { AboutPage } from "../pages/AboutPage";
+import { PublicLayout } from "../components/marketing/PublicLayout";
 import { ParentReportPage } from "../pages/ParentReportPage";
 import { VerifyPage } from "../pages/VerifyPage";
 import { OwnerDashboardPage } from "../pages/owner/OwnerDashboardPage";
@@ -54,12 +58,22 @@ function lazyElement(Component: ComponentType) {
 export const router = createBrowserRouter([
   {
     path: "/",
-    element: <DemoPage />,
+    element: <PublicLayout />,
+    children: [
+      { index: true, element: <SSAMENJHomePage /> },
+      { path: "products", element: <ProductsPage /> },
+      { path: "demos", element: <FeaturesDemoPage /> },
+      { path: "pricing", element: <PricingPage /> },
+      { path: "about", element: <AboutPage /> },
+      { path: "contact", element: <ContactPage /> },
+    ],
   },
   {
+    path: "/app",
     element: <AppShell />,
     errorElement: <RouteErrorPage />,
     children: [
+      { index: true, element: <Navigate to="/app/dashboard" replace /> },
       { path: "dashboard", element: <DashboardPage /> },
       { path: "students", element: <StudentsPage /> },
       { path: "student-credentials", element: <Navigate to="/demos" replace /> },
@@ -85,16 +99,17 @@ export const router = createBrowserRouter([
       { path: "search", element: <SearchPage /> },
     ],
   },
-  { path: "/demos", element: <FeaturesDemoPage /> },
+  { path: "/app/login", element: <LoginPage /> },
+  { path: "/login", element: <Navigate to="/app/login" replace /> },
   { path: "/demo", element: <Navigate to="/demos" replace /> },
   { path: "/dem", element: <Navigate to="/demos" replace /> },
   { path: "/pricing", element: <PricingPage /> },
   { path: "/contact", element: <ContactPage /> },
-  { path: "/login", element: <LoginPage /> },
   { path: "/logout", element: <LogoutPage /> },
   { path: "/parent/r/:token", element: <ParentReportPage /> },
   { path: "/verify/:code", element: <VerifyPage /> },
   { path: "/p/:token", element: <PublishedDocumentPage /> },
+  { path: "/demos", element: <FeaturesDemoPage /> },
   ...(lawyerSmartPagesEnabled ? [{
     path: "/lawyers",
     element: lazyElement(LawyerShell),

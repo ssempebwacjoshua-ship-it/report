@@ -48,7 +48,7 @@ export function StudentReportCard({ card, selected, showPositions, onOpen }: Pro
           {card.admissionNumber}
         </button>
         <a
-          href={`/students?studentId=${encodeURIComponent(card.studentId)}`}
+          href={`/app/students?studentId=${encodeURIComponent(card.studentId)}`}
           className={`shrink-0 font-black underline-offset-2 hover:underline ${contactClasses[card.contactReadiness]}`}
         >
           {contactLabels[card.contactReadiness]}

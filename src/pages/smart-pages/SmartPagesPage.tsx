@@ -56,7 +56,7 @@ export function SmartPagesPage() {
     setCreating(true);
     try {
       const doc = await createDocument(title, { vertical: "SCHOOL", authMode: "school" });
-      void navigate(`/smart-pages/${doc.id}`);
+      void navigate(`/app/smart-pages/${doc.id}`);
     } catch (e) {
       setLoadError(friendlyError(e, "Could not create document. Please try again."));
     } finally {
@@ -86,7 +86,7 @@ export function SmartPagesPage() {
           <button
             type="button"
             className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"
-            onClick={() => void navigate("/collections")}
+            onClick={() => void navigate("/app/collections")}
           >
             Collections
           </button>
@@ -118,7 +118,7 @@ export function SmartPagesPage() {
 
       {/* Credit balance widget */}
       <Link
-        to="/smart-pages/billing"
+        to="/app/smart-pages/billing"
         className="premium-card flex items-center justify-between gap-4 rounded-2xl p-4 no-underline hover:border-blue-200 hover:shadow-md"
       >
         <div>
@@ -160,7 +160,7 @@ export function SmartPagesPage() {
             <button
               key={doc.id}
               type="button"
-              onClick={() => void navigate(`/smart-pages/${doc.id}`)}
+              onClick={() => void navigate(`/app/smart-pages/${doc.id}`)}
               className="premium-card group rounded-xl p-4 text-left transition hover:border-blue-300 hover:shadow-lg"
             >
               <div className="mb-3 flex items-start justify-between gap-2">

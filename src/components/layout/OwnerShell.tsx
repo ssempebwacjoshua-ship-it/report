@@ -12,8 +12,8 @@ export function OwnerShell() {
     );
   }
 
-  if (!user) return <Navigate to="/login" replace />;
-  if (!user.isPlatformOwner) return <Navigate to="/dashboard" replace />;
+  if (!user) return <Navigate to="/app/login" replace />;
+  if (!user.isPlatformOwner) return <Navigate to="/app/dashboard" replace />;
 
   return (
     <div className="flex min-h-screen flex-col bg-slate-50">

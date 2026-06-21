@@ -8,7 +8,7 @@ export function LogoutPage() {
 
   useEffect(() => {
     logout();
-    navigate("/login", { replace: true });
+    navigate("/app/login", { replace: true });
   }, []);
 
   return null;

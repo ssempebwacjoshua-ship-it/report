@@ -11,7 +11,7 @@ import { REPORT_LAB_PLANS } from "../../shared/constants/subscriptionPlans";
 const SECTIONS = ["NURSERY", "PRIMARY", "SECONDARY"] as const;
 type Section = (typeof SECTIONS)[number];
 
-const LOGIN_URL = `${window.location.origin}/login`;
+const LOGIN_URL = `${window.location.origin}/app/login`;
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString("en-UG", { year: "numeric", month: "short", day: "numeric" });

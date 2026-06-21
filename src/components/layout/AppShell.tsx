@@ -25,7 +25,7 @@ export function AppShell() {
   }
 
   if (!user) {
-    return <Navigate to="/login" replace />;
+    return <Navigate to="/app/login" replace />;
   }
 
   return <AppShellAuthenticated />;

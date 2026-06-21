@@ -251,10 +251,10 @@ export function ReportsPage() {
           >
             {issuing ? "Issuing..." : "Issue Report Link"}
           </button>
-          <a className="btn btn-secondary" href="/imports/marks">
+          <a className="btn btn-secondary" href="/app/imports/marks">
             Marks Import
           </a>
-          <a className="btn btn-primary" href="/reports/release">
+          <a className="btn btn-primary" href="/app/reports/release">
             Release Center
           </a>
         </div>

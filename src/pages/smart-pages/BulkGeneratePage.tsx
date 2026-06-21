@@ -57,7 +57,7 @@ export function BulkGeneratePage() {
     <div className="mx-auto max-w-2xl px-4 py-8">
       <div className="mb-6 flex items-center gap-3">
         <button
-          onClick={() => navigate(`/collections/${id}`)}
+          onClick={() => navigate(`/app/collections/${id}`)}
           className="text-sm text-slate-400 hover:text-slate-700"
         >
           Back to {collection?.name ?? "Collection"}
@@ -127,7 +127,7 @@ export function BulkGeneratePage() {
           </button>
           <button
             type="button"
-            onClick={() => navigate(`/collections/${id}`)}
+            onClick={() => navigate(`/app/collections/${id}`)}
             className="rounded-xl border border-slate-200 px-5 py-3 text-sm text-slate-600 hover:bg-slate-50"
           >
             Cancel

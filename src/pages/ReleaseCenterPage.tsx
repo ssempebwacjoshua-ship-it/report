@@ -516,7 +516,7 @@ export function ReleaseCenterPage() {
       <header className="page-header flex flex-wrap items-end justify-between gap-3">
         <div>
           <div className="flex items-center gap-2">
-            <Link to="/reports" className="text-xs font-bold text-blue-600 hover:underline">
+            <Link to="/app/reports" className="text-xs font-bold text-blue-600 hover:underline">
               ? Reports
             </Link>
           </div>

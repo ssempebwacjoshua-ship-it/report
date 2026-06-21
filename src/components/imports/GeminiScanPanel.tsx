@@ -156,7 +156,7 @@ export function GeminiScanPanel() {
     commitPhase === "idle";
 
   const reportsUrl = useMemo(() => {
-    if (!commitResponse) return "/reports";
+    if (!commitResponse) return "/app/reports";
     const params = new URLSearchParams();
     if (commitResponse.schoolCode) params.set("schoolCode", commitResponse.schoolCode);
     params.set("classId", context.classId);
@@ -164,7 +164,7 @@ export function GeminiScanPanel() {
     params.set("termId", context.termId);
     params.set("assessmentType", context.examType);
     if (commitResponse.academicYearId) params.set("academicYearId", commitResponse.academicYearId);
-    return `/reports?${params.toString()}`;
+    return `/app/reports?${params.toString()}`;
   }, [commitResponse, context]);
 
   async function handleCommit() {
@@ -267,7 +267,7 @@ export function GeminiScanPanel() {
               {pagesBalance} pages remaining
             </p>
             {pagesBalance === 0 && (
-              <Link to="/smart-pages/billing" className="text-xs font-semibold text-violet-700 underline">
+              <Link to="/app/smart-pages/billing" className="text-xs font-semibold text-violet-700 underline">
                 Buy pages
               </Link>
             )}
@@ -279,7 +279,7 @@ export function GeminiScanPanel() {
       {pagesBalance === 0 && (
         <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
           You have no Smart Pages remaining.{" "}
-          <Link to="/smart-pages/billing" className="font-semibold underline">Buy more pages</Link>{" "}
+          <Link to="/app/smart-pages/billing" className="font-semibold underline">Buy more pages</Link>{" "}
           to continue using Smart Marksheet Import. Digital CSV/XLS import is free.
         </div>
       )}

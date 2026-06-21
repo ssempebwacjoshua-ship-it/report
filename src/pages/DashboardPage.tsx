@@ -9,17 +9,17 @@ import type { DashboardStats } from "../shared/types/dashboard";
 
 const dashboardTabs = [
   { label: "Overview", href: null },
-  { label: "Marks Review", href: "/imports/marks" },
-  { label: "Report Approval", href: "/reports" },
-  { label: "Release Center", href: "/reports/release" },
+  { label: "Marks Review", href: "/app/imports/marks" },
+  { label: "Report Approval", href: "/app/reports" },
+  { label: "Release Center", href: "/app/reports/release" },
 ] as const;
 
 const workflowStageHrefs = [
-  "/imports/marks",
-  "/imports/marks",
-  "/reports",
-  "/reports",
-  "/reports/release",
+  "/app/imports/marks",
+  "/app/imports/marks",
+  "/app/reports",
+  "/app/reports",
+  "/app/reports/release",
 ] as const;
 
 const workflowTone = {
@@ -119,14 +119,14 @@ export function DashboardPage() {
           </div>
           <div className="flex flex-col gap-3 sm:flex-row">
             <Link
-              to="/reports"
+              to="/app/reports"
               className="btn w-full bg-white text-[color:var(--sc-primary)] shadow-[0_14px_26px_rgba(0,127,255,0.22)] hover:bg-[color:var(--sc-primary-soft)] sm:w-auto"
             >
               <Icon name="file" className="h-4 w-4" />
               Generate Reports
             </Link>
             <Link
-              to="/imports/marks"
+              to="/app/imports/marks"
               className="btn w-full border border-white/25 bg-white/10 text-white shadow-[0_14px_26px_rgba(0,127,255,0.18)] hover:bg-white/15 sm:w-auto"
             >
               <Icon name="cloud" className="h-4 w-4" />
@@ -161,7 +161,7 @@ export function DashboardPage() {
           trend={statsLoading ? "-" : activeTerm ? "Live" : "No term"}
           tone="green"
           icon="students"
-          href="/students"
+          href="/app/students"
         />
         <StatCard
           label="Marks Pending Review"
@@ -170,7 +170,7 @@ export function DashboardPage() {
           trend={pendingCount > 0 ? "Action" : "Clear"}
           tone="yellow"
           icon="cloud"
-          href="/imports/marks"
+          href="/app/imports/marks"
         />
         <StatCard
           label="Reports Issued"
@@ -179,7 +179,7 @@ export function DashboardPage() {
           trend={issuedCount > 0 ? "Live" : "None"}
           tone="purple"
           icon="file"
-          href="/reports"
+          href="/app/reports"
         />
         <StatCard
           label="Reports Released"
@@ -188,7 +188,7 @@ export function DashboardPage() {
           trend={stats?.reportsReleasedCount ? "Sent" : "None"}
           tone="blue"
           icon="check"
-          href="/reports/release"
+          href="/app/reports/release"
         />
       </section>
 
@@ -201,7 +201,7 @@ export function DashboardPage() {
               Track the path from marks upload to parent release.
             </p>
           </div>
-          <Link to="/reports" className="action-link text-sm">
+          <Link to="/app/reports" className="action-link text-sm">
             Continue reports
             <span aria-hidden="true">&rarr;</span>
           </Link>

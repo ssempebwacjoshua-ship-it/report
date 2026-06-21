@@ -74,7 +74,7 @@ export function ActivityCard({ activities }: Props) {
           })
         )}
       </div>
-      <a href="/imports/marks" className="action-link mt-3">
+      <a href="/app/imports/marks" className="action-link mt-3">
         View all uploads
         <span aria-hidden="true">&rarr;</span>
       </a>

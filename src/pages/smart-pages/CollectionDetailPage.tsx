@@ -110,7 +110,7 @@ export function CollectionDetailPage() {
     <div className="mx-auto max-w-4xl px-4 py-8">
       <div className="mb-6 flex items-center gap-3">
         <button
-          onClick={() => navigate("/collections")}
+          onClick={() => navigate("/app/collections")}
           className="text-sm text-slate-400 hover:text-slate-700"
         >
           ? Collections
@@ -131,7 +131,7 @@ export function CollectionDetailPage() {
 
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <button
-          onClick={() => navigate(`/collections/${id}/bulk-generate`)}
+          onClick={() => navigate(`/app/collections/${id}/bulk-generate`)}
           className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-bold text-white hover:bg-blue-700"
         >
           Generate Documents

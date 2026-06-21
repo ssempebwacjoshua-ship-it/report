@@ -21,39 +21,39 @@ export type NavItem = {
 };
 
 export const productSwitcherItems: Record<ProductKey, { label: string; to: string }> = {
-  reportLab: { label: "Report Lab", to: "/dashboard" },
-  smartPages: { label: "Smart Pages", to: "/smart-pages" },
+  reportLab: { label: "Report Lab", to: "/app/dashboard" },
+  smartPages: { label: "Smart Pages", to: "/app/smart-pages" },
 };
 
 export const navItemsByProduct: Record<ProductKey, NavItem[]> = {
   reportLab: [
-    { to: "/dashboard", label: "Dashboard", icon: "home", exact: true },
-    { to: "/students", label: "Students", icon: "students", exact: true },
-    { to: "/imports/marks", label: "Marks Import", icon: "upload", exact: true },
-    { to: "/marksheets", label: "Marksheets", icon: "clipboard", exact: true },
-    { to: "/reports", label: "Reports", icon: "file", exact: true },
-    { to: "/reports/release", label: "Release Center", icon: "send", exact: true },
-    { to: "/promotions", label: "Promotions", icon: "upload", exact: true },
-    { to: "/settings", label: "Academic Setup", icon: "settings" },
+    { to: "/app/dashboard", label: "Dashboard", icon: "home", exact: true },
+    { to: "/app/students", label: "Students", icon: "students", exact: true },
+    { to: "/app/imports/marks", label: "Marks Import", icon: "upload", exact: true },
+    { to: "/app/marksheets", label: "Marksheets", icon: "clipboard", exact: true },
+    { to: "/app/reports", label: "Reports", icon: "file", exact: true },
+    { to: "/app/reports/release", label: "Release Center", icon: "send", exact: true },
+    { to: "/app/promotions", label: "Promotions", icon: "upload", exact: true },
+    { to: "/app/settings", label: "Academic Setup", icon: "settings" },
   ],
   smartPages: [
-    { to: "/dashboard", label: "Dashboard", icon: "home", exact: true },
-    { to: "/smart-pages", label: "Document History", icon: "file", exact: true },
-    { to: "/collections", label: "Templates", icon: "clipboard", exact: true },
-    { to: "/smart-pages/billing", label: "Billing", icon: "credit-card", exact: true },
-    { to: "/preferences", label: "Settings", icon: "settings" },
+    { to: "/app/dashboard", label: "Dashboard", icon: "home", exact: true },
+    { to: "/app/smart-pages", label: "Document History", icon: "file", exact: true },
+    { to: "/app/collections", label: "Templates", icon: "clipboard", exact: true },
+    { to: "/app/smart-pages/billing", label: "Billing", icon: "credit-card", exact: true },
+    { to: "/app/preferences", label: "Settings", icon: "settings" },
   ],
 };
 
 const smartPagesPrefixes = [
-  "/smart-pages",
-  "/collections",
-  "/search",
-  "/automations",
-  "/analytics",
-  "/notifications",
-  "/preferences",
-  "/smart-pages/billing",
+  "/app/smart-pages",
+  "/app/collections",
+  "/app/search",
+  "/app/automations",
+  "/app/analytics",
+  "/app/notifications",
+  "/app/preferences",
+  "/app/smart-pages/billing",
 ];
 
 export function getProductFromPath(pathname: string): ProductKey {

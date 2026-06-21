@@ -71,7 +71,7 @@ export function BulkJobStatusPage() {
     <div className="mx-auto max-w-4xl px-4 py-8">
       <div className="mb-6 flex items-center gap-3">
         <button
-          onClick={() => navigate("/collections")}
+          onClick={() => navigate("/app/collections")}
           className="text-sm text-slate-400 hover:text-slate-700"
         >
           ? Collections

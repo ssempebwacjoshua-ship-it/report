@@ -919,7 +919,7 @@ export function DocumentEditorPage() {
     return (
       <div className="mx-auto max-w-lg py-12 text-center">
         <p className="text-sm text-red-600">{loadError || "Document not found."}</p>
-        <button type="button" className="btn btn-primary mt-4" onClick={() => void navigate("/smart-pages")}>
+        <button type="button" className="btn btn-primary mt-4" onClick={() => void navigate("/app/smart-pages")}>
           Back to Documents
         </button>
       </div>
@@ -950,7 +950,7 @@ export function DocumentEditorPage() {
         <div className="flex min-h-10 items-center gap-2 px-3 py-2 md:px-4">
           <button
             type="button"
-            onClick={() => void navigate("/smart-pages")}
+            onClick={() => void navigate("/app/smart-pages")}
             className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-800"
             aria-label="Back to documents"
           >
