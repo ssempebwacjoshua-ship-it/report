@@ -2,14 +2,9 @@ import { Link } from "react-router-dom";
 import { TestimonialsSection } from "../components/marketing/TestimonialsSection";
 import {
   ArrowRightIcon,
-  BookIcon,
   FileTextIcon,
-  GridIcon,
   LockIcon,
   PrinterIcon,
-  SchoolIcon,
-  ShieldIcon,
-  SmartphoneIcon,
   SparklesIcon,
 } from "../components/marketing/Icons";
 import { MarketingFeatureCard } from "../components/marketing/MarketingFeatureCard";
@@ -19,96 +14,6 @@ const BOOK_DEMO_URL = buildWhatsAppUrl(
   "Hello SSAMENJ Technologies! I'd like to book a product demo for my organisation.",
 );
 
-const SUITE_ITEMS = [
-  { abbr: "RL", name: "Report Lab", icon: <FileTextIcon className="h-4 w-4" />, status: "live" as const },
-  { abbr: "SP", name: "Smart Pages", icon: <GridIcon className="h-4 w-4" />, status: "live" as const },
-  { abbr: "SC", name: "School Connect", icon: <SchoolIcon className="h-4 w-4" />, status: "live" as const },
-  { abbr: "LS", name: "Legal Smart Pages", icon: <ShieldIcon className="h-4 w-4" />, status: "demo" as const },
-  { abbr: "PM", name: "PearlMart", icon: <BookIcon className="h-4 w-4" />, status: "demo" as const },
-  { abbr: "WC", name: "Wideh Cash", icon: <SparklesIcon className="h-4 w-4" />, status: "demo" as const },
-  { abbr: "KW", name: "Kids Wallet", icon: <SmartphoneIcon className="h-4 w-4" />, status: "soon" as const },
-  { abbr: "NF", name: "NFC Wristbands", icon: <LockIcon className="h-4 w-4" />, status: "soon" as const },
-  { abbr: "CD", name: "Custom Digital", icon: <SparklesIcon className="h-4 w-4" />, status: "live" as const },
-];
-
-const SUITE_STATUS_META = {
-  live: { dot: "#22C55E", text: "Live", textColor: "#16A34A" },
-  demo: { dot: "#3B82F6", text: "Demo Available", textColor: "#1D4ED8" },
-  soon: { dot: "#94A3B8", text: "Coming Soon", textColor: "#64748B" },
-} as const;
-
-function HeroSuiteVisual() {
-  const liveCount = SUITE_ITEMS.filter((item) => item.status === "live").length;
-
-  return (
-    <div className="marketing-card-motion marketing-fade-up-delay-2 overflow-hidden rounded-[1.5rem] border border-white/25 bg-white/95 shadow-2xl backdrop-blur-sm">
-      <div className="flex items-center justify-between border-b px-4 pb-3 pt-4" style={{ borderColor: "#F1F5F9" }}>
-        <div className="flex items-center gap-2.5">
-          <div className="grid h-6 w-6 place-items-center rounded-lg bg-gradient-to-br from-blue-600 to-blue-700 text-[10px] font-extrabold text-white">
-            S
-          </div>
-          <div>
-            <div className="text-[12px] font-extrabold leading-none" style={{ color: "#0B2F6B" }}>
-              SSAMENJ Suite
-            </div>
-            <div className="mt-0.5 text-[9px] leading-none" style={{ color: "#6B7280" }}>
-              {SUITE_ITEMS.length} digital products
-            </div>
-          </div>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <span className="h-2 w-2 rounded-full bg-green-500" />
-          <span className="text-[10px] font-semibold" style={{ color: "#16A34A" }}>
-            {liveCount} Live
-          </span>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-2 gap-2 p-3 sm:grid-cols-3 lg:grid-cols-2 xl:grid-cols-3">
-        {SUITE_ITEMS.map((item) => {
-          const meta = SUITE_STATUS_META[item.status];
-          const isLive = item.status === "live";
-          const isDemo = item.status === "demo";
-
-          return (
-            <div
-              key={item.abbr}
-              className="rounded-xl border p-3"
-              style={{
-                background: isLive ? "#F8FBFF" : isDemo ? "#EEF2FF" : "#F8FAFC",
-                borderColor: isLive ? "#E0EBFF" : isDemo ? "#DBEAFE" : "#E2E8F0",
-              }}
-            >
-              <div className="mb-1.5 flex items-center justify-between">
-                <div
-                  className="flex h-7 w-7 items-center justify-center rounded-lg"
-                  style={{
-                    background: isLive ? "#EAF3FF" : isDemo ? "#DBEAFE" : "#F1F5F9",
-                    color: isLive ? "#0F5BD8" : isDemo ? "#3B82F6" : "#94A3B8",
-                  }}
-                >
-                  {item.icon}
-                </div>
-                <div className="h-2 w-2 rounded-full" style={{ background: meta.dot }} />
-              </div>
-              <div className="text-[11px] font-bold leading-snug" style={{ color: "#0B2F6B" }}>
-                {item.name}
-              </div>
-              <div className="mt-0.5 text-[9px] font-semibold" style={{ color: meta.textColor }}>
-                {meta.text}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      <div className="flex items-center justify-between border-t px-4 py-2.5 text-[10px] font-semibold" style={{ borderColor: "#F1F5F9", color: "#94A3B8" }}>
-        <span>Smart Systems. Simple Work.</span>
-        <span style={{ color: "#0F5BD8" }}>app.ssamenj.com</span>
-      </div>
-    </div>
-  );
-}
 
 export function SSAMENJHomePage() {
   return (
@@ -157,14 +62,13 @@ export function SSAMENJHomePage() {
             </div>
           </div>
 
-          <div className="lg:col-span-6">
-            <div className="marketing-card-motion marketing-fade-up-delay-2 overflow-hidden rounded-[1.5rem] border border-white/30 bg-white/95 p-2 shadow-xl backdrop-blur">
-              <div className="mb-2 px-2 pt-1.5">
-                <p className="text-xs font-black uppercase tracking-[0.18em] text-blue-700">Full suite overview</p>
-                <p className="mt-1 text-sm leading-6 text-slate-600">A compact preview of the SSAMENJ product family.</p>
-              </div>
-              <HeroSuiteVisual />
-            </div>
+          <div className="flex items-center justify-center lg:col-span-6">
+            <img
+              src="/ssamenj-hero-ecosystem.png"
+              alt="SSAMENJ Technologies digital ecosystem"
+              className="marketing-fade-up-delay-2 w-full max-w-[540px] object-contain drop-shadow-2xl lg:max-h-[420px]"
+              loading="eager"
+            />
           </div>
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 lg:hidden">
