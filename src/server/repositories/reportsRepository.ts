@@ -1,5 +1,6 @@
 ﻿import type { PrismaClient } from "@prisma/client";
 import type { ReportFilters } from "../../shared/types/reports";
+import { Prisma } from "@prisma/client";
 import type { ContactReadiness } from "../../shared/types/students";
 import type { EngineInput } from "../services/reportEngine";
 import { getSettingsSections } from "./settingsRepository";
@@ -15,6 +16,12 @@ function getContactSummary(contacts: Array<{ guardianName: string; relationship:
   if (!primary) return "No guardian contacts";
   const channel = primary.phone ? primary.phone : primary.email ? primary.email : "missing phone/email";
   return `${primary.guardianName} (${primary.relationship}) - ${channel}`;
+}
+
+function isMissingPromotionTableError(error: unknown): boolean {
+  return error instanceof Prisma.PrismaClientKnownRequestError
+    && error.code === "P2021"
+    && String(error.meta?.table ?? "").includes("PromotionAction");
 }
 
 export async function loadReportEngineInput(prisma: PrismaClient, filters: ReportFilters): Promise<EngineInput> {
@@ -81,6 +88,12 @@ export async function loadReportEngineInput(prisma: PrismaClient, filters: Repor
         },
         select: { studentId: true, decision: true, fromClassName: true, toClassName: true },
         orderBy: { createdAt: "desc" },
+      }).catch((error: unknown) => {
+        if (isMissingPromotionTableError(error)) {
+          console.warn("[reportsRepository] PromotionAction table is missing; returning reports without promotion data.");
+          return [];
+        }
+        throw error;
       })
     : [];
 

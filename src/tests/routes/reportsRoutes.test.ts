@@ -1,5 +1,5 @@
 ﻿import { describe, expect, it, vi } from "vitest";
-import type { PrismaClient } from "@prisma/client";
+import { Prisma, type PrismaClient } from "@prisma/client";
 import { getReportContext } from "../../server/repositories/schoolRepository";
 import { loadReportEngineInput } from "../../server/repositories/reportsRepository";
 import { defaultSettingsSections } from "../../shared/types/settings";
@@ -240,6 +240,13 @@ describe("loadReportEngineInput ? progressionText from promotion actions", () =>
     expect(input.promotionsByStudentId![STUDENT_ID]).toBe("Promoted to Senior 2");
   });
 
+  it("returns empty promotion data when PromotionAction table exists but has no rows", async () => {
+    const prisma = makePrismaWithEnrollments([ENROLLMENT_MOCK], []);
+    const input = await loadReportEngineInput(prisma, filters);
+
+    expect(input.promotionsByStudentId).toEqual({});
+  });
+
   it("sets progressionText to 'To repeat Senior 1' for a REPEAT action", async () => {
     const prisma = makePrismaWithEnrollments(
       [ENROLLMENT_MOCK],
@@ -258,6 +265,44 @@ describe("loadReportEngineInput ? progressionText from promotion actions", () =>
     const prisma = makePrismaWithEnrollments([ENROLLMENT_MOCK], []);
     const input = await loadReportEngineInput(prisma, filters);
     expect(input.promotionsByStudentId![STUDENT_ID]).toBeUndefined();
+  });
+
+  it("does not crash reports when the PromotionAction table is temporarily missing", async () => {
+    const missingTableError = new Prisma.PrismaClientKnownRequestError(
+      "The table `public.PromotionAction` does not exist in the current database.",
+      {
+        code: "P2021",
+        clientVersion: "test",
+        meta: { table: "public.PromotionAction" },
+      },
+    );
+    const prisma = {
+      ...makePrismaWithEnrollments([ENROLLMENT_MOCK], []),
+      promotionAction: { findMany: vi.fn(async () => { throw missingTableError; }) },
+    } as unknown as PrismaClient;
+
+    const input = await loadReportEngineInput(prisma, filters);
+
+    expect(input.promotionsByStudentId).toEqual({});
+  });
+
+  it("keeps class and stream filters scoped when loading report enrollments", async () => {
+    const classEnrollmentFindMany = vi.fn(async () => [ENROLLMENT_MOCK]);
+    const prisma = {
+      ...makePrismaWithEnrollments([ENROLLMENT_MOCK], []),
+      classEnrollment: { findMany: classEnrollmentFindMany },
+    } as unknown as PrismaClient;
+
+    await loadReportEngineInput(prisma, { ...filters, streamId: "stream-1" });
+
+    expect(classEnrollmentFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          classId: CLS,
+          streamId: "stream-1",
+        }),
+      }),
+    );
   });
 });
 
