@@ -336,28 +336,31 @@ export function ProductsPage() {
 
   return (
     <div className="bg-slate-50 text-slate-950">
-      <section className="site-hero site-hero-compact border-b border-blue-100 px-4 sm:px-6 lg:px-8">
-        <div className="mx-auto grid max-w-7xl gap-4 lg:grid-cols-12 lg:items-start">
-          <div className="lg:col-span-7">
-            <p className="text-xs font-black uppercase tracking-[0.2em] text-blue-700">Products</p>
-            <h1 className="mt-3 max-w-3xl text-4xl font-black tracking-tight text-slate-950 sm:text-5xl">
+      <section className="products-hero-image-bg site-hero-compact border-b text-white" style={{ borderColor: "rgba(15,91,216,0.3)" }}>
+        <div className="absolute inset-0 bg-dot-grid opacity-[0.12]" />
+        <div className="home-hero-content mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="max-w-xl">
+            <p className="marketing-fade-up text-xs font-black uppercase tracking-[0.2em] text-blue-200">Products</p>
+            <h1
+              className="marketing-fade-up-delay-1 mt-2 font-black text-white"
+              style={{ fontSize: "clamp(2rem, 3.5vw, 3.5rem)", lineHeight: "1.1", letterSpacing: "-0.02em" }}
+            >
               A practical product family for schools, legal teams, and custom digital work.
             </h1>
-            <p className="mt-3 max-w-2xl text-base leading-7 text-slate-600">
+            <p className="marketing-fade-up-delay-2 mt-2.5 text-sm leading-6 text-blue-50 sm:text-base">
               From school reports and document workflows to NFC wristbands and custom builds, the SSAMENJ product family stays focused on useful work.
             </p>
 
-            <div className="mt-5 flex flex-col gap-3 sm:flex-row">
-              <Link to="/demos" className="btn marketing-button-motion rounded-xl bg-gradient-to-r from-blue-600 to-blue-700 px-4 py-3 text-sm font-black text-white shadow-lg shadow-blue-600/20 hover:shadow-xl hover:shadow-blue-600/25">
+            <div className="marketing-fade-up-delay-3 mt-3.5 flex flex-col gap-2 sm:flex-row">
+              <Link to="/demos" className="btn marketing-button-motion rounded-xl bg-white px-4 py-2.5 text-sm font-black text-blue-700 hover:bg-blue-50">
                 View demos
               </Link>
-              <a href={BOOK_DEMO_URL} target="_blank" rel="noreferrer" className="btn marketing-button-motion rounded-xl border border-blue-200 bg-white px-4 py-3 text-sm font-bold text-blue-700 shadow-sm hover:bg-blue-50">
+              <a href={BOOK_DEMO_URL} target="_blank" rel="noreferrer" className="btn marketing-button-motion rounded-xl border border-white bg-white/15 px-4 py-2.5 text-sm font-bold text-white hover:bg-white/25">
                 Book a walkthrough
               </a>
             </div>
 
-            {/* Jump nav */}
-            <div className="mt-5 flex flex-wrap gap-1.5">
+            <div className="mt-4 flex flex-wrap gap-1.5">
               {[
                 { label: "Report Lab", id: "report-lab" },
                 { label: "Smart Pages", id: "smart-pages" },
@@ -371,31 +374,11 @@ export function ProductsPage() {
                 <a
                   key={id}
                   href={`#${id}`}
-                  className="rounded-full border border-blue-100 bg-white px-2.5 py-1 text-[11px] font-bold text-blue-700 hover:border-blue-300 hover:bg-blue-50"
+                  className="rounded-full border border-white/30 bg-white/10 px-2.5 py-1 text-[11px] font-bold text-white hover:border-white/50 hover:bg-white/20"
                 >
                   {label}
                 </a>
               ))}
-            </div>
-          </div>
-
-          <div className="lg:col-span-5">
-            <div className="rounded-[1.75rem] border border-blue-100 bg-white p-4 shadow-sm">
-              <p className="text-xs font-black uppercase tracking-[0.18em] text-blue-700">At a glance</p>
-              <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                {PRODUCTS.slice(0, 4).map((product) => (
-                  <div key={product.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex h-8 w-8 items-center justify-center rounded-lg" style={{ background: product.accentBg, color: product.accentColor }}>
-                        {product.icon}
-                      </div>
-                      <StatusBadge status={product.status} />
-                    </div>
-                    <p className="mt-2 text-xs font-bold text-slate-950">{product.name}</p>
-                    <p className="mt-1 text-[11px] leading-5 text-slate-600">{product.tagline}</p>
-                  </div>
-                ))}
-              </div>
             </div>
           </div>
         </div>
