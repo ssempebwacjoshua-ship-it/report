@@ -234,7 +234,7 @@ export function PricingPage() {
 
       <main>
         {/* ── Hero ── */}
-        <section className="border-b border-blue-100 bg-gradient-to-br from-white via-blue-50 to-slate-50 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+        <section className="site-hero site-hero-compact border-b border-blue-100 px-4 sm:px-6 lg:px-8">
           <div className="mx-auto grid max-w-7xl gap-6 lg:grid-cols-12 lg:items-start">
             <div className="lg:col-span-7">
               <Badge>Pricing</Badge>

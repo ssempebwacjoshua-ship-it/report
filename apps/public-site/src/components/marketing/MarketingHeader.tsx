@@ -55,13 +55,13 @@ export function MarketingHeader() {
       }}
     >
       <div className="mx-auto max-w-[1440px] px-4 sm:px-6 lg:px-8">
-        <div className="flex h-[56px] items-center justify-between gap-2">
+        <div className="flex h-12 items-center justify-between gap-2">
           <Link to="/" className="flex shrink-0 items-center gap-1.5" style={{ textDecoration: "none" }}>
             <div className="flex items-center gap-2">
               <img
                 src="/ssamenj-logo.png"
                 alt="SSAMENJ"
-                className="h-8 w-8 object-contain"
+                className="h-7 w-7 object-contain"
                 onError={(e) => {
                   const target = e.currentTarget;
                   target.style.display = "none";
@@ -125,7 +125,7 @@ export function MarketingHeader() {
           </div>
 
           <button
-            className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 text-slate-700 xl:hidden"
+            className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-700 xl:hidden"
             onClick={() => setOpen((value) => !value)}
             aria-label={open ? "Close menu" : "Open menu"}
             type="button"

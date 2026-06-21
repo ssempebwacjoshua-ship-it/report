@@ -115,13 +115,10 @@ export function DemosPage() {
 
   return (
     <div className="bg-slate-50 text-slate-950">
-      {/* Dark navy hero — from historical DemoPage */}
-      <section
-        className="relative overflow-hidden border-b border-blue-100 text-white"
-        style={{ backgroundImage: "linear-gradient(90deg, rgba(8, 18, 55, 0.92), rgba(10, 76, 160, 0.72))" }}
-      >
-        <div className="absolute inset-0 bg-dot-grid opacity-[0.18]" />
-        <div className="relative mx-auto grid max-w-7xl gap-5 px-4 py-5 sm:px-6 lg:grid-cols-12 lg:px-8 lg:py-8">
+      {/* Blue gradient hero */}
+      <section className="site-hero-blue site-hero-compact border-b text-white" style={{ borderColor: "rgba(15,91,216,0.3)" }}>
+        <div className="absolute inset-0 bg-dot-grid opacity-[0.15]" />
+        <div className="relative mx-auto grid max-w-7xl gap-5 px-4 sm:px-6 lg:grid-cols-12 lg:px-8">
           <div className="lg:col-span-6">
             <div className="marketing-fade-up inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.2em] text-blue-50">
               <SparklesIcon className="h-3.5 w-3.5" />

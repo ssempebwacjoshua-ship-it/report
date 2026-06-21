@@ -146,15 +146,9 @@ function BuildCardItem({ card }: { card: BuildCard }) {
 export function AboutPage() {
   return (
     <div className="bg-slate-50 text-slate-950">
-      <section
-        className="relative overflow-hidden border-b text-white"
-        style={{
-          background: "linear-gradient(135deg, rgba(8,18,55,0.97) 0%, rgba(11,47,107,0.95) 40%, rgba(15,91,216,0.88) 100%)",
-          borderColor: "rgba(15,91,216,0.25)",
-        }}
-      >
+      <section className="site-hero-blue site-hero-compact border-b text-white" style={{ borderColor: "rgba(15,91,216,0.25)" }}>
         <div className="absolute inset-0 bg-dot-grid opacity-[0.15]" />
-        <div className="relative mx-auto grid max-w-7xl gap-6 px-4 py-6 sm:px-6 lg:grid-cols-12 lg:items-center lg:px-8 lg:py-8">
+        <div className="relative mx-auto grid max-w-7xl gap-6 px-4 sm:px-6 lg:grid-cols-12 lg:items-center lg:px-8">
           <div className="lg:col-span-6">
             <div className="marketing-fade-up inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.2em] text-blue-50">
               <SparklesIcon className="h-3.5 w-3.5" />
