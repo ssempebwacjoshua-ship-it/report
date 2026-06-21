@@ -34,6 +34,12 @@ function WristbandIcon({ c }: { c?: string }) {
 function GearIcon({ c }: { c?: string }) {
   return <Icon className={c}><circle cx="12" cy="12" r="3" /><path d="M12 2v3M12 19v3M4.22 4.22l2.12 2.12M17.66 17.66l2.12 2.12M2 12h3M19 12h3M4.22 19.78l2.12-2.12M17.66 6.34l2.12-2.12" /></Icon>;
 }
+function MarketIcon({ c }: { c?: string }) {
+  return <Icon className={c}><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z" /><path d="M3 6h18" /><path d="M16 10a4 4 0 0 1-8 0" /></Icon>;
+}
+function CashIcon({ c }: { c?: string }) {
+  return <Icon className={c}><rect x="2" y="6" width="20" height="12" rx="2" /><circle cx="12" cy="12" r="2" /><path d="M6 12h.01M18 12h.01" /></Icon>;
+}
 function CheckIcon({ c }: { c?: string }) {
   return <Icon className={c}><path d="m5 12 4 4 10-10" /></Icon>;
 }
@@ -61,6 +67,7 @@ interface Product {
   secondaryHref?: string;
   accentColor: string;
   accentBg: string;
+  category?: "institutional" | "commerce";
 }
 
 const PRODUCTS: Product[] = [
@@ -230,6 +237,55 @@ const PRODUCTS: Product[] = [
     ctaHref: "/contact",
     accentColor: "#0F5BD8",
     accentBg: "#EAF3FF",
+  },
+  // ── Commerce & Financial Logistics ──
+  {
+    id: "pearlmart",
+    name: "PearlMart",
+    tagline: "Marketplace & digital commerce platform.",
+    description:
+      "PearlMart is a SSAMENJ Technologies product built for product discovery, ordering workflows, and digital commerce. It gives vendors, businesses, and buyers a structured digital environment to list, find, and transact — without relying on fragmented social media channels.",
+    icon: <MarketIcon c="w-6 h-6" />,
+    iconBig: <MarketIcon c="w-8 h-8" />,
+    status: "demo",
+    audience: ["Vendors", "Businesses", "Buyers", "SMEs"],
+    features: [
+      "Product listing and discovery",
+      "Digital storefront per vendor",
+      "Order and fulfilment workflows",
+      "Buyer and vendor dashboards",
+      "Commerce analytics and reporting",
+      "Structured catalogue management",
+    ],
+    ctaLabel: "Book Walkthrough",
+    ctaHref: BOOK_DEMO_URL,
+    accentColor: "#4F46E5",
+    accentBg: "#EEF2FF",
+    category: "commerce",
+  },
+  {
+    id: "wideh-cash",
+    name: "Wideh Cash",
+    tagline: "Money logistics platform.",
+    description:
+      "Wideh Cash is a SSAMENJ Technologies product built for money logistics — helping businesses and institutions manage cash movement, tracking, coordination, and operational money workflows more efficiently. It brings structure to the way organisations handle, record, and coordinate cash across teams and operations.",
+    icon: <CashIcon c="w-6 h-6" />,
+    iconBig: <CashIcon c="w-8 h-8" />,
+    status: "demo",
+    audience: ["Businesses", "Institutions", "Finance Teams", "Operations"],
+    features: [
+      "Cash movement tracking and coordination",
+      "Operational money workflow management",
+      "Team-level cash assignment and control",
+      "Digital audit trail for cash transactions",
+      "Reporting and cash position summaries",
+      "Multi-branch cash logistics support",
+    ],
+    ctaLabel: "Book Walkthrough",
+    ctaHref: BOOK_DEMO_URL,
+    accentColor: "#059669",
+    accentBg: "#ECFDF5",
+    category: "commerce",
   },
 ];
 
@@ -411,7 +467,7 @@ export function ProductsPage() {
             </div>
             <div className="w-px h-8" style={{ background: "rgba(255,255,255,0.15)" }} />
             <div className="text-center">
-              <div className="text-2xl font-black text-white">7</div>
+              <div className="text-2xl font-black text-white">{PRODUCTS.length}</div>
               <div className="text-[11px] mt-0.5" style={{ color: "#93C5FD" }}>Total Products</div>
             </div>
           </div>
@@ -434,14 +490,38 @@ export function ProductsPage() {
 
       {/* ── Products grid ── */}
       <section className="py-8 lg:py-12">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-10">
+
+          {/* School & institutional products */}
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
-            {PRODUCTS.map((product) => (
+            {PRODUCTS.filter((p) => p.category !== "commerce").map((product) => (
               <div key={product.id} id={product.id} style={{ scrollMarginTop: "70px" }}>
                 <ProductCard product={product} />
               </div>
             ))}
           </div>
+
+          {/* Commerce & Financial Logistics Products */}
+          <div>
+            <div className="flex items-center gap-4 mb-5">
+              <div className="h-px flex-1" style={{ background: "#D8E2F0" }} />
+              <span
+                className="px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider rounded-full whitespace-nowrap"
+                style={{ background: "#EEF2FF", color: "#4F46E5", border: "1px solid #C7D2FE" }}
+              >
+                Commerce & Financial Logistics
+              </span>
+              <div className="h-px flex-1" style={{ background: "#D8E2F0" }} />
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              {PRODUCTS.filter((p) => p.category === "commerce").map((product) => (
+                <div key={product.id} id={product.id} style={{ scrollMarginTop: "70px" }}>
+                  <ProductCard product={product} />
+                </div>
+              ))}
+            </div>
+          </div>
+
         </div>
       </section>
 
