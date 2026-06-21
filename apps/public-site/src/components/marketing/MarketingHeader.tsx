@@ -49,7 +49,6 @@ export function MarketingHeader() {
         background: "rgba(255,255,255,0.98)",
         backdropFilter: "blur(14px)",
         WebkitBackdropFilter: "blur(14px)",
-        borderBottom: "1px solid #D8E2F0",
         transform: hidden && !open ? "translateY(-100%)" : "translateY(0)",
         transition: "transform 250ms ease",
       }}
@@ -135,8 +134,17 @@ export function MarketingHeader() {
         </div>
       </div>
 
+      <div
+        aria-hidden="true"
+        style={{
+          height: "2px",
+          background: "linear-gradient(90deg, #0b5cff 0%, rgba(11,92,255,0.65) 35%, rgba(11,92,255,0.18) 70%, transparent 100%)",
+          pointerEvents: "none",
+        }}
+      />
+
       {open ? (
-        <div className="border-t border-[#EAF3FF] bg-white xl:hidden">
+        <div className="bg-white xl:hidden">
           <div className="mx-auto max-w-[1440px] space-y-0.5 px-4 py-3 sm:px-6">
             <Link to="/" className="block rounded-lg px-3 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50">
               Home
