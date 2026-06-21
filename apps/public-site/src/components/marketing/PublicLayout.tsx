@@ -29,7 +29,7 @@ export function PublicLayout() {
     <>
       <HashScroller />
       <MarketingHeader />
-      <div style={{ paddingTop: "48px" }}>
+      <div style={{ paddingTop: "40px" }}>
         <Outlet />
       </div>
       <MarketingFooter />

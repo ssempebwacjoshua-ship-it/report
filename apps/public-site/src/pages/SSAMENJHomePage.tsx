@@ -38,27 +38,27 @@ export function SSAMENJHomePage() {
                 View Demos
                 <ArrowRightIcon className="h-4 w-4" />
               </Link>
-              <Link to="/products" className="btn marketing-button-motion rounded-xl border border-white/25 bg-white/10 px-4 py-2.5 text-sm font-bold text-white hover:bg-white/15">
+              <Link to="/products" className="btn marketing-button-motion rounded-xl border border-white/40 bg-white/15 px-4 py-2.5 text-sm font-bold text-white hover:bg-white/25">
                 Explore Products
               </Link>
-              <a href={BOOK_DEMO_URL} target="_blank" rel="noreferrer" className="btn marketing-button-motion rounded-xl border border-white/25 bg-white/10 px-4 py-2.5 text-sm font-bold text-white hover:bg-white/15">
+              <a href={BOOK_DEMO_URL} target="_blank" rel="noreferrer" className="btn marketing-button-motion rounded-xl border border-white/40 bg-white/15 px-4 py-2.5 text-sm font-bold text-white hover:bg-white/25">
                 Book Demo
               </a>
             </div>
 
             <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
-              <div className="marketing-fade-up-delay-1 rounded-2xl border border-white/15 bg-white/10 px-4 py-3 backdrop-blur">
+              <Link to="/contact" className="marketing-fade-up-delay-1 cursor-pointer rounded-2xl border border-white/15 bg-white/10 px-4 py-3 backdrop-blur transition-all duration-200 hover:-translate-y-0.5 hover:border-white/30 hover:bg-white/20">
                 <p className="text-sm font-black text-white">School Connect</p>
                 <p className="mt-0.5 text-[11px] uppercase tracking-[0.16em] text-blue-100">POWERING SMART SCHOOLS.</p>
-              </div>
-              <div className="marketing-fade-up-delay-2 rounded-2xl border border-white/15 bg-white/10 px-4 py-3 backdrop-blur">
+              </Link>
+              <Link to="/demos" className="marketing-fade-up-delay-2 cursor-pointer rounded-2xl border border-white/15 bg-white/10 px-4 py-3 backdrop-blur transition-all duration-200 hover:-translate-y-0.5 hover:border-white/30 hover:bg-white/20">
                 <p className="text-sm font-black text-white">Report Lab</p>
                 <p className="mt-0.5 text-[11px] uppercase tracking-[0.16em] text-blue-100">STUDENT REPORTS FASTER.</p>
-              </div>
-              <div className="marketing-fade-up-delay-3 rounded-2xl border border-white/15 bg-white/10 px-4 py-3 backdrop-blur">
+              </Link>
+              <Link to="/demos" className="marketing-fade-up-delay-3 cursor-pointer rounded-2xl border border-white/15 bg-white/10 px-4 py-3 backdrop-blur transition-all duration-200 hover:-translate-y-0.5 hover:border-white/30 hover:bg-white/20">
                 <p className="text-sm font-black text-white">Smart Pages</p>
                 <p className="mt-0.5 text-[11px] uppercase tracking-[0.16em] text-blue-100">HANDWRITTEN DOCS TO READY PDFS.</p>
-              </div>
+              </Link>
             </div>
           </div>
         </div>

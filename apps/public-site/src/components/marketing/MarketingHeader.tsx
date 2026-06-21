@@ -55,13 +55,13 @@ export function MarketingHeader() {
       }}
     >
       <div className="mx-auto max-w-[1440px] px-4 sm:px-6 lg:px-8">
-        <div className="flex h-12 items-center justify-between gap-2">
+        <div className="flex h-10 items-center justify-between gap-2">
           <Link to="/" className="flex shrink-0 items-center gap-1.5" style={{ textDecoration: "none" }}>
             <div className="flex items-center gap-2">
               <img
                 src="/ssamenj-logo.png"
                 alt="SSAMENJ"
-                className="h-7 w-7 object-contain"
+                className="h-6 w-6 object-contain"
                 onError={(e) => {
                   const target = e.currentTarget;
                   target.style.display = "none";
@@ -70,10 +70,10 @@ export function MarketingHeader() {
                 }}
               />
               <div
-                className="hidden h-[28px] w-[28px] place-items-center rounded-lg border"
+                className="hidden h-[24px] w-[24px] place-items-center rounded-lg border"
                 style={{ background: "#EAF3FF", borderColor: "#C2D8FF", color: "#0B2F6B" }}
               >
-                <span className="text-[13px] font-black leading-none">S</span>
+                <span className="text-[12px] font-black leading-none">S</span>
               </div>
               <div>
                 <div className="text-[12px] font-extrabold leading-none tracking-tight text-[#0B2F6B]">
