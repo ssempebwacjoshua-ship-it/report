@@ -49,63 +49,77 @@ const STATUS_META = {
 
 function HeroSuiteVisual() {
   return (
-    <div className="marketing-card-motion marketing-fade-up-delay-2 overflow-hidden rounded-[1.5rem] border border-white/25 bg-white/96 shadow-2xl backdrop-blur-sm">
-      {/* Card header */}
-      <div className="flex items-center justify-between px-4 pt-4 pb-3 border-b" style={{ borderColor: "#F1F5F9" }}>
-        <div className="flex items-center gap-2.5">
-          <img src="/ssamenj-logo.png" alt="" className="w-6 h-6 object-contain" />
-          <div>
-            <div className="text-[12px] font-extrabold leading-none" style={{ color: "#0B2F6B" }}>SSAMENJ Suite</div>
-            <div className="text-[9px] leading-none mt-0.5" style={{ color: "#6B7280" }}>7 digital products</div>
-          </div>
+    <div
+      className="marketing-card-motion marketing-fade-up-delay-2 overflow-hidden"
+      style={{ borderRadius: "20px", border: "1px solid rgba(255,255,255,0.18)", background: "rgba(255,255,255,0.06)", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)" }}
+    >
+      {/* Suite header bar */}
+      <div
+        className="flex items-center justify-between px-3.5 py-2.5"
+        style={{ borderBottom: "1px solid rgba(255,255,255,0.1)" }}
+      >
+        <div className="flex items-center gap-2">
+          <img src="/ssamenj-logo.png" alt="" style={{ width: "20px", height: "20px", objectFit: "contain" }} />
+          <span style={{ fontSize: "12px", fontWeight: 700, color: "white", letterSpacing: "-0.01em" }}>SSAMENJ Suite</span>
+          <span style={{ fontSize: "10px", color: "rgba(147,197,253,0.8)", fontWeight: 500 }}>7 products</span>
         </div>
         <div className="flex items-center gap-1.5">
-          <span className="w-2 h-2 rounded-full bg-green-500" />
-          <span className="text-[10px] font-semibold" style={{ color: "#16A34A" }}>3 Live</span>
+          <span className="w-1.5 h-1.5 rounded-full" style={{ background: "#22C55E" }} />
+          <span style={{ fontSize: "10px", color: "#86EFAC", fontWeight: 600 }}>3 Live</span>
         </div>
       </div>
 
-      {/* Product grid */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-2 xl:grid-cols-3 gap-2 p-3">
+      {/* Compact 2-col product grid */}
+      <div className="grid grid-cols-2 gap-1.5 p-2.5">
         {SUITE_ITEMS.map((item) => {
           const m = STATUS_META[item.status];
           const isLive = item.status === "live";
           const isDemo = item.status === "demo";
+          const iconColor = isLive ? "#60A5FA" : isDemo ? "#818CF8" : "#6B7280";
+          const dotColor = m.dot;
           return (
             <div
               key={item.abbr}
-              className="rounded-xl p-3 border"
+              className="flex items-center gap-2.5"
               style={{
-                background: isLive ? "#F8FBFF" : isDemo ? "#EEF2FF" : "#F8FAFC",
-                borderColor: isLive ? "#E0EBFF" : isDemo ? "#DBEAFE" : "#E2E8F0",
+                background: "rgba(255,255,255,0.08)",
+                border: "1px solid rgba(255,255,255,0.13)",
+                borderRadius: "12px",
+                padding: "10px 11px",
+                minHeight: "60px",
               }}
             >
-              <div className="flex items-center justify-between mb-1.5">
-                <div
-                  className="w-7 h-7 rounded-lg flex items-center justify-center"
-                  style={{
-                    background: isLive ? "#EAF3FF" : isDemo ? "#DBEAFE" : "#F1F5F9",
-                    color: isLive ? "#0F5BD8" : isDemo ? "#3B82F6" : "#94A3B8",
-                  }}
-                >
-                  {item.icon}
-                </div>
-                <div className="w-2 h-2 rounded-full" style={{ background: m.dot }} />
+              {/* Icon */}
+              <div
+                className="flex-shrink-0 flex items-center justify-center"
+                style={{ width: "28px", height: "28px", borderRadius: "8px", background: "rgba(255,255,255,0.1)", color: iconColor }}
+              >
+                {item.icon}
               </div>
-              <div className="text-[11px] font-bold leading-snug" style={{ color: "#0B2F6B" }}>{item.name}</div>
-              <div className="text-[9px] font-semibold mt-0.5" style={{ color: m.textColor }}>{m.text}</div>
+              {/* Text */}
+              <div className="min-w-0 flex-1">
+                <div style={{ fontSize: "11px", fontWeight: 700, color: "white", lineHeight: 1.2 }} className="truncate">
+                  {item.name}
+                </div>
+                <div className="flex items-center gap-1 mt-1">
+                  <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: dotColor }} />
+                  <span style={{ fontSize: "9px", fontWeight: 600, color: isLive ? "#86EFAC" : isDemo ? "#93C5FD" : "rgba(148,163,184,0.8)" }}>
+                    {m.text}
+                  </span>
+                </div>
+              </div>
             </div>
           );
         })}
       </div>
 
-      {/* Footer strip */}
+      {/* Footer */}
       <div
-        className="px-4 py-2.5 flex items-center justify-between border-t text-[10px] font-semibold"
-        style={{ borderColor: "#F1F5F9", color: "#94A3B8" }}
+        className="flex items-center justify-between px-3.5 py-2"
+        style={{ borderTop: "1px solid rgba(255,255,255,0.08)" }}
       >
-        <span>Smart Systems. Simple Work.</span>
-        <span style={{ color: "#0F5BD8" }}>app.ssamenj.com</span>
+        <span style={{ fontSize: "9px", fontWeight: 600, color: "rgba(147,197,253,0.6)" }}>Smart Systems. Simple Work.</span>
+        <span style={{ fontSize: "9px", fontWeight: 600, color: "rgba(147,197,253,0.5)" }}>ssamenj.com</span>
       </div>
     </div>
   );
@@ -208,7 +222,7 @@ export function SSAMENJHomePage() {
         {/* Dot grid */}
         <div className="absolute inset-0 bg-dot-grid opacity-[0.15]" />
 
-        <div className="relative mx-auto grid max-w-7xl gap-6 px-4 py-10 sm:px-6 lg:grid-cols-2 lg:px-8 lg:py-16 xl:py-20 items-center">
+        <div className="relative mx-auto grid max-w-7xl gap-6 px-4 pt-24 pb-10 sm:px-6 lg:grid-cols-2 lg:px-8 lg:pt-28 lg:pb-16 xl:pb-20 items-center">
 
           {/* Left */}
           <div>

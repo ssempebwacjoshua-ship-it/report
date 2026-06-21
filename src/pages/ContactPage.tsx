@@ -1,5 +1,4 @@
 import { useMemo, useState, type ReactNode, type SVGProps } from "react";
-import { useNavigate } from "react-router-dom";
 import { TestimonialsSection } from "../components/marketing/TestimonialsSection";
 
 function Icon({ children, className, ...props }: SVGProps<SVGSVGElement> & { children: ReactNode }) {
