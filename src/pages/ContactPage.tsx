@@ -78,6 +78,9 @@ function InfoCard({
 const WHATSAPP_NUMBER = "+971 56 370 4103";
 const WHATSAPP_BASE = "https://wa.me/971563704103";
 
+const WHATSAPP_UG_NUMBER = "+256 774 549 869";
+const WHATSAPP_UG_WA = `https://wa.me/256774549869?text=${encodeURIComponent("Hello SSAMENJ Technologies! I would like to speak with the Uganda team.")}`;
+
 function waLink(text: string) {
   return `${WHATSAPP_BASE}?text=${encodeURIComponent(text)}`;
 }
@@ -296,6 +299,23 @@ export function ContactPage() {
                       <p className="text-sm font-black text-slate-950">WhatsApp</p>
                       <p className="text-sm font-semibold text-emerald-700">{WHATSAPP_NUMBER}</p>
                       <p className="text-xs text-slate-500 mt-0.5">Tap to open WhatsApp</p>
+                    </div>
+                  </div>
+                </a>
+                <a
+                  href={WHATSAPP_UG_WA}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block rounded-[1.5rem] border border-slate-200 bg-white p-5 shadow-sm transition hover:bg-slate-50"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="grid h-10 w-10 place-items-center rounded-2xl bg-emerald-50 text-emerald-600 flex-shrink-0">
+                      <PhoneIcon className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-black text-slate-950">Uganda Product Manager</p>
+                      <p className="text-sm font-semibold text-emerald-700">{WHATSAPP_UG_NUMBER}</p>
+                      <p className="text-xs text-slate-500 mt-0.5">Regional contact · WhatsApp</p>
                     </div>
                   </div>
                 </a>

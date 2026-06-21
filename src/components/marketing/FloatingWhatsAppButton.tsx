@@ -9,7 +9,7 @@ function WhatsAppIcon() {
 }
 
 export function FloatingWhatsAppButton() {
-  const message = "Hello School Connect, I would like to request a demo and pricing for my school.";
+  const message = "Hello SSAMENJ Technologies! I would like to request a demo.";
 
   return (
     <a
