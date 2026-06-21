@@ -3,6 +3,9 @@ import { buildWhatsAppUrl } from "../config/contact";
 const BOOK_DEMO_URL = buildWhatsAppUrl(
   "Hello SSAMENJ Technologies! I'd like to book a product demo for my organisation.",
 );
+const REPORT_LAB_DEMO_WA = buildWhatsAppUrl(
+  "Hello SSAMENJ Technologies! I would like to watch a Report Lab demo.",
+);
 
 // ── Icon helpers ──────────────────────────────────────────────────────────────
 
@@ -43,7 +46,7 @@ function ExternalLinkIcon({ className }: { className?: string }) {
 
 // ── Demo data ─────────────────────────────────────────────────────────────────
 
-type DemoStatus = "available" | "soon" | "preview";
+type DemoStatus = "demo-available" | "available" | "soon" | "preview";
 
 interface Demo {
   id: string;
@@ -52,7 +55,9 @@ interface Demo {
   description: string;
   icon: React.ReactNode;
   status: DemoStatus;
-  demoHref?: string;   // Only set when a real demo page exists
+  demoHref?: string;
+  demoExternal?: boolean;
+  primaryLabel?: string;
   tags: string[];
 }
 
@@ -64,8 +69,11 @@ const DEMOS: Demo[] = [
     description:
       "See how schools enter marks, generate professional student report cards, review results, approve reports, and share them securely with parents — all from one dashboard.",
     icon: <ReportIcon className="w-7 h-7" />,
-    status: "preview",
-    tags: ["Schools", "Reports", "Parents"],
+    status: "demo-available",
+    demoHref: REPORT_LAB_DEMO_WA,
+    demoExternal: true,
+    primaryLabel: "Watch Demo",
+    tags: ["Schools", "Reports", "Parents", "Live Demo"],
   },
   {
     id: "smart-pages",
@@ -74,9 +82,10 @@ const DEMOS: Demo[] = [
     description:
       "Watch how institutions upload raw documents — handbooks, policies, letters, forms — and turn them into clean, editable, shareable digital pages that teams can collaborate on.",
     icon: <PagesIcon className="w-7 h-7" />,
-    status: "available",
+    status: "demo-available",
     demoHref: "/features-demo",
-    tags: ["Schools", "Offices", "Documents", "Live"],
+    primaryLabel: "Open Demo",
+    tags: ["Schools", "Offices", "Documents", "Live Demo"],
   },
   {
     id: "legal-smart-pages",
@@ -123,16 +132,17 @@ const DEMOS: Demo[] = [
 // ── Status config ─────────────────────────────────────────────────────────────
 
 const STATUS_CONFIG: Record<DemoStatus, { label: string; badgeBg: string; badgeColor: string; dot: string }> = {
-  available: { label: "Demo Available", badgeBg: "#DCFCE7", badgeColor: "#16A34A", dot: "#22C55E" },
-  preview:   { label: "Preview Coming Soon", badgeBg: "#FEF3C7", badgeColor: "#B45309", dot: "#F59E0B" },
-  soon:      { label: "Coming Soon", badgeBg: "#F1F5F9", badgeColor: "#64748B", dot: "#CBD5E1" },
+  "demo-available": { label: "Demo Available", badgeBg: "#DCFCE7", badgeColor: "#16A34A", dot: "#22C55E" },
+  available:        { label: "Demo Available", badgeBg: "#DCFCE7", badgeColor: "#16A34A", dot: "#22C55E" },
+  preview:          { label: "In Development", badgeBg: "#FEF3C7", badgeColor: "#B45309", dot: "#F59E0B" },
+  soon:             { label: "Coming Soon",    badgeBg: "#F1F5F9", badgeColor: "#64748B", dot: "#CBD5E1" },
 };
 
 // ── Demo card ─────────────────────────────────────────────────────────────────
 
 function DemoCard({ demo }: { demo: Demo }) {
   const s = STATUS_CONFIG[demo.status];
-  const isAvailable = demo.status === "available";
+  const isAvailable = demo.status === "demo-available" || demo.status === "available";
 
   return (
     <article
@@ -199,19 +209,21 @@ function DemoCard({ demo }: { demo: Demo }) {
           {isAvailable && demo.demoHref ? (
             <a
               href={demo.demoHref}
+              target={demo.demoExternal ? "_blank" : undefined}
+              rel={demo.demoExternal ? "noreferrer" : undefined}
               className="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-bold rounded-xl text-white transition-all hover:opacity-90 active:scale-95 shadow-sm"
               style={{ background: "#0F5BD8" }}
             >
               <PlayIcon className="w-4 h-4" />
-              Open Demo
-              <ExternalLinkIcon className="w-3.5 h-3.5 opacity-70" />
+              {demo.primaryLabel ?? "Open Demo"}
+              {demo.demoExternal && <ExternalLinkIcon className="w-3.5 h-3.5 opacity-70" />}
             </a>
           ) : (
             <span
               className="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-medium rounded-xl cursor-default"
               style={{ background: "#F1F5F9", color: "#9CA3AF" }}
             >
-              {demo.status === "preview" ? "Preview Coming Soon" : "Coming Soon"}
+              {demo.status === "preview" ? "🚧 In Development" : "Coming Soon"}
             </span>
           )}
           <a
@@ -232,8 +244,12 @@ function DemoCard({ demo }: { demo: Demo }) {
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export function DemosPage() {
-  const availableCount = DEMOS.filter((d) => d.status === "available").length;
-  const comingSoonCount = DEMOS.filter((d) => d.status !== "available").length;
+  const availableCount = DEMOS.filter(
+    (d) => d.status === "demo-available" || d.status === "available",
+  ).length;
+  const comingSoonCount = DEMOS.filter(
+    (d) => d.status !== "demo-available" && d.status !== "available",
+  ).length;
 
   return (
     <div style={{ background: "#FFFFFF" }}>
@@ -242,7 +258,10 @@ export function DemosPage() {
         className="relative pt-10 pb-8 lg:pt-12 lg:pb-10 overflow-hidden"
         style={{ background: "linear-gradient(160deg, #0B2F6B 0%, #0F5BD8 60%, #1A72F0 100%)" }}
       >
-        <div className="absolute inset-0 opacity-[0.06]" style={{ backgroundImage: "radial-gradient(white 1px, transparent 1px)", backgroundSize: "28px 28px" }} />
+        <div
+          className="absolute inset-0 opacity-[0.06]"
+          style={{ backgroundImage: "radial-gradient(white 1px, transparent 1px)", backgroundSize: "28px 28px" }}
+        />
 
         <div className="relative max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <div
@@ -262,10 +281,13 @@ export function DemosPage() {
           </p>
 
           {/* Stats row */}
-          <div className="mt-5 inline-flex items-center gap-6 px-6 py-3 rounded-2xl" style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.12)" }}>
+          <div
+            className="mt-5 inline-flex items-center gap-6 px-6 py-3 rounded-2xl"
+            style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.12)" }}
+          >
             <div className="text-center">
               <div className="text-2xl font-black text-white">{availableCount}</div>
-              <div className="text-[11px] mt-0.5" style={{ color: "#93C5FD" }}>Live Demos</div>
+              <div className="text-[11px] mt-0.5" style={{ color: "#93C5FD" }}>Available Now</div>
             </div>
             <div className="w-px h-10" style={{ background: "rgba(255,255,255,0.15)" }} />
             <div className="text-center">
@@ -281,7 +303,7 @@ export function DemosPage() {
         </div>
       </section>
 
-      {/* ── Live demos ── */}
+      {/* ── Available Now ── */}
       <section className="py-8 lg:py-10" style={{ background: "white" }}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between mb-5">
@@ -290,7 +312,7 @@ export function DemosPage() {
                 Available Now
               </h2>
               <p className="mt-1 text-sm" style={{ color: "#6B7280" }}>
-                Try these demos directly in your browser — no account needed.
+                Try these demos directly — no account needed.
               </p>
             </div>
             <span
@@ -298,12 +320,14 @@ export function DemosPage() {
               style={{ background: "#DCFCE7", color: "#16A34A" }}
             >
               <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
-              {availableCount} Live
+              {availableCount} Available
             </span>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {DEMOS.filter((d) => d.status === "available").map((demo) => (
+            {DEMOS.filter(
+              (d) => d.status === "demo-available" || d.status === "available",
+            ).map((demo) => (
               <DemoCard key={demo.id} demo={demo} />
             ))}
           </div>
@@ -315,7 +339,7 @@ export function DemosPage() {
         <div className="border-t" style={{ borderColor: "#EAF3FF" }} />
       </div>
 
-      {/* ── Coming soon ── */}
+      {/* ── Coming Soon ── */}
       <section className="py-8 lg:py-10" style={{ background: "white" }}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between mb-5">
@@ -336,7 +360,9 @@ export function DemosPage() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
-            {DEMOS.filter((d) => d.status !== "available").map((demo) => (
+            {DEMOS.filter(
+              (d) => d.status !== "demo-available" && d.status !== "available",
+            ).map((demo) => (
               <DemoCard key={demo.id} demo={demo} />
             ))}
           </div>
@@ -373,7 +399,6 @@ export function DemosPage() {
           </div>
         </div>
       </section>
-
     </div>
   );
 }

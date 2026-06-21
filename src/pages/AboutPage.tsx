@@ -20,6 +20,9 @@ function Icon({ children, className = "w-5 h-5" }: { children: React.ReactNode; 
 function CheckIcon({ className = "w-4 h-4" }: { className?: string }) {
   return <Icon className={className}><path d="m5 12 4 4 10-10" /></Icon>;
 }
+function SparkleIcon({ className = "w-3.5 h-3.5" }: { className?: string }) {
+  return <Icon className={className}><path d="M12 3l1.7 4.3L18 9l-4.3 1.7L12 15l-1.7-4.3L6 9l4.3-1.7L12 3Z" /><path d="M19 12l.8 2.2L22 15l-2.2.8L19 18l-.8-2.2L16 15l2.2-.8L19 12Z" /></Icon>;
+}
 function ArrowRight({ className = "w-4 h-4" }: { className?: string }) {
   return <Icon className={className}><path d="M5 12h14M13 6l6 6-6 6" /></Icon>;
 }
@@ -44,6 +47,12 @@ function WristbandIcon({ className }: { className?: string }) {
 function GearIcon({ className }: { className?: string }) {
   return <Icon className={className}><circle cx="12" cy="12" r="3" /><path d="M12 2v3M12 19v3M4.22 4.22l2.12 2.12M17.66 17.66l2.12 2.12M2 12h3M19 12h3M4.22 19.78l2.12-2.12M17.66 6.34l2.12-2.12" /></Icon>;
 }
+function MarketIcon({ className }: { className?: string }) {
+  return <Icon className={className}><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z" /><path d="M3 6h18" /><path d="M16 10a4 4 0 0 1-8 0" /></Icon>;
+}
+function CashIcon({ className }: { className?: string }) {
+  return <Icon className={className}><rect x="2" y="6" width="20" height="12" rx="2" /><circle cx="12" cy="12" r="2" /><path d="M6 12h.01M18 12h.01" /></Icon>;
+}
 function WorkflowIcon({ className }: { className?: string }) {
   return <Icon className={className}><rect x="3" y="3" width="6" height="6" rx="1" /><rect x="15" y="3" width="6" height="6" rx="1" /><rect x="15" y="15" width="6" height="6" rx="1" /><rect x="3" y="15" width="6" height="6" rx="1" /><path d="M9 6h6M9 18h6M6 9v6M18 9v6" /></Icon>;
 }
@@ -60,96 +69,111 @@ function TrendIcon({ className }: { className?: string }) {
   return <Icon className={className}><path d="m22 7-8.5 8.5-5-5L2 17" /><path d="M16 7h6v6" /></Icon>;
 }
 
-// ── Hero product visual ───────────────────────────────────────────────────────
+// ── Hero Suite visual ─────────────────────────────────────────────────────────
 
-const HERO_CARDS = [
-  { abbr: "RL", name: "Report Lab",        status: "live" as const },
-  { abbr: "SP", name: "Smart Pages",       status: "live" as const },
-  { abbr: "SC", name: "School Connect",    status: "live" as const },
-  { abbr: "LS", name: "Legal Smart Pages", status: "demo" as const },
-  { abbr: "KW", name: "Kids Wallet",       status: "soon" as const },
-  { abbr: "NF", name: "NFC Wristbands",    status: "soon" as const },
+type SuiteStatus = "live" | "demo" | "soon";
+
+const SUITE_ITEMS: { abbr: string; name: string; icon: React.ReactNode; status: SuiteStatus }[] = [
+  { abbr: "RL", name: "Report Lab",        icon: <ReportIcon    className="w-4 h-4" />, status: "live" },
+  { abbr: "SP", name: "Smart Pages",       icon: <PagesIcon     className="w-4 h-4" />, status: "live" },
+  { abbr: "SC", name: "School Connect",    icon: <SchoolIcon    className="w-4 h-4" />, status: "live" },
+  { abbr: "LS", name: "Legal Smart Pages", icon: <ScaleIcon     className="w-4 h-4" />, status: "demo" },
+  { abbr: "PM", name: "PearlMart",         icon: <MarketIcon    className="w-4 h-4" />, status: "demo" },
+  { abbr: "WC", name: "Wideh Cash",        icon: <CashIcon      className="w-4 h-4" />, status: "demo" },
+  { abbr: "KW", name: "Kids Wallet",       icon: <WalletIcon    className="w-4 h-4" />, status: "soon" },
+  { abbr: "NF", name: "NFC Bands",         icon: <WristbandIcon className="w-4 h-4" />, status: "soon" },
 ];
 
-function HeroProductVisual() {
+const SUITE_STATUS_META: Record<SuiteStatus, { dot: string; text: string; textColor: string }> = {
+  live: { dot: "#22C55E", text: "Live",           textColor: "#86EFAC" },
+  demo: { dot: "#3B82F6", text: "Demo Available", textColor: "#93C5FD" },
+  soon: { dot: "#94A3B8", text: "Coming Soon",    textColor: "rgba(148,163,184,0.8)" },
+};
+
+function HeroSuiteVisual() {
+  const liveCount = SUITE_ITEMS.filter((i) => i.status === "live").length;
+
   return (
-    <div className="relative">
-      {/* Ambient glows */}
-      <div className="absolute -top-6 -right-6 w-36 h-36 rounded-full blur-3xl opacity-25" style={{ background: "#60A5FA" }} />
-      <div className="absolute -bottom-4 -left-4 w-24 h-24 rounded-full blur-2xl opacity-20" style={{ background: "#0B2F6B" }} />
-
-      {/* Browser chrome */}
-      <div className="relative rounded-2xl overflow-hidden shadow-2xl" style={{ border: "1px solid rgba(255,255,255,0.15)" }}>
-        {/* Title bar */}
-        <div className="flex items-center gap-3 px-4 py-3" style={{ background: "rgba(0,0,0,0.35)", backdropFilter: "blur(8px)" }}>
-          <div className="flex gap-1.5">
-            <div className="w-2.5 h-2.5 rounded-full" style={{ background: "#F87171" }} />
-            <div className="w-2.5 h-2.5 rounded-full" style={{ background: "#FBBF24" }} />
-            <div className="w-2.5 h-2.5 rounded-full" style={{ background: "#34D399" }} />
-          </div>
-          <div className="flex items-center gap-2 flex-1 mx-2 px-3 py-1 rounded-md text-[11px]" style={{ background: "rgba(255,255,255,0.1)", color: "#93C5FD" }}>
-            <div className="w-2 h-2 rounded-full bg-green-400 flex-shrink-0" />
-            app.ssamenj.com
-          </div>
+    <div
+      className="marketing-card-motion marketing-fade-up-delay-2 overflow-hidden"
+      style={{
+        borderRadius: "20px",
+        border: "1px solid rgba(255,255,255,0.18)",
+        background: "rgba(255,255,255,0.06)",
+        backdropFilter: "blur(12px)",
+        WebkitBackdropFilter: "blur(12px)",
+      }}
+    >
+      {/* Suite header bar */}
+      <div
+        className="flex items-center justify-between px-3.5 py-2.5"
+        style={{ borderBottom: "1px solid rgba(255,255,255,0.1)" }}
+      >
+        <div className="flex items-center gap-2">
+          <img src="/ssamenj-logo.png" alt="" style={{ width: "20px", height: "20px", objectFit: "contain" }} />
+          <span style={{ fontSize: "12px", fontWeight: 700, color: "white", letterSpacing: "-0.01em" }}>SSAMENJ Suite</span>
+          <span style={{ fontSize: "10px", color: "rgba(147,197,253,0.8)", fontWeight: 500 }}>{SUITE_ITEMS.length} products</span>
         </div>
-
-        {/* App bar */}
-        <div className="flex items-center justify-between px-4 py-2.5" style={{ background: "rgba(255,255,255,0.08)", borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
-          <div>
-            <div className="text-[11px] font-bold text-white">SSAMENJ Suite</div>
-            <div className="text-[9px]" style={{ color: "#93C5FD" }}>7 digital products</div>
-          </div>
-          <div className="text-[9px] font-semibold px-2 py-1 rounded-full" style={{ background: "rgba(15,91,216,0.5)", color: "#BFDBFE" }}>
-            All Institutions
-          </div>
+        <div className="flex items-center gap-1.5">
+          <span className="w-1.5 h-1.5 rounded-full" style={{ background: "#22C55E" }} />
+          <span style={{ fontSize: "10px", color: "#86EFAC", fontWeight: 600 }}>{liveCount} Live</span>
         </div>
+      </div>
 
-        {/* Product grid */}
-        <div className="grid grid-cols-2 gap-2 p-3" style={{ background: "rgba(255,255,255,0.05)" }}>
-          {HERO_CARDS.map((p) => {
-            const isLive = p.status === "live";
-            const isDemo = p.status === "demo";
-            return (
+      {/* Compact 2-col product grid */}
+      <div className="grid grid-cols-2 gap-1.5 p-2.5">
+        {SUITE_ITEMS.map((item) => {
+          const m = SUITE_STATUS_META[item.status];
+          const isLive = item.status === "live";
+          const isDemo = item.status === "demo";
+          const iconColor = isLive ? "#60A5FA" : isDemo ? "#818CF8" : "#6B7280";
+          return (
+            <div
+              key={item.abbr}
+              className="flex items-center gap-2.5"
+              style={{
+                background: "rgba(255,255,255,0.08)",
+                border: "1px solid rgba(255,255,255,0.13)",
+                borderRadius: "12px",
+                padding: "10px 11px",
+                minHeight: "58px",
+              }}
+            >
               <div
-                key={p.abbr}
-                className="rounded-xl p-3"
-                style={{
-                  background: "rgba(255,255,255,0.07)",
-                  border: "1px solid rgba(255,255,255,0.1)",
-                }}
+                className="flex-shrink-0 flex items-center justify-center"
+                style={{ width: "28px", height: "28px", borderRadius: "8px", background: "rgba(255,255,255,0.1)", color: iconColor }}
               >
-                <div className="flex items-start justify-between mb-2">
-                  <div
-                    className="w-7 h-7 rounded-lg flex items-center justify-center text-[10px] font-black"
-                    style={{
-                      background: isLive ? "rgba(15,91,216,0.5)" : isDemo ? "rgba(99,102,241,0.4)" : "rgba(255,255,255,0.08)",
-                      color: isLive ? "#BFDBFE" : isDemo ? "#C4B5FD" : "#6B7280",
-                    }}
-                  >
-                    {p.abbr}
-                  </div>
-                  <div
-                    className="w-2 h-2 rounded-full mt-0.5"
-                    style={{ background: isLive ? "#34D399" : isDemo ? "#60A5FA" : "#4B5563" }}
-                  />
+                {item.icon}
+              </div>
+              <div className="min-w-0 flex-1">
+                <div style={{ fontSize: "11px", fontWeight: 700, color: "white", lineHeight: 1.2 }} className="truncate">
+                  {item.name}
                 </div>
-                <div className="text-[11px] font-semibold text-white leading-snug">{p.name}</div>
-                <div
-                  className="mt-1 text-[9px] font-medium"
-                  style={{ color: isLive ? "#34D399" : isDemo ? "#60A5FA" : "#6B7280" }}
-                >
-                  {isLive ? "● Live" : isDemo ? "● Demo" : "○ Coming Soon"}
+                <div className="flex items-center gap-1 mt-1">
+                  <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: m.dot }} />
+                  <span style={{ fontSize: "9px", fontWeight: 600, color: m.textColor }}>
+                    {m.text}
+                  </span>
                 </div>
               </div>
-            );
-          })}
-        </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Footer */}
+      <div
+        className="flex items-center justify-between px-3.5 py-2"
+        style={{ borderTop: "1px solid rgba(255,255,255,0.08)" }}
+      >
+        <span style={{ fontSize: "9px", fontWeight: 600, color: "rgba(147,197,253,0.6)" }}>Smart Systems. Simple Work.</span>
+        <span style={{ fontSize: "9px", fontWeight: 600, color: "rgba(147,197,253,0.5)" }}>ssamenj.com</span>
       </div>
     </div>
   );
 }
 
-// ── Products we build ─────────────────────────────────────────────────────────
+// ── Our product family ────────────────────────────────────────────────────────
 
 type PStatus = "live" | "demo" | "development" | "soon";
 
@@ -167,7 +191,7 @@ const BUILD_CARDS: BuildCard[] = [
     desc: "Professional student reports from marksheets — generated, reviewed, approved, and shared with parents.",
     icon: <ReportIcon className="w-5 h-5" />,
     status: "live",
-    href: "/dem",
+    href: "/demos",
   },
   {
     name: "Smart Pages",
@@ -189,6 +213,20 @@ const BUILD_CARDS: BuildCard[] = [
     icon: <SchoolIcon className="w-5 h-5" />,
     status: "development",
     href: "/products",
+  },
+  {
+    name: "PearlMart",
+    desc: "Marketplace & digital commerce platform for product discovery, ordering workflows, and digital storefronts.",
+    icon: <MarketIcon className="w-5 h-5" />,
+    status: "demo",
+    href: "/products#pearlmart",
+  },
+  {
+    name: "Wideh Cash",
+    desc: "Money logistics platform helping businesses manage cash movement, tracking, coordination, and workflows.",
+    icon: <CashIcon className="w-5 h-5" />,
+    status: "demo",
+    href: "/products#wideh-cash",
   },
   {
     name: "Kids Wallet",
@@ -267,61 +305,92 @@ const WHY_CARDS = [
 
 export function AboutPage() {
   return (
-    <div style={{ background: "#FFFFFF" }}>
+    <div style={{ background: "#F8FBFF" }}>
+
       {/* ── Hero ── */}
       <section
-        className="relative pt-10 pb-8 lg:pt-12 lg:pb-10 overflow-hidden"
-        style={{ background: "linear-gradient(155deg, #0B2F6B 0%, #0F5BD8 55%, #1A72F0 100%)" }}
+        className="relative overflow-hidden border-b"
+        style={{
+          backgroundImage: "linear-gradient(135deg, rgba(8,18,55,0.97) 0%, rgba(11,47,107,0.95) 40%, rgba(15,91,216,0.88) 100%)",
+          borderColor: "rgba(15,91,216,0.2)",
+        }}
       >
         {/* Dot grid */}
         <div
-          className="absolute inset-0 opacity-[0.06]"
+          className="absolute inset-0 opacity-[0.12]"
           style={{ backgroundImage: "radial-gradient(white 1px, transparent 1px)", backgroundSize: "26px 26px" }}
         />
 
-        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-10 items-center">
-            {/* Left */}
-            <div className="marketing-fade-up">
-              <div
-                className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold mb-5"
-                style={{ background: "rgba(255,255,255,0.12)", color: "#BFDBFE", border: "1px solid rgba(255,255,255,0.15)" }}
+        <div className="relative mx-auto grid max-w-7xl gap-6 px-4 pt-10 pb-8 sm:px-6 lg:grid-cols-2 lg:px-8 lg:pt-12 lg:pb-10 items-center">
+
+          {/* Left */}
+          <div className="marketing-fade-up">
+            {/* Badge */}
+            <div className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.18em] text-blue-100">
+              <SparkleIcon />
+              About SSAMENJ Technologies
+            </div>
+
+            {/* Headline */}
+            <h1 className="marketing-fade-up-delay-1 mt-3 max-w-xl text-3xl font-black leading-tight tracking-tight text-white sm:text-4xl lg:text-[42px]">
+              We build practical digital systems for{" "}
+              <span style={{ color: "#93C5FD" }}>real institutions.</span>
+            </h1>
+
+            {/* Subheadline */}
+            <p className="marketing-fade-up-delay-2 mt-3 max-w-xl text-[15px] leading-relaxed text-blue-100">
+              SSAMENJ Technologies builds software products that help schools, offices, businesses, and institutions reduce paperwork, organize work, and move faster with secure digital workflows.
+            </p>
+
+            {/* CTAs */}
+            <div className="marketing-fade-up-delay-3 mt-5 flex flex-col gap-3 sm:flex-row">
+              <a
+                href="/products"
+                className="btn marketing-button-motion inline-flex items-center gap-2 rounded-xl bg-white px-5 py-2.5 text-sm font-black text-blue-700 hover:bg-blue-50 transition-colors"
               >
-                About SSAMENJ Technologies
-              </div>
-
-              <h1 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold text-white leading-tight">
-                We build digital systems that{" "}
-                <span style={{ color: "#93C5FD" }}>institutions can actually use.</span>
-              </h1>
-
-              <p className="mt-5 text-base leading-relaxed" style={{ color: "#BFDBFE", maxWidth: "500px" }}>
-                SSAMENJ Technologies is a digital solutions company building practical software for schools, offices, legal teams, and growing businesses. We help institutions reduce paperwork, organise daily work, and move into secure digital workflows.
-              </p>
-
-              <div className="mt-4 flex flex-wrap gap-3">
-                <a
-                  href="/demos"
-                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold text-white transition-all hover:opacity-90 hover:-translate-y-px"
-                  style={{ background: "#0F5BD8", border: "1px solid rgba(255,255,255,0.2)" }}
-                >
-                  View Demos
-                  <ArrowRight />
-                </a>
-                <a
-                  href="/contact"
-                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition-all hover:opacity-90"
-                  style={{ background: "rgba(255,255,255,0.12)", color: "white", border: "1px solid rgba(255,255,255,0.2)" }}
-                >
-                  Book a Demo
-                </a>
-              </div>
+                View Products
+                <ArrowRight />
+              </a>
+              <a
+                href="/demos"
+                className="btn marketing-button-motion inline-flex items-center gap-2 rounded-xl border border-white/25 bg-white/10 px-5 py-2.5 text-sm font-bold text-white hover:bg-white/15 transition-colors"
+              >
+                View Demos
+              </a>
             </div>
 
-            {/* Right — product visual */}
-            <div className="marketing-fade-up-delay-1 hidden sm:block">
-              <HeroProductVisual />
+            {/* Trust badges desktop */}
+            <div className="marketing-fade-up mt-6 hidden lg:grid grid-cols-3 gap-3">
+              {[
+                { value: String(BUILD_CARDS.length), label: "DIGITAL PRODUCTS" },
+                { value: "3+",                       label: "LIVE NOW" },
+                { value: "4+",                       label: "IN PIPELINE" },
+              ].map((m) => (
+                <div key={m.label} className="rounded-xl border border-white/10 bg-white/8 px-3 py-2.5 text-center">
+                  <div className="text-xl font-black text-white">{m.value}</div>
+                  <div className="mt-0.5 text-[9px] font-bold uppercase tracking-[0.18em] text-blue-200">{m.label}</div>
+                </div>
+              ))}
             </div>
+          </div>
+
+          {/* Right — Suite visual */}
+          <div className="mt-2 lg:mt-0">
+            <HeroSuiteVisual />
+          </div>
+
+          {/* Trust badges mobile */}
+          <div className="grid grid-cols-3 gap-3 lg:hidden">
+            {[
+              { value: String(BUILD_CARDS.length), label: "DIGITAL PRODUCTS" },
+              { value: "3+",                       label: "LIVE NOW" },
+              { value: "4+",                       label: "IN PIPELINE" },
+            ].map((m) => (
+              <div key={m.label} className="rounded-xl border border-white/10 bg-white/8 px-3 py-2.5 text-center">
+                <div className="text-xl font-black text-white">{m.value}</div>
+                <div className="mt-0.5 text-[9px] font-bold uppercase tracking-[0.18em] text-blue-200">{m.label}</div>
+              </div>
+            ))}
           </div>
         </div>
       </section>
@@ -346,7 +415,7 @@ export function AboutPage() {
                   SSAMENJ Technologies builds smart, simple, and reliable digital systems for real institutions. Our work focuses on practical tools that help teams save time, reduce errors, and serve people better.
                 </p>
                 <p>
-                  We started with school report cards — a time-consuming manual process in thousands of schools. From there we expanded into document management, legal workflows, and school operations. Each product is born from a real problem in a real institution.
+                  We started with school report cards — a time-consuming manual process in thousands of schools. From there we expanded into document management, legal workflows, commerce, and money logistics. Each product is born from a real problem in a real institution.
                 </p>
                 <p>
                   Today, SSAMENJ is building a connected suite of products under one company identity — with a long-term commitment to software that African institutions are proud to use.
@@ -368,10 +437,7 @@ export function AboutPage() {
                 </p>
               </div>
 
-              <div
-                className="rounded-2xl p-6"
-                style={{ background: "#0B2F6B" }}
-              >
+              <div className="rounded-2xl p-6" style={{ background: "#0B2F6B" }}>
                 <div className="text-[11px] font-bold uppercase tracking-widest mb-2" style={{ color: "#93C5FD" }}>
                   Our Slogan
                 </div>
@@ -385,9 +451,9 @@ export function AboutPage() {
               {/* Quick stats */}
               <div className="grid grid-cols-3 gap-3">
                 {[
-                  { v: "7", l: "Products" },
-                  { v: "3+", l: "Live now" },
-                  { v: "4+", l: "In pipeline" },
+                  { v: String(BUILD_CARDS.length), l: "Products" },
+                  { v: "3+",                       l: "Live now" },
+                  { v: "4+",                       l: "In pipeline" },
                 ].map((s) => (
                   <div
                     key={s.l}
@@ -404,7 +470,7 @@ export function AboutPage() {
         </div>
       </section>
 
-      {/* ── What We Build ── */}
+      {/* ── Our Product Family ── */}
       <section className="py-8 lg:py-10" style={{ background: "#EAF3FF" }}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-6">
@@ -412,7 +478,7 @@ export function AboutPage() {
               className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold mb-4"
               style={{ background: "white", color: "#0F5BD8" }}
             >
-              What We Build
+              Our Product Family
             </div>
             <h2 className="text-2xl sm:text-3xl font-extrabold" style={{ color: "#111827" }}>
               A connected suite of digital products
@@ -466,7 +532,7 @@ export function AboutPage() {
         </div>
       </section>
 
-      {/* ── Why SSAMENJ ── */}
+      {/* ── Why We Build ── */}
       <section className="py-8 lg:py-10" style={{ background: "white" }}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-6">
@@ -474,7 +540,7 @@ export function AboutPage() {
               className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold mb-4"
               style={{ background: "#EAF3FF", color: "#0F5BD8" }}
             >
-              Why SSAMENJ
+              Why We Build
             </div>
             <h2 className="text-2xl sm:text-3xl font-extrabold" style={{ color: "#111827" }}>
               Built for real institutions, not just demos.
@@ -495,7 +561,7 @@ export function AboutPage() {
                   {card.icon}
                 </div>
                 <div>
-                  <div className="text-[10px] font-black text-[#D8E2F0] mb-1">
+                  <div className="text-[10px] font-black mb-1" style={{ color: "#D8E2F0" }}>
                     {String(i + 1).padStart(2, "0")}
                   </div>
                   <h3 className="text-sm font-bold mb-1" style={{ color: "#111827" }}>
@@ -508,7 +574,7 @@ export function AboutPage() {
               </div>
             ))}
 
-            {/* Filler card with CTA */}
+            {/* CTA filler card */}
             <div
               className="rounded-2xl p-6 flex flex-col items-start justify-between border"
               style={{ background: "#0B2F6B", borderColor: "#0B2F6B" }}
@@ -534,7 +600,7 @@ export function AboutPage() {
         </div>
       </section>
 
-      {/* ── Who we serve ── */}
+      {/* ── Who We Serve ── */}
       <section className="py-8 lg:py-10" style={{ background: "#EAF3FF" }}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 items-center">
@@ -563,10 +629,10 @@ export function AboutPage() {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {[
-                { sector: "Schools", desc: "Primary, secondary, and tertiary institutions across Uganda and East Africa.", icon: <SchoolIcon className="w-5 h-5" /> },
-                { sector: "Law Firms", desc: "Legal practices that need cleaner, safer, and faster document workflows.", icon: <ScaleIcon className="w-5 h-5" /> },
-                { sector: "Offices & Businesses", desc: "Growing businesses that need structure and digital systems to scale.", icon: <WorkflowIcon className="w-5 h-5" /> },
-                { sector: "NGOs & Organisations", desc: "Institutions with unique workflows requiring custom digital solutions.", icon: <GlobeIcon className="w-5 h-5" /> },
+                { sector: "Schools",              desc: "Primary, secondary, and tertiary institutions across Uganda and East Africa.",        icon: <SchoolIcon   className="w-5 h-5" /> },
+                { sector: "Law Firms",            desc: "Legal practices that need cleaner, safer, and faster document workflows.",            icon: <ScaleIcon    className="w-5 h-5" /> },
+                { sector: "Offices & Businesses", desc: "Growing businesses that need structure and digital systems to scale.",                icon: <WorkflowIcon className="w-5 h-5" /> },
+                { sector: "NGOs & Organisations", desc: "Institutions with unique workflows requiring custom digital solutions.",              icon: <GlobeIcon    className="w-5 h-5" /> },
               ].map((s) => (
                 <div
                   key={s.sector}
@@ -596,7 +662,6 @@ export function AboutPage() {
         style={{ background: "linear-gradient(135deg, #0B2F6B 0%, #0F5BD8 100%)" }}
       >
         <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          {/* Logo */}
           <div className="flex justify-center mb-5">
             <div
               className="w-14 h-14 rounded-2xl flex items-center justify-center p-2"
@@ -609,24 +674,24 @@ export function AboutPage() {
           <h2 className="text-2xl sm:text-3xl font-extrabold text-white mb-3">
             Ready to simplify your work?
           </h2>
-          <p className="text-sm max-w-xl mx-auto mb-8 leading-relaxed" style={{ color: "#BFDBFE" }}>
+          <p className="text-sm max-w-xl mx-auto mb-6 leading-relaxed" style={{ color: "#BFDBFE" }}>
             Let SSAMENJ Technologies help your school, office, legal team, or business move from manual work to smart digital systems.
           </p>
           <div className="flex flex-wrap justify-center gap-4">
             <a
-              href="/demos"
+              href="/products"
               className="inline-flex items-center gap-2 px-6 py-3 text-sm font-bold rounded-xl shadow-lg transition-all hover:opacity-90 hover:-translate-y-px"
               style={{ background: "white", color: "#0B2F6B" }}
             >
-              View Demos
+              View Products
               <ArrowRight />
             </a>
             <a
-              href="/contact"
+              href="/demos"
               className="inline-flex items-center gap-2 px-6 py-3 text-sm font-bold rounded-xl transition-all hover:opacity-80"
               style={{ background: "rgba(255,255,255,0.12)", color: "white", border: "1px solid rgba(255,255,255,0.2)" }}
             >
-              Book a Demo
+              Explore Demos
             </a>
           </div>
         </div>
