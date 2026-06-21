@@ -1,4 +1,4 @@
-﻿import { createBrowserRouter, Navigate } from "react-router-dom";
+import { createBrowserRouter, Navigate } from "react-router-dom";
 import { AppShell } from "../components/layout/AppShell";
 import { lazy, Suspense, type ComponentType } from "react";
 import { OwnerShell } from "../components/layout/OwnerShell";
@@ -52,54 +52,17 @@ function lazyElement(Component: ComponentType) {
 }
 
 export const router = createBrowserRouter([
-  // Public routes ? no AppShell, no auth
-  { path: "/demo", element: <DemoPage /> },
-  { path: "/features-demo", element: <FeaturesDemoPage /> },
-  { path: "/pricing", element: <PricingPage /> },
-  { path: "/contact", element: <ContactPage /> },
-  { path: "/login", element: <LoginPage /> },
-  { path: "/logout", element: <LogoutPage /> },
-  { path: "/parent/r/:token", element: <ParentReportPage /> },
-  { path: "/verify/:code", element: <VerifyPage /> },
-  { path: "/p/:token", element: <PublishedDocumentPage /> },
-
-  ...(lawyerSmartPagesEnabled ? [{
-    path: "/lawyers",
-    element: lazyElement(LawyerShell),
-    errorElement: <RouteErrorPage />,
-    children: [
-      { index: true, element: lazyElement(LawyerDashboardPage) },
-      { path: "dashboard", element: lazyElement(LawyerDashboardPage) },
-      { path: "smart-pages", element: lazyElement(LawyerDocumentsPage) },
-      { path: "smart-pages/:id", element: lazyElement(LawyerDocumentEditorPage) },
-      { path: "documents", element: lazyElement(LawyerDocumentsPage) },
-      { path: "documents/:id", element: lazyElement(LawyerDocumentEditorPage) },
-      { path: "onboarding", element: lazyElement(LawyerOnboardingPage) },
-      { path: "settings", element: lazyElement(LawyerOnboardingPage) },
-    ],
-  }] : []),
-
-  // Platform owner console ? wrapped in OwnerShell (owner guard inside)
-  {
-    path: "/owner",
-    element: <OwnerShell />,
-    errorElement: <RouteErrorPage />,
-    children: [
-      { index: true, element: <OwnerDashboardPage /> },
-      { path: "schools", element: <OwnerSchoolsPage /> },
-      { path: "users", element: <OwnerUsersPage /> },
-    ],
-  },
-
-  // Admin routes ? wrapped in AppShell (auth guard inside)
   {
     path: "/",
+    element: <DemoPage />,
+  },
+  {
     element: <AppShell />,
     errorElement: <RouteErrorPage />,
     children: [
-      { index: true, element: <Navigate to="/dashboard" replace /> },
       { path: "dashboard", element: <DashboardPage /> },
       { path: "students", element: <StudentsPage /> },
+      { path: "student-credentials", element: <Navigate to="/demos" replace /> },
       { path: "reports", element: <ReportsPage /> },
       { path: "reports/release", element: <ReleaseCenterPage /> },
       { path: "promotions", element: <PromotionWorkspacePage /> },
@@ -122,5 +85,39 @@ export const router = createBrowserRouter([
       { path: "search", element: <SearchPage /> },
     ],
   },
+  { path: "/demos", element: <FeaturesDemoPage /> },
+  { path: "/demo", element: <Navigate to="/demos" replace /> },
+  { path: "/dem", element: <Navigate to="/demos" replace /> },
+  { path: "/pricing", element: <PricingPage /> },
+  { path: "/contact", element: <ContactPage /> },
+  { path: "/login", element: <LoginPage /> },
+  { path: "/logout", element: <LogoutPage /> },
+  { path: "/parent/r/:token", element: <ParentReportPage /> },
+  { path: "/verify/:code", element: <VerifyPage /> },
+  { path: "/p/:token", element: <PublishedDocumentPage /> },
+  ...(lawyerSmartPagesEnabled ? [{
+    path: "/lawyers",
+    element: lazyElement(LawyerShell),
+    errorElement: <RouteErrorPage />,
+    children: [
+      { index: true, element: lazyElement(LawyerDashboardPage) },
+      { path: "dashboard", element: lazyElement(LawyerDashboardPage) },
+      { path: "smart-pages", element: lazyElement(LawyerDocumentsPage) },
+      { path: "smart-pages/:id", element: lazyElement(LawyerDocumentEditorPage) },
+      { path: "documents", element: lazyElement(LawyerDocumentsPage) },
+      { path: "documents/:id", element: lazyElement(LawyerDocumentEditorPage) },
+      { path: "onboarding", element: lazyElement(LawyerOnboardingPage) },
+      { path: "settings", element: lazyElement(LawyerOnboardingPage) },
+    ],
+  }] : []),
+  {
+    path: "/owner",
+    element: <OwnerShell />,
+    errorElement: <RouteErrorPage />,
+    children: [
+      { index: true, element: <OwnerDashboardPage /> },
+      { path: "schools", element: <OwnerSchoolsPage /> },
+      { path: "users", element: <OwnerUsersPage /> },
+    ],
+  },
 ]);
-
