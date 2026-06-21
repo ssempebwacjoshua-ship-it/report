@@ -68,15 +68,23 @@ function InfoCard({
     <div className="rounded-[1.5rem] border border-slate-200 bg-white p-5 shadow-sm">
       <h3 className="text-base font-black text-slate-950">{title}</h3>
       <p className="mt-2 text-sm leading-6 text-slate-600">{body}</p>
-      <a href={href} className="btn btn-secondary mt-4 inline-flex rounded-xl px-4 py-2.5 text-sm font-bold">
+      <a href={href} target="_blank" rel="noopener noreferrer" className="btn btn-secondary mt-4 inline-flex rounded-xl px-4 py-2.5 text-sm font-bold">
         {cta}
       </a>
     </div>
   );
 }
 
-const BUSINESS_EMAIL = "REPLACE_WITH_BUSINESS_EMAIL";
-const WHATSAPP_NUMBER = "REPLACE_WITH_WHATSAPP_NUMBER";
+const WHATSAPP_NUMBER = "+971 56 370 4103";
+const WHATSAPP_BASE = "https://wa.me/971563704103";
+
+function waLink(text: string) {
+  return `${WHATSAPP_BASE}?text=${encodeURIComponent(text)}`;
+}
+
+const DEMO_WA = waLink("Hello SSAMENJ Technologies! I would like to book a school demo.");
+const PRICING_WA = waLink("Hello SSAMENJ Technologies! I would like to ask about pricing for my school.");
+const SETUP_WA = waLink("Hello SSAMENJ Technologies! I need setup support for School Connect.");
 
 export function ContactPage() {
   const [form, setForm] = useState({
@@ -90,37 +98,22 @@ export function ContactPage() {
     message: "",
   });
 
-  const mailtoHref = useMemo(() => {
-    const subject = encodeURIComponent(`School Connect enquiry from ${form.schoolName || "a school"}`);
-    const body = encodeURIComponent(
-      [
-        `School name: ${form.schoolName || "-"}`,
-        `Contact person: ${form.contactPerson || "-"}`,
-        `Phone / WhatsApp: ${form.phone || "-"}`,
-        `Email: ${form.email || "-"}`,
-        `School location: ${form.location || "-"}`,
-        `Number of students: ${form.students || "-"}`,
-        `Interested in: ${form.interest}`,
-        "",
-        form.message || "No message added yet.",
-      ].join("\n"),
-    );
-    return `mailto:${BUSINESS_EMAIL}?subject=${subject}&body=${body}`;
-  }, [form]);
-
-  const pricingHref = useMemo(() => {
-    const subject = encodeURIComponent(`School Connect pricing request from ${form.schoolName || "a school"}`);
-    const body = encodeURIComponent(
-      [
-        `School name: ${form.schoolName || "-"}`,
-        `Contact person: ${form.contactPerson || "-"}`,
-        `Email: ${form.email || "-"}`,
-        `Interested in: ${form.interest}`,
-        "",
-        form.message || "No message added yet.",
-      ].join("\n"),
-    );
-    return `mailto:${BUSINESS_EMAIL}?subject=${subject}&body=${body}`;
+  const whatsappHref = useMemo(() => {
+    const msg = [
+      "Hello SSAMENJ Technologies,",
+      "I would like to request a demo.",
+      "",
+      `Name: ${form.contactPerson || "-"}`,
+      `Institution / School: ${form.schoolName || "-"}`,
+      `Phone: ${form.phone || "-"}`,
+      `Email: ${form.email || "-"}`,
+      `Location: ${form.location || "-"}`,
+      `Students: ${form.students || "-"}`,
+      `Interested in: ${form.interest}`,
+      "",
+      form.message || "No additional message.",
+    ].join("\n");
+    return `${WHATSAPP_BASE}?text=${encodeURIComponent(msg)}`;
   }, [form]);
 
   return (
@@ -156,24 +149,9 @@ export function ContactPage() {
 
             <div className="lg:col-span-5">
               <div className="grid gap-3">
-                <InfoCard
-                  title="Book a school demo"
-                  body="See how Report Lab and Smart Pages can reduce paperwork, speed up reporting, and support your school’s daily work."
-                  cta="Request Demo"
-                  href={mailtoHref}
-                />
-                <InfoCard
-                  title="Ask about pricing"
-                  body="Tell us your school size and the products you need. We’ll recommend the best starting package."
-                  cta="Request Pricing"
-                  href={pricingHref}
-                />
-                <InfoCard
-                  title="Setup support"
-                  body="Need help with branding, student data, marks import, or school document setup? We can guide you."
-                  cta="Talk to Us"
-                  href={`mailto:${BUSINESS_EMAIL}?subject=${encodeURIComponent("School Connect setup support")}`}
-                />
+                <InfoCard title="Book a school demo" body="See how Report Lab and Smart Pages can reduce paperwork, speed up reporting, and support your school’s daily work." cta="Request Demo on WhatsApp" href={DEMO_WA} />
+                <InfoCard title="Ask about pricing" body="Tell us your school size and the products you need. We’ll recommend the best starting package." cta="Ask on WhatsApp" href={PRICING_WA} />
+                <InfoCard title="Setup support" body="Need help with branding, student data, marks import, or school document setup? We can guide you." cta="Talk to Us on WhatsApp" href={SETUP_WA} />
               </div>
             </div>
           </div>
@@ -188,9 +166,9 @@ export function ContactPage() {
                     <MailIcon className="h-5 w-5" />
                   </div>
                   <div>
-                    <h2 className="text-2xl font-black tracking-tight text-slate-950">Request a contact callback</h2>
+                    <h2 className="text-2xl font-black tracking-tight text-slate-950">Request a Demo</h2>
                     <p className="text-sm leading-6 text-slate-600">
-                      Fill in the form and use the request button to open your email app with the details prepared.
+                      Fill in the form below and tap the button to open WhatsApp with your details pre-filled.
                     </p>
                   </div>
                 </div>
@@ -282,47 +260,45 @@ export function ContactPage() {
                 </label>
 
                 <div className="mt-5 flex flex-col gap-3 sm:flex-row">
-                  <a href={mailtoHref} className="btn btn-primary rounded-xl px-4 py-3 text-sm font-black">
-                    Request a Demo
+                  <a
+                    href={whatsappHref}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="btn btn-primary rounded-xl px-4 py-3 text-sm font-black"
+                  >
+                    Request Demo on WhatsApp
                   </a>
                   <a
-                    href={pricingHref}
+                    href={DEMO_WA}
+                    target="_blank"
+                    rel="noopener noreferrer"
                     className="btn btn-secondary rounded-xl px-4 py-3 text-sm font-bold"
                   >
-                    Contact by Email
+                    Contact on WhatsApp
                   </a>
                 </div>
-
-                <p className="mt-3 text-sm leading-6 text-slate-600">
-                  This form opens your email app. No backend submission is wired yet.
-                </p>
               </div>
             </div>
 
             <div className="lg:col-span-5">
               <div className="grid gap-3">
-                <div className="rounded-[1.5rem] border border-slate-200 bg-white p-5 shadow-sm">
+                <a
+                  href={DEMO_WA}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block rounded-[1.5rem] border border-emerald-200 bg-emerald-50 p-5 shadow-sm transition hover:bg-emerald-100"
+                >
                   <div className="flex items-center gap-3">
-                    <div className="grid h-10 w-10 place-items-center rounded-2xl bg-blue-50 text-blue-700">
-                      <MailIcon className="h-5 w-5" />
-                    </div>
-                    <div>
-                      <p className="text-sm font-black text-slate-950">Email</p>
-                      <p className="text-sm leading-6 text-slate-600">{BUSINESS_EMAIL}</p>
-                    </div>
-                  </div>
-                </div>
-                <div className="rounded-[1.5rem] border border-slate-200 bg-white p-5 shadow-sm">
-                  <div className="flex items-center gap-3">
-                    <div className="grid h-10 w-10 place-items-center rounded-2xl bg-emerald-50 text-emerald-700">
+                    <div className="grid h-10 w-10 place-items-center rounded-2xl bg-emerald-600 text-white flex-shrink-0">
                       <PhoneIcon className="h-5 w-5" />
                     </div>
                     <div>
                       <p className="text-sm font-black text-slate-950">WhatsApp</p>
-                      <p className="text-sm leading-6 text-slate-600">{WHATSAPP_NUMBER}</p>
+                      <p className="text-sm font-semibold text-emerald-700">{WHATSAPP_NUMBER}</p>
+                      <p className="text-xs text-slate-500 mt-0.5">Tap to open WhatsApp</p>
                     </div>
                   </div>
-                </div>
+                </a>
                 <div className="rounded-[1.5rem] border border-blue-200 bg-blue-50 p-5 shadow-sm">
                   <p className="text-sm font-black text-slate-950">Need a quick start?</p>
                   <p className="mt-2 text-sm leading-6 text-slate-600">
