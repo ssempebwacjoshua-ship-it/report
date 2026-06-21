@@ -13,6 +13,11 @@ export type CredentialScanContext = "GATE" | "CLASS" | "WALLET" | "VERIFY";
 export type CredentialScanStatus = "ACTIVE" | "NOT_FOUND" | "DEACTIVATED" | "STUDENT_INACTIVE";
 
 type StudentCredentialClient = Pick<PrismaClient, "student" | "studentCredential" | "auditLog">;
+type StudentCredentialDb = StudentCredentialClient & {
+  $transaction?: <T>(fn: (tx: StudentCredentialClient) => Promise<T>) => Promise<T>;
+};
+
+const ACTIVE_STUDENT_CREDENTIAL_MESSAGE = "Student already has an active NFC wristband. Deactivate or mark it lost before issuing another.";
 
 type EnrollmentSummary = {
   class?: { name: string } | null;
@@ -140,77 +145,123 @@ async function auditCredentialAction(
   });
 }
 
+function isPrismaUniqueViolation(error: unknown): error is { code: "P2002"; meta?: { target?: unknown } } {
+  return (
+    error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002"
+  ) || (
+    typeof error === "object"
+    && error !== null
+    && (error as { code?: unknown }).code === "P2002"
+  );
+}
+
+function isActiveStudentCredentialConstraint(error: { meta?: { target?: unknown } }) {
+  const target = error.meta?.target;
+  if (typeof target === "string") return target.includes("StudentCredential_one_active_per_student_type_idx");
+  if (Array.isArray(target)) {
+    const fields = target.map(String);
+    return ["schoolId", "studentId", "type"].every((field) => fields.includes(field));
+  }
+  return false;
+}
+
+function mapUniqueCredentialError(error: unknown): Error | null {
+  if (!isPrismaUniqueViolation(error)) return null;
+  const message = isActiveStudentCredentialConstraint(error)
+    ? ACTIVE_STUDENT_CREDENTIAL_MESSAGE
+    : "This NFC wristband is already registered in this school.";
+  return Object.assign(new Error(message), { status: 409 });
+}
+
+async function runCredentialWrite<T>(db: StudentCredentialDb, fn: (tx: StudentCredentialClient) => Promise<T>): Promise<T> {
+  return db.$transaction ? db.$transaction(fn) : fn(db);
+}
+
 export async function issueStudentCredential(
   ctx: StudentCredentialContext,
   input: { studentId: string; credentialUID: string; type?: CredentialType },
-  db: StudentCredentialClient = defaultPrisma,
+  db: StudentCredentialDb = defaultPrisma,
 ) {
   const schoolId = requireSchoolId(ctx);
   const credentialUID = normalizeCredentialUID(input.credentialUID);
   const type = input.type ?? CredentialType.NFC_WRISTBAND;
   if (!credentialUID) throw Object.assign(new Error("Credential UID is required."), { status: 400 });
 
-  const student = await db.student.findFirst({
-    where: { id: input.studentId, schoolId },
-    select: {
-      id: true,
-      admissionNumber: true,
-      firstName: true,
-      lastName: true,
-      isActive: true,
-      enrollments: studentInclude.enrollments,
-    },
-  });
-  if (!student) throw Object.assign(new Error("Student not found for this school."), { status: 404 });
-  if (!student.isActive) throw Object.assign(new Error("Cannot issue a credential to an inactive student."), { status: 400 });
-
-  const existing = await db.studentCredential.findUnique({
-    where: { schoolId_type_credentialUID: { schoolId, type, credentialUID } },
-    include: credentialInclude,
-  });
-
-  if (existing?.status === CredentialStatus.ACTIVE) {
-    throw Object.assign(new Error("This NFC wristband is already active for a student in this school."), { status: 409 });
-  }
-
   try {
-    const credential = existing
-      ? await db.studentCredential.update({
-          where: { id: existing.id },
-          data: {
-            studentId: student.id,
-            status: CredentialStatus.ACTIVE,
-            issuedAt: new Date(),
-            deactivatedAt: null,
-            deactivatedReason: null,
-            issuedById: ctx.actorId ?? null,
-          },
-          include: credentialInclude,
-        })
-      : await db.studentCredential.create({
-          data: {
-            schoolId,
-            studentId: student.id,
-            type,
-            credentialUID,
-            issuedById: ctx.actorId ?? null,
-          },
-          include: credentialInclude,
-        });
+    return await runCredentialWrite(db, async (tx) => {
+      const student = await tx.student.findFirst({
+        where: { id: input.studentId, schoolId },
+        select: {
+          id: true,
+          admissionNumber: true,
+          firstName: true,
+          lastName: true,
+          isActive: true,
+          enrollments: studentInclude.enrollments,
+        },
+      });
+      if (!student) throw Object.assign(new Error("Student not found for this school."), { status: 404 });
+      if (!student.isActive) throw Object.assign(new Error("Cannot issue a credential to an inactive student."), { status: 400 });
 
-    await auditCredentialAction(db, ctx, "student_credential.issued", {
-      credentialId: credential.id,
-      studentId: student.id,
-      type,
-      credentialUID,
-      reissued: Boolean(existing),
+      const existing = await tx.studentCredential.findUnique({
+        where: { schoolId_type_credentialUID: { schoolId, type, credentialUID } },
+        include: credentialInclude,
+      });
+
+      if (existing?.status === CredentialStatus.ACTIVE) {
+        throw Object.assign(new Error("This NFC wristband is already active for a student in this school."), { status: 409 });
+      }
+
+      const activeForStudent = await tx.studentCredential.findFirst({
+        where: {
+          schoolId,
+          studentId: student.id,
+          type,
+          status: CredentialStatus.ACTIVE,
+        },
+      });
+
+      if (activeForStudent && activeForStudent.id !== existing?.id) {
+        throw Object.assign(new Error(ACTIVE_STUDENT_CREDENTIAL_MESSAGE), { status: 409 });
+      }
+
+      const credential = existing
+        ? await tx.studentCredential.update({
+            where: { id: existing.id },
+            data: {
+              studentId: student.id,
+              status: CredentialStatus.ACTIVE,
+              issuedAt: new Date(),
+              deactivatedAt: null,
+              deactivatedReason: null,
+              issuedById: ctx.actorId ?? null,
+            },
+            include: credentialInclude,
+          })
+        : await tx.studentCredential.create({
+            data: {
+              schoolId,
+              studentId: student.id,
+              type,
+              credentialUID,
+              issuedById: ctx.actorId ?? null,
+            },
+            include: credentialInclude,
+          });
+
+      await auditCredentialAction(tx, ctx, "student_credential.issued", {
+        credentialId: credential.id,
+        studentId: student.id,
+        type,
+        credentialUID,
+        reissued: Boolean(existing),
+      });
+
+      return { credential: serializeCredential(credential as CredentialWithStudent) };
     });
-
-    return { credential: serializeCredential(credential as CredentialWithStudent) };
   } catch (error) {
-    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
-      throw Object.assign(new Error("This NFC wristband is already registered in this school."), { status: 409 });
-    }
+    const mapped = mapUniqueCredentialError(error);
+    if (mapped) throw mapped;
     throw error;
   }
 }

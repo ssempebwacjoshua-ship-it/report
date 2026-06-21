@@ -31,7 +31,10 @@ type CredentialRow = {
   student: StudentRow;
 };
 
-function createMockDb() {
+const OTHER_CREDENTIAL_TYPE = "LIBRARY_CARD" as CredentialType;
+const ACTIVE_STUDENT_CREDENTIAL_MESSAGE = "Student already has an active NFC wristband. Deactivate or mark it lost before issuing another.";
+
+function createMockDb(options: { failCreateWithActiveStudentIndexConflict?: boolean } = {}) {
   const students: StudentRow[] = [
     {
       id: "student-a",
@@ -83,10 +86,33 @@ function createMockDb() {
             && credential.type === where.schoolId_type_credentialUID.type
             && credential.credentialUID === where.schoolId_type_credentialUID.credentialUID,
         ) ?? null,
-      findFirst: async ({ where }: { where: { id?: string; schoolId?: string } }) =>
-        credentials.find((credential) => credential.id === where.id && credential.schoolId === where.schoolId) ?? null,
+      findFirst: async (
+        { where }: {
+          where: {
+            id?: string;
+            schoolId?: string;
+            studentId?: string;
+            type?: CredentialType;
+            status?: CredentialStatus;
+          };
+        },
+      ) =>
+        credentials.find(
+          (credential) =>
+            (!where.id || credential.id === where.id)
+            && (!where.schoolId || credential.schoolId === where.schoolId)
+            && (!where.studentId || credential.studentId === where.studentId)
+            && (!where.type || credential.type === where.type)
+            && (!where.status || credential.status === where.status),
+        ) ?? null,
       findMany: async () => credentials,
       create: async ({ data }: { data: { schoolId: string; studentId: string; type: CredentialType; credentialUID: string; issuedById?: string | null } }) => {
+        if (options.failCreateWithActiveStudentIndexConflict) {
+          throw {
+            code: "P2002",
+            meta: { target: "StudentCredential_one_active_per_student_type_idx" },
+          };
+        }
         const row = attachStudent({
           id: `credential-${credentials.length + 1}`,
           schoolId: data.schoolId,
@@ -153,6 +179,83 @@ describe("studentCredentialService", () => {
     await expect(issueStudentCredential({ schoolId: "school-a" }, { studentId: "student-a", credentialUID: "ab12" }, db)).rejects.toThrow(
       "already active",
     );
+  });
+
+  it("rejects a second active NFC wristband for the same student", async () => {
+    const { db } = createMockDb();
+    await issueStudentCredential({ schoolId: "school-a" }, { studentId: "student-a", credentialUID: "AB12" }, db);
+
+    await expect(issueStudentCredential({ schoolId: "school-a" }, { studentId: "student-a", credentialUID: "CD34" }, db)).rejects.toThrow(
+      ACTIVE_STUDENT_CREDENTIAL_MESSAGE,
+    );
+  });
+
+  it("allows issuing a new NFC wristband after the old one is deactivated", async () => {
+    const { db } = createMockDb();
+    const issued = await issueStudentCredential({ schoolId: "school-a" }, { studentId: "student-a", credentialUID: "AB12" }, db);
+    await deactivateStudentCredential({ schoolId: "school-a" }, issued.credential.id, "Lost", db);
+
+    const result = await issueStudentCredential({ schoolId: "school-a" }, { studentId: "student-a", credentialUID: "CD34" }, db);
+
+    expect(result.credential).toMatchObject({
+      credentialUID: "CD34",
+      status: "ACTIVE",
+      student: { id: "student-a" },
+    });
+  });
+
+  it("maps the database active-student unique index conflict to a clear 409 error", async () => {
+    const { db } = createMockDb({ failCreateWithActiveStudentIndexConflict: true });
+
+    await expect(issueStudentCredential({ schoolId: "school-a" }, { studentId: "student-a", credentialUID: "AB12" }, db)).rejects.toMatchObject({
+      message: ACTIVE_STUDENT_CREDENTIAL_MESSAGE,
+      status: 409,
+    });
+  });
+
+  it("keeps active wristband issuing isolated by school", async () => {
+    const { db } = createMockDb();
+    await issueStudentCredential({ schoolId: "school-a" }, { studentId: "student-a", credentialUID: "AB12" }, db);
+
+    const result = await issueStudentCredential({ schoolId: "school-b" }, { studentId: "student-b", credentialUID: "AB12" }, db);
+
+    expect(result.credential).toMatchObject({
+      credentialUID: "AB12",
+      student: { id: "student-b" },
+    });
+  });
+
+  it("scopes the active-student rule by credential type", async () => {
+    const { db, credentials } = createMockDb();
+    credentials.push({
+      id: "credential-other-type",
+      schoolId: "school-a",
+      studentId: "student-a",
+      type: OTHER_CREDENTIAL_TYPE,
+      credentialUID: "OTHER1",
+      status: CredentialStatus.ACTIVE,
+      issuedAt: new Date("2026-06-21T08:00:00.000Z"),
+      deactivatedAt: null,
+      deactivatedReason: null,
+      issuedById: null,
+      student: {
+        id: "student-a",
+        schoolId: "school-a",
+        admissionNumber: "A-001",
+        firstName: "Ada",
+        lastName: "Lovelace",
+        isActive: true,
+        enrollments: [{ class: { name: "Senior 1" }, stream: { name: "A" } }],
+      },
+    });
+
+    const result = await issueStudentCredential({ schoolId: "school-a" }, { studentId: "student-a", credentialUID: "AB12" }, db);
+
+    expect(result.credential).toMatchObject({
+      credentialUID: "AB12",
+      type: CredentialType.NFC_WRISTBAND,
+      student: { id: "student-a" },
+    });
   });
 
   it("requires a reason when deactivating a wristband", async () => {

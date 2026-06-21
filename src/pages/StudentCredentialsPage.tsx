@@ -39,6 +39,10 @@ export function StudentCredentialsPage() {
   const [loading, setLoading] = useState(true);
 
   const activeStudents = useMemo(() => students.filter((student) => student.isActive), [students]);
+  const selectedActiveCredential = useMemo(
+    () => credentials.find((credential) => credential.student.id === selectedStudentId && credential.status === "ACTIVE") ?? null,
+    [credentials, selectedStudentId],
+  );
 
   async function loadCredentials() {
     const result = await fetchStudentCredentials({ search, status });
@@ -80,6 +84,9 @@ export function StudentCredentialsPage() {
     setNotice("");
     try {
       if (!selectedStudentId) throw new Error("Select a student first.");
+      if (selectedActiveCredential) {
+        throw new Error("Student already has an active NFC wristband. Deactivate or mark it lost before issuing another.");
+      }
       await issueStudentCredential({ studentId: selectedStudentId, credentialUID: issueUID });
       setIssueUID("");
       setNotice("NFC wristband registered.");
@@ -148,6 +155,12 @@ export function StudentCredentialsPage() {
                 ))}
               </select>
             </label>
+            {selectedActiveCredential ? (
+              <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+                <p className="font-bold">Student already has active NFC wristband {selectedActiveCredential.credentialUID}.</p>
+                <p className="mt-1">Deactivate / Mark Lost first.</p>
+              </div>
+            ) : null}
             <label className="grid gap-1 text-xs font-bold uppercase text-slate-500">
               Wristband UID
               <input
@@ -161,8 +174,13 @@ export function StudentCredentialsPage() {
                 placeholder="Tap wristband"
               />
             </label>
-            <button type="button" className="btn btn-primary justify-self-start" onClick={() => void handleIssue()} disabled={!selectedStudentId || !issueUID.trim()}>
-              Assign Wristband
+            <button
+              type="button"
+              className="btn btn-primary justify-self-start"
+              onClick={() => void handleIssue()}
+              disabled={!selectedStudentId || !issueUID.trim() || Boolean(selectedActiveCredential)}
+            >
+              Issue Wristband
             </button>
           </div>
         </div>
