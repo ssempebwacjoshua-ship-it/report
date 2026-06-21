@@ -84,8 +84,8 @@ export function ContactPage() {
   );
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-950">
-      <section className="border-b border-blue-100 bg-gradient-to-br from-white via-blue-50 to-slate-50 px-4 py-8 sm:px-6 lg:px-8">
+    <div className="bg-slate-50 text-slate-950">
+      <section className="border-b border-blue-100 bg-gradient-to-br from-white via-blue-50 to-slate-50 px-4 py-6 sm:px-6 lg:px-8">
         <div className="mx-auto grid max-w-7xl gap-6 lg:grid-cols-12 lg:items-center">
           <div className="lg:col-span-7">
             <Badge>School Connect for smart schools</Badge>

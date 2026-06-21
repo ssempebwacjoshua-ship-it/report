@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { buildWhatsAppUrl } from "../../config/contact";
-import { ArrowRightIcon, CloseIcon, MenuIcon, SchoolIcon } from "./Icons";
+import { ArrowRightIcon, CloseIcon, MenuIcon } from "./Icons";
 
 const BOOK_DEMO_URL = buildWhatsAppUrl(
   "Hello SSAMENJ Technologies! I'd like to book a product demo for my organisation.",
@@ -49,16 +49,20 @@ export function MarketingHeader() {
         background: "rgba(255,255,255,0.98)",
         backdropFilter: "blur(14px)",
         WebkitBackdropFilter: "blur(14px)",
+        borderBottom: "1px solid #D8E2F0",
         transform: hidden && !open ? "translateY(-100%)" : "translateY(0)",
         transition: "transform 250ms ease",
       }}
     >
       <div className="mx-auto max-w-[1440px] px-4 sm:px-6 lg:px-8">
-        <div className="flex h-[46px] items-center justify-between gap-2">
+        <div className="flex h-[56px] items-center justify-between gap-2">
           <Link to="/" className="flex shrink-0 items-center gap-1.5" style={{ textDecoration: "none" }}>
             <div className="flex items-center gap-2">
-              <div className="grid h-[26px] w-[26px] place-items-center rounded-lg bg-gradient-to-br from-blue-600 to-blue-700 text-white shadow-sm">
-                <SchoolIcon className="h-4 w-4" />
+              <div
+                className="grid h-[28px] w-[28px] place-items-center rounded-lg border"
+                style={{ background: "#EAF3FF", borderColor: "#C2D8FF", color: "#0B2F6B" }}
+              >
+                <span className="text-[13px] font-black leading-none">S</span>
               </div>
               <div>
                 <div className="text-[12px] font-extrabold leading-none tracking-tight text-[#0B2F6B]">
@@ -159,13 +163,6 @@ export function MarketingHeader() {
         </div>
       ) : null}
 
-      <div
-        aria-hidden="true"
-        style={{
-          height: "2px",
-          background: "linear-gradient(to right, #0F5BD8 0%, rgba(15,91,216,0.45) 40%, rgba(15,91,216,0.12) 70%, transparent 100%)",
-        }}
-      />
     </header>
   );
 }

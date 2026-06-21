@@ -154,7 +154,7 @@ export function AboutPage() {
         }}
       >
         <div className="absolute inset-0 bg-dot-grid opacity-[0.15]" />
-        <div className="relative mx-auto grid max-w-7xl gap-6 px-4 py-6 sm:px-6 lg:grid-cols-12 lg:items-center lg:px-8 lg:py-12">
+        <div className="relative mx-auto grid max-w-7xl gap-6 px-4 py-6 sm:px-6 lg:grid-cols-12 lg:items-center lg:px-8 lg:py-8">
           <div className="lg:col-span-6">
             <div className="marketing-fade-up inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.2em] text-blue-50">
               <SparklesIcon className="h-3.5 w-3.5" />
