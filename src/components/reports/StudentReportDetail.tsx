@@ -1,10 +1,11 @@
-﻿import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { AssessmentFilter, StudentReportCard } from "../../shared/types/reports";
 import type { GradingScaleSettings, ReportSettings, SchoolProfileSettings } from "../../shared/types/settings";
 import { defaultSettingsSections } from "../../shared/types/settings";
 import { getSchoolInitials } from "../layout/branding";
 import type { ReportComments } from "../../shared/utils/reportComments";
 import { generateRemarks } from "../../shared/utils/remarksEngine";
+import { formatUgandaSchoolYearLabel } from "../../shared/utils/ugandaYear";
 
 type Props = {
   card: StudentReportCard | null;
@@ -65,7 +66,6 @@ function buildDefaultDraft(
 ): ReportDraft {
   const ctTemplate = card.comments || reports.defaultClassTeacherCommentTemplate;
   const htTemplate = reports.defaultHmCommentTemplate;
-  // Auto-fill from score band when both templates are absent and average is available
   const autoRemarks = !ctTemplate && !htTemplate ? generateRemarks(card.average) : null;
   return {
     classTeacherComment: ctTemplate || autoRemarks?.classTeacherComment || "",
@@ -81,14 +81,10 @@ function buildDefaultDraft(
 function formatDisplayDate(value: string) {
   const date = value ? new Date(`${value}T00:00:00`) : new Date();
   return date.toLocaleDateString("en-GB", {
-    day: "2-digit",
+    day: "numeric",
     month: "long",
     year: "numeric",
   });
-}
-
-function EmptyComment() {
-  return <span className="text-slate-400">-</span>;
 }
 
 export function StudentReportDetail({
@@ -190,6 +186,10 @@ function StudentReportDetailContent({
     setDraftState("idle");
   };
 
+  // Conduct / Progression — conductNote takes priority; fall back to promotion record
+  const conductContent = draft.conductNote || card.progressionText || "";
+  const showConductCard = Boolean(conductContent);
+
   return (
     <section className={`report-print-area report-print-page min-w-0 report-density-${reports.printDensity}`}>
       {editing ? (
@@ -232,6 +232,11 @@ function StudentReportDetailContent({
                 onChange={(event) => updateDraft("conductNote", event.target.value)}
                 className="min-h-16 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-normal text-slate-800 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
               />
+              {card.progressionText && !draft.conductNote ? (
+                <span className="mt-1 block text-xs text-slate-400">
+                  Auto-filled from promotion record: &ldquo;{card.progressionText}&rdquo;
+                </span>
+              ) : null}
             </label>
             <label className="space-y-1 text-xs font-semibold text-slate-600">
               Class Teacher Name
@@ -358,7 +363,7 @@ function StudentReportDetailContent({
               </p>
             </div>
             <div className="w-24 flex-shrink-0 text-right text-xs leading-relaxed text-blue-200 print:text-[7px] print:leading-tight">
-              <div className="font-semibold text-white">{card.academicYear}</div>
+              <div className="font-semibold text-white">{formatUgandaSchoolYearLabel(card.academicYear)}</div>
               <div>{card.term}</div>
             </div>
           </div>
@@ -367,7 +372,7 @@ function StudentReportDetailContent({
               <span className="font-semibold text-white">Assessment:</span> {ASSESSMENT_LABELS[effectiveType]}
             </div>
             <div>
-              <span className="font-semibold text-white">Issue Date:</span> {issueDate}
+              <span className="font-semibold text-white">Date:</span> {issueDate}
             </div>
           </div>
         </div>
@@ -539,36 +544,45 @@ function StudentReportDetailContent({
 
           <div className="report-comments mb-6 print:mb-1">
             <h3 className="mb-3 text-xs font-bold uppercase tracking-widest text-slate-400 print:mb-1 print:text-[7px]">
-              Comments &amp; Signatures
+              Comments
             </h3>
-            <div className="grid gap-4 sm:grid-cols-3 print:grid-cols-3 print:gap-1">
+            <div className={`grid gap-4 print:gap-1 ${showConductCard ? "sm:grid-cols-3 print:grid-cols-3" : "sm:grid-cols-2 print:grid-cols-2"}`}>
               <div className="rounded-xl border border-slate-200 p-4 print:p-1.5">
                 <p className="mb-2 text-xs font-bold text-slate-600 print:mb-1 print:text-[7px]">
-                  Class Teacher's Comment
+                  Class Teacher&apos;s Comment
                 </p>
-                <div className="mb-4 min-h-[56px] rounded-lg border border-dashed border-slate-200 bg-slate-50 p-2 text-xs italic text-slate-500 print:mb-1 print:min-h-0 print:p-1">
-                  {draft.classTeacherComment ? draft.classTeacherComment : <EmptyComment />}
+                <div className="mb-3 min-h-[56px] rounded-lg border border-dashed border-slate-200 bg-slate-50 p-2 text-xs italic text-slate-500 print:mb-1 print:min-h-0 print:p-1">
+                  {draft.classTeacherComment || <span className="text-slate-300">—</span>}
                 </div>
-                <SignatureLines name={draft.classTeacherName} date={issueDate} mode={reports.signatureMode} />
+                {draft.classTeacherName ? (
+                  <p className="text-xs text-slate-500 print:text-[7px]">
+                    <span className="font-semibold">Name:</span> {draft.classTeacherName}
+                  </p>
+                ) : null}
               </div>
               <div className="rounded-xl border border-slate-200 p-4 print:p-1.5">
                 <p className="mb-2 text-xs font-bold text-slate-600 print:mb-1 print:text-[7px]">
-                  Head Teacher's Comment
+                  Head Teacher&apos;s Comment
                 </p>
-                <div className="mb-4 min-h-[56px] rounded-lg border border-dashed border-slate-200 bg-slate-50 p-2 text-xs italic text-slate-500 print:mb-1 print:min-h-0 print:p-1">
-                  {draft.headTeacherComment ? draft.headTeacherComment : <EmptyComment />}
+                <div className="mb-3 min-h-[56px] rounded-lg border border-dashed border-slate-200 bg-slate-50 p-2 text-xs italic text-slate-500 print:mb-1 print:min-h-0 print:p-1">
+                  {draft.headTeacherComment || <span className="text-slate-300">—</span>}
                 </div>
-                <SignatureLines name={draft.headTeacherName} date={issueDate} mode={reports.signatureMode} />
+                {draft.headTeacherName ? (
+                  <p className="text-xs text-slate-500 print:text-[7px]">
+                    <span className="font-semibold">Name:</span> {draft.headTeacherName}
+                  </p>
+                ) : null}
               </div>
-              <div className="rounded-xl border border-slate-200 p-4 print:p-1.5">
-                <p className="mb-2 text-xs font-bold text-slate-600 print:mb-1 print:text-[7px]">
-                  Conduct / Progression
-                </p>
-                <div className="mb-4 min-h-[56px] rounded-lg border border-dashed border-slate-200 bg-slate-50 p-2 text-xs italic text-slate-500 print:mb-1 print:min-h-0 print:p-1">
-                  {draft.conductNote ? draft.conductNote : <EmptyComment />}
+              {showConductCard ? (
+                <div className="rounded-xl border border-slate-200 p-4 print:p-1.5">
+                  <p className="mb-2 text-xs font-bold text-slate-600 print:mb-1 print:text-[7px]">
+                    Conduct / Progression
+                  </p>
+                  <div className="min-h-[56px] rounded-lg border border-dashed border-slate-200 bg-slate-50 p-2 text-xs italic text-slate-500 print:min-h-0 print:p-1">
+                    {conductContent}
+                  </div>
                 </div>
-                <SignatureLines name="" date={issueDate} mode={reports.signatureMode} />
-              </div>
+              ) : null}
             </div>
           </div>
 
@@ -577,7 +591,7 @@ function StudentReportDetailContent({
               {school.reportFooterText}
             </p>
             <p className="mt-1 print:mt-0">
-              Generated: {issueDate}&nbsp;&nbsp;|&nbsp;&nbsp;Verification: SC-REPORT-PREVIEW
+              Verification: SC-REPORT-PREVIEW
             </p>
           </div>
         </div>
@@ -585,25 +599,3 @@ function StudentReportDetailContent({
     </section>
   );
 }
-
-function SignatureLines({ name, date, mode }: { name: string; date: string; mode: ReportSettings["signatureMode"] }) {
-  return (
-    <div className="space-y-3 text-xs text-slate-500 print:space-y-1">
-      <div className="flex items-end gap-2">
-        <span className="w-10 flex-shrink-0 print:text-[8px]">Name:</span>
-        <div className="min-h-5 flex-1 border-b border-slate-300 text-slate-700">{name}</div>
-      </div>
-      {mode === "name_and_signature_line" ? (
-        <div className="flex items-end gap-2">
-          <span className="w-10 flex-shrink-0 print:text-[8px]">Sign:</span>
-          <div className="flex-1 border-b border-slate-300" />
-        </div>
-      ) : null}
-      <div className="flex items-end gap-2">
-        <span className="w-10 flex-shrink-0 print:text-[8px]">Date:</span>
-        <div className="min-h-5 flex-1 border-b border-slate-300 text-slate-700">{date}</div>
-      </div>
-    </div>
-  );
-}
-

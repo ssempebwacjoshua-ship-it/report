@@ -135,6 +135,36 @@ describe("reportEngine", () => {
   });
 });
 
+describe("progressionText from promotionsByStudentId", () => {
+  it("sets progressionText from promotionsByStudentId on matching card", () => {
+    const report = buildReports({
+      ...baseInput,
+      promotionsByStudentId: { s1: "Promoted to Senior 2" },
+    });
+    expect(report.cards[0].progressionText).toBe("Promoted to Senior 2");
+  });
+
+  it("sets progressionText to null for students not in promotionsByStudentId", () => {
+    const report = buildReports({
+      ...baseInput,
+      promotionsByStudentId: { s1: "Promoted to Senior 2" },
+    });
+    expect(report.cards[1].progressionText).toBeNull();
+  });
+
+  it("sets progressionText to null for all cards when promotionsByStudentId is absent", () => {
+    const report = buildReports(baseInput);
+    expect(report.cards[0].progressionText).toBeNull();
+    expect(report.cards[1].progressionText).toBeNull();
+  });
+
+  it("sets progressionText to null for all cards when promotionsByStudentId is empty", () => {
+    const report = buildReports({ ...baseInput, promotionsByStudentId: {} });
+    expect(report.cards[0].progressionText).toBeNull();
+    expect(report.cards[1].progressionText).toBeNull();
+  });
+});
+
 describe("gradeService", () => {
   it("maps averages to grades", () => {
     expect(gradeForAverage(80)).toBe("D1");

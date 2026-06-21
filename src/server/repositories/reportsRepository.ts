@@ -43,6 +43,7 @@ export async function loadReportEngineInput(prisma: PrismaClient, filters: Repor
       students: [],
       subjects: school?.subjects.map((subject) => ({ id: subject.id, name: subject.name, sortOrder: subject.sortOrder })) ?? [],
       marks: [],
+      promotionsByStudentId: {},
       settings: {
         school: settings.school,
         reports: settings.reports,
@@ -67,6 +68,34 @@ export async function loadReportEngineInput(prisma: PrismaClient, filters: Repor
   });
 
   const studentIds = enrollments.map((enrollment) => enrollment.studentId);
+
+  // Load promotion decisions for these students in this year/term
+  const rawPromotionActions = studentIds.length > 0
+    ? await prisma.promotionAction.findMany({
+        where: {
+          schoolId: school.id,
+          studentId: { in: studentIds },
+          status: "APPLIED",
+          batch: { academicYearId: academicYear.id, termId: term.id, status: "APPLIED" },
+        },
+        select: { studentId: true, decision: true, fromClassName: true, toClassName: true },
+        orderBy: { createdAt: "desc" },
+      })
+    : [];
+
+  const promotionsByStudentId: Record<string, string> = {};
+  for (const action of rawPromotionActions) {
+    if (!promotionsByStudentId[action.studentId]) {
+      if (action.decision === "PROMOTE") {
+        promotionsByStudentId[action.studentId] = `Promoted to ${action.toClassName ?? "next class"}`;
+      } else if (action.decision === "REPEAT") {
+        promotionsByStudentId[action.studentId] = `To repeat ${action.fromClassName}`;
+      } else {
+        promotionsByStudentId[action.studentId] = "Completed / Graduated";
+      }
+    }
+  }
+
   const marks = await prisma.subjectMark.findMany({
     where: {
       schoolId: school.id,
@@ -85,6 +114,7 @@ export async function loadReportEngineInput(prisma: PrismaClient, filters: Repor
     academicYearName: academicYear.name,
     termName: term.name,
     hasActiveTerm: true,
+    promotionsByStudentId,
     students: enrollments.map((enrollment) => ({
       id: enrollment.student.id,
       admissionNumber: enrollment.student.admissionNumber,

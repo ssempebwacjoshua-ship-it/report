@@ -35,6 +35,7 @@ function makePrisma(subjectMarkFindMany: ReturnType<typeof vi.fn>) {
     schoolClass: { findUnique: vi.fn(async () => ({ id: CLS, name: "Senior 1", code: "S1" })) },
     classEnrollment: { findMany: vi.fn(async () => []) },
     subjectMark: { findMany: subjectMarkFindMany },
+    promotionAction: { findMany: vi.fn(async () => []) },
     appSetting: { findUnique: vi.fn(async () => null) },
   } as unknown as PrismaClient;
 }
@@ -164,6 +165,99 @@ function makeContextPrisma(options: {
 
   return { mockPrisma, subjectCreate, subjectFindMany, subjectDelete };
 }
+
+const STUDENT_ID = "stu-aaaaaaaa-4aaa-8aaa-000000000001";
+const ENROLLMENT_MOCK = {
+  studentId: STUDENT_ID,
+  student: {
+    id: STUDENT_ID,
+    admissionNumber: "S1-001",
+    firstName: "Alice",
+    lastName: "Namusoke",
+    guardianContacts: [],
+    isActive: true,
+  },
+  class: { id: CLS, name: "Senior 1", code: "S1" },
+  stream: { id: "stream-1", name: "A" },
+};
+
+function makePrismaWithEnrollments(
+  enrollments: object[],
+  promotionActions: object[],
+) {
+  const school = {
+    id: SCHOOL_ID,
+    code: SCHOOL_CODE,
+    name: "Test School",
+    academicYears: [{
+      id: "year-1",
+      name: "2025/2026",
+      isActive: true,
+      startsOn: new Date("2025-01-01T00:00:00.000Z"),
+      endsOn: new Date("2026-12-31T00:00:00.000Z"),
+      terms: [{
+        id: "term-1",
+        name: "Term 1",
+        isActive: true,
+        startsOn: new Date("2026-02-01T00:00:00.000Z"),
+        endsOn: new Date("2026-05-31T00:00:00.000Z"),
+      }],
+    }],
+    subjects: [{ id: "subject-1", name: "Mathematics", sortOrder: 1 }],
+  };
+
+  return {
+    school: { findUnique: vi.fn(async () => school) },
+    schoolClass: { findUnique: vi.fn(async () => ({ id: CLS, name: "Senior 1", code: "S1" })) },
+    classEnrollment: { findMany: vi.fn(async () => enrollments) },
+    subjectMark: { findMany: vi.fn(async () => []) },
+    promotionAction: { findMany: vi.fn(async () => promotionActions) },
+    appSetting: { findUnique: vi.fn(async () => null) },
+  } as unknown as PrismaClient;
+}
+
+describe("loadReportEngineInput ? progressionText from promotion actions", () => {
+  const filters = {
+    schoolCode: SCHOOL_CODE,
+    classId: CLS,
+    streamId: "",
+    assessmentType: "TERM_SUMMARY" as const,
+  };
+
+  it("sets progressionText to 'Promoted to Senior 2' for a PROMOTE action", async () => {
+    const prisma = makePrismaWithEnrollments(
+      [ENROLLMENT_MOCK],
+      [{
+        studentId: STUDENT_ID,
+        decision: "PROMOTE",
+        fromClassName: "Senior 1",
+        toClassName: "Senior 2",
+      }],
+    );
+    const input = await loadReportEngineInput(prisma, filters);
+    expect(input.promotionsByStudentId![STUDENT_ID]).toBe("Promoted to Senior 2");
+  });
+
+  it("sets progressionText to 'To repeat Senior 1' for a REPEAT action", async () => {
+    const prisma = makePrismaWithEnrollments(
+      [ENROLLMENT_MOCK],
+      [{
+        studentId: STUDENT_ID,
+        decision: "REPEAT",
+        fromClassName: "Senior 1",
+        toClassName: null,
+      }],
+    );
+    const input = await loadReportEngineInput(prisma, filters);
+    expect(input.promotionsByStudentId![STUDENT_ID]).toBe("To repeat Senior 1");
+  });
+
+  it("leaves progressionText undefined for students with no promotion action", async () => {
+    const prisma = makePrismaWithEnrollments([ENROLLMENT_MOCK], []);
+    const input = await loadReportEngineInput(prisma, filters);
+    expect(input.promotionsByStudentId![STUDENT_ID]).toBeUndefined();
+  });
+});
 
 describe("getReportContext ? subject auto-healing", () => {
   it("auto-provisions subjects when classes exist and active subjects are empty", async () => {

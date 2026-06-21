@@ -39,6 +39,8 @@ export type EngineInput = {
   students: EngineStudent[];
   subjects: EngineSubject[];
   marks: EngineMark[];
+  /** studentId → human-readable progression text from PromotionAction */
+  promotionsByStudentId?: Record<string, string>;
   settings?: {
     school: SchoolProfileSettings;
     reports: ReportSettings;
@@ -153,6 +155,7 @@ export function buildReports(input: EngineInput): ReportsResponse {
       contactReadiness: student.contactReadiness,
       contactSummary: student.contactSummary,
       subjects,
+      progressionText: input.promotionsByStudentId?.[student.id] ?? null,
     };
   });
 

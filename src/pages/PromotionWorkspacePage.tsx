@@ -3,6 +3,7 @@ import { getApiBaseUrl } from "../client/apiBase";
 import { fetchReportContext } from "../client/reportsClient";
 import { fetchSettings } from "../client/settingsClient";
 import type { ReportContextOption } from "../shared/types/reports";
+import { formatUgandaSchoolYearLabel, nextUgandaSchoolYear } from "../shared/utils/ugandaYear";
 
 const API_BASE = getApiBaseUrl();
 
@@ -86,11 +87,18 @@ export function PromotionWorkspacePage() {
   const [sourceYearId, setSourceYearId] = useState("");
   const [sourceTermId, setSourceTermId] = useState("");
   const [assessmentType, setAssessmentType] = useState<"BOT" | "MOT" | "EOT" | "TERM_SUMMARY">("EOT");
+
   const [classId, setClassId] = useState("");
   const [streamId, setStreamId] = useState("");
   const [scoreThreshold, setScoreThreshold] = useState(40);
-  const [targetYearId, setTargetYearId] = useState("");
   const [targetTermId, setTargetTermId] = useState("");
+
+  // Compute target year automatically from source year name
+  const sourceYear = context?.academicYears.find((y) => y.id === sourceYearId);
+  const sourceYearLabel = sourceYear ? formatUgandaSchoolYearLabel(sourceYear.name) : "";
+  const nextYearNumber = sourceYearLabel ? String(nextUgandaSchoolYear(sourceYear!.name)) : "";
+  const targetYear = context?.academicYears.find((y) => formatUgandaSchoolYearLabel(y.name) === nextYearNumber);
+  const computedTargetYearId = targetYear?.id ?? "";
 
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [overrides, setOverrides] = useState<Record<string, OverrideDecision>>({});
@@ -180,7 +188,7 @@ export function PromotionWorkspacePage() {
   const selectedCandidates = candidates.filter((c) => selected.has(c.studentId));
 
   async function handleApply() {
-    if (!targetYearId || !targetTermId || selectedCandidates.length === 0) return;
+    if (!computedTargetYearId || !targetTermId || selectedCandidates.length === 0) return;
     setApplying(true);
     setError("");
     setApplyResult(null);
@@ -195,7 +203,7 @@ export function PromotionWorkspacePage() {
           classId: classId || undefined,
           streamId: streamId || undefined,
           scoreThreshold,
-          targetAcademicYearId: targetYearId,
+          targetAcademicYearId: computedTargetYearId,
           targetTermId,
           decisions: selectedCandidates.map((c) => ({
             studentId: c.studentId,
@@ -270,7 +278,7 @@ export function PromotionWorkspacePage() {
             >
               <option value="">— select year —</option>
               {context?.academicYears.map((y) => (
-                <option key={y.id} value={y.id}>{y.name}</option>
+                <option key={y.id} value={y.id}>{formatUgandaSchoolYearLabel(y.name)}</option>
               ))}
             </select>
           </label>
@@ -440,20 +448,13 @@ export function PromotionWorkspacePage() {
             </table>
           </div>
 
-          {/* Target year selection + apply */}
+          {/* Target year (auto-computed) + target term selection */}
           <div className="border-t border-slate-100 p-5">
             <h3 className="mb-3 text-sm font-bold text-slate-900">Promote into which academic year / term?</h3>
-            <div className="flex flex-wrap gap-3">
-              <select
-                value={targetYearId}
-                onChange={(e) => setTargetYearId(e.target.value)}
-                className="rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-800 outline-none focus:border-blue-500"
-              >
-                <option value="">— target year —</option>
-                {context?.academicYears.map((y) => (
-                  <option key={y.id} value={y.id}>{y.name}</option>
-                ))}
-              </select>
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
+                Target year: <strong>{nextYearNumber || "—"}</strong>
+              </span>
               <select
                 value={targetTermId}
                 onChange={(e) => setTargetTermId(e.target.value)}
@@ -470,7 +471,7 @@ export function PromotionWorkspacePage() {
               <button
                 type="button"
                 className="btn btn-primary mt-4"
-                disabled={selected.size === 0 || !targetYearId || !targetTermId || applying}
+                disabled={selected.size === 0 || !computedTargetYearId || !targetTermId || applying}
                 onClick={() => setConfirming(true)}
               >
                 Apply promotions ({selected.size} student{selected.size !== 1 ? "s" : ""})
