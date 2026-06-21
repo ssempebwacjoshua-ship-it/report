@@ -33,6 +33,7 @@ export const navItemsByProduct: Record<ProductKey, NavItem[]> = {
     { to: "/marksheets", label: "Marksheets", icon: "clipboard", exact: true },
     { to: "/reports", label: "Reports", icon: "file", exact: true },
     { to: "/reports/release", label: "Release Center", icon: "send", exact: true },
+    { to: "/promotions", label: "Promotions", icon: "upload", exact: true },
     { to: "/settings", label: "Academic Setup", icon: "settings" },
   ],
   smartPages: [

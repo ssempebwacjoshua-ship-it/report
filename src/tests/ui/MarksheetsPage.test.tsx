@@ -3,6 +3,7 @@ import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import { MarksheetsPage } from "../../pages/MarksheetsPage";
 import { fetchReportContext } from "../../client/reportsClient";
+import { formatUgandaSchoolYearLabel, nextUgandaSchoolYear } from "../../shared/utils/ugandaYear";
 
 // Lightweight stand-in ? avoids pulling in qrcode.react in the test environment
 vi.mock("../../components/marksheets/PrintableMarksheet", () => ({
@@ -304,6 +305,37 @@ describe("MarksheetsPage Print tab ? print button label", () => {
     fireEvent.click(screen.getByRole("button", { name: /print all/i }));
     expect(printSpy).toHaveBeenCalledTimes(1);
     printSpy.mockRestore();
+  });
+});
+
+describe("formatUgandaSchoolYearLabel", () => {
+  it("extracts ending year from slash-separated year names", () => {
+    expect(formatUgandaSchoolYearLabel("2025/2026")).toBe("2026");
+    expect(formatUgandaSchoolYearLabel("2026/2027")).toBe("2027");
+  });
+
+  it("returns the plain year unchanged when there is no slash", () => {
+    expect(formatUgandaSchoolYearLabel("2026")).toBe("2026");
+  });
+
+  it("trims whitespace from the result", () => {
+    expect(formatUgandaSchoolYearLabel(" 2025/2026 ")).toBe("2026");
+    expect(formatUgandaSchoolYearLabel("2025/ 2026 ")).toBe("2026");
+  });
+});
+
+describe("nextUgandaSchoolYear", () => {
+  it("returns the year after the Uganda label for a plain year", () => {
+    expect(nextUgandaSchoolYear("2026")).toBe(2027);
+  });
+
+  it("returns the year after the ending year for a slash-separated name", () => {
+    expect(nextUgandaSchoolYear("2025/2026")).toBe(2027);
+    expect(nextUgandaSchoolYear("2026/2027")).toBe(2028);
+  });
+
+  it("promotion target year defaults to next year from source year", () => {
+    expect(nextUgandaSchoolYear("2026")).toBe(2027);
   });
 });
 

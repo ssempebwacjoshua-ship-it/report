@@ -55,6 +55,8 @@ export type StudentReportCard = {
   contactReadiness: ContactReadiness;
   contactSummary: string;
   subjects: SubjectReportRow[];
+  /** Populated from PromotionAction when the student's promotion is on record for this term. */
+  progressionText: string | null;
 };
 
 export type ReportContextOption = {

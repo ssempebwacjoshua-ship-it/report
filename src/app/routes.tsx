@@ -34,6 +34,7 @@ import { NotificationsPage } from "../pages/smart-pages/NotificationsPage";
 import { PreferencesPage } from "../pages/smart-pages/PreferencesPage";
 import { SearchPage } from "../pages/smart-pages/SearchPage";
 import { RouteErrorPage } from "../pages/RouteErrorPage";
+import { PromotionWorkspacePage } from "../pages/PromotionWorkspacePage";
 
 const lawyerSmartPagesEnabled = import.meta.env.VITE_ENABLE_SMART_PAGES_LAWYERS === "true";
 const LawyerShell = lazy(() => import("../components/lawyers/LawyerShell").then((module) => ({ default: module.LawyerShell })));
@@ -101,6 +102,7 @@ export const router = createBrowserRouter([
       { path: "students", element: <StudentsPage /> },
       { path: "reports", element: <ReportsPage /> },
       { path: "reports/release", element: <ReleaseCenterPage /> },
+      { path: "promotions", element: <PromotionWorkspacePage /> },
       { path: "imports/marks", element: <MarksImportPage /> },
       { path: "marksheets", element: <MarksheetsPage /> },
       { path: "settings", element: <SettingsPage /> },
