@@ -341,10 +341,7 @@ export function ProductsPage() {
         <div className="home-hero-content mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="max-w-xl">
             <p className="marketing-fade-up text-xs font-black uppercase tracking-[0.2em] text-blue-200">Products</p>
-            <h1
-              className="marketing-fade-up-delay-1 mt-2 font-black text-white"
-              style={{ fontSize: "clamp(2rem, 3.5vw, 3.5rem)", lineHeight: "1.1", letterSpacing: "-0.02em" }}
-            >
+            <h1 className="marketing-fade-up-delay-1 mt-2 hero-title font-black text-white">
               A practical product family for schools, legal teams, and custom digital work.
             </h1>
             <p className="marketing-fade-up-delay-2 mt-2.5 text-sm leading-6 text-blue-50 sm:text-base">

@@ -453,12 +453,13 @@ p {
   margin-top: 0;
 }
 
-h1 {
-  max-width: 12ch;
-  margin-bottom: 14px;
-  font-size: clamp(2.8rem, 6vw, 5.2rem);
-  line-height: 0.98;
-  letter-spacing: -0.03em;
+/* Shared hero headline — apply this class to every page hero <h1> */
+.hero-title {
+  font-size: clamp(1.875rem, 3.5vw, 3.25rem);
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  max-width: none;
+  margin-bottom: 0;
 }
 
 .hero-copy {

@@ -124,7 +124,7 @@ export function DemosPage() {
               <SparklesIcon className="h-3.5 w-3.5" />
               School Connect for smart schools
             </div>
-            <h1 className="marketing-fade-up-delay-1 mt-2 max-w-xl text-3xl font-black leading-tight tracking-tight text-white lg:text-4xl">
+            <h1 className="marketing-fade-up-delay-1 mt-2 hero-title font-black text-white">
               Powering smart schools with digital reports and intelligent documents.
             </h1>
             <p className="marketing-fade-up-delay-2 mt-2.5 max-w-xl text-sm leading-6 text-blue-50 sm:text-base">

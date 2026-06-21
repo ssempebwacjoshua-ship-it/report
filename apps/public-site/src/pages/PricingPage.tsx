@@ -238,7 +238,7 @@ export function PricingPage() {
           <div className="mx-auto grid max-w-7xl gap-6 lg:grid-cols-12 lg:items-start">
             <div className="lg:col-span-7">
               <Badge>Pricing</Badge>
-              <h1 className="mt-3 max-w-3xl text-4xl font-black tracking-tight text-slate-950 sm:text-5xl">
+              <h1 className="mt-3 hero-title font-black text-slate-950">
                 Per-term pricing for Report Lab &amp; Smart Pages.
               </h1>
               <p className="mt-3 max-w-2xl text-base leading-7 text-slate-600">

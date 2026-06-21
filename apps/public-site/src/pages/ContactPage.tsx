@@ -89,7 +89,7 @@ export function ContactPage() {
         <div className="mx-auto grid max-w-7xl gap-6 lg:grid-cols-12 lg:items-center">
           <div className="lg:col-span-7">
             <Badge>School Connect for smart schools</Badge>
-            <h1 className="mt-3 max-w-3xl text-4xl font-black tracking-tight text-slate-950 sm:text-5xl">
+            <h1 className="mt-3 hero-title font-black text-slate-950">
               Let&apos;s help your school work smarter.
             </h1>
             <p className="mt-3 max-w-2xl text-base leading-7 text-slate-600">

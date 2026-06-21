@@ -26,7 +26,7 @@ export function SSAMENJHomePage() {
               <SparklesIcon className="h-3.5 w-3.5" />
               SSAMENJ Technologies
             </div>
-            <h1 className="marketing-fade-up-delay-1 mt-2 text-3xl font-black leading-tight tracking-tight text-white lg:text-4xl">
+            <h1 className="marketing-fade-up-delay-1 mt-2 hero-title font-black text-white">
               Smart systems. Simple work.
             </h1>
             <p className="marketing-fade-up-delay-2 mt-2.5 text-sm leading-6 text-blue-50 sm:text-base">
