@@ -76,18 +76,18 @@ export function MarketingHeader() {
         transition: "transform 250ms ease",
       }}
     >
-      {/* Nav bar — 56px tall */}
+      {/* Nav bar — 46px tall */}
       <div className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between gap-2" style={{ height: "56px" }}>
+        <div className="flex items-center justify-between gap-2" style={{ height: "46px" }}>
 
           {/* Logo */}
-          <a href="/" className="flex items-center gap-2 flex-shrink-0" style={{ textDecoration: "none" }}>
-            <img src="/ssamenj-logo.png" alt="SSAMENJ Technologies" style={{ width: "32px", height: "32px", objectFit: "contain" }} />
+          <a href="/" className="flex items-center gap-1.5 flex-shrink-0" style={{ textDecoration: "none" }}>
+            <img src="/ssamenj-logo.png" alt="SSAMENJ Technologies" style={{ width: "26px", height: "26px", objectFit: "contain" }} />
             <div>
-              <div style={{ fontSize: "13px", fontWeight: 800, lineHeight: 1, letterSpacing: "-0.01em", color: "#0B2F6B" }}>
+              <div style={{ fontSize: "12px", fontWeight: 800, lineHeight: 1, letterSpacing: "-0.01em", color: "#0B2F6B" }}>
                 SSAMENJ
               </div>
-              <div style={{ fontSize: "8.5px", fontWeight: 600, lineHeight: 1, marginTop: "2px", letterSpacing: "0.14em", textTransform: "uppercase", color: "#0F5BD8" }}>
+              <div style={{ fontSize: "7.5px", fontWeight: 600, lineHeight: 1, marginTop: "2px", letterSpacing: "0.14em", textTransform: "uppercase", color: "#0F5BD8" }}>
                 Technologies
               </div>
             </div>
@@ -97,30 +97,30 @@ export function MarketingHeader() {
           <nav className="hidden xl:flex items-center flex-1 min-w-0 mx-3 gap-0" aria-label="Main navigation">
             <a
               href="/"
-              className="px-2.5 py-2 rounded-lg whitespace-nowrap transition-colors hover:bg-[#F5F8FF]"
+              className="px-2.5 py-1 rounded-lg whitespace-nowrap transition-colors hover:bg-[#F5F8FF]"
               style={{ ...linkStyle("/"), fontSize: "13px" }}
             >
               Home
             </a>
-            <div className="mx-2 w-px h-3.5 flex-shrink-0" style={{ background: "#D8E2F0" }} />
+            <div className="mx-2 w-px h-3 flex-shrink-0" style={{ background: "#D8E2F0" }} />
             {PRODUCT_NAV.map((item) => (
               <a
                 key={item.href}
                 href={item.href}
-                className="px-2 py-2 rounded-lg whitespace-nowrap transition-colors hover:bg-[#F5F8FF] hover:text-[#0F5BD8]"
+                className="px-2 py-1 rounded-lg whitespace-nowrap transition-colors hover:bg-[#F5F8FF] hover:text-[#0F5BD8]"
                 style={{ ...linkStyle(item.href), fontSize: "12px" }}
               >
                 {item.shortLabel ?? item.label}
               </a>
             ))}
-            <div className="mx-2 w-px h-3.5 flex-shrink-0" style={{ background: "#D8E2F0" }} />
+            <div className="mx-2 w-px h-3 flex-shrink-0" style={{ background: "#D8E2F0" }} />
             {(["Demos", "About", "Contact"] as const).map((label) => {
               const href = `/${label.toLowerCase()}`;
               return (
                 <a
                   key={href}
                   href={href}
-                  className="px-2.5 py-2 rounded-lg whitespace-nowrap transition-colors hover:bg-[#F5F8FF] hover:text-[#0F5BD8]"
+                  className="px-2.5 py-1 rounded-lg whitespace-nowrap transition-colors hover:bg-[#F5F8FF] hover:text-[#0F5BD8]"
                   style={{ ...linkStyle(href), fontSize: "13px" }}
                 >
                   {label}
@@ -133,7 +133,7 @@ export function MarketingHeader() {
           <div className="hidden xl:flex items-center gap-2 flex-shrink-0">
             <a
               href="/demos"
-              className="px-3 py-2 rounded-lg text-[12px] font-bold transition-colors hover:bg-[#EAF3FF] whitespace-nowrap"
+              className="px-3 py-1.5 rounded-lg text-[12px] font-bold transition-colors hover:bg-[#EAF3FF] whitespace-nowrap"
               style={{ color: "#0F5BD8" }}
             >
               View Demos
@@ -142,7 +142,7 @@ export function MarketingHeader() {
               href={BOOK_DEMO_URL}
               target="_blank"
               rel="noreferrer"
-              className="px-3 py-2 text-[12px] font-bold text-white rounded-lg shadow-sm transition-all hover:opacity-90 active:scale-95 whitespace-nowrap"
+              className="px-3 py-1.5 text-[12px] font-bold text-white rounded-lg shadow-sm transition-all hover:opacity-90 active:scale-95 whitespace-nowrap"
               style={{ background: "#0F5BD8" }}
             >
               Book Demo
@@ -151,7 +151,7 @@ export function MarketingHeader() {
 
           {/* Hamburger — below xl */}
           <button
-            className="xl:hidden p-2 rounded-lg"
+            className="xl:hidden p-1.5 rounded-lg"
             style={{ color: "#0B0F19" }}
             onClick={() => setOpen((v) => !v)}
             aria-label={open ? "Close menu" : "Open menu"}

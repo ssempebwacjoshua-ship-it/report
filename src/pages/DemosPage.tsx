@@ -324,7 +324,7 @@ export function DemosPage() {
                 Coming Soon
               </h2>
               <p className="mt-1 text-sm" style={{ color: "#6B7280" }}>
-                These demos are in development. Book a guided walkthrough to get early access.
+                These products are being built. Book a demo to preview them early and help us tailor them to your real institutional needs.
               </p>
             </div>
             <span

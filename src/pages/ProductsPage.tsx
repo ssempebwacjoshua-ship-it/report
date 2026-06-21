@@ -1,4 +1,4 @@
-import { buildWhatsAppUrl } from "../config/contact";
+﻿import { buildWhatsAppUrl } from "../config/contact";
 
 const BOOK_DEMO_URL = buildWhatsAppUrl(
   "Hello SSAMENJ Technologies! I'd like to book a product demo for my organisation.",
@@ -253,123 +253,117 @@ function StatusBadge({ status }: { status: Status }) {
   );
 }
 
-// ── Product detail card ───────────────────────────────────────────────────────
+// ── Product card — compact grid tile ─────────────────────────────────────────
 
-function ProductCard({ product, index }: { product: Product; index: number }) {
-  const isEven = index % 2 === 0;
-  const isSoon = product.status === "soon";
+function ProductCard({ product }: { product: Product }) {
+  const isSoon = product.status === "soon" || product.status === "development";
 
   return (
     <article
-      className="rounded-3xl overflow-hidden border"
-      style={{ borderColor: "#D8E2F0", boxShadow: "0 4px 20px rgba(11,47,107,0.06)" }}
+      className="rounded-2xl border flex flex-col h-full"
+      style={{ borderColor: "#D8E2F0", background: "white", boxShadow: "0 2px 10px rgba(11,47,107,0.05)" }}
     >
-      <div className={`grid grid-cols-1 lg:grid-cols-2 ${isEven ? "" : "lg:[direction:rtl]"}`}>
-        {/* Left: info */}
-        <div className={`flex flex-col p-8 lg:p-10 bg-white ${isEven ? "" : "lg:[direction:ltr]"}`}>
-          <div className="flex items-center gap-3 mb-5">
-            <div
-              className="w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0"
-              style={{ background: product.accentBg, color: product.accentColor }}
-            >
-              {product.iconBig}
-            </div>
-            <StatusBadge status={product.status} />
+      <div className="p-5 flex flex-col flex-1" style={{ gap: "10px" }}>
+        {/* Icon + status */}
+        <div className="flex items-start justify-between gap-2">
+          <div
+            className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+            style={{ background: product.accentBg, color: product.accentColor }}
+          >
+            {product.iconBig}
           </div>
+          <StatusBadge status={product.status} />
+        </div>
 
-          <p className="text-xs font-bold uppercase tracking-wider mb-1" style={{ color: product.accentColor }}>
+        {/* Tagline + name */}
+        <div>
+          <p className="text-[10px] font-bold uppercase tracking-wider mb-0.5" style={{ color: product.accentColor }}>
             {product.tagline}
           </p>
-          <h2 className="text-2xl font-extrabold leading-snug mb-4" style={{ color: "#111827" }}>
+          <h2 className="text-base font-extrabold leading-snug" style={{ color: "#111827" }}>
             {product.name}
           </h2>
-          <p className="text-sm leading-relaxed mb-6" style={{ color: "#4B5563" }}>
-            {product.description}
-          </p>
-
-          {/* Audience */}
-          <div className="flex flex-wrap gap-1.5 mb-6">
-            {product.audience.map((a) => (
-              <span
-                key={a}
-                className="px-2.5 py-1 text-[11px] font-medium rounded-full"
-                style={{ background: "#EAF3FF", color: "#0F5BD8" }}
-              >
-                {a}
-              </span>
-            ))}
-          </div>
-
-          {/* CTAs */}
-          <div className="flex flex-wrap gap-3 mt-auto">
-            {isSoon ? (
-              <a
-                href={product.ctaHref}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-bold rounded-xl text-white transition-all hover:opacity-90"
-                style={{ background: "#0F5BD8" }}
-              >
-                Get Notified
-                <ArrowRightIcon c="w-4 h-4" />
-              </a>
-            ) : (
-              <a
-                href={product.ctaHref}
-                {...(product.ctaHref.startsWith("http") ? { target: "_blank", rel: "noreferrer" } : {})}
-                className="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-bold rounded-xl text-white transition-all hover:opacity-90"
-                style={{ background: "#0F5BD8" }}
-              >
-                {product.ctaLabel}
-                <ArrowRightIcon c="w-4 h-4" />
-              </a>
-            )}
-            {product.secondaryLabel && product.secondaryHref && (
-              <a
-                href={product.secondaryHref}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-semibold rounded-xl border transition-all hover:bg-[#EAF3FF]"
-                style={{ color: "#0F5BD8", borderColor: "#D8E2F0" }}
-              >
-                {product.secondaryLabel}
-              </a>
-            )}
-          </div>
         </div>
 
-        {/* Right: features */}
-        <div
-          className={`flex flex-col p-8 lg:p-10 ${isEven ? "" : "lg:[direction:ltr]"}`}
-          style={{ background: "#F8FBFF", borderLeft: isEven ? `1px solid #D8E2F0` : "none", borderRight: !isEven ? "1px solid #D8E2F0" : "none" }}
-        >
-          <h3 className="text-xs font-bold uppercase tracking-wider mb-5" style={{ color: "#0B2F6B" }}>
-            Key Features
-          </h3>
-          <ul className="space-y-3">
-            {product.features.map((f) => (
-              <li key={f} className="flex items-start gap-3">
-                <span
-                  className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5"
-                  style={{ background: product.accentBg }}
-                >
-                  <CheckIcon c="w-3 h-3" />
-                </span>
-                <span className="text-sm leading-snug" style={{ color: "#374151" }}>{f}</span>
-              </li>
-            ))}
-          </ul>
+        {/* Description */}
+        <p className="text-xs leading-relaxed" style={{ color: "#4B5563" }}>
+          {product.description}
+        </p>
 
-          {/* "Coming soon" shimmer overlay for not-live products */}
-          {isSoon && (
-            <div
-              className="mt-6 p-4 rounded-xl text-sm font-medium"
-              style={{ background: "#FEF3C7", color: "#B45309", border: "1px solid #FDE68A" }}
+        {/* Features — 4 max */}
+        <ul className="space-y-1.5">
+          {product.features.slice(0, 4).map((f) => (
+            <li key={f} className="flex items-start gap-2">
+              <span
+                className="w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0 mt-px"
+                style={{ background: product.accentBg, color: product.accentColor }}
+              >
+                <CheckIcon c="w-2.5 h-2.5" />
+              </span>
+              <span className="text-xs leading-snug" style={{ color: "#374151" }}>{f}</span>
+            </li>
+          ))}
+        </ul>
+
+        {/* Audience tags */}
+        <div className="flex flex-wrap gap-1">
+          {product.audience.map((a) => (
+            <span
+              key={a}
+              className="px-2 py-0.5 text-[10px] font-medium rounded-full"
+              style={{ background: "#EAF3FF", color: "#0F5BD8" }}
             >
-              🚧 This product is currently in development. Book a demo to get early access and provide input.
-            </div>
+              {a}
+            </span>
+          ))}
+        </div>
+
+        {/* CTAs */}
+        <div className="flex flex-wrap gap-2 mt-auto pt-1">
+          {isSoon ? (
+            <a
+              href={product.ctaHref}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold rounded-xl text-white transition-all hover:opacity-90"
+              style={{ background: "#0F5BD8" }}
+            >
+              Get Notified
+              <ArrowRightIcon c="w-3.5 h-3.5" />
+            </a>
+          ) : (
+            <a
+              href={product.ctaHref}
+              {...(product.ctaHref.startsWith("http") ? { target: "_blank", rel: "noreferrer" } : {})}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold rounded-xl text-white transition-all hover:opacity-90"
+              style={{ background: "#0F5BD8" }}
+            >
+              {product.ctaLabel}
+              <ArrowRightIcon c="w-3.5 h-3.5" />
+            </a>
+          )}
+          {product.secondaryLabel && product.secondaryHref && (
+            <a
+              href={product.secondaryHref}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold rounded-xl border transition-all hover:bg-[#EAF3FF]"
+              style={{ color: "#0F5BD8", borderColor: "#D8E2F0" }}
+            >
+              {product.secondaryLabel}
+            </a>
           )}
         </div>
+
+        {/* In-development notice */}
+        {product.status === "development" && (
+          <div
+            className="p-3 rounded-xl text-xs font-medium"
+            style={{ background: "#FEF3C7", color: "#B45309", border: "1px solid #FDE68A" }}
+          >
+            🚧 In Development — This product is being built. Book a demo to preview it early and help us tailor it to your real institutional needs.
+          </div>
+        )}
       </div>
     </article>
   );
@@ -385,7 +379,7 @@ export function ProductsPage() {
     <div className="min-h-screen" style={{ background: "#FFFFFF" }}>
       {/* ── Hero ── */}
       <section
-        className="relative pt-24 pb-14 lg:pt-32 lg:pb-20 overflow-hidden"
+        className="relative pt-20 pb-10 lg:pt-24 lg:pb-12 overflow-hidden"
         style={{ background: "linear-gradient(160deg, #0B2F6B 0%, #0F5BD8 60%, #1A72F0 100%)" }}
       >
         <div className="absolute inset-0 opacity-[0.06]" style={{ backgroundImage: "radial-gradient(white 1px, transparent 1px)", backgroundSize: "28px 28px" }} />
@@ -438,19 +432,21 @@ export function ProductsPage() {
         </div>
       </section>
 
-      {/* ── Products list ── */}
-      <section className="py-14 lg:py-20">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
-          {PRODUCTS.map((product, i) => (
-            <div key={product.id} id={product.id} style={{ scrollMarginTop: "80px" }}>
-              <ProductCard product={product} index={i} />
-            </div>
-          ))}
+      {/* ── Products grid ── */}
+      <section className="py-8 lg:py-12">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+            {PRODUCTS.map((product) => (
+              <div key={product.id} id={product.id} style={{ scrollMarginTop: "70px" }}>
+                <ProductCard product={product} />
+              </div>
+            ))}
+          </div>
         </div>
       </section>
 
       {/* ── Final CTA ── */}
-      <section className="py-14 lg:py-20" style={{ background: "#EAF3FF" }}>
+      <section className="py-10 lg:py-14" style={{ background: "#EAF3FF" }}>
         <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <h2 className="text-2xl sm:text-3xl font-extrabold mb-3" style={{ color: "#111827" }}>
             Not sure which product fits your needs?
@@ -483,3 +479,4 @@ export function ProductsPage() {
     </div>
   );
 }
+

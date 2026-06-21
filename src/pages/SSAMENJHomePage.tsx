@@ -222,7 +222,7 @@ export function SSAMENJHomePage() {
         {/* Dot grid */}
         <div className="absolute inset-0 bg-dot-grid opacity-[0.15]" />
 
-        <div className="relative mx-auto grid max-w-7xl gap-6 px-4 pt-24 pb-10 sm:px-6 lg:grid-cols-2 lg:px-8 lg:pt-28 lg:pb-16 xl:pb-20 items-center">
+        <div className="relative mx-auto grid max-w-7xl gap-6 px-4 pt-20 pb-10 sm:px-6 lg:grid-cols-2 lg:px-8 lg:pt-24 lg:pb-16 xl:pb-20 items-center">
 
           {/* Left */}
           <div>
