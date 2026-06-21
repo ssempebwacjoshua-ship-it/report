@@ -376,7 +376,9 @@ export function ProductsPage() {
         <div className="mx-auto max-w-7xl">
           <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-3">
             {PRODUCTS.map((product) => (
-              <ProductCard key={product.id} product={product} />
+              <div key={product.id} id={product.id} className="h-full">
+                <ProductCard product={product} />
+              </div>
             ))}
           </div>
         </div>

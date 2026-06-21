@@ -2,6 +2,7 @@ import { Link } from "react-router-dom";
 import { TestimonialsSection } from "../components/marketing/TestimonialsSection";
 import {
   ArrowRightIcon,
+  BookIcon,
   FileTextIcon,
   GridIcon,
   LockIcon,
@@ -23,6 +24,8 @@ const SUITE_ITEMS = [
   { abbr: "SP", name: "Smart Pages", icon: <GridIcon className="h-4 w-4" />, status: "live" as const },
   { abbr: "SC", name: "School Connect", icon: <SchoolIcon className="h-4 w-4" />, status: "live" as const },
   { abbr: "LS", name: "Legal Smart Pages", icon: <ShieldIcon className="h-4 w-4" />, status: "demo" as const },
+  { abbr: "PM", name: "PearlMart", icon: <BookIcon className="h-4 w-4" />, status: "demo" as const },
+  { abbr: "WC", name: "Wideh Cash", icon: <SparklesIcon className="h-4 w-4" />, status: "demo" as const },
   { abbr: "KW", name: "Kids Wallet", icon: <SmartphoneIcon className="h-4 w-4" />, status: "soon" as const },
   { abbr: "NF", name: "NFC Wristbands", icon: <LockIcon className="h-4 w-4" />, status: "soon" as const },
   { abbr: "CD", name: "Custom Digital", icon: <SparklesIcon className="h-4 w-4" />, status: "live" as const },

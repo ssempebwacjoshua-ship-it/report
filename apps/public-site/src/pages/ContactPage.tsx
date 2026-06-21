@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import type { ReactNode } from "react";
-import { buildWhatsAppUrl, WHATSAPP_DISPLAY } from "../config/contact";
+import { buildWhatsAppUgUrl, buildWhatsAppUrl, WHATSAPP_DISPLAY, WHATSAPP_UG_DISPLAY } from "../config/contact";
 import { PhoneIcon } from "../components/marketing/Icons";
 import { TestimonialsSection } from "../components/marketing/TestimonialsSection";
 
@@ -49,6 +49,7 @@ export function ContactPage() {
   );
 
   const demoHref = useMemo(() => buildWhatsAppUrl(demoMessage), [demoMessage]);
+  const ugandaPmHref = buildWhatsAppUgUrl("Hello SSAMENJ Technologies! I would like to speak with the Uganda team.");
   const pricingHref = useMemo(
     () =>
       buildWhatsAppUrl(
@@ -193,17 +194,23 @@ export function ContactPage() {
                   </div>
                 </div>
               </div>
-              <div className="marketing-card-motion rounded-[1.5rem] border border-slate-200 bg-white p-5 shadow-sm">
+              <a
+                href={ugandaPmHref}
+                target="_blank"
+                rel="noreferrer"
+                className="marketing-card-motion block rounded-[1.5rem] border border-slate-200 bg-white p-5 shadow-sm transition hover:border-blue-200"
+              >
                 <div className="flex items-center gap-3">
-                  <div className="grid h-10 w-10 place-items-center rounded-2xl bg-emerald-50 text-emerald-700">
+                  <div className="grid h-10 w-10 place-items-center rounded-2xl bg-slate-50 text-slate-600">
                     <PhoneIcon className="h-5 w-5" />
                   </div>
                   <div>
-                    <p className="text-sm font-black text-slate-950">Direct line</p>
-                    <p className="text-sm leading-6 text-slate-600">Fast replies on WhatsApp</p>
+                    <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Uganda Product Manager</p>
+                    <p className="text-sm font-black text-slate-950">{WHATSAPP_UG_DISPLAY}</p>
                   </div>
                 </div>
-              </div>
+                <p className="mt-2 text-xs font-semibold text-blue-700">Chat with Uganda PM on WhatsApp →</p>
+              </a>
               <div className="marketing-card-motion rounded-[1.5rem] border border-blue-200 bg-blue-50 p-5 shadow-sm">
                 <p className="text-sm font-black text-slate-950">Need a quick start?</p>
                 <p className="mt-2 text-sm leading-6 text-slate-600">
