@@ -1,19 +1,20 @@
-﻿function TestimonialCard({
-  quote,
-  attribution,
+function UseCaseCard({
+  role,
+  title,
+  body,
 }: {
-  quote: string;
-  attribution: string;
+  role: string;
+  title: string;
+  body: string;
 }) {
   return (
-    <figure className="group relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-xl">
+    <article className="group relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-xl">
       <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-blue-600 via-sky-400 to-cyan-300" />
       <div className="absolute -right-10 top-6 h-24 w-24 rounded-full bg-blue-50/70 blur-3xl transition duration-200 group-hover:bg-blue-100/80" />
-      <blockquote className="relative text-sm leading-6 text-slate-700">"{quote}"</blockquote>
-      <figcaption className="relative mt-3 text-xs font-black uppercase tracking-[0.18em] text-blue-700">
-        {attribution}
-      </figcaption>
-    </figure>
+      <p className="relative text-[11px] font-black uppercase tracking-[0.18em] text-blue-700">{role}</p>
+      <h3 className="relative mt-2 text-sm font-black text-slate-950">{title}</h3>
+      <p className="relative mt-2 text-sm leading-6 text-slate-600">{body}</p>
+    </article>
   );
 }
 
@@ -24,18 +25,21 @@ export function TestimonialsSection({
   className?: string;
   compact?: boolean;
 }) {
-  const cards = [
+  const useCases = [
     {
-      quote: "Report Lab can remove the pressure of preparing student reports manually every term.",
-      attribution: "School administrator",
+      role: "For school administrators",
+      title: "Prepare reports faster",
+      body: "Move from manual marksheets to finished student reports without formatting delays every term.",
     },
     {
-      quote: "Smart Pages is useful because handwritten school documents can become clean PDFs without typing everything again.",
-      attribution: "School office team",
+      role: "For front office teams",
+      title: "Clean school documents in minutes",
+      body: "Turn circulars, meeting notes, forms, and letters into polished, ready-to-print PDFs without retyping.",
     },
     {
-      quote: "The system feels practical for schools because it starts with the work schools already do every day.",
-      attribution: "School leadership team",
+      role: "For school leaders",
+      title: "Share professional documents with confidence",
+      body: "Send parents and staff consistent, well-formatted documents that reflect the school's standards.",
     },
   ];
 
@@ -43,28 +47,21 @@ export function TestimonialsSection({
     <section className={className}>
       <div className="mx-auto max-w-7xl">
         <div className="max-w-2xl">
-          <p className="text-xs font-black uppercase tracking-[0.2em] text-blue-700">EARLY FEEDBACK</p>
+          <p className="text-xs font-black uppercase tracking-[0.2em] text-blue-700">PRACTICAL USE CASES</p>
           <h2 className={compact ? "mt-2 text-2xl font-black tracking-tight text-slate-950" : "mt-2 text-3xl font-black tracking-tight text-slate-950"}>
-            What school teams are noticing.
+            How schools use School Connect.
           </h2>
           <p className="mt-2 text-sm leading-6 text-slate-600">
-            School Connect is being shaped around real school workflows: faster reports, less typing, cleaner documents, and easier school operations.
+            School Connect is built around real school workflows — faster reports, less typing, cleaner documents, and easier operations for every team.
           </p>
         </div>
 
         <div className="mt-4 grid gap-3 lg:grid-cols-3">
-          {cards.map((card) => (
-            <TestimonialCard key={card.quote} quote={card.quote} attribution={card.attribution} />
+          {useCases.map((card) => (
+            <UseCaseCard key={card.role} role={card.role} title={card.title} body={card.body} />
           ))}
         </div>
-
-        <p className="mt-3 text-sm leading-6 text-slate-600">
-          
-        </p>
       </div>
     </section>
   );
 }
-
-
-
