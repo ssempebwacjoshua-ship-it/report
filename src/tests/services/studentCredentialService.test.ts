@@ -23,6 +23,7 @@ type CredentialRow = {
   studentId: string;
   type: CredentialType;
   credentialUID: string;
+  scanToken: string | null;
   status: CredentialStatus;
   issuedAt: Date;
   deactivatedAt: Date | null;
@@ -86,13 +87,14 @@ function createMockDb() {
       findFirst: async ({ where }: { where: { id?: string; schoolId?: string } }) =>
         credentials.find((credential) => credential.id === where.id && credential.schoolId === where.schoolId) ?? null,
       findMany: async () => credentials,
-      create: async ({ data }: { data: { schoolId: string; studentId: string; type: CredentialType; credentialUID: string; issuedById?: string | null } }) => {
+      create: async ({ data }: { data: { schoolId: string; studentId: string; type: CredentialType; credentialUID: string; scanToken?: string | null; issuedById?: string | null } }) => {
         const row = attachStudent({
           id: `credential-${credentials.length + 1}`,
           schoolId: data.schoolId,
           studentId: data.studentId,
           type: data.type,
           credentialUID: data.credentialUID,
+          scanToken: data.scanToken ?? null,
           status: CredentialStatus.ACTIVE,
           issuedAt: new Date("2026-06-21T08:00:00.000Z"),
           deactivatedAt: null,
@@ -131,6 +133,9 @@ describe("studentCredentialService", () => {
     const result = await issueStudentCredential({ schoolId: "school-a", actorId: "user-a" }, { studentId: "student-a", credentialUID: " ab12 " }, db);
 
     expect(result.credential.credentialUID).toBe("AB12");
+    expect(result.credential.scanToken).toEqual(expect.any(String));
+    expect(result.credential.nfcUrl).toBe(`/nfc/t/${result.credential.scanToken}`);
+    expect(result.credential.nfcUrl).not.toContain("/canteen/");
     expect(result.credential.student.name).toBe("Ada Lovelace");
     expect(auditLogs).toHaveLength(1);
   });
@@ -206,6 +211,7 @@ describe("studentCredentialService", () => {
       studentId: "student-inactive",
       type: CredentialType.NFC_WRISTBAND,
       credentialUID: "INACTIVE1",
+      scanToken: "neutral-token-inactive",
       status: CredentialStatus.ACTIVE,
       issuedAt: new Date("2026-06-21T08:00:00.000Z"),
       deactivatedAt: null,

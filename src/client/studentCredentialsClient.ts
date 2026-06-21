@@ -1,4 +1,4 @@
-import type { CredentialStatus, StudentCredential, StudentCredentialScanResult } from "../shared/types/studentCredentials";
+import type { CredentialStatus, NfcTokenResolution, StudentCredential, StudentCredentialScanResult } from "../shared/types/studentCredentials";
 import { getApiBaseUrl, makeSchoolRequestHeaders, parseApiError } from "./apiBase";
 
 const API_BASE = getApiBaseUrl();
@@ -43,4 +43,12 @@ export async function scanStudentCredential(credentialUID: string) {
   });
   if (!response.ok) throw new Error(await parseApiError(response, "Could not scan NFC wristband"));
   return response.json() as Promise<StudentCredentialScanResult>;
+}
+
+export async function resolveNfcToken(token: string) {
+  const response = await fetch(`${API_BASE}/api/nfc/t/${encodeURIComponent(token)}`, {
+    headers: makeSchoolRequestHeaders(),
+  });
+  if (!response.ok) throw new Error(await parseApiError(response, "Could not verify NFC wristband"));
+  return response.json() as Promise<NfcTokenResolution>;
 }

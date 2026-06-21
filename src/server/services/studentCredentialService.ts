@@ -1,5 +1,6 @@
 import type { PrismaClient } from "@prisma/client";
 import { CredentialStatus, CredentialType, Prisma } from "@prisma/client";
+import { randomBytes } from "node:crypto";
 import { prisma as defaultPrisma } from "../db/prisma";
 
 export type StudentCredentialContext = {
@@ -34,6 +35,7 @@ type CredentialWithStudent = {
   studentId: string;
   type: CredentialType;
   credentialUID: string;
+  scanToken: string | null;
   status: CredentialStatus;
   issuedAt: Date;
   deactivatedAt: Date | null;
@@ -43,6 +45,10 @@ type CredentialWithStudent = {
 
 export function normalizeCredentialUID(value: string): string {
   return value.trim().toUpperCase();
+}
+
+export function generateCredentialScanToken(): string {
+  return randomBytes(24).toString("base64url");
 }
 
 function requireSchoolId(ctx: StudentCredentialContext): string {
@@ -80,6 +86,8 @@ function serializeCredential(row: CredentialWithStudent) {
     id: row.id,
     type: row.type,
     credentialUID: row.credentialUID,
+    scanToken: row.scanToken,
+    nfcUrl: row.scanToken ? `/nfc/t/${row.scanToken}` : null,
     status: row.status,
     issuedAt: row.issuedAt.toISOString(),
     deactivatedAt: row.deactivatedAt?.toISOString() ?? null,
@@ -183,6 +191,7 @@ export async function issueStudentCredential(
             issuedAt: new Date(),
             deactivatedAt: null,
             deactivatedReason: null,
+            scanToken: existing.scanToken ?? generateCredentialScanToken(),
             issuedById: ctx.actorId ?? null,
           },
           include: credentialInclude,
@@ -193,6 +202,7 @@ export async function issueStudentCredential(
             studentId: student.id,
             type,
             credentialUID,
+            scanToken: generateCredentialScanToken(),
             issuedById: ctx.actorId ?? null,
           },
           include: credentialInclude,
@@ -304,6 +314,8 @@ export async function scanStudentCredential(
       credential: {
         id: credential.id,
         credentialUID: credential.credentialUID,
+        scanToken: credential.scanToken,
+        nfcUrl: credential.scanToken ? `/nfc/t/${credential.scanToken}` : null,
         issuedAt: credential.issuedAt.toISOString(),
       },
     };
@@ -315,6 +327,8 @@ export async function scanStudentCredential(
       credential: {
         id: credential.id,
         credentialUID: credential.credentialUID,
+        scanToken: credential.scanToken,
+        nfcUrl: credential.scanToken ? `/nfc/t/${credential.scanToken}` : null,
         issuedAt: credential.issuedAt.toISOString(),
       },
     };
@@ -325,6 +339,8 @@ export async function scanStudentCredential(
     credential: {
       id: credential.id,
       credentialUID: credential.credentialUID,
+      scanToken: credential.scanToken,
+      nfcUrl: credential.scanToken ? `/nfc/t/${credential.scanToken}` : null,
       issuedAt: credential.issuedAt.toISOString(),
     },
   };

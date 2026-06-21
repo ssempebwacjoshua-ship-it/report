@@ -6,6 +6,8 @@ export type StudentCredential = {
   id: string;
   type: CredentialType;
   credentialUID: string;
+  scanToken: string | null;
+  nfcUrl: string | null;
   status: CredentialStatus;
   issuedAt: string;
   deactivatedAt: string | null;
@@ -33,6 +35,33 @@ export type StudentCredentialScanResult = {
   credential?: {
     id: string;
     credentialUID: string;
+    scanToken?: string | null;
+    nfcUrl?: string | null;
     issuedAt: string;
+  };
+};
+
+export type NfcTokenMode = "PUBLIC_ID" | "GATE_SECURITY" | "CANTEEN_CHARGE" | "ATTENDANCE_SCAN" | "ADMIN_CREDENTIAL";
+
+export type NfcTokenResolution = {
+  found: boolean;
+  mode: NfcTokenMode;
+  targetPath?: string;
+  valid: boolean;
+  actionBlocked?: boolean;
+  credentialStatus: "ACTIVE" | "DEACTIVATED" | "INVALID";
+  studentStatus?: "ACTIVE" | "INACTIVE";
+  student?: {
+    id: string;
+    name: string;
+    admissionNumber: string;
+    className: string | null;
+    streamName: string | null;
+    photoUrl?: string | null;
+    schoolName: string;
+  };
+  credential?: {
+    id: string;
+    nfcUrl: string;
   };
 };

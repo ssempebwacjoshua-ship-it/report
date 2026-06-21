@@ -379,6 +379,7 @@ model StudentCredential {
   studentId           String           @db.Uuid
   type                CredentialType
   credentialUID       String
+  scanToken           String?          @unique
   status              CredentialStatus @default(ACTIVE)
   issuedAt            DateTime         @default(now())
   deactivatedAt       DateTime?

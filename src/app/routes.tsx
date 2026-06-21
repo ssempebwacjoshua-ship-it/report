@@ -18,6 +18,8 @@ import { PricingPage } from "../pages/PricingPage";
 import { ContactPage } from "../pages/ContactPage";
 import { ParentReportPage } from "../pages/ParentReportPage";
 import { VerifyPage } from "../pages/VerifyPage";
+import { NfcTokenPage } from "../pages/NfcTokenPage";
+import { NfcActionPage } from "../pages/NfcActionPage";
 import { OwnerDashboardPage } from "../pages/owner/OwnerDashboardPage";
 import { OwnerSchoolsPage } from "../pages/owner/OwnerSchoolsPage";
 import { OwnerUsersPage } from "../pages/owner/OwnerUsersPage";
@@ -62,6 +64,7 @@ export const router = createBrowserRouter([
   { path: "/logout", element: <LogoutPage /> },
   { path: "/parent/r/:token", element: <ParentReportPage /> },
   { path: "/verify/:code", element: <VerifyPage /> },
+  { path: "/nfc/t/:token", element: <NfcTokenPage /> },
   { path: "/p/:token", element: <PublishedDocumentPage /> },
 
   ...(lawyerSmartPagesEnabled ? [{
@@ -102,6 +105,18 @@ export const router = createBrowserRouter([
       { path: "dashboard", element: <DashboardPage /> },
       { path: "students", element: <StudentsPage /> },
       { path: "student-credentials", element: <StudentCredentialsPage /> },
+      {
+        path: "gate/nfc/:token",
+        element: <NfcActionPage expectedMode="GATE_SECURITY" title="Gate Security Scan" description="Verify a student's NFC wristband for gate security." />,
+      },
+      {
+        path: "canteen/nfc/:token",
+        element: <NfcActionPage expectedMode="CANTEEN_CHARGE" title="Canteen Charge" description="Verify a student's NFC wristband before any canteen charge." />,
+      },
+      {
+        path: "attendance/nfc/:token",
+        element: <NfcActionPage expectedMode="ATTENDANCE_SCAN" title="Attendance Scan" description="Verify a student's NFC wristband before attendance action." />,
+      },
       { path: "reports", element: <ReportsPage /> },
       { path: "reports/release", element: <ReleaseCenterPage /> },
       { path: "promotions", element: <PromotionWorkspacePage /> },
