@@ -1,4 +1,4 @@
-﻿import { createBrowserRouter, Navigate } from "react-router-dom";
+﻿import { createBrowserRouter } from "react-router-dom";
 import { AppShell } from "../components/layout/AppShell";
 import { lazy, Suspense, type ComponentType } from "react";
 import { OwnerShell } from "../components/layout/OwnerShell";
@@ -16,6 +16,10 @@ import { DemoPage } from "../pages/DemoPage";
 import { FeaturesDemoPage } from "../pages/FeaturesDemoPage";
 import { PricingPage } from "../pages/PricingPage";
 import { ContactPage } from "../pages/ContactPage";
+import { SSAMENJHomePage } from "../pages/SSAMENJHomePage";
+import { DemosPage } from "../pages/DemosPage";
+import { ProductsPage } from "../pages/ProductsPage";
+import { AboutPage } from "../pages/AboutPage";
 import { ParentReportPage } from "../pages/ParentReportPage";
 import { VerifyPage } from "../pages/VerifyPage";
 import { NfcAttendancePage } from "../pages/NfcAttendancePage";
@@ -58,8 +62,15 @@ function lazyElement(Component: ComponentType) {
 }
 
 export const router = createBrowserRouter([
-  // Public routes ? no AppShell, no auth
-  { path: "/demo", element: <DemoPage /> },
+  // ── SSAMENJ public website ── (no auth required)
+  { path: "/", element: <SSAMENJHomePage /> },
+  { path: "/products", element: <ProductsPage /> },
+  { path: "/demos", element: <DemosPage /> },
+  { path: "/about", element: <AboutPage /> },
+
+  // ── Preserved legacy / app public routes ──
+  { path: "/dem", element: <DemoPage /> },          // Report Lab demo — DO NOT REMOVE
+  { path: "/demo", element: <DemoPage /> },          // Legacy landing page — keep working
   { path: "/features-demo", element: <FeaturesDemoPage /> },
   { path: "/pricing", element: <PricingPage /> },
   { path: "/contact", element: <ContactPage /> },
@@ -98,13 +109,14 @@ export const router = createBrowserRouter([
     ],
   },
 
-  // Admin routes ? wrapped in AppShell (auth guard inside)
+  // ── Authenticated app routes ── (AppShell handles auth guard internally)
   {
     path: "/",
     element: <AppShell />,
     errorElement: <RouteErrorPage />,
     children: [
-      { index: true, element: <Navigate to="/dashboard" replace /> },
+      // No index route here — "/" is now the public SSAMENJ homepage above.
+      // Authenticated users land on /dashboard directly after login.
       { path: "dashboard", element: <DashboardPage /> },
       { path: "students", element: <StudentsPage /> },
       { path: "student-credentials", element: <StudentCredentialsPage /> },
