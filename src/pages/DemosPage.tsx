@@ -64,9 +64,8 @@ const DEMOS: Demo[] = [
     description:
       "See how schools enter marks, generate professional student report cards, review results, approve reports, and share them securely with parents — all from one dashboard.",
     icon: <ReportIcon className="w-7 h-7" />,
-    status: "available",
-    demoHref: "/login",
-    tags: ["Schools", "Reports", "Parents", "Live"],
+    status: "preview",
+    tags: ["Schools", "Reports", "Parents"],
   },
   {
     id: "smart-pages",
@@ -291,7 +290,7 @@ export function DemosPage() {
                 Available Now
               </h2>
               <p className="mt-1 text-sm" style={{ color: "#6B7280" }}>
-                Open these demos directly — no login required.
+                Try these demos directly in your browser — no account needed.
               </p>
             </div>
             <span

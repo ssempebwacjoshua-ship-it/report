@@ -1,6 +1,3 @@
-import { useEffect } from "react";
-import { useNavigate } from "react-router-dom";
-import { useAuth } from "../contexts/AuthContext";
 import { buildWhatsAppUrl } from "../config/contact";
 
 const BOOK_DEMO_URL = buildWhatsAppUrl(
@@ -197,10 +194,6 @@ const HOW = [
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export function SSAMENJHomePage() {
-  const navigate = useNavigate();
-  const { user } = useAuth();
-  useEffect(() => { if (user) navigate("/dashboard"); }, [user, navigate]);
-
   return (
     <div className="min-h-screen" style={{ background: "#F8FBFF" }}>
 

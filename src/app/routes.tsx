@@ -12,7 +12,6 @@ import { StudentCredentialsPage } from "../pages/StudentCredentialsPage";
 import { SettingsPage } from "../pages/SettingsPage";
 import { LoginPage } from "../pages/LoginPage";
 import { LogoutPage } from "../pages/LogoutPage";
-import { DemoPage } from "../pages/DemoPage";
 import { FeaturesDemoPage } from "../pages/FeaturesDemoPage";
 import { PricingPage } from "../pages/PricingPage";
 import { ContactPage } from "../pages/ContactPage";
