@@ -115,7 +115,7 @@ const PRODUCTS: Product[] = [
     accentBg: "#EAF3FF",
   },
   {
-    id: "school-connect-ops",
+    id: "school-connect",
     name: "School Connect Operations",
     tagline: "One connected platform for your entire school.",
     description:
@@ -186,7 +186,7 @@ const PRODUCTS: Product[] = [
     accentBg: "#EAF3FF",
   },
   {
-    id: "nfc-wristbands",
+    id: "nfc-bands",
     name: "NFC Wristbands",
     tagline: "Smart student access, attendance, and identity.",
     description:
@@ -442,7 +442,7 @@ export function ProductsPage() {
       <section className="py-14 lg:py-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
           {PRODUCTS.map((product, i) => (
-            <div key={product.id} id={product.id}>
+            <div key={product.id} id={product.id} style={{ scrollMarginTop: "80px" }}>
               <ProductCard product={product} index={i} />
             </div>
           ))}

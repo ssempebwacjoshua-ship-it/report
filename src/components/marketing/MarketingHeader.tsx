@@ -9,12 +9,12 @@ const BOOK_DEMO_URL = buildWhatsAppUrl(
 type NavItem = { label: string; href: string; shortLabel?: string };
 
 const PRODUCT_NAV: NavItem[] = [
-  { label: "Report Lab",        href: "/products/report-lab" },
-  { label: "Smart Pages",       href: "/products/smart-pages" },
-  { label: "School Connect",    href: "/products/school-connect" },
-  { label: "Legal Smart Pages", href: "/products/legal-smart-pages", shortLabel: "Legal Smart" },
-  { label: "Kids Wallet",       href: "/products/kids-wallet" },
-  { label: "NFC Wristbands",    href: "/products/nfc-wristbands",    shortLabel: "NFC Bands" },
+  { label: "Report Lab",        href: "/products#report-lab" },
+  { label: "Smart Pages",       href: "/products#smart-pages" },
+  { label: "School Connect",    href: "/products#school-connect" },
+  { label: "Legal Smart Pages", href: "/products#legal-smart-pages", shortLabel: "Legal Smart" },
+  { label: "Kids Wallet",       href: "/products#kids-wallet" },
+  { label: "NFC Wristbands",    href: "/products#nfc-bands",         shortLabel: "NFC Bands" },
 ];
 
 function MenuIcon() {
@@ -40,8 +40,9 @@ export function MarketingHeader() {
   const lastScrollY = useRef(0);
 
   function isActive(href: string) {
-    if (href === "/") return pathname === "/";
-    return pathname === href || pathname.startsWith(href + "/");
+    const path = href.split("#")[0] || "/";
+    if (path === "/") return pathname === "/";
+    return pathname === path || pathname.startsWith(path + "/");
   }
 
   useEffect(() => {
