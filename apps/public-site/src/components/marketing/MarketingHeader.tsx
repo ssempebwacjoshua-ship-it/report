@@ -58,8 +58,19 @@ export function MarketingHeader() {
         <div className="flex h-[56px] items-center justify-between gap-2">
           <Link to="/" className="flex shrink-0 items-center gap-1.5" style={{ textDecoration: "none" }}>
             <div className="flex items-center gap-2">
+              <img
+                src="/ssamenj-logo.png"
+                alt="SSAMENJ"
+                className="h-8 w-8 object-contain"
+                onError={(e) => {
+                  const target = e.currentTarget;
+                  target.style.display = "none";
+                  const fallback = target.nextElementSibling as HTMLElement | null;
+                  if (fallback) fallback.style.display = "grid";
+                }}
+              />
               <div
-                className="grid h-[28px] w-[28px] place-items-center rounded-lg border"
+                className="hidden h-[28px] w-[28px] place-items-center rounded-lg border"
                 style={{ background: "#EAF3FF", borderColor: "#C2D8FF", color: "#0B2F6B" }}
               >
                 <span className="text-[13px] font-black leading-none">S</span>

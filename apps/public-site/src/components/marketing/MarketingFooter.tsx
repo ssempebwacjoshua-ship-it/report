@@ -31,9 +31,21 @@ const COMPANY_LINKS = [
 function LogoLight() {
   return (
     <div className="flex items-center gap-2.5">
+      <img
+        src="/ssamenj-logo.png"
+        alt="SSAMENJ"
+        className="h-9 w-9 shrink-0 object-contain"
+        style={{ filter: "brightness(0) invert(1)" }}
+        onError={(e) => {
+          const target = e.currentTarget;
+          target.style.display = "none";
+          const fallback = target.nextElementSibling as HTMLElement | null;
+          if (fallback) fallback.style.removeProperty("display");
+        }}
+      />
       <div
-        className="grid h-[28px] w-[28px] shrink-0 place-items-center rounded-lg border"
-        style={{ background: "rgba(255,255,255,0.12)", borderColor: "rgba(255,255,255,0.2)", color: "white" }}
+        className="hidden h-[28px] w-[28px] shrink-0 place-items-center rounded-lg border"
+        style={{ display: "none", background: "rgba(255,255,255,0.12)", borderColor: "rgba(255,255,255,0.2)", color: "white" }}
       >
         <span className="text-[13px] font-black leading-none">S</span>
       </div>
