@@ -236,17 +236,17 @@ export function DemosPage() {
   const comingSoonCount = DEMOS.filter((d) => d.status !== "available").length;
 
   return (
-    <div className="min-h-screen" style={{ background: "#FFFFFF" }}>
+    <div style={{ background: "#FFFFFF" }}>
       {/* ── Hero ── */}
       <section
-        className="relative pt-24 pb-14 lg:pt-32 lg:pb-20 overflow-hidden"
+        className="relative pt-10 pb-8 lg:pt-12 lg:pb-10 overflow-hidden"
         style={{ background: "linear-gradient(160deg, #0B2F6B 0%, #0F5BD8 60%, #1A72F0 100%)" }}
       >
         <div className="absolute inset-0 opacity-[0.06]" style={{ backgroundImage: "radial-gradient(white 1px, transparent 1px)", backgroundSize: "28px 28px" }} />
 
         <div className="relative max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <div
-            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold mb-6"
+            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold mb-3"
             style={{ background: "rgba(255,255,255,0.12)", color: "#BFDBFE", border: "1px solid rgba(255,255,255,0.15)" }}
           >
             <span className="w-1.5 h-1.5 rounded-full bg-green-400" />
@@ -262,7 +262,7 @@ export function DemosPage() {
           </p>
 
           {/* Stats row */}
-          <div className="mt-8 inline-flex items-center gap-6 px-6 py-3 rounded-2xl" style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.12)" }}>
+          <div className="mt-5 inline-flex items-center gap-6 px-6 py-3 rounded-2xl" style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.12)" }}>
             <div className="text-center">
               <div className="text-2xl font-black text-white">{availableCount}</div>
               <div className="text-[11px] mt-0.5" style={{ color: "#93C5FD" }}>Live Demos</div>
@@ -282,9 +282,9 @@ export function DemosPage() {
       </section>
 
       {/* ── Live demos ── */}
-      <section className="py-14 lg:py-20" style={{ background: "white" }}>
+      <section className="py-8 lg:py-10" style={{ background: "white" }}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between mb-8">
+          <div className="flex items-center justify-between mb-5">
             <div>
               <h2 className="text-2xl font-extrabold" style={{ color: "#111827" }}>
                 Available Now
@@ -316,9 +316,9 @@ export function DemosPage() {
       </div>
 
       {/* ── Coming soon ── */}
-      <section className="py-14 lg:py-20" style={{ background: "white" }}>
+      <section className="py-8 lg:py-10" style={{ background: "white" }}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between mb-8">
+          <div className="flex items-center justify-between mb-5">
             <div>
               <h2 className="text-2xl font-extrabold" style={{ color: "#111827" }}>
                 Coming Soon
@@ -344,12 +344,12 @@ export function DemosPage() {
       </section>
 
       {/* ── Book a demo CTA ── */}
-      <section className="py-14 lg:py-20" style={{ background: "#EAF3FF" }}>
+      <section className="py-10 lg:py-12" style={{ background: "#EAF3FF" }}>
         <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <h2 className="text-2xl sm:text-3xl font-extrabold mb-3" style={{ color: "#111827" }}>
             Want a personalised walkthrough?
           </h2>
-          <p className="text-base mb-8 leading-relaxed" style={{ color: "#4B5563" }}>
+          <p className="text-base mb-5 leading-relaxed" style={{ color: "#4B5563" }}>
             Our team will walk you through the right SSAMENJ product for your school, office, or organisation — at your pace, tailored to your workflow.
           </p>
           <div className="flex flex-wrap justify-center gap-4">

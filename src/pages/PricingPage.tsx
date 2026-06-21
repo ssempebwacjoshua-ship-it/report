@@ -164,7 +164,7 @@ export function PricingPage() {
   );
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-950">
+    <div className="bg-slate-50 text-slate-950">
       <main>
         <section className="border-b border-blue-100 bg-gradient-to-br from-white via-blue-50 to-slate-50 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
           <div className="mx-auto grid max-w-7xl gap-4 lg:grid-cols-12 lg:items-start">

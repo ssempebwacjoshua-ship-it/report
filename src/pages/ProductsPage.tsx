@@ -376,16 +376,16 @@ export function ProductsPage() {
   const upcomingCount = PRODUCTS.filter((p) => p.status === "soon" || p.status === "development").length;
 
   return (
-    <div className="min-h-screen" style={{ background: "#FFFFFF" }}>
+    <div style={{ background: "#FFFFFF" }}>
       {/* ── Hero ── */}
       <section
-        className="relative pt-20 pb-10 lg:pt-24 lg:pb-12 overflow-hidden"
+        className="relative pt-10 pb-8 lg:pt-12 lg:pb-10 overflow-hidden"
         style={{ background: "linear-gradient(160deg, #0B2F6B 0%, #0F5BD8 60%, #1A72F0 100%)" }}
       >
         <div className="absolute inset-0 opacity-[0.06]" style={{ backgroundImage: "radial-gradient(white 1px, transparent 1px)", backgroundSize: "28px 28px" }} />
         <div className="relative max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <div
-            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold mb-6"
+            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold mb-3"
             style={{ background: "rgba(255,255,255,0.12)", color: "#BFDBFE", border: "1px solid rgba(255,255,255,0.15)" }}
           >
             SSAMENJ Technologies — Product Suite
@@ -399,7 +399,7 @@ export function ProductsPage() {
           </p>
 
           {/* Quick stats */}
-          <div className="mt-8 inline-flex items-center gap-6 px-6 py-3 rounded-2xl" style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.12)" }}>
+          <div className="mt-4 inline-flex items-center gap-6 px-6 py-3 rounded-2xl" style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.12)" }}>
             <div className="text-center">
               <div className="text-2xl font-black text-white">{liveCount}</div>
               <div className="text-[11px] mt-0.5" style={{ color: "#93C5FD" }}>Live / Demo</div>
@@ -417,7 +417,7 @@ export function ProductsPage() {
           </div>
 
           {/* Jump nav */}
-          <div className="mt-6 flex flex-wrap justify-center gap-2">
+          <div className="mt-3 flex flex-wrap justify-center gap-2">
             {PRODUCTS.map((p) => (
               <a
                 key={p.id}

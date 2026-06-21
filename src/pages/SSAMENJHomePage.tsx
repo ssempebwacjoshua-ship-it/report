@@ -209,7 +209,7 @@ const HOW = [
 
 export function SSAMENJHomePage() {
   return (
-    <div className="min-h-screen" style={{ background: "#F8FBFF" }}>
+    <div style={{ background: "#F8FBFF" }}>
 
       {/* ── Hero ──────────────────────────────────────────────────────────── */}
       <section
@@ -222,7 +222,7 @@ export function SSAMENJHomePage() {
         {/* Dot grid */}
         <div className="absolute inset-0 bg-dot-grid opacity-[0.15]" />
 
-        <div className="relative mx-auto grid max-w-7xl gap-6 px-4 pt-20 pb-10 sm:px-6 lg:grid-cols-2 lg:px-8 lg:pt-24 lg:pb-16 xl:pb-20 items-center">
+        <div className="relative mx-auto grid max-w-7xl gap-6 px-4 pt-10 pb-8 sm:px-6 lg:grid-cols-2 lg:px-8 lg:pt-12 lg:pb-10 items-center">
 
           {/* Left */}
           <div>
@@ -304,9 +304,9 @@ export function SSAMENJHomePage() {
       </section>
 
       {/* ── Products section ───────────────────────────────────────────────── */}
-      <section className="py-14 lg:py-20" style={{ background: "white" }}>
+      <section className="py-8 lg:py-10" style={{ background: "white" }}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-10">
+          <div className="text-center mb-6">
             <div
               className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold mb-4 border"
               style={{ background: "#EAF3FF", color: "#0F5BD8", borderColor: "#D8E2F0" }}
@@ -339,7 +339,7 @@ export function SSAMENJHomePage() {
       </section>
 
       {/* ── Demos banner ───────────────────────────────────────────────────── */}
-      <section className="py-14 lg:py-16" style={{ background: "#EAF3FF" }}>
+      <section className="py-8 lg:py-10" style={{ background: "#EAF3FF" }}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
             <div>
@@ -410,9 +410,9 @@ export function SSAMENJHomePage() {
       </section>
 
       {/* ── Why SSAMENJ ────────────────────────────────────────────────────── */}
-      <section className="py-16 lg:py-24" style={{ background: "#0B2F6B" }}>
+      <section className="py-10 lg:py-12" style={{ background: "#0B2F6B" }}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-start">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
             <div>
               <div
                 className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold mb-5"
@@ -453,16 +453,16 @@ export function SSAMENJHomePage() {
       </section>
 
       {/* ── How it works ───────────────────────────────────────────────────── */}
-      <section className="py-16 lg:py-20" style={{ background: "white" }}>
+      <section className="py-10 lg:py-12" style={{ background: "white" }}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-10">
+          <div className="text-center mb-6">
             <h2 className="text-2xl sm:text-3xl font-extrabold" style={{ color: "#0B2F6B" }}>How it works</h2>
             <p className="mt-3 text-sm max-w-md mx-auto" style={{ color: "#4B5563" }}>Getting started is straightforward.</p>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
             {HOW.map((s) => (
-              <div key={s.n} className="rounded-2xl p-6 border" style={{ background: "#F8FBFF", borderColor: "#E5EBF5" }}>
-                <div className="text-3xl font-black mb-4 tabular-nums" style={{ color: "#EAF3FF", WebkitTextStroke: "2px #0F5BD8" }}>
+              <div key={s.n} className="rounded-2xl p-4 border" style={{ background: "#F8FBFF", borderColor: "#E5EBF5" }}>
+                <div className="text-3xl font-black mb-2 tabular-nums" style={{ color: "#EAF3FF", WebkitTextStroke: "2px #0F5BD8" }}>
                   {s.n}
                 </div>
                 <h3 className="text-sm font-bold mb-2" style={{ color: "#0B2F6B" }}>{s.title}</h3>
@@ -474,17 +474,17 @@ export function SSAMENJHomePage() {
       </section>
 
       {/* ── Final CTA ──────────────────────────────────────────────────────── */}
-      <section className="py-16 lg:py-20" style={{ background: "#EAF3FF" }}>
+      <section className="py-10 lg:py-12" style={{ background: "#EAF3FF" }}>
         <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <div className="flex justify-center mb-5">
-            <div className="w-14 h-14 rounded-2xl flex items-center justify-center p-2.5 border" style={{ background: "white", borderColor: "#D8E2F0" }}>
+          <div className="flex justify-center mb-3">
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center p-2 border" style={{ background: "white", borderColor: "#D8E2F0" }}>
               <img src="/ssamenj-logo.png" alt="SSAMENJ Technologies" className="w-full h-full object-contain" />
             </div>
           </div>
           <h2 className="text-2xl sm:text-3xl font-extrabold mb-3" style={{ color: "#0B2F6B" }}>
             Ready to simplify your work?
           </h2>
-          <p className="text-sm max-w-xl mx-auto mb-8 leading-relaxed" style={{ color: "#4B5563" }}>
+          <p className="text-sm max-w-xl mx-auto mb-5 leading-relaxed" style={{ color: "#4B5563" }}>
             Let SSAMENJ Technologies help your school, office, legal team, or business move from manual work to smart digital systems.
           </p>
           <div className="flex flex-wrap justify-center gap-3">

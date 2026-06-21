@@ -267,10 +267,10 @@ const WHY_CARDS = [
 
 export function AboutPage() {
   return (
-    <div className="min-h-screen" style={{ background: "#FFFFFF" }}>
+    <div style={{ background: "#FFFFFF" }}>
       {/* ── Hero ── */}
       <section
-        className="relative pt-20 pb-12 lg:pt-28 lg:pb-16 overflow-hidden"
+        className="relative pt-10 pb-8 lg:pt-12 lg:pb-10 overflow-hidden"
         style={{ background: "linear-gradient(155deg, #0B2F6B 0%, #0F5BD8 55%, #1A72F0 100%)" }}
       >
         {/* Dot grid */}
@@ -280,7 +280,7 @@ export function AboutPage() {
         />
 
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 lg:gap-14 items-center">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-10 items-center">
             {/* Left */}
             <div className="marketing-fade-up">
               <div
@@ -299,7 +299,7 @@ export function AboutPage() {
                 SSAMENJ Technologies is a digital solutions company building practical software for schools, offices, legal teams, and growing businesses. We help institutions reduce paperwork, organise daily work, and move into secure digital workflows.
               </p>
 
-              <div className="mt-7 flex flex-wrap gap-3">
+              <div className="mt-4 flex flex-wrap gap-3">
                 <a
                   href="/demos"
                   className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold text-white transition-all hover:opacity-90 hover:-translate-y-px"
@@ -327,9 +327,9 @@ export function AboutPage() {
       </section>
 
       {/* ── Who We Are ── */}
-      <section className="py-14 lg:py-20" style={{ background: "white" }}>
+      <section className="py-8 lg:py-10" style={{ background: "white" }}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
             {/* Text */}
             <div>
               <div
@@ -405,9 +405,9 @@ export function AboutPage() {
       </section>
 
       {/* ── What We Build ── */}
-      <section className="py-14 lg:py-20" style={{ background: "#EAF3FF" }}>
+      <section className="py-8 lg:py-10" style={{ background: "#EAF3FF" }}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-10">
+          <div className="text-center mb-6">
             <div
               className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold mb-4"
               style={{ background: "white", color: "#0F5BD8" }}
@@ -467,9 +467,9 @@ export function AboutPage() {
       </section>
 
       {/* ── Why SSAMENJ ── */}
-      <section className="py-14 lg:py-20" style={{ background: "white" }}>
+      <section className="py-8 lg:py-10" style={{ background: "white" }}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-10">
+          <div className="text-center mb-6">
             <div
               className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold mb-4"
               style={{ background: "#EAF3FF", color: "#0F5BD8" }}
@@ -535,7 +535,7 @@ export function AboutPage() {
       </section>
 
       {/* ── Who we serve ── */}
-      <section className="py-14 lg:py-20" style={{ background: "#EAF3FF" }}>
+      <section className="py-8 lg:py-10" style={{ background: "#EAF3FF" }}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 items-center">
             <div>
@@ -592,7 +592,7 @@ export function AboutPage() {
 
       {/* ── Final CTA ── */}
       <section
-        className="py-14 lg:py-20"
+        className="py-8 lg:py-10"
         style={{ background: "linear-gradient(135deg, #0B2F6B 0%, #0F5BD8 100%)" }}
       >
         <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 text-center">

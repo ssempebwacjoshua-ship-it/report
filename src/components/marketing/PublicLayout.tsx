@@ -30,7 +30,10 @@ export function PublicLayout() {
     <>
       <HashScroller />
       <MarketingHeader />
-      <Outlet />
+      {/* 48px = 46px nav + 2px accent line */}
+      <div style={{ paddingTop: "48px" }}>
+        <Outlet />
+      </div>
       <MarketingFooter />
       <FloatingWhatsAppButton />
     </>
