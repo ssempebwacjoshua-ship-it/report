@@ -1,10 +1,19 @@
+
 {
-  "buildCommand": "npm run build:client",
-  "outputDirectory": "dist",
-  "rewrites": [
+
+  "redirects": [
+
     {
-      "source": "/(.*)",
-      "destination": "/index.html"
+
+      "source": "/demo",
+
+      "destination": "https://ssamenj.vercel.app/demo",
+
+      "permanent": true
+
     }
+
   ]
+
 }
+
