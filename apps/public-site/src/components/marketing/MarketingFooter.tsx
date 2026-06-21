@@ -1,5 +1,5 @@
 import { buildWhatsAppUrl } from "../../config/contact";
-import { PhoneIcon } from "./Icons";
+import { WhatsAppIcon } from "./Icons";
 
 const BOOK_DEMO_URL = buildWhatsAppUrl(
   "Hello SSAMENJ Technologies! I would like to book a demo.",
@@ -104,7 +104,7 @@ export function MarketingFooter() {
                   rel="noreferrer"
                   className="flex items-center gap-1.5 text-xs text-[#BFDBFE] transition-colors hover:text-white"
                 >
-                  <PhoneIcon className="h-3.5 w-3.5 flex-shrink-0" />
+                  <WhatsAppIcon className="h-3.5 w-3.5 flex-shrink-0" />
                   <span>
                     <span className="block text-[10px] font-bold uppercase tracking-wide text-[#93C5FD]">Global</span>
                     +971 56 370 4103
@@ -118,7 +118,7 @@ export function MarketingFooter() {
                   rel="noreferrer"
                   className="flex items-center gap-1.5 text-xs text-[#BFDBFE] transition-colors hover:text-white"
                 >
-                  <PhoneIcon className="h-3.5 w-3.5 flex-shrink-0" />
+                  <WhatsAppIcon className="h-3.5 w-3.5 flex-shrink-0" />
                   <span>
                     <span className="block text-[10px] font-bold uppercase tracking-wide text-[#93C5FD]">Uganda PM</span>
                     +256 774 549 869

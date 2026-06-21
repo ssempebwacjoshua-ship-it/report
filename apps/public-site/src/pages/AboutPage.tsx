@@ -2,10 +2,11 @@ import { Link } from "react-router-dom";
 import type { ReactNode } from "react";
 import { TestimonialsSection } from "../components/marketing/TestimonialsSection";
 import {
-  BookIcon,
+  CashIcon,
   FileTextIcon,
   GridIcon,
   LockIcon,
+  MarketIcon,
   SchoolIcon,
   ShieldIcon,
   SmartphoneIcon,
@@ -19,8 +20,8 @@ const SUITE_ITEMS: { abbr: string; name: string; icon: ReactNode; status: SuiteS
   { abbr: "SP", name: "Smart Pages", icon: <GridIcon className="w-4 h-4" />, status: "live" },
   { abbr: "SC", name: "School Connect", icon: <SchoolIcon className="w-4 h-4" />, status: "live" },
   { abbr: "LS", name: "Legal Smart Pages", icon: <ShieldIcon className="w-4 h-4" />, status: "demo" },
-  { abbr: "PM", name: "PearlMart", icon: <BookIcon className="w-4 h-4" />, status: "demo" },
-  { abbr: "WC", name: "Wideh Cash", icon: <SparklesIcon className="w-4 h-4" />, status: "demo" },
+  { abbr: "PM", name: "PearlMart", icon: <MarketIcon className="w-4 h-4" />, status: "demo" },
+  { abbr: "WC", name: "Wideh Cash", icon: <CashIcon className="w-4 h-4" />, status: "demo" },
   { abbr: "KW", name: "Kids Wallet", icon: <SmartphoneIcon className="w-4 h-4" />, status: "soon" },
   { abbr: "NF", name: "NFC Bands", icon: <LockIcon className="w-4 h-4" />, status: "soon" },
 ];

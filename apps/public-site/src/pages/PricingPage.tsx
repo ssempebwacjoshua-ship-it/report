@@ -1,276 +1,639 @@
 import { Link } from "react-router-dom";
 import type { ReactNode } from "react";
-import { buildWhatsAppUrl } from "../config/contact";
-import { CheckIcon, SchoolIcon } from "../components/marketing/Icons";
+import { buildWhatsAppUrl, WHATSAPP_DISPLAY } from "../config/contact";
+import {
+  CheckIcon,
+  CreditIcon,
+  DocumentIcon,
+  GiftIcon,
+  WrenchIcon,
+} from "../components/marketing/Icons";
 import { TestimonialsSection } from "../components/marketing/TestimonialsSection";
 
-const BOOK_DEMO_URL = buildWhatsAppUrl(
-  "Hello SSAMENJ Technologies! I would like to ask about pricing.",
+// ── WhatsApp links ────────────────────────────────────────────────────────────
+
+const GET_STARTED_WA = buildWhatsAppUrl(
+  "Hello SSAMENJ Technologies! I would like to get started with the First Term Free offer for my school.",
 );
+const REQUEST_PRICING_WA = buildWhatsAppUrl(
+  "Hello SSAMENJ Technologies, I would like to ask about pricing for School Connect.",
+);
+const ENTERPRISE_WA = buildWhatsAppUrl(
+  "Hello SSAMENJ Technologies! I would like to discuss enterprise / custom pricing for my institution.",
+);
+const SETUP_WA = buildWhatsAppUrl(
+  "Hello SSAMENJ Technologies! I would like to discuss setup and onboarding for School Connect.",
+);
+
+function planWA(plan: string) {
+  return buildWhatsAppUrl(
+    `Hello SSAMENJ Technologies! I would like to get started with the ${plan} plan.`,
+  );
+}
+function creditWA(pack: string) {
+  return buildWhatsAppUrl(
+    `Hello SSAMENJ Technologies! I would like to get the ${pack} Smart Pages credit pack.`,
+  );
+}
+
+// ── Badge ──────────────────���─────────────────────────────────��────────────────
 
 function Badge({
   children,
   tone = "blue",
 }: {
   children: ReactNode;
-  tone?: "blue" | "emerald" | "slate";
+  tone?: "blue" | "emerald" | "amber" | "slate";
 }) {
   const toneClass =
     tone === "emerald"
       ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-      : tone === "slate"
-        ? "border-slate-200 bg-slate-50 text-slate-700"
-        : "border-blue-200 bg-blue-50 text-blue-700";
-
-  return <span className={`inline-flex items-center rounded-full border px-3 py-1 text-[11px] font-black uppercase tracking-[0.18em] ${toneClass}`}>{children}</span>;
+      : tone === "amber"
+        ? "border-amber-200 bg-amber-50 text-amber-700"
+        : tone === "slate"
+          ? "border-slate-200 bg-slate-50 text-slate-700"
+          : "border-blue-200 bg-blue-50 text-blue-700";
+  return (
+    <span className={`inline-flex items-center rounded-full border px-3 py-1 text-[11px] font-black uppercase tracking-[0.18em] ${toneClass}`}>
+      {children}
+    </span>
+  );
 }
 
-function PricingCard({
+// ── School Plan Card ────────────────��─────────────────────────────────────────
+
+function SchoolPlanCard({
   title,
-  badge,
-  description,
-  items,
+  price,
+  range,
+  features,
   cta,
   href,
   highlighted = false,
+  isCustom = false,
 }: {
   title: string;
-  badge: string;
-  description: string;
-  items: string[];
+  price: string;
+  range: string;
+  features: string[];
   cta: string;
   href: string;
   highlighted?: boolean;
+  isCustom?: boolean;
 }) {
   return (
-    <article className={`group relative overflow-hidden rounded-2xl border bg-white p-4 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-xl ${highlighted ? "border-blue-200 bg-blue-50/40 ring-1 ring-blue-200" : "border-slate-200"}`}>
-      <div className={`absolute inset-x-0 top-0 h-1 ${highlighted ? "bg-gradient-to-r from-blue-600 via-sky-400 to-cyan-300" : "bg-gradient-to-r from-slate-300 via-blue-200 to-cyan-100"}`} />
-      <div className="absolute -right-10 top-6 h-24 w-24 rounded-full bg-blue-50/70 blur-3xl transition duration-200 group-hover:bg-blue-100/80" />
-      <div className="relative">
-        <Badge tone={highlighted ? "emerald" : "blue"}>{badge}</Badge>
-        <h3 className="mt-3 text-2xl font-black tracking-tight text-slate-950">{title}</h3>
-        <p className="mt-2 text-sm leading-6 text-slate-600">{description}</p>
+    <article
+      className={[
+        "group relative flex flex-col overflow-hidden rounded-2xl border bg-white p-5 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-xl",
+        highlighted ? "border-blue-300 ring-1 ring-blue-200" : "border-slate-200 hover:border-blue-200",
+      ].join(" ")}
+    >
+      <div
+        className={`absolute inset-x-0 top-0 h-1 ${highlighted ? "bg-gradient-to-r from-blue-600 via-sky-400 to-cyan-300" : "bg-gradient-to-r from-slate-200 via-blue-100 to-slate-200"}`}
+      />
+      {highlighted && (
+        <div className="absolute -right-8 top-4 h-20 w-20 rounded-full bg-blue-50/60 blur-2xl" />
+      )}
+
+      <div className="relative flex-1">
+        {highlighted && (
+          <div className="mb-2">
+            <Badge tone="emerald">Most Popular</Badge>
+          </div>
+        )}
+        <h3 className="text-lg font-black tracking-tight text-slate-950">{title}</h3>
+        <p className="mt-1 text-xs text-slate-500">{range}</p>
+
+        <div className="mt-4">
+          {isCustom ? (
+            <div className="text-2xl font-black text-slate-950">Custom pricing</div>
+          ) : (
+            <>
+              <div className="flex items-baseline gap-1">
+                <span className="text-xs font-bold text-slate-500">UGX</span>
+                <span className="text-3xl font-black tracking-tight text-slate-950">{price}</span>
+              </div>
+              <span className="mt-0.5 block text-xs text-slate-400">per term</span>
+            </>
+          )}
+        </div>
+
+        <ul className="mt-4 space-y-1.5">
+          {features.map((f) => (
+            <li key={f} className="flex items-start gap-2 text-xs text-slate-600">
+              <CheckIcon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-blue-600" />
+              {f}
+            </li>
+          ))}
+        </ul>
       </div>
-      <ul className="mt-4 grid gap-2 text-sm text-slate-700">
-        {items.map((item) => (
-          <li key={item} className="flex items-start gap-2">
-            <CheckIcon className="mt-0.5 h-4 w-4 shrink-0 text-blue-700" />
-            <span>{item}</span>
-          </li>
-        ))}
-      </ul>
-      <a href={href} target="_blank" rel="noreferrer" className={`btn marketing-button-motion mt-5 inline-flex w-full rounded-2xl px-4 py-3 text-sm font-black ${highlighted ? "bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-lg shadow-blue-600/20 hover:shadow-xl hover:shadow-blue-600/25" : "border border-blue-200 bg-white text-blue-700 shadow-sm hover:bg-blue-50"}`}>
+
+      <a
+        href={href}
+        target="_blank"
+        rel="noreferrer"
+        className={[
+          "btn marketing-button-motion mt-5 w-full rounded-xl px-4 py-2.5 text-center text-sm font-black",
+          highlighted
+            ? "bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-lg shadow-blue-600/20"
+            : "border border-blue-200 bg-white text-blue-700 hover:bg-blue-50",
+        ].join(" ")}
+      >
         {cta}
       </a>
     </article>
   );
 }
 
+// ── Credit Pack Card ──────────────────��───────────────────────────���───────────
+
+function CreditPackCard({
+  name,
+  credits,
+  price,
+  isFree = false,
+  cta,
+  href,
+}: {
+  name: string;
+  credits: string;
+  price: string;
+  isFree?: boolean;
+  cta: string;
+  href: string;
+}) {
+  return (
+    <article className="group relative flex flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-lg">
+      <div className="absolute inset-x-0 top-0 h-0.5 bg-gradient-to-r from-blue-200 via-sky-300 to-blue-200" />
+
+      <div className="mb-3 flex items-start justify-between">
+        <div
+          className="flex h-9 w-9 items-center justify-center rounded-xl"
+          style={{ background: isFree ? "#DCFCE7" : "#EAF3FF", color: isFree ? "#16A34A" : "#0F5BD8" }}
+        >
+          <CreditIcon className="h-4 w-4" />
+        </div>
+        {isFree && (
+          <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700">
+            Free
+          </span>
+        )}
+      </div>
+
+      <h3 className="text-base font-black text-slate-950">{name}</h3>
+      <p className="mt-1 text-sm font-bold text-blue-700">{credits}</p>
+      <p className="mt-1 text-xs text-slate-400">{isFree ? "No payment required" : price}</p>
+
+      <a
+        href={href}
+        target="_blank"
+        rel="noreferrer"
+        className="btn mt-4 w-full rounded-xl border border-blue-200 bg-white px-4 py-2 text-center text-xs font-black text-blue-700 hover:bg-blue-50"
+      >
+        {cta}
+      </a>
+    </article>
+  );
+}
+
+// ── InfoCard ─────────��────────────────────────────���───────────────────────────
+
 function InfoCard({ title, body }: { title: string; body: string }) {
   return (
     <div className="group relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-xl">
       <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-blue-600 via-sky-400 to-cyan-300" />
-      <div className="absolute -right-10 top-6 h-24 w-24 rounded-full bg-blue-50/70 blur-3xl transition duration-200 group-hover:bg-blue-100/80" />
-      <h3 className="text-base font-black text-slate-950">{title}</h3>
-      <p className="mt-2 text-sm leading-6 text-slate-600">{body}</p>
+      <h3 className="text-sm font-black text-slate-950">{title}</h3>
+      <p className="mt-1.5 text-xs leading-5 text-slate-600">{body}</p>
     </div>
   );
 }
 
+// ── Page ───────────��──────────────────────────────────────────────────────────
+
 export function PricingPage() {
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-950">
-      <section className="border-b border-blue-100 bg-gradient-to-br from-white via-blue-50 to-slate-50 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
-        <div className="mx-auto grid max-w-7xl gap-6 lg:grid-cols-12 lg:items-center">
-          <div className="lg:col-span-7">
-            <Badge>Pricing</Badge>
-            <h1 className="mt-3 max-w-3xl text-4xl font-black tracking-tight text-slate-950 sm:text-5xl">
-              First term free for early onboarding schools.
-            </h1>
-            <p className="mt-3 max-w-2xl text-base leading-7 text-slate-600">
-              Start with one free academic term, then choose the plan that matches your school size and workflow.
+    <div className="bg-slate-50 text-slate-950">
+      {/* ── Launch offer banner ── */}
+      <div
+        className="border-b px-4 py-2.5 text-center sm:px-6 lg:px-8"
+        style={{ background: "linear-gradient(90deg, #065F46, #047857)", borderColor: "#064E3B" }}
+      >
+        <p className="flex items-center justify-center gap-2 text-xs font-bold text-white">
+          <GiftIcon className="h-3.5 w-3.5 shrink-0" />
+          🎉 Temporary Launch Offer — First Term Free for early onboarding schools.
+          <a
+            href={GET_STARTED_WA}
+            target="_blank"
+            rel="noreferrer"
+            className="ml-1 whitespace-nowrap underline underline-offset-2 hover:no-underline"
+          >
+            Claim offer →
+          </a>
+        </p>
+      </div>
+
+      <main>
+        {/* ── Hero ── */}
+        <section className="border-b border-blue-100 bg-gradient-to-br from-white via-blue-50 to-slate-50 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+          <div className="mx-auto grid max-w-7xl gap-6 lg:grid-cols-12 lg:items-start">
+            <div className="lg:col-span-7">
+              <Badge>Pricing</Badge>
+              <h1 className="mt-3 max-w-3xl text-4xl font-black tracking-tight text-slate-950 sm:text-5xl">
+                Per-term pricing for Report Lab &amp; Smart Pages.
+              </h1>
+              <p className="mt-3 max-w-2xl text-base leading-7 text-slate-600">
+                Start using School Connect Report Lab and Smart Pages for one academic term at no
+                subscription cost. After the free term, continue with the plan that fits your school
+                size and workflow.
+              </p>
+              <div className="mt-5 flex flex-col gap-3 sm:flex-row">
+                <a
+                  href={GET_STARTED_WA}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="btn marketing-button-motion rounded-xl bg-gradient-to-r from-blue-600 to-blue-700 px-4 py-3 text-center text-sm font-black text-white shadow-lg shadow-blue-600/20 hover:shadow-xl hover:shadow-blue-600/25"
+                >
+                  Get Started Free
+                </a>
+                <Link
+                  to="/demos"
+                  className="btn marketing-button-motion rounded-xl border border-blue-200 bg-white px-4 py-3 text-center text-sm font-bold text-blue-700 shadow-sm hover:bg-blue-50"
+                >
+                  Watch Demo
+                </Link>
+              </div>
+            </div>
+
+            <div className="lg:col-span-5">
+              <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-1">
+                <div
+                  className="marketing-card-motion marketing-fade-up-delay-1 rounded-[1.5rem] border p-3.5 shadow-sm"
+                  style={{ background: "#ECFDF5", borderColor: "#6EE7B7" }}
+                >
+                  <div className="mb-1.5 flex items-center gap-2">
+                    <GiftIcon className="h-4 w-4 text-emerald-600" />
+                    <p className="text-[11px] font-black uppercase tracking-[0.18em] text-emerald-700">Launch Offer</p>
+                  </div>
+                  <p className="text-xs leading-5 text-emerald-800">
+                    First term free — no payment required for early onboarding schools.
+                  </p>
+                </div>
+                <div className="marketing-card-motion marketing-fade-up-delay-2 rounded-[1.5rem] border border-slate-200 bg-white p-3.5 shadow-sm">
+                  <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">Report Lab</p>
+                  <p className="mt-1.5 text-xs leading-5 text-slate-600">
+                    Generate, review, and share professional student reports from marksheets.
+                  </p>
+                </div>
+                <div className="marketing-card-motion marketing-fade-up-delay-3 rounded-[1.5rem] border border-blue-200 bg-blue-50 p-3.5 shadow-sm">
+                  <p className="text-[11px] font-black uppercase tracking-[0.18em] text-blue-700">Smart Pages</p>
+                  <p className="mt-1.5 text-xs leading-5 text-slate-600">
+                    Upload documents and turn them into clean, editable digital pages.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* ── School subscription plans ── */}
+        <section id="plans" className="border-b border-slate-200 bg-white px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+          <div className="mx-auto max-w-7xl">
+            <div className="mb-6">
+              <p className="text-xs font-black uppercase tracking-[0.2em] text-blue-700">Subscription</p>
+              <h2 className="mt-1.5 text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">
+                School Connect Report Lab + Smart Pages
+              </h2>
+              <p className="mt-2 text-sm text-slate-500">
+                Per-term subscription — includes both Report Lab and Smart Pages. First term free for early onboarding schools.
+              </p>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              <SchoolPlanCard
+                title="Starter School"
+                price="350,000"
+                range="Up to 300 students"
+                features={[
+                  "School Connect Report Lab",
+                  "Smart Pages (credit top-up separately)",
+                  "Up to 300 student records",
+                  "Marks upload and report generation",
+                  "Secure parent report links",
+                  "Standard school branding",
+                  "Onboarding support",
+                ]}
+                cta="Get Starter Plan"
+                href={planWA("Starter School")}
+              />
+              <SchoolPlanCard
+                title="Standard School"
+                price="750,000"
+                range="301 to 800 students"
+                features={[
+                  "School Connect Report Lab",
+                  "Smart Pages (credit top-up separately)",
+                  "Up to 800 student records",
+                  "Multi-class marks management",
+                  "Secure parent report links",
+                  "Full school branding setup",
+                  "Priority onboarding support",
+                ]}
+                cta="Get Standard Plan"
+                href={planWA("Standard School")}
+                highlighted
+              />
+              <SchoolPlanCard
+                title="Pro School"
+                price="1,500,000"
+                range="800+ students"
+                features={[
+                  "School Connect Report Lab",
+                  "Smart Pages (credit top-up separately)",
+                  "Unlimited student records",
+                  "Multi-stream and multi-class support",
+                  "Secure parent report links",
+                  "Custom school branding",
+                  "Priority support and onboarding",
+                ]}
+                cta="Get Pro Plan"
+                href={planWA("Pro School")}
+              />
+            </div>
+
+            {/* Enterprise — full width */}
+            <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-5">
+              <div className="grid gap-4 lg:grid-cols-12 lg:items-center">
+                <div className="lg:col-span-8">
+                  <Badge tone="slate">Enterprise / Large Institutions</Badge>
+                  <h3 className="mt-2 text-xl font-black tracking-tight text-slate-950">
+                    Custom pricing for multi-campus schools and groups
+                  </h3>
+                  <p className="mt-1.5 text-sm text-slate-600">
+                    For large schools, school groups, multi-campus networks, and institutions that
+                    need custom workflows, bulk pricing, or integration with existing systems.
+                  </p>
+                </div>
+                <div className="flex flex-col gap-2 lg:col-span-4 lg:items-end">
+                  <a
+                    href={ENTERPRISE_WA}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="btn marketing-button-motion rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-center text-sm font-black text-slate-700 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"
+                  >
+                    Discuss Enterprise Pricing
+                  </a>
+                </div>
+              </div>
+            </div>
+
+            <p className="mt-4 text-xs text-slate-400">
+              All plans billed per academic term. Setup fee may apply — see below. First term free for early onboarding schools.
             </p>
+          </div>
+        </section>
 
-            <div className="mt-5 flex flex-col gap-3 sm:flex-row">
-              <a href={BOOK_DEMO_URL} target="_blank" rel="noreferrer" className="btn marketing-button-motion rounded-xl bg-gradient-to-r from-blue-600 to-blue-700 px-4 py-3 text-sm font-black text-white shadow-lg shadow-blue-600/20 hover:shadow-xl hover:shadow-blue-600/25">
-                Request pricing
-              </a>
-              <Link to="/demos" className="btn marketing-button-motion rounded-xl border border-blue-200 bg-white px-4 py-3 text-sm font-bold text-blue-700 shadow-sm hover:bg-blue-50">
-                View demos
-              </Link>
+        {/* ── Smart Pages credit packs ── */}
+        <section id="credits" className="border-b border-slate-200 bg-slate-50 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+          <div className="mx-auto max-w-7xl">
+            <div className="mb-6">
+              <p className="text-xs font-black uppercase tracking-[0.2em] text-blue-700">Smart Pages</p>
+              <h2 className="mt-1.5 text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">
+                Credit Packs
+              </h2>
+              <p className="mt-2 text-sm text-slate-500">
+                Smart Pages uses a credit system. Buy credits as needed — they don&apos;t expire.
+              </p>
             </div>
-          </div>
 
-          <div className="lg:col-span-5">
-            <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-1">
-              <div className="rounded-2xl border border-blue-200 bg-white p-3.5 shadow-sm">
-                <p className="text-[11px] font-black uppercase tracking-[0.18em] text-blue-700">Launch offer</p>
-                <p className="mt-1.5 text-xs leading-5 text-slate-600">One academic term at no subscription cost for early onboarding schools.</p>
-              </div>
-              <div className="rounded-2xl border border-slate-200 bg-white p-3.5 shadow-sm">
-                <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">Setup</p>
-                <p className="mt-1.5 text-xs leading-5 text-slate-600">Standard setup can be waived for early onboarding and multi-term commitment.</p>
-              </div>
-              <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-3.5 shadow-sm">
-                <p className="text-[11px] font-black uppercase tracking-[0.18em] text-emerald-700">Included support</p>
-                <p className="mt-1.5 text-xs leading-5 text-slate-600">Demo guidance, package advice, and setup support after the call.</p>
-              </div>
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <CreditPackCard
+                name="Trial"
+                credits="20 credits"
+                price="Free"
+                isFree
+                cta="Start Free Trial"
+                href={creditWA("Trial (20 credits free)")}
+              />
+              <CreditPackCard
+                name="Starter"
+                credits="100 credits"
+                price="UGX 50,000"
+                cta="Buy Starter Pack"
+                href={creditWA("Starter (100 credits)")}
+              />
+              <CreditPackCard
+                name="Standard"
+                credits="500 credits"
+                price="UGX 225,000"
+                cta="Buy Standard Pack"
+                href={creditWA("Standard (500 credits)")}
+              />
+              <CreditPackCard
+                name="School Pro"
+                credits="1,000 credits"
+                price="UGX 400,000"
+                cta="Buy School Pro Pack"
+                href={creditWA("School Pro (1,000 credits)")}
+              />
             </div>
-          </div>
-        </div>
-      </section>
 
-      <section className="border-b border-slate-200 bg-white px-4 py-6 sm:px-6 lg:px-8 lg:py-7">
-        <div className="mx-auto max-w-7xl">
-          <div className="grid gap-3 lg:grid-cols-3">
-            <PricingCard
-              title="First Term Free"
-              badge="Launch offer"
-              description="For early onboarding schools, multi-term commitment, or annual upfront payment."
-              items={["Standard setup can be waived", "One academic term at no subscription cost", "Works with Report Lab and Smart Pages"]}
-              cta="Start onboarding"
-              href={BOOK_DEMO_URL}
-              highlighted
-            />
-            <PricingCard
-              title="Starter School"
-              badge="UGX 350,000 / term"
-              description="For schools up to 300 students."
-              items={["Simple term pricing", "Fits smaller school teams", "Includes onboarding guidance"]}
-              cta="Ask about Starter"
-              href={BOOK_DEMO_URL}
-            />
-            <PricingCard
-              title="Standard School"
-              badge="UGX 750,000 / term"
-              description="For schools with 301 to 800 students."
-              items={["Balanced for growing schools", "Works with core Report Lab workflows", "Supports school setup planning"]}
-              cta="Ask about Standard"
-              href={BOOK_DEMO_URL}
-            />
-          </div>
-
-          <div className="mt-3 grid gap-3 lg:grid-cols-2">
-            <PricingCard
-              title="Pro School"
-              badge="UGX 1,500,000 / term"
-              description="For large schools with 800+ students."
-              items={["Large-school pricing", "Structured for bigger operations", "Built for scale and support"]}
-              cta="Ask about Pro"
-              href={BOOK_DEMO_URL}
-            />
-            <PricingCard
-              title="Enterprise / Large Institutions"
-              badge="Custom pricing"
-              description="For multi-campus schools, groups, and institutions needing custom workflows."
-              items={["Custom setup", "Tailored workflow design", "Integration planning"]}
-              cta="Contact us"
-              href="/contact"
-            />
-          </div>
-
-          <div className="mt-6">
-            <div className="max-w-2xl">
-              <p className="text-xs font-black uppercase tracking-[0.2em] text-blue-700">Smart Pages credit packs</p>
-              <h2 className="mt-2 text-3xl font-black tracking-tight text-slate-950">Credits are separate from school term pricing.</h2>
-            </div>
-            <div className="mt-3 grid gap-3 lg:grid-cols-4">
-              <InfoCard title="Trial" body="20 credits free" />
-              <InfoCard title="Starter" body="100 credits - UGX 50,000" />
-              <InfoCard title="Standard" body="500 credits - UGX 225,000" />
-              <InfoCard title="School Pro" body="1,000 credits - UGX 400,000" />
-            </div>
-          </div>
-
-          <div className="mt-6 rounded-[2rem] border border-slate-200 bg-slate-50 p-5 shadow-sm">
-            <div className="flex items-center gap-3">
-              <div className="grid h-11 w-11 place-items-center rounded-2xl bg-blue-50 text-blue-700">
-                <SchoolIcon className="h-5 w-5" />
+            {/* Credit usage table */}
+            <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+              <div className="mb-4 flex items-center gap-2">
+                <DocumentIcon className="h-4 w-4 text-blue-600" />
+                <h3 className="text-sm font-black text-slate-950">Credit Usage</h3>
               </div>
-              <div>
-                <h3 className="text-2xl font-black tracking-tight text-slate-950">Usage guide</h3>
-                <p className="text-sm leading-6 text-slate-600">
-                  Pricing stays simple and predictable for schools while Smart Pages credits are consumed by use.
-                </p>
+              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                {[
+                  { action: "Normal extraction", cost: "1 credit per page", note: "Standard document reading" },
+                  { action: "High accuracy extraction", cost: "2 credits per page", note: "For complex or handwritten docs" },
+                  { action: "Generate clean document", cost: "+1 credit per output", note: "Per output page generated" },
+                  { action: "Publish / share document", cost: "+1 credit per document", note: "Per published document" },
+                ].map((row) => (
+                  <div key={row.action} className="rounded-xl border border-slate-100 bg-slate-50 p-3.5">
+                    <p className="text-xs font-bold text-slate-950">{row.action}</p>
+                    <p className="mt-1 text-sm font-black text-blue-700">{row.cost}</p>
+                    <p className="mt-1 text-[11px] text-slate-400">{row.note}</p>
+                  </div>
+                ))}
               </div>
             </div>
-            <ul className="mt-4 grid gap-2 text-sm text-slate-700">
-              <li className="flex items-start gap-2"><CheckIcon className="mt-0.5 h-4 w-4 shrink-0 text-blue-700" />Normal document extraction: 1 credit per page</li>
-              <li className="flex items-start gap-2"><CheckIcon className="mt-0.5 h-4 w-4 shrink-0 text-blue-700" />High accuracy extraction: 2 credits per page</li>
-              <li className="flex items-start gap-2"><CheckIcon className="mt-0.5 h-4 w-4 shrink-0 text-blue-700" />Generate clean document: +1 credit per output page</li>
-              <li className="flex items-start gap-2"><CheckIcon className="mt-0.5 h-4 w-4 shrink-0 text-blue-700" />Publish or share secure document: +1 credit per document</li>
-              <li className="flex items-start gap-2"><CheckIcon className="mt-0.5 h-4 w-4 shrink-0 text-blue-700" />Standard setup: UGX 250,000</li>
-            </ul>
           </div>
-        </div>
-      </section>
+        </section>
 
-      <section className="border-b border-slate-200 bg-slate-50 px-4 py-6 sm:px-6 lg:px-8 lg:py-7">
-        <div className="mx-auto max-w-7xl">
-          <div className="max-w-2xl">
-            <p className="text-xs font-black uppercase tracking-[0.2em] text-blue-700">Add-ons</p>
-            <h2 className="mt-2 text-3xl font-black tracking-tight text-slate-950">Add the support your school needs.</h2>
-          </div>
-          <div className="mt-3 grid gap-3 lg:grid-cols-4">
-            <InfoCard title="School branding setup" body="Logo, colors, report header, footer, and school identity setup." />
-            <InfoCard title="Data import support" body="Help moving existing students, marks, and school records into the system." />
-            <InfoCard title="Parent delivery setup" body="Support for sharing reports and documents with parents using secure links." />
-            <InfoCard title="Custom workflows" body="Extra setup for schools with unique approval or document processes." />
-          </div>
-        </div>
-      </section>
-
-      <section className="border-b border-slate-200 bg-white px-4 py-6 sm:px-6 lg:px-8 lg:py-7">
-        <div className="mx-auto max-w-4xl">
-          <p className="text-xs font-black uppercase tracking-[0.2em] text-blue-700">FAQ</p>
-          <h2 className="mt-2 text-3xl font-black tracking-tight text-slate-950">Common pricing questions</h2>
-          <div className="mt-3 grid gap-3">
-            <InfoCard title="Can we start with Report Lab only?" body="Yes. A school can start with Report Lab and add Smart Pages or other School Connect tools later." />
-            <InfoCard title="Can we use Smart Pages without Report Lab?" body="Yes. Smart Pages can be used as a document workflow product on its own." />
-            <InfoCard title="Do you charge by students or by school?" body="Pricing can depend on school size, number of users, selected products, and setup requirements." />
-            <InfoCard title="Is setup included?" body="Basic onboarding is included. Larger data imports, custom branding, or special workflows may require additional setup support." />
-            <InfoCard title="Can we try the system first?" body="Yes. Schools can watch the demo and request a guided walkthrough before choosing a package." />
-          </div>
-        </div>
-      </section>
-
-      <TestimonialsSection className="bg-slate-50 px-4 py-6 sm:px-6 lg:px-8 lg:py-7" compact />
-
-      <section className="border-t border-slate-200 bg-blue-50/40 px-4 py-8 sm:px-6 lg:px-8">
-        <div className="mx-auto max-w-7xl rounded-[2rem] border border-blue-200 bg-white p-6 shadow-sm sm:p-7">
-          <div className="grid gap-6 lg:grid-cols-12 lg:items-center">
-            <div className="lg:col-span-8">
-              <p className="text-xs font-black uppercase tracking-[0.2em] text-blue-700">Ready to choose the right package?</p>
-              <h2 className="mt-2 text-3xl font-black tracking-tight text-slate-950">
-                Book a short demo and we&apos;ll recommend the best School Connect setup for your school.
+        {/* ── Setup & Onboarding ── */}
+        <section id="setup" className="border-b border-slate-200 bg-white px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+          <div className="mx-auto max-w-7xl">
+            <div className="mb-5">
+              <p className="text-xs font-black uppercase tracking-[0.2em] text-blue-700">Setup &amp; Onboarding</p>
+              <h2 className="mt-1.5 text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">
+                Getting your school started
               </h2>
             </div>
-            <div className="grid gap-3 lg:col-span-4 lg:items-end">
-              <a href={BOOK_DEMO_URL} target="_blank" rel="noreferrer" className="btn marketing-button-motion rounded-xl bg-gradient-to-r from-blue-600 to-blue-700 px-4 py-3 text-center text-sm font-black text-white shadow-lg shadow-blue-600/20 hover:shadow-xl hover:shadow-blue-600/25">
-                Request pricing on WhatsApp
-              </a>
-              <Link to="/demos" className="btn marketing-button-motion rounded-xl border border-blue-200 bg-white px-4 py-3 text-sm font-bold text-blue-700 shadow-sm hover:bg-blue-50">
-                Watch demo
-              </Link>
-            </div>
-          </div>
 
-          <div className="mt-5 grid gap-3 md:grid-cols-3">
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3.5">
-              <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">Direct line</p>
-              <p className="mt-2 text-sm font-semibold text-slate-950">Fast replies on WhatsApp</p>
-            </div>
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3.5">
-              <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">WhatsApp</p>
-              <p className="mt-2 text-sm font-semibold text-slate-950">+971 56 370 4103</p>
-            </div>
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3.5">
-              <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">Support level</p>
-              <p className="mt-2 text-sm font-semibold text-slate-950">Matched after the demo call</p>
+            <div className="grid gap-4 lg:grid-cols-2">
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
+                <div className="flex items-start gap-3">
+                  <WrenchIcon className="mt-0.5 h-5 w-5 shrink-0 text-blue-600" />
+                  <div>
+                    <h3 className="text-base font-black text-slate-950">Standard Setup</h3>
+                    <div className="mt-2 flex items-baseline gap-1">
+                      <span className="text-xs font-bold text-slate-400">UGX</span>
+                      <span className="text-3xl font-black text-slate-950">250,000</span>
+                    </div>
+                    <p className="mt-2 text-sm text-slate-600">
+                      Covers school configuration, branding, user account setup, and a guided onboarding session for your staff.
+                    </p>
+                    <ul className="mt-3 space-y-1">
+                      {[
+                        "School profile and branding setup",
+                        "Staff accounts and roles",
+                        "Initial student and class configuration",
+                        "Guided walkthrough for report generation",
+                        "Document upload and Smart Pages setup",
+                      ].map((item) => (
+                        <li key={item} className="flex items-start gap-2 text-xs text-slate-600">
+                          <CheckIcon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-blue-600" />
+                          {item}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+                <a
+                  href={SETUP_WA}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="btn marketing-button-motion mt-5 w-full rounded-xl border border-blue-200 bg-white px-4 py-2.5 text-center text-sm font-black text-blue-700 hover:bg-blue-50"
+                >
+                  Request Setup
+                </a>
+              </div>
+
+              <div
+                className="rounded-2xl border p-5"
+                style={{ background: "#ECFDF5", borderColor: "#A7F3D0" }}
+              >
+                <div className="mb-3 flex items-center gap-2">
+                  <GiftIcon className="h-4 w-4 text-emerald-600" />
+                  <h3 className="text-base font-black text-emerald-800">Setup can be waived</h3>
+                </div>
+                <p className="mb-3 text-sm leading-relaxed text-emerald-700">
+                  The standard setup fee can be waived for qualifying schools under the launch offer.
+                </p>
+                <ul className="space-y-2">
+                  {[
+                    "Early onboarding schools (first term free offer)",
+                    "Multi-term commitment upfront",
+                    "Annual upfront payment",
+                    "School groups or multi-campus onboarding",
+                  ].map((c) => (
+                    <li key={c} className="flex items-start gap-2 text-sm text-emerald-800">
+                      <CheckIcon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-600" />
+                      {c}
+                    </li>
+                  ))}
+                </ul>
+                <p className="mt-4 text-xs text-emerald-600">
+                  Ask us about waiver eligibility when you reach out.
+                </p>
+                <a
+                  href={GET_STARTED_WA}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="btn marketing-button-motion mt-4 inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-center text-sm font-black text-white"
+                  style={{ background: "#059669" }}
+                >
+                  Claim Launch Offer
+                </a>
+              </div>
             </div>
           </div>
-        </div>
-      </section>
+        </section>
+
+        {/* ── FAQ ── */}
+        <section className="border-b border-slate-200 bg-slate-50 px-4 py-6 sm:px-6 lg:px-8 lg:py-7">
+          <div className="mx-auto max-w-4xl">
+            <p className="text-xs font-black uppercase tracking-[0.2em] text-blue-700">FAQ</p>
+            <h2 className="mt-2 text-2xl font-black tracking-tight text-slate-950">Common pricing questions</h2>
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              <InfoCard
+                title="Can we start with Report Lab only?"
+                body="Yes. A school can start with Report Lab and add Smart Pages credits as needed. The plan includes access to both products."
+              />
+              <InfoCard
+                title="Can we use Smart Pages without Report Lab?"
+                body="Yes. Smart Pages can be used on its own with a credit pack. Buy credits as you need them."
+              />
+              <InfoCard
+                title="How is the free term applied?"
+                body="Early onboarding schools start at no subscription cost for the first academic term. After the term, you choose a plan that fits your school size."
+              />
+              <InfoCard
+                title="What does the setup fee cover?"
+                body="It covers school branding, staff account setup, initial configuration, and an onboarding session. It can be waived for qualifying schools."
+              />
+              <InfoCard
+                title="Can we try before committing?"
+                body="Yes. Schools can use the 20-credit free trial pack and watch the demo before choosing any plan."
+              />
+              <InfoCard
+                title="Do credits expire?"
+                body="No. Smart Pages credits don't have an expiry date once purchased."
+              />
+            </div>
+          </div>
+        </section>
+
+        <TestimonialsSection className="bg-white px-4 py-6 sm:px-6 lg:px-8 lg:py-7" compact />
+
+        {/* ── Final CTA ── */}
+        <section className="border-t border-slate-200 bg-blue-50/40 px-4 py-6 sm:px-6 lg:px-8 lg:py-7">
+          <div className="mx-auto max-w-7xl rounded-[2rem] border border-blue-200 bg-white p-5 shadow-sm sm:p-6">
+            <div className="grid gap-5 lg:grid-cols-12 lg:items-center">
+              <div className="lg:col-span-8">
+                <p className="text-xs font-black uppercase tracking-[0.2em] text-blue-700">Ready to get started?</p>
+                <h2 className="mt-2 text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">
+                  Claim your first term free and configure Report Lab for your school.
+                </h2>
+              </div>
+              <div id="contact" className="grid gap-3 lg:col-span-4">
+                <a
+                  href={GET_STARTED_WA}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="btn marketing-button-motion rounded-xl bg-gradient-to-r from-blue-600 to-blue-700 px-4 py-3 text-center text-sm font-black text-white shadow-lg shadow-blue-600/20 hover:shadow-xl hover:shadow-blue-600/25"
+                >
+                  Get Started Free
+                </a>
+                <a
+                  href={REQUEST_PRICING_WA}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="btn marketing-button-motion rounded-xl border border-blue-200 bg-white px-4 py-3 text-center text-sm font-bold text-blue-700 shadow-sm hover:bg-blue-50"
+                >
+                  Request Pricing on WhatsApp
+                </a>
+              </div>
+            </div>
+
+            <div className="mt-5 grid gap-3 md:grid-cols-3">
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3.5">
+                <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">Launch offer</p>
+                <p className="mt-1.5 text-sm font-semibold text-slate-950">First term free for early onboarding schools</p>
+              </div>
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3.5">
+                <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">WhatsApp</p>
+                <p className="mt-1.5 text-sm font-semibold text-slate-950">{WHATSAPP_DISPLAY}</p>
+              </div>
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3.5">
+                <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">Setup</p>
+                <p className="mt-1.5 text-sm font-semibold text-slate-950">Can be waived for qualifying schools</p>
+              </div>
+            </div>
+          </div>
+        </section>
+      </main>
     </div>
   );
 }

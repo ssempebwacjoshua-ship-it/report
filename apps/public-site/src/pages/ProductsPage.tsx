@@ -2,10 +2,11 @@ import { Link } from "react-router-dom";
 import type { ReactNode } from "react";
 import { buildWhatsAppUrl } from "../config/contact";
 import {
-  BookIcon,
+  CashIcon,
   CheckIcon,
   FileTextIcon,
   GridIcon,
+  MarketIcon,
   SchoolIcon,
   ShieldIcon,
   SmartphoneIcon,
@@ -35,6 +36,7 @@ interface Product {
   secondaryHref?: string;
   accentColor: string;
   accentBg: string;
+  category?: "institutional" | "commerce";
 }
 
 const PRODUCTS: Product[] = [
@@ -188,9 +190,10 @@ const PRODUCTS: Product[] = [
     tagline: "Marketplace & digital commerce for the wider product family.",
     description:
       "PearlMart is a commerce-ready product family for product discovery, ordering workflows, and digital storefronts.",
-    icon: <BookIcon className="h-6 w-6" />,
-    iconBig: <BookIcon className="h-8 w-8" />,
+    icon: <MarketIcon className="h-6 w-6" />,
+    iconBig: <MarketIcon className="h-8 w-8" />,
     status: "demo",
+    category: "commerce",
     audience: ["Commerce", "Storefronts", "Product teams", "Operations"],
     features: [
       "Product showcase layouts",
@@ -209,9 +212,10 @@ const PRODUCTS: Product[] = [
     tagline: "Flexible digital money movement workflows.",
     description:
       "Wideh Cash supports approved money movement use cases for internal and school-linked workflows.",
-    icon: <SparklesIcon className="h-6 w-6" />,
-    iconBig: <SparklesIcon className="h-8 w-8" />,
+    icon: <CashIcon className="h-6 w-6" />,
+    iconBig: <CashIcon className="h-8 w-8" />,
     status: "demo",
+    category: "commerce",
     audience: ["Payments", "Internal tools", "School operations"],
     features: [
       "Controlled digital value flows",
@@ -327,6 +331,9 @@ function ProductCard({ product }: { product: Product }) {
 }
 
 export function ProductsPage() {
+  const institutionalProducts = PRODUCTS.filter((p) => p.category !== "commerce");
+  const commerceProducts = PRODUCTS.filter((p) => p.category === "commerce");
+
   return (
     <div className="bg-slate-50 text-slate-950">
       <section className="border-b border-blue-100 bg-gradient-to-br from-white via-blue-50 to-slate-50 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
@@ -347,6 +354,28 @@ export function ProductsPage() {
               <a href={BOOK_DEMO_URL} target="_blank" rel="noreferrer" className="btn marketing-button-motion rounded-xl border border-blue-200 bg-white px-4 py-3 text-sm font-bold text-blue-700 shadow-sm hover:bg-blue-50">
                 Book a walkthrough
               </a>
+            </div>
+
+            {/* Jump nav */}
+            <div className="mt-5 flex flex-wrap gap-1.5">
+              {[
+                { label: "Report Lab", id: "report-lab" },
+                { label: "Smart Pages", id: "smart-pages" },
+                { label: "School Connect", id: "school-connect" },
+                { label: "Legal Smart Pages", id: "legal-smart-pages" },
+                { label: "Kids Wallet", id: "kids-wallet" },
+                { label: "NFC Bands", id: "nfc-bands" },
+                { label: "PearlMart", id: "pearlmart" },
+                { label: "Wideh Cash", id: "wideh-cash" },
+              ].map(({ label, id }) => (
+                <a
+                  key={id}
+                  href={`#${id}`}
+                  className="rounded-full border border-blue-100 bg-white px-2.5 py-1 text-[11px] font-bold text-blue-700 hover:border-blue-300 hover:bg-blue-50"
+                >
+                  {label}
+                </a>
+              ))}
             </div>
           </div>
 
@@ -373,14 +402,35 @@ export function ProductsPage() {
       </section>
 
       <section className="border-b border-slate-200 bg-white px-4 py-6 sm:px-6 lg:px-8 lg:py-7">
-        <div className="mx-auto max-w-7xl">
+        <div className="mx-auto max-w-7xl space-y-8">
+          {/* Institutional & education products */}
           <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-3">
-            {PRODUCTS.map((product) => (
+            {institutionalProducts.map((product) => (
               <div key={product.id} id={product.id} className="h-full">
                 <ProductCard product={product} />
               </div>
             ))}
           </div>
+
+          {/* Commerce & Financial Logistics divider */}
+          {commerceProducts.length > 0 && (
+            <div>
+              <div className="mb-5 flex items-center gap-3">
+                <div className="h-px flex-1 bg-slate-200" />
+                <span className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-[11px] font-black uppercase tracking-[0.2em] text-blue-700">
+                  Commerce &amp; Financial Logistics
+                </span>
+                <div className="h-px flex-1 bg-slate-200" />
+              </div>
+              <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-3">
+                {commerceProducts.map((product) => (
+                  <div key={product.id} id={product.id} className="h-full">
+                    <ProductCard product={product} />
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </section>
 
