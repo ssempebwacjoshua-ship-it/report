@@ -17,6 +17,7 @@ import type {
   StudentCredentialScanResult,
   WalletAdjustResult,
   WalletPaymentMethod,
+  WalletPinStatus,
   WalletReversalResult,
   WalletTransactionListResponse,
 } from "../shared/types/studentCredentials";
@@ -164,7 +165,7 @@ export async function fetchNfcWallets(filters: { search?: string; classId?: stri
   return response.json() as Promise<NfcWalletDashboard>;
 }
 
-export async function chargeNfcCanteen(input: { tokenOrUid: string; amountCents: number; description?: string; idempotencyKey?: string; deviceId?: string }) {
+export async function chargeNfcCanteen(input: { tokenOrUid: string; amountCents: number; pin: string; description?: string; idempotencyKey?: string; deviceId?: string }) {
   const response = await fetch(`${API_BASE}/api/nfc/canteen/charge`, {
     method: "POST",
     headers: makeSchoolRequestHeaders({ "Content-Type": "application/json" }),
@@ -271,4 +272,32 @@ export async function fetchNfcGateDashboard() {
   });
   if (!response.ok) throw new Error(await parseApiError(response, "Could not load gate scans"));
   return response.json() as Promise<NfcGateDashboard>;
+}
+
+export async function getWalletPinStatus(walletId: string) {
+  const response = await fetch(`${API_BASE}/api/nfc/wallets/${encodeURIComponent(walletId)}/pin-status`, {
+    headers: makeSchoolRequestHeaders(),
+  });
+  if (!response.ok) throw new Error(await parseApiError(response, "Could not load PIN status"));
+  return response.json() as Promise<WalletPinStatus>;
+}
+
+export async function setWalletPin(walletId: string, pin: string, reason: string) {
+  const response = await fetch(`${API_BASE}/api/nfc/wallets/${encodeURIComponent(walletId)}/pin`, {
+    method: "POST",
+    headers: makeSchoolRequestHeaders({ "Content-Type": "application/json" }),
+    body: JSON.stringify({ pin, reason }),
+  });
+  if (!response.ok) throw new Error(await parseApiError(response, "Could not set wallet PIN"));
+  return response.json() as Promise<{ ok: boolean; pinSet: boolean }>;
+}
+
+export async function changeWalletPin(walletId: string, oldPin: string, newPin: string) {
+  const response = await fetch(`${API_BASE}/api/nfc/wallets/${encodeURIComponent(walletId)}/pin`, {
+    method: "PATCH",
+    headers: makeSchoolRequestHeaders({ "Content-Type": "application/json" }),
+    body: JSON.stringify({ oldPin, newPin }),
+  });
+  if (!response.ok) throw new Error(await parseApiError(response, "Could not change wallet PIN"));
+  return response.json() as Promise<{ ok: boolean }>;
 }

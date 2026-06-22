@@ -13,6 +13,7 @@ import {
 import { prisma as defaultPrisma } from "../db/prisma";
 import type { SchoolUserRole } from "./authService";
 import { normalizeCredentialUID } from "./studentCredentialService";
+import { assertPinFormat, checkPin, hashWalletPin } from "./walletPinService";
 
 type NfcOperationsClient = Pick<
   PrismaClient,
@@ -408,6 +409,8 @@ export async function getWalletDashboard(
           balanceCents: wallet?.balanceCents ?? 0,
           status: wallet?.status ?? StudentWalletStatus.ACTIVE,
           frozenReason: wallet?.frozenReason ?? null,
+          pinSet: !!wallet?.pinHash,
+          pinLockedUntil: wallet?.pinLockedUntil ? wallet.pinLockedUntil.toISOString() : null,
         },
         activeCredentialStatus: student.credentials[0]?.status ?? "NONE",
         lastTransaction: lastTransaction
@@ -425,12 +428,13 @@ export async function getWalletDashboard(
 
 export async function chargeCanteen(
   ctx: NfcOperationsContext,
-  input: { tokenOrUid: string; amountCents: number; description?: string; idempotencyKey?: string; deviceId?: string },
+  input: { tokenOrUid: string; amountCents: number; pin: string; description?: string; idempotencyKey?: string; deviceId?: string },
   db: NfcOperationsClient = defaultPrisma,
 ) {
   const schoolId = requireSchoolId(ctx);
   requireRole(ctx, ["CANTEEN", "CASHIER"]);
   if (!Number.isInteger(input.amountCents) || input.amountCents <= 0) throw Object.assign(new Error("Charge amount must be greater than zero."), { status: 400 });
+  assertPinFormat(input.pin);
 
   const target = await resolveNfcScanTarget(db, schoolId, input.tokenOrUid);
   if (!target) return { ok: false, reason: "unknown token" };
@@ -443,6 +447,56 @@ export async function chargeCanteen(
       update: {},
     });
     if (wallet.status === StudentWalletStatus.FROZEN) return { ok: false, reason: "wallet frozen", student: studentSummary(target.student), wallet };
+
+    // PIN verification — must happen inside the transaction so updates are atomic
+    const pinResult = await checkPin(wallet, input.pin);
+    if (!pinResult.ok) {
+      if (pinResult.reason === "no_pin") {
+        throw Object.assign(new Error("Wallet PIN is not set. An admin must set a PIN before this wallet can be charged."), { status: 403 });
+      }
+      if (pinResult.reason === "locked") {
+        throw Object.assign(new Error("Wallet PIN is temporarily locked due to too many failed attempts. Try again in 15 minutes."), { status: 403 });
+      }
+      // wrong_pin: increment attempts, possibly lock, audit
+      const newAttempts = wallet.pinFailedAttempts + 1;
+      const lockedUntil = pinResult.pinLockedUntil ?? null;
+      await tx.studentWallet.update({
+        where: { id: wallet.id },
+        data: { pinFailedAttempts: newAttempts, pinLockedUntil: lockedUntil },
+      });
+      await tx.auditLog.create({
+        data: {
+          schoolId,
+          action: "wallet_pin.failed_attempt",
+          details: { walletId: wallet.id, studentId: target.student.id, attempts: newAttempts, locked: !!lockedUntil },
+        },
+      });
+      if (lockedUntil) {
+        await tx.auditLog.create({
+          data: {
+            schoolId,
+            action: "wallet_pin.locked",
+            details: { walletId: wallet.id, studentId: target.student.id, lockedUntil },
+          },
+        });
+        throw Object.assign(new Error("Too many incorrect PIN attempts. Wallet PIN is now locked for 15 minutes."), { status: 403 });
+      }
+      throw Object.assign(new Error("Incorrect PIN."), { status: 401 });
+    }
+
+    // PIN correct — reset counters and record verification
+    await tx.studentWallet.update({
+      where: { id: wallet.id },
+      data: { pinFailedAttempts: 0, pinLockedUntil: null, pinLastVerifiedAt: new Date() },
+    });
+    await tx.auditLog.create({
+      data: {
+        schoolId,
+        action: "wallet_pin.verified",
+        details: { walletId: wallet.id, studentId: target.student.id },
+      },
+    });
+
     if (wallet.balanceCents < input.amountCents) return { ok: false, reason: "insufficient balance", student: studentSummary(target.student), wallet };
     const existing = input.idempotencyKey
       ? await tx.studentWalletTransaction.findUnique({ where: { schoolId_idempotencyKey: { schoolId, idempotencyKey: input.idempotencyKey } } })
@@ -473,8 +527,10 @@ export async function chargeCanteen(
         action: "student_wallet.charge",
         details: {
           studentId: target.student.id,
+          walletId: wallet.id,
           amountCents: input.amountCents,
           description: input.description ?? null,
+          pinVerified: true,
           actor: { id: ctx.actorId ?? null },
         },
       },
@@ -491,6 +547,87 @@ export async function chargeCanteen(
       wallet: { id: updatedWallet.id, balanceCents: updatedWallet.balanceCents, status: updatedWallet.status },
     };
   });
+}
+
+export async function setWalletPin(
+  ctx: NfcOperationsContext,
+  input: { walletId: string; pin: string; reason: string },
+  db: NfcOperationsClient = defaultPrisma,
+) {
+  const schoolId = requireSchoolId(ctx);
+  requireRole(ctx, []);
+  assertPinFormat(input.pin);
+  if (!input.reason.trim()) throw Object.assign(new Error("Reason is required."), { status: 400 });
+
+  const wallet = await db.studentWallet.findFirst({ where: { id: input.walletId, schoolId } });
+  if (!wallet) throw Object.assign(new Error("Wallet not found."), { status: 404 });
+
+  const pinHash = await hashWalletPin(input.pin);
+  await db.studentWallet.update({
+    where: { id: wallet.id },
+    data: { pinHash, pinSetAt: new Date(), pinFailedAttempts: 0, pinLockedUntil: null },
+  });
+  await db.auditLog.create({
+    data: {
+      schoolId,
+      action: "wallet_pin.set",
+      details: { walletId: wallet.id, studentId: wallet.studentId, reason: input.reason, actor: { id: ctx.actorId ?? null } },
+    },
+  });
+  return { ok: true, pinSet: true };
+}
+
+export async function getWalletPinStatus(
+  ctx: NfcOperationsContext,
+  walletId: string,
+  db: NfcOperationsClient = defaultPrisma,
+) {
+  const schoolId = requireSchoolId(ctx);
+  requireRole(ctx, ["CANTEEN", "CASHIER"]);
+  const wallet = await db.studentWallet.findFirst({ where: { id: walletId, schoolId } });
+  if (!wallet) throw Object.assign(new Error("Wallet not found."), { status: 404 });
+  const now = new Date();
+  const locked = !!wallet.pinLockedUntil && wallet.pinLockedUntil > now;
+  return {
+    pinSet: !!wallet.pinHash,
+    locked,
+    pinLockedUntil: locked ? wallet.pinLockedUntil!.toISOString() : null,
+    pinFailedAttempts: wallet.pinFailedAttempts,
+  };
+}
+
+export async function changeWalletPin(
+  ctx: NfcOperationsContext,
+  input: { walletId: string; oldPin: string; newPin: string },
+  db: NfcOperationsClient = defaultPrisma,
+) {
+  const schoolId = requireSchoolId(ctx);
+  requireRole(ctx, ["CANTEEN", "CASHIER"]);
+  assertPinFormat(input.newPin);
+
+  const wallet = await db.studentWallet.findFirst({ where: { id: input.walletId, schoolId } });
+  if (!wallet) throw Object.assign(new Error("Wallet not found."), { status: 404 });
+  if (!wallet.pinHash) throw Object.assign(new Error("No PIN is currently set on this wallet."), { status: 400 });
+
+  const pinResult = await checkPin(wallet, input.oldPin);
+  if (!pinResult.ok) {
+    if (pinResult.reason === "locked") throw Object.assign(new Error("Wallet PIN is locked."), { status: 403 });
+    throw Object.assign(new Error("Old PIN is incorrect."), { status: 401 });
+  }
+
+  const newHash = await hashWalletPin(input.newPin);
+  await db.studentWallet.update({
+    where: { id: wallet.id },
+    data: { pinHash: newHash, pinSetAt: new Date(), pinFailedAttempts: 0, pinLockedUntil: null },
+  });
+  await db.auditLog.create({
+    data: {
+      schoolId,
+      action: "wallet_pin.changed",
+      details: { walletId: wallet.id, studentId: wallet.studentId, actor: { id: ctx.actorId ?? null } },
+    },
+  });
+  return { ok: true };
 }
 
 export async function scanGate(
@@ -574,7 +711,7 @@ export async function resolveWalletStudent(
   const wallet = await db.studentWallet.findFirst({ where: { studentId: student.id, schoolId } });
   return {
     student: studentSummary(student),
-    wallet: wallet ? { id: wallet.id, balanceCents: wallet.balanceCents, status: wallet.status } : null,
+    wallet: wallet ? { id: wallet.id, balanceCents: wallet.balanceCents, status: wallet.status, pinSet: !!wallet.pinHash } : null,
     credentialId: credentialId ?? null,
   };
 }
