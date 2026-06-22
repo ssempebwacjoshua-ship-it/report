@@ -5,6 +5,7 @@ import {
   amendStudentCredential,
   bulkAllocateCredentials,
   deactivateStudentCredential,
+  reactivateStudentCredential,
   getCredentialAllocation,
   issueStudentCredential,
   listStudentCredentials,
@@ -26,6 +27,10 @@ const listQuerySchema = z.object({
 
 const deactivateSchema = z.object({
   reason: z.string().trim().min(1, "Deactivation reason is required."),
+});
+
+const reactivateSchema = z.object({
+  reason: z.string().trim().min(1, "Re-activation reason is required."),
 });
 
 const scanSchema = z.object({
@@ -65,6 +70,7 @@ function credentialContext(req: Express.Request) {
     actorId: req.user?.userId,
     actorEmail: req.user?.email,
     actorName: req.user?.name,
+    role: req.user?.role,
   };
 }
 
@@ -101,6 +107,16 @@ export function studentCredentialRoutes() {
     try {
       const input = deactivateSchema.parse(req.body);
       const result = await deactivateStudentCredential(credentialContext(req), req.params.id, input.reason);
+      res.json(result);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.patch("/api/student-credentials/:id/reactivate", async (req, res, next) => {
+    try {
+      const { reason } = reactivateSchema.parse(req.body);
+      const result = await reactivateStudentCredential(credentialContext(req), req.params.id, reason);
       res.json(result);
     } catch (error) {
       next(error);

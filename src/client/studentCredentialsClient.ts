@@ -97,6 +97,16 @@ export async function deactivateStudentCredential(credentialId: string, reason: 
   return response.json() as Promise<{ credential: StudentCredential }>;
 }
 
+export async function reactivateStudentCredential(credentialId: string, reason: string) {
+  const response = await fetch(`${API_BASE}/api/student-credentials/${encodeURIComponent(credentialId)}/reactivate`, {
+    method: "PATCH",
+    headers: makeSchoolRequestHeaders({ "Content-Type": "application/json" }),
+    body: JSON.stringify({ reason }),
+  });
+  if (!response.ok) throw new Error(await parseApiError(response, "Could not re-enable NFC wristband"));
+  return response.json() as Promise<{ credential: StudentCredential }>;
+}
+
 export async function scanStudentCredential(credentialUID: string) {
   const response = await fetch(`${API_BASE}/api/student-credentials/scan`, {
     method: "POST",

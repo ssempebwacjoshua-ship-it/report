@@ -5,7 +5,7 @@ import type { NfcResolveResult } from "../../shared/types/nfcTags";
 
 type NfcTagsClient = Pick<
   PrismaClient,
-  "nfcTag" | "nfcTapEvent" | "student"
+  "nfcTag" | "nfcTapEvent" | "student" | "auditLog"
 >;
 
 export type NfcTagsContext = {
@@ -273,6 +273,54 @@ export async function disableTag(
   });
 
   return { id: updated.id, status: updated.status };
+}
+
+const ENABLE_ALLOWED_ROLES = ["ADMIN_OPERATOR"];
+const ALREADY_ACTIVE_STATUSES = new Set(["UNASSIGNED", "ASSIGNED", "UNALLOCATED", "GENERATED", "WRITTEN", "VERIFIED", "REGISTERED"]);
+
+export async function enableTag(
+  ctx: NfcTagsContext,
+  tagId: string,
+  reason: string,
+  db: NfcTagsClient = defaultPrisma,
+) {
+  const schoolId = requireSchoolId(ctx);
+  requireAuth(ctx);
+  if (!ctx.role || !ENABLE_ALLOWED_ROLES.includes(ctx.role)) {
+    throw Object.assign(new Error("Only administrators can re-enable NFC tags."), { status: 403 });
+  }
+  const cleanReason = reason?.trim();
+  if (!cleanReason) throw Object.assign(new Error("Re-enable reason is required."), { status: 400 });
+
+  const tag = await db.nfcTag.findFirst({ where: { id: tagId, schoolId } });
+  if (!tag) throw Object.assign(new Error("NFC tag not found."), { status: 404 });
+
+  if (ALREADY_ACTIVE_STATUSES.has(tag.status)) {
+    return { id: tag.id, status: tag.status, alreadyActive: true };
+  }
+
+  const newStatus = tag.studentId ? "ASSIGNED" : "UNASSIGNED";
+  const updated = await db.nfcTag.update({
+    where: { id: tagId },
+    data: { status: newStatus },
+  });
+
+  await db.auditLog.create({
+    data: {
+      schoolId,
+      action: "nfc_tag.enabled",
+      details: {
+        tagId,
+        previousStatus: tag.status,
+        newStatus,
+        studentId: tag.studentId ?? null,
+        reason: cleanReason,
+        actor: { id: ctx.actorId ?? null },
+      },
+    },
+  });
+
+  return { id: updated.id, status: updated.status, alreadyActive: false };
 }
 
 export async function getTagEvents(
