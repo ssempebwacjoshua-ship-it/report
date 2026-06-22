@@ -10,7 +10,9 @@ import {
   unassignNfcTag,
 } from "../client/nfcTagsClient";
 import { fetchStudents } from "../client/studentsClient";
+import { getStudentWalletPinStatus, setStudentWalletPin } from "../client/studentCredentialsClient";
 import type { StudentListItem } from "../shared/types/students";
+import type { WalletPinStatus } from "../shared/types/studentCredentials";
 
 type StatusFilter = "" | "UNASSIGNED" | "ASSIGNED" | "DISABLED" | "LOST";
 
@@ -74,6 +76,22 @@ export function NfcOperationsPage() {
   const [enableLoading, setEnableLoading] = useState(false);
   const [enableError, setEnableError] = useState<string | null>(null);
 
+  // Assignment success panel (shown inside the assign modal after success)
+  type AssignSuccess = { studentName: string; admissionNumber: string; studentId: string };
+  const [assignSuccess, setAssignSuccess] = useState<AssignSuccess | null>(null);
+
+  // Wallet PIN modal (for assigned tags / post-assignment)
+  type WalletPinTarget = { studentId: string; studentName: string; admissionNumber: string };
+  const [walletPinTarget, setWalletPinTarget] = useState<WalletPinTarget | null>(null);
+  const [walletPinStatus, setWalletPinStatus] = useState<WalletPinStatus | null>(null);
+  const [walletPinStatusLoading, setWalletPinStatusLoading] = useState(false);
+  const [walletPinNewPin, setWalletPinNewPin] = useState("");
+  const [walletPinConfirmPin, setWalletPinConfirmPin] = useState("");
+  const [walletPinReason, setWalletPinReason] = useState("");
+  const [walletPinLoading, setWalletPinLoading] = useState(false);
+  const [walletPinError, setWalletPinError] = useState<string | null>(null);
+  const [walletPinSuccess, setWalletPinSuccess] = useState(false);
+
   const loadTags = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -129,7 +147,7 @@ export function NfcOperationsPage() {
     try {
       const updated = await assignNfcTag(assignTagId, assignSelected.id);
       setTags((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
-      setAssignTagId(null);
+      setAssignSuccess({ studentName: assignSelected.studentName, admissionNumber: assignSelected.admissionNumber, studentId: assignSelected.id });
       setAssignSearch("");
       setAssignSelected(null);
       setAssignResults([]);
@@ -155,6 +173,50 @@ export function NfcOperationsPage() {
       setTags((prev) => prev.map((t) => (t.id === tagId ? { ...t, status: res.status as "DISABLED" } : t)));
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to disable tag.");
+    }
+  }
+
+  function openWalletPinModal(target: WalletPinTarget) {
+    setWalletPinTarget(target);
+    setWalletPinStatus(null);
+    setWalletPinStatusLoading(true);
+    setWalletPinNewPin("");
+    setWalletPinConfirmPin("");
+    setWalletPinReason("");
+    setWalletPinError(null);
+    setWalletPinSuccess(false);
+    getStudentWalletPinStatus(target.studentId)
+      .then(setWalletPinStatus)
+      .catch(() => setWalletPinStatus({ pinSet: false, locked: false, pinLockedUntil: null, pinFailedAttempts: 0 }))
+      .finally(() => setWalletPinStatusLoading(false));
+  }
+
+  function closeWalletPinModal() {
+    setWalletPinTarget(null);
+    setWalletPinStatus(null);
+    setWalletPinNewPin("");
+    setWalletPinConfirmPin("");
+    setWalletPinReason("");
+    setWalletPinError(null);
+    setWalletPinSuccess(false);
+  }
+
+  async function handleSetWalletPin() {
+    if (!walletPinTarget) return;
+    if (!/^\d{4,6}$/.test(walletPinNewPin)) { setWalletPinError("PIN must be 4 to 6 digits."); return; }
+    if (walletPinNewPin !== walletPinConfirmPin) { setWalletPinError("PINs do not match."); return; }
+    if (!walletPinReason.trim()) { setWalletPinError("Reason is required."); return; }
+    setWalletPinLoading(true);
+    setWalletPinError(null);
+    try {
+      await setStudentWalletPin(walletPinTarget.studentId, { pin: walletPinNewPin, reason: walletPinReason.trim() });
+      setWalletPinSuccess(true);
+    } catch (e) {
+      setWalletPinError(e instanceof Error ? e.message : "Could not set PIN.");
+    } finally {
+      setWalletPinNewPin("");
+      setWalletPinConfirmPin("");
+      setWalletPinLoading(false);
     }
   }
 
@@ -313,6 +375,15 @@ export function NfcOperationsPage() {
                           Unassign
                         </button>
                       )}
+                      {tag.status === "ASSIGNED" && tag.student && (
+                        <button
+                          type="button"
+                          onClick={() => openWalletPinModal({ studentId: tag.student!.id, studentName: tag.student!.name, admissionNumber: tag.student!.admissionNumber })}
+                          className="rounded-lg border border-violet-200 px-2.5 py-1 text-[11px] font-black text-violet-700 hover:bg-violet-50"
+                        >
+                          Wallet PIN
+                        </button>
+                      )}
                       {tag.status !== "DISABLED" && tag.status !== "LOST" && (
                         <button
                           type="button"
@@ -349,73 +420,108 @@ export function NfcOperationsPage() {
 
       {/* Assign modal */}
       {assignTagId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setAssignTagId(null)}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => { setAssignTagId(null); setAssignSuccess(null); }}>
           <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
-            <h2 className="text-lg font-black text-slate-950">Assign tag to student</h2>
-            <p className="mt-1 text-sm text-slate-500">Search by name, admission number, class, or stream.</p>
+            {assignSuccess ? (
+              <>
+                <h2 className="text-lg font-black text-slate-950">Tag assigned successfully</h2>
+                <div className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm grid gap-1">
+                  <p className="font-bold text-emerald-800">Student: {assignSuccess.studentName}</p>
+                  <p className="text-emerald-700">Admission: {assignSuccess.admissionNumber}</p>
+                  <p className="mt-2 text-xs font-bold text-amber-700">Wallet PIN: Not set</p>
+                  <p className="text-xs text-amber-600">Set a PIN so the student can make canteen purchases.</p>
+                </div>
+                <div className="mt-4 flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const target = { studentId: assignSuccess.studentId, studentName: assignSuccess.studentName, admissionNumber: assignSuccess.admissionNumber };
+                      setAssignTagId(null);
+                      setAssignSuccess(null);
+                      openWalletPinModal(target);
+                    }}
+                    className="btn btn-primary flex-1 rounded-xl py-2.5 text-sm font-black"
+                  >
+                    Set PIN Now
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setAssignTagId(null); setAssignSuccess(null); }}
+                    className="btn btn-secondary flex-1 rounded-xl py-2.5 text-sm font-bold"
+                  >
+                    Done
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <h2 className="text-lg font-black text-slate-950">Assign tag to student</h2>
+                <p className="mt-1 text-sm text-slate-500">Search by name, admission number, class, or stream.</p>
 
-            {/* Search input */}
-            <div className="relative mt-4">
-              <input
-                type="text"
-                placeholder="Search student…"
-                value={assignSearch}
-                onChange={(e) => handleSearchInput(e.target.value)}
-                className="premium-control w-full"
-                autoFocus
-              />
-              {assignSearching && (
-                <p className="mt-1 text-xs text-slate-400">Searching…</p>
-              )}
-              {assignResults.length > 0 && (
-                <ul className="absolute left-0 right-0 top-full z-10 mt-1 max-h-52 overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-lg">
-                  {assignResults.map((s) => (
-                    <li key={s.id}>
-                      <button
-                        type="button"
-                        className="w-full px-3 py-2 text-left text-sm hover:bg-blue-50"
-                        onClick={() => selectStudent(s)}
-                      >
-                        <p className="font-bold text-slate-950">{s.studentName}</p>
-                        <p className="text-xs text-slate-500">
-                          {s.admissionNumber} — {s.className}/{s.streamName}
-                        </p>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
+                {/* Search input */}
+                <div className="relative mt-4">
+                  <input
+                    type="text"
+                    placeholder="Search student…"
+                    value={assignSearch}
+                    onChange={(e) => handleSearchInput(e.target.value)}
+                    className="premium-control w-full"
+                    autoFocus
+                  />
+                  {assignSearching && (
+                    <p className="mt-1 text-xs text-slate-400">Searching…</p>
+                  )}
+                  {assignResults.length > 0 && (
+                    <ul className="absolute left-0 right-0 top-full z-10 mt-1 max-h-52 overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-lg">
+                      {assignResults.map((s) => (
+                        <li key={s.id}>
+                          <button
+                            type="button"
+                            className="w-full px-3 py-2 text-left text-sm hover:bg-blue-50"
+                            onClick={() => selectStudent(s)}
+                          >
+                            <p className="font-bold text-slate-950">{s.studentName}</p>
+                            <p className="text-xs text-slate-500">
+                              {s.admissionNumber} — {s.className}/{s.streamName}
+                            </p>
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
 
-            {/* Selected student confirmation */}
-            {assignSelected && (
-              <div className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm">
-                <p className="font-bold text-emerald-800">Selected student</p>
-                <p className="text-emerald-700">
-                  {assignSelected.studentName} — {assignSelected.admissionNumber} — {assignSelected.className}/{assignSelected.streamName}
-                </p>
-              </div>
+                {/* Selected student confirmation */}
+                {assignSelected && (
+                  <div className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm">
+                    <p className="font-bold text-emerald-800">Selected student</p>
+                    <p className="text-emerald-700">
+                      {assignSelected.studentName} — {assignSelected.admissionNumber} — {assignSelected.className}/{assignSelected.streamName}
+                    </p>
+                  </div>
+                )}
+
+                {assignError && <p className="mt-2 text-xs text-red-600">{assignError}</p>}
+
+                <div className="mt-4 flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => { void handleAssign(); }}
+                    disabled={assignLoading || !assignSelected}
+                    className="btn btn-primary flex-1 rounded-xl py-2.5 text-sm font-black"
+                  >
+                    {assignLoading ? "Assigning…" : "Assign to selected student"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setAssignTagId(null); setAssignSuccess(null); }}
+                    className="btn btn-secondary flex-1 rounded-xl py-2.5 text-sm font-bold"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </>
             )}
-
-            {assignError && <p className="mt-2 text-xs text-red-600">{assignError}</p>}
-
-            <div className="mt-4 flex gap-3">
-              <button
-                type="button"
-                onClick={() => { void handleAssign(); }}
-                disabled={assignLoading || !assignSelected}
-                className="btn btn-primary flex-1 rounded-xl py-2.5 text-sm font-black"
-              >
-                {assignLoading ? "Assigning…" : "Assign to selected student"}
-              </button>
-              <button
-                type="button"
-                onClick={() => setAssignTagId(null)}
-                className="btn btn-secondary flex-1 rounded-xl py-2.5 text-sm font-bold"
-              >
-                Cancel
-              </button>
-            </div>
           </div>
         </div>
       )}
@@ -460,6 +566,91 @@ export function NfcOperationsPage() {
                 disabled={enableLoading}
               >
                 Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Wallet PIN modal */}
+      {walletPinTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={closeWalletPinModal}>
+          <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <p className="text-base font-bold text-slate-950">
+              {walletPinStatusLoading ? "Loading PIN status…" : walletPinStatus?.pinSet ? "Reset wallet PIN" : "Set wallet PIN"}
+            </p>
+            <p className="mt-1 text-sm text-slate-600">
+              {walletPinTarget.studentName} · {walletPinTarget.admissionNumber}
+            </p>
+            {walletPinStatusLoading ? (
+              <p className="mt-4 text-sm text-slate-500">Loading…</p>
+            ) : walletPinSuccess ? (
+              <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm font-bold text-emerald-700">
+                PIN {walletPinStatus?.pinSet ? "reset" : "set"} successfully.
+              </div>
+            ) : (
+              <div className="mt-4 grid gap-3">
+                {walletPinStatus?.pinLockedUntil && (
+                  <p className="text-xs text-red-600 font-bold">
+                    PIN locked until {new Date(walletPinStatus.pinLockedUntil).toLocaleTimeString()}. Reset PIN to unlock.
+                  </p>
+                )}
+                <div className="grid gap-1">
+                  <label className="text-xs font-bold uppercase text-slate-500">New PIN (4–6 digits)</label>
+                  <input
+                    type="password"
+                    inputMode="numeric"
+                    maxLength={6}
+                    className="premium-control h-11 rounded-xl border border-slate-200 bg-slate-50 px-3 text-center text-xl tracking-widest outline-none focus:border-blue-400 focus:bg-white"
+                    value={walletPinNewPin}
+                    onChange={(e) => setWalletPinNewPin(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                    placeholder="••••"
+                    autoComplete="new-password"
+                  />
+                </div>
+                <div className="grid gap-1">
+                  <label className="text-xs font-bold uppercase text-slate-500">Confirm PIN</label>
+                  <input
+                    type="password"
+                    inputMode="numeric"
+                    maxLength={6}
+                    className="premium-control h-11 rounded-xl border border-slate-200 bg-slate-50 px-3 text-center text-xl tracking-widest outline-none focus:border-blue-400 focus:bg-white"
+                    value={walletPinConfirmPin}
+                    onChange={(e) => setWalletPinConfirmPin(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                    placeholder="••••"
+                    autoComplete="new-password"
+                  />
+                </div>
+                <div className="grid gap-1">
+                  <label className="text-xs font-bold uppercase text-slate-500">Reason</label>
+                  <textarea
+                    className="premium-control w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-900 outline-none focus:border-blue-400 focus:bg-white resize-none"
+                    rows={2}
+                    value={walletPinReason}
+                    onChange={(e) => setWalletPinReason(e.target.value)}
+                    placeholder="e.g. Initial PIN setup for student"
+                  />
+                </div>
+                {walletPinError && <p className="text-xs text-red-600">{walletPinError}</p>}
+              </div>
+            )}
+            <div className="mt-4 flex gap-2">
+              {!walletPinSuccess && !walletPinStatusLoading && (
+                <button
+                  type="button"
+                  className="flex-1 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-blue-700 disabled:bg-slate-200 disabled:text-slate-400 transition-colors"
+                  disabled={walletPinLoading || walletPinNewPin.length < 4}
+                  onClick={() => void handleSetWalletPin()}
+                >
+                  {walletPinLoading ? "Saving…" : walletPinStatus?.pinSet ? "Reset PIN" : "Set PIN"}
+                </button>
+              )}
+              <button
+                type="button"
+                className="flex-1 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50"
+                onClick={closeWalletPinModal}
+              >
+                {walletPinSuccess ? "Close" : "Cancel"}
               </button>
             </div>
           </div>

@@ -120,11 +120,24 @@ export function NfcWalletsPage() {
                       {row.student.className ?? "No class"} / {row.student.streamName ?? "No stream"} · Wallet {row.wallet.status} · Wristband {row.activeCredentialStatus}
                     </p>
                   </button>
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <span className="font-bold text-slate-900">{money(row.wallet.balanceCents)}</span>
-                    {!row.wallet.pinSet && (
-                      <span className="rounded px-1.5 py-0.5 text-xs font-bold bg-amber-100 text-amber-700">No PIN</span>
+                    {row.wallet.pinLockedUntil ? (
+                      <span className="rounded px-1.5 py-0.5 text-xs font-bold bg-red-100 text-red-700">
+                        PIN locked until {new Date(row.wallet.pinLockedUntil).toLocaleTimeString()}
+                      </span>
+                    ) : row.wallet.pinSet ? (
+                      <span className="rounded px-1.5 py-0.5 text-xs font-bold bg-emerald-100 text-emerald-700">PIN set</span>
+                    ) : (
+                      <span className="rounded px-1.5 py-0.5 text-xs font-bold bg-amber-100 text-amber-700">PIN not set</span>
                     )}
+                    <button
+                      type="button"
+                      className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-bold text-slate-700 hover:bg-slate-50"
+                      onClick={() => openPinModal(row)}
+                    >
+                      {row.wallet.pinSet ? "Reset PIN" : "Set PIN"}
+                    </button>
                     <button
                       type="button"
                       className="rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-bold text-blue-700 hover:bg-blue-100"

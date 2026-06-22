@@ -9,6 +9,7 @@ import {
   getAttendanceDashboard,
   getDailySummary,
   getGateDashboard,
+  getStudentWalletPinStatus,
   getWalletDashboard,
   getWalletPinStatus,
   listWalletTransactions,
@@ -17,6 +18,7 @@ import {
   reverseTransaction,
   scanAttendance,
   scanGate,
+  setStudentWalletPin,
   setWalletPin,
   topUpWallet,
   type NfcOperationsContext,
@@ -238,6 +240,22 @@ export function nfcOperationsRoutes() {
   router.post("/api/nfc/gate/scan", async (req, res, next) => {
     try {
       res.json(await scanGate(ctx(req), scanSchema.parse(req.body)));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.get("/api/nfc/wallets/student/:studentId/pin-status", async (req, res, next) => {
+    try {
+      res.json(await getStudentWalletPinStatus(ctx(req), req.params.studentId));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/api/nfc/wallets/student/:studentId/pin", async (req, res, next) => {
+    try {
+      res.json(await setStudentWalletPin(ctx(req), { studentId: req.params.studentId, ...setPinSchema.parse(req.body) }));
     } catch (error) {
       next(error);
     }

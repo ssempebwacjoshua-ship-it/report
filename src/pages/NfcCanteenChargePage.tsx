@@ -169,45 +169,69 @@ export function NfcCanteenChargePage() {
                     )}
                   </p>
                 )}
+                {pending.student.wallet && !pending.student.wallet.pinSet && (
+                  <p className="mt-1 text-xs font-bold text-amber-700">Wallet PIN: Not set</p>
+                )}
               </div>
 
-              <div className="grid gap-2">
-                <label className="text-xs font-bold uppercase text-slate-500">Student enters PIN</label>
-                <input
-                  type="password"
-                  inputMode="numeric"
-                  maxLength={6}
-                  className={`${inputClass} text-center text-xl tracking-widest`}
-                  value={pin}
-                  onChange={(e) => setPin(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                  placeholder="••••"
-                  // eslint-disable-next-line jsx-a11y/no-autofocus
-                  autoFocus
-                  autoComplete="off"
-                />
-              </div>
+              {pending.student.wallet?.pinSet === false ? (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 grid gap-3">
+                  <p className="text-sm font-bold text-amber-800">
+                    Wallet PIN is not set. Set a PIN before canteen spending.
+                  </p>
+                  <p className="text-xs text-amber-700">
+                    Ask an administrator to set a PIN on the{" "}
+                    <a href="/nfc/wallets" className="underline font-bold">NFC Wallets</a> page before charging this student.
+                  </p>
+                  <button
+                    type="button"
+                    className="self-start rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50"
+                    onClick={reset}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <div className="grid gap-2">
+                    <label className="text-xs font-bold uppercase text-slate-500">Student enters PIN</label>
+                    <input
+                      type="password"
+                      inputMode="numeric"
+                      maxLength={6}
+                      className={`${inputClass} text-center text-xl tracking-widest`}
+                      value={pin}
+                      onChange={(e) => setPin(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                      placeholder="••••"
+                      // eslint-disable-next-line jsx-a11y/no-autofocus
+                      autoFocus
+                      autoComplete="off"
+                    />
+                  </div>
 
-              {chargeError && (
-                <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{chargeError}</div>
+                  {chargeError && (
+                    <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{chargeError}</div>
+                  )}
+
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      className="flex-1 rounded-xl bg-emerald-600 px-4 py-3 text-sm font-bold text-white hover:bg-emerald-700 disabled:bg-slate-200 disabled:text-slate-400 transition-colors"
+                      disabled={pin.length < 4 || chargeLoading}
+                      onClick={() => void submitCharge()}
+                    >
+                      {chargeLoading ? "Processing…" : `Charge ${money(Math.round(Number(amount) * 100))}`}
+                    </button>
+                    <button
+                      type="button"
+                      className="rounded-xl border border-slate-200 px-4 py-3 text-sm font-bold text-slate-700 hover:bg-slate-50"
+                      onClick={reset}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </>
               )}
-
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  className="flex-1 rounded-xl bg-emerald-600 px-4 py-3 text-sm font-bold text-white hover:bg-emerald-700 disabled:bg-slate-200 disabled:text-slate-400 transition-colors"
-                  disabled={pin.length < 4 || chargeLoading}
-                  onClick={() => void submitCharge()}
-                >
-                  {chargeLoading ? "Processing…" : `Charge ${money(Math.round(Number(amount) * 100))}`}
-                </button>
-                <button
-                  type="button"
-                  className="rounded-xl border border-slate-200 px-4 py-3 text-sm font-bold text-slate-700 hover:bg-slate-50"
-                  onClick={reset}
-                >
-                  Cancel
-                </button>
-              </div>
             </div>
           )}
 
