@@ -107,6 +107,46 @@ export function platformAdminRoutes() {
     },
   );
 
+  // ── NFC tag URL repair ────────────────────────────────────────────────────
+  // Rewrites writtenUrl on NfcTag rows whose URL starts with the wrong (Railway
+  // API) domain. Protected by PLATFORM_ADMIN_KEY; safe to run repeatedly.
+
+  const repairSchema = z.object({
+    wrongDomain: z.string().url("wrongDomain must be an absolute URL (no trailing slash)."),
+    correctDomain: z.string().url("correctDomain must be an absolute URL (no trailing slash)."),
+    dryRun: z.boolean().default(true),
+  });
+
+  router.post("/api/platform/nfc-tags/repair-urls", requirePlatformKey, async (req, res, next) => {
+    try {
+      const { wrongDomain, correctDomain, dryRun } = repairSchema.parse(req.body);
+
+      const wrong = wrongDomain.replace(/\/+$/, "");
+      const correct = correctDomain.replace(/\/+$/, "");
+
+      // Count how many rows will be affected before touching anything.
+      const affected = await prisma.nfcTag.count({
+        where: { writtenUrl: { startsWith: wrong } },
+      });
+
+      if (dryRun) {
+        res.json({ dryRun: true, affected, wrong, correct });
+        return;
+      }
+
+      // Prisma doesn't expose SQL REPLACE(); use updateMany with a raw expression.
+      await prisma.$executeRaw`
+        UPDATE "NfcTag"
+        SET "writtenUrl" = replace("writtenUrl", ${wrong}, ${correct})
+        WHERE "writtenUrl" LIKE ${wrong + "%"}
+      `;
+
+      res.json({ dryRun: false, updated: affected, wrong, correct });
+    } catch (error) {
+      next(error);
+    }
+  });
+
   return router;
 }
 
