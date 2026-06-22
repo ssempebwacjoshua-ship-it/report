@@ -2,6 +2,7 @@ import { CredentialStatus, CredentialType } from "@prisma/client";
 import { Router, type ErrorRequestHandler } from "express";
 import { z } from "zod";
 import {
+  amendStudentCredential,
   deactivateStudentCredential,
   issueStudentCredential,
   listStudentCredentials,
@@ -28,6 +29,12 @@ const deactivateSchema = z.object({
 const scanSchema = z.object({
   credentialUID: z.string().trim().min(1, "Credential UID is required."),
   context: z.enum(["GATE", "CLASS", "WALLET", "VERIFY"]).optional(),
+});
+
+const amendSchema = z.object({
+  studentId: z.string().uuid().optional(),
+  credentialUID: z.string().optional(),
+  reason: z.string().trim().min(1, "Amendment reason is required."),
 });
 
 function credentialContext(req: Express.Request) {
@@ -72,6 +79,16 @@ export function studentCredentialRoutes() {
     try {
       const input = deactivateSchema.parse(req.body);
       const result = await deactivateStudentCredential(credentialContext(req), req.params.id, input.reason);
+      res.json(result);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.patch("/api/student-credentials/:id/amend", async (req, res, next) => {
+    try {
+      const input = amendSchema.parse(req.body);
+      const result = await amendStudentCredential(credentialContext(req), req.params.id, input);
       res.json(result);
     } catch (error) {
       next(error);

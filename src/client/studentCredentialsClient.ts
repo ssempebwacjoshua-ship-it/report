@@ -36,6 +36,19 @@ export async function issueStudentCredential(input: { studentId: string; credent
   return response.json() as Promise<{ credential: StudentCredential }>;
 }
 
+export async function amendStudentCredential(
+  credentialId: string,
+  input: { studentId?: string; credentialUID?: string; reason: string },
+) {
+  const response = await fetch(`${API_BASE}/api/student-credentials/${encodeURIComponent(credentialId)}/amend`, {
+    method: "PATCH",
+    headers: makeSchoolRequestHeaders({ "Content-Type": "application/json" }),
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) throw new Error(await parseApiError(response, "Could not amend NFC wristband"));
+  return response.json() as Promise<{ credential: StudentCredential }>;
+}
+
 export async function deactivateStudentCredential(credentialId: string, reason: string) {
   const response = await fetch(`${API_BASE}/api/student-credentials/${encodeURIComponent(credentialId)}/deactivate`, {
     method: "PATCH",

@@ -18,6 +18,16 @@ type StudentCredentialDb = StudentCredentialClient & {
   $transaction?: <T>(fn: (tx: StudentCredentialClient) => Promise<T>) => Promise<T>;
 };
 
+// Extended client type used only by amendStudentCredential (requires usage-history counts)
+type CredentialAmendClient = Pick<PrismaClient,
+  | "student"
+  | "studentCredential"
+  | "auditLog"
+  | "studentAttendanceEvent"
+  | "studentWalletTransaction"
+  | "nfcGateScan"
+>;
+
 const ACTIVE_STUDENT_CREDENTIAL_MESSAGE = "Student already has an active NFC wristband. Deactivate or mark it lost before issuing another.";
 
 type EnrollmentSummary = {
@@ -341,6 +351,117 @@ export async function deactivateStudentCredential(
   });
 
   return { credential: serializeCredential(credential as CredentialWithStudent) };
+}
+
+export async function amendStudentCredential(
+  ctx: StudentCredentialContext,
+  credentialId: string,
+  input: { studentId?: string; credentialUID?: string; reason: string },
+  db: CredentialAmendClient = defaultPrisma,
+) {
+  const schoolId = requireSchoolId(ctx);
+  const cleanReason = input.reason.trim();
+  if (!cleanReason) throw Object.assign(new Error("Amendment reason is required."), { status: 400 });
+
+  if (input.studentId === undefined && input.credentialUID === undefined) {
+    throw Object.assign(new Error("Provide studentId or credentialUID to amend."), { status: 400 });
+  }
+
+  // Validate UID before normalizing
+  if (input.credentialUID !== undefined) {
+    const trimmed = input.credentialUID.trim();
+    if (!trimmed) throw Object.assign(new Error("Wristband UID cannot be empty."), { status: 400 });
+    const lower = trimmed.toLowerCase();
+    if (lower.startsWith("http://") || lower.startsWith("https://")) {
+      throw Object.assign(new Error("Wristband UID must not be a URL."), { status: 400 });
+    }
+  }
+  const newUID = input.credentialUID !== undefined ? normalizeCredentialUID(input.credentialUID) : undefined;
+
+  const credential = await db.studentCredential.findFirst({
+    where: { id: credentialId, schoolId },
+    include: credentialInclude,
+  });
+  if (!credential) throw Object.assign(new Error("Credential not found for this school."), { status: 404 });
+
+  const oldStudentId = credential.studentId;
+  const oldCredentialUID = credential.credentialUID;
+  const changingStudent = input.studentId !== undefined && input.studentId !== oldStudentId;
+
+  if (changingStudent) {
+    // Block if this wristband already has any usage history
+    const [attendanceCount, walletCount, gateCount] = await Promise.all([
+      db.studentAttendanceEvent.count({ where: { credentialId } }),
+      db.studentWalletTransaction.count({ where: { credentialId } }),
+      db.nfcGateScan.count({ where: { credentialId } }),
+    ]);
+    if (attendanceCount > 0 || walletCount > 0 || gateCount > 0) {
+      throw Object.assign(
+        new Error("This wristband already has activity. Deactivate it and issue a new wristband instead."),
+        { status: 409 },
+      );
+    }
+
+    const newStudent = await db.student.findFirst({
+      where: { id: input.studentId, schoolId },
+      select: { id: true, isActive: true },
+    });
+    if (!newStudent) throw Object.assign(new Error("Student not found for this school."), { status: 404 });
+    if (!newStudent.isActive) throw Object.assign(new Error("Cannot assign to an inactive student."), { status: 400 });
+
+    // Prevent target student from having another active wristband
+    const targetHasActive = await db.studentCredential.findFirst({
+      where: {
+        schoolId,
+        studentId: input.studentId,
+        type: credential.type as CredentialType,
+        status: CredentialStatus.ACTIVE,
+        NOT: { id: credentialId },
+      },
+    });
+    if (targetHasActive) {
+      throw Object.assign(new Error(ACTIVE_STUDENT_CREDENTIAL_MESSAGE), { status: 409 });
+    }
+  }
+
+  if (newUID !== undefined && newUID !== oldCredentialUID) {
+    // Block if another active wristband in this school already uses that UID
+    const duplicate = await db.studentCredential.findFirst({
+      where: {
+        schoolId,
+        type: credential.type as CredentialType,
+        credentialUID: newUID,
+        status: CredentialStatus.ACTIVE,
+        NOT: { id: credentialId },
+      },
+    });
+    if (duplicate) {
+      throw Object.assign(
+        new Error("This NFC wristband is already active for a student in this school."),
+        { status: 409 },
+      );
+    }
+  }
+
+  const updated = await db.studentCredential.update({
+    where: { id: credentialId },
+    data: {
+      ...(changingStudent ? { studentId: input.studentId } : {}),
+      ...(newUID !== undefined ? { credentialUID: newUID } : {}),
+    },
+    include: credentialInclude,
+  });
+
+  await auditCredentialAction(db, ctx, "student_credential.amended", {
+    credentialId,
+    oldStudentId,
+    newStudentId: changingStudent ? input.studentId : oldStudentId,
+    oldCredentialUID,
+    newCredentialUID: newUID ?? oldCredentialUID,
+    reason: cleanReason,
+  });
+
+  return { credential: serializeCredential(updated as CredentialWithStudent) };
 }
 
 export async function scanStudentCredential(
