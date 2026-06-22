@@ -1,0 +1,13 @@
+
+/* Fix blank white first hero CTA */
+main > section:first-of-type a:first-of-type,
+main > section:first-of-type button:first-of-type {
+  color: #0b3b8c !important;
+}
+
+main > section:first-of-type a:first-of-type *,
+main > section:first-of-type button:first-of-type * {
+  color: #0b3b8c !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+}

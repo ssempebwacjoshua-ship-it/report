@@ -21,3 +21,5 @@ db-audit/
 db-audit.zip
 
 .env
+.vercel
+.env*
