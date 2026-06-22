@@ -301,3 +301,21 @@ export async function changeWalletPin(walletId: string, oldPin: string, newPin: 
   if (!response.ok) throw new Error(await parseApiError(response, "Could not change wallet PIN"));
   return response.json() as Promise<{ ok: boolean }>;
 }
+
+export async function setStudentWalletPin(studentId: string, input: { pin: string; reason: string }) {
+  const response = await fetch(`${API_BASE}/api/nfc/wallets/student/${encodeURIComponent(studentId)}/pin`, {
+    method: "POST",
+    headers: makeSchoolRequestHeaders({ "Content-Type": "application/json" }),
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) throw new Error(await parseApiError(response, "Could not set wallet PIN"));
+  return response.json() as Promise<{ walletId: string; studentId: string; pinSet: boolean; pinLocked: boolean; pinLockedUntil: string | null }>;
+}
+
+export async function getStudentWalletPinStatus(studentId: string) {
+  const response = await fetch(`${API_BASE}/api/nfc/wallets/student/${encodeURIComponent(studentId)}/pin-status`, {
+    headers: makeSchoolRequestHeaders(),
+  });
+  if (!response.ok) throw new Error(await parseApiError(response, "Could not load PIN status"));
+  return response.json() as Promise<WalletPinStatus>;
+}

@@ -630,6 +630,66 @@ export async function changeWalletPin(
   return { ok: true };
 }
 
+export async function setStudentWalletPin(
+  ctx: NfcOperationsContext,
+  input: { studentId: string; pin: string; reason: string },
+  db: NfcOperationsClient = defaultPrisma,
+) {
+  const schoolId = requireSchoolId(ctx);
+  requireRole(ctx, []);
+  assertPinFormat(input.pin);
+  if (!input.reason.trim()) throw Object.assign(new Error("Reason is required."), { status: 400 });
+
+  const student = await db.student.findFirst({ where: { id: input.studentId, schoolId } });
+  if (!student) throw Object.assign(new Error("Student not found."), { status: 404 });
+
+  let wallet = await db.studentWallet.findFirst({ where: { studentId: input.studentId, schoolId } });
+  if (!wallet) {
+    wallet = await db.studentWallet.create({
+      data: { schoolId, studentId: input.studentId, balanceCents: 0 },
+    });
+  }
+
+  const pinHash = await hashWalletPin(input.pin);
+  await db.studentWallet.update({
+    where: { id: wallet.id },
+    data: { pinHash, pinSetAt: new Date(), pinFailedAttempts: 0, pinLockedUntil: null },
+  });
+  await db.auditLog.create({
+    data: {
+      schoolId,
+      action: "wallet_pin.set",
+      details: { walletId: wallet.id, studentId: input.studentId, reason: input.reason, actor: { id: ctx.actorId ?? null } },
+    },
+  });
+  return {
+    walletId: wallet.id,
+    studentId: input.studentId,
+    pinSet: true,
+    pinLocked: false,
+    pinLockedUntil: null,
+  };
+}
+
+export async function getStudentWalletPinStatus(
+  ctx: NfcOperationsContext,
+  studentId: string,
+  db: NfcOperationsClient = defaultPrisma,
+) {
+  const schoolId = requireSchoolId(ctx);
+  requireRole(ctx, ["CANTEEN", "CASHIER"]);
+  const wallet = await db.studentWallet.findFirst({ where: { studentId, schoolId } });
+  if (!wallet) return { pinSet: false, locked: false, pinLockedUntil: null, pinFailedAttempts: 0 };
+  const now = new Date();
+  const locked = !!wallet.pinLockedUntil && wallet.pinLockedUntil > now;
+  return {
+    pinSet: !!wallet.pinHash,
+    locked,
+    pinLockedUntil: locked ? wallet.pinLockedUntil!.toISOString() : null,
+    pinFailedAttempts: wallet.pinFailedAttempts,
+  };
+}
+
 export async function scanGate(
   ctx: NfcOperationsContext,
   input: { tokenOrUid: string; idempotencyKey?: string; deviceId?: string },
