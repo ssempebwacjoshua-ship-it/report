@@ -1,0 +1,304 @@
+import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  deactivateStudentCredential,
+  fetchStudentCredentials,
+  issueStudentCredential,
+  scanStudentCredential,
+} from "../client/studentCredentialsClient";
+import { fetchStudents } from "../client/studentsClient";
+import type { CredentialStatus, StudentCredential, StudentCredentialScanResult } from "../shared/types/studentCredentials";
+import type { StudentListItem } from "../shared/types/students";
+
+const inputClass = "premium-control h-10 rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm text-slate-900 outline-none focus:border-blue-400 focus:bg-white";
+
+function studentLabel(student: StudentListItem) {
+  return `${student.studentName} - ${student.admissionNumber} - ${student.className}/${student.streamName}`;
+}
+
+function statusTone(status: CredentialStatus | StudentCredentialScanResult["status"]) {
+  if (status === "ACTIVE") return "bg-emerald-100 text-emerald-700";
+  if (status === "DEACTIVATED") return "bg-amber-100 text-amber-800";
+  if (status === "STUDENT_INACTIVE") return "bg-red-100 text-red-700";
+  return "bg-slate-100 text-slate-700";
+}
+
+export function StudentCredentialsPage() {
+  const issueInputRef = useRef<HTMLInputElement | null>(null);
+  const scanInputRef = useRef<HTMLInputElement | null>(null);
+  const [students, setStudents] = useState<StudentListItem[]>([]);
+  const [credentials, setCredentials] = useState<StudentCredential[]>([]);
+  const [selectedStudentId, setSelectedStudentId] = useState("");
+  const [issueUID, setIssueUID] = useState("");
+  const [scanUID, setScanUID] = useState("");
+  const [scanResult, setScanResult] = useState<StudentCredentialScanResult | null>(null);
+  const [search, setSearch] = useState("");
+  const [status, setStatus] = useState<CredentialStatus | "">("");
+  const [deactivationReason, setDeactivationReason] = useState<Record<string, string>>({});
+  const [notice, setNotice] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(true);
+
+  const activeStudents = useMemo(() => students.filter((student) => student.isActive), [students]);
+  const selectedActiveCredential = useMemo(
+    () => credentials.find((credential) => credential.student.id === selectedStudentId && credential.status === "ACTIVE") ?? null,
+    [credentials, selectedStudentId],
+  );
+
+  async function loadCredentials() {
+    const result = await fetchStudentCredentials({ search, status });
+    setCredentials(result.credentials);
+  }
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    Promise.all([fetchStudents({ isActive: "true" }), fetchStudentCredentials()])
+      .then(([studentResult, credentialResult]) => {
+        if (cancelled) return;
+        setStudents(studentResult.students);
+        setCredentials(credentialResult.credentials);
+        setSelectedStudentId(studentResult.students[0]?.id ?? "");
+      })
+      .catch((caught: Error) => setError(caught.message))
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      void loadCredentials().catch((caught: Error) => setError(caught.message));
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [search, status]);
+
+  useEffect(() => {
+    issueInputRef.current?.focus();
+  }, []);
+
+  async function handleIssue() {
+    setError("");
+    setNotice("");
+    try {
+      if (!selectedStudentId) throw new Error("Select a student first.");
+      if (selectedActiveCredential) {
+        throw new Error("Student already has an active NFC wristband. Deactivate or mark it lost before issuing another.");
+      }
+      await issueStudentCredential({ studentId: selectedStudentId, credentialUID: issueUID });
+      setIssueUID("");
+      setNotice("NFC wristband registered.");
+      await loadCredentials();
+      issueInputRef.current?.focus();
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Could not register NFC wristband");
+    }
+  }
+
+  async function handleScan() {
+    setError("");
+    setNotice("");
+    try {
+      const result = await scanStudentCredential(scanUID);
+      setScanResult(result);
+      setScanUID("");
+      scanInputRef.current?.focus();
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Could not scan NFC wristband");
+    }
+  }
+
+  async function handleDeactivate(credentialId: string) {
+    setError("");
+    setNotice("");
+    try {
+      const reason = deactivationReason[credentialId] ?? "";
+      await deactivateStudentCredential(credentialId, reason);
+      setDeactivationReason((current) => ({ ...current, [credentialId]: "" }));
+      setNotice("NFC wristband deactivated.");
+      await loadCredentials();
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Could not deactivate NFC wristband");
+    }
+  }
+
+  return (
+    <main className="grid gap-5">
+      <header className="page-header flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <p className="text-xs font-bold uppercase tracking-wide text-blue-600">Student Credentials</p>
+          <h1 className="text-xl font-bold tracking-tight text-slate-950 sm:text-2xl">NFC wristbands</h1>
+          <p className="mt-1 text-sm text-slate-500">Register, verify, and deactivate student wristband identifiers.</p>
+        </div>
+      </header>
+
+      {error ? <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div> : null}
+      {notice ? <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700">{notice}</div> : null}
+
+      <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+        <div className="premium-card rounded-xl p-4">
+          <div className="mb-3">
+            <h2 className="text-base font-bold text-slate-950">Register Wristband</h2>
+            <p className="mt-1 text-sm text-slate-500">Keep the UID input focused, then tap a wristband on the USB NFC reader.</p>
+          </div>
+          <div className="grid gap-3">
+            <label className="grid gap-1 text-xs font-bold uppercase text-slate-500">
+              Student
+              <select className={inputClass} value={selectedStudentId} onChange={(event) => setSelectedStudentId(event.target.value)}>
+                <option value="">Select student</option>
+                {activeStudents.map((student) => (
+                  <option key={student.id} value={student.id}>
+                    {studentLabel(student)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {selectedActiveCredential ? (
+              <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+                <p className="font-bold">Student already has active NFC wristband {selectedActiveCredential.credentialUID}.</p>
+                <p className="mt-1">Deactivate / Mark Lost first.</p>
+              </div>
+            ) : null}
+            <label className="grid gap-1 text-xs font-bold uppercase text-slate-500">
+              Wristband UID
+              <input
+                ref={issueInputRef}
+                className={`${inputClass} font-mono uppercase`}
+                value={issueUID}
+                onChange={(event) => setIssueUID(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") void handleIssue();
+                }}
+                placeholder="Tap wristband"
+              />
+            </label>
+            <button
+              type="button"
+              className="btn btn-primary justify-self-start"
+              onClick={() => void handleIssue()}
+              disabled={!selectedStudentId || !issueUID.trim() || Boolean(selectedActiveCredential)}
+            >
+              Issue Wristband
+            </button>
+          </div>
+        </div>
+
+        <div className="premium-card rounded-xl p-4">
+          <div className="mb-3">
+            <h2 className="text-base font-bold text-slate-950">Scan Test</h2>
+            <p className="mt-1 text-sm text-slate-500">Use this to verify a wristband without marking attendance or wallet activity.</p>
+          </div>
+          <label className="grid gap-1 text-xs font-bold uppercase text-slate-500">
+            Tap NFC wristband
+            <input
+              ref={scanInputRef}
+              className={`${inputClass} h-14 text-lg font-bold uppercase tracking-wide`}
+              value={scanUID}
+              onChange={(event) => setScanUID(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") void handleScan();
+              }}
+              placeholder="Tap NFC wristband"
+            />
+          </label>
+          <button type="button" className="btn btn-secondary mt-3" onClick={() => void handleScan()} disabled={!scanUID.trim()}>
+            Verify
+          </button>
+          {scanResult ? (
+            <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
+              <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-bold ${statusTone(scanResult.status)}`}>{scanResult.status.replace("_", " ")}</span>
+              {scanResult.student ? (
+                <div className="mt-3 grid gap-1 text-sm">
+                  <p className="font-bold text-slate-950">{scanResult.student.name}</p>
+                  <p className="text-slate-600">{scanResult.student.admissionNumber}</p>
+                  <p className="text-slate-600">
+                    {scanResult.student.className ?? "No class"} / {scanResult.student.streamName ?? "No stream"}
+                  </p>
+                </div>
+              ) : (
+                <p className="mt-3 text-sm text-slate-600">
+                  {scanResult.status === "NOT_FOUND" ? "Wristband is not registered." : "Wristband is not active."}
+                </p>
+              )}
+            </div>
+          ) : null}
+        </div>
+      </section>
+
+      <section className="premium-card rounded-xl p-4">
+        <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h2 className="text-base font-bold text-slate-950">Wristband List</h2>
+            <p className="mt-1 text-sm text-slate-500">{loading ? "Loading wristbands..." : `${credentials.length} wristbands found`}</p>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-[220px_160px]">
+            <input className={inputClass} value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search student or UID" />
+            <select className={inputClass} value={status} onChange={(event) => setStatus(event.target.value as CredentialStatus | "")}>
+              <option value="">All statuses</option>
+              <option value="ACTIVE">Active</option>
+              <option value="DEACTIVATED">Deactivated</option>
+            </select>
+          </div>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[780px] border-separate border-spacing-y-2 text-left text-sm">
+            <thead className="text-xs font-bold uppercase text-slate-500">
+              <tr>
+                <th className="px-3 py-2">Student</th>
+                <th className="px-3 py-2">UID</th>
+                <th className="px-3 py-2">Status</th>
+                <th className="px-3 py-2">Issued</th>
+                <th className="px-3 py-2">Deactivate</th>
+              </tr>
+            </thead>
+            <tbody>
+              {credentials.map((credential) => (
+                <tr key={credential.id} className="bg-white shadow-sm">
+                  <td className="rounded-l-xl border-y border-l border-slate-200 px-3 py-3">
+                    <p className="font-bold text-slate-950">{credential.student.name}</p>
+                    <p className="text-xs text-slate-500">
+                      {credential.student.admissionNumber} - {credential.student.className ?? "No class"} / {credential.student.streamName ?? "No stream"}
+                    </p>
+                  </td>
+                  <td className="border-y border-slate-200 px-3 py-3 font-mono font-bold text-slate-800">{credential.credentialUID}</td>
+                  <td className="border-y border-slate-200 px-3 py-3">
+                    <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-bold ${statusTone(credential.status)}`}>{credential.status}</span>
+                    {credential.deactivatedReason ? <p className="mt-1 text-xs text-slate-500">{credential.deactivatedReason}</p> : null}
+                  </td>
+                  <td className="border-y border-slate-200 px-3 py-3 text-slate-600">{new Date(credential.issuedAt).toLocaleDateString()}</td>
+                  <td className="rounded-r-xl border-y border-r border-slate-200 px-3 py-3">
+                    {credential.status === "ACTIVE" ? (
+                      <div className="flex min-w-[260px] gap-2">
+                        <input
+                          className={inputClass}
+                          value={deactivationReason[credential.id] ?? ""}
+                          onChange={(event) => setDeactivationReason((current) => ({ ...current, [credential.id]: event.target.value }))}
+                          placeholder="Reason required"
+                        />
+                        <button type="button" className="btn btn-danger-light" onClick={() => void handleDeactivate(credential.id)}>
+                          Deactivate
+                        </button>
+                      </div>
+                    ) : (
+                      <span className="text-xs text-slate-500">No action</span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+              {credentials.length === 0 ? (
+                <tr>
+                  <td className="rounded-xl border border-slate-200 bg-white px-3 py-6 text-center text-sm text-slate-500" colSpan={5}>
+                    No NFC wristbands found.
+                  </td>
+                </tr>
+              ) : null}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+  );
+}

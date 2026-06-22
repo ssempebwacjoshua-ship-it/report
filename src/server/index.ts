@@ -30,6 +30,7 @@ import { parentRoutes } from "./routes/parentRoutes";
 import { verifyRoutes } from "./routes/verifyRoutes";
 import { ocrRoutes } from "./routes/ocrRoutes";
 import { subscriptionRoutes } from "./routes/subscriptionRoutes";
+import { studentCredentialRoutes } from "./routes/studentCredentialRoutes";
 import { documentIntelligenceRoutes } from "./routes/documentIntelligenceRoutes";
 import { creatorAuthRoutes } from "./routes/creatorAuthRoutes";
 import { collectionRoutes } from "./routes/collectionRoutes";
@@ -111,6 +112,7 @@ export function createServer() {
   app.use(settingsRoutes());
   app.use(ocrRoutes());
   app.use(subscriptionRoutes());
+  app.use(studentCredentialRoutes());
   app.use(smartPagesBillingRoutes());
   app.use(geminiMarksImportRoutes());
   app.use(promotionRoutes());
