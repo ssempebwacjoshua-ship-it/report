@@ -4,6 +4,7 @@ export type NavItem = {
   to: string;
   label: string;
   exact?: boolean;
+  requiredPermission?: string;
   icon:
     | "activity"
     | "bell"
@@ -46,16 +47,16 @@ export const navItemsByProduct: Record<ProductKey, NavItem[]> = {
     { to: "/preferences", label: "Settings", icon: "settings" },
   ],
   nfc: [
-    { to: "/nfc/tags", label: "NFC Tags", icon: "shield", exact: true },
-    { to: "/nfc/wristbands", label: "NFC Wristbands", icon: "shield", exact: true },
-    { to: "/nfc/bulk-issuing", label: "Bulk Tag Issuing", icon: "upload", exact: true },
-    { to: "/nfc/bulk-allocation", label: "Bulk Allocation", icon: "upload", exact: true },
-    { to: "/nfc/attendance", label: "NFC Attendance", icon: "activity", exact: true },
-    { to: "/nfc/wallets", label: "NFC Wallets", icon: "credit-card", exact: true },
-    { to: "/nfc/wallets/top-up", label: "Wallet Top-Up", icon: "credit-card", exact: true },
-    { to: "/nfc/canteen", label: "Canteen Charge", icon: "credit-card", exact: true },
-    { to: "/nfc/canteen/transactions", label: "Canteen Transactions", icon: "clipboard", exact: true },
-    { to: "/nfc/gate", label: "Gate Security", icon: "shield", exact: true },
+    { to: "/nfc/tags", label: "NFC Tags", icon: "shield", exact: true, requiredPermission: "nfc.tags.manage" },
+    { to: "/nfc/wristbands", label: "NFC Wristbands", icon: "shield", exact: true, requiredPermission: "nfc.tags.manage" },
+    { to: "/nfc/bulk-issuing", label: "Bulk Tag Issuing", icon: "upload", exact: true, requiredPermission: "nfc.tags.manage" },
+    { to: "/nfc/bulk-allocation", label: "Bulk Allocation", icon: "upload", exact: true, requiredPermission: "nfc.tags.manage" },
+    { to: "/nfc/attendance", label: "NFC Attendance", icon: "activity", exact: true, requiredPermission: "nfc.devices.manage" },
+    { to: "/nfc/wallets", label: "NFC Wallets", icon: "credit-card", exact: true, requiredPermission: "nfc.wallets.pin.manage" },
+    { to: "/nfc/wallets/top-up", label: "Wallet Top-Up", icon: "credit-card", exact: true, requiredPermission: "nfc.wallets.topup" },
+    { to: "/nfc/canteen", label: "Canteen Charge", icon: "credit-card", exact: true, requiredPermission: "nfc.canteen.charge" },
+    { to: "/nfc/canteen/transactions", label: "Canteen Transactions", icon: "clipboard", exact: true, requiredPermission: "nfc.canteen.transactions.view" },
+    { to: "/nfc/gate", label: "Gate Security", icon: "shield", exact: true, requiredPermission: "nfc.gate.view" },
   ],
 };
 

@@ -9,7 +9,7 @@ export type AuthUser = {
   id: string;
   name: string;
   email: string;
-  role: "ADMIN_OPERATOR";
+  role: "ADMIN_OPERATOR" | "TEACHER" | "SECURITY" | "GATE_SECURITY" | "CANTEEN" | "CASHIER";
   isPlatformOwner?: boolean;
 };
 

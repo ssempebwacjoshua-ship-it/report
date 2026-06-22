@@ -14,6 +14,7 @@ import { prisma as defaultPrisma } from "../db/prisma";
 import type { SchoolUserRole } from "./authService";
 import { normalizeCredentialUID } from "./studentCredentialService";
 import { assertPinFormat, checkPin, hashWalletPin } from "./walletPinService";
+import { hasPermission } from "../../shared/permissions";
 
 type NfcOperationsClient = Pick<
   PrismaClient,
@@ -83,6 +84,13 @@ function requireRole(ctx: NfcOperationsContext, allowed: string[]) {
   if (!ctx.actorId || !ctx.role) throw Object.assign(new Error("Authentication required."), { status: 401 });
   if (ctx.role === "ADMIN_OPERATOR" || allowed.includes(ctx.role)) return;
   throw Object.assign(new Error("You do not have permission for this NFC action."), { status: 403 });
+}
+
+function requirePermission(ctx: NfcOperationsContext, permission: string) {
+  if (!ctx.actorId || !ctx.role) throw Object.assign(new Error("Authentication required."), { status: 401 });
+  if (!hasPermission(ctx.role, permission)) {
+    throw Object.assign(new Error("You do not have permission for this action."), { status: 403 });
+  }
 }
 
 function todayRange(now = new Date()) {
@@ -372,7 +380,7 @@ export async function getWalletDashboard(
   db: NfcOperationsClient = defaultPrisma,
 ) {
   const schoolId = requireSchoolId(ctx);
-  requireRole(ctx, ["CANTEEN", "CASHIER"]);
+  requirePermission(ctx, "nfc.wallets.pin.manage");
   const { start, end } = todayRange();
   const [students, wallets, todayCharges] = await Promise.all([
     db.student.findMany({
@@ -432,7 +440,7 @@ export async function chargeCanteen(
   db: NfcOperationsClient = defaultPrisma,
 ) {
   const schoolId = requireSchoolId(ctx);
-  requireRole(ctx, ["CANTEEN", "CASHIER"]);
+  requirePermission(ctx, "nfc.canteen.charge");
   if (!Number.isInteger(input.amountCents) || input.amountCents <= 0) throw Object.assign(new Error("Charge amount must be greater than zero."), { status: 400 });
   assertPinFormat(input.pin);
 
@@ -555,7 +563,7 @@ export async function setWalletPin(
   db: NfcOperationsClient = defaultPrisma,
 ) {
   const schoolId = requireSchoolId(ctx);
-  requireRole(ctx, []);
+  requirePermission(ctx, "nfc.wallets.pin.manage");
   assertPinFormat(input.pin);
   if (!input.reason.trim()) throw Object.assign(new Error("Reason is required."), { status: 400 });
 
@@ -583,7 +591,7 @@ export async function getWalletPinStatus(
   db: NfcOperationsClient = defaultPrisma,
 ) {
   const schoolId = requireSchoolId(ctx);
-  requireRole(ctx, ["CANTEEN", "CASHIER"]);
+  requirePermission(ctx, "nfc.wallets.pin.manage");
   const wallet = await db.studentWallet.findFirst({ where: { id: walletId, schoolId } });
   if (!wallet) throw Object.assign(new Error("Wallet not found."), { status: 404 });
   const now = new Date();
@@ -602,7 +610,7 @@ export async function changeWalletPin(
   db: NfcOperationsClient = defaultPrisma,
 ) {
   const schoolId = requireSchoolId(ctx);
-  requireRole(ctx, ["CANTEEN", "CASHIER"]);
+  requirePermission(ctx, "nfc.canteen.charge");
   assertPinFormat(input.newPin);
 
   const wallet = await db.studentWallet.findFirst({ where: { id: input.walletId, schoolId } });
@@ -636,7 +644,7 @@ export async function setStudentWalletPin(
   db: NfcOperationsClient = defaultPrisma,
 ) {
   const schoolId = requireSchoolId(ctx);
-  requireRole(ctx, []);
+  requirePermission(ctx, "nfc.wallets.pin.manage");
   assertPinFormat(input.pin);
   if (!input.reason.trim()) throw Object.assign(new Error("Reason is required."), { status: 400 });
 
@@ -677,7 +685,7 @@ export async function getStudentWalletPinStatus(
   db: NfcOperationsClient = defaultPrisma,
 ) {
   const schoolId = requireSchoolId(ctx);
-  requireRole(ctx, ["CANTEEN", "CASHIER"]);
+  requirePermission(ctx, "nfc.wallets.pin.manage");
   const wallet = await db.studentWallet.findFirst({ where: { studentId, schoolId } });
   if (!wallet) return { pinSet: false, locked: false, pinLockedUntil: null, pinFailedAttempts: 0 };
   const now = new Date();
@@ -696,7 +704,7 @@ export async function scanGate(
   db: NfcOperationsClient = defaultPrisma,
 ) {
   const schoolId = requireSchoolId(ctx);
-  requireRole(ctx, ["SECURITY", "GATE_SECURITY"]);
+  requirePermission(ctx, "nfc.gate.scan");
 
   const target = await resolveNfcScanTarget(db, schoolId, input.tokenOrUid);
   const result = target && !target.blocked ? GateScanResult.ALLOWED : GateScanResult.BLOCKED;
@@ -766,7 +774,7 @@ export async function resolveWalletStudent(
   db: NfcOperationsClient = defaultPrisma,
 ) {
   const schoolId = requireSchoolId(ctx);
-  requireRole(ctx, [...TOP_UP_ALLOWED_ROLES]);
+  requirePermission(ctx, "nfc.canteen.charge");
   const { student, credentialId } = await resolveStudentAndCredential(db, schoolId, input);
   const wallet = await db.studentWallet.findFirst({ where: { studentId: student.id, schoolId } });
   return {
@@ -793,7 +801,7 @@ export async function topUpWallet(
   db: NfcOperationsClient = defaultPrisma,
 ) {
   const schoolId = requireSchoolId(ctx);
-  requireRole(ctx, [...TOP_UP_ALLOWED_ROLES]);
+  requirePermission(ctx, "nfc.wallets.topup");
   const amountCents = Math.round(input.amountUgx * 100);
   if (!Number.isFinite(amountCents) || amountCents <= 0) {
     throw Object.assign(new Error("Top-up amount must be greater than zero."), { status: 400 });
@@ -906,7 +914,7 @@ export async function listWalletTransactions(
   db: NfcOperationsClient = defaultPrisma,
 ) {
   const schoolId = requireSchoolId(ctx);
-  requireRole(ctx, [...WALLET_MGMT_ROLES]);
+  requirePermission(ctx, "nfc.canteen.transactions.view");
 
   const where: Prisma.StudentWalletTransactionWhereInput = { schoolId };
 
@@ -981,7 +989,7 @@ export async function reverseTransaction(
   db: NfcOperationsClient = defaultPrisma,
 ) {
   const schoolId = requireSchoolId(ctx);
-  requireRole(ctx, [...WALLET_MGMT_ROLES]);
+  requirePermission(ctx, "nfc.wallets.topup");
   if (!reason?.trim()) throw Object.assign(new Error("Reversal reason is required."), { status: 400 });
 
   return runWrite(db, async (tx) => {
@@ -1147,7 +1155,7 @@ export async function getDailySummary(
   db: NfcOperationsClient = defaultPrisma,
 ) {
   const schoolId = requireSchoolId(ctx);
-  requireRole(ctx, [...WALLET_MGMT_ROLES]);
+  requirePermission(ctx, "nfc.canteen.view");
 
   const date = filters.date ? new Date(filters.date) : new Date();
   const start = new Date(date);
@@ -1199,7 +1207,7 @@ export async function getDailySummary(
 
 export async function getGateDashboard(ctx: NfcOperationsContext, db: NfcOperationsClient = defaultPrisma) {
   const schoolId = requireSchoolId(ctx);
-  requireRole(ctx, ["SECURITY", "GATE_SECURITY"]);
+  requirePermission(ctx, "nfc.gate.view");
   const scans = await db.nfcGateScan.findMany({
     where: { schoolId },
     include: { student: { select: { id: true, admissionNumber: true, firstName: true, lastName: true, isActive: true, enrollments: studentInclude.enrollments } }, credential: true },
