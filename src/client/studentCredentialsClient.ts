@@ -3,6 +3,7 @@ import type {
   AllocationStatus,
   AttendanceDirection,
   CredentialStatus,
+  DailySummary,
   NfcAttendanceDashboard,
   NfcCanteenChargeResult,
   NfcGateDashboard,
@@ -13,7 +14,10 @@ import type {
   NfcWalletTopUpResult,
   StudentCredential,
   StudentCredentialScanResult,
+  WalletAdjustResult,
   WalletPaymentMethod,
+  WalletReversalResult,
+  WalletTransactionListResponse,
 } from "../shared/types/studentCredentials";
 import { getApiBaseUrl, makeSchoolRequestHeaders, parseApiError } from "./apiBase";
 
@@ -152,6 +156,52 @@ export async function chargeNfcCanteen(input: { tokenOrUid: string; amountCents:
   });
   if (!response.ok) throw new Error(await parseApiError(response, "Could not charge student wallet"));
   return response.json() as Promise<NfcCanteenChargeResult>;
+}
+
+export async function listWalletTransactions(filters: {
+  dateFrom?: string; dateTo?: string; studentId?: string; admissionNumber?: string;
+  classId?: string; streamId?: string; cashierUserId?: string; type?: string; search?: string;
+} = {}) {
+  const params = new URLSearchParams();
+  Object.entries(filters).forEach(([k, v]) => { if (v) params.set(k, v); });
+  const response = await fetch(`${API_BASE}/api/nfc/wallet-transactions?${params}`, {
+    headers: makeSchoolRequestHeaders(),
+  });
+  if (!response.ok) throw new Error(await parseApiError(response, "Could not load wallet transactions"));
+  return response.json() as Promise<WalletTransactionListResponse>;
+}
+
+export async function reverseWalletTransaction(transactionId: string, reason: string) {
+  const response = await fetch(`${API_BASE}/api/nfc/wallet-transactions/${encodeURIComponent(transactionId)}/reverse`, {
+    method: "POST",
+    headers: makeSchoolRequestHeaders({ "Content-Type": "application/json" }),
+    body: JSON.stringify({ reason }),
+  });
+  if (!response.ok) throw new Error(await parseApiError(response, "Could not reverse transaction"));
+  return response.json() as Promise<WalletReversalResult>;
+}
+
+export async function adjustNfcWallet(input: {
+  studentId?: string; admissionNumber?: string; amountUgx: number; reason: string;
+}) {
+  const response = await fetch(`${API_BASE}/api/nfc/wallets/adjust`, {
+    method: "POST",
+    headers: makeSchoolRequestHeaders({ "Content-Type": "application/json" }),
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) throw new Error(await parseApiError(response, "Could not adjust wallet"));
+  return response.json() as Promise<WalletAdjustResult>;
+}
+
+export async function getDailySummary(filters: { date?: string; cashierUserId?: string } = {}) {
+  const params = new URLSearchParams();
+  if (filters.date) params.set("date", filters.date);
+  if (filters.cashierUserId) params.set("cashierUserId", filters.cashierUserId);
+  const response = await fetch(`${API_BASE}/api/nfc/canteen/daily-summary?${params}`, {
+    headers: makeSchoolRequestHeaders(),
+  });
+  if (!response.ok) throw new Error(await parseApiError(response, "Could not load daily summary"));
+  return response.json() as Promise<DailySummary>;
 }
 
 export async function resolveWalletStudent(

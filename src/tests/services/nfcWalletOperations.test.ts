@@ -1,6 +1,15 @@
 import { CredentialStatus, CredentialType, GateScanResult, StudentWalletStatus, WalletTransactionType } from "@prisma/client";
 import { describe, expect, it, vi } from "vitest";
-import { chargeCanteen, resolveWalletStudent, scanGate, topUpWallet } from "../../server/services/nfcOperationsService";
+import {
+  adjustWallet,
+  chargeCanteen,
+  getDailySummary,
+  listWalletTransactions,
+  resolveWalletStudent,
+  reverseTransaction,
+  scanGate,
+  topUpWallet,
+} from "../../server/services/nfcOperationsService";
 
 function student(id = "student-a", schoolId = "school-a", active = true) {
   return {
@@ -59,10 +68,12 @@ function createDb(options: { walletBalance?: number; walletStatus?: StudentWalle
     cashierUserId: string | null;
     type: WalletTransactionType;
     amountCents: number;
+    balanceAfterCents: number | null;
     paymentMethod: string | null;
     reference: string | null;
     description: string | null;
     idempotencyKey: string | null;
+    reversalOfId: string | null;
     createdAt: Date;
   }> = [];
   const gateScans: unknown[] = [];
@@ -77,8 +88,11 @@ function createDb(options: { walletBalance?: number; walletStatus?: StudentWalle
         ) ?? null,
     },
     studentWallet: {
-      findFirst: async ({ where }: { where: { studentId: string; schoolId: string } }) =>
-        wallets.find((item) => item.studentId === where.studentId && item.schoolId === where.schoolId) ?? null,
+      findFirst: async ({ where }: { where: { id?: string; studentId?: string; schoolId: string } }) =>
+        wallets.find((item) =>
+          item.schoolId === where.schoolId
+          && (where.id ? item.id === where.id : where.studentId ? item.studentId === where.studentId : false),
+        ) ?? null,
       upsert: async ({ where, create }: { where: { studentId: string }; create: { schoolId: string; studentId: string; balanceCents: number } }) => {
         let wallet = wallets.find((item) => item.studentId === where.studentId);
         if (!wallet) {
@@ -96,7 +110,29 @@ function createDb(options: { walletBalance?: number; walletStatus?: StudentWalle
       findMany: async () => wallets,
     },
     studentWalletTransaction: {
-      findMany: async () => transactions,
+      findMany: async ({ where }: { where?: { schoolId?: string; type?: string; createdAt?: unknown; cashierUserId?: string; studentId?: string } } = {}) => {
+        const schoolId = where?.schoolId;
+        const filtered = transactions.filter((t) => {
+          if (schoolId && t.schoolId !== schoolId) return false;
+          if (where?.type && t.type !== where.type) return false;
+          if (where?.cashierUserId && t.cashierUserId !== where.cashierUserId) return false;
+          if (where?.studentId && t.studentId !== where.studentId) return false;
+          return true;
+        });
+        // attach student field for include: { student: ... }
+        return filtered.map((t) => ({
+          ...t,
+          student: students.find((s) => s.id === t.studentId) ?? null,
+        }));
+      },
+      findFirst: async ({ where }: { where: { id?: string; schoolId?: string; type?: string; reversalOfId?: string } }) =>
+        transactions.find((t) => {
+          if (where.id && t.id !== where.id) return false;
+          if (where.schoolId && t.schoolId !== where.schoolId) return false;
+          if (where.type && t.type !== where.type) return false;
+          if (where.reversalOfId !== undefined && t.reversalOfId !== where.reversalOfId) return false;
+          return true;
+        }) ?? null,
       findUnique: async ({ where }: { where: { schoolId_idempotencyKey: { schoolId: string; idempotencyKey: string } } }) =>
         transactions.find((transaction) => transaction.schoolId === where.schoolId_idempotencyKey.schoolId && transaction.idempotencyKey === where.schoolId_idempotencyKey.idempotencyKey) ?? null,
       create: async ({ data }: { data: Omit<(typeof transactions)[number], "id" | "createdAt"> }) => {
@@ -301,6 +337,158 @@ describe("topUpWallet — service unit tests", () => {
         data: expect.objectContaining({ action: "student_wallet.top_up" }),
       }),
     );
+  });
+});
+
+// ─── Reversal tests ───────────────────────────────────────────────────────────
+
+const REVERSAL_CTX = { schoolId: "school-a", actorId: "cashier-a", role: "CASHIER" as const };
+
+describe("reverseTransaction — service unit tests", () => {
+  it("reversal restores wallet balance", async () => {
+    const { db, wallets, transactions } = createDb({ walletBalance: 350000 });
+    // seed a CHARGE transaction
+    transactions.push({
+      id: "tx-original", schoolId: "school-a", studentId: "student-a", walletId: "wallet-a",
+      credentialId: null, cashierUserId: "cashier-a", type: WalletTransactionType.CHARGE,
+      amountCents: -150000, balanceAfterCents: 350000, paymentMethod: null, reference: null,
+      description: "Lunch", idempotencyKey: null, reversalOfId: null, createdAt: new Date(),
+    });
+
+    const result = await reverseTransaction(REVERSAL_CTX, "tx-original", "Charged by mistake", db);
+
+    expect(result.ok).toBe(true);
+    expect(wallets[0]?.balanceCents).toBe(350000 + 150000); // balance restored
+    expect(transactions).toHaveLength(2);
+    expect(transactions[1]?.type).toBe(WalletTransactionType.REVERSAL);
+    expect(transactions[1]?.reversalOfId).toBe("tx-original");
+  });
+
+  it("reversal cannot happen twice on same transaction", async () => {
+    const { db, transactions } = createDb({ walletBalance: 350000 });
+    transactions.push({
+      id: "tx-original", schoolId: "school-a", studentId: "student-a", walletId: "wallet-a",
+      credentialId: null, cashierUserId: null, type: WalletTransactionType.CHARGE,
+      amountCents: -150000, balanceAfterCents: 350000, paymentMethod: null, reference: null,
+      description: null, idempotencyKey: null, reversalOfId: null, createdAt: new Date(),
+    });
+    // first reversal succeeds
+    await reverseTransaction(REVERSAL_CTX, "tx-original", "First reversal", db);
+    // second should fail with 409
+    await expect(reverseTransaction(REVERSAL_CTX, "tx-original", "Second reversal", db))
+      .rejects.toMatchObject({ status: 409 });
+  });
+
+  it("cannot reverse a REVERSAL transaction", async () => {
+    const { db, transactions } = createDb({ walletBalance: 500000 });
+    transactions.push({
+      id: "tx-rev", schoolId: "school-a", studentId: "student-a", walletId: "wallet-a",
+      credentialId: null, cashierUserId: null, type: WalletTransactionType.REVERSAL,
+      amountCents: 150000, balanceAfterCents: 500000, paymentMethod: null, reference: null,
+      description: "Reversal", idempotencyKey: null, reversalOfId: "some-id", createdAt: new Date(),
+    });
+    await expect(reverseTransaction(REVERSAL_CTX, "tx-rev", "Reason", db))
+      .rejects.toMatchObject({ status: 400 });
+  });
+
+  it("requires a non-empty reason", async () => {
+    const { db } = createDb();
+    await expect(reverseTransaction(REVERSAL_CTX, "tx-x", "", db))
+      .rejects.toMatchObject({ status: 400 });
+  });
+
+  it("blocks TEACHER role from reversals", async () => {
+    const { db } = createDb();
+    await expect(reverseTransaction({ schoolId: "school-a", actorId: "t", role: "TEACHER" }, "tx-x", "reason", db))
+      .rejects.toMatchObject({ status: 403 });
+  });
+});
+
+// ─── Adjustment tests ─────────────────────────────────────────────────────────
+
+const ADJUST_CTX = { schoolId: "school-a", actorId: "admin-a", role: "ADMIN_OPERATOR" as const };
+
+describe("adjustWallet — service unit tests", () => {
+  it("adjustment adds positive amount to wallet", async () => {
+    const { db, wallets, transactions } = createDb({ walletBalance: 100000 });
+    const result = await adjustWallet(ADJUST_CTX, { studentId: "student-a", amountUgx: 500, reason: "Correction" }, db);
+
+    expect(result.ok).toBe(true);
+    expect(wallets[0]?.balanceCents).toBe(100000 + 500 * 100);
+    expect(transactions[0]?.type).toBe(WalletTransactionType.ADJUSTMENT);
+  });
+
+  it("adjustment subtracts negative amount from wallet", async () => {
+    const { db, wallets } = createDb({ walletBalance: 200000 });
+    await adjustWallet(ADJUST_CTX, { studentId: "student-a", amountUgx: -1000, reason: "Correction down" }, db);
+    expect(wallets[0]?.balanceCents).toBe(200000 - 100000);
+  });
+
+  it("adjustment requires a reason", async () => {
+    const { db } = createDb();
+    await expect(adjustWallet(ADJUST_CTX, { studentId: "student-a", amountUgx: 100, reason: "" }, db))
+      .rejects.toMatchObject({ status: 400 });
+  });
+
+  it("blocks non-ADMIN_OPERATOR from adjusting", async () => {
+    const { db } = createDb();
+    await expect(adjustWallet({ schoolId: "school-a", actorId: "c", role: "CASHIER" }, { studentId: "student-a", amountUgx: 100, reason: "test" }, db))
+      .rejects.toMatchObject({ status: 403 });
+  });
+
+  it("creates audit log for adjustment", async () => {
+    const { db } = createDb();
+    await adjustWallet(ADJUST_CTX, { studentId: "student-a", amountUgx: 500, reason: "Test" }, db);
+    expect((db as { auditLog: { create: ReturnType<typeof vi.fn> } }).auditLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ action: "student_wallet.adjusted" }) }),
+    );
+  });
+});
+
+// ─── List & summary tests ──────────────────────────────────────────────────────
+
+describe("listWalletTransactions — service unit tests", () => {
+  it("returns transactions for the school", async () => {
+    const { db, transactions } = createDb();
+    transactions.push({
+      id: "tx-1", schoolId: "school-a", studentId: "student-a", walletId: "wallet-a",
+      credentialId: null, cashierUserId: null, type: WalletTransactionType.CHARGE,
+      amountCents: -100000, balanceAfterCents: 400000, paymentMethod: null, reference: null,
+      description: "Lunch", idempotencyKey: null, reversalOfId: null, createdAt: new Date(),
+    });
+    const result = await listWalletTransactions(REVERSAL_CTX, {}, db);
+    expect(result.transactions).toHaveLength(1);
+    expect(result.transactions[0]?.type).toBe("CHARGE");
+  });
+
+  it("tenant isolation: school-b cannot see school-a transactions", async () => {
+    const { db, transactions } = createDb();
+    transactions.push({
+      id: "tx-1", schoolId: "school-a", studentId: "student-a", walletId: "wallet-a",
+      credentialId: null, cashierUserId: null, type: WalletTransactionType.CHARGE,
+      amountCents: -100000, balanceAfterCents: 400000, paymentMethod: null, reference: null,
+      description: "Lunch", idempotencyKey: null, reversalOfId: null, createdAt: new Date(),
+    });
+    const result = await listWalletTransactions({ schoolId: "school-b", actorId: "cashier-b", role: "CASHIER" }, {}, db);
+    expect(result.transactions).toHaveLength(0);
+  });
+});
+
+describe("getDailySummary — service unit tests", () => {
+  it("correctly totals charges and top-ups", async () => {
+    const { db, transactions } = createDb();
+    const today = new Date();
+    transactions.push(
+      { id: "tx-1", schoolId: "school-a", studentId: "student-a", walletId: "wallet-a", credentialId: null, cashierUserId: null, type: WalletTransactionType.CHARGE, amountCents: -150000, balanceAfterCents: 350000, paymentMethod: null, reference: null, description: null, idempotencyKey: null, reversalOfId: null, createdAt: today },
+      { id: "tx-2", schoolId: "school-a", studentId: "student-a", walletId: "wallet-a", credentialId: null, cashierUserId: null, type: WalletTransactionType.TOP_UP, amountCents: 500000, balanceAfterCents: 850000, paymentMethod: null, reference: null, description: null, idempotencyKey: null, reversalOfId: null, createdAt: today },
+    );
+
+    const result = await getDailySummary(REVERSAL_CTX, {}, db);
+    expect(result.summary.chargeCount).toBe(1);
+    expect(result.summary.topUpCount).toBe(1);
+    expect(result.summary.totalChargesCents).toBe(150000);
+    expect(result.summary.totalTopUpsCents).toBe(500000);
+    expect(result.summary.netSpendCents).toBe(150000);
   });
 });
 

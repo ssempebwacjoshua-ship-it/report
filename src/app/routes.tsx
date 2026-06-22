@@ -25,6 +25,7 @@ import { VerifyPage } from "../pages/VerifyPage";
 import { NfcAttendancePage } from "../pages/NfcAttendancePage";
 import { NfcWalletsPage } from "../pages/NfcWalletsPage";
 import { NfcWalletTopUpPage } from "../pages/NfcWalletTopUpPage";
+import { NfcCanteenTransactionsPage } from "../pages/NfcCanteenTransactionsPage";
 import { NfcCanteenChargePage } from "../pages/NfcCanteenChargePage";
 import { NfcGateSecurityPage } from "../pages/NfcGateSecurityPage";
 import { NfcTokenPage } from "../pages/NfcTokenPage";
@@ -145,6 +146,7 @@ export const router = createBrowserRouter([
       { path: "nfc/wallets", element: <NfcWalletsPage /> },
       { path: "nfc/wallets/top-up", element: <NfcWalletTopUpPage /> },
       { path: "nfc/canteen", element: <NfcCanteenChargePage /> },
+      { path: "nfc/canteen/transactions", element: <NfcCanteenTransactionsPage /> },
       { path: "nfc/gate", element: <NfcGateSecurityPage /> },
       // ── NFC routes — legacy redirects ─────────────────────────────────────────
       { path: "student-credentials", element: <Navigate to="/nfc/wristbands" replace /> },

@@ -7,6 +7,7 @@ import {
   GateScanResult,
   StudentWalletStatus,
   WalletTransactionType,
+  type Prisma,
   type PrismaClient,
 } from "@prisma/client";
 import { prisma as defaultPrisma } from "../db/prisma";
@@ -374,9 +375,10 @@ export async function chargeCanteen(
       ? await tx.studentWalletTransaction.findUnique({ where: { schoolId_idempotencyKey: { schoolId, idempotencyKey: input.idempotencyKey } } })
       : null;
     if (existing) return { ok: false, reason: "duplicate charge attempt", student: studentSummary(credential.student), wallet };
+    const balanceAfterCharge = wallet.balanceCents - input.amountCents;
     const updatedWallet = await tx.studentWallet.update({
       where: { id: wallet.id },
-      data: { balanceCents: wallet.balanceCents - input.amountCents },
+      data: { balanceCents: balanceAfterCharge },
     });
     const transaction = await tx.studentWalletTransaction.create({
       data: {
@@ -387,8 +389,21 @@ export async function chargeCanteen(
         cashierUserId: ctx.actorId ?? null,
         type: WalletTransactionType.CHARGE,
         amountCents: -input.amountCents,
+        balanceAfterCents: balanceAfterCharge,
         description: input.description?.trim() || null,
         idempotencyKey: input.idempotencyKey ?? null,
+      },
+    });
+    await tx.auditLog.create({
+      data: {
+        schoolId,
+        action: "student_wallet.charge",
+        details: {
+          studentId: credential.studentId,
+          amountCents: input.amountCents,
+          description: input.description ?? null,
+          actor: { id: ctx.actorId ?? null },
+        },
       },
     });
     return {
@@ -552,6 +567,7 @@ export async function topUpWallet(
         cashierUserId: ctx.actorId ?? null,
         type: WalletTransactionType.TOP_UP,
         amountCents,
+        balanceAfterCents: balanceBefore + amountCents,
         paymentMethod: input.paymentMethod,
         reference: input.reference?.trim() || null,
         description: input.notes?.trim() || null,
@@ -588,6 +604,320 @@ export async function topUpWallet(
       wallet: { id: updatedWallet.id, balanceCents: updatedWallet.balanceCents, status: updatedWallet.status },
     };
   });
+}
+
+const WALLET_MGMT_ROLES = ["CANTEEN", "CASHIER"] as const;
+const ADMIN_ONLY_ROLES = ["ADMIN_OPERATOR"] as const;
+
+// ─── Transaction list ─────────────────────────────────────────────────────────
+
+export type WalletTransactionFilters = {
+  dateFrom?: string;
+  dateTo?: string;
+  studentId?: string;
+  admissionNumber?: string;
+  classId?: string;
+  streamId?: string;
+  cashierUserId?: string;
+  type?: string;
+  search?: string;
+};
+
+export async function listWalletTransactions(
+  ctx: NfcOperationsContext,
+  filters: WalletTransactionFilters = {},
+  db: NfcOperationsClient = defaultPrisma,
+) {
+  const schoolId = requireSchoolId(ctx);
+  requireRole(ctx, [...WALLET_MGMT_ROLES]);
+
+  const where: Prisma.StudentWalletTransactionWhereInput = { schoolId };
+
+  if (filters.dateFrom || filters.dateTo) {
+    where.createdAt = {
+      ...(filters.dateFrom ? { gte: new Date(filters.dateFrom) } : {}),
+      ...(filters.dateTo ? { lt: new Date(new Date(filters.dateTo).getTime() + 86400000) } : {}),
+    };
+  }
+  if (filters.studentId) where.studentId = filters.studentId;
+  if (filters.cashierUserId) where.cashierUserId = filters.cashierUserId;
+  if (filters.type && Object.values(WalletTransactionType).includes(filters.type as WalletTransactionType)) {
+    where.type = filters.type as WalletTransactionType;
+  }
+  if (filters.admissionNumber || filters.classId || filters.streamId || filters.search) {
+    const search = filters.search?.trim();
+    where.student = {
+      ...(filters.admissionNumber ? { admissionNumber: { equals: filters.admissionNumber.trim(), mode: "insensitive" } } : {}),
+      ...(filters.classId || filters.streamId
+        ? { enrollments: { some: { isActive: true, status: "ACTIVE" as const, classId: filters.classId || undefined, streamId: filters.streamId || undefined } } }
+        : {}),
+      ...(search
+        ? {
+            OR: [
+              { firstName: { contains: search, mode: "insensitive" as const } },
+              { lastName: { contains: search, mode: "insensitive" as const } },
+              { admissionNumber: { contains: search, mode: "insensitive" as const } },
+            ],
+          }
+        : {}),
+    };
+  }
+
+  const rows = await db.studentWalletTransaction.findMany({
+    where,
+    include: {
+      student: {
+        select: {
+          id: true, admissionNumber: true, firstName: true, lastName: true,
+          enrollments: studentInclude.enrollments,
+        },
+      },
+    },
+    orderBy: { createdAt: "desc" },
+    take: 200,
+  });
+
+  return {
+    transactions: rows.map((row) => ({
+      id: row.id,
+      type: row.type,
+      amountCents: row.amountCents,
+      balanceAfterCents: row.balanceAfterCents ?? null,
+      paymentMethod: row.paymentMethod ?? null,
+      reference: row.reference ?? null,
+      description: row.description ?? null,
+      idempotencyKey: row.idempotencyKey ?? null,
+      reversalOfId: row.reversalOfId ?? null,
+      cashierUserId: row.cashierUserId ?? null,
+      createdAt: row.createdAt.toISOString(),
+      student: studentSummary(row.student as StudentForNfc),
+    })),
+  };
+}
+
+// ─── Reversal ────────────────────────────────────────────────────────────────
+
+export async function reverseTransaction(
+  ctx: NfcOperationsContext,
+  transactionId: string,
+  reason: string,
+  db: NfcOperationsClient = defaultPrisma,
+) {
+  const schoolId = requireSchoolId(ctx);
+  requireRole(ctx, [...WALLET_MGMT_ROLES]);
+  if (!reason?.trim()) throw Object.assign(new Error("Reversal reason is required."), { status: 400 });
+
+  return runWrite(db, async (tx) => {
+    const original = await tx.studentWalletTransaction.findFirst({
+      where: { id: transactionId, schoolId },
+    });
+    if (!original) throw Object.assign(new Error("Transaction not found."), { status: 404 });
+    if (original.type === WalletTransactionType.REVERSAL) {
+      throw Object.assign(new Error("Cannot reverse a reversal."), { status: 400 });
+    }
+
+    // Check not already reversed
+    const alreadyReversed = await tx.studentWalletTransaction.findFirst({
+      where: { schoolId, reversalOfId: transactionId, type: WalletTransactionType.REVERSAL },
+    });
+    if (alreadyReversed) throw Object.assign(new Error("Transaction has already been reversed."), { status: 409 });
+
+    const wallet = await tx.studentWallet.findFirst({ where: { id: original.walletId, schoolId } });
+    if (!wallet) throw Object.assign(new Error("Wallet not found."), { status: 404 });
+
+    // Reversal inverts the original amount
+    const reversalAmount = -original.amountCents;
+    const balanceAfter = wallet.balanceCents + reversalAmount;
+
+    const updatedWallet = await tx.studentWallet.update({
+      where: { id: wallet.id },
+      data: { balanceCents: balanceAfter },
+    });
+
+    const reversal = await tx.studentWalletTransaction.create({
+      data: {
+        schoolId,
+        studentId: original.studentId,
+        walletId: original.walletId,
+        credentialId: original.credentialId ?? null,
+        cashierUserId: ctx.actorId ?? null,
+        type: WalletTransactionType.REVERSAL,
+        amountCents: reversalAmount,
+        balanceAfterCents: balanceAfter,
+        description: reason.trim(),
+        reversalOfId: transactionId,
+      },
+    });
+
+    await tx.auditLog.create({
+      data: {
+        schoolId,
+        action: "student_wallet.reversed",
+        details: {
+          originalTransactionId: transactionId,
+          studentId: original.studentId,
+          reversalAmount,
+          reason: reason.trim(),
+          actor: { id: ctx.actorId ?? null },
+        },
+      },
+    });
+
+    return {
+      ok: true,
+      reversal: {
+        id: reversal.id,
+        amountCents: reversal.amountCents,
+        description: reversal.description,
+        reversalOfId: transactionId,
+        createdAt: reversal.createdAt.toISOString(),
+      },
+      wallet: { id: updatedWallet.id, balanceCents: updatedWallet.balanceCents, status: updatedWallet.status },
+    };
+  });
+}
+
+// ─── Adjustment ───────────────────────────────────────────────────────────────
+
+export type WalletAdjustInput = {
+  studentId?: string;
+  admissionNumber?: string;
+  amountUgx: number;
+  reason: string;
+};
+
+export async function adjustWallet(
+  ctx: NfcOperationsContext,
+  input: WalletAdjustInput,
+  db: NfcOperationsClient = defaultPrisma,
+) {
+  const schoolId = requireSchoolId(ctx);
+  // Only ADMIN_OPERATOR — requireRole already allows ADMIN_OPERATOR via bypass
+  if (!ctx.actorId || !ctx.role) throw Object.assign(new Error("Authentication required."), { status: 401 });
+  if (ctx.role !== "ADMIN_OPERATOR") throw Object.assign(new Error("Only administrators can make manual adjustments."), { status: 403 });
+  if (!input.reason?.trim()) throw Object.assign(new Error("Adjustment reason is required."), { status: 400 });
+
+  const amountCents = Math.round(input.amountUgx * 100);
+  if (!Number.isFinite(amountCents) || amountCents === 0) {
+    throw Object.assign(new Error("Adjustment amount must be non-zero."), { status: 400 });
+  }
+
+  const { student } = await resolveStudentAndCredential(db, schoolId, input);
+  const studentId = student.id;
+
+  return runWrite(db, async (tx) => {
+    const walletSnap = await tx.studentWallet.upsert({
+      where: { studentId },
+      create: { schoolId, studentId, balanceCents: 0 },
+      update: {},
+    });
+    const balanceBefore = walletSnap.balanceCents;
+    const balanceAfter = balanceBefore + amountCents;
+
+    const updatedWallet = await tx.studentWallet.update({
+      where: { id: walletSnap.id },
+      data: { balanceCents: balanceAfter },
+    });
+
+    const txn = await tx.studentWalletTransaction.create({
+      data: {
+        schoolId,
+        studentId,
+        walletId: walletSnap.id,
+        cashierUserId: ctx.actorId ?? null,
+        type: WalletTransactionType.ADJUSTMENT,
+        amountCents,
+        balanceAfterCents: balanceAfter,
+        description: input.reason.trim(),
+      },
+    });
+
+    await tx.auditLog.create({
+      data: {
+        schoolId,
+        action: "student_wallet.adjusted",
+        details: {
+          studentId,
+          amountUgx: input.amountUgx,
+          balanceBefore,
+          balanceAfter,
+          reason: input.reason.trim(),
+          actor: { id: ctx.actorId ?? null },
+        },
+      },
+    });
+
+    return {
+      ok: true,
+      transaction: {
+        id: txn.id,
+        amountCents: txn.amountCents,
+        description: txn.description,
+        createdAt: txn.createdAt.toISOString(),
+      },
+      student: studentSummary(student),
+      walletBefore: { id: walletSnap.id, balanceCents: balanceBefore },
+      wallet: { id: updatedWallet.id, balanceCents: updatedWallet.balanceCents, status: updatedWallet.status },
+    };
+  });
+}
+
+// ─── Daily summary ────────────────────────────────────────────────────────────
+
+export async function getDailySummary(
+  ctx: NfcOperationsContext,
+  filters: { date?: string; cashierUserId?: string } = {},
+  db: NfcOperationsClient = defaultPrisma,
+) {
+  const schoolId = requireSchoolId(ctx);
+  requireRole(ctx, [...WALLET_MGMT_ROLES]);
+
+  const date = filters.date ? new Date(filters.date) : new Date();
+  const start = new Date(date);
+  start.setHours(0, 0, 0, 0);
+  const end = new Date(start);
+  end.setDate(end.getDate() + 1);
+
+  const transactions = await db.studentWalletTransaction.findMany({
+    where: {
+      schoolId,
+      createdAt: { gte: start, lt: end },
+      ...(filters.cashierUserId ? { cashierUserId: filters.cashierUserId } : {}),
+    },
+  });
+
+  const charges = transactions.filter((t) => t.type === WalletTransactionType.CHARGE);
+  const topUps = transactions.filter((t) => t.type === WalletTransactionType.TOP_UP);
+  const reversals = transactions.filter((t) => t.type === WalletTransactionType.REVERSAL);
+  const adjustments = transactions.filter((t) => t.type === WalletTransactionType.ADJUSTMENT);
+
+  const totalChargesCents = charges.reduce((sum, t) => sum + Math.abs(t.amountCents), 0);
+  const totalTopUpsCents = topUps.reduce((sum, t) => sum + t.amountCents, 0);
+  const totalReversalsCents = reversals.reduce((sum, t) => sum + Math.abs(t.amountCents), 0);
+
+  return {
+    date: start.toISOString().slice(0, 10),
+    summary: {
+      totalChargesCents,
+      totalTopUpsCents,
+      totalReversalsCents,
+      netSpendCents: totalChargesCents - totalReversalsCents,
+      chargeCount: charges.length,
+      topUpCount: topUps.length,
+      reversalCount: reversals.length,
+      adjustmentCount: adjustments.length,
+    },
+    transactions: transactions.map((t) => ({
+      id: t.id,
+      type: t.type,
+      amountCents: t.amountCents,
+      balanceAfterCents: t.balanceAfterCents ?? null,
+      description: t.description ?? null,
+      studentId: t.studentId,
+      cashierUserId: t.cashierUserId ?? null,
+      createdAt: t.createdAt.toISOString(),
+    })),
+  };
 }
 
 export async function getGateDashboard(ctx: NfcOperationsContext, db: NfcOperationsClient = defaultPrisma) {

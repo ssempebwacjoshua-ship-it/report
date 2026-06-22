@@ -180,6 +180,70 @@ export type NfcGateDashboard = {
 };
 
 export type WalletPaymentMethod = "CASH" | "MOBILE_MONEY" | "BANK" | "MANUAL_ADJUSTMENT";
+export type WalletTransactionType = "TOP_UP" | "CHARGE" | "REVERSAL" | "ADJUSTMENT";
+
+export type WalletTransactionRow = {
+  id: string;
+  type: WalletTransactionType;
+  amountCents: number;
+  balanceAfterCents: number | null;
+  paymentMethod: string | null;
+  reference: string | null;
+  description: string | null;
+  idempotencyKey: string | null;
+  reversalOfId: string | null;
+  cashierUserId: string | null;
+  createdAt: string;
+  student: NfcStudentSummary;
+};
+
+export type WalletTransactionListResponse = {
+  transactions: WalletTransactionRow[];
+};
+
+export type WalletReversalResult = {
+  ok: boolean;
+  reversal?: {
+    id: string;
+    amountCents: number;
+    description: string | null;
+    reversalOfId: string;
+    createdAt: string;
+  };
+  wallet?: { id: string; balanceCents: number; status: StudentWalletStatus };
+};
+
+export type WalletAdjustResult = {
+  ok: boolean;
+  transaction?: { id: string; amountCents: number; description: string | null; createdAt: string };
+  student?: NfcStudentSummary;
+  walletBefore?: { id: string; balanceCents: number };
+  wallet?: { id: string; balanceCents: number; status: StudentWalletStatus };
+};
+
+export type DailySummary = {
+  date: string;
+  summary: {
+    totalChargesCents: number;
+    totalTopUpsCents: number;
+    totalReversalsCents: number;
+    netSpendCents: number;
+    chargeCount: number;
+    topUpCount: number;
+    reversalCount: number;
+    adjustmentCount: number;
+  };
+  transactions: Array<{
+    id: string;
+    type: WalletTransactionType;
+    amountCents: number;
+    balanceAfterCents: number | null;
+    description: string | null;
+    studentId: string;
+    cashierUserId: string | null;
+    createdAt: string;
+  }>;
+};
 
 export type NfcWalletStudentResolution = {
   student: NfcStudentSummary;

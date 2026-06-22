@@ -436,23 +436,26 @@ model StudentWalletTransaction {
   walletId       String                @db.Uuid
   credentialId   String?               @db.Uuid
   cashierUserId  String?               @db.Uuid
-  type           WalletTransactionType
-  amountCents    Int
-  paymentMethod  String?
-  reference      String?
-  description    String?
-  idempotencyKey String?
-  createdAt      DateTime              @default(now())
-  school         School                @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  student        Student               @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  wallet         StudentWallet         @relation(fields: [walletId], references: [id], onDelete: Cascade)
-  credential     StudentCredential?    @relation(fields: [credentialId], references: [id], onDelete: SetNull)
-  cashier        User?                 @relation("StudentWalletTransactionCashier", fields: [cashierUserId], references: [id], onDelete: SetNull)
+  type              WalletTransactionType
+  amountCents       Int
+  balanceAfterCents Int?
+  paymentMethod     String?
+  reference         String?
+  description       String?
+  idempotencyKey    String?
+  reversalOfId      String?               @db.Uuid
+  createdAt         DateTime              @default(now())
+  school            School                @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  student           Student               @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  wallet            StudentWallet         @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  credential        StudentCredential?    @relation(fields: [credentialId], references: [id], onDelete: SetNull)
+  cashier           User?                 @relation("StudentWalletTransactionCashier", fields: [cashierUserId], references: [id], onDelete: SetNull)
 
   @@unique([schoolId, idempotencyKey])
   @@index([schoolId, createdAt])
   @@index([schoolId, studentId, createdAt])
   @@index([schoolId, walletId, createdAt])
+  @@index([schoolId, reversalOfId])
 }
 
 model StudentAttendanceEvent {
@@ -927,6 +930,7 @@ enum StudentWalletStatus {
 enum WalletTransactionType {
   TOP_UP
   CHARGE
+  REVERSAL
   ADJUSTMENT
 }
 
