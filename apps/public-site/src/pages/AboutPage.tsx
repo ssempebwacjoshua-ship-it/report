@@ -54,8 +54,12 @@ const STATUS_META: Record<SuiteStatus, { dot: string; text: string; textColor: s
 function HeroSuiteVisual() {
   return (
     <div
-      className="overflow-hidden rounded-[1.5rem] border border-white/20 marketing-card-motion"
-      style={{ background: "rgba(255,255,255,0.07)", backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)" }}
+      className="overflow-hidden rounded-[1.5rem] border border-white/25 marketing-card-motion"
+      style={{
+        background: "linear-gradient(135deg, rgba(18,92,205,0.48) 0%, rgba(9,44,112,0.38) 100%)",
+        backdropFilter: "blur(14px)",
+        WebkitBackdropFilter: "blur(14px)",
+      }}
     >
       {/* Panel header */}
       <div
@@ -88,15 +92,15 @@ function HeroSuiteVisual() {
               key={item.abbr}
               className="flex items-center gap-2 rounded-xl border px-2.5 py-2"
               style={{
-                background: isLive ? "rgba(255,255,255,0.08)" : isDemo ? "rgba(99,102,241,0.12)" : "rgba(255,255,255,0.04)",
-                borderColor: isLive ? "rgba(255,255,255,0.16)" : isDemo ? "rgba(99,102,241,0.25)" : "rgba(255,255,255,0.07)",
+                background: isLive ? "rgba(255,255,255,0.13)" : isDemo ? "rgba(120,130,255,0.18)" : "rgba(255,255,255,0.07)",
+                borderColor: isLive ? "rgba(255,255,255,0.22)" : isDemo ? "rgba(150,160,255,0.30)" : "rgba(255,255,255,0.12)",
               }}
             >
               <div
                 className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg"
                 style={{
-                  background: "rgba(255,255,255,0.12)",
-                  color: isLive ? "#93C5FD" : isDemo ? "#A5B4FC" : "#94A3B8",
+                  background: "rgba(255,255,255,0.18)",
+                  color: isLive ? "#BAD8FF" : isDemo ? "#C4CAFF" : "#B0BEC5",
                 }}
               >
                 {item.icon}
@@ -104,8 +108,8 @@ function HeroSuiteVisual() {
               <div className="min-w-0 flex-1">
                 <div className="truncate text-[10px] font-bold leading-tight text-white">{item.name}</div>
                 <div className="mt-0.5 flex items-center gap-1">
-                  <span className="h-1 w-1 shrink-0 rounded-full" style={{ background: meta.dot }} />
-                  <span className="text-[9px] font-semibold" style={{ color: meta.textColor }}>{meta.text}</span>
+                  <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: meta.dot }} />
+                  <span className="text-[9px] font-semibold" style={{ color: isLive ? "#86EFAC" : isDemo ? "#A5B4FC" : "#94A3B8" }}>{meta.text}</span>
                 </div>
               </div>
             </div>
@@ -116,7 +120,7 @@ function HeroSuiteVisual() {
       {/* Panel footer */}
       <div
         className="flex items-center justify-between border-t px-3.5 py-2 text-[9px] font-semibold"
-        style={{ borderColor: "rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.45)" }}
+        style={{ borderColor: "rgba(255,255,255,0.15)", color: "rgba(255,255,255,0.55)" }}
       >
         <span>Smart Systems. Simple Work.</span>
         <span style={{ color: "#93C5FD" }}>ssamenj.com</span>
