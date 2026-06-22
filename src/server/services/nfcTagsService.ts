@@ -161,10 +161,30 @@ export async function generateTags(
   };
 }
 
+export async function resolveStudentByIdentifier(
+  schoolId: string,
+  assignment: { studentId?: string | null; admissionNumber?: string | null },
+  db: Pick<NfcTagsClient, "student">,
+): Promise<{ id: string; admissionNumber: string; firstName: string; lastName: string }> {
+  if (assignment.admissionNumber) {
+    const found = await db.student.findFirst({
+      where: { schoolId, admissionNumber: assignment.admissionNumber.trim(), isActive: true },
+    });
+    if (!found) throw Object.assign(new Error("Student not found in this school."), { status: 404 });
+    return found as { id: string; admissionNumber: string; firstName: string; lastName: string };
+  }
+  if (assignment.studentId) {
+    const found = await db.student.findFirst({ where: { id: assignment.studentId, schoolId, isActive: true } });
+    if (!found) throw Object.assign(new Error("Student not found."), { status: 404 });
+    return found as { id: string; admissionNumber: string; firstName: string; lastName: string };
+  }
+  throw Object.assign(new Error("Provide studentId or admissionNumber."), { status: 400 });
+}
+
 export async function assignTag(
   ctx: NfcTagsContext,
   tagId: string,
-  studentId: string,
+  assignment: { studentId?: string; admissionNumber?: string },
   db: NfcTagsClient = defaultPrisma,
 ) {
   const schoolId = requireSchoolId(ctx);
@@ -174,8 +194,8 @@ export async function assignTag(
   if (!tag) throw Object.assign(new Error("NFC tag not found."), { status: 404 });
   if (tag.status === "DISABLED") throw Object.assign(new Error("Cannot assign a disabled tag."), { status: 400 });
 
-  const student = await db.student.findFirst({ where: { id: studentId, schoolId, isActive: true } });
-  if (!student) throw Object.assign(new Error("Student not found."), { status: 404 });
+  const student = await resolveStudentByIdentifier(schoolId, assignment, db);
+  const studentId = student.id;
 
   const existing = await db.nfcTag.findFirst({ where: { schoolId, studentId, status: "ASSIGNED" } });
   if (existing && existing.id !== tagId) {
@@ -306,11 +326,13 @@ export async function resolvePublicCode(
 
   let result: NfcResolveResult;
 
+  const UNALLOCATED_STATUSES = new Set(["UNASSIGNED", "UNALLOCATED", "GENERATED", "WRITTEN", "VERIFIED", "REGISTERED"]);
+
   if (!tag) {
     result = "UNKNOWN";
   } else if (tag.status === "DISABLED") {
     result = "DISABLED";
-  } else if (tag.status === "UNASSIGNED" || !tag.studentId) {
+  } else if (!tag.studentId || UNALLOCATED_STATUSES.has(tag.status)) {
     result = "UNASSIGNED";
   } else {
     result = "ASSIGNED";

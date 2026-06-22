@@ -25,9 +25,14 @@ const generateSchema = z.object({
   count: z.coerce.number().int().min(1).max(100).default(1),
 });
 
-const assignSchema = z.object({
-  studentId: z.string().uuid("studentId must be a valid UUID."),
-});
+const assignSchema = z
+  .object({
+    studentId: z.string().uuid("studentId must be a valid UUID.").optional(),
+    admissionNumber: z.string().min(1).optional(),
+  })
+  .refine((v) => v.studentId || v.admissionNumber, {
+    message: "Provide studentId or admissionNumber.",
+  });
 
 const listFiltersSchema = z.object({
   search: z.string().optional(),
@@ -192,8 +197,8 @@ export function nfcTagsRoutes() {
 
   router.patch("/api/nfc/tags/:id/assign", async (req, res, next) => {
     try {
-      const { studentId } = assignSchema.parse(req.body);
-      res.json(await assignTag(ctx(req), req.params.id, studentId));
+      const assignment = assignSchema.parse(req.body);
+      res.json(await assignTag(ctx(req), req.params.id, assignment));
     } catch (error) {
       next(error);
     }

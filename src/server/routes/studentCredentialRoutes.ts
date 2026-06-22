@@ -54,6 +54,7 @@ const bulkAllocateSchema = z.object({
 
 const amendSchema = z.object({
   studentId: z.string().uuid().optional(),
+  admissionNumber: z.string().optional(),
   credentialUID: z.string().optional(),
   reason: z.string().trim().min(1, "Amendment reason is required."),
 });
@@ -128,7 +129,19 @@ export function studentCredentialRoutes() {
 
   router.patch("/api/student-credentials/:id/amend", async (req, res, next) => {
     try {
-      const input = amendSchema.parse(req.body);
+      const { admissionNumber, ...rest } = amendSchema.parse(req.body);
+      let resolvedStudentId = rest.studentId;
+      if (admissionNumber && !resolvedStudentId) {
+        const { prisma } = await import("../db/prisma");
+        const schoolId = req.school?.id;
+        if (!schoolId) throw Object.assign(new Error("School context required."), { status: 401 });
+        const found = await prisma.student.findFirst({
+          where: { schoolId, admissionNumber: admissionNumber.trim(), isActive: true },
+        });
+        if (!found) throw Object.assign(new Error("Student not found in this school."), { status: 404 });
+        resolvedStudentId = found.id;
+      }
+      const input = { ...rest, studentId: resolvedStudentId };
       const result = await amendStudentCredential(credentialContext(req), req.params.id, input);
       res.json(result);
     } catch (error) {

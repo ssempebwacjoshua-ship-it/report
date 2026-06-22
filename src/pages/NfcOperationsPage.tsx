@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { NfcTag } from "../shared/types/nfcTags";
 import {
   assignNfcTag,
@@ -8,6 +8,8 @@ import {
   listNfcTags,
   unassignNfcTag,
 } from "../client/nfcTagsClient";
+import { fetchStudents } from "../client/studentsClient";
+import type { StudentListItem } from "../shared/types/students";
 
 type StatusFilter = "" | "UNASSIGNED" | "ASSIGNED" | "DISABLED";
 
@@ -49,9 +51,13 @@ export function NfcOperationsPage() {
 
   // Assign panel
   const [assignTagId, setAssignTagId] = useState<string | null>(null);
-  const [assignStudentId, setAssignStudentId] = useState("");
+  const [assignSearch, setAssignSearch] = useState("");
+  const [assignResults, setAssignResults] = useState<StudentListItem[]>([]);
+  const [assignSearching, setAssignSearching] = useState(false);
+  const [assignSelected, setAssignSelected] = useState<StudentListItem | null>(null);
   const [assignLoading, setAssignLoading] = useState(false);
   const [assignError, setAssignError] = useState<string | null>(null);
+  const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Events panel
   const [eventsTagId, setEventsTagId] = useState<string | null>(null);
@@ -89,15 +95,37 @@ export function NfcOperationsPage() {
     }
   }
 
+  function handleSearchInput(value: string) {
+    setAssignSearch(value);
+    setAssignSelected(null);
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+    if (!value.trim()) { setAssignResults([]); return; }
+    searchDebounceRef.current = setTimeout(() => {
+      setAssignSearching(true);
+      fetchStudents({ search: value.trim(), isActive: "true" })
+        .then((r) => setAssignResults(r.students.slice(0, 8)))
+        .catch(() => setAssignResults([]))
+        .finally(() => setAssignSearching(false));
+    }, 280);
+  }
+
+  function selectStudent(student: StudentListItem) {
+    setAssignSelected(student);
+    setAssignSearch(`${student.studentName} — ${student.admissionNumber}`);
+    setAssignResults([]);
+  }
+
   async function handleAssign() {
-    if (!assignTagId || !assignStudentId.trim()) return;
+    if (!assignTagId || !assignSelected) return;
     setAssignLoading(true);
     setAssignError(null);
     try {
-      const updated = await assignNfcTag(assignTagId, assignStudentId.trim());
+      const updated = await assignNfcTag(assignTagId, assignSelected.id);
       setTags((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
       setAssignTagId(null);
-      setAssignStudentId("");
+      setAssignSearch("");
+      setAssignSelected(null);
+      setAssignResults([]);
     } catch (e) {
       setAssignError(e instanceof Error ? e.message : "Failed to assign tag.");
     } finally {
@@ -247,7 +275,7 @@ export function NfcOperationsPage() {
                       {tag.status !== "DISABLED" && tag.status !== "ASSIGNED" && (
                         <button
                           type="button"
-                          onClick={() => { setAssignTagId(tag.id); setAssignStudentId(""); setAssignError(null); }}
+                          onClick={() => { setAssignTagId(tag.id); setAssignSearch(""); setAssignSelected(null); setAssignResults([]); setAssignError(null); }}
                           className="btn btn-primary rounded-lg px-2.5 py-1 text-[11px] font-black"
                         >
                           Assign
@@ -292,20 +320,67 @@ export function NfcOperationsPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setAssignTagId(null)}>
           <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <h2 className="text-lg font-black text-slate-950">Assign tag to student</h2>
-            <p className="mt-1 text-sm text-slate-500">Enter the student UUID to assign this NFC tag.</p>
-            <input
-              type="text"
-              placeholder="Student UUID"
-              value={assignStudentId}
-              onChange={(e) => setAssignStudentId(e.target.value)}
-              className="premium-control mt-4 w-full"
-            />
+            <p className="mt-1 text-sm text-slate-500">Search by name, admission number, class, or stream.</p>
+
+            {/* Search input */}
+            <div className="relative mt-4">
+              <input
+                type="text"
+                placeholder="Search student…"
+                value={assignSearch}
+                onChange={(e) => handleSearchInput(e.target.value)}
+                className="premium-control w-full"
+                autoFocus
+              />
+              {assignSearching && (
+                <p className="mt-1 text-xs text-slate-400">Searching…</p>
+              )}
+              {assignResults.length > 0 && (
+                <ul className="absolute left-0 right-0 top-full z-10 mt-1 max-h-52 overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-lg">
+                  {assignResults.map((s) => (
+                    <li key={s.id}>
+                      <button
+                        type="button"
+                        className="w-full px-3 py-2 text-left text-sm hover:bg-blue-50"
+                        onClick={() => selectStudent(s)}
+                      >
+                        <p className="font-bold text-slate-950">{s.studentName}</p>
+                        <p className="text-xs text-slate-500">
+                          {s.admissionNumber} — {s.className}/{s.streamName}
+                        </p>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+
+            {/* Selected student confirmation */}
+            {assignSelected && (
+              <div className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm">
+                <p className="font-bold text-emerald-800">Selected student</p>
+                <p className="text-emerald-700">
+                  {assignSelected.studentName} — {assignSelected.admissionNumber} — {assignSelected.className}/{assignSelected.streamName}
+                </p>
+              </div>
+            )}
+
             {assignError && <p className="mt-2 text-xs text-red-600">{assignError}</p>}
+
             <div className="mt-4 flex gap-3">
-              <button type="button" onClick={() => { void handleAssign(); }} disabled={assignLoading || !assignStudentId.trim()} className="btn btn-primary flex-1 rounded-xl py-2.5 text-sm font-black">
-                {assignLoading ? "Assigning…" : "Assign"}
+              <button
+                type="button"
+                onClick={() => { void handleAssign(); }}
+                disabled={assignLoading || !assignSelected}
+                className="btn btn-primary flex-1 rounded-xl py-2.5 text-sm font-black"
+              >
+                {assignLoading ? "Assigning…" : "Assign to selected student"}
               </button>
-              <button type="button" onClick={() => setAssignTagId(null)} className="btn btn-secondary flex-1 rounded-xl py-2.5 text-sm font-bold">
+              <button
+                type="button"
+                onClick={() => setAssignTagId(null)}
+                className="btn btn-secondary flex-1 rounded-xl py-2.5 text-sm font-bold"
+              >
                 Cancel
               </button>
             </div>

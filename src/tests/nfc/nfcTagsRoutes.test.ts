@@ -9,6 +9,7 @@ import {
   getTagEvents,
   listTags,
   resolvePublicCode,
+  resolveStudentByIdentifier,
   unassignTag,
 } from "../../server/services/nfcTagsService";
 
@@ -206,7 +207,7 @@ describe("generateTags — service unit tests", () => {
 });
 
 describe("assignTag — service unit tests", () => {
-  it("assigns a tag to a student", async () => {
+  it("assigns a tag by studentId", async () => {
     const updatedTag = makeMockTag({ status: "ASSIGNED", studentId: STU_ID });
     const db = {
       nfcTag: {
@@ -218,7 +219,24 @@ describe("assignTag — service unit tests", () => {
       student: { findFirst: vi.fn(async () => ({ id: STU_ID, admissionNumber: "001", firstName: "Alice", lastName: "Doe", isActive: true })) },
     } as unknown as PrismaClient;
 
-    const result = await assignTag(makeCtx(), TAG_ID, STU_ID, db);
+    const result = await assignTag(makeCtx(), TAG_ID, { studentId: STU_ID }, db);
+    expect(result.status).toBe("ASSIGNED");
+    expect(result.studentId).toBe(STU_ID);
+  });
+
+  it("assigns a tag by admissionNumber", async () => {
+    const updatedTag = makeMockTag({ status: "ASSIGNED", studentId: STU_ID });
+    const db = {
+      nfcTag: {
+        findFirst: vi.fn(async (args: { where: Record<string, unknown> }) =>
+          args.where.studentId ? null : makeMockTag()
+        ),
+        update: vi.fn(async () => ({ ...updatedTag, student: null, _count: { tapEvents: 0 } })),
+      },
+      student: { findFirst: vi.fn(async () => ({ id: STU_ID, admissionNumber: "A-001", firstName: "Bob", lastName: "Smith", isActive: true })) },
+    } as unknown as PrismaClient;
+
+    const result = await assignTag(makeCtx(), TAG_ID, { admissionNumber: "A-001" }, db);
     expect(result.status).toBe("ASSIGNED");
     expect(result.studentId).toBe(STU_ID);
   });
@@ -229,7 +247,7 @@ describe("assignTag — service unit tests", () => {
       student: { findFirst: vi.fn() },
     } as unknown as PrismaClient;
 
-    await expect(assignTag(makeCtx(), TAG_ID, STU_ID, db)).rejects.toMatchObject({ status: 400 });
+    await expect(assignTag(makeCtx(), TAG_ID, { studentId: STU_ID }, db)).rejects.toMatchObject({ status: 400 });
   });
 
   it("rejects if student belongs to a different school (tenant isolation)", async () => {
@@ -240,8 +258,68 @@ describe("assignTag — service unit tests", () => {
       student: { findFirst: vi.fn(async () => null) },
     } as unknown as PrismaClient;
 
-    await expect(assignTag({ schoolId: SCHOOL_A, actorId: "u", role: "ADMIN_OPERATOR" }, TAG_ID, STU_ID, db))
+    await expect(assignTag({ schoolId: SCHOOL_A, actorId: "u", role: "ADMIN_OPERATOR" }, TAG_ID, { studentId: STU_ID }, db))
       .rejects.toMatchObject({ status: 404 });
+  });
+});
+
+describe("resolveStudentByIdentifier — service unit tests", () => {
+  it("resolves by studentId when active and in school", async () => {
+    const db = {
+      student: { findFirst: vi.fn(async () => ({ id: STU_ID, admissionNumber: "001", firstName: "Alice", lastName: "Doe", isActive: true })) },
+    } as unknown as PrismaClient;
+
+    const student = await resolveStudentByIdentifier(SCHOOL_A, { studentId: STU_ID }, db);
+    expect(student.id).toBe(STU_ID);
+  });
+
+  it("resolves by admissionNumber when active and in school", async () => {
+    const db = {
+      student: { findFirst: vi.fn(async () => ({ id: STU_ID, admissionNumber: "A-001", firstName: "Bob", lastName: "Smith", isActive: true })) },
+    } as unknown as PrismaClient;
+
+    const student = await resolveStudentByIdentifier(SCHOOL_A, { admissionNumber: "A-001" }, db);
+    expect(student.id).toBe(STU_ID);
+    expect(student.admissionNumber).toBe("A-001");
+  });
+
+  it("returns 404 for unknown admissionNumber", async () => {
+    const db = {
+      student: { findFirst: vi.fn(async () => null) },
+    } as unknown as PrismaClient;
+
+    await expect(resolveStudentByIdentifier(SCHOOL_A, { admissionNumber: "UNKNOWN" }, db))
+      .rejects.toMatchObject({ status: 404 });
+  });
+
+  it("returns 404 for inactive student (isActive filter)", async () => {
+    const db = {
+      // findFirst with isActive:true filter returns null for inactive students
+      student: { findFirst: vi.fn(async () => null) },
+    } as unknown as PrismaClient;
+
+    await expect(resolveStudentByIdentifier(SCHOOL_A, { studentId: STU_ID }, db))
+      .rejects.toMatchObject({ status: 404 });
+  });
+
+  it("returns 400 when neither studentId nor admissionNumber is provided", async () => {
+    const db = { student: { findFirst: vi.fn() } } as unknown as PrismaClient;
+
+    await expect(resolveStudentByIdentifier(SCHOOL_A, {}, db))
+      .rejects.toMatchObject({ status: 400 });
+  });
+
+  it("cross-school: admissionNumber query scoped to schoolId", async () => {
+    const findFirst = vi.fn(async () => null);
+    const db = { student: { findFirst } } as unknown as PrismaClient;
+
+    await expect(resolveStudentByIdentifier(SCHOOL_A, { admissionNumber: "A-001" }, db))
+      .rejects.toMatchObject({ status: 404 });
+
+    // The query must include the schoolId to prevent cross-school access
+    expect(findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ schoolId: SCHOOL_A }) }),
+    );
   });
 });
 
