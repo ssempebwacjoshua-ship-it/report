@@ -36,6 +36,7 @@ model School {
   studentWalletTransactions StudentWalletTransaction[]
   studentAttendanceEvents StudentAttendanceEvent[]
   nfcGateScans        NfcGateScan[]
+  nfcTags             NfcTag[]
 }
 
 model AcademicYear {
@@ -125,6 +126,7 @@ model Student {
   walletTransactions StudentWalletTransaction[]
   attendanceEvents StudentAttendanceEvent[]
   gateScans        NfcGateScan[]
+  nfcTags          NfcTag[]
   school           School            @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   marks            SubjectMark[]
 
@@ -1031,4 +1033,46 @@ enum PromotionDecision {
 enum PromotionActionStatus {
   APPLIED
   REVERSED
+}
+
+// ─── NFC Tag Registry ────────────────────────────────────────────────────────
+
+model NfcTag {
+  id          String    @id @default(uuid()) @db.Uuid
+  schoolId    String    @db.Uuid
+  publicCode  String    @unique
+  label       String?
+  type        String    @default("STUDENT")
+  status      String    @default("UNASSIGNED")
+  studentId   String?   @db.Uuid
+  writtenUrl  String?
+  assignedAt  DateTime?
+  lastSeenAt  DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  school    School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  student   Student?  @relation(fields: [studentId], references: [id], onDelete: SetNull)
+  tapEvents NfcTapEvent[]
+
+  @@index([schoolId])
+  @@index([schoolId, status])
+  @@index([schoolId, studentId])
+}
+
+model NfcTapEvent {
+  id         String   @id @default(uuid()) @db.Uuid
+  schoolId   String?  @db.Uuid
+  tagId      String?  @db.Uuid
+  studentId  String?  @db.Uuid
+  publicCode String
+  result     String
+  userAgent  String?
+  ipHash     String?
+  createdAt  DateTime @default(now())
+
+  tag NfcTag? @relation(fields: [tagId], references: [id], onDelete: SetNull)
+
+  @@index([publicCode])
+  @@index([tagId, createdAt])
 }

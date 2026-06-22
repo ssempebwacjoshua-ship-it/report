@@ -27,6 +27,8 @@ import { NfcWalletsPage } from "../pages/NfcWalletsPage";
 import { NfcCanteenChargePage } from "../pages/NfcCanteenChargePage";
 import { NfcGateSecurityPage } from "../pages/NfcGateSecurityPage";
 import { NfcTokenPage } from "../pages/NfcTokenPage";
+import { NfcOperationsPage } from "../pages/NfcOperationsPage";
+import { NfcTapPage } from "../pages/NfcTapPage";
 import { OwnerDashboardPage } from "../pages/owner/OwnerDashboardPage";
 import { OwnerSchoolsPage } from "../pages/owner/OwnerSchoolsPage";
 import { OwnerUsersPage } from "../pages/owner/OwnerUsersPage";
@@ -90,6 +92,7 @@ export const router = createBrowserRouter([
   { path: "/parent/r/:token", element: <ParentReportPage /> },
   { path: "/verify/:code", element: <VerifyPage /> },
   { path: "/nfc/t/:token", element: <NfcTokenPage /> },
+  { path: "/t/:publicCode", element: <NfcTapPage /> },
   { path: "/p/:token", element: <PublishedDocumentPage /> },
 
   ...(lawyerSmartPagesEnabled ? [{
@@ -136,6 +139,7 @@ export const router = createBrowserRouter([
       { path: "canteen-charge", element: <NfcCanteenChargePage /> },
       { path: "canteen/nfc/:token", element: <NfcCanteenChargePage /> },
       { path: "gate-security", element: <NfcGateSecurityPage /> },
+      { path: "nfc-tags", element: <NfcOperationsPage /> },
       { path: "gate/nfc/:token", element: <NfcGateSecurityPage /> },
       { path: "reports", element: <ReportsPage /> },
       { path: "reports/release", element: <ReleaseCenterPage /> },

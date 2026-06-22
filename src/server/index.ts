@@ -32,6 +32,7 @@ import { ocrRoutes } from "./routes/ocrRoutes";
 import { subscriptionRoutes } from "./routes/subscriptionRoutes";
 import { studentCredentialRoutes } from "./routes/studentCredentialRoutes";
 import { nfcOperationsRoutes, nfcPublicRoutes } from "./routes/nfcOperationsRoutes";
+import { nfcTagsPublicRoutes, nfcTagsRoutes } from "./routes/nfcTagsRoutes";
 import { documentIntelligenceRoutes } from "./routes/documentIntelligenceRoutes";
 import { creatorAuthRoutes } from "./routes/creatorAuthRoutes";
 import { collectionRoutes } from "./routes/collectionRoutes";
@@ -78,6 +79,7 @@ export function createServer() {
   app.use(parentRoutes());
   app.use(studentsPublicRoutes());
   app.use(nfcPublicRoutes());
+  app.use(nfcTagsPublicRoutes());
 
   // Document Intelligence Engine ? creator auth accepts both school JWTs and external creator JWTs
   app.use("/api/creator", creatorAuthRoutes());
@@ -116,6 +118,7 @@ export function createServer() {
   app.use(subscriptionRoutes());
   app.use(studentCredentialRoutes());
   app.use(nfcOperationsRoutes());
+  app.use(nfcTagsRoutes());
   app.use(smartPagesBillingRoutes());
   app.use(geminiMarksImportRoutes());
   app.use(promotionRoutes());
