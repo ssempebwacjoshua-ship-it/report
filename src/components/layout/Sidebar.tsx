@@ -10,6 +10,7 @@ import {
   ReceiptRegular,
   SendRegular,
   SettingsRegular,
+  ShieldRegular,
   SparkleRegular,
 } from "@fluentui/react-icons";
 import { getSchoolDisplayName } from "./branding";
@@ -76,6 +77,8 @@ function ShellNavIcon({ name, active }: { name: NavItem["icon"]; active: boolean
       return <ReceiptRegular className={className} />;
     case "settings":
       return <SettingsRegular className={className} />;
+    case "shield":
+      return <ShieldRegular className={className} />;
     case "sparkles":
       return <SparkleRegular className={className} />;
     default:
@@ -95,7 +98,7 @@ function SidebarSection({
   onNavigate: () => void;
 }) {
   const items = navItemsByProduct[product];
-  const sectionLabel = product === "reportLab" ? "REPORT LAB" : "SMART PAGES";
+  const sectionLabel = product === "reportLab" ? "REPORT LAB" : product === "nfc" ? "NFC OPERATIONS" : "SMART PAGES";
 
   return (
     <>

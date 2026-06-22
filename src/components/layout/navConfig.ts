@@ -1,4 +1,4 @@
-export type ProductKey = "reportLab" | "smartPages";
+export type ProductKey = "reportLab" | "smartPages" | "nfc";
 
 export type NavItem = {
   to: string;
@@ -24,18 +24,13 @@ export type NavItem = {
 export const productSwitcherItems: Record<ProductKey, { label: string; to: string }> = {
   reportLab: { label: "Report Lab", to: "/dashboard" },
   smartPages: { label: "Smart Pages", to: "/smart-pages" },
+  nfc: { label: "NFC", to: "/nfc-tags" },
 };
 
 export const navItemsByProduct: Record<ProductKey, NavItem[]> = {
   reportLab: [
     { to: "/dashboard", label: "Dashboard", icon: "home", exact: true },
     { to: "/students", label: "Students", icon: "students", exact: true },
-    { to: "/student-credentials", label: "NFC Wristbands", icon: "shield", exact: true },
-    { to: "/nfc-attendance", label: "NFC Attendance", icon: "activity", exact: true },
-    { to: "/nfc-wallets", label: "NFC Wallets", icon: "credit-card", exact: true },
-    { to: "/canteen-charge", label: "Canteen Charge", icon: "credit-card", exact: true },
-    { to: "/gate-security", label: "Gate Security", icon: "shield", exact: true },
-    { to: "/nfc-tags", label: "NFC Tags", icon: "shield", exact: true },
     { to: "/imports/marks", label: "Marks Import", icon: "upload", exact: true },
     { to: "/marksheets", label: "Marksheets", icon: "clipboard", exact: true },
     { to: "/reports", label: "Reports", icon: "file", exact: true },
@@ -50,6 +45,14 @@ export const navItemsByProduct: Record<ProductKey, NavItem[]> = {
     { to: "/smart-pages/billing", label: "Billing", icon: "credit-card", exact: true },
     { to: "/preferences", label: "Settings", icon: "settings" },
   ],
+  nfc: [
+    { to: "/nfc-tags", label: "NFC Tags", icon: "shield", exact: true },
+    { to: "/student-credentials", label: "NFC Wristbands", icon: "shield", exact: true },
+    { to: "/nfc-attendance", label: "NFC Attendance", icon: "activity", exact: true },
+    { to: "/nfc-wallets", label: "NFC Wallets", icon: "credit-card", exact: true },
+    { to: "/canteen-charge", label: "Canteen Charge", icon: "credit-card", exact: true },
+    { to: "/gate-security", label: "Gate Security", icon: "shield", exact: true },
+  ],
 };
 
 const smartPagesPrefixes = [
@@ -63,8 +66,19 @@ const smartPagesPrefixes = [
   "/smart-pages/billing",
 ];
 
+const nfcPrefixes = [
+  "/nfc-tags",
+  "/student-credentials",
+  "/nfc-attendance",
+  "/nfc-wallets",
+  "/canteen-charge",
+  "/gate-security",
+  "/nfc/",
+];
+
 export function getProductFromPath(pathname: string): ProductKey {
-  return smartPagesPrefixes.some((path) => pathname === path || pathname.startsWith(`${path}/`))
+  if (nfcPrefixes.some((p) => pathname === p || pathname.startsWith(`${p}/`))) return "nfc";
+  return smartPagesPrefixes.some((p) => pathname === p || pathname.startsWith(`${p}/`))
     ? "smartPages"
     : "reportLab";
 }
