@@ -15,6 +15,8 @@ import {
 } from "@fluentui/react-icons";
 import { getSchoolDisplayName } from "./branding";
 import { useAppSettings } from "./SettingsContext";
+import { useAuth } from "../../contexts/AuthContext";
+import { hasPermission } from "../../shared/permissions";
 import { getProductFromPath, isActiveNavPath, navItemsByProduct, type NavItem, type ProductKey } from "./navConfig";
 
 type Props = {
@@ -97,7 +99,11 @@ function SidebarSection({
   collapsed: boolean;
   onNavigate: () => void;
 }) {
-  const items = navItemsByProduct[product];
+  const { user } = useAuth();
+  const allItems = navItemsByProduct[product];
+  const items = allItems.filter((item) =>
+    !item.requiredPermission || hasPermission(user?.role, item.requiredPermission),
+  );
   const sectionLabel = product === "reportLab" ? "REPORT LAB" : product === "nfc" ? "NFC OPERATIONS" : "SMART PAGES";
 
   return (

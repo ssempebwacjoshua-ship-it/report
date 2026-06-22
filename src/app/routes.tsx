@@ -47,6 +47,7 @@ import { PreferencesPage } from "../pages/smart-pages/PreferencesPage";
 import { SearchPage } from "../pages/smart-pages/SearchPage";
 import { RouteErrorPage } from "../pages/RouteErrorPage";
 import { PromotionWorkspacePage } from "../pages/PromotionWorkspacePage";
+import { PermissionGuard } from "../components/PermissionGuard";
 
 const lawyerSmartPagesEnabled = import.meta.env.VITE_ENABLE_SMART_PAGES_LAWYERS === "true";
 const LawyerShell = lazy(() => import("../components/lawyers/LawyerShell").then((module) => ({ default: module.LawyerShell })));
@@ -115,16 +116,16 @@ export const router = createBrowserRouter([
       { path: "dashboard", element: <DashboardPage /> },
       { path: "students", element: <StudentsPage /> },
       // ── NFC routes — canonical paths ──────────────────────────────────────────
-      { path: "nfc/wristbands", element: <StudentCredentialsPage /> },
-      { path: "nfc/bulk-issuing", element: <NfcBulkIssuingPage /> },
-      { path: "nfc/bulk-allocation", element: <NfcBulkAllocationPage /> },
-      { path: "nfc/tags", element: <NfcOperationsPage /> },
-      { path: "nfc/attendance", element: <NfcAttendancePage /> },
-      { path: "nfc/wallets", element: <NfcWalletsPage /> },
-      { path: "nfc/wallets/top-up", element: <NfcWalletTopUpPage /> },
-      { path: "nfc/canteen", element: <NfcCanteenChargePage /> },
-      { path: "nfc/canteen/transactions", element: <NfcCanteenTransactionsPage /> },
-      { path: "nfc/gate", element: <NfcGateSecurityPage /> },
+      { path: "nfc/wristbands", element: <PermissionGuard permission="nfc.tags.manage"><StudentCredentialsPage /></PermissionGuard> },
+      { path: "nfc/bulk-issuing", element: <PermissionGuard permission="nfc.tags.manage"><NfcBulkIssuingPage /></PermissionGuard> },
+      { path: "nfc/bulk-allocation", element: <PermissionGuard permission="nfc.tags.manage"><NfcBulkAllocationPage /></PermissionGuard> },
+      { path: "nfc/tags", element: <PermissionGuard permission="nfc.tags.manage"><NfcOperationsPage /></PermissionGuard> },
+      { path: "nfc/attendance", element: <PermissionGuard permission="nfc.devices.manage"><NfcAttendancePage /></PermissionGuard> },
+      { path: "nfc/wallets", element: <PermissionGuard permission="nfc.wallets.pin.manage"><NfcWalletsPage /></PermissionGuard> },
+      { path: "nfc/wallets/top-up", element: <PermissionGuard permission="nfc.wallets.topup"><NfcWalletTopUpPage /></PermissionGuard> },
+      { path: "nfc/canteen", element: <PermissionGuard permission="nfc.canteen.charge"><NfcCanteenChargePage /></PermissionGuard> },
+      { path: "nfc/canteen/transactions", element: <PermissionGuard permission="nfc.canteen.transactions.view"><NfcCanteenTransactionsPage /></PermissionGuard> },
+      { path: "nfc/gate", element: <PermissionGuard permission="nfc.gate.view"><NfcGateSecurityPage /></PermissionGuard> },
       // ── NFC routes — legacy redirects ─────────────────────────────────────────
       { path: "student-credentials", element: <Navigate to="/nfc/wristbands" replace /> },
       { path: "nfc-tags", element: <Navigate to="/nfc/tags" replace /> },
