@@ -26,14 +26,18 @@ body {
   color: #16324f;
 }
 
-a {
-  color: inherit;
-  text-decoration: none;
-}
+/* In Tailwind v4 unlayered rules beat @layer utilities, so the `a` reset
+   must live inside @layer base so utility classes like text-blue-700 win. */
+@layer base {
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
 
-button,
-a {
-  -webkit-tap-highlight-color: transparent;
+  button,
+  a {
+    -webkit-tap-highlight-color: transparent;
+  }
 }
 
 #root {
