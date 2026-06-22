@@ -94,12 +94,23 @@ body {
     background-image:
       linear-gradient(
         180deg,
-        rgba(11, 47, 107, 0.78) 0%,
-        rgba(15, 91, 216, 0.44) 42%,
-        rgba(15, 91, 216, 0.12) 100%
+        rgba(11, 47, 107, 0.95) 0%,
+        rgba(11, 47, 107, 0.90) 38%,
+        rgba(15, 91, 216, 0.80) 66%,
+        rgba(15, 91, 216, 0.74) 100%
       ),
       url("/ssamenj-hero-ecosystem.png");
-    background-position: center center;
+    /* push image to lower-right so it sits behind cards only softly */
+    background-position: 78% 65%;
+    background-size: cover;
+  }
+}
+
+/* Extra bottom padding on mobile so Smart Pages card clears the
+   fixed WhatsApp button (bottom-8 = 2rem + card itself). */
+@media (max-width: 639px) {
+  .home-hero-image-bg.site-hero-compact {
+    padding-bottom: 4rem;
   }
 }
 

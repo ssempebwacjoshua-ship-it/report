@@ -46,16 +46,16 @@ export function SSAMENJHomePage() {
               </a>
             </div>
 
-            <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
-              <Link to="/contact" className="marketing-fade-up-delay-1 cursor-pointer rounded-2xl border border-white/15 bg-white/10 px-4 py-3 backdrop-blur transition-all duration-200 hover:-translate-y-0.5 hover:border-white/30 hover:bg-white/20">
+            <div className="mt-6 grid grid-cols-1 gap-2.5 sm:grid-cols-3">
+              <Link to="/contact" className="marketing-fade-up-delay-1 cursor-pointer rounded-2xl border border-white/25 bg-white/[0.12] px-4 py-3 transition-all duration-200 hover:-translate-y-0.5 hover:border-white/40 hover:bg-white/[0.18]" style={{ backdropFilter: "blur(6px)" }}>
                 <p className="text-sm font-black text-white">School Connect</p>
                 <p className="mt-0.5 text-[11px] uppercase tracking-[0.16em] text-blue-100">POWERING SMART SCHOOLS.</p>
               </Link>
-              <Link to="/demos" className="marketing-fade-up-delay-2 cursor-pointer rounded-2xl border border-white/15 bg-white/10 px-4 py-3 backdrop-blur transition-all duration-200 hover:-translate-y-0.5 hover:border-white/30 hover:bg-white/20">
+              <Link to="/demos" className="marketing-fade-up-delay-2 cursor-pointer rounded-2xl border border-white/25 bg-white/[0.12] px-4 py-3 transition-all duration-200 hover:-translate-y-0.5 hover:border-white/40 hover:bg-white/[0.18]" style={{ backdropFilter: "blur(6px)" }}>
                 <p className="text-sm font-black text-white">Report Lab</p>
                 <p className="mt-0.5 text-[11px] uppercase tracking-[0.16em] text-blue-100">STUDENT REPORTS FASTER.</p>
               </Link>
-              <Link to="/demos" className="marketing-fade-up-delay-3 cursor-pointer rounded-2xl border border-white/15 bg-white/10 px-4 py-3 backdrop-blur transition-all duration-200 hover:-translate-y-0.5 hover:border-white/30 hover:bg-white/20">
+              <Link to="/demos" className="marketing-fade-up-delay-3 cursor-pointer rounded-2xl border border-white/25 bg-white/[0.12] px-4 py-3 transition-all duration-200 hover:-translate-y-0.5 hover:border-white/40 hover:bg-white/[0.18]" style={{ backdropFilter: "blur(6px)" }}>
                 <p className="text-sm font-black text-white">Smart Pages</p>
                 <p className="mt-0.5 text-[11px] uppercase tracking-[0.16em] text-blue-100">HANDWRITTEN DOCS TO READY PDFS.</p>
               </Link>
