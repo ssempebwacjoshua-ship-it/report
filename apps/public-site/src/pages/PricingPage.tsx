@@ -246,6 +246,15 @@ export function PricingPage() {
   return (
     <div className="bg-slate-50 text-slate-950">
       <main>
+        {/* Slim launch offer strip */}
+        <div
+          className="border-b px-4 py-2 text-center text-[11px] leading-5 text-white"
+          style={{ background: "#0B2F6B", borderColor: "rgba(255,255,255,0.1)" }}
+        >
+          <span className="font-black text-amber-300">Launch Offer:</span>{" "}
+          <span className="font-medium text-white/90">First Term Free — setup fee applies. Annual license is billed yearly. Smart Pages trial includes 10 pages.</span>
+        </div>
+
         {/* ── Hero ── */}
         <section className="site-hero site-hero-compact border-b border-blue-100 px-4 sm:px-6 lg:px-8">
           <div className="mx-auto grid max-w-7xl gap-6 lg:grid-cols-12 lg:items-start">

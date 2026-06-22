@@ -39,7 +39,7 @@ const FEATURE_ITEMS: DemoItem[] = [
     description: "Generate student reports from marksheets and share secure parent links.",
     videoId: REPORT_LAB_VIDEO_ID,
     caption: "Click to watch full system walkthrough",
-    subtitle: "10-minute demo — Report Lab + Smart Pages",
+    subtitle: "Report Lab + Smart Pages walkthrough",
   },
   {
     id: "smart-pages",
@@ -47,7 +47,7 @@ const FEATURE_ITEMS: DemoItem[] = [
     description: "Turn school documents into clean, editable, printable pages.",
     videoId: SMART_PAGES_VIDEO_ID,
     caption: "Click to watch Smart Pages demo",
-    subtitle: "10-minute demo — Smart Pages document workflow",
+    subtitle: "Smart Pages document workflow walkthrough",
   },
 ];
 
@@ -102,7 +102,7 @@ function DemoShowcasePlayer({
           {/* Top-right badge */}
           <div className="absolute right-3 top-3">
             <span className="inline-flex items-center rounded-full border border-blue-200/50 bg-white/90 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-blue-700 shadow-sm backdrop-blur-sm">
-              10-MINUTE DEMO
+              VIDEO DEMO
             </span>
           </div>
           <div className="absolute inset-0 bg-slate-950/10 transition group-hover:bg-slate-950/20" />

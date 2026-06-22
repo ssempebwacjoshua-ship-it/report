@@ -18,6 +18,15 @@ const BOOK_DEMO_URL = buildWhatsAppUrl(
 export function SSAMENJHomePage() {
   return (
     <div className="bg-slate-50 text-slate-950">
+      {/* Slim launch offer strip */}
+      <div
+        className="border-b px-4 py-2 text-center text-[11px] leading-5 text-white"
+        style={{ background: "#0B2F6B", borderColor: "rgba(255,255,255,0.1)" }}
+      >
+        <span className="font-black text-amber-300">Launch Offer:</span>{" "}
+        <span className="font-medium text-white/90">First Term Free for pioneer schools — setup fee applies. Smart Pages trial includes 10 pages.</span>
+      </div>
+
       <section className="home-hero-image-bg site-hero-compact border-b text-white" style={{ borderColor: "rgba(15,91,216,0.3)" }}>
         <div className="absolute inset-0 bg-dot-grid opacity-[0.12]" />
         <div className="home-hero-content mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
