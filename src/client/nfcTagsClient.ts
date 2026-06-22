@@ -1,3 +1,4 @@
+import { getApiBaseUrl, makeSchoolRequestHeaders, parseApiError } from "./apiBase";
 import type {
   NfcGenerateResponse,
   NfcResolveResponse,
@@ -5,26 +6,6 @@ import type {
   NfcTagEventsResponse,
   NfcTagListResponse,
 } from "../shared/types/nfcTags";
-
-function getApiBaseUrl() {
-  return import.meta.env.VITE_API_BASE_URL ?? "";
-}
-
-function makeSchoolRequestHeaders(): Record<string, string> {
-  const token = localStorage.getItem("authToken");
-  const headers: Record<string, string> = { "Content-Type": "application/json" };
-  if (token) headers["Authorization"] = `Bearer ${token}`;
-  return headers;
-}
-
-async function parseApiError(res: Response, fallback: string): Promise<string> {
-  try {
-    const body = await res.json();
-    return body?.error ?? body?.message ?? fallback;
-  } catch {
-    return fallback;
-  }
-}
 
 export async function listNfcTags(filters: { status?: string } = {}): Promise<NfcTagListResponse> {
   const params = new URLSearchParams();
@@ -39,7 +20,7 @@ export async function listNfcTags(filters: { status?: string } = {}): Promise<Nf
 export async function generateNfcTags(count: number): Promise<NfcGenerateResponse> {
   const res = await fetch(`${getApiBaseUrl()}/api/nfc/tags/generate`, {
     method: "POST",
-    headers: makeSchoolRequestHeaders(),
+    headers: makeSchoolRequestHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify({ count }),
   });
   if (!res.ok) throw new Error(await parseApiError(res, "Failed to generate NFC tags."));
@@ -49,7 +30,7 @@ export async function generateNfcTags(count: number): Promise<NfcGenerateRespons
 export async function assignNfcTag(tagId: string, studentId: string): Promise<NfcTag> {
   const res = await fetch(`${getApiBaseUrl()}/api/nfc/tags/${tagId}/assign`, {
     method: "PATCH",
-    headers: makeSchoolRequestHeaders(),
+    headers: makeSchoolRequestHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify({ studentId }),
   });
   if (!res.ok) throw new Error(await parseApiError(res, "Failed to assign NFC tag."));
@@ -83,10 +64,9 @@ export async function getNfcTagEvents(tagId: string): Promise<NfcTagEventsRespon
 }
 
 export async function resolveNfcPublicCode(publicCode: string): Promise<NfcResolveResponse> {
-  const token = localStorage.getItem("authToken");
-  const headers: Record<string, string> = {};
-  if (token) headers["Authorization"] = `Bearer ${token}`;
-  const res = await fetch(`${getApiBaseUrl()}/api/nfc/resolve/${publicCode}`, { headers });
+  const res = await fetch(`${getApiBaseUrl()}/api/nfc/resolve/${publicCode}`, {
+    headers: makeSchoolRequestHeaders(),
+  });
   if (!res.ok) throw new Error(await parseApiError(res, "Failed to resolve NFC tag."));
   return res.json();
 }

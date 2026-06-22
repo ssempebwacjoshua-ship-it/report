@@ -200,8 +200,13 @@ export async function resolveNfcTokenForRole(token: string, ctx: NfcOperationsCo
         : mode === "ATTENDANCE_SCAN"
           ? `/nfc-attendance?token=${encodeURIComponent(cleanToken)}`
           : mode === "ADMIN_CREDENTIAL"
-            ? `/student-credentials?credentialId=${encodeURIComponent(typed.id)}`
+            ? `/nfc/wristbands?credentialId=${encodeURIComponent(typed.id)}`
             : `/nfc/t/${encodeURIComponent(cleanToken)}`;
+
+  // Never expose student PII to unauthenticated callers.
+  const studentPayload = ctx?.actorId
+    ? { ...studentSummary(typed.student), schoolName: typed.school.name }
+    : undefined;
 
   return {
     found: true,
@@ -211,7 +216,7 @@ export async function resolveNfcTokenForRole(token: string, ctx: NfcOperationsCo
     actionBlocked: Boolean(reason),
     credentialStatus: typed.status,
     studentStatus: typed.student.isActive ? "ACTIVE" as const : "INACTIVE" as const,
-    student: { ...studentSummary(typed.student), schoolName: typed.school.name },
+    ...(studentPayload !== undefined ? { student: studentPayload } : {}),
     credential: { id: typed.id, nfcUrl: `/nfc/t/${cleanToken}` },
   };
 }

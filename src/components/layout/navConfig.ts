@@ -24,7 +24,7 @@ export type NavItem = {
 export const productSwitcherItems: Record<ProductKey, { label: string; to: string }> = {
   reportLab: { label: "Report Lab", to: "/dashboard" },
   smartPages: { label: "Smart Pages", to: "/smart-pages" },
-  nfc: { label: "NFC", to: "/nfc-tags" },
+  nfc: { label: "NFC", to: "/nfc/tags" },
 };
 
 export const navItemsByProduct: Record<ProductKey, NavItem[]> = {
@@ -46,12 +46,12 @@ export const navItemsByProduct: Record<ProductKey, NavItem[]> = {
     { to: "/preferences", label: "Settings", icon: "settings" },
   ],
   nfc: [
-    { to: "/nfc-tags", label: "NFC Tags", icon: "shield", exact: true },
-    { to: "/student-credentials", label: "NFC Wristbands", icon: "shield", exact: true },
-    { to: "/nfc-attendance", label: "NFC Attendance", icon: "activity", exact: true },
-    { to: "/nfc-wallets", label: "NFC Wallets", icon: "credit-card", exact: true },
-    { to: "/canteen-charge", label: "Canteen Charge", icon: "credit-card", exact: true },
-    { to: "/gate-security", label: "Gate Security", icon: "shield", exact: true },
+    { to: "/nfc/tags", label: "NFC Tags", icon: "shield", exact: true },
+    { to: "/nfc/wristbands", label: "NFC Wristbands", icon: "shield", exact: true },
+    { to: "/nfc/attendance", label: "NFC Attendance", icon: "activity", exact: true },
+    { to: "/nfc/wallets", label: "NFC Wallets", icon: "credit-card", exact: true },
+    { to: "/nfc/canteen", label: "Canteen Charge", icon: "credit-card", exact: true },
+    { to: "/nfc/gate", label: "Gate Security", icon: "shield", exact: true },
   ],
 };
 
@@ -66,18 +66,24 @@ const smartPagesPrefixes = [
   "/smart-pages/billing",
 ];
 
-const nfcPrefixes = [
+// All NFC pages live under /nfc/ plus the token deep-link paths.
+const nfcPrefixes = ["/nfc/", "/canteen/nfc/", "/gate/nfc/"];
+
+// Legacy paths (now redirect to /nfc/*) still show NFC sidebar while redirecting.
+const legacyNfcPaths = [
   "/nfc-tags",
-  "/student-credentials",
   "/nfc-attendance",
   "/nfc-wallets",
   "/canteen-charge",
   "/gate-security",
-  "/nfc/",
+  "/student-credentials",
 ];
 
 export function getProductFromPath(pathname: string): ProductKey {
-  if (nfcPrefixes.some((p) => pathname === p || pathname.startsWith(`${p}/`))) return "nfc";
+  if (
+    nfcPrefixes.some((p) => pathname === p || pathname.startsWith(p)) ||
+    legacyNfcPaths.some((p) => pathname === p || pathname.startsWith(`${p}/`))
+  ) return "nfc";
   return smartPagesPrefixes.some((p) => pathname === p || pathname.startsWith(`${p}/`))
     ? "smartPages"
     : "reportLab";
