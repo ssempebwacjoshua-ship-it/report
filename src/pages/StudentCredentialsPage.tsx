@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   amendStudentCredential,
   deactivateStudentCredential,
+  reactivateStudentCredential,
   fetchStudentCredentials,
   issueStudentCredential,
   scanStudentCredential,
@@ -43,6 +44,11 @@ export function StudentCredentialsPage() {
   const [amendUID, setAmendUID] = useState("");
   const [amendReason, setAmendReason] = useState("");
   const [amendLoading, setAmendLoading] = useState(false);
+
+  // Re-enable modal
+  const [reactivateTarget, setReactivateTarget] = useState<StudentCredential | null>(null);
+  const [reactivateReason, setReactivateReason] = useState("");
+  const [reactivateLoading, setReactivateLoading] = useState(false);
 
   const activeStudents = useMemo(() => students.filter((student) => student.isActive), [students]);
   const selectedActiveCredential = useMemo(
@@ -185,6 +191,24 @@ export function StudentCredentialsPage() {
       await loadCredentials();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Could not deactivate NFC wristband");
+    }
+  }
+
+  async function handleReactivate() {
+    if (!reactivateTarget || !reactivateReason.trim()) return;
+    setError("");
+    setNotice("");
+    setReactivateLoading(true);
+    try {
+      await reactivateStudentCredential(reactivateTarget.id, reactivateReason.trim());
+      setNotice("NFC wristband re-enabled.");
+      setReactivateTarget(null);
+      setReactivateReason("");
+      await loadCredentials();
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Could not re-enable NFC wristband");
+    } finally {
+      setReactivateLoading(false);
     }
   }
 
@@ -358,6 +382,14 @@ export function StudentCredentialsPage() {
                           Amend
                         </button>
                       </div>
+                    ) : credential.status === "DEACTIVATED" ? (
+                      <button
+                        type="button"
+                        className="rounded-lg border border-emerald-300 px-3 py-1.5 text-xs font-bold text-emerald-700 hover:bg-emerald-50 transition-colors"
+                        onClick={() => { setReactivateTarget(credential); setReactivateReason(""); }}
+                      >
+                        Re-enable
+                      </button>
                     ) : (
                       <span className="text-xs text-slate-500">No action</span>
                     )}
@@ -442,6 +474,52 @@ export function StudentCredentialsPage() {
           </div>
         </div>
       ) : null}
+
+      {/* Re-enable modal */}
+      {reactivateTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => { setReactivateTarget(null); setReactivateReason(""); }}>
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-lg font-black text-slate-950">Re-enable NFC wristband</h2>
+            <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm">
+              <p className="font-bold text-slate-900 font-mono">{reactivateTarget.credentialUID}</p>
+              <p className="mt-1 text-slate-700">
+                Student: <span className="font-semibold">{reactivateTarget.student.name}</span> · {reactivateTarget.student.admissionNumber}
+              </p>
+              {reactivateTarget.deactivatedReason && (
+                <p className="mt-1 text-xs text-slate-500">Previously deactivated: {reactivateTarget.deactivatedReason}</p>
+              )}
+            </div>
+            <label className="mt-4 grid gap-1.5 text-xs font-bold uppercase text-slate-500">
+              Reason (required)
+              <textarea
+                className="premium-control min-h-[80px] resize-none rounded-xl text-sm"
+                value={reactivateReason}
+                onChange={(e) => setReactivateReason(e.target.value)}
+                placeholder="e.g. Card found and verified in good condition"
+                autoFocus
+              />
+            </label>
+            <div className="mt-5 flex gap-3">
+              <button
+                type="button"
+                onClick={() => void handleReactivate()}
+                disabled={reactivateLoading || !reactivateReason.trim()}
+                className="btn btn-primary flex-1 rounded-xl py-2.5 text-sm font-black"
+              >
+                {reactivateLoading ? "Enabling…" : "Re-enable wristband"}
+              </button>
+              <button
+                type="button"
+                onClick={() => { setReactivateTarget(null); setReactivateReason(""); }}
+                className="btn btn-secondary flex-1 rounded-xl py-2.5 text-sm font-bold"
+                disabled={reactivateLoading}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

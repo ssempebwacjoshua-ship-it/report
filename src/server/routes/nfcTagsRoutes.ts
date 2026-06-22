@@ -4,6 +4,7 @@ import { verifyToken } from "../services/authService";
 import {
   assignTag,
   disableTag,
+  enableTag,
   generateTags,
   getTagEvents,
   listTags,
@@ -236,6 +237,15 @@ export function nfcTagsRoutes() {
   router.patch("/api/nfc/tags/:id/disable", async (req, res, next) => {
     try {
       res.json(await disableTag(ctx(req), req.params.id));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.patch("/api/nfc/tags/:id/enable", async (req, res, next) => {
+    try {
+      const { reason } = z.object({ reason: z.string().trim().min(1, "Reason is required.") }).parse(req.body);
+      res.json(await enableTag(ctx(req), req.params.id, reason));
     } catch (error) {
       next(error);
     }

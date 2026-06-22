@@ -3,6 +3,7 @@ import type { NfcTag } from "../shared/types/nfcTags";
 import {
   assignNfcTag,
   disableNfcTag,
+  enableNfcTag,
   generateNfcTags,
   getNfcTagEvents,
   listNfcTags,
@@ -11,7 +12,7 @@ import {
 import { fetchStudents } from "../client/studentsClient";
 import type { StudentListItem } from "../shared/types/students";
 
-type StatusFilter = "" | "UNASSIGNED" | "ASSIGNED" | "DISABLED";
+type StatusFilter = "" | "UNASSIGNED" | "ASSIGNED" | "DISABLED" | "LOST";
 
 const STATUS_COLORS: Record<string, string> = {
   UNASSIGNED: "bg-slate-100 text-slate-600",
@@ -66,6 +67,12 @@ export function NfcOperationsPage() {
 
   // Copied feedback
   const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  // Re-enable modal
+  const [enableTarget, setEnableTarget] = useState<NfcTag | null>(null);
+  const [enableReason, setEnableReason] = useState("");
+  const [enableLoading, setEnableLoading] = useState(false);
+  const [enableError, setEnableError] = useState<string | null>(null);
 
   const loadTags = useCallback(async () => {
     setLoading(true);
@@ -151,6 +158,22 @@ export function NfcOperationsPage() {
     }
   }
 
+  async function handleEnable() {
+    if (!enableTarget || !enableReason.trim()) return;
+    setEnableLoading(true);
+    setEnableError(null);
+    try {
+      const res = await enableNfcTag(enableTarget.id, enableReason.trim());
+      setTags((prev) => prev.map((t) => (t.id === enableTarget.id ? { ...t, status: res.status as NfcTag["status"] } : t)));
+      setEnableTarget(null);
+      setEnableReason("");
+    } catch (e) {
+      setEnableError(e instanceof Error ? e.message : "Failed to re-enable tag.");
+    } finally {
+      setEnableLoading(false);
+    }
+  }
+
   async function handleViewEvents(tagId: string) {
     setEventsTagId(tagId);
     setEventsLoading(true);
@@ -205,7 +228,7 @@ export function NfcOperationsPage() {
       {/* Filter row */}
       <div className="flex items-center gap-3">
         <p className="text-sm font-semibold text-slate-600">Filter:</p>
-        {(["", "UNASSIGNED", "ASSIGNED", "DISABLED"] as StatusFilter[]).map((s) => (
+        {(["", "UNASSIGNED", "ASSIGNED", "DISABLED", "LOST"] as StatusFilter[]).map((s) => (
           <button
             key={s}
             type="button"
@@ -290,13 +313,22 @@ export function NfcOperationsPage() {
                           Unassign
                         </button>
                       )}
-                      {tag.status !== "DISABLED" && (
+                      {tag.status !== "DISABLED" && tag.status !== "LOST" && (
                         <button
                           type="button"
                           onClick={() => { if (confirm("Disable this tag? It will no longer resolve.")) void handleDisable(tag.id); }}
                           className="rounded-lg border border-red-200 px-2.5 py-1 text-[11px] font-black text-red-600 hover:bg-red-50"
                         >
                           Disable
+                        </button>
+                      )}
+                      {(tag.status === "DISABLED" || tag.status === "LOST") && (
+                        <button
+                          type="button"
+                          onClick={() => { setEnableTarget(tag); setEnableReason(""); setEnableError(null); }}
+                          className="rounded-lg border border-emerald-300 px-2.5 py-1 text-[11px] font-black text-emerald-700 hover:bg-emerald-50"
+                        >
+                          Re-enable
                         </button>
                       )}
                       <button
@@ -380,6 +412,52 @@ export function NfcOperationsPage() {
                 type="button"
                 onClick={() => setAssignTagId(null)}
                 className="btn btn-secondary flex-1 rounded-xl py-2.5 text-sm font-bold"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Re-enable modal */}
+      {enableTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => { setEnableTarget(null); setEnableReason(""); setEnableError(null); }}>
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-lg font-black text-slate-950">Re-enable NFC tag</h2>
+            <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm">
+              <p className="font-bold text-slate-900">{enableTarget.label ?? `Tag ${enableTarget.publicCode.slice(0, 8)}…`}</p>
+              <p className="text-xs text-slate-500 font-mono mt-0.5">{enableTarget.publicCode.slice(0, 20)}</p>
+              {enableTarget.student && (
+                <p className="mt-1 text-slate-700">Student: <span className="font-semibold">{enableTarget.student.name}</span> · {enableTarget.student.admissionNumber}</p>
+              )}
+              <p className="mt-1 text-xs text-slate-400">Current status: <span className="font-bold text-red-600">{enableTarget.status}</span></p>
+            </div>
+            <label className="mt-4 grid gap-1.5 text-xs font-bold uppercase text-slate-500">
+              Reason (required)
+              <textarea
+                className="premium-control min-h-[80px] resize-none rounded-xl text-sm"
+                value={enableReason}
+                onChange={(e) => setEnableReason(e.target.value)}
+                placeholder="e.g. Tag recovered and confirmed working"
+                autoFocus
+              />
+            </label>
+            {enableError && <p className="mt-2 text-xs text-red-600">{enableError}</p>}
+            <div className="mt-5 flex gap-3">
+              <button
+                type="button"
+                onClick={() => { void handleEnable(); }}
+                disabled={enableLoading || !enableReason.trim()}
+                className="btn btn-primary flex-1 rounded-xl py-2.5 text-sm font-black"
+              >
+                {enableLoading ? "Enabling…" : "Re-enable tag"}
+              </button>
+              <button
+                type="button"
+                onClick={() => { setEnableTarget(null); setEnableReason(""); setEnableError(null); }}
+                className="btn btn-secondary flex-1 rounded-xl py-2.5 text-sm font-bold"
+                disabled={enableLoading}
               >
                 Cancel
               </button>

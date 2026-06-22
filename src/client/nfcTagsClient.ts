@@ -53,6 +53,16 @@ export async function unassignNfcTag(tagId: string): Promise<{ id: string; statu
   return res.json();
 }
 
+export async function enableNfcTag(tagId: string, reason: string): Promise<{ id: string; status: string; alreadyActive: boolean }> {
+  const res = await fetch(`${getApiBaseUrl()}/api/nfc/tags/${tagId}/enable`, {
+    method: "PATCH",
+    headers: makeSchoolRequestHeaders({ "Content-Type": "application/json" }),
+    body: JSON.stringify({ reason }),
+  });
+  if (!res.ok) throw new Error(await parseApiError(res, "Failed to enable NFC tag."));
+  return res.json();
+}
+
 export async function disableNfcTag(tagId: string): Promise<{ id: string; status: string }> {
   const res = await fetch(`${getApiBaseUrl()}/api/nfc/tags/${tagId}/disable`, {
     method: "PATCH",
