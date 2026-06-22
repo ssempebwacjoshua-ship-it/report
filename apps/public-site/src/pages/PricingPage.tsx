@@ -256,32 +256,35 @@ export function PricingPage() {
         </div>
 
         {/* ── Hero ── */}
-        <section className="site-hero site-hero-compact border-b border-blue-100 px-4 sm:px-6 lg:px-8">
-          <div className="mx-auto grid max-w-7xl gap-6 lg:grid-cols-12 lg:items-start">
+        <section className="home-hero-image-bg site-hero-compact border-b text-white" style={{ borderColor: "rgba(15,91,216,0.3)" }}>
+          <div className="absolute inset-0 bg-dot-grid opacity-[0.12]" />
+          <div className="home-hero-content mx-auto grid max-w-7xl gap-6 px-4 sm:px-6 lg:grid-cols-12 lg:items-center lg:px-8">
             <div className="lg:col-span-7">
-              <Badge>Pricing</Badge>
-              <h1 className="mt-3 hero-title font-black text-slate-950">
+              <div className="marketing-fade-up inline-flex items-center rounded-full border border-white/20 bg-white/10 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.2em] text-blue-50">
+                School Connect · Pricing
+              </div>
+              <h1 className="marketing-fade-up-delay-1 mt-2 hero-title font-black text-white">
                 Annual pricing for School Connect Report Lab &amp; Smart Pages.
               </h1>
-              <p className="mt-3 max-w-2xl text-base leading-7 text-slate-600">
+              <p className="marketing-fade-up-delay-2 mt-2.5 max-w-2xl text-sm leading-7 text-blue-50 sm:text-base">
                 One annual license covers both Report Lab and Smart Pages for your entire school.
                 Choose the plan that fits your student count. Setup is a one-time fee paid during onboarding.
               </p>
-              <p className="mt-2 text-sm font-semibold text-blue-700">
+              <p className="mt-2 text-sm font-semibold text-blue-200">
                 Annual license is billed yearly. Setup fee is paid once during onboarding.
               </p>
-              <div className="mt-5 flex flex-col gap-3 sm:flex-row">
+              <div className="marketing-fade-up-delay-3 mt-5 flex flex-col gap-3 sm:flex-row">
                 <a
                   href={REQUEST_PRICING_WA}
                   target="_blank"
                   rel="noreferrer"
-                  className="btn marketing-button-motion rounded-xl bg-gradient-to-r from-blue-600 to-blue-700 px-4 py-3 text-center text-sm font-black text-white shadow-lg shadow-blue-600/20 hover:shadow-xl hover:shadow-blue-600/25"
+                  className="btn marketing-button-motion rounded-xl bg-white px-4 py-3 text-center text-sm font-black text-blue-700 hover:bg-blue-50"
                 >
                   Ask About Pricing
                 </a>
                 <Link
                   to="/demos"
-                  className="btn marketing-button-motion rounded-xl border border-blue-200 bg-white px-4 py-3 text-center text-sm font-bold text-blue-700 shadow-sm hover:bg-blue-50"
+                  className="btn marketing-button-motion rounded-xl border border-white/25 bg-white/10 px-4 py-3 text-center text-sm font-bold text-white hover:bg-white/15"
                 >
                   Watch Demo
                 </Link>
@@ -289,20 +292,23 @@ export function PricingPage() {
             </div>
 
             <div className="lg:col-span-5">
-              <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-1">
-                <div className="marketing-card-motion marketing-fade-up-delay-1 rounded-[1.5rem] border border-slate-200 bg-white p-3.5 shadow-sm">
+              <div className="grid gap-2.5 sm:grid-cols-3 lg:grid-cols-1">
+                <div className="marketing-card-motion marketing-fade-up-delay-1 relative overflow-hidden rounded-2xl border border-white/30 bg-white/95 p-3.5 shadow-sm backdrop-blur-sm">
+                  <div className="absolute inset-x-0 top-0 h-[3px] bg-gradient-to-r from-blue-600 via-sky-400 to-cyan-300" />
                   <p className="text-[11px] font-black uppercase tracking-[0.18em] text-blue-700">Annual License</p>
                   <p className="mt-1.5 text-xs leading-5 text-slate-600">
                     One license per year covers your full school — no per-user or per-term fees.
                   </p>
                 </div>
-                <div className="marketing-card-motion marketing-fade-up-delay-2 rounded-[1.5rem] border border-slate-200 bg-white p-3.5 shadow-sm">
+                <div className="marketing-card-motion marketing-fade-up-delay-2 relative overflow-hidden rounded-2xl border border-white/30 bg-white/95 p-3.5 shadow-sm backdrop-blur-sm">
+                  <div className="absolute inset-x-0 top-0 h-[3px] bg-gradient-to-r from-slate-300 via-blue-200 to-slate-300" />
                   <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">Report Lab</p>
                   <p className="mt-1.5 text-xs leading-5 text-slate-600">
                     Generate, review, and share professional student reports from marksheets.
                   </p>
                 </div>
-                <div className="marketing-card-motion marketing-fade-up-delay-3 rounded-[1.5rem] border border-blue-200 bg-blue-50 p-3.5 shadow-sm">
+                <div className="marketing-card-motion marketing-fade-up-delay-3 relative overflow-hidden rounded-2xl border border-white/30 bg-white/95 p-3.5 shadow-sm backdrop-blur-sm">
+                  <div className="absolute inset-x-0 top-0 h-[3px] bg-gradient-to-r from-blue-500 via-cyan-400 to-blue-500" />
                   <p className="text-[11px] font-black uppercase tracking-[0.18em] text-blue-700">Smart Pages</p>
                   <p className="mt-1.5 text-xs leading-5 text-slate-600">
                     Upload documents and turn them into clean, digital, print-ready pages.
@@ -417,11 +423,11 @@ export function PricingPage() {
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               <CreditPackCard
                 name="Trial"
-                credits="20 credits"
+                credits="10 pages"
                 price="Free"
                 isFree
                 cta="Start Free Trial"
-                href={creditWA("Trial (20 credits free)")}
+                href={creditWA("Trial (10 pages free)")}
               />
               <CreditPackCard
                 name="Starter"
