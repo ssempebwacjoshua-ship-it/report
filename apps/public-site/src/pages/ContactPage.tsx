@@ -1,23 +1,31 @@
 import { useMemo, useState } from "react";
-import type { ReactNode } from "react";
 import { buildWhatsAppUgUrl, buildWhatsAppUrl, WHATSAPP_DISPLAY, WHATSAPP_UG_DISPLAY } from "../config/contact";
-import { PhoneIcon } from "../components/marketing/Icons";
+import { PhoneIcon, SparklesIcon } from "../components/marketing/Icons";
 import { TestimonialsSection } from "../components/marketing/TestimonialsSection";
 
-function Badge({ children }: { children: ReactNode }) {
-  return <span className="inline-flex items-center rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-[11px] font-black uppercase tracking-[0.18em] text-blue-700">{children}</span>;
-}
-
-function InfoCard({ title, body, cta, href }: { title: string; body: string; cta: string; href: string }) {
+// Compact action card — white floating card on dark hero background
+function ActionCard({ title, body, cta, href }: { title: string; body: string; cta: string; href: string }) {
   return (
-    <div className="group relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-xl">
-      <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-blue-600 via-sky-400 to-cyan-300" />
-      <div className="absolute -right-10 top-6 h-24 w-24 rounded-full bg-blue-50/70 blur-3xl transition duration-200 group-hover:bg-blue-100/80" />
-      <h3 className="text-base font-black text-slate-950">{title}</h3>
-      <p className="mt-2 text-sm leading-6 text-slate-600">{body}</p>
-      <a href={href} target="_blank" rel="noreferrer" className="btn marketing-button-motion mt-4 inline-flex rounded-xl border border-blue-200 bg-white px-4 py-2.5 text-sm font-bold text-blue-700 shadow-sm hover:bg-blue-50">
+    <div className="relative overflow-hidden rounded-2xl border border-white/30 bg-white/95 p-3.5 shadow-sm backdrop-blur-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-md">
+      <div className="absolute inset-x-0 top-0 h-[3px] bg-gradient-to-r from-blue-600 via-sky-400 to-cyan-300" />
+      <h3 className="text-sm font-black text-slate-950">{title}</h3>
+      <p className="mt-1 text-xs leading-5 text-slate-600">{body}</p>
+      <a
+        href={href}
+        target="_blank"
+        rel="noreferrer"
+        className="btn mt-3 w-full rounded-xl border border-blue-200 bg-white px-3 py-2 text-center text-xs font-black text-blue-700 hover:bg-blue-50"
+      >
         {cta}
       </a>
+    </div>
+  );
+}
+
+function ContactInfoCard({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="marketing-card-motion rounded-[1.5rem] border border-slate-200 bg-white p-5 shadow-sm">
+      {children}
     </div>
   );
 }
@@ -50,6 +58,7 @@ export function ContactPage() {
 
   const demoHref = useMemo(() => buildWhatsAppUrl(demoMessage), [demoMessage]);
   const ugandaPmHref = buildWhatsAppUgUrl("Hello SSAMENJ Technologies! I would like to speak with the Uganda team.");
+
   const pricingHref = useMemo(
     () =>
       buildWhatsAppUrl(
@@ -66,6 +75,7 @@ export function ContactPage() {
       ),
     [form],
   );
+
   const supportHref = useMemo(
     () =>
       buildWhatsAppUrl(
@@ -85,37 +95,68 @@ export function ContactPage() {
 
   return (
     <div className="bg-slate-50 text-slate-950">
-      <section className="site-hero site-hero-compact border-b border-blue-100 px-4 sm:px-6 lg:px-8">
-        <div className="mx-auto grid max-w-7xl gap-6 lg:grid-cols-12 lg:items-center">
-          <div className="lg:col-span-7">
-            <Badge>School Connect for smart schools</Badge>
-            <h1 className="mt-3 hero-title font-black text-slate-950">
+      {/* ── Hero — matches Home/About blue image style ── */}
+      <section className="home-hero-image-bg site-hero-compact border-b text-white" style={{ borderColor: "rgba(15,91,216,0.3)" }}>
+        <div className="absolute inset-0 bg-dot-grid opacity-[0.12]" />
+        <div className="home-hero-content mx-auto grid max-w-7xl gap-6 px-4 sm:px-6 lg:grid-cols-12 lg:items-center lg:px-8">
+
+          {/* Left — headline + CTAs */}
+          <div className="lg:col-span-6">
+            <div className="marketing-fade-up inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.2em] text-blue-50">
+              <SparklesIcon className="h-3.5 w-3.5" />
+              School Connect for smart schools
+            </div>
+            <h1 className="marketing-fade-up-delay-1 mt-2 hero-title font-black text-white">
               Let&apos;s help your school work smarter.
             </h1>
-            <p className="mt-3 max-w-2xl text-base leading-7 text-slate-600">
+            <p className="marketing-fade-up-delay-2 mt-2.5 max-w-xl text-sm leading-6 text-blue-50 sm:text-base">
               Request a demo, ask about pricing, or speak to us about setting up Report Lab, Smart Pages, and future School Connect tools for your school.
             </p>
-
-            <div className="mt-5 flex flex-col gap-3 sm:flex-row">
-              <a href={demoHref} target="_blank" rel="noreferrer" className="btn marketing-button-motion rounded-xl bg-gradient-to-r from-blue-600 to-blue-700 px-4 py-3 text-sm font-black text-white shadow-lg shadow-blue-600/20 hover:shadow-xl hover:shadow-blue-600/25">
+            <div className="marketing-fade-up-delay-3 mt-4 flex flex-col gap-2 sm:flex-row">
+              <a
+                href={demoHref}
+                target="_blank"
+                rel="noreferrer"
+                className="btn marketing-button-motion rounded-xl bg-white px-4 py-2.5 text-sm font-black text-blue-700 hover:bg-blue-50"
+              >
                 Chat with us on WhatsApp
               </a>
-              <a href="#contact-form" className="btn marketing-button-motion rounded-xl border border-blue-200 bg-white px-4 py-3 text-sm font-bold text-blue-700 shadow-sm hover:bg-blue-50">
+              <a
+                href="#contact-form"
+                className="btn marketing-button-motion rounded-xl border border-white/25 bg-white/10 px-4 py-2.5 text-sm font-bold text-white hover:bg-white/15"
+              >
                 Fill contact form
               </a>
             </div>
           </div>
 
-          <div className="lg:col-span-5">
-            <div className="grid gap-3">
-              <InfoCard title="Book a school demo" body="See how Report Lab and Smart Pages can reduce paperwork, speed up reporting, and support your school's daily work." cta="Request Demo" href={demoHref} />
-              <InfoCard title="Ask about pricing" body="Tell us your school size and the products you need. We'll recommend the best starting package." cta="Ask About Pricing" href={pricingHref} />
-              <InfoCard title="Setup support" body="Need help with branding, student data, marks import, or school document setup? We can guide you." cta="Chat Now" href={supportHref} />
+          {/* Right — compact action cards */}
+          <div className="lg:col-span-6">
+            <div className="grid gap-2.5">
+              <ActionCard
+                title="Book a school demo"
+                body="See Report Lab and Smart Pages in action for your school."
+                cta="Request Demo"
+                href={demoHref}
+              />
+              <ActionCard
+                title="Ask about pricing"
+                body="Tell us your school size. We'll recommend the right package."
+                cta="Ask About Pricing"
+                href={pricingHref}
+              />
+              <ActionCard
+                title="Setup support"
+                body="Need help with branding, student data, or document setup?"
+                cta="Chat About Setup"
+                href={supportHref}
+              />
             </div>
           </div>
         </div>
       </section>
 
+      {/* ── Contact form ── */}
       <section id="contact-form" className="border-b border-slate-200 bg-white px-4 py-8 sm:px-6 lg:px-8">
         <div className="mx-auto grid max-w-7xl gap-6 lg:grid-cols-12">
           <div className="lg:col-span-7">
@@ -133,23 +174,48 @@ export function ContactPage() {
               <div className="mt-5 grid gap-4 md:grid-cols-2">
                 <label className="grid gap-2 text-sm font-semibold text-slate-700">
                   School name
-                  <input className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-950 outline-none transition focus:border-blue-300 focus:bg-white" value={form.schoolName} onChange={(event) => setForm((current) => ({ ...current, schoolName: event.target.value }))} placeholder="Your school name" />
+                  <input
+                    className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-950 outline-none transition focus:border-blue-300 focus:bg-white"
+                    value={form.schoolName}
+                    onChange={(e) => setForm((c) => ({ ...c, schoolName: e.target.value }))}
+                    placeholder="Your school name"
+                  />
                 </label>
                 <label className="grid gap-2 text-sm font-semibold text-slate-700">
                   Contact person
-                  <input className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-950 outline-none transition focus:border-blue-300 focus:bg-white" value={form.contactPerson} onChange={(event) => setForm((current) => ({ ...current, contactPerson: event.target.value }))} placeholder="Name and role" />
+                  <input
+                    className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-950 outline-none transition focus:border-blue-300 focus:bg-white"
+                    value={form.contactPerson}
+                    onChange={(e) => setForm((c) => ({ ...c, contactPerson: e.target.value }))}
+                    placeholder="Name and role"
+                  />
                 </label>
                 <label className="grid gap-2 text-sm font-semibold text-slate-700">
                   Phone / WhatsApp
-                  <input className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-950 outline-none transition focus:border-blue-300 focus:bg-white" value={form.phone} onChange={(event) => setForm((current) => ({ ...current, phone: event.target.value }))} placeholder="Phone number" />
+                  <input
+                    className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-950 outline-none transition focus:border-blue-300 focus:bg-white"
+                    value={form.phone}
+                    onChange={(e) => setForm((c) => ({ ...c, phone: e.target.value }))}
+                    placeholder="Phone number"
+                  />
                 </label>
                 <label className="grid gap-2 text-sm font-semibold text-slate-700">
                   School location
-                  <input className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-950 outline-none transition focus:border-blue-300 focus:bg-white" value={form.location} onChange={(event) => setForm((current) => ({ ...current, location: event.target.value }))} placeholder="Town / district / country" />
+                  <input
+                    className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-950 outline-none transition focus:border-blue-300 focus:bg-white"
+                    value={form.location}
+                    onChange={(e) => setForm((c) => ({ ...c, location: e.target.value }))}
+                    placeholder="Town / district / country"
+                  />
                 </label>
                 <label className="grid gap-2 text-sm font-semibold text-slate-700">
                   Number of students
-                  <input className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-950 outline-none transition focus:border-blue-300 focus:bg-white" value={form.students} onChange={(event) => setForm((current) => ({ ...current, students: event.target.value }))} placeholder="Approximate number" />
+                  <input
+                    className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-950 outline-none transition focus:border-blue-300 focus:bg-white"
+                    value={form.students}
+                    onChange={(e) => setForm((c) => ({ ...c, students: e.target.value }))}
+                    placeholder="Approximate number"
+                  />
                 </label>
               </div>
 
@@ -158,7 +224,14 @@ export function ContactPage() {
                 <div className="grid gap-2 md:grid-cols-2">
                   {["Report Lab", "Smart Pages", "Full School Connect Bundle", "Not sure yet"].map((option) => (
                     <label key={option} className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-700">
-                      <input type="radio" name="interest" value={option} checked={form.interest === option} onChange={() => setForm((current) => ({ ...current, interest: option }))} className="h-4 w-4 border-slate-300 text-blue-600 focus:ring-blue-500" />
+                      <input
+                        type="radio"
+                        name="interest"
+                        value={option}
+                        checked={form.interest === option}
+                        onChange={() => setForm((c) => ({ ...c, interest: option }))}
+                        className="h-4 w-4 border-slate-300 text-blue-600 focus:ring-blue-500"
+                      />
                       {option}
                     </label>
                   ))}
@@ -167,14 +240,29 @@ export function ContactPage() {
 
               <label className="mt-4 grid gap-2 text-sm font-semibold text-slate-700">
                 Message
-                <textarea className="min-h-32 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-950 outline-none transition focus:border-blue-300 focus:bg-white" value={form.message} onChange={(event) => setForm((current) => ({ ...current, message: event.target.value }))} placeholder="Tell us what your school needs..." />
+                <textarea
+                  className="min-h-32 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-950 outline-none transition focus:border-blue-300 focus:bg-white"
+                  value={form.message}
+                  onChange={(e) => setForm((c) => ({ ...c, message: e.target.value }))}
+                  placeholder="Tell us what your school needs..."
+                />
               </label>
 
               <div className="mt-5 flex flex-col gap-3 sm:flex-row">
-                <a href={demoHref} target="_blank" rel="noreferrer" className="btn marketing-button-motion rounded-xl bg-gradient-to-r from-blue-600 to-blue-700 px-4 py-3 text-sm font-black text-white shadow-lg shadow-blue-600/20 hover:shadow-xl hover:shadow-blue-600/25">
+                <a
+                  href={demoHref}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="btn marketing-button-motion rounded-xl bg-gradient-to-r from-blue-600 to-blue-700 px-4 py-3 text-sm font-black text-white shadow-lg shadow-blue-600/20 hover:shadow-xl hover:shadow-blue-600/25"
+                >
                   Request Demo
                 </a>
-                <a href={pricingHref} target="_blank" rel="noreferrer" className="btn marketing-button-motion rounded-xl border border-blue-200 bg-white px-4 py-3 text-sm font-bold text-blue-700 shadow-sm hover:bg-blue-50">
+                <a
+                  href={pricingHref}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="btn marketing-button-motion rounded-xl border border-blue-200 bg-white px-4 py-3 text-sm font-bold text-blue-700 shadow-sm hover:bg-blue-50"
+                >
                   Ask About Pricing
                 </a>
               </div>
@@ -183,7 +271,7 @@ export function ContactPage() {
 
           <div className="lg:col-span-5">
             <div className="grid gap-3">
-              <div className="marketing-card-motion rounded-[1.5rem] border border-slate-200 bg-white p-5 shadow-sm">
+              <ContactInfoCard>
                 <div className="flex items-center gap-3">
                   <div className="grid h-10 w-10 place-items-center rounded-2xl bg-emerald-50 text-emerald-700">
                     <PhoneIcon className="h-5 w-5" />
@@ -193,7 +281,8 @@ export function ContactPage() {
                     <p className="text-sm leading-6 text-slate-600">{WHATSAPP_DISPLAY}</p>
                   </div>
                 </div>
-              </div>
+              </ContactInfoCard>
+
               <a
                 href={ugandaPmHref}
                 target="_blank"
@@ -211,12 +300,13 @@ export function ContactPage() {
                 </div>
                 <p className="mt-2 text-xs font-semibold text-blue-700">Chat with Uganda PM on WhatsApp →</p>
               </a>
-              <div className="marketing-card-motion rounded-[1.5rem] border border-blue-200 bg-blue-50 p-5 shadow-sm">
+
+              <ContactInfoCard>
                 <p className="text-sm font-black text-slate-950">Need a quick start?</p>
                 <p className="mt-2 text-sm leading-6 text-slate-600">
                   We can help with a demo, pricing guidance, or a setup discussion for Report Lab and Smart Pages.
                 </p>
-              </div>
+              </ContactInfoCard>
             </div>
           </div>
         </div>
