@@ -37,6 +37,7 @@ model School {
   studentAttendanceEvents StudentAttendanceEvent[]
   nfcGateScans        NfcGateScan[]
   nfcTags             NfcTag[]
+  nfcTagBatches       NfcTagBatch[]
 }
 
 model AcademicYear {
@@ -1037,27 +1038,60 @@ enum PromotionActionStatus {
 
 // ─── NFC Tag Registry ────────────────────────────────────────────────────────
 
+model NfcTagBatch {
+  id          String   @id @default(uuid()) @db.Uuid
+  schoolId    String   @db.Uuid
+  name        String
+  tagMode     String   // "URL" | "UID"
+  quantity    Int      @default(0)
+  status      String   @default("ACTIVE") // "ACTIVE" | "CLOSED"
+  createdById String?  @db.Uuid
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  school School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  tags   NfcTag[]
+
+  @@index([schoolId])
+  @@index([schoolId, tagMode])
+}
+
 model NfcTag {
   id          String    @id @default(uuid()) @db.Uuid
   schoolId    String    @db.Uuid
+  batchId     String?   @db.Uuid
   publicCode  String    @unique
+  physicalUid String?
+  tagMode     String    @default("URL")    // "URL" | "UID"
   label       String?
   type        String    @default("STUDENT")
+  purpose     String    @default("STUDENT")
   status      String    @default("UNASSIGNED")
+  // status lifecycle:
+  // URL tags:  GENERATED → WRITTEN → VERIFIED → UNALLOCATED → ASSIGNED | DISABLED | LOST
+  // UID tags:  REGISTERED → VERIFIED → UNALLOCATED → ASSIGNED | DISABLED | LOST
+  // Legacy:    UNASSIGNED (= UNALLOCATED), ASSIGNED, DISABLED
   studentId   String?   @db.Uuid
+  createdById String?   @db.Uuid
   writtenUrl  String?
+  issuedAt    DateTime?
+  writtenAt   DateTime?
+  verifiedAt  DateTime?
   assignedAt  DateTime?
   lastSeenAt  DateTime?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
-  school    School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  student   Student?  @relation(fields: [studentId], references: [id], onDelete: SetNull)
+  school    School       @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  batch     NfcTagBatch? @relation(fields: [batchId], references: [id], onDelete: SetNull)
+  student   Student?     @relation(fields: [studentId], references: [id], onDelete: SetNull)
   tapEvents NfcTapEvent[]
 
   @@index([schoolId])
   @@index([schoolId, status])
   @@index([schoolId, studentId])
+  @@index([schoolId, batchId])
+  @@index([schoolId, tagMode, status])
 }
 
 model NfcTapEvent {

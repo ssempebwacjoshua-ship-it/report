@@ -48,6 +48,7 @@ export const navItemsByProduct: Record<ProductKey, NavItem[]> = {
   nfc: [
     { to: "/nfc/tags", label: "NFC Tags", icon: "shield", exact: true },
     { to: "/nfc/wristbands", label: "NFC Wristbands", icon: "shield", exact: true },
+    { to: "/nfc/bulk-issuing", label: "Bulk Tag Issuing", icon: "upload", exact: true },
     { to: "/nfc/bulk-allocation", label: "Bulk Allocation", icon: "upload", exact: true },
     { to: "/nfc/attendance", label: "NFC Attendance", icon: "activity", exact: true },
     { to: "/nfc/wallets", label: "NFC Wallets", icon: "credit-card", exact: true },

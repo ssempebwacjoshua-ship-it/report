@@ -11,6 +11,15 @@ import {
   unassignTag,
   type NfcTagsContext,
 } from "../services/nfcTagsService";
+import {
+  amendTag,
+  bulkAllocateFromInventory,
+  bulkImportUids,
+  createUrlTagBatch,
+  listTagBatches,
+  listTagInventory,
+  verifyTag,
+} from "../services/nfcTagBatchService";
 
 const generateSchema = z.object({
   count: z.coerce.number().int().min(1).max(100).default(1),
@@ -22,7 +31,45 @@ const assignSchema = z.object({
 
 const listFiltersSchema = z.object({
   search: z.string().optional(),
-  status: z.enum(["UNASSIGNED", "ASSIGNED", "DISABLED"]).optional(),
+  status: z.string().optional(),
+});
+
+const createUrlBatchSchema = z.object({
+  name: z.string().min(1, "Batch name is required."),
+  quantity: z.coerce.number().int().min(1).max(500),
+  labelPrefix: z.string().optional(),
+});
+
+const bulkImportUidsSchema = z.object({
+  batchName: z.string().min(1, "Batch name is required."),
+  uids: z.array(z.string().min(1)).min(1, "At least one UID is required."),
+  reason: z.string().optional(),
+});
+
+const inventoryFiltersSchema = z.object({
+  batchId: z.string().uuid().optional(),
+  tagMode: z.enum(["URL", "UID"]).optional(),
+  status: z.string().optional(),
+  search: z.string().optional(),
+});
+
+const amendTagSchema = z.object({
+  label: z.string().optional(),
+  physicalUid: z.string().optional(),
+  status: z.string().optional(),
+  reason: z.string().min(1, "Reason is required."),
+});
+
+const bulkAllocateInventorySchema = z.object({
+  assignments: z
+    .array(
+      z.object({
+        tagId: z.string().uuid(),
+        studentId: z.string().uuid(),
+      }),
+    )
+    .min(1),
+  reason: z.string().min(1, "Reason is required."),
 });
 
 function ctx(req: Express.Request): NfcTagsContext {
@@ -76,9 +123,31 @@ export function nfcTagsPublicRoutes() {
 export function nfcTagsRoutes() {
   const router = Router();
 
-  router.get("/api/nfc/tags", async (req, res, next) => {
+  // ── Batches ───────────────────────────────────────────────────────────────
+
+  router.get("/api/nfc/tag-batches", async (req, res, next) => {
     try {
-      res.json(await listTags(ctx(req), listFiltersSchema.parse(req.query)));
+      const { tagMode } = z.object({ tagMode: z.enum(["URL", "UID"]).optional() }).parse(req.query);
+      res.json(await listTagBatches(ctx(req), { tagMode }));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/api/nfc/tag-batches", async (req, res, next) => {
+    try {
+      const input = createUrlBatchSchema.parse(req.body);
+      res.status(201).json(await createUrlTagBatch(ctx(req), { ...input, baseUrl: getBaseUrl(req) }));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // ── Static tag sub-routes (must be before /:id) ───────────────────────────
+
+  router.get("/api/nfc/tags/inventory", async (req, res, next) => {
+    try {
+      res.json(await listTagInventory(ctx(req), inventoryFiltersSchema.parse(req.query)));
     } catch (error) {
       next(error);
     }
@@ -88,6 +157,34 @@ export function nfcTagsRoutes() {
     try {
       const { count } = generateSchema.parse(req.body);
       res.status(201).json(await generateTags(ctx(req), count, getBaseUrl(req)));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/api/nfc/tags/bulk-import-uids", async (req, res, next) => {
+    try {
+      res.status(201).json(await bulkImportUids(ctx(req), bulkImportUidsSchema.parse(req.body)));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/api/nfc/tags/bulk-allocate", async (req, res, next) => {
+    try {
+      res.status(201).json(
+        await bulkAllocateFromInventory(ctx(req), bulkAllocateInventorySchema.parse(req.body)),
+      );
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // ── Per-tag routes (/:id) ─────────────────────────────────────────────────
+
+  router.get("/api/nfc/tags", async (req, res, next) => {
+    try {
+      res.json(await listTags(ctx(req), listFiltersSchema.parse(req.query)));
     } catch (error) {
       next(error);
     }
@@ -113,6 +210,22 @@ export function nfcTagsRoutes() {
   router.patch("/api/nfc/tags/:id/disable", async (req, res, next) => {
     try {
       res.json(await disableTag(ctx(req), req.params.id));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.patch("/api/nfc/tags/:id/verify", async (req, res, next) => {
+    try {
+      res.json(await verifyTag(ctx(req), req.params.id));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.patch("/api/nfc/tags/:id/amend", async (req, res, next) => {
+    try {
+      res.json(await amendTag(ctx(req), req.params.id, amendTagSchema.parse(req.body)));
     } catch (error) {
       next(error);
     }

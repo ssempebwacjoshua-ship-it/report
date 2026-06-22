@@ -6,9 +6,11 @@ import {
   fetchCredentialAllocation,
   issueStudentCredential,
 } from "../client/studentCredentialsClient";
+import { bulkAllocateFromInventory, listTagBatches, listTagInventory } from "../client/nfcTagsClient";
 import { fetchSchoolStructure } from "../client/schoolStructureClient";
 import type { AllocationRow, AllocationStatus, StudentCredential } from "../shared/types/studentCredentials";
 import type { CanonicalClassRecord, StreamRecord } from "../client/schoolStructureClient";
+import type { NfcTag, NfcTagBatchSummary } from "../shared/types/nfcTags";
 
 const inputClass =
   "premium-control h-10 rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm text-slate-900 outline-none focus:border-blue-400 focus:bg-white";
@@ -63,6 +65,17 @@ export function NfcBulkAllocationPage() {
   const [pasteReason, setPasteReason] = useState("");
   const [pasteLoading, setPasteLoading] = useState(false);
 
+  // Inventory mode (allocate from pre-registered UID batch)
+  const [inventoryMode, setInventoryMode] = useState(false);
+  const [invBatches, setInvBatches] = useState<NfcTagBatchSummary[]>([]);
+  const [invSelectedBatch, setInvSelectedBatch] = useState("");
+  const [invTags, setInvTags] = useState<NfcTag[]>([]);
+  const [invLoading, setInvLoading] = useState(false);
+  const [invReason, setInvReason] = useState("");
+  const [invAllocLoading, setInvAllocLoading] = useState(false);
+  // Map: tagId → studentId (user's mapping in the table)
+  const [invAssignments, setInvAssignments] = useState<Record<string, string>>({});
+
   // Derived: unallocated students for fast allocation and paste preview
   const unallocatedRows = useMemo(
     () => rows.filter((r) => r.allocationStatus === "UNALLOCATED"),
@@ -86,6 +99,51 @@ export function NfcBulkAllocationPage() {
       })),
     [pasteUIDs, unallocatedRows],
   );
+
+  // Inventory mode: load UID batches when toggled on
+  useEffect(() => {
+    if (!inventoryMode) return;
+    listTagBatches({ tagMode: "UID" })
+      .then((r) => setInvBatches(r.batches))
+      .catch((e: Error) => setError(e.message));
+  }, [inventoryMode]);
+
+  // Inventory mode: load unallocated tags when batch is selected
+  useEffect(() => {
+    if (!invSelectedBatch) { setInvTags([]); setInvAssignments({}); return; }
+    setInvLoading(true);
+    listTagInventory({ batchId: invSelectedBatch, tagMode: "UID", status: "UNALLOCATED" })
+      .then((r) => { setInvTags(r.tags); setInvAssignments({}); })
+      .catch((e: Error) => setError(e.message))
+      .finally(() => setInvLoading(false));
+  }, [invSelectedBatch]);
+
+  async function handleInventoryAllocate() {
+    const pairs = invTags
+      .map((t) => ({ tagId: t.id, studentId: invAssignments[t.id] ?? "" }))
+      .filter((p) => p.studentId);
+    if (!pairs.length) { setError("Select a student for at least one tag."); return; }
+    if (!invReason.trim()) { setError("Reason is required for inventory allocation."); return; }
+    setError("");
+    setNotice("");
+    setInvAllocLoading(true);
+    try {
+      const result = await bulkAllocateFromInventory({ assignments: pairs, reason: invReason });
+      setNotice(`Allocated ${result.tags.length} wristband(s) from inventory.`);
+      setInvAssignments({});
+      setInvReason("");
+      // Refresh inventory and allocation list
+      const [refreshedInv] = await Promise.allSettled([
+        listTagInventory({ batchId: invSelectedBatch, tagMode: "UID", status: "UNALLOCATED" }),
+        loadAllocation(),
+      ]);
+      if (refreshedInv.status === "fulfilled") setInvTags(refreshedInv.value.tags);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Inventory allocation failed.");
+    } finally {
+      setInvAllocLoading(false);
+    }
+  }
 
   // Load school structure (classes + streams) once
   useEffect(() => {
@@ -255,13 +313,22 @@ export function NfcBulkAllocationPage() {
           <h1 className="text-xl font-bold tracking-tight text-slate-950 sm:text-2xl">Bulk Wristband Allocation</h1>
           <p className="mt-1 text-sm text-slate-500">Allocate NFC wristbands class by class.</p>
         </div>
-        <button
-          type="button"
-          className={`btn ${pasteMode ? "btn-secondary" : "btn-primary"} text-xs`}
-          onClick={() => { setPasteMode((v) => !v); setError(""); setNotice(""); }}
-        >
-          {pasteMode ? "Exit Bulk Paste" : "Bulk Paste Mode"}
-        </button>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            className={`btn ${inventoryMode ? "btn-primary" : "btn-secondary"} text-xs`}
+            onClick={() => { setInventoryMode((v) => !v); setPasteMode(false); setError(""); setNotice(""); }}
+          >
+            {inventoryMode ? "Exit Inventory Mode" : "From Inventory"}
+          </button>
+          <button
+            type="button"
+            className={`btn ${pasteMode ? "btn-secondary" : "btn-primary"} text-xs`}
+            onClick={() => { setPasteMode((v) => !v); setInventoryMode(false); setError(""); setNotice(""); }}
+          >
+            {pasteMode ? "Exit Bulk Paste" : "Bulk Paste Mode"}
+          </button>
+        </div>
       </header>
 
       {error ? <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div> : null}
@@ -317,7 +384,7 @@ export function NfcBulkAllocationPage() {
       </div>
 
       {/* Bulk paste mode */}
-      {pasteMode ? (
+      {pasteMode && !inventoryMode ? (
         <div className="premium-card rounded-xl p-5">
           <h2 className="text-base font-bold text-slate-950">Bulk Paste Mode</h2>
           <p className="mt-1 text-sm text-slate-500">
@@ -386,8 +453,104 @@ export function NfcBulkAllocationPage() {
         </div>
       ) : null}
 
+      {/* Inventory mode panel */}
+      {inventoryMode ? (
+        <div className="premium-card rounded-xl p-5">
+          <h2 className="text-base font-bold text-slate-950">Allocate from Inventory</h2>
+          <p className="mt-1 text-sm text-slate-500">
+            Select a UID wristband batch, then map each unallocated tag to a student.
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <select
+              className={inputClass}
+              value={invSelectedBatch}
+              onChange={(e) => setInvSelectedBatch(e.target.value)}
+            >
+              <option value="">Select batch…</option>
+              {invBatches.map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.name} ({b.unallocated} unallocated)
+                </option>
+              ))}
+            </select>
+          </div>
+          {invLoading ? (
+            <p className="mt-4 text-sm text-slate-500">Loading inventory…</p>
+          ) : invSelectedBatch && invTags.length === 0 ? (
+            <p className="mt-4 text-sm text-slate-500">No unallocated UID wristbands in this batch.</p>
+          ) : invTags.length > 0 ? (
+            <>
+              <div className="mt-4 overflow-x-auto">
+                <table className="w-full min-w-[600px] border-separate border-spacing-y-1 text-left text-sm">
+                  <thead className="text-xs font-bold uppercase text-slate-500">
+                    <tr>
+                      <th className="px-3 py-2">Physical UID</th>
+                      <th className="px-3 py-2">Label</th>
+                      <th className="px-3 py-2">Assign to Student</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {invTags.map((tag) => (
+                      <tr key={tag.id} className="bg-white">
+                        <td className="rounded-l-xl border-y border-l border-slate-200 px-3 py-2 font-mono text-xs font-bold text-slate-800">
+                          {tag.physicalUid ?? "—"}
+                        </td>
+                        <td className="border-y border-slate-200 px-3 py-2 text-slate-600">{tag.label ?? "—"}</td>
+                        <td className="rounded-r-xl border-y border-r border-slate-200 px-3 py-2">
+                          <select
+                            className={`${inputClass} w-full`}
+                            value={invAssignments[tag.id] ?? ""}
+                            onChange={(e) =>
+                              setInvAssignments((prev) => ({ ...prev, [tag.id]: e.target.value }))
+                            }
+                          >
+                            <option value="">— not assigned —</option>
+                            {rows
+                              .filter((r) => r.allocationStatus !== "ALLOCATED")
+                              .map((r) => (
+                                <option key={r.student.id} value={r.student.id}>
+                                  {r.student.name} ({r.student.admissionNumber})
+                                </option>
+                              ))}
+                          </select>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <label className="mt-3 grid gap-1 text-xs font-bold uppercase text-slate-500">
+                Reason
+                <input
+                  className={inputClass}
+                  value={invReason}
+                  onChange={(e) => setInvReason(e.target.value)}
+                  placeholder="Required"
+                />
+              </label>
+              <div className="mt-4">
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  disabled={
+                    invAllocLoading ||
+                    !invReason.trim() ||
+                    !Object.values(invAssignments).some(Boolean)
+                  }
+                  onClick={() => void handleInventoryAllocate()}
+                >
+                  {invAllocLoading
+                    ? "Allocating…"
+                    : `Allocate ${Object.values(invAssignments).filter(Boolean).length} Wristband(s)`}
+                </button>
+              </div>
+            </>
+          ) : null}
+        </div>
+      ) : null}
+
       {/* Fast allocation panel */}
-      {!pasteMode && nextUnallocated ? (
+      {!pasteMode && !inventoryMode && nextUnallocated ? (
         <div className="premium-card rounded-xl p-5">
           <h2 className="text-base font-bold text-slate-950">Fast Allocation</h2>
           <p className="mt-1 text-sm text-slate-500">
