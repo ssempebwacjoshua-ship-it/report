@@ -18,6 +18,17 @@ import { PricingPage } from "../pages/PricingPage";
 import { ContactPage } from "../pages/ContactPage";
 import { ParentReportPage } from "../pages/ParentReportPage";
 import { VerifyPage } from "../pages/VerifyPage";
+import { NfcAttendancePage } from "../pages/NfcAttendancePage";
+import { NfcWalletsPage } from "../pages/NfcWalletsPage";
+import { NfcWalletTopUpPage } from "../pages/NfcWalletTopUpPage";
+import { NfcCanteenTransactionsPage } from "../pages/NfcCanteenTransactionsPage";
+import { NfcCanteenChargePage } from "../pages/NfcCanteenChargePage";
+import { NfcGateSecurityPage } from "../pages/NfcGateSecurityPage";
+import { NfcTokenPage } from "../pages/NfcTokenPage";
+import { NfcOperationsPage } from "../pages/NfcOperationsPage";
+import { NfcBulkIssuingPage } from "../pages/NfcBulkIssuingPage";
+import { NfcBulkAllocationPage } from "../pages/NfcBulkAllocationPage";
+import { NfcTapPage } from "../pages/NfcTapPage";
 import { OwnerDashboardPage } from "../pages/owner/OwnerDashboardPage";
 import { OwnerSchoolsPage } from "../pages/owner/OwnerSchoolsPage";
 import { OwnerUsersPage } from "../pages/owner/OwnerUsersPage";
@@ -53,7 +64,7 @@ function lazyElement(Component: ComponentType) {
 }
 
 export const router = createBrowserRouter([
-  // Public routes ? no AppShell, no auth
+  // Public routes — no AppShell, no auth
   { path: "/demo", element: <DemoPage /> },
   { path: "/features-demo", element: <FeaturesDemoPage /> },
   { path: "/pricing", element: <PricingPage /> },
@@ -62,6 +73,8 @@ export const router = createBrowserRouter([
   { path: "/logout", element: <LogoutPage /> },
   { path: "/parent/r/:token", element: <ParentReportPage /> },
   { path: "/verify/:code", element: <VerifyPage /> },
+  { path: "/nfc/t/:token", element: <NfcTokenPage /> },
+  { path: "/t/:publicCode", element: <NfcTapPage /> },
   { path: "/p/:token", element: <PublishedDocumentPage /> },
 
   ...(lawyerSmartPagesEnabled ? [{
@@ -92,7 +105,7 @@ export const router = createBrowserRouter([
     ],
   },
 
-  // Admin routes ? wrapped in AppShell (auth guard inside)
+  // Authenticated app routes — AppShell handles auth guard internally
   {
     path: "/",
     element: <AppShell />,
@@ -101,7 +114,26 @@ export const router = createBrowserRouter([
       { index: true, element: <Navigate to="/dashboard" replace /> },
       { path: "dashboard", element: <DashboardPage /> },
       { path: "students", element: <StudentsPage /> },
-      { path: "student-credentials", element: <StudentCredentialsPage /> },
+      // ── NFC routes — canonical paths ──────────────────────────────────────────
+      { path: "nfc/wristbands", element: <StudentCredentialsPage /> },
+      { path: "nfc/bulk-issuing", element: <NfcBulkIssuingPage /> },
+      { path: "nfc/bulk-allocation", element: <NfcBulkAllocationPage /> },
+      { path: "nfc/tags", element: <NfcOperationsPage /> },
+      { path: "nfc/attendance", element: <NfcAttendancePage /> },
+      { path: "nfc/wallets", element: <NfcWalletsPage /> },
+      { path: "nfc/wallets/top-up", element: <NfcWalletTopUpPage /> },
+      { path: "nfc/canteen", element: <NfcCanteenChargePage /> },
+      { path: "nfc/canteen/transactions", element: <NfcCanteenTransactionsPage /> },
+      { path: "nfc/gate", element: <NfcGateSecurityPage /> },
+      // ── NFC routes — legacy redirects ─────────────────────────────────────────
+      { path: "student-credentials", element: <Navigate to="/nfc/wristbands" replace /> },
+      { path: "nfc-tags", element: <Navigate to="/nfc/tags" replace /> },
+      { path: "nfc-attendance", element: <Navigate to="/nfc/attendance" replace /> },
+      { path: "nfc-wallets", element: <Navigate to="/nfc/wallets" replace /> },
+      { path: "canteen-charge", element: <Navigate to="/nfc/canteen" replace /> },
+      { path: "gate-security", element: <Navigate to="/nfc/gate" replace /> },
+      { path: "canteen/nfc/:token", element: <NfcCanteenChargePage /> },
+      { path: "gate/nfc/:token", element: <NfcGateSecurityPage /> },
       { path: "reports", element: <ReportsPage /> },
       { path: "reports/release", element: <ReleaseCenterPage /> },
       { path: "promotions", element: <PromotionWorkspacePage /> },

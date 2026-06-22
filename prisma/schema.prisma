@@ -32,6 +32,12 @@ model School {
   promotionBatches  PromotionBatch[]
   promotionActions  PromotionAction[]
   studentCredentials StudentCredential[]
+  studentWallets      StudentWallet[]
+  studentWalletTransactions StudentWalletTransaction[]
+  studentAttendanceEvents StudentAttendanceEvent[]
+  nfcGateScans        NfcGateScan[]
+  nfcTags             NfcTag[]
+  nfcTagBatches       NfcTagBatch[]
 }
 
 model AcademicYear {
@@ -117,6 +123,11 @@ model Student {
   issuedReports    IssuedReport[]
   promotionActions PromotionAction[]
   credentials      StudentCredential[]
+  wallet           StudentWallet?
+  walletTransactions StudentWalletTransaction[]
+  attendanceEvents StudentAttendanceEvent[]
+  gateScans        NfcGateScan[]
+  nfcTags          NfcTag[]
   school           School            @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   marks            SubjectMark[]
 
@@ -289,6 +300,8 @@ model User {
   lastLoginAt        DateTime?
   issuedReports      IssuedReport[]
   studentCredentialsIssued StudentCredential[] @relation("StudentCredentialIssuedBy")
+  walletTransactions StudentWalletTransaction[] @relation("StudentWalletTransactionCashier")
+  gateScans          NfcGateScan[] @relation("NfcGateScanScannedBy")
   school             School         @relation(fields: [schoolId], references: [id], onDelete: Cascade)
 
   @@unique([schoolId, email])
@@ -377,6 +390,7 @@ model StudentCredential {
   studentId           String           @db.Uuid
   type                CredentialType
   credentialUID       String
+  scanToken           String?          @unique
   status              CredentialStatus @default(ACTIVE)
   issuedAt            DateTime         @default(now())
   deactivatedAt       DateTime?
@@ -387,12 +401,99 @@ model StudentCredential {
   school              School           @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   student             Student          @relation(fields: [studentId], references: [id], onDelete: Cascade)
   issuedBy            User?            @relation("StudentCredentialIssuedBy", fields: [issuedById], references: [id], onDelete: SetNull)
+  walletTransactions  StudentWalletTransaction[]
+  attendanceEvents    StudentAttendanceEvent[]
+  gateScans           NfcGateScan[]
 
   @@unique([schoolId, type, credentialUID])
   @@index([schoolId])
   @@index([studentId])
   @@index([schoolId, status])
   @@index([schoolId, type, status])
+}
+
+model StudentWallet {
+  id           String              @id @default(uuid()) @db.Uuid
+  schoolId     String              @db.Uuid
+  studentId    String              @unique @db.Uuid
+  balanceCents Int                 @default(0)
+  status       StudentWalletStatus @default(ACTIVE)
+  frozenReason String?
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+  school       School              @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  student      Student             @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  transactions StudentWalletTransaction[]
+
+  @@index([schoolId, status])
+  @@index([schoolId, studentId])
+}
+
+model StudentWalletTransaction {
+  id             String                @id @default(uuid()) @db.Uuid
+  schoolId       String                @db.Uuid
+  studentId      String                @db.Uuid
+  walletId       String                @db.Uuid
+  credentialId   String?               @db.Uuid
+  cashierUserId  String?               @db.Uuid
+  type              WalletTransactionType
+  amountCents       Int
+  balanceAfterCents Int?
+  paymentMethod     String?
+  reference         String?
+  description       String?
+  idempotencyKey    String?
+  reversalOfId      String?               @db.Uuid
+  createdAt         DateTime              @default(now())
+  school            School                @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  student           Student               @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  wallet            StudentWallet         @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  credential        StudentCredential?    @relation(fields: [credentialId], references: [id], onDelete: SetNull)
+  cashier           User?                 @relation("StudentWalletTransactionCashier", fields: [cashierUserId], references: [id], onDelete: SetNull)
+
+  @@unique([schoolId, idempotencyKey])
+  @@index([schoolId, createdAt])
+  @@index([schoolId, studentId, createdAt])
+  @@index([schoolId, walletId, createdAt])
+  @@index([schoolId, reversalOfId])
+}
+
+model StudentAttendanceEvent {
+  id           String               @id @default(uuid()) @db.Uuid
+  schoolId     String               @db.Uuid
+  studentId    String               @db.Uuid
+  credentialId String?              @db.Uuid
+  direction    AttendanceDirection
+  source       AttendanceScanSource @default(NFC_WRISTBAND)
+  status       AttendanceScanStatus @default(VALID)
+  reason       String?
+  scannedAt    DateTime             @default(now())
+  school       School               @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  student      Student              @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  credential   StudentCredential?   @relation(fields: [credentialId], references: [id], onDelete: SetNull)
+
+  @@index([schoolId, scannedAt])
+  @@index([schoolId, studentId, scannedAt])
+  @@index([schoolId, credentialId, scannedAt])
+}
+
+model NfcGateScan {
+  id              String           @id @default(uuid()) @db.Uuid
+  schoolId        String           @db.Uuid
+  studentId       String?          @db.Uuid
+  credentialId    String?          @db.Uuid
+  scannedByUserId String?          @db.Uuid
+  result          GateScanResult
+  reason          String?
+  scannedAt       DateTime         @default(now())
+  school          School           @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  student         Student?         @relation(fields: [studentId], references: [id], onDelete: SetNull)
+  credential      StudentCredential? @relation(fields: [credentialId], references: [id], onDelete: SetNull)
+  scannedBy       User?            @relation("NfcGateScanScannedBy", fields: [scannedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([schoolId, scannedAt])
+  @@index([schoolId, studentId, scannedAt])
+  @@index([schoolId, credentialId, scannedAt])
 }
 
 // Legacy DocumentCleanerJob remains in schema. Confirm no live data before safe removal migration.
@@ -805,6 +906,11 @@ enum ReportReadiness {
 
 enum UserRole {
   ADMIN_OPERATOR
+  TEACHER
+  CASHIER
+  CANTEEN
+  SECURITY
+  GATE_SECURITY
 }
 
 enum CredentialType {
@@ -814,6 +920,39 @@ enum CredentialType {
 enum CredentialStatus {
   ACTIVE
   DEACTIVATED
+}
+
+enum StudentWalletStatus {
+  ACTIVE
+  FROZEN
+}
+
+enum WalletTransactionType {
+  TOP_UP
+  CHARGE
+  REVERSAL
+  ADJUSTMENT
+}
+
+enum AttendanceDirection {
+  TAP_IN
+  TAP_OUT
+}
+
+enum AttendanceScanSource {
+  NFC_WRISTBAND
+  QR_FALLBACK
+}
+
+enum AttendanceScanStatus {
+  VALID
+  BLOCKED
+  DUPLICATE
+}
+
+enum GateScanResult {
+  ALLOWED
+  BLOCKED
 }
 
 enum IssuedReportStatus {
@@ -901,4 +1040,79 @@ enum PromotionDecision {
 enum PromotionActionStatus {
   APPLIED
   REVERSED
+}
+
+// ─── NFC Tag Registry ────────────────────────────────────────────────────────
+
+model NfcTagBatch {
+  id          String   @id @default(uuid()) @db.Uuid
+  schoolId    String   @db.Uuid
+  name        String
+  tagMode     String   // "URL" | "UID"
+  quantity    Int      @default(0)
+  status      String   @default("ACTIVE") // "ACTIVE" | "CLOSED"
+  createdById String?  @db.Uuid
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  school School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  tags   NfcTag[]
+
+  @@index([schoolId])
+  @@index([schoolId, tagMode])
+}
+
+model NfcTag {
+  id          String    @id @default(uuid()) @db.Uuid
+  schoolId    String    @db.Uuid
+  batchId     String?   @db.Uuid
+  publicCode  String    @unique
+  physicalUid String?
+  tagMode     String    @default("URL")    // "URL" | "UID"
+  label       String?
+  type        String    @default("STUDENT")
+  purpose     String    @default("STUDENT")
+  status      String    @default("UNASSIGNED")
+  // status lifecycle:
+  // URL tags:  GENERATED → WRITTEN → VERIFIED → UNALLOCATED → ASSIGNED | DISABLED | LOST
+  // UID tags:  REGISTERED → VERIFIED → UNALLOCATED → ASSIGNED | DISABLED | LOST
+  // Legacy:    UNASSIGNED (= UNALLOCATED), ASSIGNED, DISABLED
+  studentId   String?   @db.Uuid
+  createdById String?   @db.Uuid
+  writtenUrl  String?
+  issuedAt    DateTime?
+  writtenAt   DateTime?
+  verifiedAt  DateTime?
+  assignedAt  DateTime?
+  lastSeenAt  DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  school    School       @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  batch     NfcTagBatch? @relation(fields: [batchId], references: [id], onDelete: SetNull)
+  student   Student?     @relation(fields: [studentId], references: [id], onDelete: SetNull)
+  tapEvents NfcTapEvent[]
+
+  @@index([schoolId])
+  @@index([schoolId, status])
+  @@index([schoolId, studentId])
+  @@index([schoolId, batchId])
+  @@index([schoolId, tagMode, status])
+}
+
+model NfcTapEvent {
+  id         String   @id @default(uuid()) @db.Uuid
+  schoolId   String?  @db.Uuid
+  tagId      String?  @db.Uuid
+  studentId  String?  @db.Uuid
+  publicCode String
+  result     String
+  userAgent  String?
+  ipHash     String?
+  createdAt  DateTime @default(now())
+
+  tag NfcTag? @relation(fields: [tagId], references: [id], onDelete: SetNull)
+
+  @@index([publicCode])
+  @@index([tagId, createdAt])
 }

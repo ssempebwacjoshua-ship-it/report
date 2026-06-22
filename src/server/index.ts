@@ -31,6 +31,8 @@ import { verifyRoutes } from "./routes/verifyRoutes";
 import { ocrRoutes } from "./routes/ocrRoutes";
 import { subscriptionRoutes } from "./routes/subscriptionRoutes";
 import { studentCredentialRoutes } from "./routes/studentCredentialRoutes";
+import { nfcOperationsRoutes, nfcPublicRoutes } from "./routes/nfcOperationsRoutes";
+import { nfcTagsPublicRoutes, nfcTagsRoutes } from "./routes/nfcTagsRoutes";
 import { documentIntelligenceRoutes } from "./routes/documentIntelligenceRoutes";
 import { creatorAuthRoutes } from "./routes/creatorAuthRoutes";
 import { collectionRoutes } from "./routes/collectionRoutes";
@@ -47,6 +49,7 @@ import geminiOcrBenchmarkRoutes from "./routes/geminiOcrBenchmarkRoutes";
 import { prisma } from "./db/prisma";
 import { recoverStaleStudentImportJobs } from "./services/studentImportService";
 import { validateEnv } from "./middleware/validateEnv";
+import { checkNfcWristbandSchema } from "./utils/nfcSchemaCheck";
 
 export function createServer() {
   const app = express();
@@ -76,6 +79,8 @@ export function createServer() {
   app.use(verifyRoutes());
   app.use(parentRoutes());
   app.use(studentsPublicRoutes());
+  app.use(nfcPublicRoutes());
+  app.use(nfcTagsPublicRoutes());
 
   // Document Intelligence Engine ? creator auth accepts both school JWTs and external creator JWTs
   app.use("/api/creator", creatorAuthRoutes());
@@ -113,6 +118,8 @@ export function createServer() {
   app.use(ocrRoutes());
   app.use(subscriptionRoutes());
   app.use(studentCredentialRoutes());
+  app.use(nfcOperationsRoutes());
+  app.use(nfcTagsRoutes());
   app.use(smartPagesBillingRoutes());
   app.use(geminiMarksImportRoutes());
   app.use(promotionRoutes());
@@ -210,6 +217,14 @@ if (process.env.NODE_ENV !== "test") {
   console.log("[startup] Node DNS result order: ipv4first (forced)");
   console.log("[startup] Node version:", process.version);
   void recoverStaleStudentImportJobs(prisma).catch((error) => console.error("Failed to recover stale student import jobs", error));
+  void checkNfcWristbandSchema(prisma).then((status) => {
+    if (!status.ok) {
+      console.warn("[startup] NFC wristband schema incomplete. Missing:", status.missing.join(", "));
+      console.warn("[startup] Fix: npx prisma migrate deploy");
+    } else {
+      console.log("[startup] NFC wristband schema OK");
+    }
+  });
   startBulkGenerationWorker();
   startDocumentExtractionWorker();
   const httpServer = http.createServer(createServer());

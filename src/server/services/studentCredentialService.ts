@@ -1,5 +1,6 @@
 import type { PrismaClient } from "@prisma/client";
 import { CredentialStatus, CredentialType, Prisma } from "@prisma/client";
+import { randomBytes } from "node:crypto";
 import { prisma as defaultPrisma } from "../db/prisma";
 
 export type StudentCredentialContext = {
@@ -16,6 +17,19 @@ type StudentCredentialClient = Pick<PrismaClient, "student" | "studentCredential
 type StudentCredentialDb = StudentCredentialClient & {
   $transaction?: <T>(fn: (tx: StudentCredentialClient) => Promise<T>) => Promise<T>;
 };
+
+// Extended client type used only by amendStudentCredential (requires usage-history counts)
+type CredentialAmendClient = Pick<PrismaClient,
+  | "student"
+  | "studentCredential"
+  | "auditLog"
+  | "studentAttendanceEvent"
+  | "studentWalletTransaction"
+  | "nfcGateScan"
+>;
+
+// Allocation query only needs student (credentials + enrollments are accessed via relations)
+type AllocationDb = Pick<PrismaClient, "student">;
 
 const ACTIVE_STUDENT_CREDENTIAL_MESSAGE = "Student already has an active NFC wristband. Deactivate or mark it lost before issuing another.";
 
@@ -39,6 +53,7 @@ type CredentialWithStudent = {
   studentId: string;
   type: CredentialType;
   credentialUID: string;
+  scanToken: string | null;
   status: CredentialStatus;
   issuedAt: Date;
   deactivatedAt: Date | null;
@@ -48,6 +63,10 @@ type CredentialWithStudent = {
 
 export function normalizeCredentialUID(value: string): string {
   return value.trim().toUpperCase();
+}
+
+export function generateCredentialScanToken(): string {
+  return randomBytes(24).toString("base64url");
 }
 
 function requireSchoolId(ctx: StudentCredentialContext): string {
@@ -85,6 +104,8 @@ function serializeCredential(row: CredentialWithStudent) {
     id: row.id,
     type: row.type,
     credentialUID: row.credentialUID,
+    scanToken: row.scanToken,
+    nfcUrl: row.scanToken ? `/nfc/t/${row.scanToken}` : null,
     status: row.status,
     issuedAt: row.issuedAt.toISOString(),
     deactivatedAt: row.deactivatedAt?.toISOString() ?? null,
@@ -234,6 +255,7 @@ export async function issueStudentCredential(
               issuedAt: new Date(),
               deactivatedAt: null,
               deactivatedReason: null,
+              scanToken: existing.scanToken ?? generateCredentialScanToken(),
               issuedById: ctx.actorId ?? null,
             },
             include: credentialInclude,
@@ -244,6 +266,7 @@ export async function issueStudentCredential(
               studentId: student.id,
               type,
               credentialUID,
+              scanToken: generateCredentialScanToken(),
               issuedById: ctx.actorId ?? null,
             },
             include: credentialInclude,
@@ -333,6 +356,377 @@ export async function deactivateStudentCredential(
   return { credential: serializeCredential(credential as CredentialWithStudent) };
 }
 
+const allocationEnrollmentInclude = {
+  where: { isActive: true, status: "ACTIVE" as const },
+  include: {
+    class: { select: { id: true, name: true } },
+    stream: { select: { id: true, name: true } },
+  },
+  orderBy: { createdAt: "desc" as const },
+  take: 1,
+} as const;
+
+export async function getCredentialAllocation(
+  ctx: StudentCredentialContext,
+  filters: {
+    classId?: string;
+    streamId?: string;
+    status?: "ALL" | "ALLOCATED" | "UNALLOCATED" | "DEACTIVATED";
+    search?: string;
+  } = {},
+  db: AllocationDb = defaultPrisma,
+) {
+  const schoolId = requireSchoolId(ctx);
+  const search = filters.search?.trim();
+
+  const students = await db.student.findMany({
+    where: {
+      schoolId,
+      isActive: true,
+      ...(search
+        ? {
+            OR: [
+              { firstName: { contains: search, mode: "insensitive" as const } },
+              { lastName: { contains: search, mode: "insensitive" as const } },
+              { admissionNumber: { contains: search, mode: "insensitive" as const } },
+            ],
+          }
+        : {}),
+      ...(filters.classId || filters.streamId
+        ? {
+            enrollments: {
+              some: {
+                isActive: true,
+                status: "ACTIVE" as const,
+                ...(filters.classId ? { classId: filters.classId } : {}),
+                ...(filters.streamId ? { streamId: filters.streamId } : {}),
+              },
+            },
+          }
+        : {}),
+    },
+    include: {
+      credentials: { where: { type: CredentialType.NFC_WRISTBAND } },
+      enrollments: allocationEnrollmentInclude,
+    },
+    orderBy: [{ firstName: "asc" }, { lastName: "asc" }],
+  });
+
+  type RawStudent = (typeof students)[number];
+  type RawCred = RawStudent["credentials"][number];
+
+  function serializeAllocationCredential(cred: RawCred, stu: RawStudent) {
+    const enrollment = stu.enrollments[0];
+    return {
+      id: cred.id,
+      type: cred.type as string,
+      credentialUID: cred.credentialUID,
+      scanToken: cred.scanToken,
+      nfcUrl: cred.scanToken ? `/nfc/t/${cred.scanToken}` : null,
+      status: cred.status as string,
+      issuedAt: cred.issuedAt.toISOString(),
+      deactivatedAt: cred.deactivatedAt?.toISOString() ?? null,
+      deactivatedReason: cred.deactivatedReason,
+      student: {
+        id: stu.id,
+        name: getStudentName(stu),
+        admissionNumber: stu.admissionNumber,
+        className: enrollment?.class?.name ?? null,
+        streamName: enrollment?.stream?.name ?? null,
+        isActive: stu.isActive,
+      },
+    };
+  }
+
+  const rows = students.map((stu) => {
+    const activeCred = stu.credentials.find((c) => c.status === CredentialStatus.ACTIVE) ?? null;
+    const deactivatedCount = stu.credentials.filter((c) => c.status === CredentialStatus.DEACTIVATED).length;
+
+    const allocationStatus: "ALLOCATED" | "UNALLOCATED" | "DEACTIVATED" = activeCred
+      ? "ALLOCATED"
+      : deactivatedCount > 0
+      ? "DEACTIVATED"
+      : "UNALLOCATED";
+
+    const enrollment = stu.enrollments[0];
+    return {
+      student: {
+        id: stu.id,
+        name: getStudentName(stu),
+        admissionNumber: stu.admissionNumber,
+        classId: enrollment?.class?.id ?? null,
+        className: enrollment?.class?.name ?? null,
+        streamId: enrollment?.stream?.id ?? null,
+        streamName: enrollment?.stream?.name ?? null,
+        isActive: stu.isActive,
+      },
+      activeCredential: activeCred ? serializeAllocationCredential(activeCred, stu) : null,
+      deactivatedCredentialsCount: deactivatedCount,
+      allocationStatus,
+    };
+  });
+
+  const summary = {
+    totalStudents: rows.length,
+    allocated: rows.filter((r) => r.allocationStatus === "ALLOCATED").length,
+    unallocated: rows.filter((r) => r.allocationStatus === "UNALLOCATED").length,
+    deactivated: rows.filter((r) => r.allocationStatus === "DEACTIVATED").length,
+  };
+
+  const filteredRows =
+    filters.status && filters.status !== "ALL"
+      ? rows.filter((r) => r.allocationStatus === filters.status)
+      : rows;
+
+  return { summary, rows: filteredRows };
+}
+
+export async function bulkAllocateCredentials(
+  ctx: StudentCredentialContext,
+  input: { reason: string; assignments: Array<{ studentId: string; credentialUID: string }> },
+  db: StudentCredentialDb = defaultPrisma,
+) {
+  const schoolId = requireSchoolId(ctx);
+  const cleanReason = input.reason.trim();
+  if (!cleanReason) throw Object.assign(new Error("Reason is required."), { status: 400 });
+  if (!input.assignments?.length) throw Object.assign(new Error("At least one assignment is required."), { status: 400 });
+
+  // Validate and normalize UIDs up front (before any DB access)
+  const normalized = input.assignments.map((a, i) => {
+    const trimmed = a.credentialUID?.trim() ?? "";
+    if (!trimmed) throw Object.assign(new Error(`Row ${i + 1}: Wristband UID is required.`), { status: 400 });
+    const lower = trimmed.toLowerCase();
+    if (lower.startsWith("http://") || lower.startsWith("https://")) {
+      throw Object.assign(new Error(`Row ${i + 1}: Wristband UID must not be a URL.`), { status: 400 });
+    }
+    return { studentId: a.studentId, credentialUID: normalizeCredentialUID(trimmed) };
+  });
+
+  // Detect intra-request duplicate UIDs
+  const seenUIDs = new Set<string>();
+  for (const a of normalized) {
+    if (seenUIDs.has(a.credentialUID)) {
+      throw Object.assign(new Error(`Duplicate wristband UID in request: ${a.credentialUID}`), { status: 400 });
+    }
+    seenUIDs.add(a.credentialUID);
+  }
+
+  // Detect intra-request duplicate student IDs
+  const seenStudents = new Set<string>();
+  for (const a of normalized) {
+    if (seenStudents.has(a.studentId)) {
+      throw Object.assign(new Error(`Duplicate studentId in request: ${a.studentId}`), { status: 400 });
+    }
+    seenStudents.add(a.studentId);
+  }
+
+  try {
+    return await runCredentialWrite(db, async (tx) => {
+      const results: CredentialWithStudent[] = [];
+
+      for (const { studentId, credentialUID } of normalized) {
+        const student = await tx.student.findFirst({
+          where: { id: studentId, schoolId },
+          select: {
+            id: true,
+            admissionNumber: true,
+            firstName: true,
+            lastName: true,
+            isActive: true,
+            enrollments: studentInclude.enrollments,
+          },
+        });
+        if (!student) {
+          throw Object.assign(new Error(`Student ${studentId} not found for this school.`), { status: 404 });
+        }
+        if (!student.isActive) {
+          throw Object.assign(
+            new Error(`Student ${getStudentName(student)} is not active.`),
+            { status: 400 },
+          );
+        }
+
+        const existingByUID = await tx.studentCredential.findUnique({
+          where: { schoolId_type_credentialUID: { schoolId, type: CredentialType.NFC_WRISTBAND, credentialUID } },
+          include: credentialInclude,
+        });
+        if (existingByUID?.status === CredentialStatus.ACTIVE) {
+          throw Object.assign(
+            new Error(`Wristband UID ${credentialUID} is already registered to another student.`),
+            { status: 409 },
+          );
+        }
+
+        const activeForStudent = await tx.studentCredential.findFirst({
+          where: {
+            schoolId,
+            studentId,
+            type: CredentialType.NFC_WRISTBAND,
+            status: CredentialStatus.ACTIVE,
+          },
+        });
+        if (activeForStudent) {
+          throw Object.assign(
+            new Error(`${getStudentName(student)}: ${ACTIVE_STUDENT_CREDENTIAL_MESSAGE}`),
+            { status: 409 },
+          );
+        }
+
+        const credential = existingByUID
+          ? await tx.studentCredential.update({
+              where: { id: existingByUID.id },
+              data: {
+                studentId,
+                status: CredentialStatus.ACTIVE,
+                issuedAt: new Date(),
+                deactivatedAt: null,
+                deactivatedReason: null,
+                scanToken: existingByUID.scanToken ?? generateCredentialScanToken(),
+                issuedById: ctx.actorId ?? null,
+              },
+              include: credentialInclude,
+            })
+          : await tx.studentCredential.create({
+              data: {
+                schoolId,
+                studentId,
+                type: CredentialType.NFC_WRISTBAND,
+                credentialUID,
+                scanToken: generateCredentialScanToken(),
+                issuedById: ctx.actorId ?? null,
+              },
+              include: credentialInclude,
+            });
+
+        results.push(credential as CredentialWithStudent);
+      }
+
+      await auditCredentialAction(tx, ctx, "student_credential.bulk_allocated", {
+        reason: cleanReason,
+        count: results.length,
+        credentialIds: results.map((c) => c.id),
+      });
+
+      return { credentials: results.map(serializeCredential) };
+    });
+  } catch (error) {
+    const mapped = mapUniqueCredentialError(error);
+    if (mapped) throw mapped;
+    throw error;
+  }
+}
+
+export async function amendStudentCredential(
+  ctx: StudentCredentialContext,
+  credentialId: string,
+  input: { studentId?: string; credentialUID?: string; reason: string },
+  db: CredentialAmendClient = defaultPrisma,
+) {
+  const schoolId = requireSchoolId(ctx);
+  const cleanReason = input.reason.trim();
+  if (!cleanReason) throw Object.assign(new Error("Amendment reason is required."), { status: 400 });
+
+  if (input.studentId === undefined && input.credentialUID === undefined) {
+    throw Object.assign(new Error("Provide studentId or credentialUID to amend."), { status: 400 });
+  }
+
+  // Validate UID before normalizing
+  if (input.credentialUID !== undefined) {
+    const trimmed = input.credentialUID.trim();
+    if (!trimmed) throw Object.assign(new Error("Wristband UID cannot be empty."), { status: 400 });
+    const lower = trimmed.toLowerCase();
+    if (lower.startsWith("http://") || lower.startsWith("https://")) {
+      throw Object.assign(new Error("Wristband UID must not be a URL."), { status: 400 });
+    }
+  }
+  const newUID = input.credentialUID !== undefined ? normalizeCredentialUID(input.credentialUID) : undefined;
+
+  const credential = await db.studentCredential.findFirst({
+    where: { id: credentialId, schoolId },
+    include: credentialInclude,
+  });
+  if (!credential) throw Object.assign(new Error("Credential not found for this school."), { status: 404 });
+
+  const oldStudentId = credential.studentId;
+  const oldCredentialUID = credential.credentialUID;
+  const changingStudent = input.studentId !== undefined && input.studentId !== oldStudentId;
+
+  if (changingStudent) {
+    // Block if this wristband already has any usage history
+    const [attendanceCount, walletCount, gateCount] = await Promise.all([
+      db.studentAttendanceEvent.count({ where: { credentialId } }),
+      db.studentWalletTransaction.count({ where: { credentialId } }),
+      db.nfcGateScan.count({ where: { credentialId } }),
+    ]);
+    if (attendanceCount > 0 || walletCount > 0 || gateCount > 0) {
+      throw Object.assign(
+        new Error("This wristband already has activity. Deactivate it and issue a new wristband instead."),
+        { status: 409 },
+      );
+    }
+
+    const newStudent = await db.student.findFirst({
+      where: { id: input.studentId, schoolId },
+      select: { id: true, isActive: true },
+    });
+    if (!newStudent) throw Object.assign(new Error("Student not found for this school."), { status: 404 });
+    if (!newStudent.isActive) throw Object.assign(new Error("Cannot assign to an inactive student."), { status: 400 });
+
+    // Prevent target student from having another active wristband
+    const targetHasActive = await db.studentCredential.findFirst({
+      where: {
+        schoolId,
+        studentId: input.studentId,
+        type: credential.type as CredentialType,
+        status: CredentialStatus.ACTIVE,
+        NOT: { id: credentialId },
+      },
+    });
+    if (targetHasActive) {
+      throw Object.assign(new Error(ACTIVE_STUDENT_CREDENTIAL_MESSAGE), { status: 409 });
+    }
+  }
+
+  if (newUID !== undefined && newUID !== oldCredentialUID) {
+    // Block if another active wristband in this school already uses that UID
+    const duplicate = await db.studentCredential.findFirst({
+      where: {
+        schoolId,
+        type: credential.type as CredentialType,
+        credentialUID: newUID,
+        status: CredentialStatus.ACTIVE,
+        NOT: { id: credentialId },
+      },
+    });
+    if (duplicate) {
+      throw Object.assign(
+        new Error("This NFC wristband is already active for a student in this school."),
+        { status: 409 },
+      );
+    }
+  }
+
+  const updated = await db.studentCredential.update({
+    where: { id: credentialId },
+    data: {
+      ...(changingStudent ? { studentId: input.studentId } : {}),
+      ...(newUID !== undefined ? { credentialUID: newUID } : {}),
+    },
+    include: credentialInclude,
+  });
+
+  await auditCredentialAction(db, ctx, "student_credential.amended", {
+    credentialId,
+    oldStudentId,
+    newStudentId: changingStudent ? input.studentId : oldStudentId,
+    oldCredentialUID,
+    newCredentialUID: newUID ?? oldCredentialUID,
+    reason: cleanReason,
+  });
+
+  return { credential: serializeCredential(updated as CredentialWithStudent) };
+}
+
 export async function scanStudentCredential(
   ctx: StudentCredentialContext,
   input: { credentialUID: string; context?: CredentialScanContext; type?: CredentialType },
@@ -355,6 +749,8 @@ export async function scanStudentCredential(
       credential: {
         id: credential.id,
         credentialUID: credential.credentialUID,
+        scanToken: credential.scanToken,
+        nfcUrl: credential.scanToken ? `/nfc/t/${credential.scanToken}` : null,
         issuedAt: credential.issuedAt.toISOString(),
       },
     };
@@ -366,6 +762,8 @@ export async function scanStudentCredential(
       credential: {
         id: credential.id,
         credentialUID: credential.credentialUID,
+        scanToken: credential.scanToken,
+        nfcUrl: credential.scanToken ? `/nfc/t/${credential.scanToken}` : null,
         issuedAt: credential.issuedAt.toISOString(),
       },
     };
@@ -376,6 +774,8 @@ export async function scanStudentCredential(
     credential: {
       id: credential.id,
       credentialUID: credential.credentialUID,
+      scanToken: credential.scanToken,
+      nfcUrl: credential.scanToken ? `/nfc/t/${credential.scanToken}` : null,
       issuedAt: credential.issuedAt.toISOString(),
     },
   };

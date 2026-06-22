@@ -1,0 +1,248 @@
+import { Router } from "express";
+import { z } from "zod";
+import { verifyToken } from "../services/authService";
+import {
+  assignTag,
+  disableTag,
+  generateTags,
+  getTagEvents,
+  listTags,
+  resolvePublicCode,
+  unassignTag,
+  type NfcTagsContext,
+} from "../services/nfcTagsService";
+import {
+  amendTag,
+  bulkAllocateFromInventory,
+  bulkImportUids,
+  createUrlTagBatch,
+  listTagBatches,
+  listTagInventory,
+  verifyTag,
+} from "../services/nfcTagBatchService";
+
+const generateSchema = z.object({
+  count: z.coerce.number().int().min(1).max(100).default(1),
+});
+
+const assignSchema = z
+  .object({
+    studentId: z.string().uuid("studentId must be a valid UUID.").optional(),
+    admissionNumber: z.string().min(1).optional(),
+  })
+  .refine((v) => v.studentId || v.admissionNumber, {
+    message: "Provide studentId or admissionNumber.",
+  });
+
+const listFiltersSchema = z.object({
+  search: z.string().optional(),
+  status: z.string().optional(),
+});
+
+const createUrlBatchSchema = z.object({
+  name: z.string().min(1, "Batch name is required."),
+  quantity: z.coerce.number().int().min(1).max(500),
+  labelPrefix: z.string().optional(),
+});
+
+const bulkImportUidsSchema = z.object({
+  batchName: z.string().min(1, "Batch name is required."),
+  uids: z.array(z.string().min(1)).min(1, "At least one UID is required."),
+  reason: z.string().optional(),
+});
+
+const inventoryFiltersSchema = z.object({
+  batchId: z.string().uuid().optional(),
+  tagMode: z.enum(["URL", "UID"]).optional(),
+  status: z.string().optional(),
+  search: z.string().optional(),
+});
+
+const amendTagSchema = z.object({
+  label: z.string().optional(),
+  physicalUid: z.string().optional(),
+  status: z.string().optional(),
+  reason: z.string().min(1, "Reason is required."),
+});
+
+const bulkAllocateInventorySchema = z.object({
+  assignments: z
+    .array(
+      z.object({
+        tagId: z.string().uuid(),
+        studentId: z.string().uuid(),
+      }),
+    )
+    .min(1),
+  reason: z.string().min(1, "Reason is required."),
+});
+
+function ctx(req: Express.Request): NfcTagsContext {
+  return {
+    schoolId: req.school?.id,
+    actorId: req.user?.userId,
+    role: req.user?.role,
+  };
+}
+
+function authPayloadFromHeader(authHeader: string | undefined) {
+  const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
+  try {
+    return token ? verifyToken(token) : null;
+  } catch {
+    return null;
+  }
+}
+
+function getBaseUrl(req: Express.Request): string {
+  const proto = (req.headers["x-forwarded-proto"] as string) ?? req.protocol ?? "https";
+  const host = (req.headers["x-forwarded-host"] as string) ?? req.get("host") ?? "localhost";
+  return `${proto}://${host}`;
+}
+
+/** Public route — no school context, no auth required. Mount BEFORE resolveSchoolContext. */
+export function nfcTagsPublicRoutes() {
+  const router = Router();
+
+  router.get("/api/nfc/resolve/:publicCode", async (req, res, next) => {
+    try {
+      const auth = authPayloadFromHeader(req.headers.authorization);
+      const result = await resolvePublicCode(
+        req.params.publicCode,
+        {
+          userAgent: req.headers["user-agent"],
+          ip: req.ip ?? req.socket.remoteAddress,
+          isAuthenticated: !!auth,
+        },
+      );
+      res.json(result);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  return router;
+}
+
+/** Protected routes — mount AFTER resolveSchoolContext. */
+export function nfcTagsRoutes() {
+  const router = Router();
+
+  // ── Batches ───────────────────────────────────────────────────────────────
+
+  router.get("/api/nfc/tag-batches", async (req, res, next) => {
+    try {
+      const { tagMode } = z.object({ tagMode: z.enum(["URL", "UID"]).optional() }).parse(req.query);
+      res.json(await listTagBatches(ctx(req), { tagMode }));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/api/nfc/tag-batches", async (req, res, next) => {
+    try {
+      const input = createUrlBatchSchema.parse(req.body);
+      res.status(201).json(await createUrlTagBatch(ctx(req), { ...input, baseUrl: getBaseUrl(req) }));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // ── Static tag sub-routes (must be before /:id) ───────────────────────────
+
+  router.get("/api/nfc/tags/inventory", async (req, res, next) => {
+    try {
+      res.json(await listTagInventory(ctx(req), inventoryFiltersSchema.parse(req.query)));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/api/nfc/tags/generate", async (req, res, next) => {
+    try {
+      const { count } = generateSchema.parse(req.body);
+      res.status(201).json(await generateTags(ctx(req), count, getBaseUrl(req)));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/api/nfc/tags/bulk-import-uids", async (req, res, next) => {
+    try {
+      res.status(201).json(await bulkImportUids(ctx(req), bulkImportUidsSchema.parse(req.body)));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/api/nfc/tags/bulk-allocate", async (req, res, next) => {
+    try {
+      res.status(201).json(
+        await bulkAllocateFromInventory(ctx(req), bulkAllocateInventorySchema.parse(req.body)),
+      );
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // ── Per-tag routes (/:id) ─────────────────────────────────────────────────
+
+  router.get("/api/nfc/tags", async (req, res, next) => {
+    try {
+      res.json(await listTags(ctx(req), listFiltersSchema.parse(req.query)));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.patch("/api/nfc/tags/:id/assign", async (req, res, next) => {
+    try {
+      const assignment = assignSchema.parse(req.body);
+      res.json(await assignTag(ctx(req), req.params.id, assignment));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.patch("/api/nfc/tags/:id/unassign", async (req, res, next) => {
+    try {
+      res.json(await unassignTag(ctx(req), req.params.id));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.patch("/api/nfc/tags/:id/disable", async (req, res, next) => {
+    try {
+      res.json(await disableTag(ctx(req), req.params.id));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.patch("/api/nfc/tags/:id/verify", async (req, res, next) => {
+    try {
+      res.json(await verifyTag(ctx(req), req.params.id));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.patch("/api/nfc/tags/:id/amend", async (req, res, next) => {
+    try {
+      res.json(await amendTag(ctx(req), req.params.id, amendTagSchema.parse(req.body)));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.get("/api/nfc/tags/:id/events", async (req, res, next) => {
+    try {
+      res.json(await getTagEvents(ctx(req), req.params.id));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  return router;
+}

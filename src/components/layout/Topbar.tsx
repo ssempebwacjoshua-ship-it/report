@@ -18,7 +18,7 @@ export function Topbar({ onMenuClick }: Props) {
     navigate("/login", { replace: true });
   }
 
-  function switchProduct(nextProduct: "reportLab" | "smartPages") {
+  function switchProduct(nextProduct: "reportLab" | "smartPages" | "nfc") {
     navigate(productSwitcherItems[nextProduct].to);
   }
 
@@ -59,6 +59,17 @@ export function Topbar({ onMenuClick }: Props) {
             }`}
           >
             Smart Pages
+          </button>
+          <button
+            type="button"
+            onClick={() => switchProduct("nfc")}
+            className={`rounded-full px-3 py-1.5 text-xs font-black transition ${
+              currentProduct === "nfc"
+                ? "bg-white text-[color:var(--sc-primary)] shadow-sm"
+                : "text-white hover:bg-white/10 hover:text-white"
+            }`}
+          >
+            NFC
           </button>
         </div>
 

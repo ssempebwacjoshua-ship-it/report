@@ -1,7 +1,7 @@
 ﻿import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../db/prisma";
-import { signToken, verifyPassword, verifyToken } from "../services/authService";
+import { signToken, verifyPassword, verifyToken, type SchoolUserRole } from "../services/authService";
 
 const loginSchema = z.object({
   email: z.string().email("Enter a valid email address."),
@@ -17,7 +17,7 @@ export function authRoutes() {
       console.log("auth.login.request");
       const { email, password, schoolCode } = loginSchema.parse(req.body);
 
-      let user: { id: string; schoolId: string; name: string; email: string; role: "ADMIN_OPERATOR"; passwordHash: string; isActive: boolean; isPlatformOwner: boolean } | null = null;
+      let user: { id: string; schoolId: string; name: string; email: string; role: SchoolUserRole; passwordHash: string; isActive: boolean; isPlatformOwner: boolean } | null = null;
 
       if (schoolCode === "PLATFORM") {
         // Platform owner login: look up by email across all schools, must have isPlatformOwner

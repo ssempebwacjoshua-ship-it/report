@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
+  amendStudentCredential,
   deactivateStudentCredential,
   fetchStudentCredentials,
   issueStudentCredential,
@@ -37,6 +38,11 @@ export function StudentCredentialsPage() {
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
+  const [amendTarget, setAmendTarget] = useState<StudentCredential | null>(null);
+  const [amendStudentId, setAmendStudentId] = useState("");
+  const [amendUID, setAmendUID] = useState("");
+  const [amendReason, setAmendReason] = useState("");
+  const [amendLoading, setAmendLoading] = useState(false);
 
   const activeStudents = useMemo(() => students.filter((student) => student.isActive), [students]);
   const selectedActiveCredential = useMemo(
@@ -82,16 +88,29 @@ export function StudentCredentialsPage() {
   async function handleIssue() {
     setError("");
     setNotice("");
+
+    if (!selectedStudentId) {
+      setError("Select a student first.");
+      return;
+    }
+
+    if (selectedActiveCredential) {
+      setError("Student already has an active NFC wristband. Deactivate or mark it lost before issuing another.");
+      return;
+    }
+
     try {
-      if (!selectedStudentId) throw new Error("Select a student first.");
-      if (selectedActiveCredential) {
-        throw new Error("Student already has an active NFC wristband. Deactivate or mark it lost before issuing another.");
-      }
-      await issueStudentCredential({ studentId: selectedStudentId, credentialUID: issueUID });
+      const result = await issueStudentCredential({ studentId: selectedStudentId, credentialUID: issueUID });
       setIssueUID("");
       setNotice("NFC wristband registered.");
-      await loadCredentials();
+      setCredentials((current) => [result.credential, ...current.filter((c) => c.id !== result.credential.id)]);
       issueInputRef.current?.focus();
+
+      try {
+        await loadCredentials();
+      } catch {
+        setError("Wristband registered, but the list could not refresh. Reload the page.");
+      }
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Could not register NFC wristband");
     }
@@ -107,6 +126,51 @@ export function StudentCredentialsPage() {
       scanInputRef.current?.focus();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Could not scan NFC wristband");
+    }
+  }
+
+  function openAmend(credential: StudentCredential) {
+    setAmendTarget(credential);
+    setAmendStudentId(credential.student.id);
+    setAmendUID(credential.credentialUID);
+    setAmendReason("");
+    setError("");
+    setNotice("");
+  }
+
+  function closeAmend() {
+    setAmendTarget(null);
+    setAmendStudentId("");
+    setAmendUID("");
+    setAmendReason("");
+  }
+
+  async function handleAmend() {
+    if (!amendTarget) return;
+    setAmendLoading(true);
+    setError("");
+    setNotice("");
+    try {
+      const result = await amendStudentCredential(amendTarget.id, {
+        studentId: amendStudentId !== amendTarget.student.id ? amendStudentId : undefined,
+        credentialUID: amendUID !== amendTarget.credentialUID ? amendUID : undefined,
+        reason: amendReason,
+      });
+      setCredentials((current) =>
+        current.map((c) => (c.id === result.credential.id ? result.credential : c)),
+      );
+      setNotice("NFC wristband amended.");
+      closeAmend();
+
+      try {
+        await loadCredentials();
+      } catch {
+        setError("Wristband amended, but the list could not refresh. Reload the page.");
+      }
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Could not amend NFC wristband");
+    } finally {
+      setAmendLoading(false);
     }
   }
 
@@ -263,7 +327,10 @@ export function StudentCredentialsPage() {
                       {credential.student.admissionNumber} - {credential.student.className ?? "No class"} / {credential.student.streamName ?? "No stream"}
                     </p>
                   </td>
-                  <td className="border-y border-slate-200 px-3 py-3 font-mono font-bold text-slate-800">{credential.credentialUID}</td>
+                  <td className="border-y border-slate-200 px-3 py-3">
+                    <p className="font-mono font-bold text-slate-800">{credential.credentialUID}</p>
+                    {credential.nfcUrl ? <p className="mt-1 break-all font-mono text-xs text-slate-500">Tag URL: {credential.nfcUrl}</p> : null}
+                  </td>
                   <td className="border-y border-slate-200 px-3 py-3">
                     <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-bold ${statusTone(credential.status)}`}>{credential.status}</span>
                     {credential.deactivatedReason ? <p className="mt-1 text-xs text-slate-500">{credential.deactivatedReason}</p> : null}
@@ -271,15 +338,24 @@ export function StudentCredentialsPage() {
                   <td className="border-y border-slate-200 px-3 py-3 text-slate-600">{new Date(credential.issuedAt).toLocaleDateString()}</td>
                   <td className="rounded-r-xl border-y border-r border-slate-200 px-3 py-3">
                     {credential.status === "ACTIVE" ? (
-                      <div className="flex min-w-[260px] gap-2">
-                        <input
-                          className={inputClass}
-                          value={deactivationReason[credential.id] ?? ""}
-                          onChange={(event) => setDeactivationReason((current) => ({ ...current, [credential.id]: event.target.value }))}
-                          placeholder="Reason required"
-                        />
-                        <button type="button" className="btn btn-danger-light" onClick={() => void handleDeactivate(credential.id)}>
-                          Deactivate
+                      <div className="grid gap-2">
+                        <div className="flex min-w-[260px] gap-2">
+                          <input
+                            className={inputClass}
+                            value={deactivationReason[credential.id] ?? ""}
+                            onChange={(event) => setDeactivationReason((current) => ({ ...current, [credential.id]: event.target.value }))}
+                            placeholder="Reason required"
+                          />
+                          <button type="button" className="btn btn-danger-light" onClick={() => void handleDeactivate(credential.id)}>
+                            Deactivate
+                          </button>
+                        </div>
+                        <button
+                          type="button"
+                          className="btn btn-secondary justify-self-start text-xs"
+                          onClick={() => openAmend(credential)}
+                        >
+                          Amend
                         </button>
                       </div>
                     ) : (
@@ -299,6 +375,73 @@ export function StudentCredentialsPage() {
           </table>
         </div>
       </section>
+      {amendTarget ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
+            <h2 className="text-base font-bold text-slate-950">Amend NFC Wristband</h2>
+            <p className="mt-1 text-sm text-slate-500">
+              Current UID: <span className="font-mono font-bold text-slate-800">{amendTarget.credentialUID}</span>
+              {" · "}
+              {amendTarget.student.name}
+            </p>
+
+            {error ? (
+              <div className="mt-3 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>
+            ) : null}
+
+            <div className="mt-4 grid gap-3">
+              <label className="grid gap-1 text-xs font-bold uppercase text-slate-500">
+                Student
+                <select
+                  className={inputClass}
+                  value={amendStudentId}
+                  onChange={(event) => setAmendStudentId(event.target.value)}
+                >
+                  {activeStudents.map((student) => (
+                    <option key={student.id} value={student.id}>
+                      {studentLabel(student)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="grid gap-1 text-xs font-bold uppercase text-slate-500">
+                Wristband UID
+                <input
+                  className={`${inputClass} font-mono uppercase`}
+                  value={amendUID}
+                  onChange={(event) => setAmendUID(event.target.value)}
+                  placeholder="Wristband UID"
+                />
+              </label>
+
+              <label className="grid gap-1 text-xs font-bold uppercase text-slate-500">
+                Amendment reason
+                <input
+                  className={inputClass}
+                  value={amendReason}
+                  onChange={(event) => setAmendReason(event.target.value)}
+                  placeholder="Required"
+                />
+              </label>
+            </div>
+
+            <div className="mt-5 flex gap-2">
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={() => void handleAmend()}
+                disabled={amendLoading || !amendReason.trim()}
+              >
+                {amendLoading ? "Saving…" : "Save"}
+              </button>
+              <button type="button" className="btn btn-secondary" onClick={closeAmend} disabled={amendLoading}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </main>
   );
 }
