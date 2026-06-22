@@ -1,13 +1,13 @@
 {
-  "name": "School Connect Reports",
-  "short_name": "Reports",
-  "description": "School reports, marks and parent communication",
+  "name": "SSAMENJ Technologies",
+  "short_name": "SSAMENJ",
+  "description": "School Connect — Report Lab and Smart Pages for schools",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait-primary",
-  "theme_color": "#172554",
-  "background_color": "#f8fafc",
+  "theme_color": "#0B5CFF",
+  "background_color": "#ffffff",
   "icons": [
     {
       "src": "/icons/icon-192.png",

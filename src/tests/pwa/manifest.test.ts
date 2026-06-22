@@ -14,8 +14,8 @@ describe("PWA manifest", () => {
 
   it("has the required fields", () => {
     const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
-    expect(manifest.name).toBe("School Connect Reports");
-    expect(manifest.short_name).toBe("Reports");
+    expect(manifest.name).toBe("SSAMENJ Technologies");
+    expect(manifest.short_name).toBe("SSAMENJ");
     expect(manifest.display).toBe("standalone");
     expect(manifest.start_url).toBe("/");
     expect(manifest.scope).toBe("/");
