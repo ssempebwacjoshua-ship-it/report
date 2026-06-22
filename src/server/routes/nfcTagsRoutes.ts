@@ -8,6 +8,7 @@ import {
   getTagEvents,
   listTags,
   resolvePublicCode,
+  unassignTag,
   type NfcTagsContext,
 } from "../services/nfcTagsService";
 
