@@ -82,16 +82,29 @@ export function StudentCredentialsPage() {
   async function handleIssue() {
     setError("");
     setNotice("");
+
+    if (!selectedStudentId) {
+      setError("Select a student first.");
+      return;
+    }
+
+    if (selectedActiveCredential) {
+      setError("Student already has an active NFC wristband. Deactivate or mark it lost before issuing another.");
+      return;
+    }
+
     try {
-      if (!selectedStudentId) throw new Error("Select a student first.");
-      if (selectedActiveCredential) {
-        throw new Error("Student already has an active NFC wristband. Deactivate or mark it lost before issuing another.");
-      }
-      await issueStudentCredential({ studentId: selectedStudentId, credentialUID: issueUID });
+      const result = await issueStudentCredential({ studentId: selectedStudentId, credentialUID: issueUID });
       setIssueUID("");
       setNotice("NFC wristband registered.");
-      await loadCredentials();
+      setCredentials((current) => [result.credential, ...current.filter((c) => c.id !== result.credential.id)]);
       issueInputRef.current?.focus();
+
+      try {
+        await loadCredentials();
+      } catch {
+        setError("Wristband registered, but the list could not refresh. Reload the page.");
+      }
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Could not register NFC wristband");
     }

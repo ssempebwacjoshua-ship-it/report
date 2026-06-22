@@ -49,6 +49,7 @@ import geminiOcrBenchmarkRoutes from "./routes/geminiOcrBenchmarkRoutes";
 import { prisma } from "./db/prisma";
 import { recoverStaleStudentImportJobs } from "./services/studentImportService";
 import { validateEnv } from "./middleware/validateEnv";
+import { checkNfcWristbandSchema } from "./utils/nfcSchemaCheck";
 
 export function createServer() {
   const app = express();
@@ -216,6 +217,14 @@ if (process.env.NODE_ENV !== "test") {
   console.log("[startup] Node DNS result order: ipv4first (forced)");
   console.log("[startup] Node version:", process.version);
   void recoverStaleStudentImportJobs(prisma).catch((error) => console.error("Failed to recover stale student import jobs", error));
+  void checkNfcWristbandSchema(prisma).then((status) => {
+    if (!status.ok) {
+      console.warn("[startup] NFC wristband schema incomplete. Missing:", status.missing.join(", "));
+      console.warn("[startup] Fix: npx prisma migrate deploy");
+    } else {
+      console.log("[startup] NFC wristband schema OK");
+    }
+  });
   startBulkGenerationWorker();
   startDocumentExtractionWorker();
   const httpServer = http.createServer(createServer());

@@ -1,5 +1,5 @@
 import { CredentialStatus, CredentialType } from "@prisma/client";
-import { Router } from "express";
+import { Router, type ErrorRequestHandler } from "express";
 import { z } from "zod";
 import {
   deactivateStudentCredential,
@@ -8,6 +8,7 @@ import {
   scanStudentCredential,
   type CredentialScanContext,
 } from "../services/studentCredentialService";
+import { isPrismaSchemaMissingError } from "../utils/nfcSchemaCheck";
 
 const issueSchema = z.object({
   studentId: z.string().uuid(),
@@ -90,6 +91,21 @@ export function studentCredentialRoutes() {
       next(error);
     }
   });
+
+  // Convert Prisma "table/column does not exist" errors to a clear 503
+  // so callers know to run the repair migration rather than seeing a generic 500.
+  const schemaMissingHandler: ErrorRequestHandler = (error, _req, res, next) => {
+    const missing = isPrismaSchemaMissingError(error);
+    if (missing) {
+      res.status(503).json({
+        error: "NFC wristband schema not ready",
+        detail: `Missing ${missing.missing}. Run: npx prisma migrate deploy`,
+      });
+      return;
+    }
+    next(error);
+  };
+  router.use(schemaMissingHandler);
 
   return router;
 }
