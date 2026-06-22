@@ -15,7 +15,7 @@ import { normalizeCredentialUID } from "./studentCredentialService";
 
 type NfcOperationsClient = Pick<
   PrismaClient,
-  "student" | "studentCredential" | "studentWallet" | "studentWalletTransaction" | "studentAttendanceEvent" | "nfcGateScan"
+  "student" | "studentCredential" | "studentWallet" | "studentWalletTransaction" | "studentAttendanceEvent" | "nfcGateScan" | "auditLog"
 > & {
   $transaction?: <T>(fn: (tx: NfcOperationsClient) => Promise<T>) => Promise<T>;
 };
@@ -432,6 +432,162 @@ export async function scanGate(ctx: NfcOperationsContext, input: { tokenOrUid: s
     credentialStatus: credential?.status ?? "UNKNOWN",
     todayAttendanceStatus: lastAttendance?.direction ?? "NONE",
   };
+}
+
+const TOP_UP_ALLOWED_ROLES = ["CANTEEN", "CASHIER"] as const;
+
+async function resolveStudentAndCredential(
+  db: NfcOperationsClient,
+  schoolId: string,
+  input: { studentId?: string | null; admissionNumber?: string | null; tokenOrUid?: string | null },
+): Promise<{ student: StudentForNfc; credentialId?: string }> {
+  if (input.tokenOrUid) {
+    const credential = await findCredential(db, schoolId, input.tokenOrUid);
+    const reason = blockedReason(credential);
+    if (!credential) throw Object.assign(new Error("NFC wristband not found in this school."), { status: 404 });
+    if (reason && reason !== "inactive student") throw Object.assign(new Error(`NFC wristband is ${reason}.`), { status: 400 });
+    if (!credential.student.isActive) throw Object.assign(new Error("Student is inactive."), { status: 400 });
+    return { student: credential.student, credentialId: credential.id };
+  }
+  if (input.admissionNumber) {
+    const found = await db.student.findFirst({
+      where: { schoolId, admissionNumber: input.admissionNumber.trim(), isActive: true },
+      include: { enrollments: studentInclude.enrollments },
+    });
+    if (!found) throw Object.assign(new Error("Student not found in this school."), { status: 404 });
+    return { student: found as StudentForNfc };
+  }
+  if (input.studentId) {
+    const found = await db.student.findFirst({
+      where: { id: input.studentId, schoolId, isActive: true },
+      include: { enrollments: studentInclude.enrollments },
+    });
+    if (!found) throw Object.assign(new Error("Student not found."), { status: 404 });
+    return { student: found as StudentForNfc };
+  }
+  throw Object.assign(new Error("Provide studentId, admissionNumber, or tokenOrUid."), { status: 400 });
+}
+
+export async function resolveWalletStudent(
+  ctx: NfcOperationsContext,
+  input: { studentId?: string; admissionNumber?: string; tokenOrUid?: string },
+  db: NfcOperationsClient = defaultPrisma,
+) {
+  const schoolId = requireSchoolId(ctx);
+  requireRole(ctx, [...TOP_UP_ALLOWED_ROLES]);
+  const { student, credentialId } = await resolveStudentAndCredential(db, schoolId, input);
+  const wallet = await db.studentWallet.findFirst({ where: { studentId: student.id, schoolId } });
+  return {
+    student: studentSummary(student),
+    wallet: wallet ? { id: wallet.id, balanceCents: wallet.balanceCents, status: wallet.status } : null,
+    credentialId: credentialId ?? null,
+  };
+}
+
+export type WalletTopUpInput = {
+  studentId?: string;
+  admissionNumber?: string;
+  tokenOrUid?: string;
+  amountUgx: number;
+  paymentMethod: "CASH" | "MOBILE_MONEY" | "BANK" | "MANUAL_ADJUSTMENT";
+  reference?: string;
+  notes?: string;
+  idempotencyKey?: string;
+};
+
+export async function topUpWallet(
+  ctx: NfcOperationsContext,
+  input: WalletTopUpInput,
+  db: NfcOperationsClient = defaultPrisma,
+) {
+  const schoolId = requireSchoolId(ctx);
+  requireRole(ctx, [...TOP_UP_ALLOWED_ROLES]);
+  const amountCents = Math.round(input.amountUgx * 100);
+  if (!Number.isFinite(amountCents) || amountCents <= 0) {
+    throw Object.assign(new Error("Top-up amount must be greater than zero."), { status: 400 });
+  }
+
+  const { student, credentialId } = await resolveStudentAndCredential(db, schoolId, input);
+  const studentId = student.id;
+
+  const ikey = input.idempotencyKey?.trim() || null;
+
+  return runWrite(db, async (tx) => {
+    // Idempotency: return existing transaction if duplicate key
+    if (ikey) {
+      const existing = await tx.studentWalletTransaction.findUnique({
+        where: { schoolId_idempotencyKey: { schoolId, idempotencyKey: ikey } },
+      });
+      if (existing) {
+        const wallet = await tx.studentWallet.findFirst({ where: { studentId, schoolId } });
+        return {
+          ok: true,
+          duplicate: true,
+          transaction: { id: existing.id, amountCents: existing.amountCents, paymentMethod: existing.paymentMethod, reference: existing.reference, createdAt: existing.createdAt.toISOString() },
+          student: studentSummary(student),
+          wallet: wallet ? { id: wallet.id, balanceCents: wallet.balanceCents, status: wallet.status } : null,
+        };
+      }
+    }
+
+    const walletSnap = await tx.studentWallet.upsert({
+      where: { studentId },
+      create: { schoolId, studentId, balanceCents: 0 },
+      update: {},
+    });
+    const balanceBefore = walletSnap.balanceCents;
+    const walletId = walletSnap.id;
+
+    const updatedWallet = await tx.studentWallet.update({
+      where: { id: walletId },
+      data: { balanceCents: balanceBefore + amountCents },
+    });
+
+    const transaction = await tx.studentWalletTransaction.create({
+      data: {
+        schoolId,
+        studentId,
+        walletId,
+        credentialId: credentialId ?? null,
+        cashierUserId: ctx.actorId ?? null,
+        type: WalletTransactionType.TOP_UP,
+        amountCents,
+        paymentMethod: input.paymentMethod,
+        reference: input.reference?.trim() || null,
+        description: input.notes?.trim() || null,
+        idempotencyKey: ikey,
+      },
+    });
+
+    await tx.auditLog.create({
+      data: {
+        schoolId,
+        action: "student_wallet.top_up",
+        details: {
+          studentId,
+          amountUgx: input.amountUgx,
+          paymentMethod: input.paymentMethod,
+          reference: input.reference ?? null,
+          actor: { id: ctx.actorId ?? null },
+        },
+      },
+    });
+
+    return {
+      ok: true,
+      duplicate: false,
+      transaction: {
+        id: transaction.id,
+        amountCents: transaction.amountCents,
+        paymentMethod: transaction.paymentMethod,
+        reference: transaction.reference,
+        createdAt: transaction.createdAt.toISOString(),
+      },
+      student: studentSummary(student),
+      walletBefore: { id: walletId, balanceCents: balanceBefore },
+      wallet: { id: updatedWallet.id, balanceCents: updatedWallet.balanceCents, status: updatedWallet.status },
+    };
+  });
 }
 
 export async function getGateDashboard(ctx: NfcOperationsContext, db: NfcOperationsClient = defaultPrisma) {

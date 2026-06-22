@@ -9,8 +9,11 @@ import type {
   NfcGateScanResponse,
   NfcTokenResolution,
   NfcWalletDashboard,
+  NfcWalletStudentResolution,
+  NfcWalletTopUpResult,
   StudentCredential,
   StudentCredentialScanResult,
+  WalletPaymentMethod,
 } from "../shared/types/studentCredentials";
 import { getApiBaseUrl, makeSchoolRequestHeaders, parseApiError } from "./apiBase";
 
@@ -149,6 +152,41 @@ export async function chargeNfcCanteen(input: { tokenOrUid: string; amountCents:
   });
   if (!response.ok) throw new Error(await parseApiError(response, "Could not charge student wallet"));
   return response.json() as Promise<NfcCanteenChargeResult>;
+}
+
+export async function resolveWalletStudent(
+  input: { studentId?: string; admissionNumber?: string; tokenOrUid?: string },
+) {
+  const response = await fetch(`${API_BASE}/api/nfc/wallets/resolve-student`, {
+    method: "POST",
+    headers: makeSchoolRequestHeaders({ "Content-Type": "application/json" }),
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) throw new Error(await parseApiError(response, "Could not resolve student"));
+  return response.json() as Promise<NfcWalletStudentResolution>;
+}
+
+export async function fetchWalletBalance(studentId: string) {
+  return resolveWalletStudent({ studentId });
+}
+
+export async function topUpNfcWallet(input: {
+  studentId?: string;
+  admissionNumber?: string;
+  tokenOrUid?: string;
+  amountUgx: number;
+  paymentMethod: WalletPaymentMethod;
+  reference?: string;
+  notes?: string;
+  idempotencyKey?: string;
+}) {
+  const response = await fetch(`${API_BASE}/api/nfc/wallets/top-up`, {
+    method: "POST",
+    headers: makeSchoolRequestHeaders({ "Content-Type": "application/json" }),
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) throw new Error(await parseApiError(response, "Could not top up student wallet"));
+  return response.json() as Promise<NfcWalletTopUpResult>;
 }
 
 export async function scanNfcGate(input: { tokenOrUid: string }) {

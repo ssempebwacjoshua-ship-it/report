@@ -9,6 +9,17 @@ function money(cents: number) {
   return `UGX ${Math.round(cents / 100).toLocaleString()}`;
 }
 
+function chargeBlockedMessage(reason?: string) {
+  switch (reason) {
+    case "insufficient balance": return "Insufficient wallet balance";
+    case "wallet frozen": return "Wallet is frozen";
+    case "lost or deactivated wristband": return "Wristband is lost or deactivated";
+    case "unknown token": return "Wristband not found";
+    case "inactive student": return "Student is inactive";
+    default: return reason ?? "Charge blocked";
+  }
+}
+
 export function NfcCanteenChargePage() {
   const { token = "" } = useParams();
   const [tokenOrUid, setTokenOrUid] = useState(token);
@@ -71,8 +82,13 @@ export function NfcCanteenChargePage() {
           {result ? (
             <div className="mt-3 grid gap-3 text-sm">
               <div className={`rounded-xl border p-3 font-bold ${result.ok ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-red-200 bg-red-50 text-red-700"}`}>
-                {result.ok ? "Charge successful" : result.reason ?? "Charge blocked"}
+                {result.ok ? "Charge successful" : chargeBlockedMessage(result.reason)}
               </div>
+              {!result.ok && result.reason === "insufficient balance" && (
+                <p className="text-xs text-red-600">
+                  The student wallet does not have enough canteen credit. Ask a cashier or administrator to add credit on the <a href="/nfc/wallets/top-up" className="underline">Wallet Top-Up</a> page.
+                </p>
+              )}
               {result.student ? <p className="font-bold text-slate-950">{result.student.name} · {result.student.admissionNumber}</p> : null}
               {result.wallet ? <p className="text-slate-700">Wallet balance: {money(result.wallet.balanceCents)} · {result.wallet.status}</p> : null}
               {result.transaction ? <p className="text-slate-700">{money(Math.abs(result.transaction.amountCents))} · {result.transaction.description ?? "Canteen charge"}</p> : null}

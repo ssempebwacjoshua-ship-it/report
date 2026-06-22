@@ -8,8 +8,10 @@ import {
   getGateDashboard,
   getWalletDashboard,
   resolveNfcTokenForRole,
+  resolveWalletStudent,
   scanAttendance,
   scanGate,
+  topUpWallet,
   type NfcOperationsContext,
 } from "../services/nfcOperationsService";
 
@@ -32,6 +34,31 @@ const chargeSchema = scanSchema.extend({
   description: z.string().trim().optional(),
   idempotencyKey: z.string().trim().optional(),
 });
+
+const resolveWalletStudentSchema = z
+  .object({
+    studentId: z.string().uuid().optional(),
+    admissionNumber: z.string().min(1).optional(),
+    tokenOrUid: z.string().trim().min(1).optional(),
+  })
+  .refine((v) => v.studentId || v.admissionNumber || v.tokenOrUid, {
+    message: "Provide studentId, admissionNumber, or tokenOrUid.",
+  });
+
+const topUpSchema = z
+  .object({
+    studentId: z.string().uuid().optional(),
+    admissionNumber: z.string().min(1).optional(),
+    tokenOrUid: z.string().trim().min(1).optional(),
+    amountUgx: z.coerce.number().positive("Amount must be greater than zero."),
+    paymentMethod: z.enum(["CASH", "MOBILE_MONEY", "BANK", "MANUAL_ADJUSTMENT"]),
+    reference: z.string().trim().optional(),
+    notes: z.string().trim().optional(),
+    idempotencyKey: z.string().trim().optional(),
+  })
+  .refine((v) => v.studentId || v.admissionNumber || v.tokenOrUid, {
+    message: "Provide studentId, admissionNumber, or tokenOrUid.",
+  });
 
 function ctx(req: Express.Request): NfcOperationsContext {
   return {
@@ -84,6 +111,22 @@ export function nfcOperationsRoutes() {
   router.get("/api/nfc/wallets", async (req, res, next) => {
     try {
       res.json(await getWalletDashboard(ctx(req), filtersSchema.parse(req.query)));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/api/nfc/wallets/resolve-student", async (req, res, next) => {
+    try {
+      res.json(await resolveWalletStudent(ctx(req), resolveWalletStudentSchema.parse(req.body)));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/api/nfc/wallets/top-up", async (req, res, next) => {
+    try {
+      res.status(201).json(await topUpWallet(ctx(req), topUpSchema.parse(req.body)));
     } catch (error) {
       next(error);
     }

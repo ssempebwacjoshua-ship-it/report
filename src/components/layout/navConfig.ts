@@ -52,6 +52,7 @@ export const navItemsByProduct: Record<ProductKey, NavItem[]> = {
     { to: "/nfc/bulk-allocation", label: "Bulk Allocation", icon: "upload", exact: true },
     { to: "/nfc/attendance", label: "NFC Attendance", icon: "activity", exact: true },
     { to: "/nfc/wallets", label: "NFC Wallets", icon: "credit-card", exact: true },
+    { to: "/nfc/wallets/top-up", label: "Wallet Top-Up", icon: "credit-card", exact: true },
     { to: "/nfc/canteen", label: "Canteen Charge", icon: "credit-card", exact: true },
     { to: "/nfc/gate", label: "Gate Security", icon: "shield", exact: true },
   ],

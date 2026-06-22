@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { fetchNfcWallets } from "../client/studentCredentialsClient";
 import type { NfcWalletDashboard, NfcWalletRow } from "../shared/types/studentCredentials";
 
@@ -9,6 +10,7 @@ function money(cents: number) {
 }
 
 export function NfcWalletsPage() {
+  const navigate = useNavigate();
   const [dashboard, setDashboard] = useState<NfcWalletDashboard | null>(null);
   const [selected, setSelected] = useState<NfcWalletRow | null>(null);
   const [search, setSearch] = useState("");
@@ -28,9 +30,18 @@ export function NfcWalletsPage() {
 
   return (
     <main className="grid gap-5">
-      <header className="page-header">
-        <p className="text-xs font-bold uppercase tracking-wide text-blue-600">NFC Operations</p>
-        <h1 className="text-xl font-bold text-slate-950 sm:text-2xl">NFC Wallets</h1>
+      <header className="page-header flex items-start justify-between gap-4">
+        <div>
+          <p className="text-xs font-bold uppercase tracking-wide text-blue-600">NFC Operations</p>
+          <h1 className="text-xl font-bold text-slate-950 sm:text-2xl">NFC Wallets</h1>
+        </div>
+        <button
+          type="button"
+          className="btn btn-primary shrink-0 rounded-xl px-4 py-2 text-sm font-bold"
+          onClick={() => navigate("/nfc/wallets/top-up")}
+        >
+          + Top Up
+        </button>
       </header>
       {error ? <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div> : null}
       <section className="grid gap-3 sm:grid-cols-4">
@@ -49,13 +60,24 @@ export function NfcWalletsPage() {
           </div>
           <div className="grid gap-2">
             {(dashboard?.wallets ?? []).map((row) => (
-              <button key={row.student.id} type="button" className="rounded-xl border border-slate-200 bg-white p-3 text-left text-sm hover:border-blue-200" onClick={() => setSelected(row)}>
+              <div key={row.student.id} className="rounded-xl border border-slate-200 bg-white p-3 text-sm hover:border-blue-200">
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <p className="font-bold text-slate-950">{row.student.name} · {row.student.admissionNumber}</p>
-                  <span className="font-bold text-slate-900">{money(row.wallet.balanceCents)}</span>
+                  <button type="button" className="text-left" onClick={() => setSelected(row)}>
+                    <p className="font-bold text-slate-950">{row.student.name} · {row.student.admissionNumber}</p>
+                    <p className="mt-0.5 text-slate-500">{row.student.className ?? "No class"} / {row.student.streamName ?? "No stream"} · Wallet {row.wallet.status} · Wristband {row.activeCredentialStatus}</p>
+                  </button>
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-slate-900">{money(row.wallet.balanceCents)}</span>
+                    <button
+                      type="button"
+                      className="rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-bold text-blue-700 hover:bg-blue-100"
+                      onClick={() => navigate(`/nfc/wallets/top-up?studentId=${encodeURIComponent(row.student.id)}`)}
+                    >
+                      Top Up
+                    </button>
+                  </div>
                 </div>
-                <p className="mt-1 text-slate-500">{row.student.className ?? "No class"} / {row.student.streamName ?? "No stream"} · Wallet {row.wallet.status} · Wristband {row.activeCredentialStatus}</p>
-              </button>
+              </div>
             ))}
           </div>
         </div>

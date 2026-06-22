@@ -178,3 +178,27 @@ export type NfcGateScanResponse = {
 export type NfcGateDashboard = {
   recentScans: NfcGateScanResponse[];
 };
+
+export type WalletPaymentMethod = "CASH" | "MOBILE_MONEY" | "BANK" | "MANUAL_ADJUSTMENT";
+
+export type NfcWalletStudentResolution = {
+  student: NfcStudentSummary;
+  wallet: { id: string; balanceCents: number; status: StudentWalletStatus } | null;
+  credentialId: string | null;
+};
+
+export type NfcWalletTopUpResult = {
+  ok: boolean;
+  duplicate?: boolean;
+  transaction?: {
+    id: string;
+    amountCents: number;
+    paymentMethod: string | null;
+    reference: string | null;
+    createdAt: string;
+  };
+  student?: NfcStudentSummary;
+  walletBefore?: { id: string; balanceCents: number };
+  wallet?: { id: string; balanceCents: number; status: StudentWalletStatus };
+  reason?: string;
+};

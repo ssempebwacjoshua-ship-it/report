@@ -438,6 +438,8 @@ model StudentWalletTransaction {
   cashierUserId  String?               @db.Uuid
   type           WalletTransactionType
   amountCents    Int
+  paymentMethod  String?
+  reference      String?
   description    String?
   idempotencyKey String?
   createdAt      DateTime              @default(now())
