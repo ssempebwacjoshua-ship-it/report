@@ -5,6 +5,7 @@ import type {
   CredentialStatus,
   DailySummary,
   NfcAttendanceDashboard,
+  NfcAttendanceScanResponse,
   NfcCanteenChargeResult,
   NfcGateDashboard,
   NfcGateScanResponse,
@@ -126,14 +127,19 @@ export async function fetchNfcAttendance(filters: { search?: string; classId?: s
   return response.json() as Promise<NfcAttendanceDashboard>;
 }
 
-export async function scanNfcAttendance(input: { tokenOrUid: string; direction: AttendanceDirection }) {
+export async function scanNfcAttendance(input: {
+  tokenOrUid: string;
+  direction?: AttendanceDirection;
+  idempotencyKey?: string;
+  deviceId?: string;
+}) {
   const response = await fetch(`${API_BASE}/api/nfc/attendance/scan`, {
     method: "POST",
     headers: makeSchoolRequestHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify(input),
   });
   if (!response.ok) throw new Error(await parseApiError(response, "Could not record NFC attendance"));
-  return response.json() as Promise<NfcAttendanceDashboard>;
+  return response.json() as Promise<NfcAttendanceScanResponse>;
 }
 
 export async function fetchNfcWallets(filters: { search?: string; classId?: string; streamId?: string } = {}) {
@@ -148,7 +154,7 @@ export async function fetchNfcWallets(filters: { search?: string; classId?: stri
   return response.json() as Promise<NfcWalletDashboard>;
 }
 
-export async function chargeNfcCanteen(input: { tokenOrUid: string; amountCents: number; description?: string; idempotencyKey?: string }) {
+export async function chargeNfcCanteen(input: { tokenOrUid: string; amountCents: number; description?: string; idempotencyKey?: string; deviceId?: string }) {
   const response = await fetch(`${API_BASE}/api/nfc/canteen/charge`, {
     method: "POST",
     headers: makeSchoolRequestHeaders({ "Content-Type": "application/json" }),
@@ -239,7 +245,7 @@ export async function topUpNfcWallet(input: {
   return response.json() as Promise<NfcWalletTopUpResult>;
 }
 
-export async function scanNfcGate(input: { tokenOrUid: string }) {
+export async function scanNfcGate(input: { tokenOrUid: string; idempotencyKey?: string; deviceId?: string }) {
   const response = await fetch(`${API_BASE}/api/nfc/gate/scan`, {
     method: "POST",
     headers: makeSchoolRequestHeaders({ "Content-Type": "application/json" }),

@@ -122,6 +122,18 @@ export type NfcAttendanceDashboard = {
   events: NfcAttendanceEvent[];
 };
 
+export type NfcAttendanceScanEvent = {
+  student: NfcStudentSummary;
+  direction: AttendanceDirection;
+  status: AttendanceScanStatus;
+  reason: string | null;
+  scannedAt: string;
+};
+
+export type NfcAttendanceScanResponse = NfcAttendanceDashboard & {
+  scan: NfcAttendanceScanEvent;
+};
+
 export type NfcWalletRow = {
   student: NfcStudentSummary;
   wallet: {

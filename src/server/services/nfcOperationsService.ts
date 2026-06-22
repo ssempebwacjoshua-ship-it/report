@@ -16,7 +16,7 @@ import { normalizeCredentialUID } from "./studentCredentialService";
 
 type NfcOperationsClient = Pick<
   PrismaClient,
-  "student" | "studentCredential" | "studentWallet" | "studentWalletTransaction" | "studentAttendanceEvent" | "nfcGateScan" | "auditLog"
+  "student" | "studentCredential" | "studentWallet" | "studentWalletTransaction" | "studentAttendanceEvent" | "nfcGateScan" | "auditLog" | "nfcTag"
 > & {
   $transaction?: <T>(fn: (tx: NfcOperationsClient) => Promise<T>) => Promise<T>;
 };
@@ -110,10 +110,12 @@ function studentSummary(student: StudentForNfc) {
 
 function extractTokenOrUid(value: string) {
   const clean = value.trim();
-  const match = clean.match(/\/nfc\/t\/([^/?#]+)/i);
+  // Handles /nfc/t/:token, /t/:publicCode, and full URLs containing either path
+  const match = clean.match(/(?:\/nfc)?\/t\/([^/?#\s]+)/i);
+  const extracted = match ? decodeURIComponent(match[1] ?? "") : clean;
   return {
-    token: match ? decodeURIComponent(match[1] ?? "") : clean,
-    uid: normalizeCredentialUID(clean),
+    token: extracted,
+    uid: normalizeCredentialUID(extracted),
   };
 }
 
@@ -121,23 +123,70 @@ async function runWrite<T>(db: NfcOperationsClient, fn: (tx: NfcOperationsClient
   return db.$transaction ? db.$transaction(fn) : fn(db);
 }
 
-async function findCredential(db: NfcOperationsClient, schoolId: string, tokenOrUid: string): Promise<CredentialForNfc | null> {
-  const { token, uid } = extractTokenOrUid(tokenOrUid);
-  const credential = await db.studentCredential.findFirst({
-    where: {
-      schoolId,
-      type: CredentialType.NFC_WRISTBAND,
-      OR: [{ scanToken: token }, { credentialUID: uid }],
-    },
-    include: credentialInclude,
-  });
-  return credential as CredentialForNfc | null;
-}
-
 function blockedReason(credential: CredentialForNfc | null) {
   if (!credential) return "unknown token";
   if (credential.status !== CredentialStatus.ACTIVE) return "lost or deactivated wristband";
   if (!credential.student.isActive) return "inactive student";
+  return null;
+}
+
+type NfcScanTarget = {
+  student: StudentForNfc;
+  credential: CredentialForNfc | null;
+  nfcTagId: string | null;
+  blocked: boolean;
+  reason: string | null;
+};
+
+async function resolveNfcScanTarget(
+  db: NfcOperationsClient,
+  schoolId: string,
+  tokenOrUid: string,
+): Promise<NfcScanTarget | null> {
+  const { token, uid } = extractTokenOrUid(tokenOrUid);
+
+  // 1. StudentCredential by scanToken or credentialUID
+  const credential = await db.studentCredential.findFirst({
+    where: { schoolId, type: CredentialType.NFC_WRISTBAND, OR: [{ scanToken: token }, { credentialUID: uid }] },
+    include: credentialInclude,
+  }) as CredentialForNfc | null;
+
+  if (credential) {
+    const reason = blockedReason(credential);
+    return { student: credential.student, credential, nfcTagId: null, blocked: Boolean(reason), reason };
+  }
+
+  const tagInclude = {
+    student: { select: { id: true, admissionNumber: true, firstName: true, lastName: true, isActive: true, enrollments: studentInclude.enrollments } },
+  };
+  const tagStatusFilter = { notIn: ["DISABLED", "LOST"] };
+
+  // 2. NfcTag by publicCode (case-sensitive, as stored)
+  const tagByCode = await db.nfcTag.findFirst({
+    where: { schoolId, publicCode: token, studentId: { not: null }, status: tagStatusFilter },
+    include: tagInclude,
+  });
+
+  if (tagByCode?.student) {
+    const student = tagByCode.student as StudentForNfc;
+    const reason = student.isActive ? null : "inactive student";
+    return { student, credential: null, nfcTagId: tagByCode.id, blocked: !student.isActive, reason };
+  }
+
+  // 3. NfcTag by physicalUid (case-insensitive)
+  if (uid) {
+    const tagByUid = await db.nfcTag.findFirst({
+      where: { schoolId, physicalUid: { equals: uid, mode: "insensitive" }, studentId: { not: null }, status: tagStatusFilter },
+      include: tagInclude,
+    });
+
+    if (tagByUid?.student) {
+      const student = tagByUid.student as StudentForNfc;
+      const reason = student.isActive ? null : "inactive student";
+      return { student, credential: null, nfcTagId: tagByUid.id, blocked: !student.isActive, reason };
+    }
+  }
+
   return null;
 }
 
@@ -264,33 +313,56 @@ export async function getAttendanceDashboard(
 
 export async function scanAttendance(
   ctx: NfcOperationsContext,
-  input: { tokenOrUid: string; direction?: AttendanceDirection },
+  input: { tokenOrUid: string; direction?: AttendanceDirection; idempotencyKey?: string; deviceId?: string },
   db: NfcOperationsClient = defaultPrisma,
 ) {
   const schoolId = requireSchoolId(ctx);
   requireRole(ctx, ["TEACHER"]);
-  const credential = await findCredential(db, schoolId, input.tokenOrUid);
-  const reason = blockedReason(credential);
-  if (!credential) throw Object.assign(new Error("NFC credential not found."), { status: 404 });
+
+  const target = await resolveNfcScanTarget(db, schoolId, input.tokenOrUid);
+  if (!target) throw Object.assign(new Error("NFC token not recognized."), { status: 404 });
+
   const direction = input.direction ?? AttendanceDirection.TAP_IN;
   const { start, end } = todayRange();
-  const duplicate = reason
-    ? null
-    : await db.studentAttendanceEvent.findFirst({
-        where: { schoolId, studentId: credential.studentId, direction, status: AttendanceScanStatus.VALID, scannedAt: { gte: start, lt: end } },
-      });
-  await db.studentAttendanceEvent.create({
+
+  const duplicate = !target.blocked
+    ? await db.studentAttendanceEvent.findFirst({
+        where: { schoolId, studentId: target.student.id, direction, status: AttendanceScanStatus.VALID, scannedAt: { gte: start, lt: end } },
+      })
+    : null;
+
+  const status = target.blocked
+    ? AttendanceScanStatus.BLOCKED
+    : duplicate
+      ? AttendanceScanStatus.DUPLICATE
+      : AttendanceScanStatus.VALID;
+
+  const eventReason = target.reason ?? (duplicate ? "duplicate tap" : null);
+
+  const event = await db.studentAttendanceEvent.create({
     data: {
       schoolId,
-      studentId: credential.studentId,
-      credentialId: credential.id,
+      studentId: target.student.id,
+      credentialId: target.credential?.id ?? null,
       direction,
       source: AttendanceScanSource.NFC_WRISTBAND,
-      status: reason ? AttendanceScanStatus.BLOCKED : duplicate ? AttendanceScanStatus.DUPLICATE : AttendanceScanStatus.VALID,
-      reason: reason ?? (duplicate ? "duplicate tap" : null),
+      status,
+      reason: eventReason,
     },
   });
-  return getAttendanceDashboard(ctx, {}, db);
+
+  const dashboard = await getAttendanceDashboard(ctx, {}, db);
+
+  return {
+    scan: {
+      student: studentSummary(target.student),
+      direction,
+      status,
+      reason: eventReason,
+      scannedAt: event.scannedAt.toISOString(),
+    },
+    ...dashboard,
+  };
 }
 
 export async function getWalletDashboard(
@@ -353,28 +425,29 @@ export async function getWalletDashboard(
 
 export async function chargeCanteen(
   ctx: NfcOperationsContext,
-  input: { tokenOrUid: string; amountCents: number; description?: string; idempotencyKey?: string },
+  input: { tokenOrUid: string; amountCents: number; description?: string; idempotencyKey?: string; deviceId?: string },
   db: NfcOperationsClient = defaultPrisma,
 ) {
   const schoolId = requireSchoolId(ctx);
   requireRole(ctx, ["CANTEEN", "CASHIER"]);
   if (!Number.isInteger(input.amountCents) || input.amountCents <= 0) throw Object.assign(new Error("Charge amount must be greater than zero."), { status: 400 });
 
+  const target = await resolveNfcScanTarget(db, schoolId, input.tokenOrUid);
+  if (!target) return { ok: false, reason: "unknown token" };
+  if (target.blocked) return { ok: false, reason: target.reason ?? "blocked" };
+
   return runWrite(db, async (tx) => {
-    const credential = await findCredential(tx, schoolId, input.tokenOrUid);
-    const reason = blockedReason(credential);
-    if (reason || !credential) return { ok: false, reason: reason ?? "unknown token" };
     const wallet = await tx.studentWallet.upsert({
-      where: { studentId: credential.studentId },
-      create: { schoolId, studentId: credential.studentId, balanceCents: 0 },
+      where: { studentId: target.student.id },
+      create: { schoolId, studentId: target.student.id, balanceCents: 0 },
       update: {},
     });
-    if (wallet.status === StudentWalletStatus.FROZEN) return { ok: false, reason: "wallet frozen", student: studentSummary(credential.student), wallet };
-    if (wallet.balanceCents < input.amountCents) return { ok: false, reason: "insufficient balance", student: studentSummary(credential.student), wallet };
+    if (wallet.status === StudentWalletStatus.FROZEN) return { ok: false, reason: "wallet frozen", student: studentSummary(target.student), wallet };
+    if (wallet.balanceCents < input.amountCents) return { ok: false, reason: "insufficient balance", student: studentSummary(target.student), wallet };
     const existing = input.idempotencyKey
       ? await tx.studentWalletTransaction.findUnique({ where: { schoolId_idempotencyKey: { schoolId, idempotencyKey: input.idempotencyKey } } })
       : null;
-    if (existing) return { ok: false, reason: "duplicate charge attempt", student: studentSummary(credential.student), wallet };
+    if (existing) return { ok: false, reason: "duplicate charge attempt", student: studentSummary(target.student), wallet };
     const balanceAfterCharge = wallet.balanceCents - input.amountCents;
     const updatedWallet = await tx.studentWallet.update({
       where: { id: wallet.id },
@@ -383,9 +456,9 @@ export async function chargeCanteen(
     const transaction = await tx.studentWalletTransaction.create({
       data: {
         schoolId,
-        studentId: credential.studentId,
+        studentId: target.student.id,
         walletId: wallet.id,
-        credentialId: credential.id,
+        credentialId: target.credential?.id ?? null,
         cashierUserId: ctx.actorId ?? null,
         type: WalletTransactionType.CHARGE,
         amountCents: -input.amountCents,
@@ -399,7 +472,7 @@ export async function chargeCanteen(
         schoolId,
         action: "student_wallet.charge",
         details: {
-          studentId: credential.studentId,
+          studentId: target.student.id,
           amountCents: input.amountCents,
           description: input.description ?? null,
           actor: { id: ctx.actorId ?? null },
@@ -414,37 +487,45 @@ export async function chargeCanteen(
         description: transaction.description,
         createdAt: transaction.createdAt.toISOString(),
       },
-      student: studentSummary(credential.student),
+      student: studentSummary(target.student),
       wallet: { id: updatedWallet.id, balanceCents: updatedWallet.balanceCents, status: updatedWallet.status },
     };
   });
 }
 
-export async function scanGate(ctx: NfcOperationsContext, input: { tokenOrUid: string }, db: NfcOperationsClient = defaultPrisma) {
+export async function scanGate(
+  ctx: NfcOperationsContext,
+  input: { tokenOrUid: string; idempotencyKey?: string; deviceId?: string },
+  db: NfcOperationsClient = defaultPrisma,
+) {
   const schoolId = requireSchoolId(ctx);
   requireRole(ctx, ["SECURITY", "GATE_SECURITY"]);
-  const credential = await findCredential(db, schoolId, input.tokenOrUid);
-  const reason = blockedReason(credential);
-  const result = reason ? GateScanResult.BLOCKED : GateScanResult.ALLOWED;
+
+  const target = await resolveNfcScanTarget(db, schoolId, input.tokenOrUid);
+  const result = target && !target.blocked ? GateScanResult.ALLOWED : GateScanResult.BLOCKED;
+  const reason = target ? target.reason : "unknown token";
+
   const scan = await db.nfcGateScan.create({
     data: {
       schoolId,
-      studentId: credential?.studentId ?? null,
-      credentialId: credential?.id ?? null,
+      studentId: target?.student.id ?? null,
+      credentialId: target?.credential?.id ?? null,
       scannedByUserId: ctx.actorId ?? null,
       result,
       reason,
     },
   });
-  const lastAttendance = credential
-    ? await db.studentAttendanceEvent.findFirst({ where: { schoolId, studentId: credential.studentId }, orderBy: { scannedAt: "desc" } })
+
+  const lastAttendance = target
+    ? await db.studentAttendanceEvent.findFirst({ where: { schoolId, studentId: target.student.id }, orderBy: { scannedAt: "desc" } })
     : null;
+
   return {
     result,
     reason,
     scannedAt: scan.scannedAt.toISOString(),
-    student: credential ? studentSummary(credential.student) : undefined,
-    credentialStatus: credential?.status ?? "UNKNOWN",
+    student: target ? studentSummary(target.student) : undefined,
+    credentialStatus: target?.credential?.status ?? (target ? "ACTIVE" : "UNKNOWN"),
     todayAttendanceStatus: lastAttendance?.direction ?? "NONE",
   };
 }
@@ -457,12 +538,11 @@ async function resolveStudentAndCredential(
   input: { studentId?: string | null; admissionNumber?: string | null; tokenOrUid?: string | null },
 ): Promise<{ student: StudentForNfc; credentialId?: string }> {
   if (input.tokenOrUid) {
-    const credential = await findCredential(db, schoolId, input.tokenOrUid);
-    const reason = blockedReason(credential);
-    if (!credential) throw Object.assign(new Error("NFC wristband not found in this school."), { status: 404 });
-    if (reason && reason !== "inactive student") throw Object.assign(new Error(`NFC wristband is ${reason}.`), { status: 400 });
-    if (!credential.student.isActive) throw Object.assign(new Error("Student is inactive."), { status: 400 });
-    return { student: credential.student, credentialId: credential.id };
+    const target = await resolveNfcScanTarget(db, schoolId, input.tokenOrUid);
+    if (!target) throw Object.assign(new Error("NFC wristband not found in this school."), { status: 404 });
+    if (target.reason && target.reason !== "inactive student") throw Object.assign(new Error(`NFC wristband is ${target.reason}.`), { status: 400 });
+    if (!target.student.isActive) throw Object.assign(new Error("Student is inactive."), { status: 400 });
+    return { student: target.student, credentialId: target.credential?.id };
   }
   if (input.admissionNumber) {
     const found = await db.student.findFirst({
