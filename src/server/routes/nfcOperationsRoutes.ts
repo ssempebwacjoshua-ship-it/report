@@ -4,17 +4,20 @@ import { z } from "zod";
 import { verifyToken } from "../services/authService";
 import {
   adjustWallet,
+  changeWalletPin,
   chargeCanteen,
   getAttendanceDashboard,
   getDailySummary,
   getGateDashboard,
   getWalletDashboard,
+  getWalletPinStatus,
   listWalletTransactions,
   resolveNfcTokenForRole,
   resolveWalletStudent,
   reverseTransaction,
   scanAttendance,
   scanGate,
+  setWalletPin,
   topUpWallet,
   type NfcOperationsContext,
 } from "../services/nfcOperationsService";
@@ -37,8 +40,19 @@ const attendanceScanSchema = scanSchema.extend({
 
 const chargeSchema = scanSchema.extend({
   amountCents: z.coerce.number().int().positive(),
+  pin: z.string().regex(/^\d{4,6}$/, "PIN must be 4 to 6 digits."),
   description: z.string().trim().optional(),
   idempotencyKey: z.string().trim().optional(),
+});
+
+const setPinSchema = z.object({
+  pin: z.string().regex(/^\d{4,6}$/, "PIN must be 4 to 6 digits."),
+  reason: z.string().trim().min(1, "Reason is required."),
+});
+
+const changePinSchema = z.object({
+  oldPin: z.string().regex(/^\d{4,6}$/, "PIN must be 4 to 6 digits."),
+  newPin: z.string().regex(/^\d{4,6}$/, "PIN must be 4 to 6 digits."),
 });
 
 const txFiltersSchema = z.object({
@@ -224,6 +238,30 @@ export function nfcOperationsRoutes() {
   router.post("/api/nfc/gate/scan", async (req, res, next) => {
     try {
       res.json(await scanGate(ctx(req), scanSchema.parse(req.body)));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.get("/api/nfc/wallets/:walletId/pin-status", async (req, res, next) => {
+    try {
+      res.json(await getWalletPinStatus(ctx(req), req.params.walletId));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/api/nfc/wallets/:walletId/pin", async (req, res, next) => {
+    try {
+      res.json(await setWalletPin(ctx(req), { walletId: req.params.walletId, ...setPinSchema.parse(req.body) }));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.patch("/api/nfc/wallets/:walletId/pin", async (req, res, next) => {
+    try {
+      res.json(await changeWalletPin(ctx(req), { walletId: req.params.walletId, ...changePinSchema.parse(req.body) }));
     } catch (error) {
       next(error);
     }

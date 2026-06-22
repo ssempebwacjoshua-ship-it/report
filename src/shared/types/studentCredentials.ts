@@ -141,6 +141,8 @@ export type NfcWalletRow = {
     balanceCents: number;
     status: StudentWalletStatus;
     frozenReason: string | null;
+    pinSet: boolean;
+    pinLockedUntil: string | null;
   };
   activeCredentialStatus: CredentialStatus | "NONE";
   lastTransaction: {
@@ -176,6 +178,13 @@ export type NfcCanteenChargeResult = {
     status: StudentWalletStatus;
   };
   reason?: string;
+};
+
+export type WalletPinStatus = {
+  pinSet: boolean;
+  locked: boolean;
+  pinLockedUntil: string | null;
+  pinFailedAttempts: number;
 };
 
 export type NfcGateScanResponse = {
@@ -259,7 +268,7 @@ export type DailySummary = {
 
 export type NfcWalletStudentResolution = {
   student: NfcStudentSummary;
-  wallet: { id: string; balanceCents: number; status: StudentWalletStatus } | null;
+  wallet: { id: string; balanceCents: number; status: StudentWalletStatus; pinSet: boolean } | null;
   credentialId: string | null;
 };
 
