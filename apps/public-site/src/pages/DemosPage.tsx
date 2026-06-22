@@ -20,33 +20,38 @@ const BOOK_DEMO_URL = buildWhatsAppUrl(
   "Hello SSAMENJ Technologies! I'd like to book a product demo for my organisation.",
 );
 
-// Video IDs — from historical FeaturesDemoPage
 const REPORT_LAB_VIDEO_ID = "jZrp-jOhjwo";
 const SMART_PAGES_VIDEO_ID = "F2kWYFQujK4";
-const walkthroughCover = `https://img.youtube.com/vi/${REPORT_LAB_VIDEO_ID}/maxresdefault.jpg`;
 
 type DemoItem = {
   id: string;
   name: string;
   description: string;
   videoId: string;
+  caption: string;
+  subtitle: string;
 };
 
-// Demo playlist — from historical FeaturesDemoPage
 const FEATURE_ITEMS: DemoItem[] = [
   {
     id: "report-lab",
     name: "Report Lab Demo",
     description: "Generate student reports from marksheets and share secure parent links.",
     videoId: REPORT_LAB_VIDEO_ID,
+    caption: "Click to watch full system walkthrough",
+    subtitle: "10-minute demo — Report Lab + Smart Pages",
   },
   {
     id: "smart-pages",
     name: "Smart Pages Demo",
     description: "Turn school documents into clean, editable, printable pages.",
     videoId: SMART_PAGES_VIDEO_ID,
+    caption: "Click to watch Smart Pages demo",
+    subtitle: "10-minute demo — Smart Pages document workflow",
   },
 ];
+
+// ── Shared helpers ─────────────────────────────────────────────────────────────
 
 function Metric({ value, label }: { value: string; label: string }) {
   return (
@@ -57,7 +62,69 @@ function Metric({ value, label }: { value: string; label: string }) {
   );
 }
 
-// DemoCard switcher — from historical FeaturesDemoPage
+// ── Premium demo player — reused for hero and playlist ─────────────────────────
+
+function DemoShowcasePlayer({
+  item,
+  onPlay,
+  variant = "hero",
+  className = "",
+}: {
+  item: DemoItem;
+  onPlay: () => void;
+  variant?: "hero" | "playlist";
+  className?: string;
+}) {
+  const thumbnail = `https://img.youtube.com/vi/${item.videoId}/maxresdefault.jpg`;
+  const outerCard =
+    variant === "hero"
+      ? "border border-white/30 bg-white/95 shadow-xl backdrop-blur"
+      : "border border-slate-200 bg-white shadow-sm";
+
+  return (
+    <div className={`overflow-hidden rounded-[1.5rem] p-2 ${outerCard} ${className}`}>
+      <div className="mb-2 px-2 pt-1.5">
+        <p className="text-xs font-black uppercase tracking-[0.18em] text-blue-700">{item.name}</p>
+        <p className="mt-1 text-sm leading-6 text-slate-600">{item.subtitle}</p>
+      </div>
+      <button
+        type="button"
+        onClick={onPlay}
+        className="group relative block w-full overflow-hidden rounded-[1rem] border border-slate-200 bg-slate-100 text-left"
+      >
+        <div className="relative aspect-video w-full overflow-hidden rounded-[1rem]">
+          <img
+            src={thumbnail}
+            alt={item.name}
+            className="absolute inset-0 h-full w-full scale-[1.14] object-cover object-center transition duration-300 group-hover:scale-[1.18]"
+            loading="eager"
+          />
+          {/* Top-right badge */}
+          <div className="absolute right-3 top-3">
+            <span className="inline-flex items-center rounded-full border border-blue-200/50 bg-white/90 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-blue-700 shadow-sm backdrop-blur-sm">
+              10-MINUTE DEMO
+            </span>
+          </div>
+          <div className="absolute inset-0 bg-slate-950/10 transition group-hover:bg-slate-950/20" />
+          {/* Centered play button */}
+          <div className="absolute inset-0 grid place-items-center">
+            <div className="marketing-play-pulse flex h-16 w-16 items-center justify-center rounded-full bg-white/85 text-blue-700 shadow-2xl shadow-blue-600/25 backdrop-blur transition group-hover:scale-105">
+              <PlayIcon className="h-8 w-8 translate-x-0.5" />
+            </div>
+          </div>
+          {/* Bottom caption overlay */}
+          <div className="absolute bottom-3 left-3 right-3 rounded-2xl bg-white/90 px-4 py-3 shadow-sm backdrop-blur">
+            <p className="text-sm font-black text-slate-950">{item.caption}</p>
+            <p className="mt-0.5 text-xs font-semibold text-slate-600">{item.subtitle}</p>
+          </div>
+        </div>
+      </button>
+    </div>
+  );
+}
+
+// ── Demo selector card ─────────────────────────────────────────────────────────
+
 function DemoCard({
   item,
   active,
@@ -94,16 +161,17 @@ function DemoCard({
   );
 }
 
+// ── Page ───────────────────────────────────────────────────────────────────────
+
 export function DemosPage() {
   const [videoOpen, setVideoOpen] = useState(false);
   const [selectedId, setSelectedId] = useState(FEATURE_ITEMS[0]?.id ?? "report-lab");
 
   const selectedItem = useMemo(
-    () => FEATURE_ITEMS.find((item) => item.id === selectedId) ?? FEATURE_ITEMS[0],
+    () => FEATURE_ITEMS.find((item) => item.id === selectedId) ?? FEATURE_ITEMS[0]!,
     [selectedId],
   );
 
-  // Keyboard escape closes the fullscreen modal — from historical DemoPage
   useEffect(() => {
     if (!videoOpen) return;
     function handleKeyDown(event: KeyboardEvent) {
@@ -164,38 +232,17 @@ export function DemosPage() {
             </div>
           </div>
 
-          {/* Video thumbnail — click opens fullscreen modal, from historical DemoPage */}
+          {/* Hero video — always shows Report Lab walkthrough */}
           <div className="lg:col-span-6">
-            <div className="marketing-card-motion marketing-fade-up-delay-2 overflow-hidden rounded-[1.5rem] border border-white/30 bg-white/95 p-2 shadow-xl backdrop-blur">
-              <div className="mb-2 px-2 pt-1.5">
-                <p className="text-xs font-black uppercase tracking-[0.18em] text-blue-700">Full system walkthrough</p>
-                <p className="mt-1 text-sm leading-6 text-slate-600">Click to watch the full system walkthrough.</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setVideoOpen(true)}
-                className="group relative block w-full overflow-hidden rounded-[1rem] border border-slate-200 bg-slate-100 text-left"
-              >
-                <div className="relative aspect-video w-full overflow-hidden rounded-[1rem]">
-                  <img
-                    src={walkthroughCover}
-                    alt="School Connect full system walkthrough"
-                    className="absolute inset-0 h-full w-full scale-[1.14] object-cover object-center transition duration-300 group-hover:scale-[1.18]"
-                    loading="eager"
-                  />
-                  <div className="absolute inset-0 bg-slate-950/10 transition group-hover:bg-slate-950/20" />
-                  <div className="absolute inset-0 grid place-items-center">
-                    <div className="marketing-play-pulse flex h-16 w-16 items-center justify-center rounded-full bg-white/85 text-blue-700 shadow-2xl shadow-blue-600/25 backdrop-blur transition group-hover:scale-105">
-                      <PlayIcon className="h-8 w-8 translate-x-0.5" />
-                    </div>
-                  </div>
-                  <div className="absolute bottom-3 left-3 right-3 rounded-2xl bg-white/90 px-4 py-3 shadow-sm backdrop-blur">
-                    <p className="text-sm font-black text-slate-950">Click to watch full system walkthrough</p>
-                    <p className="mt-0.5 text-xs font-semibold text-slate-600">10-minute demo — Report Lab + Smart Pages</p>
-                  </div>
-                </div>
-              </button>
-            </div>
+            <DemoShowcasePlayer
+              item={FEATURE_ITEMS[0]!}
+              variant="hero"
+              onPlay={() => {
+                setSelectedId("report-lab");
+                setVideoOpen(true);
+              }}
+              className="marketing-card-motion marketing-fade-up-delay-2"
+            />
           </div>
 
           {/* Mobile metrics */}
@@ -207,7 +254,7 @@ export function DemosPage() {
         </div>
       </section>
 
-      {/* Interactive video playlist — from historical FeaturesDemoPage */}
+      {/* Interactive video playlist */}
       <section className="border-b border-slate-200 bg-slate-50 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
         <div className="mx-auto max-w-7xl">
           <div className="mb-4">
@@ -215,23 +262,12 @@ export function DemosPage() {
             <h2 className="mt-1 text-2xl font-black tracking-tight text-slate-950">Select a demo to watch</h2>
           </div>
           <div className="grid gap-6 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,0.9fr)]">
-            <div className="space-y-3">
-              <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
-                <iframe
-                  src={`https://www.youtube-nocookie.com/embed/${selectedItem?.videoId ?? REPORT_LAB_VIDEO_ID}`}
-                  title={`School Connect Demo — ${selectedItem?.name ?? "Video"}`}
-                  className="aspect-video w-full rounded-2xl border border-slate-200 shadow-sm"
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                  allowFullScreen
-                  loading="lazy"
-                />
-              </div>
-              <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-                <p className="text-xs font-black uppercase tracking-[0.18em] text-blue-700">Now showing</p>
-                <h3 className="mt-2 text-xl font-black text-slate-950">{selectedItem?.name ?? "Report Lab Demo"}</h3>
-                <p className="mt-2 text-sm leading-6 text-slate-600">{selectedItem?.description}</p>
-              </div>
-            </div>
+            {/* Main premium player — switches with selected demo */}
+            <DemoShowcasePlayer
+              item={selectedItem}
+              variant="playlist"
+              onPlay={() => setVideoOpen(true)}
+            />
 
             <div className="space-y-3">
               <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -241,7 +277,7 @@ export function DemosPage() {
                     <DemoCard
                       key={item.id}
                       item={item}
-                      active={selectedItem?.id === item.id}
+                      active={selectedItem.id === item.id}
                       onSelect={(next) => setSelectedId(next.id)}
                     />
                   ))}
@@ -260,7 +296,7 @@ export function DemosPage() {
         </div>
       </section>
 
-      {/* Report Lab section — from historical DemoPage */}
+      {/* Report Lab section */}
       <section id="report-lab" className="border-b border-slate-200 bg-white px-4 py-6 lg:py-8 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-7xl">
           <div className="max-w-2xl">
@@ -302,7 +338,7 @@ export function DemosPage() {
         </div>
       </section>
 
-      {/* Smart Pages section — 2×2 MarketingFeatureCard grid from historical DemoPage */}
+      {/* Smart Pages section */}
       <section id="smart-pages" className="border-b border-slate-200 bg-slate-50 px-4 py-6 lg:py-8 sm:px-6 lg:px-8">
         <div className="mx-auto grid max-w-7xl gap-6 lg:grid-cols-12 lg:items-center">
           <div className="lg:col-span-5">
@@ -372,7 +408,7 @@ export function DemosPage() {
 
       <TestimonialsSection className="bg-white px-4 py-6 lg:py-8 sm:px-6 lg:px-8" compact />
 
-      {/* Why School Connect — from historical DemoPage */}
+      {/* Why School Connect */}
       <section id="why-school-connect" className="bg-slate-50 px-4 py-6 lg:py-8 sm:px-6 lg:px-8">
         <div className="marketing-card-motion mx-auto max-w-7xl rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm sm:p-7">
           <div className="grid gap-6 lg:grid-cols-12 lg:items-center">
@@ -408,13 +444,13 @@ export function DemosPage() {
         </div>
       </section>
 
-      {/* Fullscreen video modal — from historical DemoPage */}
+      {/* Fullscreen modal — plays whichever demo is currently selected */}
       {videoOpen ? (
         <div
           className="fixed inset-0 z-[80] grid place-items-center bg-slate-950/80 px-4 py-6 backdrop-blur-sm"
           role="dialog"
           aria-modal="true"
-          aria-label="School Connect full system walkthrough video"
+          aria-label={`${selectedItem.name} video`}
           onClick={() => setVideoOpen(false)}
         >
           <div
@@ -423,14 +459,14 @@ export function DemosPage() {
           >
             <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
               <div>
-                <p className="text-xs font-black uppercase tracking-[0.18em] text-blue-700">Full system walkthrough</p>
-                <p className="text-sm font-semibold text-slate-600">10-minute demo — Report Lab + Smart Pages</p>
+                <p className="text-xs font-black uppercase tracking-[0.18em] text-blue-700">{selectedItem.name}</p>
+                <p className="text-sm font-semibold text-slate-600">{selectedItem.subtitle}</p>
               </div>
               <button
                 type="button"
                 onClick={() => setVideoOpen(false)}
                 className="rounded-full border border-slate-200 px-3 py-1.5 text-sm font-black text-slate-700 transition hover:bg-slate-50"
-                aria-label="Close walkthrough video"
+                aria-label="Close video"
               >
                 Close
               </button>
@@ -438,8 +474,8 @@ export function DemosPage() {
             <div className="aspect-video w-full bg-slate-950">
               <iframe
                 className="h-full w-full"
-                src={`https://www.youtube-nocookie.com/embed/${REPORT_LAB_VIDEO_ID}?autoplay=1&rel=0&modestbranding=1`}
-                title="School Connect full system walkthrough"
+                src={`https://www.youtube-nocookie.com/embed/${selectedItem.videoId}?autoplay=1&rel=0&modestbranding=1`}
+                title={selectedItem.name}
                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                 allowFullScreen
               />
