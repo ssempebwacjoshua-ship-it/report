@@ -72,6 +72,36 @@ export type NfcTokenResolution = {
   };
 };
 
+export type AllocationStatus = "ALLOCATED" | "UNALLOCATED" | "DEACTIVATED";
+
+export type AllocationRow = {
+  student: {
+    id: string;
+    name: string;
+    admissionNumber: string;
+    classId: string | null;
+    className: string | null;
+    streamId: string | null;
+    streamName: string | null;
+    isActive: boolean;
+  };
+  activeCredential: StudentCredential | null;
+  deactivatedCredentialsCount: number;
+  allocationStatus: AllocationStatus;
+};
+
+export type AllocationSummary = {
+  totalStudents: number;
+  allocated: number;
+  unallocated: number;
+  deactivated: number;
+};
+
+export type AllocationResult = {
+  summary: AllocationSummary;
+  rows: AllocationRow[];
+};
+
 export type NfcAttendanceEvent = {
   id: string;
   scannedAt: string;

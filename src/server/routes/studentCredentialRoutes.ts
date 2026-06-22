@@ -3,7 +3,9 @@ import { Router, type ErrorRequestHandler } from "express";
 import { z } from "zod";
 import {
   amendStudentCredential,
+  bulkAllocateCredentials,
   deactivateStudentCredential,
+  getCredentialAllocation,
   issueStudentCredential,
   listStudentCredentials,
   scanStudentCredential,
@@ -29,6 +31,25 @@ const deactivateSchema = z.object({
 const scanSchema = z.object({
   credentialUID: z.string().trim().min(1, "Credential UID is required."),
   context: z.enum(["GATE", "CLASS", "WALLET", "VERIFY"]).optional(),
+});
+
+const allocationQuerySchema = z.object({
+  classId: z.string().uuid().optional(),
+  streamId: z.string().uuid().optional(),
+  status: z.enum(["ALL", "ALLOCATED", "UNALLOCATED", "DEACTIVATED"]).optional(),
+  search: z.string().optional(),
+});
+
+const bulkAllocateSchema = z.object({
+  reason: z.string().trim().min(1, "Reason is required."),
+  assignments: z
+    .array(
+      z.object({
+        studentId: z.string().uuid(),
+        credentialUID: z.string().min(1, "Wristband UID is required."),
+      }),
+    )
+    .min(1, "At least one assignment is required."),
 });
 
 const amendSchema = z.object({
@@ -80,6 +101,26 @@ export function studentCredentialRoutes() {
       const input = deactivateSchema.parse(req.body);
       const result = await deactivateStudentCredential(credentialContext(req), req.params.id, input.reason);
       res.json(result);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.get("/api/student-credentials/allocation", async (req, res, next) => {
+    try {
+      const query = allocationQuerySchema.parse(req.query);
+      const result = await getCredentialAllocation(credentialContext(req), query);
+      res.json(result);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/api/student-credentials/bulk-allocate", async (req, res, next) => {
+    try {
+      const input = bulkAllocateSchema.parse(req.body);
+      const result = await bulkAllocateCredentials(credentialContext(req), input);
+      res.status(201).json(result);
     } catch (error) {
       next(error);
     }

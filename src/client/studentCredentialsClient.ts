@@ -1,4 +1,6 @@
 import type {
+  AllocationResult,
+  AllocationStatus,
   AttendanceDirection,
   CredentialStatus,
   NfcAttendanceDashboard,
@@ -34,6 +36,34 @@ export async function issueStudentCredential(input: { studentId: string; credent
   });
   if (!response.ok) throw new Error(await parseApiError(response, "Could not register NFC wristband"));
   return response.json() as Promise<{ credential: StudentCredential }>;
+}
+
+export async function fetchCredentialAllocation(
+  filters: { classId?: string; streamId?: string; status?: AllocationStatus | "ALL" | ""; search?: string } = {},
+) {
+  const params = new URLSearchParams();
+  if (filters.classId) params.set("classId", filters.classId);
+  if (filters.streamId) params.set("streamId", filters.streamId);
+  if (filters.status && filters.status !== "ALL") params.set("status", filters.status);
+  if (filters.search) params.set("search", filters.search);
+  const response = await fetch(`${API_BASE}/api/student-credentials/allocation?${params}`, {
+    headers: makeSchoolRequestHeaders(),
+  });
+  if (!response.ok) throw new Error(await parseApiError(response, "Could not load allocation data"));
+  return response.json() as Promise<AllocationResult>;
+}
+
+export async function bulkAllocateStudentCredentials(input: {
+  reason: string;
+  assignments: Array<{ studentId: string; credentialUID: string }>;
+}) {
+  const response = await fetch(`${API_BASE}/api/student-credentials/bulk-allocate`, {
+    method: "POST",
+    headers: makeSchoolRequestHeaders({ "Content-Type": "application/json" }),
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) throw new Error(await parseApiError(response, "Bulk allocation failed"));
+  return response.json() as Promise<{ credentials: StudentCredential[] }>;
 }
 
 export async function amendStudentCredential(

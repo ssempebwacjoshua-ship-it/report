@@ -28,6 +28,7 @@ import { NfcCanteenChargePage } from "../pages/NfcCanteenChargePage";
 import { NfcGateSecurityPage } from "../pages/NfcGateSecurityPage";
 import { NfcTokenPage } from "../pages/NfcTokenPage";
 import { NfcOperationsPage } from "../pages/NfcOperationsPage";
+import { NfcBulkAllocationPage } from "../pages/NfcBulkAllocationPage";
 import { NfcTapPage } from "../pages/NfcTapPage";
 import { OwnerDashboardPage } from "../pages/owner/OwnerDashboardPage";
 import { OwnerSchoolsPage } from "../pages/owner/OwnerSchoolsPage";
@@ -135,6 +136,7 @@ export const router = createBrowserRouter([
       { path: "students", element: <StudentsPage /> },
       // ── NFC routes — canonical paths ──────────────────────────────────────────
       { path: "nfc/wristbands", element: <StudentCredentialsPage /> },
+      { path: "nfc/bulk-allocation", element: <NfcBulkAllocationPage /> },
       { path: "nfc/tags", element: <NfcOperationsPage /> },
       { path: "nfc/attendance", element: <NfcAttendancePage /> },
       { path: "nfc/wallets", element: <NfcWalletsPage /> },
