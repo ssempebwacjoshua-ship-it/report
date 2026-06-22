@@ -27,10 +27,12 @@ const filtersSchema = z.object({
 
 const scanSchema = z.object({
   tokenOrUid: z.string().trim().min(1, "NFC token or UID is required."),
+  deviceId: z.string().trim().optional(),
 });
 
 const attendanceScanSchema = scanSchema.extend({
   direction: z.enum(AttendanceDirection).optional(),
+  idempotencyKey: z.string().trim().optional(),
 });
 
 const chargeSchema = scanSchema.extend({
