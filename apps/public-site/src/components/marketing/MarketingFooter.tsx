@@ -31,11 +31,13 @@ const COMPANY_LINKS = [
 function LogoLight() {
   return (
     <div className="flex items-center gap-2.5">
-      <div
-        className="grid h-[32px] w-[32px] shrink-0 place-items-center rounded-lg border"
-        style={{ background: "rgba(255,255,255,0.12)", borderColor: "rgba(255,255,255,0.22)", color: "white" }}
-      >
-        <span className="text-[15px] font-black leading-none">S</span>
+      {/* white badge wraps the logo so its white background blends in */}
+      <div className="flex h-[36px] w-[36px] shrink-0 items-center justify-center rounded-xl bg-white p-1">
+        <img
+          src="/ssamenj-logo-footer.png"
+          alt="SSAMENJ"
+          className="h-full w-full object-contain"
+        />
       </div>
       <div>
         <div className="text-[14px] font-extrabold leading-none tracking-tight text-white">SSAMENJ</div>
