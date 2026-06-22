@@ -94,12 +94,12 @@ body {
     background-image:
       linear-gradient(
         180deg,
-        rgba(11, 47, 107, 0.94) 0%,
-        rgba(15, 91, 216, 0.88) 54%,
-        rgba(15, 91, 216, 0.55) 100%
+        rgba(11, 47, 107, 0.82) 0%,
+        rgba(15, 91, 216, 0.58) 48%,
+        rgba(15, 91, 216, 0.22) 100%
       ),
       url("/ssamenj-hero-ecosystem.png");
-    background-position: center right;
+    background-position: center center;
   }
 }
 
@@ -143,12 +143,12 @@ body {
     background-image:
       linear-gradient(
         180deg,
-        rgba(11, 47, 107, 0.94) 0%,
-        rgba(15, 91, 216, 0.88) 54%,
-        rgba(15, 91, 216, 0.55) 100%
+        rgba(11, 47, 107, 0.82) 0%,
+        rgba(15, 91, 216, 0.58) 48%,
+        rgba(15, 91, 216, 0.22) 100%
       ),
       url("/images/products-hero.png");
-    background-position: center right;
+    background-position: center center;
   }
 }
 
