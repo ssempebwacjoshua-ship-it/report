@@ -35,7 +35,6 @@ type BatchSummary = {
   repeated: number;
   graduated: number;
   actions: Array<{
-    id: string;
     studentName: string;
     decision: string;
     status: string;
@@ -113,7 +112,6 @@ export function PromotionWorkspacePage() {
 
   const [batches, setBatches] = useState<BatchSummary[]>([]);
   const [loadingBatches, setLoadingBatches] = useState(false);
-  const [expandedBatchId, setExpandedBatchId] = useState<string | null>(null);
   const [reversingId, setReversingId] = useState<string | null>(null);
   const [reverseResult, setReverseResult] = useState<{ reversed: number; blocked: Array<{ studentName: string; reason: string }> } | null>(null);
 
@@ -188,19 +186,6 @@ export function PromotionWorkspacePage() {
   }
 
   const selectedCandidates = candidates.filter((c) => selected.has(c.studentId));
-
-  // Split groups for the preview columns
-  const promoteGroup = candidates.filter((c) => effectiveDecision(c) === "PROMOTE");
-  const repeatGroup = candidates.filter((c) => effectiveDecision(c) === "REPEAT");
-  const graduateGroup = candidates.filter((c) => effectiveDecision(c) === "GRADUATE");
-
-  // Reason shown beneath Apply button when it cannot be pressed
-  const applyDisabledReason: string | null =
-    candidates.length === 0 ? null
-    : selected.size === 0 ? "No students selected. Use 'Select all' or check individual students."
-    : !computedTargetYearId ? `Cannot apply: the next academic year (${nextYearNumber || "?"}) has not been set up yet. Add it in Academic Years first.`
-    : !targetTermId ? "Select a target term to apply promotions."
-    : null;
 
   async function handleApply() {
     if (!computedTargetYearId || !targetTermId || selectedCandidates.length === 0) return;
@@ -373,190 +358,99 @@ export function PromotionWorkspacePage() {
         </div>
       </section>
 
-      {/* Promotion Preview — summary cards + split columns */}
+      {/* Candidates table */}
       {candidates.length > 0 ? (
-        <>
-          {/* Summary cards */}
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4" data-testid="promotion-summary">
-            <div className="rounded-2xl border border-slate-200 bg-white p-4 text-center shadow-sm">
-              <div className="text-2xl font-bold text-slate-900">{candidates.length}</div>
-              <div className="mt-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Total</div>
-            </div>
-            <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-center shadow-sm">
-              <div className="text-2xl font-bold text-emerald-700" data-testid="promote-count">{promoteGroup.length + graduateGroup.length}</div>
-              <div className="mt-1 text-xs font-semibold uppercase tracking-wide text-emerald-600">Promote</div>
-            </div>
-            <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-center shadow-sm">
-              <div className="text-2xl font-bold text-amber-700" data-testid="repeat-count">{repeatGroup.length}</div>
-              <div className="mt-1 text-xs font-semibold uppercase tracking-wide text-amber-600">Repeat / Failed</div>
-            </div>
-            <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4 text-center shadow-sm">
-              <div className="text-2xl font-bold text-blue-700">{graduateGroup.length}</div>
-              <div className="mt-1 text-xs font-semibold uppercase tracking-wide text-blue-600">Graduate</div>
+        <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 py-4">
+            <h2 className="text-sm font-bold text-slate-900">
+              {candidates.length} student{candidates.length !== 1 ? "s" : ""} found
+            </h2>
+            <div className="flex gap-2 text-xs">
+              <button
+                type="button"
+                className="rounded-lg border border-slate-200 px-3 py-1.5 font-semibold text-slate-600 hover:bg-slate-50"
+                onClick={() => setSelected(new Set(candidates.map((c) => c.studentId)))}
+              >
+                Select all
+              </button>
+              <button
+                type="button"
+                className="rounded-lg border border-slate-200 px-3 py-1.5 font-semibold text-slate-600 hover:bg-slate-50"
+                onClick={() => setSelected(new Set())}
+              >
+                Deselect all
+              </button>
             </div>
           </div>
 
-          {/* Split columns */}
-          <div className="grid gap-4 md:grid-cols-2">
-            {/* LEFT — Promote + Graduate */}
-            <section className="rounded-2xl border border-emerald-200 bg-white shadow-sm" data-testid="promote-column">
-              <div className="rounded-t-2xl border-b border-emerald-100 bg-emerald-50 px-5 py-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h2 className="text-sm font-bold text-emerald-800">
-                      Promote — {promoteGroup.length + graduateGroup.length} student{promoteGroup.length + graduateGroup.length !== 1 ? "s" : ""}
-                    </h2>
-                    <p className="text-xs text-emerald-600">Students who meet the promotion requirement</p>
-                  </div>
-                  <button
-                    type="button"
-                    className="text-xs text-emerald-600 hover:underline"
-                    onClick={() => {
-                      const next = new Set(selected);
-                      [...promoteGroup, ...graduateGroup].forEach((c) => next.add(c.studentId));
-                      setSelected(next);
-                    }}
-                  >
-                    Select all
-                  </button>
-                </div>
-              </div>
-              {promoteGroup.length === 0 && graduateGroup.length === 0 ? (
-                <p className="px-5 py-6 text-sm text-slate-400">No students will be promoted with this threshold.</p>
-              ) : (
-                <div>
-                  {[...promoteGroup, ...graduateGroup].map((c) => {
-                    const dec = effectiveDecision(c);
-                    const isSelected = selected.has(c.studentId);
-                    return (
-                      <div key={c.studentId} className={`flex items-start gap-3 border-b border-slate-50 px-4 py-3 last:border-0 hover:bg-slate-50/60 ${!isSelected ? "opacity-50" : ""}`}>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-slate-100 text-left text-xs font-bold uppercase tracking-wide text-slate-500">
+                  <th className="px-4 py-3 w-8"></th>
+                  <th className="px-4 py-3">Student</th>
+                  <th className="px-4 py-3">Current Class</th>
+                  <th className="px-4 py-3 text-right">Average</th>
+                  <th className="px-4 py-3">Decision</th>
+                  <th className="px-4 py-3">Next Class</th>
+                </tr>
+              </thead>
+              <tbody>
+                {candidates.map((c) => {
+                  const dec = effectiveDecision(c);
+                  return (
+                    <tr key={c.studentId} className="border-b border-slate-50 hover:bg-slate-50/50">
+                      <td className="px-4 py-2">
                         <input
                           type="checkbox"
-                          checked={isSelected}
+                          checked={selected.has(c.studentId)}
                           onChange={(e) => {
                             const next = new Set(selected);
                             if (e.target.checked) next.add(c.studentId);
                             else next.delete(c.studentId);
                             setSelected(next);
                           }}
-                          className="mt-0.5 h-4 w-4 shrink-0 rounded border-slate-300"
-                          aria-label={`Include ${c.studentName}`}
+                          className="h-4 w-4 rounded border-slate-300"
                         />
-                        <div className="min-w-0 flex-1">
-                          <div className="font-semibold text-slate-900 leading-tight">{c.studentName}</div>
-                          <div className="mt-0.5 text-xs text-slate-400">{c.admissionNumber} · {c.fromClassName}/{c.fromStreamName}</div>
-                        </div>
-                        <div className="shrink-0 font-mono text-sm font-medium text-slate-700">
-                          {c.averageScore != null ? `${c.averageScore.toFixed(1)}%` : "—"}
-                        </div>
+                      </td>
+                      <td className="px-4 py-2">
+                        <div className="font-semibold text-slate-900">{c.studentName}</div>
+                        <div className="font-mono text-xs text-slate-400">{c.admissionNumber}</div>
+                      </td>
+                      <td className="px-4 py-2 text-slate-700">{c.fromClassName} / {c.fromStreamName}</td>
+                      <td className="px-4 py-2 text-right font-mono font-medium text-slate-800">
+                        {c.averageScore != null ? c.averageScore.toFixed(1) : "—"}
+                      </td>
+                      <td className="px-4 py-2">
                         <select
                           value={dec}
-                          onChange={(e) => setOverrides((prev) => ({ ...prev, [c.studentId]: e.target.value as OverrideDecision }))}
-                          className={`shrink-0 rounded-lg border px-2 py-1 text-xs font-bold outline-none ${DECISION_COLORS[dec]}`}
+                          onChange={(e) =>
+                            setOverrides((prev) => ({ ...prev, [c.studentId]: e.target.value as OverrideDecision }))
+                          }
+                          className={`rounded-lg border px-2 py-1 text-xs font-bold outline-none ${DECISION_COLORS[dec]}`}
                         >
-                          <option value="PROMOTE">Promote</option>
-                          <option value="REPEAT">Repeat</option>
-                          <option value="GRADUATE">Graduate</option>
+                          <option value="PROMOTE">{DECISION_LABELS.PROMOTE}</option>
+                          <option value="REPEAT">{DECISION_LABELS.REPEAT}</option>
+                          <option value="GRADUATE">{DECISION_LABELS.GRADUATE}</option>
                         </select>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </section>
-
-            {/* RIGHT — Repeat */}
-            <section className="rounded-2xl border border-amber-200 bg-white shadow-sm" data-testid="repeat-column">
-              <div className="rounded-t-2xl border-b border-amber-100 bg-amber-50 px-5 py-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h2 className="text-sm font-bold text-amber-800">
-                      Repeat — {repeatGroup.length} student{repeatGroup.length !== 1 ? "s" : ""}
-                    </h2>
-                    <p className="text-xs text-amber-600">Students who did not meet the {scoreThreshold}% promotion threshold</p>
-                  </div>
-                  <button
-                    type="button"
-                    className="text-xs text-amber-600 hover:underline"
-                    onClick={() => {
-                      const next = new Set(selected);
-                      repeatGroup.forEach((c) => next.add(c.studentId));
-                      setSelected(next);
-                    }}
-                  >
-                    Select all
-                  </button>
-                </div>
-              </div>
-              {repeatGroup.length === 0 ? (
-                <p className="px-5 py-6 text-sm text-slate-400">All students met the threshold.</p>
-              ) : (
-                <div>
-                  {repeatGroup.map((c) => {
-                    const dec = effectiveDecision(c);
-                    const isSelected = selected.has(c.studentId);
-                    return (
-                      <div key={c.studentId} className={`flex items-start gap-3 border-b border-slate-50 px-4 py-3 last:border-0 hover:bg-slate-50/60 ${!isSelected ? "opacity-50" : ""}`}>
-                        <input
-                          type="checkbox"
-                          checked={isSelected}
-                          onChange={(e) => {
-                            const next = new Set(selected);
-                            if (e.target.checked) next.add(c.studentId);
-                            else next.delete(c.studentId);
-                            setSelected(next);
-                          }}
-                          className="mt-0.5 h-4 w-4 shrink-0 rounded border-slate-300"
-                          aria-label={`Include ${c.studentName}`}
-                        />
-                        <div className="min-w-0 flex-1">
-                          <div className="font-semibold text-slate-900 leading-tight">{c.studentName}</div>
-                          <div className="mt-0.5 text-xs text-slate-400">{c.admissionNumber} · {c.fromClassName}/{c.fromStreamName}</div>
-                          {c.averageScore != null ? (
-                            <div className="mt-1 text-xs text-amber-600">Average {c.averageScore.toFixed(1)}% — below {scoreThreshold}% threshold</div>
-                          ) : null}
-                        </div>
-                        <div className="shrink-0 font-mono text-sm font-medium text-slate-700">
-                          {c.averageScore != null ? `${c.averageScore.toFixed(1)}%` : "—"}
-                        </div>
-                        <select
-                          value={dec}
-                          onChange={(e) => setOverrides((prev) => ({ ...prev, [c.studentId]: e.target.value as OverrideDecision }))}
-                          className={`shrink-0 rounded-lg border px-2 py-1 text-xs font-bold outline-none ${DECISION_COLORS[dec]}`}
-                        >
-                          <option value="PROMOTE">Promote</option>
-                          <option value="REPEAT">Repeat</option>
-                          <option value="GRADUATE">Graduate</option>
-                        </select>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </section>
+                      </td>
+                      <td className="px-4 py-2 text-slate-600">
+                        {dec === "GRADUATE"
+                          ? <span className="text-blue-600 font-semibold">Graduate</span>
+                          : dec === "REPEAT"
+                            ? <span className="text-amber-700">{c.fromClassName} (repeat)</span>
+                            : c.toClassName ?? "—"}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
 
-          {/* Global select/deselect */}
-          <div className="flex justify-end gap-2 text-xs">
-            <button
-              type="button"
-              className="rounded-lg border border-slate-200 px-3 py-1.5 font-semibold text-slate-600 hover:bg-slate-50"
-              onClick={() => setSelected(new Set(candidates.map((c) => c.studentId)))}
-            >
-              Select all ({candidates.length})
-            </button>
-            <button
-              type="button"
-              className="rounded-lg border border-slate-200 px-3 py-1.5 font-semibold text-slate-600 hover:bg-slate-50"
-              onClick={() => setSelected(new Set())}
-            >
-              Deselect all
-            </button>
-          </div>
-
-          {/* Target year / term + Apply */}
-          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <h3 className="mb-3 text-sm font-bold text-slate-900">Apply to which academic year / term?</h3>
+          {/* Target year (auto-computed) + target term selection */}
+          <div className="border-t border-slate-100 p-5">
+            <h3 className="mb-3 text-sm font-bold text-slate-900">Promote into which academic year / term?</h3>
             <div className="flex flex-wrap items-center gap-3">
               <span className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
                 Target year: <strong>{nextYearNumber || "—"}</strong>
@@ -573,59 +467,43 @@ export function PromotionWorkspacePage() {
               </select>
             </div>
 
-            <div className="mt-4">
-              {!confirming ? (
-                <>
+            {!confirming ? (
+              <button
+                type="button"
+                className="btn btn-primary mt-4"
+                disabled={selected.size === 0 || !computedTargetYearId || !targetTermId || applying}
+                onClick={() => setConfirming(true)}
+              >
+                Apply promotions ({selected.size} student{selected.size !== 1 ? "s" : ""})
+              </button>
+            ) : (
+              <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4">
+                <p className="text-sm font-semibold text-amber-800">
+                  This action will move {selected.size} selected student{selected.size !== 1 ? "s" : ""} to the next class for the selected academic year.
+                </p>
+                <p className="mt-1 text-xs text-amber-700">Previous enrollments will be marked completed. New enrollments will be created in the target year/term.</p>
+                <div className="mt-3 flex gap-2">
                   <button
                     type="button"
                     className="btn btn-primary"
-                    disabled={!!applyDisabledReason || applying}
-                    onClick={() => setConfirming(true)}
+                    disabled={applying}
+                    onClick={() => void handleApply()}
                   >
-                    Apply promotions ({selected.size} student{selected.size !== 1 ? "s" : ""})
+                    {applying ? "Applying..." : "Confirm — Apply promotions"}
                   </button>
-                  {applyDisabledReason ? (
-                    <p className="mt-2 text-sm font-medium text-amber-700" data-testid="apply-disabled-reason">
-                      {applyDisabledReason}
-                    </p>
-                  ) : null}
-                </>
-              ) : (
-                <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
-                  <p className="text-sm font-semibold text-amber-800">
-                    This will move {selected.size} selected student{selected.size !== 1 ? "s" : ""} to the next class for the selected academic year.
-                  </p>
-                  <ul className="mt-2 space-y-0.5 text-xs text-amber-700">
-                    <li>↑ {promoteGroup.filter((c) => selected.has(c.studentId)).length} will be promoted</li>
-                    <li>↺ {repeatGroup.filter((c) => selected.has(c.studentId)).length} will repeat their current class</li>
-                    {graduateGroup.filter((c) => selected.has(c.studentId)).length > 0 ? (
-                      <li>✓ {graduateGroup.filter((c) => selected.has(c.studentId)).length} will graduate</li>
-                    ) : null}
-                  </ul>
-                  <p className="mt-2 text-xs text-amber-700">Previous enrollments will be marked completed. New enrollments will be created in the target year/term.</p>
-                  <div className="mt-3 flex gap-2">
-                    <button
-                      type="button"
-                      className="btn btn-primary"
-                      disabled={applying}
-                      onClick={() => void handleApply()}
-                    >
-                      {applying ? "Applying..." : "Confirm — Apply promotions"}
-                    </button>
-                    <button
-                      type="button"
-                      className="btn btn-secondary"
-                      disabled={applying}
-                      onClick={() => setConfirming(false)}
-                    >
-                      Cancel
-                    </button>
-                  </div>
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    disabled={applying}
+                    onClick={() => setConfirming(false)}
+                  >
+                    Cancel
+                  </button>
                 </div>
-              )}
-            </div>
-          </section>
-        </>
+              </div>
+            )}
+          </div>
+        </section>
       ) : null}
 
       {/* Apply result */}
@@ -678,128 +556,53 @@ export function PromotionWorkspacePage() {
         {loadingBatches ? (
           <p className="px-5 py-6 text-sm text-slate-400">Loading...</p>
         ) : batches.length === 0 ? (
-          <p className="px-5 py-6 text-sm text-slate-400" data-testid="history-empty-state">
-            No promotion batches have been applied yet. Review the promotion preview above to see promoted and repeating students before applying.
-          </p>
+          <p className="px-5 py-6 text-sm text-slate-400">No promotion batches yet.</p>
         ) : (
           <div className="divide-y divide-slate-100">
-            {batches.map((b) => {
-              const isExpanded = expandedBatchId === b.id;
-              const batchPromoted = b.actions.filter((a) => a.decision === "PROMOTE" && a.status === "APPLIED");
-              const batchRepeated = b.actions.filter((a) => a.decision === "REPEAT" && a.status === "APPLIED");
-              const batchGraduated = b.actions.filter((a) => a.decision === "GRADUATE" && a.status === "APPLIED");
-              return (
-                <div key={b.id}>
-                  <div className="px-5 py-4">
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span
-                            className={`rounded-full px-2 py-0.5 text-xs font-bold ${
-                              b.status === "APPLIED" ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-500"
-                            }`}
-                          >
-                            {b.status}
-                          </span>
-                          <span className="text-sm font-semibold text-slate-800">
-                            {b.totalStudents} student{b.totalStudents !== 1 ? "s" : ""}
-                          </span>
-                          <span className="text-xs text-slate-400">
-                            Applied {new Date(b.appliedAt).toLocaleDateString("en-GB")}
-                            {b.appliedByName ? ` by ${b.appliedByName}` : ""}
-                          </span>
-                        </div>
-                        <div className="mt-1 flex gap-3 text-xs text-slate-500">
-                          <span className="text-emerald-600">↑ {b.promoted} promoted</span>
-                          <span className="text-amber-600">↺ {b.repeated} repeat</span>
-                          <span className="text-blue-600">✓ {b.graduated} graduated</span>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          className="text-xs text-blue-600 hover:underline"
-                          onClick={() => setExpandedBatchId(isExpanded ? null : b.id)}
-                          aria-expanded={isExpanded}
-                        >
-                          {isExpanded ? "Hide details" : "Show details"}
-                        </button>
-                        {b.status === "APPLIED" ? (
-                          <button
-                            type="button"
-                            className="btn btn-secondary text-xs"
-                            disabled={reversingId === b.id}
-                            onClick={() => void handleReverse(b.id)}
-                          >
-                            {reversingId === b.id ? "Reversing..." : "Reverse batch"}
-                          </button>
-                        ) : (
-                          <span className="text-xs text-slate-400">
-                            Reversed {b.reversedAt ? new Date(b.reversedAt).toLocaleDateString("en-GB") : ""}
-                            {b.reversedByName ? ` by ${b.reversedByName}` : ""}
-                          </span>
-                        )}
-                      </div>
+            {batches.map((b) => (
+              <div key={b.id} className="px-5 py-4">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={`rounded-full px-2 py-0.5 text-xs font-bold ${
+                          b.status === "APPLIED" ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-500"
+                        }`}
+                      >
+                        {b.status}
+                      </span>
+                      <span className="text-sm font-semibold text-slate-800">
+                        {b.totalStudents} student{b.totalStudents !== 1 ? "s" : ""}
+                      </span>
+                      <span className="text-xs text-slate-400">
+                        Applied {new Date(b.appliedAt).toLocaleDateString("en-GB")}
+                        {b.appliedByName ? ` by ${b.appliedByName}` : ""}
+                      </span>
+                    </div>
+                    <div className="mt-1 flex gap-3 text-xs text-slate-500">
+                      <span className="text-emerald-600">↑ {b.promoted} promoted</span>
+                      <span className="text-amber-600">↺ {b.repeated} repeat</span>
+                      <span className="text-blue-600">✓ {b.graduated} graduated</span>
                     </div>
                   </div>
-                  {isExpanded ? (
-                    <div className="border-t border-slate-100 bg-slate-50/60 px-5 py-4">
-                      <div className="grid gap-4 md:grid-cols-2">
-                        <div>
-                          <h4 className="mb-2 text-xs font-bold uppercase tracking-wide text-emerald-700">
-                            Promoted ({batchPromoted.length})
-                          </h4>
-                          {batchPromoted.length === 0 ? (
-                            <p className="text-xs text-slate-400">None</p>
-                          ) : (
-                            <ul className="space-y-1">
-                              {batchPromoted.map((a) => (
-                                <li key={a.id} className="text-sm text-slate-800">
-                                  <span className="font-semibold">{a.studentName}</span>
-                                  <span className="ml-1 text-xs text-slate-500">{a.fromClassName} → {a.toClassName ?? "—"}</span>
-                                </li>
-                              ))}
-                            </ul>
-                          )}
-                          {batchGraduated.length > 0 ? (
-                            <>
-                              <h4 className="mb-2 mt-3 text-xs font-bold uppercase tracking-wide text-blue-700">
-                                Graduated ({batchGraduated.length})
-                              </h4>
-                              <ul className="space-y-1">
-                                {batchGraduated.map((a) => (
-                                  <li key={a.id} className="text-sm text-slate-800">
-                                    <span className="font-semibold">{a.studentName}</span>
-                                    <span className="ml-1 text-xs text-slate-500">{a.fromClassName}</span>
-                                  </li>
-                                ))}
-                              </ul>
-                            </>
-                          ) : null}
-                        </div>
-                        <div>
-                          <h4 className="mb-2 text-xs font-bold uppercase tracking-wide text-amber-700">
-                            Repeat / Failed ({batchRepeated.length})
-                          </h4>
-                          {batchRepeated.length === 0 ? (
-                            <p className="text-xs text-slate-400">None — all students were promoted.</p>
-                          ) : (
-                            <ul className="space-y-1">
-                              {batchRepeated.map((a) => (
-                                <li key={a.id} className="text-sm text-slate-800">
-                                  <span className="font-semibold">{a.studentName}</span>
-                                  <span className="ml-1 text-xs text-amber-600">repeating {a.fromClassName}</span>
-                                </li>
-                              ))}
-                            </ul>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  ) : null}
+                  {b.status === "APPLIED" ? (
+                    <button
+                      type="button"
+                      className="btn btn-secondary text-xs"
+                      disabled={reversingId === b.id}
+                      onClick={() => void handleReverse(b.id)}
+                    >
+                      {reversingId === b.id ? "Reversing..." : "Reverse promotion batch"}
+                    </button>
+                  ) : (
+                    <span className="text-xs text-slate-400">
+                      Reversed {b.reversedAt ? new Date(b.reversedAt).toLocaleDateString("en-GB") : ""}
+                      {b.reversedByName ? ` by ${b.reversedByName}` : ""}
+                    </span>
+                  )}
                 </div>
-              );
-            })}
+              </div>
+            ))}
           </div>
         )}
       </section>

@@ -1,4 +1,6 @@
 ﻿import { type ReactNode, type SVGProps } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
+import { FloatingWhatsAppButton } from "../components/marketing/FloatingWhatsAppButton";
 import { TestimonialsSection } from "../components/marketing/TestimonialsSection";
 import { WHATSAPP_DISPLAY, buildWhatsAppUrl } from "../config/contact";
 
@@ -143,6 +145,8 @@ const buildPricingWhatsAppHref = () =>
 const buildPackageWhatsAppHref = (message: string) => buildWhatsAppUrl(message);
 
 export function PricingPage() {
+  const navigate = useNavigate();
+  const { pathname } = useLocation();
   const pricingChatHref = buildPricingWhatsAppHref();
   const reportLabPricingHref = buildPackageWhatsAppHref(
     [
@@ -163,8 +167,75 @@ export function PricingPage() {
     ].join("\n"),
   );
 
+  const navItemClass = (active: boolean) =>
+    active ? "font-black text-blue-700" : "transition hover:text-blue-700";
+
   return (
-    <div className="bg-slate-50 text-slate-950">
+    <div className="min-h-screen bg-slate-50 text-slate-950">
+      <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/95 backdrop-blur-xl">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-2 sm:px-6 lg:px-8">
+          <button
+            type="button"
+            onClick={() => void navigate("/demo")}
+            className="flex items-center gap-3 text-left"
+          >
+            <div className="grid h-10 w-10 place-items-center rounded-2xl bg-blue-600 text-white shadow-lg shadow-blue-500/10">
+              <SchoolIcon className="h-5 w-5" />
+            </div>
+            <div>
+              <p className="text-sm font-black tracking-tight text-slate-950">School Connect</p>
+              <p className="text-[11px] uppercase tracking-[0.22em] text-blue-700">Powering Smart Schools</p>
+            </div>
+          </button>
+
+          <nav className="hidden items-center gap-5 text-sm font-semibold text-slate-600 md:flex">
+            <button type="button" onClick={() => void navigate("/demo")} className={navItemClass(pathname === "/demo")}>
+              Demo
+            </button>
+            <a href="/demo#report-lab" className={navItemClass(false)}>
+              Report Lab
+            </a>
+            <a href="/demo#smart-pages" className={navItemClass(false)}>
+              Smart Pages
+            </a>
+            <button
+              type="button"
+              onClick={() => void navigate("/pricing")}
+              aria-current={pathname === "/pricing" ? "page" : undefined}
+              className={navItemClass(pathname === "/pricing")}
+            >
+              Pricing
+            </button>
+            <button
+              type="button"
+              onClick={() => void navigate("/contact")}
+              aria-current={pathname === "/contact" ? "page" : undefined}
+              className={navItemClass(pathname === "/contact")}
+            >
+              Contact
+            </button>
+          </nav>
+
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => void navigate("/login")}
+              className="btn marketing-button-motion rounded-full border border-blue-200 bg-white px-4 py-2 text-sm font-bold text-blue-700 shadow-sm hover:bg-blue-50"
+            >
+              Sign in
+            </button>
+            <button
+              type="button"
+              onClick={() => void navigate("/demo")}
+              className="btn marketing-button-motion rounded-full bg-gradient-to-r from-blue-600 to-blue-700 px-4 py-2 text-sm font-black text-white shadow-lg shadow-blue-600/20 hover:shadow-xl hover:shadow-blue-600/25"
+            >
+              Watch Demo
+              <ArrowRightIcon className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      </header>
+
       <main>
         <section className="border-b border-blue-100 bg-gradient-to-br from-white via-blue-50 to-slate-50 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
           <div className="mx-auto grid max-w-7xl gap-4 lg:grid-cols-12 lg:items-start">
@@ -189,7 +260,7 @@ export function PricingPage() {
                 </a>
                 <button
                   type="button"
-                  onClick={() => { window.location.href = "/demos"; }}
+                  onClick={() => void navigate("/demo")}
                   className="btn marketing-button-motion rounded-xl border border-blue-200 bg-white px-4 py-3 text-sm font-bold text-blue-700 shadow-sm hover:bg-blue-50"
                 >
                   Watch Demo
@@ -338,7 +409,7 @@ export function PricingPage() {
                 </a>
                 <button
                   type="button"
-                  onClick={() => { window.location.href = "/demos"; }}
+                  onClick={() => void navigate("/demo")}
                   className="btn marketing-button-motion rounded-xl border border-blue-200 bg-white px-4 py-3 text-sm font-bold text-blue-700 shadow-sm hover:bg-blue-50"
                 >
                   Watch Demo
@@ -363,6 +434,7 @@ export function PricingPage() {
             </div>
           </div>
         </section>
+        <FloatingWhatsAppButton />
       </main>
     </div>
   );

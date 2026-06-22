@@ -1,5 +1,8 @@
-import { useMemo, useState, type ReactNode, type SVGProps } from "react";
+﻿import { useMemo, useState, type ReactNode, type SVGProps } from "react";
+import { useNavigate } from "react-router-dom";
+import { FloatingWhatsAppButton } from "../components/marketing/FloatingWhatsAppButton";
 import { TestimonialsSection } from "../components/marketing/TestimonialsSection";
+import { WHATSAPP_DISPLAY, buildWhatsAppUrl } from "../config/contact";
 
 function Icon({ children, className, ...props }: SVGProps<SVGSVGElement> & { children: ReactNode }) {
   return (
@@ -36,18 +39,9 @@ function PhoneIcon(props: SVGProps<SVGSVGElement>) {
   );
 }
 
-function MailIcon(props: SVGProps<SVGSVGElement>) {
+function Badge({ children, className = "" }: { children: ReactNode; className?: string }) {
   return (
-    <Icon {...props}>
-      <path d="m4 6 8 5 8-5" />
-      <rect x="4" y="5" width="16" height="14" rx="2" />
-    </Icon>
-  );
-}
-
-function Badge({ children }: { children: ReactNode }) {
-  return (
-    <span className="inline-flex items-center rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-[11px] font-black uppercase tracking-[0.18em] text-blue-700">
+    <span className={`inline-flex items-center rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-[11px] font-black uppercase tracking-[0.18em] text-blue-700 ${className}`}>
       {children}
     </span>
   );
@@ -65,96 +59,171 @@ function InfoCard({
   href: string;
 }) {
   return (
-    <div className="rounded-[1.5rem] border border-slate-200 bg-white p-5 shadow-sm">
+    <div className="group relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-xl">
+      <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-blue-600 via-sky-400 to-cyan-300" />
+      <div className="absolute -right-10 top-6 h-24 w-24 rounded-full bg-blue-50/70 blur-3xl transition duration-200 group-hover:bg-blue-100/80" />
       <h3 className="text-base font-black text-slate-950">{title}</h3>
       <p className="mt-2 text-sm leading-6 text-slate-600">{body}</p>
-      <a href={href} target="_blank" rel="noopener noreferrer" className="btn btn-secondary mt-4 inline-flex rounded-xl px-4 py-2.5 text-sm font-bold">
+      <a
+        href={href}
+        className="btn marketing-button-motion mt-4 inline-flex rounded-xl border border-blue-200 bg-white px-4 py-2.5 text-sm font-bold text-blue-700 shadow-sm hover:bg-blue-50"
+      >
         {cta}
       </a>
     </div>
   );
 }
 
-const WHATSAPP_NUMBER = "+971 56 370 4103";
-const WHATSAPP_BASE = "https://wa.me/971563704103";
-
-const WHATSAPP_UG_NUMBER = "+256 774 549 869";
-const WHATSAPP_UG_WA = `https://wa.me/256774549869?text=${encodeURIComponent("Hello SSAMENJ Technologies! I would like to speak with the Uganda team.")}`;
-
-function waLink(text: string) {
-  return `${WHATSAPP_BASE}?text=${encodeURIComponent(text)}`;
-}
-
-const DEMO_WA = waLink("Hello SSAMENJ Technologies! I would like to book a school demo.");
-const PRICING_WA = waLink("Hello SSAMENJ Technologies! I would like to ask about pricing for my school.");
-const SETUP_WA = waLink("Hello SSAMENJ Technologies! I need setup support for School Connect.");
-
 export function ContactPage() {
+  const navigate = useNavigate();
   const [form, setForm] = useState({
     schoolName: "",
     contactPerson: "",
     phone: "",
-    email: "",
     location: "",
     students: "",
     interest: "Not sure yet",
     message: "",
   });
 
-  const whatsappHref = useMemo(() => {
-    const msg = [
-      "Hello SSAMENJ Technologies,",
-      "I would like to request a demo.",
-      "",
-      `Name: ${form.contactPerson || "-"}`,
-      `Institution / School: ${form.schoolName || "-"}`,
-      `Phone: ${form.phone || "-"}`,
-      `Email: ${form.email || "-"}`,
-      `Location: ${form.location || "-"}`,
-      `Students: ${form.students || "-"}`,
-      `Interested in: ${form.interest}`,
-      "",
-      form.message || "No additional message.",
-    ].join("\n");
-    return `${WHATSAPP_BASE}?text=${encodeURIComponent(msg)}`;
-  }, [form]);
+  const demoMessage = useMemo(
+    () =>
+      [
+        "Hello School Connect, I would like to request a demo.",
+        `School: ${form.schoolName || "-"}`,
+        `Contact person: ${form.contactPerson || "-"}`,
+        `Phone: ${form.phone || "-"}`,
+        `Location: ${form.location || "-"}`,
+        `Students: ${form.students || "-"}`,
+        `Interested in: ${form.interest}`,
+        `Message: ${form.message || "-"}`,
+      ].join("\n"),
+    [form],
+  );
+
+  const demoHref = useMemo(() => buildWhatsAppUrl(demoMessage), [demoMessage]);
+  const pricingHref = useMemo(
+    () =>
+      buildWhatsAppUrl(
+        [
+          "Hello School Connect, I would like to ask about pricing.",
+          `School: ${form.schoolName || "-"}`,
+          `Contact person: ${form.contactPerson || "-"}`,
+          `Phone: ${form.phone || "-"}`,
+          `Location: ${form.location || "-"}`,
+          `Students: ${form.students || "-"}`,
+          `Interested in: ${form.interest}`,
+          `Message: ${form.message || "-"}`,
+        ].join("\n"),
+      ),
+    [form],
+  );
+  const supportHref = useMemo(
+    () =>
+      buildWhatsAppUrl(
+        [
+          "Hello School Connect, I need setup support.",
+          `School: ${form.schoolName || "-"}`,
+          `Contact person: ${form.contactPerson || "-"}`,
+          `Phone: ${form.phone || "-"}`,
+          `Location: ${form.location || "-"}`,
+          `Students: ${form.students || "-"}`,
+          `Interested in: ${form.interest}`,
+          `Message: ${form.message || "-"}`,
+        ].join("\n"),
+      ),
+    [form],
+  );
 
   return (
-    <div className="bg-slate-50 text-slate-950">
+    <div className="min-h-screen bg-slate-50 text-slate-950">
+      <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/95 backdrop-blur-xl">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-2 sm:px-6 lg:px-8">
+          <button type="button" onClick={() => void navigate("/demo")} className="flex items-center gap-3 text-left">
+            <div className="grid h-10 w-10 place-items-center rounded-2xl bg-blue-600 text-white shadow-lg shadow-blue-500/10">
+              <SchoolIcon className="h-5 w-5" />
+            </div>
+            <div>
+              <p className="text-sm font-black tracking-tight text-slate-950">School Connect</p>
+              <p className="text-[11px] uppercase tracking-[0.22em] text-blue-700">Powering Smart Schools</p>
+            </div>
+          </button>
+
+          <nav className="hidden items-center gap-5 text-sm font-semibold text-slate-600 md:flex">
+            <button type="button" onClick={() => void navigate("/demo")} className="transition hover:text-blue-700">
+              Demo
+            </button>
+            <button type="button" onClick={() => void navigate("/pricing")} className="transition hover:text-blue-700">
+              Pricing
+            </button>
+            <a href="#contact-form" className="transition hover:text-blue-700">
+              Contact
+            </a>
+          </nav>
+
+          <div className="flex items-center gap-2">
+            <button type="button" onClick={() => void navigate("/login")} className="btn marketing-button-motion rounded-full border border-blue-200 bg-white px-4 py-2 text-sm font-bold text-blue-700 shadow-sm hover:bg-blue-50">
+              Sign in
+            </button>
+            <button type="button" onClick={() => void navigate("/demo")} className="btn marketing-button-motion rounded-full bg-gradient-to-r from-blue-600 to-blue-700 px-4 py-2 text-sm font-black text-white shadow-lg shadow-blue-600/20 hover:shadow-xl hover:shadow-blue-600/25">
+              Watch Demo
+              <ArrowRightIcon className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      </header>
+
       <main>
         <section className="border-b border-blue-100 bg-gradient-to-br from-white via-blue-50 to-slate-50 px-4 py-8 sm:px-6 lg:px-8">
           <div className="mx-auto grid max-w-7xl gap-6 lg:grid-cols-12 lg:items-center">
             <div className="lg:col-span-7">
-              <Badge>SCHOOL CONNECT FOR SMART SCHOOLS</Badge>
-              <h1 className="mt-3 max-w-3xl text-4xl font-black tracking-tight text-slate-950 sm:text-5xl">
+              <Badge className="marketing-fade-up">SCHOOL CONNECT FOR SMART SCHOOLS</Badge>
+              <h1 className="marketing-fade-up-delay-1 mt-3 max-w-3xl text-4xl font-black tracking-tight text-slate-950 sm:text-5xl">
                 Let&apos;s help your school work smarter.
               </h1>
-              <p className="mt-3 max-w-2xl text-base leading-7 text-slate-600">
+              <p className="marketing-fade-up-delay-2 mt-3 max-w-2xl text-base leading-7 text-slate-600">
                 Request a demo, ask about pricing, or speak to us about setting up Report Lab, Smart Pages, and future School Connect tools for your school.
               </p>
 
-              <div className="mt-5 flex flex-col gap-3 sm:flex-row">
+              <div className="marketing-fade-up-delay-3 mt-5 flex flex-col gap-3 sm:flex-row">
+                <a
+                  href={demoHref}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="btn marketing-button-motion rounded-xl bg-gradient-to-r from-blue-600 to-blue-700 px-4 py-3 text-sm font-black text-white shadow-lg shadow-blue-600/20 hover:shadow-xl hover:shadow-blue-600/25"
+                >
+                  Chat with us on WhatsApp
+                </a>
                 <button
                   type="button"
-                  onClick={() => document.getElementById("contact-form")?.scrollIntoView({ behavior: "smooth", block: "start" })}
-                  className="btn btn-primary rounded-xl px-4 py-3 text-sm font-black"
-                >
-                  Request a Demo
-                </button>
-                <a
-                  href="/demos"
-                  className="btn btn-secondary rounded-xl px-4 py-3 text-sm font-bold"
+                  onClick={() => void navigate("/demo")}
+                  className="btn marketing-button-motion rounded-xl border border-blue-200 bg-white px-4 py-3 text-sm font-bold text-blue-700 shadow-sm hover:bg-blue-50"
                 >
                   Watch Walkthrough
-                </a>
+                </button>
               </div>
             </div>
 
             <div className="lg:col-span-5">
               <div className="grid gap-3">
-                <InfoCard title="Book a school demo" body="See how Report Lab and Smart Pages can reduce paperwork, speed up reporting, and support your school’s daily work." cta="Request Demo on WhatsApp" href={DEMO_WA} />
-                <InfoCard title="Ask about pricing" body="Tell us your school size and the products you need. We’ll recommend the best starting package." cta="Ask on WhatsApp" href={PRICING_WA} />
-                <InfoCard title="Setup support" body="Need help with branding, student data, marks import, or school document setup? We can guide you." cta="Talk to Us on WhatsApp" href={SETUP_WA} />
+                <InfoCard
+                  title="Book a school demo"
+                  body="See how Report Lab and Smart Pages can reduce paperwork, speed up reporting, and support your school's daily work."
+                  cta="Request Demo"
+                  href={demoHref}
+                />
+                <InfoCard
+                  title="Ask about pricing"
+                  body="Tell us your school size and the products you need. We'll recommend the best starting package."
+                  cta="Ask About Pricing"
+                  href={pricingHref}
+                />
+                <InfoCard
+                  title="Setup support"
+                  body="Need help with branding, student data, marks import, or school document setup? We can guide you."
+                  cta="Chat Now"
+                  href={supportHref}
+                />
               </div>
             </div>
           </div>
@@ -163,15 +232,15 @@ export function ContactPage() {
         <section id="contact-form" className="border-b border-slate-200 bg-white px-4 py-8 sm:px-6 lg:px-8">
           <div className="mx-auto grid max-w-7xl gap-6 lg:grid-cols-12">
             <div className="lg:col-span-7">
-              <div className="rounded-[1.75rem] border border-slate-200 bg-white p-5 shadow-sm">
-                <div className="flex items-center gap-3">
-                  <div className="grid h-11 w-11 place-items-center rounded-2xl bg-blue-50 text-blue-700">
-                    <MailIcon className="h-5 w-5" />
-                  </div>
+                <div className="marketing-card-motion rounded-[1.75rem] border border-slate-200 bg-white p-5 shadow-sm">
+                  <div className="flex items-center gap-3">
+                    <div className="grid h-11 w-11 place-items-center rounded-2xl bg-blue-50 text-blue-700">
+                      <PhoneIcon className="h-5 w-5" />
+                    </div>
                   <div>
-                    <h2 className="text-2xl font-black tracking-tight text-slate-950">Request a Demo</h2>
+                    <h2 className="text-2xl font-black tracking-tight text-slate-950">Request a WhatsApp chat</h2>
                     <p className="text-sm leading-6 text-slate-600">
-                      Fill in the form below and tap the button to open WhatsApp with your details pre-filled.
+                      Fill in the form and open WhatsApp with a prefilled message for your school.
                     </p>
                   </div>
                 </div>
@@ -202,15 +271,6 @@ export function ContactPage() {
                       value={form.phone}
                       onChange={(event) => setForm((current) => ({ ...current, phone: event.target.value }))}
                       placeholder="Phone number"
-                    />
-                  </label>
-                  <label className="grid gap-2 text-sm font-semibold text-slate-700">
-                    Email
-                    <input
-                      className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-950 outline-none transition focus:border-blue-300 focus:bg-white"
-                      value={form.email}
-                      onChange={(event) => setForm((current) => ({ ...current, email: event.target.value }))}
-                      placeholder="Email address"
                     />
                   </label>
                   <label className="grid gap-2 text-sm font-semibold text-slate-700">
@@ -263,63 +323,50 @@ export function ContactPage() {
                 </label>
 
                 <div className="mt-5 flex flex-col gap-3 sm:flex-row">
-                  <a
-                    href={whatsappHref}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="btn btn-primary rounded-xl px-4 py-3 text-sm font-black"
-                  >
-                    Request Demo on WhatsApp
+                  <a href={demoHref} target="_blank" rel="noreferrer" className="btn marketing-button-motion rounded-xl bg-gradient-to-r from-blue-600 to-blue-700 px-4 py-3 text-sm font-black text-white shadow-lg shadow-blue-600/20 hover:shadow-xl hover:shadow-blue-600/25">
+                    Request Demo
                   </a>
                   <a
-                    href={DEMO_WA}
+                    href={pricingHref}
                     target="_blank"
-                    rel="noopener noreferrer"
-                    className="btn btn-secondary rounded-xl px-4 py-3 text-sm font-bold"
+                    rel="noreferrer"
+                    className="btn marketing-button-motion rounded-xl border border-blue-200 bg-white px-4 py-3 text-sm font-bold text-blue-700 shadow-sm hover:bg-blue-50"
                   >
-                    Contact on WhatsApp
+                    Ask About Pricing
                   </a>
                 </div>
+
+                <p className="mt-3 text-sm leading-6 text-slate-600">
+                  Your message will open in WhatsApp, ready to send.
+                </p>
               </div>
             </div>
 
             <div className="lg:col-span-5">
               <div className="grid gap-3">
-                <a
-                  href={DEMO_WA}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="block rounded-[1.5rem] border border-emerald-200 bg-emerald-50 p-5 shadow-sm transition hover:bg-emerald-100"
-                >
+                <div className="marketing-card-motion rounded-[1.5rem] border border-slate-200 bg-white p-5 shadow-sm">
                   <div className="flex items-center gap-3">
-                    <div className="grid h-10 w-10 place-items-center rounded-2xl bg-emerald-600 text-white flex-shrink-0">
+                    <div className="grid h-10 w-10 place-items-center rounded-2xl bg-emerald-50 text-emerald-700">
                       <PhoneIcon className="h-5 w-5" />
                     </div>
                     <div>
                       <p className="text-sm font-black text-slate-950">WhatsApp</p>
-                      <p className="text-sm font-semibold text-emerald-700">{WHATSAPP_NUMBER}</p>
-                      <p className="text-xs text-slate-500 mt-0.5">Tap to open WhatsApp</p>
+                      <p className="text-sm leading-6 text-slate-600">{WHATSAPP_DISPLAY}</p>
                     </div>
                   </div>
-                </a>
-                <a
-                  href={WHATSAPP_UG_WA}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="block rounded-[1.5rem] border border-slate-200 bg-white p-5 shadow-sm transition hover:bg-slate-50"
-                >
+                </div>
+                <div className="marketing-card-motion rounded-[1.5rem] border border-slate-200 bg-white p-5 shadow-sm">
                   <div className="flex items-center gap-3">
-                    <div className="grid h-10 w-10 place-items-center rounded-2xl bg-emerald-50 text-emerald-600 flex-shrink-0">
+                    <div className="grid h-10 w-10 place-items-center rounded-2xl bg-emerald-50 text-emerald-700">
                       <PhoneIcon className="h-5 w-5" />
                     </div>
                     <div>
-                      <p className="text-sm font-black text-slate-950">Uganda Product Manager</p>
-                      <p className="text-sm font-semibold text-emerald-700">{WHATSAPP_UG_NUMBER}</p>
-                      <p className="text-xs text-slate-500 mt-0.5">Regional contact · WhatsApp</p>
+                      <p className="text-sm font-black text-slate-950">Direct line</p>
+                      <p className="text-sm leading-6 text-slate-600">Fast replies on WhatsApp</p>
                     </div>
                   </div>
-                </a>
-                <div className="rounded-[1.5rem] border border-blue-200 bg-blue-50 p-5 shadow-sm">
+                </div>
+                <div className="marketing-card-motion rounded-[1.5rem] border border-blue-200 bg-blue-50 p-5 shadow-sm">
                   <p className="text-sm font-black text-slate-950">Need a quick start?</p>
                   <p className="mt-2 text-sm leading-6 text-slate-600">
                     We can help with a demo, pricing guidance, or a setup discussion for Report Lab and Smart Pages.
@@ -333,7 +380,7 @@ export function ContactPage() {
         <TestimonialsSection className="bg-slate-50 px-4 py-8 sm:px-6 lg:px-8" compact />
 
         <section className="border-t border-slate-200 bg-blue-50/40 px-4 py-8 sm:px-6 lg:px-8">
-          <div className="mx-auto max-w-7xl rounded-[2rem] border border-blue-200 bg-white p-6 shadow-sm sm:p-7">
+          <div className="marketing-card-motion mx-auto max-w-7xl rounded-[2rem] border border-blue-200 bg-white p-6 shadow-sm sm:p-7">
             <div className="grid gap-6 lg:grid-cols-12 lg:items-center">
               <div className="lg:col-span-8">
                 <p className="text-xs font-black uppercase tracking-[0.2em] text-blue-700">Ready to see School Connect in action?</p>
@@ -342,17 +389,25 @@ export function ContactPage() {
                 </h2>
               </div>
               <div className="flex flex-col gap-3 lg:col-span-4 lg:items-end">
-                <a href="/demos" className="btn btn-primary rounded-xl px-4 py-2.5 text-sm font-black">
+                <button type="button" onClick={() => void navigate("/demo")} className="btn marketing-button-motion rounded-xl bg-gradient-to-r from-blue-600 to-blue-700 px-4 py-2.5 text-sm font-black text-white shadow-lg shadow-blue-600/20 hover:shadow-xl hover:shadow-blue-600/25">
                   Watch Demo
+                </button>
+                <a href={pricingHref} target="_blank" rel="noreferrer" className="btn marketing-button-motion rounded-xl border border-blue-200 bg-white px-4 py-2.5 text-sm font-bold text-blue-700 shadow-sm hover:bg-blue-50">
+                  Request Pricing on WhatsApp
                 </a>
-                <a href="/pricing" className="btn btn-secondary rounded-xl px-4 py-2.5 text-sm font-bold">
-                  Request Pricing
+                <a href={demoHref} target="_blank" rel="noreferrer" className="btn marketing-button-motion rounded-xl border border-blue-200 bg-white px-4 py-2.5 text-sm font-bold text-blue-700 shadow-sm hover:bg-blue-50">
+                  Chat on WhatsApp
                 </a>
               </div>
             </div>
           </div>
         </section>
       </main>
+      <FloatingWhatsAppButton />
     </div>
   );
 }
+
+
+
+

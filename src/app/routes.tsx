@@ -12,14 +12,10 @@ import { StudentCredentialsPage } from "../pages/StudentCredentialsPage";
 import { SettingsPage } from "../pages/SettingsPage";
 import { LoginPage } from "../pages/LoginPage";
 import { LogoutPage } from "../pages/LogoutPage";
+import { DemoPage } from "../pages/DemoPage";
 import { FeaturesDemoPage } from "../pages/FeaturesDemoPage";
 import { PricingPage } from "../pages/PricingPage";
 import { ContactPage } from "../pages/ContactPage";
-import { SSAMENJHomePage } from "../pages/SSAMENJHomePage";
-import { DemosPage } from "../pages/DemosPage";
-import { ProductsPage } from "../pages/ProductsPage";
-import { AboutPage } from "../pages/AboutPage";
-import { PublicLayout } from "../components/marketing/PublicLayout";
 import { ParentReportPage } from "../pages/ParentReportPage";
 import { VerifyPage } from "../pages/VerifyPage";
 import { NfcAttendancePage } from "../pages/NfcAttendancePage";
@@ -68,29 +64,11 @@ function lazyElement(Component: ComponentType) {
 }
 
 export const router = createBrowserRouter([
-  // ── SSAMENJ public website ── shared header/footer via PublicLayout
-  {
-    element: <PublicLayout />,
-    children: [
-      { path: "/",                              element: <SSAMENJHomePage /> },
-      { path: "/products",                      element: <ProductsPage /> },
-      { path: "/products/report-lab",           element: <Navigate to="/products" replace /> },
-      { path: "/products/smart-pages",          element: <Navigate to="/products" replace /> },
-      { path: "/products/school-connect",       element: <Navigate to="/products" replace /> },
-      { path: "/products/legal-smart-pages",    element: <Navigate to="/products" replace /> },
-      { path: "/products/kids-wallet",          element: <Navigate to="/products" replace /> },
-      { path: "/products/nfc-wristbands",       element: <Navigate to="/products" replace /> },
-      { path: "/demos",                         element: <DemosPage /> },
-      { path: "/about",                         element: <AboutPage /> },
-      { path: "/contact",                       element: <ContactPage /> },
-      { path: "/pricing",                       element: <PricingPage /> },
-    ],
-  },
-
-  // ── Legacy route redirects ──
-  { path: "/dem",  element: <Navigate to="/demos" replace /> }, // was Report Lab demo page
-  { path: "/demo", element: <Navigate to="/demos" replace /> }, // legacy landing page
+  // Public routes — no AppShell, no auth
+  { path: "/demo", element: <DemoPage /> },
   { path: "/features-demo", element: <FeaturesDemoPage /> },
+  { path: "/pricing", element: <PricingPage /> },
+  { path: "/contact", element: <ContactPage /> },
   { path: "/login", element: <LoginPage /> },
   { path: "/logout", element: <LogoutPage /> },
   { path: "/parent/r/:token", element: <ParentReportPage /> },
@@ -127,14 +105,13 @@ export const router = createBrowserRouter([
     ],
   },
 
-  // ── Authenticated app routes ── (AppShell handles auth guard internally)
+  // Authenticated app routes — AppShell handles auth guard internally
   {
     path: "/",
     element: <AppShell />,
     errorElement: <RouteErrorPage />,
     children: [
-      // No index route here — "/" is now the public SSAMENJ homepage above.
-      // Authenticated users land on /dashboard directly after login.
+      { index: true, element: <Navigate to="/dashboard" replace /> },
       { path: "dashboard", element: <DashboardPage /> },
       { path: "students", element: <StudentsPage /> },
       // ── NFC routes — canonical paths ──────────────────────────────────────────
