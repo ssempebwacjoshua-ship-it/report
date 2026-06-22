@@ -55,27 +55,29 @@ function HeroSuiteVisual() {
   return (
     <div
       className="overflow-hidden rounded-[1.5rem] border border-white/20 marketing-card-motion"
-      style={{ background: "rgba(255,255,255,0.06)", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)" }}
+      style={{ background: "rgba(255,255,255,0.07)", backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)" }}
     >
+      {/* Panel header */}
       <div
-        className="flex items-center justify-between border-b px-4 pb-3 pt-4"
+        className="flex items-center justify-between border-b px-3.5 py-2.5"
         style={{ borderColor: "rgba(255,255,255,0.12)" }}
       >
-        <div className="flex items-center gap-2.5">
-          <div className="grid h-6 w-6 place-items-center rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 text-[10px] font-extrabold text-white">
+        <div className="flex items-center gap-2">
+          <div className="grid h-5 w-5 place-items-center rounded-md bg-gradient-to-br from-blue-500 to-blue-600 text-[9px] font-extrabold text-white">
             S
           </div>
           <div>
-            <div className="text-[12px] font-extrabold leading-none text-white">SSAMENJ Suite</div>
+            <div className="text-[11px] font-extrabold leading-none text-white">SSAMENJ Suite</div>
             <div className="mt-0.5 text-[9px] leading-none text-blue-200">{SUITE_ITEMS.length} digital products</div>
           </div>
         </div>
-        <div className="flex items-center gap-1.5">
-          <span className="h-2 w-2 rounded-full bg-green-400" />
-          <span className="text-[10px] font-semibold text-green-300">3 Live</span>
+        <div className="flex items-center gap-1">
+          <span className="h-1.5 w-1.5 rounded-full bg-green-400" />
+          <span className="text-[9px] font-semibold text-green-300">3 Live</span>
         </div>
       </div>
 
+      {/* Compact horizontal cards — 2 columns */}
       <div className="grid grid-cols-2 gap-2 p-3">
         {SUITE_ITEMS.map((item) => {
           const meta = STATUS_META[item.status];
@@ -84,39 +86,40 @@ function HeroSuiteVisual() {
           return (
             <div
               key={item.abbr}
-              className="rounded-xl border p-3"
+              className="flex items-center gap-2 rounded-xl border px-2.5 py-2"
               style={{
                 background: isLive ? "rgba(255,255,255,0.08)" : isDemo ? "rgba(99,102,241,0.12)" : "rgba(255,255,255,0.04)",
-                borderColor: isLive ? "rgba(255,255,255,0.18)" : isDemo ? "rgba(99,102,241,0.25)" : "rgba(255,255,255,0.08)",
+                borderColor: isLive ? "rgba(255,255,255,0.16)" : isDemo ? "rgba(99,102,241,0.25)" : "rgba(255,255,255,0.07)",
               }}
             >
-              <div className="mb-1.5 flex items-center justify-between">
-                <div
-                  className="flex h-7 w-7 items-center justify-center rounded-lg"
-                  style={{
-                    background: "rgba(255,255,255,0.12)",
-                    color: isLive ? "#93C5FD" : isDemo ? "#A5B4FC" : "#94A3B8",
-                  }}
-                >
-                  {item.icon}
-                </div>
-                <div className="h-2 w-2 rounded-full" style={{ background: meta.dot }} />
+              <div
+                className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg"
+                style={{
+                  background: "rgba(255,255,255,0.12)",
+                  color: isLive ? "#93C5FD" : isDemo ? "#A5B4FC" : "#94A3B8",
+                }}
+              >
+                {item.icon}
               </div>
-              <div className="text-[11px] font-bold leading-snug text-white">{item.name}</div>
-              <div className="mt-0.5 text-[9px] font-semibold" style={{ color: meta.textColor }}>
-                {meta.text}
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-[10px] font-bold leading-tight text-white">{item.name}</div>
+                <div className="mt-0.5 flex items-center gap-1">
+                  <span className="h-1 w-1 shrink-0 rounded-full" style={{ background: meta.dot }} />
+                  <span className="text-[9px] font-semibold" style={{ color: meta.textColor }}>{meta.text}</span>
+                </div>
               </div>
             </div>
           );
         })}
       </div>
 
+      {/* Panel footer */}
       <div
-        className="flex items-center justify-between border-t px-4 py-2.5 text-[10px] font-semibold"
-        style={{ borderColor: "rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.5)" }}
+        className="flex items-center justify-between border-t px-3.5 py-2 text-[9px] font-semibold"
+        style={{ borderColor: "rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.45)" }}
       >
         <span>Smart Systems. Simple Work.</span>
-        <span style={{ color: "#93C5FD" }}>app.ssamenj.com</span>
+        <span style={{ color: "#93C5FD" }}>ssamenj.com</span>
       </div>
     </div>
   );
@@ -146,9 +149,9 @@ function BuildCardItem({ card }: { card: BuildCard }) {
 export function AboutPage() {
   return (
     <div className="bg-slate-50 text-slate-950">
-      <section className="site-hero-blue site-hero-compact border-b text-white" style={{ borderColor: "rgba(15,91,216,0.25)" }}>
-        <div className="absolute inset-0 bg-dot-grid opacity-[0.15]" />
-        <div className="relative mx-auto grid max-w-7xl gap-6 px-4 sm:px-6 lg:grid-cols-12 lg:items-center lg:px-8">
+      <section className="home-hero-image-bg site-hero-compact border-b text-white" style={{ borderColor: "rgba(15,91,216,0.3)" }}>
+        <div className="absolute inset-0 bg-dot-grid opacity-[0.12]" />
+        <div className="home-hero-content mx-auto grid max-w-7xl gap-6 px-4 sm:px-6 lg:grid-cols-12 lg:items-center lg:px-8">
           <div className="lg:col-span-6">
             <div className="marketing-fade-up inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.2em] text-blue-50">
               <SparklesIcon className="h-3.5 w-3.5" />
