@@ -104,7 +104,11 @@ function ctx(req: Express.Request): NfcOperationsContext {
 
 function authPayloadFromHeader(authHeader: string | undefined) {
   const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
-  return token ? verifyToken(token) : null;
+  try {
+    return token ? verifyToken(token) : null;
+  } catch {
+    return null;
+  }
 }
 
 export function nfcPublicRoutes() {

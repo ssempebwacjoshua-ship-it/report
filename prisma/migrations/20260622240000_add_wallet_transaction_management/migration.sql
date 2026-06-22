@@ -11,12 +11,12 @@ DO $$ BEGIN
   END IF;
 END $$;
 
--- Add balance_after_cents: snapshot of wallet balance immediately after this transaction
-ALTER TABLE "student_wallet_transaction" ADD COLUMN IF NOT EXISTS "balance_after_cents" INTEGER;
+-- Add balanceAfterCents: snapshot of wallet balance immediately after this transaction
+ALTER TABLE "StudentWalletTransaction" ADD COLUMN IF NOT EXISTS "balanceAfterCents" INTEGER;
 
--- Add reversal_of_id: points to the original transaction being reversed (no FK to keep migration simple)
-ALTER TABLE "student_wallet_transaction" ADD COLUMN IF NOT EXISTS "reversal_of_id" UUID;
+-- Add reversalOfId: points to the original transaction being reversed (no FK to keep migration simple)
+ALTER TABLE "StudentWalletTransaction" ADD COLUMN IF NOT EXISTS "reversalOfId" UUID;
 
 -- Index for "has this transaction been reversed?" lookup
-CREATE INDEX IF NOT EXISTS "student_wallet_transaction_school_id_reversal_of_id_idx"
-  ON "student_wallet_transaction"("school_id", "reversal_of_id");
+CREATE INDEX IF NOT EXISTS "StudentWalletTransaction_schoolId_reversalOfId_idx"
+  ON "StudentWalletTransaction"("schoolId", "reversalOfId");
