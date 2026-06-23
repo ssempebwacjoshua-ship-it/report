@@ -30,6 +30,7 @@ type DemoItem = {
   videoId: string;
   caption: string;
   subtitle: string;
+  thumbnailSrc?: string;
 };
 
 const FEATURE_ITEMS: DemoItem[] = [
@@ -48,6 +49,15 @@ const FEATURE_ITEMS: DemoItem[] = [
     videoId: SMART_PAGES_VIDEO_ID,
     caption: "Click to watch Smart Pages demo",
     subtitle: "Smart Pages document workflow walkthrough",
+  },
+  {
+    id: "nfc",
+    name: "School Connect NFC Demo",
+    description: "See how NFC wristbands work for gate access, attendance, canteen payments, and offline-ready school operations.",
+    videoId: "nU4EvHCn0U0",
+    caption: "Click to watch NFC demo",
+    subtitle: "Gate access, attendance, canteen, and offline scanning",
+    thumbnailSrc: "/images/nfc-wristband-hero.png",
   },
 ];
 
@@ -75,7 +85,7 @@ function DemoShowcasePlayer({
   variant?: "hero" | "playlist";
   className?: string;
 }) {
-  const thumbnail = `https://img.youtube.com/vi/${item.videoId}/maxresdefault.jpg`;
+  const thumbnail = item.thumbnailSrc ?? `https://img.youtube.com/vi/${item.videoId}/maxresdefault.jpg`;
   const outerCard =
     variant === "hero"
       ? "border border-white/30 bg-white/95 shadow-xl backdrop-blur"
