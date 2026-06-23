@@ -241,6 +241,7 @@ function createMockDb(options: {
     auditLog: {
       create: async ({ data }: { data: unknown }) => { auditLogs.push(data); return data; },
     },
+    $transaction: async <T>(fn: (tx: typeof db) => Promise<T>) => fn(db),
   };
 
   return { db: db as never, tags, batches, credentials, auditLogs };
