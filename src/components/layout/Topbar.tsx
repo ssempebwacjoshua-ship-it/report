@@ -1,18 +1,67 @@
 import { useNavigate, useLocation } from "react-router-dom";
-import { NavigationRegular, PersonRegular, SignOutRegular } from "@fluentui/react-icons";
+import { NavigationRegular, PersonRegular, SignOutRegular, WifiOffRegular, ArrowSyncRegular, WarningRegular } from "@fluentui/react-icons";
 import { useAuth } from "../../contexts/AuthContext";
 import { ROLE_LABELS } from "../../shared/permissions";
 import { getProductFromPath, productSwitcherItems } from "./navConfig";
+import { useConnectivityStatus, type ConnectivityState } from "../../hooks/useConnectivityStatus";
 
 type Props = {
   onMenuClick: () => void;
 };
+
+function ConnectivityBadge({ state, pendingCount }: { state: ConnectivityState; pendingCount: number }) {
+  if (state === "ONLINE") return null;
+
+  const configs: Record<ConnectivityState, { label: string; className: string; icon: React.ReactNode } | null> = {
+    ONLINE: null,
+    DEGRADED: {
+      label: "Connection unstable",
+      className: "bg-amber-500/20 border-amber-400/40 text-amber-200",
+      icon: <WarningRegular className="h-3.5 w-3.5 shrink-0" />,
+    },
+    OFFLINE_READY: {
+      label: pendingCount > 0 ? `Offline Mode Active · ${pendingCount} pending` : "Offline Mode Active",
+      className: "bg-orange-500/20 border-orange-400/40 text-orange-200",
+      icon: <WifiOffRegular className="h-3.5 w-3.5 shrink-0" />,
+    },
+    OFFLINE_NOT_READY: {
+      label: "Offline – No snapshot",
+      className: "bg-red-500/20 border-red-400/40 text-red-200",
+      icon: <WifiOffRegular className="h-3.5 w-3.5 shrink-0" />,
+    },
+    SYNCING: {
+      label: pendingCount > 0 ? `Syncing ${pendingCount} pending actions…` : "Syncing…",
+      className: "bg-blue-500/20 border-blue-400/40 text-blue-200",
+      icon: <ArrowSyncRegular className="h-3.5 w-3.5 shrink-0 animate-spin" />,
+    },
+    SYNC_FAILED: {
+      label: "Sync failed",
+      className: "bg-red-500/20 border-red-400/40 text-red-200",
+      icon: <WarningRegular className="h-3.5 w-3.5 shrink-0" />,
+    },
+  };
+
+  const cfg = configs[state];
+  if (!cfg) return null;
+
+  return (
+    <div className={`hidden sm:flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold ${cfg.className}`}>
+      {cfg.icon}
+      <span>{cfg.label}</span>
+    </div>
+  );
+}
 
 export function Topbar({ onMenuClick }: Props) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const currentProduct = getProductFromPath(location.pathname);
+
+  const { state: connState, pendingCount } = useConnectivityStatus(
+    user?.schoolId,
+    typeof window !== "undefined" ? (localStorage.getItem("schoolconnect_nfc_device_id") ?? undefined) : undefined,
+  );
 
   function handleLogout() {
     logout();
@@ -74,6 +123,7 @@ export function Topbar({ onMenuClick }: Props) {
           </button>
         </div>
 
+        <ConnectivityBadge state={connState} pendingCount={pendingCount} />
       </div>
 
       <div className="flex items-center gap-2.5">

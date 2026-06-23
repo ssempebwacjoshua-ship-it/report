@@ -34,6 +34,7 @@ import { studentCredentialRoutes } from "./routes/studentCredentialRoutes";
 import { nfcOperationsRoutes, nfcPublicRoutes } from "./routes/nfcOperationsRoutes";
 import { staffUsersRoutes } from "./routes/staffUsersRoutes";
 import { nfcTagsPublicRoutes, nfcTagsRoutes } from "./routes/nfcTagsRoutes";
+import { nfcOfflineRoutes } from "./routes/nfcOfflineRoutes";
 import { documentIntelligenceRoutes } from "./routes/documentIntelligenceRoutes";
 import { creatorAuthRoutes } from "./routes/creatorAuthRoutes";
 import { collectionRoutes } from "./routes/collectionRoutes";
@@ -132,6 +133,7 @@ export function createServer() {
   app.use(studentCredentialRoutes());
   app.use(nfcOperationsRoutes());
   app.use(nfcTagsRoutes());
+  app.use(nfcOfflineRoutes());
   app.use(staffUsersRoutes());
   app.use(smartPagesBillingRoutes());
   app.use(geminiMarksImportRoutes());

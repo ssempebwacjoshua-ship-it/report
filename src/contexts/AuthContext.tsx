@@ -7,6 +7,7 @@ const API_BASE = getApiBaseUrl();
 
 export type AuthUser = {
   id: string;
+  schoolId: string;
   name: string;
   email: string;
   role: "ADMIN_OPERATOR" | "TEACHER" | "SECURITY" | "GATE_SECURITY" | "CANTEEN" | "CASHIER";

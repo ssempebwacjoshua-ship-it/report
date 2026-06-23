@@ -1,11 +1,16 @@
 import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
+import { WifiOffRegular } from "@fluentui/react-icons";
 import { NfcScanPanel } from "../components/nfc/NfcScanPanel";
 import { useNfcScanner, type ScanResult } from "../hooks/useNfcScanner";
+import { useConnectivityStatus } from "../hooks/useConnectivityStatus";
+import { useAuth } from "../contexts/AuthContext";
 import {
   fetchNfcAttendanceRegister,
   scanNfcAttendance,
 } from "../client/studentCredentialsClient";
+import { resolveOfflineNfcScan } from "../offline/offlineResolver";
+import { queueAttendanceEvent, getSnapshotMeta, hasPendingAttendanceForDirection } from "../offline/offlineStore";
 import type {
   AttendanceCurrentStatus,
   AttendanceDirection,
@@ -54,11 +59,23 @@ function SummaryCard({ label, value, color }: { label: string; value: number; co
   );
 }
 
+function getDeviceId(): string {
+  const key = "schoolconnect_nfc_device_id";
+  let id = localStorage.getItem(key);
+  if (!id) { id = crypto.randomUUID(); localStorage.setItem(key, id); }
+  return id;
+}
+
 export function NfcAttendancePage() {
   const [params] = useSearchParams();
+  const { user } = useAuth();
+  const deviceId = useRef(getDeviceId()).current;
+
+  const { isOfflineReady, pendingCount } = useConnectivityStatus(user?.schoolId, deviceId);
 
   const [register, setRegister] = useState<AttendanceRegisterResponse | null>(null);
   const [lastScan, setLastScan] = useState<NfcAttendanceScanEvent | null>(null);
+  const [offlineScans, setOfflineScans] = useState<Array<{ name: string; direction: string; status: string; scannedAt: string }>>([]);
 
   const [direction, setDirection] = useState<AttendanceDirection>("TAP_IN");
   const directionRef = useRef<AttendanceDirection>("TAP_IN");
@@ -98,16 +115,55 @@ export function NfcAttendancePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  async function handleScan({ tokenOrUid, idempotencyKey, deviceId }: ScanResult) {
-    const data = await scanNfcAttendance({
-      tokenOrUid,
-      direction: directionRef.current,
-      idempotencyKey,
-      deviceId,
-    });
+  async function handleScan({ tokenOrUid, idempotencyKey, deviceId: scanDeviceId }: ScanResult) {
+    if (isOfflineReady) {
+      if (!user?.schoolId) return;
+      const resolve = await resolveOfflineNfcScan(user.schoolId, tokenOrUid);
+      const meta = await getSnapshotMeta();
+      const scannedAt = new Date().toISOString();
+      const dateStr = scannedAt.split("T")[0]!;
+      const currentDirection = directionRef.current;
 
-    setLastScan(data.scan);
-    await loadRegister();
+      let status = "VALID";
+      let reason: string | null = null;
+      if (resolve.blocked) {
+        status = "BLOCKED";
+        reason = resolve.reason ?? "blocked";
+      } else if (resolve.student) {
+        const dup = await hasPendingAttendanceForDirection(user.schoolId, resolve.student.id, currentDirection, dateStr);
+        if (dup) { status = "DUPLICATE"; reason = "already recorded today"; }
+      }
+
+      await queueAttendanceEvent({
+        schoolId: user.schoolId,
+        deviceId: scanDeviceId ?? deviceId,
+        snapshotId: meta?.snapshotId ?? "unknown",
+        studentId: resolve.student?.id ?? null,
+        direction: currentDirection,
+        payload: {
+          actionType: "ATTENDANCE_SCAN",
+          tokenOrUid,
+          studentId: resolve.student?.id ?? null,
+          tagId: resolve.tag?.id ?? null,
+          direction: currentDirection,
+          status,
+          reason,
+          scannedAt,
+        },
+      });
+
+      const studentName = resolve.student ? `${resolve.student.firstName} ${resolve.student.lastName}`.trim() : "Unknown";
+      setOfflineScans((prev) => [{ name: studentName, direction: currentDirection, status, scannedAt }, ...prev.slice(0, 19)]);
+    } else {
+      const data = await scanNfcAttendance({
+        tokenOrUid,
+        direction: directionRef.current,
+        idempotencyKey,
+        deviceId: scanDeviceId,
+      });
+      setLastScan(data.scan);
+      await loadRegister();
+    }
   }
 
   const scanner = useNfcScanner({ onScan: handleScan });
@@ -134,7 +190,17 @@ export function NfcAttendancePage() {
         <h1 className="text-xl font-bold text-slate-950 sm:text-2xl">Attendance Register</h1>
       </header>
 
-      {loadError ? (
+      {isOfflineReady && (
+        <div className="flex items-center gap-3 rounded-xl border border-orange-200 bg-orange-50 p-3">
+          <WifiOffRegular className="h-5 w-5 text-orange-600 shrink-0" />
+          <div>
+            <p className="text-sm font-semibold text-orange-800">Offline Mode Active</p>
+            <p className="text-xs text-orange-600">Attendance scans are queued locally. {pendingCount > 0 ? `${pendingCount} pending sync.` : "Will sync when connection returns."}</p>
+          </div>
+        </div>
+      )}
+
+      {loadError && !isOfflineReady ? (
         <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
           {loadError}
         </div>
@@ -190,7 +256,22 @@ export function NfcAttendancePage() {
             scanLabel="Start NFC Scanner"
           />
 
-          {lastScan ? (
+          {isOfflineReady && offlineScans.length > 0 && (
+            <section className="rounded-xl border border-orange-200 bg-orange-50 p-4">
+              <p className="text-xs font-bold text-orange-700 mb-2">OFFLINE SCANS (queued)</p>
+              <div className="grid gap-1.5">
+                {offlineScans.slice(0, 5).map((s, i) => (
+                  <div key={i} className="flex items-center justify-between text-xs text-slate-700">
+                    <span className="font-medium">{s.name}</span>
+                    <span className={`rounded-full px-1.5 py-0.5 font-bold ${s.status === "VALID" ? "bg-emerald-100 text-emerald-700" : s.status === "DUPLICATE" ? "bg-amber-100 text-amber-700" : "bg-red-100 text-red-700"}`}>{s.status}</span>
+                    <span className="text-slate-400">{s.direction === "TAP_IN" ? "IN" : "OUT"}</span>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {!isOfflineReady && lastScan ? (
             <section
               className={`rounded-xl border p-4 ${
                 lastScan.status === "VALID"

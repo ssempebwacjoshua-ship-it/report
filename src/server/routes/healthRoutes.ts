@@ -18,6 +18,11 @@ export function healthRoutes() {
   router.get("/health", handler);
   router.get("/api/health", handler);
 
+  // Lightweight ping for offline heartbeat — no auth required
+  router.get("/api/health/ping", (_req: Request, res: Response) => {
+    res.json({ ok: true, ts: Date.now() });
+  });
+
   /**
    * GET /api/health/env
    *
