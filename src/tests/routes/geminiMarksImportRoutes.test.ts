@@ -439,6 +439,70 @@ describe("GET /api/marks-import/scan/options", () => {
     expect(upsertedCodes).toHaveLength(3);
     expect(upsertedCodes).toEqual(expect.arrayContaining(["BABY", "MIDDLE", "TOP"]));
   });
+
+  it("returns 200 with empty arrays when school has no subjects or terms (new school)", async () => {
+    const { prisma } = await import("../../server/db/prisma");
+    vi.mocked(prisma.subject.findMany).mockResolvedValueOnce([]);
+    vi.mocked(prisma.term.findMany).mockResolvedValueOnce([]);
+
+    const res = await request(createServer())
+      .get("/api/marks-import/scan/options")
+      .query({ schoolCode: "SCU-PREVIEW" });
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.subjects).toEqual([]);
+    expect(res.body.terms).toEqual([]);
+    expect(res.body.examTypes).toEqual(["BOT", "MOT", "EOT"]);
+  });
+
+  it("returns 200 with empty arrays when the dropdown DB query fails", async () => {
+    const { prisma } = await import("../../server/db/prisma");
+    vi.mocked(prisma.schoolClass.findMany).mockRejectedValueOnce(new Error("DB connection refused"));
+
+    const res = await request(createServer())
+      .get("/api/marks-import/scan/options")
+      .query({ schoolCode: "SCU-PREVIEW" });
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.classes).toEqual([]);
+    expect(res.body.streams).toEqual([]);
+    expect(res.body.subjects).toEqual([]);
+    expect(res.body.terms).toEqual([]);
+  });
+
+  it("returns 200 when class provisioning upsert fails but dropdown query succeeds", async () => {
+    schoolClassUpsert.mockRejectedValueOnce(new Error("unique constraint violation"));
+
+    const res = await request(createServer())
+      .get("/api/marks-import/scan/options")
+      .query({ schoolCode: "SCU-PREVIEW" });
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.classes).toEqual([{ id: "class-1", name: "Senior 1", code: "S1" }]);
+  });
+
+  it("returns 401 when no school context is resolved (missing auth in production)", async () => {
+    const { prisma } = await import("../../server/db/prisma");
+    vi.mocked(prisma.school.findUnique).mockResolvedValueOnce(null);
+
+    const res = await request(createServer())
+      .get("/api/marks-import/scan/options")
+      .query({ schoolCode: "DOES-NOT-EXIST" });
+
+    expect(res.status).toBe(404);
+  });
+
+  it("formats term names with a middle dot separator", async () => {
+    const res = await request(createServer())
+      .get("/api/marks-import/scan/options")
+      .query({ schoolCode: "SCU-PREVIEW" });
+
+    expect(res.status).toBe(200);
+    expect(res.body.terms[0].name).toMatch(/2025\/2026\s·\sTerm 1/);
+  });
 });
 
 describe("Gemini error handling", () => {

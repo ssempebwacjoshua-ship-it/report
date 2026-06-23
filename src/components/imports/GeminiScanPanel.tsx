@@ -284,10 +284,26 @@ export function GeminiScanPanel() {
         </div>
       )}
 
-      {/* Options load error */}
+      {/* Options load error (auth or network failure) */}
       {options.status === "error" && (
         <div className="rounded-2xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-          Could not load form options: {options.message}. Please refresh the page.
+          Could not load form options: {options.message}
+        </div>
+      )}
+
+      {/* Empty setup notice (options loaded but school not yet configured) */}
+      {options.status === "ready" && options.data.classes.length === 0 && (
+        <div className="rounded-2xl border border-blue-100 bg-blue-50 p-3 text-sm text-blue-700">
+          No classes are configured for this school yet. Visit{" "}
+          <Link to="/school-settings" className="font-semibold underline">School Settings</Link>{" "}
+          to add classes and subjects before using Smart Import.
+        </div>
+      )}
+      {options.status === "ready" && options.data.classes.length > 0 && options.data.subjects.length === 0 && (
+        <div className="rounded-2xl border border-blue-100 bg-blue-50 p-3 text-sm text-blue-700">
+          No subjects are configured for this school yet. Visit{" "}
+          <Link to="/school-settings" className="font-semibold underline">School Settings</Link>{" "}
+          to add subjects before using Smart Import.
         </div>
       )}
 
