@@ -14,6 +14,9 @@ import { TestimonialsSection } from "../components/marketing/TestimonialsSection
 const REQUEST_PRICING_WA = buildWhatsAppUrl(
   "Hello SSAMENJ Technologies, I would like to ask about pricing for School Connect.",
 );
+const NFC_QUOTE_WA = buildWhatsAppUrl(
+  "Hello SSAMENJ Technologies, please prepare an NFC quotation for our school. We would like to know the cost for wristbands/cards, setup, training, and School Connect NFC modules.",
+);
 const ENTERPRISE_WA = buildWhatsAppUrl(
   "Hello SSAMENJ Technologies! I would like a custom quote for a school above 2,000 students.",
 );
@@ -270,6 +273,12 @@ export function PricingPage() {
                 One annual license covers both Report Lab and Smart Pages for your entire school.
                 Choose the plan that fits your student count. Setup is a one-time fee paid during onboarding.
               </p>
+              <p className="mt-2 text-xs text-blue-200">
+                Looking for NFC Wristbands pricing?{" "}
+                <a href="#nfc" className="font-bold text-white underline hover:text-blue-100">
+                  School Connect NFC is priced by quotation ↓
+                </a>
+              </p>
               <p className="mt-2 text-sm font-semibold text-blue-200">
                 Annual license is billed yearly. Setup fee is paid once during onboarding.
               </p>
@@ -312,6 +321,13 @@ export function PricingPage() {
                   <p className="text-[11px] font-black uppercase tracking-[0.18em] text-blue-700">Smart Pages</p>
                   <p className="mt-1.5 text-xs leading-5 text-slate-600">
                     Upload documents and turn them into clean, digital, print-ready pages.
+                  </p>
+                </div>
+                <div className="marketing-card-motion relative overflow-hidden rounded-2xl border border-white/30 bg-white/95 p-3.5 shadow-sm backdrop-blur-sm">
+                  <div className="absolute inset-x-0 top-0 h-[3px] bg-gradient-to-r from-amber-400 via-orange-400 to-amber-400" />
+                  <p className="text-[11px] font-black uppercase tracking-[0.18em] text-amber-700">School Connect NFC</p>
+                  <p className="mt-1.5 text-xs leading-5 text-slate-600">
+                    Gate access, attendance, canteen wallets, and smart student identity — by quotation.
                   </p>
                 </div>
               </div>
@@ -357,6 +373,100 @@ export function PricingPage() {
             <p className="mt-4 text-xs text-slate-400">
               Annual license is billed yearly. Setup fee is a one-time payment made during onboarding.
             </p>
+          </div>
+        </section>
+
+        {/* ── School Connect NFC — By Quotation ── */}
+        <section id="nfc" className="border-b border-slate-200 bg-slate-50 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+          <div className="mx-auto max-w-7xl">
+            <div className="mb-5 flex items-center gap-3">
+              <div className="h-px flex-1 bg-slate-200" />
+              <span className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-[11px] font-black uppercase tracking-[0.2em] text-blue-700">
+                School Connect NFC
+              </span>
+              <div className="h-px flex-1 bg-slate-200" />
+            </div>
+
+            <div className="grid gap-6 lg:grid-cols-12 lg:items-start">
+              {/* Card */}
+              <div className="lg:col-span-4">
+                <article className="relative overflow-hidden rounded-2xl border border-blue-300 bg-white p-5 shadow-md ring-1 ring-blue-100">
+                  <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-blue-600 via-sky-400 to-cyan-300" />
+                  <p className="text-[11px] font-black uppercase tracking-[0.2em] text-blue-700">School Connect NFC</p>
+                  <p className="mt-3 text-4xl font-black tracking-tight text-slate-950">By Quotation</p>
+                  <p className="mt-2 text-sm leading-5 text-slate-500">
+                    Pricing depends on the number of students, NFC wristbands/cards/tags, devices, modules selected, setup, training, and support needs.
+                  </p>
+
+                  <ul className="mt-4 space-y-2">
+                    {[
+                      "NFC student identity setup",
+                      "Gate access scanning",
+                      "Attendance tap-in / tap-out",
+                      "Kids Wallet and canteen workflows",
+                      "Offline-ready scanning",
+                      "Admin dashboard and audit logs",
+                      "Role-based staff access",
+                      "Training and deployment support",
+                    ].map((b) => (
+                      <li key={b} className="flex items-start gap-2 text-sm text-slate-700">
+                        <CheckIcon className="mt-0.5 h-4 w-4 shrink-0 text-blue-600" />
+                        {b}
+                      </li>
+                    ))}
+                  </ul>
+
+                  <p className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-700">
+                    NFC hardware and setup are quoted based on school requirements. Setup fee applies.
+                  </p>
+
+                  <a
+                    href={NFC_QUOTE_WA}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="btn marketing-button-motion mt-4 w-full rounded-xl bg-gradient-to-r from-blue-600 to-blue-700 px-4 py-2.5 text-center text-sm font-black text-white shadow-lg shadow-blue-600/20 hover:shadow-xl"
+                  >
+                    Request Quotation
+                  </a>
+                  <Link
+                    to="/nfc"
+                    className="btn marketing-button-motion mt-2 w-full rounded-xl border border-blue-200 bg-white px-4 py-2.5 text-center text-sm font-bold text-blue-700 hover:bg-blue-50"
+                  >
+                    Learn About NFC
+                  </Link>
+                </article>
+              </div>
+
+              {/* Explanation */}
+              <div className="lg:col-span-8">
+                <p className="text-xs font-black uppercase tracking-[0.2em] text-blue-700">Why By Quotation?</p>
+                <h3 className="mt-1.5 text-xl font-black tracking-tight text-slate-950">
+                  NFC pricing is sized to your school's exact needs.
+                </h3>
+                <p className="mt-2 text-sm leading-6 text-slate-600">
+                  Every school has a different number of students, gate points, canteen counters, and NFC hardware preferences. We quote based on your actual setup so you only pay for what you need.
+                </p>
+                <p className="mt-2 text-xs text-slate-400">
+                  Launch offer may apply to selected School Connect software modules. NFC hardware and setup are quoted separately.
+                </p>
+
+                <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  {[
+                    { label: "Student Count", note: "Drives NFC item quantity and wallet capacity" },
+                    { label: "Gate Points", note: "Entry/exit access points to cover" },
+                    { label: "Canteen Counters", note: "Number of charging terminals needed" },
+                    { label: "Modules", note: "Gate only, attendance, canteen, or full suite" },
+                    { label: "Hardware Type", note: "Wristbands, cards, or flexible NFC tags" },
+                    { label: "Training & Support", note: "On-site or remote deployment support" },
+                  ].map((item) => (
+                    <div key={item.label} className="rounded-xl border border-slate-100 bg-white p-3.5 shadow-sm">
+                      <p className="text-xs font-bold text-slate-950">{item.label}</p>
+                      <p className="mt-0.5 text-[11px] text-slate-400">{item.note}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
           </div>
         </section>
 

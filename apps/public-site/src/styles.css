@@ -114,6 +114,57 @@ body {
   }
 }
 
+/* ── NFC page image hero ─────────────────────────────────────────────────── */
+
+.nfc-hero-image-bg {
+  position: relative;
+  overflow: hidden;
+  background-image:
+    linear-gradient(
+      90deg,
+      rgba(11, 47, 107, 0.97) 0%,
+      rgba(15, 91, 216, 0.88) 38%,
+      rgba(15, 91, 216, 0.44) 62%,
+      rgba(15, 91, 216, 0.08) 100%
+    ),
+    url("/images/nfc-wristband-hero.png");
+  background-size: cover;
+  background-position: center right;
+  background-repeat: no-repeat;
+}
+
+.nfc-hero-image-bg::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: min(840px, 82%);
+  height: 3px;
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.95) 0%,
+    rgba(255, 255, 255, 0.55) 42%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  pointer-events: none;
+}
+
+@media (max-width: 768px) {
+  .nfc-hero-image-bg {
+    background-image:
+      linear-gradient(
+        180deg,
+        rgba(11, 47, 107, 0.96) 0%,
+        rgba(11, 47, 107, 0.94) 35%,
+        rgba(11, 47, 107, 0.92) 65%,
+        rgba(11, 47, 107, 0.90) 100%
+      ),
+      url("/images/nfc-wristband-hero.png");
+    background-position: 72% 40%;
+    background-size: cover;
+  }
+}
+
 /* ── Products page image hero ────────────────────────────────────────────── */
 
 .products-hero-image-bg {

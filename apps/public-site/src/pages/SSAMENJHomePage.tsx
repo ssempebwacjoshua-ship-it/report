@@ -2,6 +2,7 @@ import { Link } from "react-router-dom";
 import { TestimonialsSection } from "../components/marketing/TestimonialsSection";
 import {
   ArrowRightIcon,
+  CheckIcon,
   FileTextIcon,
   LockIcon,
   PrinterIcon,
@@ -12,6 +13,10 @@ import { buildWhatsAppUrl } from "../config/contact";
 
 const BOOK_DEMO_URL = buildWhatsAppUrl(
   "Hello SSAMENJ Technologies! I'd like to book a product demo for my organisation.",
+);
+
+const NFC_QUOTE_WA = buildWhatsAppUrl(
+  "Hello SSAMENJ Technologies, I would like a quotation for School Connect NFC for our school. Please share requirements and pricing.",
 );
 
 
@@ -55,7 +60,7 @@ export function SSAMENJHomePage() {
               </a>
             </div>
 
-            <div className="mt-6 grid grid-cols-1 gap-2.5 sm:grid-cols-3">
+            <div className="mt-6 grid grid-cols-2 gap-2.5 sm:grid-cols-4">
               <Link to="/contact" className="marketing-fade-up-delay-1 cursor-pointer rounded-2xl border border-white/25 bg-white/[0.12] px-4 py-3 transition-all duration-200 hover:-translate-y-0.5 hover:border-white/40 hover:bg-white/[0.18]" style={{ backdropFilter: "blur(6px)" }}>
                 <p className="text-sm font-black text-white">School Connect</p>
                 <p className="mt-0.5 text-[11px] uppercase tracking-[0.16em] text-blue-100">POWERING SMART SCHOOLS.</p>
@@ -67,6 +72,10 @@ export function SSAMENJHomePage() {
               <Link to="/demos" className="marketing-fade-up-delay-3 cursor-pointer rounded-2xl border border-white/25 bg-white/[0.12] px-4 py-3 transition-all duration-200 hover:-translate-y-0.5 hover:border-white/40 hover:bg-white/[0.18]" style={{ backdropFilter: "blur(6px)" }}>
                 <p className="text-sm font-black text-white">Smart Pages</p>
                 <p className="mt-0.5 text-[11px] uppercase tracking-[0.16em] text-blue-100">HANDWRITTEN DOCS TO READY PDFS.</p>
+              </Link>
+              <Link to="/nfc" className="marketing-fade-up-delay-3 cursor-pointer rounded-2xl border border-white/25 bg-white/[0.12] px-4 py-3 transition-all duration-200 hover:-translate-y-0.5 hover:border-white/40 hover:bg-white/[0.18]" style={{ backdropFilter: "blur(6px)" }}>
+                <p className="text-sm font-black text-white">NFC Wristbands</p>
+                <p className="mt-0.5 text-[11px] uppercase tracking-[0.16em] text-blue-100">TAP TO IDENTIFY.</p>
               </Link>
             </div>
           </div>
@@ -125,6 +134,69 @@ export function SSAMENJHomePage() {
               <div className="marketing-card-motion marketing-soft-float rounded-[1.5rem] border border-emerald-200 bg-emerald-50 p-3.5 shadow-sm">
                 <p className="text-[11px] font-black uppercase tracking-[0.18em] text-emerald-700">Smart Pages</p>
                 <p className="mt-1.5 text-xs leading-5 text-slate-600">Handwritten documents turned into polished PDFs and shareable pages.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ── NFC section ── */}
+      <section className="border-b border-slate-200 bg-white px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+        <div className="mx-auto max-w-7xl">
+          <div className="grid gap-6 lg:grid-cols-12 lg:items-center">
+            {/* Image */}
+            <div className="order-2 lg:order-1 lg:col-span-5">
+              <div className="overflow-hidden rounded-2xl border border-slate-200 shadow-lg">
+                <img
+                  src="/images/nfc-wristband-hero.png"
+                  alt="Student NFC wristband — tap to identify at gate, canteen, and attendance"
+                  className="w-full object-cover"
+                  loading="lazy"
+                />
+              </div>
+            </div>
+
+            {/* Copy */}
+            <div className="order-1 lg:order-2 lg:col-span-7">
+              <p className="text-xs font-black uppercase tracking-[0.2em] text-blue-700">School Connect NFC</p>
+              <h2 className="mt-2 text-3xl font-black tracking-tight text-slate-950">
+                NFC Wristbands &amp; Smart ID System
+              </h2>
+              <p className="mt-2 text-sm leading-6 text-slate-600">
+                Tap-to-identify students for gate access, attendance, canteen wallets, and offline-ready school operations. Every student gets an NFC wristband, card, or tag linked to their school profile.
+              </p>
+
+              <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                {[
+                  "Gate Security & Access Control",
+                  "Attendance Tap-In / Tap-Out",
+                  "Cashless Canteen via Kids Wallet",
+                  "Offline-Ready Scanning",
+                  "Role-Based Staff Access",
+                  "Full Audit Trail",
+                ].map((feat) => (
+                  <div key={feat} className="flex items-center gap-2 text-sm text-slate-700">
+                    <CheckIcon className="h-4 w-4 shrink-0 text-blue-600" />
+                    {feat}
+                  </div>
+                ))}
+              </div>
+
+              <div className="mt-5 flex flex-col gap-3 sm:flex-row">
+                <Link
+                  to="/nfc"
+                  className="btn marketing-button-motion rounded-xl bg-gradient-to-r from-blue-600 to-blue-700 px-4 py-3 text-sm font-black text-white shadow-lg shadow-blue-600/20 hover:shadow-xl"
+                >
+                  Learn About NFC
+                </Link>
+                <a
+                  href={NFC_QUOTE_WA}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="btn marketing-button-motion rounded-xl border border-blue-200 bg-white px-4 py-3 text-sm font-bold text-blue-700 shadow-sm hover:bg-blue-50"
+                >
+                  Request Quotation
+                </a>
               </div>
             </div>
           </div>
