@@ -155,9 +155,9 @@ body {
       linear-gradient(
         180deg,
         rgba(11, 47, 107, 0.96) 0%,
-        rgba(11, 47, 107, 0.90) 38%,
-        rgba(15, 91, 216, 0.82) 66%,
-        rgba(15, 91, 216, 0.76) 100%
+        rgba(11, 47, 107, 0.94) 35%,
+        rgba(11, 47, 107, 0.92) 65%,
+        rgba(11, 47, 107, 0.90) 100%
       ),
       url("/images/nfc-wristband-hero.png");
     background-position: 72% 40%;

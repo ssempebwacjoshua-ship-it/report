@@ -170,7 +170,7 @@ export function NfcPage() {
                 href={BOOK_DEMO_WA}
                 target="_blank"
                 rel="noreferrer"
-                className="btn marketing-button-motion rounded-xl border border-white/30 bg-white/10 px-5 py-3 text-sm font-bold text-white hover:bg-white/20"
+                className="btn marketing-button-motion rounded-xl border border-blue-500 bg-blue-700 px-5 py-3 text-sm font-bold text-white shadow md:border-white/30 md:bg-white/10 md:shadow-none md:hover:bg-white/20"
               >
                 Book a Demo
               </a>
@@ -181,7 +181,7 @@ export function NfcPage() {
               {["Gate Security", "Attendance", "Canteen Wallet", "Offline-Ready", "Audit Trail"].map((tag) => (
                 <span
                   key={tag}
-                  className="rounded-full border border-white/25 bg-white/10 px-3 py-1 text-[11px] font-bold text-white"
+                  className="rounded-full border border-white/25 bg-white/95 px-3 py-1 text-[11px] font-bold text-blue-900 shadow-sm md:bg-white/10 md:text-white md:shadow-none"
                 >
                   {tag}
                 </span>
