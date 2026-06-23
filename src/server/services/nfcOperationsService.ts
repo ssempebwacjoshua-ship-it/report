@@ -712,7 +712,7 @@ export async function changeWalletPin(
   db: NfcOperationsClient = defaultPrisma,
 ) {
   const schoolId = requireSchoolId(ctx);
-  requirePermission(ctx, "nfc.canteen.charge");
+  requirePermission(ctx, "nfc.wallets.pin.manage");
   assertPinFormat(input.newPin);
 
   const wallet = await db.studentWallet.findFirst({ where: { id: input.walletId, schoolId } });
