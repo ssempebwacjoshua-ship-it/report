@@ -41,6 +41,189 @@ function copyToClipboard(text: string) {
   });
 }
 
+type TagActions = {
+  onCopyUrl: () => void;
+  onAssign: () => void;
+  onUnassign: () => void;
+  onDisable: () => void;
+  onEnable: () => void;
+  onEvents: () => void;
+  onWalletPin: () => void;
+  copiedId: string | null;
+};
+
+function ActionsDropdown({ tag, actions, isOpen, onToggle, onClose }: {
+  tag: NfcTag;
+  actions: TagActions;
+  isOpen: boolean;
+  onToggle: () => void;
+  onClose: () => void;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) onClose();
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [isOpen, onClose]);
+
+  const canAssign = tag.status !== "DISABLED" && tag.status !== "ASSIGNED";
+  const canUnassign = tag.status === "ASSIGNED";
+  const canDisable = tag.status !== "DISABLED" && tag.status !== "LOST";
+  const canEnable = tag.status === "DISABLED" || tag.status === "LOST";
+  const canWalletPin = tag.status === "ASSIGNED" && !!tag.student;
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={onToggle}
+        className="flex min-h-[44px] items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"
+      >
+        Actions
+        <svg className="h-4 w-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+
+      {isOpen && (
+        <div className="absolute right-0 z-30 mt-1.5 w-52 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg">
+          <button
+            type="button"
+            onClick={() => { actions.onCopyUrl(); onClose(); }}
+            className="flex w-full items-center px-4 py-3 text-left text-sm text-slate-700 hover:bg-slate-50"
+          >
+            {actions.copiedId === tag.id ? "Copied!" : "Copy URL"}
+          </button>
+
+          {canAssign && (
+            <button
+              type="button"
+              onClick={() => { actions.onAssign(); onClose(); }}
+              className="flex w-full items-center px-4 py-3 text-left text-sm font-semibold text-blue-700 hover:bg-blue-50"
+            >
+              Assign to student
+            </button>
+          )}
+          {canUnassign && (
+            <button
+              type="button"
+              onClick={() => { actions.onUnassign(); onClose(); }}
+              className="flex w-full items-center px-4 py-3 text-left text-sm text-slate-700 hover:bg-slate-50"
+            >
+              Unassign
+            </button>
+          )}
+          {canWalletPin && (
+            <button
+              type="button"
+              onClick={() => { actions.onWalletPin(); onClose(); }}
+              className="flex w-full items-center px-4 py-3 text-left text-sm text-violet-700 hover:bg-violet-50"
+            >
+              Wallet PIN
+            </button>
+          )}
+
+          <div className="mx-3 border-t border-slate-100" />
+
+          <button
+            type="button"
+            onClick={() => { actions.onEvents(); onClose(); }}
+            className="flex w-full items-center px-4 py-3 text-left text-sm text-slate-700 hover:bg-slate-50"
+          >
+            View events
+          </button>
+
+          {canDisable && (
+            <button
+              type="button"
+              onClick={() => { actions.onDisable(); onClose(); }}
+              className="flex w-full items-center px-4 py-3 text-left text-sm text-red-600 hover:bg-red-50"
+            >
+              Disable
+            </button>
+          )}
+          {canEnable && (
+            <button
+              type="button"
+              onClick={() => { actions.onEnable(); onClose(); }}
+              className="flex w-full items-center px-4 py-3 text-left text-sm text-emerald-700 hover:bg-emerald-50"
+            >
+              Re-enable
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MobileTagCard({ tag, actions, isDropdownOpen, onToggleDropdown, onCloseDropdown }: {
+  tag: NfcTag;
+  actions: TagActions;
+  isDropdownOpen: boolean;
+  onToggleDropdown: () => void;
+  onCloseDropdown: () => void;
+}) {
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="flex min-w-0 items-start justify-between gap-3">
+        <div className="min-w-0">
+          <StatusBadge status={tag.status} />
+          <p className="mt-2 min-w-0 truncate font-bold text-slate-950">
+            {tag.label ?? `Tag ${tag.publicCode.slice(0, 8)}…`}
+          </p>
+          <p className="mt-0.5 min-w-0 break-all font-mono text-[11px] text-slate-400">
+            {tag.publicCode}
+          </p>
+        </div>
+        <ActionsDropdown
+          tag={tag}
+          actions={actions}
+          isOpen={isDropdownOpen}
+          onToggle={onToggleDropdown}
+          onClose={onCloseDropdown}
+        />
+      </div>
+
+      <div className="mt-3 grid gap-1 text-sm">
+        {tag.student ? (
+          <>
+            <p className="font-semibold text-slate-900">{tag.student.name}</p>
+            <p className="text-xs text-slate-500">
+              {tag.student.admissionNumber}
+              {tag.student.className ? ` · ${tag.student.className}` : ""}
+              {tag.student.streamName ? ` / ${tag.student.streamName}` : ""}
+            </p>
+          </>
+        ) : (
+          <p className="text-slate-400">Unassigned</p>
+        )}
+      </div>
+
+      <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
+        <span>Mode: <span className="font-semibold text-slate-700">{tag.tagMode}</span></span>
+        <span>Taps: <span className="font-semibold text-slate-700">{tag.tapCount ?? 0}</span></span>
+        <span>
+          Last seen:{" "}
+          <span className="font-semibold text-slate-700">
+            {tag.lastSeenAt ? new Date(tag.lastSeenAt).toLocaleDateString() : "Never"}
+          </span>
+        </span>
+        <span>
+          Created:{" "}
+          <span className="font-semibold text-slate-700">
+            {new Date(tag.createdAt).toLocaleDateString()}
+          </span>
+        </span>
+      </div>
+    </div>
+  );
+}
+
 export function NfcOperationsPage() {
   const [tags, setTags] = useState<NfcTag[]>([]);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("");
@@ -76,11 +259,11 @@ export function NfcOperationsPage() {
   const [enableLoading, setEnableLoading] = useState(false);
   const [enableError, setEnableError] = useState<string | null>(null);
 
-  // Assignment success panel (shown inside the assign modal after success)
+  // Assignment success panel
   type AssignSuccess = { studentName: string; admissionNumber: string; studentId: string };
   const [assignSuccess, setAssignSuccess] = useState<AssignSuccess | null>(null);
 
-  // Wallet PIN modal (for assigned tags / post-assignment)
+  // Wallet PIN modal
   type WalletPinTarget = { studentId: string; studentName: string; admissionNumber: string };
   const [walletPinTarget, setWalletPinTarget] = useState<WalletPinTarget | null>(null);
   const [walletPinStatus, setWalletPinStatus] = useState<WalletPinStatus | null>(null);
@@ -91,6 +274,9 @@ export function NfcOperationsPage() {
   const [walletPinLoading, setWalletPinLoading] = useState(false);
   const [walletPinError, setWalletPinError] = useState<string | null>(null);
   const [walletPinSuccess, setWalletPinSuccess] = useState(false);
+
+  // Open dropdown tracking (one at a time)
+  const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
 
   const loadTags = useCallback(async () => {
     setLoading(true);
@@ -256,6 +442,23 @@ export function NfcOperationsPage() {
     setTimeout(() => setCopiedId((id) => (id === tag.id ? null : id)), 2000);
   }
 
+  function makeActions(tag: NfcTag): TagActions {
+    return {
+      onCopyUrl: () => handleCopy(tag),
+      onAssign: () => { setAssignTagId(tag.id); setAssignSearch(""); setAssignSelected(null); setAssignResults([]); setAssignError(null); },
+      onUnassign: () => { void handleUnassign(tag.id); },
+      onDisable: () => { if (confirm("Disable this tag? It will no longer resolve.")) void handleDisable(tag.id); },
+      onEnable: () => { setEnableTarget(tag); setEnableReason(""); setEnableError(null); },
+      onEvents: () => { void handleViewEvents(tag.id); },
+      onWalletPin: () => {
+        if (tag.student) {
+          openWalletPinModal({ studentId: tag.student.id, studentName: tag.student.name, admissionNumber: tag.student.admissionNumber });
+        }
+      },
+      copiedId,
+    };
+  }
+
   return (
     <div className="space-y-6 p-4 sm:p-6">
       <div>
@@ -263,23 +466,23 @@ export function NfcOperationsPage() {
         <p className="mt-1 text-sm text-slate-500">Manage physical NFC tags — generate, assign to students, and monitor taps.</p>
       </div>
 
-      {/* Generate strip */}
+      {/* Generate strip — stacks on mobile */}
       <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
         <p className="text-sm font-black text-slate-950">Generate new tags</p>
-        <div className="mt-3 flex flex-wrap items-center gap-3">
+        <div className="mt-3 grid gap-3 sm:flex sm:flex-wrap sm:items-center">
           <input
             type="number"
             min={1}
             max={100}
             value={generateCount}
             onChange={(e) => setGenerateCount(Math.max(1, Math.min(100, Number(e.target.value))))}
-            className="premium-control w-24"
+            className="premium-control w-full sm:w-24"
           />
           <button
             type="button"
             onClick={() => { void handleGenerate(); }}
             disabled={generating}
-            className="btn btn-primary rounded-xl px-4 py-2 text-sm font-black"
+            className="btn btn-primary min-h-[44px] w-full rounded-xl px-4 py-2 text-sm font-black sm:w-auto"
           >
             {generating ? "Generating…" : `Generate ${generateCount} tag${generateCount > 1 ? "s" : ""}`}
           </button>
@@ -287,15 +490,15 @@ export function NfcOperationsPage() {
         {generateError && <p className="mt-2 text-xs text-red-600">{generateError}</p>}
       </div>
 
-      {/* Filter row */}
-      <div className="flex items-center gap-3">
+      {/* Filter row — wraps cleanly on mobile */}
+      <div className="flex flex-wrap items-center gap-2">
         <p className="text-sm font-semibold text-slate-600">Filter:</p>
         {(["", "UNASSIGNED", "ASSIGNED", "DISABLED", "LOST"] as StatusFilter[]).map((s) => (
           <button
             key={s}
             type="button"
             onClick={() => setStatusFilter(s)}
-            className={`rounded-full border px-3 py-1 text-xs font-black transition ${statusFilter === s ? "border-blue-600 bg-blue-600 text-white" : "border-slate-200 bg-white text-slate-600 hover:border-blue-200"}`}
+            className={`min-h-[36px] rounded-full border px-3 py-1 text-xs font-black transition ${statusFilter === s ? "border-blue-600 bg-blue-600 text-white" : "border-slate-200 bg-white text-slate-600 hover:border-blue-200"}`}
           >
             {s || "All"}
           </button>
@@ -306,8 +509,28 @@ export function NfcOperationsPage() {
         <div className="rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</div>
       )}
 
-      {/* Tag list */}
-      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+      {/* Mobile cards — hidden on md+ */}
+      <div className="grid gap-3 md:hidden">
+        {loading ? (
+          <p className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-500">Loading tags…</p>
+        ) : tags.length === 0 ? (
+          <p className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-500">No tags found. Generate some above to get started.</p>
+        ) : (
+          tags.map((tag) => (
+            <MobileTagCard
+              key={tag.id}
+              tag={tag}
+              actions={makeActions(tag)}
+              isDropdownOpen={openDropdownId === tag.id}
+              onToggleDropdown={() => setOpenDropdownId((id) => (id === tag.id ? null : tag.id))}
+              onCloseDropdown={() => setOpenDropdownId(null)}
+            />
+          ))
+        )}
+      </div>
+
+      {/* Desktop table — hidden below md */}
+      <div className="hidden overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm md:block">
         {loading ? (
           <p className="p-6 text-sm text-slate-500">Loading tags…</p>
         ) : tags.length === 0 ? (
@@ -330,9 +553,9 @@ export function NfcOperationsPage() {
                   <td className="px-4 py-3">
                     <StatusBadge status={tag.status} />
                   </td>
-                  <td className="px-4 py-3">
-                    <p className="font-bold text-slate-950">{tag.label ?? `Tag ${tag.publicCode.slice(0, 8)}…`}</p>
-                    <p className="text-[11px] text-slate-400 font-mono">{tag.publicCode.slice(0, 16)}…</p>
+                  <td className="max-w-[200px] px-4 py-3">
+                    <p className="truncate font-bold text-slate-950">{tag.label ?? `Tag ${tag.publicCode.slice(0, 8)}…`}</p>
+                    <p className="truncate font-mono text-[11px] text-slate-400">{tag.publicCode.slice(0, 16)}…</p>
                   </td>
                   <td className="px-4 py-3">
                     {tag.student ? (
@@ -347,7 +570,7 @@ export function NfcOperationsPage() {
                   <td className="px-4 py-3 text-slate-500">
                     {tag.lastSeenAt ? new Date(tag.lastSeenAt).toLocaleString() : "—"}
                   </td>
-                  <td className="px-4 py-3 text-center font-semibold text-slate-700">{tag.tapCount}</td>
+                  <td className="px-4 py-3 text-center font-semibold text-slate-700">{tag.tapCount ?? 0}</td>
                   <td className="px-4 py-3">
                     <div className="flex flex-wrap gap-1.5">
                       <button
@@ -425,7 +648,7 @@ export function NfcOperationsPage() {
             {assignSuccess ? (
               <>
                 <h2 className="text-lg font-black text-slate-950">Tag assigned successfully</h2>
-                <div className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm grid gap-1">
+                <div className="mt-3 grid gap-1 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm">
                   <p className="font-bold text-emerald-800">Student: {assignSuccess.studentName}</p>
                   <p className="text-emerald-700">Admission: {assignSuccess.admissionNumber}</p>
                   <p className="mt-2 text-xs font-bold text-amber-700">Wallet PIN: Not set</p>
@@ -440,14 +663,14 @@ export function NfcOperationsPage() {
                       setAssignSuccess(null);
                       openWalletPinModal(target);
                     }}
-                    className="btn btn-primary flex-1 rounded-xl py-2.5 text-sm font-black"
+                    className="btn btn-primary min-h-[44px] flex-1 rounded-xl py-2.5 text-sm font-black"
                   >
                     Set PIN Now
                   </button>
                   <button
                     type="button"
                     onClick={() => { setAssignTagId(null); setAssignSuccess(null); }}
-                    className="btn btn-secondary flex-1 rounded-xl py-2.5 text-sm font-bold"
+                    className="btn btn-secondary min-h-[44px] flex-1 rounded-xl py-2.5 text-sm font-bold"
                   >
                     Done
                   </button>
@@ -458,7 +681,6 @@ export function NfcOperationsPage() {
                 <h2 className="text-lg font-black text-slate-950">Assign tag to student</h2>
                 <p className="mt-1 text-sm text-slate-500">Search by name, admission number, class, or stream.</p>
 
-                {/* Search input */}
                 <div className="relative mt-4">
                   <input
                     type="text"
@@ -491,7 +713,6 @@ export function NfcOperationsPage() {
                   )}
                 </div>
 
-                {/* Selected student confirmation */}
                 {assignSelected && (
                   <div className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm">
                     <p className="font-bold text-emerald-800">Selected student</p>
@@ -508,14 +729,14 @@ export function NfcOperationsPage() {
                     type="button"
                     onClick={() => { void handleAssign(); }}
                     disabled={assignLoading || !assignSelected}
-                    className="btn btn-primary flex-1 rounded-xl py-2.5 text-sm font-black"
+                    className="btn btn-primary min-h-[44px] flex-1 rounded-xl py-2.5 text-sm font-black"
                   >
                     {assignLoading ? "Assigning…" : "Assign to selected student"}
                   </button>
                   <button
                     type="button"
                     onClick={() => { setAssignTagId(null); setAssignSuccess(null); }}
-                    className="btn btn-secondary flex-1 rounded-xl py-2.5 text-sm font-bold"
+                    className="btn btn-secondary min-h-[44px] flex-1 rounded-xl py-2.5 text-sm font-bold"
                   >
                     Cancel
                   </button>
@@ -531,9 +752,9 @@ export function NfcOperationsPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => { setEnableTarget(null); setEnableReason(""); setEnableError(null); }}>
           <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <h2 className="text-lg font-black text-slate-950">Re-enable NFC tag</h2>
-            <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm">
-              <p className="font-bold text-slate-900">{enableTarget.label ?? `Tag ${enableTarget.publicCode.slice(0, 8)}…`}</p>
-              <p className="text-xs text-slate-500 font-mono mt-0.5">{enableTarget.publicCode.slice(0, 20)}</p>
+            <div className="mt-3 min-w-0 rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm">
+              <p className="truncate font-bold text-slate-900">{enableTarget.label ?? `Tag ${enableTarget.publicCode.slice(0, 8)}…`}</p>
+              <p className="mt-0.5 break-all font-mono text-xs text-slate-500">{enableTarget.publicCode}</p>
               {enableTarget.student && (
                 <p className="mt-1 text-slate-700">Student: <span className="font-semibold">{enableTarget.student.name}</span> · {enableTarget.student.admissionNumber}</p>
               )}
@@ -555,14 +776,14 @@ export function NfcOperationsPage() {
                 type="button"
                 onClick={() => { void handleEnable(); }}
                 disabled={enableLoading || !enableReason.trim()}
-                className="btn btn-primary flex-1 rounded-xl py-2.5 text-sm font-black"
+                className="btn btn-primary min-h-[44px] flex-1 rounded-xl py-2.5 text-sm font-black"
               >
                 {enableLoading ? "Enabling…" : "Re-enable tag"}
               </button>
               <button
                 type="button"
                 onClick={() => { setEnableTarget(null); setEnableReason(""); setEnableError(null); }}
-                className="btn btn-secondary flex-1 rounded-xl py-2.5 text-sm font-bold"
+                className="btn btn-secondary min-h-[44px] flex-1 rounded-xl py-2.5 text-sm font-bold"
                 disabled={enableLoading}
               >
                 Cancel
@@ -591,7 +812,7 @@ export function NfcOperationsPage() {
             ) : (
               <div className="mt-4 grid gap-3">
                 {walletPinStatus?.pinLockedUntil && (
-                  <p className="text-xs text-red-600 font-bold">
+                  <p className="text-xs font-bold text-red-600">
                     PIN locked until {new Date(walletPinStatus.pinLockedUntil).toLocaleTimeString()}. Reset PIN to unlock.
                   </p>
                 )}
@@ -624,7 +845,7 @@ export function NfcOperationsPage() {
                 <div className="grid gap-1">
                   <label className="text-xs font-bold uppercase text-slate-500">Reason</label>
                   <textarea
-                    className="premium-control w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-900 outline-none focus:border-blue-400 focus:bg-white resize-none"
+                    className="premium-control w-full resize-none rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-900 outline-none focus:border-blue-400 focus:bg-white"
                     rows={2}
                     value={walletPinReason}
                     onChange={(e) => setWalletPinReason(e.target.value)}
@@ -638,7 +859,7 @@ export function NfcOperationsPage() {
               {!walletPinSuccess && !walletPinStatusLoading && (
                 <button
                   type="button"
-                  className="flex-1 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-blue-700 disabled:bg-slate-200 disabled:text-slate-400 transition-colors"
+                  className="min-h-[44px] flex-1 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-bold text-white transition-colors hover:bg-blue-700 disabled:bg-slate-200 disabled:text-slate-400"
                   disabled={walletPinLoading || walletPinNewPin.length < 4}
                   onClick={() => void handleSetWalletPin()}
                 >
@@ -647,7 +868,7 @@ export function NfcOperationsPage() {
               )}
               <button
                 type="button"
-                className="flex-1 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50"
+                className="min-h-[44px] flex-1 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50"
                 onClick={closeWalletPinModal}
               >
                 {walletPinSuccess ? "Close" : "Cancel"}
@@ -657,7 +878,7 @@ export function NfcOperationsPage() {
         </div>
       )}
 
-      {/* Events drawer */}
+      {/* Events drawer — slides up from bottom on mobile */}
       {eventsTagId && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center sm:p-4" onClick={() => setEventsTagId(null)}>
           <div className="w-full max-w-lg rounded-t-2xl bg-white p-6 shadow-2xl sm:rounded-2xl" onClick={(e) => e.stopPropagation()}>
@@ -670,7 +891,7 @@ export function NfcOperationsPage() {
             ) : events.length === 0 ? (
               <p className="mt-4 text-sm text-slate-500">No tap events recorded yet.</p>
             ) : (
-              <ul className="mt-4 space-y-2 max-h-80 overflow-y-auto">
+              <ul className="mt-4 max-h-80 space-y-2 overflow-y-auto">
                 {events.map((ev) => (
                   <li key={ev.id} className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2 text-xs">
                     <div className="flex items-center justify-between">
