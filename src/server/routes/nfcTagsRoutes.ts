@@ -48,7 +48,7 @@ const createUrlBatchSchema = z.object({
 
 const bulkImportUidsSchema = z.object({
   batchName: z.string().min(1, "Batch name is required."),
-  uids: z.array(z.string().min(1)).min(1, "At least one UID is required."),
+  uids: z.array(z.string().min(1)).min(1, "At least one UID is required.").max(500, "Maximum 500 UIDs per import."),
   reason: z.string().optional(),
 });
 
