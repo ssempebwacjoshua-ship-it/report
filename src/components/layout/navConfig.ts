@@ -57,6 +57,7 @@ export const navItemsByProduct: Record<ProductKey, NavItem[]> = {
     { to: "/nfc/canteen", label: "Canteen Charge", icon: "credit-card", exact: true, requiredPermission: "nfc.canteen.charge" },
     { to: "/nfc/canteen/transactions", label: "Canteen Transactions", icon: "clipboard", exact: true, requiredPermission: "nfc.canteen.transactions.view" },
     { to: "/nfc/gate", label: "Gate Security", icon: "shield", exact: true, requiredPermission: "nfc.gate.view" },
+    { to: "/nfc/staff-users", label: "Staff Users", icon: "settings", exact: true, requiredPermission: "staff.manage" },
   ],
 };
 

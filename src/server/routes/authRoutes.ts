@@ -17,7 +17,7 @@ export function authRoutes() {
       console.log("auth.login.request");
       const { email, password, schoolCode } = loginSchema.parse(req.body);
 
-      let user: { id: string; schoolId: string; name: string; email: string; role: SchoolUserRole; passwordHash: string; isActive: boolean; isPlatformOwner: boolean } | null = null;
+      let user: { id: string; schoolId: string; name: string; email: string; role: SchoolUserRole; passwordHash: string; isActive: boolean; isPlatformOwner: boolean; tokenVersion: number } | null = null;
 
       if (schoolCode === "PLATFORM") {
         // Platform owner login: look up by email across all schools, must have isPlatformOwner
@@ -60,6 +60,7 @@ export function authRoutes() {
         name: user.name,
         email: user.email,
         role: user.role,
+        tokenVersion: user.tokenVersion,
         ...(user.isPlatformOwner ? { isPlatformOwner: true } : {}),
       });
 
