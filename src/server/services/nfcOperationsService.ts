@@ -552,6 +552,12 @@ export async function chargeCanteen(
     });
     if (wallet.status === StudentWalletStatus.FROZEN) return { ok: false, reason: "wallet frozen", student: studentSummary(target.student), wallet };
 
+    // Idempotency check before PIN — avoids burning a PIN attempt on a duplicate request
+    const existing = input.idempotencyKey
+      ? await tx.studentWalletTransaction.findUnique({ where: { schoolId_idempotencyKey: { schoolId, idempotencyKey: input.idempotencyKey } } })
+      : null;
+    if (existing) return { ok: false, reason: "duplicate charge attempt", student: studentSummary(target.student), wallet };
+
     // PIN verification — must happen inside the transaction so updates are atomic
     const pinResult = await checkPin(wallet, input.pin);
     if (!pinResult.ok) {
@@ -602,10 +608,6 @@ export async function chargeCanteen(
     });
 
     if (wallet.balanceCents < input.amountCents) return { ok: false, reason: "insufficient balance", student: studentSummary(target.student), wallet };
-    const existing = input.idempotencyKey
-      ? await tx.studentWalletTransaction.findUnique({ where: { schoolId_idempotencyKey: { schoolId, idempotencyKey: input.idempotencyKey } } })
-      : null;
-    if (existing) return { ok: false, reason: "duplicate charge attempt", student: studentSummary(target.student), wallet };
     const balanceAfterCharge = wallet.balanceCents - input.amountCents;
     const updatedWallet = await tx.studentWallet.update({
       where: { id: wallet.id },
