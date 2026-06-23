@@ -1,6 +1,7 @@
 import { randomBytes } from "crypto";
 import type { PrismaClient } from "@prisma/client";
 import { prisma as defaultPrisma } from "../db/prisma";
+import { hasPermission } from "../../shared/permissions";
 
 export type NfcTagBatchContext = {
   schoolId?: string | null;
@@ -29,6 +30,15 @@ function requireSchoolId(ctx: NfcTagBatchContext): string {
 
 function requireAuth(ctx: NfcTagBatchContext): void {
   if (!ctx.actorId) throw Object.assign(new Error("Authentication required."), { status: 401 });
+}
+
+function requirePermission(ctx: NfcTagBatchContext, permission: string): void {
+  if (!ctx.actorId || !ctx.role) {
+    throw Object.assign(new Error("Authentication required."), { status: 401 });
+  }
+  if (!hasPermission(ctx.role, permission)) {
+    throw Object.assign(new Error("You do not have permission for this NFC action."), { status: 403 });
+  }
 }
 
 function generatePublicCode(): string {
@@ -156,7 +166,7 @@ export async function createUrlTagBatch(
   db: BatchClient = defaultPrisma,
 ) {
   const schoolId = requireSchoolId(ctx);
-  requireAuth(ctx);
+  requirePermission(ctx, "nfc.tags.manage");
 
   const { name, quantity, labelPrefix, baseUrl } = input;
 
@@ -220,7 +230,7 @@ export async function bulkImportUids(
   db: BatchClient = defaultPrisma,
 ) {
   const schoolId = requireSchoolId(ctx);
-  requireAuth(ctx);
+  requirePermission(ctx, "nfc.tags.manage");
 
   const { batchName, uids } = input;
 
@@ -319,7 +329,7 @@ export async function listTagBatches(
   db: BatchClient = defaultPrisma,
 ) {
   const schoolId = requireSchoolId(ctx);
-  requireAuth(ctx);
+  requirePermission(ctx, "nfc.tags.manage");
 
   const where: Record<string, unknown> = { schoolId };
   if (filters.tagMode) where.tagMode = filters.tagMode;
@@ -386,7 +396,7 @@ export async function listTagInventory(
   db: BatchClient = defaultPrisma,
 ) {
   const schoolId = requireSchoolId(ctx);
-  requireAuth(ctx);
+  requirePermission(ctx, "nfc.tags.manage");
 
   const where: Record<string, unknown> = { schoolId };
   if (filters.batchId) where.batchId = filters.batchId;
@@ -448,7 +458,7 @@ export async function verifyTag(
   db: BatchClient = defaultPrisma,
 ) {
   const schoolId = requireSchoolId(ctx);
-  requireAuth(ctx);
+  requirePermission(ctx, "nfc.tags.manage");
 
   const tag = await db.nfcTag.findFirst({ where: { id: tagId, schoolId } });
   if (!tag) throw Object.assign(new Error("NFC tag not found."), { status: 404 });
@@ -479,7 +489,7 @@ export async function amendTag(
   db: BatchClient = defaultPrisma,
 ) {
   const schoolId = requireSchoolId(ctx);
-  requireAuth(ctx);
+  requirePermission(ctx, "nfc.tags.manage");
 
   if (!input.reason?.trim()) throw Object.assign(new Error("Reason is required."), { status: 400 });
 
@@ -544,7 +554,7 @@ export async function bulkAllocateFromInventory(
   db: BatchClient = defaultPrisma,
 ) {
   const schoolId = requireSchoolId(ctx);
-  requireAuth(ctx);
+  requirePermission(ctx, "nfc.tags.manage");
 
   if (!input.reason?.trim()) throw Object.assign(new Error("Reason is required."), { status: 400 });
   if (!input.assignments.length) throw Object.assign(new Error("No assignments provided."), { status: 400 });

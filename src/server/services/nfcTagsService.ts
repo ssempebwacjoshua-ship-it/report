@@ -2,6 +2,7 @@ import { randomBytes, createHash } from "crypto";
 import type { PrismaClient } from "@prisma/client";
 import { prisma as defaultPrisma } from "../db/prisma";
 import type { NfcResolveResult } from "../../shared/types/nfcTags";
+import { hasPermission } from "../../shared/permissions";
 
 type NfcTagsClient = Pick<
   PrismaClient,
@@ -21,6 +22,15 @@ function requireSchoolId(ctx: NfcTagsContext): string {
 
 function requireAuth(ctx: NfcTagsContext): void {
   if (!ctx.actorId) throw Object.assign(new Error("Authentication required."), { status: 401 });
+}
+
+function requirePermission(ctx: NfcTagsContext, permission: string): void {
+  if (!ctx.actorId || !ctx.role) {
+    throw Object.assign(new Error("Authentication required."), { status: 401 });
+  }
+  if (!hasPermission(ctx.role, permission)) {
+    throw Object.assign(new Error("You do not have permission for this NFC action."), { status: 403 });
+  }
 }
 
 function generatePublicCode(): string {
@@ -70,7 +80,7 @@ export async function listTags(
   db: NfcTagsClient = defaultPrisma,
 ) {
   const schoolId = requireSchoolId(ctx);
-  requireAuth(ctx);
+  requirePermission(ctx, "nfc.tags.manage");
 
   const where: Record<string, unknown> = { schoolId };
   if (filters.status) where.status = filters.status;
@@ -120,7 +130,7 @@ export async function generateTags(
   db: NfcTagsClient = defaultPrisma,
 ) {
   const schoolId = requireSchoolId(ctx);
-  requireAuth(ctx);
+  requirePermission(ctx, "nfc.tags.manage");
 
   if (count < 1 || count > 100) {
     throw Object.assign(new Error("Count must be between 1 and 100."), { status: 400 });
@@ -188,7 +198,7 @@ export async function assignTag(
   db: NfcTagsClient = defaultPrisma,
 ) {
   const schoolId = requireSchoolId(ctx);
-  requireAuth(ctx);
+  requirePermission(ctx, "nfc.tags.manage");
 
   const tag = await db.nfcTag.findFirst({ where: { id: tagId, schoolId } });
   if (!tag) throw Object.assign(new Error("NFC tag not found."), { status: 404 });
@@ -243,7 +253,7 @@ export async function unassignTag(
   db: NfcTagsClient = defaultPrisma,
 ) {
   const schoolId = requireSchoolId(ctx);
-  requireAuth(ctx);
+  requirePermission(ctx, "nfc.tags.manage");
 
   const tag = await db.nfcTag.findFirst({ where: { id: tagId, schoolId } });
   if (!tag) throw Object.assign(new Error("NFC tag not found."), { status: 404 });
@@ -262,7 +272,7 @@ export async function disableTag(
   db: NfcTagsClient = defaultPrisma,
 ) {
   const schoolId = requireSchoolId(ctx);
-  requireAuth(ctx);
+  requirePermission(ctx, "nfc.tags.manage");
 
   const tag = await db.nfcTag.findFirst({ where: { id: tagId, schoolId } });
   if (!tag) throw Object.assign(new Error("NFC tag not found."), { status: 404 });
@@ -285,10 +295,7 @@ export async function enableTag(
   db: NfcTagsClient = defaultPrisma,
 ) {
   const schoolId = requireSchoolId(ctx);
-  requireAuth(ctx);
-  if (!ctx.role || !ENABLE_ALLOWED_ROLES.includes(ctx.role)) {
-    throw Object.assign(new Error("Only administrators can re-enable NFC tags."), { status: 403 });
-  }
+  requirePermission(ctx, "nfc.tags.manage");
   const cleanReason = reason?.trim();
   if (!cleanReason) throw Object.assign(new Error("Re-enable reason is required."), { status: 400 });
 
@@ -329,7 +336,7 @@ export async function getTagEvents(
   db: NfcTagsClient = defaultPrisma,
 ) {
   const schoolId = requireSchoolId(ctx);
-  requireAuth(ctx);
+  requirePermission(ctx, "nfc.tags.manage");
 
   const tag = await db.nfcTag.findFirst({ where: { id: tagId, schoolId } });
   if (!tag) throw Object.assign(new Error("NFC tag not found."), { status: 404 });
