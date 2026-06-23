@@ -245,22 +245,18 @@ export async function resolveNfcTokenForRole(token: string, ctx: NfcOperationsCo
     ? "GATE_SECURITY"
     : role === "CANTEEN" || role === "CASHIER"
       ? "CANTEEN_CHARGE"
-      : role === "TEACHER"
-        ? "ATTENDANCE_SCAN"
-        : role === "ADMIN_OPERATOR"
-          ? "ADMIN_CREDENTIAL"
-          : "PUBLIC_ID";
+      : role === "ADMIN_OPERATOR"
+        ? "ADMIN_CREDENTIAL"
+        : "PUBLIC_ID";
   const targetPath = reason
     ? undefined
     : mode === "GATE_SECURITY"
       ? `/gate/nfc/${encodeURIComponent(cleanToken)}`
       : mode === "CANTEEN_CHARGE"
         ? `/canteen/nfc/${encodeURIComponent(cleanToken)}`
-        : mode === "ATTENDANCE_SCAN"
-          ? `/nfc-attendance?token=${encodeURIComponent(cleanToken)}`
-          : mode === "ADMIN_CREDENTIAL"
-            ? `/nfc/wristbands?credentialId=${encodeURIComponent(typed.id)}`
-            : `/nfc/t/${encodeURIComponent(cleanToken)}`;
+        : mode === "ADMIN_CREDENTIAL"
+          ? `/nfc/wristbands?credentialId=${encodeURIComponent(typed.id)}`
+          : `/nfc/t/${encodeURIComponent(cleanToken)}`;
 
   // Never expose student PII to unauthenticated callers.
   const studentPayload = ctx?.actorId
@@ -286,7 +282,7 @@ export async function getAttendanceDashboard(
   db: NfcOperationsClient = defaultPrisma,
 ) {
   const schoolId = requireSchoolId(ctx);
-  requireRole(ctx, ["TEACHER"]);
+  requirePermission(ctx, "nfc.devices.manage");
   const { start, end } = todayRange();
   const [events, students] = await Promise.all([
     db.studentAttendanceEvent.findMany({
@@ -326,7 +322,7 @@ export async function scanAttendance(
   db: NfcOperationsClient = defaultPrisma,
 ) {
   const schoolId = requireSchoolId(ctx);
-  requireRole(ctx, ["TEACHER"]);
+  requirePermission(ctx, "nfc.devices.manage");
 
   const target = await resolveNfcScanTarget(db, schoolId, input.tokenOrUid);
   if (!target) throw Object.assign(new Error("NFC token not recognized."), { status: 404 });
@@ -408,7 +404,7 @@ export async function getAttendanceRegister(
   db: NfcOperationsClient = defaultPrisma,
 ): Promise<AttendanceRegisterResponse> {
   const schoolId = requireSchoolId(ctx);
-  requireRole(ctx, []);
+  requirePermission(ctx, "nfc.devices.manage");
   const targetDate = filters.date ? new Date(filters.date) : new Date();
   const start = new Date(targetDate);
   start.setHours(0, 0, 0, 0);
