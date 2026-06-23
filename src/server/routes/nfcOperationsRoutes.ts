@@ -37,7 +37,6 @@ const scanSchema = z.object({
 });
 
 const attendanceScanSchema = scanSchema.extend({
-const attendanceScanSchema = scanSchema.extend({
   direction: z.nativeEnum(AttendanceDirection).optional(),
   idempotencyKey: z.string().trim().optional(),
 });
