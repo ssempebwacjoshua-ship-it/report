@@ -11,6 +11,25 @@ import {
   topUpWallet,
 } from "../../server/services/nfcOperationsService";
 
+// Mock bcrypt-backed walletPinService so unit tests don't need a real password hash.
+// assertPinFormat keeps its real validation logic; checkPin always returns ok.
+vi.mock("../../server/services/walletPinService", () => ({
+  assertPinFormat: (pin: string) => {
+    if (!/^\d{4,6}$/.test(pin ?? "")) {
+      throw Object.assign(new Error("PIN must be 4 to 6 digits."), { status: 400 });
+    }
+  },
+  checkPin: vi.fn().mockResolvedValue({ ok: true }),
+  hashWalletPin: vi.fn().mockResolvedValue("$2b$10$testhash"),
+}));
+
+// ─── Shared contexts ──────────────────────────────────────────────────────────
+
+const ADMIN_CTX  = { schoolId: "school-a", actorId: "admin-a",   role: "ADMIN_OPERATOR" as const };
+const CASHIER_CTX = { schoolId: "school-a", actorId: "cashier-a", role: "CASHIER" as const };
+
+// ─── DB factory ───────────────────────────────────────────────────────────────
+
 function student(id = "student-a", schoolId = "school-a", active = true) {
   return {
     id,
@@ -57,6 +76,11 @@ function createDb(options: { walletBalance?: number; walletStatus?: StudentWalle
       balanceCents: options.walletBalance ?? 500000,
       status: options.walletStatus ?? StudentWalletStatus.ACTIVE,
       frozenReason: options.walletStatus === StudentWalletStatus.FROZEN ? "Disputed" : null,
+      // PIN fields — pinHash:null causes checkPin to return no_pin, but checkPin is mocked to ok:true
+      pinHash: null,
+      pinFailedAttempts: 0,
+      pinLockedUntil: null,
+      pinLastVerifiedAt: null,
     },
   ];
   const transactions: Array<{
@@ -96,15 +120,16 @@ function createDb(options: { walletBalance?: number; walletStatus?: StudentWalle
       upsert: async ({ where, create }: { where: { studentId: string }; create: { schoolId: string; studentId: string; balanceCents: number } }) => {
         let wallet = wallets.find((item) => item.studentId === where.studentId);
         if (!wallet) {
-          wallet = { id: `wallet-${wallets.length + 1}`, schoolId: create.schoolId, studentId: create.studentId, balanceCents: create.balanceCents, status: StudentWalletStatus.ACTIVE, frozenReason: null };
+          wallet = { id: `wallet-${wallets.length + 1}`, schoolId: create.schoolId, studentId: create.studentId, balanceCents: create.balanceCents, status: StudentWalletStatus.ACTIVE, frozenReason: null, pinHash: null, pinFailedAttempts: 0, pinLockedUntil: null, pinLastVerifiedAt: null };
           wallets.push(wallet);
         }
         return wallet;
       },
-      update: async ({ where, data }: { where: { id: string }; data: { balanceCents: number } }) => {
+      // Use Object.assign so calls with pinFailedAttempts, pinLockedUntil, etc. don't corrupt balanceCents
+      update: async ({ where, data }: { where: { id: string }; data: Record<string, unknown> }) => {
         const wallet = wallets.find((item) => item.id === where.id);
         if (!wallet) throw new Error("wallet missing");
-        wallet.balanceCents = data.balanceCents;
+        Object.assign(wallet, data);
         return wallet;
       },
       findMany: async () => wallets,
@@ -119,7 +144,6 @@ function createDb(options: { walletBalance?: number; walletStatus?: StudentWalle
           if (where?.studentId && t.studentId !== where.studentId) return false;
           return true;
         });
-        // attach student field for include: { student: ... }
         return filtered.map((t) => ({
           ...t,
           student: students.find((s) => s.id === t.studentId) ?? null,
@@ -149,6 +173,10 @@ function createDb(options: { walletBalance?: number; walletStatus?: StudentWalle
           && (where.id ? s.id === where.id : where.admissionNumber ? s.admissionNumber === where.admissionNumber : false),
         ) ?? null,
     },
+    nfcTag: {
+      // No tags in unit tests — credential path is used for all scan tokens
+      findFirst: async () => null,
+    },
     nfcGateScan: {
       create: async ({ data }: { data: Record<string, unknown> }) => {
         const scan = { ...data, id: `gate-${gateScans.length + 1}`, scannedAt: new Date("2026-06-21T09:00:00.000Z") };
@@ -167,10 +195,12 @@ function createDb(options: { walletBalance?: number; walletStatus?: StudentWalle
   return { db: db as never, wallets, transactions, gateScans };
 }
 
+// ─── Canteen charge tests ─────────────────────────────────────────────────────
+
 describe("NFC canteen and gate operations", () => {
   it("charges a student wallet successfully", async () => {
     const { db, wallets, transactions } = createDb();
-    const result = await chargeCanteen({ schoolId: "school-a", actorId: "cashier-a", role: "CASHIER" }, { tokenOrUid: "/nfc/t/token-a", amountCents: 150000, description: "Lunch" }, db);
+    const result = await chargeCanteen(CASHIER_CTX, { tokenOrUid: "/nfc/t/token-a", amountCents: 150000, pin: "1234", description: "Lunch" }, db);
 
     expect(result.ok).toBe(true);
     expect(wallets[0]?.balanceCents).toBe(350000);
@@ -180,21 +210,21 @@ describe("NFC canteen and gate operations", () => {
 
   it("blocks canteen charge for insufficient balance", async () => {
     const { db } = createDb({ walletBalance: 10000 });
-    const result = await chargeCanteen({ schoolId: "school-a", actorId: "cashier-a", role: "CASHIER" }, { tokenOrUid: "token-a", amountCents: 50000 }, db);
+    const result = await chargeCanteen(CASHIER_CTX, { tokenOrUid: "token-a", amountCents: 50000, pin: "1234" }, db);
 
     expect(result).toMatchObject({ ok: false, reason: "insufficient balance" });
   });
 
   it("blocks canteen charge for frozen wallet", async () => {
     const { db } = createDb({ walletStatus: StudentWalletStatus.FROZEN });
-    const result = await chargeCanteen({ schoolId: "school-a", actorId: "cashier-a", role: "CASHIER" }, { tokenOrUid: "token-a", amountCents: 50000 }, db);
+    const result = await chargeCanteen(CASHIER_CTX, { tokenOrUid: "token-a", amountCents: 50000, pin: "1234" }, db);
 
     expect(result).toMatchObject({ ok: false, reason: "wallet frozen" });
   });
 
   it("blocks canteen charge for deactivated credential", async () => {
     const { db } = createDb({ credentialStatus: CredentialStatus.DEACTIVATED });
-    const result = await chargeCanteen({ schoolId: "school-a", actorId: "cashier-a", role: "CASHIER" }, { tokenOrUid: "token-a", amountCents: 50000 }, db);
+    const result = await chargeCanteen(CASHIER_CTX, { tokenOrUid: "token-a", amountCents: 50000, pin: "1234" }, db);
 
     expect(result).toMatchObject({ ok: false, reason: "lost or deactivated wristband" });
   });
@@ -210,19 +240,18 @@ describe("NFC canteen and gate operations", () => {
 
   it("does not let neutral tokens bypass role permissions", async () => {
     const { db } = createDb();
-    await expect(scanGate({ schoolId: "school-a", actorId: "cashier-a", role: "CASHIER" }, { tokenOrUid: "token-a" }, db)).rejects.toMatchObject({ status: 403 });
-    await expect(chargeCanteen({ schoolId: "school-a", actorId: "security-a", role: "SECURITY" }, { tokenOrUid: "token-a", amountCents: 1000 }, db)).rejects.toMatchObject({ status: 403 });
+    await expect(scanGate(CASHIER_CTX, { tokenOrUid: "token-a" }, db)).rejects.toMatchObject({ status: 403 });
+    await expect(chargeCanteen({ schoolId: "school-a", actorId: "security-a", role: "SECURITY" }, { tokenOrUid: "token-a", amountCents: 1000, pin: "1234" }, db)).rejects.toMatchObject({ status: 403 });
   });
 });
 
 // ─── Top-up tests ─────────────────────────────────────────────────────────────
-
-const TOP_UP_CTX = { schoolId: "school-a", actorId: "cashier-a", role: "CASHIER" as const };
+// topUpWallet requires nfc.wallets.topup → ADMIN_OPERATOR only
 
 describe("topUpWallet — service unit tests", () => {
   it("tops up by studentId and increases balance", async () => {
     const { db, wallets, transactions } = createDb({ walletBalance: 100000 });
-    const result = await topUpWallet(TOP_UP_CTX, { studentId: "student-a", amountUgx: 5000, paymentMethod: "CASH" }, db);
+    const result = await topUpWallet(ADMIN_CTX, { studentId: "student-a", amountUgx: 5000, paymentMethod: "CASH" }, db);
 
     expect(result.ok).toBe(true);
     expect(result.duplicate).toBe(false);
@@ -237,7 +266,7 @@ describe("topUpWallet — service unit tests", () => {
 
   it("tops up by admissionNumber", async () => {
     const { db, wallets } = createDb({ walletBalance: 0 });
-    const result = await topUpWallet(TOP_UP_CTX, { admissionNumber: "A-001", amountUgx: 2000, paymentMethod: "MOBILE_MONEY" }, db);
+    const result = await topUpWallet(ADMIN_CTX, { admissionNumber: "A-001", amountUgx: 2000, paymentMethod: "MOBILE_MONEY" }, db);
 
     expect(result.ok).toBe(true);
     expect(wallets[0]?.balanceCents).toBe(2000 * 100);
@@ -246,7 +275,7 @@ describe("topUpWallet — service unit tests", () => {
 
   it("tops up by tokenOrUid (NFC wristband)", async () => {
     const { db, wallets } = createDb();
-    const result = await topUpWallet(TOP_UP_CTX, { tokenOrUid: "token-a", amountUgx: 1000, paymentMethod: "CASH" }, db);
+    const result = await topUpWallet(ADMIN_CTX, { tokenOrUid: "token-a", amountUgx: 1000, paymentMethod: "CASH" }, db);
 
     expect(result.ok).toBe(true);
     expect(wallets[0]?.balanceCents).toBe(500000 + 1000 * 100);
@@ -254,15 +283,13 @@ describe("topUpWallet — service unit tests", () => {
 
   it("creates a wallet if one does not exist yet", async () => {
     const { db, wallets } = createDb();
-    // Student B has no wallet initially; use a minimal subset
     const result = await topUpWallet(
-      { schoolId: "school-b", actorId: "cashier-b", role: "CASHIER" },
+      { schoolId: "school-b", actorId: "admin-b", role: "ADMIN_OPERATOR" },
       { studentId: "student-b", amountUgx: 3000, paymentMethod: "CASH" },
       db,
     );
 
     expect(result.ok).toBe(true);
-    // A new wallet should have been created for school-b / student-b
     const newWallet = wallets.find((w) => w.studentId === "student-b");
     expect(newWallet).toBeDefined();
     expect(newWallet?.balanceCents).toBe(3000 * 100);
@@ -270,7 +297,7 @@ describe("topUpWallet — service unit tests", () => {
 
   it("creates a TOP_UP transaction with paymentMethod and reference", async () => {
     const { db, transactions } = createDb();
-    await topUpWallet(TOP_UP_CTX, {
+    await topUpWallet(ADMIN_CTX, {
       studentId: "student-a",
       amountUgx: 10000,
       paymentMethod: "MOBILE_MONEY",
@@ -285,33 +312,32 @@ describe("topUpWallet — service unit tests", () => {
 
   it("rejects inactive student by studentId", async () => {
     const { db } = createDb({ studentActive: false });
-    await expect(topUpWallet(TOP_UP_CTX, { studentId: "student-a", amountUgx: 1000, paymentMethod: "CASH" }, db))
+    await expect(topUpWallet(ADMIN_CTX, { studentId: "student-a", amountUgx: 1000, paymentMethod: "CASH" }, db))
       .rejects.toMatchObject({ status: 404 });
   });
 
   it("rejects inactive student via deactivated NFC wristband", async () => {
     const { db } = createDb({ credentialStatus: CredentialStatus.DEACTIVATED });
-    await expect(topUpWallet(TOP_UP_CTX, { tokenOrUid: "token-a", amountUgx: 1000, paymentMethod: "CASH" }, db))
+    await expect(topUpWallet(ADMIN_CTX, { tokenOrUid: "token-a", amountUgx: 1000, paymentMethod: "CASH" }, db))
       .rejects.toMatchObject({ status: 400 });
   });
 
   it("rejects zero or negative amount", async () => {
     const { db } = createDb();
-    await expect(topUpWallet(TOP_UP_CTX, { studentId: "student-a", amountUgx: 0, paymentMethod: "CASH" }, db))
+    await expect(topUpWallet(ADMIN_CTX, { studentId: "student-a", amountUgx: 0, paymentMethod: "CASH" }, db))
       .rejects.toMatchObject({ status: 400 });
-    await expect(topUpWallet(TOP_UP_CTX, { studentId: "student-a", amountUgx: -500, paymentMethod: "CASH" }, db))
+    await expect(topUpWallet(ADMIN_CTX, { studentId: "student-a", amountUgx: -500, paymentMethod: "CASH" }, db))
       .rejects.toMatchObject({ status: 400 });
   });
 
   it("returns duplicate:true on idempotencyKey collision", async () => {
     const { db } = createDb();
     const ikey = "test-ikey-001";
-    await topUpWallet(TOP_UP_CTX, { studentId: "student-a", amountUgx: 5000, paymentMethod: "CASH", idempotencyKey: ikey }, db);
-    const second = await topUpWallet(TOP_UP_CTX, { studentId: "student-a", amountUgx: 5000, paymentMethod: "CASH", idempotencyKey: ikey }, db);
+    await topUpWallet(ADMIN_CTX, { studentId: "student-a", amountUgx: 5000, paymentMethod: "CASH", idempotencyKey: ikey }, db);
+    const second = await topUpWallet(ADMIN_CTX, { studentId: "student-a", amountUgx: 5000, paymentMethod: "CASH", idempotencyKey: ikey }, db);
 
     expect(second.ok).toBe(true);
     expect(second.duplicate).toBe(true);
-    // Balance should only have increased once
     expect(second.wallet?.balanceCents).toBe(500000 + 5000 * 100);
   });
 
@@ -323,15 +349,21 @@ describe("topUpWallet — service unit tests", () => {
       .rejects.toMatchObject({ status: 403 });
   });
 
+  it("blocks CASHIER role from topping up", async () => {
+    const { db } = createDb();
+    await expect(topUpWallet(CASHIER_CTX, { studentId: "student-a", amountUgx: 1000, paymentMethod: "CASH" }, db))
+      .rejects.toMatchObject({ status: 403 });
+  });
+
   it("tenant isolation: unknown admissionNumber returns 404", async () => {
     const { db } = createDb();
-    await expect(topUpWallet(TOP_UP_CTX, { admissionNumber: "BOGUS-999", amountUgx: 1000, paymentMethod: "CASH" }, db))
+    await expect(topUpWallet(ADMIN_CTX, { admissionNumber: "BOGUS-999", amountUgx: 1000, paymentMethod: "CASH" }, db))
       .rejects.toMatchObject({ status: 404 });
   });
 
   it("creates an audit log entry", async () => {
     const { db } = createDb();
-    await topUpWallet(TOP_UP_CTX, { studentId: "student-a", amountUgx: 5000, paymentMethod: "CASH" }, db);
+    await topUpWallet(ADMIN_CTX, { studentId: "student-a", amountUgx: 5000, paymentMethod: "CASH" }, db);
     expect((db as { auditLog: { create: ReturnType<typeof vi.fn> } }).auditLog.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({ action: "student_wallet.top_up" }),
@@ -341,13 +373,11 @@ describe("topUpWallet — service unit tests", () => {
 });
 
 // ─── Reversal tests ───────────────────────────────────────────────────────────
-
-const REVERSAL_CTX = { schoolId: "school-a", actorId: "cashier-a", role: "CASHIER" as const };
+// reverseTransaction requires nfc.wallets.topup → ADMIN_OPERATOR only
 
 describe("reverseTransaction — service unit tests", () => {
   it("reversal restores wallet balance", async () => {
     const { db, wallets, transactions } = createDb({ walletBalance: 350000 });
-    // seed a CHARGE transaction
     transactions.push({
       id: "tx-original", schoolId: "school-a", studentId: "student-a", walletId: "wallet-a",
       credentialId: null, cashierUserId: "cashier-a", type: WalletTransactionType.CHARGE,
@@ -355,10 +385,10 @@ describe("reverseTransaction — service unit tests", () => {
       description: "Lunch", idempotencyKey: null, reversalOfId: null, createdAt: new Date(),
     });
 
-    const result = await reverseTransaction(REVERSAL_CTX, "tx-original", "Charged by mistake", db);
+    const result = await reverseTransaction(ADMIN_CTX, "tx-original", "Charged by mistake", db);
 
     expect(result.ok).toBe(true);
-    expect(wallets[0]?.balanceCents).toBe(350000 + 150000); // balance restored
+    expect(wallets[0]?.balanceCents).toBe(350000 + 150000);
     expect(transactions).toHaveLength(2);
     expect(transactions[1]?.type).toBe(WalletTransactionType.REVERSAL);
     expect(transactions[1]?.reversalOfId).toBe("tx-original");
@@ -372,10 +402,8 @@ describe("reverseTransaction — service unit tests", () => {
       amountCents: -150000, balanceAfterCents: 350000, paymentMethod: null, reference: null,
       description: null, idempotencyKey: null, reversalOfId: null, createdAt: new Date(),
     });
-    // first reversal succeeds
-    await reverseTransaction(REVERSAL_CTX, "tx-original", "First reversal", db);
-    // second should fail with 409
-    await expect(reverseTransaction(REVERSAL_CTX, "tx-original", "Second reversal", db))
+    await reverseTransaction(ADMIN_CTX, "tx-original", "First reversal", db);
+    await expect(reverseTransaction(ADMIN_CTX, "tx-original", "Second reversal", db))
       .rejects.toMatchObject({ status: 409 });
   });
 
@@ -387,14 +415,20 @@ describe("reverseTransaction — service unit tests", () => {
       amountCents: 150000, balanceAfterCents: 500000, paymentMethod: null, reference: null,
       description: "Reversal", idempotencyKey: null, reversalOfId: "some-id", createdAt: new Date(),
     });
-    await expect(reverseTransaction(REVERSAL_CTX, "tx-rev", "Reason", db))
+    await expect(reverseTransaction(ADMIN_CTX, "tx-rev", "Reason", db))
       .rejects.toMatchObject({ status: 400 });
   });
 
   it("requires a non-empty reason", async () => {
     const { db } = createDb();
-    await expect(reverseTransaction(REVERSAL_CTX, "tx-x", "", db))
+    await expect(reverseTransaction(ADMIN_CTX, "tx-x", "", db))
       .rejects.toMatchObject({ status: 400 });
+  });
+
+  it("blocks CASHIER from reversals", async () => {
+    const { db } = createDb();
+    await expect(reverseTransaction(CASHIER_CTX, "tx-x", "Wrong charge", db))
+      .rejects.toMatchObject({ status: 403 });
   });
 
   it("blocks TEACHER role from reversals", async () => {
@@ -432,7 +466,7 @@ describe("adjustWallet — service unit tests", () => {
 
   it("blocks non-ADMIN_OPERATOR from adjusting", async () => {
     const { db } = createDb();
-    await expect(adjustWallet({ schoolId: "school-a", actorId: "c", role: "CASHIER" }, { studentId: "student-a", amountUgx: 100, reason: "test" }, db))
+    await expect(adjustWallet(CASHIER_CTX, { studentId: "student-a", amountUgx: 100, reason: "test" }, db))
       .rejects.toMatchObject({ status: 403 });
   });
 
@@ -446,18 +480,18 @@ describe("adjustWallet — service unit tests", () => {
 });
 
 // ─── List & summary tests ──────────────────────────────────────────────────────
+// listWalletTransactions and getDailySummary: CASHIER has nfc.canteen.transactions.view / nfc.canteen.view
 
 describe("listWalletTransactions — service unit tests", () => {
   it("returns own charge transactions for a cashier", async () => {
     const { db, transactions } = createDb();
-    // cashierUserId must match the actor so the CASHIER restriction returns this row
     transactions.push({
       id: "tx-1", schoolId: "school-a", studentId: "student-a", walletId: "wallet-a",
       credentialId: null, cashierUserId: "cashier-a", type: WalletTransactionType.CHARGE,
       amountCents: -100000, balanceAfterCents: 400000, paymentMethod: null, reference: null,
       description: "Lunch", idempotencyKey: null, reversalOfId: null, createdAt: new Date(),
     });
-    const result = await listWalletTransactions(REVERSAL_CTX, {}, db);
+    const result = await listWalletTransactions(CASHIER_CTX, {}, db);
     expect(result.transactions).toHaveLength(1);
     expect(result.transactions[0]?.type).toBe("CHARGE");
   });
@@ -470,7 +504,7 @@ describe("listWalletTransactions — service unit tests", () => {
       amountCents: -100000, balanceAfterCents: 400000, paymentMethod: null, reference: null,
       description: "Lunch", idempotencyKey: null, reversalOfId: null, createdAt: new Date(),
     });
-    const result = await listWalletTransactions(REVERSAL_CTX, {}, db);
+    const result = await listWalletTransactions(CASHIER_CTX, {}, db);
     expect(result.transactions).toHaveLength(0);
   });
 
@@ -496,7 +530,7 @@ describe("getDailySummary — service unit tests", () => {
       { id: "tx-2", schoolId: "school-a", studentId: "student-a", walletId: "wallet-a", credentialId: null, cashierUserId: null, type: WalletTransactionType.TOP_UP, amountCents: 500000, balanceAfterCents: 850000, paymentMethod: null, reference: null, description: null, idempotencyKey: null, reversalOfId: null, createdAt: today },
     );
 
-    const result = await getDailySummary(REVERSAL_CTX, {}, db);
+    const result = await getDailySummary(CASHIER_CTX, {}, db);
     expect(result.summary.chargeCount).toBe(1);
     expect(result.summary.topUpCount).toBe(1);
     expect(result.summary.totalChargesCents).toBe(150000);
@@ -505,10 +539,13 @@ describe("getDailySummary — service unit tests", () => {
   });
 });
 
+// ─── resolveWalletStudent tests ───────────────────────────────────────────────
+// resolveWalletStudent requires nfc.canteen.charge → CASHIER has this
+
 describe("resolveWalletStudent — service unit tests", () => {
   it("resolves by studentId and returns wallet balance", async () => {
     const { db } = createDb({ walletBalance: 250000 });
-    const result = await resolveWalletStudent(TOP_UP_CTX, { studentId: "student-a" }, db);
+    const result = await resolveWalletStudent(CASHIER_CTX, { studentId: "student-a" }, db);
 
     expect(result.student.admissionNumber).toBe("A-001");
     expect(result.wallet?.balanceCents).toBe(250000);
@@ -516,14 +553,14 @@ describe("resolveWalletStudent — service unit tests", () => {
 
   it("resolves by admissionNumber", async () => {
     const { db } = createDb();
-    const result = await resolveWalletStudent(TOP_UP_CTX, { admissionNumber: "A-001" }, db);
+    const result = await resolveWalletStudent(CASHIER_CTX, { admissionNumber: "A-001" }, db);
 
     expect(result.student.id).toBe("student-a");
   });
 
   it("resolves by tokenOrUid (NFC scan)", async () => {
     const { db } = createDb();
-    const result = await resolveWalletStudent(TOP_UP_CTX, { tokenOrUid: "token-a" }, db);
+    const result = await resolveWalletStudent(CASHIER_CTX, { tokenOrUid: "token-a" }, db);
 
     expect(result.student.name).toBe("Ada Lovelace");
     expect(result.credentialId).toBe("credential-a");
