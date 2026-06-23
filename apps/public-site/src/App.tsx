@@ -5,6 +5,7 @@ import { ContactPage } from "./pages/ContactPage";
 import { DemoPage } from "./pages/DemoPage";
 import { DemosPage } from "./pages/DemosPage";
 import { FeaturesDemoPage } from "./pages/FeaturesDemoPage";
+import { NfcPage } from "./pages/NfcPage";
 import { PricingPage } from "./pages/PricingPage";
 import { ProductsPage } from "./pages/ProductsPage";
 import { SSAMENJHomePage } from "./pages/SSAMENJHomePage";
@@ -15,6 +16,7 @@ export default function App() {
       <Route element={<PublicLayout />}>
         <Route index element={<SSAMENJHomePage />} />
         <Route path="/products" element={<ProductsPage />} />
+        <Route path="/nfc" element={<NfcPage />} />
         <Route path="/demos" element={<DemosPage />} />
         <Route path="/pricing" element={<PricingPage />} />
         <Route path="/about" element={<AboutPage />} />
