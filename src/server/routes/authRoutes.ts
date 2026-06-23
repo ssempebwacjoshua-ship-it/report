@@ -71,6 +71,7 @@ export function authRoutes() {
         token,
         user: {
           id: user.id,
+          schoolId: user.schoolId,
           name: user.name,
           email: user.email,
           role: user.role,
@@ -101,6 +102,7 @@ export function authRoutes() {
       res.json({
         user: {
           id: payload.userId,
+          schoolId: payload.schoolId,
           name: payload.name,
           email: payload.email,
           role: payload.role,

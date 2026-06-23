@@ -38,6 +38,8 @@ model School {
   nfcGateScans        NfcGateScan[]
   nfcTags             NfcTag[]
   nfcTagBatches       NfcTagBatch[]
+  nfcOfflineDevices   NfcOfflineDevice[]
+  nfcOfflineSyncBatches NfcOfflineSyncBatch[]
 }
 
 model AcademicYear {
@@ -1046,6 +1048,40 @@ enum PromotionDecision {
 enum PromotionActionStatus {
   APPLIED
   REVERSED
+}
+
+// ─── NFC Offline Mode ────────────────────────────────────────────────────────
+
+model NfcOfflineDevice {
+  id         String    @id @default(uuid()) @db.Uuid
+  schoolId   String    @db.Uuid
+  name       String
+  deviceKey  String
+  roleScope  String    // GATE_SECURITY | CASHIER | ADMIN_OPERATOR
+  isActive   Boolean   @default(true)
+  lastSyncAt DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  @@index([schoolId, isActive])
+}
+
+model NfcOfflineSyncBatch {
+  id          String   @id @default(uuid()) @db.Uuid
+  schoolId    String   @db.Uuid
+  deviceId    String   @db.Uuid
+  status      String   @default("COMPLETED") // COMPLETED | PARTIAL | FAILED
+  totalItems  Int      @default(0)
+  syncedItems Int      @default(0)
+  failedItems Int      @default(0)
+  errorJson   Json?
+  createdAt   DateTime @default(now())
+
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  @@index([schoolId, deviceId, createdAt])
 }
 
 // ─── NFC Tag Registry ────────────────────────────────────────────────────────
