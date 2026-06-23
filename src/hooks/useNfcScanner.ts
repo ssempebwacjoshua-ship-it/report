@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { normalizeNfcScanValue } from "../shared/utils/nfcPayload";
 
 // Minimal Web NFC type stubs — not in standard lib.dom yet
 declare global {
@@ -112,7 +113,7 @@ export function useNfcScanner({ onScan, cooldownMs = 1500 }: UseNfcScannerOption
   const processRaw = useCallback(async (raw: string) => {
     if (!raw.trim()) return;
 
-    const tokenOrUid = raw.trim();
+    const tokenOrUid = normalizeNfcScanValue(raw);
     const idempotencyKey = `${deviceId.current}-${Date.now()}-${tokenOrUid.slice(0, 20)}`;
 
     setStateSync("PROCESSING");

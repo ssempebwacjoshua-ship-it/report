@@ -15,6 +15,7 @@ import type { SchoolUserRole } from "./authService";
 import { normalizeCredentialUID } from "./studentCredentialService";
 import { assertPinFormat, checkPin, hashWalletPin } from "./walletPinService";
 import { hasPermission } from "../../shared/permissions";
+import { normalizeNfcScanValue } from "../../shared/utils/nfcPayload";
 
 type NfcOperationsClient = Pick<
   PrismaClient,
@@ -118,10 +119,7 @@ function studentSummary(student: StudentForNfc) {
 }
 
 function extractTokenOrUid(value: string) {
-  const clean = value.trim();
-  // Handles /nfc/t/:token, /t/:publicCode, and full URLs containing either path
-  const match = clean.match(/(?:\/nfc)?\/t\/([^/?#\s]+)/i);
-  const extracted = match ? decodeURIComponent(match[1] ?? "") : clean;
+  const extracted = normalizeNfcScanValue(value);
   return {
     token: extracted,
     uid: normalizeCredentialUID(extracted),
@@ -229,7 +227,7 @@ function buildStudentWhere(schoolId: string, filters: { search?: string; classId
 }
 
 export async function resolveNfcTokenForRole(token: string, ctx: NfcOperationsContext | null, db: NfcOperationsClient = defaultPrisma) {
-  const cleanToken = token.trim();
+  const cleanToken = normalizeNfcScanValue(token);
   if (!cleanToken) throw Object.assign(new Error("NFC token is required."), { status: 400 });
   const credential = await db.studentCredential.findUnique({
     where: { scanToken: cleanToken },
