@@ -282,7 +282,7 @@ export function NfcPage() {
               >
                 <div className="relative aspect-[9/16] w-full overflow-hidden rounded-[1rem]">
                   <img
-                    src={`https://img.youtube.com/vi/${NFC_VIDEO_ID}/hqdefault.jpg`}
+                    src="/images/nfc-wristband-hero.png"
                     alt="School Connect NFC Demo"
                     className="absolute inset-0 h-full w-full scale-[1.14] object-cover object-center transition duration-300 group-hover:scale-[1.18]"
                     loading="lazy"
