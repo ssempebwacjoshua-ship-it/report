@@ -41,38 +41,55 @@ export function NfcGateSecurityPage() {
         <h1 className="text-xl font-bold text-slate-950 sm:text-2xl">Gate Security</h1>
       </header>
       {error ? <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div> : null}
+
       <section className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
         <div className="premium-card rounded-xl p-4">
           <label className="grid gap-1 text-xs font-bold uppercase text-slate-500">
             Tap Wristband / Scan
-            <input className={`${inputClass} h-20 text-lg font-bold`} value={tokenOrUid} onChange={(event) => setTokenOrUid(event.target.value)} placeholder="Tap wristband or paste /nfc/t token" />
+            <input
+              className={`${inputClass} h-20 text-xl font-bold tracking-wide`}
+              value={tokenOrUid}
+              onChange={(event) => setTokenOrUid(event.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter" && tokenOrUid.trim()) void scan(); }}
+              placeholder="Tap wristband or paste token"
+              autoFocus
+            />
           </label>
-          <button className="btn btn-primary mt-4 min-h-12 w-full sm:w-auto" type="button" onClick={() => void scan()} disabled={!tokenOrUid.trim()}>
+          <button className="btn btn-primary mt-4 min-h-14 w-full text-base font-black" type="button" onClick={() => void scan()} disabled={!tokenOrUid.trim()}>
             Verify at gate
           </button>
+
           {scanResult ? (
-            <div className={`mt-5 rounded-2xl border p-5 ${allowed ? "border-emerald-200 bg-emerald-50" : "border-red-200 bg-red-50"}`}>
-              <p className={`text-3xl font-black ${allowed ? "text-emerald-700" : "text-red-700"}`}>{allowed ? "ALLOWED" : "BLOCKED"}</p>
-              <p className="mt-2 text-sm text-slate-700">{scanResult.reason ?? "Valid active student"}</p>
+            <div className={`mt-5 rounded-2xl border p-5 text-center ${allowed ? "border-emerald-200 bg-emerald-50" : "border-red-200 bg-red-50"}`}>
+              <p className={`text-5xl font-black ${allowed ? "text-emerald-600" : "text-red-600"}`}>
+                {allowed ? "✓" : "✗"}
+              </p>
+              <p className={`mt-1 text-2xl font-black ${allowed ? "text-emerald-700" : "text-red-700"}`}>
+                {allowed ? "ALLOWED" : "BLOCKED"}
+              </p>
+              {scanResult.reason && <p className="mt-2 text-sm text-slate-600">{scanResult.reason}</p>}
               {scanResult.student ? (
-                <div className="mt-4 text-sm">
+                <div className="mt-4 rounded-xl bg-white/60 p-3 text-left text-sm">
                   <p className="text-lg font-bold text-slate-950">{scanResult.student.name}</p>
-                  <p className="text-slate-700">{scanResult.student.admissionNumber}</p>
-                  <p className="text-slate-600">{scanResult.student.className ?? "No class"} / {scanResult.student.streamName ?? "No stream"}</p>
-                  <p className="text-slate-600">Credential: {scanResult.credentialStatus} · Attendance: {scanResult.todayAttendanceStatus}</p>
+                  <p className="text-slate-600">{scanResult.student.admissionNumber} · {scanResult.student.className ?? "No class"}</p>
+                  <p className="mt-1 text-xs text-slate-400">Credential: {scanResult.credentialStatus} · Attendance: {scanResult.todayAttendanceStatus}</p>
                 </div>
               ) : null}
             </div>
           ) : null}
         </div>
+
         <aside className="premium-card rounded-xl p-4">
           <h2 className="text-base font-bold text-slate-950">Recent gate scans</h2>
           <div className="mt-3 grid gap-2">
-            {(dashboard?.recentScans ?? []).map((scan, index) => (
-              <div key={`${scan.scannedAt}-${index}`} className="rounded-xl border border-slate-200 bg-white p-3 text-sm">
-                <p className={`font-bold ${scan.result === "ALLOWED" ? "text-emerald-700" : "text-red-700"}`}>{scan.result}</p>
-                <p className="text-slate-700">{scan.student?.name ?? "Unknown wristband"}</p>
-                <p className="text-slate-500">{new Date(scan.scannedAt).toLocaleString()} {scan.reason ? `· ${scan.reason}` : ""}</p>
+            {(dashboard?.recentScans ?? []).map((recentScan, index) => (
+              <div key={`${recentScan.scannedAt}-${index}`} className="rounded-xl border border-slate-200 bg-white p-3 text-sm">
+                <div className="flex items-center justify-between gap-2">
+                  <p className={`font-bold ${recentScan.result === "ALLOWED" ? "text-emerald-700" : "text-red-700"}`}>{recentScan.result}</p>
+                  <p className="text-xs text-slate-400">{new Date(recentScan.scannedAt).toLocaleTimeString()}</p>
+                </div>
+                <p className="text-slate-700">{recentScan.student?.name ?? "Unknown wristband"}</p>
+                {recentScan.reason ? <p className="text-xs text-slate-500">{recentScan.reason}</p> : null}
               </div>
             ))}
             {dashboard?.recentScans.length === 0 ? <p className="text-sm text-slate-500">No gate scans yet.</p> : null}

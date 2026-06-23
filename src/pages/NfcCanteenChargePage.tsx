@@ -56,12 +56,19 @@ export function NfcCanteenChargePage() {
         <p className="text-xs font-bold uppercase tracking-wide text-blue-600">NFC Operations</p>
         <h1 className="text-xl font-bold text-slate-950 sm:text-2xl">Canteen Charge</h1>
       </header>
-      {error ? <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div> : null}
+
       <section className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
         <div className="premium-card rounded-xl p-4">
           <label className="grid gap-1 text-xs font-bold uppercase text-slate-500">
             Tap Wristband / Scan
-            <input className={`${inputClass} h-20 text-lg font-bold`} value={tokenOrUid} onChange={(event) => setTokenOrUid(event.target.value)} placeholder="Tap wristband or paste /nfc/t token" />
+            <input
+              className={`${inputClass} h-20 text-xl font-bold tracking-wide`}
+              value={tokenOrUid}
+              onChange={(event) => setTokenOrUid(event.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter" && tokenOrUid.trim() && Number(amount)) void charge(); }}
+              placeholder="Tap wristband or paste token"
+              autoFocus
+            />
           </label>
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
             <label className="grid gap-1 text-xs font-bold uppercase text-slate-500">
@@ -73,27 +80,43 @@ export function NfcCanteenChargePage() {
               <input className={inputClass} value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Lunch" />
             </label>
           </div>
-          <button className="btn btn-primary mt-4 min-h-12 w-full sm:w-auto" type="button" onClick={() => void charge()} disabled={!tokenOrUid.trim() || !Number(amount)}>
+          <button className="btn btn-primary mt-4 min-h-14 w-full text-base font-black" type="button" onClick={() => void charge()} disabled={!tokenOrUid.trim() || !Number(amount)}>
             Confirm charge
           </button>
+          {error ? <div className="mt-3 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div> : null}
         </div>
+
         <aside className="premium-card rounded-xl p-4">
           <h2 className="text-base font-bold text-slate-950">Charge result</h2>
           {result ? (
             <div className="mt-3 grid gap-3 text-sm">
-              <div className={`rounded-xl border p-3 font-bold ${result.ok ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-red-200 bg-red-50 text-red-700"}`}>
-                {result.ok ? "Charge successful" : chargeBlockedMessage(result.reason)}
+              <div className={`rounded-xl border p-4 text-center ${result.ok ? "border-emerald-200 bg-emerald-50" : "border-red-200 bg-red-50"}`}>
+                <p className={`text-2xl font-black ${result.ok ? "text-emerald-700" : "text-red-700"}`}>
+                  {result.ok ? "✓ Charged" : "✗ Blocked"}
+                </p>
+                {!result.ok && <p className="mt-1 text-sm font-semibold text-red-600">{chargeBlockedMessage(result.reason)}</p>}
               </div>
               {!result.ok && result.reason === "insufficient balance" && (
                 <p className="text-xs text-red-600">
-                  The student wallet does not have enough canteen credit. Ask a cashier or administrator to add credit on the <a href="/nfc/wallets/top-up" className="underline">Wallet Top-Up</a> page.
+                  Insufficient wallet credit. <a href="/nfc/wallets/top-up" className="underline font-semibold">Top up wallet →</a>
                 </p>
               )}
-              {result.student ? <p className="font-bold text-slate-950">{result.student.name} · {result.student.admissionNumber}</p> : null}
-              {result.wallet ? <p className="text-slate-700">Wallet balance: {money(result.wallet.balanceCents)} · {result.wallet.status}</p> : null}
-              {result.transaction ? <p className="text-slate-700">{money(Math.abs(result.transaction.amountCents))} · {result.transaction.description ?? "Canteen charge"}</p> : null}
+              {result.student ? (
+                <div className="rounded-xl bg-slate-50 p-3">
+                  <p className="font-bold text-slate-950">{result.student.name}</p>
+                  <p className="text-xs text-slate-500">{result.student.admissionNumber}</p>
+                </div>
+              ) : null}
+              {result.wallet ? (
+                <p className="text-slate-600">Balance: <span className="font-bold text-slate-950">{money(result.wallet.balanceCents)}</span> · {result.wallet.status}</p>
+              ) : null}
+              {result.transaction ? (
+                <p className="text-slate-600">{money(Math.abs(result.transaction.amountCents))} · {result.transaction.description ?? "Canteen charge"}</p>
+              ) : null}
             </div>
-          ) : <p className="mt-3 text-sm text-slate-500">Tap, enter amount, then confirm. No charge happens on tap alone.</p>}
+          ) : (
+            <p className="mt-3 text-sm text-slate-500">Tap wristband, enter amount, then confirm. No charge happens on tap alone.</p>
+          )}
         </aside>
       </section>
     </main>
