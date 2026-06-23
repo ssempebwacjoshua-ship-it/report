@@ -460,10 +460,10 @@ export async function chargeCanteen(
     const pinResult = await checkPin(wallet, input.pin);
     if (!pinResult.ok) {
       if (pinResult.reason === "no_pin") {
-        throw Object.assign(new Error("Wallet PIN is not set. An admin must set a PIN before this wallet can be charged."), { status: 403 });
+        throw Object.assign(new Error("Wallet PIN is not set. An admin must set a PIN before this wallet can be charged."), { status: 409, code: "WALLET_PIN_NOT_SET" });
       }
       if (pinResult.reason === "locked") {
-        throw Object.assign(new Error("Wallet PIN is temporarily locked due to too many failed attempts. Try again in 15 minutes."), { status: 403 });
+        throw Object.assign(new Error("Wallet PIN is temporarily locked due to too many failed attempts. Try again in 15 minutes."), { status: 423, code: "WALLET_PIN_LOCKED" });
       }
       // wrong_pin: increment attempts, possibly lock, audit
       const newAttempts = wallet.pinFailedAttempts + 1;
@@ -487,9 +487,9 @@ export async function chargeCanteen(
             details: { walletId: wallet.id, studentId: target.student.id, lockedUntil },
           },
         });
-        throw Object.assign(new Error("Too many incorrect PIN attempts. Wallet PIN is now locked for 15 minutes."), { status: 403 });
+        throw Object.assign(new Error("Too many incorrect PIN attempts. Wallet PIN is now locked for 15 minutes."), { status: 423, code: "WALLET_PIN_LOCKED" });
       }
-      throw Object.assign(new Error("Incorrect PIN."), { status: 401 });
+      throw Object.assign(new Error("Incorrect PIN."), { status: 422, code: "WALLET_PIN_INCORRECT" });
     }
 
     // PIN correct — reset counters and record verification
@@ -619,8 +619,8 @@ export async function changeWalletPin(
 
   const pinResult = await checkPin(wallet, input.oldPin);
   if (!pinResult.ok) {
-    if (pinResult.reason === "locked") throw Object.assign(new Error("Wallet PIN is locked."), { status: 403 });
-    throw Object.assign(new Error("Old PIN is incorrect."), { status: 401 });
+    if (pinResult.reason === "locked") throw Object.assign(new Error("Wallet PIN is locked."), { status: 423, code: "WALLET_PIN_LOCKED" });
+    throw Object.assign(new Error("Old PIN is incorrect."), { status: 422, code: "WALLET_PIN_INCORRECT" });
   }
 
   const newHash = await hashWalletPin(input.newPin);
@@ -734,8 +734,6 @@ export async function scanGate(
     todayAttendanceStatus: lastAttendance?.direction ?? "NONE",
   };
 }
-
-const TOP_UP_ALLOWED_ROLES = ["CANTEEN", "CASHIER"] as const;
 
 async function resolveStudentAndCredential(
   db: NfcOperationsClient,
