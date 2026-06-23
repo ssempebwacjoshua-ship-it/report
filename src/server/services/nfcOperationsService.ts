@@ -1012,6 +1012,15 @@ export async function listWalletTransactions(
 
   const where: Prisma.StudentWalletTransactionWhereInput = { schoolId };
 
+  // CASHIER and CANTEEN roles see only their own charge transactions
+  const isRestrictedCanteenRole = ctx.role === "CASHIER" || ctx.role === "CANTEEN";
+  if (isRestrictedCanteenRole) {
+    where.cashierUserId = ctx.actorId ?? "__none__";
+    where.type = WalletTransactionType.CHARGE;
+  } else {
+    if (filters.cashierUserId) where.cashierUserId = filters.cashierUserId;
+  }
+
   if (filters.dateFrom || filters.dateTo) {
     where.createdAt = {
       ...(filters.dateFrom ? { gte: new Date(filters.dateFrom) } : {}),
@@ -1019,7 +1028,6 @@ export async function listWalletTransactions(
     };
   }
   if (filters.studentId) where.studentId = filters.studentId;
-  if (filters.cashierUserId) where.cashierUserId = filters.cashierUserId;
   if (filters.type && Object.values(WalletTransactionType).includes(filters.type as WalletTransactionType)) {
     where.type = filters.type as WalletTransactionType;
   }
