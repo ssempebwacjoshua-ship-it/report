@@ -8,7 +8,8 @@ export type NfcPermission =
   | "nfc.wallets.topup"
   | "nfc.wallets.pin.manage"
   | "nfc.devices.manage"
-  | "staff.manage";
+  | "staff.manage"
+  | "app.admin";
 
 export const rolePermissions: Record<string, string[]> = {
   ADMIN_OPERATOR: ["*"],
@@ -33,3 +34,9 @@ export const ROLE_LABELS: Record<string, string> = {
   CANTEEN: "Canteen Operator",
   CASHIER: "Cashier",
 };
+
+export function getDefaultRouteForRole(role: string | null | undefined): string {
+  if (role === "CASHIER" || role === "CANTEEN") return "/nfc/canteen";
+  if (role === "SECURITY" || role === "GATE_SECURITY") return "/nfc/gate";
+  return "/dashboard";
+}

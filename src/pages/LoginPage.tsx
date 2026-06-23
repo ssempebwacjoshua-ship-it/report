@@ -2,6 +2,7 @@
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { getApiBaseUrl } from "../client/apiBase";
+import { getDefaultRouteForRole } from "../shared/permissions";
 
 const IS_DEV = import.meta.env.DEV;
 const API_BASE = getApiBaseUrl();
@@ -20,7 +21,7 @@ export function LoginPage() {
     setLoading(true);
     try {
       const result = await login(email.trim(), password, schoolCode.trim());
-      navigate(result?.isPlatformOwner ? "/owner" : "/dashboard", { replace: true });
+      navigate(result?.isPlatformOwner ? "/owner" : getDefaultRouteForRole(result.role), { replace: true });
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Login failed.");
     } finally {

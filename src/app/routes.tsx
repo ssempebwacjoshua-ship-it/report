@@ -2,6 +2,8 @@
 import { AppShell } from "../components/layout/AppShell";
 import { lazy, Suspense, type ComponentType } from "react";
 import { OwnerShell } from "../components/layout/OwnerShell";
+import { useAuth } from "../contexts/AuthContext";
+import { getDefaultRouteForRole } from "../shared/permissions";
 import { DashboardPage } from "../pages/DashboardPage";
 import { ReleaseCenterPage } from "../pages/ReleaseCenterPage";
 import { ReportsPage } from "../pages/ReportsPage";
@@ -65,6 +67,11 @@ function lazyElement(Component: ComponentType) {
   );
 }
 
+function RoleAwareRedirect() {
+  const { user } = useAuth();
+  return <Navigate to={getDefaultRouteForRole(user?.role)} replace />;
+}
+
 export const router = createBrowserRouter([
   // Public routes — no AppShell, no auth
   { path: "/demo", element: <DemoPage /> },
@@ -113,9 +120,9 @@ export const router = createBrowserRouter([
     element: <AppShell />,
     errorElement: <RouteErrorPage />,
     children: [
-      { index: true, element: <Navigate to="/dashboard" replace /> },
-      { path: "dashboard", element: <DashboardPage /> },
-      { path: "students", element: <StudentsPage /> },
+      { index: true, element: <RoleAwareRedirect /> },
+      { path: "dashboard", element: <PermissionGuard permission="app.admin"><DashboardPage /></PermissionGuard> },
+      { path: "students", element: <PermissionGuard permission="app.admin"><StudentsPage /></PermissionGuard> },
       // ── NFC routes — canonical paths ──────────────────────────────────────────
       { path: "nfc/wristbands", element: <PermissionGuard permission="nfc.tags.manage"><StudentCredentialsPage /></PermissionGuard> },
       { path: "nfc/bulk-issuing", element: <PermissionGuard permission="nfc.tags.manage"><NfcBulkIssuingPage /></PermissionGuard> },
@@ -137,26 +144,26 @@ export const router = createBrowserRouter([
       { path: "gate-security", element: <Navigate to="/nfc/gate" replace /> },
       { path: "canteen/nfc/:token", element: <PermissionGuard permission="nfc.canteen.charge"><NfcCanteenChargePage /></PermissionGuard> },
       { path: "gate/nfc/:token", element: <PermissionGuard permission="nfc.gate.scan"><NfcGateSecurityPage /></PermissionGuard> },
-      { path: "reports", element: <ReportsPage /> },
-      { path: "reports/release", element: <ReleaseCenterPage /> },
-      { path: "promotions", element: <PromotionWorkspacePage /> },
-      { path: "imports/marks", element: <MarksImportPage /> },
-      { path: "marksheets", element: <MarksheetsPage /> },
-      { path: "settings", element: <SettingsPage /> },
-      { path: "school/smart-pages", element: <SmartPagesPage /> },
-      { path: "school/smart-pages/:id", element: <DocumentEditorPage /> },
-      { path: "smart-pages", element: <SmartPagesPage /> },
-      { path: "smart-pages/billing", element: <SmartPagesBillingPage /> },
-      { path: "smart-pages/:id", element: <DocumentEditorPage /> },
-      { path: "collections", element: <CollectionsPage /> },
-      { path: "collections/:id", element: <CollectionDetailPage /> },
-      { path: "collections/:id/bulk-generate", element: <BulkGeneratePage /> },
-      { path: "bulk-jobs/:id", element: <BulkJobStatusPage /> },
-      { path: "automations", element: <AutomationsPage /> },
-      { path: "analytics", element: <AnalyticsPage /> },
-      { path: "notifications", element: <NotificationsPage /> },
-      { path: "preferences", element: <PreferencesPage /> },
-      { path: "search", element: <SearchPage /> },
+      { path: "reports", element: <PermissionGuard permission="app.admin"><ReportsPage /></PermissionGuard> },
+      { path: "reports/release", element: <PermissionGuard permission="app.admin"><ReleaseCenterPage /></PermissionGuard> },
+      { path: "promotions", element: <PermissionGuard permission="app.admin"><PromotionWorkspacePage /></PermissionGuard> },
+      { path: "imports/marks", element: <PermissionGuard permission="app.admin"><MarksImportPage /></PermissionGuard> },
+      { path: "marksheets", element: <PermissionGuard permission="app.admin"><MarksheetsPage /></PermissionGuard> },
+      { path: "settings", element: <PermissionGuard permission="app.admin"><SettingsPage /></PermissionGuard> },
+      { path: "school/smart-pages", element: <PermissionGuard permission="app.admin"><SmartPagesPage /></PermissionGuard> },
+      { path: "school/smart-pages/:id", element: <PermissionGuard permission="app.admin"><DocumentEditorPage /></PermissionGuard> },
+      { path: "smart-pages", element: <PermissionGuard permission="app.admin"><SmartPagesPage /></PermissionGuard> },
+      { path: "smart-pages/billing", element: <PermissionGuard permission="app.admin"><SmartPagesBillingPage /></PermissionGuard> },
+      { path: "smart-pages/:id", element: <PermissionGuard permission="app.admin"><DocumentEditorPage /></PermissionGuard> },
+      { path: "collections", element: <PermissionGuard permission="app.admin"><CollectionsPage /></PermissionGuard> },
+      { path: "collections/:id", element: <PermissionGuard permission="app.admin"><CollectionDetailPage /></PermissionGuard> },
+      { path: "collections/:id/bulk-generate", element: <PermissionGuard permission="app.admin"><BulkGeneratePage /></PermissionGuard> },
+      { path: "bulk-jobs/:id", element: <PermissionGuard permission="app.admin"><BulkJobStatusPage /></PermissionGuard> },
+      { path: "automations", element: <PermissionGuard permission="app.admin"><AutomationsPage /></PermissionGuard> },
+      { path: "analytics", element: <PermissionGuard permission="app.admin"><AnalyticsPage /></PermissionGuard> },
+      { path: "notifications", element: <PermissionGuard permission="app.admin"><NotificationsPage /></PermissionGuard> },
+      { path: "preferences", element: <PermissionGuard permission="app.admin"><PreferencesPage /></PermissionGuard> },
+      { path: "search", element: <PermissionGuard permission="app.admin"><SearchPage /></PermissionGuard> },
     ],
   },
 ]);
