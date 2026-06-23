@@ -100,10 +100,10 @@ export function NfcBulkAllocationPage() {
     [pasteUIDs, unallocatedRows],
   );
 
-  // Inventory mode: load UID batches when toggled on
+  // Inventory mode: load all batches when toggled on
   useEffect(() => {
     if (!inventoryMode) return;
-    listTagBatches({ tagMode: "UID" })
+    listTagBatches()
       .then((r) => setInvBatches(r.batches))
       .catch((e: Error) => setError(e.message));
   }, [inventoryMode]);
@@ -112,7 +112,7 @@ export function NfcBulkAllocationPage() {
   useEffect(() => {
     if (!invSelectedBatch) { setInvTags([]); setInvAssignments({}); return; }
     setInvLoading(true);
-    listTagInventory({ batchId: invSelectedBatch, tagMode: "UID", status: "UNALLOCATED" })
+    listTagInventory({ batchId: invSelectedBatch, status: "UNALLOCATED" })
       .then((r) => { setInvTags(r.tags); setInvAssignments({}); })
       .catch((e: Error) => setError(e.message))
       .finally(() => setInvLoading(false));
@@ -422,9 +422,10 @@ export function NfcBulkAllocationPage() {
                 )}
               </div>
               {pasteUIDs.length > unallocatedRows.length ? (
-                <p className="mt-2 text-xs text-amber-700">
-                  {pasteUIDs.length - unallocatedRows.length} extra UID(s) will be ignored (no more unallocated students).
-                </p>
+                <div className="mt-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+                  {pasteUIDs.length - unallocatedRows.length} extra UID(s) will be ignored — there are only{" "}
+                  {unallocatedRows.length} unallocated student(s). Remove extra UIDs before submitting.
+                </div>
               ) : null}
             </div>
           </div>
@@ -458,7 +459,7 @@ export function NfcBulkAllocationPage() {
         <div className="premium-card rounded-xl p-5">
           <h2 className="text-base font-bold text-slate-950">Allocate from Inventory</h2>
           <p className="mt-1 text-sm text-slate-500">
-            Select a UID wristband batch, then map each unallocated tag to a student.
+            Select an inventory batch (UID wristbands or NFC text payload tags), then map each unallocated tag to a student.
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
             <select
@@ -469,7 +470,7 @@ export function NfcBulkAllocationPage() {
               <option value="">Select batch…</option>
               {invBatches.map((b) => (
                 <option key={b.id} value={b.id}>
-                  {b.name} ({b.unallocated} unallocated)
+                  {b.name} [{b.tagMode}] ({b.unallocated} unallocated)
                 </option>
               ))}
             </select>
@@ -490,32 +491,44 @@ export function NfcBulkAllocationPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {invTags.map((tag) => (
-                      <tr key={tag.id} className="bg-white">
-                        <td className="rounded-l-xl border-y border-l border-slate-200 px-3 py-2 font-mono text-xs font-bold text-slate-800">
-                          {tag.physicalUid ?? "—"}
-                        </td>
-                        <td className="border-y border-slate-200 px-3 py-2 text-slate-600">{tag.label ?? "—"}</td>
-                        <td className="rounded-r-xl border-y border-r border-slate-200 px-3 py-2">
-                          <select
-                            className={`${inputClass} w-full`}
-                            value={invAssignments[tag.id] ?? ""}
-                            onChange={(e) =>
-                              setInvAssignments((prev) => ({ ...prev, [tag.id]: e.target.value }))
-                            }
-                          >
-                            <option value="">— not assigned —</option>
-                            {rows
-                              .filter((r) => r.allocationStatus !== "ALLOCATED")
-                              .map((r) => (
-                                <option key={r.student.id} value={r.student.id}>
-                                  {r.student.name} ({r.student.admissionNumber})
-                                </option>
-                              ))}
-                          </select>
-                        </td>
-                      </tr>
-                    ))}
+                    {invTags.map((tag) => {
+                      const selectedElsewhere = new Set(
+                        Object.entries(invAssignments)
+                          .filter(([tid, sid]) => tid !== tag.id && sid)
+                          .map(([, sid]) => sid),
+                      );
+                      return (
+                        <tr key={tag.id} className="bg-white">
+                          <td className="rounded-l-xl border-y border-l border-slate-200 px-3 py-2 font-mono text-xs font-bold text-slate-800">
+                            {tag.physicalUid ?? tag.writtenPayload ?? "—"}
+                          </td>
+                          <td className="border-y border-slate-200 px-3 py-2 text-slate-600">{tag.label ?? "—"}</td>
+                          <td className="rounded-r-xl border-y border-r border-slate-200 px-3 py-2">
+                            <select
+                              className={`${inputClass} w-full`}
+                              value={invAssignments[tag.id] ?? ""}
+                              onChange={(e) =>
+                                setInvAssignments((prev) => ({ ...prev, [tag.id]: e.target.value }))
+                              }
+                            >
+                              <option value="">— not assigned —</option>
+                              {rows
+                                .filter((r) => r.allocationStatus !== "ALLOCATED")
+                                .map((r) => (
+                                  <option
+                                    key={r.student.id}
+                                    value={r.student.id}
+                                    disabled={selectedElsewhere.has(r.student.id)}
+                                  >
+                                    {r.student.name} ({r.student.admissionNumber})
+                                    {selectedElsewhere.has(r.student.id) ? " ✓" : ""}
+                                  </option>
+                                ))}
+                            </select>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
