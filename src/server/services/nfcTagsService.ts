@@ -184,7 +184,7 @@ export async function generateTags(
       const writtenUrl = `${baseUrl}/t/${publicCode}`;
       const writtenPayload = makeOperationalPayload(publicCode);
       return db.nfcTag.create({
-        data: { schoolId, publicCode, writtenUrl, writtenPayload },
+        data: { schoolId, publicCode, tagMode: "TEXT", writtenUrl, writtenPayload },
         include: {
           student: {
             select: {

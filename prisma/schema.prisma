@@ -1054,7 +1054,7 @@ model NfcTagBatch {
   id          String   @id @default(uuid()) @db.Uuid
   schoolId    String   @db.Uuid
   name        String
-  tagMode     String   // "URL" | "UID"
+  tagMode     String   // "URL" | "UID" | "TEXT"
   quantity    Int      @default(0)
   status      String   @default("ACTIVE") // "ACTIVE" | "CLOSED"
   createdById String?  @db.Uuid
@@ -1074,7 +1074,7 @@ model NfcTag {
   batchId     String?   @db.Uuid
   publicCode  String    @unique
   physicalUid String?
-  tagMode     String    @default("URL")    // "URL" | "UID"
+  tagMode     String    @default("URL")    // "URL" | "UID" | "TEXT"
   label       String?
   type        String    @default("STUDENT")
   purpose     String    @default("STUDENT")

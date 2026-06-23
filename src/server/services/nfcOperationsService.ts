@@ -556,7 +556,15 @@ export async function chargeCanteen(
     const existing = input.idempotencyKey
       ? await tx.studentWalletTransaction.findUnique({ where: { schoolId_idempotencyKey: { schoolId, idempotencyKey: input.idempotencyKey } } })
       : null;
-    if (existing) return { ok: false, reason: "duplicate charge attempt", student: studentSummary(target.student), wallet };
+    if (existing) {
+      return {
+        ok: true,
+        duplicate: true,
+        transaction: { id: existing.id, amountCents: existing.amountCents, balanceAfterCents: existing.balanceAfterCents, createdAt: existing.createdAt.toISOString() },
+        student: studentSummary(target.student),
+        wallet,
+      };
+    }
 
     // PIN verification — must happen inside the transaction so updates are atomic
     const pinResult = await checkPin(wallet, input.pin);
