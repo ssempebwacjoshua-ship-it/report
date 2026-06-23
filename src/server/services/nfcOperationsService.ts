@@ -293,6 +293,108 @@ export async function scanAttendance(
   return getAttendanceDashboard(ctx, {}, db);
 }
 
+export type AttendanceRegisterRow = {
+  student: {
+    id: string;
+    name: string;
+    admissionNumber: string;
+    className: string | null;
+    streamName: string | null;
+    photoUrl: null;
+  };
+  tapIn: { id: string; scannedAt: string; source: string } | null;
+  tapOut: { id: string; scannedAt: string; source: string } | null;
+  lastScan: { id: string; direction: string; scannedAt: string; status: string; reason: string | null } | null;
+  currentStatus: "ABSENT" | "PRESENT" | "OUT" | "OUT_ONLY" | "BLOCKED" | "DUPLICATE";
+};
+
+export type AttendanceRegisterResponse = {
+  date: string;
+  summary: {
+    totalStudents: number;
+    present: number;
+    out: number;
+    absent: number;
+    blockedScans: number;
+    duplicateScans: number;
+  };
+  rows: AttendanceRegisterRow[];
+};
+
+export async function getAttendanceRegister(
+  ctx: NfcOperationsContext,
+  filters: { date?: string; classId?: string; streamId?: string; search?: string } = {},
+  db: NfcOperationsClient = defaultPrisma,
+): Promise<AttendanceRegisterResponse> {
+  const schoolId = requireSchoolId(ctx);
+  requireRole(ctx, []);
+  const targetDate = filters.date ? new Date(filters.date) : new Date();
+  const start = new Date(targetDate);
+  start.setHours(0, 0, 0, 0);
+  const end = new Date(start);
+  end.setDate(end.getDate() + 1);
+  const dateLabel = start.toISOString().split("T")[0];
+  const students = await db.student.findMany({
+    where: buildStudentWhere(schoolId, filters),
+    include: {
+      enrollments: studentInclude.enrollments,
+      attendanceEvents: {
+        where: { scannedAt: { gte: start, lt: end } },
+        orderBy: { scannedAt: "asc" },
+      },
+    },
+    orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
+  });
+  let blockedScans = 0;
+  let duplicateScans = 0;
+  const rows: AttendanceRegisterRow[] = students.map((student) => {
+    const events = student.attendanceEvents;
+    const tapIn = events.find((e) => e.direction === AttendanceDirection.TAP_IN && e.status === AttendanceScanStatus.VALID) ?? null;
+    const validOuts = events.filter((e) => e.direction === AttendanceDirection.TAP_OUT && e.status === AttendanceScanStatus.VALID);
+    const tapOut = validOuts.length > 0 ? validOuts[validOuts.length - 1] : null;
+    const lastScan = events.length > 0 ? events[events.length - 1] : null;
+    blockedScans += events.filter((e) => e.status === AttendanceScanStatus.BLOCKED).length;
+    duplicateScans += events.filter((e) => e.status === AttendanceScanStatus.DUPLICATE).length;
+    let currentStatus: AttendanceRegisterRow["currentStatus"];
+    if (tapIn && tapOut) {
+      currentStatus = "OUT";
+    } else if (tapIn) {
+      currentStatus = "PRESENT";
+    } else if (tapOut) {
+      currentStatus = "OUT_ONLY";
+    } else if (lastScan?.status === AttendanceScanStatus.BLOCKED) {
+      currentStatus = "BLOCKED";
+    } else if (lastScan?.status === AttendanceScanStatus.DUPLICATE) {
+      currentStatus = "DUPLICATE";
+    } else {
+      currentStatus = "ABSENT";
+    }
+    const enrollment = student.enrollments[0];
+    return {
+      student: {
+        id: student.id,
+        name: getStudentName(student),
+        admissionNumber: student.admissionNumber,
+        className: enrollment?.class?.name ?? null,
+        streamName: enrollment?.stream?.name ?? null,
+        photoUrl: null,
+      },
+      tapIn: tapIn ? { id: tapIn.id, scannedAt: tapIn.scannedAt.toISOString(), source: tapIn.source } : null,
+      tapOut: tapOut ? { id: tapOut.id, scannedAt: tapOut.scannedAt.toISOString(), source: tapOut.source } : null,
+      lastScan: lastScan ? { id: lastScan.id, direction: lastScan.direction, scannedAt: lastScan.scannedAt.toISOString(), status: lastScan.status, reason: lastScan.reason } : null,
+      currentStatus,
+    };
+  });
+  const present = rows.filter((r) => r.currentStatus === "PRESENT").length;
+  const out = rows.filter((r) => r.currentStatus === "OUT" || r.currentStatus === "OUT_ONLY").length;
+  const absent = rows.filter((r) => r.currentStatus === "ABSENT").length;
+  return {
+    date: dateLabel,
+    summary: { totalStudents: students.length, present, out, absent, blockedScans, duplicateScans },
+    rows,
+  };
+}
+
 export async function getWalletDashboard(
   ctx: NfcOperationsContext,
   filters: { search?: string; classId?: string; streamId?: string } = {},
