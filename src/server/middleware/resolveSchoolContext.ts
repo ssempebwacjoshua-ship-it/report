@@ -40,6 +40,18 @@ export async function resolveSchoolContext(
     if (payload) {
       req.user = payload;
 
+      // Validate tokenVersion to catch revoked tokens (role changes, password resets)
+      if (typeof payload.tokenVersion === "number") {
+        const dbUser = await prisma.user.findFirst({
+          where: { id: payload.userId, schoolId: payload.schoolId },
+          select: { tokenVersion: true, isActive: true },
+        });
+        if (!dbUser || !dbUser.isActive || dbUser.tokenVersion !== payload.tokenVersion) {
+          res.status(401).json({ error: "Your session has expired. Please log in again." });
+          return;
+        }
+      }
+
       const school = await prisma.school.findUnique({
         where: { id: payload.schoolId },
         select: { id: true, code: true, name: true },

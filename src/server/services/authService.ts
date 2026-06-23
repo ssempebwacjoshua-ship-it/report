@@ -13,6 +13,7 @@ export type AuthPayload = {
   email: string;
   role: SchoolUserRole;
   isPlatformOwner?: boolean;
+  tokenVersion?: number;
 };
 
 export function signToken(payload: AuthPayload): string {

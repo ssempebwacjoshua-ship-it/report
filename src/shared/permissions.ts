@@ -7,7 +7,8 @@ export type NfcPermission =
   | "nfc.tags.manage"
   | "nfc.wallets.topup"
   | "nfc.wallets.pin.manage"
-  | "nfc.devices.manage";
+  | "nfc.devices.manage"
+  | "staff.manage";
 
 export const rolePermissions: Record<string, string[]> = {
   ADMIN_OPERATOR: ["*"],

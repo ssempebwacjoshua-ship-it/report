@@ -298,6 +298,7 @@ model User {
   isPlatformOwner    Boolean        @default(false)
   mustChangePassword Boolean        @default(false)
   lastLoginAt        DateTime?
+  tokenVersion       Int            @default(0)
   issuedReports      IssuedReport[]
   studentCredentialsIssued StudentCredential[] @relation("StudentCredentialIssuedBy")
   walletTransactions StudentWalletTransaction[] @relation("StudentWalletTransactionCashier")
