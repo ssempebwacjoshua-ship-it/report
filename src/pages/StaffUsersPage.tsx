@@ -133,7 +133,7 @@ export function StaffUsersPage() {
                         Must change password
                       </span>
                     )}
-                    {u.id === authUser?.userId && (
+                    {u.id === authUser?.id && (
                       <span className="inline-flex items-center rounded-full bg-blue-50 px-2.5 py-0.5 text-xs font-semibold text-blue-600">You</span>
                     )}
                   </div>

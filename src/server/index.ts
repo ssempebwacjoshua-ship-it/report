@@ -105,6 +105,17 @@ export function createServer() {
   // Tenant isolation: resolve school context from JWT or (dev-only) schoolCode param
   app.use(resolveSchoolContext);
 
+  // Block NFC-only staff from reaching admin API routes. NFC service-level
+  // requirePermission() handles NFC-internal access control separately.
+  const NFC_ONLY_ROLES = new Set(["CASHIER", "CANTEEN", "GATE_SECURITY", "SECURITY"]);
+  app.use((req, res, next) => {
+    const user = req.user;
+    if (!user || !NFC_ONLY_ROLES.has(user.role)) { next(); return; }
+    // Allow NFC paths and school settings (needed for AppShell to render)
+    if (req.path.startsWith("/api/nfc") || req.path.startsWith("/api/settings")) { next(); return; }
+    res.status(403).json({ error: "This resource requires administrator access.", code: "ADMIN_REQUIRED" });
+  });
+
   // Protected data routes ? all have req.school set by the middleware above
   app.use(dashboardRoutes());
   app.use(reportsRoutes());

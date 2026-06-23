@@ -106,6 +106,8 @@ function SidebarSection({
   );
   const sectionLabel = product === "reportLab" ? "REPORT LAB" : product === "nfc" ? "NFC OPERATIONS" : "SMART PAGES";
 
+  if (items.length === 0) return null;
+
   return (
     <>
       {!collapsed ? (
