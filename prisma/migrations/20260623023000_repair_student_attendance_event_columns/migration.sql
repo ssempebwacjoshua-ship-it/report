@@ -1,4 +1,4 @@
-﻿-- Repair live DB drift for StudentAttendanceEvent.
+-- Repair live DB drift for StudentAttendanceEvent.
 -- Safe/idempotent: fixes missing source/status and related nullable columns.
 
 DO $$
