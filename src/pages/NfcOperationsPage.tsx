@@ -42,6 +42,7 @@ function copyToClipboard(text: string) {
 }
 
 type TagActions = {
+  onCopyPayload: () => void;
   onCopyUrl: () => void;
   onAssign: () => void;
   onUnassign: () => void;
@@ -50,6 +51,7 @@ type TagActions = {
   onEvents: () => void;
   onWalletPin: () => void;
   copiedId: string | null;
+  copiedPayloadId: string | null;
 };
 
 function ActionsDropdown({ tag, actions, isOpen, onToggle, onClose }: {
@@ -91,6 +93,13 @@ function ActionsDropdown({ tag, actions, isOpen, onToggle, onClose }: {
 
       {isOpen && (
         <div className="absolute right-0 z-30 mt-1.5 w-52 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg">
+          <button
+            type="button"
+            onClick={() => { actions.onCopyPayload(); onClose(); }}
+            className="flex w-full items-center px-4 py-3 text-left text-sm font-semibold text-blue-700 hover:bg-blue-50"
+          >
+            {actions.copiedPayloadId === tag.id ? "Copied!" : "Copy Payload"}
+          </button>
           <button
             type="button"
             onClick={() => { actions.onCopyUrl(); onClose(); }}
@@ -168,16 +177,24 @@ function MobileTagCard({ tag, actions, isDropdownOpen, onToggleDropdown, onClose
   onToggleDropdown: () => void;
   onCloseDropdown: () => void;
 }) {
+  const payload = tag.writtenPayload ?? `SCNFC:${tag.publicCode}`;
+  const isCopied = actions.copiedPayloadId === tag.id;
+
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
       <div className="flex min-w-0 items-start justify-between gap-3">
-        <div className="min-w-0">
-          <StatusBadge status={tag.status} />
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <StatusBadge status={tag.status} />
+            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-slate-500">
+              {tag.tagMode}
+            </span>
+          </div>
           <p className="mt-2 min-w-0 truncate font-bold text-slate-950">
             {tag.label ?? `Tag ${tag.publicCode.slice(0, 8)}…`}
           </p>
           <p className="mt-0.5 min-w-0 break-all font-mono text-[11px] text-slate-400">
-            {tag.publicCode}
+            {payload}
           </p>
         </div>
         <ActionsDropdown
@@ -188,6 +205,18 @@ function MobileTagCard({ tag, actions, isDropdownOpen, onToggleDropdown, onClose
           onClose={onCloseDropdown}
         />
       </div>
+
+      <button
+        type="button"
+        onClick={actions.onCopyPayload}
+        className={`mt-3 flex w-full items-center justify-center rounded-xl border px-3 py-2 text-sm font-semibold transition-colors ${
+          isCopied
+            ? "border-green-200 bg-green-50 text-green-700"
+            : "border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100"
+        }`}
+      >
+        {isCopied ? "Copied!" : "Copy Payload"}
+      </button>
 
       <div className="mt-3 grid gap-1 text-sm">
         {tag.student ? (
@@ -252,6 +281,7 @@ export function NfcOperationsPage() {
 
   // Copied feedback
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [copiedPayloadId, setCopiedPayloadId] = useState<string | null>(null);
 
   // Re-enable modal
   const [enableTarget, setEnableTarget] = useState<NfcTag | null>(null);
@@ -442,8 +472,16 @@ export function NfcOperationsPage() {
     setTimeout(() => setCopiedId((id) => (id === tag.id ? null : id)), 2000);
   }
 
+  function handleCopyPayload(tag: NfcTag) {
+    const payload = tag.writtenPayload ?? `SCNFC:${tag.publicCode}`;
+    copyToClipboard(payload);
+    setCopiedPayloadId(tag.id);
+    setTimeout(() => setCopiedPayloadId((id) => (id === tag.id ? null : id)), 2000);
+  }
+
   function makeActions(tag: NfcTag): TagActions {
     return {
+      onCopyPayload: () => handleCopyPayload(tag),
       onCopyUrl: () => handleCopy(tag),
       onAssign: () => { setAssignTagId(tag.id); setAssignSearch(""); setAssignSelected(null); setAssignResults([]); setAssignError(null); },
       onUnassign: () => { void handleUnassign(tag.id); },
@@ -456,6 +494,7 @@ export function NfcOperationsPage() {
         }
       },
       copiedId,
+      copiedPayloadId,
     };
   }
 
@@ -540,7 +579,8 @@ export function NfcOperationsPage() {
             <thead className="border-b border-slate-100 bg-slate-50 text-left text-[11px] font-black uppercase tracking-wider text-slate-500">
               <tr>
                 <th className="px-4 py-3">Status</th>
-                <th className="px-4 py-3">Label / Code</th>
+                <th className="px-4 py-3">Label / Payload</th>
+                <th className="px-4 py-3">Mode</th>
                 <th className="px-4 py-3">Student</th>
                 <th className="px-4 py-3">Last Seen</th>
                 <th className="px-4 py-3">Taps</th>
@@ -555,7 +595,14 @@ export function NfcOperationsPage() {
                   </td>
                   <td className="max-w-[200px] px-4 py-3">
                     <p className="truncate font-bold text-slate-950">{tag.label ?? `Tag ${tag.publicCode.slice(0, 8)}…`}</p>
-                    <p className="truncate font-mono text-[11px] text-slate-400">{tag.publicCode.slice(0, 16)}…</p>
+                    <p className="truncate font-mono text-[11px] text-slate-400">
+                      {(tag.writtenPayload ?? `SCNFC:${tag.publicCode}`).slice(0, 24)}…
+                    </p>
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                      {tag.tagMode}
+                    </span>
                   </td>
                   <td className="px-4 py-3">
                     {tag.student ? (
@@ -573,6 +620,17 @@ export function NfcOperationsPage() {
                   <td className="px-4 py-3 text-center font-semibold text-slate-700">{tag.tapCount ?? 0}</td>
                   <td className="px-4 py-3">
                     <div className="flex flex-wrap gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => handleCopyPayload(tag)}
+                        className={`rounded-lg border px-2.5 py-1 text-[11px] font-black transition-colors ${
+                          copiedPayloadId === tag.id
+                            ? "border-green-200 bg-green-50 text-green-700"
+                            : "border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100"
+                        }`}
+                      >
+                        {copiedPayloadId === tag.id ? "Copied!" : "Copy Payload"}
+                      </button>
                       <button
                         type="button"
                         onClick={() => handleCopy(tag)}
