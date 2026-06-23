@@ -21,6 +21,7 @@ import { ContactPage } from "../pages/ContactPage";
 import { ParentReportPage } from "../pages/ParentReportPage";
 import { VerifyPage } from "../pages/VerifyPage";
 import { NfcAttendancePage } from "../pages/NfcAttendancePage";
+import { NfcOfflinePage } from "../pages/NfcOfflinePage";
 import { NfcWalletsPage } from "../pages/NfcWalletsPage";
 import { NfcWalletTopUpPage } from "../pages/NfcWalletTopUpPage";
 import { NfcCanteenTransactionsPage } from "../pages/NfcCanteenTransactionsPage";
@@ -135,6 +136,7 @@ export const router = createBrowserRouter([
       { path: "nfc/canteen/transactions", element: <PermissionGuard permission="nfc.canteen.transactions.view"><NfcCanteenTransactionsPage /></PermissionGuard> },
       { path: "nfc/gate", element: <PermissionGuard permission="nfc.gate.view"><NfcGateSecurityPage /></PermissionGuard> },
       { path: "nfc/staff-users", element: <PermissionGuard permission="staff.manage"><StaffUsersPage /></PermissionGuard> },
+      { path: "nfc/offline", element: <PermissionGuard permission="nfc.devices.manage"><NfcOfflinePage /></PermissionGuard> },
       // ── NFC routes — legacy redirects ─────────────────────────────────────────
       { path: "student-credentials", element: <Navigate to="/nfc/wristbands" replace /> },
       { path: "nfc-tags", element: <Navigate to="/nfc/tags" replace /> },
