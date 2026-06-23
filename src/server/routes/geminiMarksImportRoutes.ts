@@ -402,13 +402,21 @@ export default function geminiMarksImportRoutes() {
    *
    * Returns the dropdown options (classes, streams, subjects, terms, examTypes)
    * needed to populate the Smart Marksheet Import form. School-scoped.
+   * Never returns 500 — DB failures produce empty arrays with a server-side log.
    */
-  router.get("/api/marks-import/scan/options", requireImportAuth, async (req, res, next) => {
-    try {
-      const school = req.school!;
+  router.get("/api/marks-import/scan/options", requireImportAuth, async (req, res) => {
+    const school = req.school;
+    if (!school) {
+      res.status(401).json(importErr("AUTH_REQUIRED", "Authentication required."));
+      return;
+    }
 
-      // Read stored school sections (default: SECONDARY when not yet configured).
-      let schoolSections: SchoolSection[] = ["SECONDARY"];
+    const reqId = (req.headers["x-request-id"] as string | undefined) ?? `so-${Date.now().toString(36)}`;
+    const logCtx = { reqId, route: "GET /api/marks-import/scan/options", schoolId: school.id, userId: req.user?.userId };
+
+    // 1. Determine school sections (best-effort; default to SECONDARY on any error)
+    let schoolSections: SchoolSection[] = ["SECONDARY"];
+    try {
       const savedSetting = await prisma.appSetting.findUnique({
         where: { schoolCode: school.code },
         select: { sections: true },
@@ -419,8 +427,15 @@ export default function geminiMarksImportRoutes() {
           schoolSections = raw.school.schoolSections as SchoolSection[];
         }
       }
+    } catch (err) {
+      console.error("[scan-options] appSetting lookup failed; defaulting to SECONDARY", {
+        ...logCtx,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
 
-      // Provision missing canonical classes for the school's sections (idempotent).
+    // 2. Provision canonical classes (idempotent, best-effort; never blocks the response)
+    try {
       const sectionClassDefs = getClassesForSections(schoolSections);
       for (const def of sectionClassDefs) {
         await prisma.schoolClass.upsert({
@@ -429,8 +444,23 @@ export default function geminiMarksImportRoutes() {
           update: {},
         });
       }
+    } catch (err) {
+      console.error("[scan-options] class provisioning failed; continuing with existing classes", {
+        ...logCtx,
+        prismaCode: (err as { code?: string }).code,
+        error: err instanceof Error ? err.message : String(err),
+        stack: process.env.NODE_ENV !== "production" ? (err instanceof Error ? err.stack : undefined) : undefined,
+      });
+    }
 
-      const [classes, streams, subjects, terms] = await Promise.all([
+    // 3. Load dropdown options (fail-safe: empty arrays on any DB error)
+    let classes: Array<{ id: string; name: string; code: string }> = [];
+    let streams: Array<{ id: string; classId: string; name: string; code: string }> = [];
+    let subjects: Array<{ id: string; name: string; code: string }> = [];
+    let terms: Array<{ id: string; name: string; isActive: boolean }> = [];
+
+    try {
+      const [rawClasses, rawStreams, rawSubjects, rawTerms] = await Promise.all([
         prisma.schoolClass.findMany({
           where: { schoolId: school.id },
           select: { id: true, name: true, code: true },
@@ -454,25 +484,26 @@ export default function geminiMarksImportRoutes() {
         }),
       ]);
 
-      const canonicalClasses = classes.filter((c) => isCanonicalClassCode(c.code));
+      const canonicalClasses = rawClasses.filter((c) => isCanonicalClassCode(c.code));
       const canonicalClassIds = new Set(canonicalClasses.map((c) => c.id));
-      const canonicalStreams = streams.filter((s) => canonicalClassIds.has(s.classId));
-
-      res.json({
-        success: true,
-        classes: canonicalClasses,
-        streams: canonicalStreams,
-        subjects,
-        terms: terms.map((t) => ({
-          id: t.id,
-          name: `${t.academicYear.name} ? ${t.name}`,
-          isActive: t.isActive,
-        })),
-        examTypes: ["BOT", "MOT", "EOT"],
+      classes = canonicalClasses;
+      streams = rawStreams.filter((s) => canonicalClassIds.has(s.classId));
+      subjects = rawSubjects;
+      terms = rawTerms.map((t) => ({
+        id: t.id,
+        name: `${t.academicYear.name} · ${t.name}`,
+        isActive: t.isActive,
+      }));
+    } catch (err) {
+      console.error("[scan-options] dropdown query failed; returning empty options", {
+        ...logCtx,
+        prismaCode: (err as { code?: string }).code,
+        error: err instanceof Error ? err.message : String(err),
+        stack: process.env.NODE_ENV !== "production" ? (err instanceof Error ? err.stack : undefined) : undefined,
       });
-    } catch (error) {
-      next(error);
     }
+
+    res.json({ success: true, classes, streams, subjects, terms, examTypes: ["BOT", "MOT", "EOT"] });
   });
 
   /**
