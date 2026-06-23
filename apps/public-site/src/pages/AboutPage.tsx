@@ -22,8 +22,8 @@ const SUITE_ITEMS: { abbr: string; name: string; icon: ReactNode; status: SuiteS
   { abbr: "LS", name: "Legal Smart Pages", icon: <ShieldIcon className="w-4 h-4" />, status: "demo" },
   { abbr: "PM", name: "PearlMart", icon: <MarketIcon className="w-4 h-4" />, status: "demo" },
   { abbr: "WC", name: "Wideh Cash", icon: <CashIcon className="w-4 h-4" />, status: "demo" },
-  { abbr: "KW", name: "Kids Wallet", icon: <SmartphoneIcon className="w-4 h-4" />, status: "soon" },
-  { abbr: "NF", name: "NFC Bands", icon: <LockIcon className="w-4 h-4" />, status: "soon" },
+  { abbr: "KW", name: "Kids Wallet", icon: <SmartphoneIcon className="w-4 h-4" />, status: "live" },
+  { abbr: "NF", name: "NFC Bands", icon: <LockIcon className="w-4 h-4" />, status: "live" },
 ];
 
 interface BuildCard {
@@ -40,8 +40,8 @@ const BUILD_CARDS: BuildCard[] = [
   { name: "Legal Smart Pages", tagline: "Smart document workflows for legal teams.", href: "/products#legal-smart-pages", status: "demo" },
   { name: "PearlMart", tagline: "Marketplace & digital commerce platform.", href: "/products#pearlmart", status: "demo" },
   { name: "Wideh Cash", tagline: "Money logistics platform.", href: "/products#wideh-cash", status: "demo" },
-  { name: "Kids Wallet", tagline: "Controlled school spending, safe and simple.", href: "/products#kids-wallet", status: "soon" },
-  { name: "NFC Bands", tagline: "Smart student access, attendance, and identity.", href: "/products#nfc-bands", status: "soon" },
+  { name: "Kids Wallet", tagline: "Controlled school spending, safe and simple.", href: "/products#kids-wallet", status: "live" },
+  { name: "NFC Bands", tagline: "Smart student access, attendance, and identity.", href: "/products#nfc-bands", status: "live" },
   { name: "Custom Digital Products", tagline: "Built around your specific workflow.", href: "/contact", status: "live" },
 ];
 
@@ -77,7 +77,7 @@ function HeroSuiteVisual() {
         </div>
         <div className="flex items-center gap-1">
           <span className="h-1.5 w-1.5 rounded-full bg-green-400" />
-          <span className="text-[9px] font-semibold text-green-300">3 Live</span>
+          <span className="text-[9px] font-semibold text-green-300">5 Live</span>
         </div>
       </div>
 
