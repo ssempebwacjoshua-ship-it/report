@@ -73,6 +73,10 @@ async function auditTagAction(
   });
 }
 
+function makeOperationalPayload(publicCode: string) {
+  return `SCNFC:${publicCode}`;
+}
+
 function serializeTag(t: {
   id: string;
   schoolId: string;
@@ -86,6 +90,7 @@ function serializeTag(t: {
   status: string;
   studentId: string | null;
   writtenUrl: string | null;
+  writtenPayload?: string | null;
   issuedAt: Date | null;
   writtenAt: Date | null;
   verifiedAt: Date | null;
@@ -100,6 +105,7 @@ function serializeTag(t: {
     admissionNumber: string;
     enrollments?: Array<{ class?: { name: string } | null; stream?: { name: string } | null }>;
   } | null;
+  _count?: { tapEvents: number };
 }) {
   const enrollment = t.student?.enrollments?.[0];
   return {
@@ -108,10 +114,10 @@ function serializeTag(t: {
     batchId: t.batchId,
     publicCode: t.publicCode,
     physicalUid: t.physicalUid,
-    tagMode: t.tagMode as TagMode,
+    tagMode: (t.tagMode ?? "URL") as TagMode,
     label: t.label,
     type: t.type,
-    purpose: t.purpose,
+    purpose: t.purpose ?? "STUDENT",
     status: t.status,
     studentId: t.studentId,
     student: t.student
@@ -124,11 +130,13 @@ function serializeTag(t: {
         }
       : null,
     writtenUrl: t.writtenUrl,
+    writtenPayload: t.writtenPayload ?? makeOperationalPayload(t.publicCode),
     issuedAt: t.issuedAt?.toISOString() ?? null,
     writtenAt: t.writtenAt?.toISOString() ?? null,
     verifiedAt: t.verifiedAt?.toISOString() ?? null,
     assignedAt: t.assignedAt?.toISOString() ?? null,
     lastSeenAt: t.lastSeenAt?.toISOString() ?? null,
+    tapCount: t._count?.tapEvents ?? 0,
     createdAt: t.createdAt.toISOString(),
     updatedAt: t.updatedAt.toISOString(),
   };
@@ -183,6 +191,7 @@ export async function createUrlTagBatch(
     Array.from({ length: quantity }, async (_, i) => {
       const publicCode = generatePublicCode();
       const writtenUrl = `${baseUrl}/t/${publicCode}`;
+      const writtenPayload = makeOperationalPayload(publicCode);
       const label = labelPrefix ? `${labelPrefix.trim()}-${String(i + 1).padStart(4, "0")}` : null;
       return db.nfcTag.create({
         data: {
@@ -192,6 +201,7 @@ export async function createUrlTagBatch(
           tagMode: "URL",
           label,
           writtenUrl,
+          writtenPayload,
           status: "GENERATED",
           issuedAt: new Date(),
           createdById: ctx.actorId ?? null,

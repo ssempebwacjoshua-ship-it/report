@@ -1083,10 +1083,11 @@ model NfcTag {
   // URL tags:  GENERATED → WRITTEN → VERIFIED → UNALLOCATED → ASSIGNED | DISABLED | LOST
   // UID tags:  REGISTERED → VERIFIED → UNALLOCATED → ASSIGNED | DISABLED | LOST
   // Legacy:    UNASSIGNED (= UNALLOCATED), ASSIGNED, DISABLED
-  studentId   String?   @db.Uuid
-  createdById String?   @db.Uuid
-  writtenUrl  String?
-  issuedAt    DateTime?
+  studentId      String?   @db.Uuid
+  createdById    String?   @db.Uuid
+  writtenUrl     String?
+  writtenPayload String?
+  issuedAt       DateTime?
   writtenAt   DateTime?
   verifiedAt  DateTime?
   assignedAt  DateTime?

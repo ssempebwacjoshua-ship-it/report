@@ -10,7 +10,7 @@ export type NfcTagStatus =
   | "UNALLOCATED"  // ready to assign (synonym of UNASSIGNED for new tags)
   | "LOST";
 
-export type NfcTagMode = "URL" | "UID";
+export type NfcTagMode = "URL" | "UID" | "TEXT";
 export type NfcTagType = "STUDENT";
 export type NfcResolveResult = "UNKNOWN" | "UNASSIGNED" | "ASSIGNED" | "DISABLED";
 
@@ -36,11 +36,13 @@ export interface NfcTag {
   studentId: string | null;
   student: NfcTagStudent | null;
   writtenUrl: string | null;
+  writtenPayload: string | null;
   issuedAt: string | null;
   writtenAt: string | null;
   verifiedAt: string | null;
   assignedAt: string | null;
   lastSeenAt: string | null;
+  tapCount: number;
   createdAt: string;
   updatedAt: string;
 }
