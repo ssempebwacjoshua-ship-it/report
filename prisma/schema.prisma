@@ -117,6 +117,7 @@ model Student {
   admissionNumber  String
   firstName        String
   lastName         String
+  studentType      StudentType?
   isActive         Boolean           @default(true)
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt
@@ -956,6 +957,11 @@ enum AttendanceScanStatus {
   VALID
   BLOCKED
   DUPLICATE
+}
+
+enum StudentType {
+  DAY
+  BOARDING
 }
 
 enum GateScanResult {
