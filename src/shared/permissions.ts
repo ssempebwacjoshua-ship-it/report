@@ -12,7 +12,7 @@ export type NfcPermission =
 
 export const rolePermissions: Record<string, string[]> = {
   ADMIN_OPERATOR: ["*"],
-  TEACHER: ["*"],
+  TEACHER: [],
   SECURITY: ["nfc.gate.view", "nfc.gate.scan"],
   GATE_SECURITY: ["nfc.gate.view", "nfc.gate.scan"],
   CANTEEN: ["nfc.canteen.view", "nfc.canteen.charge", "nfc.canteen.transactions.view"],
