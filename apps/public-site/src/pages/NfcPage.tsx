@@ -1,7 +1,6 @@
-import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { buildWhatsAppUrl } from "../config/contact";
-import { CheckIcon, CloseIcon, PlayIcon } from "../components/marketing/Icons";
+import { CheckIcon } from "../components/marketing/Icons";
 
 const NFC_VIDEO_ID = "nU4EvHCn0U0";
 
@@ -125,17 +124,6 @@ function FeatureCard({
 // ── Page ───────────────────────────────────────────────────────────────────────
 
 export function NfcPage() {
-  const [videoOpen, setVideoOpen] = useState(false);
-
-  useEffect(() => {
-    if (!videoOpen) return;
-    function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") setVideoOpen(false);
-    }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [videoOpen]);
-
   return (
     <div className="bg-slate-50 text-slate-950">
       {/* ── SEO handled via route head (if needed externally) ── */}
@@ -146,8 +134,10 @@ export function NfcPage() {
         style={{ borderColor: "rgba(15,91,216,0.3)" }}
       >
         <div className="absolute inset-0 bg-dot-grid opacity-[0.12]" />
-        <div className="home-hero-content mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="max-w-xl">
+        <div className="home-hero-content mx-auto grid max-w-7xl items-center gap-8 px-4 sm:px-6 lg:gap-12 lg:px-8 md:grid-cols-[1.05fr_0.95fr]">
+
+          {/* ── Left: text ── */}
+          <div>
             <div className="marketing-fade-up inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.2em] text-blue-50">
               School Connect · NFC
             </div>
@@ -188,6 +178,26 @@ export function NfcPage() {
               ))}
             </div>
           </div>
+
+          {/* ── Right: video card (stacks below text on mobile) ── */}
+          <div className="flex justify-center">
+            <div className="mx-auto w-full max-w-[320px] overflow-hidden rounded-2xl bg-white p-2 shadow-xl ring-1 ring-blue-100">
+              <div className="mb-2 px-2 pt-1.5">
+                <p className="text-xs font-black uppercase tracking-[0.18em] text-blue-700">Watch NFC In Action</p>
+                <p className="mt-1 text-sm leading-5 text-slate-600">Canteen, gate access, attendance, and offline-ready scanning.</p>
+              </div>
+              <div className="aspect-[9/16] w-full overflow-hidden rounded-[1rem]">
+                <iframe
+                  className="h-full w-full"
+                  src={`https://www.youtube-nocookie.com/embed/${NFC_VIDEO_ID}?rel=0&modestbranding=1`}
+                  title="School Connect NFC Demo"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                  allowFullScreen
+                />
+              </div>
+            </div>
+          </div>
+
         </div>
       </section>
 
@@ -252,59 +262,6 @@ export function NfcPage() {
             {FEATURES.map((f) => (
               <FeatureCard key={f.title} {...f} />
             ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ── Demo Video ── */}
-      <section className="border-b border-slate-200 bg-white px-4 py-8 sm:px-6 lg:px-8 lg:py-10">
-        <div className="mx-auto max-w-7xl">
-          <div className="mb-6 text-center">
-            <p className="text-xs font-black uppercase tracking-[0.2em] text-blue-700">See It In Action</p>
-            <h2 className="mt-1.5 text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">
-              School Connect NFC Demo
-            </h2>
-            <p className="mx-auto mt-2 max-w-2xl text-sm leading-6 text-slate-600">
-              See how student NFC tags work for canteen payments, gate access, attendance, and offline-ready school operations.
-            </p>
-          </div>
-
-          <div className="flex justify-center">
-            <div className="w-full max-w-[340px] overflow-hidden rounded-[1.5rem] border border-slate-200 bg-white p-2 shadow-xl">
-              <div className="mb-2 px-2 pt-1.5">
-                <p className="text-xs font-black uppercase tracking-[0.18em] text-blue-700">School Connect NFC</p>
-                <p className="mt-1 text-sm leading-6 text-slate-600">Tap, scan, and go — powered by NFC.</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setVideoOpen(true)}
-                className="group relative block w-full overflow-hidden rounded-[1rem] border border-slate-200 bg-slate-100 text-left"
-              >
-                <div className="relative aspect-[9/16] w-full overflow-hidden rounded-[1rem]">
-                  <img
-                    src="/images/nfc-wristband-hero.png"
-                    alt="School Connect NFC Demo"
-                    className="absolute inset-0 h-full w-full scale-[1.14] object-cover object-center transition duration-300 group-hover:scale-[1.18]"
-                    loading="lazy"
-                  />
-                  <div className="absolute right-3 top-3">
-                    <span className="inline-flex items-center rounded-full border border-blue-200/50 bg-white/90 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-blue-700 shadow-sm backdrop-blur-sm">
-                      VIDEO DEMO
-                    </span>
-                  </div>
-                  <div className="absolute inset-0 bg-slate-950/10 transition group-hover:bg-slate-950/20" />
-                  <div className="absolute inset-0 grid place-items-center">
-                    <div className="marketing-play-pulse flex h-16 w-16 items-center justify-center rounded-full bg-white/85 text-blue-700 shadow-2xl shadow-blue-600/25 backdrop-blur transition group-hover:scale-105">
-                      <PlayIcon className="h-8 w-8 translate-x-0.5" />
-                    </div>
-                  </div>
-                  <div className="absolute bottom-3 left-3 right-3 rounded-2xl bg-white/90 px-4 py-3 shadow-sm backdrop-blur">
-                    <p className="text-sm font-black text-slate-950">School Connect NFC Demo</p>
-                    <p className="mt-0.5 text-xs font-semibold text-slate-600">See the full tap-to-action workflow</p>
-                  </div>
-                </div>
-              </button>
-            </div>
           </div>
         </div>
       </section>
@@ -522,37 +479,6 @@ export function NfcPage() {
           </div>
         </div>
       </section>
-      {/* ── Video modal ── */}
-      {videoOpen ? (
-        <div
-          className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/85 backdrop-blur-sm"
-          aria-label="School Connect NFC demo video"
-          onClick={() => setVideoOpen(false)}
-        >
-          <div
-            className="relative mx-4 w-full max-w-[380px]"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <button
-              type="button"
-              onClick={() => setVideoOpen(false)}
-              className="absolute -top-10 right-0 rounded-full bg-white/10 p-2 text-white hover:bg-white/20"
-              aria-label="Close video"
-            >
-              <CloseIcon className="h-5 w-5" />
-            </button>
-            <div className="aspect-[9/16] w-full overflow-hidden rounded-2xl bg-slate-950">
-              <iframe
-                className="h-full w-full"
-                src={`https://www.youtube-nocookie.com/embed/${NFC_VIDEO_ID}?autoplay=1&rel=0&modestbranding=1`}
-                title="School Connect NFC Demo"
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                allowFullScreen
-              />
-            </div>
-          </div>
-        </div>
-      ) : null}
     </div>
   );
 }
