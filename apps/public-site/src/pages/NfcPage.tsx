@@ -1,6 +1,7 @@
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { buildWhatsAppUrl } from "../config/contact";
-import { CheckIcon } from "../components/marketing/Icons";
+import { CheckIcon, CloseIcon, PlayIcon } from "../components/marketing/Icons";
 
 const NFC_VIDEO_ID = "nU4EvHCn0U0";
 
@@ -124,6 +125,17 @@ function FeatureCard({
 // ── Page ───────────────────────────────────────────────────────────────────────
 
 export function NfcPage() {
+  const [videoOpen, setVideoOpen] = useState(false);
+
+  useEffect(() => {
+    if (!videoOpen) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setVideoOpen(false);
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [videoOpen]);
+
   return (
     <div className="bg-slate-50 text-slate-950">
       {/* ── SEO handled via route head (if needed externally) ── */}
@@ -179,22 +191,45 @@ export function NfcPage() {
             </div>
           </div>
 
-          {/* ── Right: video card (stacks below text on mobile) ── */}
+          {/* ── Right: video player card (stacks below text on mobile) ── */}
           <div className="flex justify-center">
-            <div className="mx-auto w-full max-w-[320px] overflow-hidden rounded-2xl bg-white p-2 shadow-xl ring-1 ring-blue-100">
+            <div className="mx-auto w-full max-w-[320px] overflow-hidden rounded-[1.5rem] border border-white/30 bg-white/95 p-2 shadow-xl backdrop-blur">
               <div className="mb-2 px-2 pt-1.5">
                 <p className="text-xs font-black uppercase tracking-[0.18em] text-blue-700">Watch NFC In Action</p>
-                <p className="mt-1 text-sm leading-5 text-slate-600">Canteen, gate access, attendance, and offline-ready scanning.</p>
+                <p className="mt-1 text-sm leading-6 text-slate-600">See NFC Tags Work in Real School Operations</p>
               </div>
-              <div className="aspect-[9/16] w-full overflow-hidden rounded-[1rem]">
-                <iframe
-                  className="h-full w-full"
-                  src={`https://www.youtube-nocookie.com/embed/${NFC_VIDEO_ID}?rel=0&modestbranding=1`}
-                  title="School Connect NFC Demo"
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                  allowFullScreen
-                />
-              </div>
+              <button
+                type="button"
+                onClick={() => setVideoOpen(true)}
+                className="group relative block w-full overflow-hidden rounded-[1rem] border border-slate-200 bg-slate-100 text-left"
+              >
+                <div className="relative aspect-[9/16] w-full overflow-hidden rounded-[1rem]">
+                  <img
+                    src="/images/nfc-player-banner.png"
+                    alt="School Connect NFC Demo"
+                    className="absolute inset-0 h-full w-full scale-[1.14] object-cover object-center transition duration-300 group-hover:scale-[1.18]"
+                    loading="eager"
+                  />
+                  {/* Top-right badge */}
+                  <div className="absolute right-3 top-3">
+                    <span className="inline-flex items-center rounded-full border border-blue-200/50 bg-white/90 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-blue-700 shadow-sm backdrop-blur-sm">
+                      VIDEO DEMO
+                    </span>
+                  </div>
+                  <div className="absolute inset-0 bg-slate-950/10 transition group-hover:bg-slate-950/20" />
+                  {/* Centered play button */}
+                  <div className="absolute inset-0 grid place-items-center">
+                    <div className="marketing-play-pulse flex h-16 w-16 items-center justify-center rounded-full bg-white/85 text-blue-700 shadow-2xl shadow-blue-600/25 backdrop-blur transition group-hover:scale-105">
+                      <PlayIcon className="h-8 w-8 translate-x-0.5" />
+                    </div>
+                  </div>
+                  {/* Bottom caption overlay */}
+                  <div className="absolute bottom-3 left-3 right-3 rounded-2xl bg-white/90 px-4 py-3 shadow-sm backdrop-blur">
+                    <p className="text-sm font-black text-slate-950">School Connect NFC Demo</p>
+                    <p className="mt-0.5 text-xs font-semibold text-slate-600">Canteen payments, gate access, attendance, and offline-ready scanning.</p>
+                  </div>
+                </div>
+              </button>
             </div>
           </div>
 
@@ -479,6 +514,38 @@ export function NfcPage() {
           </div>
         </div>
       </section>
+
+      {/* ── Video modal ── */}
+      {videoOpen ? (
+        <div
+          className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/85 backdrop-blur-sm"
+          aria-label="School Connect NFC demo video"
+          onClick={() => setVideoOpen(false)}
+        >
+          <div
+            className="relative mx-4 w-full max-w-[380px]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              onClick={() => setVideoOpen(false)}
+              className="absolute -top-10 right-0 rounded-full bg-white/10 p-2 text-white hover:bg-white/20"
+              aria-label="Close video"
+            >
+              <CloseIcon className="h-5 w-5" />
+            </button>
+            <div className="aspect-[9/16] w-full overflow-hidden rounded-2xl bg-slate-950">
+              <iframe
+                className="h-full w-full"
+                src={`https://www.youtube-nocookie.com/embed/${NFC_VIDEO_ID}?autoplay=1&rel=0&modestbranding=1`}
+                title="School Connect NFC Demo"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                allowFullScreen
+              />
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
