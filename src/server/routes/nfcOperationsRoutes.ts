@@ -7,6 +7,7 @@ import {
   changeWalletPin,
   chargeCanteen,
   getAttendanceDashboard,
+  getAttendanceRegister,
   getDailySummary,
   getGateDashboard,
   getStudentWalletPinStatus,
@@ -36,10 +37,17 @@ const scanSchema = z.object({
 });
 
 const attendanceScanSchema = scanSchema.extend({
-  direction: z.enum(AttendanceDirection).optional(),
+const attendanceScanSchema = scanSchema.extend({
+  direction: z.nativeEnum(AttendanceDirection).optional(),
   idempotencyKey: z.string().trim().optional(),
 });
 
+const registerFiltersSchema = z.object({
+  date: z.string().optional(),
+  classId: z.string().uuid().optional(),
+  streamId: z.string().uuid().optional(),
+  search: z.string().optional(),
+});
 const chargeSchema = scanSchema.extend({
   amountCents: z.coerce.number().int().positive(),
   pin: z.string().regex(/^\d{4,6}$/, "PIN must be 4 to 6 digits."),
@@ -151,6 +159,14 @@ export function nfcOperationsRoutes() {
   router.get("/api/nfc/attendance", async (req, res, next) => {
     try {
       res.json(await getAttendanceDashboard(ctx(req), filtersSchema.parse(req.query)));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.get("/api/nfc/attendance/register", async (req, res, next) => {
+    try {
+      res.json(await getAttendanceRegister(ctx(req), registerFiltersSchema.parse(req.query)));
     } catch (error) {
       next(error);
     }

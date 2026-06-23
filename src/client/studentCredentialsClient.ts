@@ -153,6 +153,65 @@ export async function scanNfcAttendance(input: {
   return response.json() as Promise<NfcAttendanceScanResponse>;
 }
 
+export type AttendanceRegisterScanEvent = {
+  id: string;
+  scannedAt: string;
+  source: string;
+};
+
+export type AttendanceRegisterLastScan = {
+  id: string;
+  direction: string;
+  scannedAt: string;
+  status: string;
+  reason: string | null;
+};
+
+export type AttendanceCurrentStatus = "ABSENT" | "PRESENT" | "OUT" | "OUT_ONLY" | "BLOCKED" | "DUPLICATE";
+
+export type AttendanceRegisterRow = {
+  student: {
+    id: string;
+    name: string;
+    admissionNumber: string;
+    className: string | null;
+    streamName: string | null;
+    photoUrl: string | null;
+  };
+  tapIn: AttendanceRegisterScanEvent | null;
+  tapOut: AttendanceRegisterScanEvent | null;
+  lastScan: AttendanceRegisterLastScan | null;
+  currentStatus: AttendanceCurrentStatus;
+};
+
+export type AttendanceRegisterResponse = {
+  date: string;
+  summary: {
+    totalStudents: number;
+    present: number;
+    out: number;
+    absent: number;
+    blockedScans: number;
+    duplicateScans: number;
+  };
+  rows: AttendanceRegisterRow[];
+};
+
+export async function fetchNfcAttendanceRegister(
+  filters: { date?: string; classId?: string; streamId?: string; search?: string } = {},
+) {
+  const params = new URLSearchParams();
+  if (filters.date) params.set("date", filters.date);
+  if (filters.classId) params.set("classId", filters.classId);
+  if (filters.streamId) params.set("streamId", filters.streamId);
+  if (filters.search) params.set("search", filters.search);
+  const response = await fetch(`${API_BASE}/api/nfc/attendance/register?${params.toString()}`, {
+    headers: makeSchoolRequestHeaders(),
+  });
+  if (!response.ok) throw new Error(await parseApiError(response, "Could not load attendance register"));
+  return response.json() as Promise<AttendanceRegisterResponse>;
+}
+
 export async function fetchNfcWallets(filters: { search?: string; classId?: string; streamId?: string } = {}) {
   const params = new URLSearchParams();
   if (filters.search) params.set("search", filters.search);
