@@ -5,6 +5,7 @@ import type {
   CredentialStatus,
   DailySummary,
   NfcAttendanceDashboard,
+  NfcAttendanceScanResponse,
   NfcCanteenChargeResult,
   NfcGateDashboard,
   NfcGateScanResponse,
@@ -16,6 +17,7 @@ import type {
   StudentCredentialScanResult,
   WalletAdjustResult,
   WalletPaymentMethod,
+  WalletPinStatus,
   WalletReversalResult,
   WalletTransactionListResponse,
 } from "../shared/types/studentCredentials";
@@ -96,6 +98,16 @@ export async function deactivateStudentCredential(credentialId: string, reason: 
   return response.json() as Promise<{ credential: StudentCredential }>;
 }
 
+export async function reactivateStudentCredential(credentialId: string, reason: string) {
+  const response = await fetch(`${API_BASE}/api/student-credentials/${encodeURIComponent(credentialId)}/reactivate`, {
+    method: "PATCH",
+    headers: makeSchoolRequestHeaders({ "Content-Type": "application/json" }),
+    body: JSON.stringify({ reason }),
+  });
+  if (!response.ok) throw new Error(await parseApiError(response, "Could not re-enable NFC wristband"));
+  return response.json() as Promise<{ credential: StudentCredential }>;
+}
+
 export async function scanStudentCredential(credentialUID: string) {
   const response = await fetch(`${API_BASE}/api/student-credentials/scan`, {
     method: "POST",
@@ -126,14 +138,19 @@ export async function fetchNfcAttendance(filters: { search?: string; classId?: s
   return response.json() as Promise<NfcAttendanceDashboard>;
 }
 
-export async function scanNfcAttendance(input: { tokenOrUid: string; direction: AttendanceDirection }) {
+export async function scanNfcAttendance(input: {
+  tokenOrUid: string;
+  direction?: AttendanceDirection;
+  idempotencyKey?: string;
+  deviceId?: string;
+}) {
   const response = await fetch(`${API_BASE}/api/nfc/attendance/scan`, {
     method: "POST",
     headers: makeSchoolRequestHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify(input),
   });
   if (!response.ok) throw new Error(await parseApiError(response, "Could not record NFC attendance"));
-  return response.json() as Promise<NfcAttendanceDashboard>;
+  return response.json() as Promise<NfcAttendanceScanResponse>;
 }
 
 export type AttendanceRegisterScanEvent = {
@@ -207,7 +224,7 @@ export async function fetchNfcWallets(filters: { search?: string; classId?: stri
   return response.json() as Promise<NfcWalletDashboard>;
 }
 
-export async function chargeNfcCanteen(input: { tokenOrUid: string; amountCents: number; description?: string; idempotencyKey?: string }) {
+export async function chargeNfcCanteen(input: { tokenOrUid: string; amountCents: number; pin: string; description?: string; idempotencyKey?: string; deviceId?: string }) {
   const response = await fetch(`${API_BASE}/api/nfc/canteen/charge`, {
     method: "POST",
     headers: makeSchoolRequestHeaders({ "Content-Type": "application/json" }),
@@ -298,7 +315,7 @@ export async function topUpNfcWallet(input: {
   return response.json() as Promise<NfcWalletTopUpResult>;
 }
 
-export async function scanNfcGate(input: { tokenOrUid: string }) {
+export async function scanNfcGate(input: { tokenOrUid: string; idempotencyKey?: string; deviceId?: string }) {
   const response = await fetch(`${API_BASE}/api/nfc/gate/scan`, {
     method: "POST",
     headers: makeSchoolRequestHeaders({ "Content-Type": "application/json" }),
@@ -314,4 +331,50 @@ export async function fetchNfcGateDashboard() {
   });
   if (!response.ok) throw new Error(await parseApiError(response, "Could not load gate scans"));
   return response.json() as Promise<NfcGateDashboard>;
+}
+
+export async function getWalletPinStatus(walletId: string) {
+  const response = await fetch(`${API_BASE}/api/nfc/wallets/${encodeURIComponent(walletId)}/pin-status`, {
+    headers: makeSchoolRequestHeaders(),
+  });
+  if (!response.ok) throw new Error(await parseApiError(response, "Could not load PIN status"));
+  return response.json() as Promise<WalletPinStatus>;
+}
+
+export async function setWalletPin(walletId: string, pin: string, reason: string) {
+  const response = await fetch(`${API_BASE}/api/nfc/wallets/${encodeURIComponent(walletId)}/pin`, {
+    method: "POST",
+    headers: makeSchoolRequestHeaders({ "Content-Type": "application/json" }),
+    body: JSON.stringify({ pin, reason }),
+  });
+  if (!response.ok) throw new Error(await parseApiError(response, "Could not set wallet PIN"));
+  return response.json() as Promise<{ ok: boolean; pinSet: boolean }>;
+}
+
+export async function changeWalletPin(walletId: string, oldPin: string, newPin: string) {
+  const response = await fetch(`${API_BASE}/api/nfc/wallets/${encodeURIComponent(walletId)}/pin`, {
+    method: "PATCH",
+    headers: makeSchoolRequestHeaders({ "Content-Type": "application/json" }),
+    body: JSON.stringify({ oldPin, newPin }),
+  });
+  if (!response.ok) throw new Error(await parseApiError(response, "Could not change wallet PIN"));
+  return response.json() as Promise<{ ok: boolean }>;
+}
+
+export async function setStudentWalletPin(studentId: string, input: { pin: string; reason: string }) {
+  const response = await fetch(`${API_BASE}/api/nfc/wallets/student/${encodeURIComponent(studentId)}/pin`, {
+    method: "POST",
+    headers: makeSchoolRequestHeaders({ "Content-Type": "application/json" }),
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) throw new Error(await parseApiError(response, "Could not set wallet PIN"));
+  return response.json() as Promise<{ walletId: string; studentId: string; pinSet: boolean; pinLocked: boolean; pinLockedUntil: string | null }>;
+}
+
+export async function getStudentWalletPinStatus(studentId: string) {
+  const response = await fetch(`${API_BASE}/api/nfc/wallets/student/${encodeURIComponent(studentId)}/pin-status`, {
+    headers: makeSchoolRequestHeaders(),
+  });
+  if (!response.ok) throw new Error(await parseApiError(response, "Could not load PIN status"));
+  return response.json() as Promise<WalletPinStatus>;
 }

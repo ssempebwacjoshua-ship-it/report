@@ -8,6 +8,7 @@ export type StudentCredentialContext = {
   actorId?: string | null;
   actorEmail?: string | null;
   actorName?: string | null;
+  role?: string | null;
 };
 
 export type CredentialScanContext = "GATE" | "CLASS" | "WALLET" | "VERIFY";
@@ -354,6 +355,61 @@ export async function deactivateStudentCredential(
   });
 
   return { credential: serializeCredential(credential as CredentialWithStudent) };
+}
+
+const REACTIVATE_ALLOWED_ROLES = ["ADMIN_OPERATOR"];
+
+export async function reactivateStudentCredential(
+  ctx: StudentCredentialContext,
+  credentialId: string,
+  reason: string,
+  db: StudentCredentialClient = defaultPrisma,
+) {
+  const schoolId = requireSchoolId(ctx);
+  if (!ctx.actorId) throw Object.assign(new Error("Authentication required."), { status: 401 });
+  if (!ctx.role || !REACTIVATE_ALLOWED_ROLES.includes(ctx.role)) {
+    throw Object.assign(new Error("Only administrators can re-enable NFC credentials."), { status: 403 });
+  }
+  const cleanReason = reason.trim();
+  if (!cleanReason) throw Object.assign(new Error("Re-activation reason is required."), { status: 400 });
+
+  const existing = await db.studentCredential.findFirst({
+    where: { id: credentialId, schoolId },
+    include: credentialInclude,
+  });
+  if (!existing) throw Object.assign(new Error("Credential not found for this school."), { status: 404 });
+
+  if (existing.status === CredentialStatus.ACTIVE) {
+    throw Object.assign(new Error("This credential is already active."), { status: 400 });
+  }
+
+  // Guard: no other active credential for the same student + type
+  const conflicting = await db.studentCredential.findFirst({
+    where: { schoolId, studentId: existing.studentId, type: existing.type, status: CredentialStatus.ACTIVE, id: { not: credentialId } },
+  });
+  if (conflicting) {
+    throw Object.assign(new Error("Student already has an active NFC credential. Deactivate it first."), { status: 409 });
+  }
+
+  const reactivated = await db.studentCredential.update({
+    where: { id: credentialId },
+    data: {
+      status: CredentialStatus.ACTIVE,
+      deactivatedAt: null,
+      deactivatedReason: null,
+    },
+    include: credentialInclude,
+  });
+
+  await auditCredentialAction(db, ctx, "student_credential.reactivated", {
+    credentialId,
+    studentId: existing.studentId,
+    type: existing.type,
+    credentialUID: existing.credentialUID,
+    reason: cleanReason,
+  });
+
+  return { credential: serializeCredential(reactivated as CredentialWithStudent) };
 }
 
 const allocationEnrollmentInclude = {

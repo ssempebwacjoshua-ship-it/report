@@ -4,6 +4,7 @@ export type NavItem = {
   to: string;
   label: string;
   exact?: boolean;
+  requiredPermission?: string;
   icon:
     | "activity"
     | "bell"
@@ -29,33 +30,34 @@ export const productSwitcherItems: Record<ProductKey, { label: string; to: strin
 
 export const navItemsByProduct: Record<ProductKey, NavItem[]> = {
   reportLab: [
-    { to: "/dashboard", label: "Dashboard", icon: "home", exact: true },
-    { to: "/students", label: "Students", icon: "students", exact: true },
-    { to: "/imports/marks", label: "Marks Import", icon: "upload", exact: true },
-    { to: "/marksheets", label: "Marksheets", icon: "clipboard", exact: true },
-    { to: "/reports", label: "Reports", icon: "file", exact: true },
-    { to: "/reports/release", label: "Release Center", icon: "send", exact: true },
-    { to: "/promotions", label: "Promotions", icon: "upload", exact: true },
-    { to: "/settings", label: "Academic Setup", icon: "settings" },
+    { to: "/dashboard", label: "Dashboard", icon: "home", exact: true, requiredPermission: "app.admin" },
+    { to: "/students", label: "Students", icon: "students", exact: true, requiredPermission: "app.admin" },
+    { to: "/imports/marks", label: "Marks Import", icon: "upload", exact: true, requiredPermission: "app.admin" },
+    { to: "/marksheets", label: "Marksheets", icon: "clipboard", exact: true, requiredPermission: "app.admin" },
+    { to: "/reports", label: "Reports", icon: "file", exact: true, requiredPermission: "app.admin" },
+    { to: "/reports/release", label: "Release Center", icon: "send", exact: true, requiredPermission: "app.admin" },
+    { to: "/promotions", label: "Promotions", icon: "upload", exact: true, requiredPermission: "app.admin" },
+    { to: "/settings", label: "Academic Setup", icon: "settings", requiredPermission: "app.admin" },
   ],
   smartPages: [
-    { to: "/dashboard", label: "Dashboard", icon: "home", exact: true },
-    { to: "/smart-pages", label: "Document History", icon: "file", exact: true },
-    { to: "/collections", label: "Templates", icon: "clipboard", exact: true },
-    { to: "/smart-pages/billing", label: "Billing", icon: "credit-card", exact: true },
-    { to: "/preferences", label: "Settings", icon: "settings" },
+    { to: "/dashboard", label: "Dashboard", icon: "home", exact: true, requiredPermission: "app.admin" },
+    { to: "/smart-pages", label: "Document History", icon: "file", exact: true, requiredPermission: "app.admin" },
+    { to: "/collections", label: "Templates", icon: "clipboard", exact: true, requiredPermission: "app.admin" },
+    { to: "/smart-pages/billing", label: "Billing", icon: "credit-card", exact: true, requiredPermission: "app.admin" },
+    { to: "/preferences", label: "Settings", icon: "settings", requiredPermission: "app.admin" },
   ],
   nfc: [
-    { to: "/nfc/tags", label: "NFC Tags", icon: "shield", exact: true },
-    { to: "/nfc/wristbands", label: "NFC Wristbands", icon: "shield", exact: true },
-    { to: "/nfc/bulk-issuing", label: "Bulk Tag Issuing", icon: "upload", exact: true },
-    { to: "/nfc/bulk-allocation", label: "Bulk Allocation", icon: "upload", exact: true },
-    { to: "/nfc/attendance", label: "NFC Attendance", icon: "activity", exact: true },
-    { to: "/nfc/wallets", label: "NFC Wallets", icon: "credit-card", exact: true },
-    { to: "/nfc/wallets/top-up", label: "Wallet Top-Up", icon: "credit-card", exact: true },
-    { to: "/nfc/canteen", label: "Canteen Charge", icon: "credit-card", exact: true },
-    { to: "/nfc/canteen/transactions", label: "Canteen Transactions", icon: "clipboard", exact: true },
-    { to: "/nfc/gate", label: "Gate Security", icon: "shield", exact: true },
+    { to: "/nfc/tags", label: "NFC Tags", icon: "shield", exact: true, requiredPermission: "nfc.tags.manage" },
+    { to: "/nfc/wristbands", label: "NFC Wristbands", icon: "shield", exact: true, requiredPermission: "nfc.tags.manage" },
+    { to: "/nfc/bulk-issuing", label: "Bulk Tag Issuing", icon: "upload", exact: true, requiredPermission: "nfc.tags.manage" },
+    { to: "/nfc/bulk-allocation", label: "Bulk Allocation", icon: "upload", exact: true, requiredPermission: "nfc.tags.manage" },
+    { to: "/nfc/attendance", label: "NFC Attendance", icon: "activity", exact: true, requiredPermission: "nfc.devices.manage" },
+    { to: "/nfc/wallets", label: "NFC Wallets", icon: "credit-card", exact: true, requiredPermission: "nfc.wallets.pin.manage" },
+    { to: "/nfc/wallets/top-up", label: "Wallet Top-Up", icon: "credit-card", exact: true, requiredPermission: "nfc.wallets.topup" },
+    { to: "/nfc/canteen", label: "Canteen Charge", icon: "credit-card", exact: true, requiredPermission: "nfc.canteen.charge" },
+    { to: "/nfc/canteen/transactions", label: "Canteen Transactions", icon: "clipboard", exact: true, requiredPermission: "nfc.canteen.transactions.view" },
+    { to: "/nfc/gate", label: "Gate Security", icon: "shield", exact: true, requiredPermission: "nfc.gate.view" },
+    { to: "/nfc/staff-users", label: "Staff Users", icon: "settings", exact: true, requiredPermission: "staff.manage" },
   ],
 };
 

@@ -1,6 +1,7 @@
 import { useNavigate, useLocation } from "react-router-dom";
 import { NavigationRegular, PersonRegular, SignOutRegular } from "@fluentui/react-icons";
 import { useAuth } from "../../contexts/AuthContext";
+import { ROLE_LABELS } from "../../shared/permissions";
 import { getProductFromPath, productSwitcherItems } from "./navConfig";
 
 type Props = {
@@ -82,7 +83,7 @@ export function Topbar({ onMenuClick }: Props) {
           </div>
           <div className="hidden sm:block">
             <p className="text-sm font-semibold leading-tight text-white">{user?.name ?? "Admin"}</p>
-            <p className="text-xs leading-tight text-white">Administrator</p>
+            <p className="text-xs leading-tight text-white">{user?.role ? (ROLE_LABELS[user.role] ?? user.role) : "User"}</p>
           </div>
         </div>
         <button

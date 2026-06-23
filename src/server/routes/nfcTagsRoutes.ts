@@ -4,6 +4,7 @@ import { verifyToken } from "../services/authService";
 import {
   assignTag,
   disableTag,
+  enableTag,
   generateTags,
   getTagEvents,
   listTags,
@@ -94,10 +95,31 @@ function authPayloadFromHeader(authHeader: string | undefined) {
   }
 }
 
-function getBaseUrl(req: Express.Request): string {
+function cleanUrl(value: string): string {
+  return value.replace(/\/+$/, "");
+}
+
+function getPublicAppUrl(req: Express.Request): string {
+  const configured =
+    process.env.NFC_PUBLIC_APP_URL ??
+    process.env.PUBLIC_APP_URL ??
+    process.env.FRONTEND_APP_URL ??
+    process.env.VITE_PUBLIC_APP_URL;
+
+  if (configured?.trim()) {
+    return cleanUrl(configured.trim());
+  }
+
+  // Fallback: use the request Origin header when available (set by browsers on cross-origin requests).
+  const origin = req.headers.origin;
+  if (typeof origin === "string" && origin.trim()) {
+    return cleanUrl(origin.trim());
+  }
+
+  // Last resort: derive from request host (may still be the API domain — set NFC_PUBLIC_APP_URL).
   const proto = (req.headers["x-forwarded-proto"] as string) ?? req.protocol ?? "https";
   const host = (req.headers["x-forwarded-host"] as string) ?? req.get("host") ?? "localhost";
-  return `${proto}://${host}`;
+  return cleanUrl(`${proto}://${host}`);
 }
 
 /** Public route — no school context, no auth required. Mount BEFORE resolveSchoolContext. */
@@ -142,7 +164,7 @@ export function nfcTagsRoutes() {
   router.post("/api/nfc/tag-batches", async (req, res, next) => {
     try {
       const input = createUrlBatchSchema.parse(req.body);
-      res.status(201).json(await createUrlTagBatch(ctx(req), { ...input, baseUrl: getBaseUrl(req) }));
+      res.status(201).json(await createUrlTagBatch(ctx(req), { ...input, baseUrl: getPublicAppUrl(req) }));
     } catch (error) {
       next(error);
     }
@@ -161,7 +183,7 @@ export function nfcTagsRoutes() {
   router.post("/api/nfc/tags/generate", async (req, res, next) => {
     try {
       const { count } = generateSchema.parse(req.body);
-      res.status(201).json(await generateTags(ctx(req), count, getBaseUrl(req)));
+      res.status(201).json(await generateTags(ctx(req), count, getPublicAppUrl(req)));
     } catch (error) {
       next(error);
     }
@@ -215,6 +237,15 @@ export function nfcTagsRoutes() {
   router.patch("/api/nfc/tags/:id/disable", async (req, res, next) => {
     try {
       res.json(await disableTag(ctx(req), req.params.id));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.patch("/api/nfc/tags/:id/enable", async (req, res, next) => {
+    try {
+      const { reason } = z.object({ reason: z.string().trim().min(1, "Reason is required.") }).parse(req.body);
+      res.json(await enableTag(ctx(req), req.params.id, reason));
     } catch (error) {
       next(error);
     }

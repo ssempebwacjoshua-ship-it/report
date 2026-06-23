@@ -4,18 +4,23 @@ import { z } from "zod";
 import { verifyToken } from "../services/authService";
 import {
   adjustWallet,
+  changeWalletPin,
   chargeCanteen,
   getAttendanceDashboard,
   getAttendanceRegister,
   getDailySummary,
   getGateDashboard,
+  getStudentWalletPinStatus,
   getWalletDashboard,
+  getWalletPinStatus,
   listWalletTransactions,
   resolveNfcTokenForRole,
   resolveWalletStudent,
   reverseTransaction,
   scanAttendance,
   scanGate,
+  setStudentWalletPin,
+  setWalletPin,
   topUpWallet,
   type NfcOperationsContext,
 } from "../services/nfcOperationsService";
@@ -28,10 +33,13 @@ const filtersSchema = z.object({
 
 const scanSchema = z.object({
   tokenOrUid: z.string().trim().min(1, "NFC token or UID is required."),
+  deviceId: z.string().trim().optional(),
 });
 
 const attendanceScanSchema = scanSchema.extend({
+const attendanceScanSchema = scanSchema.extend({
   direction: z.nativeEnum(AttendanceDirection).optional(),
+  idempotencyKey: z.string().trim().optional(),
 });
 
 const registerFiltersSchema = z.object({
@@ -40,11 +48,21 @@ const registerFiltersSchema = z.object({
   streamId: z.string().uuid().optional(),
   search: z.string().optional(),
 });
-
 const chargeSchema = scanSchema.extend({
   amountCents: z.coerce.number().int().positive(),
+  pin: z.string().regex(/^\d{4,6}$/, "PIN must be 4 to 6 digits."),
   description: z.string().trim().optional(),
   idempotencyKey: z.string().trim().optional(),
+});
+
+const setPinSchema = z.object({
+  pin: z.string().regex(/^\d{4,6}$/, "PIN must be 4 to 6 digits."),
+  reason: z.string().trim().min(1, "Reason is required."),
+});
+
+const changePinSchema = z.object({
+  oldPin: z.string().regex(/^\d{4,6}$/, "PIN must be 4 to 6 digits."),
+  newPin: z.string().regex(/^\d{4,6}$/, "PIN must be 4 to 6 digits."),
 });
 
 const txFiltersSchema = z.object({
@@ -112,7 +130,11 @@ function ctx(req: Express.Request): NfcOperationsContext {
 
 function authPayloadFromHeader(authHeader: string | undefined) {
   const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
-  return token ? verifyToken(token) : null;
+  try {
+    return token ? verifyToken(token) : null;
+  } catch {
+    return null;
+  }
 }
 
 export function nfcPublicRoutes() {
@@ -234,6 +256,46 @@ export function nfcOperationsRoutes() {
   router.post("/api/nfc/gate/scan", async (req, res, next) => {
     try {
       res.json(await scanGate(ctx(req), scanSchema.parse(req.body)));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.get("/api/nfc/wallets/student/:studentId/pin-status", async (req, res, next) => {
+    try {
+      res.json(await getStudentWalletPinStatus(ctx(req), req.params.studentId));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/api/nfc/wallets/student/:studentId/pin", async (req, res, next) => {
+    try {
+      res.json(await setStudentWalletPin(ctx(req), { studentId: req.params.studentId, ...setPinSchema.parse(req.body) }));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.get("/api/nfc/wallets/:walletId/pin-status", async (req, res, next) => {
+    try {
+      res.json(await getWalletPinStatus(ctx(req), req.params.walletId));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/api/nfc/wallets/:walletId/pin", async (req, res, next) => {
+    try {
+      res.json(await setWalletPin(ctx(req), { walletId: req.params.walletId, ...setPinSchema.parse(req.body) }));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.patch("/api/nfc/wallets/:walletId/pin", async (req, res, next) => {
+    try {
+      res.json(await changeWalletPin(ctx(req), { walletId: req.params.walletId, ...changePinSchema.parse(req.body) }));
     } catch (error) {
       next(error);
     }
