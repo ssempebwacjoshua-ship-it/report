@@ -91,7 +91,7 @@ function createDb() {
 describe("NFC attendance operations", () => {
   it("records school-scoped NFC attendance scans and protects duplicates", async () => {
     const { db, events } = createDb();
-    const ctx = { schoolId: "school-a", actorId: "teacher-a", role: "TEACHER" };
+    const ctx = { schoolId: "school-a", actorId: "device-a", role: "ADMIN_OPERATOR" };
 
     const first = await scanAttendance(ctx, { tokenOrUid: "token-a", direction: AttendanceDirection.TAP_IN }, db);
     const duplicate = await scanAttendance(ctx, { tokenOrUid: "token-a", direction: AttendanceDirection.TAP_IN }, db);
@@ -124,7 +124,7 @@ describe("NFC attendance operations", () => {
       },
     });
 
-    const dashboard = await getAttendanceDashboard({ schoolId: "school-a", actorId: "teacher-a", role: "TEACHER" }, {}, db);
+    const dashboard = await getAttendanceDashboard({ schoolId: "school-a", actorId: "device-a", role: "ADMIN_OPERATOR" }, {}, db);
 
     expect(dashboard.events).toEqual([]);
     expect(dashboard.summary.notYetTapped).toBe(1);

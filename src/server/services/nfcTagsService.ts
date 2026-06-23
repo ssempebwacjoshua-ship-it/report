@@ -2,6 +2,7 @@ import { randomBytes, createHash } from "crypto";
 import type { PrismaClient } from "@prisma/client";
 import { prisma as defaultPrisma } from "../db/prisma";
 import type { NfcResolveResult } from "../../shared/types/nfcTags";
+import { hasPermission } from "../../shared/permissions";
 
 type NfcTagsClient = Pick<
   PrismaClient,
@@ -21,6 +22,15 @@ function requireSchoolId(ctx: NfcTagsContext): string {
 
 function requireAuth(ctx: NfcTagsContext): void {
   if (!ctx.actorId) throw Object.assign(new Error("Authentication required."), { status: 401 });
+}
+
+function requirePermission(ctx: NfcTagsContext, permission: string): void {
+  if (!ctx.actorId || !ctx.role) {
+    throw Object.assign(new Error("Authentication required."), { status: 401 });
+  }
+  if (!hasPermission(ctx.role, permission)) {
+    throw Object.assign(new Error("You do not have permission for this NFC action."), { status: 403 });
+  }
 }
 
 function generatePublicCode(): string {
@@ -52,6 +62,66 @@ function studentSummary(student: {
   };
 }
 
+function makeOperationalPayload(publicCode: string) {
+  return `SCNFC:${publicCode}`;
+}
+
+function serializeTag(t: {
+  id: string;
+  schoolId: string;
+  batchId: string | null;
+  publicCode: string;
+  physicalUid: string | null;
+  tagMode: string;
+  label: string | null;
+  type: string;
+  purpose: string;
+  status: string;
+  studentId: string | null;
+  writtenUrl: string | null;
+  writtenPayload?: string | null;
+  issuedAt: Date | null;
+  writtenAt: Date | null;
+  verifiedAt: Date | null;
+  assignedAt: Date | null;
+  lastSeenAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+  student?: {
+    id: string;
+    admissionNumber: string;
+    firstName: string;
+    lastName: string;
+    enrollments?: Array<{ class?: { name: string } | null; stream?: { name: string } | null }>;
+  } | null;
+  _count?: { tapEvents: number };
+}) {
+  return {
+    id: t.id,
+    schoolId: t.schoolId,
+    batchId: t.batchId,
+    publicCode: t.publicCode,
+    physicalUid: t.physicalUid,
+    tagMode: (t.tagMode ?? "URL") as "URL" | "UID" | "TEXT",
+    label: t.label,
+    type: t.type,
+    purpose: t.purpose ?? "STUDENT",
+    status: t.status,
+    studentId: t.studentId,
+    student: t.student ? studentSummary(t.student) : null,
+    writtenUrl: t.writtenUrl,
+    writtenPayload: t.writtenPayload ?? makeOperationalPayload(t.publicCode),
+    issuedAt: t.issuedAt?.toISOString() ?? null,
+    writtenAt: t.writtenAt?.toISOString() ?? null,
+    verifiedAt: t.verifiedAt?.toISOString() ?? null,
+    assignedAt: t.assignedAt?.toISOString() ?? null,
+    lastSeenAt: t.lastSeenAt?.toISOString() ?? null,
+    tapCount: t._count?.tapEvents ?? 0,
+    createdAt: t.createdAt.toISOString(),
+    updatedAt: t.updatedAt.toISOString(),
+  };
+}
+
 const studentEnrollmentInclude = {
   enrollments: {
     where: { isActive: true, status: "ACTIVE" as const },
@@ -70,7 +140,7 @@ export async function listTags(
   db: NfcTagsClient = defaultPrisma,
 ) {
   const schoolId = requireSchoolId(ctx);
-  requireAuth(ctx);
+  requirePermission(ctx, "nfc.tags.manage");
 
   const where: Record<string, unknown> = { schoolId };
   if (filters.status) where.status = filters.status;
@@ -92,25 +162,7 @@ export async function listTags(
     orderBy: { createdAt: "desc" },
   });
 
-  return {
-    tags: tags.map((t) => ({
-      id: t.id,
-      schoolId: t.schoolId,
-      publicCode: t.publicCode,
-      label: t.label,
-      type: t.type,
-      status: t.status,
-      studentId: t.studentId,
-      student: t.student ? studentSummary(t.student) : null,
-      writtenUrl: t.writtenUrl,
-      assignedAt: t.assignedAt?.toISOString() ?? null,
-      lastSeenAt: t.lastSeenAt?.toISOString() ?? null,
-      tapCount: t._count.tapEvents,
-      createdAt: t.createdAt.toISOString(),
-      updatedAt: t.updatedAt.toISOString(),
-    })),
-    total: tags.length,
-  };
+  return { tags: tags.map(serializeTag), total: tags.length };
 }
 
 export async function generateTags(
@@ -120,7 +172,7 @@ export async function generateTags(
   db: NfcTagsClient = defaultPrisma,
 ) {
   const schoolId = requireSchoolId(ctx);
-  requireAuth(ctx);
+  requirePermission(ctx, "nfc.tags.manage");
 
   if (count < 1 || count > 100) {
     throw Object.assign(new Error("Count must be between 1 and 100."), { status: 400 });
@@ -130,35 +182,26 @@ export async function generateTags(
     Array.from({ length: count }, async () => {
       const publicCode = generatePublicCode();
       const writtenUrl = `${baseUrl}/t/${publicCode}`;
+      const writtenPayload = makeOperationalPayload(publicCode);
       return db.nfcTag.create({
-        data: { schoolId, publicCode, writtenUrl },
+        data: { schoolId, publicCode, tagMode: "TEXT", writtenUrl, writtenPayload },
         include: {
-          student: { select: { id: true, admissionNumber: true, firstName: true, lastName: true } },
+          student: {
+            select: {
+              id: true,
+              admissionNumber: true,
+              firstName: true,
+              lastName: true,
+              enrollments: studentEnrollmentInclude.enrollments,
+            },
+          },
           _count: { select: { tapEvents: true } },
         },
       });
     }),
   );
 
-  return {
-    tags: created.map((t) => ({
-      id: t.id,
-      schoolId: t.schoolId,
-      publicCode: t.publicCode,
-      label: t.label,
-      type: t.type,
-      status: t.status,
-      studentId: t.studentId,
-      student: t.student ? studentSummary(t.student) : null,
-      writtenUrl: t.writtenUrl,
-      assignedAt: null,
-      lastSeenAt: null,
-      tapCount: 0,
-      createdAt: t.createdAt.toISOString(),
-      updatedAt: t.updatedAt.toISOString(),
-    })),
-    generated: created.length,
-  };
+  return { tags: created.map(serializeTag), generated: created.length };
 }
 
 export async function resolveStudentByIdentifier(
@@ -188,7 +231,7 @@ export async function assignTag(
   db: NfcTagsClient = defaultPrisma,
 ) {
   const schoolId = requireSchoolId(ctx);
-  requireAuth(ctx);
+  requirePermission(ctx, "nfc.tags.manage");
 
   const tag = await db.nfcTag.findFirst({ where: { id: tagId, schoolId } });
   if (!tag) throw Object.assign(new Error("NFC tag not found."), { status: 404 });
@@ -219,22 +262,7 @@ export async function assignTag(
     },
   });
 
-  return {
-    id: updated.id,
-    schoolId: updated.schoolId,
-    publicCode: updated.publicCode,
-    label: updated.label,
-    type: updated.type,
-    status: updated.status,
-    studentId: updated.studentId,
-    student: updated.student ? studentSummary(updated.student) : null,
-    writtenUrl: updated.writtenUrl,
-    assignedAt: updated.assignedAt?.toISOString() ?? null,
-    lastSeenAt: updated.lastSeenAt?.toISOString() ?? null,
-    tapCount: updated._count.tapEvents,
-    createdAt: updated.createdAt.toISOString(),
-    updatedAt: updated.updatedAt.toISOString(),
-  };
+  return serializeTag(updated);
 }
 
 export async function unassignTag(
@@ -243,7 +271,7 @@ export async function unassignTag(
   db: NfcTagsClient = defaultPrisma,
 ) {
   const schoolId = requireSchoolId(ctx);
-  requireAuth(ctx);
+  requirePermission(ctx, "nfc.tags.manage");
 
   const tag = await db.nfcTag.findFirst({ where: { id: tagId, schoolId } });
   if (!tag) throw Object.assign(new Error("NFC tag not found."), { status: 404 });
@@ -262,7 +290,7 @@ export async function disableTag(
   db: NfcTagsClient = defaultPrisma,
 ) {
   const schoolId = requireSchoolId(ctx);
-  requireAuth(ctx);
+  requirePermission(ctx, "nfc.tags.manage");
 
   const tag = await db.nfcTag.findFirst({ where: { id: tagId, schoolId } });
   if (!tag) throw Object.assign(new Error("NFC tag not found."), { status: 404 });
@@ -285,10 +313,7 @@ export async function enableTag(
   db: NfcTagsClient = defaultPrisma,
 ) {
   const schoolId = requireSchoolId(ctx);
-  requireAuth(ctx);
-  if (!ctx.role || !ENABLE_ALLOWED_ROLES.includes(ctx.role)) {
-    throw Object.assign(new Error("Only administrators can re-enable NFC tags."), { status: 403 });
-  }
+  requirePermission(ctx, "nfc.tags.manage");
   const cleanReason = reason?.trim();
   if (!cleanReason) throw Object.assign(new Error("Re-enable reason is required."), { status: 400 });
 
@@ -329,7 +354,7 @@ export async function getTagEvents(
   db: NfcTagsClient = defaultPrisma,
 ) {
   const schoolId = requireSchoolId(ctx);
-  requireAuth(ctx);
+  requirePermission(ctx, "nfc.tags.manage");
 
   const tag = await db.nfcTag.findFirst({ where: { id: tagId, schoolId } });
   if (!tag) throw Object.assign(new Error("NFC tag not found."), { status: 404 });

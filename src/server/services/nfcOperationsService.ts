@@ -15,6 +15,7 @@ import type { SchoolUserRole } from "./authService";
 import { normalizeCredentialUID } from "./studentCredentialService";
 import { assertPinFormat, checkPin, hashWalletPin } from "./walletPinService";
 import { hasPermission } from "../../shared/permissions";
+import { normalizeNfcScanValue } from "../../shared/utils/nfcPayload";
 
 type NfcOperationsClient = Pick<
   PrismaClient,
@@ -118,10 +119,7 @@ function studentSummary(student: StudentForNfc) {
 }
 
 function extractTokenOrUid(value: string) {
-  const clean = value.trim();
-  // Handles /nfc/t/:token, /t/:publicCode, and full URLs containing either path
-  const match = clean.match(/(?:\/nfc)?\/t\/([^/?#\s]+)/i);
-  const extracted = match ? decodeURIComponent(match[1] ?? "") : clean;
+  const extracted = normalizeNfcScanValue(value);
   return {
     token: extracted,
     uid: normalizeCredentialUID(extracted),
@@ -229,7 +227,7 @@ function buildStudentWhere(schoolId: string, filters: { search?: string; classId
 }
 
 export async function resolveNfcTokenForRole(token: string, ctx: NfcOperationsContext | null, db: NfcOperationsClient = defaultPrisma) {
-  const cleanToken = token.trim();
+  const cleanToken = normalizeNfcScanValue(token);
   if (!cleanToken) throw Object.assign(new Error("NFC token is required."), { status: 400 });
   const credential = await db.studentCredential.findUnique({
     where: { scanToken: cleanToken },
@@ -245,22 +243,18 @@ export async function resolveNfcTokenForRole(token: string, ctx: NfcOperationsCo
     ? "GATE_SECURITY"
     : role === "CANTEEN" || role === "CASHIER"
       ? "CANTEEN_CHARGE"
-      : role === "TEACHER"
-        ? "ATTENDANCE_SCAN"
-        : role === "ADMIN_OPERATOR"
-          ? "ADMIN_CREDENTIAL"
-          : "PUBLIC_ID";
+      : role === "ADMIN_OPERATOR"
+        ? "ADMIN_CREDENTIAL"
+        : "PUBLIC_ID";
   const targetPath = reason
     ? undefined
     : mode === "GATE_SECURITY"
       ? `/gate/nfc/${encodeURIComponent(cleanToken)}`
       : mode === "CANTEEN_CHARGE"
         ? `/canteen/nfc/${encodeURIComponent(cleanToken)}`
-        : mode === "ATTENDANCE_SCAN"
-          ? `/nfc-attendance?token=${encodeURIComponent(cleanToken)}`
-          : mode === "ADMIN_CREDENTIAL"
-            ? `/nfc/wristbands?credentialId=${encodeURIComponent(typed.id)}`
-            : `/nfc/t/${encodeURIComponent(cleanToken)}`;
+        : mode === "ADMIN_CREDENTIAL"
+          ? `/nfc/wristbands?credentialId=${encodeURIComponent(typed.id)}`
+          : `/nfc/t/${encodeURIComponent(cleanToken)}`;
 
   // Never expose student PII to unauthenticated callers.
   const studentPayload = ctx?.actorId
@@ -286,7 +280,7 @@ export async function getAttendanceDashboard(
   db: NfcOperationsClient = defaultPrisma,
 ) {
   const schoolId = requireSchoolId(ctx);
-  requireRole(ctx, ["TEACHER"]);
+  requirePermission(ctx, "nfc.devices.manage");
   const { start, end } = todayRange();
   const [events, students] = await Promise.all([
     db.studentAttendanceEvent.findMany({
@@ -326,7 +320,7 @@ export async function scanAttendance(
   db: NfcOperationsClient = defaultPrisma,
 ) {
   const schoolId = requireSchoolId(ctx);
-  requireRole(ctx, ["TEACHER"]);
+  requirePermission(ctx, "nfc.devices.manage");
 
   const target = await resolveNfcScanTarget(db, schoolId, input.tokenOrUid);
   if (!target) throw Object.assign(new Error("NFC token not recognized."), { status: 404 });
@@ -408,7 +402,7 @@ export async function getAttendanceRegister(
   db: NfcOperationsClient = defaultPrisma,
 ): Promise<AttendanceRegisterResponse> {
   const schoolId = requireSchoolId(ctx);
-  requireRole(ctx, []);
+  requirePermission(ctx, "nfc.devices.manage");
   const targetDate = filters.date ? new Date(filters.date) : new Date();
   const start = new Date(targetDate);
   start.setHours(0, 0, 0, 0);
@@ -558,6 +552,20 @@ export async function chargeCanteen(
     });
     if (wallet.status === StudentWalletStatus.FROZEN) return { ok: false, reason: "wallet frozen", student: studentSummary(target.student), wallet };
 
+    // Idempotency check before PIN — avoids burning a PIN attempt on a duplicate request
+    const existing = input.idempotencyKey
+      ? await tx.studentWalletTransaction.findUnique({ where: { schoolId_idempotencyKey: { schoolId, idempotencyKey: input.idempotencyKey } } })
+      : null;
+    if (existing) {
+      return {
+        ok: true,
+        duplicate: true,
+        transaction: { id: existing.id, amountCents: existing.amountCents, balanceAfterCents: existing.balanceAfterCents, createdAt: existing.createdAt.toISOString() },
+        student: studentSummary(target.student),
+        wallet,
+      };
+    }
+
     // PIN verification — must happen inside the transaction so updates are atomic
     const pinResult = await checkPin(wallet, input.pin);
     if (!pinResult.ok) {
@@ -608,10 +616,6 @@ export async function chargeCanteen(
     });
 
     if (wallet.balanceCents < input.amountCents) return { ok: false, reason: "insufficient balance", student: studentSummary(target.student), wallet };
-    const existing = input.idempotencyKey
-      ? await tx.studentWalletTransaction.findUnique({ where: { schoolId_idempotencyKey: { schoolId, idempotencyKey: input.idempotencyKey } } })
-      : null;
-    if (existing) return { ok: false, reason: "duplicate charge attempt", student: studentSummary(target.student), wallet };
     const balanceAfterCharge = wallet.balanceCents - input.amountCents;
     const updatedWallet = await tx.studentWallet.update({
       where: { id: wallet.id },
@@ -712,7 +716,7 @@ export async function changeWalletPin(
   db: NfcOperationsClient = defaultPrisma,
 ) {
   const schoolId = requireSchoolId(ctx);
-  requirePermission(ctx, "nfc.canteen.charge");
+  requirePermission(ctx, "nfc.wallets.pin.manage");
   assertPinFormat(input.newPin);
 
   const wallet = await db.studentWallet.findFirst({ where: { id: input.walletId, schoolId } });
@@ -1018,6 +1022,15 @@ export async function listWalletTransactions(
 
   const where: Prisma.StudentWalletTransactionWhereInput = { schoolId };
 
+  // CASHIER and CANTEEN roles see only their own charge transactions
+  const isRestrictedCanteenRole = ctx.role === "CASHIER" || ctx.role === "CANTEEN";
+  if (isRestrictedCanteenRole) {
+    where.cashierUserId = ctx.actorId ?? "__none__";
+    where.type = WalletTransactionType.CHARGE;
+  } else {
+    if (filters.cashierUserId) where.cashierUserId = filters.cashierUserId;
+  }
+
   if (filters.dateFrom || filters.dateTo) {
     where.createdAt = {
       ...(filters.dateFrom ? { gte: new Date(filters.dateFrom) } : {}),
@@ -1025,7 +1038,6 @@ export async function listWalletTransactions(
     };
   }
   if (filters.studentId) where.studentId = filters.studentId;
-  if (filters.cashierUserId) where.cashierUserId = filters.cashierUserId;
   if (filters.type && Object.values(WalletTransactionType).includes(filters.type as WalletTransactionType)) {
     where.type = filters.type as WalletTransactionType;
   }

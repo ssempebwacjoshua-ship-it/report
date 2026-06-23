@@ -448,17 +448,30 @@ describe("adjustWallet — service unit tests", () => {
 // ─── List & summary tests ──────────────────────────────────────────────────────
 
 describe("listWalletTransactions — service unit tests", () => {
-  it("returns transactions for the school", async () => {
+  it("returns own charge transactions for a cashier", async () => {
     const { db, transactions } = createDb();
+    // cashierUserId must match the actor so the CASHIER restriction returns this row
     transactions.push({
       id: "tx-1", schoolId: "school-a", studentId: "student-a", walletId: "wallet-a",
-      credentialId: null, cashierUserId: null, type: WalletTransactionType.CHARGE,
+      credentialId: null, cashierUserId: "cashier-a", type: WalletTransactionType.CHARGE,
       amountCents: -100000, balanceAfterCents: 400000, paymentMethod: null, reference: null,
       description: "Lunch", idempotencyKey: null, reversalOfId: null, createdAt: new Date(),
     });
     const result = await listWalletTransactions(REVERSAL_CTX, {}, db);
     expect(result.transactions).toHaveLength(1);
     expect(result.transactions[0]?.type).toBe("CHARGE");
+  });
+
+  it("cashier cannot see another cashier's transactions", async () => {
+    const { db, transactions } = createDb();
+    transactions.push({
+      id: "tx-1", schoolId: "school-a", studentId: "student-a", walletId: "wallet-a",
+      credentialId: null, cashierUserId: "cashier-other", type: WalletTransactionType.CHARGE,
+      amountCents: -100000, balanceAfterCents: 400000, paymentMethod: null, reference: null,
+      description: "Lunch", idempotencyKey: null, reversalOfId: null, createdAt: new Date(),
+    });
+    const result = await listWalletTransactions(REVERSAL_CTX, {}, db);
+    expect(result.transactions).toHaveLength(0);
   });
 
   it("tenant isolation: school-b cannot see school-a transactions", async () => {
