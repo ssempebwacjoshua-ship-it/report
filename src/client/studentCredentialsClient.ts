@@ -176,6 +176,7 @@ export type AttendanceRegisterRow = {
     admissionNumber: string;
     className: string | null;
     streamName: string | null;
+    studentType: "DAY" | "BOARDING" | null;
     photoUrl: string | null;
   };
   tapIn: AttendanceRegisterScanEvent | null;
@@ -198,18 +199,34 @@ export type AttendanceRegisterResponse = {
 };
 
 export async function fetchNfcAttendanceRegister(
-  filters: { date?: string; classId?: string; streamId?: string; search?: string } = {},
+  filters: { date?: string; classId?: string; streamId?: string; search?: string; studentType?: string } = {},
 ) {
   const params = new URLSearchParams();
   if (filters.date) params.set("date", filters.date);
   if (filters.classId) params.set("classId", filters.classId);
   if (filters.streamId) params.set("streamId", filters.streamId);
   if (filters.search) params.set("search", filters.search);
+  if (filters.studentType && filters.studentType !== "ALL") params.set("studentType", filters.studentType);
   const response = await fetch(`${API_BASE}/api/nfc/attendance/register?${params.toString()}`, {
     headers: makeSchoolRequestHeaders(),
   });
   if (!response.ok) throw new Error(await parseApiError(response, "Could not load attendance register"));
   return response.json() as Promise<AttendanceRegisterResponse>;
+}
+
+export type AttendanceClassItem = {
+  id: string;
+  name: string;
+  code: string;
+  streams: Array<{ id: string; name: string; code: string }>;
+};
+
+export async function fetchAttendanceClasses(): Promise<{ classes: AttendanceClassItem[] }> {
+  const response = await fetch(`${API_BASE}/api/nfc/classes`, {
+    headers: makeSchoolRequestHeaders(),
+  });
+  if (!response.ok) throw new Error(await parseApiError(response, "Could not load class list"));
+  return response.json() as Promise<{ classes: AttendanceClassItem[] }>;
 }
 
 export async function fetchNfcWallets(filters: { search?: string; classId?: string; streamId?: string } = {}) {

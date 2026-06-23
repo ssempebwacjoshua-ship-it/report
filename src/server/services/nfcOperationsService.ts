@@ -197,11 +197,17 @@ async function resolveNfcScanTarget(
   return null;
 }
 
-function buildStudentWhere(schoolId: string, filters: { search?: string; classId?: string; streamId?: string }) {
+function buildStudentWhere(
+  schoolId: string,
+  filters: { search?: string; classId?: string; streamId?: string; studentType?: string },
+) {
   const search = filters.search?.trim();
   return {
     schoolId,
     isActive: true,
+    ...(filters.studentType && filters.studentType !== "ALL"
+      ? { studentType: filters.studentType as "DAY" | "BOARDING" }
+      : {}),
     ...(search
       ? {
           OR: [
@@ -375,6 +381,7 @@ export type AttendanceRegisterRow = {
     admissionNumber: string;
     className: string | null;
     streamName: string | null;
+    studentType: "DAY" | "BOARDING" | null;
     photoUrl: null;
   };
   tapIn: { id: string; scannedAt: string; source: string } | null;
@@ -398,7 +405,7 @@ export type AttendanceRegisterResponse = {
 
 export async function getAttendanceRegister(
   ctx: NfcOperationsContext,
-  filters: { date?: string; classId?: string; streamId?: string; search?: string } = {},
+  filters: { date?: string; classId?: string; streamId?: string; search?: string; studentType?: string } = {},
   db: NfcOperationsClient = defaultPrisma,
 ): Promise<AttendanceRegisterResponse> {
   const schoolId = requireSchoolId(ctx);
@@ -452,6 +459,7 @@ export async function getAttendanceRegister(
         admissionNumber: student.admissionNumber,
         className: enrollment?.class?.name ?? null,
         streamName: enrollment?.stream?.name ?? null,
+        studentType: (student.studentType as "DAY" | "BOARDING" | null) ?? null,
         photoUrl: null,
       },
       tapIn: tapIn ? { id: tapIn.id, scannedAt: tapIn.scannedAt.toISOString(), source: tapIn.source } : null,
@@ -468,6 +476,28 @@ export async function getAttendanceRegister(
     summary: { totalStudents: students.length, present, out, absent, blockedScans, duplicateScans },
     rows,
   };
+}
+
+export async function listAttendanceClasses(
+  ctx: NfcOperationsContext,
+  db: NfcOperationsClient = defaultPrisma,
+) {
+  const schoolId = requireSchoolId(ctx);
+  requirePermission(ctx, "nfc.devices.manage");
+  const classes = await db.schoolClass.findMany({
+    where: { schoolId },
+    orderBy: { level: "asc" },
+    select: {
+      id: true,
+      name: true,
+      code: true,
+      streams: {
+        select: { id: true, name: true, code: true },
+        orderBy: { name: "asc" },
+      },
+    },
+  });
+  return { classes };
 }
 
 export async function getWalletDashboard(

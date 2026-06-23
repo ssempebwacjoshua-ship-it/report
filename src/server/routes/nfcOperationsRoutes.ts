@@ -13,6 +13,7 @@ import {
   getStudentWalletPinStatus,
   getWalletDashboard,
   getWalletPinStatus,
+  listAttendanceClasses,
   listWalletTransactions,
   resolveNfcTokenForRole,
   resolveWalletStudent,
@@ -46,6 +47,7 @@ const registerFiltersSchema = z.object({
   classId: z.string().uuid().optional(),
   streamId: z.string().uuid().optional(),
   search: z.string().optional(),
+  studentType: z.enum(["ALL", "DAY", "BOARDING"]).optional(),
 });
 const chargeSchema = scanSchema.extend({
   amountCents: z.coerce.number().int().positive(),
@@ -166,6 +168,14 @@ export function nfcOperationsRoutes() {
   router.get("/api/nfc/attendance/register", async (req, res, next) => {
     try {
       res.json(await getAttendanceRegister(ctx(req), registerFiltersSchema.parse(req.query)));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.get("/api/nfc/classes", async (req, res, next) => {
+    try {
+      res.json(await listAttendanceClasses(ctx(req)));
     } catch (error) {
       next(error);
     }
