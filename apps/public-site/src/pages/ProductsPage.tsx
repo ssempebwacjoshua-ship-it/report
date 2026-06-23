@@ -146,7 +146,7 @@ const PRODUCTS: Product[] = [
       "Kids Wallet gives parents full control over what their child spends at school and can be linked to the canteen, school fees, and activities via digital ID or NFC wristband.",
     icon: <SmartphoneIcon className="h-6 w-6" />,
     iconBig: <SmartphoneIcon className="h-8 w-8" />,
-    status: "soon",
+    status: "live",
     audience: ["Schools", "Parents", "Canteen Staff", "Finance Teams"],
     features: [
       "Parent-funded digital wallet per student",
@@ -156,8 +156,12 @@ const PRODUCTS: Product[] = [
       "Linked to digital ID or NFC wristband",
       "School cashless payment system",
     ],
-    ctaLabel: "Get Notified",
+    ctaLabel: "Book a Demo",
     ctaHref: BOOK_DEMO_URL,
+    secondaryLabel: "Request Pricing",
+    secondaryHref: buildWhatsAppUrl(
+      "Hello SSAMENJ Technologies! I would like to ask about Kids Wallet for our school — pricing, setup, and how it works with the canteen.",
+    ),
     accentColor: "#0F5BD8",
     accentBg: "#EAF3FF",
   },
