@@ -22,12 +22,20 @@ export function NfcTokenPage() {
       .then((resolved) => {
         if (cancelled) return;
         setResult(resolved);
+        if (
+          resolved.valid
+          && resolved.student?.id
+          && canTopUp
+          && resolved.targetPath === `/students/${encodeURIComponent(resolved.student.id)}/wallet/top-up`
+        ) {
+          navigate(resolved.targetPath, { replace: true });
+        }
       })
       .catch((caught: Error) => {
         if (!cancelled) setError(caught.message);
       });
     return () => { cancelled = true; };
-  }, [token]);
+  }, [canTopUp, navigate, token]);
 
   async function handleReactivate() {
     if (!result?.credential?.id || !reactivateReason.trim()) return;
