@@ -20,8 +20,8 @@ function money(cents: number) {
 const PAYMENT_METHODS: { value: WalletPaymentMethod; label: string }[] = [
   { value: "CASH", label: "Cash" },
   { value: "MOBILE_MONEY", label: "Mobile Money" },
-  { value: "BANK", label: "Bank Transfer" },
-  { value: "MANUAL_ADJUSTMENT", label: "Manual Adjustment" },
+  { value: "PARENT_DEPOSIT", label: "Parent Deposit" },
+  { value: "ADJUSTMENT", label: "Adjustment" },
 ];
 
 export function NfcWalletTopUpPage() {

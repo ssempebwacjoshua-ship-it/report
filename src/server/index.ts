@@ -113,7 +113,9 @@ export function createServer() {
     const user = req.user;
     if (!user || !NFC_ONLY_ROLES.has(user.role)) { next(); return; }
     // Allow NFC paths and school settings (needed for AppShell to render)
-    if (req.path.startsWith("/api/nfc") || req.path.startsWith("/api/settings")) { next(); return; }
+    const isWalletRoute = req.path.startsWith("/api/wallet")
+      || (/^\/api\/students\/[^/]+\/wallet(?:\/top-up)?$/.test(req.path));
+    if (req.path.startsWith("/api/nfc") || req.path.startsWith("/api/settings") || isWalletRoute) { next(); return; }
     res.status(403).json({ error: "This resource requires administrator access.", code: "ADMIN_REQUIRED" });
   });
 

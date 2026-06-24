@@ -117,6 +117,22 @@ function createDb(options: { walletBalance?: number; walletStatus?: StudentWalle
           item.schoolId === where.schoolId
           && (where.id ? item.id === where.id : where.studentId ? item.studentId === where.studentId : false),
         ) ?? null,
+      create: async ({ data }: { data: { schoolId: string; studentId: string; balanceCents: number } }) => {
+        const wallet = {
+          id: `wallet-${wallets.length + 1}`,
+          schoolId: data.schoolId,
+          studentId: data.studentId,
+          balanceCents: data.balanceCents,
+          status: StudentWalletStatus.ACTIVE,
+          frozenReason: null,
+          pinHash: null,
+          pinFailedAttempts: 0,
+          pinLockedUntil: null,
+          pinLastVerifiedAt: null,
+        };
+        wallets.push(wallet);
+        return wallet;
+      },
       upsert: async ({ where, create }: { where: { studentId: string }; create: { schoolId: string; studentId: string; balanceCents: number } }) => {
         let wallet = wallets.find((item) => item.studentId === where.studentId);
         if (!wallet) {
@@ -129,7 +145,13 @@ function createDb(options: { walletBalance?: number; walletStatus?: StudentWalle
       update: async ({ where, data }: { where: { id: string }; data: Record<string, unknown> }) => {
         const wallet = wallets.find((item) => item.id === where.id);
         if (!wallet) throw new Error("wallet missing");
-        Object.assign(wallet, data);
+        for (const [key, value] of Object.entries(data)) {
+          if (key === "balanceCents" && value && typeof value === "object" && "increment" in value) {
+            wallet.balanceCents += Number((value as { increment: number }).increment);
+            continue;
+          }
+          Object.assign(wallet, { [key]: value });
+        }
         return wallet;
       },
       findMany: async () => wallets,
@@ -349,10 +371,10 @@ describe("topUpWallet — service unit tests", () => {
       .rejects.toMatchObject({ status: 403 });
   });
 
-  it("blocks CASHIER role from topping up", async () => {
+  it("allows CASHIER role to top up as bursar access", async () => {
     const { db } = createDb();
-    await expect(topUpWallet(CASHIER_CTX, { studentId: "student-a", amountUgx: 1000, paymentMethod: "CASH" }, db))
-      .rejects.toMatchObject({ status: 403 });
+    const result = await topUpWallet(CASHIER_CTX, { studentId: "student-a", amountUgx: 1000, paymentMethod: "CASH" }, db);
+    expect(result.ok).toBe(true);
   });
 
   it("tenant isolation: unknown admissionNumber returns 404", async () => {

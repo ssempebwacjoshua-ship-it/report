@@ -94,6 +94,13 @@ function requirePermission(ctx: NfcOperationsContext, permission: string) {
   }
 }
 
+function requireAnyPermission(ctx: NfcOperationsContext, permissions: string[]) {
+  if (!ctx.actorId || !ctx.role) throw Object.assign(new Error("Authentication required."), { status: 401 });
+  if (!permissions.some((permission) => hasPermission(ctx.role, permission))) {
+    throw Object.assign(new Error("You do not have permission for this action."), { status: 403 });
+  }
+}
+
 function todayRange(now = new Date()) {
   const start = new Date(now);
   start.setHours(0, 0, 0, 0);
@@ -235,36 +242,89 @@ function buildStudentWhere(
 export async function resolveNfcTokenForRole(token: string, ctx: NfcOperationsContext | null, db: NfcOperationsClient = defaultPrisma) {
   const cleanToken = normalizeNfcScanValue(token);
   if (!cleanToken) throw Object.assign(new Error("NFC token is required."), { status: 400 });
-  const credential = await db.studentCredential.findUnique({
-    where: { scanToken: cleanToken },
-    include: { ...credentialInclude, school: { select: { id: true, name: true } } },
-  });
-  if (!credential) return { found: false, mode: "PUBLIC_ID" as const, credentialStatus: "INVALID" as const, valid: false };
-  if (ctx?.schoolId && ctx.schoolId !== credential.schoolId) throw Object.assign(new Error("You do not have access to this NFC credential."), { status: 403 });
-
-  const typed = credential as CredentialForNfc & { school: { name: string } };
-  const reason = blockedReason(typed);
   const role = ctx?.role;
-  const mode = role === "SECURITY" || role === "GATE_SECURITY"
+  const mode = role && hasPermission(role, "nfc.wallets.topup")
+    ? "WALLET_TOP_UP"
+    : role === "SECURITY" || role === "GATE_SECURITY"
     ? "GATE_SECURITY"
     : role === "CANTEEN" || role === "CASHIER"
       ? "CANTEEN_CHARGE"
       : role === "ADMIN_OPERATOR"
-        ? "ADMIN_CREDENTIAL"
+        ? "WALLET_TOP_UP"
         : "PUBLIC_ID";
-  const targetPath = reason
-    ? undefined
-    : mode === "GATE_SECURITY"
-      ? `/gate/nfc/${encodeURIComponent(cleanToken)}`
-      : mode === "CANTEEN_CHARGE"
-        ? `/canteen/nfc/${encodeURIComponent(cleanToken)}`
-        : mode === "ADMIN_CREDENTIAL"
-          ? `/nfc/wristbands?credentialId=${encodeURIComponent(typed.id)}`
-          : `/nfc/t/${encodeURIComponent(cleanToken)}`;
 
-  // Never expose student PII to unauthenticated callers.
-  const studentPayload = ctx?.actorId
-    ? { ...studentSummary(typed.student), schoolName: typed.school.name }
+  const tag = await db.nfcTag.findFirst({
+    where: {
+      publicCode: cleanToken,
+      ...(ctx?.schoolId ? { schoolId: ctx.schoolId } : {}),
+    },
+    include: {
+      school: { select: { id: true, name: true } },
+      student: {
+        select: {
+          id: true,
+          admissionNumber: true,
+          firstName: true,
+          lastName: true,
+          isActive: true,
+          enrollments: studentInclude.enrollments,
+        },
+      },
+    },
+  });
+
+  const credential = tag ? null : await db.studentCredential.findFirst({
+    where: {
+      scanToken: cleanToken,
+      ...(ctx?.schoolId ? { schoolId: ctx.schoolId } : {}),
+    },
+    include: { ...credentialInclude, school: { select: { id: true, name: true } } },
+  });
+
+  const resolved = tag ?? credential;
+  if (!resolved) {
+    return { found: false, mode, credentialStatus: "INVALID" as const, valid: false };
+  }
+
+  if (ctx?.schoolId && resolved.schoolId !== ctx.schoolId) {
+    throw Object.assign(new Error("You do not have access to this NFC credential."), { status: 403 });
+  }
+
+  const student = "student" in resolved ? resolved.student : null;
+  const schoolName = "school" in resolved ? resolved.school.name : undefined;
+  const isTag = "publicCode" in resolved;
+  const status = isTag ? resolved.status : CredentialStatus.ACTIVE;
+  const unassignedTagStatuses = new Set(["UNASSIGNED", "UNALLOCATED", "GENERATED", "WRITTEN", "VERIFIED", "REGISTERED"]);
+  const reason = !student
+    ? "unknown token"
+    : isTag
+      ? (resolved.status === "DISABLED" || resolved.status === "LOST")
+        ? "lost or deactivated wristband"
+        : (!resolved.studentId || unassignedTagStatuses.has(resolved.status))
+          ? "unknown token"
+          : !student.isActive
+            ? "inactive student"
+            : null
+      : resolved.status !== CredentialStatus.ACTIVE
+        ? "lost or deactivated wristband"
+        : !student.isActive
+          ? "inactive student"
+          : null;
+  const resolvedStudent = student && student.isActive ? student : null;
+  const targetPath = reason || !resolvedStudent
+    ? undefined
+    : mode === "WALLET_TOP_UP"
+      ? `/students/${encodeURIComponent(resolvedStudent.id)}/wallet/top-up`
+      : mode === "GATE_SECURITY"
+        ? `/gate/nfc/${encodeURIComponent(cleanToken)}`
+        : mode === "CANTEEN_CHARGE"
+          ? `/canteen/nfc/${encodeURIComponent(cleanToken)}`
+          : mode === "PUBLIC_ID"
+            ? `/nfc/t/${encodeURIComponent(cleanToken)}`
+            : `/students/${encodeURIComponent(resolvedStudent.id)}/wallet`;
+
+  const studentPayload = ctx?.actorId && resolvedStudent
+    ? { ...studentSummary(resolvedStudent), ...(schoolName ? { schoolName } : {}) }
     : undefined;
 
   return {
@@ -273,10 +333,10 @@ export async function resolveNfcTokenForRole(token: string, ctx: NfcOperationsCo
     targetPath,
     valid: !reason,
     actionBlocked: Boolean(reason),
-    credentialStatus: typed.status,
-    studentStatus: typed.student.isActive ? "ACTIVE" as const : "INACTIVE" as const,
+    credentialStatus: reason ? "DEACTIVATED" as const : "ACTIVE" as const,
+    studentStatus: resolvedStudent ? "ACTIVE" as const : "INACTIVE" as const,
     ...(studentPayload !== undefined ? { student: studentPayload } : {}),
-    credential: { id: typed.id, nfcUrl: `/nfc/t/${cleanToken}` },
+    credential: { id: resolved.id, nfcUrl: `/nfc/t/${encodeURIComponent(cleanToken)}` },
   };
 }
 
@@ -902,13 +962,56 @@ async function resolveStudentAndCredential(
   throw Object.assign(new Error("Provide studentId, admissionNumber, or tokenOrUid."), { status: 400 });
 }
 
+export async function getStudentWalletDetail(
+  ctx: NfcOperationsContext,
+  studentId: string,
+  db: NfcOperationsClient = defaultPrisma,
+) {
+  const schoolId = requireSchoolId(ctx);
+  requireAnyPermission(ctx, ["nfc.wallets.topup", "nfc.canteen.transactions.view"]);
+  const student = await db.student.findFirst({
+    where: { id: studentId, schoolId },
+    include: { enrollments: studentInclude.enrollments },
+  });
+  if (!student) throw Object.assign(new Error("Student not found for this school."), { status: 404 });
+
+  const wallet = await db.studentWallet.findFirst({ where: { studentId, schoolId } });
+  const transactions = await db.studentWalletTransaction.findMany({
+    where: { schoolId, studentId },
+    orderBy: { createdAt: "desc" },
+    take: 50,
+  });
+
+  return {
+    student: studentSummary(student as StudentForNfc),
+    wallet: wallet
+      ? {
+          id: wallet.id,
+          balanceCents: wallet.balanceCents,
+          status: wallet.status,
+          currency: "UGX" as const,
+        }
+      : null,
+    transactions: transactions.map((transaction) => ({
+      id: transaction.id,
+      type: transaction.type,
+      amountCents: transaction.amountCents,
+      balanceAfterCents: transaction.balanceAfterCents ?? null,
+      paymentMethod: transaction.paymentMethod ?? null,
+      reference: transaction.reference ?? null,
+      description: transaction.description ?? null,
+      createdAt: transaction.createdAt.toISOString(),
+    })),
+  };
+}
+
 export async function resolveWalletStudent(
   ctx: NfcOperationsContext,
   input: { studentId?: string; admissionNumber?: string; tokenOrUid?: string },
   db: NfcOperationsClient = defaultPrisma,
 ) {
   const schoolId = requireSchoolId(ctx);
-  requirePermission(ctx, "nfc.canteen.charge");
+  requireAnyPermission(ctx, ["nfc.canteen.charge", "nfc.wallets.topup"]);
   const { student, credentialId } = await resolveStudentAndCredential(db, schoolId, input);
   const wallet = await db.studentWallet.findFirst({ where: { studentId: student.id, schoolId } });
   return {
@@ -923,7 +1026,7 @@ export type WalletTopUpInput = {
   admissionNumber?: string;
   tokenOrUid?: string;
   amountUgx: number;
-  paymentMethod: "CASH" | "MOBILE_MONEY" | "BANK" | "MANUAL_ADJUSTMENT";
+  paymentMethod: "CASH" | "MOBILE_MONEY" | "PARENT_DEPOSIT" | "ADJUSTMENT";
   reference?: string;
   notes?: string;
   idempotencyKey?: string;
@@ -964,29 +1067,29 @@ export async function topUpWallet(
       }
     }
 
-    const walletSnap = await tx.studentWallet.upsert({
-      where: { studentId },
-      create: { schoolId, studentId, balanceCents: 0 },
-      update: {},
-    });
-    const balanceBefore = walletSnap.balanceCents;
-    const walletId = walletSnap.id;
+    let wallet = await tx.studentWallet.findFirst({ where: { studentId, schoolId } });
+    if (!wallet) {
+      wallet = await tx.studentWallet.create({
+        data: { schoolId, studentId, balanceCents: 0 },
+      });
+    }
 
+    const balanceBefore = wallet.balanceCents;
     const updatedWallet = await tx.studentWallet.update({
-      where: { id: walletId },
-      data: { balanceCents: balanceBefore + amountCents },
+      where: { id: wallet.id },
+      data: { balanceCents: { increment: amountCents } },
     });
 
     const transaction = await tx.studentWalletTransaction.create({
       data: {
         schoolId,
         studentId,
-        walletId,
+        walletId: wallet.id,
         credentialId: credentialId ?? null,
         cashierUserId: ctx.actorId ?? null,
         type: WalletTransactionType.TOP_UP,
         amountCents,
-        balanceAfterCents: balanceBefore + amountCents,
+        balanceAfterCents: updatedWallet.balanceCents,
         paymentMethod: input.paymentMethod,
         reference: input.reference?.trim() || null,
         description: input.notes?.trim() || null,
@@ -1019,7 +1122,7 @@ export async function topUpWallet(
         createdAt: transaction.createdAt.toISOString(),
       },
       student: studentSummary(student),
-      walletBefore: { id: walletId, balanceCents: balanceBefore },
+      walletBefore: { id: wallet.id, balanceCents: balanceBefore },
       wallet: { id: updatedWallet.id, balanceCents: updatedWallet.balanceCents, status: updatedWallet.status },
     };
   });
@@ -1131,7 +1234,10 @@ export async function reverseTransaction(
   db: NfcOperationsClient = defaultPrisma,
 ) {
   const schoolId = requireSchoolId(ctx);
-  requirePermission(ctx, "nfc.wallets.topup");
+  if (!ctx.actorId || !ctx.role) throw Object.assign(new Error("Authentication required."), { status: 401 });
+  if (ctx.role !== "ADMIN_OPERATOR") {
+    throw Object.assign(new Error("Only administrators can reverse wallet transactions."), { status: 403 });
+  }
   if (!reason?.trim()) throw Object.assign(new Error("Reversal reason is required."), { status: 400 });
 
   return runWrite(db, async (tx) => {

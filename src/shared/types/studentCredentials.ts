@@ -55,7 +55,7 @@ export type NfcStudentSummary = {
   photoUrl?: string | null;
 };
 
-export type NfcTokenMode = "PUBLIC_ID" | "GATE_SECURITY" | "CANTEEN_CHARGE" | "ATTENDANCE_SCAN" | "ADMIN_CREDENTIAL";
+export type NfcTokenMode = "PUBLIC_ID" | "GATE_SECURITY" | "CANTEEN_CHARGE" | "ATTENDANCE_SCAN" | "ADMIN_CREDENTIAL" | "WALLET_TOP_UP";
 
 export type NfcTokenResolution = {
   found: boolean;
@@ -200,7 +200,7 @@ export type NfcGateDashboard = {
   recentScans: NfcGateScanResponse[];
 };
 
-export type WalletPaymentMethod = "CASH" | "MOBILE_MONEY" | "BANK" | "MANUAL_ADJUSTMENT";
+export type WalletPaymentMethod = "CASH" | "MOBILE_MONEY" | "PARENT_DEPOSIT" | "ADJUSTMENT";
 export type WalletTransactionType = "TOP_UP" | "CHARGE" | "REVERSAL" | "ADJUSTMENT";
 
 export type WalletTransactionRow = {
@@ -286,4 +286,26 @@ export type NfcWalletTopUpResult = {
   walletBefore?: { id: string; balanceCents: number };
   wallet?: { id: string; balanceCents: number; status: StudentWalletStatus };
   reason?: string;
+};
+
+export type StudentWalletTransactionRow = {
+  id: string;
+  type: WalletTransactionType;
+  amountCents: number;
+  balanceAfterCents: number | null;
+  paymentMethod: string | null;
+  reference: string | null;
+  description: string | null;
+  createdAt: string;
+};
+
+export type StudentWalletDetail = {
+  student: NfcStudentSummary;
+  wallet: {
+    id: string;
+    balanceCents: number;
+    status: StudentWalletStatus;
+    currency: "UGX";
+  } | null;
+  transactions: StudentWalletTransactionRow[];
 };

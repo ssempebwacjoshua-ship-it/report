@@ -11,6 +11,7 @@ import type {
   NfcGateScanResponse,
   NfcTokenResolution,
   NfcWalletDashboard,
+  StudentWalletDetail,
   NfcWalletStudentResolution,
   NfcWalletTopUpResult,
   StudentCredential,
@@ -323,13 +324,21 @@ export async function topUpNfcWallet(input: {
   notes?: string;
   idempotencyKey?: string;
 }) {
-  const response = await fetch(`${API_BASE}/api/nfc/wallets/top-up`, {
+  const response = await fetch(`${API_BASE}/api/wallet/top-up`, {
     method: "POST",
     headers: makeSchoolRequestHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify(input),
   });
   if (!response.ok) throw new Error(await parseApiError(response, "Could not top up student wallet"));
   return response.json() as Promise<NfcWalletTopUpResult>;
+}
+
+export async function fetchStudentWallet(studentId: string) {
+  const response = await fetch(`${API_BASE}/api/nfc/students/${encodeURIComponent(studentId)}/wallet`, {
+    headers: makeSchoolRequestHeaders(),
+  });
+  if (!response.ok) throw new Error(await parseApiError(response, "Could not load student wallet"));
+  return response.json() as Promise<StudentWalletDetail>;
 }
 
 export async function scanNfcGate(input: { tokenOrUid: string; idempotencyKey?: string; deviceId?: string }) {
