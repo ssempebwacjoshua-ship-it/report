@@ -106,17 +106,6 @@ function SidebarSection({
   );
   const sectionLabel = product === "reportLab" ? "REPORT LAB" : product === "nfc" ? "NFC" : "SMART PAGES";
 
-  const groupedItems = items.reduce<Record<string, NavItem[]>>((groups, item) => {
-    const key = item.section ?? "";
-    (groups[key] ??= []).push(item);
-    return groups;
-  }, {});
-  const orderedSections = items.reduce<string[]>((sections, item) => {
-    const key = item.section ?? "";
-    if (!sections.includes(key)) sections.push(key);
-    return sections;
-  }, []);
-
   if (items.length === 0) return null;
 
   return (
@@ -126,32 +115,18 @@ function SidebarSection({
           {sectionLabel}
         </div>
       ) : null}
-      <div className="grid gap-2 px-1.5">
-        {orderedSections.map((section) => {
-          const sectionItems = groupedItems[section] ?? [];
-          return (
-            <div key={section} className="grid gap-1.5">
-              {!collapsed && section ? (
-                <div className="px-2 pt-1 text-[10px] font-black uppercase tracking-[0.16em] text-white/75">
-                  {section}
-                </div>
-              ) : null}
-              <div className="grid gap-1">
-                {sectionItems.map((item) => (
-                  <NavLinkRow
-                    key={item.to}
-                    to={item.to}
-                    label={item.label}
-                    icon={item.icon}
-                    active={isActiveNavPath(pathname, item.to, item.exact)}
-                    collapsed={collapsed}
-                    onClick={onNavigate}
-                  />
-                ))}
-              </div>
-            </div>
-          );
-        })}
+      <div className="grid gap-0.5 px-1.5">
+        {items.map((item) => (
+          <NavLinkRow
+            key={item.to}
+            to={item.to}
+            label={item.label}
+            icon={item.icon}
+            active={isActiveNavPath(pathname, item.to, item.exact)}
+            collapsed={collapsed}
+            onClick={onNavigate}
+          />
+        ))}
       </div>
     </>
   );
@@ -192,7 +167,7 @@ export function Sidebar({ open, onClose, collapsed, onToggleCollapsed, width }: 
           )}
         </div>
 
-        <nav className="mt-2 grid flex-1 content-start gap-1.5 overflow-x-hidden overflow-y-auto px-2 pb-3">
+        <nav className="mt-1.5 grid flex-1 content-start gap-0.5 overflow-x-hidden overflow-y-auto px-2 pb-2">
           <SidebarSection
             product={product}
             pathname={location.pathname}

@@ -5,7 +5,6 @@ export type NavItem = {
   label: string;
   exact?: boolean;
   requiredPermission?: string;
-  section?: string;
   icon:
     | "activity"
     | "bell"
@@ -48,20 +47,20 @@ export const navItemsByProduct: Record<ProductKey, NavItem[]> = {
     { to: "/preferences", label: "Settings", icon: "settings", requiredPermission: "app.admin" },
   ],
   nfc: [
-    { to: "/nfc/tags", label: "Tags", icon: "shield", exact: true, requiredPermission: "nfc.tags.manage", section: "TAGS" },
-    { to: "/nfc/wristbands", label: "Bands", icon: "shield", exact: true, requiredPermission: "nfc.tags.manage", section: "TAGS" },
-    { to: "/nfc/bulk-issuing", label: "Issue Tags", icon: "upload", exact: true, requiredPermission: "nfc.tags.manage", section: "TAGS" },
-    { to: "/nfc/bulk-allocation", label: "Allocate", icon: "upload", exact: true, requiredPermission: "nfc.tags.manage", section: "TAGS" },
-    { to: "/nfc/attendance", label: "Attendance", icon: "activity", exact: true, requiredPermission: "nfc.devices.manage", section: "ATTENDANCE" },
-    { to: "/nfc/wallets", label: "Wallets", icon: "credit-card", exact: true, requiredPermission: "nfc.wallets.pin.manage", section: "WALLET" },
-    { to: "/nfc/wallets/top-up", label: "Top Up", icon: "credit-card", exact: true, requiredPermission: "nfc.wallets.topup", section: "WALLET" },
-    { to: "/nfc/canteen", label: "Charge", icon: "credit-card", exact: true, requiredPermission: "nfc.canteen.charge", section: "WALLET" },
-    { to: "/nfc/canteen/transactions", label: "Transactions", icon: "clipboard", exact: true, requiredPermission: "nfc.canteen.transactions.view", section: "WALLET" },
-    { to: "/nfc/canteen/reconciliation", label: "Reconcile", icon: "clipboard", exact: true, requiredPermission: "nfc.canteen.reconciliation.view", section: "WALLET" },
-    { to: "/nfc/fee-holds", label: "Holds", icon: "clipboard", exact: true, requiredPermission: "nfc.fee-holds.manage", section: "WALLET" },
-    { to: "/nfc/gate", label: "Gate", icon: "shield", exact: true, requiredPermission: "nfc.gate.view", section: "SECURITY" },
-    { to: "/nfc/settings", label: "Settings", icon: "settings", exact: true, requiredPermission: "app.admin", section: "ADMIN" },
-    { to: "/nfc/staff-users", label: "Staff", icon: "settings", exact: true, requiredPermission: "staff.manage", section: "ADMIN" },
+    { to: "/nfc/tags", label: "Tags", icon: "shield", exact: true, requiredPermission: "nfc.tags.manage" },
+    { to: "/nfc/wristbands", label: "Bands", icon: "shield", exact: true, requiredPermission: "nfc.tags.manage" },
+    { to: "/nfc/bulk-issuing", label: "Issue Tags", icon: "upload", exact: true, requiredPermission: "nfc.tags.manage" },
+    { to: "/nfc/bulk-allocation", label: "Allocate", icon: "upload", exact: true, requiredPermission: "nfc.tags.manage" },
+    { to: "/nfc/attendance", label: "Attendance", icon: "activity", exact: true, requiredPermission: "nfc.devices.manage" },
+    { to: "/nfc/wallets", label: "Wallets", icon: "credit-card", exact: true, requiredPermission: "nfc.wallets.pin.manage" },
+    { to: "/nfc/wallets/top-up", label: "Top Up", icon: "credit-card", exact: true, requiredPermission: "nfc.wallets.topup" },
+    { to: "/nfc/canteen", label: "Charge", icon: "credit-card", exact: true, requiredPermission: "nfc.canteen.charge" },
+    { to: "/nfc/canteen/transactions", label: "Transactions", icon: "clipboard", exact: true, requiredPermission: "nfc.canteen.transactions.view" },
+    { to: "/nfc/canteen/reconciliation", label: "Reconcile", icon: "clipboard", exact: true, requiredPermission: "nfc.canteen.reconciliation.view" },
+    { to: "/nfc/fee-holds", label: "Holds", icon: "clipboard", exact: true, requiredPermission: "nfc.fee-holds.manage" },
+    { to: "/nfc/gate", label: "Gate", icon: "shield", exact: true, requiredPermission: "nfc.gate.view" },
+    { to: "/nfc/settings", label: "Settings", icon: "settings", exact: true, requiredPermission: "app.admin" },
+    { to: "/nfc/staff-users", label: "Staff", icon: "settings", exact: true, requiredPermission: "staff.manage" },
   ],
 };
 
