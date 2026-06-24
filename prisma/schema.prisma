@@ -8,41 +8,41 @@ datasource db {
 }
 
 model School {
-  id               String                 @id @default(uuid()) @db.Uuid
-  code             String                 @unique
-  name             String
-  createdAt        DateTime               @default(now())
-  updatedAt        DateTime               @updatedAt
-  phone            String?
-  address          String?
-  isActive         Boolean                @default(true)
-  academicYears    AcademicYear[]
-  auditLogs        AuditLog[]
-  enrollments      ClassEnrollment[]
-  guardianContacts GuardianContact[]
-  issuedReports    IssuedReport[]
-  imports          MarkImportBatch[]
-  subscription     ReportLabSubscription?
-  classes          SchoolClass[]
-  streams          Stream[]
-  students         Student[]
-  subjects         Subject[]
-  users            User[]
-  smartPagePayments SmartPagePaymentRequest[]
-  promotionBatches  PromotionBatch[]
-  promotionActions  PromotionAction[]
-  studentCredentials StudentCredential[]
-  studentWallets      StudentWallet[]
+  id                        String                     @id @default(uuid()) @db.Uuid
+  code                      String                     @unique
+  name                      String
+  createdAt                 DateTime                   @default(now())
+  updatedAt                 DateTime                   @updatedAt
+  phone                     String?
+  address                   String?
+  isActive                  Boolean                    @default(true)
+  academicYears             AcademicYear[]
+  auditLogs                 AuditLog[]
+  enrollments               ClassEnrollment[]
+  guardianContacts          GuardianContact[]
+  issuedReports             IssuedReport[]
+  imports                   MarkImportBatch[]
+  subscription              ReportLabSubscription?
+  classes                   SchoolClass[]
+  streams                   Stream[]
+  students                  Student[]
+  subjects                  Subject[]
+  users                     User[]
+  smartPagePayments         SmartPagePaymentRequest[]
+  promotionBatches          PromotionBatch[]
+  promotionActions          PromotionAction[]
+  studentCredentials        StudentCredential[]
+  studentWallets            StudentWallet[]
   studentWalletTransactions StudentWalletTransaction[]
-  nfcPolicy           SchoolNfcPolicy?
-  studentFeeHolds     StudentFeeHold[]
-  canteenReconciliations CanteenReconciliation[]
-  studentAttendanceEvents StudentAttendanceEvent[]
-  nfcGateScans        NfcGateScan[]
-  nfcTags             NfcTag[]
-  nfcTagBatches       NfcTagBatch[]
-  nfcOfflineDevices   NfcOfflineDevice[]
-  nfcOfflineSyncBatches NfcOfflineSyncBatch[]
+  nfcPolicy                 SchoolNfcPolicy?
+  studentFeeHolds           StudentFeeHold[]
+  canteenReconciliations    CanteenReconciliation[]
+  studentAttendanceEvents   StudentAttendanceEvent[]
+  nfcGateScans              NfcGateScan[]
+  nfcTags                   NfcTag[]
+  nfcTagBatches             NfcTagBatch[]
+  nfcOfflineDevices         NfcOfflineDevice[]
+  nfcOfflineSyncBatches     NfcOfflineSyncBatch[]
 }
 
 model AcademicYear {
@@ -115,28 +115,28 @@ model Stream {
 }
 
 model Student {
-  id               String            @id @default(uuid()) @db.Uuid
-  schoolId         String            @db.Uuid
-  admissionNumber  String
-  firstName        String
-  lastName         String
-  studentType      StudentType?
-  isActive         Boolean           @default(true)
-  createdAt        DateTime          @default(now())
-  updatedAt        DateTime          @updatedAt
-  enrollments      ClassEnrollment[]
-  guardianContacts GuardianContact[]
-  issuedReports    IssuedReport[]
-  promotionActions PromotionAction[]
-  credentials      StudentCredential[]
-  wallet           StudentWallet?
+  id                 String                     @id @default(uuid()) @db.Uuid
+  schoolId           String                     @db.Uuid
+  admissionNumber    String
+  firstName          String
+  lastName           String
+  studentType        StudentType?
+  isActive           Boolean                    @default(true)
+  createdAt          DateTime                   @default(now())
+  updatedAt          DateTime                   @updatedAt
+  enrollments        ClassEnrollment[]
+  guardianContacts   GuardianContact[]
+  issuedReports      IssuedReport[]
+  promotionActions   PromotionAction[]
+  credentials        StudentCredential[]
+  wallet             StudentWallet?
   walletTransactions StudentWalletTransaction[]
-  feeHolds          StudentFeeHold[]
-  attendanceEvents StudentAttendanceEvent[]
-  gateScans        NfcGateScan[]
-  nfcTags          NfcTag[]
-  school           School            @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  marks            SubjectMark[]
+  feeHolds           StudentFeeHold[]
+  attendanceEvents   StudentAttendanceEvent[]
+  gateScans          NfcGateScan[]
+  nfcTags            NfcTag[]
+  school             School                     @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  marks              SubjectMark[]
 
   @@unique([schoolId, admissionNumber])
   @@index([schoolId, isActive])
@@ -293,31 +293,31 @@ model AppSetting {
 }
 
 model User {
-  id                 String         @id @default(uuid()) @db.Uuid
-  schoolId           String         @db.Uuid
-  name               String
-  email              String
-  passwordHash       String
-  role               UserRole       @default(ADMIN_OPERATOR)
-  isActive           Boolean        @default(true)
-  createdAt          DateTime       @default(now())
-  updatedAt          DateTime       @updatedAt
-  isPlatformOwner    Boolean        @default(false)
-  mustChangePassword Boolean        @default(false)
-  lastLoginAt        DateTime?
-  tokenVersion       Int            @default(0)
-  issuedReports      IssuedReport[]
-  studentCredentialsIssued StudentCredential[] @relation("StudentCredentialIssuedBy")
-  walletTransactions StudentWalletTransaction[] @relation("StudentWalletTransactionCashier")
-  gateScans          NfcGateScan[] @relation("NfcGateScanScannedBy")
-  nfcPoliciesUpdated SchoolNfcPolicy[] @relation("SchoolNfcPolicyUpdatedBy")
-  feeHoldsCreated    StudentFeeHold[] @relation("StudentFeeHoldCreatedBy")
-  feeHoldsCleared    StudentFeeHold[] @relation("StudentFeeHoldClearedBy")
-  canteenReconciliationCashiers CanteenReconciliation[] @relation("CanteenReconciliationCashier")
-  canteenReconciliationOperators CanteenReconciliation[] @relation("CanteenReconciliationOperator")
-  submittedCanteenReconciliations CanteenReconciliation[] @relation("CanteenReconciliationSubmittedBy")
-  approvedCanteenReconciliations CanteenReconciliation[] @relation("CanteenReconciliationApprovedBy")
-  school             School         @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  id                              String                     @id @default(uuid()) @db.Uuid
+  schoolId                        String                     @db.Uuid
+  name                            String
+  email                           String
+  passwordHash                    String
+  role                            UserRole                   @default(ADMIN_OPERATOR)
+  isActive                        Boolean                    @default(true)
+  createdAt                       DateTime                   @default(now())
+  updatedAt                       DateTime                   @updatedAt
+  isPlatformOwner                 Boolean                    @default(false)
+  mustChangePassword              Boolean                    @default(false)
+  lastLoginAt                     DateTime?
+  tokenVersion                    Int                        @default(0)
+  issuedReports                   IssuedReport[]
+  studentCredentialsIssued        StudentCredential[]        @relation("StudentCredentialIssuedBy")
+  walletTransactions              StudentWalletTransaction[] @relation("StudentWalletTransactionCashier")
+  gateScans                       NfcGateScan[]              @relation("NfcGateScanScannedBy")
+  nfcPoliciesUpdated              SchoolNfcPolicy[]          @relation("SchoolNfcPolicyUpdatedBy")
+  feeHoldsCreated                 StudentFeeHold[]           @relation("StudentFeeHoldCreatedBy")
+  feeHoldsCleared                 StudentFeeHold[]           @relation("StudentFeeHoldClearedBy")
+  canteenReconciliationCashiers   CanteenReconciliation[]    @relation("CanteenReconciliationCashier")
+  canteenReconciliationOperators  CanteenReconciliation[]    @relation("CanteenReconciliationOperator")
+  submittedCanteenReconciliations CanteenReconciliation[]    @relation("CanteenReconciliationSubmittedBy")
+  approvedCanteenReconciliations  CanteenReconciliation[]    @relation("CanteenReconciliationApprovedBy")
+  school                          School                     @relation(fields: [schoolId], references: [id], onDelete: Cascade)
 
   @@unique([schoolId, email])
   @@index([schoolId, role])
@@ -344,55 +344,55 @@ model SchoolSmartPagePlan {
 }
 
 model SmartPageLedger {
-  id             String   @id @default(uuid()) @db.Uuid
-  schoolId       String   @db.Uuid
-  jobId          String
-  fileHash       String
-  pagesCharged   Int      @default(0)
-  creditsCharged Int      @default(0)
-  operation      String   @default("EXTRACT")
-  pagesProcessed Int      @default(0)
-  priceUgx       Int      @default(0)
-  action         String   @default("EXTRACT")
-  reason         String   @default("")
-  provider       String   @default("")
-  model          String   @default("")
-  extractionMode String   @default("balanced")
-  status         String   @default("CHARGED")
-  tokenUsage     Json?
+  id                    String   @id @default(uuid()) @db.Uuid
+  schoolId              String   @db.Uuid
+  jobId                 String
+  fileHash              String
+  pagesCharged          Int      @default(0)
+  creditsCharged        Int      @default(0)
+  operation             String   @default("EXTRACT")
+  pagesProcessed        Int      @default(0)
+  priceUgx              Int      @default(0)
+  action                String   @default("EXTRACT")
+  reason                String   @default("")
+  provider              String   @default("")
+  model                 String   @default("")
+  extractionMode        String   @default("balanced")
+  status                String   @default("CHARGED")
+  tokenUsage            Json?
   geminiCostEstimateUgx Int?
   marginEstimateUgx     Int?
-  createdAt      DateTime @default(now())
+  createdAt             DateTime @default(now())
 
   @@index([schoolId, fileHash, status])
   @@index([schoolId, createdAt])
 }
 
 model SmartPagePaymentRequest {
-  id                 String   @id @default(uuid()) @db.Uuid
-  schoolId           String   @db.Uuid
-  school             School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  id                 String    @id @default(uuid()) @db.Uuid
+  schoolId           String    @db.Uuid
+  school             School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   packageCode        String
   packageName        String
   credits            Int
   amountUgx          Int
   network            String
   merchantCode       String
-  merchantName       String   @default("")
-  paymentReference   String   @unique
+  merchantName       String    @default("")
+  paymentReference   String    @unique
   transactionId      String?
   payerPhone         String?
   proofScreenshotUrl String?
-  status             String   @default("PENDING")
+  status             String    @default("PENDING")
   adminNotes         String?
-  confirmedByUserId  String?  @db.Uuid
+  confirmedByUserId  String?   @db.Uuid
   confirmedAt        DateTime?
   rejectedAt         DateTime?
-  rejectedByUserId   String?  @db.Uuid
+  rejectedByUserId   String?   @db.Uuid
   telegramSentAt     DateTime?
   telegramError      String?
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 
   @@unique([network, transactionId])
   @@index([schoolId, status, createdAt])
@@ -400,25 +400,25 @@ model SmartPagePaymentRequest {
 }
 
 model StudentCredential {
-  id                  String           @id @default(uuid()) @db.Uuid
-  schoolId            String           @db.Uuid
-  studentId           String           @db.Uuid
-  type                CredentialType
-  credentialUID       String
-  scanToken           String?          @unique
-  status              CredentialStatus @default(ACTIVE)
-  issuedAt            DateTime         @default(now())
-  deactivatedAt       DateTime?
-  deactivatedReason   String?
-  issuedById          String?          @db.Uuid
-  createdAt           DateTime         @default(now())
-  updatedAt           DateTime         @updatedAt
-  school              School           @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  student             Student          @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  issuedBy            User?            @relation("StudentCredentialIssuedBy", fields: [issuedById], references: [id], onDelete: SetNull)
-  walletTransactions  StudentWalletTransaction[]
-  attendanceEvents    StudentAttendanceEvent[]
-  gateScans           NfcGateScan[]
+  id                 String                     @id @default(uuid()) @db.Uuid
+  schoolId           String                     @db.Uuid
+  studentId          String                     @db.Uuid
+  type               CredentialType
+  credentialUID      String
+  scanToken          String?                    @unique
+  status             CredentialStatus           @default(ACTIVE)
+  issuedAt           DateTime                   @default(now())
+  deactivatedAt      DateTime?
+  deactivatedReason  String?
+  issuedById         String?                    @db.Uuid
+  createdAt          DateTime                   @default(now())
+  updatedAt          DateTime                   @updatedAt
+  school             School                     @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  student            Student                    @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  issuedBy           User?                      @relation("StudentCredentialIssuedBy", fields: [issuedById], references: [id], onDelete: SetNull)
+  walletTransactions StudentWalletTransaction[]
+  attendanceEvents   StudentAttendanceEvent[]
+  gateScans          NfcGateScan[]
 
   @@unique([schoolId, type, credentialUID])
   @@index([schoolId])
@@ -428,34 +428,34 @@ model StudentCredential {
 }
 
 model StudentWallet {
-  id                  String              @id @default(uuid()) @db.Uuid
-  schoolId            String              @db.Uuid
-  studentId           String              @unique @db.Uuid
-  balanceCents        Int                 @default(0)
-  status              StudentWalletStatus @default(ACTIVE)
-  frozenReason        String?
-  pinHash             String?
-  pinSetAt            DateTime?
-  pinFailedAttempts   Int                 @default(0)
-  pinLockedUntil      DateTime?
-  pinLastVerifiedAt   DateTime?
-  createdAt           DateTime            @default(now())
-  updatedAt           DateTime            @updatedAt
-  school       School              @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  student      Student             @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  transactions StudentWalletTransaction[]
+  id                String                     @id @default(uuid()) @db.Uuid
+  schoolId          String                     @db.Uuid
+  studentId         String                     @unique @db.Uuid
+  balanceCents      Int                        @default(0)
+  status            StudentWalletStatus        @default(ACTIVE)
+  frozenReason      String?
+  pinHash           String?
+  pinSetAt          DateTime?
+  pinFailedAttempts Int                        @default(0)
+  pinLockedUntil    DateTime?
+  pinLastVerifiedAt DateTime?
+  createdAt         DateTime                   @default(now())
+  updatedAt         DateTime                   @updatedAt
+  school            School                     @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  student           Student                    @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  transactions      StudentWalletTransaction[]
 
   @@index([schoolId, status])
   @@index([schoolId, studentId])
 }
 
 model StudentWalletTransaction {
-  id             String                @id @default(uuid()) @db.Uuid
-  schoolId       String                @db.Uuid
-  studentId      String                @db.Uuid
-  walletId       String                @db.Uuid
-  credentialId   String?               @db.Uuid
-  cashierUserId  String?               @db.Uuid
+  id                String                @id @default(uuid()) @db.Uuid
+  schoolId          String                @db.Uuid
+  studentId         String                @db.Uuid
+  walletId          String                @db.Uuid
+  credentialId      String?               @db.Uuid
+  cashierUserId     String?               @db.Uuid
   type              WalletTransactionType
   amountCents       Int
   balanceAfterCents Int?
@@ -479,75 +479,75 @@ model StudentWalletTransaction {
 }
 
 model SchoolNfcPolicy {
-  id                          String                   @id @default(uuid()) @db.Uuid
-  schoolId                    String                   @unique @db.Uuid
-  feeDefaulterBlockingEnabled  Boolean                  @default(false)
-  feeDefaulterBlockScope       FeeDefaulterBlockScope   @default(DAY_SCHOLARS_ONLY)
-  attendanceTapInCutoffEnabled Boolean                  @default(false)
+  id                           String                 @id @default(uuid()) @db.Uuid
+  schoolId                     String                 @unique @db.Uuid
+  feeDefaulterBlockingEnabled  Boolean                @default(false)
+  feeDefaulterBlockScope       FeeDefaulterBlockScope @default(DAY_SCHOLARS_ONLY)
+  attendanceTapInCutoffEnabled Boolean                @default(false)
   tapInCutoffTime              String?
-  cutoffLateAction             AttendanceLateAction     @default(BLOCK_AND_MARK_ABSENT)
-  timezone                     String                   @default("Africa/Kampala")
-  createdAt                    DateTime                 @default(now())
-  updatedAt                    DateTime                 @updatedAt
-  updatedByUserId              String?                  @db.Uuid
+  cutoffLateAction             AttendanceLateAction   @default(BLOCK_AND_MARK_ABSENT)
+  timezone                     String                 @default("Africa/Kampala")
+  createdAt                    DateTime               @default(now())
+  updatedAt                    DateTime               @updatedAt
+  updatedByUserId              String?                @db.Uuid
 
-  school      School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  updatedBy   User?    @relation("SchoolNfcPolicyUpdatedBy", fields: [updatedByUserId], references: [id], onDelete: SetNull)
+  school    School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  updatedBy User?  @relation("SchoolNfcPolicyUpdatedBy", fields: [updatedByUserId], references: [id], onDelete: SetNull)
 
   @@index([schoolId])
 }
 
 model StudentFeeHold {
-  id              String                @id @default(uuid()) @db.Uuid
-  schoolId        String                @db.Uuid
-  studentId       String                @db.Uuid
-  status          StudentFeeHoldStatus   @default(ACTIVE)
+  id              String               @id @default(uuid()) @db.Uuid
+  schoolId        String               @db.Uuid
+  studentId       String               @db.Uuid
+  status          StudentFeeHoldStatus @default(ACTIVE)
   reason          String?
   balanceDueCents Int?
   effectiveFrom   DateTime?
   clearedAt       DateTime?
-  createdByUserId String?               @db.Uuid
-  clearedByUserId String?               @db.Uuid
-  createdAt       DateTime              @default(now())
-  updatedAt       DateTime              @updatedAt
+  createdByUserId String?              @db.Uuid
+  clearedByUserId String?              @db.Uuid
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
 
-  school      School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  student     Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  createdBy   User?    @relation("StudentFeeHoldCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
-  clearedBy   User?    @relation("StudentFeeHoldClearedBy", fields: [clearedByUserId], references: [id], onDelete: SetNull)
+  school    School  @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  student   Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  createdBy User?   @relation("StudentFeeHoldCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  clearedBy User?   @relation("StudentFeeHoldClearedBy", fields: [clearedByUserId], references: [id], onDelete: SetNull)
 
   @@index([schoolId, studentId, status])
   @@index([schoolId, status, createdAt])
 }
 
 model CanteenReconciliation {
-  id                         String   @id @default(uuid()) @db.Uuid
-  schoolId                   String   @db.Uuid
-  date                       DateTime
-  shiftName                  String?
-  cashierUserId              String?  @db.Uuid
-  canteenOperatorUserId      String?  @db.Uuid
-  openingWalletBalanceCents  Int
-  totalTopUpsCents           Int
-  totalCashTopUpsCents       Int
-  totalMobileMoneyTopUpsCents Int
+  id                            String                      @id @default(uuid()) @db.Uuid
+  schoolId                      String                      @db.Uuid
+  date                          DateTime
+  shiftName                     String?
+  cashierUserId                 String?                     @db.Uuid
+  canteenOperatorUserId         String?                     @db.Uuid
+  openingWalletBalanceCents     Int
+  totalTopUpsCents              Int
+  totalCashTopUpsCents          Int
+  totalMobileMoneyTopUpsCents   Int
   totalParentDepositTopUpsCents Int
-  totalAdjustmentTopUpsCents  Int
-  totalCanteenChargesCents    Int
-  totalReversalsCents        Int
-  netCanteenPayableCents     Int
-  closingWalletBalanceCents  Int
-  declaredCashCents          Int?
-  declaredMobileMoneyCents   Int?
-  varianceCents              Int
-  status                     CanteenReconciliationStatus @default(DRAFT)
-  notes                      String?
-  submittedByUserId          String?  @db.Uuid
-  approvedByUserId           String?  @db.Uuid
-  submittedAt                DateTime?
-  approvedAt                 DateTime?
-  createdAt                  DateTime @default(now())
-  updatedAt                  DateTime @updatedAt
+  totalAdjustmentTopUpsCents    Int
+  totalCanteenChargesCents      Int
+  totalReversalsCents           Int
+  netCanteenPayableCents        Int
+  closingWalletBalanceCents     Int
+  declaredCashCents             Int?
+  declaredMobileMoneyCents      Int?
+  varianceCents                 Int
+  status                        CanteenReconciliationStatus @default(DRAFT)
+  notes                         String?
+  submittedByUserId             String?                     @db.Uuid
+  approvedByUserId              String?                     @db.Uuid
+  submittedAt                   DateTime?
+  approvedAt                    DateTime?
+  createdAt                     DateTime                    @default(now())
+  updatedAt                     DateTime                    @updatedAt
 
   school      School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   cashier     User?  @relation("CanteenReconciliationCashier", fields: [cashierUserId], references: [id], onDelete: SetNull)
@@ -580,18 +580,18 @@ model StudentAttendanceEvent {
 }
 
 model NfcGateScan {
-  id              String           @id @default(uuid()) @db.Uuid
-  schoolId        String           @db.Uuid
-  studentId       String?          @db.Uuid
-  credentialId    String?          @db.Uuid
-  scannedByUserId String?          @db.Uuid
+  id              String             @id @default(uuid()) @db.Uuid
+  schoolId        String             @db.Uuid
+  studentId       String?            @db.Uuid
+  credentialId    String?            @db.Uuid
+  scannedByUserId String?            @db.Uuid
   result          GateScanResult
   reason          String?
-  scannedAt       DateTime         @default(now())
-  school          School           @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  student         Student?         @relation(fields: [studentId], references: [id], onDelete: SetNull)
+  scannedAt       DateTime           @default(now())
+  school          School             @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  student         Student?           @relation(fields: [studentId], references: [id], onDelete: SetNull)
   credential      StudentCredential? @relation(fields: [credentialId], references: [id], onDelete: SetNull)
-  scannedBy       User?            @relation("NfcGateScanScannedBy", fields: [scannedByUserId], references: [id], onDelete: SetNull)
+  scannedBy       User?              @relation("NfcGateScanScannedBy", fields: [scannedByUserId], references: [id], onDelete: SetNull)
 
   @@index([schoolId, scannedAt])
   @@index([schoolId, studentId, scannedAt])
@@ -620,22 +620,22 @@ model DocumentCleanerJob {
 }
 
 model PromotionBatch {
-  id             String              @id @default(uuid()) @db.Uuid
-  schoolId       String              @db.Uuid
-  academicYearId String              @db.Uuid
-  termId         String              @db.Uuid
+  id             String               @id @default(uuid()) @db.Uuid
+  schoolId       String               @db.Uuid
+  academicYearId String               @db.Uuid
+  termId         String               @db.Uuid
   assessmentType String
-  classId        String?             @db.Uuid
-  streamId       String?             @db.Uuid
-  scoreThreshold Float               @default(40)
+  classId        String?              @db.Uuid
+  streamId       String?              @db.Uuid
+  scoreThreshold Float                @default(40)
   status         PromotionBatchStatus @default(APPLIED)
-  appliedAt      DateTime            @default(now())
+  appliedAt      DateTime             @default(now())
   appliedByName  String?
   reversedAt     DateTime?
   reversedByName String?
-  createdAt      DateTime            @default(now())
-  updatedAt      DateTime            @updatedAt
-  school         School              @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+  school         School               @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   actions        PromotionAction[]
 
   @@index([schoolId, status, createdAt])
@@ -643,13 +643,13 @@ model PromotionBatch {
 }
 
 model PromotionAction {
-  id               String              @id @default(uuid()) @db.Uuid
-  batchId          String              @db.Uuid
-  schoolId         String              @db.Uuid
-  studentId        String              @db.Uuid
+  id               String                @id @default(uuid()) @db.Uuid
+  batchId          String                @db.Uuid
+  schoolId         String                @db.Uuid
+  studentId        String                @db.Uuid
   studentName      String
-  fromEnrollmentId String              @db.Uuid
-  toEnrollmentId   String?             @db.Uuid
+  fromEnrollmentId String                @db.Uuid
+  toEnrollmentId   String?               @db.Uuid
   fromClassName    String
   fromStreamName   String
   toClassName      String?
@@ -657,11 +657,11 @@ model PromotionAction {
   averageScore     Float?
   decision         PromotionDecision
   status           PromotionActionStatus @default(APPLIED)
-  createdAt        DateTime            @default(now())
-  updatedAt        DateTime            @updatedAt
-  batch            PromotionBatch      @relation(fields: [batchId], references: [id], onDelete: Cascade)
-  school           School              @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  student          Student             @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @updatedAt
+  batch            PromotionBatch        @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  school           School                @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  student          Student               @relation(fields: [studentId], references: [id], onDelete: Cascade)
 
   @@index([batchId])
   @@index([schoolId, studentId, status])
@@ -753,17 +753,17 @@ model Creator {
 }
 
 model SmartDocument {
-  id                    String                  @id @default(uuid()) @db.Uuid
-  creatorId             String                  @db.Uuid
-  schoolId              String?                 @db.Uuid
+  id                    String                @id @default(uuid()) @db.Uuid
+  creatorId             String                @db.Uuid
+  schoolId              String?               @db.Uuid
   title                 String
-  vertical              SmartDocumentVertical   @default(SCHOOL)
+  vertical              SmartDocumentVertical @default(SCHOOL)
   extractedKnowledge    Json?
-  activeVersionId       String?                 @db.Uuid
-  status                DocumentStatus          @default(DRAFT)
-  createdAt             DateTime                @default(now())
-  updatedAt             DateTime                @updatedAt
-  extractionStatus      String                  @default("IDLE")
+  activeVersionId       String?               @db.Uuid
+  status                DocumentStatus        @default(DRAFT)
+  createdAt             DateTime              @default(now())
+  updatedAt             DateTime              @updatedAt
+  extractionStatus      String                @default("IDLE")
   extractionError       String?
   extractionStartedAt   DateTime?
   extractionCompletedAt DateTime?
@@ -771,7 +771,7 @@ model SmartDocument {
   sourceFiles           DocumentSourceFile[]
   versions              DocumentVersion[]
   published             PublishedDocument?
-  creator               Creator                 @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  creator               Creator               @relation(fields: [creatorId], references: [id], onDelete: Cascade)
 
   @@index([creatorId, status, createdAt])
   @@index([creatorId, extractionStatus, updatedAt])
@@ -1180,7 +1180,7 @@ model NfcOfflineDevice {
   schoolId   String    @db.Uuid
   name       String
   deviceKey  String
-  roleScope  String    // GATE_SECURITY | CASHIER | ADMIN_OPERATOR
+  roleScope  String // GATE_SECURITY | CASHIER | ADMIN_OPERATOR
   isActive   Boolean   @default(true)
   lastSyncAt DateTime?
   createdAt  DateTime  @default(now())
@@ -1213,7 +1213,7 @@ model NfcTagBatch {
   id          String   @id @default(uuid()) @db.Uuid
   schoolId    String   @db.Uuid
   name        String
-  tagMode     String   // "URL" | "UID" | "TEXT"
+  tagMode     String // "URL" | "UID" | "TEXT"
   quantity    Int      @default(0)
   status      String   @default("ACTIVE") // "ACTIVE" | "CLOSED"
   createdById String?  @db.Uuid
@@ -1228,16 +1228,16 @@ model NfcTagBatch {
 }
 
 model NfcTag {
-  id          String    @id @default(uuid()) @db.Uuid
-  schoolId    String    @db.Uuid
-  batchId     String?   @db.Uuid
-  publicCode  String    @unique
-  physicalUid String?
-  tagMode     String    @default("URL")    // "URL" | "UID" | "TEXT"
-  label       String?
-  type        String    @default("STUDENT")
-  purpose     String    @default("STUDENT")
-  status      String    @default("UNASSIGNED")
+  id             String    @id @default(uuid()) @db.Uuid
+  schoolId       String    @db.Uuid
+  batchId        String?   @db.Uuid
+  publicCode     String    @unique
+  physicalUid    String?
+  tagMode        String    @default("URL") // "URL" | "UID" | "TEXT"
+  label          String?
+  type           String    @default("STUDENT")
+  purpose        String    @default("STUDENT")
+  status         String    @default("UNASSIGNED")
   // status lifecycle:
   // URL tags:  GENERATED → WRITTEN → VERIFIED → UNALLOCATED → ASSIGNED | DISABLED | LOST
   // UID tags:  REGISTERED → VERIFIED → UNALLOCATED → ASSIGNED | DISABLED | LOST
@@ -1247,16 +1247,16 @@ model NfcTag {
   writtenUrl     String?
   writtenPayload String?
   issuedAt       DateTime?
-  writtenAt   DateTime?
-  verifiedAt  DateTime?
-  assignedAt  DateTime?
-  lastSeenAt  DateTime?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  writtenAt      DateTime?
+  verifiedAt     DateTime?
+  assignedAt     DateTime?
+  lastSeenAt     DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
-  school    School       @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  batch     NfcTagBatch? @relation(fields: [batchId], references: [id], onDelete: SetNull)
-  student   Student?     @relation(fields: [studentId], references: [id], onDelete: SetNull)
+  school    School        @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  batch     NfcTagBatch?  @relation(fields: [batchId], references: [id], onDelete: SetNull)
+  student   Student?      @relation(fields: [studentId], references: [id], onDelete: SetNull)
   tapEvents NfcTapEvent[]
 
   @@index([schoolId])
