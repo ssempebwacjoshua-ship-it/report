@@ -10,6 +10,7 @@ import {
   getAttendanceRegister,
   getDailySummary,
   getGateDashboard,
+  getStudentWalletDetail,
   getStudentWalletPinStatus,
   getWalletDashboard,
   getWalletPinStatus,
@@ -112,7 +113,7 @@ const topUpSchema = z
     admissionNumber: z.string().min(1).optional(),
     tokenOrUid: z.string().trim().min(1).optional(),
     amountUgx: z.coerce.number().positive("Amount must be greater than zero."),
-    paymentMethod: z.enum(["CASH", "MOBILE_MONEY", "BANK", "MANUAL_ADJUSTMENT"]),
+    paymentMethod: z.enum(["CASH", "MOBILE_MONEY", "PARENT_DEPOSIT", "ADJUSTMENT"]),
     reference: z.string().trim().optional(),
     notes: z.string().trim().optional(),
     idempotencyKey: z.string().trim().optional(),
@@ -208,6 +209,30 @@ export function nfcOperationsRoutes() {
   router.post("/api/nfc/wallets/top-up", async (req, res, next) => {
     try {
       res.status(201).json(await topUpWallet(ctx(req), topUpSchema.parse(req.body)));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/api/wallet/top-up", async (req, res, next) => {
+    try {
+      res.status(201).json(await topUpWallet(ctx(req), topUpSchema.parse(req.body)));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/api/nfc/wallet/top-up", async (req, res, next) => {
+    try {
+      res.status(201).json(await topUpWallet(ctx(req), topUpSchema.parse(req.body)));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.get("/api/nfc/students/:studentId/wallet", async (req, res, next) => {
+    try {
+      res.json(await getStudentWalletDetail(ctx(req), req.params.studentId));
     } catch (error) {
       next(error);
     }

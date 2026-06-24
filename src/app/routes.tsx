@@ -24,6 +24,8 @@ import { NfcAttendancePage } from "../pages/NfcAttendancePage";
 import { NfcOfflinePage } from "../pages/NfcOfflinePage";
 import { NfcWalletsPage } from "../pages/NfcWalletsPage";
 import { NfcWalletTopUpPage } from "../pages/NfcWalletTopUpPage";
+import { StudentWalletPage } from "../pages/StudentWalletPage";
+import { StudentWalletTopUpPage } from "../pages/StudentWalletTopUpPage";
 import { NfcCanteenTransactionsPage } from "../pages/NfcCanteenTransactionsPage";
 import { NfcCanteenChargePage } from "../pages/NfcCanteenChargePage";
 import { NfcGateSecurityPage } from "../pages/NfcGateSecurityPage";
@@ -132,6 +134,8 @@ export const router = createBrowserRouter([
       { path: "nfc/attendance", element: <PermissionGuard permission="nfc.devices.manage"><NfcAttendancePage /></PermissionGuard> },
       { path: "nfc/wallets", element: <PermissionGuard permission="nfc.wallets.pin.manage"><NfcWalletsPage /></PermissionGuard> },
       { path: "nfc/wallets/top-up", element: <PermissionGuard permission="nfc.wallets.topup"><NfcWalletTopUpPage /></PermissionGuard> },
+      { path: "students/:studentId/wallet", element: <PermissionGuard permission="nfc.canteen.transactions.view"><StudentWalletPage /></PermissionGuard> },
+      { path: "students/:studentId/wallet/top-up", element: <PermissionGuard permission="nfc.wallets.topup"><StudentWalletTopUpPage /></PermissionGuard> },
       { path: "nfc/canteen", element: <PermissionGuard permission="nfc.canteen.charge"><NfcCanteenChargePage /></PermissionGuard> },
       { path: "nfc/canteen/transactions", element: <PermissionGuard permission="nfc.canteen.transactions.view"><NfcCanteenTransactionsPage /></PermissionGuard> },
       { path: "nfc/gate", element: <PermissionGuard permission="nfc.gate.view"><NfcGateSecurityPage /></PermissionGuard> },
