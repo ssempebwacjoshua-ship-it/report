@@ -1,14 +1,9 @@
-import { useEffect, useRef, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useRef, useState } from "react";
+import { Link } from "react-router-dom";
+import { NfcScanPanel } from "../components/nfc/NfcScanPanel";
+import { useNfcScanner, type ScanResult } from "../hooks/useNfcScanner";
 import { resolveWalletStudent, topUpNfcWallet } from "../client/studentCredentialsClient";
-import { fetchStudents } from "../client/studentsClient";
-import type {
-  NfcStudentSummary,
-  NfcWalletStudentResolution,
-  NfcWalletTopUpResult,
-  WalletPaymentMethod,
-} from "../shared/types/studentCredentials";
-import type { StudentListItem } from "../shared/types/students";
+import type { NfcWalletStudentResolution, NfcWalletTopUpResult, WalletPaymentMethod } from "../shared/types/studentCredentials";
 
 const inputClass =
   "premium-control h-11 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm text-slate-900 outline-none focus:border-blue-400 focus:bg-white";
@@ -25,71 +20,45 @@ const PAYMENT_METHODS: { value: WalletPaymentMethod; label: string }[] = [
 ];
 
 export function NfcWalletTopUpPage() {
-  const [params] = useSearchParams();
-  const preselectedStudentId = params.get("studentId") ?? "";
-
-  // ── Student lookup ────────────────────────────────────────────────────────
-  const [searchQuery, setSearchQuery] = useState("");
-  const [searchResults, setSearchResults] = useState<StudentListItem[]>([]);
-  const [searching, setSearching] = useState(false);
-  const [resolution, setResolution] = useState<NfcWalletStudentResolution | null>(null);
-  const [resolving, setResolving] = useState(false);
-  const [lookupError, setLookupError] = useState("");
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // ── Form state ────────────────────────────────────────────────────────────
   const [amountUgx, setAmountUgx] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<WalletPaymentMethod>("CASH");
   const [reference, setReference] = useState("");
   const [notes, setNotes] = useState("");
-
-  // ── Submission state ─────────────────────────────────────────────────────
+  const [resolution, setResolution] = useState<NfcWalletStudentResolution | null>(null);
+  const [loadingResolution, setLoadingResolution] = useState(false);
+  const [lookupError, setLookupError] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [result, setResult] = useState<NfcWalletTopUpResult | null>(null);
   const [submitError, setSubmitError] = useState("");
+  const [result, setResult] = useState<NfcWalletTopUpResult | null>(null);
 
-  // ── Pre-select student from URL param ────────────────────────────────────
-  useEffect(() => {
-    if (!preselectedStudentId) return;
-    setResolving(true);
-    resolveWalletStudent({ studentId: preselectedStudentId })
-      .then((r) => setResolution(r))
-      .catch((e: Error) => setLookupError(e.message))
-      .finally(() => setResolving(false));
-  }, [preselectedStudentId]);
+  const amountRef = useRef(amountUgx);
+  amountRef.current = amountUgx;
 
-  function handleSearchInput(value: string) {
-    setSearchQuery(value);
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    if (!value.trim()) { setSearchResults([]); return; }
-    debounceRef.current = setTimeout(() => {
-      setSearching(true);
-      fetchStudents({ search: value.trim(), isActive: "true" })
-        .then((r) => setSearchResults(r.students.slice(0, 8)))
-        .catch(() => setSearchResults([]))
-        .finally(() => setSearching(false));
-    }, 280);
-  }
+  const handleScan = async ({ tokenOrUid }: ScanResult) => {
+    const amount = Number(amountRef.current);
+    if (!amount || amount <= 0) throw new Error("Enter an amount before scanning.");
 
-  function selectStudent(student: StudentListItem) {
-    setSearchQuery(`${student.studentName} — ${student.admissionNumber}`);
-    setSearchResults([]);
+    setLoadingResolution(true);
     setLookupError("");
     setResult(null);
-    setResolving(true);
-    resolveWalletStudent({ studentId: student.id })
-      .then((r) => setResolution(r))
-      .catch((e: Error) => setLookupError(e.message))
-      .finally(() => setResolving(false));
-  }
+    try {
+      const student = await resolveWalletStudent({ tokenOrUid });
+      setResolution(student);
+    } finally {
+      setLoadingResolution(false);
+    }
+  };
+
+  const scanner = useNfcScanner({ onScan: handleScan });
 
   async function handleTopUp() {
     if (!resolution) return;
-    const amount = parseFloat(amountUgx);
-    if (!isFinite(amount) || amount <= 0) {
+    const amount = Number(amountUgx);
+    if (!amount || amount <= 0) {
       setSubmitError("Please enter a valid amount greater than zero.");
       return;
     }
+
     setSubmitting(true);
     setSubmitError("");
     setResult(null);
@@ -104,159 +73,128 @@ export function NfcWalletTopUpPage() {
       });
       setResult(topUpResult);
       if (topUpResult.ok) {
+        if (topUpResult.wallet) {
+          setResolution((prev) => prev
+            ? { ...prev, wallet: { id: topUpResult.wallet.id, balanceCents: topUpResult.wallet.balanceCents, status: topUpResult.wallet.status, pinSet: prev.wallet?.pinSet ?? false } }
+            : prev);
+        }
         setAmountUgx("");
         setReference("");
         setNotes("");
-        // Update displayed balance from response
-        if (topUpResult.wallet && resolution.wallet) {
-          setResolution((prev) => prev && topUpResult.wallet
-            ? { ...prev, wallet: { id: topUpResult.wallet.id, balanceCents: topUpResult.wallet.balanceCents, status: topUpResult.wallet.status } }
-            : prev
-          );
-        }
       }
-    } catch (e) {
-      setSubmitError(e instanceof Error ? e.message : "Top-up failed.");
+    } catch (caught) {
+      setSubmitError(caught instanceof Error ? caught.message : "Top-up failed.");
     } finally {
       setSubmitting(false);
     }
   }
 
-  function handlePrint() {
-    window.print();
-  }
-
-  function resetPage() {
+  function reset() {
     setResolution(null);
     setResult(null);
-    setSearchQuery("");
+    setLookupError("");
+    setSubmitError("");
     setAmountUgx("");
     setReference("");
     setNotes("");
-    setSubmitError("");
-    setLookupError("");
+    scanner.stopScanner();
   }
-
-  const canSubmit = !!resolution && parseFloat(amountUgx) > 0 && !submitting;
 
   return (
     <main className="grid gap-5">
       <header className="page-header">
         <p className="text-xs font-bold uppercase tracking-wide text-blue-600">NFC Operations</p>
         <h1 className="text-xl font-bold text-slate-950 sm:text-2xl">Wallet Top-Up</h1>
-        <p className="mt-1 text-sm text-slate-500">Add canteen credit to a student wallet.</p>
+        <p className="mt-1 text-sm text-slate-500">Scan a student tag, then add wallet money manually.</p>
       </header>
 
-      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_380px]">
-        {/* ── Left column: lookup + form ─────────────────────────────── */}
-        <div className="grid gap-4">
-
-          {/* Section 1: Student lookup */}
-          <section className="premium-card rounded-xl p-5">
-            <h2 className="text-sm font-bold uppercase tracking-wide text-slate-500">1. Find Student</h2>
-            <div className="relative mt-3">
+      <section className="grid gap-4 lg:grid-cols-[380px_minmax(0,1fr)]">
+        <div className="flex flex-col gap-4">
+          <div className="premium-card rounded-xl p-4 grid gap-3">
+            <label className="grid gap-1 text-xs font-bold uppercase text-slate-500">
+              Amount (UGX)
               <input
-                type="text"
-                className={`${inputClass} w-full`}
-                placeholder="Search by name, admission number, class…"
-                value={searchQuery}
-                onChange={(e) => handleSearchInput(e.target.value)}
-                disabled={resolving}
+                className={`${inputClass} text-lg font-bold`}
+                inputMode="numeric"
+                value={amountUgx}
+                onChange={(e) => setAmountUgx(e.target.value)}
+                placeholder="e.g. 5000"
+                disabled={submitting}
               />
-              {searching && <p className="mt-1 text-xs text-slate-400">Searching…</p>}
-              {resolving && <p className="mt-1 text-xs text-slate-400">Loading student…</p>}
-              {searchResults.length > 0 && (
-                <ul className="absolute left-0 right-0 top-full z-10 mt-1 max-h-52 overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-lg">
-                  {searchResults.map((s) => (
-                    <li key={s.id}>
-                      <button
-                        type="button"
-                        className="w-full px-3 py-2 text-left text-sm hover:bg-blue-50"
-                        onClick={() => selectStudent(s)}
-                      >
-                        <p className="font-bold text-slate-950">{s.studentName}</p>
-                        <p className="text-xs text-slate-500">{s.admissionNumber} — {s.className}/{s.streamName}</p>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-            {lookupError && <p className="mt-2 text-xs text-red-600">{lookupError}</p>}
-          </section>
+            </label>
+            <label className="grid gap-1 text-xs font-bold uppercase text-slate-500">
+              Payment method
+              <select
+                className={inputClass}
+                value={paymentMethod}
+                onChange={(e) => setPaymentMethod(e.target.value as WalletPaymentMethod)}
+                disabled={submitting}
+              >
+                {PAYMENT_METHODS.map((method) => (
+                  <option key={method.value} value={method.value}>{method.label}</option>
+                ))}
+              </select>
+            </label>
+            <label className="grid gap-1 text-xs font-bold uppercase text-slate-500">
+              Reference
+              <input
+                className={inputClass}
+                value={reference}
+                onChange={(e) => setReference(e.target.value)}
+                placeholder="Receipt / transaction ID"
+                disabled={submitting}
+              />
+            </label>
+            <label className="grid gap-1 text-xs font-bold uppercase text-slate-500">
+              Notes
+              <input
+                className={inputClass}
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                placeholder="Optional note"
+                disabled={submitting}
+              />
+            </label>
+          </div>
 
-          {/* Section 2: Student card */}
-          {resolution && (
+          <NfcScanPanel
+            state={scanner.state}
+            error={lookupError || scanner.error}
+            isOnline={scanner.isOnline}
+            isWebNfcAvailable={scanner.isWebNfcAvailable}
+            onStart={scanner.startScanner}
+            onStop={scanner.stopScanner}
+            onManualSubmit={scanner.submitManual}
+            scanLabel="Scan Student Tag"
+          />
+
+          {loadingResolution && (
+            <div className="rounded-xl border border-blue-200 bg-blue-50 p-3 text-sm text-blue-700">
+              Resolving student...
+            </div>
+          )}
+        </div>
+
+        <aside className="grid gap-4">
+          {resolution ? (
             <StudentCard student={resolution.student} wallet={resolution.wallet} />
+          ) : (
+            <div className="premium-card rounded-xl p-5 text-sm text-slate-500">
+              <p className="font-bold text-slate-950">Student details</p>
+              <p className="mt-2">Scan a tag to load the student wallet before top-up.</p>
+            </div>
           )}
 
-          {/* Section 3: Top-up form */}
           {resolution && !result && (
             <section className="premium-card rounded-xl p-5">
-              <h2 className="text-sm font-bold uppercase tracking-wide text-slate-500">3. Top-Up Amount</h2>
-              <div className="mt-3 grid gap-3">
-                <label className="grid gap-1 text-xs font-bold uppercase text-slate-500">
-                  Amount (UGX)
-                  <input
-                    type="number"
-                    min="1"
-                    step="500"
-                    className={inputClass}
-                    placeholder="e.g. 5000"
-                    value={amountUgx}
-                    onChange={(e) => setAmountUgx(e.target.value)}
-                  />
-                </label>
-                <label className="grid gap-1 text-xs font-bold uppercase text-slate-500">
-                  Payment method
-                  <select
-                    className={inputClass}
-                    value={paymentMethod}
-                    onChange={(e) => setPaymentMethod(e.target.value as WalletPaymentMethod)}
-                  >
-                    {PAYMENT_METHODS.map((m) => (
-                      <option key={m.value} value={m.value}>{m.label}</option>
-                    ))}
-                  </select>
-                </label>
-                <label className="grid gap-1 text-xs font-bold uppercase text-slate-500">
-                  Reference (optional)
-                  <input
-                    type="text"
-                    className={inputClass}
-                    placeholder="Mobile money transaction ID, receipt no."
-                    value={reference}
-                    onChange={(e) => setReference(e.target.value)}
-                  />
-                </label>
-                <label className="grid gap-1 text-xs font-bold uppercase text-slate-500">
-                  Notes (optional)
-                  <input
-                    type="text"
-                    className={inputClass}
-                    placeholder="Internal note"
-                    value={notes}
-                    onChange={(e) => setNotes(e.target.value)}
-                  />
-                </label>
+              <h2 className="text-sm font-bold uppercase tracking-wide text-slate-500">Confirm top-up</h2>
+              <div className="mt-3 rounded-xl border border-blue-200 bg-blue-50 p-3 text-sm">
+                <div className="grid grid-cols-2 gap-1 text-blue-700">
+                  <span>Amount</span><span className="font-bold">{money(Math.round(Number(amountUgx || 0) * 100))}</span>
+                  <span>Balance before</span><span>{money(resolution.wallet?.balanceCents ?? 0)}</span>
+                  <span>Balance after</span><span className="font-bold">{money((resolution.wallet?.balanceCents ?? 0) + Math.round(Number(amountUgx || 0) * 100))}</span>
+                </div>
               </div>
-
-              {/* Section 4: Confirmation preview */}
-              {parseFloat(amountUgx) > 0 && resolution.wallet && (
-                <div className="mt-4 rounded-xl border border-blue-200 bg-blue-50 p-3 text-sm">
-                  <p className="font-bold text-blue-800">Confirm top-up</p>
-                  <div className="mt-2 grid grid-cols-2 gap-1 text-blue-700">
-                    <span>Amount</span><span className="font-bold">{money(Math.round(parseFloat(amountUgx) * 100))}</span>
-                    <span>Balance before</span><span>{money(resolution.wallet.balanceCents)}</span>
-                    <span>Balance after</span><span className="font-bold">{money(resolution.wallet.balanceCents + Math.round(parseFloat(amountUgx) * 100))}</span>
-                  </div>
-                </div>
-              )}
-              {parseFloat(amountUgx) > 0 && !resolution.wallet && (
-                <div className="mt-4 rounded-xl border border-blue-200 bg-blue-50 p-3 text-sm text-blue-700">
-                  This student has no wallet yet — one will be created automatically.
-                </div>
-              )}
 
               {submitError && <p className="mt-2 text-xs text-red-600">{submitError}</p>}
 
@@ -264,26 +202,39 @@ export function NfcWalletTopUpPage() {
                 type="button"
                 className="btn btn-primary mt-4 min-h-11 w-full"
                 onClick={() => void handleTopUp()}
-                disabled={!canSubmit}
+                disabled={submitting || Number(amountUgx) <= 0}
               >
-                {submitting ? "Processing…" : "Add Canteen Credit"}
+                {submitting ? "Processing…" : "Add Wallet"}
               </button>
             </section>
           )}
-        </div>
 
-        {/* ── Right column: receipt ───────────────────────────────────── */}
-        <aside>
           {result?.ok ? (
-            <SuccessReceipt result={result} onPrint={handlePrint} onReset={resetPage} />
+            <SuccessReceipt result={result} onPrint={() => window.print()} onReset={reset} />
           ) : (
             <div className="premium-card rounded-xl p-5 text-sm text-slate-500">
               <p className="font-bold text-slate-950">Receipt</p>
-              <p className="mt-2">Complete the form to see a receipt here.</p>
+              <p className="mt-2">Complete a top-up to generate a receipt.</p>
             </div>
           )}
+
+          <div className="flex gap-2">
+            <Link
+              to="/nfc/wallets"
+              className="flex-1 rounded-xl border border-slate-200 bg-white px-4 py-3 text-center text-sm font-bold text-slate-700 hover:bg-slate-50"
+            >
+              Wallet List
+            </Link>
+            <button
+              type="button"
+              className="flex-1 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-700 hover:bg-slate-50"
+              onClick={reset}
+            >
+              Reset
+            </button>
+          </div>
         </aside>
-      </div>
+      </section>
     </main>
   );
 }
@@ -292,12 +243,12 @@ function StudentCard({
   student,
   wallet,
 }: {
-  student: NfcStudentSummary;
+  student: NfcWalletStudentResolution["student"];
   wallet: NfcWalletStudentResolution["wallet"];
 }) {
   return (
     <section className="premium-card rounded-xl p-5">
-      <h2 className="text-sm font-bold uppercase tracking-wide text-slate-500">2. Student Wallet Balance</h2>
+      <h2 className="text-sm font-bold uppercase tracking-wide text-slate-500">Student Wallet</h2>
       <div className="mt-3 grid gap-1 text-sm">
         <p className="text-lg font-bold text-slate-950">{student.name}</p>
         <p className="text-slate-600">{student.admissionNumber} — {student.className ?? "No class"} / {student.streamName ?? "No stream"}</p>
@@ -312,7 +263,6 @@ function StudentCard({
             <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-500">No wallet yet</span>
           )}
         </div>
-        <p className="text-xs text-slate-400">Current canteen credit balance</p>
       </div>
     </section>
   );
@@ -357,7 +307,7 @@ function SuccessReceipt({
           <Row label="Previous balance" value={money(result.walletBefore.balanceCents)} />
         )}
         {result.transaction?.paymentMethod && (
-          <Row label="Payment method" value={result.transaction.paymentMethod.replace("_", " ")} />
+          <Row label="Payment method" value={result.transaction.paymentMethod.replaceAll("_", " ")} />
         )}
         {result.transaction?.reference && (
           <Row label="Reference" value={result.transaction.reference} />
