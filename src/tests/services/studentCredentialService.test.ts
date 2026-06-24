@@ -569,16 +569,24 @@ type AllocationStudent = {
   }>;
 };
 
-function createAllocationMockDb(initialStudents: AllocationStudent[]) {
+function createAllocationMockDb(
+  initialStudents: AllocationStudent[],
+  options: { failCreateWithP2002?: boolean } = {},
+) {
   const students = [...initialStudents];
   const auditLogs: unknown[] = [];
 
+  function allCredentials() {
+    return students.flatMap((s) => s.credentials.map((c) => ({ ...c, student: s })));
+  }
+
   const db = {
     student: {
-      findMany: async ({ where }: { where: { schoolId?: string; isActive?: boolean; enrollments?: unknown; OR?: unknown } }) => {
+      findMany: async ({ where }: { where: { schoolId?: string; id?: { in?: string[] }; isActive?: boolean; enrollments?: unknown; OR?: unknown } }) => {
         return students.filter(
           (s) =>
             (!where.schoolId || s.schoolId === where.schoolId) &&
+            (!where.id?.in || where.id.in.includes(s.id)) &&
             (where.isActive === undefined || s.isActive === where.isActive),
         );
       },
@@ -611,7 +619,42 @@ function createAllocationMockDb(initialStudents: AllocationStudent[]) {
         }
         return null;
       },
+      findMany: async ({ where }: {
+        where: {
+          schoolId?: string;
+          studentId?: string | { in?: string[] };
+          credentialUID?: string | { in?: string[] };
+          id?: string | { in?: string[] };
+          type?: CredentialType;
+          status?: CredentialStatus;
+        };
+      }) => {
+        return allCredentials().filter((c) => {
+          if (where.schoolId && c.schoolId !== where.schoolId) return false;
+          if (where.type && c.type !== where.type) return false;
+          if (where.status && c.status !== where.status) return false;
+          const sid = where.studentId;
+          if (sid) {
+            if (typeof sid === "string" && c.studentId !== sid) return false;
+            if (typeof sid === "object" && sid.in && !sid.in.includes(c.studentId)) return false;
+          }
+          const uid = where.credentialUID;
+          if (uid) {
+            if (typeof uid === "string" && c.credentialUID !== uid) return false;
+            if (typeof uid === "object" && uid.in && !uid.in.includes(c.credentialUID)) return false;
+          }
+          const id = where.id;
+          if (id) {
+            if (typeof id === "string" && c.id !== id) return false;
+            if (typeof id === "object" && id.in && !id.in.includes(c.id)) return false;
+          }
+          return true;
+        });
+      },
       create: async ({ data }: { data: { schoolId: string; studentId: string; type: CredentialType; credentialUID: string; scanToken?: string; issuedById?: string | null } }) => {
+        if (options.failCreateWithP2002) {
+          throw { code: "P2002", meta: { target: "StudentCredential_one_active_per_student_type_idx" } };
+        }
         const stu = students.find((s) => s.id === data.studentId);
         if (!stu) throw new Error("student not found");
         const cred = {
@@ -647,9 +690,10 @@ function createAllocationMockDb(initialStudents: AllocationStudent[]) {
     auditLog: {
       create: async ({ data }: { data: unknown }) => { auditLogs.push(data); return data; },
     },
+    $transaction: async <T>(fn: (tx: typeof db) => Promise<T>, _options?: unknown) => fn(db),
   };
 
-  return { db: db as never, auditLogs };
+  return { db: db as never, students, auditLogs };
 }
 
 const SCHOOL = "school-a";
@@ -834,5 +878,151 @@ describe("bulkAllocateCredentials", () => {
         db,
       ),
     ).rejects.toMatchObject({ message: "Row 1: Wristband UID must not be a URL.", status: 400 });
+  });
+
+  it("prevalidates all students before writes — no credentials created if one student is invalid", async () => {
+    const stuA = makeStudent("stu-a", "A001");
+    // stu-missing is not in the mock — will fail validation
+    const { db, students } = createAllocationMockDb([stuA]);
+
+    await expect(
+      bulkAllocateCredentials(
+        { schoolId: SCHOOL },
+        {
+          reason: "Test",
+          assignments: [
+            { studentId: "stu-a", credentialUID: "WB01" },
+            { studentId: "stu-missing", credentialUID: "WB02" },
+          ],
+        },
+        db,
+      ),
+    ).rejects.toMatchObject({ status: 404 });
+
+    // No credentials created for stu-a because stu-missing failed prevalidation
+    expect(students.find((s) => s.id === "stu-a")?.credentials).toHaveLength(0);
+  });
+
+  it("prevalidates all UIDs before writes — no credentials created if one UID is already active", async () => {
+    const stuA = makeStudent("stu-a", "A001");
+    const stuB = makeStudent("stu-b", "A002");
+    stuB.credentials.push({
+      id: "cred-wb02", schoolId: SCHOOL, studentId: "stu-b", type: CredentialType.NFC_WRISTBAND,
+      credentialUID: "WB02", scanToken: null, status: CredentialStatus.ACTIVE,
+      issuedAt: new Date(), deactivatedAt: null, deactivatedReason: null, issuedById: null,
+    });
+    const { db, students } = createAllocationMockDb([stuA, stuB]);
+
+    await expect(
+      bulkAllocateCredentials(
+        { schoolId: SCHOOL },
+        {
+          reason: "Test",
+          // WB01 for stu-a is valid; WB02 is already active → should block everything
+          assignments: [
+            { studentId: "stu-a", credentialUID: "WB01" },
+            { studentId: "stu-b", credentialUID: "WB02" },
+          ],
+        },
+        db,
+      ),
+    ).rejects.toMatchObject({ status: 409 });
+
+    // stu-a must NOT have gotten a credential because prevalidation aborted before writes
+    expect(students.find((s) => s.id === "stu-a")?.credentials).toHaveLength(0);
+  });
+
+  it("rejects duplicate student IDs before any DB writes", async () => {
+    const stuA = makeStudent("stu-a", "A001");
+    const { db, students } = createAllocationMockDb([stuA]);
+
+    await expect(
+      bulkAllocateCredentials(
+        { schoolId: SCHOOL },
+        {
+          reason: "Test",
+          assignments: [
+            { studentId: "stu-a", credentialUID: "WB01" },
+            { studentId: "stu-a", credentialUID: "WB02" },
+          ],
+        },
+        db,
+      ),
+    ).rejects.toMatchObject({ message: "Duplicate studentId in request: stu-a", status: 400 });
+
+    expect(students.find((s) => s.id === "stu-a")?.credentials).toHaveLength(0);
+  });
+
+  it("uses a single bulk student query, not one findFirst per row", async () => {
+    const stus = Array.from({ length: 5 }, (_, i) => makeStudent(`stu-${i}`, `A00${i}`));
+    let findManyCount = 0;
+    let findFirstCount = 0;
+
+    const { db } = createAllocationMockDb(stus);
+    const proxied = {
+      ...(db as never as object),
+      student: {
+        ...(db as never as { student: object }).student,
+        findMany: async (...args: unknown[]) => {
+          findManyCount++;
+          return (db as never as { student: { findMany: (...a: unknown[]) => unknown } }).student.findMany(...args);
+        },
+        findFirst: async (...args: unknown[]) => {
+          findFirstCount++;
+          return (db as never as { student: { findFirst: (...a: unknown[]) => unknown } }).student.findFirst(...args);
+        },
+      },
+    };
+
+    await bulkAllocateCredentials(
+      { schoolId: SCHOOL },
+      {
+        reason: "Allocation day",
+        assignments: stus.map((s, i) => ({ studentId: s.id, credentialUID: `WB0${i}` })),
+      },
+      proxied as never,
+    );
+
+    // Exactly 1 student.findMany for all students, zero findFirst calls in bulk path
+    expect(findManyCount).toBe(1);
+    expect(findFirstCount).toBe(0);
+  });
+
+  it("reactivates a deactivated credential with the same UID instead of creating a new one", async () => {
+    const stuA = makeStudent("stu-a", "A001");
+    stuA.credentials.push({
+      id: "cred-old", schoolId: SCHOOL, studentId: "stu-a", type: CredentialType.NFC_WRISTBAND,
+      credentialUID: "WB01", scanToken: "tok-existing", status: CredentialStatus.DEACTIVATED,
+      issuedAt: new Date(), deactivatedAt: new Date(), deactivatedReason: "Lost", issuedById: null,
+    });
+    const { db, students } = createAllocationMockDb([stuA]);
+
+    const result = await bulkAllocateCredentials(
+      { schoolId: SCHOOL },
+      { reason: "Reissue", assignments: [{ studentId: "stu-a", credentialUID: "WB01" }] },
+      db,
+    );
+
+    expect(result.credentials[0].credentialUID).toBe("WB01");
+    expect(result.credentials[0].status).toBe("ACTIVE");
+    // Should have updated the existing credential, not created a second one
+    expect(students.find((s) => s.id === "stu-a")?.credentials).toHaveLength(1);
+    expect(students.find((s) => s.id === "stu-a")?.credentials[0].id).toBe("cred-old");
+  });
+
+  it("maps race condition unique constraint violation to a friendly 409", async () => {
+    const stuA = makeStudent("stu-a", "A001");
+    const { db } = createAllocationMockDb([stuA], { failCreateWithP2002: true });
+
+    await expect(
+      bulkAllocateCredentials(
+        { schoolId: SCHOOL },
+        { reason: "Test", assignments: [{ studentId: "stu-a", credentialUID: "WB01" }] },
+        db,
+      ),
+    ).rejects.toMatchObject({
+      message: "Student already has an active NFC wristband. Deactivate or mark it lost before issuing another.",
+      status: 409,
+    });
   });
 });

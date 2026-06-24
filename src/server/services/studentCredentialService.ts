@@ -16,7 +16,10 @@ export type CredentialScanStatus = "ACTIVE" | "NOT_FOUND" | "DEACTIVATED" | "STU
 
 type StudentCredentialClient = Pick<PrismaClient, "student" | "studentCredential" | "auditLog">;
 type StudentCredentialDb = StudentCredentialClient & {
-  $transaction?: <T>(fn: (tx: StudentCredentialClient) => Promise<T>) => Promise<T>;
+  $transaction?: <T>(
+    fn: (tx: StudentCredentialClient) => Promise<T>,
+    options?: { maxWait?: number; timeout?: number },
+  ) => Promise<T>;
 };
 
 // Extended client type used only by amendStudentCredential (requires usage-history counts)
@@ -195,8 +198,12 @@ function mapUniqueCredentialError(error: unknown): Error | null {
   return Object.assign(new Error(message), { status: 409 });
 }
 
-async function runCredentialWrite<T>(db: StudentCredentialDb, fn: (tx: StudentCredentialClient) => Promise<T>): Promise<T> {
-  return db.$transaction ? db.$transaction(fn) : fn(db);
+async function runCredentialWrite<T>(
+  db: StudentCredentialDb,
+  fn: (tx: StudentCredentialClient) => Promise<T>,
+  options?: { maxWait?: number; timeout?: number },
+): Promise<T> {
+  return db.$transaction ? db.$transaction(fn, options) : fn(db);
 }
 
 export async function issueStudentCredential(
@@ -576,100 +583,140 @@ export async function bulkAllocateCredentials(
     seenStudents.add(a.studentId);
   }
 
+  // ── Step 2: Bulk-preload all required data outside the transaction ────────
+  const studentIds = normalized.map((a) => a.studentId);
+  const uids = normalized.map((a) => a.credentialUID);
+
+  const [studentList, credentialsByUID, activeCredsByStudent] = await Promise.all([
+    db.student.findMany({
+      where: { schoolId, id: { in: studentIds } },
+      select: {
+        id: true,
+        admissionNumber: true,
+        firstName: true,
+        lastName: true,
+        isActive: true,
+        enrollments: studentInclude.enrollments,
+      },
+    }),
+    db.studentCredential.findMany({
+      where: { schoolId, type: CredentialType.NFC_WRISTBAND, credentialUID: { in: uids } },
+      include: credentialInclude,
+    }),
+    db.studentCredential.findMany({
+      where: {
+        schoolId,
+        studentId: { in: studentIds },
+        type: CredentialType.NFC_WRISTBAND,
+        status: CredentialStatus.ACTIVE,
+      },
+    }),
+  ]);
+
+  // ── Step 3: Prevalidate — fail fast before opening any transaction ────────
+  const studentMap = new Map(studentList.map((s) => [s.id, s]));
+  const credByUID = new Map(
+    (credentialsByUID as CredentialWithStudent[]).map((c) => [c.credentialUID, c]),
+  );
+  const activeByStudentId = new Map(
+    (activeCredsByStudent as { studentId: string }[]).map((c) => [c.studentId, c]),
+  );
+
+  for (let i = 0; i < normalized.length; i++) {
+    const { studentId, credentialUID } = normalized[i];
+    const rowLabel = `Row ${i + 1}`;
+
+    const student = studentMap.get(studentId);
+    if (!student) {
+      throw Object.assign(
+        new Error(`${rowLabel}: Student ${studentId} not found for this school.`),
+        { status: 404 },
+      );
+    }
+    if (!student.isActive) {
+      throw Object.assign(
+        new Error(`${rowLabel}: Student ${getStudentName(student)} is not active.`),
+        { status: 400 },
+      );
+    }
+
+    const existingByUID = credByUID.get(credentialUID);
+    if (existingByUID?.status === CredentialStatus.ACTIVE) {
+      throw Object.assign(
+        new Error(`${rowLabel}: Wristband UID ${credentialUID} is already registered to another student.`),
+        { status: 409 },
+      );
+    }
+    // Any non-DEACTIVATED existing credential (e.g. LOST) cannot be reused
+    if (existingByUID && existingByUID.status !== CredentialStatus.DEACTIVATED) {
+      throw Object.assign(
+        new Error(`${rowLabel}: Wristband UID ${credentialUID} has status ${existingByUID.status} and cannot be reused.`),
+        { status: 409 },
+      );
+    }
+
+    if (activeByStudentId.has(studentId)) {
+      throw Object.assign(
+        new Error(`${rowLabel}: ${getStudentName(student)}: ${ACTIVE_STUDENT_CREDENTIAL_MESSAGE}`),
+        { status: 409 },
+      );
+    }
+  }
+
+  // ── Step 4: Transaction for writes only — no reads, no heavy includes ─────
+  const credentialIds: string[] = [];
   try {
-    return await runCredentialWrite(db, async (tx) => {
-      const results: CredentialWithStudent[] = [];
-
+    await runCredentialWrite(db, async (tx) => {
       for (const { studentId, credentialUID } of normalized) {
-        const student = await tx.student.findFirst({
-          where: { id: studentId, schoolId },
-          select: {
-            id: true,
-            admissionNumber: true,
-            firstName: true,
-            lastName: true,
-            isActive: true,
-            enrollments: studentInclude.enrollments,
-          },
-        });
-        if (!student) {
-          throw Object.assign(new Error(`Student ${studentId} not found for this school.`), { status: 404 });
+        const existingByUID = credByUID.get(credentialUID);
+        let cred: { id: string };
+        if (existingByUID) {
+          cred = await tx.studentCredential.update({
+            where: { id: existingByUID.id },
+            data: {
+              studentId,
+              status: CredentialStatus.ACTIVE,
+              issuedAt: new Date(),
+              deactivatedAt: null,
+              deactivatedReason: null,
+              scanToken: existingByUID.scanToken ?? generateCredentialScanToken(),
+              issuedById: ctx.actorId ?? null,
+            },
+          });
+        } else {
+          cred = await tx.studentCredential.create({
+            data: {
+              schoolId,
+              studentId,
+              type: CredentialType.NFC_WRISTBAND,
+              credentialUID,
+              scanToken: generateCredentialScanToken(),
+              issuedById: ctx.actorId ?? null,
+            },
+          });
         }
-        if (!student.isActive) {
-          throw Object.assign(
-            new Error(`Student ${getStudentName(student)} is not active.`),
-            { status: 400 },
-          );
-        }
-
-        const existingByUID = await tx.studentCredential.findUnique({
-          where: { schoolId_type_credentialUID: { schoolId, type: CredentialType.NFC_WRISTBAND, credentialUID } },
-          include: credentialInclude,
-        });
-        if (existingByUID?.status === CredentialStatus.ACTIVE) {
-          throw Object.assign(
-            new Error(`Wristband UID ${credentialUID} is already registered to another student.`),
-            { status: 409 },
-          );
-        }
-
-        const activeForStudent = await tx.studentCredential.findFirst({
-          where: {
-            schoolId,
-            studentId,
-            type: CredentialType.NFC_WRISTBAND,
-            status: CredentialStatus.ACTIVE,
-          },
-        });
-        if (activeForStudent) {
-          throw Object.assign(
-            new Error(`${getStudentName(student)}: ${ACTIVE_STUDENT_CREDENTIAL_MESSAGE}`),
-            { status: 409 },
-          );
-        }
-
-        const credential = existingByUID
-          ? await tx.studentCredential.update({
-              where: { id: existingByUID.id },
-              data: {
-                studentId,
-                status: CredentialStatus.ACTIVE,
-                issuedAt: new Date(),
-                deactivatedAt: null,
-                deactivatedReason: null,
-                scanToken: existingByUID.scanToken ?? generateCredentialScanToken(),
-                issuedById: ctx.actorId ?? null,
-              },
-              include: credentialInclude,
-            })
-          : await tx.studentCredential.create({
-              data: {
-                schoolId,
-                studentId,
-                type: CredentialType.NFC_WRISTBAND,
-                credentialUID,
-                scanToken: generateCredentialScanToken(),
-                issuedById: ctx.actorId ?? null,
-              },
-              include: credentialInclude,
-            });
-
-        results.push(credential as CredentialWithStudent);
+        credentialIds.push(cred.id);
       }
 
       await auditCredentialAction(tx, ctx, "student_credential.bulk_allocated", {
         reason: cleanReason,
-        count: results.length,
-        credentialIds: results.map((c) => c.id),
+        count: credentialIds.length,
+        credentialIds,
       });
-
-      return { credentials: results.map(serializeCredential) };
-    });
+    }, { maxWait: 10_000, timeout: 20_000 });
   } catch (error) {
     const mapped = mapUniqueCredentialError(error);
     if (mapped) throw mapped;
     throw error;
   }
+
+  // ── Step 5: Post-fetch credentials with full include (outside transaction) ─
+  const credentials = await db.studentCredential.findMany({
+    where: { id: { in: credentialIds }, schoolId },
+    include: credentialInclude,
+  });
+
+  return { credentials: (credentials as CredentialWithStudent[]).map(serializeCredential) };
 }
 
 export async function amendStudentCredential(
