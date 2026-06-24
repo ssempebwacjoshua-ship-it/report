@@ -28,6 +28,7 @@ import { StudentWalletPage } from "../pages/StudentWalletPage";
 import { StudentWalletTopUpPage } from "../pages/StudentWalletTopUpPage";
 import { NfcCanteenTransactionsPage } from "../pages/NfcCanteenTransactionsPage";
 import { NfcCanteenChargePage } from "../pages/NfcCanteenChargePage";
+import { NfcCanteenReconciliationPage } from "../pages/NfcCanteenReconciliationPage";
 import { NfcGateSecurityPage } from "../pages/NfcGateSecurityPage";
 import { NfcTokenPage } from "../pages/NfcTokenPage";
 import { NfcOperationsPage } from "../pages/NfcOperationsPage";
@@ -138,6 +139,7 @@ export const router = createBrowserRouter([
       { path: "students/:studentId/wallet/top-up", element: <PermissionGuard permission="nfc.wallets.topup"><StudentWalletTopUpPage /></PermissionGuard> },
       { path: "nfc/canteen", element: <PermissionGuard permission="nfc.canteen.charge"><NfcCanteenChargePage /></PermissionGuard> },
       { path: "nfc/canteen/transactions", element: <PermissionGuard permission="nfc.canteen.transactions.view"><NfcCanteenTransactionsPage /></PermissionGuard> },
+      { path: "nfc/canteen/reconciliation", element: <PermissionGuard permission="nfc.canteen.reconciliation.view"><NfcCanteenReconciliationPage /></PermissionGuard> },
       { path: "nfc/gate", element: <PermissionGuard permission="nfc.gate.view"><NfcGateSecurityPage /></PermissionGuard> },
       { path: "nfc/staff-users", element: <PermissionGuard permission="staff.manage"><StaffUsersPage /></PermissionGuard> },
       { path: "nfc/offline", element: <PermissionGuard permission="nfc.devices.manage"><NfcOfflinePage /></PermissionGuard> },

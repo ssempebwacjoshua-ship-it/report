@@ -3,6 +3,12 @@ import { Router } from "express";
 import { z } from "zod";
 import { verifyToken } from "../services/authService";
 import {
+  approveCanteenReconciliation,
+  closeCanteenReconciliation,
+  getCanteenReconciliation,
+  rejectCanteenReconciliation,
+} from "../services/nfcCanteenReconciliationService";
+import {
   adjustWallet,
   changeWalletPin,
   chargeCanteen,
@@ -95,6 +101,26 @@ const adjustSchema = z
 const dailySummarySchema = z.object({
   date: z.string().optional(),
   cashierUserId: z.string().uuid().optional(),
+});
+
+const reconciliationFiltersSchema = z.object({
+  date: z.string().optional(),
+  cashierUserId: z.string().uuid().optional(),
+  shiftName: z.string().trim().optional(),
+});
+
+const reconciliationCloseSchema = z.object({
+  date: z.string().trim().min(1, "Reconciliation date is required."),
+  cashierUserId: z.string().uuid().optional().nullable(),
+  shiftName: z.string().trim().optional().nullable(),
+  canteenOperatorUserId: z.string().uuid().optional().nullable(),
+  declaredCashUgx: z.coerce.number().int().min(0, "Declared cash cannot be negative."),
+  declaredMobileMoneyUgx: z.coerce.number().int().min(0, "Declared mobile money cannot be negative."),
+  notes: z.string().trim().optional().nullable(),
+});
+
+const reconciliationRejectSchema = z.object({
+  notes: z.string().trim().min(1, "Rejection notes are required."),
 });
 
 const resolveWalletStudentSchema = z
@@ -266,6 +292,38 @@ export function nfcOperationsRoutes() {
   router.get("/api/nfc/canteen/daily-summary", async (req, res, next) => {
     try {
       res.json(await getDailySummary(ctx(req), dailySummarySchema.parse(req.query)));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.get("/api/nfc/canteen/reconciliation", async (req, res, next) => {
+    try {
+      res.json(await getCanteenReconciliation(ctx(req), reconciliationFiltersSchema.parse(req.query)));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/api/nfc/canteen/reconciliation/close", async (req, res, next) => {
+    try {
+      res.status(201).json(await closeCanteenReconciliation(ctx(req), reconciliationCloseSchema.parse(req.body)));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/api/nfc/canteen/reconciliation/:id/approve", async (req, res, next) => {
+    try {
+      res.json(await approveCanteenReconciliation(ctx(req), req.params.id));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/api/nfc/canteen/reconciliation/:id/reject", async (req, res, next) => {
+    try {
+      res.json(await rejectCanteenReconciliation(ctx(req), req.params.id, reconciliationRejectSchema.parse(req.body).notes));
     } catch (error) {
       next(error);
     }

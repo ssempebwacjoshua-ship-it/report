@@ -4,6 +4,8 @@ import type {
   AttendanceDirection,
   CredentialStatus,
   DailySummary,
+  CanteenReconciliationRecord,
+  NfcCanteenReconciliationResponse,
   NfcAttendanceDashboard,
   NfcAttendanceScanResponse,
   NfcCanteenChargeResult,
@@ -296,6 +298,55 @@ export async function getDailySummary(filters: { date?: string; cashierUserId?: 
   });
   if (!response.ok) throw new Error(await parseApiError(response, "Could not load daily summary"));
   return response.json() as Promise<DailySummary>;
+}
+
+export async function fetchNfcCanteenReconciliation(filters: { date?: string; cashierUserId?: string; shiftName?: string } = {}) {
+  const params = new URLSearchParams();
+  if (filters.date) params.set("date", filters.date);
+  if (filters.cashierUserId) params.set("cashierUserId", filters.cashierUserId);
+  if (filters.shiftName) params.set("shiftName", filters.shiftName);
+  const response = await fetch(`${API_BASE}/api/nfc/canteen/reconciliation?${params.toString()}`, {
+    headers: makeSchoolRequestHeaders(),
+  });
+  if (!response.ok) throw new Error(await parseApiError(response, "Could not load canteen reconciliation"));
+  return response.json() as Promise<NfcCanteenReconciliationResponse>;
+}
+
+export async function closeNfcCanteenReconciliation(input: {
+  date: string;
+  cashierUserId?: string | null;
+  shiftName?: string | null;
+  canteenOperatorUserId?: string | null;
+  declaredCashUgx: number;
+  declaredMobileMoneyUgx: number;
+  notes?: string | null;
+}) {
+  const response = await fetch(`${API_BASE}/api/nfc/canteen/reconciliation/close`, {
+    method: "POST",
+    headers: makeSchoolRequestHeaders({ "Content-Type": "application/json" }),
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) throw new Error(await parseApiError(response, "Could not close canteen reconciliation"));
+  return response.json() as Promise<{ reconciliation: CanteenReconciliationRecord }>;
+}
+
+export async function approveNfcCanteenReconciliation(id: string) {
+  const response = await fetch(`${API_BASE}/api/nfc/canteen/reconciliation/${encodeURIComponent(id)}/approve`, {
+    method: "POST",
+    headers: makeSchoolRequestHeaders({ "Content-Type": "application/json" }),
+  });
+  if (!response.ok) throw new Error(await parseApiError(response, "Could not approve canteen reconciliation"));
+  return response.json() as Promise<{ reconciliation: CanteenReconciliationRecord }>;
+}
+
+export async function rejectNfcCanteenReconciliation(id: string, notes: string) {
+  const response = await fetch(`${API_BASE}/api/nfc/canteen/reconciliation/${encodeURIComponent(id)}/reject`, {
+    method: "POST",
+    headers: makeSchoolRequestHeaders({ "Content-Type": "application/json" }),
+    body: JSON.stringify({ notes }),
+  });
+  if (!response.ok) throw new Error(await parseApiError(response, "Could not reject canteen reconciliation"));
+  return response.json() as Promise<{ reconciliation: CanteenReconciliationRecord }>;
 }
 
 export async function resolveWalletStudent(
