@@ -6,6 +6,7 @@ export type NfcPermission =
   | "nfc.canteen.transactions.view"
   | "nfc.canteen.reconciliation.view"
   | "nfc.canteen.reconciliation.submit"
+  | "nfc.fee-holds.manage"
   | "nfc.tags.manage"
   | "nfc.wallets.topup"
   | "nfc.wallets.pin.manage"
@@ -19,7 +20,7 @@ export const rolePermissions: Record<string, string[]> = {
   SECURITY: ["nfc.gate.view", "nfc.gate.scan"],
   GATE_SECURITY: ["nfc.gate.view", "nfc.gate.scan"],
   CANTEEN: ["nfc.canteen.view", "nfc.canteen.charge", "nfc.canteen.transactions.view", "nfc.canteen.reconciliation.view", "nfc.canteen.reconciliation.submit"],
-  CASHIER: ["nfc.canteen.view", "nfc.canteen.charge", "nfc.canteen.transactions.view", "nfc.wallets.topup", "nfc.canteen.reconciliation.view", "nfc.canteen.reconciliation.submit"],
+  CASHIER: ["nfc.canteen.view", "nfc.canteen.charge", "nfc.canteen.transactions.view", "nfc.wallets.topup", "nfc.fee-holds.manage", "nfc.canteen.reconciliation.view", "nfc.canteen.reconciliation.submit"],
 };
 
 export function hasPermission(role: string | null | undefined, permission: string): boolean {

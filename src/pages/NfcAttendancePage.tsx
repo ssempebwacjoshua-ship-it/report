@@ -28,6 +28,7 @@ const selectClass =
 const STATUS_LABELS: Record<AttendanceCurrentStatus, string> = {
   ABSENT: "Absent",
   PRESENT: "Present",
+  LATE: "Late",
   OUT: "Tapped Out",
   OUT_ONLY: "Out Only",
   BLOCKED: "Blocked",
@@ -37,6 +38,7 @@ const STATUS_LABELS: Record<AttendanceCurrentStatus, string> = {
 const STATUS_COLORS: Record<AttendanceCurrentStatus, string> = {
   ABSENT: "bg-slate-100 text-slate-600",
   PRESENT: "bg-green-100 text-green-700",
+  LATE: "bg-amber-100 text-amber-700",
   OUT: "bg-amber-100 text-amber-700",
   OUT_ONLY: "bg-purple-100 text-purple-700",
   BLOCKED: "bg-red-100 text-red-700",
@@ -45,6 +47,7 @@ const STATUS_COLORS: Record<AttendanceCurrentStatus, string> = {
 
 const SCAN_STATUS_COLORS: Record<string, string> = {
   VALID: "bg-green-100 text-green-800",
+  LATE: "bg-amber-100 text-amber-800",
   DUPLICATE: "bg-yellow-100 text-yellow-800",
   BLOCKED: "bg-red-100 text-red-800",
 };
@@ -492,7 +495,7 @@ export function NfcAttendancePage() {
                 {offlineScans.slice(0, 5).map((s, i) => (
                   <div key={i} className="flex items-center justify-between text-xs text-slate-700">
                     <span className="font-medium">{s.name}</span>
-                    <span className={`rounded-full px-1.5 py-0.5 font-bold ${s.status === "VALID" ? "bg-emerald-100 text-emerald-700" : s.status === "DUPLICATE" ? "bg-amber-100 text-amber-700" : "bg-red-100 text-red-700"}`}>{s.status}</span>
+                    <span className={`rounded-full px-1.5 py-0.5 font-bold ${s.status === "VALID" ? "bg-emerald-100 text-emerald-700" : s.status === "LATE" ? "bg-amber-100 text-amber-700" : s.status === "DUPLICATE" ? "bg-yellow-100 text-yellow-700" : "bg-red-100 text-red-700"}`}>{s.status}</span>
                     <span className="text-slate-400">{s.direction === "TAP_IN" ? "IN" : "OUT"}</span>
                   </div>
                 ))}
@@ -503,7 +506,7 @@ export function NfcAttendancePage() {
           {!isOfflineReady && lastScan ? (
             <section
               className={`rounded-xl border p-4 ${
-                lastScan.status === "VALID"
+                lastScan.status === "VALID" || lastScan.status === "LATE"
                   ? "border-green-200 bg-green-50"
                   : lastScan.status === "BLOCKED"
                     ? "border-red-200 bg-red-50"

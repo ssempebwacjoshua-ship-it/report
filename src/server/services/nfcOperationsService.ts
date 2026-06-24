@@ -1,5 +1,24 @@
+import prismaPkg from "@prisma/client";
+import type { Prisma, PrismaClient } from "@prisma/client";
+import { prisma as defaultPrisma } from "../db/prisma";
+import type { SchoolUserRole } from "./authService";
+import { normalizeCredentialUID } from "./studentCredentialService";
+import { assertPinFormat, checkPin, hashWalletPin } from "./walletPinService";
+import { hasPermission } from "../../shared/permissions";
+import { normalizeNfcScanValue } from "../../shared/utils/nfcPayload";
 import {
+  getSchoolNfcPolicy,
+  getActiveStudentFeeHold,
+  getZonedDayRange,
+  getZonedDayRangeByKey,
+  getZonedDateKey,
+  isAfterCutoff,
+  shouldBlockForFeeHold,
+} from "./nfcPolicyService";
+
+const {
   AttendanceDirection,
+  AttendanceLateAction,
   AttendanceScanSource,
   AttendanceScanStatus,
   CredentialStatus,
@@ -7,19 +26,11 @@ import {
   GateScanResult,
   StudentWalletStatus,
   WalletTransactionType,
-  type Prisma,
-  type PrismaClient,
-} from "@prisma/client";
-import { prisma as defaultPrisma } from "../db/prisma";
-import type { SchoolUserRole } from "./authService";
-import { normalizeCredentialUID } from "./studentCredentialService";
-import { assertPinFormat, checkPin, hashWalletPin } from "./walletPinService";
-import { hasPermission } from "../../shared/permissions";
-import { normalizeNfcScanValue } from "../../shared/utils/nfcPayload";
+} = prismaPkg;
 
 type NfcOperationsClient = Pick<
   PrismaClient,
-  "student" | "studentCredential" | "studentWallet" | "studentWalletTransaction" | "studentAttendanceEvent" | "nfcGateScan" | "auditLog" | "nfcTag"
+  "student" | "studentCredential" | "studentWallet" | "studentWalletTransaction" | "studentAttendanceEvent" | "nfcGateScan" | "auditLog" | "nfcTag" | "schoolNfcPolicy" | "studentFeeHold"
 > & {
   $transaction?: <T>(fn: (tx: NfcOperationsClient) => Promise<T>) => Promise<T>;
 };
@@ -46,6 +57,7 @@ const credentialInclude = {
       admissionNumber: true,
       firstName: true,
       lastName: true,
+      studentType: true,
       isActive: true,
       enrollments: studentInclude.enrollments,
     },
@@ -57,6 +69,7 @@ type StudentForNfc = {
   admissionNumber: string;
   firstName: string;
   lastName: string;
+  studentType: "DAY" | "BOARDING" | null;
   isActive: boolean;
   enrollments?: Array<{
     class?: { id?: string; name: string } | null;
@@ -152,10 +165,15 @@ type NfcScanTarget = {
   reason: string | null;
 };
 
+type ResolveTargetOptions = {
+  applyFeeHoldBlocking?: boolean;
+};
+
 async function resolveNfcScanTarget(
   db: NfcOperationsClient,
   schoolId: string,
   tokenOrUid: string,
+  options: ResolveTargetOptions = {},
 ): Promise<NfcScanTarget | null> {
   const { token, uid } = extractTokenOrUid(tokenOrUid);
 
@@ -167,11 +185,21 @@ async function resolveNfcScanTarget(
 
   if (credential) {
     const reason = blockedReason(credential);
-    return { student: credential.student, credential, nfcTagId: null, blocked: Boolean(reason), reason };
+    if (reason) {
+      return { student: credential.student, credential, nfcTagId: null, blocked: true, reason };
+    }
+    if (options.applyFeeHoldBlocking) {
+      const policy = await getSchoolNfcPolicy({ schoolId, actorId: null, role: null }, db);
+      const activeHold = await getActiveStudentFeeHold(db, schoolId, credential.student.id);
+      if (shouldBlockForFeeHold(credential.student, policy.policy, activeHold)) {
+        return { student: credential.student, credential, nfcTagId: null, blocked: true, reason: "school fees defaulter" };
+      }
+    }
+    return { student: credential.student, credential, nfcTagId: null, blocked: false, reason: null };
   }
 
   const tagInclude = {
-    student: { select: { id: true, admissionNumber: true, firstName: true, lastName: true, isActive: true, enrollments: studentInclude.enrollments } },
+    student: { select: { id: true, admissionNumber: true, firstName: true, lastName: true, studentType: true, isActive: true, enrollments: studentInclude.enrollments } },
   };
   const tagStatusFilter = { notIn: ["DISABLED", "LOST"] };
 
@@ -184,7 +212,15 @@ async function resolveNfcScanTarget(
   if (tagByCode?.student) {
     const student = tagByCode.student as StudentForNfc;
     const reason = student.isActive ? null : "inactive student";
-    return { student, credential: null, nfcTagId: tagByCode.id, blocked: !student.isActive, reason };
+    if (reason) return { student, credential: null, nfcTagId: tagByCode.id, blocked: true, reason };
+    if (options.applyFeeHoldBlocking) {
+      const policy = await getSchoolNfcPolicy({ schoolId, actorId: null, role: null }, db);
+      const activeHold = await getActiveStudentFeeHold(db, schoolId, student.id);
+      if (shouldBlockForFeeHold(student, policy.policy, activeHold)) {
+        return { student, credential: null, nfcTagId: tagByCode.id, blocked: true, reason: "school fees defaulter" };
+      }
+    }
+    return { student, credential: null, nfcTagId: tagByCode.id, blocked: false, reason: null };
   }
 
   // 3. NfcTag by physicalUid (case-insensitive)
@@ -197,7 +233,15 @@ async function resolveNfcScanTarget(
     if (tagByUid?.student) {
       const student = tagByUid.student as StudentForNfc;
       const reason = student.isActive ? null : "inactive student";
-      return { student, credential: null, nfcTagId: tagByUid.id, blocked: !student.isActive, reason };
+      if (reason) return { student, credential: null, nfcTagId: tagByUid.id, blocked: true, reason };
+      if (options.applyFeeHoldBlocking) {
+        const policy = await getSchoolNfcPolicy({ schoolId, actorId: null, role: null }, db);
+        const activeHold = await getActiveStudentFeeHold(db, schoolId, student.id);
+        if (shouldBlockForFeeHold(student, policy.policy, activeHold)) {
+          return { student, credential: null, nfcTagId: tagByUid.id, blocked: true, reason: "school fees defaulter" };
+        }
+      }
+      return { student, credential: null, nfcTagId: tagByUid.id, blocked: false, reason: null };
     }
   }
 
@@ -347,7 +391,8 @@ export async function getAttendanceDashboard(
 ) {
   const schoolId = requireSchoolId(ctx);
   requirePermission(ctx, "nfc.devices.manage");
-  const { start, end } = todayRange();
+  const policy = await getSchoolNfcPolicy(ctx, db);
+  const { start, end } = getZonedDayRange(new Date(), policy.policy.timezone);
   const [events, students] = await Promise.all([
     db.studentAttendanceEvent.findMany({
       where: { schoolId, scannedAt: { gte: start, lt: end } },
@@ -360,12 +405,12 @@ export async function getAttendanceDashboard(
       select: { id: true },
     }),
   ]);
-  const tappedInIds = new Set(events.filter((event) => event.direction === AttendanceDirection.TAP_IN && event.status === AttendanceScanStatus.VALID).map((event) => event.studentId));
+  const tappedInIds = new Set(events.filter((event) => event.direction === AttendanceDirection.TAP_IN && [AttendanceScanStatus.VALID, AttendanceScanStatus.LATE].includes(event.status)).map((event) => event.studentId));
   return {
     summary: {
       totalTappedIn: tappedInIds.size,
       totalTappedOut: events.filter((event) => event.direction === AttendanceDirection.TAP_OUT && event.status === AttendanceScanStatus.VALID).length,
-      lateArrivals: events.filter((event) => event.direction === AttendanceDirection.TAP_IN && event.scannedAt.getHours() >= 8).length,
+      lateArrivals: events.filter((event) => event.direction === AttendanceDirection.TAP_IN && event.status === AttendanceScanStatus.LATE).length,
       notYetTapped: Math.max(0, students.length - tappedInIds.size),
     },
     events: events.map((event) => ({
@@ -387,26 +432,39 @@ export async function scanAttendance(
 ) {
   const schoolId = requireSchoolId(ctx);
   requirePermission(ctx, "nfc.devices.manage");
-
-  const target = await resolveNfcScanTarget(db, schoolId, input.tokenOrUid);
+  const policy = await getSchoolNfcPolicy(ctx, db);
+  const target = await resolveNfcScanTarget(db, schoolId, input.tokenOrUid, { applyFeeHoldBlocking: true });
   if (!target) throw Object.assign(new Error("NFC token not recognized."), { status: 404 });
 
   const direction = input.direction ?? AttendanceDirection.TAP_IN;
-  const { start, end } = todayRange();
+  const { start, end } = getZonedDayRange(new Date(), policy.policy.timezone);
 
   const duplicate = !target.blocked
     ? await db.studentAttendanceEvent.findFirst({
-        where: { schoolId, studentId: target.student.id, direction, status: AttendanceScanStatus.VALID, scannedAt: { gte: start, lt: end } },
+        where: { schoolId, studentId: target.student.id, direction, status: { in: [AttendanceScanStatus.VALID, AttendanceScanStatus.LATE] }, scannedAt: { gte: start, lt: end } },
       })
     : null;
+
+  const afterCutoff = direction === AttendanceDirection.TAP_IN
+    && policy.policy.attendanceTapInCutoffEnabled
+    && !!policy.policy.tapInCutoffTime
+    && isAfterCutoff(new Date(), policy.policy.timezone, policy.policy.tapInCutoffTime);
+  const cutoffBlocksTapIn = afterCutoff && policy.policy.cutoffLateAction === AttendanceLateAction.BLOCK_AND_MARK_ABSENT;
 
   const status = target.blocked
     ? AttendanceScanStatus.BLOCKED
     : duplicate
       ? AttendanceScanStatus.DUPLICATE
-      : AttendanceScanStatus.VALID;
+      : cutoffBlocksTapIn
+        ? AttendanceScanStatus.BLOCKED
+        : afterCutoff && direction === AttendanceDirection.TAP_IN
+          ? AttendanceScanStatus.LATE
+          : AttendanceScanStatus.VALID;
 
-  const eventReason = target.reason ?? (duplicate ? "duplicate tap" : null);
+  const eventReason = target.reason
+    ?? (duplicate ? "duplicate tap" : null)
+    ?? (cutoffBlocksTapIn ? "attendance cut-off passed" : null)
+    ?? (status === AttendanceScanStatus.LATE ? "late tap-in" : null);
 
   const event = await db.studentAttendanceEvent.create({
     data: {
@@ -419,6 +477,21 @@ export async function scanAttendance(
       reason: eventReason,
     },
   });
+
+  if (status === AttendanceScanStatus.BLOCKED || status === AttendanceScanStatus.LATE) {
+    await db.auditLog.create({
+      data: {
+        schoolId,
+        action: status === AttendanceScanStatus.LATE ? "nfc_attendance.late" : "nfc_attendance.blocked",
+        details: {
+          studentId: target.student.id,
+          reason: eventReason,
+          direction,
+          actor: { id: ctx.actorId ?? null },
+        },
+      },
+    });
+  }
 
   const dashboard = await getAttendanceDashboard(ctx, {}, db);
 
@@ -447,7 +520,7 @@ export type AttendanceRegisterRow = {
   tapIn: { id: string; scannedAt: string; source: string } | null;
   tapOut: { id: string; scannedAt: string; source: string } | null;
   lastScan: { id: string; direction: string; scannedAt: string; status: string; reason: string | null } | null;
-  currentStatus: "ABSENT" | "PRESENT" | "OUT" | "OUT_ONLY" | "BLOCKED" | "DUPLICATE";
+  currentStatus: "ABSENT" | "PRESENT" | "LATE" | "OUT" | "OUT_ONLY" | "BLOCKED" | "DUPLICATE";
 };
 
 export type AttendanceRegisterResponse = {
@@ -470,12 +543,9 @@ export async function getAttendanceRegister(
 ): Promise<AttendanceRegisterResponse> {
   const schoolId = requireSchoolId(ctx);
   requirePermission(ctx, "nfc.devices.manage");
-  const targetDate = filters.date ? new Date(filters.date) : new Date();
-  const start = new Date(targetDate);
-  start.setHours(0, 0, 0, 0);
-  const end = new Date(start);
-  end.setDate(end.getDate() + 1);
-  const dateLabel = start.toISOString().split("T")[0];
+  const policy = await getSchoolNfcPolicy(ctx, db);
+  const dateLabel = filters.date?.trim() || getZonedDateKey(new Date(), policy.policy.timezone);
+  const { start, end } = getZonedDayRangeByKey(dateLabel, policy.policy.timezone);
   const students = await db.student.findMany({
     where: buildStudentWhere(schoolId, filters),
     include: {
@@ -491,7 +561,7 @@ export async function getAttendanceRegister(
   let duplicateScans = 0;
   const rows: AttendanceRegisterRow[] = students.map((student) => {
     const events = student.attendanceEvents;
-    const tapIn = events.find((e) => e.direction === AttendanceDirection.TAP_IN && e.status === AttendanceScanStatus.VALID) ?? null;
+    const tapIn = events.find((e) => e.direction === AttendanceDirection.TAP_IN && [AttendanceScanStatus.VALID, AttendanceScanStatus.LATE].includes(e.status)) ?? null;
     const validOuts = events.filter((e) => e.direction === AttendanceDirection.TAP_OUT && e.status === AttendanceScanStatus.VALID);
     const tapOut = validOuts.length > 0 ? validOuts[validOuts.length - 1] : null;
     const lastScan = events.length > 0 ? events[events.length - 1] : null;
@@ -501,11 +571,11 @@ export async function getAttendanceRegister(
     if (tapIn && tapOut) {
       currentStatus = "OUT";
     } else if (tapIn) {
-      currentStatus = "PRESENT";
+      currentStatus = tapIn.status === AttendanceScanStatus.LATE ? "LATE" : "PRESENT";
     } else if (tapOut) {
       currentStatus = "OUT_ONLY";
     } else if (lastScan?.status === AttendanceScanStatus.BLOCKED) {
-      currentStatus = "BLOCKED";
+      currentStatus = lastScan.reason === "attendance cut-off passed" ? "ABSENT" : "BLOCKED";
     } else if (lastScan?.status === AttendanceScanStatus.DUPLICATE) {
       currentStatus = "DUPLICATE";
     } else {
@@ -529,11 +599,12 @@ export async function getAttendanceRegister(
     };
   });
   const present = rows.filter((r) => r.currentStatus === "PRESENT").length;
+  const late = rows.filter((r) => r.currentStatus === "LATE").length;
   const out = rows.filter((r) => r.currentStatus === "OUT" || r.currentStatus === "OUT_ONLY").length;
   const absent = rows.filter((r) => r.currentStatus === "ABSENT").length;
   return {
     date: dateLabel,
-    summary: { totalStudents: students.length, present, out, absent, blockedScans, duplicateScans },
+    summary: { totalStudents: students.length, present: present + late, out, absent, blockedScans, duplicateScans },
     rows,
   };
 }
@@ -543,7 +614,7 @@ export async function listAttendanceClasses(
   db: NfcOperationsClient = defaultPrisma,
 ) {
   const schoolId = requireSchoolId(ctx);
-  requirePermission(ctx, "nfc.devices.manage");
+  requireAnyPermission(ctx, ["nfc.devices.manage", "nfc.fee-holds.manage"]);
   const classes = await db.schoolClass.findMany({
     where: { schoolId },
     orderBy: { level: "asc" },
@@ -902,7 +973,7 @@ export async function scanGate(
   const schoolId = requireSchoolId(ctx);
   requirePermission(ctx, "nfc.gate.scan");
 
-  const target = await resolveNfcScanTarget(db, schoolId, input.tokenOrUid);
+  const target = await resolveNfcScanTarget(db, schoolId, input.tokenOrUid, { applyFeeHoldBlocking: true });
   const result = target && !target.blocked ? GateScanResult.ALLOWED : GateScanResult.BLOCKED;
   const reason = target ? target.reason : "unknown token";
 
@@ -916,6 +987,16 @@ export async function scanGate(
       reason,
     },
   });
+
+  if (result === GateScanResult.BLOCKED) {
+    await db.auditLog.create({
+      data: {
+        schoolId,
+        action: "nfc_gate.blocked",
+        details: { studentId: target?.student.id ?? null, reason, actor: { id: ctx.actorId ?? null } },
+      },
+    });
+  }
 
   const lastAttendance = target
     ? await db.studentAttendanceEvent.findFirst({ where: { schoolId, studentId: target.student.id }, orderBy: { scannedAt: "desc" } })

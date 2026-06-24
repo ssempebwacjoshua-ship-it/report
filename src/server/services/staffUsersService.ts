@@ -1,6 +1,9 @@
-import { UserRole, type PrismaClient } from "@prisma/client";
+import prismaPkg from "@prisma/client";
+import type { PrismaClient } from "@prisma/client";
 import { prisma as defaultPrisma } from "../db/prisma";
 import { hashPassword } from "./authService";
+
+const { UserRole } = prismaPkg;
 
 type StaffContext = {
   schoolId?: string | null;
