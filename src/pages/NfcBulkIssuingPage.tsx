@@ -20,9 +20,9 @@ function statusTone(status: string) {
 }
 
 function exportCsv(batch: NfcTagBatchSummary, tags: NfcTag[]) {
-  const rows = [["Label", "Public Code", "Written URL", "Physical UID", "Status"]];
+  const rows = [["Label", "Public Code", "Written Payload", "Written URL", "Physical UID", "Status"]];
   for (const t of tags) {
-    rows.push([t.label ?? "", t.publicCode, t.writtenUrl ?? "", t.physicalUid ?? "", t.status]);
+    rows.push([t.label ?? "", t.publicCode, t.writtenPayload ?? "", t.writtenUrl ?? "", t.physicalUid ?? "", t.status]);
   }
   const csv = rows.map((r) => r.map((cell) => `"${cell.replace(/"/g, '""')}"`).join(",")).join("\n");
   const blob = new Blob([csv], { type: "text/csv" });
@@ -226,9 +226,11 @@ export function NfcBulkIssuingPage() {
         <div className="premium-card rounded-xl p-5">
           <h2 className="text-base font-bold text-slate-950">Create URL Tag Batch</h2>
           <p className="mt-1 text-sm text-slate-500">
-            Generates NFC tag records with unique tap URLs (e.g.{" "}
-            <code className="rounded bg-slate-100 px-1 text-xs">/t/abc123…</code>). Print and write these URLs to
-            physical NFC stickers or cards.
+            Generates NFC tag records. Each tag gets an NFC text payload{" "}
+            <code className="rounded bg-slate-100 px-1 text-xs">SCNFC:&lt;code&gt;</code> — write this to the physical
+            chip. A tap URL (e.g.{" "}
+            <code className="rounded bg-slate-100 px-1 text-xs">/t/abc123…</code>) is also generated as a fallback for
+            URL-mode readers.
           </p>
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
             <label className="grid gap-1 text-xs font-bold uppercase text-slate-500">
@@ -496,6 +498,7 @@ export function NfcBulkIssuingPage() {
                       {drillBatch.tagMode === "UID" ? "Physical UID" : "Public Code"}
                     </th>
                     <th className="px-3 py-2">Label</th>
+                    {drillBatch.tagMode !== "UID" ? <th className="px-3 py-2">NFC Payload</th> : null}
                     <th className="px-3 py-2">Status</th>
                     <th className="px-3 py-2">Assigned to</th>
                     <th className="px-3 py-2">Assigned at</th>
@@ -508,6 +511,11 @@ export function NfcBulkIssuingPage() {
                         {drillBatch.tagMode === "UID" ? t.physicalUid ?? "—" : t.publicCode}
                       </td>
                       <td className="border-y border-slate-200 px-3 py-2 text-slate-600">{t.label ?? "—"}</td>
+                      {drillBatch.tagMode !== "UID" ? (
+                        <td className="border-y border-slate-200 px-3 py-2 font-mono text-xs text-slate-600">
+                          {t.writtenPayload ?? "—"}
+                        </td>
+                      ) : null}
                       <td className="border-y border-slate-200 px-3 py-2">
                         <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-bold ${statusTone(t.status)}`}>
                           {t.status}
@@ -525,7 +533,7 @@ export function NfcBulkIssuingPage() {
                     <tr>
                       <td
                         className="rounded-xl border border-slate-200 bg-white px-3 py-6 text-center text-sm text-slate-500"
-                        colSpan={5}
+                        colSpan={drillBatch.tagMode !== "UID" ? 6 : 5}
                       >
                         No tags match this filter.
                       </td>

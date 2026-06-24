@@ -9,7 +9,10 @@ export type NfcTagBatchContext = {
   role?: string | null;
 };
 
-type BatchClient = Pick<PrismaClient, "nfcTagBatch" | "nfcTag" | "student" | "studentCredential" | "auditLog">;
+type TxClient = Pick<PrismaClient, "nfcTagBatch" | "nfcTag" | "student" | "studentCredential" | "auditLog">;
+type BatchClient = TxClient & {
+  $transaction: <T>(fn: (tx: TxClient) => Promise<T>) => Promise<T>;
+};
 
 export type TagMode = "URL" | "UID";
 
@@ -183,33 +186,37 @@ export async function createUrlTagBatch(
     throw Object.assign(new Error("Quantity must be between 1 and 500."), { status: 400 });
   }
 
-  const batch = await db.nfcTagBatch.create({
-    data: { schoolId, name: name.trim(), tagMode: "URL", quantity, createdById: ctx.actorId ?? null },
-  });
+  const { batch, tags } = await db.$transaction(async (tx) => {
+    const batch = await tx.nfcTagBatch.create({
+      data: { schoolId, name: name.trim(), tagMode: "URL", quantity, createdById: ctx.actorId ?? null },
+    });
 
-  const tags = await Promise.all(
-    Array.from({ length: quantity }, async (_, i) => {
-      const publicCode = generatePublicCode();
-      const writtenUrl = `${baseUrl}/t/${publicCode}`;
-      const writtenPayload = makeOperationalPayload(publicCode);
-      const label = labelPrefix ? `${labelPrefix.trim()}-${String(i + 1).padStart(4, "0")}` : null;
-      return db.nfcTag.create({
-        data: {
-          schoolId,
-          batchId: batch.id,
-          publicCode,
-          tagMode: "URL",
-          label,
-          writtenUrl,
-          writtenPayload,
-          status: "GENERATED",
-          issuedAt: new Date(),
-          createdById: ctx.actorId ?? null,
-        },
-        include: tagWithStudentInclude,
-      });
-    }),
-  );
+    const tags = await Promise.all(
+      Array.from({ length: quantity }, async (_, i) => {
+        const publicCode = generatePublicCode();
+        const writtenUrl = `${baseUrl}/t/${publicCode}`;
+        const writtenPayload = makeOperationalPayload(publicCode);
+        const label = labelPrefix ? `${labelPrefix.trim()}-${String(i + 1).padStart(4, "0")}` : null;
+        return tx.nfcTag.create({
+          data: {
+            schoolId,
+            batchId: batch.id,
+            publicCode,
+            tagMode: "URL",
+            label,
+            writtenUrl,
+            writtenPayload,
+            status: "GENERATED",
+            issuedAt: new Date(),
+            createdById: ctx.actorId ?? null,
+          },
+          include: tagWithStudentInclude,
+        });
+      }),
+    );
+
+    return { batch, tags };
+  });
 
   await auditTagAction(db, ctx, "nfc_tag.batch_created", {
     batchId: batch.id,
@@ -282,33 +289,37 @@ export async function bulkImportUids(
     );
   }
 
-  const batch = await db.nfcTagBatch.create({
-    data: {
-      schoolId,
-      name: batchName.trim(),
-      tagMode: "UID",
-      quantity: normalized.length,
-      createdById: ctx.actorId ?? null,
-    },
-  });
+  const { batch, tags } = await db.$transaction(async (tx) => {
+    const batch = await tx.nfcTagBatch.create({
+      data: {
+        schoolId,
+        name: batchName.trim(),
+        tagMode: "UID",
+        quantity: normalized.length,
+        createdById: ctx.actorId ?? null,
+      },
+    });
 
-  const tags = await Promise.all(
-    normalized.map((uid) =>
-      db.nfcTag.create({
-        data: {
-          schoolId,
-          batchId: batch.id,
-          publicCode: generatePublicCode(), // required by DB NOT NULL; never written to tag
-          physicalUid: uid,
-          tagMode: "UID",
-          status: "REGISTERED",
-          issuedAt: new Date(),
-          createdById: ctx.actorId ?? null,
-        },
-        include: tagWithStudentInclude,
-      }),
-    ),
-  );
+    const tags = await Promise.all(
+      normalized.map((uid) =>
+        tx.nfcTag.create({
+          data: {
+            schoolId,
+            batchId: batch.id,
+            publicCode: generatePublicCode(), // required by DB NOT NULL; never written to tag
+            physicalUid: uid,
+            tagMode: "UID",
+            status: "REGISTERED",
+            issuedAt: new Date(),
+            createdById: ctx.actorId ?? null,
+          },
+          include: tagWithStudentInclude,
+        }),
+      ),
+    );
+
+    return { batch, tags };
+  });
 
   await auditTagAction(db, ctx, "nfc_tag.registered", {
     batchId: batch.id,
@@ -367,6 +378,8 @@ export async function listTagBatches(
         (statusCounts["UNALLOCATED"] ?? 0) +
         (statusCounts["REGISTERED"] ?? 0) +
         (statusCounts["GENERATED"] ?? 0) +
+        (statusCounts["WRITTEN"] ?? 0) +
+        (statusCounts["VERIFIED"] ?? 0) +
         (statusCounts["UNASSIGNED"] ?? 0); // legacy
       const assigned = (statusCounts["ASSIGNED"] ?? 0);
       const disabled = (statusCounts["DISABLED"] ?? 0);
@@ -579,14 +592,19 @@ export async function bulkAllocateFromInventory(
     seenStudentIds.add(studentId);
   }
 
-  const results: ReturnType<typeof serializeTag>[] = [];
-  const credentialIds: string[] = [];
+  // ── Phase 1: Pre-validate ALL rows (reads only; fail fast before any writes) ──
+  type ValidatedRow = {
+    tagId: string;
+    studentId: string;
+    tag: { id: string; schoolId: string; tagMode: string; physicalUid: string | null; publicCode: string; status: string };
+    deactivatedCredId: string | null;
+  };
+  const validated: ValidatedRow[] = [];
 
   for (let i = 0; i < input.assignments.length; i++) {
     const { tagId, studentId } = input.assignments[i];
     const rowLabel = `Row ${i + 1}`;
 
-    // Load tag
     const tag = await db.nfcTag.findFirst({ where: { id: tagId, schoolId } });
     if (!tag) throw Object.assign(new Error(`${rowLabel}: NFC tag not found.`), { status: 404 });
 
@@ -597,19 +615,16 @@ export async function bulkAllocateFromInventory(
       );
     }
 
-    // Load student
-    const student = await db.student.findFirst({
-      where: { id: studentId, schoolId, isActive: true },
-    });
+    const student = await db.student.findFirst({ where: { id: studentId, schoolId, isActive: true } });
     if (!student) throw Object.assign(new Error(`${rowLabel}: Student not found or inactive.`), { status: 404 });
 
-    // For UID-mode tags: create StudentCredential
+    let deactivatedCredId: string | null = null;
+
     if (tag.tagMode === "UID") {
       if (!tag.physicalUid) {
         throw Object.assign(new Error(`${rowLabel}: UID-mode tag has no physicalUid set.`), { status: 400 });
       }
 
-      // Check if student already has an active NFC_WRISTBAND credential
       const existingCred = await db.studentCredential.findFirst({
         where: { schoolId, studentId, type: "NFC_WRISTBAND" as never, status: "ACTIVE" as never },
       });
@@ -620,14 +635,8 @@ export async function bulkAllocateFromInventory(
         );
       }
 
-      // Check if this UID is already active on another student
       const uidConflict = await db.studentCredential.findFirst({
-        where: {
-          schoolId,
-          type: "NFC_WRISTBAND" as never,
-          status: "ACTIVE" as never,
-          credentialUID: tag.physicalUid,
-        },
+        where: { schoolId, type: "NFC_WRISTBAND" as never, status: "ACTIVE" as never, credentialUID: tag.physicalUid },
       });
       if (uidConflict) {
         throw Object.assign(
@@ -636,51 +645,69 @@ export async function bulkAllocateFromInventory(
         );
       }
 
-      // Reactivate deactivated credential with same UID, or create new
       const deactivated = await db.studentCredential.findFirst({
         where: { schoolId, studentId, type: "NFC_WRISTBAND" as never, credentialUID: tag.physicalUid, status: "DEACTIVATED" as never },
       });
-
-      let cred: { id: string };
-      if (deactivated) {
-        cred = await db.studentCredential.update({
-          where: { id: deactivated.id },
-          data: { status: "ACTIVE" as never, issuedAt: new Date(), deactivatedAt: null, deactivatedReason: null },
-        });
-      } else {
-        const { randomBytes: rb } = await import("crypto");
-        const scanToken = rb(24).toString("base64url");
-        cred = await db.studentCredential.create({
-          data: {
-            schoolId,
-            studentId,
-            type: "NFC_WRISTBAND" as never,
-            credentialUID: tag.physicalUid,
-            scanToken,
-            status: "ACTIVE" as never,
-            issuedAt: new Date(),
-            issuedById: ctx.actorId ?? null,
-          },
-        });
-      }
-      credentialIds.push(cred.id);
+      deactivatedCredId = deactivated?.id ?? null;
     }
 
-    // Update tag: ASSIGNED + link student
-    const updated = await db.nfcTag.update({
-      where: { id: tagId },
-      data: { status: "ASSIGNED", studentId, assignedAt: new Date() },
-      include: tagWithStudentInclude,
-    });
-
-    results.push(serializeTag(updated));
+    validated.push({ tagId, studentId, tag, deactivatedCredId });
   }
 
-  await auditTagAction(db, ctx, "nfc_tag.allocated", {
-    count: results.length,
-    credentialCount: credentialIds.length,
-    reason: input.reason,
+  // ── Phase 2: Write all rows atomically ────────────────────────────────────
+  const { txResults, txCredIds } = await db.$transaction(async (tx) => {
+    const txResults: ReturnType<typeof serializeTag>[] = [];
+    const txCredIds: string[] = [];
+
+    for (const { tagId, studentId, tag, deactivatedCredId } of validated) {
+      if (tag.tagMode === "UID") {
+        let cred: { id: string };
+        if (deactivatedCredId) {
+          cred = await tx.studentCredential.update({
+            where: { id: deactivatedCredId },
+            data: { status: "ACTIVE" as never, issuedAt: new Date(), deactivatedAt: null, deactivatedReason: null },
+          });
+        } else {
+          const { randomBytes: rb } = await import("crypto");
+          const scanToken = rb(24).toString("base64url");
+          cred = await tx.studentCredential.create({
+            data: {
+              schoolId,
+              studentId,
+              type: "NFC_WRISTBAND" as never,
+              credentialUID: tag.physicalUid as string,
+              scanToken,
+              status: "ACTIVE" as never,
+              issuedAt: new Date(),
+              issuedById: ctx.actorId ?? null,
+            },
+          });
+        }
+        txCredIds.push(cred.id);
+      }
+
+      const updated = await tx.nfcTag.update({
+        where: { id: tagId },
+        data: { status: "ASSIGNED", studentId, assignedAt: new Date() },
+        include: tagWithStudentInclude,
+      });
+      txResults.push(serializeTag(updated));
+    }
+
+    return { txResults, txCredIds };
   });
 
-  return { tags: results, credentialCount: credentialIds.length };
+  await auditTagAction(db, ctx, "nfc_tag.allocated", {
+    count: txResults.length,
+    credentialCount: txCredIds.length,
+    reason: input.reason,
+    assignments: validated.map((v) => ({
+      tagId: v.tagId,
+      studentId: v.studentId,
+      physicalUid: v.tag.physicalUid ?? null,
+      publicCode: v.tag.publicCode,
+    })),
+  });
+
+  return { tags: txResults, credentialCount: txCredIds.length };
 }
