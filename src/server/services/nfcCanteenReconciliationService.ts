@@ -1,7 +1,10 @@
-import { WalletTransactionType, type PrismaClient } from "@prisma/client";
+import prismaPkg from "@prisma/client";
+import type { PrismaClient } from "@prisma/client";
 import { prisma as defaultPrisma } from "../db/prisma";
 import type { SchoolUserRole } from "./authService";
 import { hasPermission } from "../../shared/permissions";
+
+const { WalletTransactionType } = prismaPkg;
 
 type ReconciliationClient = Pick<
   PrismaClient,

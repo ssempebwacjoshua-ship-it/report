@@ -1,4 +1,4 @@
-import { CredentialStatus, CredentialType } from "@prisma/client";
+import prismaPkg from "@prisma/client";
 import { Router, type ErrorRequestHandler } from "express";
 import { z } from "zod";
 import {
@@ -13,6 +13,8 @@ import {
   type CredentialScanContext,
 } from "../services/studentCredentialService";
 import { isPrismaSchemaMissingError } from "../utils/nfcSchemaCheck";
+
+const { CredentialStatus, CredentialType } = prismaPkg;
 
 const issueSchema = z.object({
   studentId: z.string().uuid(),

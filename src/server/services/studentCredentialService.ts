@@ -1,7 +1,9 @@
-import type { PrismaClient } from "@prisma/client";
-import { CredentialStatus, CredentialType, Prisma } from "@prisma/client";
+import prismaPkg from "@prisma/client";
+import type { Prisma, PrismaClient } from "@prisma/client";
 import { randomBytes } from "node:crypto";
 import { prisma as defaultPrisma } from "../db/prisma";
+
+const { CredentialStatus, CredentialType } = prismaPkg;
 
 export type StudentCredentialContext = {
   schoolId?: string | null;

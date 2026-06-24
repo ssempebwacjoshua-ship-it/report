@@ -1,4 +1,4 @@
-import { AttendanceDirection } from "@prisma/client";
+import prismaPkg from "@prisma/client";
 import { Router } from "express";
 import { z } from "zod";
 import { verifyToken } from "../services/authService";
@@ -40,6 +40,8 @@ import {
   searchNfcFeeHoldStudents,
   updateSchoolNfcPolicy,
 } from "../services/nfcPolicyService";
+
+const { AttendanceDirection } = prismaPkg;
 
 const filtersSchema = z.object({
   search: z.string().optional(),

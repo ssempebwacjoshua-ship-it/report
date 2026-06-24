@@ -1,16 +1,5 @@
-import {
-  AttendanceDirection,
-  AttendanceLateAction,
-  AttendanceScanSource,
-  AttendanceScanStatus,
-  CredentialStatus,
-  CredentialType,
-  GateScanResult,
-  StudentWalletStatus,
-  WalletTransactionType,
-  type Prisma,
-  type PrismaClient,
-} from "@prisma/client";
+import prismaPkg from "@prisma/client";
+import type { Prisma, PrismaClient } from "@prisma/client";
 import { prisma as defaultPrisma } from "../db/prisma";
 import type { SchoolUserRole } from "./authService";
 import { normalizeCredentialUID } from "./studentCredentialService";
@@ -26,6 +15,18 @@ import {
   isAfterCutoff,
   shouldBlockForFeeHold,
 } from "./nfcPolicyService";
+
+const {
+  AttendanceDirection,
+  AttendanceLateAction,
+  AttendanceScanSource,
+  AttendanceScanStatus,
+  CredentialStatus,
+  CredentialType,
+  GateScanResult,
+  StudentWalletStatus,
+  WalletTransactionType,
+} = prismaPkg;
 
 type NfcOperationsClient = Pick<
   PrismaClient,

@@ -254,7 +254,8 @@ export async function syncOfflineEvents(
         syncedItems++;
 
       } else if (event.actionType === "ATTENDANCE_SCAN") {
-        const { AttendanceDirection, AttendanceScanStatus, AttendanceScanSource } = await import("@prisma/client");
+        const prismaPkg = await import("@prisma/client");
+        const { AttendanceDirection, AttendanceScanStatus, AttendanceScanSource } = prismaPkg.default;
         const direction = (payload.direction as string) === "TAP_OUT" ? AttendanceDirection.TAP_OUT : AttendanceDirection.TAP_IN;
         const studentId = payload.studentId as string | null;
         if (!studentId) throw new Error("Missing studentId");
@@ -319,7 +320,8 @@ export async function syncOfflineEvents(
           throw Object.assign(new Error("Snapshot expired — charge rejected"), { conflict: true });
         }
 
-        const { WalletTransactionType } = await import("@prisma/client");
+        const prismaPkg = await import("@prisma/client");
+        const { WalletTransactionType } = prismaPkg.default;
         const balanceAfterCents = wallet.balanceCents - amountCents;
         await db.studentWallet.update({ where: { id: wallet.id }, data: { balanceCents: balanceAfterCents } });
         const tx = await db.studentWalletTransaction.create({
