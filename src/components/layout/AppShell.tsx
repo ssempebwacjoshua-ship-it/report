@@ -8,9 +8,9 @@ import { Topbar } from "./Topbar";
 import { SettingsProvider, useAppSettings } from "./SettingsContext";
 
 const SIDEBAR_WIDTH_KEY = "school-connect-sidebar-width";
-const DEFAULT_SIDEBAR_WIDTH = 208;
-const MIN_SIDEBAR_WIDTH = 200;
-const MAX_SIDEBAR_WIDTH = 220;
+const DEFAULT_SIDEBAR_WIDTH = 232;
+const MIN_SIDEBAR_WIDTH = 220;
+const MAX_SIDEBAR_WIDTH = 240;
 const SIDEBAR_COLLAPSED_KEY = "school-connect-sidebar-collapsed";
 
 export function AppShell() {
@@ -167,7 +167,7 @@ function AppShellInner({
 
   useEffect(() => {
     if (!settings) return;
-    const widthBySetting = { compact: 200, standard: 208, wide: 220 };
+    const widthBySetting = { compact: 220, standard: 232, wide: 240 };
     const hasManualWidth = localStorage.getItem(SIDEBAR_WIDTH_KEY);
     if (!hasManualWidth) setSidebarWidth(widthBySetting[settings.sections.appearance.sidebarWidth]);
   }, [settings, setSidebarWidth]);
@@ -189,7 +189,7 @@ function AppShellInner({
 
   return (
     <div
-      className="app-shell-root min-h-screen bg-slate-50 text-slate-950 lg:grid"
+      className="app-shell-root min-h-screen overflow-x-hidden bg-slate-50 text-slate-950 lg:grid"
       style={{ gridTemplateColumns: `${sidebarCollapsed ? 72 : sidebarWidth}px minmax(0,1fr)` }}
     >
       <Sidebar

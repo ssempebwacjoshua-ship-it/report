@@ -47,20 +47,20 @@ function NavLinkRow({
       to={to}
       title={collapsed ? label : undefined}
       onClick={onClick}
-      className={`group flex items-center gap-3 rounded-full border px-3 py-2 text-sm font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-white/80 focus-visible:ring-offset-0 ${
+      className={`group flex h-10 min-w-0 items-center gap-2 rounded-full border px-2.5 text-sm font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-white/80 focus-visible:ring-offset-0 ${
         active
           ? "border-white/25 bg-[color:var(--sc-primary-soft)] text-[color:var(--sc-primary)] shadow-[0_10px_24px_rgba(15,23,42,0.14)]"
           : "border-transparent text-white hover:border-white/10 hover:bg-white/10 hover:text-white"
       }`}
     >
       <ShellNavIcon name={icon} active={active} />
-      {!collapsed ? <span className="truncate">{label}</span> : null}
+      {!collapsed ? <span className="min-w-0 flex-1 truncate">{label}</span> : null}
     </Link>
   );
 }
 
 function ShellNavIcon({ name, active }: { name: NavItem["icon"]; active: boolean }) {
-  const className = `h-5 w-5 shrink-0 transition ${active ? "text-[color:var(--sc-primary)]" : "text-white group-hover:text-white"}`;
+  const className = `h-4 w-4 shrink-0 transition ${active ? "text-[color:var(--sc-primary)]" : "text-white group-hover:text-white"}`;
 
   switch (name) {
     case "home":
@@ -104,7 +104,18 @@ function SidebarSection({
   const items = allItems.filter((item) =>
     !item.requiredPermission || hasPermission(user?.role, item.requiredPermission),
   );
-  const sectionLabel = product === "reportLab" ? "REPORT LAB" : product === "nfc" ? "NFC OPERATIONS" : "SMART PAGES";
+  const sectionLabel = product === "reportLab" ? "REPORT LAB" : product === "nfc" ? "NFC" : "SMART PAGES";
+
+  const groupedItems = items.reduce<Record<string, NavItem[]>>((groups, item) => {
+    const key = item.section ?? "";
+    (groups[key] ??= []).push(item);
+    return groups;
+  }, {});
+  const orderedSections = items.reduce<string[]>((sections, item) => {
+    const key = item.section ?? "";
+    if (!sections.includes(key)) sections.push(key);
+    return sections;
+  }, []);
 
   if (items.length === 0) return null;
 
@@ -115,18 +126,32 @@ function SidebarSection({
           {sectionLabel}
         </div>
       ) : null}
-      <div className="grid gap-1 px-1.5">
-        {items.map((item) => (
-          <NavLinkRow
-            key={item.to}
-            to={item.to}
-            label={item.label}
-            icon={item.icon}
-            active={isActiveNavPath(pathname, item.to, item.exact)}
-            collapsed={collapsed}
-            onClick={onNavigate}
-          />
-        ))}
+      <div className="grid gap-2 px-1.5">
+        {orderedSections.map((section) => {
+          const sectionItems = groupedItems[section] ?? [];
+          return (
+            <div key={section} className="grid gap-1.5">
+              {!collapsed && section ? (
+                <div className="px-2 pt-1 text-[10px] font-black uppercase tracking-[0.16em] text-white/75">
+                  {section}
+                </div>
+              ) : null}
+              <div className="grid gap-1">
+                {sectionItems.map((item) => (
+                  <NavLinkRow
+                    key={item.to}
+                    to={item.to}
+                    label={item.label}
+                    icon={item.icon}
+                    active={isActiveNavPath(pathname, item.to, item.exact)}
+                    collapsed={collapsed}
+                    onClick={onNavigate}
+                  />
+                ))}
+              </div>
+            </div>
+          );
+        })}
       </div>
     </>
   );
@@ -149,7 +174,7 @@ export function Sidebar({ open, onClose, collapsed, onToggleCollapsed, width }: 
         onClick={onClose}
       />
       <aside
-        className={`app-shell-sidebar fixed inset-y-0 left-0 z-40 flex w-[var(--sidebar-width)] transform flex-col overflow-y-auto overscroll-contain text-white shadow-2xl transition-transform duration-200 lg:sticky lg:top-0 lg:h-screen lg:translate-x-0 ${
+        className={`app-shell-sidebar fixed inset-y-0 left-0 z-40 flex w-[var(--sidebar-width)] transform flex-col overflow-x-hidden overflow-y-auto overscroll-contain text-white shadow-2xl transition-transform duration-200 lg:sticky lg:top-0 lg:h-screen lg:translate-x-0 ${
           open ? "translate-x-0" : "-translate-x-full"
         }`}
         style={{
@@ -167,7 +192,7 @@ export function Sidebar({ open, onClose, collapsed, onToggleCollapsed, width }: 
           )}
         </div>
 
-        <nav className="mt-3 grid flex-1 content-start gap-2 overflow-y-auto px-2 pb-4">
+        <nav className="mt-2 grid flex-1 content-start gap-1.5 overflow-x-hidden overflow-y-auto px-2 pb-3">
           <SidebarSection
             product={product}
             pathname={location.pathname}
@@ -175,7 +200,7 @@ export function Sidebar({ open, onClose, collapsed, onToggleCollapsed, width }: 
             onNavigate={onClose}
           />
         </nav>
-        <div className={`${collapsed ? "px-2 py-3" : "px-3 py-3"}`}>
+        <div className={`${collapsed ? "px-2 py-2.5" : "px-3 py-2.5"}`}>
           <button
             type="button"
             aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
