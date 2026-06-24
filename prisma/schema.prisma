@@ -34,6 +34,8 @@ model School {
   studentCredentials StudentCredential[]
   studentWallets      StudentWallet[]
   studentWalletTransactions StudentWalletTransaction[]
+  nfcPolicy           SchoolNfcPolicy?
+  studentFeeHolds     StudentFeeHold[]
   canteenReconciliations CanteenReconciliation[]
   studentAttendanceEvents StudentAttendanceEvent[]
   nfcGateScans        NfcGateScan[]
@@ -129,6 +131,7 @@ model Student {
   credentials      StudentCredential[]
   wallet           StudentWallet?
   walletTransactions StudentWalletTransaction[]
+  feeHolds          StudentFeeHold[]
   attendanceEvents StudentAttendanceEvent[]
   gateScans        NfcGateScan[]
   nfcTags          NfcTag[]
@@ -307,6 +310,11 @@ model User {
   studentCredentialsIssued StudentCredential[] @relation("StudentCredentialIssuedBy")
   walletTransactions StudentWalletTransaction[] @relation("StudentWalletTransactionCashier")
   gateScans          NfcGateScan[] @relation("NfcGateScanScannedBy")
+  nfcPoliciesUpdated SchoolNfcPolicy[] @relation("SchoolNfcPolicyUpdatedBy")
+  feeHoldsCreated    StudentFeeHold[] @relation("StudentFeeHoldCreatedBy")
+  feeHoldsCleared    StudentFeeHold[] @relation("StudentFeeHoldClearedBy")
+  canteenReconciliationCashiers CanteenReconciliation[] @relation("CanteenReconciliationCashier")
+  canteenReconciliationOperators CanteenReconciliation[] @relation("CanteenReconciliationOperator")
   submittedCanteenReconciliations CanteenReconciliation[] @relation("CanteenReconciliationSubmittedBy")
   approvedCanteenReconciliations CanteenReconciliation[] @relation("CanteenReconciliationApprovedBy")
   school             School         @relation(fields: [schoolId], references: [id], onDelete: Cascade)
@@ -468,6 +476,48 @@ model StudentWalletTransaction {
   @@index([schoolId, studentId, createdAt])
   @@index([schoolId, walletId, createdAt])
   @@index([schoolId, reversalOfId])
+}
+
+model SchoolNfcPolicy {
+  id                          String                   @id @default(uuid()) @db.Uuid
+  schoolId                    String                   @unique @db.Uuid
+  feeDefaulterBlockingEnabled  Boolean                  @default(false)
+  feeDefaulterBlockScope       FeeDefaulterBlockScope   @default(DAY_SCHOLARS_ONLY)
+  attendanceTapInCutoffEnabled Boolean                  @default(false)
+  tapInCutoffTime              String?
+  cutoffLateAction             AttendanceLateAction     @default(BLOCK_AND_MARK_ABSENT)
+  timezone                     String                   @default("Africa/Kampala")
+  createdAt                    DateTime                 @default(now())
+  updatedAt                    DateTime                 @updatedAt
+  updatedByUserId              String?                  @db.Uuid
+
+  school      School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  updatedBy   User?    @relation("SchoolNfcPolicyUpdatedBy", fields: [updatedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([schoolId])
+}
+
+model StudentFeeHold {
+  id              String                @id @default(uuid()) @db.Uuid
+  schoolId        String                @db.Uuid
+  studentId       String                @db.Uuid
+  status          StudentFeeHoldStatus   @default(ACTIVE)
+  reason          String?
+  balanceDueCents Int?
+  effectiveFrom   DateTime?
+  clearedAt       DateTime?
+  createdByUserId String?               @db.Uuid
+  clearedByUserId String?               @db.Uuid
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
+
+  school      School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  student     Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  createdBy   User?    @relation("StudentFeeHoldCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  clearedBy   User?    @relation("StudentFeeHoldClearedBy", fields: [clearedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([schoolId, studentId, status])
+  @@index([schoolId, status, createdAt])
 }
 
 model CanteenReconciliation {
@@ -998,8 +1048,25 @@ enum AttendanceScanSource {
 
 enum AttendanceScanStatus {
   VALID
+  LATE
   BLOCKED
   DUPLICATE
+}
+
+enum FeeDefaulterBlockScope {
+  DAY_SCHOLARS_ONLY
+  ALL_STUDENTS
+}
+
+enum AttendanceLateAction {
+  BLOCK_AND_MARK_ABSENT
+  ALLOW_BUT_MARK_LATE
+}
+
+enum StudentFeeHoldStatus {
+  ACTIVE
+  CLEARED
+  CANCELLED
 }
 
 enum StudentType {

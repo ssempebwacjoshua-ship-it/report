@@ -37,6 +37,7 @@ function student(id = "student-a", schoolId = "school-a", active = true) {
     admissionNumber: id === "student-a" ? "A-001" : "B-001",
     firstName: id === "student-a" ? "Ada" : "Grace",
     lastName: id === "student-a" ? "Lovelace" : "Hopper",
+    studentType: id === "student-a" ? "DAY" : "BOARDING",
     isActive: active,
     enrollments: [{ class: { id: "class-a", name: "Senior 1" }, stream: { id: "stream-a", name: "A" } }],
   };
@@ -101,6 +102,20 @@ function createDb(options: { walletBalance?: number; walletStatus?: StudentWalle
     createdAt: Date;
   }> = [];
   const gateScans: unknown[] = [];
+  const policy = {
+    id: "policy-a",
+    schoolId: "school-a",
+    feeDefaulterBlockingEnabled: false,
+    feeDefaulterBlockScope: "DAY_SCHOLARS_ONLY",
+    attendanceTapInCutoffEnabled: false,
+    tapInCutoffTime: null,
+    cutoffLateAction: "BLOCK_AND_MARK_ABSENT",
+    timezone: "Africa/Kampala",
+    updatedByUserId: null,
+    createdAt: new Date("2026-06-21T08:00:00.000Z"),
+    updatedAt: new Date("2026-06-21T08:00:00.000Z"),
+  };
+  const feeHolds: Array<{ id: string; schoolId: string; studentId: string; status: string }> = [];
 
   const db = {
     $transaction: async (fn: (tx: unknown) => Promise<unknown>) => fn(db),
@@ -110,6 +125,16 @@ function createDb(options: { walletBalance?: number; walletStatus?: StudentWalle
           credential.schoolId === where.schoolId
           && where.OR.some((condition) => condition.scanToken === credential.scanToken || condition.credentialUID === credential.credentialUID),
         ) ?? null,
+    },
+    schoolNfcPolicy: {
+      upsert: async ({ create, update }: { create: Record<string, unknown>; update: Record<string, unknown> }) => {
+        Object.assign(policy, create, update);
+        return policy;
+      },
+    },
+    studentFeeHold: {
+      findFirst: async ({ where }: { where: { schoolId: string; studentId: string; status: string } }) =>
+        feeHolds.find((hold) => hold.schoolId === where.schoolId && hold.studentId === where.studentId && hold.status === where.status) ?? null,
     },
     studentWallet: {
       findFirst: async ({ where }: { where: { id?: string; studentId?: string; schoolId: string } }) =>

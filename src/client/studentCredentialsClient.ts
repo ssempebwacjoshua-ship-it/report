@@ -2,6 +2,7 @@ import type {
   AllocationResult,
   AllocationStatus,
   AttendanceDirection,
+  AttendanceLateAction,
   CredentialStatus,
   DailySummary,
   CanteenReconciliationRecord,
@@ -13,6 +14,9 @@ import type {
   NfcGateScanResponse,
   NfcTokenResolution,
   NfcWalletDashboard,
+  NfcFeeHold,
+  NfcFeeHoldListResponse,
+  NfcPolicyResponse,
   StudentWalletDetail,
   NfcWalletStudentResolution,
   NfcWalletTopUpResult,
@@ -23,6 +27,7 @@ import type {
   WalletPinStatus,
   WalletReversalResult,
   WalletTransactionListResponse,
+  AttendanceCurrentStatus,
 } from "../shared/types/studentCredentials";
 import { getApiBaseUrl, makeSchoolRequestHeaders, parseApiError } from "./apiBase";
 
@@ -170,8 +175,6 @@ export type AttendanceRegisterLastScan = {
   reason: string | null;
 };
 
-export type AttendanceCurrentStatus = "ABSENT" | "PRESENT" | "OUT" | "OUT_ONLY" | "BLOCKED" | "DUPLICATE";
-
 export type AttendanceRegisterRow = {
   student: {
     id: string;
@@ -200,6 +203,83 @@ export type AttendanceRegisterResponse = {
   };
   rows: AttendanceRegisterRow[];
 };
+
+export async function fetchNfcPolicy() {
+  const response = await fetch(`${API_BASE}/api/nfc/policy`, {
+    headers: makeSchoolRequestHeaders(),
+  });
+  if (!response.ok) throw new Error(await parseApiError(response, "Could not load NFC policy"));
+  return response.json() as Promise<NfcPolicyResponse>;
+}
+
+export async function updateNfcPolicy(input: {
+  feeDefaulterBlockingEnabled: boolean;
+  feeDefaulterBlockScope: "DAY_SCHOLARS_ONLY" | "ALL_STUDENTS";
+  attendanceTapInCutoffEnabled: boolean;
+  tapInCutoffTime?: string | null;
+  cutoffLateAction: AttendanceLateAction;
+  timezone: string;
+}) {
+  const response = await fetch(`${API_BASE}/api/nfc/policy`, {
+    method: "PUT",
+    headers: makeSchoolRequestHeaders({ "Content-Type": "application/json" }),
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) throw new Error(await parseApiError(response, "Could not save NFC policy"));
+  return response.json() as Promise<NfcPolicyResponse>;
+}
+
+export async function fetchNfcFeeHolds(filters: { search?: string; classId?: string; streamId?: string; studentType?: string; status?: string } = {}) {
+  const params = new URLSearchParams();
+  if (filters.search) params.set("search", filters.search);
+  if (filters.classId) params.set("classId", filters.classId);
+  if (filters.streamId) params.set("streamId", filters.streamId);
+  if (filters.studentType && filters.studentType !== "ALL") params.set("studentType", filters.studentType);
+  if (filters.status && filters.status !== "ALL") params.set("status", filters.status);
+  const response = await fetch(`${API_BASE}/api/nfc/fee-holds?${params.toString()}`, {
+    headers: makeSchoolRequestHeaders(),
+  });
+  if (!response.ok) throw new Error(await parseApiError(response, "Could not load fee holds"));
+  return response.json() as Promise<NfcFeeHoldListResponse>;
+}
+
+export async function searchNfcFeeHoldStudents(filters: { search?: string; classId?: string; streamId?: string; studentType?: string } = {}) {
+  const params = new URLSearchParams();
+  if (filters.search) params.set("search", filters.search);
+  if (filters.classId) params.set("classId", filters.classId);
+  if (filters.streamId) params.set("streamId", filters.streamId);
+  if (filters.studentType && filters.studentType !== "ALL") params.set("studentType", filters.studentType);
+  const response = await fetch(`${API_BASE}/api/nfc/fee-holds/students?${params.toString()}`, {
+    headers: makeSchoolRequestHeaders(),
+  });
+  if (!response.ok) throw new Error(await parseApiError(response, "Could not search students"));
+  return response.json() as Promise<{ students: Array<{ id: string; studentName: string; admissionNumber: string; className: string | null; streamName: string | null; studentType: "DAY" | "BOARDING" | null; isActive: boolean }> }>;
+}
+
+export async function createNfcFeeHold(input: {
+  studentId: string;
+  reason?: string | null;
+  balanceDueCents?: number | null;
+  effectiveFrom?: string | null;
+}) {
+  const response = await fetch(`${API_BASE}/api/nfc/fee-holds`, {
+    method: "POST",
+    headers: makeSchoolRequestHeaders({ "Content-Type": "application/json" }),
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) throw new Error(await parseApiError(response, "Could not create fee hold"));
+  return response.json() as Promise<{ feeHold: NfcFeeHold }>;
+}
+
+export async function clearNfcFeeHold(holdId: string, reason?: string | null) {
+  const response = await fetch(`${API_BASE}/api/nfc/fee-holds/${encodeURIComponent(holdId)}/clear`, {
+    method: "PATCH",
+    headers: makeSchoolRequestHeaders({ "Content-Type": "application/json" }),
+    body: JSON.stringify({ reason }),
+  });
+  if (!response.ok) throw new Error(await parseApiError(response, "Could not clear fee hold"));
+  return response.json() as Promise<{ feeHold: NfcFeeHold }>;
+}
 
 export async function fetchNfcAttendanceRegister(
   filters: { date?: string; classId?: string; streamId?: string; search?: string; studentType?: string } = {},

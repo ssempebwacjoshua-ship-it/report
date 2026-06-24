@@ -3,9 +3,12 @@ export type CredentialType = "NFC_WRISTBAND";
 export type CredentialScanStatus = "ACTIVE" | "NOT_FOUND" | "DEACTIVATED" | "STUDENT_INACTIVE";
 export type AttendanceDirection = "TAP_IN" | "TAP_OUT";
 export type AttendanceScanSource = "NFC_WRISTBAND" | "QR_FALLBACK";
-export type AttendanceScanStatus = "VALID" | "BLOCKED" | "DUPLICATE";
+export type AttendanceScanStatus = "VALID" | "LATE" | "BLOCKED" | "DUPLICATE";
 export type StudentWalletStatus = "ACTIVE" | "FROZEN";
 export type GateScanResult = "ALLOWED" | "BLOCKED";
+export type FeeDefaulterBlockScope = "DAY_SCHOLARS_ONLY" | "ALL_STUDENTS";
+export type AttendanceLateAction = "BLOCK_AND_MARK_ABSENT" | "ALLOW_BUT_MARK_LATE";
+export type StudentFeeHoldStatus = "ACTIVE" | "CLEARED" | "CANCELLED";
 
 export type StudentCredential = {
   id: string;
@@ -133,6 +136,8 @@ export type NfcAttendanceScanEvent = {
 export type NfcAttendanceScanResponse = NfcAttendanceDashboard & {
   scan: NfcAttendanceScanEvent;
 };
+
+export type AttendanceCurrentStatus = "ABSENT" | "PRESENT" | "LATE" | "OUT" | "OUT_ONLY" | "BLOCKED" | "DUPLICATE";
 
 export type NfcWalletRow = {
   student: NfcStudentSummary;
@@ -337,6 +342,45 @@ export type NfcCanteenReconciliationResponse = {
   canClose: boolean;
   canApprove: boolean;
   canReject: boolean;
+};
+
+export type NfcPolicy = {
+  id: string;
+  schoolId: string;
+  feeDefaulterBlockingEnabled: boolean;
+  feeDefaulterBlockScope: FeeDefaulterBlockScope;
+  attendanceTapInCutoffEnabled: boolean;
+  tapInCutoffTime: string | null;
+  cutoffLateAction: AttendanceLateAction;
+  timezone: string;
+  updatedByUserId: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type NfcFeeHold = {
+  id: string;
+  schoolId: string;
+  studentId: string;
+  status: StudentFeeHoldStatus;
+  reason: string | null;
+  balanceDueCents: number | null;
+  effectiveFrom: string | null;
+  clearedAt: string | null;
+  createdByUserId: string | null;
+  clearedByUserId: string | null;
+  createdAt: string;
+  updatedAt: string;
+  student: NfcStudentSummary & { studentType: "DAY" | "BOARDING" | null };
+};
+
+export type NfcPolicyResponse = {
+  policy: NfcPolicy;
+};
+
+export type NfcFeeHoldListResponse = {
+  policy: NfcPolicy;
+  feeHolds: NfcFeeHold[];
 };
 
 export type NfcWalletStudentResolution = {

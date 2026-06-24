@@ -32,6 +32,14 @@ import {
   topUpWallet,
   type NfcOperationsContext,
 } from "../services/nfcOperationsService";
+import {
+  clearStudentFeeHold,
+  createStudentFeeHold,
+  getSchoolNfcPolicy,
+  listStudentFeeHolds,
+  searchNfcFeeHoldStudents,
+  updateSchoolNfcPolicy,
+} from "../services/nfcPolicyService";
 
 const filtersSchema = z.object({
   search: z.string().optional(),
@@ -123,6 +131,34 @@ const reconciliationRejectSchema = z.object({
   notes: z.string().trim().min(1, "Rejection notes are required."),
 });
 
+const nfcPolicySchema = z.object({
+  feeDefaulterBlockingEnabled: z.boolean(),
+  feeDefaulterBlockScope: z.enum(["DAY_SCHOLARS_ONLY", "ALL_STUDENTS"]),
+  attendanceTapInCutoffEnabled: z.boolean(),
+  tapInCutoffTime: z.string().trim().nullable().optional(),
+  cutoffLateAction: z.enum(["BLOCK_AND_MARK_ABSENT", "ALLOW_BUT_MARK_LATE"]),
+  timezone: z.string().trim().min(1).default("Africa/Kampala"),
+});
+
+const feeHoldFiltersSchema = z.object({
+  search: z.string().optional(),
+  classId: z.string().uuid().optional(),
+  streamId: z.string().uuid().optional(),
+  studentType: z.enum(["ALL", "DAY", "BOARDING"]).optional(),
+  status: z.enum(["ALL", "ACTIVE", "CLEARED", "CANCELLED"]).optional(),
+});
+
+const createFeeHoldSchema = z.object({
+  studentId: z.string().uuid(),
+  reason: z.string().trim().optional().nullable(),
+  balanceDueCents: z.coerce.number().int().min(0).optional().nullable(),
+  effectiveFrom: z.string().trim().optional().nullable(),
+});
+
+const clearFeeHoldSchema = z.object({
+  reason: z.string().trim().optional().nullable(),
+});
+
 const resolveWalletStudentSchema = z
   .object({
     studentId: z.string().uuid().optional(),
@@ -203,6 +239,54 @@ export function nfcOperationsRoutes() {
   router.get("/api/nfc/classes", async (req, res, next) => {
     try {
       res.json(await listAttendanceClasses(ctx(req)));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.get("/api/nfc/policy", async (req, res, next) => {
+    try {
+      res.json(await getSchoolNfcPolicy(ctx(req)));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.put("/api/nfc/policy", async (req, res, next) => {
+    try {
+      res.json(await updateSchoolNfcPolicy(ctx(req), nfcPolicySchema.parse(req.body)));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.get("/api/nfc/fee-holds", async (req, res, next) => {
+    try {
+      res.json(await listStudentFeeHolds(ctx(req), feeHoldFiltersSchema.parse(req.query)));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.get("/api/nfc/fee-holds/students", async (req, res, next) => {
+    try {
+      res.json(await searchNfcFeeHoldStudents(ctx(req), feeHoldFiltersSchema.parse(req.query)));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/api/nfc/fee-holds", async (req, res, next) => {
+    try {
+      res.status(201).json(await createStudentFeeHold(ctx(req), createFeeHoldSchema.parse(req.body)));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.patch("/api/nfc/fee-holds/:id/clear", async (req, res, next) => {
+    try {
+      res.json(await clearStudentFeeHold(ctx(req), req.params.id, clearFeeHoldSchema.parse(req.body).reason));
     } catch (error) {
       next(error);
     }
