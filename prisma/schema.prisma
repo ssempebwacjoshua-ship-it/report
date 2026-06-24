@@ -34,6 +34,7 @@ model School {
   studentCredentials StudentCredential[]
   studentWallets      StudentWallet[]
   studentWalletTransactions StudentWalletTransaction[]
+  canteenReconciliations CanteenReconciliation[]
   studentAttendanceEvents StudentAttendanceEvent[]
   nfcGateScans        NfcGateScan[]
   nfcTags             NfcTag[]
@@ -306,6 +307,8 @@ model User {
   studentCredentialsIssued StudentCredential[] @relation("StudentCredentialIssuedBy")
   walletTransactions StudentWalletTransaction[] @relation("StudentWalletTransactionCashier")
   gateScans          NfcGateScan[] @relation("NfcGateScanScannedBy")
+  submittedCanteenReconciliations CanteenReconciliation[] @relation("CanteenReconciliationSubmittedBy")
+  approvedCanteenReconciliations CanteenReconciliation[] @relation("CanteenReconciliationApprovedBy")
   school             School         @relation(fields: [schoolId], references: [id], onDelete: Cascade)
 
   @@unique([schoolId, email])
@@ -465,6 +468,46 @@ model StudentWalletTransaction {
   @@index([schoolId, studentId, createdAt])
   @@index([schoolId, walletId, createdAt])
   @@index([schoolId, reversalOfId])
+}
+
+model CanteenReconciliation {
+  id                         String   @id @default(uuid()) @db.Uuid
+  schoolId                   String   @db.Uuid
+  date                       DateTime
+  shiftName                  String?
+  cashierUserId              String?  @db.Uuid
+  canteenOperatorUserId      String?  @db.Uuid
+  openingWalletBalanceCents  Int
+  totalTopUpsCents           Int
+  totalCashTopUpsCents       Int
+  totalMobileMoneyTopUpsCents Int
+  totalParentDepositTopUpsCents Int
+  totalAdjustmentTopUpsCents  Int
+  totalCanteenChargesCents    Int
+  totalReversalsCents        Int
+  netCanteenPayableCents     Int
+  closingWalletBalanceCents  Int
+  declaredCashCents          Int?
+  declaredMobileMoneyCents   Int?
+  varianceCents              Int
+  status                     CanteenReconciliationStatus @default(DRAFT)
+  notes                      String?
+  submittedByUserId          String?  @db.Uuid
+  approvedByUserId           String?  @db.Uuid
+  submittedAt                DateTime?
+  approvedAt                 DateTime?
+  createdAt                  DateTime @default(now())
+  updatedAt                  DateTime @updatedAt
+
+  school      School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  cashier     User?  @relation("CanteenReconciliationCashier", fields: [cashierUserId], references: [id], onDelete: SetNull)
+  operator    User?  @relation("CanteenReconciliationOperator", fields: [canteenOperatorUserId], references: [id], onDelete: SetNull)
+  submittedBy User?  @relation("CanteenReconciliationSubmittedBy", fields: [submittedByUserId], references: [id], onDelete: SetNull)
+  approvedBy  User?  @relation("CanteenReconciliationApprovedBy", fields: [approvedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([schoolId, date])
+  @@index([schoolId, status])
+  @@index([schoolId, cashierUserId, date])
 }
 
 model StudentAttendanceEvent {
@@ -1054,6 +1097,13 @@ enum PromotionDecision {
 enum PromotionActionStatus {
   APPLIED
   REVERSED
+}
+
+enum CanteenReconciliationStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  REJECTED
 }
 
 // ─── NFC Offline Mode ────────────────────────────────────────────────────────

@@ -266,6 +266,79 @@ export type DailySummary = {
   }>;
 };
 
+export type CanteenReconciliationTransactionRow = {
+  id: string;
+  time: string;
+  student: NfcStudentSummary;
+  type: WalletTransactionType;
+  method: string | null;
+  amountCents: number;
+  balanceAfterCents: number | null;
+  cashierOperator: string | null;
+  reference: string | null;
+  status: "COMPLETED" | "PENDING" | "FAILED" | "REVERSED";
+};
+
+export type CanteenReconciliationSummary = {
+  openingWalletBalanceCents: number;
+  totalTopUpsCents: number;
+  totalCashTopUpsCents: number;
+  totalMobileMoneyTopUpsCents: number;
+  totalParentDepositTopUpsCents: number;
+  totalAdjustmentTopUpsCents: number;
+  totalCanteenChargesCents: number;
+  totalReversalsCents: number;
+  netCanteenPayableCents: number;
+  closingWalletBalanceCents: number;
+  netWalletMovementCents: number;
+  declaredCashCents: number;
+  declaredMobileMoneyCents: number;
+  varianceCents: number;
+};
+
+export type CanteenReconciliationRecord = {
+  id: string;
+  schoolId: string;
+  date: string;
+  shiftName: string | null;
+  cashierUserId: string | null;
+  canteenOperatorUserId: string | null;
+  openingWalletBalanceCents: number;
+  totalTopUpsCents: number;
+  totalCashTopUpsCents: number;
+  totalMobileMoneyTopUpsCents: number;
+  totalParentDepositTopUpsCents: number;
+  totalAdjustmentTopUpsCents: number;
+  totalCanteenChargesCents: number;
+  totalReversalsCents: number;
+  netCanteenPayableCents: number;
+  closingWalletBalanceCents: number;
+  declaredCashCents: number | null;
+  declaredMobileMoneyCents: number | null;
+  varianceCents: number;
+  status: "DRAFT" | "SUBMITTED" | "APPROVED" | "REJECTED";
+  notes: string | null;
+  submittedByUserId: string | null;
+  approvedByUserId: string | null;
+  submittedAt: string | null;
+  approvedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type NfcCanteenReconciliationResponse = {
+  date: string;
+  cashierUserId: string | null;
+  cashier: { id: string; name: string } | null;
+  shiftName: string | null;
+  summary: CanteenReconciliationSummary;
+  reconciliation: CanteenReconciliationRecord | null;
+  transactions: CanteenReconciliationTransactionRow[];
+  canClose: boolean;
+  canApprove: boolean;
+  canReject: boolean;
+};
+
 export type NfcWalletStudentResolution = {
   student: NfcStudentSummary;
   wallet: { id: string; balanceCents: number; status: StudentWalletStatus; pinSet: boolean } | null;

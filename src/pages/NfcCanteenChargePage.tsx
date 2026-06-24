@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import { WifiOffRegular } from "@fluentui/react-icons";
 import { NfcScanPanel } from "../components/nfc/NfcScanPanel";
 import { useNfcScanner, type ScanResult } from "../hooks/useNfcScanner";
@@ -212,7 +213,12 @@ export function NfcCanteenChargePage() {
     <main className="grid gap-5">
       <header className="page-header">
         <p className="text-xs font-bold uppercase tracking-wide text-blue-600">NFC Operations</p>
-        <h1 className="text-xl font-bold text-slate-950 sm:text-2xl">Canteen Charge</h1>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h1 className="text-xl font-bold text-slate-950 sm:text-2xl">Canteen Charge</h1>
+          <Link to="/nfc/canteen/reconciliation" className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50">
+            Reconciliation
+          </Link>
+        </div>
       </header>
 
       {isOfflineReady && (
