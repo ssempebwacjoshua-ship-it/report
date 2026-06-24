@@ -1,5 +1,6 @@
 ﻿import type { PrismaClient } from "@prisma/client";
 import type { ReportFilters } from "../../shared/types/reports";
+import { Prisma } from "@prisma/client";
 import type { ContactReadiness } from "../../shared/types/students";
 import type { EngineInput } from "../services/reportEngine";
 import { getSettingsSections } from "./settingsRepository";
@@ -15,6 +16,12 @@ function getContactSummary(contacts: Array<{ guardianName: string; relationship:
   if (!primary) return "No guardian contacts";
   const channel = primary.phone ? primary.phone : primary.email ? primary.email : "missing phone/email";
   return `${primary.guardianName} (${primary.relationship}) - ${channel}`;
+}
+
+function isMissingPromotionTableError(error: unknown): boolean {
+  return error instanceof Prisma.PrismaClientKnownRequestError
+    && error.code === "P2021"
+    && String(error.meta?.table ?? "").includes("PromotionAction");
 }
 
 export async function loadReportEngineInput(prisma: PrismaClient, filters: ReportFilters): Promise<EngineInput> {
@@ -44,6 +51,7 @@ export async function loadReportEngineInput(prisma: PrismaClient, filters: Repor
       subjects: school?.subjects.map((subject) => ({ id: subject.id, name: subject.name, sortOrder: subject.sortOrder })) ?? [],
       marks: [],
       promotionsByStudentId: {},
+      issuedStudentIds: [],
       settings: {
         school: settings.school,
         reports: settings.reports,
@@ -80,6 +88,12 @@ export async function loadReportEngineInput(prisma: PrismaClient, filters: Repor
         },
         select: { studentId: true, decision: true, fromClassName: true, toClassName: true },
         orderBy: { createdAt: "desc" },
+      }).catch((error: unknown) => {
+        if (isMissingPromotionTableError(error)) {
+          console.warn("[reportsRepository] PromotionAction table is missing; returning reports without promotion data.");
+          return [];
+        }
+        throw error;
       })
     : [];
 
@@ -95,6 +109,22 @@ export async function loadReportEngineInput(prisma: PrismaClient, filters: Repor
       }
     }
   }
+
+  // Load student IDs of already-issued reports for this class/year/term/type
+  const issuedReports = studentIds.length > 0
+    ? await prisma.issuedReport.findMany({
+        where: {
+          schoolId: school.id,
+          studentId: { in: studentIds },
+          academicYear: academicYear.name,
+          term: term.name,
+          assessmentType: filters.assessmentType === "TERM_SUMMARY" ? "TERM_SUMMARY" : filters.assessmentType,
+          status: "ISSUED",
+        },
+        select: { studentId: true },
+      })
+    : [];
+  const issuedStudentIds = issuedReports.map((r) => r.studentId);
 
   const marks = await prisma.subjectMark.findMany({
     where: {
@@ -115,6 +145,7 @@ export async function loadReportEngineInput(prisma: PrismaClient, filters: Repor
     termName: term.name,
     hasActiveTerm: true,
     promotionsByStudentId,
+    issuedStudentIds,
     students: enrollments.map((enrollment) => ({
       id: enrollment.student.id,
       admissionNumber: enrollment.student.admissionNumber,

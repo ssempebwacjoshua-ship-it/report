@@ -1,4 +1,4 @@
-﻿import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { EmptyReportState } from "../components/reports/EmptyReportState";
 import { ReportFilters } from "../components/reports/ReportFilters";
@@ -6,7 +6,7 @@ import { StudentReportCard } from "../components/reports/StudentReportCard";
 import { StudentReportDetail } from "../components/reports/StudentReportDetail";
 import { fetchReportContext, fetchReports } from "../client/reportsClient";
 import { fetchSettings } from "../client/settingsClient";
-import { issueReport, type IssueReportResult } from "../client/issueReportClient";
+import { issueReport, bulkIssueReports, BulkIssueMissingContactError, type BlockedStudent, type IssueReportResult } from "../client/issueReportClient";
 import { getSchoolDisplayName } from "../components/layout/branding";
 import { buildParentReportReleaseMessage } from "../shared/reportReleaseMessage";
 import type {
@@ -40,6 +40,60 @@ function useDesktopMatch() {
   return matches;
 }
 
+// Modal shown when single-issue or bulk-issue is blocked due to missing contacts
+function MissingContactModal({
+  blocked,
+  onClose,
+}: {
+  blocked: BlockedStudent[];
+  onClose: () => void;
+}) {
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Missing parent contacts"
+    >
+      <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl">
+        <div className="mb-4 flex items-start justify-between gap-3">
+          <div>
+            <h2 className="text-base font-bold text-slate-900">Cannot issue reports</h2>
+            <p className="mt-1 text-sm text-red-700">
+              {blocked.length} student{blocked.length !== 1 ? "s are" : " is"} missing parent contact details.
+            </p>
+          </div>
+          <button type="button" className="text-slate-400 hover:text-slate-600" onClick={onClose} aria-label="Close">
+            ✕
+          </button>
+        </div>
+        <ul className="mb-5 max-h-64 divide-y divide-slate-100 overflow-y-auto rounded-xl border border-slate-200">
+          {blocked.map((s) => (
+            <li key={s.studentId} className="flex items-center justify-between gap-3 px-4 py-3">
+              <div>
+                <p className="text-sm font-semibold text-slate-900">{s.studentName}</p>
+                <p className="text-xs text-slate-500">{s.admissionNumber} · {s.className} {s.streamName}</p>
+                <p className="text-xs text-red-600">{s.contactSummary}</p>
+              </div>
+              <a
+                href={`/students?studentId=${encodeURIComponent(s.studentId)}`}
+                className="shrink-0 rounded-lg border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700 hover:bg-blue-100"
+              >
+                Edit contact
+              </a>
+            </li>
+          ))}
+        </ul>
+        <div className="flex gap-2">
+          <button type="button" className="btn btn-secondary flex-1" onClick={onClose}>
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function ReportsPage() {
   const [searchParams] = useSearchParams();
   const urlParams = useRef({
@@ -70,6 +124,15 @@ export function ReportsPage() {
   const [issueError, setIssueError] = useState("");
   const [copiedField, setCopiedField] = useState<string | null>(null);
 
+  // Bulk issue state
+  const [bulkSelected, setBulkSelected] = useState<Set<string>>(new Set());
+  const [bulkMode, setBulkMode] = useState(false);
+  const [bulkIssuing, setBulkIssuing] = useState(false);
+  const [bulkError, setBulkError] = useState("");
+
+  // Missing contact modal
+  const [blockedStudents, setBlockedStudents] = useState<BlockedStudent[] | null>(null);
+
   useEffect(() => {
     Promise.all([fetchReportContext(), fetchSettings()])
       .then(([loaded, settings]) => {
@@ -99,6 +162,7 @@ export function ReportsPage() {
     fetchReports(filters)
       .then((loaded) => {
         setReport(loaded);
+        setBulkSelected(new Set());
         setSelectedStudentId((current) =>
           loaded.cards.some((card) => card.studentId === current)
             ? current
@@ -150,7 +214,6 @@ export function ReportsPage() {
       if (!dragging.current || !containerRef.current) return;
       const containerWidth = containerRef.current.getBoundingClientRect().width;
       const delta = e.clientX - dragStartX.current;
-      // 10 = handle div width (w-2.5)
       const maxLeft = containerWidth - MIN_RIGHT - 10;
       const newWidth = Math.max(MIN_LEFT, Math.min(dragStartWidth.current + delta, maxLeft));
       currentWidth.current = newWidth;
@@ -178,6 +241,21 @@ export function ReportsPage() {
 
   async function handleIssueReport() {
     if (!selectedCard || !filters.classId) return;
+
+    // Preflight: block if student is missing contacts
+    if (selectedCard.contactReadiness !== "READY") {
+      setBlockedStudents([{
+        studentId: selectedCard.studentId,
+        studentName: selectedCard.studentName,
+        admissionNumber: selectedCard.admissionNumber,
+        className: selectedCard.className,
+        streamName: selectedCard.streamName,
+        contactReadiness: selectedCard.contactReadiness,
+        contactSummary: selectedCard.contactSummary,
+      }]);
+      return;
+    }
+
     setIssuing(true);
     setIssueError("");
     setIssueResult(null);
@@ -199,6 +277,48 @@ export function ReportsPage() {
     }
   }
 
+  async function handleBulkIssue() {
+    if (bulkSelected.size === 0 || !filters.classId) return;
+    setBulkIssuing(true);
+    setBulkError("");
+    try {
+      await bulkIssueReports({
+        studentIds: [...bulkSelected],
+        classId: filters.classId,
+        streamId: filters.streamId,
+        academicYearId: filters.academicYearId,
+        termId: filters.termId,
+        assessmentType: filters.assessmentType,
+      });
+      // Refresh to get updated issuedStudentIds
+      const loaded = await fetchReports(filters);
+      setReport(loaded);
+      setBulkSelected(new Set());
+      setBulkMode(false);
+    } catch (caught) {
+      if (caught instanceof Error && "blockedStudents" in caught) {
+        setBlockedStudents((caught as BulkIssueMissingContactError).blockedStudents);
+      } else {
+        setBulkError(caught instanceof Error ? caught.message : "Failed to bulk issue reports.");
+      }
+    } finally {
+      setBulkIssuing(false);
+    }
+  }
+
+  function toggleBulkStudent(id: string) {
+    setBulkSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function selectAllBulk() {
+    setBulkSelected(new Set(report?.cards.map((c) => c.studentId) ?? []));
+  }
+
   async function copyText(text: string, field: string) {
     await navigator.clipboard.writeText(text);
     setCopiedField(field);
@@ -214,8 +334,17 @@ export function ReportsPage() {
       })
     : "";
 
+  const counts = report?.readinessCounts;
+
   return (
     <main className="grid gap-4">
+      {blockedStudents ? (
+        <MissingContactModal
+          blocked={blockedStudents}
+          onClose={() => setBlockedStudents(null)}
+        />
+      ) : null}
+
       <header className="page-header flex flex-wrap items-end justify-between gap-3">
         <div>
           <p className="text-xs font-bold uppercase tracking-wide text-blue-600">
@@ -251,6 +380,13 @@ export function ReportsPage() {
           >
             {issuing ? "Issuing..." : "Issue Report Link"}
           </button>
+          <button
+            type="button"
+            className={`btn ${bulkMode ? "btn-primary" : "btn-secondary"}`}
+            onClick={() => { setBulkMode((m) => !m); setBulkSelected(new Set()); }}
+          >
+            {bulkMode ? "Cancel Bulk" : "Bulk Issue"}
+          </button>
           <a className="btn btn-secondary" href="/imports/marks">
             Marks Import
           </a>
@@ -269,6 +405,12 @@ export function ReportsPage() {
       {issueError ? (
         <div className="no-print rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 shadow-sm">
           {issueError}
+        </div>
+      ) : null}
+
+      {bulkError ? (
+        <div className="no-print rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 shadow-sm">
+          {bulkError}
         </div>
       ) : null}
 
@@ -322,7 +464,58 @@ export function ReportsPage() {
         </div>
       ) : null}
 
-      <ReportFilters context={context} filters={filters} onChange={setFilters} />
+      {/* Readiness summary counts */}
+      {counts ? (
+        <div className="no-print grid grid-cols-3 gap-2 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:grid-cols-4 md:grid-cols-7" aria-label="Readiness summary">
+          {[
+            { label: "Total", value: counts.total, color: "text-slate-700" },
+            { label: "With Reports", value: counts.withReports, color: "text-blue-700" },
+            { label: "No Reports", value: counts.noReports, color: "text-amber-600" },
+            { label: "Ready to Issue", value: counts.readyToIssue, color: "text-emerald-700" },
+            { label: "Missing Contact", value: counts.blockedContact, color: "text-red-700" },
+            { label: "Issued", value: counts.issued, color: "text-purple-700" },
+            { label: "Not Issued", value: counts.notIssued, color: "text-slate-500" },
+          ].map(({ label, value, color }) => (
+            <div key={label} className="text-center">
+              <p className={`text-xl font-black ${color}`}>{value}</p>
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">{label}</p>
+            </div>
+          ))}
+        </div>
+      ) : null}
+
+      <ReportFilters
+        context={context}
+        filters={filters}
+        onChange={setFilters}
+        readinessCounts={counts}
+      />
+
+      {bulkMode ? (
+        <div className="no-print rounded-2xl border border-blue-200 bg-blue-50 p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="text-sm font-semibold text-blue-800">
+              Bulk Issue Mode — {bulkSelected.size} of {report?.cards.length ?? 0} selected
+            </p>
+            <div className="flex gap-2">
+              <button type="button" className="btn btn-secondary text-xs" onClick={selectAllBulk}>
+                Select All
+              </button>
+              <button type="button" className="btn btn-secondary text-xs" onClick={() => setBulkSelected(new Set())}>
+                Clear
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary text-xs"
+                disabled={bulkSelected.size === 0 || bulkIssuing}
+                onClick={() => void handleBulkIssue()}
+              >
+                {bulkIssuing ? "Issuing..." : `Issue ${bulkSelected.size} Report${bulkSelected.size !== 1 ? "s" : ""}`}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       <section
         ref={containerRef}
@@ -345,19 +538,33 @@ export function ReportsPage() {
             ) : null}
             <div className="grid min-w-0 gap-2">
               {report?.cards.map((card) => (
-                <StudentReportCard
-                  key={card.studentId}
-                  card={card}
-                  selected={card.studentId === selectedStudentId}
-                  showPositions={Boolean(report?.settings.reports.showOverallPosition)}
-                  onOpen={() => setSelectedStudentId(card.studentId)}
-                />
+                <div key={card.studentId} className="relative">
+                  {bulkMode ? (
+                    <label className="absolute left-2 top-1/2 z-10 -translate-y-1/2">
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4 rounded border-slate-300 text-blue-600"
+                        checked={bulkSelected.has(card.studentId)}
+                        onChange={() => toggleBulkStudent(card.studentId)}
+                        aria-label={`Select ${card.studentName} for bulk issue`}
+                      />
+                    </label>
+                  ) : null}
+                  <div className={bulkMode ? "pl-7" : ""}>
+                    <StudentReportCard
+                      card={card}
+                      selected={card.studentId === selectedStudentId}
+                      showPositions={Boolean(report?.settings.reports.showOverallPosition)}
+                      onOpen={() => setSelectedStudentId(card.studentId)}
+                    />
+                  </div>
+                </div>
               ))}
             </div>
           </div>
         </div>
 
-        {/* Resize handle ? desktop only, hidden on print */}
+        {/* Resize handle — desktop only, hidden on print */}
         <div
           role="separator"
           aria-label="Resize panels"
@@ -387,4 +594,3 @@ export function ReportsPage() {
     </main>
   );
 }
-
