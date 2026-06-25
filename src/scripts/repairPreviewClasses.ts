@@ -17,6 +17,10 @@ import {
   isCanonicalClassCode,
   type SchoolSection,
 } from "../shared/constants/classes";
+import {
+  applySchoolStructureRepair,
+  previewSchoolStructureRepair,
+} from "../server/services/schoolStructureProvisioningService";
 import { ensureDefaultSubjectsForSections } from "../server/services/subjectProvisioningService";
 import { parseLegacyCombinedClassCode } from "../shared/utils/classStreamNormalization";
 
@@ -230,14 +234,24 @@ async function main() {
   const prisma = new PrismaClient();
 
   const args = process.argv.slice(2);
-  const schoolCodes = args.filter((arg) => !arg.startsWith("--"));
+  const schoolCodeFlagIndex = args.indexOf("--schoolCode");
+  const explicitSchoolCode = schoolCodeFlagIndex >= 0 ? args[schoolCodeFlagIndex + 1] : undefined;
+  const schoolCodes = args
+    .filter((arg, index) => !arg.startsWith("--") && index !== schoolCodeFlagIndex + 1)
+    .filter(Boolean);
   const dryRun = !args.includes("--apply");
 
   try {
-    const targets = schoolCodes.length > 0 ? schoolCodes : ["SCU-PREVIEW"];
+    const targets = explicitSchoolCode
+      ? [explicitSchoolCode]
+      : schoolCodes.length > 0
+      ? schoolCodes
+      : ["SCU-PREVIEW"];
     for (const code of targets) {
-      console.log(`\nNormalizing class/stream structure for school: ${code}`);
-      const result = await normalizeSchoolClassStreams(prisma, code, { dryRun });
+      console.log(`\nProvisioning canonical school structure for school: ${code}`);
+      const result = dryRun
+        ? await previewSchoolStructureRepair(prisma as any, code)
+        : await applySchoolStructureRepair(prisma as any, code);
       console.log(JSON.stringify({ ...result, dryRun }, null, 2));
     }
   } finally {

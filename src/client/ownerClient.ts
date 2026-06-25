@@ -31,7 +31,8 @@ export type CreateOwnerSchoolInput = {
   schoolCode: string;
   phone?: string;
   address?: string;
-  sections: Array<"NURSERY" | "PRIMARY" | "SECONDARY">;
+  sections: Array<"NURSERY" | "PRIMARY" | "SECONDARY" | "COMBINED">;
+  defaultStreamCodes?: Array<"A" | "B" | "C" | "D">;
   planCode: string;
   trialDays?: number;
   adminName: string;
@@ -45,7 +46,10 @@ export type CreateOwnerSchoolResult = {
   subscription: { id: string; planCode: string; status: string; currentPeriodEnd: string; studentLimit: number | null };
   invoice: { id: string; setupFeeUgx: number; amountUgx: number; totalUgx: number; status: string };
   admin: { id: string; email: string; name: string; mustChangePassword: boolean };
+  academicYear: { id: string; name: string };
+  activeTerm: { id: string; name: string };
   classesSeeded: number;
+  streamsSeeded: number;
 };
 
 export type OwnerUser = {

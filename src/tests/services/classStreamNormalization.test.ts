@@ -30,7 +30,7 @@ describe("class/stream normalization", () => {
     });
 
     expect(resolveCanonicalClassAndStreamInput("Primary 5 Blue", "")).toEqual({
-      className: "P5",
+      className: "Primary 5",
       classCode: "P5",
       streamName: "Blue",
       streamCode: "BLUE",

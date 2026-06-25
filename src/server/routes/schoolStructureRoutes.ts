@@ -4,17 +4,21 @@ import { z } from "zod";
 import { prisma } from "../db/prisma";
 import {
   CANONICAL_CLASSES,
+  expandSchoolSections,
   getClassesForSections,
   isCanonicalClassCode,
   type SchoolSection,
 } from "../../shared/constants/classes";
 import { getSettingsSections, patchSettingsSection } from "../repositories/settingsRepository";
-import { ensureDefaultSubjectsForSections } from "../services/subjectProvisioningService";
+import {
+  provisionCanonicalSchoolStructure,
+} from "../services/schoolStructureProvisioningService";
 
 const AVAILABLE_SECTIONS = [
   { code: "NURSERY" as const, label: "Nursery / Pre-primary" },
   { code: "PRIMARY" as const, label: "Primary" },
   { code: "SECONDARY" as const, label: "Secondary" },
+  { code: "COMBINED" as const, label: "Combined Primary + Secondary" },
 ];
 
 async function buildStructureResponse(school: { id: string; code: string; name: string }) {
@@ -81,7 +85,7 @@ async function buildStructureResponse(school: { id: string; code: string; name: 
 }
 
 const sectionsBodySchema = z.object({
-  selectedSections: z.array(z.enum(["NURSERY", "PRIMARY", "SECONDARY"])).min(1),
+  selectedSections: z.array(z.enum(["NURSERY", "PRIMARY", "SECONDARY", "COMBINED"])).min(1),
 });
 
 const streamCreateSchema = z.object({
@@ -121,7 +125,7 @@ export function schoolStructureRoutes() {
       if (!parsed.success) {
         res.status(400).json({
           success: false,
-          error: "selectedSections must be a non-empty array of NURSERY, PRIMARY, or SECONDARY.",
+          error: "selectedSections must be a non-empty array of NURSERY, PRIMARY, SECONDARY, or COMBINED.",
         });
         return;
       }
@@ -132,7 +136,8 @@ export function schoolStructureRoutes() {
 
       const currentSettings = await getSettingsSections(prisma, schoolCode);
       const currentSections = currentSettings.school.schoolSections;
-      const removedSections = currentSections.filter((s) => !newSections.includes(s));
+      const newInstructionalSections = new Set(expandSchoolSections(newSections));
+      const removedSections = expandSchoolSections(currentSections).filter((section) => !newInstructionalSections.has(section));
 
       if (removedSections.length > 0) {
         const removedCodes = new Set(getClassesForSections(removedSections).map((c) => c.code));
@@ -159,27 +164,24 @@ export function schoolStructureRoutes() {
         }
       }
 
-      const classDefs = getClassesForSections(newSections);
-      for (const def of classDefs) {
-        await prisma.schoolClass.upsert({
-          where: { schoolId_code: { schoolId: school.id, code: def.code } },
-          create: { schoolId: school.id, name: def.name, code: def.code, level: def.level },
-          update: {},
-        });
-      }
-      await ensureDefaultSubjectsForSections(
-        prisma,
-        school.id,
-        newSections,
-        classDefs.map((def) => def.code),
-      );
+      const structure = await provisionCanonicalSchoolStructure(prisma as any, school.id, {
+        sections: newSections,
+        defaultStreamCodes: ["A"],
+      });
 
       await patchSettingsSection(prisma, schoolCode, "school", {
         ...currentSettings.school,
         schoolSections: newSections,
       });
 
-      res.json(await buildStructureResponse(school));
+      res.json({
+        ...(await buildStructureResponse(school)),
+        provisioning: {
+          classesSeeded: structure.classCount,
+          streamsCreated: structure.streamCount,
+          subjectsProvisioned: structure.subjectCount,
+        },
+      });
     } catch (error) {
       next(error);
     }

@@ -122,7 +122,7 @@ describe("provisionCanonicalClasses ? nursery school", () => {
 
     const codes = upsert.mock.calls.map((c) => (c[0] as UpsertCall).create.code);
     expect(codes).toHaveLength(3);
-    expect(codes).toEqual(expect.arrayContaining(["BABY", "MIDDLE", "TOP"]));
+    expect(codes).toEqual(expect.arrayContaining(["NUR_BABY", "NUR_MIDDLE", "NUR_TOP"]));
   });
 });
 

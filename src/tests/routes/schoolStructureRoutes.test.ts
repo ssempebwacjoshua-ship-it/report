@@ -15,7 +15,7 @@ const {
   streamFindUnique,
   streamFindFirst,
   streamCreate,
-  streamDelete,
+  streamDeleteMany,
   enrollmentCount,
   markCount,
   subjectFindFirst,
@@ -34,7 +34,7 @@ const {
   streamFindUnique: vi.fn(),
   streamFindFirst: vi.fn(),
   streamCreate: vi.fn(),
-  streamDelete: vi.fn(),
+  streamDeleteMany: vi.fn(),
   enrollmentCount: vi.fn(),
   markCount: vi.fn(),
   subjectFindFirst: vi.fn(),
@@ -58,7 +58,7 @@ vi.mock("../../server/db/prisma", () => ({
       findUnique: streamFindUnique,
       findFirst: streamFindFirst,
       create: streamCreate,
-      delete: streamDelete,
+      deleteMany: streamDeleteMany,
     },
     classEnrollment: { count: enrollmentCount },
     subjectMark: { count: markCount },
@@ -99,6 +99,21 @@ const MOCK_SECONDARY_CLASSES = [
   { id: "cs5", name: "Senior 5", code: "S5", level: 24 },
   { id: "cs6", name: "Senior 6", code: "S6", level: 25 },
 ];
+const MOCK_PRIMARY_CLASSES = [
+  { id: "cp1", name: "Primary 1", code: "P1", level: 10 },
+  { id: "cp2", name: "Primary 2", code: "P2", level: 11 },
+  { id: "cp3", name: "Primary 3", code: "P3", level: 12 },
+  { id: "cp4", name: "Primary 4", code: "P4", level: 13 },
+  { id: "cp5", name: "Primary 5", code: "P5", level: 14 },
+  { id: "cp6", name: "Primary 6", code: "P6", level: 15 },
+  { id: "cp7", name: "Primary 7", code: "P7", level: 16 },
+];
+const MOCK_NURSERY_CLASSES = [
+  { id: "cn1", name: "Baby Class", code: "NUR_BABY", level: 1 },
+  { id: "cn2", name: "Middle Class", code: "NUR_MIDDLE", level: 2 },
+  { id: "cn3", name: "Top Class", code: "NUR_TOP", level: 3 },
+];
+const MOCK_ALL_CLASSES = [...MOCK_NURSERY_CLASSES, ...MOCK_PRIMARY_CLASSES, ...MOCK_SECONDARY_CLASSES];
 const MOCK_STREAMS = [
   { id: "stream-a", classId: "cs1", schoolId: "school-1", name: "A", code: "A" },
   { id: "stream-b", classId: "cs1", schoolId: "school-1", name: "B", code: "B" },
@@ -122,7 +137,15 @@ beforeEach(() => {
     updatedAt: new Date("2026-01-01"),
     updatedBy: null,
   });
-  schoolClassFindMany.mockResolvedValue(MOCK_SECONDARY_CLASSES);
+  schoolClassFindMany.mockImplementation(async ({ where }: any = {}) => {
+    let rows = [...MOCK_ALL_CLASSES];
+    if (where?.schoolId) rows = rows.filter(() => true);
+    if (where?.code?.in) {
+      const codes = new Set(where.code.in);
+      rows = rows.filter((klass) => codes.has(klass.code));
+    }
+    return rows;
+  });
   schoolClassFindFirst.mockResolvedValue(MOCK_SECONDARY_CLASSES[0]);
   schoolClassUpsert.mockResolvedValue({});
   transactionMock.mockImplementation(async (fn) =>
@@ -132,7 +155,7 @@ beforeEach(() => {
   streamFindUnique.mockResolvedValue(null);
   streamFindFirst.mockResolvedValue(MOCK_STREAMS[0]);
   streamCreate.mockResolvedValue({ id: "stream-c", schoolId: "school-1", classId: "cs1", name: "C", code: "C" });
-  streamDelete.mockResolvedValue({});
+  streamDeleteMany.mockResolvedValue({ count: 1 });
   enrollmentCount.mockResolvedValue(0);
   markCount.mockResolvedValue(0);
   subjectFindFirst.mockResolvedValue(null);
@@ -152,7 +175,7 @@ describe("GET /api/settings/school-structure", () => {
     expect(res.body.school.code).toBe("SCU-PREVIEW");
     expect(Array.isArray(res.body.selectedSections)).toBe(true);
     expect(Array.isArray(res.body.canonicalClasses)).toBe(true);
-    expect(res.body.availableSections).toHaveLength(3);
+    expect(res.body.availableSections).toHaveLength(4);
   });
 
   it("returns 404 when school not found", async () => {
@@ -291,6 +314,7 @@ describe("PATCH /api/settings/school-structure", () => {
 
 describe("POST /api/settings/school-structure/streams", () => {
   it("creates a stream and returns 201", async () => {
+    streamFindFirst.mockResolvedValueOnce(null);
     const res = await supertest(createApp())
       .post("/api/settings/school-structure/streams")
       .send({ schoolCode: "SCU-PREVIEW", classId: "cs1", name: "C", code: "C" });
@@ -303,7 +327,7 @@ describe("POST /api/settings/school-structure/streams", () => {
   });
 
   it("returns 409 when stream code already exists in the class", async () => {
-    streamFindUnique.mockResolvedValue({ id: "existing", classId: "cs1", code: "A" });
+    streamFindFirst.mockResolvedValue({ id: "existing", classId: "cs1", code: "A" });
     const res = await supertest(createApp())
       .post("/api/settings/school-structure/streams")
       .send({ schoolCode: "SCU-PREVIEW", classId: "cs1", name: "A", code: "A" });
@@ -338,7 +362,7 @@ describe("DELETE /api/settings/school-structure/streams/:streamId", () => {
 
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
-    expect(streamDelete).toHaveBeenCalledWith({ where: { id: "stream-a" } });
+    expect(streamDeleteMany).toHaveBeenCalledWith({ where: { id: "stream-a", schoolId: "school-1" } });
   });
 
   it("returns 409 when the stream has enrolled students", async () => {
@@ -349,7 +373,7 @@ describe("DELETE /api/settings/school-structure/streams/:streamId", () => {
 
     expect(res.status).toBe(409);
     expect(res.body.code).toBe("STREAM_HAS_DATA");
-    expect(streamDelete).not.toHaveBeenCalled();
+    expect(streamDeleteMany).not.toHaveBeenCalled();
   });
 
   it("returns 409 when the stream has marks", async () => {

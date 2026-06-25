@@ -437,7 +437,7 @@ describe("GET /api/marks-import/scan/options", () => {
       (call) => (call[0] as { create: { code: string } }).create.code,
     );
     expect(upsertedCodes).toHaveLength(3);
-    expect(upsertedCodes).toEqual(expect.arrayContaining(["BABY", "MIDDLE", "TOP"]));
+    expect(upsertedCodes).toEqual(expect.arrayContaining(["NUR_BABY", "NUR_MIDDLE", "NUR_TOP"]));
   });
 
   it("returns 200 with empty arrays when school has no subjects or terms (new school)", async () => {
