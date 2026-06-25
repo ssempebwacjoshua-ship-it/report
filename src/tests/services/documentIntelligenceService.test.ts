@@ -573,6 +573,174 @@ describe("documentIntelligenceService", () => {
     );
   });
 
+  it("does not reuse another school's cached extraction for the same file hash", async () => {
+    mockState.prisma.documentSourceFile.findFirst.mockImplementation(async ({ where }: { where: Record<string, unknown> }) => {
+      if (where.id === "source-1") {
+        return {
+          id: "source-1",
+          documentId: "doc-1",
+          originalName: "scan.png",
+          mimeType: "image/png",
+          sizeBytes: 1024,
+          status: "UPLOADED",
+          originalData: Buffer.from("original"),
+          fileHash: "hash-shared",
+          ocrQuality: { retryMode: "fast" },
+          document: {
+            id: "doc-1",
+            creatorId: "creator-1",
+            schoolId: "school-1",
+            title: "Doc A",
+            extractedKnowledge: null,
+          },
+        };
+      }
+      if (where.fileHash === "hash-shared") {
+        return {
+          id: "source-b",
+          documentId: "doc-b",
+          fileHash: "hash-shared",
+          status: "READY",
+          extractedContent: {
+            title: "School B Secret",
+            documentType: "report",
+            domain: "school",
+            sections: [],
+            tables: [],
+            statistics: [],
+            entities: [],
+            people: [],
+            dates: [],
+            handwrittenNotes: [],
+            keyFacts: [],
+            unclearItems: [],
+            rawText: "B_SECRET",
+          },
+          processedData: Buffer.from("cached"),
+          processedMimeType: "image/png",
+          extractionCompletedAt: new Date("2026-01-01T00:00:00Z"),
+          document: { id: "doc-b", creatorId: "creator-b", schoolId: "school-b" },
+        };
+      }
+      return null;
+    });
+    mockState.prisma.documentSourceFile.update.mockResolvedValue({});
+    mockState.prisma.smartDocument.update.mockResolvedValue({});
+    mockState.preprocessDocumentForOcr.mockResolvedValue({
+      processedBuffer: Buffer.from("processed"),
+      processedMimeType: "image/jpeg",
+      width: 100,
+      height: 100,
+      notes: [],
+      warning: null,
+      sectionBuffers: [],
+    });
+
+    const { extractDocumentKnowledge } = await import("../../server/services/documentGeminiService");
+    vi.mocked(extractDocumentKnowledge).mockResolvedValueOnce({
+      title: "School A Extraction",
+      documentType: "report",
+      domain: "school",
+      sections: [],
+      tables: [],
+      statistics: [],
+      entities: [],
+      people: [],
+      dates: [],
+      handwrittenNotes: [],
+      keyFacts: [],
+      unclearItems: [],
+      rawText: "A_ONLY",
+      confidence: 0.9,
+      _meta: {
+        requestedModel: "gemini-2.5-flash",
+        selectedModel: "gemini-2.5-flash",
+        attemptedModels: ["gemini-2.5-flash"],
+        retryCount: 0,
+        fallbackUsed: false,
+        fallbackReason: null,
+        providerErrorCode: null,
+        extractionTimeMs: 5,
+        tokenUsage: null,
+      },
+    } as any);
+
+    const { processSourceFileExtraction } = await import("../../server/services/documentIntelligenceService");
+    await processSourceFileExtraction("source-1");
+
+    expect(extractDocumentKnowledge).toHaveBeenCalledTimes(1);
+  });
+
+  it("reuses cached extraction inside the same school for the same file hash", async () => {
+    mockState.prisma.documentSourceFile.findFirst.mockImplementation(async ({ where }: { where: Record<string, unknown> }) => {
+      if (where.id === "source-1") {
+        return {
+          id: "source-1",
+          documentId: "doc-1",
+          originalName: "scan.png",
+          mimeType: "image/png",
+          sizeBytes: 1024,
+          status: "UPLOADED",
+          originalData: Buffer.from("original"),
+          fileHash: "hash-shared",
+          ocrQuality: { retryMode: "fast" },
+          document: {
+            id: "doc-1",
+            creatorId: "creator-1",
+            schoolId: "school-1",
+            title: "Doc A",
+            extractedKnowledge: null,
+          },
+        };
+      }
+      if (where.fileHash === "hash-shared") {
+        return {
+          id: "source-a-older",
+          documentId: "doc-a-older",
+          fileHash: "hash-shared",
+          status: "READY",
+          extractedContent: {
+            title: "Reused",
+            documentType: "report",
+            domain: "school",
+            sections: [],
+            tables: [],
+            statistics: [],
+            entities: [],
+            people: [],
+            dates: [],
+            handwrittenNotes: [],
+            keyFacts: [],
+            unclearItems: [],
+            rawText: "SAME_SCHOOL_CACHE",
+          },
+          processedData: Buffer.from("cached"),
+          processedMimeType: "image/png",
+          extractionCompletedAt: new Date("2026-01-01T00:00:00Z"),
+          document: { id: "doc-a-older", creatorId: "creator-1", schoolId: "school-1" },
+        };
+      }
+      return null;
+    });
+    mockState.prisma.documentSourceFile.update.mockResolvedValue({});
+    mockState.prisma.smartDocument.update.mockResolvedValue({});
+
+    const { extractDocumentKnowledge } = await import("../../server/services/documentGeminiService");
+    vi.mocked(extractDocumentKnowledge).mockReset();
+
+    const { processSourceFileExtraction } = await import("../../server/services/documentIntelligenceService");
+    await processSourceFileExtraction("source-1");
+
+    expect(extractDocumentKnowledge).not.toHaveBeenCalled();
+    expect(mockState.prisma.documentSourceFile.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          extractedContent: expect.objectContaining({ rawText: "SAME_SCHOOL_CACHE" }),
+        }),
+      }),
+    );
+  });
+
   it("blocks access to another school's SmartDocument", async () => {
     mockState.prisma.smartDocument.findUnique.mockResolvedValue({
       id: "doc-b",

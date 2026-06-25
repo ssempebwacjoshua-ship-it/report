@@ -528,6 +528,13 @@ export function importsRoutes() {
       }).parse(req.body);
 
       const school = req.school!;
+      const batch = payload.batchId
+        ? await findOwnedScanBatch(payload.batchId, school.id)
+        : null;
+      if (payload.batchId && !batch) {
+        res.status(404).json(importErr("BATCH_NOT_FOUND", "Scan batch not found."));
+        return;
+      }
 
       const roster = await prisma.classEnrollment.findMany({
         where: {
@@ -551,25 +558,22 @@ export function importsRoutes() {
         await recordScanDryRun(school.id, scanDryRunFingerprint(school.code, payload.context, rows));
       }
 
-      if (payload.batchId) {
-        const batch = await findOwnedScanBatch(payload.batchId, school.id);
-        if (batch) {
-          let parsed: Record<string, unknown> = {};
-          try {
-            parsed = JSON.parse(batch.summary ?? "{}") as Record<string, unknown>;
-          } catch { /* keep empty */ }
-          await prisma.markImportBatch.update({
-            where: { id: batch.id },
-            data: {
-              summary: JSON.stringify({
-                ...parsed,
-                parseStatus: parsed["parseStatus"] ?? "PARSED",
-                context: payload.context,
-                rows,
-              }),
-            },
-          });
-        }
+      if (batch) {
+        let parsed: Record<string, unknown> = {};
+        try {
+          parsed = JSON.parse(batch.summary ?? "{}") as Record<string, unknown>;
+        } catch { /* keep empty */ }
+        await prisma.markImportBatch.update({
+          where: { id: batch.id },
+          data: {
+            summary: JSON.stringify({
+              ...parsed,
+              parseStatus: parsed["parseStatus"] ?? "PARSED",
+              context: payload.context,
+              rows,
+            }),
+          },
+        });
       }
 
       res.json({
@@ -589,11 +593,19 @@ export function importsRoutes() {
   router.post("/api/imports/scans/commit", async (req, res, next) => {
     try {
       const payload = z.object({
+        batchId: z.string().optional(),
         context: scanContextSchema,
         rows: z.array(z.any()),
       }).parse(req.body);
 
       const school = req.school!;
+      const existingBatch = payload.batchId
+        ? await findOwnedScanBatch(payload.batchId, school.id)
+        : null;
+      if (payload.batchId && !existingBatch) {
+        res.status(404).json(importErr("BATCH_NOT_FOUND", "Scan batch not found."));
+        return;
+      }
       const [academicYears, classes, subjects] = await Promise.all([
         prisma.academicYear.findMany({ where: { schoolId: school.id, isActive: true }, include: { terms: { where: { isActive: true } } }, take: 1 }),
         prisma.schoolClass.findMany({ where: { schoolId: school.id }, include: { streams: true } }),
@@ -660,26 +672,39 @@ export function importsRoutes() {
         return;
       }
 
-      const batch = await prisma.markImportBatch.create({
-        data: {
-          schoolId: school.id,
-          status: "COMMITTED",
-          source: "scan",
-          summary: JSON.stringify({
-            scanMode: true,
-            context: payload.context,
-            committedRows: numericRows.length,
-            skippedRows: rows.length - numericRows.length,
-          }),
-          rows: {
-            create: rows.map((row) => ({
-              rowNumber: row.rowNumber,
-              raw: row,
-              isValid: row.status === "VALID",
-              errors: row.validationErrors,
-            })),
-          },
-        },
+      const batchSummary = JSON.stringify({
+        scanMode: true,
+        context: payload.context,
+        committedRows: numericRows.length,
+        skippedRows: rows.length - numericRows.length,
+      });
+      const batch = existingBatch
+        ? await prisma.markImportBatch.update({
+            where: { id: existingBatch.id },
+            data: {
+              status: "COMMITTED",
+              source: "scan",
+              summary: batchSummary,
+            },
+          })
+        : await prisma.markImportBatch.create({
+            data: {
+              schoolId: school.id,
+              status: "COMMITTED",
+              source: "scan",
+              summary: batchSummary,
+            },
+          });
+
+      await prisma.markImportRow.deleteMany({ where: { batchId: batch.id } });
+      await prisma.markImportRow.createMany({
+        data: rows.map((row) => ({
+          batchId: batch.id,
+          rowNumber: row.rowNumber,
+          raw: row,
+          isValid: row.status === "VALID",
+          errors: row.validationErrors,
+        })),
       });
 
       for (const row of numericRows) {
