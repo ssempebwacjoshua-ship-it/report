@@ -1,7 +1,9 @@
-﻿import type { NextFunction, Request, Response } from "express";
+import type { NextFunction, Request, Response } from "express";
 import { verifyToken } from "../services/authService";
 import jwt from "jsonwebtoken";
 import { findOrCreateSchoolOperatorCreator, findCreatorById } from "../services/documentIntelligenceService";
+import { hasPermission } from "../../shared/permissions";
+import { validateSchoolSession } from "../services/sessionValidationService";
 
 export interface CreatorContext {
   id: string;
@@ -29,21 +31,30 @@ export async function requireCreator(req: Request, res: Response, next: NextFunc
     return;
   }
 
-  // Try existing school operator JWT (has userId + schoolId)
   const schoolPayload = verifyToken(raw);
   if (schoolPayload?.userId && schoolPayload?.schoolId) {
     try {
+      const session = await validateSchoolSession(schoolPayload);
+      if (!session) {
+        res.status(401).json({ error: "Invalid or expired session." });
+        return;
+      }
+      if (!hasPermission(session.user.role, "app.admin")) {
+        res.status(403).json({ error: "You do not have permission for this action." });
+        return;
+      }
+
       const creatorId = await findOrCreateSchoolOperatorCreator(
-        schoolPayload.schoolId,
-        schoolPayload.email,
-        schoolPayload.name,
+        session.school.id,
+        session.user.email,
+        session.user.name,
       );
       req.creator = {
         id: creatorId,
         type: "SCHOOL_OPERATOR",
-        email: schoolPayload.email,
-        name: schoolPayload.name,
-        schoolId: schoolPayload.schoolId,
+        email: session.user.email,
+        name: session.user.name,
+        schoolId: session.school.id,
       };
       next();
       return;
@@ -54,7 +65,6 @@ export async function requireCreator(req: Request, res: Response, next: NextFunc
     }
   }
 
-  // Try external creator JWT (has creatorId)
   try {
     const secret = process.env.JWT_SECRET ?? "dev-secret-change-in-production";
     const payload = jwt.verify(raw, secret) as Record<string, unknown>;
@@ -80,4 +90,3 @@ export async function requireCreator(req: Request, res: Response, next: NextFunc
 
   res.status(401).json({ error: "Invalid or expired session." });
 }
-

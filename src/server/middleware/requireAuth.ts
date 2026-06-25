@@ -1,5 +1,6 @@
-﻿import type { Request, Response, NextFunction } from "express";
+import type { Request, Response, NextFunction } from "express";
 import { verifyToken, type AuthPayload } from "../services/authService";
+import { validateSchoolSession } from "../services/sessionValidationService";
 
 declare global {
   namespace Express {
@@ -9,7 +10,12 @@ declare global {
   }
 }
 
-export function requireAuth(req: Request, res: Response, next: NextFunction): void {
+export async function requireAuth(req: Request, res: Response, next: NextFunction): Promise<void> {
+  if (req.user) {
+    next();
+    return;
+  }
+
   const authHeader = req.headers.authorization;
   const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
 
@@ -24,7 +30,12 @@ export function requireAuth(req: Request, res: Response, next: NextFunction): vo
     return;
   }
 
-  req.user = payload;
+  const session = await validateSchoolSession(payload);
+  if (!session) {
+    res.status(401).json({ error: "Invalid or expired session. Please log in again." });
+    return;
+  }
+
+  req.user = session.auth;
   next();
 }
-
