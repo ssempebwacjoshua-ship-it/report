@@ -39,18 +39,11 @@ async function getSmartPagesActor(creatorId: string): Promise<SmartPagesActor> {
 }
 
 async function loadOwnedSmartDocument(actor: SmartPagesActor, documentId: string) {
-  const doc = await db.smartDocument.findUnique({ where: { id: documentId } });
+  const ownershipFilter = actor.type === "SCHOOL_OPERATOR" && actor.schoolId
+    ? { OR: [{ schoolId: actor.schoolId }, { creatorId: actor.id, schoolId: null }] }
+    : { creatorId: actor.id, schoolId: null };
+  const doc = await db.smartDocument.findFirst({ where: { id: documentId, ...ownershipFilter } });
   if (!doc) throw Object.assign(new Error("Document not found."), { status: 404 });
-
-  const schoolOwned = actor.type === "SCHOOL_OPERATOR" && actor.schoolId
-    ? doc.schoolId === actor.schoolId
-    : false;
-  const legacyOwned = doc.schoolId == null && doc.creatorId === actor.id;
-  const creatorOwned = actor.type === "EXTERNAL" && doc.creatorId === actor.id && doc.schoolId == null;
-
-  if (!schoolOwned && !legacyOwned && !creatorOwned) {
-    throw Object.assign(new Error("You do not have access to this document."), { status: 403 });
-  }
 
   return doc;
 }
@@ -555,7 +548,7 @@ async function mostActiveCollections(creatorId: string) {
 }
 
 async function resolveActiveVersion(documentId: string, activeVersionId: string | null) {
-  if (activeVersionId) return db.documentVersion.findUnique({ where: { id: activeVersionId } });
+  if (activeVersionId) return db.documentVersion.findFirst({ where: { id: activeVersionId, documentId } });
   return db.documentVersion.findFirst({ where: { documentId }, orderBy: { createdAt: "desc" } });
 }
 

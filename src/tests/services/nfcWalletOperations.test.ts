@@ -179,6 +179,22 @@ function createDb(options: { walletBalance?: number; walletStatus?: StudentWalle
         }
         return wallet;
       },
+      updateMany: async ({ where, data }: { where: { id?: string; schoolId?: string }; data: Record<string, unknown> }) => {
+        const wallet = wallets.find((item) => {
+          if (where.id && item.id !== where.id) return false;
+          if (where.schoolId && item.schoolId !== where.schoolId) return false;
+          return true;
+        });
+        if (!wallet) return { count: 0 };
+        for (const [key, value] of Object.entries(data)) {
+          if (key === "balanceCents" && value && typeof value === "object" && "increment" in value) {
+            wallet.balanceCents += Number((value as { increment: number }).increment);
+            continue;
+          }
+          Object.assign(wallet, { [key]: value });
+        }
+        return { count: 1 };
+      },
       findMany: async () => wallets,
     },
     studentWalletTransaction: {

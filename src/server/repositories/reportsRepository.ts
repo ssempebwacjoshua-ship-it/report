@@ -32,7 +32,9 @@ export async function loadReportEngineInput(prisma: PrismaClient, filters: Repor
 
   const academicYear = school?.academicYears[0] ?? null;
   const term = academicYear?.terms[0] ?? null;
-  const classRecord = filters.classId ? await prisma.schoolClass.findUnique({ where: { id: filters.classId } }) : null;
+  const classRecord = filters.classId
+    ? await prisma.schoolClass.findFirst({ where: { id: filters.classId, schoolId: school.id } })
+    : null;
 
   if (!school || !academicYear || !term || !classRecord) {
     return {

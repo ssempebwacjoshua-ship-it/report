@@ -89,14 +89,15 @@ export async function updateCollection(
 ): Promise<void> {
   const c = await db.collection.findFirst({ where: { id: collectionId, creatorId } });
   if (!c) throw Object.assign(new Error("Collection not found."), { status: 404 });
-  await db.collection.update({ where: { id: collectionId }, data: patch });
+  const updated = await db.collection.updateMany({ where: { id: collectionId, creatorId }, data: patch });
+  if (!updated.count) throw Object.assign(new Error("Collection not found."), { status: 404 });
   await upsertSearchIndex(creatorId, "COLLECTION", collectionId, patch.name ?? c.name, `${patch.name ?? c.name}\n${patch.type ?? c.type}`, { type: patch.type ?? c.type });
 }
 
 export async function deleteCollection(collectionId: string, creatorId: string): Promise<void> {
   const c = await db.collection.findFirst({ where: { id: collectionId, creatorId } });
   if (!c) throw Object.assign(new Error("Collection not found."), { status: 404 });
-  await db.collection.delete({ where: { id: collectionId } });
+  await db.collection.deleteMany({ where: { id: collectionId, creatorId } });
   await removeSearchIndex("COLLECTION", collectionId);
 }
 

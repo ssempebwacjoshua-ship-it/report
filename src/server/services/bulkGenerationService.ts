@@ -87,7 +87,8 @@ export async function createBulkJob(
 // ── Process a single job ───────────────────────────────────────────────────────
 
 export async function processJob(jobId: string): Promise<void> {
-  const job = await db.bulkGenerationJob.findUnique({ where: { id: jobId }, include: { collection: true } });
+  const findJob = db.bulkGenerationJob.findFirst ?? db.bulkGenerationJob.findUnique;
+  const job = await findJob({ where: { id: jobId }, include: { collection: true } });
   if (!job || job.status !== "PENDING") return;
 
   await db.bulkGenerationJob.update({
@@ -192,7 +193,7 @@ export async function processJob(jobId: string): Promise<void> {
     }
   }
 
-  const finalJob = await db.bulkGenerationJob.findUnique({ where: { id: jobId } });
+  const finalJob = await findJob({ where: { id: jobId } });
   const hasFailed = finalJob.failedRecords > 0;
   const hasSuccess = finalJob.processedRecords > 0;
   const finalStatus = hasFailed ? (hasSuccess ? "PARTIAL" : "FAILED") : "COMPLETED";

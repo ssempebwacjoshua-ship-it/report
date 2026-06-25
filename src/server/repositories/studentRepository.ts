@@ -107,13 +107,14 @@ async function loadStudentEnrollmentRows(
 
 async function lookupClassesAndStreams(
   prisma: PrismaClient,
+  schoolId: string,
   rows: Awaited<ReturnType<typeof loadStudentEnrollmentRows>>,
 ): Promise<{ classById: Map<string, ClassRecord>; streamById: Map<string, StreamRecord> }> {
   const classIds = [...new Set(rows.map((r) => r.classId))];
   const streamIds = [...new Set(rows.map((r) => r.streamId))];
   const [classes, streams] = await Promise.all([
-    classIds.length > 0 ? prisma.schoolClass.findMany({ where: { id: { in: classIds } } }) : Promise.resolve([]),
-    streamIds.length > 0 ? prisma.stream.findMany({ where: { id: { in: streamIds } } }) : Promise.resolve([]),
+    classIds.length > 0 ? prisma.schoolClass.findMany({ where: { id: { in: classIds }, schoolId } }) : Promise.resolve([]),
+    streamIds.length > 0 ? prisma.stream.findMany({ where: { id: { in: streamIds }, schoolId } }) : Promise.resolve([]),
   ]);
   return {
     classById: new Map(classes.map((c) => [c.id, { id: c.id, name: c.name }])),
@@ -127,7 +128,8 @@ export async function listEnrolledStudents(
   filters?: { classId?: string; streamId?: string; search?: string },
 ): Promise<StudentListItem[]> {
   const rows = await loadStudentEnrollmentRows(prisma, schoolCode, filters);
-  const { classById, streamById } = await lookupClassesAndStreams(prisma, rows);
+  const school = await prisma.school.findUnique({ where: { code: schoolCode }, select: { id: true } });
+  const { classById, streamById } = await lookupClassesAndStreams(prisma, school?.id ?? "", rows);
 
   for (const row of rows) {
     const hasClass = classById.has(row.classId);
@@ -161,7 +163,8 @@ export async function listEnrolledStudents(
 export async function getEnrolledStudent(prisma: PrismaClient, schoolCode: string, studentId: string): Promise<StudentListItem | null> {
   const rows = await loadStudentEnrollmentRows(prisma, schoolCode, { studentId });
   if (!rows[0]) return null;
-  const { classById, streamById } = await lookupClassesAndStreams(prisma, rows);
+  const school = await prisma.school.findUnique({ where: { code: schoolCode }, select: { id: true } });
+  const { classById, streamById } = await lookupClassesAndStreams(prisma, school?.id ?? "", rows);
   return toStudentListItem(rows[0], classById.get(rows[0].classId) ?? null, streamById.get(rows[0].streamId) ?? null);
 }
 
@@ -271,13 +274,17 @@ export async function upsertGuardianContact(
 
   return prisma.$transaction(async (tx) => {
     if (input.isPrimary) {
-      await tx.guardianContact.updateMany({ where: { studentId }, data: { isPrimary: false } });
+      await tx.guardianContact.updateMany({ where: { studentId, schoolId: school.id }, data: { isPrimary: false } });
     }
     if (contactId) {
-      return tx.guardianContact.update({
-        where: { id: contactId },
+      const updated = await tx.guardianContact.updateMany({
+        where: { id: contactId, schoolId: school.id, studentId },
         data: { ...input, phone: input.phone || null, email: input.email || null, notes: input.notes || null },
       });
+      if (!updated.count) throw new Error("Reports can only be issued for enrolled students.");
+      const row = await tx.guardianContact.findFirst({ where: { id: contactId, schoolId: school.id } });
+      if (!row) throw new Error("Reports can only be issued for enrolled students.");
+      return row;
     }
     return tx.guardianContact.create({
       data: {
@@ -295,6 +302,8 @@ export async function upsertGuardianContact(
 export async function deleteGuardianContact(prisma: PrismaClient, schoolCode: string, studentId: string, contactId: string) {
   const student = await getEnrolledStudent(prisma, schoolCode, studentId);
   if (!student) throw new Error("Reports can only be issued for enrolled students.");
-  await prisma.guardianContact.delete({ where: { id: contactId, studentId } });
+  const school = await prisma.school.findUniqueOrThrow({ where: { code: schoolCode }, select: { id: true } });
+  const deleted = await prisma.guardianContact.deleteMany({ where: { id: contactId, studentId, schoolId: school.id } });
+  if (!deleted.count) throw new Error("Reports can only be issued for enrolled students.");
 }
 

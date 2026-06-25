@@ -235,10 +235,14 @@ export function reportIssueRoutes() {
         return;
       }
 
-      const updated = await prisma.issuedReport.update({
-        where: { id },
+      const updated = await prisma.issuedReport.updateMany({
+        where: { id, schoolId: user.schoolId },
         data: { status: "REVOKED", updatedAt: new Date() },
       });
+      if (!updated.count) {
+        res.status(404).json({ error: "Issued report not found." });
+        return;
+      }
 
       await prisma.auditLog.create({
         data: {
@@ -249,7 +253,7 @@ export function reportIssueRoutes() {
         },
       });
 
-      res.json({ id: updated.id, status: updated.status });
+      res.json({ id, status: "REVOKED" });
     } catch (error) {
       next(error);
     }

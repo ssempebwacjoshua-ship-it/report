@@ -355,7 +355,7 @@ export function releaseCenterRoutes() {
           skipped.push({ studentId, studentName: "", reason: "No issued link" });
           continue;
         }
-        await prisma.issuedReport.update({ where: { id: record.id }, data: { sentAt: record.sentAt ?? new Date() } });
+        await prisma.issuedReport.updateMany({ where: { id: record.id, schoolId: user.schoolId }, data: { sentAt: record.sentAt ?? new Date() } });
         updated += 1;
       }
       res.json({ updated, skipped });
@@ -384,7 +384,7 @@ export function releaseCenterRoutes() {
           skipped.push({ studentId, studentName: `${record.student.firstName} ${record.student.lastName}`, reason: "Already revoked" });
           continue;
         }
-        await prisma.issuedReport.update({ where: { id: record.id }, data: { status: "REVOKED", updatedAt: new Date() } });
+        await prisma.issuedReport.updateMany({ where: { id: record.id, schoolId: user.schoolId }, data: { status: "REVOKED", updatedAt: new Date() } });
         updated += 1;
       }
       res.json({ updated, skipped });
@@ -413,12 +413,16 @@ export function releaseCenterRoutes() {
         return;
       }
 
-      const updated = await prisma.issuedReport.update({
-        where: { id },
+      const updated = await prisma.issuedReport.updateMany({
+        where: { id, schoolId: user.schoolId },
         data: { sentAt: existing.sentAt ?? new Date() },
       });
+      if (!updated.count) {
+        res.status(404).json({ error: "Issued report not found." });
+        return;
+      }
 
-      res.json({ id: updated.id, sentAt: updated.sentAt });
+      res.json({ id, sentAt: existing.sentAt ?? new Date() });
     } catch (error) {
       next(error);
     }
@@ -444,12 +448,16 @@ export function releaseCenterRoutes() {
         return;
       }
 
-      const updated = await prisma.issuedReport.update({
-        where: { id },
+      const updated = await prisma.issuedReport.updateMany({
+        where: { id, schoolId: user.schoolId },
         data: { status: "REVOKED", updatedAt: new Date() },
       });
+      if (!updated.count) {
+        res.status(404).json({ error: "Issued report not found." });
+        return;
+      }
 
-      res.json({ id: updated.id, status: updated.status });
+      res.json({ id, status: "REVOKED" });
     } catch (error) {
       next(error);
     }

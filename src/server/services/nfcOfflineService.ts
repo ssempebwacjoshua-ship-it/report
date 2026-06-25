@@ -323,7 +323,10 @@ export async function syncOfflineEvents(
         const prismaPkg = await import("@prisma/client");
         const { WalletTransactionType } = prismaPkg.default;
         const balanceAfterCents = wallet.balanceCents - amountCents;
-        await db.studentWallet.update({ where: { id: wallet.id }, data: { balanceCents: balanceAfterCents } });
+        await db.studentWallet.updateMany({
+          where: { id: wallet.id, schoolId },
+          data: { balanceCents: balanceAfterCents },
+        });
         const tx = await db.studentWalletTransaction.create({
           data: {
             schoolId,

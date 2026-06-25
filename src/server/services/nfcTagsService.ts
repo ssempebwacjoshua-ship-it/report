@@ -245,24 +245,18 @@ export async function assignTag(
     throw Object.assign(new Error("Student already has an active NFC tag assigned."), { status: 409 });
   }
 
-  const updated = await db.nfcTag.update({
-    where: { id: tagId },
+  await db.nfcTag.updateMany({
+    where: { id: tagId, schoolId },
     data: { studentId, status: "ASSIGNED", assignedAt: new Date() },
-    include: {
-      student: {
-        select: {
-          id: true,
-          admissionNumber: true,
-          firstName: true,
-          lastName: true,
-          enrollments: studentEnrollmentInclude.enrollments,
-        },
-      },
-      _count: { select: { tapEvents: true } },
-    },
   });
 
-  return serializeTag(updated);
+  return serializeTag({
+    ...tag,
+    studentId,
+    status: "ASSIGNED",
+    assignedAt: new Date(),
+    student: null,
+  } as Parameters<typeof serializeTag>[0]);
 }
 
 export async function unassignTag(
@@ -276,12 +270,12 @@ export async function unassignTag(
   const tag = await db.nfcTag.findFirst({ where: { id: tagId, schoolId } });
   if (!tag) throw Object.assign(new Error("NFC tag not found."), { status: 404 });
 
-  const updated = await db.nfcTag.update({
-    where: { id: tagId },
+  await db.nfcTag.updateMany({
+    where: { id: tagId, schoolId },
     data: { studentId: null, status: "UNASSIGNED", assignedAt: null },
   });
 
-  return { id: updated.id, status: updated.status };
+  return { id: tag.id, status: "UNASSIGNED" };
 }
 
 export async function disableTag(
@@ -295,12 +289,12 @@ export async function disableTag(
   const tag = await db.nfcTag.findFirst({ where: { id: tagId, schoolId } });
   if (!tag) throw Object.assign(new Error("NFC tag not found."), { status: 404 });
 
-  const updated = await db.nfcTag.update({
-    where: { id: tagId },
+  await db.nfcTag.updateMany({
+    where: { id: tagId, schoolId },
     data: { status: "DISABLED" },
   });
 
-  return { id: updated.id, status: updated.status };
+  return { id: tag.id, status: "DISABLED" };
 }
 
 const ENABLE_ALLOWED_ROLES = ["ADMIN_OPERATOR"];
@@ -325,8 +319,8 @@ export async function enableTag(
   }
 
   const newStatus = tag.studentId ? "ASSIGNED" : "UNASSIGNED";
-  const updated = await db.nfcTag.update({
-    where: { id: tagId },
+  await db.nfcTag.updateMany({
+    where: { id: tagId, schoolId },
     data: { status: newStatus },
   });
 
@@ -345,7 +339,7 @@ export async function enableTag(
     },
   });
 
-  return { id: updated.id, status: updated.status, alreadyActive: false };
+  return { id: tag.id, status: newStatus, alreadyActive: false };
 }
 
 export async function getTagEvents(
@@ -360,7 +354,7 @@ export async function getTagEvents(
   if (!tag) throw Object.assign(new Error("NFC tag not found."), { status: 404 });
 
   const events = await db.nfcTapEvent.findMany({
-    where: { tagId },
+    where: { tagId, schoolId },
     orderBy: { createdAt: "desc" },
     take: 100,
   });
@@ -426,7 +420,7 @@ export async function resolvePublicCode(
 
   // Update lastSeenAt on the tag
   if (tag) {
-    await db.nfcTag.update({ where: { id: tag.id }, data: { lastSeenAt: new Date() } });
+    await db.nfcTag.updateMany({ where: { id: tag.id, schoolId: tag.schoolId }, data: { lastSeenAt: new Date() } });
   }
 
   // Return student details only if authenticated and the tag is assigned

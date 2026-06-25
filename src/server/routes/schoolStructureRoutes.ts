@@ -60,8 +60,8 @@ async function buildStructureResponse(school: { id: string; code: string; name: 
     const sectionClassIds = classesWithMeta.filter((c) => c.section === section).map((c) => c.id);
     if (sectionClassIds.length === 0) continue;
     const [enrollCount, markCount] = await Promise.all([
-      prisma.classEnrollment.count({ where: { classId: { in: sectionClassIds } } }),
-      prisma.subjectMark.count({ where: { classId: { in: sectionClassIds } } }),
+      prisma.classEnrollment.count({ where: { schoolId: school.id, classId: { in: sectionClassIds } } }),
+      prisma.subjectMark.count({ where: { schoolId: school.id, classId: { in: sectionClassIds } } }),
     ]);
     if (enrollCount > 0 || markCount > 0) {
       const label = AVAILABLE_SECTIONS.find((s) => s.code === section)?.label ?? section;
@@ -142,8 +142,8 @@ export function schoolStructureRoutes() {
         if (removedDbClasses.length > 0) {
           const removedClassIds = removedDbClasses.map((c) => c.id);
           const [enrollCount, markCount] = await Promise.all([
-            prisma.classEnrollment.count({ where: { classId: { in: removedClassIds } } }),
-            prisma.subjectMark.count({ where: { classId: { in: removedClassIds } } }),
+            prisma.classEnrollment.count({ where: { schoolId: school.id, classId: { in: removedClassIds } } }),
+            prisma.subjectMark.count({ where: { schoolId: school.id, classId: { in: removedClassIds } } }),
           ]);
           if (enrollCount > 0 || markCount > 0) {
             const sectionLabels = removedSections
@@ -208,8 +208,8 @@ export function schoolStructureRoutes() {
         return;
       }
 
-      const existing = await prisma.stream.findUnique({
-        where: { classId_code: { classId, code: streamCode } },
+      const existing = await prisma.stream.findFirst({
+        where: { classId, schoolId: school.id, code: streamCode },
       });
       if (existing) {
         res.status(409).json({
@@ -246,8 +246,8 @@ export function schoolStructureRoutes() {
       }
 
       const [enrollCount, markCount] = await Promise.all([
-        prisma.classEnrollment.count({ where: { streamId } }),
-        prisma.subjectMark.count({ where: { streamId } }),
+        prisma.classEnrollment.count({ where: { schoolId: school.id, streamId } }),
+        prisma.subjectMark.count({ where: { schoolId: school.id, streamId } }),
       ]);
 
       if (enrollCount > 0 || markCount > 0) {
@@ -259,7 +259,7 @@ export function schoolStructureRoutes() {
         return;
       }
 
-      await prisma.stream.delete({ where: { id: streamId } });
+      await prisma.stream.deleteMany({ where: { id: streamId, schoolId: school.id } });
       res.json({ success: true, message: `Stream "${stream.name}" removed.` });
     } catch (error) {
       next(error);

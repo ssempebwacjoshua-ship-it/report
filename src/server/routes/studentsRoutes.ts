@@ -164,8 +164,8 @@ export function studentsRoutes() {
         return;
       }
       const name = splitName(input.fullName ?? current.studentName);
-      await prisma.student.update({
-        where: { id: current.id },
+      const updatedStudent = await prisma.student.updateMany({
+        where: { id: current.id, schoolId: school.id },
         data: {
           admissionNumber: input.admissionNumber?.trim() || current.admissionNumber,
           firstName: name.firstName,
@@ -173,6 +173,10 @@ export function studentsRoutes() {
           isActive: input.isActive ?? current.isActive,
         },
       });
+      if (!updatedStudent.count) {
+        res.status(404).json({ error: "Student not found." });
+        return;
+      }
       if (input.classId || input.streamId) {
         await prisma.classEnrollment.updateMany({
           where: { studentId: current.id, academicYear: { schoolId: school.id }, term: { isActive: true }, isActive: true, status: "ACTIVE" },

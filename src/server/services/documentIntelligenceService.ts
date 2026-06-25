@@ -111,21 +111,15 @@ async function getSmartPagesActor(creatorId: string): Promise<SmartPagesActor> {
 }
 
 async function loadOwnedSmartDocument(db: any, actor: SmartPagesActor, documentId: string, include?: Record<string, unknown>) {
-  const doc = await db.smartDocument.findUnique({
-    where: { id: documentId },
+  const ownershipFilter = actor.type === "SCHOOL_OPERATOR" && actor.schoolId
+    ? { OR: [{ schoolId: actor.schoolId }, { creatorId: actor.id, schoolId: null }] }
+    : { creatorId: actor.id, schoolId: null };
+  const findOwnedDocument = db.smartDocument.findFirst ?? db.smartDocument.findUnique;
+  const doc = await findOwnedDocument({
+    where: { id: documentId, ...ownershipFilter },
     ...(include ? { include } : {}),
   });
   if (!doc) throw Object.assign(new Error("Document not found."), { status: 404 });
-
-  const schoolOwned = actor.type === "SCHOOL_OPERATOR" && actor.schoolId
-    ? (doc.schoolId && doc.schoolId === actor.schoolId)
-    : false;
-  const legacyOwned = doc.schoolId == null && doc.creatorId === actor.id;
-  const creatorOwned = actor.type === "EXTERNAL" && doc.creatorId === actor.id && doc.schoolId == null;
-
-  if (!schoolOwned && !legacyOwned && !creatorOwned) {
-    throw Object.assign(new Error("You do not have access to this document."), { status: 403 });
-  }
 
   // Vertical cross-access guard: school operators cannot access lawyer documents.
   if (actor.type === "SCHOOL_OPERATOR" && doc.vertical === "LAWYER") {
@@ -472,7 +466,7 @@ export async function getDocument(documentId: string, creatorId: string): Promis
 
 async function resolveActiveVersion(db: any, documentId: string, activeVersionId: string | null) {
   if (activeVersionId) {
-    return db.documentVersion.findUnique({ where: { id: activeVersionId } });
+    return db.documentVersion.findFirst({ where: { id: activeVersionId, documentId } });
   }
   return db.documentVersion.findFirst({ where: { documentId }, orderBy: { createdAt: "desc" } });
 }
@@ -637,7 +631,8 @@ export function startDocumentExtractionWorker(): void {
 
 export async function processSourceFileExtraction(sourceFileId: string): Promise<void> {
   const db = prisma as any;
-  const sourceFile = await db.documentSourceFile.findUnique({ where: { id: sourceFileId }, include: { document: true } });
+  const findSourceFile = db.documentSourceFile.findFirst ?? db.documentSourceFile.findUnique;
+  const sourceFile = await findSourceFile({ where: { id: sourceFileId }, include: { document: true } });
   if (!sourceFile || sourceFile.status === "READY") return;
   const document = sourceFile.document;
   const actor = await getSmartPagesActor(document.creatorId);
@@ -648,12 +643,21 @@ export async function processSourceFileExtraction(sourceFileId: string): Promise
           where: {
             fileHash: sourceFile.fileHash,
             status: "READY",
+            document: sourceFile.document.schoolId
+              ? { schoolId: sourceFile.document.schoolId }
+              : { creatorId: sourceFile.document.creatorId, schoolId: null },
             NOT: { id: sourceFile.id },
           },
+          include: { document: { select: { id: true, creatorId: true, schoolId: true } } },
           orderBy: { extractionCompletedAt: "desc" },
         })
       : null;
-    if (cached?.extractedContent) {
+    const cacheEligible = cached
+      && (
+        (sourceFile.document.schoolId && cached.document?.schoolId === sourceFile.document.schoolId)
+        || (!sourceFile.document.schoolId && cached.document?.creatorId === sourceFile.document.creatorId && cached.document?.schoolId == null)
+      );
+    if (cacheEligible && cached.extractedContent) {
       await completeExtraction(sourceFile, cached.extractedContent as ExtractedKnowledge, actor, {
         processedData: cached.processedData,
         processedMimeType: cached.processedMimeType,
@@ -872,7 +876,8 @@ async function completeExtraction(
   },
 ) {
   const db = prisma as any;
-  const document = sourceFile.document ?? await db.smartDocument.findUnique({ where: { id: sourceFile.documentId } });
+  const findDocument = db.smartDocument.findFirst ?? db.smartDocument.findUnique;
+  const document = sourceFile.document ?? await findDocument({ where: { id: sourceFile.documentId } });
   const needsTitleUpdate = !document.title || document.title === "Untitled Document";
   const title = needsTitleUpdate && knowledge.title ? knowledge.title : document.title;
   await db.$transaction(async (tx: any) => {

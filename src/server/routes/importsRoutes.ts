@@ -107,6 +107,10 @@ async function hasRecentScanDryRun(schoolId: string, fingerprint: string) {
   return Boolean(log);
 }
 
+async function findOwnedScanBatch(batchId: string, schoolId: string) {
+  return prisma.markImportBatch.findFirst({ where: { id: batchId, schoolId } });
+}
+
 // Accept scan files up to 20 MB in memory
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -548,14 +552,14 @@ export function importsRoutes() {
       }
 
       if (payload.batchId) {
-        const batch = await prisma.markImportBatch.findUnique({ where: { id: payload.batchId } });
+        const batch = await findOwnedScanBatch(payload.batchId, school.id);
         if (batch) {
           let parsed: Record<string, unknown> = {};
           try {
             parsed = JSON.parse(batch.summary ?? "{}") as Record<string, unknown>;
           } catch { /* keep empty */ }
           await prisma.markImportBatch.update({
-            where: { id: payload.batchId },
+            where: { id: batch.id },
             data: {
               summary: JSON.stringify({
                 ...parsed,
@@ -744,7 +748,8 @@ export function importsRoutes() {
   router.get("/api/imports/scan-batches/:batchId", async (req, res, next) => {
     try {
       const { batchId } = req.params;
-      const batch = await prisma.markImportBatch.findUnique({ where: { id: batchId } });
+      const school = req.school!;
+      const batch = await findOwnedScanBatch(batchId, school.id);
       if (!batch) {
         res.status(404).json(importErr("SERVER_ERROR", `Scan batch "${batchId}" not found.`));
         return;
