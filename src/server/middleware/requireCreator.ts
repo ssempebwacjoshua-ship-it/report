@@ -60,7 +60,7 @@ export async function requireCreator(req: Request, res: Response, next: NextFunc
       return;
     } catch (err) {
       console.error("[requireCreator] findOrCreateSchoolOperatorCreator failed:", err instanceof Error ? err.message : err);
-      res.status(500).json({ error: "Failed to resolve creator context.", detail: err instanceof Error ? err.message : String(err) });
+      res.status(500).json({ error: "Failed to resolve creator context." });
       return;
     }
   }

@@ -252,4 +252,47 @@ describe("requireCreator", () => {
     expect(next).not.toHaveBeenCalled();
     expect(res.statusCode).toBe(401);
   });
+
+  it("hides internal creator resolution details from the client", async () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    mockState.verifyTokenMock.mockReturnValue({
+      userId: "user-1",
+      schoolId: "school-1",
+      email: "admin@school.test",
+      name: "School Admin",
+      role: "ADMIN_OPERATOR",
+    });
+    mockState.validateSchoolSessionMock.mockResolvedValue({
+      user: {
+        id: "user-1",
+        schoolId: "school-1",
+        email: "admin@school.test",
+        name: "School Admin",
+        role: "ADMIN_OPERATOR",
+        tokenVersion: 3,
+        isPlatformOwner: false,
+      },
+      school: { id: "school-1", code: "SCU-PREVIEW", name: "Preview", isActive: true },
+      auth: {
+        userId: "user-1",
+        schoolId: "school-1",
+        email: "admin@school.test",
+        name: "School Admin",
+        role: "ADMIN_OPERATOR",
+        tokenVersion: 3,
+      },
+    });
+    mockState.findOrCreateSchoolOperatorCreatorMock.mockRejectedValue(new Error("database exploded"));
+
+    const req = createReq("Bearer school-token");
+    const res = createRes();
+    const next = vi.fn();
+
+    await requireCreator(req, res, next);
+
+    expect(res.statusCode).toBe(500);
+    expect(res.body).toEqual({ error: "Failed to resolve creator context." });
+    expect(res.body).not.toHaveProperty("detail");
+    errorSpy.mockRestore();
+  });
 });

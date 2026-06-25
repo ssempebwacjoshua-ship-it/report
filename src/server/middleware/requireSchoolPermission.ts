@@ -4,7 +4,7 @@ import { hasPermission } from "../../shared/permissions";
 export function requireSchoolPermission(permission: string) {
   return function schoolPermissionMiddleware(req: Request, res: Response, next: NextFunction): void {
     if (!req.user) {
-      next();
+      res.status(401).json({ error: "Authentication required." });
       return;
     }
 

@@ -45,7 +45,11 @@ export async function validateSchoolSession(
       return null;
     }
 
-    const tokenVersion = payload.tokenVersion ?? 0;
+    if (typeof payload.tokenVersion !== "number") {
+      return null;
+    }
+
+    const tokenVersion = payload.tokenVersion;
     return {
       user: {
         id: payload.userId,
@@ -95,7 +99,11 @@ export async function validateSchoolSession(
     return null;
   }
 
-  if (typeof payload.tokenVersion === "number" && record.tokenVersion !== payload.tokenVersion) {
+  if (typeof payload.tokenVersion !== "number") {
+    return null;
+  }
+
+  if (record.tokenVersion !== payload.tokenVersion) {
     return null;
   }
 

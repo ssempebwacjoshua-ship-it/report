@@ -171,6 +171,24 @@ describe("authRoutes /api/auth/me", () => {
     expect(res.status).toBe(401);
   });
 
+  it("rejects missing tokenVersion", async () => {
+    mockState.verifyToken.mockReturnValue({
+      userId: "user-1",
+      schoolId: "school-1",
+      name: "Test Admin",
+      email: "admin@schoolconnect.test",
+      role: "ADMIN_OPERATOR",
+    });
+    mockState.validateSchoolSession.mockResolvedValue(null);
+
+    const res = await request(buildApp())
+      .get("/api/auth/me")
+      .set("Authorization", "Bearer missing-token-version");
+
+    expect(res.status).toBe(401);
+    expect(res.body.error).toBe("Invalid or expired session.");
+  });
+
   it("rejects inactive school", async () => {
     mockState.validateSchoolSession.mockResolvedValue(null);
 
@@ -214,6 +232,9 @@ describe("authRoutes /api/auth/me", () => {
       email: "admin@schoolconnect.test",
       role: "ADMIN_OPERATOR",
     });
+    expect(mockState.validateSchoolSession).toHaveBeenCalledWith(expect.objectContaining({
+      tokenVersion: 2,
+    }));
   });
 });
 

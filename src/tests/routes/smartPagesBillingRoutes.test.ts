@@ -101,6 +101,7 @@ async function makeToken() {
     name: "Test Admin",
     email: "admin@buluba.ac.ug",
     role: "ADMIN_OPERATOR",
+    tokenVersion: 1,
   });
 }
 
@@ -119,7 +120,7 @@ describe("PATCH /api/smart-pages/billing/payments/:paymentId/receipt", () => {
   beforeAll(async () => {
     const { createServer } = await import("../../server");
     app = createServer();
-  });
+  }, 20000);
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -292,7 +293,7 @@ describe("POST /api/owner/test-telegram", () => {
   beforeAll(async () => {
     const { createServer } = await import("../../server");
     app = createServer();
-  });
+  }, 20000);
 
   beforeEach(() => {
     vi.clearAllMocks();

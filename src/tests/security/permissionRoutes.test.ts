@@ -2,6 +2,7 @@ import express from "express";
 import request from "supertest";
 import { describe, expect, it } from "vitest";
 import { enforceSchoolRoleAccess } from "../../server/middleware/enforceSchoolRoleAccess";
+import { requireSchoolPermission } from "../../server/middleware/requireSchoolPermission";
 
 type Role = "ADMIN_OPERATOR" | "TEACHER" | "CASHIER" | "CANTEEN" | "SECURITY" | "GATE_SECURITY";
 
@@ -33,6 +34,17 @@ function buildApp(role: Role) {
 }
 
 describe("school route permissions", () => {
+  it("returns 401 when requireSchoolPermission runs without a user", async () => {
+    const app = express();
+    app.use(express.json());
+    app.use(requireSchoolPermission("app.admin"));
+    app.get("/api/settings", (_req, res) => res.json({ ok: true }));
+
+    const res = await request(app).get("/api/settings");
+    expect(res.status).toBe(401);
+    expect(res.body.error).toBe("Authentication required.");
+  });
+
   it("blocks TEACHER from student management APIs", async () => {
     const res = await request(buildApp("TEACHER")).get("/api/students");
     expect(res.status).toBe(403);
