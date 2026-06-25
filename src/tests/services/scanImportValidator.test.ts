@@ -156,7 +156,7 @@ describe("validateScanRows", () => {
       context,
       students,
     );
-    expect(result.validationErrors.some((e) => e.includes("not valid"))).toBe(true);
+    expect(result.validationErrors.some((e) => /range|100/i.test(e))).toBe(true);
     expect(result.status).toBe("INVALID");
   });
 

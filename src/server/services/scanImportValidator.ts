@@ -1,4 +1,5 @@
-﻿import type { ScanImportRow, ScanMarksheetContext } from "../../shared/types/imports";
+import type { ScanImportRow, ScanMarksheetContext } from "../../shared/types/imports";
+import { validateScoreEntry } from "./scoreValidationService";
 
 const VALID_EXAM_TYPES = new Set(["BOT", "MOT", "EOT"]);
 
@@ -7,11 +8,11 @@ function norm(v: string): string {
 }
 
 export function parseScanMark(v: string): string {
-  const t = v.trim().toUpperCase();
-  if (t === "AB" || t === "EX") return t;
-  if (t === "") return "";
-  const n = Number(t);
-  if (!Number.isNaN(n) && n >= 0 && n <= 100) return String(n);
+  const result = validateScoreEntry(v, { allowAbsent: true, allowExempt: true, allowBlank: true });
+  if (!result.valid) return "INVALID";
+  if (result.kind === "blank") return "";
+  if (result.kind === "code") return result.code;
+  if (result.kind === "numeric") return result.normalized;
   return "INVALID";
 }
 
@@ -22,17 +23,13 @@ function resolveSuggestedMark(
   const w = parseScanMark(written);
   const s = parseScanMark(split);
 
-  // Both blank ? missing mark (not an error)
+  // Both blank means the mark is still missing, not necessarily wrong.
   if (w === "" && s === "") return { suggested: "", conflict: false };
 
-  // One side is blank ? use the other
   if (w === "") return { suggested: s === "INVALID" ? "" : s, conflict: false };
   if (s === "") return { suggested: w === "INVALID" ? "" : w, conflict: false };
-
-  // Both present and agree
   if (w === s) return { suggested: w === "INVALID" ? "" : w, conflict: false };
 
-  // Both present and disagree ? needs review
   return { suggested: "", conflict: true };
 }
 
@@ -78,8 +75,11 @@ export function validateScanRows(
     const operatorMark = row.operatorCorrection.trim();
     const finalMark = operatorMark || extracted;
 
-    if (finalMark && finalMark !== "" && parseScanMark(finalMark) === "INVALID") {
-      errors.push(`Mark "${finalMark}" is not valid. Use 0–100, AB, or EX.`);
+    if (finalMark !== "") {
+      const scoreCheck = validateScoreEntry(finalMark, { allowAbsent: true, allowExempt: true });
+      if (!scoreCheck.valid) {
+        errors.push(scoreCheck.error);
+      }
     }
 
     const operatorResolved = operatorMark !== "";
@@ -114,4 +114,3 @@ export function validateScanRows(
 }
 
 export { resolveSuggestedMark as _resolveSuggestedMark };
-

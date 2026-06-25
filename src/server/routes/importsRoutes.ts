@@ -18,7 +18,7 @@ import {
 import { extractMarksFromScan } from "../services/scanExtractionService";
 import { parseScanMark, validateScanRows } from "../services/scanImportValidator";
 import { getSettingsSections } from "../repositories/settingsRepository";
-import { validateScore } from "../../shared/utils/validateScore";
+import { validateScoreEntry } from "../services/scoreValidationService";
 
 const SCAN_FILE_TYPES = new Set(["PDF", "PNG", "JPG", "JPEG", "WEBP"]);
 const SHEET_ID_NOT_DETECTED_MESSAGE =
@@ -81,6 +81,10 @@ function scanDryRunFingerprint(schoolCode: string, context: unknown, rows: unkno
   return createHash("sha256")
     .update(`${schoolCode}\n${JSON.stringify(context)}\n${JSON.stringify(rows)}`)
     .digest("hex");
+}
+
+function buildScanBatchSummary(summary: Record<string, unknown>) {
+  return JSON.stringify(summary);
 }
 
 async function recordScanDryRun(schoolId: string, fingerprint: string) {
@@ -423,7 +427,8 @@ export function importsRoutes() {
             schoolId: school.id,
             status: "DRY_RUN",
             source: "scan",
-            summary: JSON.stringify({
+            summary: buildScanBatchSummary({
+              lifecycleState: "UPLOADED",
               scanMode: true,
               parseStatus: "PARSING",
               fileName: file.originalname,
@@ -461,7 +466,8 @@ export function importsRoutes() {
         await prisma.markImportBatch.update({
           where: { id: batch.id },
           data: {
-            summary: JSON.stringify({
+            summary: buildScanBatchSummary({
+              lifecycleState: extraction.parseStatus === "PARSED" ? "PARSED" : "FAILED",
               scanMode: true,
               parseStatus: extraction.parseStatus,
               fileName: file.originalname,
@@ -566,8 +572,9 @@ export function importsRoutes() {
         await prisma.markImportBatch.update({
           where: { id: batch.id },
           data: {
-            summary: JSON.stringify({
+            summary: buildScanBatchSummary({
               ...parsed,
+              lifecycleState: "DRY_RUN",
               parseStatus: parsed["parseStatus"] ?? "PARSED",
               context: payload.context,
               rows,
@@ -659,10 +666,16 @@ export function importsRoutes() {
       }
 
       const validRows = rows.filter((row) => row.status === "VALID");
-      const numericRows = validRows.filter((row) => {
-        const mark = parseScanMark(row.operatorCorrection || row.extractedMark || row.suggestedMark || "");
-        return mark !== "" && mark !== "AB" && mark !== "EX" && mark !== "INVALID";
-      });
+      const numericRows = validRows
+        .map((row) => {
+          const rawMark = row.operatorCorrection || row.extractedMark || row.suggestedMark || "";
+          const scoreCheck = validateScoreEntry(rawMark, { allowAbsent: true, allowExempt: true });
+          if (!scoreCheck.valid || scoreCheck.kind !== "numeric") {
+            return null;
+          }
+          return { row, mark: scoreCheck.numericValue };
+        })
+        .filter((row): row is { row: typeof validRows[number]; mark: number } => Boolean(row));
 
       if (numericRows.length === 0) {
         res.status(400).json(importErr(
@@ -672,79 +685,143 @@ export function importsRoutes() {
         return;
       }
 
-      const batchSummary = JSON.stringify({
-        scanMode: true,
-        context: payload.context,
-        committedRows: numericRows.length,
-        skippedRows: rows.length - numericRows.length,
-      });
-      const batch = existingBatch
-        ? await prisma.markImportBatch.update({
-            where: { id: existingBatch.id },
-            data: {
-              status: "COMMITTED",
-              source: "scan",
-              summary: batchSummary,
-            },
-          })
-        : await prisma.markImportBatch.create({
-            data: {
-              schoolId: school.id,
-              status: "COMMITTED",
-              source: "scan",
-              summary: batchSummary,
-            },
+      let existingSummary: Record<string, unknown> = {};
+      if (existingBatch?.summary) {
+        try {
+          existingSummary = JSON.parse(existingBatch.summary) as Record<string, unknown>;
+        } catch {
+          existingSummary = {};
+        }
+      }
+
+      try {
+        await prisma.$transaction(async (tx) => {
+          const batch = existingBatch
+            ? await tx.markImportBatch.update({
+                where: { id: existingBatch.id },
+                data: {
+                  status: "DRY_RUN",
+                  source: "scan",
+                  summary: buildScanBatchSummary({
+                    ...existingSummary,
+                    lifecycleState: "COMMITTING",
+                    scanMode: true,
+                    parseStatus: existingSummary["parseStatus"] ?? "PARSED",
+                    context: payload.context,
+                    rows,
+                    committedRows: 0,
+                    skippedRows: rows.length,
+                    message: "Committing validated scan rows.",
+                  }),
+                },
+              })
+            : await tx.markImportBatch.create({
+                data: {
+                  schoolId: school.id,
+                  status: "DRY_RUN",
+                  source: "scan",
+                  summary: buildScanBatchSummary({
+                    lifecycleState: "COMMITTING",
+                    scanMode: true,
+                    parseStatus: "PARSED",
+                    context: payload.context,
+                    rows,
+                    committedRows: 0,
+                    skippedRows: rows.length,
+                    message: "Committing validated scan rows.",
+                  }),
+                },
+              });
+
+          await tx.markImportRow.deleteMany({ where: { batchId: batch.id } });
+          await tx.markImportRow.createMany({
+            data: rows.map((row) => ({
+              batchId: batch.id,
+              rowNumber: row.rowNumber,
+              raw: row,
+              isValid: row.status === "VALID",
+              errors: row.validationErrors,
+            })),
           });
 
-      await prisma.markImportRow.deleteMany({ where: { batchId: batch.id } });
-      await prisma.markImportRow.createMany({
-        data: rows.map((row) => ({
-          batchId: batch.id,
-          rowNumber: row.rowNumber,
-          raw: row,
-          isValid: row.status === "VALID",
-          errors: row.validationErrors,
-        })),
-      });
+          for (const item of numericRows) {
+            const enrollment = roster.find((entry) => entry.student.admissionNumber === item.row.admissionNumber);
+            if (!enrollment) continue;
 
-      for (const row of numericRows) {
-        const enrollment = roster.find((item) => item.student.admissionNumber === row.admissionNumber);
-        if (!enrollment) continue;
-        const rawMark = parseScanMark(row.operatorCorrection || row.extractedMark || row.suggestedMark || "");
-        const scoreCheck = validateScore(rawMark);
-        if (!scoreCheck.valid) continue;
-        const mark = scoreCheck.value;
+            await tx.subjectMark.upsert({
+              where: {
+                studentId_subjectId_termId_assessmentType: {
+                  studentId: enrollment.student.id,
+                  subjectId: subject.id,
+                  termId: activeTerm.id,
+                  assessmentType: toAssessmentType(payload.context.examType),
+                },
+              },
+              update: {
+                marks: item.mark,
+                comments: item.row.remarks || null,
+                status: finalizedStatus(),
+                importBatchId: batch.id,
+              },
+              create: {
+                schoolId: school.id,
+                studentId: enrollment.student.id,
+                academicYearId: activeYear.id,
+                termId: activeTerm.id,
+                classId: klass.id,
+                streamId: stream.id,
+                subjectId: subject.id,
+                assessmentType: toAssessmentType(payload.context.examType),
+                marks: item.mark,
+                comments: item.row.remarks || null,
+                status: finalizedStatus(),
+                importBatchId: batch.id,
+              },
+            });
+          }
 
-        await prisma.subjectMark.upsert({
-          where: {
-            studentId_subjectId_termId_assessmentType: {
-              studentId: enrollment.student.id,
-              subjectId: subject.id,
-              termId: activeTerm.id,
-              assessmentType: toAssessmentType(payload.context.examType),
+          await tx.markImportBatch.update({
+            where: { id: batch.id },
+            data: {
+              status: "COMMITTED",
+              source: "scan",
+              summary: buildScanBatchSummary({
+                ...existingSummary,
+                lifecycleState: "COMMITTED",
+                scanMode: true,
+                parseStatus: existingSummary["parseStatus"] ?? "PARSED",
+                context: payload.context,
+                rows,
+                committedRows: numericRows.length,
+                skippedRows: rows.length - numericRows.length,
+                message: `Committed ${numericRows.length} scanned mark rows.`,
+              }),
             },
-          },
-          update: {
-            marks: mark,
-            comments: row.remarks || null,
-            status: finalizedStatus(),
-            importBatchId: batch.id,
-          },
-          create: {
-            schoolId: school.id,
-            studentId: enrollment.student.id,
-            academicYearId: activeYear.id,
-            termId: activeTerm.id,
-            classId: klass.id,
-            streamId: stream.id,
-            subjectId: subject.id,
-            assessmentType: toAssessmentType(payload.context.examType),
-            marks: mark,
-            comments: row.remarks || null,
-            status: finalizedStatus(),
-            importBatchId: batch.id,
-          },
+          });
         });
+      } catch (error) {
+        if (existingBatch) {
+          await prisma.markImportBatch.update({
+            where: { id: existingBatch.id },
+            data: {
+              status: "FAILED",
+              summary: buildScanBatchSummary({
+                ...existingSummary,
+                lifecycleState: "FAILED",
+                scanMode: true,
+                parseStatus: existingSummary["parseStatus"] ?? "PARSED",
+                context: payload.context,
+                rows,
+                committedRows: 0,
+                skippedRows: rows.length,
+                message: "Commit failed. No scanned marks were written.",
+              }),
+            },
+          });
+        }
+
+        res.status(500).json(importErr("SERVER_ERROR", "Could not commit scanned marks. No scanned marks were written."));
+        return;
       }
 
       res.json({

@@ -1,8 +1,8 @@
-﻿import type { AssessmentType, MarkStatus, PrismaClient } from "@prisma/client";
+import type { AssessmentType, MarkStatus, PrismaClient } from "@prisma/client";
 import type { RawMarkImportRow, ValidatedMarkImportRow } from "../../shared/types/imports";
 import type { SettingsSections } from "../../shared/types/settings";
 import { getSettingsSections } from "../repositories/settingsRepository";
-import { validateScore } from "../../shared/utils/validateScore";
+import { validateScoreEntry } from "./scoreValidationService";
 
 export type ImportReferenceData = Awaited<ReturnType<typeof loadImportReferenceData>>;
 
@@ -58,6 +58,7 @@ export async function validateImportRows(
     const stream = klass?.streams.find((item) => norm(item.name) === norm(raw.stream) || norm(item.code) === norm(raw.stream));
     const subject = school.subjects.find((item) => norm(item.name) === norm(raw.subject) || norm(item.code) === norm(raw.subject));
     const examType = toAssessmentType(raw.examType);
+
     if (!raw.admissionNumber) errors.push("Admission number is required.");
     if (!student) errors.push(`Admission number ${raw.admissionNumber} was not found.`);
     if (!klass) errors.push(`Class ${raw.class} was not found.`);
@@ -66,15 +67,12 @@ export async function validateImportRows(
     if (!activeTerm) errors.push("No active term is configured.");
     if (activeTerm && norm(raw.term) !== norm(activeTerm.name)) errors.push(`Term must match active term ${activeTerm.name}.`);
     if (!validExamTypes.has(examType)) errors.push("Exam type must be BOT, MOT, or EOT.");
-    const markText = raw.marks.trim().toUpperCase();
-    if (markText === "") {
-      errors.push("Blank marks are missing, not zero. Enter 0-100, AB, or EX.");
-    } else if (markText === "AB" || markText === "EX") {
-      errors.push(`${markText} is valid on handwritten sheets but is not committed as a numeric mark.`);
-    } else {
-      const scoreCheck = validateScore(raw.marks);
-      if (!scoreCheck.valid) errors.push(scoreCheck.error);
+
+    const markCheck = validateScoreEntry(raw.marks, { allowAbsent: false, allowExempt: false, allowBlank: false });
+    if (!markCheck.valid) {
+      errors.push(markCheck.error);
     }
+
     if (student && subject && validExamTypes.has(examType) && lockedMarkKeys.has(`${student.id}:${subject.id}:${examType}`)) {
       errors.push("A finalized non-import-owned mark already exists for this student, subject, and exam type.");
     }
@@ -92,4 +90,3 @@ export function toAssessmentType(value: string): AssessmentType {
 export function finalizedStatus(): MarkStatus {
   return "FINALIZED";
 }
-
