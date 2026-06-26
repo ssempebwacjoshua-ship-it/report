@@ -156,7 +156,7 @@ describe("Owner console responsive layouts", () => {
     fireEvent.click(screen.getByLabelText("C"));
     fireEvent.change(screen.getByPlaceholderText("John Doe"), { target: { value: "Owner Admin" } });
     fireEvent.change(screen.getByPlaceholderText(/admin@stjulian\.ac\.ug/i), { target: { value: "admin@school.ac.ug" } });
-    fireEvent.change(screen.getByPlaceholderText(/Min 8 characters/i), { target: { value: "TempPassword123" } });
+    fireEvent.change(screen.getByPlaceholderText(/Min 10 characters/i), { target: { value: "TempPassword123" } });
 
     fireEvent.click(screen.getAllByRole("button", { name: /create school/i })[1]!);
 
@@ -170,6 +170,29 @@ describe("Owner console responsive layouts", () => {
     );
     expect(screen.getByText(/platform defaults applied/i)).toBeInTheDocument();
     expect(screen.getByText(/^A, C$/)).toBeInTheDocument();
+  });
+
+  it("keeps create school disabled until the admin temporary password reaches 10 characters", async () => {
+    ownerClientMocks.fetchOwnerSchools.mockResolvedValue({ schools: [] });
+
+    renderInRouter(<OwnerSchoolsPage />);
+
+    await waitFor(() => expect(screen.getByRole("heading", { name: /schools/i, level: 2 })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: /\+ create school/i }));
+
+    fireEvent.change(screen.getByPlaceholderText(/st\. julian primary school/i), { target: { value: "New School" } });
+    fireEvent.change(screen.getByPlaceholderText("STJULIAN"), { target: { value: "NEW-SCHOOL" } });
+    fireEvent.change(screen.getByPlaceholderText("John Doe"), { target: { value: "Owner Admin" } });
+    fireEvent.change(screen.getByPlaceholderText(/admin@stjulian\.ac\.ug/i), { target: { value: "admin@school.ac.ug" } });
+
+    const createButton = screen.getAllByRole("button", { name: /create school/i })[1]!;
+    const passwordInput = screen.getByPlaceholderText(/min 10 characters/i);
+
+    fireEvent.change(passwordInput, { target: { value: "123456789" } });
+    expect(createButton).toBeDisabled();
+
+    fireEvent.change(passwordInput, { target: { value: "1234567890" } });
+    expect(createButton).not.toBeDisabled();
   });
 
   it("renders owner users as cards on mobile and a table on desktop", async () => {

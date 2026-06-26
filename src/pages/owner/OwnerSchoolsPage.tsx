@@ -12,6 +12,7 @@ const SECTIONS = ["NURSERY", "PRIMARY", "SECONDARY"] as const;
 type Section = (typeof SECTIONS)[number];
 const STREAM_CODES = ["A", "B", "C", "D"] as const;
 type StreamCode = (typeof STREAM_CODES)[number];
+const MIN_ADMIN_TEMP_PASSWORD_LENGTH = 10;
 
 const LOGIN_URL = `${window.location.origin}/login`;
 
@@ -413,14 +414,14 @@ export function OwnerSchoolsPage() {
                     <legend className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">Primary admin</legend>
                     <input type="text" value={form.adminName} onChange={(e) => setForm((f) => ({ ...f, adminName: e.target.value }))} className="input w-full text-sm" placeholder="John Doe" />
                     <input type="email" value={form.adminEmail} onChange={(e) => setForm((f) => ({ ...f, adminEmail: e.target.value }))} className="input w-full text-sm" placeholder="admin@stjulian.ac.ug" />
-                    <input type="text" value={form.adminTemporaryPassword} onChange={(e) => setForm((f) => ({ ...f, adminTemporaryPassword: e.target.value }))} className="input w-full text-sm font-mono" placeholder="Min 8 characters" />
+                    <input type="text" value={form.adminTemporaryPassword} onChange={(e) => setForm((f) => ({ ...f, adminTemporaryPassword: e.target.value }))} className="input w-full text-sm font-mono" placeholder="Min 10 characters" />
                   </fieldset>
                 </div>
                 <div className="mt-4 flex gap-2">
                   <button
                     type="button"
                     onClick={() => void handleCreate()}
-                    disabled={creating || !form.schoolName.trim() || !form.schoolCode.trim() || form.sections.length === 0 || form.defaultStreamCodes.length === 0 || !form.adminName.trim() || !form.adminEmail.trim() || form.adminTemporaryPassword.length < 8}
+                    disabled={creating || !form.schoolName.trim() || !form.schoolCode.trim() || form.sections.length === 0 || form.defaultStreamCodes.length === 0 || !form.adminName.trim() || !form.adminEmail.trim() || form.adminTemporaryPassword.length < MIN_ADMIN_TEMP_PASSWORD_LENGTH}
                     className="btn btn-primary flex-1 text-sm"
                   >
                     {creating ? "Creating..." : "Create school"}
