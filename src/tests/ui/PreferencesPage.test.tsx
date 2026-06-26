@@ -50,7 +50,11 @@ describe("PreferencesPage — school Smart Pages", () => {
   it("passes scope=school to the listPreferences call", async () => {
     mocks.listPreferences.mockResolvedValue([]);
     renderPage();
-    await waitFor(() => expect(mocks.listPreferences).toHaveBeenCalledWith("school"));
+    await waitFor(() =>
+      expect(mocks.listPreferences).toHaveBeenCalledWith("school", {
+        authMode: "school",
+      }),
+    );
   });
 
   it("does not display [object Object] for object-valued preferences", async () => {

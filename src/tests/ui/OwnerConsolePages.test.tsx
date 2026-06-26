@@ -148,6 +148,7 @@ describe("Owner console responsive layouts", () => {
     renderInRouter(<OwnerUsersPage />);
 
     await waitFor(() => expect(screen.getByRole("heading", { name: /users/i, level: 2 })).toBeInTheDocument());
+    await waitFor(() => expect(screen.queryByText(/loading users/i)).not.toBeInTheDocument());
     expect(screen.getAllByText(/patricia christine nankabirwa/i)[0]?.className).toContain("line-clamp-2");
     expect(screen.getByPlaceholderText(/search by name or email/i)).toBeInTheDocument();
     expect(screen.getByRole("table")).toBeInTheDocument();
