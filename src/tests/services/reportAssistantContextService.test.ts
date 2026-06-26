@@ -123,7 +123,19 @@ describe("reportAssistantContextService ? context validity", () => {
       query,
     );
     expect(ctx.readinessCode).toBe("CLASS_NOT_FOUND");
+    expect(ctx.schoolFound).toBe(true);
     expect(ctx.classFound).toBe(false);
+  });
+
+  it("returns STREAM_NOT_FOUND when streamId does not belong to the requested class", async () => {
+    const ctx = await buildReportAssistantContext(
+      buildMock({ streamRecord: null }),
+      query,
+    );
+    expect(ctx.readinessCode).toBe("STREAM_NOT_FOUND");
+    expect(ctx.schoolFound).toBe(true);
+    expect(ctx.classFound).toBe(true);
+    expect(ctx.streamFound).toBe(false);
   });
 
   it("returns NO_SUBJECTS when school has no subjects", async () => {

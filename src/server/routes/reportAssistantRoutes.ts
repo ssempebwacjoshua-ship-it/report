@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "../db/prisma";
 import { buildReportAssistantContext } from "../services/reportAssistantContextService";
 import { generateStudentCommentDraft } from "../services/reportCommentService";
+import { COMMENT_LIMITS } from "../../shared/utils/reportComments";
 
 const contextQuerySchema = z.object({
   classId: z.string().min(1, "classId is required."),
@@ -21,7 +22,7 @@ const generateCommentSchema = z.object({
 
 const acceptCommentSchema = z.object({
   studentId: z.string().min(1),
-  comment: z.string().min(1).max(500, "Comment must be 500 characters or fewer."),
+  comment: z.string().min(1).max(COMMENT_LIMITS.classTeacherComment, `Comment must be ${COMMENT_LIMITS.classTeacherComment} characters or fewer.`),
   context: z.object({ classId: z.string(), termName: z.string() }).optional(),
 });
 
@@ -32,6 +33,13 @@ const rejectCommentSchema = z.object({
 
 export function reportAssistantRoutes() {
   const router = Router();
+
+  async function findOwnedStudent(studentId: string, schoolId: string) {
+    return prisma.student.findFirst({
+      where: { id: studentId, schoolId },
+      select: { id: true },
+    });
+  }
 
   router.get("/api/reports/assistant-context", async (req, res, next) => {
     try {
@@ -50,6 +58,11 @@ export function reportAssistantRoutes() {
         academicYearId: parsed.data.academicYearId,
         termId: parsed.data.termId,
       });
+
+      if (!context.classFound || (parsed.data.streamId && !context.streamFound)) {
+        res.status(404).json({ error: "Class or stream not found.", readinessCode: context.readinessCode });
+        return;
+      }
 
       res.json(context);
     } catch (error) {
@@ -88,6 +101,10 @@ export function reportAssistantRoutes() {
         res.status(404).json({ error: "School not found.", readinessCode: context.readinessCode });
         return;
       }
+      if (!context.classFound || (parsed.data.streamId && !context.streamFound)) {
+        res.status(404).json({ error: "Class or stream not found.", readinessCode: context.readinessCode });
+        return;
+      }
       if (!context.hasActiveTerm) {
         res.status(422).json({ error: "No active term is configured. Cannot generate comments.", readinessCode: context.readinessCode });
         return;
@@ -112,12 +129,35 @@ export function reportAssistantRoutes() {
         ),
       );
 
+      const draftCount = suggestions.filter((s) => s.status === "DRAFT").length;
+      const unavailableCount = suggestions.filter((s) => s.status === "UNAVAILABLE").length;
+      const incompleteCount = suggestions.filter((s) => s.status === "CONTEXT_INCOMPLETE").length;
+
+      await prisma.auditLog.create({
+        data: {
+          schoolId: school.id,
+          action: "ai.suggestion.generated",
+          correlationId: parsed.data.classId,
+          details: {
+            classId: parsed.data.classId,
+            streamId: parsed.data.streamId ?? null,
+            assessmentType: parsed.data.assessmentType,
+            requestedStudentIds: parsed.data.studentIds ?? null,
+            totalStudents: students.length,
+            draftCount,
+            unavailableCount,
+            incompleteCount,
+            actorId: req.user?.userId ?? null,
+          },
+        },
+      });
+
       res.json({
         suggestions,
         totalStudents: students.length,
-        draftCount: suggestions.filter((s) => s.status === "DRAFT").length,
-        unavailableCount: suggestions.filter((s) => s.status === "UNAVAILABLE").length,
-        incompleteCount: suggestions.filter((s) => s.status === "CONTEXT_INCOMPLETE").length,
+        draftCount,
+        unavailableCount,
+        incompleteCount,
       });
     } catch (error) {
       next(error);
@@ -140,6 +180,11 @@ export function reportAssistantRoutes() {
 
       const user = req.user!;
       const { studentId, comment, context } = parsed.data;
+      const student = await findOwnedStudent(studentId, user.schoolId);
+      if (!student) {
+        res.status(404).json({ error: "Student not found." });
+        return;
+      }
 
       await prisma.auditLog.create({
         data: {
@@ -179,6 +224,11 @@ export function reportAssistantRoutes() {
 
       const user = req.user!;
       const { studentId, reason } = parsed.data;
+      const student = await findOwnedStudent(studentId, user.schoolId);
+      if (!student) {
+        res.status(404).json({ error: "Student not found." });
+        return;
+      }
 
       await prisma.auditLog.create({
         data: {

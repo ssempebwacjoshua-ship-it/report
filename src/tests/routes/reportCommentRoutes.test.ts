@@ -4,7 +4,17 @@ import { signToken } from "../../server/services/authService";
 
 // ── Module-level mocks (hoisted) ──────────────────────────────────────────────
 
-const { auditLogCreate, schoolFindUnique, appSettingFindUnique } = vi.hoisted(() => ({
+const {
+  auditLogCreate,
+  schoolFindUnique,
+  appSettingFindUnique,
+  schoolClassFindFirst,
+  streamFindFirst,
+  classEnrollmentFindMany,
+  subjectMarkFindMany,
+  studentFindFirst,
+  generateStudentCommentDraftMock,
+} = vi.hoisted(() => ({
   auditLogCreate: vi.fn(async () => ({})),
   schoolFindUnique: vi.fn(async () => ({
     id: "sch-rc",
@@ -14,20 +24,39 @@ const { auditLogCreate, schoolFindUnique, appSettingFindUnique } = vi.hoisted(()
     academicYears: [],
   })),
   appSettingFindUnique: vi.fn(async () => null),
+  schoolClassFindFirst: vi.fn(async () => ({ id: "cls-1", name: "Senior 1", schoolId: "sch-rc" })),
+  streamFindFirst: vi.fn(async () => ({ id: "str-1", name: "A", schoolId: "sch-rc", classId: "cls-1" })),
+  classEnrollmentFindMany: vi.fn(async () => []),
+  subjectMarkFindMany: vi.fn(async () => []),
+  studentFindFirst: vi.fn(async () => ({ id: "stu-rc-1" })),
+  generateStudentCommentDraftMock: vi.fn(async (student: { studentId: string }) => ({
+    status: "DRAFT",
+    studentId: student.studentId,
+    comment: "Steady progress this term.",
+  })),
 }));
+
+vi.mock("../../server/services/reportCommentService", async () => {
+  const actual = await vi.importActual<typeof import("../../server/services/reportCommentService")>("../../server/services/reportCommentService");
+  return {
+    ...actual,
+    generateStudentCommentDraft: generateStudentCommentDraftMock,
+  };
+});
 
 vi.mock("../../server/db/prisma", () => ({
   prisma: {
     school: { findUnique: schoolFindUnique },
     appSetting: { findUnique: appSettingFindUnique },
     auditLog: { create: auditLogCreate },
+    student: { findFirst: studentFindFirst },
     // HIGH 1 context service mocks (prevents real DB calls in generate route)
     subject: { findMany: vi.fn(async () => []) },
     academicYear: { findMany: vi.fn(async () => []) },
-    schoolClass: { findFirst: vi.fn(async () => null) },
-    stream: { findFirst: vi.fn(async () => null) },
-    classEnrollment: { findMany: vi.fn(async () => []) },
-    subjectMark: { findMany: vi.fn(async () => []) },
+    schoolClass: { findFirst: schoolClassFindFirst },
+    stream: { findFirst: streamFindFirst },
+    classEnrollment: { findMany: classEnrollmentFindMany },
+    subjectMark: { findMany: subjectMarkFindMany },
   },
 }));
 
@@ -48,11 +77,21 @@ describe("HIGH 3 ? report comment routes", () => {
       role: "ADMIN_OPERATOR",
       tokenVersion: 0,
     });
-  });
+  }, 30000);
 
   beforeEach(() => {
     vi.clearAllMocks();
     schoolFindUnique.mockResolvedValue({ id: "sch-rc", code: "RCSCH", name: "RC School", subjects: [], academicYears: [] });
+    schoolClassFindFirst.mockResolvedValue({ id: "cls-1", name: "Senior 1", schoolId: "sch-rc" });
+    streamFindFirst.mockResolvedValue({ id: "str-1", name: "A", schoolId: "sch-rc", classId: "cls-1" });
+    classEnrollmentFindMany.mockResolvedValue([]);
+    subjectMarkFindMany.mockResolvedValue([]);
+    studentFindFirst.mockResolvedValue({ id: "stu-rc-1" });
+    generateStudentCommentDraftMock.mockResolvedValue({
+      status: "DRAFT",
+      studentId: "stu-rc-1",
+      comment: "Steady progress this term.",
+    });
     auditLogCreate.mockResolvedValue({});
   });
 
@@ -85,13 +124,13 @@ describe("HIGH 3 ? report comment routes", () => {
       );
     }, 15000);
 
-    it("returns 400 when comment exceeds 500 characters (server-side limit enforced)", async () => {
+    it("returns 400 when comment exceeds the shared report comment limit", async () => {
       const res = await request(app)
         .post("/api/reports/assistant-comment/accept")
         .set("Authorization", `Bearer ${authToken}`)
         .send({
           studentId: "stu-rc-1",
-          comment: "A".repeat(501),
+          comment: "A".repeat(241),
         });
 
       expect(res.status).toBe(400);
@@ -105,6 +144,22 @@ describe("HIGH 3 ? report comment routes", () => {
         .send({ comment: "Good student." });
 
       expect(res.status).toBe(400);
+      expect(auditLogCreate).not.toHaveBeenCalled();
+    }, 15000);
+
+    it("returns 404 when student does not belong to the signed-in school", async () => {
+      studentFindFirst.mockResolvedValueOnce(null);
+
+      const res = await request(app)
+        .post("/api/reports/assistant-comment/accept")
+        .set("Authorization", `Bearer ${authToken}`)
+        .send({
+          studentId: "stu-foreign",
+          comment: "Steady progress this term.",
+        });
+
+      expect(res.status).toBe(404);
+      expect(res.body.error).toBe("Student not found.");
       expect(auditLogCreate).not.toHaveBeenCalled();
     }, 15000);
   });
@@ -161,6 +216,19 @@ describe("HIGH 3 ? report comment routes", () => {
       expect(res.status).toBe(400);
       expect(auditLogCreate).not.toHaveBeenCalled();
     }, 15000);
+
+    it("returns 404 when student does not belong to the signed-in school", async () => {
+      studentFindFirst.mockResolvedValueOnce(null);
+
+      const res = await request(app)
+        .post("/api/reports/assistant-comment/reject")
+        .set("Authorization", `Bearer ${authToken}`)
+        .send({ studentId: "stu-foreign" });
+
+      expect(res.status).toBe(404);
+      expect(res.body.error).toBe("Student not found.");
+      expect(auditLogCreate).not.toHaveBeenCalled();
+    }, 15000);
   });
 
   // ── Generate: honest context handling ────────────────────────────────────
@@ -175,6 +243,104 @@ describe("HIGH 3 ? report comment routes", () => {
 
       // 422 or 404 ? not a 200 with invented content
       expect([404, 422]).toContain(res.status);
+      expect(auditLogCreate).not.toHaveBeenCalled();
+    }, 15000);
+
+    it("writes ai.suggestion.generated audit row for a successful draft generation request", async () => {
+      schoolFindUnique.mockResolvedValue({
+        id: "sch-rc",
+        code: "RCSCH",
+        name: "RC School",
+        subjects: [
+          { id: "subj-1", name: "Mathematics", sortOrder: 1, isActive: true },
+          { id: "subj-2", name: "English", sortOrder: 2, isActive: true },
+        ],
+        academicYears: [{
+          id: "yr-1",
+          name: "2025/2026",
+          isActive: true,
+          startsOn: new Date("2025-01-01T00:00:00.000Z"),
+          endsOn: new Date("2025-12-31T00:00:00.000Z"),
+          terms: [{
+            id: "trm-1",
+            name: "Term 1",
+            isActive: true,
+            startsOn: new Date("2025-02-01T00:00:00.000Z"),
+            endsOn: new Date("2025-05-31T00:00:00.000Z"),
+          }],
+        }],
+      });
+      classEnrollmentFindMany.mockResolvedValueOnce([{
+        studentId: "stu-rc-1",
+        student: {
+          id: "stu-rc-1",
+          admissionNumber: "001",
+          firstName: "Ann",
+          lastName: "Bee",
+          guardianContacts: [{ canReceiveReports: true, phone: "+256700000000", email: null }],
+        },
+      }]);
+      subjectMarkFindMany.mockResolvedValueOnce([
+        { studentId: "stu-rc-1", subjectId: "subj-1", assessmentType: "EOT", status: "FINALIZED", marks: 77 },
+        { studentId: "stu-rc-1", subjectId: "subj-2", assessmentType: "EOT", status: "FINALIZED", marks: 81 },
+      ]);
+      const res = await request(app)
+        .post("/api/reports/assistant-comment/generate")
+        .set("Authorization", `Bearer ${authToken}`)
+        .send({ classId: "cls-1", streamId: "str-1", assessmentType: "EOT" });
+
+      expect(res.status).toBe(200);
+      expect(res.body.draftCount).toBe(1);
+      expect(generateStudentCommentDraftMock).toHaveBeenCalledTimes(1);
+      expect(auditLogCreate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            schoolId: "sch-rc",
+            action: "ai.suggestion.generated",
+            correlationId: "cls-1",
+            details: expect.objectContaining({
+              classId: "cls-1",
+              streamId: "str-1",
+              draftCount: 1,
+              unavailableCount: 0,
+              incompleteCount: 0,
+              totalStudents: 1,
+            }),
+          }),
+        }),
+      );
+    }, 15000);
+
+    it("returns 404 when the requested stream does not belong to the class", async () => {
+      schoolFindUnique.mockResolvedValue({
+        id: "sch-rc",
+        code: "RCSCH",
+        name: "RC School",
+        subjects: [{ id: "subj-1", name: "Mathematics", sortOrder: 1, isActive: true }],
+        academicYears: [{
+          id: "yr-1",
+          name: "2025/2026",
+          isActive: true,
+          startsOn: new Date("2025-01-01T00:00:00.000Z"),
+          endsOn: new Date("2025-12-31T00:00:00.000Z"),
+          terms: [{
+            id: "trm-1",
+            name: "Term 1",
+            isActive: true,
+            startsOn: new Date("2025-02-01T00:00:00.000Z"),
+            endsOn: new Date("2025-05-31T00:00:00.000Z"),
+          }],
+        }],
+      });
+      streamFindFirst.mockResolvedValueOnce(null);
+
+      const res = await request(app)
+        .post("/api/reports/assistant-comment/generate")
+        .set("Authorization", `Bearer ${authToken}`)
+        .send({ classId: "cls-1", streamId: "str-foreign" });
+
+      expect(res.status).toBe(404);
+      expect(res.body.readinessCode).toBe("STREAM_NOT_FOUND");
       expect(auditLogCreate).not.toHaveBeenCalled();
     }, 15000);
   });
