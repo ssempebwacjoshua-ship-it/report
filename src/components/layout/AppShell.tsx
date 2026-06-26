@@ -3,6 +3,7 @@ import type { Dispatch, SetStateAction } from "react";
 import { Navigate, Outlet } from "react-router-dom";
 import { useAuth } from "../../contexts/AuthContext";
 import { InstallPrompt } from "../pwa/InstallPrompt";
+import { SupportWidget } from "../support/SupportWidget";
 import { Sidebar } from "./Sidebar";
 import { Topbar } from "./Topbar";
 import { SettingsProvider, useAppSettings } from "./SettingsContext";
@@ -206,6 +207,7 @@ function AppShellInner({
         </div>
       </div>
       <InstallPrompt />
+      <SupportWidget />
     </div>
   );
 }

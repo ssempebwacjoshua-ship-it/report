@@ -41,6 +41,7 @@ import { creatorAuthRoutes } from "./routes/creatorAuthRoutes";
 import { collectionRoutes } from "./routes/collectionRoutes";
 import { bulkGenerationRoutes } from "./routes/bulkGenerationRoutes";
 import { documentOsRoutes } from "./routes/documentOsRoutes";
+import { supportRoutes } from "./routes/supportRoutes";
 import { smartPagesBillingRoutes } from "./routes/smartPagesBillingRoutes";
 import { smartPagesTemplateRoutes } from "./routes/smartPagesTemplateRoutes";
 import { startBulkGenerationWorker } from "./services/bulkGenerationService";
@@ -103,6 +104,7 @@ export function createServer() {
   app.use("/api", geminiOcrRoutes);
   app.use("/api", geminiOcrBenchmarkRoutes);
   app.use("/api", geminiRosterRoutes);
+  app.use(supportRoutes());
 
   // Tenant isolation: resolve school context from JWT or (dev-only) schoolCode param
   app.use(resolveSchoolContext);

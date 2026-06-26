@@ -103,7 +103,10 @@ export function GeminiScanPanel() {
   const [commitError, setCommitError] = useState("");
   const [commitResponse, setCommitResponse] = useState<GeminiCommitResponse | null>(null);
   const [pagesBalance, setPagesBalance] = useState<number | null>(null);
+  const [extractStartedAt, setExtractStartedAt] = useState<number | null>(null);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const isExtracting = phase === "compressing" || phase === "extracting";
 
   useEffect(() => {
     fetchScanOptions()
@@ -119,6 +122,20 @@ export function GeminiScanPanel() {
       .then(({ remainingPages }) => setPagesBalance(remainingPages >= 0 ? remainingPages : null))
       .catch(() => {});
   }, []);
+
+  useEffect(() => {
+    if (!isExtracting || extractStartedAt === null) {
+      setElapsedSeconds(0);
+      return;
+    }
+
+    setElapsedSeconds(Math.max(0, Math.floor((Date.now() - extractStartedAt) / 1000)));
+    const timer = window.setInterval(() => {
+      setElapsedSeconds(Math.max(0, Math.floor((Date.now() - extractStartedAt) / 1000)));
+    }, 1000);
+
+    return () => window.clearInterval(timer);
+  }, [extractStartedAt, isExtracting]);
 
   function set<K extends keyof GeminiScanContext>(key: K, value: GeminiScanContext[K]) {
     if (key === "classId") {
@@ -141,7 +158,6 @@ export function GeminiScanPanel() {
     context.termId !== "" &&
     context.examType !== "";
 
-  const isExtracting = phase === "compressing" || phase === "extracting";
   const canExtract = requiredFilled && image !== null && !isExtracting && (pagesBalance === null || pagesBalance > 0);
 
   // Commit is blocked until every row is READY.
@@ -183,8 +199,9 @@ export function GeminiScanPanel() {
   }
 
   async function handleExtract() {
-    if (!image || !requiredFilled) return;
+    if (!image || !requiredFilled || isExtracting) return;
     setPhase("compressing");
+    setExtractStartedAt(Date.now());
     setError("");
     setResult(null);
     setRows([]);
@@ -203,16 +220,18 @@ export function GeminiScanPanel() {
       setResult(response);
       setRows(response.rows);
       setPhase("review");
+      setExtractStartedAt(null);
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Extraction failed.";
       setError(
         /failed to fetch|networkerror|network error|err_http2|fetch/i.test(msg)
-          ? "Could not reach the extraction server. Please try again or contact support."
+          ? "Gemini could not finish reading this marksheet. Try a clearer image or try again in a few minutes."
           : /timeout/i.test(msg)
-            ? "The image took too long to process. Try a clearer or smaller image."
-            : msg,
+            ? "Gemini could not finish reading this marksheet. Try a clearer image or try again in a few minutes."
+            : "Gemini could not finish reading this marksheet. Try a clearer image or try again in a few minutes.",
       );
       setPhase("idle");
+      setExtractStartedAt(null);
     }
   }
 
@@ -434,7 +453,7 @@ export function GeminiScanPanel() {
             disabled={!canExtract}
             className="btn btn-primary"
           >
-            Read Marksheet
+            {isExtracting ? "Reading Marksheet..." : "Read Marksheet"}
           </button>
           {!requiredFilled && optionsReady && (
             <p className="self-center text-xs text-slate-500">Select class, subject, term, exam type, and an image to enable extraction.</p>
@@ -453,9 +472,12 @@ export function GeminiScanPanel() {
             <p className="text-sm font-medium text-blue-800">
               {phase === "compressing" ? "Preparing image..." : "Extracting marks from image..."}
             </p>
-            {phase === "extracting" && (
-              <p className="mt-0.5 text-xs text-blue-600">Uploading and reading marksheet - may take 15-30 s</p>
-            )}
+            {phase === "extracting" ? (
+              <div className="mt-0.5 grid gap-1 text-xs text-blue-600">
+                <p>Reading marksheet with Gemini. This can take 30-90 seconds for large or unclear scans. Please keep this page open.</p>
+                <p>Elapsed: {elapsedSeconds}s</p>
+              </div>
+            ) : null}
           </div>
         </div>
       )}
