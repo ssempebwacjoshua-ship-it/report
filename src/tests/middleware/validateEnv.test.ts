@@ -56,7 +56,12 @@ describe("validateEnv ? production JWT_SECRET checks", () => {
   });
 
   it("passes with a strong JWT_SECRET (32+ chars)", () => {
-    const result = validateEnv({ ...prodBase, JWT_SECRET: "a".repeat(32) });
+    const result = validateEnv({
+      ...prodBase,
+      JWT_SECRET: "a".repeat(32),
+      APP_BASE_URL: "https://reports.example.com",
+      INTERNAL_TEST_KEY: "internal-test-key",
+    });
     expect(result.valid).toBe(true);
     expect(result.warnings.some((w) => w.includes("PLATFORM_ADMIN_KEY"))).toBe(true); // still warns
   });
@@ -87,6 +92,8 @@ describe("validateEnv ? production required vars", () => {
       ...prodWithJwt,
       DATABASE_URL: "postgresql://...",
       CLIENT_ORIGIN: "https://app.example.com",
+      APP_BASE_URL: "https://reports.example.com",
+      INTERNAL_TEST_KEY: "internal-test-key",
     });
     expect(result.valid).toBe(true); // warnings don't block startup
     expect(result.warnings.some((w) => w.includes("PLATFORM_ADMIN_KEY"))).toBe(true);
@@ -96,13 +103,63 @@ describe("validateEnv ? production required vars", () => {
     const result = validateEnv({
       NODE_ENV: "production",
       JWT_SECRET: "a".repeat(32),
-      DATABASE_URL: "postgresql://...",
+      DATABASE_URL: "postgresql://prod-user:prod-pass@db.railway.internal:5432/school_connect_reports_lab",
       CLIENT_ORIGIN: "https://app.example.com",
+      APP_BASE_URL: "https://reports.example.com",
       PLATFORM_ADMIN_KEY: "strong-platform-key",
+      INTERNAL_TEST_KEY: "strong-internal-test-key",
     });
     expect(result.valid).toBe(true);
     expect(result.errors).toHaveLength(0);
     expect(result.warnings).toHaveLength(0);
+  });
+
+  it("errors when DATABASE_URL points at localhost in production", () => {
+    const result = validateEnv({
+      NODE_ENV: "production",
+      JWT_SECRET: "a".repeat(32),
+      DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/school_connect_reports_lab_test",
+      CLIENT_ORIGIN: "https://app.example.com",
+    });
+    expect(result.valid).toBe(false);
+    expect(result.errors.some((e) => e.includes("local test database"))).toBe(true);
+  });
+
+  it("errors when CLIENT_ORIGIN points at localhost in production", () => {
+    const result = validateEnv({
+      NODE_ENV: "production",
+      JWT_SECRET: "a".repeat(32),
+      DATABASE_URL: "postgresql://prod-user:prod-pass@db.railway.internal:5432/school_connect_reports_lab",
+      CLIENT_ORIGIN: "http://localhost:5173",
+    });
+    expect(result.valid).toBe(false);
+    expect(result.errors.some((e) => e.includes("CLIENT_ORIGIN points at localhost"))).toBe(true);
+  });
+
+  it("warns when no branded public URL is configured in production", () => {
+    const result = validateEnv({
+      NODE_ENV: "production",
+      JWT_SECRET: "a".repeat(32),
+      DATABASE_URL: "postgresql://prod-user:prod-pass@db.railway.internal:5432/school_connect_reports_lab",
+      CLIENT_ORIGIN: "https://app.example.com",
+      PLATFORM_ADMIN_KEY: "strong-platform-key",
+      INTERNAL_TEST_KEY: "strong-internal-test-key",
+    });
+    expect(result.valid).toBe(true);
+    expect(result.warnings.some((w) => w.includes("APP_BASE_URL / PUBLIC_APP_URL"))).toBe(true);
+  });
+
+  it("warns when INTERNAL_TEST_KEY is missing in production", () => {
+    const result = validateEnv({
+      NODE_ENV: "production",
+      JWT_SECRET: "a".repeat(32),
+      DATABASE_URL: "postgresql://prod-user:prod-pass@db.railway.internal:5432/school_connect_reports_lab",
+      CLIENT_ORIGIN: "https://app.example.com",
+      APP_BASE_URL: "https://reports.example.com",
+      PLATFORM_ADMIN_KEY: "strong-platform-key",
+    });
+    expect(result.valid).toBe(true);
+    expect(result.warnings.some((w) => w.includes("INTERNAL_TEST_KEY"))).toBe(true);
   });
 });
 

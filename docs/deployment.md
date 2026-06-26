@@ -25,6 +25,7 @@ The server bundle is ~211 KB. npm packages are NOT bundled — they must be inst
 Do NOT put these in Vercel:
 
 - `DATABASE_URL`, `JWT_SECRET`, `OCR_PROVIDER`, `OCR_ENABLED`, `AZURE_OCR_FUNCTION_URL`
+- `GEMINI_API_KEY`, `PLATFORM_ADMIN_KEY`, `INTERNAL_TEST_KEY`
 
 The SPA requires `vercel.json` with a catch-all rewrite so all routes serve `dist/index.html`.
 
@@ -59,7 +60,9 @@ npx prisma migrate deploy && node dist/server/index.js
 
 The server binds to `0.0.0.0` and the port from `process.env.PORT`, which Railway injects automatically.
 
-The health endpoint is `GET /health` (no `/api` prefix). Returns `{"ok":true}`.
+The health endpoint is `GET /health` (no `/api` prefix). It returns a minimal payload such as `{"ok":true,"service":"school-connect-reports-lab"}`.
+
+Internal env-status diagnostics are exposed at `GET /api/health/env` and require the `x-internal-test-key` header. The route reports only `SET` / `MISSING` status, never actual secret values.
 
 ## Seed admin
 
@@ -84,4 +87,5 @@ The script is idempotent.
 - Direct routes (`/login`, `/dashboard`, `/reports/release`, `/parent/r/:token`, `/verify/:code`) load through Vercel.
 - Parent report links point at the branded production report domain, never `localhost` or a Vercel preview URL.
 - Frontend never receives `DATABASE_URL`.
+- Frontend never receives `JWT_SECRET`, `GEMINI_API_KEY`, `PLATFORM_ADMIN_KEY`, or `INTERNAL_TEST_KEY`.
 - Railway serves the API and PostgreSQL only.
