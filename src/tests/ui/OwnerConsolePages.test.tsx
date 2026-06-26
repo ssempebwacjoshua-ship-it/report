@@ -168,7 +168,7 @@ describe("Owner console responsive layouts", () => {
         }),
       ),
     );
-    expect(screen.getByText(/platform defaults applied/i)).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText(/platform defaults applied/i)).toBeInTheDocument());
     expect(screen.getByText(/^A, C$/)).toBeInTheDocument();
   });
 

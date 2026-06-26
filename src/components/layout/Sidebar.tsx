@@ -157,7 +157,14 @@ export function Sidebar({ open, onClose, collapsed, onToggleCollapsed, width }: 
           background: "var(--sc-primary)",
         } as CSSProperties}
       >
-        <div className={`flex items-center ${collapsed ? "px-2 pt-3" : "px-3 pt-3"}`}>
+        <div className={`flex items-center ${collapsed ? "px-2 pt-3 justify-center" : "gap-3 px-3 pt-3"}`}>
+          <div className={`flex min-w-0 items-center ${collapsed ? "justify-center" : "gap-3"}`}>
+            <img
+              src="/ssamenj-logo.png"
+              alt="SSAMENJ"
+              className="h-10 w-10 shrink-0 rounded-xl border border-white/15 bg-white/95 object-contain p-1 shadow-sm"
+            />
+          </div>
           {!collapsed ? (
             <div className="min-w-0 flex-1">
               <p className="line-clamp-2 text-sm font-bold leading-tight text-white">{schoolName}</p>

@@ -276,7 +276,7 @@ export function NfcAttendancePage() {
   const { user } = useAuth();
   const deviceId = useRef(getDeviceId()).current;
 
-  const { isOfflineReady, pendingCount } = useConnectivityStatus(user?.schoolId, deviceId);
+  const { isOfflineReady, pendingCount } = useConnectivityStatus(user?.schoolId, deviceId, "attendance");
 
   const [register, setRegister] = useState<AttendanceRegisterResponse | null>(null);
   const [lastScan, setLastScan] = useState<NfcAttendanceScanEvent | null>(null);

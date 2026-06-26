@@ -61,7 +61,7 @@ export function NfcCanteenChargePage() {
   const { user } = useAuth();
   const deviceId = useRef(getDeviceId()).current;
 
-  const { isOfflineReady, pendingCount } = useConnectivityStatus(user?.schoolId, deviceId);
+  const { isOfflineReady, pendingCount } = useConnectivityStatus(user?.schoolId, deviceId, "canteen");
 
   const [amount, setAmount] = useState("");
   const [description, setDescription] = useState("");
@@ -89,7 +89,7 @@ export function NfcCanteenChargePage() {
 
       const canteen = await isCanteenOfflineEnabled();
       if (!canteen) throw new Error("Offline canteen charging is not enabled for this school.");
-      const valid = await isSnapshotValid();
+      const valid = await isSnapshotValid({ schoolId: user.schoolId, requiredModule: "canteen" });
       if (!valid) throw new Error("Offline snapshot has expired. Request a new one from the Offline page.");
 
       const resolve = await resolveOfflineNfcScan(user.schoolId, tokenOrUid);

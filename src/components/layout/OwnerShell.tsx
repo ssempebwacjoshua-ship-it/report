@@ -21,12 +21,11 @@ export function OwnerShell() {
       <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/95 backdrop-blur">
         <div className="mx-auto flex w-full max-w-none items-center justify-between gap-4 px-3 py-3 sm:px-4 lg:px-6">
           <div className="flex items-center gap-3">
-            <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600 text-white">
-              <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M12 2 4 5v6c0 5 3.5 9 8 11 4.5-2 8-6 8-11V5z" />
-                <path d="M9 12l2 2 4-5" />
-              </svg>
-            </span>
+            <img
+              src="/ssamenj-logo.png"
+              alt="SSAMENJ"
+              className="h-8 w-8 rounded-lg border border-slate-200 bg-white object-contain p-0.5 shadow-sm"
+            />
             <span className="text-sm font-black text-slate-900">Platform Owner Console</span>
             <span className="hidden rounded border border-amber-300 bg-amber-50 px-2 py-0.5 text-xs font-bold text-amber-700 sm:inline">Owner access</span>
           </div>

@@ -122,7 +122,10 @@ npm run school:structure:apply -- --schoolCode SCU-PREVIEW
 | `GEMINI_API_KEY`   | Optional | Railway backend only      | Never in Vercel — must NOT use VITE_ prefix|
 | `PLATFORM_ADMIN_KEY` | Optional | Railway backend only   | Use `openssl rand -hex 32`                 |
 | `INTERNAL_TEST_KEY`| Optional | Railway backend only      | For test/diagnostic routes in production   |
+| `TELEGRAM_BOT_TOKEN`| Optional | Railway backend only     | Required for Telegram support notifications |
+| `TELEGRAM_SUPPORT_CHAT_ID`| Optional | Railway backend only | Support chat target, currently `8899226749` |
 | `VITE_API_BASE_URL`| Yes      | Vercel frontend env       | URL of the Railway backend                 |
+| `VITE_SUPPORT_MODE`| Optional | Vercel frontend env       | Set to `telegram_form` to show the support widget |
 
 **Never set `GEMINI_API_KEY`, `JWT_SECRET`, `DATABASE_URL`, `PLATFORM_ADMIN_KEY`, or `INTERNAL_TEST_KEY` in Vercel frontend environment variables.**
 The server will refuse to start if any `VITE_*API_KEY` or `VITE_*SECRET` is detected.
