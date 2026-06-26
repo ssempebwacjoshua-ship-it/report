@@ -32,6 +32,10 @@ function toContactInput(contact: GuardianContact): GuardianContactInput {
   };
 }
 
+function displayContactValue(value: string | null | undefined): string {
+  return value?.trim() ? value : "Not provided";
+}
+
 export function StudentsPage() {
   const [context, setContext] = useState<ReportContext | null>(null);
   const [students, setStudents] = useState<StudentListItem[]>([]);
@@ -427,7 +431,7 @@ export function StudentsPage() {
                     <p className="truncate text-sm font-bold text-slate-950">{student.studentName}</p>
                     <div className="mt-0.5 flex flex-wrap items-center gap-2 text-xs text-slate-500">
                       <span className="font-semibold">{student.admissionNumber}</span>
-                      <span className="text-slate-400">?</span>
+                      <span className="text-slate-400">•</span>
                       <span className="text-slate-600">
                         {student.className} / {student.streamName}
                       </span>
@@ -462,12 +466,12 @@ export function StudentsPage() {
                   <span className="font-semibold text-slate-600">Class:</span>
                   <span className="font-bold text-slate-950">{selected.className}</span>
                 </div>
-                <span className="text-slate-400">?</span>
+                <span className="text-slate-400">•</span>
                 <div className="flex items-center gap-2">
                   <span className="font-semibold text-slate-600">Stream:</span>
                   <span className="font-bold text-slate-950">{selected.streamName}</span>
                 </div>
-                <span className="text-slate-400">?</span>
+                <span className="text-slate-400">•</span>
                 <div className="flex items-center gap-2">
                   <span className="font-semibold text-slate-600">Status:</span>
                   <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-bold ${selected.enrollmentStatus === "ACTIVE" ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}>
@@ -494,11 +498,12 @@ export function StudentsPage() {
                         <div className="min-w-0">
                           <p className="font-bold text-slate-950">{contact.guardianName}</p>
                           <p className="mt-0.5 text-xs text-slate-500">
-                            {contact.relationship} ? {contact.preferredContactMethod}
+                            {contact.relationship} • {contact.preferredContactMethod}
                           </p>
-                          <p className="mt-1 text-xs text-slate-600">
-                            {contact.phone || "?"} / {contact.email || "?"}
-                          </p>
+                          <div className="mt-1 grid gap-0.5 text-xs text-slate-600">
+                            <p>Phone: {displayContactValue(contact.phone)}</p>
+                            <p>Email: {displayContactValue(contact.email)}</p>
+                          </div>
                         </div>
                         <div className="flex flex-shrink-0 flex-wrap items-center justify-end gap-1.5">
                           {contact.isPrimary ? <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-blue-700">Primary</span> : null}

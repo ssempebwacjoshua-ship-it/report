@@ -182,6 +182,9 @@ describe("GeminiScanPanel", () => {
     await fillContextAndFile();
     fireEvent.click(screen.getByRole("button", { name: "Read Marksheet" }));
     expect(await screen.findByText("Extracting marks from image...")).toBeInTheDocument();
+    expect(screen.getByText(/Reading marksheet with Gemini/i)).toBeInTheDocument();
+    expect(screen.getByText(/Elapsed: \d+s/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Reading Marksheet..." })).toBeDisabled();
     resolve(RESPONSE);
     await waitFor(() => expect(screen.queryByText("Extracting marks from image...")).not.toBeInTheDocument());
   });
@@ -212,7 +215,7 @@ describe("GeminiScanPanel", () => {
     renderPanel();
     await fillContextAndFile();
     fireEvent.click(screen.getByRole("button", { name: "Read Marksheet" }));
-    expect(await screen.findByText(/Could not reach the extraction server/i)).toBeInTheDocument();
+    expect(await screen.findByText(/Gemini could not finish reading this marksheet/i)).toBeInTheDocument();
   });
 
   it("shows a clean timeout error message when the request times out", async () => {
@@ -220,7 +223,7 @@ describe("GeminiScanPanel", () => {
     renderPanel();
     await fillContextAndFile();
     fireEvent.click(screen.getByRole("button", { name: "Read Marksheet" }));
-    expect(await screen.findByText(/took too long to process/i)).toBeInTheDocument();
+    expect(await screen.findByText(/Gemini could not finish reading this marksheet/i)).toBeInTheDocument();
   });
 
   it("keeps the commit button disabled while blocked/review rows exist", async () => {

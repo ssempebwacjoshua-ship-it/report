@@ -220,5 +220,40 @@ describe("StudentsPage", () => {
     await waitFor(() => expect(previewStudentImport).toHaveBeenCalledTimes(1));
     expect(screen.getByText(/latest available setup/i)).toBeInTheDocument();
   });
+
+  it("uses polished separators and shows 'Not provided' for missing contact details", async () => {
+    vi.mocked(fetchStudents).mockResolvedValueOnce({
+      students: [
+        {
+          ...defaultStudents.students[0],
+          guardianContacts: [
+            {
+              id: "contact-2",
+              guardianName: "Jane Guardian",
+              relationship: "Aunt",
+              phone: "",
+              email: "",
+              preferredContactMethod: "EMAIL",
+              isPrimary: false,
+              canReceiveReports: true,
+              notes: "",
+            },
+          ],
+        },
+      ],
+    });
+
+    render(
+      <MemoryRouter>
+        <StudentsPage />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => expect(screen.getAllByText("Ada Lovelace").length).toBeGreaterThan(0));
+    expect(screen.getByText("Aunt • EMAIL")).toBeInTheDocument();
+    expect(screen.getByText("Phone: Not provided")).toBeInTheDocument();
+    expect(screen.getByText("Email: Not provided")).toBeInTheDocument();
+    expect(screen.queryByText(/\s\?\s/)).not.toBeInTheDocument();
+  });
 });
 

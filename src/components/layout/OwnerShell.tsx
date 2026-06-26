@@ -1,5 +1,6 @@
-﻿import { NavLink, Navigate, Outlet } from "react-router-dom";
+import { NavLink, Navigate, Outlet } from "react-router-dom";
 import { useAuth } from "../../contexts/AuthContext";
+import { SupportWidget } from "../support/SupportWidget";
 
 export function OwnerShell() {
   const { user, loading, logout } = useAuth();
@@ -17,7 +18,6 @@ export function OwnerShell() {
 
   return (
     <div className="flex min-h-screen flex-col bg-slate-50">
-      {/* Top banner */}
       <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/95 backdrop-blur">
         <div className="mx-auto flex w-full max-w-none items-center justify-between gap-4 px-3 py-3 sm:px-4 lg:px-6">
           <div className="flex items-center gap-3">
@@ -72,11 +72,10 @@ export function OwnerShell() {
         </nav>
       </header>
 
-      {/* Page content */}
       <main className="mx-auto w-full max-w-none flex-1 px-3 py-4 sm:px-4 lg:px-6 lg:py-6">
         <Outlet />
       </main>
+      <SupportWidget />
     </div>
   );
 }
-

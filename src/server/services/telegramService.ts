@@ -3,35 +3,61 @@ export interface TelegramResult {
   error?: string;
 }
 
-/**
- * Send a plain-text message to the configured admin Telegram chat.
- * Returns { ok: true } on success, { ok: false, error } on any failure.
- * Never throws — callers treat Telegram as best-effort.
- */
-export async function sendTelegramMessage(text: string): Promise<TelegramResult> {
+type TelegramTarget = "admin" | "support";
+
+function getTelegramConfig(target: TelegramTarget) {
   const botToken = process.env.TELEGRAM_BOT_TOKEN?.trim();
-  const chatId = process.env.TELEGRAM_ADMIN_CHAT_ID?.trim();
+  const chatIdEnv = target === "support" ? "TELEGRAM_SUPPORT_CHAT_ID" : "TELEGRAM_ADMIN_CHAT_ID";
+  const chatId = process.env[chatIdEnv]?.trim();
+
   if (!botToken || !chatId) {
-    return { ok: false, error: "Telegram not configured: missing TELEGRAM_BOT_TOKEN or TELEGRAM_ADMIN_CHAT_ID" };
+    return {
+      ok: false as const,
+      error: `Telegram not configured: missing TELEGRAM_BOT_TOKEN or ${chatIdEnv}`,
+    };
   }
+
+  return {
+    ok: true as const,
+    botToken,
+    chatId,
+  };
+}
+
+async function sendTelegramMessageToTarget(text: string, target: TelegramTarget): Promise<TelegramResult> {
+  const config = getTelegramConfig(target);
+  if (!config.ok) {
+    return { ok: false, error: config.error };
+  }
+
   try {
-    const response = await fetch(
-      `https://api.telegram.org/bot${botToken}/sendMessage`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        // No parse_mode — plain text is safe with any school/user/transaction content
-        body: JSON.stringify({ chat_id: chatId, text }),
-      },
-    );
+    const response = await fetch(`https://api.telegram.org/bot${config.botToken}/sendMessage`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      // Plain text avoids parse-mode edge cases with school and user data.
+      body: JSON.stringify({ chat_id: config.chatId, text }),
+    });
     const data = (await response.json()) as { ok: boolean; description?: string };
     if (!data.ok) {
       return { ok: false, error: data.description ?? "Telegram API returned ok=false" };
     }
     return { ok: true };
-  } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : "Unknown Telegram error" };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : "Unknown Telegram error" };
   }
+}
+
+/**
+ * Send a plain-text message to the configured admin Telegram chat.
+ * Returns { ok: true } on success, { ok: false, error } on any failure.
+ * Never throws; callers treat Telegram as best-effort.
+ */
+export async function sendTelegramMessage(text: string): Promise<TelegramResult> {
+  return sendTelegramMessageToTarget(text, "admin");
+}
+
+export async function sendSupportTelegramMessage(text: string): Promise<TelegramResult> {
+  return sendTelegramMessageToTarget(text, "support");
 }
 
 export interface SmartPagesPaymentNotificationOpts {
@@ -76,7 +102,7 @@ export function buildSmartPagesPaymentMessage(opts: SmartPagesPaymentNotificatio
 
 /**
  * Notify the admin via Telegram when a school submits a Smart Pages payment receipt.
- * Never throws — caller stores the result but does not block the response.
+ * Never throws; caller stores the result but does not block the response.
  */
 export async function notifySmartPagesPayment(
   opts: SmartPagesPaymentNotificationOpts,
