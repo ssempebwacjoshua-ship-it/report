@@ -8,6 +8,7 @@ import { loadReportEngineInput } from "../repositories/reportsRepository";
 import { getSettingsSections } from "../repositories/settingsRepository";
 import { buildReports } from "../services/reportEngine";
 import { COMMENT_LIMITS } from "../../shared/utils/reportComments";
+import { sanitizeReportCardForRender, sanitizeReportComments, sanitizeSchoolSettingsForReport } from "../../shared/utils/reportContentLimits";
 
 function generateToken(): string {
   return crypto.randomBytes(32).toString("hex");
@@ -110,19 +111,22 @@ export function reportIssueRoutes() {
       }
 
       const snapshot = {
-        card,
-        settings: reportResult.settings,
+        card: sanitizeReportCardForRender(card),
+        settings: {
+          ...reportResult.settings,
+          school: sanitizeSchoolSettingsForReport(reportResult.settings.school),
+        },
         issuedAt: new Date().toISOString(),
         issuedByName: user.name,
         filters,
-        reportComments: body.reportComments ?? {
+        reportComments: sanitizeReportComments(body.reportComments ?? {
           classTeacherComment: "",
           headTeacherComment: "",
           conductNote: "",
           classTeacherName: "",
           headTeacherName: "",
           issueDate: "",
-        },
+        }),
       };
 
       const rawParentToken = generateToken();
@@ -195,8 +199,6 @@ export function reportIssueRoutes() {
         issued.map((r) => ({
           id: r.id,
           referenceCode: r.referenceCode,
-          parentAccessToken: r.parentAccessToken,
-          parentLink: `${getPublicAppUrl()}/parent/r/${r.parentAccessToken}`,
           studentName: `${r.student.firstName} ${r.student.lastName}`,
           admissionNumber: r.student.admissionNumber,
           academicYear: r.academicYear,
@@ -235,10 +237,14 @@ export function reportIssueRoutes() {
         return;
       }
 
-      const updated = await prisma.issuedReport.update({
-        where: { id },
+      const updated = await prisma.issuedReport.updateMany({
+        where: { id, schoolId: user.schoolId },
         data: { status: "REVOKED", updatedAt: new Date() },
       });
+      if (!updated.count) {
+        res.status(404).json({ error: "Issued report not found." });
+        return;
+      }
 
       await prisma.auditLog.create({
         data: {
@@ -249,7 +255,7 @@ export function reportIssueRoutes() {
         },
       });
 
-      res.json({ id: updated.id, status: updated.status });
+      res.json({ id, status: "REVOKED" });
     } catch (error) {
       next(error);
     }

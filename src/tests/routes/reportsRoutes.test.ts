@@ -9,6 +9,19 @@ const SCHOOL_ID = "school-1";
 const CLS = "aaaaaaaa-0000-0000-0000-000000000001";
 
 function makePrisma(subjectMarkFindMany: ReturnType<typeof vi.fn>) {
+  const enrollments = [{
+    studentId: "stu-1",
+    student: {
+      id: "stu-1",
+      admissionNumber: "S1-001",
+      firstName: "Alice",
+      lastName: "Namusoke",
+      guardianContacts: [],
+      isActive: true,
+    },
+    class: { id: CLS, name: "Senior 1", code: "S1" },
+    stream: { id: "stream-1", name: "A" },
+  }];
   const school = {
     id: SCHOOL_ID,
     code: SCHOOL_CODE,
@@ -32,8 +45,9 @@ function makePrisma(subjectMarkFindMany: ReturnType<typeof vi.fn>) {
 
   return {
     school: { findUnique: vi.fn(async () => school) },
-    schoolClass: { findUnique: vi.fn(async () => ({ id: CLS, name: "Senior 1", code: "S1" })) },
-    classEnrollment: { findMany: vi.fn(async () => []) },
+    schoolClass: { findFirst: vi.fn(async () => ({ id: CLS, name: "Senior 1", code: "S1" })) },
+    stream: { findFirst: vi.fn(async () => ({ id: "stream-1" })) },
+    classEnrollment: { findMany: vi.fn(async ({ where }: any) => (where.studentId === "student-missing" ? [] : enrollments)) },
     subjectMark: { findMany: subjectMarkFindMany },
     promotionAction: { findMany: vi.fn(async () => []) },
     appSetting: { findUnique: vi.fn(async () => null) },
@@ -84,6 +98,62 @@ describe("loadReportEngineInput ? mark status filtering", () => {
     expect(result.marks).toHaveLength(1);
     expect(result.marks[0].studentId).toBe("stu-1");
     expect(result.marks[0].marks).toBe(82);
+  });
+
+  it("returns a clear empty reason for class and stream mismatch", async () => {
+    const prisma = {
+      school: { findUnique: vi.fn(async () => ({
+        id: SCHOOL_ID,
+        code: SCHOOL_CODE,
+        name: "Test School",
+        academicYears: [{
+          id: "year-1",
+          name: "2025/2026",
+          isActive: true,
+          startsOn: new Date("2025-01-01T00:00:00.000Z"),
+          endsOn: new Date("2026-12-31T00:00:00.000Z"),
+          terms: [{
+            id: "term-1",
+            name: "Term 1",
+            isActive: true,
+            startsOn: new Date("2026-02-01T00:00:00.000Z"),
+            endsOn: new Date("2026-05-31T00:00:00.000Z"),
+          }],
+        }],
+        subjects: [{ id: "subject-1", name: "Mathematics", sortOrder: 1 }],
+      })) },
+      schoolClass: { findFirst: vi.fn(async () => ({ id: CLS, name: "Senior 1", code: "S1" })) },
+      stream: { findFirst: vi.fn(async () => null) },
+      classEnrollment: { findMany: vi.fn(async () => []) },
+      subjectMark: { findMany: vi.fn(async () => []) },
+      promotionAction: { findMany: vi.fn(async () => []) },
+      appSetting: { findUnique: vi.fn(async () => null) },
+    } as unknown as PrismaClient;
+
+    const result = await loadReportEngineInput(prisma, {
+      schoolCode: SCHOOL_CODE,
+      classId: CLS,
+      streamId: "stream-b",
+      assessmentType: "TERM_SUMMARY",
+    });
+
+    expect(result.students).toEqual([]);
+    expect(result.emptyReasonOverride).toBe("Selected stream does not belong to the selected class for this school.");
+  });
+
+  it("fails safely when a filtered student is not enrolled in the selected class", async () => {
+    const subjectMarkFindMany = vi.fn(async () => []);
+    const prisma = makePrisma(subjectMarkFindMany) as any;
+
+    const result = await loadReportEngineInput(prisma, {
+      schoolCode: SCHOOL_CODE,
+      classId: CLS,
+      studentId: "student-missing",
+      assessmentType: "BOT",
+    });
+
+    expect(result.students).toEqual([]);
+    expect(result.emptyReasonOverride).toBe("Selected student is not enrolled in the requested school/class/stream for the active term.");
   });
 });
 
@@ -208,7 +278,8 @@ function makePrismaWithEnrollments(
 
   return {
     school: { findUnique: vi.fn(async () => school) },
-    schoolClass: { findUnique: vi.fn(async () => ({ id: CLS, name: "Senior 1", code: "S1" })) },
+    schoolClass: { findFirst: vi.fn(async () => ({ id: CLS, name: "Senior 1", code: "S1" })) },
+    stream: { findFirst: vi.fn(async () => ({ id: "stream-1" })) },
     classEnrollment: { findMany: vi.fn(async () => enrollments) },
     subjectMark: { findMany: vi.fn(async () => []) },
     promotionAction: { findMany: vi.fn(async () => promotionActions) },

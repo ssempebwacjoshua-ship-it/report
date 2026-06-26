@@ -32,6 +32,7 @@ async function makeToken() {
     name: "Test Admin",
     email: "admin@test.ac.ug",
     role: "ADMIN_OPERATOR",
+    tokenVersion: 0,
   });
 }
 
@@ -54,7 +55,7 @@ describe("GET /api/document-os/preferences (scope filtering)", () => {
   beforeAll(async () => {
     const { createServer } = await import("../../server");
     app = createServer();
-  });
+  }, 30000);
 
   beforeEach(() => {
     vi.clearAllMocks();

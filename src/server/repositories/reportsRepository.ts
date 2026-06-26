@@ -1,4 +1,4 @@
-﻿import type { PrismaClient } from "@prisma/client";
+import type { PrismaClient } from "@prisma/client";
 import type { ReportFilters } from "../../shared/types/reports";
 import type { ContactReadiness } from "../../shared/types/students";
 import type { EngineInput } from "../services/reportEngine";
@@ -10,11 +10,36 @@ function getContactReadiness(contacts: Array<{ canReceiveReports: boolean; phone
   return recipients.some((contact) => !contact.phone || !contact.email) ? "MISSING_PHONE_EMAIL" : "READY";
 }
 
-function getContactSummary(contacts: Array<{ guardianName: string; relationship: string; canReceiveReports: boolean; phone: string | null; email: string | null; isPrimary: boolean }>): string {
+function getContactSummary(
+  contacts: Array<{ guardianName: string; relationship: string; canReceiveReports: boolean; phone: string | null; email: string | null; isPrimary: boolean }>,
+): string {
   const primary = contacts.find((contact) => contact.isPrimary) ?? contacts[0];
   if (!primary) return "No guardian contacts";
   const channel = primary.phone ? primary.phone : primary.email ? primary.email : "missing phone/email";
   return `${primary.guardianName} (${primary.relationship}) - ${channel}`;
+}
+
+function emptyInput(
+  filters: ReportFilters,
+  settings: Awaited<ReturnType<typeof getSettingsSections>>,
+  options: { academicYearName?: string; termName?: string; hasActiveTerm?: boolean; subjects?: Array<{ id: string; name: string; sortOrder: number }>; emptyReasonOverride?: string | null },
+): EngineInput {
+  return {
+    filters,
+    academicYearName: options.academicYearName ?? "",
+    termName: options.termName ?? "",
+    hasActiveTerm: options.hasActiveTerm ?? false,
+    students: [],
+    subjects: options.subjects ?? [],
+    marks: [],
+    promotionsByStudentId: {},
+    settings: {
+      school: settings.school,
+      reports: settings.reports,
+      grading: settings.grading,
+    },
+    emptyReasonOverride: options.emptyReasonOverride ?? null,
+  };
 }
 
 export async function loadReportEngineInput(prisma: PrismaClient, filters: ReportFilters): Promise<EngineInput> {
@@ -30,26 +55,69 @@ export async function loadReportEngineInput(prisma: PrismaClient, filters: Repor
     },
   });
 
-  const academicYear = school?.academicYears[0] ?? null;
-  const term = academicYear?.terms[0] ?? null;
-  const classRecord = filters.classId ? await prisma.schoolClass.findUnique({ where: { id: filters.classId } }) : null;
+  if (!school) {
+    return emptyInput(filters, settings, {
+      emptyReasonOverride: "School context could not be resolved for report generation.",
+      subjects: [],
+    });
+  }
 
-  if (!school || !academicYear || !term || !classRecord) {
-    return {
-      filters,
-      academicYearName: academicYear?.name ?? "",
-      termName: term?.name ?? "",
-      hasActiveTerm: Boolean(term),
-      students: [],
-      subjects: school?.subjects.map((subject) => ({ id: subject.id, name: subject.name, sortOrder: subject.sortOrder })) ?? [],
-      marks: [],
-      promotionsByStudentId: {},
-      settings: {
-        school: settings.school,
-        reports: settings.reports,
-        grading: settings.grading,
-      },
-    };
+  const activeSubjects = school.subjects.map((subject) => ({ id: subject.id, name: subject.name, sortOrder: subject.sortOrder }));
+  const academicYear = school.academicYears[0] ?? null;
+  if (!academicYear) {
+    return emptyInput(filters, settings, {
+      academicYearName: "",
+      termName: "",
+      hasActiveTerm: false,
+      subjects: activeSubjects,
+      emptyReasonOverride: "No active academic year is configured for this school.",
+    });
+  }
+
+  const term = academicYear.terms[0] ?? null;
+  if (!term) {
+    return emptyInput(filters, settings, {
+      academicYearName: academicYear.name,
+      termName: "",
+      hasActiveTerm: false,
+      subjects: activeSubjects,
+      emptyReasonOverride: "No active term is configured for the selected academic year.",
+    });
+  }
+
+  const classRecord = filters.classId
+    ? await prisma.schoolClass.findFirst({ where: { id: filters.classId, schoolId: school.id } })
+    : null;
+
+  if (!classRecord) {
+    return emptyInput(filters, settings, {
+      academicYearName: academicYear.name,
+      termName: term.name,
+      hasActiveTerm: true,
+      subjects: activeSubjects,
+      emptyReasonOverride: "Selected class was not found for this school.",
+    });
+  }
+
+  let streamReason: string | null = null;
+  if (filters.streamId) {
+    const stream = await prisma.stream.findFirst({
+      where: { id: filters.streamId, classId: classRecord.id, schoolId: school.id },
+      select: { id: true },
+    });
+    if (!stream) {
+      streamReason = "Selected stream does not belong to the selected class for this school.";
+    }
+  }
+
+  if (streamReason) {
+    return emptyInput(filters, settings, {
+      academicYearName: academicYear.name,
+      termName: term.name,
+      hasActiveTerm: true,
+      subjects: activeSubjects,
+      emptyReasonOverride: streamReason,
+    });
   }
 
   const enrollments = await prisma.classEnrollment.findMany({
@@ -59,6 +127,7 @@ export async function loadReportEngineInput(prisma: PrismaClient, filters: Repor
       termId: term.id,
       classId: filters.classId,
       streamId: filters.streamId || undefined,
+      studentId: filters.studentId || undefined,
       isActive: true,
       status: "ACTIVE",
       student: { isActive: true },
@@ -68,19 +137,21 @@ export async function loadReportEngineInput(prisma: PrismaClient, filters: Repor
   });
 
   const studentIds = enrollments.map((enrollment) => enrollment.studentId);
+  const noStudentReason = filters.studentId
+    ? "Selected student is not enrolled in the requested school/class/stream for the active term."
+    : null;
 
-  // Load promotion decisions for these students in this year/term
   const rawPromotionActions = studentIds.length > 0
     ? await prisma.promotionAction.findMany({
-        where: {
-          schoolId: school.id,
-          studentId: { in: studentIds },
-          status: "APPLIED",
-          batch: { academicYearId: academicYear.id, termId: term.id, status: "APPLIED" },
-        },
-        select: { studentId: true, decision: true, fromClassName: true, toClassName: true },
-        orderBy: { createdAt: "desc" },
-      })
+      where: {
+        schoolId: school.id,
+        studentId: { in: studentIds },
+        status: "APPLIED",
+        batch: { academicYearId: academicYear.id, termId: term.id, status: "APPLIED" },
+      },
+      select: { studentId: true, decision: true, fromClassName: true, toClassName: true },
+      orderBy: { createdAt: "desc" },
+    })
     : [];
 
   const promotionsByStudentId: Record<string, string> = {};
@@ -96,18 +167,20 @@ export async function loadReportEngineInput(prisma: PrismaClient, filters: Repor
     }
   }
 
-  const marks = await prisma.subjectMark.findMany({
-    where: {
-      schoolId: school.id,
-      academicYearId: academicYear.id,
-      termId: term.id,
-      classId: filters.classId,
-      streamId: filters.streamId || undefined,
-      studentId: { in: studentIds },
-      status: "FINALIZED",
-      assessmentType: filters.assessmentType === "TERM_SUMMARY" ? undefined : filters.assessmentType,
-    },
-  });
+  const marks = studentIds.length > 0
+    ? await prisma.subjectMark.findMany({
+      where: {
+        schoolId: school.id,
+        academicYearId: academicYear.id,
+        termId: term.id,
+        classId: filters.classId,
+        streamId: filters.streamId || undefined,
+        studentId: { in: studentIds },
+        status: "FINALIZED",
+        assessmentType: filters.assessmentType === "TERM_SUMMARY" ? undefined : filters.assessmentType,
+      },
+    })
+    : [];
 
   return {
     filters: { ...filters, academicYearId: academicYear.id, termId: term.id },
@@ -125,7 +198,7 @@ export async function loadReportEngineInput(prisma: PrismaClient, filters: Repor
       contactReadiness: getContactReadiness(enrollment.student.guardianContacts),
       contactSummary: getContactSummary(enrollment.student.guardianContacts),
     })),
-    subjects: school.subjects.map((subject) => ({ id: subject.id, name: subject.name, sortOrder: subject.sortOrder })),
+    subjects: activeSubjects,
     marks: marks.map((mark) => ({
       studentId: mark.studentId,
       subjectId: mark.subjectId,
@@ -138,6 +211,6 @@ export async function loadReportEngineInput(prisma: PrismaClient, filters: Repor
       reports: settings.reports,
       grading: settings.grading,
     },
+    emptyReasonOverride: studentIds.length === 0 ? noStudentReason : null,
   };
 }
-

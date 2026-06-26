@@ -28,7 +28,7 @@ const mockState = vi.hoisted(() => {
 
   const prisma = {
     creator: { findUnique: vi.fn(), findFirst: vi.fn(), create: vi.fn(), update: vi.fn() },
-    smartDocument: { findUnique: vi.fn(), findMany: vi.fn(), create: vi.fn(), update: vi.fn() },
+    smartDocument: { findUnique: vi.fn(), findFirst: vi.fn(), findMany: vi.fn(), create: vi.fn(), update: vi.fn() },
     documentSourceFile: { findUnique: vi.fn(), findFirst: vi.fn(), create: vi.fn(), update: vi.fn() },
     documentVersion: { findUnique: vi.fn(), findFirst: vi.fn(), create: vi.fn() },
     schoolSmartPagePlan: { findUnique: vi.fn(), updateMany: vi.fn() },
@@ -200,7 +200,7 @@ describe("createDocument vertical", () => {
 describe("vertical access guard on loadOwnedSmartDocument", () => {
   it("denies SCHOOL_OPERATOR access to a LAWYER document", async () => {
     mockState.prisma.creator.findUnique.mockResolvedValue(schoolActor);
-    mockState.prisma.smartDocument.findUnique.mockResolvedValue(
+    mockState.prisma.smartDocument.findFirst.mockResolvedValue(
       makeDoc({ vertical: "LAWYER", schoolId: "school-1" }),
     );
 
@@ -216,7 +216,7 @@ describe("school-only routes reject LAWYER documents", () => {
 
   it("generateSchema rejects a LAWYER document", async () => {
     mockState.prisma.creator.findUnique.mockResolvedValue(externalActor);
-    mockState.prisma.smartDocument.findUnique.mockResolvedValue(lawyerDoc());
+    mockState.prisma.smartDocument.findFirst.mockResolvedValue(lawyerDoc());
 
     const { generateSchema } = await import("../../server/services/documentIntelligenceService");
     await expect(generateSchema("doc-1", "creator-ext", "generate")).rejects.toMatchObject({ status: 400 });
@@ -224,7 +224,7 @@ describe("school-only routes reject LAWYER documents", () => {
 
   it("applyPrompt rejects a LAWYER document", async () => {
     mockState.prisma.creator.findUnique.mockResolvedValue(externalActor);
-    mockState.prisma.smartDocument.findUnique.mockResolvedValue(lawyerDoc());
+    mockState.prisma.smartDocument.findFirst.mockResolvedValue(lawyerDoc());
 
     const { applyPrompt } = await import("../../server/services/documentIntelligenceService");
     await expect(applyPrompt("doc-1", "creator-ext", "edit")).rejects.toMatchObject({ status: 400 });
@@ -232,7 +232,7 @@ describe("school-only routes reject LAWYER documents", () => {
 
   it("uploadAndExtract rejects a LAWYER document", async () => {
     mockState.prisma.creator.findUnique.mockResolvedValue(externalActor);
-    mockState.prisma.smartDocument.findUnique.mockResolvedValue(lawyerDoc());
+    mockState.prisma.smartDocument.findFirst.mockResolvedValue(lawyerDoc());
 
     const { uploadAndExtract } = await import("../../server/services/documentIntelligenceService");
     const fakeFile = { mimetype: "image/png", originalname: "test.png", buffer: Buffer.from("x") } as Express.Multer.File;
@@ -241,7 +241,7 @@ describe("school-only routes reject LAWYER documents", () => {
 
   it("retryDocumentExtraction rejects a LAWYER document", async () => {
     mockState.prisma.creator.findUnique.mockResolvedValue(externalActor);
-    mockState.prisma.smartDocument.findUnique.mockResolvedValue({ ...lawyerDoc(), sourceFiles: [] });
+    mockState.prisma.smartDocument.findFirst.mockResolvedValue({ ...lawyerDoc(), sourceFiles: [] });
 
     const { retryDocumentExtraction } = await import("../../server/services/documentIntelligenceService");
     await expect(retryDocumentExtraction("doc-1", "creator-ext")).rejects.toMatchObject({ status: 400 });
@@ -250,7 +250,7 @@ describe("school-only routes reject LAWYER documents", () => {
   it("school operator accessing a LAWYER document is denied at the access layer (403)", async () => {
     // School operators can never access LAWYER-vertical docs, even if the schoolId matches.
     mockState.prisma.creator.findUnique.mockResolvedValue(schoolActor);
-    mockState.prisma.smartDocument.findUnique.mockResolvedValue(
+    mockState.prisma.smartDocument.findFirst.mockResolvedValue(
       makeDoc({ vertical: "LAWYER", schoolId: "school-1" }),
     );
 
@@ -262,7 +262,7 @@ describe("school-only routes reject LAWYER documents", () => {
 describe("lawyer-edit-plan rejects non-LAWYER documents", () => {
   it("getLawyerDocumentEditPlan rejects a SCHOOL document", async () => {
     mockState.prisma.creator.findUnique.mockResolvedValue(externalActor);
-    mockState.prisma.smartDocument.findUnique.mockResolvedValue(
+    mockState.prisma.smartDocument.findFirst.mockResolvedValue(
       makeDoc({ creatorId: "creator-ext", schoolId: null, vertical: "SCHOOL" }),
     );
 
@@ -274,7 +274,7 @@ describe("lawyer-edit-plan rejects non-LAWYER documents", () => {
 
   it("getLawyerDocumentEditPlan succeeds for a LAWYER document", async () => {
     mockState.prisma.creator.findUnique.mockResolvedValue(externalActor);
-    mockState.prisma.smartDocument.findUnique.mockResolvedValue(
+    mockState.prisma.smartDocument.findFirst.mockResolvedValue(
       makeDoc({ creatorId: "creator-ext", schoolId: null, vertical: "LAWYER" }),
     );
     mockState.generateLawyerDocumentEditPlan.mockResolvedValue({

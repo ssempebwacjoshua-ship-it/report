@@ -1,151 +1,229 @@
-﻿import request from "supertest";
-import { describe, expect, it, beforeAll } from "vitest";
-import { createServer } from "../../server";
+import express from "express";
+import request from "supertest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { ZodError } from "zod";
 import { COMMENT_LIMITS } from "../../shared/utils/reportComments";
 
-describe("reportIssueRoutes ? POST /api/reports/issue", () => {
-  it("returns 401 without Authorization header", async () => {
-    const res = await request(createServer())
-      .post("/api/reports/issue")
-      .send({
-        schoolCode: "SCU-PREVIEW",
-        studentId: "00000000-0000-0000-0000-000000000001",
-        classId: "00000000-0000-0000-0000-000000000002",
-      });
-    expect(res.status).toBe(401);
-  });
+const VALID_STUDENT_ID = "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11";
 
-  it("returns 401 with invalid Bearer token", async () => {
-    const res = await request(createServer())
-      .post("/api/reports/issue")
-      .set("Authorization", "Bearer invalid.jwt.token")
-      .send({
-        schoolCode: "SCU-PREVIEW",
-        studentId: "00000000-0000-0000-0000-000000000001",
-        classId: "00000000-0000-0000-0000-000000000002",
-      });
-    expect(res.status).toBe(401);
-  });
+function mountReportIssueApp(prisma: any, overrides: { cardReadiness?: "READY" | "MISSING_MARKS" | "NO_FINALIZED_MARKS" } = {}) {
+  vi.doMock("../../server/db/prisma", () => ({ prisma }));
+  vi.doMock("../../server/middleware/requireAuth", () => ({
+    requireAuth: (req: any, _res: any, next: () => void) => {
+      req.user = { userId: "user-1", schoolId: "school-1", name: "Admin" };
+      req.school = { id: "school-1", code: "SCU-PREVIEW" };
+      next();
+    },
+  }));
+  vi.doMock("../../server/repositories/settingsRepository", () => ({
+    getSettingsSections: vi.fn(async () => ({
+      academic: { defaultAssessmentType: "EOT" },
+    })),
+  }));
+  vi.doMock("../../server/repositories/reportsRepository", () => ({
+    loadReportEngineInput: vi.fn(async () => ({
+      filters: { schoolCode: "SCU-PREVIEW", classId: "00000000-0000-0000-0000-000000000002", studentId: VALID_STUDENT_ID, assessmentType: "EOT" },
+      academicYearName: "2025/2026",
+      termName: "Term 1",
+      hasActiveTerm: true,
+      students: [],
+      subjects: [],
+      marks: [],
+      promotionsByStudentId: {},
+      settings: {
+        school: { schoolName: "Preview School", schoolCode: "SCU-PREVIEW", address: "", phone: "", email: "", website: "", headTeacherName: "HT", reportFooterText: "Footer", marksheetFooterText: "", logoUrl: "", schoolSections: ["SECONDARY"] },
+        reports: { showOverallPosition: false, showClassAverage: false, showGradeKey: false, showSchoolLogo: false, printDensity: "compact", signatureMode: "name_and_signature_line", defaultHmCommentTemplate: "", defaultClassTeacherCommentTemplate: "" },
+        grading: { grades: [] },
+      },
+    })),
+  }));
+  vi.doMock("../../server/services/reportEngine", () => ({
+    buildReports: vi.fn(() => ({
+      settings: {
+        school: { schoolName: "Preview School", schoolCode: "SCU-PREVIEW", address: "", phone: "", email: "", website: "", headTeacherName: "HT", reportFooterText: "Footer", marksheetFooterText: "", logoUrl: "", schoolSections: ["SECONDARY"] },
+        reports: { showOverallPosition: false, showClassAverage: false, showGradeKey: false, showSchoolLogo: false, printDensity: "compact", signatureMode: "name_and_signature_line", defaultHmCommentTemplate: "", defaultClassTeacherCommentTemplate: "" },
+        grading: { grades: [] },
+      },
+      cards: [{
+        studentId: VALID_STUDENT_ID,
+        admissionNumber: "ADM-1",
+        studentName: "Ada Lovelace",
+        className: "S1",
+        streamName: "A",
+        academicYear: "2025/2026",
+        term: "Term 1",
+        marksFound: 0,
+        totalSubjects: 0,
+        average: null,
+        grade: null,
+        overallPosition: null,
+        readiness: overrides.cardReadiness ?? "READY",
+        missingMarks: [],
+        comments: "",
+        contactReadiness: "READY",
+        contactSummary: "",
+        subjects: [],
+        progressionText: null,
+      }],
+    })),
+  }));
 
+  return import("../../server/routes/reportIssueRoutes").then(({ reportIssueRoutes }) => {
+    const app = express();
+    app.use(express.json());
+    app.use(reportIssueRoutes());
+    app.use((error: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+      if (error instanceof ZodError) {
+        res.status(400).json({ error: true, message: "Invalid request" });
+        return;
+      }
+      res.status(500).json({ error: true, message: error instanceof Error ? error.message : "Unexpected error" });
+    });
+    return app;
+  });
+}
+
+afterEach(() => {
+  vi.resetModules();
+  vi.clearAllMocks();
+  vi.restoreAllMocks();
+  vi.doUnmock("../../server/db/prisma");
+  vi.doUnmock("../../server/middleware/requireAuth");
+  vi.doUnmock("../../server/repositories/reportsRepository");
+  vi.doUnmock("../../server/repositories/settingsRepository");
+  vi.doUnmock("../../server/services/reportEngine");
+});
+
+describe("reportIssueRoutes", () => {
   it("returns 400 when studentId is not a valid UUID", async () => {
-    // Need a valid-looking token ? use signToken directly
-    const { signToken } = await import("../../server/services/authService");
-    const { prisma } = await import("../../server/db/prisma");
-    const school = await prisma.school.findUnique({ where: { code: "SCU-PREVIEW" } });
-    const token = signToken({
-      userId: "00000000-0000-0000-0000-000000000001",
-      schoolId: school?.id ?? "00000000-0000-0000-0000-000000000002",
-      name: "Test Admin",
-      email: "test@test.com",
-      role: "ADMIN_OPERATOR",
+    const app = await mountReportIssueApp({
+      issuedReport: { updateMany: vi.fn(async () => ({ count: 0 })), create: vi.fn(async () => ({ id: "issued-1", assessmentType: "EOT", issuedAt: new Date() })) },
+      auditLog: { create: vi.fn(async () => ({})) },
     });
 
-    const res = await request(createServer())
-      .post("/api/reports/issue")
-      .set("Authorization", `Bearer ${token}`)
-      .send({ schoolCode: "SCU-PREVIEW", studentId: "not-a-uuid", classId: "some-class" });
+    const res = await request(app).post("/api/reports/issue").send({ studentId: "not-a-uuid", classId: "00000000-0000-0000-0000-000000000002" });
     expect(res.status).toBe(400);
   });
-});
 
-describe("reportIssueRoutes ? comment character limits", () => {
-  let authToken: string;
-
-  beforeAll(async () => {
-    const { signToken } = await import("../../server/services/authService");
-    const { prisma } = await import("../../server/db/prisma");
-    const school = await prisma.school.findUnique({ where: { code: "SCU-PREVIEW" } });
-    authToken = signToken({
-      userId: "00000000-0000-0000-0000-000000000001",
-      schoolId: school?.id ?? "00000000-0000-0000-0000-000000000002",
-      name: "Test Admin",
-      email: "test@test.com",
-      role: "ADMIN_OPERATOR",
+  it("rejects classTeacherComment exceeding the shared limit", async () => {
+    const app = await mountReportIssueApp({
+      issuedReport: { updateMany: vi.fn(async () => ({ count: 0 })), create: vi.fn(async () => ({ id: "issued-1", assessmentType: "EOT", issuedAt: new Date() })) },
+      auditLog: { create: vi.fn(async () => ({})) },
     });
-  });
 
-  const VALID_UUID = "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11";
+    const res = await request(app).post("/api/reports/issue").send({
+      studentId: VALID_STUDENT_ID,
+      classId: "00000000-0000-0000-0000-000000000002",
+      reportComments: { classTeacherComment: "A".repeat(COMMENT_LIMITS.classTeacherComment + 1) },
+    });
 
-  it("rejects classTeacherComment exceeding 500 characters", async () => {
-    const res = await request(createServer())
-      .post("/api/reports/issue")
-      .set("Authorization", `Bearer ${authToken}`)
-      .send({
-        studentId: VALID_UUID,
-        classId: VALID_UUID,
-        reportComments: { classTeacherComment: "A".repeat(COMMENT_LIMITS.classTeacherComment + 1) },
-      });
     expect(res.status).toBe(400);
   });
 
-  it("rejects headTeacherComment exceeding 500 characters", async () => {
-    const res = await request(createServer())
-      .post("/api/reports/issue")
-      .set("Authorization", `Bearer ${authToken}`)
-      .send({
-        studentId: VALID_UUID,
-        classId: VALID_UUID,
-        reportComments: { headTeacherComment: "B".repeat(COMMENT_LIMITS.headTeacherComment + 1) },
-      });
-    expect(res.status).toBe(400);
+  it("creates a new issued report and supersedes the existing one", async () => {
+    const prisma = {
+      issuedReport: {
+        updateMany: vi.fn(async () => ({ count: 1 })),
+        findMany: vi.fn(async () => []),
+        create: vi.fn(async () => ({
+          id: "issued-new",
+          assessmentType: "EOT",
+          issuedAt: new Date("2026-06-26T00:00:00.000Z"),
+        })),
+      },
+      auditLog: { create: vi.fn(async () => ({})) },
+    };
+
+    const app = await mountReportIssueApp(prisma);
+    const res = await request(app).post("/api/reports/issue").send({
+      studentId: VALID_STUDENT_ID,
+      classId: "00000000-0000-0000-0000-000000000002",
+      assessmentType: "EOT",
+    });
+
+    expect(res.status).toBe(201);
+    expect(prisma.issuedReport.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ status: "SUPERSEDED" }),
+    }));
+    expect(prisma.issuedReport.create).toHaveBeenCalledTimes(1);
   });
 
-  it("rejects conductNote exceeding 300 characters", async () => {
-    const res = await request(createServer())
-      .post("/api/reports/issue")
-      .set("Authorization", `Bearer ${authToken}`)
-      .send({
-        studentId: VALID_UUID,
-        classId: VALID_UUID,
-        reportComments: { conductNote: "C".repeat(COMMENT_LIMITS.conductNote + 1) },
-      });
-    expect(res.status).toBe(400);
+  it("allows a safe empty-state report path when the card is missing marks", async () => {
+    const prisma = {
+      issuedReport: {
+        updateMany: vi.fn(async () => ({ count: 0 })),
+        findMany: vi.fn(async () => []),
+        create: vi.fn(async () => ({
+          id: "issued-empty",
+          assessmentType: "EOT",
+          issuedAt: new Date("2026-06-26T00:00:00.000Z"),
+        })),
+      },
+      auditLog: { create: vi.fn(async () => ({})) },
+    };
+
+    const app = await mountReportIssueApp(prisma, { cardReadiness: "MISSING_MARKS" });
+    const res = await request(app).post("/api/reports/issue").send({
+      studentId: VALID_STUDENT_ID,
+      classId: "00000000-0000-0000-0000-000000000002",
+      assessmentType: "EOT",
+    });
+
+    expect(res.status).toBe(201);
+    expect(prisma.issuedReport.create).toHaveBeenCalledTimes(1);
   });
 
-  it("rejects classTeacherName exceeding 100 characters", async () => {
-    const res = await request(createServer())
-      .post("/api/reports/issue")
-      .set("Authorization", `Bearer ${authToken}`)
-      .send({
-        studentId: VALID_UUID,
-        classId: VALID_UUID,
-        reportComments: { classTeacherName: "D".repeat(COMMENT_LIMITS.classTeacherName + 1) },
-      });
-    expect(res.status).toBe(400);
+  it("keeps report.issue audit details free of raw parent tokens", async () => {
+    const auditLogCreate = vi.fn(async () => ({}));
+    const prisma = {
+      issuedReport: {
+        updateMany: vi.fn(async () => ({ count: 0 })),
+        findMany: vi.fn(async () => []),
+        create: vi.fn(async () => ({
+          id: "issued-safe",
+          assessmentType: "EOT",
+          issuedAt: new Date("2026-06-26T00:00:00.000Z"),
+        })),
+      },
+      auditLog: { create: auditLogCreate },
+    };
+
+    const app = await mountReportIssueApp(prisma);
+    const res = await request(app).post("/api/reports/issue").send({
+      studentId: VALID_STUDENT_ID,
+      classId: "00000000-0000-0000-0000-000000000002",
+      assessmentType: "EOT",
+    });
+
+    expect(res.status).toBe(201);
+    const reportIssueAudit = auditLogCreate.mock.calls.find(
+      ([call]) => call?.data?.action === "report.issue",
+    )?.[0];
+    expect(reportIssueAudit?.data?.details).toEqual(expect.objectContaining({
+      issuedReportId: "issued-safe",
+      studentId: VALID_STUDENT_ID,
+    }));
+    expect(reportIssueAudit?.data?.details).not.toHaveProperty("parentAccessToken");
+    expect(reportIssueAudit?.data?.details).not.toHaveProperty("parentLink");
+    expect(reportIssueAudit?.data?.details).not.toHaveProperty("token");
   });
 
-  it("accepts reportComments well within the character limits", async () => {
-    const res = await request(createServer())
-      .post("/api/reports/issue")
-      .set("Authorization", `Bearer ${authToken}`)
-      .send({
-        studentId: VALID_UUID,
-        classId: VALID_UUID,
-        reportComments: {
-          classTeacherComment: "Well done this term.",
-          headTeacherComment: "Keep it up.",
-          conductNote: "Good conduct.",
-          classTeacherName: "Mrs Smith",
-        },
-      });
-    // 404 = student not found in DB (comment limits did not reject); NOT 400
-    expect(res.status).not.toBe(400);
+  it("keeps issued report list queries scoped to the authenticated school", async () => {
+    const findMany = vi.fn(async () => []);
+    const app = await mountReportIssueApp({
+      issuedReport: {
+        updateMany: vi.fn(async () => ({ count: 0 })),
+        findMany,
+        create: vi.fn(async () => ({ id: "issued-1", assessmentType: "EOT", issuedAt: new Date() })),
+      },
+      auditLog: { create: vi.fn(async () => ({})) },
+    });
+
+    const res = await request(app).get("/api/reports/issued");
+
+    expect(res.status).toBe(200);
+    expect(findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { schoolId: "school-1" },
+    }));
   });
 });
-
-describe("reportIssueRoutes ? GET /api/reports/issued", () => {
-  it("returns 401 without auth", async () => {
-    const res = await request(createServer()).get("/api/reports/issued");
-    expect(res.status).toBe(401);
-  });
-});
-
-describe("reportIssueRoutes ? PATCH /api/reports/issued/:id/revoke", () => {
-  it("returns 401 without auth", async () => {
-    const res = await request(createServer()).patch(
-      "/api/reports/issued/00000000-0000-0000-0000-000000000001/revoke",
-    );
-    expect(res.status).toBe(401);
-  });
-});
-

@@ -12,15 +12,14 @@ const fetchMock = vi.fn();
 vi.stubGlobal("fetch", fetchMock);
 
 const issuedPayload = {
-  id: "issued-1",
   status: "ISSUED",
   referenceCode: "20260612-ABC123",
   issuedAt: new Date().toISOString(),
   issuedByName: "School Admin",
-  school: { name: "School Connect Preview School", code: "SCU-PREVIEW" },
+  school: { name: "School Connect Preview School" },
   snapshot: {
     card: {
-      studentId: "s1",
+      studentId: "",
       admissionNumber: "ADM-001",
       studentName: "Ada Lovelace",
       className: "S1",
@@ -35,7 +34,7 @@ const issuedPayload = {
       readiness: "READY",
       missingMarks: [],
       comments: "",
-      contactReadiness: "READY",
+      contactReadiness: "NO_RECIPIENT",
       contactSummary: "",
       subjects: [],
     },
@@ -84,6 +83,16 @@ describe("ParentReportPage ? public action card", () => {
 
     await waitFor(() => expect(screen.getByText("Ada Lovelace")).toBeInTheDocument());
     expect(screen.getByText("20260612-ABC123")).toBeInTheDocument();
+  });
+
+  it("does not expose internal IDs in the rendered parent report page", async () => {
+    fetchMock.mockResolvedValueOnce({ ok: true, json: async () => issuedPayload });
+
+    renderPage();
+
+    await waitFor(() => expect(screen.getByText("Ada Lovelace")).toBeInTheDocument());
+    expect(document.body.textContent).not.toContain("issued-1");
+    expect(document.body.textContent).not.toContain("studentId");
   });
 
   it("report detail is inside a print-only container, not directly visible on screen", async () => {

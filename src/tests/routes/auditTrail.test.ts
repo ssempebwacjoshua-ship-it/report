@@ -8,6 +8,9 @@ import type { PrismaClient } from "@prisma/client";
 describe("Phase 6 audit trail ? marks.imported (CSV commit)", () => {
   it("writes a marks.imported audit row after a successful commit", async () => {
     const auditLogCreate = vi.fn(async () => ({}));
+    const txBatchCreate = vi.fn(async () => ({ id: "batch-unit-1" }));
+    const txBatchUpdate = vi.fn(async () => ({}));
+    const txSubjectMarkUpsert = vi.fn(async () => ({}));
 
     const school = {
       id: "sch-unit-1",
@@ -40,15 +43,17 @@ describe("Phase 6 audit trail ? marks.imported (CSV commit)", () => {
       },
       subjectMark: {
         findMany: vi.fn(async () => []),
-        upsert: vi.fn(async () => ({})),
       },
       markImportBatch: {
-        create: vi.fn(async () => ({ id: "batch-unit-1" })),
-        update: vi.fn(async () => ({})),
+        create: vi.fn(async () => ({ id: "failed-batch" })),
       },
       // findFirst returns a truthy log to pass the requireDryRunBeforeCommit gate
-      auditLog: { create: auditLogCreate, findFirst: vi.fn(async () => ({ id: "prior-dry-run-log" })) },
-      $transaction: vi.fn(async (ops: Array<Promise<unknown>>) => Promise.all(ops)),
+      auditLog: { findFirst: vi.fn(async () => ({ id: "prior-dry-run-log" })) },
+      $transaction: vi.fn(async (callback: (tx: unknown) => Promise<unknown>) => callback({
+        markImportBatch: { create: txBatchCreate, update: txBatchUpdate },
+        subjectMark: { upsert: txSubjectMarkUpsert },
+        auditLog: { create: auditLogCreate },
+      })),
     } as unknown as PrismaClient;
 
     const csv = ["admissionNumber,class,stream,subject,term,examType,marks", "001,P1,A,Mathematics,Term 1,BOT,85"].join(
@@ -69,8 +74,9 @@ describe("Phase 6 audit trail ? marks.imported (CSV commit)", () => {
     );
   });
 
-  it("does NOT write a marks.imported audit row when commit fails validation", async () => {
+  it("writes a safe marks.import_failed audit row when commit fails validation", async () => {
     const auditLogCreate = vi.fn(async () => ({}));
+    const failedBatchCreate = vi.fn(async () => ({ id: "batch-2" }));
 
     const school = {
       id: "sch-unit-2",
@@ -102,7 +108,7 @@ describe("Phase 6 audit trail ? marks.imported (CSV commit)", () => {
         findUniqueOrThrow: vi.fn(async () => school),
       },
       subjectMark: { findMany: vi.fn(async () => []) },
-      markImportBatch: { create: vi.fn(async () => ({ id: "batch-2" })) },
+      markImportBatch: { create: failedBatchCreate },
       auditLog: { create: auditLogCreate, findFirst: vi.fn(async () => null) },
     } as unknown as PrismaClient;
 
@@ -113,16 +119,23 @@ describe("Phase 6 audit trail ? marks.imported (CSV commit)", () => {
     const result = await commitMarksImport(mockPrisma, "UNIT2", csv);
 
     expect(result.status).toBe("FAILED");
-    expect(auditLogCreate).not.toHaveBeenCalled();
+    expect(auditLogCreate).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        schoolId: "sch-unit-2",
+        action: "marks.import_failed",
+        correlationId: "batch-2",
+      }),
+    }));
+    expect(failedBatchCreate).toHaveBeenCalled();
   });
 });
 
 // ─── report.revoke audit: route test ─────────────────────────────────────────
 
-const { auditLogCreateMock, issuedReportFindFirst, issuedReportUpdate, schoolFindUniqueMock } = vi.hoisted(() => ({
+const { auditLogCreateMock, issuedReportFindFirst, issuedReportUpdateMany, schoolFindUniqueMock } = vi.hoisted(() => ({
   auditLogCreateMock: vi.fn(async () => ({})),
   issuedReportFindFirst: vi.fn(async () => ({ id: "rpt-1", schoolId: "sch-route-1", status: "ISSUED" })),
-  issuedReportUpdate: vi.fn(async () => ({ id: "rpt-1", status: "REVOKED" })),
+  issuedReportUpdateMany: vi.fn(async () => ({ count: 1 })),
   schoolFindUniqueMock: vi.fn(async () => ({ id: "sch-route-1", code: "SCU-PREVIEW", name: "Route School" })),
 }));
 
@@ -132,8 +145,7 @@ vi.mock("../../server/db/prisma", () => ({
     appSetting: { findUnique: vi.fn(async () => null) },
     issuedReport: {
       findFirst: issuedReportFindFirst,
-      update: issuedReportUpdate,
-      updateMany: vi.fn(async () => ({ count: 0 })),
+      updateMany: issuedReportUpdateMany,
       findMany: vi.fn(async () => []),
     },
     auditLog: { create: auditLogCreateMock },
@@ -154,6 +166,7 @@ describe("Phase 6 audit trail ? report.revoke", () => {
       name: "Test Admin",
       email: "admin@test.com",
       role: "ADMIN_OPERATOR",
+      tokenVersion: 0,
     });
   });
 
@@ -161,7 +174,7 @@ describe("Phase 6 audit trail ? report.revoke", () => {
     vi.clearAllMocks();
     schoolFindUniqueMock.mockResolvedValue({ id: "sch-route-1", code: "SCU-PREVIEW", name: "Route School" });
     issuedReportFindFirst.mockResolvedValue({ id: "rpt-1", schoolId: "sch-route-1", status: "ISSUED" });
-    issuedReportUpdate.mockResolvedValue({ id: "rpt-1", status: "REVOKED" });
+    issuedReportUpdateMany.mockResolvedValue({ count: 1 });
     auditLogCreateMock.mockResolvedValue({});
   });
 

@@ -1,5 +1,6 @@
 ﻿import { describe, expect, it, afterEach } from "vitest";
 import { generateStudentCommentDraft, MAX_COMMENT_LENGTH } from "../../server/services/reportCommentService";
+import { COMMENT_LIMITS } from "../../shared/utils/reportComments";
 
 // ── Test fixtures ─────────────────────────────────────────────────────────────
 
@@ -28,6 +29,12 @@ const savedKey = process.env.GEMINI_API_KEY;
 
 afterEach(() => {
   process.env.GEMINI_API_KEY = savedKey;
+});
+
+describe("reportCommentService ? shared limit alignment", () => {
+  it("uses the shared one-page-safe class teacher comment limit", () => {
+    expect(MAX_COMMENT_LENGTH).toBe(COMMENT_LIMITS.classTeacherComment);
+  });
 });
 
 // ── CONTEXT_INCOMPLETE ────────────────────────────────────────────────────────

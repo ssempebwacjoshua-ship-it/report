@@ -1,7 +1,8 @@
 ﻿import { GoogleGenAI } from "@google/genai";
+import { COMMENT_LIMITS } from "../../shared/utils/reportComments";
 import type { ReportAssistantContext, StudentReadinessSummary } from "./reportAssistantContextService";
 
-export const MAX_COMMENT_LENGTH = 500;
+export const MAX_COMMENT_LENGTH = COMMENT_LIMITS.classTeacherComment;
 
 let aiInstance: GoogleGenAI | null = null;
 

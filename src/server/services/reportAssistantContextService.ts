@@ -49,7 +49,16 @@ export type ReportAssistantContext = {
 
   // readiness
   isReadyToIssue: boolean;
-  readinessCode: "READY" | "NO_ACTIVE_TERM" | "NO_STUDENTS" | "NO_SUBJECTS" | "NO_FINALIZED_MARKS" | "MISSING_MARKS" | "SCHOOL_NOT_FOUND" | "CLASS_NOT_FOUND";
+  readinessCode:
+    | "READY"
+    | "NO_ACTIVE_TERM"
+    | "NO_STUDENTS"
+    | "NO_SUBJECTS"
+    | "NO_FINALIZED_MARKS"
+    | "MISSING_MARKS"
+    | "SCHOOL_NOT_FOUND"
+    | "CLASS_NOT_FOUND"
+    | "STREAM_NOT_FOUND";
 
   // human-readable issue list
   issues: string[];
@@ -95,11 +104,39 @@ export async function buildReportAssistantContext(
   // ── Batch query 2: class and stream records ──────────────────────────────────
   const [classRecord, streamRecord] = await Promise.all([
     prisma.schoolClass.findFirst({ where: { id: query.classId, schoolId: school.id } }),
-    query.streamId ? prisma.stream.findFirst({ where: { id: query.streamId, schoolId: school.id } }) : Promise.resolve(null),
+    query.streamId
+      ? prisma.stream.findFirst({ where: { id: query.streamId, schoolId: school.id, classId: query.classId } })
+      : Promise.resolve(null),
   ]);
 
   if (!classRecord) {
-    return emptyContext({ readinessCode: "CLASS_NOT_FOUND", issues: [`Class not found.`] });
+    return emptyContext({
+      schoolFound: true,
+      hasActiveTerm: true,
+      gradingConfigured: settings.grading.grades.length > 0,
+      academicYear: academicYear.name,
+      term: term.name,
+      assessmentType: query.assessmentType,
+      readinessCode: "CLASS_NOT_FOUND",
+      issues: ["Class not found."],
+    });
+  }
+
+  if (query.streamId && !streamRecord) {
+    return emptyContext({
+      schoolFound: true,
+      classFound: true,
+      hasActiveTerm: true,
+      hasSubjects: school.subjects.length > 0,
+      gradingConfigured: settings.grading.grades.length > 0,
+      className: classRecord.name,
+      academicYear: academicYear.name,
+      term: term.name,
+      assessmentType: query.assessmentType,
+      totalSubjects: school.subjects.length,
+      readinessCode: "STREAM_NOT_FOUND",
+      issues: ["Stream not found for this class."],
+    });
   }
 
   const subjects = school.subjects;

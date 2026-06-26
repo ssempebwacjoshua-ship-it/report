@@ -4,6 +4,7 @@ import type { GradingScaleSettings, ReportSettings, SchoolProfileSettings } from
 import { defaultSettingsSections } from "../../shared/types/settings";
 import { getSchoolInitials } from "../layout/branding";
 import type { ReportComments } from "../../shared/utils/reportComments";
+import { sanitizeReportCardForRender, sanitizeReportComments, sanitizeSchoolSettingsForReport } from "../../shared/utils/reportContentLimits";
 import { generateRemarks } from "../../shared/utils/remarksEngine";
 import { formatUgandaSchoolYearLabel } from "../../shared/utils/ugandaYear";
 
@@ -87,6 +88,13 @@ function formatDisplayDate(value: string) {
   });
 }
 
+function reportLayoutMode(card: StudentReportCard, type: AssessmentFilter) {
+  const commentLoad = `${card.comments ?? ""} ${card.progressionText ?? ""}`.length;
+  const denseThreshold = type === "TERM_SUMMARY" ? 14 : 18;
+  if (card.subjects.length > denseThreshold || commentLoad > 220) return "compact";
+  return "standard";
+}
+
 export function StudentReportDetail({
   card,
   assessmentType,
@@ -146,23 +154,25 @@ function StudentReportDetailContent({
   onEditOpenChange?: (open: boolean) => void;
   initialComments?: ReportComments;
 }) {
-  const school = schoolSettings ?? defaultSettingsSections.school;
+  const sanitizedCard = sanitizeReportCardForRender(card);
+  const school = sanitizeSchoolSettingsForReport(schoolSettings ?? defaultSettingsSections.school);
   const reports = reportSettings ?? defaultSettingsSections.reports;
   const scale = grading ?? defaultSettingsSections.grading;
   const defaultDraft = useMemo(() => {
     if (initialComments) {
+      const safeComments = sanitizeReportComments(initialComments);
       return {
-        classTeacherComment: initialComments.classTeacherComment,
-        headTeacherComment: initialComments.headTeacherComment,
-        conductNote: initialComments.conductNote,
-        classTeacherName: initialComments.classTeacherName,
-        headTeacherName: initialComments.headTeacherName || school.headTeacherName || "Head Teacher",
-        issueDate: initialComments.issueDate || new Date().toISOString().slice(0, 10),
+        classTeacherComment: safeComments.classTeacherComment,
+        headTeacherComment: safeComments.headTeacherComment,
+        conductNote: safeComments.conductNote,
+        classTeacherName: safeComments.classTeacherName,
+        headTeacherName: safeComments.headTeacherName || school.headTeacherName || "Head Teacher",
+        issueDate: safeComments.issueDate || new Date().toISOString().slice(0, 10),
         showGradingKey: reports.showGradeKey,
       };
     }
-    return buildDefaultDraft(card, school, reports);
-  }, [card, school, reports, initialComments]);
+    return sanitizeReportComments(buildDefaultDraft(sanitizedCard, school, reports));
+  }, [sanitizedCard, school, reports, initialComments]);
   const [draft, setDraft] = useState<ReportDraft>(defaultDraft);
   const [isEditing, setIsEditing] = useState(false);
   const [draftState, setDraftState] = useState<"idle" | "saved" | "ready">("idle");
@@ -180,6 +190,7 @@ function StudentReportDetailContent({
   const isTermSummary = !isSingle;
   const issueDate = formatDisplayDate(draft.issueDate);
   const visibleShowPositions = Boolean(showPositions);
+  const layoutMode = reportLayoutMode(sanitizedCard, effectiveType);
 
   const updateDraft = <K extends keyof ReportDraft>(key: K, value: ReportDraft[K]) => {
     setDraft((current) => ({ ...current, [key]: value }));
@@ -187,11 +198,16 @@ function StudentReportDetailContent({
   };
 
   // Conduct / Progression — conductNote takes priority; fall back to promotion record
-  const conductContent = draft.conductNote || card.progressionText || "";
+  const conductContent = draft.conductNote || sanitizedCard.progressionText || "";
   const showConductCard = Boolean(conductContent);
 
   return (
-    <section className={`report-print-area report-print-page min-w-0 report-density-${reports.printDensity}`}>
+    <section
+      className={`report-print-area report-print-page min-w-0 report-density-${reports.printDensity} report-layout-${layoutMode}`}
+      data-report-page-target="a4-single"
+      data-report-layout={layoutMode}
+      data-report-assessment={effectiveType}
+    >
       {editing ? (
         <div className="no-print mb-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
@@ -232,9 +248,9 @@ function StudentReportDetailContent({
                 onChange={(event) => updateDraft("conductNote", event.target.value)}
                 className="min-h-16 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-normal text-slate-800 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
               />
-              {card.progressionText && !draft.conductNote ? (
+              {sanitizedCard.progressionText && !draft.conductNote ? (
                 <span className="mt-1 block text-xs text-slate-400">
-                  Auto-filled from promotion record: &ldquo;{card.progressionText}&rdquo;
+                  Auto-filled from promotion record: &ldquo;{sanitizedCard.progressionText}&rdquo;
                 </span>
               ) : null}
             </label>
@@ -275,7 +291,7 @@ function StudentReportDetailContent({
                 className="btn btn-secondary text-xs"
                 title="Fill remarks from score band only when both comment fields are empty"
                 onClick={() => {
-                  const remarks = generateRemarks(card.average);
+                  const remarks = generateRemarks(sanitizedCard.average);
                   if (!remarks) return;
                   setDraft((current) => ({
                     ...current,
@@ -292,7 +308,7 @@ function StudentReportDetailContent({
                 className="btn btn-secondary text-xs"
                 title="Replace current comments with auto-generated remarks based on the student's score band"
                 onClick={() => {
-                  const remarks = generateRemarks(card.average);
+                  const remarks = generateRemarks(sanitizedCard.average);
                   if (!remarks) return;
                   setDraft((current) => ({
                     ...current,
@@ -363,8 +379,8 @@ function StudentReportDetailContent({
               </p>
             </div>
             <div className="w-24 flex-shrink-0 text-right text-xs leading-relaxed text-blue-200 print:text-[7px] print:leading-tight">
-              <div className="font-semibold text-white">{formatUgandaSchoolYearLabel(card.academicYear)}</div>
-              <div>{card.term}</div>
+              <div className="font-semibold text-white">{formatUgandaSchoolYearLabel(sanitizedCard.academicYear)}</div>
+              <div>{sanitizedCard.term}</div>
             </div>
           </div>
           <div className="mt-5 grid grid-cols-2 gap-2 border-t border-blue-800 pt-4 text-center text-xs text-blue-100 print:mt-1 print:pt-1 print:text-[7px]">
@@ -384,19 +400,19 @@ function StudentReportDetailContent({
             <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm sm:grid-cols-2 lg:grid-cols-4 print:grid-cols-4 print:gap-y-0.5 print:text-[8px]">
               <div>
                 <span className="font-semibold text-slate-600">Full Name: </span>
-                <span className="font-medium text-slate-900">{card.studentName}</span>
+                <span className="font-medium text-slate-900">{sanitizedCard.studentName}</span>
               </div>
               <div>
                 <span className="font-semibold text-slate-600">Adm. No.: </span>
-                <span className="font-mono font-medium text-slate-900">{card.admissionNumber}</span>
+                <span className="font-mono font-medium text-slate-900">{sanitizedCard.admissionNumber}</span>
               </div>
               <div>
                 <span className="font-semibold text-slate-600">Class: </span>
-                <span className="text-slate-900">{card.className}</span>
+                <span className="text-slate-900">{sanitizedCard.className}</span>
               </div>
               <div>
                 <span className="font-semibold text-slate-600">Stream: </span>
-                <span className="text-slate-900">{card.streamName}</span>
+                <span className="text-slate-900">{sanitizedCard.streamName}</span>
               </div>
             </div>
           </div>
@@ -412,14 +428,14 @@ function StudentReportDetailContent({
           >
             <div className="report-summary-card rounded-xl bg-blue-600 p-4 text-white print:p-1.5">
               <b className="block text-3xl font-bold tabular-nums print:text-sm">
-                {card.average ?? "-"}
+                {sanitizedCard.average ?? "-"}
               </b>
               <span className="mt-1 block text-xs font-semibold uppercase tracking-wider text-blue-100 print:mt-0.5 print:text-[7px]">
                 Average
               </span>
             </div>
             <div className="report-summary-card rounded-xl bg-[#4c1d95] p-4 text-white print:p-1.5">
-              <b className="block text-3xl font-bold print:text-sm">{card.grade ?? "-"}</b>
+              <b className="block text-3xl font-bold print:text-sm">{sanitizedCard.grade ?? "-"}</b>
               <span className="mt-1 block text-xs font-semibold uppercase tracking-wider text-purple-200 print:mt-0.5 print:text-[7px]">
                 Grade
               </span>
@@ -427,7 +443,7 @@ function StudentReportDetailContent({
             {visibleShowPositions ? (
               <div className="report-summary-card rounded-xl bg-emerald-600 p-4 text-white print:p-1.5">
                 <b className="block text-3xl font-bold tabular-nums print:text-sm">
-                  {card.overallPosition != null ? `#${card.overallPosition}` : "-"}
+                  {sanitizedCard.overallPosition != null ? `#${sanitizedCard.overallPosition}` : "-"}
                 </b>
                 <span className="mt-1 block text-xs font-semibold uppercase tracking-wider text-emerald-100 print:mt-0.5 print:text-[7px]">
                   Overall Position
@@ -448,7 +464,7 @@ function StudentReportDetailContent({
 
           <div className="mb-6 overflow-x-auto rounded-xl border border-slate-200 print:mb-1 print:overflow-visible">
             {isTermSummary ? (
-              <table className="report-table w-full min-w-[720px] border-collapse text-sm print:text-[8px]">
+              <table className={`report-table w-full min-w-[720px] border-collapse text-sm print:text-[8px] ${layoutMode === "compact" ? "report-table-compact" : ""}`}>
                 <thead>
                   <tr className="report-table-header bg-[#0f2a5e] text-left text-xs font-semibold uppercase tracking-wide text-white print:text-[7px]">
                     <th className="p-2 text-center">No.</th>
@@ -462,7 +478,7 @@ function StudentReportDetailContent({
                   </tr>
                 </thead>
                 <tbody>
-                  {card.subjects.map((subject, index) => (
+                  {sanitizedCard.subjects.map((subject, index) => (
                     <tr
                       key={subject.subjectId}
                       className={`border-b border-slate-100 ${index % 2 === 1 ? "bg-slate-50" : "bg-white"}`}
@@ -482,7 +498,7 @@ function StudentReportDetailContent({
                 </tbody>
               </table>
             ) : (
-              <table className="report-table w-full min-w-[400px] border-collapse text-sm print:text-[8px]">
+              <table className={`report-table w-full min-w-[400px] border-collapse text-sm print:text-[8px] ${layoutMode === "compact" ? "report-table-compact" : ""}`}>
                 <thead>
                   <tr className="report-table-header bg-[#0f2a5e] text-left text-xs font-semibold uppercase tracking-wide text-white print:text-[7px]">
                     <th className="p-2 text-center">No.</th>
@@ -492,7 +508,7 @@ function StudentReportDetailContent({
                   </tr>
                 </thead>
                 <tbody>
-                  {card.subjects.map((subject, index) => {
+                  {sanitizedCard.subjects.map((subject, index) => {
                     const singleMark =
                       effectiveType === "BOT"
                         ? subject.botMarks
@@ -551,7 +567,7 @@ function StudentReportDetailContent({
                 <p className="mb-2 text-xs font-bold text-slate-600 print:mb-1 print:text-[7px]">
                   Class Teacher&apos;s Comment
                 </p>
-                <div className="mb-3 min-h-[56px] rounded-lg border border-dashed border-slate-200 bg-slate-50 p-2 text-xs italic text-slate-500 print:mb-1 print:min-h-0 print:p-1">
+                <div className="mb-3 min-h-[56px] whitespace-pre-line break-words rounded-lg border border-dashed border-slate-200 bg-slate-50 p-2 text-xs italic text-slate-500 print:mb-1 print:min-h-0 print:p-1">
                   {draft.classTeacherComment || <span className="text-slate-300">—</span>}
                 </div>
                 {draft.classTeacherName ? (
@@ -564,7 +580,7 @@ function StudentReportDetailContent({
                 <p className="mb-2 text-xs font-bold text-slate-600 print:mb-1 print:text-[7px]">
                   Head Teacher&apos;s Comment
                 </p>
-                <div className="mb-3 min-h-[56px] rounded-lg border border-dashed border-slate-200 bg-slate-50 p-2 text-xs italic text-slate-500 print:mb-1 print:min-h-0 print:p-1">
+                <div className="mb-3 min-h-[56px] whitespace-pre-line break-words rounded-lg border border-dashed border-slate-200 bg-slate-50 p-2 text-xs italic text-slate-500 print:mb-1 print:min-h-0 print:p-1">
                   {draft.headTeacherComment || <span className="text-slate-300">—</span>}
                 </div>
                 {draft.headTeacherName ? (
@@ -578,7 +594,7 @@ function StudentReportDetailContent({
                   <p className="mb-2 text-xs font-bold text-slate-600 print:mb-1 print:text-[7px]">
                     Conduct / Progression
                   </p>
-                  <div className="min-h-[56px] rounded-lg border border-dashed border-slate-200 bg-slate-50 p-2 text-xs italic text-slate-500 print:min-h-0 print:p-1">
+                  <div className="min-h-[56px] whitespace-pre-line break-words rounded-lg border border-dashed border-slate-200 bg-slate-50 p-2 text-xs italic text-slate-500 print:min-h-0 print:p-1">
                     {conductContent}
                   </div>
                 </div>

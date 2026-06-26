@@ -101,7 +101,7 @@ function makeMockTag(overrides: Record<string, unknown> = {}) {
 describe("resolvePublicCode — service unit tests", () => {
   it("returns UNKNOWN for an unregistered publicCode", async () => {
     const db = {
-      nfcTag: { findUnique: vi.fn(async () => null), update: vi.fn(async () => ({})) },
+      nfcTag: { findUnique: vi.fn(async () => null), update: vi.fn(async () => ({})), updateMany: vi.fn(async () => ({ count: 0 })) },
       nfcTapEvent: { create: vi.fn(async () => ({})) },
     } as unknown as PrismaClient;
 
@@ -112,7 +112,7 @@ describe("resolvePublicCode — service unit tests", () => {
 
   it("returns UNASSIGNED for a tag with no student", async () => {
     const db = {
-      nfcTag: { findUnique: vi.fn(async () => makeMockTag({ status: "UNASSIGNED", studentId: null })), update: vi.fn(async () => ({})) },
+      nfcTag: { findUnique: vi.fn(async () => makeMockTag({ status: "UNASSIGNED", studentId: null })), update: vi.fn(async () => ({})), updateMany: vi.fn(async () => ({ count: 0 })) },
       nfcTapEvent: { create: vi.fn(async () => ({})) },
     } as unknown as PrismaClient;
 
@@ -129,6 +129,7 @@ describe("resolvePublicCode — service unit tests", () => {
           student: { id: STU_ID, admissionNumber: "001", firstName: "Alice", lastName: "Doe", enrollments: [] },
         })),
         update: vi.fn(async () => ({})),
+        updateMany: vi.fn(async () => ({ count: 0 })),
       },
       nfcTapEvent: { create: vi.fn(async () => ({})) },
     } as unknown as PrismaClient;
@@ -147,6 +148,7 @@ describe("resolvePublicCode — service unit tests", () => {
           student: { id: STU_ID, admissionNumber: "001", firstName: "Alice", lastName: "Doe", enrollments: [] },
         })),
         update: vi.fn(async () => ({})),
+        updateMany: vi.fn(async () => ({ count: 0 })),
       },
       nfcTapEvent: { create: vi.fn(async () => ({})) },
     } as unknown as PrismaClient;
@@ -159,7 +161,7 @@ describe("resolvePublicCode — service unit tests", () => {
 
   it("returns DISABLED for a disabled tag", async () => {
     const db = {
-      nfcTag: { findUnique: vi.fn(async () => makeMockTag({ status: "DISABLED" })), update: vi.fn(async () => ({})) },
+      nfcTag: { findUnique: vi.fn(async () => makeMockTag({ status: "DISABLED" })), update: vi.fn(async () => ({})), updateMany: vi.fn(async () => ({ count: 0 })) },
       nfcTapEvent: { create: vi.fn(async () => ({})) },
     } as unknown as PrismaClient;
 
@@ -170,7 +172,7 @@ describe("resolvePublicCode — service unit tests", () => {
   it("always logs a NfcTapEvent regardless of result", async () => {
     const createEvent = vi.fn(async () => ({}));
     const db = {
-      nfcTag: { findUnique: vi.fn(async () => null), update: vi.fn(async () => ({})) },
+      nfcTag: { findUnique: vi.fn(async () => null), update: vi.fn(async () => ({})), updateMany: vi.fn(async () => ({ count: 0 })) },
       nfcTapEvent: { create: createEvent },
     } as unknown as PrismaClient;
 
@@ -214,7 +216,7 @@ describe("assignTag — service unit tests", () => {
         findFirst: vi.fn(async (args: { where: Record<string, unknown> }) =>
           args.where.studentId ? null : makeMockTag()
         ),
-        update: vi.fn(async () => ({ ...updatedTag, student: null, _count: { tapEvents: 0 } })),
+        updateMany: vi.fn(async () => ({ count: 1 })),
       },
       student: { findFirst: vi.fn(async () => ({ id: STU_ID, admissionNumber: "001", firstName: "Alice", lastName: "Doe", isActive: true })) },
     } as unknown as PrismaClient;
@@ -231,7 +233,7 @@ describe("assignTag — service unit tests", () => {
         findFirst: vi.fn(async (args: { where: Record<string, unknown> }) =>
           args.where.studentId ? null : makeMockTag()
         ),
-        update: vi.fn(async () => ({ ...updatedTag, student: null, _count: { tapEvents: 0 } })),
+        updateMany: vi.fn(async () => ({ count: 1 })),
       },
       student: { findFirst: vi.fn(async () => ({ id: STU_ID, admissionNumber: "A-001", firstName: "Bob", lastName: "Smith", isActive: true })) },
     } as unknown as PrismaClient;
@@ -328,7 +330,7 @@ describe("disableTag — service unit tests", () => {
     const db = {
       nfcTag: {
         findFirst: vi.fn(async () => makeMockTag()),
-        update: vi.fn(async () => ({ id: TAG_ID, status: "DISABLED" })),
+        updateMany: vi.fn(async () => ({ count: 1 })),
       },
     } as unknown as PrismaClient;
 
@@ -351,7 +353,7 @@ describe("unassignTag — service unit tests", () => {
     const db = {
       nfcTag: {
         findFirst: vi.fn(async () => makeMockTag({ status: "ASSIGNED", studentId: STU_ID })),
-        update: vi.fn(async () => ({ id: TAG_ID, status: "UNASSIGNED" })),
+        updateMany: vi.fn(async () => ({ count: 1 })),
       },
     } as unknown as PrismaClient;
 

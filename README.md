@@ -4,6 +4,13 @@ Focused reports-generation rebuild for School Connect ideas. This repo is intent
 
 The old School Connect repo is a behavioral reference only. Do not copy its source, schema, environment, or production database into this lab.
 
+## Production Readiness / Pre-Onboarding Gate
+
+Before onboarding any real school, read and follow:
+[SCHOOL_CONNECT_REPORT_LAB_PINNED_PRE_ONBOARDING_MASTER.md](./SCHOOL_CONNECT_REPORT_LAB_PINNED_PRE_ONBOARDING_MASTER.md)
+
+Current production verdict: not ready for real school onboarding until all blocker phases are complete.
+
 ## Stack
 
 - React, TypeScript, Vite

@@ -5,8 +5,7 @@ import { prisma } from "../db/prisma";
 import { requirePlatformOwner } from "../middleware/requirePlatformOwner";
 import { hashPassword } from "../services/authService";
 import { REPORT_LAB_PLANS, getPlanByCode } from "../../shared/constants/subscriptionPlans";
-import { getClassesForSections } from "../../shared/constants/classes";
-import { getDefaultSubjectsForSections } from "../../shared/constants/subjects";
+import { CANONICAL_STREAM_CODES, provisionSchoolOnboarding } from "../services/schoolStructureProvisioningService";
 import { getSmartPagesPackage } from "../services/smartPagesService";
 import type { SmartPagesPackageCode, SmartPagesPaymentNetwork, SmartPagesPaymentRequest } from "../../shared/types/smartPages";
 
@@ -294,12 +293,13 @@ export function platformOwnerRoutes() {
       .regex(/^[A-Z0-9-]+$/, "School code must be uppercase letters, digits, and hyphens only. No spaces."),
     phone: z.string().max(50).optional(),
     address: z.string().max(500).optional(),
-    sections: z.array(z.enum(["NURSERY", "PRIMARY", "SECONDARY"])).min(1, "At least one section is required."),
+    sections: z.array(z.enum(["NURSERY", "PRIMARY", "SECONDARY", "COMBINED"])).min(1, "At least one section is required."),
+    defaultStreamCodes: z.array(z.enum(CANONICAL_STREAM_CODES)).min(1).max(CANONICAL_STREAM_CODES.length).optional(),
     planCode: z.enum(validPlanCodes as [string, ...string[]]),
     trialDays: z.number().int().min(0).max(365).optional(),
     adminName: z.string().min(2, "Admin name must be at least 2 characters.").max(100),
     adminEmail: z.string().email("Enter a valid admin email."),
-    adminTemporaryPassword: z.string().min(8, "Password must be at least 8 characters."),
+    adminTemporaryPassword: z.string().min(10, "Temporary password must be at least 10 characters."),
   });
 
   router.post("/api/owner/schools", requirePlatformOwner, async (req, res, next) => {
@@ -312,122 +312,42 @@ export function platformOwnerRoutes() {
         return;
       }
 
-      const passwordHash = await hashPassword(body.adminTemporaryPassword);
       const plan = getPlanByCode(body.planCode);
-      const classDefs = getClassesForSections(body.sections);
-      const subjectDefs = getDefaultSubjectsForSections(body.sections, classDefs.map((def) => def.code));
 
       const result = await prisma.$transaction(async (tx) => {
-        const school = await tx.school.create({
-          data: {
-            code: body.schoolCode,
-            name: body.schoolName,
+        return provisionSchoolOnboarding(
+          tx as any,
+          {
+            schoolName: body.schoolName,
+            schoolCode: body.schoolCode,
             phone: body.phone ?? null,
             address: body.address ?? null,
-            isActive: true,
-          },
-        });
-
-        if (classDefs.length > 0) {
-          await tx.schoolClass.createMany({
-            data: classDefs.map((def) => ({
-              schoolId: school.id,
-              name: def.name,
-              code: def.code,
-              level: def.level,
-            })),
-          });
-        }
-
-        if (subjectDefs.length > 0) {
-          await tx.subject.createMany({
-            data: subjectDefs.map((subject, index) => ({
-              schoolId: school.id,
-              name: subject.name,
-              code: subject.code,
-              sortOrder: index + 1,
-              isActive: true,
-            })),
-            skipDuplicates: true,
-          });
-        }
-
-        const now = new Date();
-        const isTrialPeriod = (body.trialDays ?? 0) > 0;
-        const periodEnd = isTrialPeriod
-          ? new Date(now.getTime() + body.trialDays! * 24 * 60 * 60 * 1000)
-          : new Date(now.getFullYear() + 1, now.getMonth(), now.getDate());
-
-        const sub = await tx.reportLabSubscription.create({
-          data: {
-            schoolId: school.id,
+            sections: body.sections,
+            defaultStreamCodes: body.defaultStreamCodes,
             planCode: body.planCode,
-            billingCycle: "YEAR",
+            trialDays: body.trialDays,
+            adminName: body.adminName,
+            adminEmail: body.adminEmail,
+            adminTemporaryPassword: body.adminTemporaryPassword,
+          },
+          req.user!.userId,
+          {
             studentLimit: plan?.studentLimit ?? null,
-            currentPeriodStart: now,
-            currentPeriodEnd: periodEnd,
-            status: isTrialPeriod ? "TRIAL" : "ACTIVE",
-          },
-        });
-
-        const invoice = await tx.reportLabInvoice.create({
-          data: {
-            subscriptionId: sub.id,
             setupFeeUgx: plan?.setupFeeUgx ?? 0,
-            amountUgx: plan?.annualLicenseUgx ?? 0,
-            totalUgx: (plan?.setupFeeUgx ?? 0) + (plan?.annualLicenseUgx ?? 0),
-            status: "UNPAID",
+            annualLicenseUgx: plan?.annualLicenseUgx ?? 0,
           },
-        });
-
-        const admin = await tx.user.create({
-          data: {
-            schoolId: school.id,
-            name: body.adminName,
-            email: body.adminEmail.toLowerCase(),
-            passwordHash,
-            role: "ADMIN_OPERATOR",
-            isActive: true,
-            mustChangePassword: true,
-          },
-        });
-
-        await tx.auditLog.create({
-          data: {
-            schoolId: school.id,
-            action: "OWNER_CREATE_SCHOOL",
-            details: {
-              actorUserId: req.user!.userId,
-              schoolCode: school.code,
-              schoolName: school.name,
-              planCode: body.planCode,
-              sections: body.sections,
-              classesSeeded: classDefs.length,
-              adminEmail: admin.email,
-              trialDays: body.trialDays ?? null,
-            },
-          },
-        });
-
-        return { school, sub, invoice, admin };
+        );
       });
 
       res.status(201).json({
         ok: true,
-        school: {
-          id: result.school.id,
-          code: result.school.code,
-          name: result.school.name,
-          phone: result.school.phone,
-          address: result.school.address,
-          isActive: result.school.isActive,
-        },
+        school: result.school,
         subscription: {
-          id: result.sub.id,
-          planCode: result.sub.planCode,
-          status: result.sub.status,
-          currentPeriodEnd: result.sub.currentPeriodEnd.toISOString(),
-          studentLimit: result.sub.studentLimit,
+          id: result.subscription.id,
+          planCode: result.subscription.planCode,
+          status: result.subscription.status,
+          currentPeriodEnd: result.subscription.currentPeriodEnd.toISOString(),
+          studentLimit: result.subscription.studentLimit,
         },
         invoice: {
           id: result.invoice.id,
@@ -440,9 +360,19 @@ export function platformOwnerRoutes() {
           id: result.admin.id,
           email: result.admin.email,
           name: result.admin.name,
-          mustChangePassword: true,
+          mustChangePassword: result.admin.mustChangePassword,
         },
-        classesSeeded: classDefs.length,
+        academicYear: {
+          id: result.academicYear.id,
+          name: result.academicYear.name,
+        },
+        activeTerm: {
+          id: result.activeTerm.id,
+          name: result.activeTerm.name,
+        },
+        settings: result.settings,
+        classesSeeded: result.structure.classCount,
+        streamsSeeded: result.structure.streamCount,
       });
     } catch (error) {
       next(error);

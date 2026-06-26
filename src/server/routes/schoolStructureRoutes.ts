@@ -4,17 +4,23 @@ import { z } from "zod";
 import { prisma } from "../db/prisma";
 import {
   CANONICAL_CLASSES,
+  expandSchoolSections,
   getClassesForSections,
   isCanonicalClassCode,
   type SchoolSection,
 } from "../../shared/constants/classes";
 import { getSettingsSections, patchSettingsSection } from "../repositories/settingsRepository";
-import { ensureDefaultSubjectsForSections } from "../services/subjectProvisioningService";
+import {
+  normalizeStreamCodes,
+  provisionCanonicalSchoolStructure,
+} from "../services/schoolStructureProvisioningService";
 
 const AVAILABLE_SECTIONS = [
   { code: "NURSERY" as const, label: "Nursery / Pre-primary" },
   { code: "PRIMARY" as const, label: "Primary" },
   { code: "SECONDARY" as const, label: "Secondary" },
+  // COMBINED currently means PRIMARY + SECONDARY. Add NURSERY separately when needed.
+  { code: "COMBINED" as const, label: "Combined Primary + Secondary" },
 ];
 
 async function buildStructureResponse(school: { id: string; code: string; name: string }) {
@@ -60,8 +66,8 @@ async function buildStructureResponse(school: { id: string; code: string; name: 
     const sectionClassIds = classesWithMeta.filter((c) => c.section === section).map((c) => c.id);
     if (sectionClassIds.length === 0) continue;
     const [enrollCount, markCount] = await Promise.all([
-      prisma.classEnrollment.count({ where: { classId: { in: sectionClassIds } } }),
-      prisma.subjectMark.count({ where: { classId: { in: sectionClassIds } } }),
+      prisma.classEnrollment.count({ where: { schoolId: school.id, classId: { in: sectionClassIds } } }),
+      prisma.subjectMark.count({ where: { schoolId: school.id, classId: { in: sectionClassIds } } }),
     ]);
     if (enrollCount > 0 || markCount > 0) {
       const label = AVAILABLE_SECTIONS.find((s) => s.code === section)?.label ?? section;
@@ -81,7 +87,7 @@ async function buildStructureResponse(school: { id: string; code: string; name: 
 }
 
 const sectionsBodySchema = z.object({
-  selectedSections: z.array(z.enum(["NURSERY", "PRIMARY", "SECONDARY"])).min(1),
+  selectedSections: z.array(z.enum(["NURSERY", "PRIMARY", "SECONDARY", "COMBINED"])).min(1),
 });
 
 const streamCreateSchema = z.object({
@@ -100,6 +106,20 @@ function requireSchoolContext(
     return null;
   }
   return school;
+}
+
+async function writeSchoolStructureAudit(
+  schoolId: string,
+  action: string,
+  details: Record<string, unknown>,
+) {
+  await prisma.auditLog.create({
+    data: {
+      schoolId,
+      action,
+      details,
+    },
+  });
 }
 
 export function schoolStructureRoutes() {
@@ -121,7 +141,7 @@ export function schoolStructureRoutes() {
       if (!parsed.success) {
         res.status(400).json({
           success: false,
-          error: "selectedSections must be a non-empty array of NURSERY, PRIMARY, or SECONDARY.",
+          error: "selectedSections must be a non-empty array of NURSERY, PRIMARY, SECONDARY, or COMBINED.",
         });
         return;
       }
@@ -132,7 +152,8 @@ export function schoolStructureRoutes() {
 
       const currentSettings = await getSettingsSections(prisma, schoolCode);
       const currentSections = currentSettings.school.schoolSections;
-      const removedSections = currentSections.filter((s) => !newSections.includes(s));
+      const newInstructionalSections = new Set(expandSchoolSections(newSections));
+      const removedSections = expandSchoolSections(currentSections).filter((section) => !newInstructionalSections.has(section));
 
       if (removedSections.length > 0) {
         const removedCodes = new Set(getClassesForSections(removedSections).map((c) => c.code));
@@ -142,8 +163,8 @@ export function schoolStructureRoutes() {
         if (removedDbClasses.length > 0) {
           const removedClassIds = removedDbClasses.map((c) => c.id);
           const [enrollCount, markCount] = await Promise.all([
-            prisma.classEnrollment.count({ where: { classId: { in: removedClassIds } } }),
-            prisma.subjectMark.count({ where: { classId: { in: removedClassIds } } }),
+            prisma.classEnrollment.count({ where: { schoolId: school.id, classId: { in: removedClassIds } } }),
+            prisma.subjectMark.count({ where: { schoolId: school.id, classId: { in: removedClassIds } } }),
           ]);
           if (enrollCount > 0 || markCount > 0) {
             const sectionLabels = removedSections
@@ -159,27 +180,33 @@ export function schoolStructureRoutes() {
         }
       }
 
-      const classDefs = getClassesForSections(newSections);
-      for (const def of classDefs) {
-        await prisma.schoolClass.upsert({
-          where: { schoolId_code: { schoolId: school.id, code: def.code } },
-          create: { schoolId: school.id, name: def.name, code: def.code, level: def.level },
-          update: {},
-        });
-      }
-      await ensureDefaultSubjectsForSections(
-        prisma,
-        school.id,
-        newSections,
-        classDefs.map((def) => def.code),
-      );
+      const structure = await provisionCanonicalSchoolStructure(prisma as any, school.id, {
+        sections: newSections,
+        defaultStreamCodes: ["A"],
+      });
 
       await patchSettingsSection(prisma, schoolCode, "school", {
         ...currentSettings.school,
         schoolSections: newSections,
       });
+      await writeSchoolStructureAudit(school.id, "school.structure.updated", {
+        previousSections: currentSections,
+        selectedSections: newSections,
+        removedSections,
+        actorUserId: req.user?.userId ?? null,
+        classesSeeded: structure.classCount,
+        streamsCreated: structure.streamCount,
+        subjectsProvisioned: structure.subjectCount,
+      });
 
-      res.json(await buildStructureResponse(school));
+      res.json({
+        ...(await buildStructureResponse(school)),
+        provisioning: {
+          classesSeeded: structure.classCount,
+          streamsCreated: structure.streamCount,
+          subjectsProvisioned: structure.subjectCount,
+        },
+      });
     } catch (error) {
       next(error);
     }
@@ -193,10 +220,16 @@ export function schoolStructureRoutes() {
         return;
       }
       const { classId, name, code } = parsed.data;
-      const streamCode = code.trim().toUpperCase();
       const streamName = name.trim();
       const school = requireSchoolContext(req, res);
       if (!school) return;
+      let streamCode: string;
+      try {
+        [streamCode] = normalizeStreamCodes([code]);
+      } catch {
+        res.status(400).json({ success: false, error: "Stream code must be one of A, B, C, or D." });
+        return;
+      }
 
       const klass = await prisma.schoolClass.findFirst({ where: { id: classId, schoolId: school.id } });
       if (!klass) {
@@ -208,8 +241,8 @@ export function schoolStructureRoutes() {
         return;
       }
 
-      const existing = await prisma.stream.findUnique({
-        where: { classId_code: { classId, code: streamCode } },
+      const existing = await prisma.stream.findFirst({
+        where: { classId, schoolId: school.id, code: streamCode },
       });
       if (existing) {
         res.status(409).json({
@@ -221,6 +254,14 @@ export function schoolStructureRoutes() {
 
       const stream = await prisma.stream.create({
         data: { schoolId: school.id, classId, name: streamName, code: streamCode },
+      });
+      await writeSchoolStructureAudit(school.id, "school.stream.created", {
+        actorUserId: req.user?.userId ?? null,
+        classId: klass.id,
+        classCode: klass.code,
+        streamId: stream.id,
+        streamName: stream.name,
+        streamCode: stream.code,
       });
 
       res.status(201).json({
@@ -246,8 +287,8 @@ export function schoolStructureRoutes() {
       }
 
       const [enrollCount, markCount] = await Promise.all([
-        prisma.classEnrollment.count({ where: { streamId } }),
-        prisma.subjectMark.count({ where: { streamId } }),
+        prisma.classEnrollment.count({ where: { schoolId: school.id, streamId } }),
+        prisma.subjectMark.count({ where: { schoolId: school.id, streamId } }),
       ]);
 
       if (enrollCount > 0 || markCount > 0) {
@@ -259,7 +300,14 @@ export function schoolStructureRoutes() {
         return;
       }
 
-      await prisma.stream.delete({ where: { id: streamId } });
+      await prisma.stream.deleteMany({ where: { id: streamId, schoolId: school.id } });
+      await writeSchoolStructureAudit(school.id, "school.stream.deleted", {
+        actorUserId: req.user?.userId ?? null,
+        classId: stream.classId,
+        streamId: stream.id,
+        streamName: stream.name,
+        streamCode: stream.code,
+      });
       res.json({ success: true, message: `Stream "${stream.name}" removed.` });
     } catch (error) {
       next(error);

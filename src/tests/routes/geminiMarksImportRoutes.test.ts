@@ -1,7 +1,8 @@
-﻿import request from "supertest";
+import request from "supertest";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { signToken } from "../../server/services/authService";
 
-// ── Mocks ───────────────────────────────────────────────────────────────────
+// -- Mocks -------------------------------------------------------------------
 const {
   markImportBatchCreate,
   markImportBatchFindUnique,
@@ -55,6 +56,43 @@ const {
     schoolClassUpsert: vi.fn(async () => ({})),
   };
 });
+
+const sessionValidationState = vi.hoisted(() => ({
+  validateSchoolSession: vi.fn(async (payload: {
+    userId: string;
+    schoolId: string;
+    name: string;
+    email: string;
+    role: string;
+    tokenVersion?: number;
+  } | null) => {
+    if (!payload?.userId || !payload.schoolId || typeof payload.tokenVersion !== "number") {
+      return null;
+    }
+    return {
+      user: {
+        id: payload.userId,
+        schoolId: payload.schoolId,
+        name: payload.name,
+        email: payload.email,
+        role: payload.role,
+        tokenVersion: payload.tokenVersion,
+        isPlatformOwner: false,
+      },
+      school: {
+        id: "school-1",
+        code: "SCU-PREVIEW",
+        name: "Preview School",
+        isActive: true,
+      },
+      auth: payload,
+    };
+  }),
+}));
+
+vi.mock("../../server/services/sessionValidationService", () => ({
+  validateSchoolSession: sessionValidationState.validateSchoolSession,
+}));
 
 vi.mock("../../server/db/prisma", () => ({
   prisma: {
@@ -132,6 +170,26 @@ const STREAM = "aaaaaaaa-0000-0000-0000-000000000004";
 const STU1 = "aaaaaaaa-0000-0000-0000-000000000011";
 const STU2 = "aaaaaaaa-0000-0000-0000-000000000012";
 const JOB = "aaaaaaaa-0000-0000-0000-000000000099";
+const AUTH_TOKEN = signToken({
+  userId: "aaaaaaaa-0000-0000-0000-0000000000aa",
+  schoolId: "school-1",
+  name: "Preview Admin",
+  email: "admin@preview.test",
+  role: "ADMIN_OPERATOR",
+  tokenVersion: 0,
+});
+
+function withAuth(test: request.Test) {
+  return test.set("Authorization", `Bearer ${AUTH_TOKEN}`);
+}
+
+function authPost(path: string) {
+  return withAuth(request(createServer()).post(path));
+}
+
+function authGet(path: string) {
+  return withAuth(request(createServer()).get(path));
+}
 
 // Two fully-validated READY rows for commit tests.
 const VALID_REVIEWED_ROWS = [
@@ -172,12 +230,12 @@ beforeEach(() => {
   txAuditLogCreate.mockClear();
   mockTransaction.mockClear();
   schoolClassUpsert.mockClear();
+  sessionValidationState.validateSchoolSession.mockClear();
 });
 
 describe("POST /api/marks-import/scan/extract", () => {
   it("returns 400 when no image is uploaded", async () => {
-    const res = await request(createServer())
-      .post("/api/marks-import/scan/extract")
+    const res = await authPost("/api/marks-import/scan/extract")
       .field("classId", "class-1")
       .field("subjectId", "subject-1")
       .field("termId", "term-1")
@@ -187,8 +245,7 @@ describe("POST /api/marks-import/scan/extract", () => {
   });
 
   it("returns 400 when required context is missing", async () => {
-    const res = await request(createServer())
-      .post("/api/marks-import/scan/extract")
+    const res = await authPost("/api/marks-import/scan/extract")
       .attach("image", IMAGE, { filename: "marks.jpg", contentType: "image/jpeg" })
       .field("subjectId", "subject-1") // classId, termId, examType missing
       .field("termId", "term-1");
@@ -199,8 +256,7 @@ describe("POST /api/marks-import/scan/extract", () => {
   });
 
   it("extracts, validates, and returns the review payload without saving marks", async () => {
-    const res = await request(createServer())
-      .post("/api/marks-import/scan/extract")
+    const res = await authPost("/api/marks-import/scan/extract")
       .attach("image", IMAGE, { filename: "marks.jpg", contentType: "image/jpeg" })
       .field("classId", CLS)
       .field("subjectId", SUBJ)
@@ -226,8 +282,7 @@ describe("POST /api/marks-import/scan/extract", () => {
 
 describe("UUID validation", () => {
   it("returns 400 INVALID_ID when classId is not a UUID", async () => {
-    const res = await request(createServer())
-      .post("/api/marks-import/scan/extract")
+    const res = await authPost("/api/marks-import/scan/extract")
       .attach("image", IMAGE, { filename: "marks.jpg", contentType: "image/jpeg" })
       .field("classId", "1")
       .field("subjectId", "subject-1")
@@ -238,8 +293,7 @@ describe("UUID validation", () => {
   });
 
   it("returns 400 INVALID_ID when subjectId is not a UUID", async () => {
-    const res = await request(createServer())
-      .post("/api/marks-import/scan/extract")
+    const res = await authPost("/api/marks-import/scan/extract")
       .attach("image", IMAGE, { filename: "marks.jpg", contentType: "image/jpeg" })
       .field("classId", CLS)
       .field("subjectId", "1")
@@ -250,8 +304,7 @@ describe("UUID validation", () => {
   });
 
   it("returns 400 INVALID_ID when termId is not a UUID", async () => {
-    const res = await request(createServer())
-      .post("/api/marks-import/scan/extract")
+    const res = await authPost("/api/marks-import/scan/extract")
       .attach("image", IMAGE, { filename: "marks.jpg", contentType: "image/jpeg" })
       .field("classId", CLS)
       .field("subjectId", SUBJ)
@@ -264,8 +317,7 @@ describe("UUID validation", () => {
 
 describe("debugNoDb mode", () => {
   it("returns rows from Gemini without any DB calls when ?debugNoDb=true", async () => {
-    const res = await request(createServer())
-      .post("/api/marks-import/scan/extract?debugNoDb=true")
+    const res = await authPost("/api/marks-import/scan/extract?debugNoDb=true")
       .attach("image", IMAGE, { filename: "marks.jpg", contentType: "image/jpeg" })
       .field("classId", CLS)
       .field("subjectId", SUBJ)
@@ -285,8 +337,7 @@ describe("no active students", () => {
     const { loadExpectedStudents } = await import("../../server/services/geminiMarksImportService");
     vi.mocked(loadExpectedStudents).mockResolvedValueOnce([]);
 
-    const res = await request(createServer())
-      .post("/api/marks-import/scan/extract")
+    const res = await authPost("/api/marks-import/scan/extract")
       .attach("image", IMAGE, { filename: "marks.jpg", contentType: "image/jpeg" })
       .field("classId", CLS)
       .field("subjectId", SUBJ)
@@ -302,8 +353,7 @@ describe("no active students", () => {
 describe("stream-class validation", () => {
   it("returns STREAM_NOT_FOUND with 'does not belong' message when stream is not in the selected class", async () => {
     // stream.findFirst returns null ? the stream UUID is not under the given classId
-    const res = await request(createServer())
-      .post("/api/marks-import/scan/extract")
+    const res = await authPost("/api/marks-import/scan/extract")
       .attach("image", IMAGE, { filename: "marks.jpg", contentType: "image/jpeg" })
       .field("classId", CLS)
       .field("streamId", STREAM)
@@ -321,8 +371,7 @@ describe("MarkImportBatch failure", () => {
   it("returns 400 at stage create_import_batch when batch creation fails", async () => {
     markImportBatchCreate.mockRejectedValueOnce(new Error("Prisma: connection refused"));
 
-    const res = await request(createServer())
-      .post("/api/marks-import/scan/extract")
+    const res = await authPost("/api/marks-import/scan/extract")
       .attach("image", IMAGE, { filename: "marks.jpg", contentType: "image/jpeg" })
       .field("classId", CLS)
       .field("subjectId", SUBJ)
@@ -337,8 +386,7 @@ describe("MarkImportBatch failure", () => {
 
 describe("GET /api/marks-import/scan/options", () => {
   it("returns classes, streams, subjects, terms, and examTypes for the resolved school", async () => {
-    const res = await request(createServer())
-      .get("/api/marks-import/scan/options")
+    const res = await authGet("/api/marks-import/scan/options")
       .query({ schoolCode: "SCU-PREVIEW" });
 
     expect(res.status).toBe(200);
@@ -359,8 +407,7 @@ describe("GET /api/marks-import/scan/options", () => {
       { id: "class-s1b", name: "Senior 1 B", code: "S1B" } as never,
     ]);
 
-    const res = await request(createServer())
-      .get("/api/marks-import/scan/options")
+    const res = await authGet("/api/marks-import/scan/options")
       .query({ schoolCode: "SCU-PREVIEW" });
 
     expect(res.status).toBe(200);
@@ -382,8 +429,7 @@ describe("GET /api/marks-import/scan/options", () => {
       { id: "stream-x", classId: "class-s1a", name: "A", code: "A" } as never,
     ]);
 
-    const res = await request(createServer())
-      .get("/api/marks-import/scan/options")
+    const res = await authGet("/api/marks-import/scan/options")
       .query({ schoolCode: "SCU-PREVIEW" });
 
     expect(res.status).toBe(200);
@@ -395,8 +441,7 @@ describe("GET /api/marks-import/scan/options", () => {
 
   it("upserts S1-S6 (6 classes) for a secondary school when no setting is stored", async () => {
     // appSetting returns null ? defaults to SECONDARY ? 6 upsert calls
-    await request(createServer())
-      .get("/api/marks-import/scan/options")
+    await authGet("/api/marks-import/scan/options")
       .query({ schoolCode: "SCU-PREVIEW" });
 
     const upsertedCodes = schoolClassUpsert.mock.calls.map(
@@ -412,8 +457,7 @@ describe("GET /api/marks-import/scan/options", () => {
       sections: { school: { schoolSections: ["PRIMARY"] } },
     } as never);
 
-    await request(createServer())
-      .get("/api/marks-import/scan/options")
+    await authGet("/api/marks-import/scan/options")
       .query({ schoolCode: "SCU-PREVIEW" });
 
     const upsertedCodes = schoolClassUpsert.mock.calls.map(
@@ -429,15 +473,14 @@ describe("GET /api/marks-import/scan/options", () => {
       sections: { school: { schoolSections: ["NURSERY"] } },
     } as never);
 
-    await request(createServer())
-      .get("/api/marks-import/scan/options")
+    await authGet("/api/marks-import/scan/options")
       .query({ schoolCode: "SCU-PREVIEW" });
 
     const upsertedCodes = schoolClassUpsert.mock.calls.map(
       (call) => (call[0] as { create: { code: string } }).create.code,
     );
     expect(upsertedCodes).toHaveLength(3);
-    expect(upsertedCodes).toEqual(expect.arrayContaining(["BABY", "MIDDLE", "TOP"]));
+    expect(upsertedCodes).toEqual(expect.arrayContaining(["NUR_BABY", "NUR_MIDDLE", "NUR_TOP"]));
   });
 
   it("returns 200 with empty arrays when school has no subjects or terms (new school)", async () => {
@@ -445,8 +488,7 @@ describe("GET /api/marks-import/scan/options", () => {
     vi.mocked(prisma.subject.findMany).mockResolvedValueOnce([]);
     vi.mocked(prisma.term.findMany).mockResolvedValueOnce([]);
 
-    const res = await request(createServer())
-      .get("/api/marks-import/scan/options")
+    const res = await authGet("/api/marks-import/scan/options")
       .query({ schoolCode: "SCU-PREVIEW" });
 
     expect(res.status).toBe(200);
@@ -460,8 +502,7 @@ describe("GET /api/marks-import/scan/options", () => {
     const { prisma } = await import("../../server/db/prisma");
     vi.mocked(prisma.schoolClass.findMany).mockRejectedValueOnce(new Error("DB connection refused"));
 
-    const res = await request(createServer())
-      .get("/api/marks-import/scan/options")
+    const res = await authGet("/api/marks-import/scan/options")
       .query({ schoolCode: "SCU-PREVIEW" });
 
     expect(res.status).toBe(200);
@@ -475,8 +516,7 @@ describe("GET /api/marks-import/scan/options", () => {
   it("returns 200 when class provisioning upsert fails but dropdown query succeeds", async () => {
     schoolClassUpsert.mockRejectedValueOnce(new Error("unique constraint violation"));
 
-    const res = await request(createServer())
-      .get("/api/marks-import/scan/options")
+    const res = await authGet("/api/marks-import/scan/options")
       .query({ schoolCode: "SCU-PREVIEW" });
 
     expect(res.status).toBe(200);
@@ -484,24 +524,19 @@ describe("GET /api/marks-import/scan/options", () => {
     expect(res.body.classes).toEqual([{ id: "class-1", name: "Senior 1", code: "S1" }]);
   });
 
-  it("returns 401 when no school context is resolved (missing auth in production)", async () => {
-    const { prisma } = await import("../../server/db/prisma");
-    vi.mocked(prisma.school.findUnique).mockResolvedValueOnce(null);
-
-    const res = await request(createServer())
-      .get("/api/marks-import/scan/options")
+  it("returns 403 when the token school and requested schoolCode do not match", async () => {
+    const res = await authGet("/api/marks-import/scan/options")
       .query({ schoolCode: "DOES-NOT-EXIST" });
 
-    expect(res.status).toBe(404);
+    expect(res.status).toBe(403);
   });
 
   it("formats term names with a middle dot separator", async () => {
-    const res = await request(createServer())
-      .get("/api/marks-import/scan/options")
+    const res = await authGet("/api/marks-import/scan/options")
       .query({ schoolCode: "SCU-PREVIEW" });
 
     expect(res.status).toBe(200);
-    expect(res.body.terms[0].name).toMatch(/2025\/2026\s·\sTerm 1/);
+    expect(res.body.terms[0].name).toMatch(/2025\/2026.*Term 1/);
   });
 });
 
@@ -510,8 +545,7 @@ describe("Gemini error handling", () => {
     const { extractMarksWithGemini } = await import("../../server/services/geminiOcrService");
     vi.mocked(extractMarksWithGemini).mockRejectedValueOnce(new Error("Missing GEMINI_API_KEY"));
 
-    const res = await request(createServer())
-      .post("/api/marks-import/scan/extract")
+    const res = await authPost("/api/marks-import/scan/extract")
       .attach("image", IMAGE, { filename: "marks.jpg", contentType: "image/jpeg" })
       .field("classId", CLS).field("subjectId", SUBJ)
       .field("termId", TERM).field("examType", "BOT");
@@ -524,8 +558,7 @@ describe("Gemini error handling", () => {
     const { extractMarksWithGemini } = await import("../../server/services/geminiOcrService");
     vi.mocked(extractMarksWithGemini).mockRejectedValueOnce(new Error("API key not valid. Please pass a valid API key."));
 
-    const res = await request(createServer())
-      .post("/api/marks-import/scan/extract")
+    const res = await authPost("/api/marks-import/scan/extract")
       .attach("image", IMAGE, { filename: "marks.jpg", contentType: "image/jpeg" })
       .field("classId", CLS).field("subjectId", SUBJ)
       .field("termId", TERM).field("examType", "BOT");
@@ -538,8 +571,7 @@ describe("Gemini error handling", () => {
     const { extractMarksWithGemini } = await import("../../server/services/geminiOcrService");
     vi.mocked(extractMarksWithGemini).mockRejectedValueOnce(new Error("RESOURCE_EXHAUSTED: quota exceeded"));
 
-    const res = await request(createServer())
-      .post("/api/marks-import/scan/extract")
+    const res = await authPost("/api/marks-import/scan/extract")
       .attach("image", IMAGE, { filename: "marks.jpg", contentType: "image/jpeg" })
       .field("classId", CLS).field("subjectId", SUBJ)
       .field("termId", TERM).field("examType", "BOT");
@@ -553,8 +585,7 @@ describe("Gemini error handling", () => {
     const fetchErr = new Error("fetch failed");
     vi.mocked(extractMarksWithGemini).mockRejectedValueOnce(fetchErr);
 
-    const res = await request(createServer())
-      .post("/api/marks-import/scan/extract")
+    const res = await authPost("/api/marks-import/scan/extract")
       .attach("image", IMAGE, { filename: "marks.jpg", contentType: "image/jpeg" })
       .field("classId", CLS).field("subjectId", SUBJ)
       .field("termId", TERM).field("examType", "BOT");
@@ -569,8 +600,7 @@ describe("Gemini error handling", () => {
     const fetchErr = Object.assign(new Error("fetch failed"), { cause: { code: "ENOTFOUND" } });
     vi.mocked(extractMarksWithGemini).mockRejectedValueOnce(fetchErr);
 
-    const res = await request(createServer())
-      .post("/api/marks-import/scan/extract")
+    const res = await authPost("/api/marks-import/scan/extract")
       .attach("image", IMAGE, { filename: "marks.jpg", contentType: "image/jpeg" })
       .field("classId", CLS).field("subjectId", SUBJ)
       .field("termId", TERM).field("examType", "BOT");
@@ -583,8 +613,7 @@ describe("Gemini error handling", () => {
     const { extractMarksWithGemini } = await import("../../server/services/geminiOcrService");
     vi.mocked(extractMarksWithGemini).mockRejectedValueOnce(new Error("Gemini returned empty response"));
 
-    const res = await request(createServer())
-      .post("/api/marks-import/scan/extract")
+    const res = await authPost("/api/marks-import/scan/extract")
       .attach("image", IMAGE, { filename: "marks.jpg", contentType: "image/jpeg" })
       .field("classId", CLS).field("subjectId", SUBJ)
       .field("termId", TERM).field("examType", "BOT");
@@ -597,8 +626,7 @@ describe("Gemini error handling", () => {
 describe("file validation boundaries", () => {
   it("returns 400 JSON when image exceeds 10 MB size limit", async () => {
     const oversized = Buffer.alloc(10 * 1024 * 1024 + 1);
-    const res = await request(createServer())
-      .post("/api/marks-import/scan/extract")
+    const res = await authPost("/api/marks-import/scan/extract")
       .attach("image", oversized, { filename: "big.jpg", contentType: "image/jpeg" })
       .field("classId", CLS)
       .field("subjectId", SUBJ)
@@ -610,8 +638,7 @@ describe("file validation boundaries", () => {
   });
 
   it("returns 400 JSON for unsupported file types", async () => {
-    const res = await request(createServer())
-      .post("/api/marks-import/scan/extract")
+    const res = await authPost("/api/marks-import/scan/extract")
       .attach("image", Buffer.from("not-an-image"), { filename: "data.txt", contentType: "text/plain" })
       .field("classId", CLS)
       .field("subjectId", SUBJ)
@@ -623,28 +650,25 @@ describe("file validation boundaries", () => {
   });
 });
 
-// ── POST /api/marks-import/scan/commit ────────────────────────────────────
+// -- POST /api/marks-import/scan/commit ------------------------------------
 
 describe("POST /api/marks-import/scan/commit ? input validation", () => {
   it("rejects missing jobId with 400 INVALID_JOB_ID", async () => {
-    const res = await request(createServer())
-      .post("/api/marks-import/scan/commit")
+    const res = await authPost("/api/marks-import/scan/commit")
       .send({ reviewedRows: VALID_REVIEWED_ROWS });
     expect(res.status).toBe(400);
     expect(res.body.code).toBe("INVALID_JOB_ID");
   });
 
   it("rejects non-UUID jobId with 400 INVALID_JOB_ID", async () => {
-    const res = await request(createServer())
-      .post("/api/marks-import/scan/commit")
+    const res = await authPost("/api/marks-import/scan/commit")
       .send({ jobId: "not-a-uuid", reviewedRows: VALID_REVIEWED_ROWS });
     expect(res.status).toBe(400);
     expect(res.body.code).toBe("INVALID_JOB_ID");
   });
 
   it("rejects missing reviewedRows with 400 MISSING_ROWS", async () => {
-    const res = await request(createServer())
-      .post("/api/marks-import/scan/commit")
+    const res = await authPost("/api/marks-import/scan/commit")
       .send({ jobId: JOB });
     expect(res.status).toBe(400);
     expect(res.body.code).toBe("MISSING_ROWS");
@@ -654,8 +678,7 @@ describe("POST /api/marks-import/scan/commit ? input validation", () => {
 describe("POST /api/marks-import/scan/commit ? batch checks", () => {
   it("rejects an unknown jobId with 404 BATCH_NOT_FOUND", async () => {
     markImportBatchFindUnique.mockResolvedValueOnce(null);
-    const res = await request(createServer())
-      .post("/api/marks-import/scan/commit")
+    const res = await authPost("/api/marks-import/scan/commit")
       .send({ jobId: "aaaaaaaa-dead-beef-0000-000000000000", reviewedRows: VALID_REVIEWED_ROWS });
     expect(res.status).toBe(404);
     expect(res.body.code).toBe("BATCH_NOT_FOUND");
@@ -668,8 +691,7 @@ describe("POST /api/marks-import/scan/commit ? batch checks", () => {
       status: "COMMITTED",
       summary: "{}",
     });
-    const res = await request(createServer())
-      .post("/api/marks-import/scan/commit")
+    const res = await authPost("/api/marks-import/scan/commit")
       .send({ jobId: JOB, reviewedRows: VALID_REVIEWED_ROWS });
     expect(res.status).toBe(409);
     expect(res.body.code).toBe("ALREADY_COMMITTED");
@@ -681,8 +703,7 @@ describe("POST /api/marks-import/scan/commit ? row-level validation", () => {
     const rows = VALID_REVIEWED_ROWS.map((r, i) =>
       i === 0 ? { ...r, mark: "" } : r,
     );
-    const res = await request(createServer())
-      .post("/api/marks-import/scan/commit")
+    const res = await authPost("/api/marks-import/scan/commit")
       .send({ jobId: JOB, reviewedRows: rows });
     expect(res.status).toBe(400);
     expect(res.body.code).toBe("ROW_VALIDATION_FAILED");
@@ -691,8 +712,7 @@ describe("POST /api/marks-import/scan/commit ? row-level validation", () => {
 
   it("rejects duplicate matchedStudentId across rows with 400 ROW_VALIDATION_FAILED", async () => {
     const rows = VALID_REVIEWED_ROWS.map((r) => ({ ...r, matchedStudentId: STU1 }));
-    const res = await request(createServer())
-      .post("/api/marks-import/scan/commit")
+    const res = await authPost("/api/marks-import/scan/commit")
       .send({ jobId: JOB, reviewedRows: rows });
     expect(res.status).toBe(400);
     expect(res.body.code).toBe("ROW_VALIDATION_FAILED");
@@ -706,8 +726,7 @@ describe("POST /api/marks-import/scan/commit ? row-level validation", () => {
     const rows = VALID_REVIEWED_ROWS.map((r, i) =>
       i === 0 ? { ...r, status: "REVIEW_REQUIRED", issues: ["Missing mark"] } : r,
     );
-    const res = await request(createServer())
-      .post("/api/marks-import/scan/commit")
+    const res = await authPost("/api/marks-import/scan/commit")
       .send({ jobId: JOB, reviewedRows: rows });
     expect(res.status).toBe(400);
     expect(res.body.code).toBe("ROW_VALIDATION_FAILED");
@@ -717,8 +736,7 @@ describe("POST /api/marks-import/scan/commit ? row-level validation", () => {
 
 describe("POST /api/marks-import/scan/commit ? successful commit", () => {
   it("upserts one SubjectMark per reviewed row and responds 200 with finalizedRows", async () => {
-    const res = await request(createServer())
-      .post("/api/marks-import/scan/commit")
+    const res = await authPost("/api/marks-import/scan/commit")
       .send({ jobId: JOB, reviewedRows: VALID_REVIEWED_ROWS });
 
     expect(res.status).toBe(200);
@@ -732,8 +750,7 @@ describe("POST /api/marks-import/scan/commit ? successful commit", () => {
   });
 
   it("saves SubjectMark with status FINALIZED, not DRAFT", async () => {
-    await request(createServer())
-      .post("/api/marks-import/scan/commit")
+    await authPost("/api/marks-import/scan/commit")
       .send({ jobId: JOB, reviewedRows: VALID_REVIEWED_ROWS });
 
     const upsertArg = txSubjectMarkUpsert.mock.calls[0][0] as {
@@ -745,8 +762,7 @@ describe("POST /api/marks-import/scan/commit ? successful commit", () => {
   });
 
   it("saves SubjectMark with the same assessmentType as the import context", async () => {
-    await request(createServer())
-      .post("/api/marks-import/scan/commit")
+    await authPost("/api/marks-import/scan/commit")
       .send({ jobId: JOB, reviewedRows: VALID_REVIEWED_ROWS });
 
     const upsertArg = txSubjectMarkUpsert.mock.calls[0][0] as {
@@ -758,8 +774,7 @@ describe("POST /api/marks-import/scan/commit ? successful commit", () => {
   });
 
   it("saves SubjectMark with the same classId, streamId, and termId as the import context", async () => {
-    await request(createServer())
-      .post("/api/marks-import/scan/commit")
+    await authPost("/api/marks-import/scan/commit")
       .send({ jobId: JOB, reviewedRows: VALID_REVIEWED_ROWS });
 
     const upsertArg = txSubjectMarkUpsert.mock.calls[0][0] as {
@@ -771,8 +786,7 @@ describe("POST /api/marks-import/scan/commit ? successful commit", () => {
   });
 
   it("returns navigation context (schoolCode, classId, streamId, termId, subjectId, assessmentType) for Go to Reports", async () => {
-    const res = await request(createServer())
-      .post("/api/marks-import/scan/commit")
+    const res = await authPost("/api/marks-import/scan/commit")
       .send({ jobId: JOB, reviewedRows: VALID_REVIEWED_ROWS });
 
     expect(res.body.schoolCode).toBe("SCU-PREVIEW");
@@ -785,8 +799,7 @@ describe("POST /api/marks-import/scan/commit ? successful commit", () => {
   });
 
   it("sets batch status to COMMITTED inside the transaction", async () => {
-    await request(createServer())
-      .post("/api/marks-import/scan/commit")
+    await authPost("/api/marks-import/scan/commit")
       .send({ jobId: JOB, reviewedRows: VALID_REVIEWED_ROWS });
 
     expect(txMarkImportBatchUpdate).toHaveBeenCalledTimes(1);
@@ -795,8 +808,7 @@ describe("POST /api/marks-import/scan/commit ? successful commit", () => {
   });
 
   it("creates an AuditLog entry with action GEMINI_SCAN_COMMITTED", async () => {
-    await request(createServer())
-      .post("/api/marks-import/scan/commit")
+    await authPost("/api/marks-import/scan/commit")
       .send({ jobId: JOB, reviewedRows: VALID_REVIEWED_ROWS });
 
     expect(txAuditLogCreate).toHaveBeenCalledTimes(1);
@@ -822,13 +834,11 @@ describe("POST /api/marks-import/scan/commit ? successful commit", () => {
         summary: "{}",
       });
 
-    const first = await request(createServer())
-      .post("/api/marks-import/scan/commit")
+    const first = await authPost("/api/marks-import/scan/commit")
       .send({ jobId: JOB, reviewedRows: VALID_REVIEWED_ROWS });
     expect(first.status).toBe(200);
 
-    const second = await request(createServer())
-      .post("/api/marks-import/scan/commit")
+    const second = await authPost("/api/marks-import/scan/commit")
       .send({ jobId: JOB, reviewedRows: VALID_REVIEWED_ROWS });
     expect(second.status).toBe(409);
     expect(second.body.code).toBe("ALREADY_COMMITTED");
@@ -836,4 +846,5 @@ describe("POST /api/marks-import/scan/commit ? successful commit", () => {
     expect(txSubjectMarkUpsert).toHaveBeenCalledTimes(2); // only first commit's 2 rows
   });
 });
+
 

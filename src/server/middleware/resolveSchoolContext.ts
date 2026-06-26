@@ -1,6 +1,7 @@
-﻿import type { Request, Response, NextFunction } from "express";
+import type { Request, Response, NextFunction } from "express";
 import { verifyToken } from "../services/authService";
 import { prisma } from "../db/prisma";
+import { validateSchoolSession } from "../services/sessionValidationService";
 
 type SchoolRecord = { id: string; code: string; name: string };
 
@@ -38,30 +39,14 @@ export async function resolveSchoolContext(
     const payload = token ? verifyToken(token) : null;
 
     if (payload) {
-      req.user = payload;
-
-      // Validate tokenVersion to catch revoked tokens (role changes, password resets)
-      if (typeof payload.tokenVersion === "number") {
-        const dbUser = await prisma.user.findFirst({
-          where: { id: payload.userId, schoolId: payload.schoolId },
-          select: { tokenVersion: true, isActive: true },
-        });
-        if (!dbUser || !dbUser.isActive || dbUser.tokenVersion !== payload.tokenVersion) {
-          res.status(401).json({ error: "Your session has expired. Please log in again." });
-          return;
-        }
-      }
-
-      const school = await prisma.school.findUnique({
-        where: { id: payload.schoolId },
-        select: { id: true, code: true, name: true },
-      });
-
-      if (!school) {
-        console.error("[resolveSchoolContext] school not found for token", { schoolId: payload.schoolId, userId: payload.userId });
-        res.status(403).json({ error: "School not found for your account." });
+      const session = await validateSchoolSession(payload);
+      if (!session) {
+        res.status(401).json({ error: "Your session has expired. Please log in again." });
         return;
       }
+
+      req.user = session.auth;
+      const school = session.school;
 
       // Cross-tenant check: if the client explicitly sent a schoolCode, it must match
       const clientCode = extractClientSchoolCode(req);
@@ -112,4 +97,3 @@ function extractClientSchoolCode(req: Request): string | null {
   }
   return null;
 }
-

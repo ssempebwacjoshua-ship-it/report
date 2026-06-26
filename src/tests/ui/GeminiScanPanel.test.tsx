@@ -229,6 +229,7 @@ describe("GeminiScanPanel", () => {
     await fillContextAndFile();
     fireEvent.click(screen.getByRole("button", { name: "Read Marksheet" }));
 
+    await screen.findByTestId("gemini-row-2");
     const commit = await screen.findByRole("button", { name: "Save Reviewed Marks" });
     expect(commit).toBeDisabled();
     fireEvent.click(screen.getByLabelText(/reviewed every flagged row/i));

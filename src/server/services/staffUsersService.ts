@@ -18,6 +18,7 @@ const MANAGEABLE_ROLES: UserRole[] = [
   UserRole.CANTEEN,
   UserRole.CASHIER,
 ];
+const TEMP_PASSWORD_MIN_LENGTH = 10;
 
 function requireSchoolAdmin(ctx: StaffContext): string {
   if (!ctx.schoolId) throw Object.assign(new Error("School context required."), { status: 401 });
@@ -64,8 +65,8 @@ export async function createStaffUser(
   if (!MANAGEABLE_ROLES.includes(input.role as UserRole)) {
     throw Object.assign(new Error(`Invalid role: ${input.role}. Allowed: ${MANAGEABLE_ROLES.join(", ")}`), { status: 400 });
   }
-  if (!input.temporaryPassword || input.temporaryPassword.length < 4) {
-    throw Object.assign(new Error("Temporary password must be at least 4 characters."), { status: 400 });
+  if (!input.temporaryPassword || input.temporaryPassword.length < TEMP_PASSWORD_MIN_LENGTH) {
+    throw Object.assign(new Error(`Temporary password must be at least ${TEMP_PASSWORD_MIN_LENGTH} characters.`), { status: 400 });
   }
   if (!input.name.trim()) throw Object.assign(new Error("Name is required."), { status: 400 });
   if (!input.email.trim()) throw Object.assign(new Error("Email is required."), { status: 400 });
@@ -114,7 +115,6 @@ export async function changeStaffRole(
   const target = await db.user.findFirst({ where: { id: userId, schoolId } });
   if (!target) throw Object.assign(new Error("Staff user not found."), { status: 404 });
 
-  // Prevent removing the last ADMIN_OPERATOR
   if (target.role === UserRole.ADMIN_OPERATOR && input.role !== "ADMIN_OPERATOR") {
     const adminCount = await db.user.count({ where: { schoolId, role: UserRole.ADMIN_OPERATOR, isActive: true } });
     if (adminCount <= 1) throw Object.assign(new Error("Cannot remove the last administrator from this school."), { status: 400 });
@@ -150,7 +150,6 @@ export async function setStaffStatus(
   const target = await db.user.findFirst({ where: { id: userId, schoolId } });
   if (!target) throw Object.assign(new Error("Staff user not found."), { status: 404 });
 
-  // Prevent disabling the last admin
   if (!input.isActive && target.role === UserRole.ADMIN_OPERATOR) {
     const adminCount = await db.user.count({ where: { schoolId, role: UserRole.ADMIN_OPERATOR, isActive: true } });
     if (adminCount <= 1) throw Object.assign(new Error("Cannot disable the last administrator."), { status: 400 });
@@ -180,8 +179,8 @@ export async function resetStaffPassword(
   db: Pick<PrismaClient, "user" | "auditLog"> = defaultPrisma,
 ) {
   const schoolId = requireSchoolAdmin(ctx);
-  if (!input.temporaryPassword || input.temporaryPassword.length < 4) {
-    throw Object.assign(new Error("Temporary password must be at least 4 characters."), { status: 400 });
+  if (!input.temporaryPassword || input.temporaryPassword.length < TEMP_PASSWORD_MIN_LENGTH) {
+    throw Object.assign(new Error(`Temporary password must be at least ${TEMP_PASSWORD_MIN_LENGTH} characters.`), { status: 400 });
   }
   if (!input.reason.trim()) throw Object.assign(new Error("Reason is required."), { status: 400 });
 

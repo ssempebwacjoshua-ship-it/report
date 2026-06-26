@@ -133,6 +133,36 @@ describe("reportEngine", () => {
     expect(report.readiness).toBe("NO_ACTIVE_TERM");
     expect(report.cards).toHaveLength(0);
   });
+
+  it("surfaces a clear repository guardrail reason when report context is invalid", () => {
+    const report = buildReports({
+      ...baseInput,
+      students: [],
+      emptyReasonOverride: "Selected stream does not belong to the selected class for this school.",
+    });
+
+    expect(report.readiness).toBe("NO_STUDENTS");
+    expect(report.emptyReason).toBe("Selected stream does not belong to the selected class for this school.");
+  });
+
+  it("constrains long subject remarks for safe rendering", () => {
+    const report = buildReports({
+      ...baseInput,
+      marks: [{
+        studentId: "s1",
+        subjectId: "eng",
+        assessmentType: "BOT",
+        marks: 80,
+        comments: "Excellent ".repeat(30),
+      }],
+      students: [baseInput.students[0]],
+      subjects: [baseInput.subjects[0]],
+      filters: { ...baseInput.filters, assessmentType: "BOT" },
+    });
+
+    expect(report.cards[0].subjects[0].comments.length).toBeLessThanOrEqual(120);
+    expect(report.cards[0].subjects[0].comments.endsWith("...")).toBe(true);
+  });
 });
 
 describe("progressionText from promotionsByStudentId", () => {

@@ -113,6 +113,7 @@ describe("promotionRoutes", () => {
       name: "Head Teacher",
       email: "hm@school.test",
       role: "ADMIN_OPERATOR",
+      tokenVersion: 0,
     });
   }, 30000);
 
@@ -439,15 +440,15 @@ describe("promotionRoutes", () => {
   // ── Class progression unit tests ──────────────────────────────────────────
 
   describe("getNextClassCode (class progression map)", () => {
-    it("BABY → MIDDLE",   () => expect(getNextClassCode("BABY")).toBe("MIDDLE"));
-    it("MIDDLE → TOP",    () => expect(getNextClassCode("MIDDLE")).toBe("TOP"));
-    it("TOP → P1",        () => expect(getNextClassCode("TOP")).toBe("P1"));
-    it("P1 → P2",         () => expect(getNextClassCode("P1")).toBe("P2"));
-    it("P3 → P4",         () => expect(getNextClassCode("P3")).toBe("P4"));
-    it("P7 → S1",         () => expect(getNextClassCode("P7")).toBe("S1"));
-    it("S1 → S2",         () => expect(getNextClassCode("S1")).toBe("S2"));
-    it("S4 → S5",         () => expect(getNextClassCode("S4")).toBe("S5"));
-    it("S6 → GRADUATE",   () => expect(getNextClassCode("S6")).toBe("GRADUATE"));
-    it("unknown → GRADUATE", () => expect(getNextClassCode("XYZ")).toBe("GRADUATE"));
+    it("NUR_BABY moves to NUR_MIDDLE", () => expect(getNextClassCode("NUR_BABY")).toBe("NUR_MIDDLE"));
+    it("NUR_MIDDLE moves to NUR_TOP", () => expect(getNextClassCode("NUR_MIDDLE")).toBe("NUR_TOP"));
+    it("NUR_TOP moves to P1", () => expect(getNextClassCode("NUR_TOP")).toBe("P1"));
+    it("P1 moves to P2", () => expect(getNextClassCode("P1")).toBe("P2"));
+    it("P3 moves to P4", () => expect(getNextClassCode("P3")).toBe("P4"));
+    it("P7 moves to S1", () => expect(getNextClassCode("P7")).toBe("S1"));
+    it("S1 moves to S2", () => expect(getNextClassCode("S1")).toBe("S2"));
+    it("S4 moves to S5", () => expect(getNextClassCode("S4")).toBe("S5"));
+    it("S6 graduates", () => expect(getNextClassCode("S6")).toBe("GRADUATE"));
+    it("unknown codes graduate", () => expect(getNextClassCode("XYZ")).toBe("GRADUATE"));
   });
 });

@@ -8,6 +8,7 @@ import {
   setStaffStatus,
 } from "../services/staffUsersService";
 import type { AuthPayload } from "../services/authService";
+import { requireSchoolPermission } from "../middleware/requireSchoolPermission";
 
 const ALLOWED_ROLES = ["ADMIN_OPERATOR", "GATE_SECURITY", "SECURITY", "CANTEEN", "CASHIER"] as const;
 
@@ -16,7 +17,7 @@ const createSchema = z.object({
   email: z.string().email("Enter a valid email."),
   phone: z.string().trim().optional(),
   role: z.enum(ALLOWED_ROLES),
-  temporaryPassword: z.string().min(4, "Temporary password must be at least 4 characters."),
+  temporaryPassword: z.string().min(10, "Temporary password must be at least 10 characters."),
 });
 
 const changeRoleSchema = z.object({
@@ -30,7 +31,7 @@ const statusSchema = z.object({
 });
 
 const resetPasswordSchema = z.object({
-  temporaryPassword: z.string().min(4, "Temporary password must be at least 4 characters."),
+  temporaryPassword: z.string().min(10, "Temporary password must be at least 10 characters."),
   reason: z.string().trim().min(1, "Reason is required."),
 });
 
@@ -44,6 +45,7 @@ function ctx(req: { school?: { id: string }; user?: AuthPayload }) {
 
 export function staffUsersRoutes() {
   const router = Router();
+  router.use(requireSchoolPermission("staff.manage"));
 
   router.get("/api/staff-users", async (req, res, next) => {
     try {

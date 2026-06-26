@@ -56,6 +56,7 @@ describe("ownerSchoolCreation POST /api/owner/schools", () => {
     expect(body).toHaveProperty("subscription");
     expect(body).toHaveProperty("invoice");
     expect(body).toHaveProperty("admin");
+    expect(body).toHaveProperty("settings");
   });
 
   // ─── 2. Non-owner cannot create school ──────────────────────────────────────
@@ -147,6 +148,27 @@ describe("ownerSchoolCreation POST /api/owner/schools", () => {
     expect(admin).toHaveProperty("email");
     expect(admin).toHaveProperty("id");
     expect(admin.mustChangePassword).toBe(true);
+  });
+
+  it("returns seeded onboarding defaults for sections, streams, and platform branding", async () => {
+    const res = await request(createServer())
+      .post("/api/owner/schools")
+      .set("Authorization", `Bearer ${ownerToken}`)
+      .send(schoolPayload({
+        schoolCode: `SETUP${run}`,
+        adminEmail: `setup-${run}@tsch.test`,
+        sections: ["PRIMARY", "SECONDARY"],
+        defaultStreamCodes: ["A", "C"],
+      }));
+
+    expect(res.status).toBe(201);
+    expect(res.body.settings).toMatchObject({
+      schoolSections: ["PRIMARY", "SECONDARY"],
+      defaultStreamCodes: ["A", "C"],
+      brandingMode: "PLATFORM_DEFAULTS",
+      logoUrl: "",
+    });
+    expect(res.body.streamsSeeded).toBeGreaterThan(0);
   });
 
   // ─── 7. Created admin can login with school code ─────────────────────────────

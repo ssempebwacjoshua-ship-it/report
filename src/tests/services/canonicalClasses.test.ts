@@ -15,9 +15,9 @@ describe("canonical class catalog ? Primary section", () => {
   });
 
   it("uses P1–P7 as both name and code", () => {
-    for (const cls of primary) {
-      expect(cls.name).toBe(cls.code);
-    }
+    expect(primary.map((c) => c.name)).toEqual([
+      "Primary 1", "Primary 2", "Primary 3", "Primary 4", "Primary 5", "Primary 6", "Primary 7",
+    ]);
   });
 
   it("sorts by ascending level", () => {
@@ -60,8 +60,8 @@ describe("canonical class catalog ? Nursery section", () => {
     expect(nursery.map((c) => c.name)).toEqual(["Baby Class", "Middle Class", "Top Class"]);
   });
 
-  it("uses BABY, MIDDLE, TOP codes", () => {
-    expect(nursery.map((c) => c.code)).toEqual(["BABY", "MIDDLE", "TOP"]);
+  it("uses stable nursery codes", () => {
+    expect(nursery.map((c) => c.code)).toEqual(["NUR_BABY", "NUR_MIDDLE", "NUR_TOP"]);
   });
 });
 
@@ -89,15 +89,15 @@ describe("isCanonicalClassCode", () => {
     expect(isCanonicalClassCode("S6")).toBe(true);
     expect(isCanonicalClassCode("P1")).toBe(true);
     expect(isCanonicalClassCode("P7")).toBe(true);
-    expect(isCanonicalClassCode("BABY")).toBe(true);
-    expect(isCanonicalClassCode("MIDDLE")).toBe(true);
-    expect(isCanonicalClassCode("TOP")).toBe(true);
+    expect(isCanonicalClassCode("NUR_BABY")).toBe(true);
+    expect(isCanonicalClassCode("NUR_MIDDLE")).toBe(true);
+    expect(isCanonicalClassCode("NUR_TOP")).toBe(true);
   });
 
   it("is case-insensitive", () => {
     expect(isCanonicalClassCode("s1")).toBe(true);
     expect(isCanonicalClassCode("p4")).toBe(true);
-    expect(isCanonicalClassCode("baby")).toBe(true);
+    expect(isCanonicalClassCode("nur_baby")).toBe(true);
   });
 
   it("rejects class+stream composite codes", () => {
@@ -150,6 +150,11 @@ describe("getClassesForSections", () => {
 
   it("returns PRIMARY + SECONDARY for [PRIMARY, SECONDARY]", () => {
     const result = getClassesForSections(["PRIMARY", "SECONDARY"]);
+    expect(result).toHaveLength(13);
+  });
+
+  it("returns PRIMARY + SECONDARY for [COMBINED]", () => {
+    const result = getClassesForSections(["COMBINED"]);
     expect(result).toHaveLength(13);
   });
 

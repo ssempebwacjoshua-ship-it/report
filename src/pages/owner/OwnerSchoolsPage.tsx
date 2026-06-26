@@ -10,6 +10,8 @@ import { REPORT_LAB_PLANS } from "../../shared/constants/subscriptionPlans";
 
 const SECTIONS = ["NURSERY", "PRIMARY", "SECONDARY"] as const;
 type Section = (typeof SECTIONS)[number];
+const STREAM_CODES = ["A", "B", "C", "D"] as const;
+type StreamCode = (typeof STREAM_CODES)[number];
 
 const LOGIN_URL = `${window.location.origin}/login`;
 
@@ -101,6 +103,7 @@ export function OwnerSchoolsPage() {
     phone: "",
     address: "",
     sections: ["PRIMARY"] as Section[],
+    defaultStreamCodes: ["A"] as StreamCode[],
     planCode: "REPORT_LAB_500",
     trialDays: "30",
     adminName: "",
@@ -134,6 +137,15 @@ export function OwnerSchoolsPage() {
     }));
   }
 
+  function toggleStreamCode(code: StreamCode) {
+    setForm((f) => ({
+      ...f,
+      defaultStreamCodes: f.defaultStreamCodes.includes(code)
+        ? f.defaultStreamCodes.filter((value) => value !== code)
+        : [...f.defaultStreamCodes, code],
+    }));
+  }
+
   async function handleCreate() {
     setCreateError("");
     setCreating(true);
@@ -145,6 +157,7 @@ export function OwnerSchoolsPage() {
         phone: form.phone.trim() || undefined,
         address: form.address.trim() || undefined,
         sections: form.sections,
+        defaultStreamCodes: form.defaultStreamCodes,
         planCode: form.planCode,
         trialDays: trialDays > 0 ? trialDays : undefined,
         adminName: form.adminName.trim(),
@@ -168,6 +181,7 @@ export function OwnerSchoolsPage() {
       phone: "",
       address: "",
       sections: ["PRIMARY"],
+      defaultStreamCodes: ["A"],
       planCode: "REPORT_LAB_500",
       trialDays: "30",
       adminName: "",
@@ -317,14 +331,21 @@ export function OwnerSchoolsPage() {
                   <InfoRow label="School code" value={creationResult.school.code} />
                   <InfoRow label="Admin email" value={creationResult.admin.email} />
                   <InfoRow label="Login URL" value={LOGIN_URL} strong={false} mono />
+                  <InfoRow label="Sections" value={creationResult.settings.schoolSections.join(", ")} />
+                  <InfoRow label="Streams" value={creationResult.settings.defaultStreamCodes.join(", ")} />
                   <InfoRow label="Plan" value={creationResult.subscription.planCode} />
                   <InfoRow label="Status" value={creationResult.subscription.status} />
                   {creationResult.subscription.status === "TRIAL" ? <InfoRow label="Trial ends" value={formatDate(creationResult.subscription.currentPeriodEnd)} /> : null}
                   <InfoRow label="Invoice" value={`${formatUgx(creationResult.invoice.totalUgx)} (${creationResult.invoice.status})`} />
                   <InfoRow label="Classes seeded" value={`${creationResult.classesSeeded}`} />
+                  <InfoRow label="Streams seeded" value={`${creationResult.streamsSeeded}`} />
+                  <InfoRow label="Branding" value="Platform defaults applied" />
                 </div>
                 <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800">
                   Share the school code and admin email with the school. The temporary password was set during creation and will not be shown again.
+                </p>
+                <p className="rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-xs leading-5 text-blue-800">
+                  Branding stays on platform defaults for the new school until it is centrally updated. Default report and marksheet footers were seeded automatically.
                 </p>
                 <button type="button" onClick={closeModal} className="w-full rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-black text-white">
                   Done
@@ -361,6 +382,21 @@ export function OwnerSchoolsPage() {
                   </fieldset>
 
                   <fieldset className="grid gap-3">
+                    <legend className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">Default streams</legend>
+                    <div className="flex flex-wrap gap-3">
+                      {STREAM_CODES.map((code) => (
+                        <label key={code} className="flex cursor-pointer items-center gap-2 text-sm font-semibold text-slate-700">
+                          <input type="checkbox" checked={form.defaultStreamCodes.includes(code)} onChange={() => toggleStreamCode(code)} className="h-4 w-4 rounded border-slate-300 accent-blue-600" />
+                          {code}
+                        </label>
+                      ))}
+                    </div>
+                    <p className="text-xs text-slate-400">
+                      These canonical stream codes are seeded across the selected classes during onboarding.
+                    </p>
+                  </fieldset>
+
+                  <fieldset className="grid gap-3">
                     <legend className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">Subscription</legend>
                     <select value={form.planCode} onChange={(e) => setForm((f) => ({ ...f, planCode: e.target.value }))} className="input w-full text-sm">
                       {REPORT_LAB_PLANS.map((plan) => <option key={plan.code} value={plan.code}>{plan.name} - {plan.code}</option>)}
@@ -384,7 +420,7 @@ export function OwnerSchoolsPage() {
                   <button
                     type="button"
                     onClick={() => void handleCreate()}
-                    disabled={creating || !form.schoolName.trim() || !form.schoolCode.trim() || form.sections.length === 0 || !form.adminName.trim() || !form.adminEmail.trim() || form.adminTemporaryPassword.length < 8}
+                    disabled={creating || !form.schoolName.trim() || !form.schoolCode.trim() || form.sections.length === 0 || form.defaultStreamCodes.length === 0 || !form.adminName.trim() || !form.adminEmail.trim() || form.adminTemporaryPassword.length < 8}
                     className="btn btn-primary flex-1 text-sm"
                   >
                     {creating ? "Creating..." : "Create school"}

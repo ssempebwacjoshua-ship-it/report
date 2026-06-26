@@ -1,7 +1,8 @@
-﻿import { Router } from "express";
+import { Router } from "express";
 import { prisma } from "../db/prisma";
 import { getSettings, patchSettingsSection } from "../repositories/settingsRepository";
 import { SETTING_SECTIONS, type SettingSection } from "../../shared/types/settings";
+import { requireSchoolPermission } from "../middleware/requireSchoolPermission";
 
 function updatedByFromRequest(req: { header: (name: string) => string | undefined; user?: { name?: string; email?: string } }) {
   return req.user?.name ?? req.user?.email ?? req.header("x-user-name") ?? req.header("x-user-email") ?? null;
@@ -9,6 +10,7 @@ function updatedByFromRequest(req: { header: (name: string) => string | undefine
 
 export function settingsRoutes() {
   const router = Router();
+  router.use(requireSchoolPermission("app.admin"));
 
   router.get("/api/settings", async (req, res, next) => {
     try {
@@ -38,4 +40,3 @@ export function settingsRoutes() {
 
   return router;
 }
-

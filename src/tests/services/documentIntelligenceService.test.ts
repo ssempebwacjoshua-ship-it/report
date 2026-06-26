@@ -107,6 +107,12 @@ describe("documentIntelligenceService", () => {
   beforeEach(() => {
     mockState.prisma.creator.findUnique.mockResolvedValue(schoolActor);
     mockState.prisma.creator.findFirst.mockResolvedValue(null);
+    mockState.prisma.smartDocument.findFirst.mockImplementation(async (...args: Parameters<typeof mockState.prisma.smartDocument.findUnique>) =>
+      mockState.prisma.smartDocument.findUnique(...args));
+    mockState.prisma.documentSourceFile.findFirst.mockImplementation(async (...args: Parameters<typeof mockState.prisma.documentSourceFile.findUnique>) =>
+      mockState.prisma.documentSourceFile.findUnique(...args));
+    mockState.prisma.documentVersion.findFirst.mockImplementation(async (...args: Parameters<typeof mockState.prisma.documentVersion.findUnique>) =>
+      mockState.prisma.documentVersion.findUnique(...args));
     mockState.prisma.auditLog.create.mockResolvedValue({ id: "audit-1" });
     mockState.prisma.schoolSmartPagePlan.findUnique.mockResolvedValue({
       schoolId: "school-1",
@@ -212,6 +218,7 @@ describe("documentIntelligenceService", () => {
       schema: { theme: { primaryColor: "#111111" }, components: [] },
       componentTree: [],
       renderSettings: {},
+      createdAt: new Date(),
     });
     mockState.prisma.documentVersion.create.mockResolvedValue({ id: "version-1" });
     mockState.applyPromptToSchema.mockResolvedValue({
@@ -313,23 +320,27 @@ describe("documentIntelligenceService", () => {
   it("logs real extraction diagnostics and keeps the friendly failure message", async () => {
     const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
 
-    mockState.prisma.documentSourceFile.findUnique.mockResolvedValue({
-      id: "source-1",
-      documentId: "doc-1",
-      originalName: "scan.png",
-      mimeType: "image/png",
-      sizeBytes: 1024,
-      status: "UPLOADED",
-      originalData: Buffer.from("original"),
-      fileHash: "hash-1",
-      ocrQuality: { retryMode: "fast" },
-      document: {
-        id: "doc-1",
-        creatorId: "creator-1",
-        title: "Untitled Document",
-      },
+    mockState.prisma.documentSourceFile.findFirst.mockImplementation(async ({ where }: { where: Record<string, unknown> }) => {
+      if (where.id === "source-1") {
+        return {
+          id: "source-1",
+          documentId: "doc-1",
+          originalName: "scan.png",
+          mimeType: "image/png",
+          sizeBytes: 1024,
+          status: "UPLOADED",
+          originalData: Buffer.from("original"),
+          fileHash: "hash-1",
+          ocrQuality: { retryMode: "fast" },
+          document: {
+            id: "doc-1",
+            creatorId: "creator-1",
+            title: "Untitled Document",
+          },
+        };
+      }
+      return null;
     });
-    mockState.prisma.documentSourceFile.findFirst.mockResolvedValue(null);
     mockState.prisma.documentSourceFile.update.mockResolvedValue({});
     mockState.prisma.smartDocument.update.mockResolvedValue({});
     mockState.preprocessDocumentForOcr.mockResolvedValue({
@@ -378,23 +389,27 @@ describe("documentIntelligenceService", () => {
   it("503/model overloaded extraction records a failed ledger row without deducting credits", async () => {
     const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
 
-    mockState.prisma.documentSourceFile.findUnique.mockResolvedValue({
-      id: "source-1",
-      documentId: "doc-1",
-      originalName: "scan.png",
-      mimeType: "image/png",
-      sizeBytes: 1024,
-      status: "UPLOADED",
-      originalData: Buffer.from("original"),
-      fileHash: "hash-1",
-      ocrQuality: { retryMode: "fast" },
-      document: {
-        id: "doc-1",
-        creatorId: "creator-1",
-        title: "Untitled Document",
-      },
+    mockState.prisma.documentSourceFile.findFirst.mockImplementation(async ({ where }: { where: Record<string, unknown> }) => {
+      if (where.id === "source-1") {
+        return {
+          id: "source-1",
+          documentId: "doc-1",
+          originalName: "scan.png",
+          mimeType: "image/png",
+          sizeBytes: 1024,
+          status: "UPLOADED",
+          originalData: Buffer.from("original"),
+          fileHash: "hash-1",
+          ocrQuality: { retryMode: "fast" },
+          document: {
+            id: "doc-1",
+            creatorId: "creator-1",
+            title: "Untitled Document",
+          },
+        };
+      }
+      return null;
     });
-    mockState.prisma.documentSourceFile.findFirst.mockResolvedValue(null);
     mockState.prisma.documentSourceFile.update.mockResolvedValue({});
     mockState.prisma.smartDocument.update.mockResolvedValue({});
     mockState.preprocessDocumentForOcr.mockResolvedValue({
@@ -484,6 +499,7 @@ describe("documentIntelligenceService", () => {
       schema: { theme: { primaryColor: "#111111" }, components: [] },
       componentTree: [],
       renderSettings: {},
+      createdAt: new Date(),
     });
     mockState.prisma.publishedDocument.upsert.mockResolvedValue({ id: "pub-1", token: "token-1" });
     mockState.prisma.smartDocument.update.mockResolvedValue({});
@@ -493,26 +509,45 @@ describe("documentIntelligenceService", () => {
 
     expect(mockState.prisma.schoolSmartPagePlan.updateMany).toHaveBeenCalledTimes(1);
     expect(mockState.prisma.smartPageLedger.create).toHaveBeenCalledTimes(1);
+    expect(mockState.prisma.auditLog.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        schoolId: "school-1",
+        action: "SMART_DOCUMENT_PUBLISHED",
+        details: expect.objectContaining({
+          documentId: "doc-1",
+          title: "Term Report",
+          tokenHash: expect.any(String),
+        }),
+      }),
+    }));
+    const publishAudit = mockState.prisma.auditLog.create.mock.calls.find(
+      ([call]) => call?.data?.action === "SMART_DOCUMENT_PUBLISHED",
+    )?.[0];
+    expect(publishAudit?.data?.details).not.toHaveProperty("token");
   });
 
   it("successful extraction deducts exactly once", async () => {
-    mockState.prisma.documentSourceFile.findUnique.mockResolvedValue({
-      id: "source-1",
-      documentId: "doc-1",
-      originalName: "scan.png",
-      mimeType: "image/png",
-      sizeBytes: 1024,
-      status: "UPLOADED",
-      originalData: Buffer.from("original"),
-      fileHash: "hash-1",
-      ocrQuality: { retryMode: "fast" },
-      document: {
-        id: "doc-1",
-        creatorId: "creator-1",
-        title: "Untitled Document",
-      },
+    mockState.prisma.documentSourceFile.findFirst.mockImplementation(async ({ where }: { where: Record<string, unknown> }) => {
+      if (where.id === "source-1") {
+        return {
+          id: "source-1",
+          documentId: "doc-1",
+          originalName: "scan.png",
+          mimeType: "image/png",
+          sizeBytes: 1024,
+          status: "UPLOADED",
+          originalData: Buffer.from("original"),
+          fileHash: "hash-1",
+          ocrQuality: { retryMode: "fast" },
+          document: {
+            id: "doc-1",
+            creatorId: "creator-1",
+            title: "Untitled Document",
+          },
+        };
+      }
+      return null;
     });
-    mockState.prisma.documentSourceFile.findFirst.mockResolvedValue(null);
     mockState.prisma.documentSourceFile.update.mockResolvedValue({});
     mockState.prisma.smartDocument.update.mockResolvedValue({});
     mockState.preprocessDocumentForOcr.mockResolvedValue({
@@ -573,43 +608,183 @@ describe("documentIntelligenceService", () => {
     );
   });
 
-  it("blocks access to another school's SmartDocument", async () => {
-    mockState.prisma.smartDocument.findUnique.mockResolvedValue({
-      id: "doc-b",
-      creatorId: "creator-b",
-      schoolId: "school-2",
-      title: "Other School Document",
-      status: "DRAFT",
-      extractionStatus: "READY",
-      extractedKnowledge: null,
-      activeVersionId: null,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-      published: null,
-      sourceFiles: [],
-      _count: { versions: 0 },
+  it("does not reuse another school's cached extraction for the same file hash", async () => {
+    mockState.prisma.documentSourceFile.findFirst.mockImplementation(async ({ where }: { where: Record<string, unknown> }) => {
+      if (where.id === "source-1") {
+        return {
+          id: "source-1",
+          documentId: "doc-1",
+          originalName: "scan.png",
+          mimeType: "image/png",
+          sizeBytes: 1024,
+          status: "UPLOADED",
+          originalData: Buffer.from("original"),
+          fileHash: "hash-shared",
+          ocrQuality: { retryMode: "fast" },
+          document: {
+            id: "doc-1",
+            creatorId: "creator-1",
+            schoolId: "school-1",
+            title: "Doc A",
+            extractedKnowledge: null,
+          },
+        };
+      }
+      if (where.fileHash === "hash-shared") {
+        return {
+          id: "source-b",
+          documentId: "doc-b",
+          fileHash: "hash-shared",
+          status: "READY",
+          extractedContent: {
+            title: "School B Secret",
+            documentType: "report",
+            domain: "school",
+            sections: [],
+            tables: [],
+            statistics: [],
+            entities: [],
+            people: [],
+            dates: [],
+            handwrittenNotes: [],
+            keyFacts: [],
+            unclearItems: [],
+            rawText: "B_SECRET",
+          },
+          processedData: Buffer.from("cached"),
+          processedMimeType: "image/png",
+          extractionCompletedAt: new Date("2026-01-01T00:00:00Z"),
+          document: { id: "doc-b", creatorId: "creator-b", schoolId: "school-b" },
+        };
+      }
+      return null;
+    });
+    mockState.prisma.documentSourceFile.update.mockResolvedValue({});
+    mockState.prisma.smartDocument.update.mockResolvedValue({});
+    mockState.preprocessDocumentForOcr.mockResolvedValue({
+      processedBuffer: Buffer.from("processed"),
+      processedMimeType: "image/jpeg",
+      width: 100,
+      height: 100,
+      notes: [],
+      warning: null,
+      sectionBuffers: [],
     });
 
+    const { extractDocumentKnowledge } = await import("../../server/services/documentGeminiService");
+    vi.mocked(extractDocumentKnowledge).mockResolvedValueOnce({
+      title: "School A Extraction",
+      documentType: "report",
+      domain: "school",
+      sections: [],
+      tables: [],
+      statistics: [],
+      entities: [],
+      people: [],
+      dates: [],
+      handwrittenNotes: [],
+      keyFacts: [],
+      unclearItems: [],
+      rawText: "A_ONLY",
+      confidence: 0.9,
+      _meta: {
+        requestedModel: "gemini-2.5-flash",
+        selectedModel: "gemini-2.5-flash",
+        attemptedModels: ["gemini-2.5-flash"],
+        retryCount: 0,
+        fallbackUsed: false,
+        fallbackReason: null,
+        providerErrorCode: null,
+        extractionTimeMs: 5,
+        tokenUsage: null,
+      },
+    } as any);
+
+    const { processSourceFileExtraction } = await import("../../server/services/documentIntelligenceService");
+    await processSourceFileExtraction("source-1");
+
+    expect(extractDocumentKnowledge).toHaveBeenCalledTimes(1);
+  });
+
+  it("reuses cached extraction inside the same school for the same file hash", async () => {
+    mockState.prisma.documentSourceFile.findFirst.mockImplementation(async ({ where }: { where: Record<string, unknown> }) => {
+      if (where.id === "source-1") {
+        return {
+          id: "source-1",
+          documentId: "doc-1",
+          originalName: "scan.png",
+          mimeType: "image/png",
+          sizeBytes: 1024,
+          status: "UPLOADED",
+          originalData: Buffer.from("original"),
+          fileHash: "hash-shared",
+          ocrQuality: { retryMode: "fast" },
+          document: {
+            id: "doc-1",
+            creatorId: "creator-1",
+            schoolId: "school-1",
+            title: "Doc A",
+            extractedKnowledge: null,
+          },
+        };
+      }
+      if (where.fileHash === "hash-shared") {
+        return {
+          id: "source-a-older",
+          documentId: "doc-a-older",
+          fileHash: "hash-shared",
+          status: "READY",
+          extractedContent: {
+            title: "Reused",
+            documentType: "report",
+            domain: "school",
+            sections: [],
+            tables: [],
+            statistics: [],
+            entities: [],
+            people: [],
+            dates: [],
+            handwrittenNotes: [],
+            keyFacts: [],
+            unclearItems: [],
+            rawText: "SAME_SCHOOL_CACHE",
+          },
+          processedData: Buffer.from("cached"),
+          processedMimeType: "image/png",
+          extractionCompletedAt: new Date("2026-01-01T00:00:00Z"),
+          document: { id: "doc-a-older", creatorId: "creator-1", schoolId: "school-1" },
+        };
+      }
+      return null;
+    });
+    mockState.prisma.documentSourceFile.update.mockResolvedValue({});
+    mockState.prisma.smartDocument.update.mockResolvedValue({});
+
+    const { extractDocumentKnowledge } = await import("../../server/services/documentGeminiService");
+    vi.mocked(extractDocumentKnowledge).mockReset();
+
+    const { processSourceFileExtraction } = await import("../../server/services/documentIntelligenceService");
+    await processSourceFileExtraction("source-1");
+
+    expect(extractDocumentKnowledge).not.toHaveBeenCalled();
+    expect(mockState.prisma.documentSourceFile.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          extractedContent: expect.objectContaining({ rawText: "SAME_SCHOOL_CACHE" }),
+        }),
+      }),
+    );
+  });
+
+  it("blocks access to another school's SmartDocument", async () => {
+    mockState.prisma.smartDocument.findFirst.mockResolvedValue(null);
+
     const { getDocument } = await import("../../server/services/documentIntelligenceService");
-    await expect(getDocument("doc-b", "creator-1")).rejects.toMatchObject({ status: 403 });
+    await expect(getDocument("doc-b", "creator-1")).rejects.toMatchObject({ status: 404 });
   });
 
   it("blocks upload and publish for another school's SmartDocument", async () => {
-    mockState.prisma.smartDocument.findUnique.mockResolvedValue({
-      id: "doc-b",
-      creatorId: "creator-b",
-      schoolId: "school-2",
-      title: "Other School Document",
-      status: "DRAFT",
-      extractionStatus: "READY",
-      extractedKnowledge: null,
-      activeVersionId: null,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-      published: null,
-      sourceFiles: [],
-      _count: { versions: 0 },
-    });
+    mockState.prisma.smartDocument.findFirst.mockResolvedValue(null);
 
     const { uploadAndExtract, publishDocument } = await import("../../server/services/documentIntelligenceService");
     await expect(
@@ -619,8 +794,8 @@ describe("documentIntelligenceService", () => {
         size: 100,
         buffer: Buffer.from("file"),
       } as Express.Multer.File),
-    ).rejects.toMatchObject({ status: 403 });
-    await expect(publishDocument("doc-b", "creator-1")).rejects.toMatchObject({ status: 403 });
+    ).rejects.toMatchObject({ status: 404 });
+    await expect(publishDocument("doc-b", "creator-1")).rejects.toMatchObject({ status: 404 });
   });
 
   it("rejects Word document uploads with a friendly unsupported-file message", async () => {

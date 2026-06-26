@@ -739,8 +739,8 @@ export async function chargeCanteen(
       // wrong_pin: increment attempts, possibly lock, audit
       const newAttempts = wallet.pinFailedAttempts + 1;
       const lockedUntil = pinResult.pinLockedUntil ?? null;
-      await tx.studentWallet.update({
-        where: { id: wallet.id },
+      await tx.studentWallet.updateMany({
+        where: { id: wallet.id, schoolId },
         data: { pinFailedAttempts: newAttempts, pinLockedUntil: lockedUntil },
       });
       await tx.auditLog.create({
@@ -764,8 +764,8 @@ export async function chargeCanteen(
     }
 
     // PIN correct — reset counters and record verification
-    await tx.studentWallet.update({
-      where: { id: wallet.id },
+    await tx.studentWallet.updateMany({
+      where: { id: wallet.id, schoolId },
       data: { pinFailedAttempts: 0, pinLockedUntil: null, pinLastVerifiedAt: new Date() },
     });
     await tx.auditLog.create({
@@ -778,8 +778,8 @@ export async function chargeCanteen(
 
     if (wallet.balanceCents < input.amountCents) return { ok: false, reason: "insufficient balance", student: studentSummary(target.student), wallet };
     const balanceAfterCharge = wallet.balanceCents - input.amountCents;
-    const updatedWallet = await tx.studentWallet.update({
-      where: { id: wallet.id },
+    await tx.studentWallet.updateMany({
+      where: { id: wallet.id, schoolId },
       data: { balanceCents: balanceAfterCharge },
     });
     const transaction = await tx.studentWalletTransaction.create({
@@ -819,7 +819,7 @@ export async function chargeCanteen(
         createdAt: transaction.createdAt.toISOString(),
       },
       student: studentSummary(target.student),
-      wallet: { id: updatedWallet.id, balanceCents: updatedWallet.balanceCents, status: updatedWallet.status },
+      wallet: { id: wallet.id, balanceCents: balanceAfterCharge, status: wallet.status },
     };
   });
 }
@@ -838,8 +838,8 @@ export async function setWalletPin(
   if (!wallet) throw Object.assign(new Error("Wallet not found."), { status: 404 });
 
   const pinHash = await hashWalletPin(input.pin);
-  await db.studentWallet.update({
-    where: { id: wallet.id },
+  await db.studentWallet.updateMany({
+    where: { id: wallet.id, schoolId },
     data: { pinHash, pinSetAt: new Date(), pinFailedAttempts: 0, pinLockedUntil: null },
   });
   await db.auditLog.create({
@@ -891,8 +891,8 @@ export async function changeWalletPin(
   }
 
   const newHash = await hashWalletPin(input.newPin);
-  await db.studentWallet.update({
-    where: { id: wallet.id },
+  await db.studentWallet.updateMany({
+    where: { id: wallet.id, schoolId },
     data: { pinHash: newHash, pinSetAt: new Date(), pinFailedAttempts: 0, pinLockedUntil: null },
   });
   await db.auditLog.create({
@@ -926,8 +926,8 @@ export async function setStudentWalletPin(
   }
 
   const pinHash = await hashWalletPin(input.pin);
-  await db.studentWallet.update({
-    where: { id: wallet.id },
+  await db.studentWallet.updateMany({
+    where: { id: wallet.id, schoolId },
     data: { pinHash, pinSetAt: new Date(), pinFailedAttempts: 0, pinLockedUntil: null },
   });
   await db.auditLog.create({
@@ -1156,8 +1156,8 @@ export async function topUpWallet(
     }
 
     const balanceBefore = wallet.balanceCents;
-    const updatedWallet = await tx.studentWallet.update({
-      where: { id: wallet.id },
+    await tx.studentWallet.updateMany({
+      where: { id: wallet.id, schoolId },
       data: { balanceCents: { increment: amountCents } },
     });
 
@@ -1170,7 +1170,7 @@ export async function topUpWallet(
         cashierUserId: ctx.actorId ?? null,
         type: WalletTransactionType.TOP_UP,
         amountCents,
-        balanceAfterCents: updatedWallet.balanceCents,
+        balanceAfterCents: balanceBefore + amountCents,
         paymentMethod: input.paymentMethod,
         reference: input.reference?.trim() || null,
         description: input.notes?.trim() || null,
@@ -1204,7 +1204,7 @@ export async function topUpWallet(
       },
       student: studentSummary(student),
       walletBefore: { id: wallet.id, balanceCents: balanceBefore },
-      wallet: { id: updatedWallet.id, balanceCents: updatedWallet.balanceCents, status: updatedWallet.status },
+      wallet: { id: wallet.id, balanceCents: balanceBefore + amountCents, status: wallet.status },
     };
   });
 }
@@ -1343,8 +1343,8 @@ export async function reverseTransaction(
     const reversalAmount = -original.amountCents;
     const balanceAfter = wallet.balanceCents + reversalAmount;
 
-    const updatedWallet = await tx.studentWallet.update({
-      where: { id: wallet.id },
+    await tx.studentWallet.updateMany({
+      where: { id: wallet.id, schoolId },
       data: { balanceCents: balanceAfter },
     });
 
@@ -1386,7 +1386,7 @@ export async function reverseTransaction(
         reversalOfId: transactionId,
         createdAt: reversal.createdAt.toISOString(),
       },
-      wallet: { id: updatedWallet.id, balanceCents: updatedWallet.balanceCents, status: updatedWallet.status },
+      wallet: { id: wallet.id, balanceCents: balanceAfter, status: wallet.status },
     };
   });
 }
@@ -1428,8 +1428,8 @@ export async function adjustWallet(
     const balanceBefore = walletSnap.balanceCents;
     const balanceAfter = balanceBefore + amountCents;
 
-    const updatedWallet = await tx.studentWallet.update({
-      where: { id: walletSnap.id },
+    await tx.studentWallet.updateMany({
+      where: { id: walletSnap.id, schoolId },
       data: { balanceCents: balanceAfter },
     });
 
@@ -1471,7 +1471,7 @@ export async function adjustWallet(
       },
       student: studentSummary(student),
       walletBefore: { id: walletSnap.id, balanceCents: balanceBefore },
-      wallet: { id: updatedWallet.id, balanceCents: updatedWallet.balanceCents, status: updatedWallet.status },
+      wallet: { id: walletSnap.id, balanceCents: balanceAfter, status: walletSnap.status },
     };
   });
 }

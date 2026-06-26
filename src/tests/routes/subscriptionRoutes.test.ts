@@ -36,6 +36,7 @@ async function makeToken() {
     name: "Test Admin",
     email: "test@test.com",
     role: "ADMIN_OPERATOR",
+    tokenVersion: 0,
   });
 }
 
@@ -47,7 +48,7 @@ describe("GET /api/subscription", () => {
   beforeAll(async () => {
     const { createServer } = await import("../../server");
     app = createServer();
-  });
+  }, 30000);
 
   beforeEach(() => {
     vi.clearAllMocks();

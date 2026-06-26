@@ -68,11 +68,27 @@ export function marksheetsRoutes() {
       const result = await commitMarksImport(prisma, schoolCode, body.csvText);
 
       if (result.status === "COMMITTED" && result.batchId) {
+        const batch = await prisma.markImportBatch.findFirst({
+          where: { id: result.batchId, schoolId: req.school!.id },
+        });
+        let parsedSummary: Record<string, unknown> = {};
+        if (batch?.summary) {
+          try {
+            parsedSummary = JSON.parse(batch.summary) as Record<string, unknown>;
+          } catch {
+            parsedSummary = {};
+          }
+        }
+
         await prisma.markImportBatch.update({
           where: { id: result.batchId },
           data: {
             source: "marksheet",
-            summary: JSON.stringify(body.context),
+            summary: JSON.stringify({
+              ...parsedSummary,
+              source: "marksheet",
+              context: body.context,
+            }),
           },
         });
       }

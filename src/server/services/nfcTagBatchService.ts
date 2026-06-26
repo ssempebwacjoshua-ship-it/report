@@ -493,7 +493,7 @@ export async function verifyTag(
   }
 
   const updated = await db.nfcTag.update({
-    where: { id: tagId },
+    where: { id: tagId, schoolId },
     data: { status: "VERIFIED", verifiedAt: new Date() },
     include: tagWithStudentInclude,
   });
@@ -552,7 +552,7 @@ export async function amendTag(
   }
 
   const updated = await db.nfcTag.update({
-    where: { id: tagId },
+    where: { id: tagId, schoolId },
     data: patch,
     include: tagWithStudentInclude,
   });
@@ -687,7 +687,7 @@ export async function bulkAllocateFromInventory(
       }
 
       const updated = await tx.nfcTag.update({
-        where: { id: tagId },
+        where: { id: tagId, schoolId },
         data: { status: "ASSIGNED", studentId, assignedAt: new Date() },
         include: tagWithStudentInclude,
       });

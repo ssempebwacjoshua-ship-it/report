@@ -2,14 +2,62 @@
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import { createServer } from "../../server";
 import { defaultSettingsSections, type SettingSection, type SettingsSections } from "../../shared/types/settings";
-import { signToken } from "../../server/services/authService";
+import { hashPassword, signToken } from "../../server/services/authService";
 import { prisma } from "../../server/db/prisma";
 import { previewStudentImport } from "../../server/services/studentImportService";
 
 let realSchoolId = "SCU-PREVIEW-PLACEHOLDER";
+let authToken = "";
 beforeAll(async () => {
   const school = await prisma.school.findUnique({ where: { code: "SCU-PREVIEW" } });
-  if (school) realSchoolId = school.id;
+  if (school) {
+    realSchoolId = school.id;
+    const email = "settings-routes-test@schoolconnect.test";
+    const passwordHash = await hashPassword("SettingsRoutesPass123!");
+    const user = await prisma.user.upsert({
+      where: {
+        schoolId_email: {
+          schoolId: school.id,
+          email,
+        },
+      },
+      update: {
+        name: "Settings Routes Test Admin",
+        role: "ADMIN_OPERATOR",
+        isActive: true,
+        passwordHash,
+        tokenVersion: 0,
+        mustChangePassword: false,
+      },
+      create: {
+        schoolId: school.id,
+        name: "Settings Routes Test Admin",
+        email,
+        role: "ADMIN_OPERATOR",
+        isActive: true,
+        passwordHash,
+        tokenVersion: 0,
+        mustChangePassword: false,
+      },
+      select: {
+        id: true,
+        schoolId: true,
+        name: true,
+        email: true,
+        role: true,
+        tokenVersion: true,
+      },
+    });
+
+    authToken = signToken({
+      userId: user.id,
+      schoolId: user.schoolId,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      tokenVersion: user.tokenVersion,
+    });
+  }
 });
 
 const SCHOOL = "SCU-PREVIEW";
@@ -76,7 +124,9 @@ const sectionPayloads: Record<SettingSection, SettingsSections[SettingSection]> 
 
 describe("settingsRoutes", () => {
   it("GET /api/settings returns valid settings JSON with required section keys", async () => {
-    const res = await request(createServer()).get("/api/settings?schoolCode=SCU-PREVIEW");
+    const res = await request(createServer())
+      .get("/api/settings?schoolCode=SCU-PREVIEW")
+      .set("Authorization", `Bearer ${authToken}`);
     expect(res.status).toBe(200);
     expect(res.body.sections).toHaveProperty("academic");
     expect(res.body.sections).toHaveProperty("reports");
@@ -88,6 +138,7 @@ describe("settingsRoutes", () => {
     for (const section of Object.keys(sectionPayloads) as SettingSection[]) {
       const res = await request(createServer())
         .patch(`/api/settings/${section}?schoolCode=${SCHOOL}`)
+        .set("Authorization", `Bearer ${authToken}`)
         .send(sectionPayloads[section]);
       expect(res.status).toBe(200);
       expect(res.body.sections[section]).toMatchObject(sectionPayloads[section]);
@@ -105,6 +156,7 @@ describe("settingsRoutes", () => {
 
     const res = await request(createServer())
       .patch(`/api/settings/academic?schoolCode=${SCHOOL}`)
+      .set("Authorization", `Bearer ${authToken}`)
       .send(payload);
 
     expect(res.status).toBe(200);
@@ -173,6 +225,7 @@ describe("settingsRoutes", () => {
   it("accepts blank optional school profile fields", async () => {
     const res = await request(createServer())
       .patch(`/api/settings/school?schoolCode=${SCHOOL}`)
+      .set("Authorization", `Bearer ${authToken}`)
       .send({
         ...sectionPayloads.school,
         email: "",
@@ -188,6 +241,7 @@ describe("settingsRoutes", () => {
   it("accepts practical school profile values and persists them", async () => {
     const res = await request(createServer())
       .patch(`/api/settings/school?schoolCode=${SCHOOL}`)
+      .set("Authorization", `Bearer ${authToken}`)
       .send(sectionPayloads.school);
     expect(res.status).toBe(200);
     expect(res.body.sections.school).toMatchObject({
@@ -207,6 +261,7 @@ describe("settingsRoutes", () => {
   it("returns field-level errors for invalid school profile values", async () => {
     const res = await request(createServer())
       .patch(`/api/settings/school?schoolCode=${SCHOOL}`)
+      .set("Authorization", `Bearer ${authToken}`)
       .send({
         ...sectionPayloads.school,
         email: "not-an-email",
@@ -223,6 +278,7 @@ describe("settingsRoutes", () => {
   it("accepts valid email, URL, and phone formats", async () => {
     const res = await request(createServer())
       .patch(`/api/settings/school?schoolCode=${SCHOOL}`)
+      .set("Authorization", `Bearer ${authToken}`)
       .send({
         ...sectionPayloads.school,
         email: "headteacher@schoolconnect.test",
@@ -240,6 +296,7 @@ describe("settingsRoutes", () => {
   it("invalid and overlapping grading ranges are rejected", async () => {
     const res = await request(createServer())
       .patch(`/api/settings/grading?schoolCode=${SCHOOL}`)
+      .set("Authorization", `Bearer ${authToken}`)
       .send({
         grades: [
           { label: "D1", minScore: 90, maxScore: 100, descriptor: "" },
@@ -260,9 +317,12 @@ describe("settingsRoutes", () => {
   it("settings survive reload", async () => {
     await request(createServer())
       .patch(`/api/settings/reports?schoolCode=${SCHOOL}`)
+      .set("Authorization", `Bearer ${authToken}`)
       .send(sectionPayloads.reports);
 
-    const reload = await request(createServer()).get(`/api/settings?schoolCode=${SCHOOL}`);
+    const reload = await request(createServer())
+      .get(`/api/settings?schoolCode=${SCHOOL}`)
+      .set("Authorization", `Bearer ${authToken}`);
     expect(reload.status).toBe(200);
     expect(reload.body.sections.reports.showOverallPosition).toBe(true);
     expect(reload.body.sections.reports.printDensity).toBe("compact");
@@ -271,13 +331,16 @@ describe("settingsRoutes", () => {
   it("school profile changes persist after reload", async () => {
     await request(createServer())
       .patch(`/api/settings/school?schoolCode=${SCHOOL}`)
+      .set("Authorization", `Bearer ${authToken}`)
       .send({
         ...sectionPayloads.school,
         reportFooterText: "Persisted report footer.",
         marksheetFooterText: "Persisted marksheet footer.",
       });
 
-    const reload = await request(createServer()).get(`/api/settings?schoolCode=${SCHOOL}`);
+    const reload = await request(createServer())
+      .get(`/api/settings?schoolCode=${SCHOOL}`)
+      .set("Authorization", `Bearer ${authToken}`);
     expect(reload.status).toBe(200);
     expect(reload.body.sections.school.reportFooterText).toBe("Persisted report footer.");
     expect(reload.body.sections.school.marksheetFooterText).toBe("Persisted marksheet footer.");
@@ -303,17 +366,9 @@ describe("settingsRoutes", () => {
     const originalFetch = globalThis.fetch;
     globalThis.fetch = fetchMock as typeof fetch;
 
-    const token = signToken({
-      userId: "user-1",
-      schoolId: realSchoolId,
-      name: "Admin",
-      email: "admin@example.test",
-      role: "ADMIN_OPERATOR",
-    });
-
     const res = await request(createServer())
       .post("/internal/ocr/read")
-      .set("Authorization", `Bearer ${token}`)
+      .set("Authorization", `Bearer ${authToken}`)
       .send({ url: "https://example.com/test.jpg" });
 
     globalThis.fetch = originalFetch;
@@ -340,18 +395,10 @@ describe("settingsRoutes", () => {
     const originalFetch = globalThis.fetch;
     globalThis.fetch = fetchMock as typeof fetch;
 
-    const token = signToken({
-      userId: "user-1",
-      schoolId: realSchoolId,
-      name: "Admin",
-      email: "admin@example.test",
-      role: "ADMIN_OPERATOR",
-    });
-
     const imageBase64 = Buffer.from("crop-bytes").toString("base64");
     const res = await request(createServer())
       .post("/internal/ocr/read")
-      .set("Authorization", `Bearer ${token}`)
+      .set("Authorization", `Bearer ${authToken}`)
       .send({ imageBase64, mimeType: "image/png" });
 
     globalThis.fetch = originalFetch;
@@ -364,17 +411,9 @@ describe("settingsRoutes", () => {
   });
 
   it("returns 400 and a validation message for an invalid OCR URL", async () => {
-    const token = signToken({
-      userId: "user-1",
-      schoolId: realSchoolId,
-      name: "Admin",
-      email: "admin@example.test",
-      role: "ADMIN_OPERATOR",
-    });
-
     const res = await request(createServer())
       .post("/internal/ocr/read")
-      .set("Authorization", `Bearer ${token}`)
+      .set("Authorization", `Bearer ${authToken}`)
       .send({ url: "not-a-url" });
 
     expect(res.status).toBe(400);
@@ -391,17 +430,9 @@ describe("settingsRoutes", () => {
     delete process.env.OCR_PROVIDER;
     delete process.env.AZURE_OCR_FUNCTION_URL;
 
-    const token = signToken({
-      userId: "user-1",
-      schoolId: realSchoolId,
-      name: "Admin",
-      email: "admin@example.test",
-      role: "ADMIN_OPERATOR",
-    });
-
     const res = await request(createServer())
       .post("/internal/ocr/read")
-      .set("Authorization", `Bearer ${token}`)
+      .set("Authorization", `Bearer ${authToken}`)
       .send({ url: "https://example.com/test.jpg" });
 
     process.env.OCR_ENABLED = saved.enabled;
@@ -427,17 +458,9 @@ describe("settingsRoutes", () => {
     const originalFetch = globalThis.fetch;
     globalThis.fetch = fetchMock as typeof fetch;
 
-    const token = signToken({
-      userId: "user-1",
-      schoolId: realSchoolId,
-      name: "Admin",
-      email: "admin@example.test",
-      role: "ADMIN_OPERATOR",
-    });
-
     const res = await request(createServer())
       .post("/internal/ocr/read")
-      .set("Authorization", `Bearer ${token}`)
+      .set("Authorization", `Bearer ${authToken}`)
       .send({ url: "https://example.com/test.jpg" });
 
     globalThis.fetch = originalFetch;
@@ -448,7 +471,9 @@ describe("settingsRoutes", () => {
   });
 
   it("OCR settings schema does not include provider infrastructure fields", async () => {
-    const res = await request(createServer()).get(`/api/settings?schoolCode=${SCHOOL}`);
+    const res = await request(createServer())
+      .get(`/api/settings?schoolCode=${SCHOOL}`)
+      .set("Authorization", `Bearer ${authToken}`);
     expect(res.status).toBe(200);
     const ocr = res.body.sections.ocr as Record<string, unknown>;
     expect(ocr).not.toHaveProperty("provider");

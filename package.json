@@ -21,6 +21,8 @@
     "seed:preview": "tsx scripts/seed-preview.ts",
     "seed:s1-marks:test": "tsx scripts/seed-s1-marks-test.ts",
     "verify:s1-marks:test": "tsx scripts/verify-s1-marks-test.ts",
+    "school:structure:dry-run": "tsx src/scripts/repairPreviewClasses.ts",
+    "school:structure:apply": "tsx src/scripts/repairPreviewClasses.ts --apply",
     "lint": "eslint .",
     "preview": "vite preview",
     "railway:start": "npm run start:prod",

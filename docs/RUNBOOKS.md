@@ -84,6 +84,30 @@ npx tsx scripts/repair-marks-status.ts --school SCU-PREVIEW
 npx tsx scripts/repair-marks-status.ts --dry-run --school SCU-PREVIEW --limit 50
 ```
 
+### repair-orphan-student-enrollments
+
+Lists active students who have no enrollment in the current active year/term. Default mode is dry-run.
+
+```bash
+# Always review first
+npx tsx scripts/repair-orphan-student-enrollments.ts --school=SCU-PREVIEW
+
+# Live delete only after confirming the dry-run output
+npx tsx scripts/repair-orphan-student-enrollments.ts --school=SCU-PREVIEW --commit
+```
+
+### school structure normalization
+
+Normalizes non-canonical class/stream records. Default mode is dry-run; live changes require `--apply`.
+
+```bash
+# Preview only
+npm run school:structure:dry-run -- --schoolCode SCU-PREVIEW
+
+# Apply only after reviewing the preview output
+npm run school:structure:apply -- --schoolCode SCU-PREVIEW
+```
+
 ---
 
 ## Environment Variable Checklist
@@ -93,12 +117,14 @@ npx tsx scripts/repair-marks-status.ts --dry-run --school SCU-PREVIEW --limit 50
 | `DATABASE_URL`     | Yes      | Railway backend only      | Never in Vercel frontend env               |
 | `JWT_SECRET`       | Yes      | Railway backend only      | Min 32 chars, use `openssl rand -hex 32`   |
 | `CLIENT_ORIGIN`    | Yes      | Railway backend only      | e.g. `https://your-app.vercel.app`         |
+| `APP_BASE_URL`     | Strongly recommended | Railway backend only | Branded parent-report/public-report domain |
+| `PUBLIC_APP_URL`   | Optional | Railway backend only      | Fallback if `APP_BASE_URL` is not set      |
 | `GEMINI_API_KEY`   | Optional | Railway backend only      | Never in Vercel — must NOT use VITE_ prefix|
 | `PLATFORM_ADMIN_KEY` | Optional | Railway backend only   | Use `openssl rand -hex 32`                 |
 | `INTERNAL_TEST_KEY`| Optional | Railway backend only      | For test/diagnostic routes in production   |
 | `VITE_API_BASE_URL`| Yes      | Vercel frontend env       | URL of the Railway backend                 |
 
-**Never set `GEMINI_API_KEY`, `JWT_SECRET`, or `DATABASE_URL` in Vercel frontend environment variables.**
+**Never set `GEMINI_API_KEY`, `JWT_SECRET`, `DATABASE_URL`, `PLATFORM_ADMIN_KEY`, or `INTERNAL_TEST_KEY` in Vercel frontend environment variables.**
 The server will refuse to start if any `VITE_*API_KEY` or `VITE_*SECRET` is detected.
 
 ---

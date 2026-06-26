@@ -54,6 +54,15 @@ function makeMockDb() {
         if (w) w.balanceCents = data.balanceCents;
         return w;
       },
+      updateMany: async ({ where, data }: { where: { id?: string; schoolId?: string }; data: { balanceCents: number } }) => {
+        const w = wallets.find((x) =>
+          (!where.id || x.id === where.id) &&
+          (!where.schoolId || x.schoolId === where.schoolId),
+        );
+        if (!w) return { count: 0 };
+        w.balanceCents = data.balanceCents;
+        return { count: 1 };
+      },
     },
     studentCredential: {},
     nfcGateScan: {
