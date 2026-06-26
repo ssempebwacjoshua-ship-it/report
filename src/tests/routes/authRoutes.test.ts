@@ -7,6 +7,7 @@ const mockState = vi.hoisted(() => ({
   schoolFindUnique: vi.fn(),
   userFindFirst: vi.fn(),
   userUpdate: vi.fn(),
+  auditLogCreate: vi.fn(),
   signToken: vi.fn(() => "signed-token"),
   verifyPassword: vi.fn(),
   verifyToken: vi.fn(),
@@ -19,6 +20,9 @@ vi.mock("../../server/db/prisma", () => ({
     user: {
       findFirst: mockState.userFindFirst,
       update: mockState.userUpdate,
+    },
+    auditLog: {
+      create: mockState.auditLogCreate,
     },
   },
 }));
@@ -70,6 +74,7 @@ describe("authRoutes /api/auth/login", () => {
       tokenVersion: 2,
     });
     mockState.userUpdate.mockResolvedValue({});
+    mockState.auditLogCreate.mockResolvedValue({});
     mockState.verifyPassword.mockResolvedValue(true);
   });
 
@@ -90,6 +95,16 @@ describe("authRoutes /api/auth/login", () => {
       userId: "user-1",
       tokenVersion: 2,
     }));
+    expect(mockState.auditLogCreate).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        schoolId: "school-1",
+        action: "auth.login_success",
+        details: expect.objectContaining({
+          email: "admin@schoolconnect.test",
+          schoolCode: "SCU-PREVIEW",
+        }),
+      }),
+    }));
     expect(logSpy).not.toHaveBeenCalled();
     logSpy.mockRestore();
   });
@@ -104,6 +119,16 @@ describe("authRoutes /api/auth/login", () => {
 
     expect(res.status).toBe(401);
     expect(res.body.error).toBe("Invalid credentials.");
+    expect(mockState.auditLogCreate).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        schoolId: "school-1",
+        action: "auth.login_failed",
+        details: expect.objectContaining({
+          email: "nobody@unknown.test",
+          reason: "INVALID_CREDENTIALS",
+        }),
+      }),
+    }));
   });
 
   it("returns 400 for invalid email format", async () => {
@@ -121,6 +146,16 @@ describe("authRoutes /api/auth/login", () => {
       .send({ email: "admin@schoolconnect.test", password: "password123", schoolCode: "SCU-PREVIEW" });
 
     expect(res.status).toBe(403);
+    expect(mockState.auditLogCreate).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        schoolId: "school-1",
+        action: "auth.login_failed",
+        details: expect.objectContaining({
+          email: "admin@schoolconnect.test",
+          reason: "SCHOOL_SUSPENDED",
+        }),
+      }),
+    }));
   });
 });
 

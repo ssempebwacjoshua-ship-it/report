@@ -112,6 +112,7 @@ model Stream {
 
   @@unique([classId, code])
   @@index([schoolId])
+  @@index([schoolId, classId, code], map: "Stream_schoolId_classId_code_idx")
 }
 
 model Student {
@@ -140,6 +141,7 @@ model Student {
 
   @@unique([schoolId, admissionNumber])
   @@index([schoolId, isActive])
+  @@index([schoolId, admissionNumber, isActive], map: "Student_schoolId_admissionNumber_isActive_idx")
 }
 
 model ClassEnrollment {
@@ -237,6 +239,7 @@ model SubjectMark {
   @@index([schoolId, academicYearId, termId, classId, streamId, assessmentType, status])
   @@index([schoolId, studentId, academicYearId, termId, assessmentType])
   @@index([schoolId, subjectId, academicYearId, termId, assessmentType])
+  @@index([schoolId, studentId, subjectId, termId, assessmentType], map: "SubjectMark_school_student_subject_term_type_idx")
   @@index([importBatchId])
 }
 
@@ -279,6 +282,7 @@ model AuditLog {
 
   @@index([schoolId, action, createdAt])
   @@index([schoolId, correlationId])
+  @@index([schoolId, createdAt], map: "AuditLog_schoolId_createdAt_idx")
 }
 
 model AppSetting {
@@ -425,6 +429,7 @@ model StudentCredential {
   @@index([studentId])
   @@index([schoolId, status])
   @@index([schoolId, type, status])
+  @@index([schoolId, credentialUID], map: "StudentCredential_schoolId_credentialUID_idx")
 }
 
 model StudentWallet {
@@ -694,6 +699,7 @@ model IssuedReport {
   @@index([referenceCode])
   @@index([schoolId, status])
   @@index([studentId, status])
+  @@index([schoolId, studentId, academicYear, term, assessmentType, status], map: "IssuedReport_school_student_year_term_type_status_idx")
 }
 
 model ReportLabSubscription {
@@ -818,6 +824,7 @@ model DocumentSourceFile {
   document              SmartDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
 
   @@index([documentId])
+  @@index([documentId, status, createdAt], map: "DocumentSourceFile_document_status_createdAt_idx")
   @@index([status, createdAt])
   @@index([fileHash])
 }
@@ -1264,6 +1271,7 @@ model NfcTag {
   @@index([schoolId, studentId])
   @@index([schoolId, batchId])
   @@index([schoolId, tagMode, status])
+  @@index([schoolId, physicalUid], map: "NfcTag_schoolId_physicalUid_idx")
 }
 
 model NfcTapEvent {
@@ -1281,4 +1289,5 @@ model NfcTapEvent {
 
   @@index([publicCode])
   @@index([tagId, createdAt])
+  @@index([schoolId, publicCode, createdAt], map: "NfcTapEvent_school_publicCode_createdAt_idx")
 }

@@ -74,7 +74,7 @@ describe("Phase 6 audit trail ? marks.imported (CSV commit)", () => {
     );
   });
 
-  it("does NOT write a marks.imported audit row when commit fails validation", async () => {
+  it("writes a safe marks.import_failed audit row when commit fails validation", async () => {
     const auditLogCreate = vi.fn(async () => ({}));
     const failedBatchCreate = vi.fn(async () => ({ id: "batch-2" }));
 
@@ -119,7 +119,13 @@ describe("Phase 6 audit trail ? marks.imported (CSV commit)", () => {
     const result = await commitMarksImport(mockPrisma, "UNIT2", csv);
 
     expect(result.status).toBe("FAILED");
-    expect(auditLogCreate).not.toHaveBeenCalled();
+    expect(auditLogCreate).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        schoolId: "sch-unit-2",
+        action: "marks.import_failed",
+        correlationId: "batch-2",
+      }),
+    }));
     expect(failedBatchCreate).toHaveBeenCalled();
   });
 });

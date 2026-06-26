@@ -46,6 +46,7 @@ describe("HIGH 3 ? report comment routes", () => {
       name: "Test Admin",
       email: "admin@rcsch.test",
       role: "ADMIN_OPERATOR",
+      tokenVersion: 0,
     });
   });
 

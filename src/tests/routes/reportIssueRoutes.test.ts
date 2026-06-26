@@ -124,6 +124,7 @@ describe("reportIssueRoutes", () => {
     const prisma = {
       issuedReport: {
         updateMany: vi.fn(async () => ({ count: 1 })),
+        findMany: vi.fn(async () => []),
         create: vi.fn(async () => ({
           id: "issued-new",
           assessmentType: "EOT",
@@ -151,6 +152,7 @@ describe("reportIssueRoutes", () => {
     const prisma = {
       issuedReport: {
         updateMany: vi.fn(async () => ({ count: 0 })),
+        findMany: vi.fn(async () => []),
         create: vi.fn(async () => ({
           id: "issued-empty",
           assessmentType: "EOT",
@@ -169,5 +171,59 @@ describe("reportIssueRoutes", () => {
 
     expect(res.status).toBe(201);
     expect(prisma.issuedReport.create).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps report.issue audit details free of raw parent tokens", async () => {
+    const auditLogCreate = vi.fn(async () => ({}));
+    const prisma = {
+      issuedReport: {
+        updateMany: vi.fn(async () => ({ count: 0 })),
+        findMany: vi.fn(async () => []),
+        create: vi.fn(async () => ({
+          id: "issued-safe",
+          assessmentType: "EOT",
+          issuedAt: new Date("2026-06-26T00:00:00.000Z"),
+        })),
+      },
+      auditLog: { create: auditLogCreate },
+    };
+
+    const app = await mountReportIssueApp(prisma);
+    const res = await request(app).post("/api/reports/issue").send({
+      studentId: VALID_STUDENT_ID,
+      classId: "00000000-0000-0000-0000-000000000002",
+      assessmentType: "EOT",
+    });
+
+    expect(res.status).toBe(201);
+    const reportIssueAudit = auditLogCreate.mock.calls.find(
+      ([call]) => call?.data?.action === "report.issue",
+    )?.[0];
+    expect(reportIssueAudit?.data?.details).toEqual(expect.objectContaining({
+      issuedReportId: "issued-safe",
+      studentId: VALID_STUDENT_ID,
+    }));
+    expect(reportIssueAudit?.data?.details).not.toHaveProperty("parentAccessToken");
+    expect(reportIssueAudit?.data?.details).not.toHaveProperty("parentLink");
+    expect(reportIssueAudit?.data?.details).not.toHaveProperty("token");
+  });
+
+  it("keeps issued report list queries scoped to the authenticated school", async () => {
+    const findMany = vi.fn(async () => []);
+    const app = await mountReportIssueApp({
+      issuedReport: {
+        updateMany: vi.fn(async () => ({ count: 0 })),
+        findMany,
+        create: vi.fn(async () => ({ id: "issued-1", assessmentType: "EOT", issuedAt: new Date() })),
+      },
+      auditLog: { create: vi.fn(async () => ({})) },
+    });
+
+    const res = await request(app).get("/api/reports/issued");
+
+    expect(res.status).toBe(200);
+    expect(findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { schoolId: "school-1" },
+    }));
   });
 });

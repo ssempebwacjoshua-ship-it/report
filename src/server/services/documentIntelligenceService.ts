@@ -190,6 +190,10 @@ function smartPagesChargeKey(parts: Array<string | number | null | undefined>): 
   return parts.map((part) => String(part ?? "")).join(":");
 }
 
+function redactPublicToken(token: string): string {
+  return createHash("sha256").update(token).digest("hex");
+}
+
 function isSmartPagesProviderFailure(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error);
   return /timeout|timed out|503|unavailable|model overloaded|overloaded|high traffic|provider error|failed to fetch|etimedout|econnreset|enotfound|resource_exhausted|quota|not found|404|500/i.test(message)
@@ -1428,7 +1432,7 @@ export async function publishDocument(
   await executeWorkflows(creatorId, "PUBLISH_COMPLETED", { documentId, token, title: doc.title });
   await writeSmartPagesAudit(actor, "SMART_DOCUMENT_PUBLISHED", documentId, {
     documentId,
-    token,
+    tokenHash: redactPublicToken(token),
     title: doc.title,
   });
 

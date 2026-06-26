@@ -22,6 +22,7 @@ const {
   subjectCreate,
   subjectUpdate,
   subjectDelete,
+  auditLogCreate,
   transactionMock,
 } = vi.hoisted(() => ({
   schoolFindUnique: vi.fn(),
@@ -41,6 +42,7 @@ const {
   subjectCreate: vi.fn(),
   subjectUpdate: vi.fn(),
   subjectDelete: vi.fn(),
+  auditLogCreate: vi.fn(),
   transactionMock: vi.fn(),
 }));
 
@@ -68,6 +70,7 @@ vi.mock("../../server/db/prisma", () => ({
       update: subjectUpdate,
       delete: subjectDelete,
     },
+    auditLog: { create: auditLogCreate },
     $transaction: transactionMock,
   },
 }));
@@ -162,6 +165,7 @@ beforeEach(() => {
   subjectCreate.mockImplementation(async ({ data }) => ({ id: `subject-${data.code}`, ...data }));
   subjectUpdate.mockImplementation(async ({ data }) => ({ id: "subject-existing", ...data }));
   subjectDelete.mockResolvedValue({});
+  auditLogCreate.mockResolvedValue({});
 });
 
 describe("GET /api/settings/school-structure", () => {
@@ -207,6 +211,12 @@ describe("PATCH /api/settings/school-structure", () => {
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
     expect(schoolClassUpsert).toHaveBeenCalledTimes(6);
+    expect(auditLogCreate).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        schoolId: "school-1",
+        action: "school.structure.updated",
+      }),
+    }));
   });
 
   it("selecting Secondary creates secondary and A-Level subjects", async () => {
@@ -324,6 +334,15 @@ describe("POST /api/settings/school-structure/streams", () => {
     expect(streamCreate).toHaveBeenCalledWith({
       data: expect.objectContaining({ code: "C", name: "C", classId: "cs1" }),
     });
+    expect(auditLogCreate).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        schoolId: "school-1",
+        action: "school.stream.created",
+        details: expect.objectContaining({
+          streamCode: "C",
+        }),
+      }),
+    }));
   });
 
   it("creates stream D and returns 201", async () => {
@@ -443,6 +462,15 @@ describe("DELETE /api/settings/school-structure/streams/:streamId", () => {
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
     expect(streamDeleteMany).toHaveBeenCalledWith({ where: { id: "stream-a", schoolId: "school-1" } });
+    expect(auditLogCreate).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        schoolId: "school-1",
+        action: "school.stream.deleted",
+        details: expect.objectContaining({
+          streamId: "stream-a",
+        }),
+      }),
+    }));
   });
 
   it("returns 409 when the stream has enrolled students", async () => {

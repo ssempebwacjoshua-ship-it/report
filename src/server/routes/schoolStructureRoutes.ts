@@ -108,6 +108,20 @@ function requireSchoolContext(
   return school;
 }
 
+async function writeSchoolStructureAudit(
+  schoolId: string,
+  action: string,
+  details: Record<string, unknown>,
+) {
+  await prisma.auditLog.create({
+    data: {
+      schoolId,
+      action,
+      details,
+    },
+  });
+}
+
 export function schoolStructureRoutes() {
   const router = Router();
 
@@ -175,6 +189,15 @@ export function schoolStructureRoutes() {
         ...currentSettings.school,
         schoolSections: newSections,
       });
+      await writeSchoolStructureAudit(school.id, "school.structure.updated", {
+        previousSections: currentSections,
+        selectedSections: newSections,
+        removedSections,
+        actorUserId: req.user?.userId ?? null,
+        classesSeeded: structure.classCount,
+        streamsCreated: structure.streamCount,
+        subjectsProvisioned: structure.subjectCount,
+      });
 
       res.json({
         ...(await buildStructureResponse(school)),
@@ -232,6 +255,14 @@ export function schoolStructureRoutes() {
       const stream = await prisma.stream.create({
         data: { schoolId: school.id, classId, name: streamName, code: streamCode },
       });
+      await writeSchoolStructureAudit(school.id, "school.stream.created", {
+        actorUserId: req.user?.userId ?? null,
+        classId: klass.id,
+        classCode: klass.code,
+        streamId: stream.id,
+        streamName: stream.name,
+        streamCode: stream.code,
+      });
 
       res.status(201).json({
         success: true,
@@ -270,6 +301,13 @@ export function schoolStructureRoutes() {
       }
 
       await prisma.stream.deleteMany({ where: { id: streamId, schoolId: school.id } });
+      await writeSchoolStructureAudit(school.id, "school.stream.deleted", {
+        actorUserId: req.user?.userId ?? null,
+        classId: stream.classId,
+        streamId: stream.id,
+        streamName: stream.name,
+        streamCode: stream.code,
+      });
       res.json({ success: true, message: `Stream "${stream.name}" removed.` });
     } catch (error) {
       next(error);

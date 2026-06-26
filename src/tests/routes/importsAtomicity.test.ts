@@ -96,7 +96,7 @@ describe("scan commit atomicity", () => {
           { student: { id: "student-2", admissionNumber: "A-2" }, class: { id: "class-1" }, stream: { id: "stream-1" } },
         ]),
       },
-      auditLog: { findFirst: vi.fn(async () => ({ id: "audit-1" })) },
+      auditLog: { findFirst: vi.fn(async () => ({ id: "audit-1" })), create: vi.fn(async () => ({})) },
       markImportBatch: {
         findFirst: vi.fn(async () => persisted.batch),
         update: vi.fn(async ({ data }: any) => {
@@ -193,7 +193,7 @@ describe("scan commit atomicity", () => {
           { student: { id: "student-2", admissionNumber: "A-2" }, class: { id: "class-1" }, stream: { id: "stream-1" } },
         ]),
       },
-      auditLog: { findFirst: vi.fn(async () => ({ id: "audit-1" })) },
+      auditLog: { findFirst: vi.fn(async () => ({ id: "audit-1" })), create: vi.fn(async () => ({})) },
       markImportBatch: {
         findFirst: vi.fn(async () => persisted.batch),
         update: vi.fn(async ({ data }: any) => {

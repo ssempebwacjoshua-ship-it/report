@@ -84,6 +84,12 @@ describe("staffUsersService", () => {
         mustChangePassword: true,
       }),
     }));
+    expect(db.auditLog.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        schoolId: "school-1",
+        action: "STAFF_USER_CREATED",
+      }),
+    }));
   });
 
   it("disabling staff increments tokenVersion", async () => {
@@ -109,6 +115,12 @@ describe("staffUsersService", () => {
       data: expect.objectContaining({
         isActive: false,
         tokenVersion: { increment: 1 },
+      }),
+    }));
+    expect(db.auditLog.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        schoolId: "school-1",
+        action: "STAFF_USER_DISABLED",
       }),
     }));
   });
@@ -138,5 +150,43 @@ describe("staffUsersService", () => {
         tokenVersion: { increment: 1 },
       }),
     }));
+    expect(db.auditLog.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        schoolId: "school-1",
+        action: "STAFF_ROLE_CHANGED",
+      }),
+    }));
+  });
+
+  it("password reset writes an audit log without storing the password", async () => {
+    const db = createDb();
+    db.user.findFirst.mockResolvedValue({
+      id: "user-2",
+      role: "CASHIER",
+    });
+    db.user.update.mockResolvedValue({
+      id: "user-2",
+      name: "Cashier",
+      email: "cashier@test.com",
+      role: "CASHIER",
+      isActive: true,
+      mustChangePassword: true,
+      lastLoginAt: null,
+      createdAt: new Date("2026-01-01T00:00:00Z"),
+    });
+
+    await resetStaffPassword(ADMIN_CTX, "user-2", {
+      temporaryPassword: "StrongReset9",
+      reason: "Reset",
+    }, db as any);
+
+    expect(db.auditLog.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        schoolId: "school-1",
+        action: "STAFF_PASSWORD_RESET",
+      }),
+    }));
+    const resetAudit = db.auditLog.create.mock.calls[0][0] as { data: { details: Record<string, unknown> } };
+    expect(resetAudit.data.details).not.toHaveProperty("temporaryPassword");
   });
 });

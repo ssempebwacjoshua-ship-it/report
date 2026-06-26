@@ -98,6 +98,35 @@ async function recordScanDryRun(schoolId: string, fingerprint: string) {
   });
 }
 
+async function recordScanCommitAudit(input: {
+  schoolId: string;
+  action: "scan.imported" | "scan.import_failed";
+  batchId: string;
+  totalRows: number;
+  validRows: number;
+  committedRows: number;
+  skippedRows: number;
+  message: string;
+  source: "scan";
+}) {
+  await prisma.auditLog.create({
+    data: {
+      schoolId: input.schoolId,
+      action: input.action,
+      correlationId: input.batchId,
+      details: {
+        batchId: input.batchId,
+        source: input.source,
+        totalRows: input.totalRows,
+        validRows: input.validRows,
+        committedRows: input.committedRows,
+        skippedRows: input.skippedRows,
+        message: input.message,
+      },
+    },
+  });
+}
+
 async function hasRecentScanDryRun(schoolId: string, fingerprint: string) {
   const since = new Date(Date.now() - 1000 * 60 * 60 * 4);
   const log = await prisma.auditLog.findFirst({
@@ -686,6 +715,7 @@ export function importsRoutes() {
       }
 
       let existingSummary: Record<string, unknown> = {};
+      let attemptedBatchId: string | null = existingBatch?.id ?? null;
       if (existingBatch?.summary) {
         try {
           existingSummary = JSON.parse(existingBatch.summary) as Record<string, unknown>;
@@ -695,7 +725,7 @@ export function importsRoutes() {
       }
 
       try {
-        await prisma.$transaction(async (tx) => {
+        const committedBatchId = await prisma.$transaction(async (tx) => {
           const batch = existingBatch
             ? await tx.markImportBatch.update({
                 where: { id: existingBatch.id },
@@ -732,6 +762,7 @@ export function importsRoutes() {
                   }),
                 },
               });
+          attemptedBatchId = batch.id;
 
           await tx.markImportRow.deleteMany({ where: { batchId: batch.id } });
           await tx.markImportRow.createMany({
@@ -798,6 +829,18 @@ export function importsRoutes() {
               }),
             },
           });
+          return batch.id as string;
+        });
+        await recordScanCommitAudit({
+          schoolId: school.id,
+          action: "scan.imported",
+          batchId: committedBatchId,
+          source: "scan",
+          totalRows: rows.length,
+          validRows: validRows.length,
+          committedRows: numericRows.length,
+          skippedRows: rows.length - numericRows.length,
+          message: `Committed ${numericRows.length} scanned mark rows.`,
         });
       } catch (error) {
         if (existingBatch) {
@@ -817,6 +860,30 @@ export function importsRoutes() {
                 message: "Commit failed. No scanned marks were written.",
               }),
             },
+          });
+          await recordScanCommitAudit({
+            schoolId: school.id,
+            action: "scan.import_failed",
+            batchId: existingBatch.id,
+            source: "scan",
+            totalRows: rows.length,
+            validRows: validRows.length,
+            committedRows: 0,
+            skippedRows: rows.length,
+            message: "Commit failed. No scanned marks were written.",
+          });
+        }
+        if (attemptedBatchId) {
+          await recordScanCommitAudit({
+            schoolId: school.id,
+            action: "scan.import_failed",
+            batchId: attemptedBatchId,
+            source: "scan",
+            totalRows: rows.length,
+            validRows: validRows.length,
+            committedRows: 0,
+            skippedRows: rows.length,
+            message: "Commit failed. No scanned marks were written.",
           });
         }
 

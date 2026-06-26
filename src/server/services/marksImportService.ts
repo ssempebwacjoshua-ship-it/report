@@ -92,6 +92,30 @@ async function persistFailedBatch(
   return batch.id;
 }
 
+async function recordFailedImport(
+  prisma: PrismaClient,
+  schoolId: string,
+  batchId: string,
+  rows: ValidatedMarkImportRow[],
+  message: string,
+) {
+  await prisma.auditLog.create({
+    data: {
+      schoolId,
+      action: "marks.import_failed",
+      correlationId: batchId,
+      details: {
+        batchId,
+        source: "csv",
+        totalRows: rows.length,
+        validRows: rows.filter((row) => row.isValid).length,
+        invalidRows: rows.filter((row) => !row.isValid).length,
+        message,
+      },
+    },
+  });
+}
+
 function rowsWithAppendedError(rows: ValidatedMarkImportRow[], message: string): ValidatedMarkImportRow[] {
   return rows.map((row) => ({
     ...row,
@@ -136,6 +160,7 @@ export async function commitMarksImport(prisma: PrismaClient, schoolCode: string
     if (!hasDryRun) {
       const failedRows = rowsWithAppendedError(validated, "Dry-run validation is required before commit.");
       const batchId = await persistFailedBatch(prisma, school.id, failedRows, "Dry-run validation is required before commit.");
+      await recordFailedImport(prisma, school.id, batchId, failedRows, "Dry-run validation is required before commit.");
       return {
         status: "FAILED",
         batchId,
@@ -149,6 +174,7 @@ export async function commitMarksImport(prisma: PrismaClient, schoolCode: string
 
   if (validated.some((row) => !row.isValid)) {
     const batchId = await persistFailedBatch(prisma, school.id, validated, "Import validation failed.");
+    await recordFailedImport(prisma, school.id, batchId, validated, "Import validation failed.");
     return {
       status: "FAILED",
       batchId,
@@ -273,6 +299,7 @@ export async function commitMarksImport(prisma: PrismaClient, schoolCode: string
     const message = error instanceof Error ? error.message : "Could not commit marks import.";
     const failedRows = rowsWithAppendedError(validated, message);
     const batchId = await persistFailedBatch(prisma, school.id, failedRows, "Commit failed. No marks were written.");
+    await recordFailedImport(prisma, school.id, batchId, failedRows, "Commit failed. No marks were written.");
     return {
       status: "FAILED",
       batchId,

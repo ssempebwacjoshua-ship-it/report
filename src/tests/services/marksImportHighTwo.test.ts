@@ -161,6 +161,10 @@ function buildServiceMock(options: { failOnUpsertCall?: number } = {}) {
     },
     auditLog: {
       findFirst: vi.fn(async () => ({ id: "prior-dry-run" })),
+      create: vi.fn(async ({ data }: any) => {
+        persisted.logs.push({ action: data.action, correlationId: data.correlationId ?? null });
+        return {};
+      }),
     },
     $transaction: vi.fn(async (callback: (client: typeof tx) => Promise<unknown>) => {
       txState = {
@@ -202,7 +206,8 @@ describe("Phase 3 import atomicity", () => {
     expect(persisted.batches[0]?.status).toBe("FAILED");
     expect(persisted.rows).toHaveLength(2);
     expect(persisted.rows.every((row) => row.errors.length > 0)).toBe(true);
-    expect(persisted.logs).toHaveLength(0);
+    expect(persisted.logs).toHaveLength(1);
+    expect(persisted.logs[0]?.action).toBe("marks.import_failed");
   });
 
   it("rejects invalid rows before commit and keeps row errors exportable", async () => {
@@ -222,6 +227,7 @@ describe("Phase 3 import atomicity", () => {
     expect(persisted.batches[0]?.status).toBe("FAILED");
     expect(result.rows[0]?.errors[0]).toMatch(/AB is not allowed here/i);
     expect(persisted.rows[0]?.errors[0]).toMatch(/AB is not allowed here/i);
+    expect(persisted.logs[0]?.action).toBe("marks.import_failed");
   });
 
   it("commits all valid rows and marks in one successful transaction", async () => {

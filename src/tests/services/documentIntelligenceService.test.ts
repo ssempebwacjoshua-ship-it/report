@@ -493,6 +493,21 @@ describe("documentIntelligenceService", () => {
 
     expect(mockState.prisma.schoolSmartPagePlan.updateMany).toHaveBeenCalledTimes(1);
     expect(mockState.prisma.smartPageLedger.create).toHaveBeenCalledTimes(1);
+    expect(mockState.prisma.auditLog.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        schoolId: "school-1",
+        action: "SMART_DOCUMENT_PUBLISHED",
+        details: expect.objectContaining({
+          documentId: "doc-1",
+          title: "Term Report",
+          tokenHash: expect.any(String),
+        }),
+      }),
+    }));
+    const publishAudit = mockState.prisma.auditLog.create.mock.calls.find(
+      ([call]) => call?.data?.action === "SMART_DOCUMENT_PUBLISHED",
+    )?.[0];
+    expect(publishAudit?.data?.details).not.toHaveProperty("token");
   });
 
   it("successful extraction deducts exactly once", async () => {
