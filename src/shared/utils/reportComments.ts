@@ -1,9 +1,11 @@
-﻿export const COMMENT_LIMITS = {
-  classTeacherComment: 500,
-  headTeacherComment: 500,
-  conductNote: 300,
-  classTeacherName: 100,
-  headTeacherName: 100,
+import { REPORT_CONTENT_LIMITS } from "./reportContentLimits";
+
+export const COMMENT_LIMITS = {
+  classTeacherComment: REPORT_CONTENT_LIMITS.classTeacherComment,
+  headTeacherComment: REPORT_CONTENT_LIMITS.headTeacherComment,
+  conductNote: REPORT_CONTENT_LIMITS.conductNote,
+  classTeacherName: REPORT_CONTENT_LIMITS.classTeacherName,
+  headTeacherName: REPORT_CONTENT_LIMITS.headTeacherName,
 } as const;
 
 export type ReportComments = {
@@ -23,4 +25,3 @@ export const EMPTY_REPORT_COMMENTS: ReportComments = {
   headTeacherName: "",
   issueDate: "",
 };
-

@@ -8,6 +8,7 @@ import { getSettingsSections } from "../repositories/settingsRepository";
 import { buildReports } from "../services/reportEngine";
 import type { PreferredContactMethod } from "@prisma/client";
 import { getPublicAppUrl } from "../config/publicUrl";
+import { sanitizeReportCardForRender, sanitizeSchoolSettingsForReport } from "../../shared/utils/reportContentLimits";
 
 // ── Token helpers (mirrors reportIssueRoutes.ts) ─────────────────────────────
 
@@ -296,8 +297,11 @@ export function releaseCenterRoutes() {
         });
 
         const snapshot = {
-          card,
-          settings: reportResult.settings,
+          card: sanitizeReportCardForRender(card),
+          settings: {
+            ...reportResult.settings,
+            school: sanitizeSchoolSettingsForReport(reportResult.settings.school),
+          },
           issuedAt: new Date().toISOString(),
           issuedByName: user.name,
           filters,

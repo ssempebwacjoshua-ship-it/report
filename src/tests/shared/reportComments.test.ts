@@ -1,43 +1,107 @@
-﻿import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { COMMENT_LIMITS, EMPTY_REPORT_COMMENTS } from "../../shared/utils/reportComments";
+import {
+  REPORT_CONTENT_LIMITS,
+  constrainReportText,
+  sanitizeReportCardForRender,
+  sanitizeReportComments,
+  sanitizeSchoolSettingsForReport,
+} from "../../shared/utils/reportContentLimits";
+import { defaultSettingsSections } from "../../shared/types/settings";
 
-describe("COMMENT_LIMITS", () => {
-  it("defines classTeacherComment limit at 500", () => {
-    expect(COMMENT_LIMITS.classTeacherComment).toBe(500);
+describe("report content limits", () => {
+  it("keeps short comments unchanged", () => {
+    expect(constrainReportText("Well done.", REPORT_CONTENT_LIMITS.classTeacherComment)).toBe("Well done.");
   });
 
-  it("defines headTeacherComment limit at 500", () => {
-    expect(COMMENT_LIMITS.headTeacherComment).toBe(500);
+  it("truncates long comments with a visible ellipsis", () => {
+    const value = constrainReportText("A".repeat(REPORT_CONTENT_LIMITS.classTeacherComment + 20), REPORT_CONTENT_LIMITS.classTeacherComment);
+    expect(value.endsWith("...")).toBe(true);
+    expect(value.length).toBe(REPORT_CONTENT_LIMITS.classTeacherComment);
   });
 
-  it("defines conductNote limit at 300", () => {
-    expect(COMMENT_LIMITS.conductNote).toBe(300);
+  it("collapses repeated whitespace and newlines safely", () => {
+    expect(constrainReportText("Excellent   work\n\n\nKeep going", 80, { preserveLineBreaks: true })).toBe("Excellent work\n\nKeep going");
   });
 
-  it("defines classTeacherName limit at 100", () => {
-    expect(COMMENT_LIMITS.classTeacherName).toBe(100);
+  it("sanitizes subject remarks and null comments safely", () => {
+    const card = sanitizeReportCardForRender({
+      studentId: "student-1",
+      admissionNumber: "ADM-1",
+      studentName: "Ada Student",
+      className: "Senior 1",
+      streamName: "A",
+      academicYear: "2025/2026",
+      term: "Term 1",
+      marksFound: 1,
+      totalSubjects: 1,
+      average: 88,
+      grade: "D1",
+      overallPosition: null,
+      readiness: "READY",
+      missingMarks: [],
+      comments: "",
+      contactReadiness: "READY",
+      contactSummary: "",
+      progressionText: null,
+      subjects: [{
+        subjectId: "subject-1",
+        subjectName: "English",
+        botMarks: 88,
+        motMarks: null,
+        eotMarks: null,
+        total: 88,
+        average: 88,
+        grade: "D1",
+        subjectPosition: null,
+        missingMarks: [],
+        comments: `Strong start ${"x".repeat(200)}`,
+      }],
+    });
+
+    expect(card.subjects[0].comments.length).toBeLessThanOrEqual(REPORT_CONTENT_LIMITS.subjectRemark);
+    expect(sanitizeReportComments({
+      classTeacherComment: null,
+      headTeacherComment: undefined,
+      conductNote: null,
+      classTeacherName: undefined,
+      headTeacherName: null,
+      issueDate: "",
+    })).toMatchObject({
+      classTeacherComment: "",
+      headTeacherComment: "",
+      conductNote: "",
+      classTeacherName: "",
+      headTeacherName: "",
+    });
   });
 
-  it("defines headTeacherName limit at 100", () => {
-    expect(COMMENT_LIMITS.headTeacherName).toBe(100);
-  });
+  it("constrains school footer/header text for report layout safety", () => {
+    const school = sanitizeSchoolSettingsForReport({
+      ...defaultSettingsSections.school,
+      schoolName: "The Very Long School Name ".repeat(10),
+      address: "Plot 1 Kampala",
+      phone: "+256700000001",
+      email: "school@example.com",
+      reportFooterText: "Footer ".repeat(40),
+    });
 
-  it("all limits are positive integers", () => {
-    for (const [, value] of Object.entries(COMMENT_LIMITS)) {
-      expect(Number.isInteger(value)).toBe(true);
-      expect(value).toBeGreaterThan(0);
-    }
+    expect(school.schoolName.length).toBeLessThanOrEqual(REPORT_CONTENT_LIMITS.schoolName);
+    expect(school.address.length).toBeLessThanOrEqual(REPORT_CONTENT_LIMITS.schoolContactLine);
+    expect(school.reportFooterText.length).toBeLessThanOrEqual(REPORT_CONTENT_LIMITS.reportFooterText);
+    expect(school.phone).toBe("");
+    expect(school.email).toBe("");
   });
 });
 
-describe("EMPTY_REPORT_COMMENTS", () => {
-  it("all fields are empty strings", () => {
-    for (const [, value] of Object.entries(EMPTY_REPORT_COMMENTS)) {
-      expect(value).toBe("");
-    }
+describe("legacy report comment exports", () => {
+  it("mirror the shared content limits", () => {
+    expect(COMMENT_LIMITS.classTeacherComment).toBe(REPORT_CONTENT_LIMITS.classTeacherComment);
+    expect(COMMENT_LIMITS.headTeacherComment).toBe(REPORT_CONTENT_LIMITS.headTeacherComment);
+    expect(COMMENT_LIMITS.conductNote).toBe(REPORT_CONTENT_LIMITS.conductNote);
   });
 
-  it("has the expected shape", () => {
+  it("preserves the empty report comments shape", () => {
     expect(EMPTY_REPORT_COMMENTS).toMatchObject({
       classTeacherComment: "",
       headTeacherComment: "",
@@ -48,21 +112,3 @@ describe("EMPTY_REPORT_COMMENTS", () => {
     });
   });
 });
-
-describe("comment limit enforcement ? overflow boundary", () => {
-  it("a 501-char classTeacherComment exceeds the 500-char limit", () => {
-    const oversized = "A".repeat(COMMENT_LIMITS.classTeacherComment + 1);
-    expect(oversized.length).toBeGreaterThan(COMMENT_LIMITS.classTeacherComment);
-  });
-
-  it("a 500-char classTeacherComment is within the limit", () => {
-    const atLimit = "A".repeat(COMMENT_LIMITS.classTeacherComment);
-    expect(atLimit.length).toBeLessThanOrEqual(COMMENT_LIMITS.classTeacherComment);
-  });
-
-  it("a 301-char conductNote exceeds the 300-char limit", () => {
-    const oversized = "C".repeat(COMMENT_LIMITS.conductNote + 1);
-    expect(oversized.length).toBeGreaterThan(COMMENT_LIMITS.conductNote);
-  });
-});
-

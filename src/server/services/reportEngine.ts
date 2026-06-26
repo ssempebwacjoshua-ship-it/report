@@ -1,7 +1,8 @@
-﻿import type { AssessmentFilter, ReportFilters, ReportsResponse, StudentReportCard } from "../../shared/types/reports";
+import type { AssessmentFilter, ReportFilters, ReportsResponse, StudentReportCard } from "../../shared/types/reports";
 import type { GradingScaleSettings, ReportSettings, SchoolProfileSettings } from "../../shared/types/settings";
 import { defaultSettingsSections } from "../../shared/types/settings";
 import type { ContactReadiness } from "../../shared/types/students";
+import { REPORT_CONTENT_LIMITS, constrainReportText } from "../../shared/utils/reportContentLimits";
 import { gradeForAverage, roundMark } from "./gradeService";
 import { rankByScore } from "./rankingService";
 import { emptyReasonForReadiness } from "./readinessService";
@@ -39,13 +40,13 @@ export type EngineInput = {
   students: EngineStudent[];
   subjects: EngineSubject[];
   marks: EngineMark[];
-  /** studentId → human-readable progression text from PromotionAction */
   promotionsByStudentId?: Record<string, string>;
   settings?: {
     school: SchoolProfileSettings;
     reports: ReportSettings;
     grading: GradingScaleSettings;
   };
+  emptyReasonOverride?: string | null;
 };
 
 function requiredTypes(assessmentType: AssessmentFilter): Array<"BOT" | "MOT" | "EOT"> {
@@ -67,13 +68,31 @@ export function buildReports(input: EngineInput): ReportsResponse {
   };
 
   if (!input.hasActiveTerm) {
-    return { filters: input.filters, readiness: "NO_ACTIVE_TERM", emptyReason: emptyReasonForReadiness("NO_ACTIVE_TERM"), cards: [], settings };
+    return {
+      filters: input.filters,
+      readiness: "NO_ACTIVE_TERM",
+      emptyReason: input.emptyReasonOverride ?? emptyReasonForReadiness("NO_ACTIVE_TERM"),
+      cards: [],
+      settings,
+    };
   }
   if (input.subjects.length === 0) {
-    return { filters: input.filters, readiness: "NO_SUBJECTS", emptyReason: emptyReasonForReadiness("NO_SUBJECTS"), cards: [], settings };
+    return {
+      filters: input.filters,
+      readiness: "NO_SUBJECTS",
+      emptyReason: input.emptyReasonOverride ?? emptyReasonForReadiness("NO_SUBJECTS"),
+      cards: [],
+      settings,
+    };
   }
   if (input.students.length === 0) {
-    return { filters: input.filters, readiness: "NO_STUDENTS", emptyReason: emptyReasonForReadiness("NO_STUDENTS"), cards: [], settings };
+    return {
+      filters: input.filters,
+      readiness: "NO_STUDENTS",
+      emptyReason: input.emptyReasonOverride ?? emptyReasonForReadiness("NO_STUDENTS"),
+      cards: [],
+      settings,
+    };
   }
 
   const marksByStudentSubject = new Map<string, EngineMark[]>();
@@ -92,37 +111,41 @@ export function buildReports(input: EngineInput): ReportsResponse {
     subjectPositions.set(subject.id, rankByScore(subjectScores));
   }
 
+  const sortedSubjects = [...input.subjects].sort((a, b) => a.sortOrder - b.sortOrder);
   const cardsWithoutPosition: StudentReportCard[] = input.students.map((student) => {
-    const subjects = input.subjects
-      .sort((a, b) => a.sortOrder - b.sortOrder)
-      .map((subject) => {
-        const markSet = marksByStudentSubject.get(`${student.id}:${subject.id}`) ?? [];
-        const botMarks = markSet.find((mark) => mark.assessmentType === "BOT")?.marks ?? null;
-        const motMarks = markSet.find((mark) => mark.assessmentType === "MOT")?.marks ?? null;
-        const eotMarks = markSet.find((mark) => mark.assessmentType === "EOT")?.marks ?? null;
-        const markForType = (type: "BOT" | "MOT" | "EOT") =>
-          type === "BOT" ? botMarks : type === "MOT" ? motMarks : eotMarks;
-        const marksForFilter = required.map(markForType);
-        const missingMarks = required.filter((type) => markForType(type) == null);
-        const average = averageForMarks(marksForFilter);
-        const total = marksForFilter.some((value) => value != null)
-          ? roundMark(marksForFilter.reduce((sum, value) => sum + (value ?? 0), 0))
-          : null;
+    const subjects = sortedSubjects.map((subject) => {
+      const markSet = marksByStudentSubject.get(`${student.id}:${subject.id}`) ?? [];
+      const botMarks = markSet.find((mark) => mark.assessmentType === "BOT")?.marks ?? null;
+      const motMarks = markSet.find((mark) => mark.assessmentType === "MOT")?.marks ?? null;
+      const eotMarks = markSet.find((mark) => mark.assessmentType === "EOT")?.marks ?? null;
+      const markForType = (type: "BOT" | "MOT" | "EOT") => (
+        type === "BOT" ? botMarks : type === "MOT" ? motMarks : eotMarks
+      );
+      const marksForFilter = required.map(markForType);
+      const missingMarks = required.filter((type) => markForType(type) == null);
+      const average = averageForMarks(marksForFilter);
+      const total = marksForFilter.some((value) => value != null)
+        ? roundMark(marksForFilter.reduce((sum, value) => sum + (value ?? 0), 0))
+        : null;
 
-        return {
-          subjectId: subject.id,
-          subjectName: subject.name,
-          botMarks,
-          motMarks,
-          eotMarks,
-          total,
-          average,
-          grade: gradeForAverage(average, settings.grading),
-          subjectPosition: subjectPositions.get(subject.id)?.get(student.id) ?? null,
-          missingMarks,
-          comments: markSet.map((mark) => mark.comments).filter(Boolean).join(" "),
-        };
-      });
+      return {
+        subjectId: subject.id,
+        subjectName: subject.name,
+        botMarks,
+        motMarks,
+        eotMarks,
+        total,
+        average,
+        grade: gradeForAverage(average, settings.grading),
+        subjectPosition: subjectPositions.get(subject.id)?.get(student.id) ?? null,
+        missingMarks,
+        comments: constrainReportText(
+          markSet.map((mark) => mark.comments).filter(Boolean).join(" "),
+          REPORT_CONTENT_LIMITS.subjectRemark,
+          { preserveLineBreaks: true },
+        ),
+      };
+    });
 
     const countedSubjectAverages = subjects.map((subject) => subject.average).filter((value): value is number => value != null);
     const average = countedSubjectAverages.length
@@ -174,9 +197,8 @@ export function buildReports(input: EngineInput): ReportsResponse {
   return {
     filters: input.filters,
     readiness,
-    emptyReason: filteredCards.length === 0 ? "Filters returned no report data." : emptyReasonForReadiness(readiness),
+    emptyReason: filteredCards.length === 0 ? (input.emptyReasonOverride ?? "Filters returned no report data.") : emptyReasonForReadiness(readiness),
     cards: filteredCards,
     settings,
   };
 }
-

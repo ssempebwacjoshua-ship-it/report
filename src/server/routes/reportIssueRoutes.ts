@@ -8,6 +8,7 @@ import { loadReportEngineInput } from "../repositories/reportsRepository";
 import { getSettingsSections } from "../repositories/settingsRepository";
 import { buildReports } from "../services/reportEngine";
 import { COMMENT_LIMITS } from "../../shared/utils/reportComments";
+import { sanitizeReportCardForRender, sanitizeReportComments, sanitizeSchoolSettingsForReport } from "../../shared/utils/reportContentLimits";
 
 function generateToken(): string {
   return crypto.randomBytes(32).toString("hex");
@@ -110,19 +111,22 @@ export function reportIssueRoutes() {
       }
 
       const snapshot = {
-        card,
-        settings: reportResult.settings,
+        card: sanitizeReportCardForRender(card),
+        settings: {
+          ...reportResult.settings,
+          school: sanitizeSchoolSettingsForReport(reportResult.settings.school),
+        },
         issuedAt: new Date().toISOString(),
         issuedByName: user.name,
         filters,
-        reportComments: body.reportComments ?? {
+        reportComments: sanitizeReportComments(body.reportComments ?? {
           classTeacherComment: "",
           headTeacherComment: "",
           conductNote: "",
           classTeacherName: "",
           headTeacherName: "",
           issueDate: "",
-        },
+        }),
       };
 
       const rawParentToken = generateToken();
@@ -195,8 +199,6 @@ export function reportIssueRoutes() {
         issued.map((r) => ({
           id: r.id,
           referenceCode: r.referenceCode,
-          parentAccessToken: r.parentAccessToken,
-          parentLink: `${getPublicAppUrl()}/parent/r/${r.parentAccessToken}`,
           studentName: `${r.student.firstName} ${r.student.lastName}`,
           admissionNumber: r.student.admissionNumber,
           academicYear: r.academicYear,
