@@ -21,12 +21,11 @@ type Snapshot = {
 };
 
 type ParentReportData = {
-  id: string;
   status: "ISSUED" | "REVOKED" | "SUPERSEDED";
   referenceCode: string;
   issuedAt: string;
   issuedByName: string | null;
-  school: { name: string; code: string };
+  school: { name: string };
   snapshot: Snapshot;
 };
 

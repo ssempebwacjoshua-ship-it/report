@@ -701,6 +701,16 @@ body {
   padding: 0.75rem;
 }
 
+.report-layout-compact .report-card-sheet .p-4 {
+  padding: 0.7rem;
+}
+
+.report-layout-compact .report-table-compact th,
+.report-layout-compact .report-table-compact td {
+  padding-top: 0.35rem;
+  padding-bottom: 0.35rem;
+}
+
 /* Hidden on screen; shown in @media print block below */
 .print-only {
   display: none;
@@ -802,6 +812,15 @@ body {
   .report-table th,
   .report-table td {
     padding: 3px 4px !important;
+  }
+
+  .report-layout-compact .report-table-compact {
+    font-size: 7px !important;
+  }
+
+  .report-layout-compact .report-table-compact th,
+  .report-layout-compact .report-table-compact td {
+    padding: 2px 3px !important;
   }
 
   .report-table-header {
