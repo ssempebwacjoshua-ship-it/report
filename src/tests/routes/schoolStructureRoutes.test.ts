@@ -313,7 +313,7 @@ describe("PATCH /api/settings/school-structure", () => {
 });
 
 describe("POST /api/settings/school-structure/streams", () => {
-  it("creates a stream and returns 201", async () => {
+  it("creates stream C and returns 201", async () => {
     streamFindFirst.mockResolvedValueOnce(null);
     const res = await supertest(createApp())
       .post("/api/settings/school-structure/streams")
@@ -324,6 +324,76 @@ describe("POST /api/settings/school-structure/streams", () => {
     expect(streamCreate).toHaveBeenCalledWith({
       data: expect.objectContaining({ code: "C", name: "C", classId: "cs1" }),
     });
+  });
+
+  it("creates stream D and returns 201", async () => {
+    streamFindFirst.mockResolvedValueOnce(null);
+    streamCreate.mockResolvedValueOnce({ id: "stream-d", schoolId: "school-1", classId: "cs1", name: "D", code: "D" });
+
+    const res = await supertest(createApp())
+      .post("/api/settings/school-structure/streams")
+      .send({ schoolCode: "SCU-PREVIEW", classId: "cs1", name: "D", code: "D" });
+
+    expect(res.status).toBe(201);
+    expect(res.body.success).toBe(true);
+    expect(streamCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({ code: "D", name: "D", classId: "cs1" }),
+    });
+  });
+
+  it("normalizes lower-case stream codes safely", async () => {
+    streamFindFirst.mockResolvedValueOnce(null);
+    streamCreate.mockResolvedValueOnce({ id: "stream-b2", schoolId: "school-1", classId: "cs1", name: "Blue B", code: "B" });
+
+    const res = await supertest(createApp())
+      .post("/api/settings/school-structure/streams")
+      .send({ schoolCode: "SCU-PREVIEW", classId: "cs1", name: "Blue B", code: "b" });
+
+    expect(res.status).toBe(201);
+    expect(res.body.stream.code).toBe("B");
+    expect(streamCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({ code: "B", name: "Blue B", classId: "cs1" }),
+    });
+  });
+
+  it("returns 400 when stream code is E", async () => {
+    const res = await supertest(createApp())
+      .post("/api/settings/school-structure/streams")
+      .send({ schoolCode: "SCU-PREVIEW", classId: "cs1", name: "E", code: "E" });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe("Stream code must be one of A, B, C, or D.");
+    expect(streamCreate).not.toHaveBeenCalled();
+  });
+
+  it("returns 400 when stream code is BLUE", async () => {
+    const res = await supertest(createApp())
+      .post("/api/settings/school-structure/streams")
+      .send({ schoolCode: "SCU-PREVIEW", classId: "cs1", name: "Blue", code: "BLUE" });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe("Stream code must be one of A, B, C, or D.");
+    expect(streamCreate).not.toHaveBeenCalled();
+  });
+
+  it("returns 400 when stream code is S1A", async () => {
+    const res = await supertest(createApp())
+      .post("/api/settings/school-structure/streams")
+      .send({ schoolCode: "SCU-PREVIEW", classId: "cs1", name: "S1A", code: "S1A" });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe("Stream code must be one of A, B, C, or D.");
+    expect(streamCreate).not.toHaveBeenCalled();
+  });
+
+  it("returns 409 when normalized stream code already exists in the class", async () => {
+    streamFindFirst.mockResolvedValue({ id: "existing", classId: "cs1", code: "B" });
+    const res = await supertest(createApp())
+      .post("/api/settings/school-structure/streams")
+      .send({ schoolCode: "SCU-PREVIEW", classId: "cs1", name: "B", code: "b" });
+
+    expect(res.status).toBe(409);
+    expect(streamCreate).not.toHaveBeenCalled();
   });
 
   it("returns 409 when stream code already exists in the class", async () => {
@@ -343,6 +413,16 @@ describe("POST /api/settings/school-structure/streams", () => {
       .send({ schoolCode: "SCU-PREVIEW", classId: "bad-id", name: "A", code: "A" });
 
     expect(res.status).toBe(404);
+  });
+
+  it("returns 404 when the class belongs to another school", async () => {
+    schoolClassFindFirst.mockResolvedValue(null);
+    const res = await supertest(createApp())
+      .post("/api/settings/school-structure/streams")
+      .send({ schoolCode: "SCU-PREVIEW", classId: "other-school-class", name: "A", code: "A" });
+
+    expect(res.status).toBe(404);
+    expect(streamCreate).not.toHaveBeenCalled();
   });
 
   it("returns 400 when classId is missing", async () => {

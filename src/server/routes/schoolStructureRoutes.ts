@@ -11,6 +11,7 @@ import {
 } from "../../shared/constants/classes";
 import { getSettingsSections, patchSettingsSection } from "../repositories/settingsRepository";
 import {
+  normalizeStreamCodes,
   provisionCanonicalSchoolStructure,
 } from "../services/schoolStructureProvisioningService";
 
@@ -18,6 +19,7 @@ const AVAILABLE_SECTIONS = [
   { code: "NURSERY" as const, label: "Nursery / Pre-primary" },
   { code: "PRIMARY" as const, label: "Primary" },
   { code: "SECONDARY" as const, label: "Secondary" },
+  // COMBINED currently means PRIMARY + SECONDARY. Add NURSERY separately when needed.
   { code: "COMBINED" as const, label: "Combined Primary + Secondary" },
 ];
 
@@ -195,10 +197,16 @@ export function schoolStructureRoutes() {
         return;
       }
       const { classId, name, code } = parsed.data;
-      const streamCode = code.trim().toUpperCase();
       const streamName = name.trim();
       const school = requireSchoolContext(req, res);
       if (!school) return;
+      let streamCode: string;
+      try {
+        [streamCode] = normalizeStreamCodes([code]);
+      } catch {
+        res.status(400).json({ success: false, error: "Stream code must be one of A, B, C, or D." });
+        return;
+      }
 
       const klass = await prisma.schoolClass.findFirst({ where: { id: classId, schoolId: school.id } });
       if (!klass) {
