@@ -23,7 +23,7 @@ export function NfcGateSecurityPage() {
   const { user } = useAuth();
   const deviceId = useRef(getDeviceId()).current;
 
-  const { state: connState, isOfflineReady, pendingCount } = useConnectivityStatus(user?.schoolId, deviceId);
+  const { state: connState, isOfflineReady, pendingCount } = useConnectivityStatus(user?.schoolId, deviceId, "gate");
 
   const [scanResult, setScanResult] = useState<LocalScanResult | null>(null);
   const [dashboard, setDashboard] = useState<NfcGateDashboard | null>(null);

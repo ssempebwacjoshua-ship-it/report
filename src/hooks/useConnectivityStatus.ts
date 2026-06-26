@@ -3,6 +3,7 @@ import { isSnapshotValid } from "../offline/offlineStatus";
 import { listPendingQueue, listAllQueueItems, markQueueItemSynced, markQueueItemFailed, markQueueItemConflict } from "../offline/offlineStore";
 import type { OfflineSyncResponse } from "../offline/offlineTypes";
 import { getApiBaseUrl } from "../client/apiBase";
+import type { OfflineModule } from "../offline/offlineTypes";
 
 export type ConnectivityState =
   | "ONLINE"
@@ -17,7 +18,7 @@ const HEARTBEAT_INTERVAL_MS = 12000;
 const DEGRADED_THRESHOLD = 1;
 const OFFLINE_THRESHOLD = 3;
 
-export function useConnectivityStatus(schoolId?: string, deviceId?: string) {
+export function useConnectivityStatus(schoolId?: string, deviceId?: string, requiredModule?: OfflineModule) {
   const [state, setState] = useState<ConnectivityState>("ONLINE");
   const [pendingCount, setPendingCount] = useState(0);
   const failedRef = useRef(0);
@@ -120,14 +121,14 @@ export function useConnectivityStatus(schoolId?: string, deviceId?: string) {
         if (failures === DEGRADED_THRESHOLD) {
           updateState("DEGRADED");
         } else if (failures >= OFFLINE_THRESHOLD) {
-          const valid = await isSnapshotValid();
+          const valid = await isSnapshotValid({ schoolId, requiredModule });
           updateState(valid ? "OFFLINE_READY" : "OFFLINE_NOT_READY");
         }
       }
     }
 
     await refreshPendingCount();
-  }, [updateState, refreshPendingCount, runSync]);
+  }, [schoolId, requiredModule, updateState, refreshPendingCount, runSync]);
 
   useEffect(() => {
     let timer: ReturnType<typeof setInterval>;
