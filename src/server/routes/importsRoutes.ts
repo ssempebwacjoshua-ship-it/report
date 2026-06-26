@@ -101,7 +101,7 @@ async function recordScanDryRun(schoolId: string, fingerprint: string) {
 async function recordScanCommitAudit(input: {
   schoolId: string;
   action: "scan.imported" | "scan.import_failed";
-  batchId: string;
+  batchId: string | null;
   totalRows: number;
   validRows: number;
   committedRows: number;
@@ -113,9 +113,9 @@ async function recordScanCommitAudit(input: {
     data: {
       schoolId: input.schoolId,
       action: input.action,
-      correlationId: input.batchId,
+      ...(input.batchId ? { correlationId: input.batchId } : {}),
       details: {
-        batchId: input.batchId,
+        ...(input.batchId ? { batchId: input.batchId } : {}),
         source: input.source,
         totalRows: input.totalRows,
         validRows: input.validRows,
@@ -715,7 +715,6 @@ export function importsRoutes() {
       }
 
       let existingSummary: Record<string, unknown> = {};
-      let attemptedBatchId: string | null = existingBatch?.id ?? null;
       if (existingBatch?.summary) {
         try {
           existingSummary = JSON.parse(existingBatch.summary) as Record<string, unknown>;
@@ -762,7 +761,6 @@ export function importsRoutes() {
                   }),
                 },
               });
-          attemptedBatchId = batch.id;
 
           await tx.markImportRow.deleteMany({ where: { batchId: batch.id } });
           await tx.markImportRow.createMany({
@@ -873,17 +871,17 @@ export function importsRoutes() {
             message: "Commit failed. No scanned marks were written.",
           });
         }
-        if (attemptedBatchId) {
+        if (!existingBatch) {
           await recordScanCommitAudit({
             schoolId: school.id,
             action: "scan.import_failed",
-            batchId: attemptedBatchId,
+            batchId: null,
             source: "scan",
             totalRows: rows.length,
             validRows: validRows.length,
             committedRows: 0,
             skippedRows: rows.length,
-            message: "Commit failed. No scanned marks were written.",
+            message: "Commit failed before a scan batch could be persisted. No scanned marks were written.",
           });
         }
 

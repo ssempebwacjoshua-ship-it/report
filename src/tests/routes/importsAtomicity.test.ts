@@ -85,6 +85,7 @@ describe("scan commit atomicity", () => {
       marks: [{ studentId: "student-existing", marks: 55, importBatchId: "batch-legacy" }],
     };
 
+    const auditLogCreate = vi.fn(async () => ({}));
     let txUpsertCalls = 0;
     const prisma = {
       academicYear: { findMany: vi.fn(async () => [{ id: "year-1", terms: [{ id: "term-1" }] }]) },
@@ -96,7 +97,7 @@ describe("scan commit atomicity", () => {
           { student: { id: "student-2", admissionNumber: "A-2" }, class: { id: "class-1" }, stream: { id: "stream-1" } },
         ]),
       },
-      auditLog: { findFirst: vi.fn(async () => ({ id: "audit-1" })), create: vi.fn(async () => ({})) },
+      auditLog: { findFirst: vi.fn(async () => ({ id: "audit-1" })), create: auditLogCreate },
       markImportBatch: {
         findFirst: vi.fn(async () => persisted.batch),
         update: vi.fn(async ({ data }: any) => {
@@ -168,6 +169,17 @@ describe("scan commit atomicity", () => {
     expect(persisted.rows).toEqual(originalRows);
     expect(persisted.marks).toEqual([{ studentId: "student-existing", marks: 55, importBatchId: "batch-legacy" }]);
     expect(persisted.batch.status).toBe("FAILED");
+    expect(auditLogCreate).toHaveBeenCalledTimes(1);
+    expect(auditLogCreate).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        schoolId: "school-a",
+        action: "scan.import_failed",
+        correlationId: "batch-1",
+        details: expect.objectContaining({
+          batchId: "batch-1",
+        }),
+      }),
+    }));
   });
 
   it("commits all scan rows and marks on success", async () => {
@@ -183,6 +195,7 @@ describe("scan commit atomicity", () => {
       marks: [] as Array<Record<string, unknown>>,
     };
 
+    const auditLogCreate = vi.fn(async () => ({}));
     const prisma = {
       academicYear: { findMany: vi.fn(async () => [{ id: "year-1", terms: [{ id: "term-1" }] }]) },
       schoolClass: { findMany: vi.fn(async () => [{ id: "class-1", name: "Senior 1", streams: [{ id: "stream-1", name: "A" }] }]) },
@@ -193,7 +206,7 @@ describe("scan commit atomicity", () => {
           { student: { id: "student-2", admissionNumber: "A-2" }, class: { id: "class-1" }, stream: { id: "stream-1" } },
         ]),
       },
-      auditLog: { findFirst: vi.fn(async () => ({ id: "audit-1" })), create: vi.fn(async () => ({})) },
+      auditLog: { findFirst: vi.fn(async () => ({ id: "audit-1" })), create: auditLogCreate },
       markImportBatch: {
         findFirst: vi.fn(async () => persisted.batch),
         update: vi.fn(async ({ data }: any) => {
@@ -255,5 +268,85 @@ describe("scan commit atomicity", () => {
     expect(persisted.rows).toHaveLength(2);
     expect(persisted.marks).toHaveLength(2);
     expect(persisted.batch.status).toBe("COMMITTED");
+    expect(auditLogCreate).toHaveBeenCalledTimes(1);
+    expect(auditLogCreate).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        schoolId: "school-a",
+        action: "scan.imported",
+        correlationId: "batch-1",
+        details: expect.objectContaining({
+          batchId: "batch-1",
+        }),
+      }),
+    }));
+  });
+
+  it("does not write a rolled-back batch id when a brand-new scan commit fails", async () => {
+    const auditLogCreate = vi.fn(async () => ({}));
+    let txUpsertCalls = 0;
+    const prisma = {
+      academicYear: { findMany: vi.fn(async () => [{ id: "year-1", terms: [{ id: "term-1" }] }]) },
+      schoolClass: { findMany: vi.fn(async () => [{ id: "class-1", name: "Senior 1", streams: [{ id: "stream-1", name: "A" }] }]) },
+      subject: { findMany: vi.fn(async () => [{ id: "subject-1", name: "Math", code: "MATH" }]) },
+      classEnrollment: {
+        findMany: vi.fn(async () => [
+          { student: { id: "student-1", admissionNumber: "A-1" }, class: { id: "class-1" }, stream: { id: "stream-1" } },
+          { student: { id: "student-2", admissionNumber: "A-2" }, class: { id: "class-1" }, stream: { id: "stream-1" } },
+        ]),
+      },
+      auditLog: { findFirst: vi.fn(async () => ({ id: "audit-1" })), create: auditLogCreate },
+      markImportBatch: {
+        findFirst: vi.fn(async () => null),
+        update: vi.fn(async () => {
+          throw new Error("Should not persist FAILED on a non-existent batch.");
+        }),
+      },
+      $transaction: vi.fn(async (callback: (tx: any) => Promise<unknown>) => {
+        const tx = {
+          markImportBatch: {
+            update: vi.fn(),
+            create: vi.fn(async () => ({ id: "rolled-back-batch" })),
+          },
+          markImportRow: {
+            deleteMany: vi.fn(async () => ({ count: 0 })),
+            createMany: vi.fn(async ({ data }: any) => ({ count: data.length })),
+          },
+          subjectMark: {
+            upsert: vi.fn(async () => {
+              txUpsertCalls++;
+              if (txUpsertCalls === 1) throw new Error("Injected scan failure");
+              return {};
+            }),
+          },
+        };
+
+        await callback(tx);
+      }),
+    };
+
+    vi.doMock("../../server/db/prisma", () => ({ prisma }));
+    vi.doMock("../../server/repositories/settingsRepository", () => ({
+      getSettingsSections: vi.fn(async () => ({
+        ocr: { minimumConfidenceForSuggestion: 0.6 },
+        approval: { keepAuditTrail: false, requireDryRunBeforeCommit: false },
+      })),
+    }));
+    vi.doMock("../../server/services/scanImportValidator", () => ({
+      validateScanRows: vi.fn((_rows: unknown) => reviewedRows()),
+      parseScanMark: vi.fn((value: string) => value),
+    }));
+
+    const { importsRoutes } = await import("../../server/routes/importsRoutes");
+    const res = await request(mountApp(importsRoutes))
+      .post("/api/imports/scans/commit")
+      .send({ context: scanContext(), rows: reviewedRows() });
+
+    expect(res.status).toBe(500);
+    expect(auditLogCreate).toHaveBeenCalledTimes(1);
+    const createCall = auditLogCreate.mock.calls[0]?.[0] as { data: { details: Record<string, unknown> } & Record<string, unknown> };
+    expect(createCall.data.action).toBe("scan.import_failed");
+    expect(createCall.data).not.toHaveProperty("correlationId");
+    expect(createCall.data.details).not.toHaveProperty("batchId");
+    expect(createCall.data.details.message).toBe("Commit failed before a scan batch could be persisted. No scanned marks were written.");
   });
 });
