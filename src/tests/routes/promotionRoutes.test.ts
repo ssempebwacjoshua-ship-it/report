@@ -113,6 +113,7 @@ describe("promotionRoutes", () => {
       name: "Head Teacher",
       email: "hm@school.test",
       role: "ADMIN_OPERATOR",
+      tokenVersion: 0,
     });
   }, 30000);
 

@@ -36,6 +36,7 @@ async function makeToken() {
     name: "Test Admin",
     email: "test@test.com",
     role: "ADMIN_OPERATOR",
+    tokenVersion: 0,
   });
 }
 

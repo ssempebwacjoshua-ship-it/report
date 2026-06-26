@@ -1,18 +1,65 @@
 ﻿import request from "supertest";
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 import { createServer } from "../../server";
+import { hashPassword, signToken } from "../../server/services/authService";
+import { prisma } from "../../server/db/prisma";
+
+let authToken = "";
+
+beforeAll(async () => {
+  const school = await prisma.school.findUniqueOrThrow({
+    where: { code: "SCU-PREVIEW" },
+    select: { id: true },
+  });
+  const email = "release-center-routes-test@schoolconnect.test";
+  const passwordHash = await hashPassword("ReleaseCenterRoutesPass123!");
+  const user = await prisma.user.upsert({
+    where: {
+      schoolId_email: {
+        schoolId: school.id,
+        email,
+      },
+    },
+    update: {
+      name: "Release Center Routes Test Admin",
+      role: "ADMIN_OPERATOR",
+      isActive: true,
+      passwordHash,
+      tokenVersion: 0,
+      mustChangePassword: false,
+    },
+    create: {
+      schoolId: school.id,
+      name: "Release Center Routes Test Admin",
+      email,
+      role: "ADMIN_OPERATOR",
+      isActive: true,
+      passwordHash,
+      tokenVersion: 0,
+      mustChangePassword: false,
+    },
+    select: {
+      id: true,
+      schoolId: true,
+      name: true,
+      email: true,
+      role: true,
+      tokenVersion: true,
+    },
+  });
+
+  authToken = signToken({
+    userId: user.id,
+    schoolId: user.schoolId,
+    name: user.name,
+    email: user.email,
+    role: user.role,
+    tokenVersion: user.tokenVersion,
+  });
+});
 
 async function makeToken() {
-  const { signToken } = await import("../../server/services/authService");
-  const { prisma } = await import("../../server/db/prisma");
-  const school = await prisma.school.findUnique({ where: { code: "SCU-PREVIEW" } });
-  return signToken({
-    userId: "00000000-0000-0000-0000-000000000001",
-    schoolId: school?.id ?? "00000000-0000-0000-0000-000000000002",
-    name: "Test Admin",
-    email: "test@test.com",
-    role: "ADMIN_OPERATOR",
-  });
+  return authToken;
 }
 
 // ── GET /api/reports/release-status ──────────────────────────────────────────
