@@ -3,6 +3,7 @@ import { z } from "zod";
 import { randomUUID } from "node:crypto";
 import { prisma } from "../db/prisma";
 import { requirePlatformOwner } from "../middleware/requirePlatformOwner";
+import { hashPassword } from "../services/authService";
 import { REPORT_LAB_PLANS, getPlanByCode } from "../../shared/constants/subscriptionPlans";
 import { CANONICAL_STREAM_CODES, provisionSchoolOnboarding } from "../services/schoolStructureProvisioningService";
 import { getSmartPagesPackage } from "../services/smartPagesService";
