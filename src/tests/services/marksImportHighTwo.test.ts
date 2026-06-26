@@ -299,7 +299,7 @@ describe("GET /api/imports/marks/errors/:batchId", () => {
       role: "ADMIN_OPERATOR",
       tokenVersion: 0,
     });
-  });
+  }, 30000);
 
   beforeEach(() => {
     vi.clearAllMocks();

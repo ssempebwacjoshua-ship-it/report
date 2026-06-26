@@ -95,6 +95,14 @@ export type OnboardingResult = {
     startsOn: Date;
     endsOn: Date;
   };
+  settings: {
+    schoolSections: SchoolSection[];
+    defaultStreamCodes: CanonicalStreamCode[];
+    brandingMode: "PLATFORM_DEFAULTS";
+    reportFooterText: string;
+    marksheetFooterText: string;
+    logoUrl: string;
+  };
   structure: ProvisionStructureResult;
 };
 
@@ -310,6 +318,7 @@ export async function provisionSchoolOnboarding(
 
   const passwordHash = await hashPassword(input.adminTemporaryPassword);
   const sections = normalizeSchoolSections(input.sections);
+  const defaultStreamCodes = normalizeStreamCodes(input.defaultStreamCodes);
   const settings = buildSchoolSettings(input.schoolName, input.schoolCode, sections, now);
   const academic = defaultAcademicConfig(now);
   const isTrialPeriod = (input.trialDays ?? 0) > 0;
@@ -357,7 +366,7 @@ export async function provisionSchoolOnboarding(
 
   const structure = await provisionCanonicalSchoolStructure(db, school.id, {
     sections,
-    defaultStreamCodes: input.defaultStreamCodes,
+    defaultStreamCodes,
     defaultStreamsByClassCode: input.defaultStreamsByClassCode,
   });
 
@@ -407,7 +416,7 @@ export async function provisionSchoolOnboarding(
         planCode: input.planCode,
         sections,
         expandedSections: expandSchoolSections(sections),
-        streamCodes: normalizeStreamCodes(input.defaultStreamCodes),
+        streamCodes: defaultStreamCodes,
         classesSeeded: structure.classCount,
         streamsSeeded: structure.streamCount,
         subjectsSeeded: structure.subjectCount,
@@ -460,6 +469,14 @@ export async function provisionSchoolOnboarding(
       name: activeTerm.name,
       startsOn: activeTerm.startsOn,
       endsOn: activeTerm.endsOn,
+    },
+    settings: {
+      schoolSections: sections,
+      defaultStreamCodes,
+      brandingMode: "PLATFORM_DEFAULTS",
+      reportFooterText: settings.school.reportFooterText,
+      marksheetFooterText: settings.school.marksheetFooterText,
+      logoUrl: settings.school.logoUrl,
     },
     structure,
   };

@@ -209,6 +209,10 @@ describe("onboardingProvisioning", () => {
     expect(result.admin.tokenVersion).toBe(0);
     expect(result.academicYear.name).toBe("2026/2027");
     expect(result.activeTerm.name).toBe("Term 1");
+    expect(result.settings.schoolSections).toEqual(["COMBINED"]);
+    expect(result.settings.defaultStreamCodes).toEqual(["A", "B"]);
+    expect(result.settings.brandingMode).toBe("PLATFORM_DEFAULTS");
+    expect(result.settings.logoUrl).toBe("");
     expect(db.state.audits).toHaveLength(1);
     expect(db.state.audits[0].action).toBe("OWNER_CREATE_SCHOOL");
   });

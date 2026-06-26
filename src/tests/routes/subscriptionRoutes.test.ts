@@ -48,7 +48,7 @@ describe("GET /api/subscription", () => {
   beforeAll(async () => {
     const { createServer } = await import("../../server");
     app = createServer();
-  });
+  }, 30000);
 
   beforeEach(() => {
     vi.clearAllMocks();

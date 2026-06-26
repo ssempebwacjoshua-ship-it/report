@@ -370,6 +370,7 @@ export function platformOwnerRoutes() {
           id: result.activeTerm.id,
           name: result.activeTerm.name,
         },
+        settings: result.settings,
         classesSeeded: result.structure.classCount,
         streamsSeeded: result.structure.streamCount,
       });

@@ -48,6 +48,14 @@ export type CreateOwnerSchoolResult = {
   admin: { id: string; email: string; name: string; mustChangePassword: boolean };
   academicYear: { id: string; name: string };
   activeTerm: { id: string; name: string };
+  settings: {
+    schoolSections: Array<"NURSERY" | "PRIMARY" | "SECONDARY" | "COMBINED">;
+    defaultStreamCodes: Array<"A" | "B" | "C" | "D">;
+    brandingMode: "PLATFORM_DEFAULTS";
+    reportFooterText: string;
+    marksheetFooterText: string;
+    logoUrl: string;
+  };
   classesSeeded: number;
   streamsSeeded: number;
 };
