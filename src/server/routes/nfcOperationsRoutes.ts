@@ -140,6 +140,17 @@ const nfcPolicySchema = z.object({
   tapInCutoffTime: z.string().trim().nullable().optional(),
   cutoffLateAction: z.enum(["BLOCK_AND_MARK_ABSENT", "ALLOW_BUT_MARK_LATE"]),
   timezone: z.string().trim().min(1).default("Africa/Kampala"),
+  gateOfflineEnabled: z.boolean(),
+  canteenOfflineEnabled: z.boolean(),
+  gateSnapshotValidHours: z.coerce.number().int().min(1).default(24),
+  canteenSnapshotValidHours: z.coerce.number().int().min(1).default(12),
+  maxOfflineSpendPerStudentPerDay: z.coerce.number().int().min(0).default(5000),
+  maxOfflineSpendPerTransaction: z.coerce.number().int().min(0).default(2000),
+  maxOfflineSpendPerDeviceSession: z.coerce.number().int().min(0).default(100000),
+  unknownCardOfflinePolicy: z.literal("DENY"),
+  frozenCardOfflinePolicy: z.literal("DENY"),
+  deactivatedCardOfflinePolicy: z.literal("DENY"),
+  offlineConflictPolicy: z.enum(["ALLOW_AND_FLAG", "HOLD_FOR_BURSAR_REVIEW"]),
 });
 
 const feeHoldFiltersSchema = z.object({

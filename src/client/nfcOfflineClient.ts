@@ -18,11 +18,12 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
   return body;
 }
 
-export async function fetchOfflineBootstrap(modules?: string[], deviceId?: string): Promise<OfflineBootstrapSnapshot> {
+export async function fetchOfflineBootstrap(modules?: string[], deviceId?: string, mode?: "GATE" | "CANTEEN" | "ATTENDANCE"): Promise<OfflineBootstrapSnapshot> {
   const params = new URLSearchParams();
   if (modules?.length) params.set("modules", modules.join(","));
   if (deviceId) params.set("deviceId", deviceId);
-  return api<OfflineBootstrapSnapshot>(`/api/nfc/offline/bootstrap?${params.toString()}`);
+  if (mode) params.set("mode", mode);
+  return api<OfflineBootstrapSnapshot>(`/internal/kiosk/offline-snapshot?${params.toString()}`);
 }
 
 export async function fetchOfflineSyncStatus(): Promise<{ batches: unknown[]; devices: unknown[] }> {

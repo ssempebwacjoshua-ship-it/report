@@ -100,19 +100,38 @@ export function NfcCanteenChargePage() {
       const wallet = resolve.wallet;
       if (!wallet) throw new Error("No wallet found for this student.");
       if (wallet.status === "FROZEN") throw new Error("Wallet is frozen.");
+      const meta = await getSnapshotMeta();
+      const limits = meta?.settings;
+      if (!limits) throw new Error("Offline snapshot is not loaded.");
+      if (amountCents > limits.maxOfflineSpendPerTransaction) {
+        throw new Error(`This transaction exceeds the offline per-transaction limit (${money(limits.maxOfflineSpendPerTransaction)}).`);
+      }
 
-      const available = await getAvailableOfflineBalance(user.schoolId, scanDeviceId ?? deviceId, resolve.student.id, wallet.balanceCents);
-      if (available < amountCents) throw new Error(`Insufficient offline balance (${money(available)} available).`);
+      const { availableCents, studentSpentCents, deviceSpentCents } = await getAvailableOfflineBalance(
+        user.schoolId,
+        scanDeviceId ?? deviceId,
+        resolve.student.id,
+        wallet.balanceCents,
+        new Date().toISOString().slice(0, 10),
+        {
+          maxOfflineSpendPerStudentPerDay: limits.maxOfflineSpendPerStudentPerDay,
+          maxOfflineSpendPerTransaction: limits.maxOfflineSpendPerTransaction,
+          maxOfflineSpendPerDeviceSession: limits.maxOfflineSpendPerDeviceSession,
+        },
+      );
+      if (availableCents < amountCents) {
+        throw new Error(`Insufficient offline balance (${money(availableCents)} available, ${money(studentSpentCents)} already spent today, ${money(deviceSpentCents)} device session spend).`);
+      }
 
       setOfflinePending({
         tokenOrUid,
         studentId: resolve.student.id,
-        walletId: null,
+        walletId: resolve.wallet.id,
         studentName: `${resolve.student.firstName} ${resolve.student.lastName}`.trim(),
         admissionNumber: resolve.student.admissionNumber,
         className: resolve.student.className,
         balanceCents: wallet.balanceCents,
-        availableBalanceCents: available,
+        availableBalanceCents: availableCents,
         tagId: resolve.tag?.id ?? null,
       });
       setChargeError("");

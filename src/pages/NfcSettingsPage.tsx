@@ -16,6 +16,17 @@ export function NfcSettingsPage() {
     tapInCutoffTime: "08:00",
     cutoffLateAction: "BLOCK_AND_MARK_ABSENT" as const,
     timezone: "Africa/Kampala",
+    gateOfflineEnabled: true,
+    canteenOfflineEnabled: true,
+    gateSnapshotValidHours: 24,
+    canteenSnapshotValidHours: 12,
+    maxOfflineSpendPerStudentPerDay: 5000,
+    maxOfflineSpendPerTransaction: 2000,
+    maxOfflineSpendPerDeviceSession: 100000,
+    unknownCardOfflinePolicy: "DENY" as const,
+    frozenCardOfflinePolicy: "DENY" as const,
+    deactivatedCardOfflinePolicy: "DENY" as const,
+    offlineConflictPolicy: "ALLOW_AND_FLAG" as const,
   });
 
   useEffect(() => {
@@ -28,6 +39,17 @@ export function NfcSettingsPage() {
           tapInCutoffTime: policy.tapInCutoffTime ?? "08:00",
           cutoffLateAction: policy.cutoffLateAction,
           timezone: policy.timezone || "Africa/Kampala",
+          gateOfflineEnabled: policy.gateOfflineEnabled,
+          canteenOfflineEnabled: policy.canteenOfflineEnabled,
+          gateSnapshotValidHours: policy.gateSnapshotValidHours,
+          canteenSnapshotValidHours: policy.canteenSnapshotValidHours,
+          maxOfflineSpendPerStudentPerDay: policy.maxOfflineSpendPerStudentPerDay,
+          maxOfflineSpendPerTransaction: policy.maxOfflineSpendPerTransaction,
+          maxOfflineSpendPerDeviceSession: policy.maxOfflineSpendPerDeviceSession,
+          unknownCardOfflinePolicy: policy.unknownCardOfflinePolicy as "DENY",
+          frozenCardOfflinePolicy: policy.frozenCardOfflinePolicy as "DENY",
+          deactivatedCardOfflinePolicy: policy.deactivatedCardOfflinePolicy as "DENY",
+          offlineConflictPolicy: policy.offlineConflictPolicy as "ALLOW_AND_FLAG" | "HOLD_FOR_BURSAR_REVIEW",
         });
       })
       .catch((caught) => setError(caught instanceof Error ? caught.message : "Could not load NFC settings."))
@@ -67,6 +89,44 @@ export function NfcSettingsPage() {
       {saved ? <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700">Saved successfully.</div> : null}
 
       <section className="grid gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="grid gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
+          <h2 className="text-sm font-bold text-slate-950">Offline NFC policy</h2>
+          <label className="grid gap-1 text-xs font-bold uppercase text-slate-500">
+            Enable gate offline
+            <select className={selectClass} value={form.gateOfflineEnabled ? "yes" : "no"} onChange={(event) => setForm((current) => ({ ...current, gateOfflineEnabled: event.target.value === "yes" }))}>
+              <option value="yes">Yes</option>
+              <option value="no">No</option>
+            </select>
+          </label>
+          <label className="grid gap-1 text-xs font-bold uppercase text-slate-500">
+            Enable canteen offline
+            <select className={selectClass} value={form.canteenOfflineEnabled ? "yes" : "no"} onChange={(event) => setForm((current) => ({ ...current, canteenOfflineEnabled: event.target.value === "yes" }))}>
+              <option value="yes">Yes</option>
+              <option value="no">No</option>
+            </select>
+          </label>
+          <label className="grid gap-1 text-xs font-bold uppercase text-slate-500">
+            Gate snapshot valid hours
+            <input className={inputClass} type="number" min="1" value={form.gateSnapshotValidHours} onChange={(event) => setForm((current) => ({ ...current, gateSnapshotValidHours: Number(event.target.value) }))} />
+          </label>
+          <label className="grid gap-1 text-xs font-bold uppercase text-slate-500">
+            Canteen snapshot valid hours
+            <input className={inputClass} type="number" min="1" value={form.canteenSnapshotValidHours} onChange={(event) => setForm((current) => ({ ...current, canteenSnapshotValidHours: Number(event.target.value) }))} />
+          </label>
+          <label className="grid gap-1 text-xs font-bold uppercase text-slate-500">
+            Max offline spend per student per day (UGX)
+            <input className={inputClass} type="number" min="0" value={form.maxOfflineSpendPerStudentPerDay} onChange={(event) => setForm((current) => ({ ...current, maxOfflineSpendPerStudentPerDay: Number(event.target.value) }))} />
+          </label>
+          <label className="grid gap-1 text-xs font-bold uppercase text-slate-500">
+            Max offline spend per transaction (UGX)
+            <input className={inputClass} type="number" min="0" value={form.maxOfflineSpendPerTransaction} onChange={(event) => setForm((current) => ({ ...current, maxOfflineSpendPerTransaction: Number(event.target.value) }))} />
+          </label>
+          <label className="grid gap-1 text-xs font-bold uppercase text-slate-500">
+            Max offline spend per device session (UGX)
+            <input className={inputClass} type="number" min="0" value={form.maxOfflineSpendPerDeviceSession} onChange={(event) => setForm((current) => ({ ...current, maxOfflineSpendPerDeviceSession: Number(event.target.value) }))} />
+          </label>
+        </div>
+
         <label className="grid gap-1 text-xs font-black uppercase text-slate-500">
           Enable fee defaulter blocking
           <select

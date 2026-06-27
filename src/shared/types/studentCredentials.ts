@@ -353,6 +353,17 @@ export type NfcPolicy = {
   tapInCutoffTime: string | null;
   cutoffLateAction: AttendanceLateAction;
   timezone: string;
+  gateOfflineEnabled: boolean;
+  canteenOfflineEnabled: boolean;
+  gateSnapshotValidHours: number;
+  canteenSnapshotValidHours: number;
+  maxOfflineSpendPerStudentPerDay: number;
+  maxOfflineSpendPerTransaction: number;
+  maxOfflineSpendPerDeviceSession: number;
+  unknownCardOfflinePolicy: "DENY";
+  frozenCardOfflinePolicy: "DENY";
+  deactivatedCardOfflinePolicy: "DENY";
+  offlineConflictPolicy: "ALLOW_AND_FLAG" | "HOLD_FOR_BURSAR_REVIEW";
   updatedByUserId: string | null;
   createdAt: string;
   updatedAt: string;

@@ -212,7 +212,10 @@ export function NfcOfflinePage() {
                 </span>
               } />
               <InfoRow label="Modules" value={snapshot.modules.join(", ")} />
+              <InfoRow label="Gate offline" value={snapshot.settings.gateOfflineEnabled ? "Enabled" : "Disabled"} />
               <InfoRow label="Canteen offline" value={snapshot.settings.canteenOfflineEnabled ? "Enabled" : "Disabled"} />
+              <InfoRow label="Snapshot version" value={snapshot.snapshotVersion.slice(0, 8)} />
+              <InfoRow label="Student/day limit" value={`UGX ${snapshot.settings.maxOfflineSpendPerStudentPerDay.toLocaleString()}`} />
             </>
           ) : (
             <p className="text-sm text-slate-500">No snapshot loaded. Refresh offline data to enable offline mode.</p>
