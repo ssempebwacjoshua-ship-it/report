@@ -118,6 +118,7 @@ export async function uploadStudentPassportPhoto(studentId: string, file: File):
   const response = await fetch(`${API_BASE}/api/students/${studentId}/passport-photo`, {
     method: "POST",
     headers: makeRequestHeaders(),
+    credentials: "include",
     body: formData,
   });
   if (!response.ok) throw new Error(await parseApiError(response, "Could not upload passport photo"));
