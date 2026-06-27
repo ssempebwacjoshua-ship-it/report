@@ -25,6 +25,17 @@ export type NfcPolicyRow = {
   tapInCutoffTime: string | null;
   cutoffLateAction: AttendanceLateAction;
   timezone: string;
+  gateOfflineEnabled: boolean;
+  canteenOfflineEnabled: boolean;
+  gateSnapshotValidHours: number;
+  canteenSnapshotValidHours: number;
+  maxOfflineSpendPerStudentPerDay: number;
+  maxOfflineSpendPerTransaction: number;
+  maxOfflineSpendPerDeviceSession: number;
+  unknownCardOfflinePolicy: string;
+  frozenCardOfflinePolicy: string;
+  deactivatedCardOfflinePolicy: string;
+  offlineConflictPolicy: string;
   updatedByUserId: string | null;
   createdAt: string;
   updatedAt: string;
@@ -80,6 +91,17 @@ export type NfcPolicyInput = {
   tapInCutoffTime?: string | null;
   cutoffLateAction: AttendanceLateAction;
   timezone: string;
+  gateOfflineEnabled: boolean;
+  canteenOfflineEnabled: boolean;
+  gateSnapshotValidHours: number;
+  canteenSnapshotValidHours: number;
+  maxOfflineSpendPerStudentPerDay: number;
+  maxOfflineSpendPerTransaction: number;
+  maxOfflineSpendPerDeviceSession: number;
+  unknownCardOfflinePolicy: "DENY";
+  frozenCardOfflinePolicy: "DENY";
+  deactivatedCardOfflinePolicy: "DENY";
+  offlineConflictPolicy: "ALLOW_AND_FLAG" | "HOLD_FOR_BURSAR_REVIEW";
 };
 
 export type StudentFeeHoldInput = {
@@ -145,6 +167,17 @@ function formatPolicyRow(policy: {
   tapInCutoffTime: string | null;
   cutoffLateAction: AttendanceLateAction;
   timezone: string;
+  gateOfflineEnabled: boolean;
+  canteenOfflineEnabled: boolean;
+  gateSnapshotValidHours: number;
+  canteenSnapshotValidHours: number;
+  maxOfflineSpendPerStudentPerDay: number;
+  maxOfflineSpendPerTransaction: number;
+  maxOfflineSpendPerDeviceSession: number;
+  unknownCardOfflinePolicy: string;
+  frozenCardOfflinePolicy: string;
+  deactivatedCardOfflinePolicy: string;
+  offlineConflictPolicy: string;
   updatedByUserId: string | null;
   createdAt: Date;
   updatedAt: Date;
@@ -158,6 +191,17 @@ function formatPolicyRow(policy: {
     tapInCutoffTime: policy.tapInCutoffTime,
     cutoffLateAction: policy.cutoffLateAction,
     timezone: policy.timezone,
+    gateOfflineEnabled: policy.gateOfflineEnabled,
+    canteenOfflineEnabled: policy.canteenOfflineEnabled,
+    gateSnapshotValidHours: policy.gateSnapshotValidHours,
+    canteenSnapshotValidHours: policy.canteenSnapshotValidHours,
+    maxOfflineSpendPerStudentPerDay: policy.maxOfflineSpendPerStudentPerDay,
+    maxOfflineSpendPerTransaction: policy.maxOfflineSpendPerTransaction,
+    maxOfflineSpendPerDeviceSession: policy.maxOfflineSpendPerDeviceSession,
+    unknownCardOfflinePolicy: policy.unknownCardOfflinePolicy,
+    frozenCardOfflinePolicy: policy.frozenCardOfflinePolicy,
+    deactivatedCardOfflinePolicy: policy.deactivatedCardOfflinePolicy,
+    offlineConflictPolicy: policy.offlineConflictPolicy,
     updatedByUserId: policy.updatedByUserId,
     createdAt: policy.createdAt.toISOString(),
     updatedAt: policy.updatedAt.toISOString(),
@@ -289,26 +333,48 @@ export async function updateSchoolNfcPolicy(
   const policy = await runWrite(db, async (tx) => {
     const saved = await tx.schoolNfcPolicy.upsert({
       where: { schoolId },
-      create: {
-        schoolId,
-        feeDefaulterBlockingEnabled: input.feeDefaulterBlockingEnabled,
-        feeDefaulterBlockScope: input.feeDefaulterBlockScope,
-        attendanceTapInCutoffEnabled: input.attendanceTapInCutoffEnabled,
-        tapInCutoffTime,
-        cutoffLateAction: input.cutoffLateAction,
-        timezone: input.timezone?.trim() || "Africa/Kampala",
-        updatedByUserId: ctx.actorId ?? null,
-      },
-      update: {
-        feeDefaulterBlockingEnabled: input.feeDefaulterBlockingEnabled,
-        feeDefaulterBlockScope: input.feeDefaulterBlockScope,
-        attendanceTapInCutoffEnabled: input.attendanceTapInCutoffEnabled,
-        tapInCutoffTime,
-        cutoffLateAction: input.cutoffLateAction,
-        timezone: input.timezone?.trim() || "Africa/Kampala",
-        updatedByUserId: ctx.actorId ?? null,
-      },
-    });
+    create: {
+      schoolId,
+      feeDefaulterBlockingEnabled: input.feeDefaulterBlockingEnabled,
+      feeDefaulterBlockScope: input.feeDefaulterBlockScope,
+      attendanceTapInCutoffEnabled: input.attendanceTapInCutoffEnabled,
+      tapInCutoffTime,
+      cutoffLateAction: input.cutoffLateAction,
+      timezone: input.timezone?.trim() || "Africa/Kampala",
+      gateOfflineEnabled: input.gateOfflineEnabled,
+      canteenOfflineEnabled: input.canteenOfflineEnabled,
+      gateSnapshotValidHours: input.gateSnapshotValidHours,
+      canteenSnapshotValidHours: input.canteenSnapshotValidHours,
+      maxOfflineSpendPerStudentPerDay: input.maxOfflineSpendPerStudentPerDay,
+      maxOfflineSpendPerTransaction: input.maxOfflineSpendPerTransaction,
+      maxOfflineSpendPerDeviceSession: input.maxOfflineSpendPerDeviceSession,
+      unknownCardOfflinePolicy: input.unknownCardOfflinePolicy,
+      frozenCardOfflinePolicy: input.frozenCardOfflinePolicy,
+      deactivatedCardOfflinePolicy: input.deactivatedCardOfflinePolicy,
+      offlineConflictPolicy: input.offlineConflictPolicy,
+      updatedByUserId: ctx.actorId ?? null,
+    },
+    update: {
+      feeDefaulterBlockingEnabled: input.feeDefaulterBlockingEnabled,
+      feeDefaulterBlockScope: input.feeDefaulterBlockScope,
+      attendanceTapInCutoffEnabled: input.attendanceTapInCutoffEnabled,
+      tapInCutoffTime,
+      cutoffLateAction: input.cutoffLateAction,
+      timezone: input.timezone?.trim() || "Africa/Kampala",
+      gateOfflineEnabled: input.gateOfflineEnabled,
+      canteenOfflineEnabled: input.canteenOfflineEnabled,
+      gateSnapshotValidHours: input.gateSnapshotValidHours,
+      canteenSnapshotValidHours: input.canteenSnapshotValidHours,
+      maxOfflineSpendPerStudentPerDay: input.maxOfflineSpendPerStudentPerDay,
+      maxOfflineSpendPerTransaction: input.maxOfflineSpendPerTransaction,
+      maxOfflineSpendPerDeviceSession: input.maxOfflineSpendPerDeviceSession,
+      unknownCardOfflinePolicy: input.unknownCardOfflinePolicy,
+      frozenCardOfflinePolicy: input.frozenCardOfflinePolicy,
+      deactivatedCardOfflinePolicy: input.deactivatedCardOfflinePolicy,
+      offlineConflictPolicy: input.offlineConflictPolicy,
+      updatedByUserId: ctx.actorId ?? null,
+    },
+  });
 
     await tx.auditLog.create({
       data: {

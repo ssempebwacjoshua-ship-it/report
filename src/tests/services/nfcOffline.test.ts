@@ -105,6 +105,8 @@ function makeMockDb() {
     },
     nfcOfflineDevice: {
       create: async ({ data }: { data: unknown }) => { offlineDeviceStore.push(data); return data; },
+      findFirst: async ({ where }: { where: { schoolId: string } }) =>
+        offlineDeviceStore.find((device) => (device as { schoolId?: string }).schoolId === where.schoolId) ?? null,
       findMany: async () => offlineDeviceStore,
       updateMany: async () => null,
     },

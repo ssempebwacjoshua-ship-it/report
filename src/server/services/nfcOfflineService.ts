@@ -1,7 +1,8 @@
 import type { PrismaClient } from "@prisma/client";
-import { randomUUID } from "crypto";
+import { createHash, randomUUID } from "crypto";
 import { prisma as defaultPrisma } from "../db/prisma";
 import { hasPermission } from "../../shared/permissions";
+import { getSchoolNfcPolicy } from "./nfcPolicyService";
 
 type OfflineClient = Pick<
   PrismaClient,
@@ -9,6 +10,7 @@ type OfflineClient = Pick<
   | "student"
   | "nfcTag"
   | "studentWallet"
+  | "schoolNfcPolicy"
   | "studentCredential"
   | "nfcOfflineDevice"
   | "nfcOfflineSyncBatch"
@@ -37,21 +39,80 @@ function requirePermission(ctx: OfflineContext, permission: string): void {
 }
 
 const SNAPSHOT_TTL_HOURS = 24;
+const DEFAULT_GATE_SNAPSHOT_VALID_HOURS = 24;
+const DEFAULT_CANTEEN_SNAPSHOT_VALID_HOURS = 12;
+const DEFAULT_MAX_OFFLINE_SPEND_PER_STUDENT_PER_DAY = 5000;
+const DEFAULT_MAX_OFFLINE_SPEND_PER_TRANSACTION = 2000;
+const DEFAULT_MAX_OFFLINE_SPEND_PER_DEVICE_SESSION = 100000;
+
+type OfflinePolicy = {
+  gateOfflineEnabled: boolean;
+  canteenOfflineEnabled: boolean;
+  gateSnapshotValidHours: number;
+  canteenSnapshotValidHours: number;
+  maxOfflineSpendPerStudentPerDay: number;
+  maxOfflineSpendPerTransaction: number;
+  maxOfflineSpendPerDeviceSession: number;
+  unknownCardOfflinePolicy: "DENY";
+  frozenCardOfflinePolicy: "DENY";
+  deactivatedCardOfflinePolicy: "DENY";
+  offlineConflictPolicy: "ALLOW_AND_FLAG" | "HOLD_FOR_BURSAR_REVIEW";
+};
+
+function defaultOfflinePolicy(): OfflinePolicy {
+  return {
+    gateOfflineEnabled: false,
+    canteenOfflineEnabled: false,
+    gateSnapshotValidHours: DEFAULT_GATE_SNAPSHOT_VALID_HOURS,
+    canteenSnapshotValidHours: DEFAULT_CANTEEN_SNAPSHOT_VALID_HOURS,
+    maxOfflineSpendPerStudentPerDay: DEFAULT_MAX_OFFLINE_SPEND_PER_STUDENT_PER_DAY,
+    maxOfflineSpendPerTransaction: DEFAULT_MAX_OFFLINE_SPEND_PER_TRANSACTION,
+    maxOfflineSpendPerDeviceSession: DEFAULT_MAX_OFFLINE_SPEND_PER_DEVICE_SESSION,
+    unknownCardOfflinePolicy: "DENY",
+    frozenCardOfflinePolicy: "DENY",
+    deactivatedCardOfflinePolicy: "DENY",
+    offlineConflictPolicy: "ALLOW_AND_FLAG",
+  };
+}
+
+async function loadOfflinePolicy(ctx: OfflineContext, db: OfflineClient): Promise<OfflinePolicy> {
+  try {
+    const policy = await getSchoolNfcPolicy(ctx, db as never);
+    return {
+      gateOfflineEnabled: policy.policy.gateOfflineEnabled,
+      canteenOfflineEnabled: policy.policy.canteenOfflineEnabled,
+      gateSnapshotValidHours: policy.policy.gateSnapshotValidHours,
+      canteenSnapshotValidHours: policy.policy.canteenSnapshotValidHours,
+      maxOfflineSpendPerStudentPerDay: policy.policy.maxOfflineSpendPerStudentPerDay,
+      maxOfflineSpendPerTransaction: policy.policy.maxOfflineSpendPerTransaction,
+      maxOfflineSpendPerDeviceSession: policy.policy.maxOfflineSpendPerDeviceSession,
+      unknownCardOfflinePolicy: policy.policy.unknownCardOfflinePolicy as "DENY",
+      frozenCardOfflinePolicy: policy.policy.frozenCardOfflinePolicy as "DENY",
+      deactivatedCardOfflinePolicy: policy.policy.deactivatedCardOfflinePolicy as "DENY",
+      offlineConflictPolicy: policy.policy.offlineConflictPolicy as "ALLOW_AND_FLAG" | "HOLD_FOR_BURSAR_REVIEW",
+    };
+  } catch {
+    return defaultOfflinePolicy();
+  }
+}
 
 // ─── Bootstrap snapshot ───────────────────────────────────────────────────────
 
 export async function bootstrapOfflineSnapshot(
   ctx: OfflineContext,
-  input: { modules?: string[]; deviceId?: string },
+  input: { modules?: string[]; deviceId?: string; mode?: "GATE" | "CANTEEN" | "ATTENDANCE" },
   db: OfflineClient = defaultPrisma,
 ) {
   const schoolId = requireSchoolId(ctx);
   requirePermission(ctx, "nfc.devices.manage");
 
+  const policy = await loadOfflinePolicy(ctx, db);
+  const mode = input.mode ?? "GATE";
   const modules = input.modules ?? ["gate", "attendance", "canteen"];
   const snapshotId = randomUUID();
   const generatedAt = new Date();
-  const expiresAt = new Date(generatedAt.getTime() + SNAPSHOT_TTL_HOURS * 60 * 60 * 1000);
+  const ttlHours = mode === "CANTEEN" ? policy.canteenSnapshotValidHours : mode === "ATTENDANCE" ? policy.gateSnapshotValidHours : policy.gateSnapshotValidHours;
+  const expiresAt = new Date(generatedAt.getTime() + ttlHours * 60 * 60 * 1000);
 
   // Active students with current enrollment
   const students = await db.student.findMany({
@@ -61,6 +122,8 @@ export async function bootstrapOfflineSnapshot(
       admissionNumber: true,
       firstName: true,
       lastName: true,
+      studentType: true,
+      passportPhotoUrl: true,
       isActive: true,
       enrollments: {
         where: { isActive: true, status: "ACTIVE" },
@@ -95,6 +158,7 @@ export async function bootstrapOfflineSnapshot(
     ? await db.studentWallet.findMany({
         where: { schoolId, status: "ACTIVE" },
         select: {
+          id: true,
           studentId: true,
           schoolId: true,
           status: true,
@@ -112,11 +176,13 @@ export async function bootstrapOfflineSnapshot(
       admissionNumber: s.admissionNumber,
       firstName: s.firstName,
       lastName: s.lastName,
+      studentType: s.studentType ?? null,
       isActive: s.isActive,
       classId: e?.class?.id ?? null,
       className: e?.class?.name ?? null,
       streamId: e?.stream?.id ?? null,
       streamName: e?.stream?.name ?? null,
+      photoUrl: s.passportPhotoUrl ?? null,
     };
   });
 
@@ -133,10 +199,15 @@ export async function bootstrapOfflineSnapshot(
   }));
 
   const offlineWallets = wallets.map((w) => ({
+    id: w.id,
     studentId: w.studentId,
     schoolId: w.schoolId,
     status: w.status,
     balanceCents: w.balanceCents,
+    cachedBalanceCents: w.balanceCents,
+    rfidStatus: w.status,
+    dailyOfflineLimitCents: policy.maxOfflineSpendPerStudentPerDay,
+    alreadySyncedSpendTodayCents: 0,
     snapshotId,
     frozenReason: w.frozenReason,
   }));
@@ -157,10 +228,22 @@ export async function bootstrapOfflineSnapshot(
     },
   });
 
+  if (input.deviceId) {
+    await db.nfcOfflineDevice.updateMany({
+      where: {
+        schoolId,
+        OR: [{ id: input.deviceId }, { deviceKey: input.deviceId }],
+      },
+      data: { lastSnapshotAt: generatedAt, lastSeenAt: generatedAt },
+    }).catch(() => null);
+  }
+
   return {
     snapshotId,
+    snapshotVersion: snapshotId,
     schoolId,
     deviceId: input.deviceId ?? ctx.actorId ?? "unknown",
+    mode,
     generatedAt: generatedAt.toISOString(),
     expiresAt: expiresAt.toISOString(),
     serverTime: new Date().toISOString(),
@@ -169,10 +252,17 @@ export async function bootstrapOfflineSnapshot(
     tags: offlineTags,
     wallets: offlineWallets,
     settings: {
-      canteenOfflineEnabled: modules.includes("canteen"),
-      maxOfflineChargePerStudentCents: 50_000 * 100, // UGX 50,000
-      maxOfflineTotalDeviceCents: 500_000 * 100, // UGX 500,000
-      snapshotTtlHours: SNAPSHOT_TTL_HOURS,
+      gateOfflineEnabled: policy.gateOfflineEnabled,
+      canteenOfflineEnabled: policy.canteenOfflineEnabled,
+      gateSnapshotValidHours: policy.gateSnapshotValidHours,
+      canteenSnapshotValidHours: policy.canteenSnapshotValidHours,
+      maxOfflineSpendPerStudentPerDay: policy.maxOfflineSpendPerStudentPerDay,
+      maxOfflineSpendPerTransaction: policy.maxOfflineSpendPerTransaction,
+      maxOfflineSpendPerDeviceSession: policy.maxOfflineSpendPerDeviceSession,
+      unknownCardOfflinePolicy: policy.unknownCardOfflinePolicy,
+      frozenCardOfflinePolicy: policy.frozenCardOfflinePolicy,
+      deactivatedCardOfflinePolicy: policy.deactivatedCardOfflinePolicy,
+      offlineConflictPolicy: policy.offlineConflictPolicy,
     },
   };
 }
@@ -201,12 +291,30 @@ export async function syncOfflineEvents(
 ) {
   const schoolId = requireSchoolId(ctx);
   if (!ctx.actorId || !ctx.role) throw Object.assign(new Error("Authentication required."), { status: 401 });
+  const policy = await loadOfflinePolicy(ctx, db);
+  const device = await db.nfcOfflineDevice.findFirst({
+    where: {
+      schoolId,
+      OR: [{ id: input.deviceId }, { deviceKey: input.deviceId }],
+    },
+  });
+  if (device?.status === "REVOKED" || device?.isActive === false) {
+    return {
+      batchId: randomUUID(),
+      results: input.events.map((event) => ({
+        localId: event.localId,
+        idempotencyKey: event.idempotencyKey,
+        status: "REJECTED_DEVICE_REVOKED" as const,
+        errorMessage: "Kiosk device has been revoked.",
+      })),
+    };
+  }
 
   const batchId = randomUUID();
   const results: Array<{
     localId: string;
     idempotencyKey: string;
-    status: "SYNCED" | "DUPLICATE" | "FAILED" | "CONFLICT";
+    status: "SYNCED" | "DUPLICATE" | "FAILED" | "CONFLICT" | "REJECTED_DEVICE_REVOKED" | "NEEDS_BURSAR_REVIEW";
     serverId?: string;
     errorMessage?: string;
   }> = [];
@@ -349,10 +457,11 @@ export async function syncOfflineEvents(
     } catch (err: unknown) {
       const isConflict = (err as Record<string, unknown>)?.conflict === true;
       const msg = err instanceof Error ? err.message : "Unknown error";
+      const conflictStatus = policy.offlineConflictPolicy === "HOLD_FOR_BURSAR_REVIEW" ? "NEEDS_BURSAR_REVIEW" : "CONFLICT";
       results.push({
         localId: event.localId,
         idempotencyKey: event.idempotencyKey,
-        status: isConflict ? "CONFLICT" : "FAILED",
+        status: isConflict ? conflictStatus : "FAILED",
         errorMessage: msg,
       });
       if (isConflict) syncedItems++; else failedItems++;
@@ -374,7 +483,7 @@ export async function syncOfflineEvents(
   // Update device lastSyncAt
   await db.nfcOfflineDevice.updateMany({
     where: { schoolId, deviceKey: input.deviceId, isActive: true },
-    data: { lastSyncAt: new Date() },
+    data: { lastSyncAt: new Date(), lastSeenAt: new Date() },
   }).catch(() => null);
 
   return { batchId, results };
@@ -407,20 +516,26 @@ export async function getOfflineSyncStatus(
 
 export async function registerOfflineDevice(
   ctx: OfflineContext,
-  input: { name: string; deviceKey: string; roleScope: string },
+  input: { name: string; deviceKey?: string; deviceToken?: string; roleScope: string; mode?: "GATE" | "CANTEEN" | "ATTENDANCE"; location?: string | null },
   db: OfflineClient = defaultPrisma,
 ) {
   const schoolId = requireSchoolId(ctx);
   requirePermission(ctx, "nfc.devices.manage");
+  const token = input.deviceToken ?? input.deviceKey ?? randomUUID();
+  const tokenHash = createHash("sha256").update(token).digest("hex");
 
   const device = await db.nfcOfflineDevice.create({
     data: {
       schoolId,
       name: input.name,
-      deviceKey: input.deviceKey,
+      location: input.location ?? null,
+      deviceKey: input.deviceKey ?? token,
+      deviceTokenHash: tokenHash,
+      mode: input.mode ?? "GATE",
+      status: "ACTIVE",
       roleScope: input.roleScope,
     },
   });
 
-  return device;
+  return { ...device, deviceToken: token };
 }

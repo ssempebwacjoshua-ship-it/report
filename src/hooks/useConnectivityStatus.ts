@@ -75,8 +75,11 @@ export function useConnectivityStatus(schoolId?: string, deviceId?: string, requ
       for (const r of data.results) {
         if (r.status === "SYNCED" || r.status === "DUPLICATE") {
           await markQueueItemSynced(r.localId, r.serverId);
-        } else if (r.status === "CONFLICT") {
+        } else if (r.status === "CONFLICT" || r.status === "NEEDS_BURSAR_REVIEW") {
           await markQueueItemConflict(r.localId, r.errorMessage ?? "Conflict");
+          anyFailed = true;
+        } else if (r.status === "REJECTED_DEVICE_REVOKED") {
+          await markQueueItemFailed(r.localId, r.errorMessage ?? "Device revoked");
           anyFailed = true;
         } else {
           await markQueueItemFailed(r.localId, r.errorMessage ?? "Server rejected");

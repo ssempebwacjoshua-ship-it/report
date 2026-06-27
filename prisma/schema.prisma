@@ -494,6 +494,17 @@ model SchoolNfcPolicy {
   tapInCutoffTime              String?
   cutoffLateAction             AttendanceLateAction   @default(BLOCK_AND_MARK_ABSENT)
   timezone                     String                 @default("Africa/Kampala")
+  gateOfflineEnabled           Boolean                @default(false)
+  canteenOfflineEnabled        Boolean                @default(false)
+  gateSnapshotValidHours       Int                    @default(24)
+  canteenSnapshotValidHours    Int                    @default(12)
+  maxOfflineSpendPerStudentPerDay Int                 @default(5000)
+  maxOfflineSpendPerTransaction Int                  @default(2000)
+  maxOfflineSpendPerDeviceSession Int                 @default(100000)
+  unknownCardOfflinePolicy     String                 @default("DENY")
+  frozenCardOfflinePolicy      String                 @default("DENY")
+  deactivatedCardOfflinePolicy String                 @default("DENY")
+  offlineConflictPolicy        String                 @default("ALLOW_AND_FLAG")
   createdAt                    DateTime               @default(now())
   updatedAt                    DateTime               @updatedAt
   updatedByUserId              String?                @db.Uuid
@@ -1185,15 +1196,21 @@ enum CanteenReconciliationStatus {
 // ─── NFC Offline Mode ────────────────────────────────────────────────────────
 
 model NfcOfflineDevice {
-  id         String    @id @default(uuid()) @db.Uuid
-  schoolId   String    @db.Uuid
-  name       String
-  deviceKey  String
-  roleScope  String // GATE_SECURITY | CASHIER | ADMIN_OPERATOR
-  isActive   Boolean   @default(true)
-  lastSyncAt DateTime?
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
+  id                String    @id @default(uuid()) @db.Uuid
+  schoolId          String    @db.Uuid
+  name              String
+  location          String?
+  deviceKey         String
+  deviceTokenHash   String?
+  mode              String    @default("GATE") // GATE | CANTEEN | ATTENDANCE
+  status            String    @default("ACTIVE") // ACTIVE | REVOKED
+  roleScope         String // GATE_SECURITY | CASHIER | ADMIN_OPERATOR
+  isActive          Boolean   @default(true)
+  lastSyncAt        DateTime?
+  lastSeenAt        DateTime?
+  lastSnapshotAt    DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
   school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
 

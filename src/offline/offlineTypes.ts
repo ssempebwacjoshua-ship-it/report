@@ -12,6 +12,10 @@ export type OfflineActionType =
   | "ATTENDANCE_SCAN"
   | "CANTEEN_CHARGE";
 
+export type OfflineKioskMode = "GATE" | "CANTEEN" | "ATTENDANCE";
+export type OfflineDeviceStatus = "ACTIVE" | "REVOKED";
+export type OfflineConflictPolicy = "ALLOW_AND_FLAG" | "HOLD_FOR_BURSAR_REVIEW";
+
 // ─── IndexedDB table shapes ───────────────────────────────────────────────────
 
 export interface OfflineMeta {
@@ -26,10 +30,12 @@ export interface OfflineStudent {
   firstName: string;
   lastName: string;
   isActive: boolean;
+  studentType?: "DAY" | "BOARDING" | null;
   classId: string | null;
   className: string | null;
   streamId: string | null;
   streamName: string | null;
+  photoUrl?: string | null;
 }
 
 export interface OfflineTag {
@@ -45,12 +51,18 @@ export interface OfflineTag {
 }
 
 export interface OfflineWallet {
+  id: string;
   studentId: string;
   schoolId: string;
   status: string; // ACTIVE | FROZEN
   balanceCents: number;
   snapshotId: string;
   frozenReason: string | null;
+  dailyOfflineLimitCents?: number;
+  alreadySyncedSpendTodayCents?: number;
+  cachedBalanceCents?: number;
+  rfidStatus?: string;
+  deactivated?: boolean;
 }
 
 // Base for all queued offline events (sits in offline_sync_queue)
@@ -87,12 +99,25 @@ export interface OfflineCanteenCharge extends OfflineQueuedEvent {
   walletId: string | null;
 }
 
+export interface OfflineSpendLedgerEntry {
+  localId: string;
+  schoolId: string;
+  deviceId: string;
+  studentId: string;
+  dateKey: string;
+  amountCents: number;
+  syncStatus: OfflineSyncStatus;
+  createdAt: string;
+}
+
 // ─── Snapshot (sent from server bootstrap endpoint) ───────────────────────────
 
 export interface OfflineBootstrapSnapshot {
   snapshotId: string;
+  snapshotVersion: string;
   schoolId: string;
   deviceId: string;
+  mode?: OfflineKioskMode;
   generatedAt: string;
   expiresAt: string;
   serverTime: string;
@@ -101,18 +126,27 @@ export interface OfflineBootstrapSnapshot {
   tags: OfflineTag[];
   wallets: OfflineWallet[];
   settings: {
+    gateOfflineEnabled: boolean;
     canteenOfflineEnabled: boolean;
-    maxOfflineChargePerStudentCents: number;
-    maxOfflineTotalDeviceCents: number;
-    snapshotTtlHours: number;
+    gateSnapshotValidHours: number;
+    canteenSnapshotValidHours: number;
+    maxOfflineSpendPerStudentPerDay: number;
+    maxOfflineSpendPerTransaction: number;
+    maxOfflineSpendPerDeviceSession: number;
+    unknownCardOfflinePolicy: "DENY";
+    frozenCardOfflinePolicy: "DENY";
+    deactivatedCardOfflinePolicy: "DENY";
+    offlineConflictPolicy: OfflineConflictPolicy;
   };
   signature?: string;
 }
 
 export interface OfflineSnapshotMeta {
   snapshotId: string;
+  snapshotVersion: string;
   schoolId: string;
   deviceId: string;
+  mode?: OfflineKioskMode;
   generatedAt: string;
   expiresAt: string;
   modules: string[];
@@ -130,7 +164,7 @@ export interface OfflineSyncRequest {
 export interface OfflineSyncItemResult {
   localId: string;
   idempotencyKey: string;
-  status: "SYNCED" | "DUPLICATE" | "FAILED" | "CONFLICT";
+  status: "SYNCED" | "DUPLICATE" | "FAILED" | "CONFLICT" | "REJECTED_DEVICE_REVOKED" | "NEEDS_BURSAR_REVIEW";
   serverId?: string;
   errorMessage?: string;
 }

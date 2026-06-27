@@ -10,6 +10,7 @@ import type {
   OfflineCanteenCharge,
   OfflineGateScan,
   OfflineQueuedEvent,
+  OfflineSpendLedgerEntry,
   OfflineSnapshotMeta,
   OfflineStudent,
   OfflineSyncStatus,
@@ -67,8 +68,10 @@ export async function saveBootstrapSnapshot(snapshot: OfflineBootstrapSnapshot):
 
       const meta: OfflineSnapshotMeta = {
         snapshotId: snapshot.snapshotId,
+        snapshotVersion: snapshot.snapshotVersion,
         schoolId: snapshot.schoolId,
         deviceId: snapshot.deviceId,
+        mode: snapshot.mode,
         generatedAt: snapshot.generatedAt,
         expiresAt: snapshot.expiresAt,
         modules: snapshot.modules,
@@ -111,19 +114,43 @@ export async function getOfflineWallet(schoolId: string, studentId: string): Pro
 
 // ─── Canteen debit calculation (never mutates wallet) ────────────────────────
 
+export async function getOfflineSpendUsage(
+  schoolId: string,
+  deviceId: string,
+  studentId: string,
+  dateKey: string,
+): Promise<{ studentSpentCents: number; deviceSpentCents: number }> {
+  const [studentRows, deviceRows] = await Promise.all([
+    offlineDb.offline_spend_ledger.where("[schoolId+studentId+dateKey]").equals([schoolId, studentId, dateKey]).toArray(),
+    offlineDb.offline_spend_ledger.where("schoolId").equals(schoolId).filter((row) => row.deviceId === deviceId && row.dateKey === dateKey).toArray(),
+  ]);
+  const studentSpentCents = studentRows.reduce((sum, row) => sum + row.amountCents, 0);
+  const deviceSpentCents = deviceRows.reduce((sum, row) => sum + row.amountCents, 0);
+  return { studentSpentCents, deviceSpentCents };
+}
+
 export async function getAvailableOfflineBalance(
   schoolId: string,
   deviceId: string,
   studentId: string,
   snapshotBalance: number,
-): Promise<number> {
-  const pending = await offlineDb.offline_canteen_charges
-    .where("[schoolId+studentId]")
-    .equals([schoolId, studentId])
-    .filter((r) => r.deviceId === deviceId && (r.syncStatus === "PENDING" || r.syncStatus === "SYNCING"))
-    .toArray();
-  const spent = pending.reduce((sum, r) => sum + ((r.payload as { amountCents: number }).amountCents ?? 0), 0);
-  return Math.max(0, snapshotBalance - spent);
+  dateKey: string,
+  limits: {
+    maxOfflineSpendPerStudentPerDay: number;
+    maxOfflineSpendPerTransaction: number;
+    maxOfflineSpendPerDeviceSession: number;
+  },
+): Promise<{ availableCents: number; studentSpentCents: number; deviceSpentCents: number }> {
+  const usage = await getOfflineSpendUsage(schoolId, deviceId, studentId, dateKey);
+  const availableCents = Math.max(
+    0,
+    Math.min(
+      snapshotBalance - usage.studentSpentCents,
+      limits.maxOfflineSpendPerStudentPerDay - usage.studentSpentCents,
+      limits.maxOfflineSpendPerDeviceSession - usage.deviceSpentCents,
+    ),
+  );
+  return { availableCents, ...usage };
 }
 
 // ─── Internal helper that builds + stores any queued event ───────────────────
@@ -164,6 +191,10 @@ async function buildAndQueue<T extends OfflineQueuedEvent>(
   await offlineDb.offline_sync_queue.put(record);
   await saveLastHash(deviceId, eventHash);
   return record;
+}
+
+async function putSpendLedger(entry: OfflineSpendLedgerEntry): Promise<void> {
+  await offlineDb.offline_spend_ledger.put(entry);
 }
 
 // ─── Queue writers ────────────────────────────────────────────────────────────
@@ -242,6 +273,16 @@ export async function queueCanteenCharge(input: {
     { studentId: input.studentId, walletId: input.walletId },
   );
   await offlineDb.offline_canteen_charges.put(record);
+  await putSpendLedger({
+    localId: record.localId,
+    schoolId: record.schoolId,
+    deviceId: record.deviceId,
+    studentId: record.studentId ?? input.studentId,
+    dateKey: record.createdAt.slice(0, 10),
+    amountCents: input.payload.amountCents,
+    syncStatus: "PENDING",
+    createdAt: record.createdAt,
+  });
   return record;
 }
 
@@ -266,6 +307,7 @@ async function patchQueueItem(localId: string, updates: Partial<OfflineQueuedEve
   await offlineDb.offline_gate_scans.update(localId, updates).catch(() => null);
   await offlineDb.offline_attendance_events.update(localId, updates).catch(() => null);
   await offlineDb.offline_canteen_charges.update(localId, updates).catch(() => null);
+  await offlineDb.offline_spend_ledger.update(localId, updates as Partial<OfflineSpendLedgerEntry>).catch(() => null);
 }
 
 export async function markQueueItemSynced(localId: string, serverId?: string): Promise<void> {
@@ -291,6 +333,7 @@ export async function clearSyncedItems(schoolId: string): Promise<void> {
   await offlineDb.offline_gate_scans.bulkDelete(keys).catch(() => null);
   await offlineDb.offline_attendance_events.bulkDelete(keys).catch(() => null);
   await offlineDb.offline_canteen_charges.bulkDelete(keys).catch(() => null);
+  await offlineDb.offline_spend_ledger.bulkDelete(keys).catch(() => null);
 }
 
 // ─── Offline attendance duplicate check ──────────────────────────────────────

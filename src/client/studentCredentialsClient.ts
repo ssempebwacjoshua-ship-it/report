@@ -219,6 +219,17 @@ export async function updateNfcPolicy(input: {
   tapInCutoffTime?: string | null;
   cutoffLateAction: AttendanceLateAction;
   timezone: string;
+  gateOfflineEnabled: boolean;
+  canteenOfflineEnabled: boolean;
+  gateSnapshotValidHours: number;
+  canteenSnapshotValidHours: number;
+  maxOfflineSpendPerStudentPerDay: number;
+  maxOfflineSpendPerTransaction: number;
+  maxOfflineSpendPerDeviceSession: number;
+  unknownCardOfflinePolicy: "DENY";
+  frozenCardOfflinePolicy: "DENY";
+  deactivatedCardOfflinePolicy: "DENY";
+  offlineConflictPolicy: "ALLOW_AND_FLAG" | "HOLD_FOR_BURSAR_REVIEW";
 }) {
   const response = await fetch(`${API_BASE}/api/nfc/policy`, {
     method: "PUT",
