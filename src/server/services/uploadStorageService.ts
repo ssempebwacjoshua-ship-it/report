@@ -39,15 +39,35 @@ function getLocalUploadRoot(strict: boolean): string | null {
   return configuredDir || LOCAL_UPLOAD_ROOT;
 }
 
+function parseCloudinaryUrl(value: string): { cloudName: string; apiKey: string; apiSecret: string } | null {
+  try {
+    const parsed = new URL(value);
+    if (parsed.protocol !== "cloudinary:") return null;
+    const apiKey = decodeURIComponent(parsed.username || "").trim();
+    const apiSecret = decodeURIComponent(parsed.password || "").trim();
+    const cloudName = decodeURIComponent(parsed.hostname || "").trim();
+    if (!apiKey || !apiSecret || !cloudName) return null;
+    return { cloudName, apiKey, apiSecret };
+  } catch {
+    return null;
+  }
+}
+
 function ensureCloudinaryConfigured(): { uploadFolder: string } {
-  const cloudName = process.env.CLOUDINARY_CLOUD_NAME?.trim();
-  const apiKey = process.env.CLOUDINARY_API_KEY?.trim();
-  const apiSecret = process.env.CLOUDINARY_API_SECRET?.trim();
+  const explicitCloudName = process.env.CLOUDINARY_CLOUD_NAME?.trim();
+  const explicitApiKey = process.env.CLOUDINARY_API_KEY?.trim();
+  const explicitApiSecret = process.env.CLOUDINARY_API_SECRET?.trim();
+  const cloudinaryUrl = process.env.CLOUDINARY_URL?.trim();
   const uploadFolder = process.env.CLOUDINARY_UPLOAD_FOLDER?.trim() || "school-connect";
+
+  const parsedUrl = cloudinaryUrl ? parseCloudinaryUrl(cloudinaryUrl) : null;
+  const cloudName = explicitCloudName || parsedUrl?.cloudName;
+  const apiKey = explicitApiKey || parsedUrl?.apiKey;
+  const apiSecret = explicitApiSecret || parsedUrl?.apiSecret;
 
   if (!cloudName || !apiKey || !apiSecret) {
     throw Object.assign(
-      new Error("Cloudinary upload storage is not configured. Set CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET."),
+      new Error("Cloudinary upload storage is not configured. Set CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET, or provide CLOUDINARY_URL."),
       { status: 503 },
     );
   }
