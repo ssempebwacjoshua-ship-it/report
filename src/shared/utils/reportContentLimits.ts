@@ -1,6 +1,7 @@
 import type { StudentReportCard, SubjectReportRow } from "../types/reports";
 import type { ReportPersonalizationSettings, SchoolProfileSettings } from "../types/settings";
 import { isSafeAssetUrl } from "./assetUrls";
+import { isRenderablePassportPhotoUrl } from "./passportPhotoUrl";
 
 const ELLIPSIS = "...";
 
@@ -73,7 +74,7 @@ export function sanitizeSubjectReportRow(row: SubjectReportRow): SubjectReportRo
 export function sanitizeReportCardForRender(card: StudentReportCard): StudentReportCard {
   return {
     ...card,
-    passportPhotoUrl: safeAssetUrl(card.passportPhotoUrl ?? ""),
+    passportPhotoUrl: isRenderablePassportPhotoUrl(card.passportPhotoUrl) ? card.passportPhotoUrl.trim() : "",
     studentName: constrainReportText(card.studentName, 80),
     className: constrainReportText(card.className, 60),
     streamName: constrainReportText(card.streamName, 24),
