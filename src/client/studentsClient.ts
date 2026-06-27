@@ -7,7 +7,7 @@
   StudentListItem,
   StudentsResponse,
 } from "../shared/types/students";
-import { getApiBaseUrl, makeRequestHeaders, parseApiError } from "./apiBase";
+import { getApiBaseUrl, makeSchoolRequestHeaders, parseApiError, TOKEN_KEY } from "./apiBase";
 
 const API_BASE = getApiBaseUrl();
 
@@ -18,7 +18,7 @@ export async function fetchStudents(filters: { classId?: string; streamId?: stri
   if (filters.search) params.set("search", filters.search);
   if (filters.isActive) params.set("isActive", filters.isActive);
   const response = await fetch(`${API_BASE}/api/students?${params.toString()}`, {
-    headers: makeRequestHeaders(),
+    headers: makeSchoolRequestHeaders(),
   });
   if (!response.ok) throw new Error(await parseApiError(response, "Could not load students"));
   return response.json();
@@ -27,7 +27,7 @@ export async function fetchStudents(filters: { classId?: string; streamId?: stri
 export async function createStudent(input: StudentCreateInput): Promise<{ admissionNumber: string }> {
   const response = await fetch(`${API_BASE}/api/students`, {
     method: "POST",
-    headers: makeRequestHeaders({ "Content-Type": "application/json" }),
+    headers: makeSchoolRequestHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify(input),
   });
   if (!response.ok) throw new Error(await parseApiError(response, "Could not create student"));
@@ -37,7 +37,7 @@ export async function createStudent(input: StudentCreateInput): Promise<{ admiss
 export async function previewStudentImport(formData: FormData): Promise<StudentImportPreview> {
   const response = await fetch(`${API_BASE}/api/students/import/preview`, {
     method: "POST",
-    headers: makeRequestHeaders(),
+    headers: makeSchoolRequestHeaders(),
     body: formData,
   });
   if (!response.ok) throw new Error(await parseApiError(response, "Could not preview import"));
@@ -47,7 +47,7 @@ export async function previewStudentImport(formData: FormData): Promise<StudentI
 export async function commitStudentImport(formData: FormData): Promise<StudentImportJob> {
   const response = await fetch(`${API_BASE}/api/students/import-jobs/upload`, {
     method: "POST",
-    headers: makeRequestHeaders(),
+    headers: makeSchoolRequestHeaders(),
     body: formData,
   });
   if (!response.ok) throw new Error(await parseApiError(response, "Could not commit import"));
@@ -57,7 +57,7 @@ export async function commitStudentImport(formData: FormData): Promise<StudentIm
 export async function createStudentImportJob(formData: FormData): Promise<StudentImportJob> {
   const response = await fetch(`${API_BASE}/api/students/import-jobs/upload`, {
     method: "POST",
-    headers: makeRequestHeaders(),
+    headers: makeSchoolRequestHeaders(),
     body: formData,
   });
   if (!response.ok) throw new Error(await parseApiError(response, "Could not queue import"));
@@ -66,7 +66,7 @@ export async function createStudentImportJob(formData: FormData): Promise<Studen
 
 export async function fetchStudentImportJob(jobId: string) {
   const response = await fetch(`${API_BASE}/api/students/import-jobs/${encodeURIComponent(jobId)}`, {
-    headers: makeRequestHeaders(),
+    headers: makeSchoolRequestHeaders(),
   });
   if (!response.ok) throw new Error(await parseApiError(response, "Could not load import job"));
   return response.json() as Promise<StudentImportJob>;
@@ -80,7 +80,7 @@ export async function downloadStudentTemplateCsv(): Promise<string> {
 
 export async function fetchStudentContactSummary(): Promise<ContactSummary> {
   const response = await fetch(`${API_BASE}/api/students/contact-summary`, {
-    headers: makeRequestHeaders(),
+    headers: makeSchoolRequestHeaders(),
   });
   if (!response.ok) throw new Error(await parseApiError(response, "Could not load contact summary"));
   return response.json();
@@ -89,7 +89,7 @@ export async function fetchStudentContactSummary(): Promise<ContactSummary> {
 export async function createGuardianContact(studentId: string, input: GuardianContactInput): Promise<void> {
   const response = await fetch(`${API_BASE}/api/students/${studentId}/contacts`, {
     method: "POST",
-    headers: makeRequestHeaders({ "Content-Type": "application/json" }),
+    headers: makeSchoolRequestHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify(input),
   });
   if (!response.ok) throw new Error(await parseApiError(response, "Could not create contact"));
@@ -98,7 +98,7 @@ export async function createGuardianContact(studentId: string, input: GuardianCo
 export async function updateGuardianContact(studentId: string, contactId: string, input: GuardianContactInput): Promise<void> {
   const response = await fetch(`${API_BASE}/api/students/${studentId}/contacts/${contactId}`, {
     method: "PATCH",
-    headers: makeRequestHeaders({ "Content-Type": "application/json" }),
+    headers: makeSchoolRequestHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify(input),
   });
   if (!response.ok) throw new Error(await parseApiError(response, "Could not update contact"));
@@ -107,17 +107,21 @@ export async function updateGuardianContact(studentId: string, contactId: string
 export async function deleteGuardianContact(studentId: string, contactId: string): Promise<void> {
   const response = await fetch(`${API_BASE}/api/students/${studentId}/contacts/${contactId}`, {
     method: "DELETE",
-    headers: makeRequestHeaders(),
+    headers: makeSchoolRequestHeaders(),
   });
   if (!response.ok) throw new Error(await parseApiError(response, "Could not delete contact"));
 }
 
 export async function uploadStudentPassportPhoto(studentId: string, file: File): Promise<{ passportPhotoUrl: string; passportPhotoUpdatedAt: string }> {
+  const schoolToken = localStorage.getItem(TOKEN_KEY);
+  if (!schoolToken) {
+    throw new Error("Please log in again.");
+  }
   const formData = new FormData();
   formData.set("file", file);
   const response = await fetch(`${API_BASE}/api/students/${studentId}/passport-photo`, {
     method: "POST",
-    headers: makeRequestHeaders(),
+    headers: makeSchoolRequestHeaders(),
     credentials: "include",
     body: formData,
   });
@@ -128,7 +132,7 @@ export async function uploadStudentPassportPhoto(studentId: string, file: File):
 export async function deleteStudentPassportPhoto(studentId: string): Promise<void> {
   const response = await fetch(`${API_BASE}/api/students/${studentId}/passport-photo`, {
     method: "DELETE",
-    headers: makeRequestHeaders(),
+    headers: makeSchoolRequestHeaders(),
   });
   if (!response.ok) throw new Error(await parseApiError(response, "Could not delete passport photo"));
 }
