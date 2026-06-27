@@ -75,6 +75,20 @@ function logStudentImport(req: { method: string; url: string; school?: { id: str
   });
 }
 
+function logStudentPassportPhoto(req: { method: string; originalUrl?: string; path?: string; headers: Record<string, unknown>; user?: { userId?: string; role?: string } | null; school?: { id: string; code: string } | null }, event: string, details: Record<string, unknown> = {}) {
+  const requestId = typeof req.headers["x-request-id"] === "string" ? req.headers["x-request-id"] : undefined;
+  console.info("[student-passport-photo]", {
+    event,
+    requestId,
+    route: req.originalUrl ?? req.path ?? `${req.method} /api/students/:id/passport-photo`,
+    hasUser: Boolean(req.user),
+    hasSchool: Boolean(req.school),
+    schoolId: req.school?.id ?? null,
+    schoolCode: req.school?.code ?? null,
+    ...details,
+  });
+}
+
 export function studentsRoutes() {
   const router = Router();
 
@@ -196,7 +210,12 @@ export function studentsRoutes() {
 
   router.post("/api/students/:id/passport-photo", studentPhotoUpload.single("file"), async (req, res, next) => {
     try {
+      logStudentPassportPhoto(req, "upload.start", {
+        studentId: req.params.id,
+        contentType: req.headers["content-type"] ?? null,
+      });
       if (!req.school) {
+        logStudentPassportPhoto(req, "upload.unauthenticated", { studentId: req.params.id });
         res.status(401).json({ error: "School context required." });
         return;
       }
@@ -205,11 +224,13 @@ export function studentsRoutes() {
         select: { id: true, passportPhotoUrl: true, schoolId: true },
       });
       if (!student) {
+        logStudentPassportPhoto(req, "upload.student-not-found", { studentId: req.params.id });
         res.status(404).json({ error: "Student not found." });
         return;
       }
       const file = req.file;
       if (!file) {
+        logStudentPassportPhoto(req, "upload.missing-file", { studentId: req.params.id });
         res.status(400).json({ error: "Upload an image file." });
         return;
       }
@@ -230,11 +251,19 @@ export function studentsRoutes() {
         },
       });
       await deleteStoredUpload(student.passportPhotoUrl);
+      logStudentPassportPhoto(req, "upload.success", {
+        studentId: req.params.id,
+        uploadedUrl: uploaded.publicUrl,
+      });
       res.status(200).json({
         passportPhotoUrl: uploaded.publicUrl,
         passportPhotoUpdatedAt: new Date().toISOString(),
       });
     } catch (error) {
+      logStudentPassportPhoto(req, "upload.error", {
+        studentId: req.params.id,
+        error: error instanceof Error ? error.message : String(error),
+      });
       next(error);
     }
   });
