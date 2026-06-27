@@ -8,7 +8,8 @@ import { loadReportEngineInput } from "../repositories/reportsRepository";
 import { getSettingsSections } from "../repositories/settingsRepository";
 import { buildReports } from "../services/reportEngine";
 import { COMMENT_LIMITS } from "../../shared/utils/reportComments";
-import { sanitizeReportCardForRender, sanitizeReportComments, sanitizeSchoolSettingsForReport } from "../../shared/utils/reportContentLimits";
+import { defaultSettingsSections } from "../../shared/types/settings";
+import { sanitizeReportCardForRender, sanitizeReportComments, sanitizeReportPersonalizationForReport, sanitizeSchoolSettingsForReport } from "../../shared/utils/reportContentLimits";
 
 function generateToken(): string {
   return crypto.randomBytes(32).toString("hex");
@@ -115,6 +116,7 @@ export function reportIssueRoutes() {
         settings: {
           ...reportResult.settings,
           school: sanitizeSchoolSettingsForReport(reportResult.settings.school),
+          personalization: sanitizeReportPersonalizationForReport(reportResult.settings.personalization ?? defaultSettingsSections.reportPersonalization),
         },
         issuedAt: new Date().toISOString(),
         issuedByName: user.name,

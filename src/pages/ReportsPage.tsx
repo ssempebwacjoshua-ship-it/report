@@ -377,6 +377,7 @@ export function ReportsPage() {
             showPositions={Boolean(report?.settings.reports.showOverallPosition)}
             schoolSettings={report?.settings.school}
             reportSettings={report?.settings.reports}
+            personalization={report?.settings.personalization}
             grading={report?.settings.grading}
             classAverage={classAverage}
             editOpen={hmEditOpen}

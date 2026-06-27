@@ -1,5 +1,5 @@
 import type { AssessmentFilter, ReportFilters, ReportsResponse, StudentReportCard } from "../../shared/types/reports";
-import type { GradingScaleSettings, ReportSettings, SchoolProfileSettings } from "../../shared/types/settings";
+import type { GradingScaleSettings, ReportPersonalizationSettings, ReportSettings, SchoolProfileSettings } from "../../shared/types/settings";
 import { defaultSettingsSections } from "../../shared/types/settings";
 import type { ContactReadiness } from "../../shared/types/students";
 import { REPORT_CONTENT_LIMITS, constrainReportText } from "../../shared/utils/reportContentLimits";
@@ -12,6 +12,7 @@ export type EngineStudent = {
   admissionNumber: string;
   firstName: string;
   lastName: string;
+  passportPhotoUrl?: string | null;
   className: string;
   streamName: string;
   contactReadiness: ContactReadiness;
@@ -44,6 +45,7 @@ export type EngineInput = {
   settings?: {
     school: SchoolProfileSettings;
     reports: ReportSettings;
+    personalization: ReportPersonalizationSettings;
     grading: GradingScaleSettings;
   };
   emptyReasonOverride?: string | null;
@@ -59,13 +61,33 @@ function averageForMarks(values: Array<number | null>): number | null {
   return roundMark(present.reduce((sum, value) => sum + value, 0) / present.length);
 }
 
+function gradingFromPersonalization(
+  personalization: ReportPersonalizationSettings | undefined,
+  fallback: GradingScaleSettings,
+): GradingScaleSettings {
+  if (!personalization || personalization.gradingScheme.length === 0) return fallback;
+  return {
+    grades: personalization.gradingScheme
+      .slice()
+      .sort((a, b) => a.sortOrder - b.sortOrder)
+      .map((band) => ({
+        label: band.grade,
+        minScore: band.minScore,
+        maxScore: band.maxScore,
+        descriptor: band.remark || band.name,
+      })),
+  };
+}
+
 export function buildReports(input: EngineInput): ReportsResponse {
   const required = requiredTypes(input.filters.assessmentType);
   const settings = input.settings ?? {
     school: defaultSettingsSections.school,
     reports: defaultSettingsSections.reports,
+    personalization: defaultSettingsSections.reportPersonalization,
     grading: defaultSettingsSections.grading,
   };
+  const grading = gradingFromPersonalization(settings.personalization, settings.grading);
 
   if (!input.hasActiveTerm) {
     return {
@@ -73,7 +95,12 @@ export function buildReports(input: EngineInput): ReportsResponse {
       readiness: "NO_ACTIVE_TERM",
       emptyReason: input.emptyReasonOverride ?? emptyReasonForReadiness("NO_ACTIVE_TERM"),
       cards: [],
-      settings,
+      settings: {
+        school: settings.school,
+        reports: settings.reports,
+        personalization: settings.personalization ?? defaultSettingsSections.reportPersonalization,
+        grading,
+      },
     };
   }
   if (input.subjects.length === 0) {
@@ -82,7 +109,12 @@ export function buildReports(input: EngineInput): ReportsResponse {
       readiness: "NO_SUBJECTS",
       emptyReason: input.emptyReasonOverride ?? emptyReasonForReadiness("NO_SUBJECTS"),
       cards: [],
-      settings,
+      settings: {
+        school: settings.school,
+        reports: settings.reports,
+        personalization: settings.personalization ?? defaultSettingsSections.reportPersonalization,
+        grading,
+      },
     };
   }
   if (input.students.length === 0) {
@@ -91,7 +123,12 @@ export function buildReports(input: EngineInput): ReportsResponse {
       readiness: "NO_STUDENTS",
       emptyReason: input.emptyReasonOverride ?? emptyReasonForReadiness("NO_STUDENTS"),
       cards: [],
-      settings,
+      settings: {
+        school: settings.school,
+        reports: settings.reports,
+        personalization: settings.personalization ?? defaultSettingsSections.reportPersonalization,
+        grading,
+      },
     };
   }
 
@@ -136,7 +173,7 @@ export function buildReports(input: EngineInput): ReportsResponse {
         eotMarks,
         total,
         average,
-        grade: gradeForAverage(average, settings.grading),
+        grade: gradeForAverage(average, grading),
         subjectPosition: subjectPositions.get(subject.id)?.get(student.id) ?? null,
         missingMarks,
         comments: constrainReportText(
@@ -163,6 +200,7 @@ export function buildReports(input: EngineInput): ReportsResponse {
       studentId: student.id,
       admissionNumber: student.admissionNumber,
       studentName: `${student.firstName} ${student.lastName}`,
+      passportPhotoUrl: student.passportPhotoUrl ?? null,
       className: student.className,
       streamName: student.streamName,
       academicYear: input.academicYearName,
@@ -170,7 +208,7 @@ export function buildReports(input: EngineInput): ReportsResponse {
       marksFound,
       totalSubjects: input.subjects.length,
       average,
-      grade: gradeForAverage(average, settings.grading),
+      grade: gradeForAverage(average, grading),
       overallPosition: null,
       readiness: missingMarks.length ? "MISSING_MARKS" : "READY",
       missingMarks,
@@ -185,7 +223,9 @@ export function buildReports(input: EngineInput): ReportsResponse {
   const overallPositions = rankByScore(cardsWithoutPosition.map((card) => ({ id: card.studentId, score: card.average })));
   const cards = cardsWithoutPosition.map((card) => ({
     ...card,
-    overallPosition: settings.reports.showOverallPosition ? (overallPositions.get(card.studentId) ?? null) : null,
+    overallPosition: settings.reports.showOverallPosition || settings.personalization.layout.showPosition
+      ? (overallPositions.get(card.studentId) ?? null)
+      : null,
   }));
   const filteredCards = input.filters.search
     ? cards.filter((card) => `${card.studentName} ${card.admissionNumber}`.toLowerCase().includes(input.filters.search!.toLowerCase()))
@@ -199,6 +239,11 @@ export function buildReports(input: EngineInput): ReportsResponse {
     readiness,
     emptyReason: filteredCards.length === 0 ? (input.emptyReasonOverride ?? "Filters returned no report data.") : emptyReasonForReadiness(readiness),
     cards: filteredCards,
-    settings,
+    settings: {
+      school: settings.school,
+      reports: settings.reports,
+      personalization: settings.personalization ?? defaultSettingsSections.reportPersonalization,
+      grading,
+    },
   };
 }

@@ -4,7 +4,7 @@ import { getApiBaseUrl } from "../client/apiBase";
 import { getSchoolBranding } from "../components/layout/branding";
 import { StudentReportDetail } from "../components/reports/StudentReportDetail";
 import type { StudentReportCard } from "../shared/types/reports";
-import type { GradingScaleSettings, ReportSettings, SchoolProfileSettings } from "../shared/types/settings";
+import type { GradingScaleSettings, ReportPersonalizationSettings, ReportSettings, SchoolProfileSettings } from "../shared/types/settings";
 import type { ReportComments } from "../shared/utils/reportComments";
 
 const API_BASE = getApiBaseUrl();
@@ -14,6 +14,7 @@ type Snapshot = {
   settings: {
     school: SchoolProfileSettings;
     reports: ReportSettings;
+    personalization: ReportPersonalizationSettings | null;
     grading: GradingScaleSettings;
   };
   filters: { assessmentType: string };
@@ -176,6 +177,7 @@ export function ParentReportPage() {
           showPositions={settings.reports.showOverallPosition}
           schoolSettings={settings.school}
           reportSettings={settings.reports}
+          personalization={settings.personalization ?? undefined}
           grading={settings.grading}
           initialComments={snapshot.reportComments}
         />

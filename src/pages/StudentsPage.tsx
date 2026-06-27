@@ -6,10 +6,12 @@ import {
   createGuardianContact,
   createStudent,
   deleteGuardianContact,
+  deleteStudentPassportPhoto,
   EMPTY_CONTACT_INPUT,
   fetchStudents,
   fetchStudentImportJob,
   previewStudentImport,
+  uploadStudentPassportPhoto,
   updateGuardianContact,
 } from "../client/studentsClient";
 import { Icon } from "../components/layout/Icon";
@@ -50,6 +52,7 @@ export function StudentsPage() {
   const [showAddForm, setShowAddForm] = useState(false);
   const [showImport, setShowImport] = useState(false);
   const importFileInputRef = useRef<HTMLInputElement | null>(null);
+  const passportFileInputRef = useRef<HTMLInputElement | null>(null);
   const [studentForm, setStudentForm] = useState({
     fullName: "",
     admissionNumber: "",
@@ -66,6 +69,7 @@ export function StudentsPage() {
   const [importPreview, setImportPreview] = useState<StudentImportPreview | null>(null);
   const [importJob, setImportJob] = useState<StudentImportJob | null>(null);
   const [error, setError] = useState("");
+  const [photoLoading, setPhotoLoading] = useState(false);
 
   useEffect(() => {
     fetchReportContext()
@@ -77,15 +81,16 @@ export function StudentsPage() {
   }, []);
 
   useEffect(() => {
+    if (!context) return;
     fetchStudents(filters)
       .then((response) => {
         setStudents(response.students);
         setSelectedId((current) => (response.students.some((student) => student.id === current) ? current : response.students[0]?.id ?? ""));
       })
       .catch((caught: Error) => setError(caught.message));
-  }, [filters]);
+  }, [context, filters]);
 
-  const selected = useMemo(() => students.find((student) => student.id === selectedId) ?? null, [students, selectedId]);
+  const selected = useMemo(() => students.find((student) => student.id === selectedId) ?? students[0] ?? null, [students, selectedId]);
   const streams = context?.streams.filter((stream) => stream.classId === filters.classId) ?? [];
   function editContact(contact: GuardianContact) {
     setEditingContactId(contact.id);
@@ -200,6 +205,40 @@ export function StudentsPage() {
       setStudents(response.students);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Could not delete contact");
+    }
+  }
+
+  function pickPassportPhoto() {
+    passportFileInputRef.current?.click();
+  }
+
+  async function handlePassportPhotoUpload(file: File | null) {
+    if (!selected || !file) return;
+    setPhotoLoading(true);
+    setError("");
+    try {
+      await uploadStudentPassportPhoto(selected.id, file);
+      const response = await fetchStudents(filters);
+      setStudents(response.students);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Could not upload passport photo");
+    } finally {
+      setPhotoLoading(false);
+    }
+  }
+
+  async function handlePassportPhotoDelete() {
+    if (!selected) return;
+    setPhotoLoading(true);
+    setError("");
+    try {
+      await deleteStudentPassportPhoto(selected.id);
+      const response = await fetchStudents(filters);
+      setStudents(response.students);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Could not delete passport photo");
+    } finally {
+      setPhotoLoading(false);
     }
   }
 
@@ -455,10 +494,59 @@ export function StudentsPage() {
                   <h2 className="mt-1 text-xl font-bold text-slate-950 sm:text-2xl">{selected.studentName}</h2>
                   <p className="text-sm text-slate-500">{selected.admissionNumber}</p>
                 </div>
-                <Link className="btn btn-primary" to={`/reports?studentId=${encodeURIComponent(selected.id)}`}>
-                  <Icon name="file" className="h-4 w-4" />
-                  View Report
-                </Link>
+                  <Link className="btn btn-primary" to={`/reports?studentId=${encodeURIComponent(selected.id)}`}>
+                    <Icon name="file" className="h-4 w-4" />
+                    View Report
+                  </Link>
+                </div>
+
+              <div className="grid gap-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 sm:grid-cols-[auto_minmax(0,1fr)] sm:items-center">
+                <div className="flex items-center justify-center">
+                  {selected.passportPhotoUrl ? (
+                    <img
+                      src={selected.passportPhotoUrl}
+                      alt={`${selected.studentName} passport photo`}
+                      className="h-28 w-28 rounded-2xl border border-slate-200 object-cover shadow-sm"
+                    />
+                  ) : (
+                    <div className="grid h-28 w-28 place-items-center rounded-2xl border border-dashed border-slate-300 bg-white text-center shadow-sm">
+                      <div>
+                        <div className="text-2xl font-black text-slate-700">{selected.studentName.slice(0, 2).toUpperCase()}</div>
+                        <div className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400">No photo</div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+                <div className="grid gap-3">
+                  <div>
+                    <p className="text-sm font-semibold text-slate-900">Passport photo</p>
+                    <p className="text-xs text-slate-500">Upload a JPG, PNG, or WEBP photo up to 2 MB.</p>
+                  </div>
+                  <input
+                    ref={passportFileInputRef}
+                    className="hidden"
+                    type="file"
+                    accept="image/png,image/jpeg,image/jpg,image/webp"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0] ?? null;
+                      void handlePassportPhotoUpload(file);
+                      e.currentTarget.value = "";
+                    }}
+                  />
+                  <div className="flex flex-wrap gap-2">
+                    <button type="button" className="btn btn-secondary" onClick={pickPassportPhoto} disabled={photoLoading}>
+                      {selected.passportPhotoUrl ? "Change photo" : "Upload photo"}
+                    </button>
+                    <button type="button" className="btn btn-danger-light" onClick={() => void handlePassportPhotoDelete()} disabled={photoLoading || !selected.passportPhotoUrl}>
+                      Remove photo
+                    </button>
+                    {selected.passportPhotoUpdatedAt ? (
+                      <span className="self-center text-xs text-slate-500">
+                        Updated {new Date(selected.passportPhotoUpdatedAt).toLocaleDateString()}
+                      </span>
+                    ) : null}
+                  </div>
+                </div>
               </div>
 
               <div className="flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm">

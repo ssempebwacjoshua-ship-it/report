@@ -1,5 +1,5 @@
 ﻿import type { REPORT_ASSESSMENT_FILTERS } from "../constants/assessmentTypes";
-import type { GradingScaleSettings, ReportSettings, SchoolProfileSettings } from "./settings";
+import type { GradingScaleSettings, ReportPersonalizationSettings, ReportSettings, SchoolProfileSettings } from "./settings";
 import type { ContactReadiness } from "./students";
 
 export type AssessmentFilter = (typeof REPORT_ASSESSMENT_FILTERS)[number];
@@ -40,6 +40,7 @@ export type StudentReportCard = {
   studentId: string;
   admissionNumber: string;
   studentName: string;
+  passportPhotoUrl?: string | null;
   className: string;
   streamName: string;
   academicYear: string;
@@ -84,6 +85,7 @@ export type ReportsResponse = {
   settings: {
     school: SchoolProfileSettings;
     reports: ReportSettings;
+    personalization: ReportPersonalizationSettings;
     grading: GradingScaleSettings;
   };
 };

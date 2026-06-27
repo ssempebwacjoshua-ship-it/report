@@ -76,6 +76,13 @@ export function createServer() {
     "/templates",
     express.static(path.join(process.cwd(), "public", "templates")),
   );
+  app.use(
+    "/uploads",
+    express.static(path.join(process.cwd(), "public", "uploads"), {
+      maxAge: "7d",
+      fallthrough: true,
+    }),
+  );
 
   // Public routes ? no authentication required
   app.use(healthRoutes());
@@ -170,7 +177,9 @@ export function createServer() {
     }
     if (error instanceof multer.MulterError) {
       const message = error.code === "LIMIT_FILE_SIZE"
-        ? "File is too large. Please upload a smaller image (max 10 MB)."
+        ? (req.url.includes("/passport-photo") || req.url.includes("/assets/"))
+          ? "File is too large. Please upload a smaller image (max 2 MB)."
+          : "File is too large. Please upload a smaller image (max 10 MB)."
         : `Upload failed: ${error.message}`;
       res.status(400).json({
         error: true,

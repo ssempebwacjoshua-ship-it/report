@@ -162,6 +162,7 @@ export const router = createBrowserRouter([
       { path: "imports/marks", element: <PermissionGuard permission="app.admin"><MarksImportPage /></PermissionGuard> },
       { path: "marksheets", element: <PermissionGuard permission="app.admin"><MarksheetsPage /></PermissionGuard> },
       { path: "settings", element: <PermissionGuard permission="app.admin"><SettingsPage /></PermissionGuard> },
+      { path: "settings/report-personalisation", element: <PermissionGuard permission="app.admin"><SettingsPage /></PermissionGuard> },
       { path: "school/smart-pages", element: <PermissionGuard permission="app.admin"><SmartPagesPage /></PermissionGuard> },
       { path: "school/smart-pages/:id", element: <PermissionGuard permission="app.admin"><DocumentEditorPage /></PermissionGuard> },
       { path: "smart-pages", element: <PermissionGuard permission="app.admin"><SmartPagesPage /></PermissionGuard> },

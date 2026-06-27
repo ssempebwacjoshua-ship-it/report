@@ -41,6 +41,8 @@ function toStudentListItem(
     streamId: enrollment.streamId,
     academicYearId: enrollment.academicYearId,
     termId: enrollment.termId,
+    passportPhotoUrl: enrollment.student.passportPhotoUrl,
+    passportPhotoUpdatedAt: enrollment.student.passportPhotoUpdatedAt?.toISOString() ?? null,
     contactReadiness: getContactReadiness(contacts),
     contactSummary: formatContactSummary(contacts),
     guardianContacts: contacts.map((contact) => ({
@@ -205,6 +207,8 @@ export async function createStudentRecord(
         admissionNumber: input.admissionNumber,
         firstName: input.fullName.trim(),
         lastName: "",
+        passportPhotoUrl: null,
+        passportPhotoUpdatedAt: null,
         isActive: input.isActive,
       },
     });
