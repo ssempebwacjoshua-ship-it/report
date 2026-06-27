@@ -73,6 +73,12 @@ describe("students routes ? new /api routes exist and do not 404", () => {
 });
 
 describe("students client ? no browser call uses /internal/students", () => {
+  it("student APIs use makeSchoolRequestHeaders rather than makeRequestHeaders", () => {
+    expect(clientSource).toContain("makeSchoolRequestHeaders");
+    expect(clientSource).not.toContain("makeRequestHeaders()");
+    expect(clientSource).not.toContain("makeRequestHeaders({ \"Content-Type\": \"application/json\" })");
+  });
+
   it("createStudentImportJob uses /api/students/import-jobs/upload", () => {
     expect(clientSource).toContain("/api/students/import-jobs/upload");
   });
