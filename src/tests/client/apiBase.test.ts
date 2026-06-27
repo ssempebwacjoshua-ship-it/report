@@ -71,6 +71,13 @@ describe("parseApiError", () => {
     expect(msg).toContain("r1");
   });
 
+  it("returns server body.error for 503 when message is absent", async () => {
+    const { parseApiError } = await import("../../client/apiBase");
+    const res = fakeResponse(503, { error: "Support is not configured yet." });
+    const msg = await parseApiError(res, "fallback");
+    expect(msg).toBe("Support is not configured yet.");
+  });
+
   it("clears session token for 401 and returns expiry message", async () => {
     const { parseApiError } = await import("../../client/apiBase");
     const res = fakeResponse(401, {});

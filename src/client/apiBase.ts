@@ -86,7 +86,11 @@ export async function parseApiError(response: Response, fallback: string): Promi
   const suffix = requestId ? ` (ref: ${requestId})` : "";
 
   if (response.status >= 500) {
-    const msg = typeof body.message === "string" && body.message ? body.message : null;
+    const msg = typeof body.message === "string" && body.message
+      ? body.message
+      : typeof body.error === "string" && body.error
+        ? body.error
+        : null;
     return (msg ?? "A server error occurred. Please try again or contact support.") + suffix;
   }
 

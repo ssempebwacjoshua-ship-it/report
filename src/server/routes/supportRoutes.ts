@@ -24,7 +24,7 @@ export function supportRoutes() {
   router.post("/api/support/telegram", requireAuth, async (req, res, next) => {
     try {
       const body = supportRequestSchema.parse(req.body);
-      if (!process.env.TELEGRAM_BOT_TOKEN?.trim() || !process.env.TELEGRAM_SUPPORT_CHAT_ID?.trim()) {
+      if (!process.env.TELEGRAM_BOT_TOKEN?.trim()) {
         res.status(503).json({ error: "Support is not configured yet." });
         return;
       }

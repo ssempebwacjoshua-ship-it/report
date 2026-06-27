@@ -3,6 +3,7 @@ import {
   buildSmartPagesPaymentMessage,
   notifySmartPagesPayment,
   sendTelegramMessage,
+  sendSupportTelegramMessage,
 } from "../../server/services/telegramService";
 
 const OPTS = {
@@ -162,5 +163,27 @@ describe("notifySmartPagesPayment", () => {
     const result = await notifySmartPagesPayment(OPTS);
     expect(result.ok).toBe(false);
     expect(result.error).toContain("Timeout");
+  });
+});
+
+describe("sendSupportTelegramMessage", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.restoreAllMocks();
+  });
+
+  it("uses the default support chat id when TELEGRAM_SUPPORT_CHAT_ID is missing", async () => {
+    let capturedBody: Record<string, unknown> = {};
+    vi.stubEnv("TELEGRAM_BOT_TOKEN", "test-bot-token");
+    vi.stubEnv("TELEGRAM_SUPPORT_CHAT_ID", "");
+    vi.stubGlobal("fetch", vi.fn().mockImplementation(async (_url: string, init: RequestInit) => {
+      capturedBody = JSON.parse(String(init.body)) as Record<string, unknown>;
+      return { json: async () => ({ ok: true }) };
+    }));
+
+    const result = await sendSupportTelegramMessage("Support request");
+
+    expect(result.ok).toBe(true);
+    expect(capturedBody.chat_id).toBe("8899226749");
   });
 });
