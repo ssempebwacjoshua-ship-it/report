@@ -6,9 +6,10 @@ import { requireAuth } from "../middleware/requireAuth";
 import { loadReportEngineInput } from "../repositories/reportsRepository";
 import { getSettingsSections } from "../repositories/settingsRepository";
 import { buildReports } from "../services/reportEngine";
+import { defaultSettingsSections } from "../../shared/types/settings";
 import type { PreferredContactMethod } from "@prisma/client";
 import { getPublicAppUrl } from "../config/publicUrl";
-import { sanitizeReportCardForRender, sanitizeSchoolSettingsForReport } from "../../shared/utils/reportContentLimits";
+import { sanitizeReportCardForRender, sanitizeReportPersonalizationForReport, sanitizeSchoolSettingsForReport } from "../../shared/utils/reportContentLimits";
 
 // ── Token helpers (mirrors reportIssueRoutes.ts) ─────────────────────────────
 
@@ -301,6 +302,7 @@ export function releaseCenterRoutes() {
           settings: {
             ...reportResult.settings,
             school: sanitizeSchoolSettingsForReport(reportResult.settings.school),
+            personalization: sanitizeReportPersonalizationForReport(reportResult.settings.personalization ?? defaultSettingsSections.reportPersonalization),
           },
           issuedAt: new Date().toISOString(),
           issuedByName: user.name,

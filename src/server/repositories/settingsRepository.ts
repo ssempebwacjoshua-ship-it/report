@@ -139,6 +139,18 @@ function mergeSections(saved: unknown, school?: { code: string; name: string } |
           school: { ...defaults.school, ...((saved as Partial<SettingsSections>).school ?? {}) },
           academic: { ...defaults.academic, ...((saved as Partial<SettingsSections>).academic ?? {}) },
           reports: { ...defaults.reports, ...((saved as Partial<SettingsSections>).reports ?? {}) },
+          reportPersonalization: {
+            ...defaults.reportPersonalization,
+            ...((saved as Partial<SettingsSections>).reportPersonalization ?? {}),
+            branding: {
+              ...defaults.reportPersonalization.branding,
+              ...(((saved as Partial<SettingsSections>).reportPersonalization as Partial<SettingsSections["reportPersonalization"]> | undefined)?.branding ?? {}),
+            },
+            layout: {
+              ...defaults.reportPersonalization.layout,
+              ...(((saved as Partial<SettingsSections>).reportPersonalization as Partial<SettingsSections["reportPersonalization"]> | undefined)?.layout ?? {}),
+            },
+          },
           marksheets: { ...defaults.marksheets, ...((saved as Partial<SettingsSections>).marksheets ?? {}) },
           ocr: { ...defaults.ocr, ...((saved as Partial<SettingsSections>).ocr ?? {}) },
           grading: { ...defaults.grading, ...((saved as Partial<SettingsSections>).grading ?? {}) },

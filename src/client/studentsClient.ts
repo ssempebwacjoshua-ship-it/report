@@ -112,6 +112,26 @@ export async function deleteGuardianContact(studentId: string, contactId: string
   if (!response.ok) throw new Error(await parseApiError(response, "Could not delete contact"));
 }
 
+export async function uploadStudentPassportPhoto(studentId: string, file: File): Promise<{ passportPhotoUrl: string; passportPhotoUpdatedAt: string }> {
+  const formData = new FormData();
+  formData.set("file", file);
+  const response = await fetch(`${API_BASE}/api/students/${studentId}/passport-photo`, {
+    method: "POST",
+    headers: makeRequestHeaders(),
+    body: formData,
+  });
+  if (!response.ok) throw new Error(await parseApiError(response, "Could not upload passport photo"));
+  return response.json();
+}
+
+export async function deleteStudentPassportPhoto(studentId: string): Promise<void> {
+  const response = await fetch(`${API_BASE}/api/students/${studentId}/passport-photo`, {
+    method: "DELETE",
+    headers: makeRequestHeaders(),
+  });
+  if (!response.ok) throw new Error(await parseApiError(response, "Could not delete passport photo"));
+}
+
 export const EMPTY_CONTACT_INPUT: GuardianContactInput = {
   guardianName: "",
   relationship: "Parent",

@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import { Router } from "express";
 import { prisma } from "../db/prisma";
-import { sanitizeReportCardForRender, sanitizeReportComments, sanitizeSchoolSettingsForReport } from "../../shared/utils/reportContentLimits";
+import { sanitizeReportCardForRender, sanitizeReportComments, sanitizeReportPersonalizationForReport, sanitizeSchoolSettingsForReport } from "../../shared/utils/reportContentLimits";
 
 function hashToken(token: string): string {
   return crypto.createHash("sha256").update(token).digest("hex");
@@ -22,6 +22,7 @@ function buildPublicSnapshot(snapshot: any) {
           studentId: "",
           admissionNumber: card.admissionNumber,
           studentName: card.studentName,
+          passportPhotoUrl: card.passportPhotoUrl ?? null,
           className: card.className,
           streamName: card.streamName,
           academicYear: card.academicYear,
@@ -56,6 +57,9 @@ function buildPublicSnapshot(snapshot: any) {
       ? {
           school: schoolSettings,
           reports: snapshot.settings.reports,
+          personalization: snapshot.settings.personalization
+            ? sanitizeReportPersonalizationForReport(snapshot.settings.personalization)
+            : null,
           grading: snapshot.settings.grading,
         }
       : null,

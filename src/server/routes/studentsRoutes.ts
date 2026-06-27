@@ -14,8 +14,13 @@ import {
 import { getReportContext } from "../repositories/schoolRepository";
 import { commitStudentImport, createStudentImportJob, getStudentImportJob, parseStudentsCsv, parseStudentsXlsx, previewStudentImport } from "../services/studentImportService";
 import { generateAdmissionNumber } from "../services/studentAdmissionNumberService";
+import { deleteStoredUpload, saveStudentImageUpload } from "../services/uploadStorageService";
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
+const studentPhotoUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 2 * 1024 * 1024 },
+});
 
 const studentCreateSchema = z.object({
   fullName: z.string().trim().min(1, "Full name is required."),
@@ -184,6 +189,76 @@ export function studentsRoutes() {
         });
       }
       res.json({ ok: true });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/api/students/:id/passport-photo", studentPhotoUpload.single("file"), async (req, res, next) => {
+    try {
+      if (!req.school) {
+        res.status(401).json({ error: "School context required." });
+        return;
+      }
+      const student = await prisma.student.findFirst({
+        where: { id: req.params.id, schoolId: req.school.id },
+        select: { id: true, passportPhotoUrl: true, schoolId: true },
+      });
+      if (!student) {
+        res.status(404).json({ error: "Student not found." });
+        return;
+      }
+      const file = req.file;
+      if (!file) {
+        res.status(400).json({ error: "Upload an image file." });
+        return;
+      }
+      const uploaded = await saveStudentImageUpload({
+        buffer: file.buffer,
+        originalName: file.originalname,
+        mimeType: file.mimetype,
+        schoolCode: req.school.code,
+        studentId: student.id,
+        prefix: "passport",
+      });
+
+      await prisma.student.update({
+        where: { id: student.id },
+        data: {
+          passportPhotoUrl: uploaded.publicUrl,
+          passportPhotoUpdatedAt: new Date(),
+        },
+      });
+      await deleteStoredUpload(student.passportPhotoUrl);
+      res.status(200).json({
+        passportPhotoUrl: uploaded.publicUrl,
+        passportPhotoUpdatedAt: new Date().toISOString(),
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.delete("/api/students/:id/passport-photo", async (req, res, next) => {
+    try {
+      if (!req.school) {
+        res.status(401).json({ error: "School context required." });
+        return;
+      }
+      const student = await prisma.student.findFirst({
+        where: { id: req.params.id, schoolId: req.school.id },
+        select: { id: true, passportPhotoUrl: true },
+      });
+      if (!student) {
+        res.status(404).json({ error: "Student not found." });
+        return;
+      }
+      await prisma.student.update({
+        where: { id: student.id },
+        data: { passportPhotoUrl: null, passportPhotoUpdatedAt: null },
+      });
+      await deleteStoredUpload(student.passportPhotoUrl);
+      res.status(204).end();
     } catch (error) {
       next(error);
     }

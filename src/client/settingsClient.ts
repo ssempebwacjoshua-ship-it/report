@@ -59,3 +59,15 @@ export async function patchSettingsSection<K extends SettingSection>(
   return result;
 }
 
+export async function uploadReportPersonalizationAsset(assetType: "logo" | "stamp" | "signature", file: File): Promise<{ assetType: string; assetUrl: string }> {
+  const formData = new FormData();
+  formData.set("file", file);
+  const response = await fetch(`${API_BASE}/api/settings/report-personalization/assets/${assetType}`, {
+    method: "POST",
+    headers: makeRequestHeaders(),
+    body: formData,
+  });
+  if (!response.ok) throw await readSettingsError(response, "Could not upload branding asset");
+  return response.json();
+}
+

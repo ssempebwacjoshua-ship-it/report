@@ -1,5 +1,6 @@
 import type { StudentReportCard, SubjectReportRow } from "../types/reports";
-import type { SchoolProfileSettings } from "../types/settings";
+import type { ReportPersonalizationSettings, SchoolProfileSettings } from "../types/settings";
+import { isSafeAssetUrl } from "./assetUrls";
 
 const ELLIPSIS = "...";
 
@@ -72,6 +73,7 @@ export function sanitizeSubjectReportRow(row: SubjectReportRow): SubjectReportRo
 export function sanitizeReportCardForRender(card: StudentReportCard): StudentReportCard {
   return {
     ...card,
+    passportPhotoUrl: safeAssetUrl(card.passportPhotoUrl ?? ""),
     studentName: constrainReportText(card.studentName, 80),
     className: constrainReportText(card.className, 60),
     streamName: constrainReportText(card.streamName, 24),
@@ -94,5 +96,49 @@ export function sanitizeSchoolSettingsForReport(school: SchoolProfileSettings): 
     email: "",
     reportFooterText: constrainReportText(school.reportFooterText, REPORT_CONTENT_LIMITS.reportFooterText, { preserveLineBreaks: true }),
     headTeacherName: constrainReportText(school.headTeacherName, REPORT_CONTENT_LIMITS.headTeacherName),
+  };
+}
+
+function safeAssetUrl(value: string | null | undefined): string {
+  if (typeof value !== "string") return "";
+  const trimmed = value.trim();
+  return trimmed && isSafeAssetUrl(trimmed) ? trimmed : "";
+}
+
+export function sanitizeReportPersonalizationForReport(
+  personalization: ReportPersonalizationSettings,
+): ReportPersonalizationSettings {
+  return {
+    ...personalization,
+    branding: {
+      ...personalization.branding,
+      schoolNameOverride: constrainReportText(personalization.branding.schoolNameOverride, REPORT_CONTENT_LIMITS.schoolName),
+      motto: constrainReportText(personalization.branding.motto, 120),
+      address: constrainReportText(personalization.branding.address, REPORT_CONTENT_LIMITS.schoolContactLine),
+      phone: constrainReportText(personalization.branding.phone, 40),
+      email: constrainReportText(personalization.branding.email, 80),
+      website: constrainReportText(personalization.branding.website, 120),
+      primaryColor: personalization.branding.primaryColor,
+      secondaryColor: personalization.branding.secondaryColor,
+      logoUrl: safeAssetUrl(personalization.branding.logoUrl),
+      stampUrl: safeAssetUrl(personalization.branding.stampUrl),
+      headteacherSignatureUrl: safeAssetUrl(personalization.branding.headteacherSignatureUrl),
+      headteacherName: constrainReportText(personalization.branding.headteacherName, REPORT_CONTENT_LIMITS.headTeacherName),
+      footerMessage: constrainReportText(personalization.branding.footerMessage, REPORT_CONTENT_LIMITS.reportFooterText, { preserveLineBreaks: true }),
+    },
+    layout: {
+      ...personalization.layout,
+      reportTitleOverride: constrainReportText(personalization.layout.reportTitleOverride, 80),
+    },
+    gradingScheme: personalization.gradingScheme.map((band) => ({
+      ...band,
+      name: constrainReportText(band.name, 40),
+      grade: constrainReportText(band.grade, 12),
+      remark: constrainReportText(band.remark, 80),
+    })),
+    commentBank: personalization.commentBank.map((comment) => ({
+      ...comment,
+      comment: constrainReportText(comment.comment, 240, { preserveLineBreaks: true }),
+    })),
   };
 }

@@ -122,6 +122,8 @@ model Student {
   firstName          String
   lastName           String
   studentType        StudentType?
+  passportPhotoUrl   String?
+  passportPhotoUpdatedAt DateTime?
   isActive           Boolean                    @default(true)
   createdAt          DateTime                   @default(now())
   updatedAt          DateTime                   @updatedAt

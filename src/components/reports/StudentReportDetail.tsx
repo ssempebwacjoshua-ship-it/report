@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import type { AssessmentFilter, StudentReportCard } from "../../shared/types/reports";
-import type { GradingScaleSettings, ReportSettings, SchoolProfileSettings } from "../../shared/types/settings";
+import type { GradingScaleSettings, ReportPersonalizationSettings, ReportSettings, SchoolProfileSettings } from "../../shared/types/settings";
 import { defaultSettingsSections } from "../../shared/types/settings";
-import { getSchoolInitials } from "../layout/branding";
+import { getReportBranding } from "../layout/branding";
 import type { ReportComments } from "../../shared/utils/reportComments";
-import { sanitizeReportCardForRender, sanitizeReportComments, sanitizeSchoolSettingsForReport } from "../../shared/utils/reportContentLimits";
+import { sanitizeReportCardForRender, sanitizeReportComments, sanitizeReportPersonalizationForReport, sanitizeSchoolSettingsForReport } from "../../shared/utils/reportContentLimits";
 import { generateRemarks } from "../../shared/utils/remarksEngine";
 import { formatUgandaSchoolYearLabel } from "../../shared/utils/ugandaYear";
 
@@ -14,6 +14,7 @@ type Props = {
   showPositions?: boolean;
   schoolSettings?: SchoolProfileSettings;
   reportSettings?: ReportSettings;
+  personalization?: ReportPersonalizationSettings;
   grading?: GradingScaleSettings;
   classAverage?: number | null;
   editOpen?: boolean;
@@ -101,6 +102,7 @@ export function StudentReportDetail({
   showPositions,
   schoolSettings,
   reportSettings,
+  personalization,
   grading,
   classAverage,
   editOpen,
@@ -122,6 +124,7 @@ export function StudentReportDetail({
       showPositions={showPositions}
       schoolSettings={schoolSettings}
       reportSettings={reportSettings}
+      personalization={personalization}
       grading={grading}
       classAverage={classAverage}
       editOpen={editOpen}
@@ -137,6 +140,7 @@ function StudentReportDetailContent({
   showPositions,
   schoolSettings,
   reportSettings,
+  personalization,
   grading,
   classAverage,
   editOpen,
@@ -148,16 +152,19 @@ function StudentReportDetailContent({
   showPositions?: boolean;
   schoolSettings?: SchoolProfileSettings;
   reportSettings?: ReportSettings;
+  personalization?: ReportPersonalizationSettings;
   grading?: GradingScaleSettings;
   classAverage?: number | null;
   editOpen?: boolean;
   onEditOpenChange?: (open: boolean) => void;
   initialComments?: ReportComments;
-}) {
+  }) {
   const sanitizedCard = sanitizeReportCardForRender(card);
   const school = sanitizeSchoolSettingsForReport(schoolSettings ?? defaultSettingsSections.school);
   const reports = reportSettings ?? defaultSettingsSections.reports;
+  const personalizationSettings = sanitizeReportPersonalizationForReport(personalization ?? defaultSettingsSections.reportPersonalization);
   const scale = grading ?? defaultSettingsSections.grading;
+  const branding = getReportBranding(school, personalizationSettings);
   const defaultDraft = useMemo(() => {
     if (initialComments) {
       const safeComments = sanitizeReportComments(initialComments);
@@ -168,11 +175,11 @@ function StudentReportDetailContent({
         classTeacherName: safeComments.classTeacherName,
         headTeacherName: safeComments.headTeacherName || school.headTeacherName || "Head Teacher",
         issueDate: safeComments.issueDate || new Date().toISOString().slice(0, 10),
-        showGradingKey: reports.showGradeKey,
+        showGradingKey: personalizationSettings.layout.showGradingScale ?? reports.showGradeKey,
       };
     }
     return sanitizeReportComments(buildDefaultDraft(sanitizedCard, school, reports));
-  }, [sanitizedCard, school, reports, initialComments]);
+  }, [sanitizedCard, school, reports, personalizationSettings, initialComments]);
   const [draft, setDraft] = useState<ReportDraft>(defaultDraft);
   const [isEditing, setIsEditing] = useState(false);
   const [draftState, setDraftState] = useState<"idle" | "saved" | "ready">("idle");
@@ -189,7 +196,14 @@ function StudentReportDetailContent({
   const isSingle = effectiveType === "BOT" || effectiveType === "MOT" || effectiveType === "EOT";
   const isTermSummary = !isSingle;
   const issueDate = formatDisplayDate(draft.issueDate);
-  const visibleShowPositions = Boolean(showPositions);
+  const visibleShowPositions = Boolean(showPositions || personalizationSettings.layout.showPosition);
+  const visibleStreamPosition = Boolean(personalizationSettings.layout.showStreamPosition);
+  const visibleClassAverage = Boolean(personalizationSettings.layout.showClassAverage && reports.showClassAverage);
+  const visibleGradingScale = Boolean(draft.showGradingKey && personalizationSettings.layout.showGradingScale);
+  const showStudentPhoto = Boolean(personalizationSettings.layout.showStudentPhoto);
+  const showParentCommentBox = Boolean(personalizationSettings.layout.showParentCommentBox);
+  const showAttendance = Boolean(personalizationSettings.layout.showAttendance);
+  const showFeesBalance = Boolean(personalizationSettings.layout.showFeesBalance);
   const layoutMode = reportLayoutMode(sanitizedCard, effectiveType);
 
   const updateDraft = <K extends keyof ReportDraft>(key: K, value: ReportDraft[K]) => {
@@ -354,28 +368,32 @@ function StudentReportDetailContent({
 
 
       <div className="report-card-sheet mx-auto max-w-4xl overflow-hidden rounded-2xl bg-white shadow-[0_4px_24px_rgba(0,0,0,0.12)] ring-1 ring-slate-200">
-        <div className="report-header-bg bg-[#0f2a5e] px-8 py-6 text-white print:px-4 print:py-2">
+        <div
+          className="report-header-bg px-8 py-6 text-white print:px-4 print:py-2"
+          style={{ background: branding.primaryColor }}
+        >
           <div className="flex items-center gap-5 print:gap-2">
             {reports.showSchoolLogo ? (
-              school.logoUrl ? (
-                <img src={school.logoUrl} alt={`${school.schoolName} logo`} className="h-16 w-14 flex-shrink-0 object-contain print:h-8 print:w-7" />
+              branding.logoUrl ? (
+                <img src={branding.logoUrl} alt={`${branding.schoolName} logo`} className="h-16 w-14 flex-shrink-0 object-contain print:h-8 print:w-7" />
               ) : (
-                <div className="grid h-16 w-14 flex-shrink-0 place-items-center rounded-2xl bg-white/10 text-2xl font-black text-white print:h-8 print:w-7 print:text-sm">{getSchoolInitials(school.schoolName)}</div>
+                <div className="grid h-16 w-14 flex-shrink-0 place-items-center rounded-2xl bg-white/10 text-2xl font-black text-white print:h-8 print:w-7 print:text-sm">{branding.initials}</div>
               )
             ) : (
               <div className="h-16 w-14 flex-shrink-0 print:h-8 print:w-7" />
             )}
             <div className="flex-1 text-center">
               <h1 className="text-2xl font-bold tracking-wide print:text-sm">
-                {school.schoolName}
+                {branding.reportTitleOverride || branding.schoolName}
               </h1>
-              {school.address || school.phone || school.email ? (
+              {branding.motto ? <p className="mt-0.5 text-xs font-semibold text-blue-100 print:text-[7px]">{branding.motto}</p> : null}
+              {branding.address || branding.phone || branding.email || branding.website ? (
                 <p className="mt-0.5 text-xs font-medium text-blue-100 print:text-[7px]">
-                  {[school.address, school.phone, school.email].filter(Boolean).join(" | ")}
+                  {[branding.address, branding.phone, branding.email, branding.website].filter(Boolean).join(" | ")}
                 </p>
               ) : null}
               <p className="mt-0.5 text-sm font-medium uppercase tracking-widest text-blue-200 print:text-[7px]">
-                Student Academic Report
+                {branding.reportTitleOverride || "Student Academic Report"}
               </p>
             </div>
             <div className="w-24 flex-shrink-0 text-right text-xs leading-relaxed text-blue-200 print:text-[7px] print:leading-tight">
@@ -393,35 +411,55 @@ function StudentReportDetailContent({
           </div>
         </div>
 
-        <div className="report-gold-line h-1 bg-[#c9a227]" />
+        <div className="report-gold-line h-1" style={{ background: branding.secondaryColor }} />
 
         <div className="px-8 py-6 print:px-4 print:py-2">
           <div className="mb-6 rounded-xl border border-slate-200 bg-slate-50 p-4 print:mb-1 print:p-2">
-            <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm sm:grid-cols-2 lg:grid-cols-4 print:grid-cols-4 print:gap-y-0.5 print:text-[8px]">
-              <div>
-                <span className="font-semibold text-slate-600">Full Name: </span>
-                <span className="font-medium text-slate-900">{sanitizedCard.studentName}</span>
+            <div className={`grid gap-4 ${showStudentPhoto ? "lg:grid-cols-[minmax(0,1fr)_auto]" : ""}`}>
+              <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm sm:grid-cols-2 lg:grid-cols-4 print:grid-cols-4 print:gap-y-0.5 print:text-[8px]">
+                <div>
+                  <span className="font-semibold text-slate-600">Full Name: </span>
+                  <span className="font-medium text-slate-900">{sanitizedCard.studentName}</span>
+                </div>
+                <div>
+                  <span className="font-semibold text-slate-600">Adm. No.: </span>
+                  <span className="font-mono font-medium text-slate-900">{sanitizedCard.admissionNumber}</span>
+                </div>
+                <div>
+                  <span className="font-semibold text-slate-600">Class: </span>
+                  <span className="text-slate-900">{sanitizedCard.className}</span>
+                </div>
+                <div>
+                  <span className="font-semibold text-slate-600">Stream: </span>
+                  <span className="text-slate-900">{sanitizedCard.streamName}</span>
+                </div>
               </div>
-              <div>
-                <span className="font-semibold text-slate-600">Adm. No.: </span>
-                <span className="font-mono font-medium text-slate-900">{sanitizedCard.admissionNumber}</span>
-              </div>
-              <div>
-                <span className="font-semibold text-slate-600">Class: </span>
-                <span className="text-slate-900">{sanitizedCard.className}</span>
-              </div>
-              <div>
-                <span className="font-semibold text-slate-600">Stream: </span>
-                <span className="text-slate-900">{sanitizedCard.streamName}</span>
-              </div>
+              {showStudentPhoto ? (
+                <div className="flex items-center justify-center">
+                  {sanitizedCard.passportPhotoUrl ? (
+                    <img
+                      src={sanitizedCard.passportPhotoUrl}
+                      alt={`${sanitizedCard.studentName} passport`}
+                      className="h-28 w-28 rounded-2xl border border-slate-200 object-cover shadow-sm print:h-16 print:w-16"
+                    />
+                  ) : (
+                    <div className="grid h-28 w-28 place-items-center rounded-2xl border border-dashed border-slate-300 bg-white text-center shadow-sm print:h-16 print:w-16">
+                      <div>
+                        <div className="text-xl font-black text-slate-700 print:text-sm">{branding.initials}</div>
+                        <div className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400 print:text-[6px]">No photo</div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : null}
             </div>
           </div>
 
           <div
             className={`report-summary-cards mb-6 grid gap-3 text-center print:mb-1 print:gap-1 ${
-              visibleShowPositions && reports.showClassAverage
+              [visibleShowPositions, visibleStreamPosition, visibleClassAverage].filter(Boolean).length >= 2
                 ? "grid-cols-4"
-                : visibleShowPositions || reports.showClassAverage
+                : [visibleShowPositions, visibleStreamPosition, visibleClassAverage].filter(Boolean).length === 1
                   ? "grid-cols-3"
                   : "grid-cols-2"
             }`}
@@ -450,7 +488,17 @@ function StudentReportDetailContent({
                 </span>
               </div>
             ) : null}
-            {reports.showClassAverage ? (
+            {visibleStreamPosition ? (
+              <div className="report-summary-card rounded-xl bg-cyan-700 p-4 text-white print:p-1.5">
+                <b className="block text-3xl font-bold tabular-nums print:text-sm">
+                  {sanitizedCard.overallPosition != null ? `#${sanitizedCard.overallPosition}` : "-"}
+                </b>
+                <span className="mt-1 block text-xs font-semibold uppercase tracking-wider text-cyan-100 print:mt-0.5 print:text-[7px]">
+                  Stream Position
+                </span>
+              </div>
+            ) : null}
+            {visibleClassAverage ? (
               <div className="report-summary-card rounded-xl bg-slate-700 p-4 text-white print:p-1.5">
                 <b className="block text-3xl font-bold tabular-nums print:text-sm">
                   {classAverage ?? "-"}
@@ -535,7 +583,7 @@ function StudentReportDetailContent({
             )}
           </div>
 
-          {draft.showGradingKey ? (
+          {visibleGradingScale ? (
             <div className="mb-6 rounded-xl border border-slate-200 bg-slate-50 p-4 print:mb-1 print:p-2">
               <h3 className="mb-3 text-xs font-bold uppercase tracking-widest text-slate-400 print:mb-1 print:text-[7px]">
                 Grading Key
@@ -600,12 +648,50 @@ function StudentReportDetailContent({
                 </div>
               ) : null}
             </div>
+            {showParentCommentBox || showAttendance || showFeesBalance ? (
+              <div className="mt-4 grid gap-3 sm:grid-cols-3 print:mt-1 print:gap-1">
+                {showParentCommentBox ? (
+                  <div className="rounded-xl border border-dashed border-slate-300 bg-white p-4 print:p-1.5">
+                    <p className="mb-2 text-xs font-bold text-slate-600 print:mb-1 print:text-[7px]">Parent Comment</p>
+                    <div className="min-h-[44px] rounded-lg border border-slate-100 bg-slate-50 p-2 text-xs italic text-slate-400 print:min-h-0 print:p-1">
+                      For parent feedback and acknowledgement.
+                    </div>
+                  </div>
+                ) : null}
+                {showAttendance ? (
+                  <div className="rounded-xl border border-slate-200 bg-white p-4 print:p-1.5">
+                    <p className="mb-2 text-xs font-bold text-slate-600 print:mb-1 print:text-[7px]">Attendance</p>
+                    <div className="text-xs text-slate-500 print:text-[7px]">Attendance summary not recorded.</div>
+                  </div>
+                ) : null}
+                {showFeesBalance ? (
+                  <div className="rounded-xl border border-slate-200 bg-white p-4 print:p-1.5">
+                    <p className="mb-2 text-xs font-bold text-slate-600 print:mb-1 print:text-[7px]">Fees Balance</p>
+                    <div className="text-xs text-slate-500 print:text-[7px]">Fees balance is not available in this report.</div>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
           </div>
 
           <div className="report-footer border-t border-slate-200 pt-4 text-center text-xs text-slate-400 print:pt-2">
             <p className="font-medium text-slate-500">
-              {school.reportFooterText}
+              {branding.reportFooterText || school.reportFooterText}
             </p>
+            {branding.stampUrl || branding.headteacherSignatureUrl ? (
+              <div className="mt-3 flex items-end justify-between gap-4 text-left print:mt-1">
+                <div className="min-h-12 flex-1 rounded-xl border border-dashed border-slate-200 bg-white p-3 text-xs text-slate-500">
+                  {branding.headteacherName}
+                  <div className="mt-1 text-[10px] text-slate-400">Head Teacher</div>
+                </div>
+                {branding.headteacherSignatureUrl ? (
+                  <img src={branding.headteacherSignatureUrl} alt="Head teacher signature" className="h-12 w-auto object-contain print:h-8" />
+                ) : null}
+                {branding.stampUrl ? (
+                  <img src={branding.stampUrl} alt="School stamp" className="h-12 w-12 object-contain print:h-8 print:w-8" />
+                ) : null}
+              </div>
+            ) : null}
             <p className="mt-1 print:mt-0">
               Verification: SC-REPORT-PREVIEW
             </p>

@@ -18,6 +18,8 @@ export type StudentListItem = {
   id: string;
   admissionNumber: string;
   studentName: string;
+  passportPhotoUrl?: string | null;
+  passportPhotoUpdatedAt?: string | null;
   isActive: boolean;
   enrollmentStatus: EnrollmentStatus;
   className: string;
@@ -67,6 +69,11 @@ export type StudentCreateInput = {
   guardianEmail?: string;
   notes?: string;
   schoolCode?: string;
+};
+
+export type StudentPassportPhoto = {
+  passportPhotoUrl: string | null;
+  passportPhotoUpdatedAt: string | null;
 };
 
 export type StudentImportRowInput = {

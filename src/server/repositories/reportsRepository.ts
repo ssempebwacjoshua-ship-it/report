@@ -36,6 +36,7 @@ function emptyInput(
     settings: {
       school: settings.school,
       reports: settings.reports,
+      personalization: settings.reportPersonalization,
       grading: settings.grading,
     },
     emptyReasonOverride: options.emptyReasonOverride ?? null,
@@ -193,6 +194,7 @@ export async function loadReportEngineInput(prisma: PrismaClient, filters: Repor
       admissionNumber: enrollment.student.admissionNumber,
       firstName: enrollment.student.firstName,
       lastName: enrollment.student.lastName,
+      passportPhotoUrl: enrollment.student.passportPhotoUrl,
       className: enrollment.class.name,
       streamName: enrollment.stream.name,
       contactReadiness: getContactReadiness(enrollment.student.guardianContacts),
@@ -209,6 +211,7 @@ export async function loadReportEngineInput(prisma: PrismaClient, filters: Repor
     settings: {
       school: settings.school,
       reports: settings.reports,
+      personalization: settings.reportPersonalization,
       grading: settings.grading,
     },
     emptyReasonOverride: studentIds.length === 0 ? noStudentReason : null,
