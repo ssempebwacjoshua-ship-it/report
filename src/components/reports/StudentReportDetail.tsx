@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { AssessmentFilter, StudentReportCard } from "../../shared/types/reports";
 import type { GradingScaleSettings, ReportPersonalizationSettings, ReportSettings, SchoolProfileSettings } from "../../shared/types/settings";
 import { defaultSettingsSections } from "../../shared/types/settings";
+import { PassportPhotoAvatar } from "../students/PassportPhotoAvatar";
 import { getReportBranding } from "../layout/branding";
 import type { ReportComments } from "../../shared/utils/reportComments";
 import { sanitizeReportCardForRender, sanitizeReportComments, sanitizeReportPersonalizationForReport, sanitizeSchoolSettingsForReport } from "../../shared/utils/reportContentLimits";
@@ -436,20 +437,12 @@ function StudentReportDetailContent({
               </div>
               {showStudentPhoto ? (
                 <div className="flex items-center justify-center">
-                  {sanitizedCard.passportPhotoUrl ? (
-                    <img
-                      src={sanitizedCard.passportPhotoUrl}
-                      alt={`${sanitizedCard.studentName} passport`}
-                      className="h-28 w-28 rounded-2xl border border-slate-200 object-cover shadow-sm print:h-16 print:w-16"
-                    />
-                  ) : (
-                    <div className="grid h-28 w-28 place-items-center rounded-2xl border border-dashed border-slate-300 bg-white text-center shadow-sm print:h-16 print:w-16">
-                      <div>
-                        <div className="text-xl font-black text-slate-700 print:text-sm">{branding.initials}</div>
-                        <div className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400 print:text-[6px]">No photo</div>
-                      </div>
-                    </div>
-                  )}
+                  <PassportPhotoAvatar
+                    name={sanitizedCard.studentName}
+                    src={sanitizedCard.passportPhotoUrl}
+                    alt={`${sanitizedCard.studentName} passport`}
+                    className="h-28 w-28 print:h-16 print:w-16"
+                  />
                 </div>
               ) : null}
             </div>

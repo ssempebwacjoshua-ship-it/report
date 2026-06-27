@@ -1,10 +1,13 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
+import { v2 as cloudinary } from "cloudinary";
 import sharp from "sharp";
 
 const ALLOWED_IMAGE_MIME_TYPES = new Set(["image/jpeg", "image/jpg", "image/png", "image/webp"]);
 const LOCAL_UPLOAD_ROOT = path.join(process.cwd(), "public", "uploads");
+const CLOUDINARY_PROVIDER = "cloudinary";
+let cloudinaryConfigured = false;
 
 export type StoredUpload = {
   publicUrl: string;
@@ -14,19 +17,52 @@ export type StoredUpload = {
   sizeBytes: number;
 };
 
+function getUploadProvider(): string {
+  return (process.env.UPLOAD_STORAGE_PROVIDER ?? "local").trim().toLowerCase() || "local";
+}
+
 function getUploadBaseUrl(): string | null {
   const configured = process.env.UPLOAD_STORAGE_PUBLIC_BASE_URL?.trim();
   if (configured) return configured.replace(/\/+$/, "");
   return null;
 }
 
-function getUploadRoot(): string {
+function getLocalUploadRoot(strict: boolean): string | null {
   const configuredDir = process.env.UPLOAD_STORAGE_DIR?.trim();
   const configuredBaseUrl = process.env.UPLOAD_STORAGE_PUBLIC_BASE_URL?.trim();
-  if (process.env.NODE_ENV === "production" && !configuredDir && !configuredBaseUrl) {
-    throw Object.assign(new Error("Upload storage is not configured for production. Set UPLOAD_STORAGE_DIR or UPLOAD_STORAGE_PUBLIC_BASE_URL."), { status: 503 });
+  if (strict && process.env.NODE_ENV === "production" && !configuredDir && !configuredBaseUrl) {
+    throw Object.assign(
+      new Error("Upload storage is not configured for production. Set UPLOAD_STORAGE_DIR or UPLOAD_STORAGE_PUBLIC_BASE_URL."),
+      { status: 503 },
+    );
   }
   return configuredDir || LOCAL_UPLOAD_ROOT;
+}
+
+function ensureCloudinaryConfigured(): { uploadFolder: string } {
+  const cloudName = process.env.CLOUDINARY_CLOUD_NAME?.trim();
+  const apiKey = process.env.CLOUDINARY_API_KEY?.trim();
+  const apiSecret = process.env.CLOUDINARY_API_SECRET?.trim();
+  const uploadFolder = process.env.CLOUDINARY_UPLOAD_FOLDER?.trim() || "school-connect";
+
+  if (!cloudName || !apiKey || !apiSecret) {
+    throw Object.assign(
+      new Error("Cloudinary upload storage is not configured. Set CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET."),
+      { status: 503 },
+    );
+  }
+
+  if (!cloudinaryConfigured) {
+    cloudinary.config({
+      cloud_name: cloudName,
+      api_key: apiKey,
+      api_secret: apiSecret,
+      secure: true,
+    });
+    cloudinaryConfigured = true;
+  }
+
+  return { uploadFolder };
 }
 
 function buildPublicUrl(relativePath: string): string {
@@ -49,6 +85,69 @@ function validateOriginalFileName(originalName: string): string {
   return trimmed;
 }
 
+function sanitizeUploadPathSegment(segment: string): string {
+  return segment.trim().replace(/[^A-Za-z0-9._-]+/g, "-").replace(/^-+|-+$/g, "") || "upload";
+}
+
+function buildLocalUploadPaths(relativeDirParts: string[], fileName: string): { relativePath: string; absolutePath: string } {
+  const relativeDir = path.posix.join("uploads", ...relativeDirParts.map((part) => part.trim()).filter(Boolean));
+  return {
+    relativePath: path.posix.join("/", relativeDir, fileName),
+    absolutePath: path.join(getLocalUploadRoot(true) ?? LOCAL_UPLOAD_ROOT, ...relativeDirParts, fileName),
+  };
+}
+
+function buildCloudinaryPublicId(relativeDirParts: string[], fileName: string): string {
+  const { uploadFolder } = ensureCloudinaryConfigured();
+  const publicIdParts = [uploadFolder, ...relativeDirParts, fileName.replace(/\.webp$/i, "")]
+    .map(sanitizeUploadPathSegment)
+    .filter(Boolean);
+  return publicIdParts.join("/");
+}
+
+async function uploadToCloudinary(buffer: Buffer, publicId: string): Promise<StoredUpload> {
+  const processed = await sharp(buffer)
+    .rotate()
+    .webp({ quality: 88 })
+    .toBuffer();
+
+  const uploaded = await new Promise<{
+    secure_url?: string;
+    public_id?: string;
+    bytes?: number;
+  }>((resolve, reject) => {
+    const stream = cloudinary.uploader.upload_stream(
+      {
+        public_id: publicId,
+        resource_type: "image",
+        format: "webp",
+        overwrite: true,
+        invalidate: true,
+      },
+      (error, result) => {
+        if (error) {
+          reject(error);
+          return;
+        }
+        resolve(result ?? {});
+      },
+    );
+    stream.end(processed);
+  });
+
+  if (!uploaded.secure_url) {
+    throw Object.assign(new Error("Cloudinary upload did not return a secure URL."), { status: 502 });
+  }
+
+  return {
+    publicUrl: uploaded.secure_url,
+    relativePath: uploaded.public_id ?? publicId,
+    absolutePath: uploaded.secure_url,
+    mimeType: "image/webp",
+    sizeBytes: uploaded.bytes ?? processed.length,
+  };
+}
+
 export async function saveImageUpload(input: {
   buffer: Buffer;
   originalName: string;
@@ -63,15 +162,18 @@ export async function saveImageUpload(input: {
 
   validateOriginalFileName(input.originalName);
 
-  const root = getUploadRoot();
+  const fileName = `${input.prefix ?? "photo"}-${Date.now()}-${randomUUID()}.webp`;
+  const provider = getUploadProvider();
+
+  if (provider === CLOUDINARY_PROVIDER) {
+    return uploadToCloudinary(input.buffer, buildCloudinaryPublicId(input.relativeDirParts, fileName));
+  }
+
+  const { relativePath, absolutePath } = buildLocalUploadPaths(input.relativeDirParts, fileName);
+  const root = getLocalUploadRoot(true);
   if (!root) {
     throw Object.assign(new Error("Upload storage is not configured. Set UPLOAD_STORAGE_DIR or UPLOAD_STORAGE_PUBLIC_BASE_URL."), { status: 503 });
   }
-
-  const relativeDir = path.posix.join("uploads", ...input.relativeDirParts.map((part) => part.trim()).filter(Boolean));
-  const fileName = `${input.prefix ?? "photo"}-${Date.now()}-${randomUUID()}.webp`;
-  const relativePath = path.posix.join("/", relativeDir, fileName);
-  const absolutePath = path.join(root, ...input.relativeDirParts, fileName);
 
   await fs.mkdir(path.dirname(absolutePath), { recursive: true });
   const processed = await sharp(input.buffer)
@@ -126,7 +228,23 @@ export async function deleteStoredUpload(publicUrl: string | null | undefined): 
   if (!publicUrl) return;
   const normalized = publicUrl.trim();
   if (!normalized) return;
-  const root = getUploadRoot();
+
+  if (/^https?:\/\//i.test(normalized)) {
+    try {
+      const parsed = new URL(normalized);
+      if (parsed.hostname.includes("cloudinary.com")) {
+        const match = parsed.pathname.match(/\/upload\/(?:v\d+\/)?(.+)$/);
+        if (!match?.[1]) return;
+        const publicId = match[1].replace(/\.[^.\/]+$/, "");
+        await cloudinary.uploader.destroy(publicId, { resource_type: "image", invalidate: true });
+        return;
+      }
+    } catch {
+      return;
+    }
+  }
+
+  const root = getLocalUploadRoot(false);
   if (!root) return;
 
   let pathname = normalized;

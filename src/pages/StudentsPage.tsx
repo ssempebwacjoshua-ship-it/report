@@ -15,6 +15,7 @@ import {
   updateGuardianContact,
 } from "../client/studentsClient";
 import { Icon } from "../components/layout/Icon";
+import { PassportPhotoAvatar } from "../components/students/PassportPhotoAvatar";
 import { getApiBaseUrl } from "../client/apiBase";
 
 const API_BASE = getApiBaseUrl();
@@ -501,21 +502,12 @@ export function StudentsPage() {
                 </div>
 
               <div className="grid gap-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 sm:grid-cols-[auto_minmax(0,1fr)] sm:items-center">
-                <div className="flex items-center justify-center">
-                  {selected.passportPhotoUrl ? (
-                    <img
-                      src={selected.passportPhotoUrl}
-                      alt={`${selected.studentName} passport photo`}
-                      className="h-28 w-28 rounded-2xl border border-slate-200 object-cover shadow-sm"
-                    />
-                  ) : (
-                    <div className="grid h-28 w-28 place-items-center rounded-2xl border border-dashed border-slate-300 bg-white text-center shadow-sm">
-                      <div>
-                        <div className="text-2xl font-black text-slate-700">{selected.studentName.slice(0, 2).toUpperCase()}</div>
-                        <div className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400">No photo</div>
-                      </div>
-                    </div>
-                  )}
+              <div className="flex items-center justify-center">
+                  <PassportPhotoAvatar
+                    name={selected.studentName}
+                    src={selected.passportPhotoUrl}
+                    className="h-28 w-28"
+                  />
                 </div>
                 <div className="grid gap-3">
                   <div>
