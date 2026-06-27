@@ -104,7 +104,7 @@ describe("supportRoutes", () => {
   });
 
   it("returns 503 when Telegram support env is missing", async () => {
-    vi.stubEnv("TELEGRAM_SUPPORT_CHAT_ID", "");
+    vi.stubEnv("TELEGRAM_BOT_TOKEN", "");
     const token = await makeToken();
     const app = await makeApp();
     const res = await request(app)
@@ -114,6 +114,30 @@ describe("supportRoutes", () => {
 
     expect(res.status).toBe(503);
     expect(res.body).toEqual({ error: "Support is not configured yet." });
+  });
+
+  it("uses the default support chat id when TELEGRAM_SUPPORT_CHAT_ID is not set", async () => {
+    let capturedBody = "";
+    vi.stubEnv("TELEGRAM_SUPPORT_CHAT_ID", "");
+    vi.stubGlobal("fetch", vi.fn().mockImplementation(async (_url: string, init?: RequestInit) => {
+      capturedBody = String(init?.body ?? "");
+      return {
+        json: async () => ({ ok: true }),
+      };
+    }));
+
+    const token = await makeToken();
+    const app = await makeApp();
+    const res = await request(app)
+      .post("/api/support/telegram")
+      .set("Authorization", `Bearer ${token}`)
+      .send({
+        message: "Need help from the school dashboard.",
+        pageUrl: "http://localhost:5173/dashboard",
+      });
+
+    expect(res.status).toBe(202);
+    expect(capturedBody).toContain('"chat_id":"8899226749"');
   });
 
   it("sends a Telegram message when configured", async () => {

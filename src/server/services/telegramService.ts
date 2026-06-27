@@ -4,11 +4,14 @@ export interface TelegramResult {
 }
 
 type TelegramTarget = "admin" | "support";
+const DEFAULT_SUPPORT_CHAT_ID = "8899226749";
 
 function getTelegramConfig(target: TelegramTarget) {
   const botToken = process.env.TELEGRAM_BOT_TOKEN?.trim();
   const chatIdEnv = target === "support" ? "TELEGRAM_SUPPORT_CHAT_ID" : "TELEGRAM_ADMIN_CHAT_ID";
-  const chatId = process.env[chatIdEnv]?.trim();
+  const chatId = target === "support"
+    ? process.env.TELEGRAM_SUPPORT_CHAT_ID?.trim() || DEFAULT_SUPPORT_CHAT_ID
+    : process.env.TELEGRAM_ADMIN_CHAT_ID?.trim();
 
   if (!botToken || !chatId) {
     return {
