@@ -44,6 +44,8 @@ export interface OfflineTag {
   schoolId: string;
   publicCode: string;
   physicalUid: string | null;
+  publicCodeHash?: string | null;
+  physicalUidHash?: string | null;
   studentId: string | null;
   status: string; // ASSIGNED | UNASSIGNED | DISABLED | LOST | etc.
   tagMode: string;
@@ -57,6 +59,8 @@ export interface OfflineWallet {
   schoolId: string;
   status: string; // ACTIVE | FROZEN
   balanceCents: number;
+  localStartingBalanceCents?: number;
+  localCurrentBalanceCents?: number;
   snapshotId: string;
   frozenReason: string | null;
   dailyOfflineLimitCents?: number;

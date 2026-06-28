@@ -19,7 +19,7 @@ import type {
   OfflineWallet,
 } from "./offlineTypes";
 import { offlineDb } from "./offlineDb";
-import { createOfflineEventHash, hashPayload } from "./offlineHash";
+import { createOfflineEventHash, hashNfcLookupValue, hashPayload } from "./offlineHash";
 
 // ─── Meta ─────────────────────────────────────────────────────────────────────
 
@@ -37,6 +37,10 @@ export function getSnapshotMetaKey(input: { schoolId?: string | null; deviceId?:
     return `snapshot:${input.schoolId}:${input.deviceId}:${input.mode}`;
   }
   return "snapshot:current";
+}
+
+export function getCanteenRegisterMetaKey(schoolId: string, deviceId: string): string {
+  return `canteen-register:${schoolId}:${deviceId}`;
 }
 
 // ─── Sequence / chain tracking per device ────────────────────────────────────
@@ -58,7 +62,44 @@ async function saveLastHash(deviceId: string, hash: string): Promise<void> {
 
 // ─── Bootstrap snapshot ───────────────────────────────────────────────────────
 
+async function prepareTagsForLocalStore(snapshot: OfflineBootstrapSnapshot): Promise<OfflineTag[]> {
+  if (snapshot.mode !== "CANTEEN") return snapshot.tags;
+
+  return Promise.all(snapshot.tags.map(async (tag) => ({
+    ...tag,
+    publicCodeHash: tag.publicCode ? await hashNfcLookupValue(tag.publicCode) : null,
+    physicalUidHash: tag.physicalUid ? await hashNfcLookupValue(tag.physicalUid) : null,
+    publicCode: "",
+    physicalUid: null,
+  })));
+}
+
+export async function hasPendingCanteenSales(schoolId: string): Promise<boolean> {
+  const counts = await Promise.all((["PENDING", "SYNCING", "FAILED"] as OfflineSyncStatus[]).map((status) =>
+    offlineDb.offline_sync_queue
+      .where("[schoolId+actionType+syncStatus]")
+      .equals([schoolId, "CANTEEN_CHARGE", status])
+      .count(),
+  ));
+  return counts.some((count) => count > 0);
+}
+
 export async function saveBootstrapSnapshot(snapshot: OfflineBootstrapSnapshot): Promise<void> {
+  const isCanteenRegister = snapshot.mode === "CANTEEN";
+  if (isCanteenRegister && await hasPendingCanteenSales(snapshot.schoolId)) {
+    throw new Error("This device has pending canteen sales. Sync before updating register.");
+  }
+  const tagsForStore = await prepareTagsForLocalStore(snapshot);
+  const walletsForStore = snapshot.wallets.map((wallet) => (
+    isCanteenRegister
+      ? {
+          ...wallet,
+          localStartingBalanceCents: wallet.localStartingBalanceCents ?? wallet.balanceCents,
+          localCurrentBalanceCents: wallet.localCurrentBalanceCents ?? wallet.balanceCents,
+        }
+      : wallet
+  ));
+
   await offlineDb.transaction(
     "rw",
     offlineDb.offline_meta,
@@ -71,8 +112,8 @@ export async function saveBootstrapSnapshot(snapshot: OfflineBootstrapSnapshot):
       await offlineDb.offline_wallets.where("schoolId").equals(snapshot.schoolId).delete();
 
       if (snapshot.students.length) await offlineDb.offline_students.bulkPut(snapshot.students);
-      if (snapshot.tags.length) await offlineDb.offline_tags.bulkPut(snapshot.tags);
-      if (snapshot.wallets.length) await offlineDb.offline_wallets.bulkPut(snapshot.wallets);
+      if (tagsForStore.length) await offlineDb.offline_tags.bulkPut(tagsForStore);
+      if (walletsForStore.length) await offlineDb.offline_wallets.bulkPut(walletsForStore);
 
       const meta: OfflineSnapshotMeta = {
         snapshotId: snapshot.snapshotId,
@@ -86,6 +127,13 @@ export async function saveBootstrapSnapshot(snapshot: OfflineBootstrapSnapshot):
         settings: snapshot.settings,
       };
       await setMeta(getSnapshotMetaKey(meta), meta);
+      if (isCanteenRegister) {
+        await setMeta(getCanteenRegisterMetaKey(snapshot.schoolId, snapshot.deviceId), {
+          ...meta,
+          registerVersion: snapshot.snapshotVersion,
+          updatedAt: new Date().toISOString(),
+        });
+      }
       await setMeta("snapshot:current", meta);
     },
   );
@@ -123,7 +171,20 @@ export async function getTagByScanValue(schoolId: string, normalizedValue: strin
     .where("[schoolId+physicalUid]")
     .equals([schoolId, normalizedValue])
     .first();
-  return byUid ?? null;
+  if (byUid) return byUid;
+
+  const lookupHash = await hashNfcLookupValue(normalizedValue);
+  const byCodeHash = await offlineDb.offline_tags
+    .where("[schoolId+publicCodeHash]")
+    .equals([schoolId, lookupHash])
+    .first();
+  if (byCodeHash) return byCodeHash;
+
+  const byUidHash = await offlineDb.offline_tags
+    .where("[schoolId+physicalUidHash]")
+    .equals([schoolId, lookupHash])
+    .first();
+  return byUidHash ?? null;
 }
 
 export async function getStudentById(schoolId: string, studentId: string): Promise<OfflineStudent | null> {
@@ -145,8 +206,16 @@ export async function getOfflineSpendUsage(
   dateKey: string,
 ): Promise<{ studentSpentCents: number; deviceSpentCents: number }> {
   const [studentRows, deviceRows] = await Promise.all([
-    offlineDb.offline_spend_ledger.where("[schoolId+studentId+dateKey]").equals([schoolId, studentId, dateKey]).toArray(),
-    offlineDb.offline_spend_ledger.where("schoolId").equals(schoolId).filter((row) => row.deviceId === deviceId && row.dateKey === dateKey).toArray(),
+    offlineDb.offline_spend_ledger
+      .where("[schoolId+studentId+dateKey]")
+      .equals([schoolId, studentId, dateKey])
+      .filter((row) => row.syncStatus !== "FAILED" && row.syncStatus !== "CONFLICT")
+      .toArray(),
+    offlineDb.offline_spend_ledger
+      .where("schoolId")
+      .equals(schoolId)
+      .filter((row) => row.deviceId === deviceId && row.dateKey === dateKey && row.syncStatus !== "FAILED" && row.syncStatus !== "CONFLICT")
+      .toArray(),
   ]);
   const studentSpentCents = studentRows.reduce((sum, row) => sum + row.amountCents, 0);
   const deviceSpentCents = deviceRows.reduce((sum, row) => sum + row.amountCents, 0);
@@ -280,10 +349,11 @@ export async function queueCanteenCharge(input: {
   snapshotId: string;
   studentId: string;
   walletId: string | null;
-  payload: {
-    actionType: "CANTEEN_CHARGE";
-    tokenOrUid: string;
-    studentId: string;
+    payload: {
+      actionType: "CANTEEN_CHARGE";
+      tokenOrUid?: string;
+      tokenOrUidHash?: string;
+      studentId: string;
     walletId: string | null;
     tagId?: string | null;
     amountCents: number;
@@ -297,6 +367,15 @@ export async function queueCanteenCharge(input: {
     { studentId: input.studentId, walletId: input.walletId },
   );
   await offlineDb.offline_canteen_charges.put(record);
+  const wallet = input.walletId
+    ? await offlineDb.offline_wallets.where("schoolId").equals(input.schoolId).filter((row) => row.id === input.walletId).first()
+    : null;
+  if (wallet) {
+    const current = wallet.localCurrentBalanceCents ?? wallet.balanceCents;
+    await offlineDb.offline_wallets.update(wallet.studentId, {
+      localCurrentBalanceCents: Math.max(0, current - input.payload.amountCents),
+    });
+  }
   await putSpendLedger({
     localId: record.localId,
     schoolId: record.schoolId,

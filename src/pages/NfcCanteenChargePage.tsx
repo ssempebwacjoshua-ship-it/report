@@ -10,6 +10,8 @@ import { chargeNfcCanteen, resolveWalletStudent } from "../client/studentCredent
 import { resolveOfflineNfcScan } from "../offline/offlineResolver";
 import { queueCanteenCharge, getSnapshotMeta, getAvailableOfflineBalance } from "../offline/offlineStore";
 import { getSnapshotValidity, isCanteenOfflineEnabled } from "../offline/offlineStatus";
+import { hashNfcLookupValue } from "../offline/offlineHash";
+import { normalizeNfcScanValue } from "../shared/utils/nfcPayload";
 import type { NfcCanteenChargeResult, NfcWalletStudentResolution } from "../shared/types/studentCredentials";
 
 const inputClass =
@@ -39,15 +41,15 @@ function getDeviceId(): string {
 
 function offlineReasonMessage(reason?: string) {
   switch (reason) {
-    case "no_snapshot": return "Offline snapshot is not downloaded yet.";
-    case "expired": return "Offline snapshot has expired.";
-    case "wrong_school": return "Offline snapshot belongs to another school.";
-    case "wrong_device": return "Offline snapshot belongs to another device.";
-    case "missing_module": return "Offline snapshot is missing the canteen module.";
-    case "empty_students": return "Snapshot downloaded but contains no students.";
-    case "empty_tags": return "Snapshot downloaded but contains no NFC tags.";
+    case "no_snapshot": return "Local Canteen Register is not downloaded yet.";
+    case "expired": return "Local Canteen Register has expired.";
+    case "wrong_school": return "Local Canteen Register belongs to another school.";
+    case "wrong_device": return "Local Canteen Register belongs to another device.";
+    case "missing_module": return "Local Canteen Register is missing canteen wallet data.";
+    case "empty_students": return "Canteen register downloaded but contains no students.";
+    case "empty_tags": return "Canteen register downloaded but contains no NFC tags.";
     case "offline_disabled_by_policy": return "Offline canteen charging is disabled by school policy.";
-    default: return "Offline mode is not configured for this device.";
+    default: return "Local Canteen Register is not configured for this device.";
   }
 }
 
@@ -115,7 +117,7 @@ export function NfcCanteenChargePage() {
       if (!validity.valid) throw new Error(offlineReasonMessage(validity.reason));
 
       const resolve = await resolveOfflineNfcScan(user.schoolId, tokenOrUid);
-      if (!resolve.found) throw new Error("Tag not recognised in offline snapshot.");
+      if (!resolve.found) throw new Error("Tag not recognised in Local Canteen Register.");
       if (resolve.blocked) throw new Error(resolve.reason ?? "Tag is blocked.");
       if (!resolve.student) throw new Error("No student linked to this tag.");
 
@@ -124,7 +126,7 @@ export function NfcCanteenChargePage() {
       if (wallet.status === "FROZEN") throw new Error("Wallet is frozen.");
       const meta = await getSnapshotMeta({ schoolId: user.schoolId, deviceId, mode: "CANTEEN" });
       const limits = meta?.settings;
-      if (!limits) throw new Error("Offline snapshot is not loaded.");
+      if (!limits) throw new Error("Local Canteen Register is not loaded.");
       if (amountCents > limits.maxOfflineSpendPerTransaction) {
         throw new Error(`This transaction exceeds the offline per-transaction limit (${money(limits.maxOfflineSpendPerTransaction)}).`);
       }
@@ -133,7 +135,7 @@ export function NfcCanteenChargePage() {
         user.schoolId,
         scanDeviceId ?? deviceId,
         resolve.student.id,
-        wallet.balanceCents,
+        wallet.localStartingBalanceCents ?? wallet.balanceCents,
         new Date().toISOString().slice(0, 10),
         {
           maxOfflineSpendPerStudentPerDay: limits.maxOfflineSpendPerStudentPerDay,
@@ -152,7 +154,7 @@ export function NfcCanteenChargePage() {
         studentName: `${resolve.student.firstName} ${resolve.student.lastName}`.trim(),
         admissionNumber: resolve.student.admissionNumber,
         className: resolve.student.className,
-        balanceCents: wallet.balanceCents,
+        balanceCents: wallet.localCurrentBalanceCents ?? wallet.balanceCents,
         availableBalanceCents: availableCents,
         tagId: resolve.tag?.id ?? null,
       });
@@ -182,6 +184,7 @@ export function NfcCanteenChargePage() {
       try {
         const meta = await getSnapshotMeta({ schoolId: user.schoolId, deviceId, mode: "CANTEEN" });
         const chargedAt = new Date().toISOString();
+        const tokenOrUidHash = await hashNfcLookupValue(normalizeNfcScanValue(offlinePending.tokenOrUid));
         await queueCanteenCharge({
           schoolId: user.schoolId,
           deviceId,
@@ -190,7 +193,7 @@ export function NfcCanteenChargePage() {
           walletId: offlinePending.walletId,
           payload: {
             actionType: "CANTEEN_CHARGE",
-            tokenOrUid: offlinePending.tokenOrUid,
+            tokenOrUidHash,
             studentId: offlinePending.studentId,
             walletId: offlinePending.walletId,
             tagId: offlinePending.tagId,
@@ -268,17 +271,17 @@ export function NfcCanteenChargePage() {
         <div className="flex items-center gap-3 rounded-xl border border-orange-200 bg-orange-50 p-3">
           <WifiOffRegular className="h-5 w-5 text-orange-600 shrink-0" />
           <div>
-            <p className="text-sm font-semibold text-orange-800">Offline Mode — Charges Queued</p>
-            <p className="text-xs text-orange-600">Charges are stored locally. {pendingCount > 0 ? `${pendingCount} pending sync.` : "PIN not verified offline — will validate at sync."}</p>
+            <p className="text-sm font-semibold text-orange-800">Local Canteen Register Active</p>
+            <p className="text-xs text-orange-600">Canteen register is ready for offline selling. {pendingCount > 0 ? `Pending sync: ${pendingCount} sales.` : "PIN not verified offline - will validate at sync."}</p>
           </div>
         </div>
       )}
 
       {!isOfflineReady && snapshotRefresh.validity && !snapshotRefresh.validity.valid && (
         <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
-          <p className="font-bold">Offline setup: {offlineReasonMessage(snapshotRefresh.validity.reason)}</p>
+          <p className="font-bold">Local Canteen Register: {offlineReasonMessage(snapshotRefresh.validity.reason)}</p>
           <p className="mt-1">
-            {snapshotRefresh.isRefreshing ? "Refreshing snapshot in the background..." : "Online canteen charging still works while connected."}
+            {snapshotRefresh.isRefreshing ? "Updating Canteen Register in the background..." : "Online canteen charging still works while connected."}
             {snapshotRefresh.refreshError ? ` Last refresh failed: ${snapshotRefresh.refreshError}` : ""}
           </p>
         </div>
@@ -411,7 +414,7 @@ export function NfcCanteenChargePage() {
                 <p className="mt-1 text-sm font-bold text-slate-900">Available: {money(offlinePending.availableBalanceCents)}</p>
               </div>
               <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-700">
-                Offline mode: PIN will be validated when connection is restored.
+                Local balance updated when queued. PIN will be validated when connection is restored.
               </div>
               {chargeError && (
                 <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{chargeError}</div>
@@ -423,7 +426,7 @@ export function NfcCanteenChargePage() {
                   disabled={chargeLoading}
                   onClick={() => void submitCharge()}
                 >
-                  {chargeLoading ? "Queuing…" : `Queue Charge ${money(Math.round(Number(amount) * 100))}`}
+                  {chargeLoading ? "Queuing..." : `Queue Sale ${money(Math.round(Number(amount) * 100))}`}
                 </button>
                 <button type="button" className="rounded-xl border border-slate-200 px-4 py-3 text-sm font-bold text-slate-700 hover:bg-slate-50" onClick={reset}>
                   Cancel
@@ -445,13 +448,13 @@ export function NfcCanteenChargePage() {
           {offlineResult ? (
             <div className="mt-3 grid gap-3 text-sm">
               <div className={`rounded-xl border p-4 font-bold text-base ${offlineResult.ok ? "border-orange-200 bg-orange-50 text-orange-700" : "border-red-200 bg-red-50 text-red-700"}`}>
-                {offlineResult.ok ? "Queued for sync" : chargeBlockedMessage(offlineResult.reason)}
+                {offlineResult.ok ? "Local balance updated" : chargeBlockedMessage(offlineResult.reason)}
               </div>
               {offlineResult.ok && offlinePending && (
                 <>
                   <p className="font-bold text-slate-950">{offlinePending.studentName} · {offlinePending.admissionNumber}</p>
-                  <p className="text-slate-700">Est. remaining: {money(offlineResult.balanceCents ?? 0)}</p>
-                  <p className="text-xs text-slate-500">Actual deduction happens on sync.</p>
+                  <p className="text-slate-700">Local remaining balance: {money(offlineResult.balanceCents ?? 0)}</p>
+                  <p className="text-xs text-slate-500">Pending canteen sales sync when connection returns.</p>
                 </>
               )}
             </div>
