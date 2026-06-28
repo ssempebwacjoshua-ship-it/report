@@ -109,6 +109,30 @@ describe("authRoutes /api/auth/login", () => {
     logSpy.mockRestore();
   });
 
+  it.each([
+    ["GATE_SECURITY", "gate@schoolconnect.test"],
+    ["CANTEEN", "canteen@schoolconnect.test"],
+  ])("allows %s school staff to log in", async (role, email) => {
+    mockState.userFindFirst.mockResolvedValueOnce({
+      id: `user-${role.toLowerCase()}`,
+      schoolId: "school-1",
+      name: `${role} User`,
+      email,
+      role,
+      passwordHash: "hash",
+      isActive: true,
+      isPlatformOwner: false,
+      tokenVersion: 1,
+    });
+
+    const res = await request(buildApp())
+      .post("/api/auth/login")
+      .send({ email, password: "password123", schoolCode: "SCU-PREVIEW" });
+
+    expect(res.status).toBe(200);
+    expect(res.body.user.role).toBe(role);
+  });
+
   it("returns 401 for unknown email", async () => {
     mockState.userFindFirst.mockResolvedValue(null);
     mockState.verifyPassword.mockResolvedValue(false);
