@@ -26,6 +26,7 @@ describe("LoginPage", () => {
   });
 
   it.each([
+    ["ADMIN_OPERATOR", "/dashboard"],
     ["SECURITY", "/nfc/gate"],
     ["GATE_SECURITY", "/nfc/gate"],
   ] as const)("redirects %s users to %s", async (role, expectedPath) => {
