@@ -46,6 +46,21 @@ function extractRawValue(message: NDEFMessage): string {
   return "";
 }
 
+export function normalizeNfcScannerError(error: unknown): string {
+  const message = error instanceof Error ? `${error.name}: ${error.message}` : String(error ?? "");
+  if (/AbortError/i.test(message)) return "Scanner was cancelled.";
+  if (/NotAllowedError|SecurityError|permission denied|not allowed|authori[sz]ed/i.test(message)) {
+    return "NFC permission was not granted. Please allow scanning on this device and try again.";
+  }
+  if (/insecure context|secure context|https/i.test(message)) {
+    return "NFC scanning requires a secure browser context on a supported device.";
+  }
+  if (/not found|unsupported|unavailable|not available|ndefreader/i.test(message)) {
+    return "NFC scanning is not available on this device. Use manual entry instead.";
+  }
+  return error instanceof Error && error.message ? error.message : "Could not start NFC scanner.";
+}
+
 export type ScannerState =
   | "IDLE"
   | "PERMISSION"
@@ -174,7 +189,7 @@ export function useNfcScanner({ onScan, cooldownMs = 1500 }: UseNfcScannerOption
       });
     } catch (err) {
       if (err instanceof Error && err.name === "AbortError") return;
-      setError(err instanceof Error ? err.message : "Could not start NFC scanner.");
+      setError(normalizeNfcScannerError(err));
       setStateSync("ERROR");
     }
   }, [isOnline, isWebNfcAvailable, processRaw, resetAfterCooldown, setStateSync]);
