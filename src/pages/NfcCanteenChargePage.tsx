@@ -49,7 +49,7 @@ function offlineReasonMessage(reason?: string) {
     case "empty_students": return "Canteen register downloaded but contains no students.";
     case "empty_tags": return "Canteen register downloaded but contains no NFC tags.";
     case "offline_disabled_by_policy": return "Offline canteen charging is disabled by school policy.";
-    default: return "Local Canteen Register is not configured for this device.";
+    default: return "Local Canteen Register is not ready on this device. Go online once to update the Canteen Register.";
   }
 }
 
@@ -92,6 +92,7 @@ export function NfcCanteenChargePage() {
   const [phase, setPhase] = useState<Phase>("setup");
   const [pending, setPending] = useState<PendingCharge | null>(null);
   const [offlinePending, setOfflinePending] = useState<OfflinePendingCharge | null>(null);
+  const [usingLocalRegister, setUsingLocalRegister] = useState(false);
   const [pin, setPin] = useState("");
   const [chargeLoading, setChargeLoading] = useState(false);
   const [chargeError, setChargeError] = useState("");
@@ -108,7 +109,9 @@ export function NfcCanteenChargePage() {
     if (!amountUgx || amountUgx <= 0) throw new Error("Enter an amount before scanning.");
     const amountCents = Math.round(amountUgx * 100);
 
-    if (isOfflineReady) {
+    const browserOffline = typeof navigator !== "undefined" && !navigator.onLine;
+
+    if (isOfflineReady || browserOffline) {
       if (!user?.schoolId) return;
 
       const canteen = await isCanteenOfflineEnabled({ schoolId: user.schoolId, deviceId, mode: "CANTEEN", requiredModule: "canteen" });
@@ -159,14 +162,14 @@ export function NfcCanteenChargePage() {
         tagId: resolve.tag?.id ?? null,
       });
       setChargeError("");
+      setUsingLocalRegister(true);
       setPhase("pin");
-    } else if (typeof navigator !== "undefined" && !navigator.onLine) {
-      throw new Error(offlineReasonMessage(snapshotRefresh.validity?.reason));
     } else {
       const studentData = await resolveWalletStudent({ tokenOrUid });
       setPending({ tokenOrUid, idempotencyKey, deviceId: scanDeviceId, student: studentData });
       setPin("");
       setChargeError("");
+      setUsingLocalRegister(false);
       setPhase("pin");
     }
   };
@@ -174,7 +177,7 @@ export function NfcCanteenChargePage() {
   const scanner = useNfcScanner({ onScan: handleScan });
 
   async function submitCharge() {
-    if (isOfflineReady) {
+    if (usingLocalRegister) {
       if (!offlinePending || !user?.schoolId) return;
       const amountUgx = Number(amount);
       if (!amountUgx || amountUgx <= 0) { setChargeError("Invalid amount."); return; }
@@ -248,6 +251,7 @@ export function NfcCanteenChargePage() {
     setPhase("setup");
     setPending(null);
     setOfflinePending(null);
+    setUsingLocalRegister(false);
     setPin("");
     setChargeError("");
     setResult(null);
@@ -330,7 +334,7 @@ export function NfcCanteenChargePage() {
           )}
 
           {/* Online PIN phase */}
-          {phase === "pin" && !isOfflineReady && pending && (
+          {phase === "pin" && !usingLocalRegister && pending && (
             <div className="premium-card rounded-xl p-4 grid gap-4">
               <div className="rounded-xl border border-blue-100 bg-blue-50 p-3">
                 <p className="text-xs font-bold uppercase text-blue-600">Student identified</p>
@@ -405,10 +409,10 @@ export function NfcCanteenChargePage() {
           )}
 
           {/* Offline confirm phase (no PIN — validated at sync) */}
-          {phase === "pin" && isOfflineReady && offlinePending && (
+          {phase === "pin" && usingLocalRegister && offlinePending && (
             <div className="premium-card rounded-xl p-4 grid gap-4">
               <div className="rounded-xl border border-orange-100 bg-orange-50 p-3">
-                <p className="text-xs font-bold uppercase text-orange-600">Offline — Student identified</p>
+                <p className="text-xs font-bold uppercase text-orange-600">Local Canteen Register - Student identified</p>
                 <p className="mt-1 font-bold text-slate-950">{offlinePending.studentName}</p>
                 <p className="text-xs text-slate-600">{offlinePending.admissionNumber} · {offlinePending.className ?? "No class"}</p>
                 <p className="mt-1 text-sm font-bold text-slate-900">Available: {money(offlinePending.availableBalanceCents)}</p>
@@ -488,7 +492,7 @@ export function NfcCanteenChargePage() {
           ) : (
             <p className="mt-3 text-sm text-slate-500">
               {phase === "setup" && "Enter an amount, then tap the student's NFC tag."}
-              {phase === "pin" && (isOfflineReady ? "Review and confirm the offline charge." : "Waiting for PIN entry…")}
+              {phase === "pin" && (usingLocalRegister ? "Review and confirm the local canteen sale." : "Waiting for PIN entry…")}
             </p>
           )}
         </aside>
