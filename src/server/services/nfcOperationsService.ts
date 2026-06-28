@@ -248,6 +248,67 @@ async function resolveNfcScanTarget(
   return null;
 }
 
+async function resolveGateBlockedReason(
+  db: NfcOperationsClient,
+  schoolId: string,
+  tokenOrUid: string,
+): Promise<string> {
+  const { token, uid } = extractTokenOrUid(tokenOrUid);
+  const unassignedTagStatuses = new Set(["UNASSIGNED", "UNALLOCATED", "GENERATED", "WRITTEN", "VERIFIED", "REGISTERED"]);
+  const gateStudentSelect = {
+    id: true,
+    admissionNumber: true,
+    firstName: true,
+    lastName: true,
+    studentType: true,
+    isActive: true,
+    enrollments: studentInclude.enrollments,
+  };
+
+  const tag = await db.nfcTag.findFirst({
+    where: {
+      OR: [
+        { publicCode: token },
+        ...(uid ? [{ physicalUid: { equals: uid, mode: "insensitive" as const } }] : []),
+      ],
+    },
+    include: {
+      school: { select: { id: true } },
+      student: { select: gateStudentSelect },
+    },
+  });
+
+  if (tag) {
+    if (tag.schoolId !== schoolId) return "wrong school tag";
+    if (!tag.studentId || unassignedTagStatuses.has(tag.status)) return "tag not assigned";
+    if (tag.status === "DISABLED" || tag.status === "LOST") return "lost or deactivated wristband";
+    if (!tag.student?.isActive) return "inactive student";
+    return "unknown token";
+  }
+
+  const credential = await db.studentCredential.findFirst({
+    where: {
+      OR: [
+        { scanToken: token },
+        ...(uid ? [{ credentialUID: uid }] : []),
+      ],
+    },
+    include: {
+      school: { select: { id: true } },
+      student: { select: gateStudentSelect },
+    },
+  }) as (CredentialForNfc & { school?: { id: string } | null }) | null;
+
+  if (credential) {
+    if (credential.schoolId !== schoolId) return "wrong school tag";
+    if (credential.status !== CredentialStatus.ACTIVE) return "lost or deactivated wristband";
+    if (!credential.student?.isActive) return "inactive student";
+    return "unknown token";
+  }
+
+  return "unknown token";
+}
+
 function buildStudentWhere(
   schoolId: string,
   filters: { search?: string; classId?: string; streamId?: string; studentType?: string },
@@ -975,7 +1036,7 @@ export async function scanGate(
 
   const target = await resolveNfcScanTarget(db, schoolId, input.tokenOrUid, { applyFeeHoldBlocking: true });
   const result = target && !target.blocked ? GateScanResult.ALLOWED : GateScanResult.BLOCKED;
-  const reason = target ? target.reason : "unknown token";
+  const reason = target ? target.reason : await resolveGateBlockedReason(db, schoolId, input.tokenOrUid);
 
   const scan = await db.nfcGateScan.create({
     data: {
