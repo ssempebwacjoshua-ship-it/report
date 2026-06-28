@@ -228,24 +228,70 @@ function ExtractionReviewPanel({
   );
 }
 
-function ExtractionProcessingCard({ sourceStatus, message }: { sourceStatus?: string; message?: string }) {
-  const steps = [
-    "Reading your document...",
-    "Improving image quality...",
-    "Extracting handwriting and tables...",
-    "Preparing review...",
+function phaseLabelFromTelemetry(phase?: ExtractionPhase, sourceStatus?: string): string {
+  if (phase === "queued") return "Queued";
+  if (phase === "preprocessing") return "Preprocessing";
+  if (phase === "reading_ai") return "Reading with AI";
+  if (phase === "building_output") return "Building output";
+  if (phase === "ready") return "Ready";
+  if (phase === "failed") return "Extraction failed";
+  if (sourceStatus === "PREPROCESSING") return "Preprocessing";
+  if (sourceStatus === "EXTRACTING") return "Reading with AI";
+  if (sourceStatus === "READY") return "Ready";
+  return "Queued";
+}
+
+function formatElapsedMs(ms: number): string {
+  const seconds = Math.max(0, Math.floor(ms / 1000));
+  const minutes = Math.floor(seconds / 60);
+  const remainder = seconds % 60;
+  return minutes > 0 ? `${minutes}m ${remainder.toString().padStart(2, "0")}s` : `${remainder}s`;
+}
+
+function ExtractionProcessingCard({
+  sourceStatus,
+  phase,
+  message,
+  elapsedMs,
+  isStale,
+  onRetry,
+}: {
+  sourceStatus?: string;
+  phase?: ExtractionPhase;
+  message?: string;
+  elapsedMs: number;
+  isStale: boolean;
+  onRetry: () => void;
+}) {
+  const steps: Array<{ label: string; phase: ExtractionPhase }> = [
+    { label: "Queued", phase: "queued" },
+    { label: "Preprocessing", phase: "preprocessing" },
+    { label: "Reading with AI", phase: "reading_ai" },
+    { label: "Building output", phase: "building_output" },
+    { label: "Ready", phase: "ready" },
   ];
-  const activeIndex = sourceStatus === "PREPROCESSING" ? 1 : sourceStatus === "EXTRACTING" ? 2 : 0;
+  const activePhase = phase ?? (sourceStatus === "PREPROCESSING" ? "preprocessing" : sourceStatus === "EXTRACTING" ? "reading_ai" : sourceStatus === "READY" ? "ready" : "queued");
+  const activeIndex = Math.max(0, steps.findIndex((step) => step.phase === activePhase));
   return (
     <div className="mx-auto grid w-full max-w-md gap-4 px-0 py-4 text-center md:p-4">
       <div className="bg-transparent px-0 py-2 md:rounded-2xl md:border md:border-slate-200 md:bg-white md:p-5 md:shadow-sm">
         <div className="mx-auto mb-4 h-10 w-10 animate-pulse rounded-full bg-blue-100" />
-        <h2 className="text-base font-black text-slate-950">{steps[Math.min(activeIndex, steps.length - 1)]}</h2>
+        <h2 className="text-base font-black text-slate-950">{steps[Math.min(activeIndex, steps.length - 1)]?.label ?? "Queued"}</h2>
+        <p className="mt-1 text-xs font-semibold text-slate-500">Elapsed {formatElapsedMs(elapsedMs)}</p>
         {message ? <p className="mt-2 text-sm font-semibold text-blue-700">{message}</p> : null}
+        {isStale ? (
+          <div className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2 text-left text-xs text-amber-900">
+            <p className="font-bold">Still working</p>
+            <p className="mt-1">This is taking longer than usual. Retry if you want to start a fresh extraction pass.</p>
+            <button type="button" className="mt-2 rounded-full bg-amber-600 px-3 py-1.5 font-semibold text-white" onClick={onRetry}>
+              Retry extraction
+            </button>
+          </div>
+        ) : null}
         <div className="mt-4 grid gap-2 text-left">
           {steps.map((step, index) => (
-            <div key={step} className={`rounded-lg px-3 py-2 text-xs font-semibold ${index <= activeIndex ? "bg-blue-50 text-blue-700" : "bg-slate-50 text-slate-400"}`}>
-              {step}
+            <div key={step.label} className={`rounded-lg px-3 py-2 text-xs font-semibold ${index <= activeIndex ? "bg-blue-50 text-blue-700" : "bg-slate-50 text-slate-400"}`}>
+              {step.label}
             </div>
           ))}
         </div>
@@ -434,6 +480,7 @@ function VersionPanel({
 
 type Stage = "empty" | "processing" | "uploaded" | "extractionFailed" | "generating" | "ready";
 type RenderSettings = NonNullable<SmartDocumentDetail["activeVersion"]>["renderSettings"];
+type ExtractionPhase = "queued" | "preprocessing" | "reading_ai" | "building_output" | "ready" | "failed";
 
 export function DocumentEditorPage() {
   const { id } = useParams<{ id: string }>();
@@ -465,6 +512,8 @@ export function DocumentEditorPage() {
   const [publishing, setPublishing] = useState(false);
 
   const [showActions, setShowActions] = useState(false);
+  const [processingElapsedMs, setProcessingElapsedMs] = useState(0);
+  const [processingIsStale, setProcessingIsStale] = useState(false);
   const hasActiveVersion = Boolean(activeVersionId);
   const parsedTemplates = getSmartPageTemplates("parsed", SCHOOL_VERTICAL);
   const readyTemplates = getSmartPageTemplates("ready", SCHOOL_VERTICAL);
@@ -474,6 +523,8 @@ export function DocumentEditorPage() {
   const chatEndRef = useRef<HTMLDivElement>(null);
   const actionLockRef = useRef<string | null>(null);
   const processingTimeoutRef = useRef<number | null>(null);
+  const processingStaleTimeoutRef = useRef<number | null>(null);
+  const processingTickRef = useRef<number | null>(null);
   const processingStartedAtRef = useRef<number | null>(null);
   const loadedDocumentKeyRef = useRef<string | null>(null);
 
@@ -513,6 +564,12 @@ export function DocumentEditorPage() {
           setRenderSettings(d.activeVersion.renderSettings);
           setStage("ready");
         } else if (d.extractionStatus === "PROCESSING") {
+          const queuedAt = d.latestSourceFile?.ocrQuality && typeof d.latestSourceFile.ocrQuality.queuedAt === "string"
+            ? Date.parse(d.latestSourceFile.ocrQuality.queuedAt)
+            : Date.now();
+          processingStartedAtRef.current = Number.isFinite(queuedAt) ? queuedAt : Date.now();
+          setProcessingElapsedMs(Math.max(0, Date.now() - processingStartedAtRef.current));
+          setProcessingIsStale(Date.now() - processingStartedAtRef.current >= 20_000);
           setStage("processing");
         } else if (d.extractionStatus === "FAILED") {
           setStage("extractionFailed");
@@ -546,11 +603,33 @@ export function DocumentEditorPage() {
       window.clearTimeout(processingTimeoutRef.current);
       processingTimeoutRef.current = null;
     }
+    if (processingStaleTimeoutRef.current) {
+      window.clearTimeout(processingStaleTimeoutRef.current);
+      processingStaleTimeoutRef.current = null;
+    }
+    if (processingTickRef.current) {
+      window.clearInterval(processingTickRef.current);
+      processingTickRef.current = null;
+    }
     if (stage !== "processing") {
       processingStartedAtRef.current = null;
+      setProcessingElapsedMs(0);
+      setProcessingIsStale(false);
       return;
     }
-    processingStartedAtRef.current = Date.now();
+    processingStartedAtRef.current = processingStartedAtRef.current ?? Date.now();
+    const tick = () => {
+      if (!processingStartedAtRef.current) return;
+      const elapsed = Math.max(0, Date.now() - processingStartedAtRef.current);
+      setProcessingElapsedMs(elapsed);
+      setProcessingIsStale(elapsed >= 20_000);
+    };
+    tick();
+    processingTickRef.current = window.setInterval(tick, 1_000);
+    processingStaleTimeoutRef.current = window.setTimeout(() => {
+      setProcessingIsStale(true);
+      addMessage("assistant", "Extraction is still working. If it stays stuck, retry to start a fresh pass.");
+    }, 20_000);
     processingTimeoutRef.current = window.setTimeout(() => {
       if (processingStartedAtRef.current && Date.now() - processingStartedAtRef.current >= 120_000 && stage === "processing") {
         setStage("extractionFailed");
@@ -561,6 +640,14 @@ export function DocumentEditorPage() {
       if (processingTimeoutRef.current) {
         window.clearTimeout(processingTimeoutRef.current);
         processingTimeoutRef.current = null;
+      }
+      if (processingStaleTimeoutRef.current) {
+        window.clearTimeout(processingStaleTimeoutRef.current);
+        processingStaleTimeoutRef.current = null;
+      }
+      if (processingTickRef.current) {
+        window.clearInterval(processingTickRef.current);
+        processingTickRef.current = null;
       }
     };
   }, [stage]);
@@ -613,6 +700,11 @@ export function DocumentEditorPage() {
       );
       const refreshed = await getDocument(id, { authMode: "school" });
       setDoc(refreshed);
+      const queuedAt = refreshed.latestSourceFile?.ocrQuality && typeof refreshed.latestSourceFile.ocrQuality.queuedAt === "string"
+        ? Date.parse(refreshed.latestSourceFile.ocrQuality.queuedAt)
+        : Date.now();
+      processingStartedAtRef.current = Number.isFinite(queuedAt) ? queuedAt : Date.now();
+      setProcessingElapsedMs(Math.max(0, Date.now() - processingStartedAtRef.current));
     } catch (e) {
       if (isAiConfigurationError(e)) {
         setAiNotice("AI generation is not configured in this environment. You can still edit this document manually.");
@@ -807,6 +899,11 @@ export function DocumentEditorPage() {
       setStage("processing");
       const refreshed = await getDocument(id, { authMode: "school" });
       setDoc(refreshed);
+      const queuedAt = refreshed.latestSourceFile?.ocrQuality && typeof refreshed.latestSourceFile.ocrQuality.queuedAt === "string"
+        ? Date.parse(refreshed.latestSourceFile.ocrQuality.queuedAt)
+        : Date.now();
+      processingStartedAtRef.current = Number.isFinite(queuedAt) ? queuedAt : Date.now();
+      setProcessingElapsedMs(Math.max(0, Date.now() - processingStartedAtRef.current));
       addMessage("assistant", highAccuracy ? "Retrying extraction with high accuracy in the background." : "Retrying extraction in the background.");
     } catch (e) {
       if (isAiConfigurationError(e)) {
@@ -931,13 +1028,14 @@ export function DocumentEditorPage() {
   const extractionPrimaryActionLabel = hasActiveVersion
     ? "Looks good, generate document"
     : "Generate document from extraction.";
+  const telemetryPhase = doc?.latestSourceFile?.ocrQuality?.stage as ExtractionPhase | undefined;
   const stageLabel =
     stage === "ready"
       ? "Ready"
       : stage === "uploaded"
         ? "Review extraction"
         : stage === "processing"
-          ? "Reading file"
+          ? phaseLabelFromTelemetry(telemetryPhase, doc?.latestSourceFile?.status)
           : stage === "generating"
             ? "Generating"
             : stage === "extractionFailed"
@@ -1038,7 +1136,11 @@ export function DocumentEditorPage() {
               <div className="flex min-h-[24rem] items-center justify-center">
                 <ExtractionProcessingCard
                   sourceStatus={doc.latestSourceFile?.status}
+                  phase={doc.latestSourceFile?.ocrQuality?.stage as ExtractionPhase | undefined}
                   message={typeof doc.latestSourceFile?.ocrQuality?.warning === "string" ? doc.latestSourceFile.ocrQuality.warning : undefined}
+                  elapsedMs={processingElapsedMs}
+                  isStale={processingIsStale}
+                  onRetry={() => void handleRetryExtraction()}
                 />
               </div>
             ) : stage === "extractionFailed" ? (
@@ -1161,7 +1263,7 @@ export function DocumentEditorPage() {
                 </div>
               ) : stage === "processing" ? (
                 <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
-                  Reading the document in the background. You can keep editing the draft below once parsing is ready.
+                  Reading the document in the background. Elapsed {formatElapsedMs(processingElapsedMs)}.
                 </div>
               ) : (
                 <div className="mt-3 rounded-2xl border border-blue-100 bg-blue-50 px-3 py-2 text-sm text-blue-900">

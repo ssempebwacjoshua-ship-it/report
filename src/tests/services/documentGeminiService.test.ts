@@ -101,11 +101,12 @@ describe("documentGeminiService", () => {
     expect(generateContent).toHaveBeenCalledTimes(1);
     const request = generateContent.mock.calls[0]?.[0] as {
       contents?: Array<{ inlineData?: unknown; text?: string }>;
-      config?: { responseMimeType?: string };
+      config?: { responseMimeType?: string; mediaResolution?: string };
     };
     expect(request.contents?.filter((part) => Boolean(part.inlineData)).length).toBe(4);
     expect(request.contents?.some((part) => typeof part.text === "string" && part.text.includes("High accuracy mode"))).toBe(true);
     expect(request.config?.responseMimeType).toBe("application/json");
+    expect(request.config?.mediaResolution).toBe("MEDIA_RESOLUTION_HIGH");
   });
 
   it("uses gemini-3.5-flash as the default fast model when GEMINI_MODEL is blank", async () => {
@@ -122,6 +123,7 @@ describe("documentGeminiService", () => {
     vi.stubEnv("SMART_PAGES_GEMINI_STABLE_ACCURACY_MODEL", "gemini-2.5-flash");
     const overloaded = new Error("503 UNAVAILABLE: model overloaded");
     generateContent
+      .mockRejectedValueOnce(overloaded)
       .mockRejectedValueOnce(overloaded)
       .mockRejectedValueOnce(overloaded)
       .mockRejectedValueOnce(overloaded)
@@ -159,13 +161,15 @@ describe("documentGeminiService", () => {
     expect(result._meta.requestedModel).toBe("gemini-3.5-flash");
     expect(result._meta.selectedModel).toBe("gemini-2.5-flash");
     expect(result._meta.attemptedModels).toEqual(["gemini-3.5-flash", "gemini-2.5-flash"]);
-    expect(result._meta.retryCount).toBe(3);
+    expect(result._meta.retryCount).toBe(4);
     expect(result._meta.fallbackUsed).toBe(true);
     expect(result._meta.fallbackReason).toBe("Model overloaded");
     expect(result._meta.providerErrorCode).toBe("MODEL_OVERLOADED");
-    expect(generateContent).toHaveBeenCalledTimes(5);
+    expect(result._meta.mediaResolution).toBe("MEDIA_RESOLUTION_MEDIUM");
+    expect(result._meta.retryDelaysMs).toEqual([500, 1500]);
+    expect(generateContent).toHaveBeenCalledTimes(6);
     expect(generateContent.mock.calls[0]?.[0]).toEqual(expect.objectContaining({ model: "gemini-3.5-flash" }));
-    expect(generateContent.mock.calls[4]?.[0]).toEqual(expect.objectContaining({ model: "gemini-2.5-flash" }));
+    expect(generateContent.mock.calls[5]?.[0]).toEqual(expect.objectContaining({ model: "gemini-2.5-flash" }));
     vi.useRealTimers();
   });
 
@@ -203,9 +207,10 @@ describe("documentGeminiService", () => {
 
     const request = generateContent.mock.calls[0]?.[0] as {
       contents?: Array<{ inlineData?: { data: string; mimeType: string }; text?: string }>;
-      config?: { responseMimeType?: string };
+      config?: { responseMimeType?: string; mediaResolution?: string };
     };
     expect(request.config?.responseMimeType).toBe("application/json");
+    expect(request.config?.mediaResolution).toBe("MEDIA_RESOLUTION_MEDIUM");
     expect(request.contents?.[0]?.inlineData?.data).toBe(Buffer.from("processed").toString("base64"));
     expect(request.contents?.[0]?.inlineData?.mimeType).toBe("image/jpeg");
   });

@@ -26,7 +26,9 @@ const mockState = vi.hoisted(() => {
     documentSourceFile: {
       findUnique: vi.fn(),
       findFirst: vi.fn(),
+      findMany: vi.fn(),
       update: vi.fn(),
+      updateMany: vi.fn(),
       create: vi.fn(),
     },
     documentVersion: {
@@ -114,6 +116,8 @@ describe("documentIntelligenceService", () => {
     mockState.prisma.documentVersion.findFirst.mockImplementation(async (...args: Parameters<typeof mockState.prisma.documentVersion.findUnique>) =>
       mockState.prisma.documentVersion.findUnique(...args));
     mockState.prisma.auditLog.create.mockResolvedValue({ id: "audit-1" });
+    mockState.prisma.documentSourceFile.findMany.mockResolvedValue([]);
+    mockState.prisma.documentSourceFile.updateMany.mockResolvedValue({ count: 1 });
     mockState.prisma.schoolSmartPagePlan.findUnique.mockResolvedValue({
       schoolId: "school-1",
       planName: "STARTER",
@@ -606,6 +610,13 @@ describe("documentIntelligenceService", () => {
         }),
       }),
     );
+    const readyUpdate = mockState.prisma.documentSourceFile.update.mock.calls.find(([call]) => call?.data?.status === "READY")?.[0];
+    expect(readyUpdate?.data?.ocrQuality).toEqual(expect.objectContaining({
+      stage: "ready",
+      preprocessMs: expect.any(Number),
+      geminiMs: expect.any(Number),
+      totalMs: expect.any(Number),
+    }));
   });
 
   it("does not reuse another school's cached extraction for the same file hash", async () => {
@@ -828,6 +839,58 @@ describe("documentIntelligenceService", () => {
       message: "Word documents are coming soon. Please upload PDF, image, CSV, or Excel.",
     });
     expect(mockState.prisma.documentSourceFile.create).not.toHaveBeenCalled();
+  });
+
+  it("queues upload metadata immediately before extraction starts", async () => {
+    mockState.prisma.smartDocument.findUnique.mockResolvedValue({
+      id: "doc-1",
+      creatorId: "creator-1",
+      schoolId: "school-1",
+      title: "Untitled Document",
+      status: "DRAFT",
+      extractionStatus: "READY",
+      extractedKnowledge: null,
+      activeVersionId: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      published: null,
+      sourceFiles: [],
+      _count: { versions: 0 },
+    });
+    mockState.prisma.documentSourceFile.create.mockResolvedValue({
+      id: "source-upload-1",
+    });
+    mockState.prisma.smartDocument.update.mockResolvedValue({});
+
+    const { uploadAndExtract } = await import("../../server/services/documentIntelligenceService");
+    await uploadAndExtract("doc-1", "creator-1", {
+      originalname: "scan.png",
+      mimetype: "image/png",
+      size: 2048,
+      buffer: Buffer.from("file"),
+    } as Express.Multer.File);
+
+    expect(mockState.prisma.documentSourceFile.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          status: "UPLOADED",
+          ocrQuality: expect.objectContaining({
+            queuedAt: expect.any(String),
+            fileSize: 2048,
+            mimeType: "image/png",
+            stage: "queued",
+          }),
+        }),
+      }),
+    );
+    expect(mockState.prisma.smartDocument.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          extractionStartedAt: null,
+          extractionStatus: "PROCESSING",
+        }),
+      }),
+    );
   });
 
   it("does not collapse school operators into a school-wide creator record", async () => {
