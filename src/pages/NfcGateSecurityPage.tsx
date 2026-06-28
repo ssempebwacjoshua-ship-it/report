@@ -43,7 +43,13 @@ export function NfcGateSecurityPage() {
     } catch (error) {
       const message = error instanceof Error ? error.message : "Could not load gate scans.";
       setDashboard(null);
-      setLoadError(/access|session|unauthori[sz]ed|forbidden/i.test(message) ? "Please sign in again." : message);
+      if (/session|unauthori[sz]ed|login|sign in/i.test(message)) {
+        setLoadError("Please sign in again.");
+      } else if (/access|forbidden|permission/i.test(message)) {
+        setLoadError("Gate access is blocked for this account. Ask an administrator to check the Gate Security role.");
+      } else {
+        setLoadError(message);
+      }
     }
   }
 

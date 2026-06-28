@@ -103,4 +103,13 @@ describe("NfcGateSecurityPage", () => {
     await waitFor(() => expect(screen.getByText(/please sign in again to continue using gate security/i)).toBeInTheDocument());
     expect(mockFetchGateDashboard).not.toHaveBeenCalled();
   });
+
+  it("does not ask the user to sign in again for a gate permission denial", async () => {
+    mockFetchGateDashboard.mockRejectedValueOnce(new Error("You do not have access to this resource."));
+
+    render(<NfcGateSecurityPage />);
+
+    await waitFor(() => expect(screen.getByText(/gate access is blocked for this account/i)).toBeInTheDocument());
+    expect(screen.queryByText(/^please sign in again\.$/i)).not.toBeInTheDocument();
+  });
 });
