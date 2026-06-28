@@ -49,7 +49,7 @@ type SmartPagesActor = {
 };
 
 const LAWYER_PRIMARY_COLOR = "#007FFF";
-const SMART_PAGES_STABLE_MODEL_MESSAGE = "Smart Pages is retrying with a stable model.";
+const SMART_PAGES_STABLE_MODEL_MESSAGE = "AI provider is busy. Retrying with stable model...";
 const SMART_PAGES_EXTRACTION_WORKER_INTERVAL_MS = 2_000;
 const SMART_PAGES_EXTRACTION_STALE_MS = 10 * 60_000;
 const SMART_PAGES_EXTRACTION_DEFAULT_CONCURRENCY = 1;
@@ -1087,7 +1087,7 @@ export async function processSourceFileExtraction(sourceFileId: string, claimedS
   } catch (error) {
     const statusValue = (error as { status?: unknown } | null)?.status;
     const causeValue = error instanceof Error ? (error as { cause?: unknown }).cause : undefined;
-    const geminiModel = intendedModel ?? (process.env.SMART_PAGES_GEMINI_FAST_MODEL?.trim() || process.env.GEMINI_MODEL?.trim() || "gemini-3.5-flash");
+    const geminiModel = intendedModel ?? resolveGeminiDocumentModel();
     const diagnostic = {
       documentId: sourceFile.documentId,
       sourceFileId: sourceFile.id,
@@ -1143,15 +1143,38 @@ export async function processSourceFileExtraction(sourceFileId: string, claimedS
         status: "FAILED",
         extractionError: message,
         extractionCompletedAt: completedAt,
+        processedData: sourceFile.processedData ?? null,
         ocrQuality: mergeOcrQuality(sourceFile.ocrQuality, {
           stage: "failed",
           pickedAt: new Date(pickedAtMs).toISOString(),
           completionMs: Math.max(0, completedAt.getTime() - pickedAtMs),
           totalMs: Math.max(0, completedAt.getTime() - queuedAtMs),
-          selectedModel: intendedModel ?? resolveGeminiDocumentModel(),
+          requestedModel: isRecord(sourceFile.ocrQuality) && typeof sourceFile.ocrQuality.requestedModel === "string"
+            ? sourceFile.ocrQuality.requestedModel
+            : intendedModel ?? resolveGeminiDocumentModel(),
+          attemptedModels: isRecord(sourceFile.ocrQuality) && Array.isArray(sourceFile.ocrQuality.attemptedModels)
+            ? sourceFile.ocrQuality.attemptedModels
+            : [intendedModel ?? resolveGeminiDocumentModel()],
+          selectedModel: isRecord(sourceFile.ocrQuality) && typeof sourceFile.ocrQuality.selectedModel === "string"
+            ? sourceFile.ocrQuality.selectedModel
+            : intendedModel ?? resolveGeminiDocumentModel(),
           retryCount: typeof (error as { retryCount?: unknown } | null)?.retryCount === "number"
             ? (error as { retryCount?: number }).retryCount
+            : isRecord(sourceFile.ocrQuality) && typeof sourceFile.ocrQuality.retryCount === "number"
+              ? sourceFile.ocrQuality.retryCount
+              : undefined,
+          fallbackUsed: isRecord(sourceFile.ocrQuality) && typeof sourceFile.ocrQuality.fallbackUsed === "boolean"
+            ? sourceFile.ocrQuality.fallbackUsed
+            : false,
+          fallbackReason: isRecord(sourceFile.ocrQuality) && typeof sourceFile.ocrQuality.fallbackReason === "string"
+            ? sourceFile.ocrQuality.fallbackReason
             : undefined,
+          providerErrorCode: isRecord(sourceFile.ocrQuality) && typeof sourceFile.ocrQuality.providerErrorCode === "string"
+            ? sourceFile.ocrQuality.providerErrorCode
+            : undefined,
+          extractionTimeMs: isRecord(sourceFile.ocrQuality) && typeof sourceFile.ocrQuality.extractionTimeMs === "number"
+            ? sourceFile.ocrQuality.extractionTimeMs
+            : Date.now() - queuedAtMs,
         }),
       },
     });
@@ -1352,7 +1375,7 @@ function normalizeHeaders(row: string[]): string[] {
 
 function friendlyExtractionError(error: unknown): string {
   const message = error instanceof Error ? error.message : String(error);
-  if (/timeout|timed out/i.test(message)) return "Reading took too long. Please retry extraction.";
+  if (/timeout|timed out/i.test(message)) return SMART_PAGES_STABLE_MODEL_MESSAGE;
   if (/GEMINI_API_KEY/i.test(message)) return "Gemini is not configured. Add a Gemini API key and retry extraction.";
   if (/503|unavailable|model overloaded|overloaded|high traffic/i.test(message)) return SMART_PAGES_STABLE_MODEL_MESSAGE;
   return "We could not read this document. Please retry or upload a clearer file.";

@@ -109,23 +109,20 @@ describe("documentGeminiService", () => {
     expect(request.config?.mediaResolution).toBe("MEDIA_RESOLUTION_HIGH");
   });
 
-  it("uses gemini-3.5-flash as the default fast model when GEMINI_MODEL is blank", async () => {
+  it("uses gemini-2.5-flash as the default fast model when GEMINI_MODEL is blank", async () => {
     vi.stubEnv("GEMINI_MODEL", "");
     const { resolveGeminiDocumentModel, resolveGeminiHighAccuracyDocumentModel } = await import("../../server/services/documentGeminiService");
-    expect(resolveGeminiDocumentModel()).toBe("gemini-3.5-flash");
+    expect(resolveGeminiDocumentModel()).toBe("gemini-2.5-flash");
     expect(resolveGeminiHighAccuracyDocumentModel().stable).toBe("gemini-2.5-flash");
   });
 
-  it("retries 503s, falls back to stable model, and returns success metadata", async () => {
+  it("503s fall back to stable model quickly and return success metadata", async () => {
     vi.useFakeTimers();
     vi.stubEnv("GEMINI_API_KEY", "test-key");
     vi.stubEnv("SMART_PAGES_GEMINI_FAST_MODEL", "gemini-3.5-flash");
     vi.stubEnv("SMART_PAGES_GEMINI_STABLE_ACCURACY_MODEL", "gemini-2.5-flash");
     const overloaded = new Error("503 UNAVAILABLE: model overloaded");
     generateContent
-      .mockRejectedValueOnce(overloaded)
-      .mockRejectedValueOnce(overloaded)
-      .mockRejectedValueOnce(overloaded)
       .mockRejectedValueOnce(overloaded)
       .mockRejectedValueOnce(overloaded)
       .mockResolvedValueOnce({
@@ -161,15 +158,58 @@ describe("documentGeminiService", () => {
     expect(result._meta.requestedModel).toBe("gemini-3.5-flash");
     expect(result._meta.selectedModel).toBe("gemini-2.5-flash");
     expect(result._meta.attemptedModels).toEqual(["gemini-3.5-flash", "gemini-2.5-flash"]);
-    expect(result._meta.retryCount).toBe(4);
+    expect(result._meta.retryCount).toBe(1);
     expect(result._meta.fallbackUsed).toBe(true);
     expect(result._meta.fallbackReason).toBe("Model overloaded");
     expect(result._meta.providerErrorCode).toBe("MODEL_OVERLOADED");
     expect(result._meta.mediaResolution).toBe("MEDIA_RESOLUTION_MEDIUM");
-    expect(result._meta.retryDelaysMs).toEqual([500, 1500]);
-    expect(generateContent).toHaveBeenCalledTimes(6);
+    expect(result._meta.retryDelaysMs).toEqual([250]);
+    expect(generateContent).toHaveBeenCalledTimes(3);
     expect(generateContent.mock.calls[0]?.[0]).toEqual(expect.objectContaining({ model: "gemini-3.5-flash" }));
-    expect(generateContent.mock.calls[5]?.[0]).toEqual(expect.objectContaining({ model: "gemini-2.5-flash" }));
+    expect(generateContent.mock.calls[2]?.[0]).toEqual(expect.objectContaining({ model: "gemini-2.5-flash" }));
+    vi.useRealTimers();
+  });
+
+  it("timeout also falls back to the stable model and records the selected model", async () => {
+    vi.useFakeTimers();
+    vi.stubEnv("GEMINI_API_KEY", "test-key");
+    const timeoutError = new Error("Gemini request timed out. Please retry.");
+    generateContent
+      .mockRejectedValueOnce(timeoutError)
+      .mockRejectedValueOnce(timeoutError)
+      .mockResolvedValueOnce({
+        text: JSON.stringify({
+          documentType: "report",
+          domain: "education",
+          title: "Timeout Recovery",
+          suggestedDocumentType: "report",
+          confidence: 0.8,
+          handwritingDifficulty: "low",
+          needsReview: false,
+          recommendedNextStep: "accept",
+          sections: [],
+          tables: [],
+          statistics: [],
+          entities: [],
+          people: [],
+          dates: [],
+          handwrittenNotes: [],
+          keyFacts: [],
+          unclearItems: [],
+          unclearTableCells: [],
+          rawText: "Recovered",
+        }),
+      });
+
+    const { extractDocumentKnowledge } = await import("../../server/services/documentGeminiService");
+    const pending = extractDocumentKnowledge(Buffer.from("fake"), "image/jpeg", "report.jpg");
+    await vi.runAllTimersAsync();
+    const result = await pending;
+
+    expect(result._meta.fallbackUsed).toBe(true);
+    expect(result._meta.providerErrorCode).toBe("TIMEOUT");
+    expect(result._meta.selectedModel).toBe("gemini-2.5-flash");
+    expect(result._meta.attemptedModels).toEqual(["gemini-2.5-flash", "gemini-2.5-flash"]);
     vi.useRealTimers();
   });
 
