@@ -28,6 +28,7 @@ const mockGetAvailableOfflineBalance = vi.hoisted(() => vi.fn(async () => ({
 })));
 const mockGetSnapshotValidity = vi.hoisted(() => vi.fn(async () => ({ valid: true })));
 const mockIsCanteenOfflineEnabled = vi.hoisted(() => vi.fn(async () => true));
+const mockVerifyLocalWalletPin = vi.hoisted(() => vi.fn(async () => true));
 
 function setNavigatorOnline(value: boolean) {
   Object.defineProperty(navigator, "onLine", {
@@ -80,6 +81,13 @@ vi.mock("../../offline/offlineHash", () => ({
   hashNfcLookupValue: vi.fn(async (value: string) => `hash:${value}`),
 }));
 
+vi.mock("../../offline/offlinePin", () => ({
+  assertLocalPinFormat: vi.fn((pin: string) => {
+    if (!/^\d{4,6}$/.test(pin)) throw new Error("PIN must be 4 to 6 digits.");
+  }),
+  verifyLocalWalletPin: mockVerifyLocalWalletPin,
+}));
+
 describe("NfcCanteenChargePage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -102,6 +110,8 @@ describe("NfcCanteenChargePage", () => {
         balanceCents: 5000,
         localStartingBalanceCents: 5000,
         localCurrentBalanceCents: 5000,
+        pinHash: "pbkdf2$100000$salt$hash",
+        pinLockedUntil: null,
       },
     });
   });
@@ -123,8 +133,10 @@ describe("NfcCanteenChargePage", () => {
     expect(mockResolveWalletStudent).not.toHaveBeenCalled();
     expect(await screen.findByText(/local canteen register - student identified/i)).toBeInTheDocument();
 
+    fireEvent.change(screen.getByPlaceholderText(/pin/i), { target: { value: "1234" } });
     fireEvent.click(screen.getByRole("button", { name: /queue sale/i }));
 
+    await waitFor(() => expect(mockVerifyLocalWalletPin).toHaveBeenCalledWith("1234", "pbkdf2$100000$salt$hash"));
     await waitFor(() => expect(mockQueueCanteenCharge).toHaveBeenCalledWith(expect.objectContaining({
       schoolId: "school-a",
       snapshotId: "register-1",
@@ -134,9 +146,32 @@ describe("NfcCanteenChargePage", () => {
         actionType: "CANTEEN_CHARGE",
         amountCents: 2000,
         tokenOrUidHash: "hash:PUB001",
+        pinVerified: true,
       }),
     })));
     expect(mockQueueCanteenCharge.mock.calls[0]?.[0].payload.tokenOrUid).toBeUndefined();
     expect(await screen.findByText(/local balance updated/i)).toBeInTheDocument();
+  });
+
+  it("does not deduct or queue when the offline PIN is wrong", async () => {
+    setNavigatorOnline(false);
+    mockVerifyLocalWalletPin.mockResolvedValueOnce(false);
+
+    render(
+      <MemoryRouter>
+        <NfcCanteenChargePage />
+      </MemoryRouter>,
+    );
+
+    fireEvent.change(screen.getByLabelText(/amount/i), { target: { value: "20" } });
+    fireEvent.change(screen.getByPlaceholderText(/scan token or uid/i), { target: { value: "PUB001" } });
+    fireEvent.click(screen.getByRole("button", { name: "Go" }));
+
+    await screen.findByText(/local canteen register - student identified/i);
+    fireEvent.change(screen.getByPlaceholderText(/pin/i), { target: { value: "9999" } });
+    fireEvent.click(screen.getByRole("button", { name: /queue sale/i }));
+
+    await waitFor(() => expect(screen.getByText(/incorrect pin/i)).toBeInTheDocument());
+    expect(mockQueueCanteenCharge).not.toHaveBeenCalled();
   });
 });

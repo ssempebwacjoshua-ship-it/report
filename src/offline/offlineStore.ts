@@ -349,14 +349,16 @@ export async function queueCanteenCharge(input: {
   snapshotId: string;
   studentId: string;
   walletId: string | null;
-    payload: {
-      actionType: "CANTEEN_CHARGE";
-      tokenOrUid?: string;
-      tokenOrUidHash?: string;
-      studentId: string;
+  payload: {
+    actionType: "CANTEEN_CHARGE";
+    tokenOrUid?: string;
+    tokenOrUidHash?: string;
+    studentId: string;
     walletId: string | null;
     tagId?: string | null;
     amountCents: number;
+    pinVerified?: boolean;
+    pinVerifiedAt?: string;
     description?: string | null;
     cashierUserId: string;
     chargedAt: string;

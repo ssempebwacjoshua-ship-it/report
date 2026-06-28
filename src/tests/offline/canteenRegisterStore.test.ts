@@ -123,6 +123,8 @@ function makeCanteenRegister(): OfflineBootstrapSnapshot {
       schoolId: "school-a",
       status: "ACTIVE",
       balanceCents: 5000,
+      pinHash: "pbkdf2$100000$salt$hash",
+      pinLockedUntil: null,
       snapshotId: "register-1",
       frozenReason: null,
     }],
@@ -162,6 +164,7 @@ describe("Local Canteen Register storage", () => {
     expect(dbState.tags[0]?.physicalUid).toBeNull();
     expect(dbState.tags[0]?.publicCodeHash).toEqual(expect.any(String));
     expect(dbState.wallets[0]?.localStartingBalanceCents).toBe(5000);
+    expect(dbState.wallets[0]?.pinHash).toBe("pbkdf2$100000$salt$hash");
     expect(dbState.meta.has("canteen-register:school-a:device-a")).toBe(true);
   });
 
@@ -202,6 +205,8 @@ describe("Local Canteen Register storage", () => {
         studentId: "student-1",
         walletId: "wallet-1",
         amountCents: 1200,
+        pinVerified: true,
+        pinVerifiedAt: "2026-06-28T10:10:00.000Z",
         description: "Lunch",
         cashierUserId: "cashier-1",
         chargedAt: "2026-06-28T10:10:00.000Z",
