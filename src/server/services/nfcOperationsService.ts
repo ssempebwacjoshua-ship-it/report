@@ -100,16 +100,28 @@ function requireRole(ctx: NfcOperationsContext, allowed: string[]) {
   throw Object.assign(new Error("You do not have permission for this NFC action."), { status: 403 });
 }
 
-function requirePermission(ctx: NfcOperationsContext, permission: string) {
+function logPermissionDenied(ctx: NfcOperationsContext, permission: string, route?: string) {
+  console.warn("[nfc-permission-denied]", {
+    path: route ?? "unknown",
+    role: ctx.role ?? null,
+    requiredPermission: permission,
+    actorId: ctx.actorId ?? null,
+    schoolId: ctx.schoolId ?? null,
+  });
+}
+
+function requirePermission(ctx: NfcOperationsContext, permission: string, route?: string) {
   if (!ctx.actorId || !ctx.role) throw Object.assign(new Error("Authentication required."), { status: 401 });
   if (!hasPermission(ctx.role, permission)) {
+    logPermissionDenied(ctx, permission, route);
     throw Object.assign(new Error("You do not have permission for this action."), { status: 403 });
   }
 }
 
-function requireAnyPermission(ctx: NfcOperationsContext, permissions: string[]) {
+function requireAnyPermission(ctx: NfcOperationsContext, permissions: string[], route?: string) {
   if (!ctx.actorId || !ctx.role) throw Object.assign(new Error("Authentication required."), { status: 401 });
   if (!permissions.some((permission) => hasPermission(ctx.role, permission))) {
+    logPermissionDenied(ctx, permissions.join(" | "), route);
     throw Object.assign(new Error("You do not have permission for this action."), { status: 403 });
   }
 }
@@ -451,7 +463,7 @@ export async function getAttendanceDashboard(
   db: NfcOperationsClient = defaultPrisma,
 ) {
   const schoolId = requireSchoolId(ctx);
-  requirePermission(ctx, "nfc.devices.manage");
+  requirePermission(ctx, "nfc.devices.manage", "GET /api/nfc/attendance");
   const policy = await getSchoolNfcPolicy(ctx, db);
   const { start, end } = getZonedDayRange(new Date(), policy.policy.timezone);
   const [events, students] = await Promise.all([
@@ -492,7 +504,7 @@ export async function scanAttendance(
   db: NfcOperationsClient = defaultPrisma,
 ) {
   const schoolId = requireSchoolId(ctx);
-  requirePermission(ctx, "nfc.devices.manage");
+  requirePermission(ctx, "nfc.devices.manage", "POST /api/nfc/attendance/scan");
   const policy = await getSchoolNfcPolicy(ctx, db);
   const target = await resolveNfcScanTarget(db, schoolId, input.tokenOrUid, { applyFeeHoldBlocking: true });
   if (!target) throw Object.assign(new Error("NFC token not recognized."), { status: 404 });
@@ -1032,7 +1044,7 @@ export async function scanGate(
   db: NfcOperationsClient = defaultPrisma,
 ) {
   const schoolId = requireSchoolId(ctx);
-  requirePermission(ctx, "nfc.gate.scan");
+  requirePermission(ctx, "nfc.gate.scan", "POST /api/nfc/gate/scan");
 
   const target = await resolveNfcScanTarget(db, schoolId, input.tokenOrUid, { applyFeeHoldBlocking: true });
   const result = target && !target.blocked ? GateScanResult.ALLOWED : GateScanResult.BLOCKED;
@@ -1597,7 +1609,7 @@ export async function getDailySummary(
 
 export async function getGateDashboard(ctx: NfcOperationsContext, db: NfcOperationsClient = defaultPrisma) {
   const schoolId = requireSchoolId(ctx);
-  requirePermission(ctx, "nfc.gate.view");
+  requirePermission(ctx, "nfc.gate.view", "GET /api/nfc/gate");
   const scans = await db.nfcGateScan.findMany({
     where: { schoolId },
     include: { student: { select: { id: true, admissionNumber: true, firstName: true, lastName: true, isActive: true, enrollments: studentInclude.enrollments } }, credential: true },
