@@ -14,7 +14,7 @@ function updatedByFromRequest(req: { header: (name: string) => string | undefine
 
 export function settingsRoutes() {
   const router = Router();
-  router.use(requireSchoolPermission("app.admin"));
+  router.use("/api/settings", requireSchoolPermission("app.admin"));
 
   router.get("/api/settings", async (req, res, next) => {
     try {
