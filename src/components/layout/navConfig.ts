@@ -1,3 +1,5 @@
+import { hasPermission } from "../../shared/permissions";
+
 export type ProductKey = "reportLab" | "smartPages" | "nfc";
 
 export type NavItem = {
@@ -27,6 +29,18 @@ export const productSwitcherItems: Record<ProductKey, { label: string; to: strin
   smartPages: { label: "Smart Pages", to: "/smart-pages" },
   nfc: { label: "NFC", to: "/nfc/tags" },
 };
+
+export function getVisibleProductSwitcherProducts(role: string | null | undefined, pathname: string): ProductKey[] {
+  if (hasPermission(role, "app.admin")) {
+    return ["reportLab", "smartPages", "nfc"];
+  }
+
+  if (hasPermission(role, "nfc.gate.view") || hasPermission(role, "nfc.canteen.view")) {
+    return ["nfc"];
+  }
+
+  return [getProductFromPath(pathname)];
+}
 
 export const navItemsByProduct: Record<ProductKey, NavItem[]> = {
   reportLab: [

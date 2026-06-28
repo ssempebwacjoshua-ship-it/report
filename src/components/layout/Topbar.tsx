@@ -2,7 +2,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { NavigationRegular, PersonRegular, SignOutRegular, WifiOffRegular, ArrowSyncRegular, WarningRegular } from "@fluentui/react-icons";
 import { useAuth } from "../../contexts/AuthContext";
 import { ROLE_LABELS } from "../../shared/permissions";
-import { getProductFromPath, productSwitcherItems } from "./navConfig";
+import { getProductFromPath, getVisibleProductSwitcherProducts, productSwitcherItems } from "./navConfig";
 import { useConnectivityStatus, type ConnectivityState } from "../../hooks/useConnectivityStatus";
 
 type Props = {
@@ -57,6 +57,7 @@ export function Topbar({ onMenuClick }: Props) {
   const navigate = useNavigate();
   const location = useLocation();
   const currentProduct = getProductFromPath(location.pathname);
+  const visibleProducts = getVisibleProductSwitcherProducts(user?.role, location.pathname);
 
   const { state: connState, pendingCount } = useConnectivityStatus(
     user?.schoolId,
@@ -88,39 +89,20 @@ export function Topbar({ onMenuClick }: Props) {
         </button>
 
         <div className="flex items-center gap-1 rounded-full border border-white/20 bg-white/10 p-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.1)]">
-          <button
-            type="button"
-            onClick={() => switchProduct("reportLab")}
-            className={`rounded-full px-3 py-1.5 text-xs font-black transition ${
-              currentProduct === "reportLab"
-                ? "bg-white text-[color:var(--sc-primary)] shadow-sm"
-                : "text-white hover:bg-white/10 hover:text-white"
-            }`}
-          >
-            Report Lab
-          </button>
-          <button
-            type="button"
-            onClick={() => switchProduct("smartPages")}
-            className={`rounded-full px-3 py-1.5 text-xs font-black transition ${
-              currentProduct === "smartPages"
-                ? "bg-white text-[color:var(--sc-primary)] shadow-sm"
-                : "text-white hover:bg-white/10 hover:text-white"
-            }`}
-          >
-            Smart Pages
-          </button>
-          <button
-            type="button"
-            onClick={() => switchProduct("nfc")}
-            className={`rounded-full px-3 py-1.5 text-xs font-black transition ${
-              currentProduct === "nfc"
-                ? "bg-white text-[color:var(--sc-primary)] shadow-sm"
-                : "text-white hover:bg-white/10 hover:text-white"
-            }`}
-          >
-            NFC
-          </button>
+          {visibleProducts.map((product) => (
+            <button
+              key={product}
+              type="button"
+              onClick={() => switchProduct(product)}
+              className={`rounded-full px-3 py-1.5 text-xs font-black transition ${
+                currentProduct === product
+                  ? "bg-white text-[color:var(--sc-primary)] shadow-sm"
+                  : "text-white hover:bg-white/10 hover:text-white"
+              }`}
+            >
+              {productSwitcherItems[product].label}
+            </button>
+          ))}
         </div>
 
         <ConnectivityBadge state={connState} pendingCount={pendingCount} />

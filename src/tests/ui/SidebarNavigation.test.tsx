@@ -4,14 +4,12 @@ import { describe, expect, it, vi } from "vitest";
 import { Sidebar } from "../../components/layout/Sidebar";
 import { SettingsProvider } from "../../components/layout/SettingsContext";
 
+const authState = vi.hoisted(() => ({
+  user: { name: "Test Admin", role: "ADMIN_OPERATOR" } as null | { name: string; role: "ADMIN_OPERATOR" | "SECURITY" },
+}));
+
 vi.mock("../../contexts/AuthContext", () => ({
-  useAuth: () => ({
-    user: { name: "Test Admin", role: "ADMIN_OPERATOR" },
-    token: "tok",
-    loading: false,
-    login: vi.fn(),
-    logout: vi.fn(),
-  }),
+  useAuth: () => ({ user: authState.user, token: "tok", loading: false, login: vi.fn(), logout: vi.fn() }),
 }));
 
 vi.mock("../../client/settingsClient", () => ({
@@ -104,6 +102,7 @@ function renderSidebar(pathname = "/dashboard", collapsed = false) {
 
 describe("Sidebar navigation", () => {
   it("shows the Report Lab workflow links", async () => {
+    authState.user = { name: "Test Admin", role: "ADMIN_OPERATOR" };
     renderSidebar("/reports");
 
     await waitFor(() => expect(screen.getByText("REPORT LAB")).toBeInTheDocument());
@@ -119,6 +118,7 @@ describe("Sidebar navigation", () => {
   });
 
   it("shows the Smart Pages workflow links without a fake dropdown group", async () => {
+    authState.user = { name: "Test Admin", role: "ADMIN_OPERATOR" };
     renderSidebar("/smart-pages");
 
     await waitFor(() => expect(screen.getByText("SMART PAGES")).toBeInTheDocument());
@@ -134,6 +134,7 @@ describe("Sidebar navigation", () => {
   });
 
   it("hides labels when collapsed but keeps icon buttons", async () => {
+    authState.user = { name: "Test Admin", role: "ADMIN_OPERATOR" };
     renderSidebar("/dashboard", true);
 
     await waitFor(() => expect(screen.getByTitle("Dashboard")).toBeInTheDocument());
@@ -143,9 +144,21 @@ describe("Sidebar navigation", () => {
   });
 
   it("does not render dead hrefs", async () => {
+    authState.user = { name: "Test Admin", role: "ADMIN_OPERATOR" };
     renderSidebar("/dashboard");
 
     await waitFor(() => expect(screen.getByRole("link", { name: /dashboard/i })).toBeInTheDocument());
     expect(document.querySelectorAll('a[href="#"]').length).toBe(0);
+  });
+
+  it("hides Smart Pages and admin links from security staff", async () => {
+    authState.user = { name: "Gate Security", role: "SECURITY" };
+    renderSidebar("/nfc/gate");
+
+    await waitFor(() => expect(screen.getByText("NFC")).toBeInTheDocument());
+    expect(screen.queryByText("SMART PAGES")).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /settings/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /students/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /reports/i })).not.toBeInTheDocument();
   });
 });

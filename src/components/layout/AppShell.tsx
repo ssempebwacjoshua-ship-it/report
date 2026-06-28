@@ -7,6 +7,7 @@ import { SupportWidget } from "../support/SupportWidget";
 import { Sidebar } from "./Sidebar";
 import { Topbar } from "./Topbar";
 import { SettingsProvider, useAppSettings } from "./SettingsContext";
+import { hasPermission } from "../../shared/permissions";
 
 const SIDEBAR_WIDTH_KEY = "school-connect-sidebar-width";
 const DEFAULT_SIDEBAR_WIDTH = 232;
@@ -27,6 +28,10 @@ export function AppShell() {
 
   if (!user) {
     return <Navigate to="/login" replace />;
+  }
+
+  if (!hasPermission(user.role, "app.admin")) {
+    return <AppShellWorkspaceGate />;
   }
 
   return <AppShellAuthenticated />;
