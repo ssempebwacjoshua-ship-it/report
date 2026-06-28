@@ -59,7 +59,7 @@ export function LoginPage() {
         <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl shadow-slate-200/60">
           <div className="border-b border-slate-100 bg-slate-50/60 px-6 py-4">
             <h2 className="text-base font-bold text-slate-800">Sign in to your account</h2>
-            <p className="text-xs text-slate-500 mt-0.5">Admin &amp; Operator access only</p>
+            <p className="text-xs text-slate-500 mt-0.5">School staff access</p>
           </div>
 
           <form onSubmit={(e) => void handleSubmit(e)} className="px-6 py-5">
