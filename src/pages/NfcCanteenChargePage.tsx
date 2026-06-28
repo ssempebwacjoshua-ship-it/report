@@ -136,6 +136,8 @@ export function NfcCanteenChargePage() {
       });
       setChargeError("");
       setPhase("pin");
+    } else if (typeof navigator !== "undefined" && !navigator.onLine) {
+      throw new Error("Offline mode is not configured for this device.");
     } else {
       const studentData = await resolveWalletStudent({ tokenOrUid });
       setPending({ tokenOrUid, idempotencyKey, deviceId: scanDeviceId, student: studentData });

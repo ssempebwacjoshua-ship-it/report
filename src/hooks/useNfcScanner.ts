@@ -152,12 +152,6 @@ export function useNfcScanner({ onScan, cooldownMs = 1500 }: UseNfcScannerOption
   }, [onScan, resetAfterCooldown, setStateSync]);
 
   const startScanner = useCallback(async () => {
-    if (!isOnline) {
-      setError("Online connection required for NFC scanning.");
-      setStateSync("ERROR");
-      return;
-    }
-
     if (!isWebNfcAvailable) {
       setStateSync("IDLE");
       return;
@@ -192,7 +186,7 @@ export function useNfcScanner({ onScan, cooldownMs = 1500 }: UseNfcScannerOption
       setError(normalizeNfcScannerError(err));
       setStateSync("ERROR");
     }
-  }, [isOnline, isWebNfcAvailable, processRaw, resetAfterCooldown, setStateSync]);
+  }, [isWebNfcAvailable, processRaw, resetAfterCooldown, setStateSync]);
 
   const stopScanner = useCallback(() => {
     abortRef.current?.abort();
