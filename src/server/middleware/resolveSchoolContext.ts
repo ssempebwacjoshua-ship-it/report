@@ -33,6 +33,16 @@ export async function resolveSchoolContext(
   res: Response,
   next: NextFunction,
 ): Promise<void> {
+  function logDeniedAccess(requiredPermission: string) {
+    console.warn("[school-context-denied]", {
+      path: req.path,
+      role: req.user?.role ?? null,
+      requiredPermission,
+      actorId: req.user?.userId ?? null,
+      schoolId: req.school?.id ?? req.user?.schoolId ?? null,
+    });
+  }
+
   try {
     const authHeader = req.headers.authorization;
     const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
@@ -52,6 +62,7 @@ export async function resolveSchoolContext(
       const clientCode = extractClientSchoolCode(req);
       if (clientCode && clientCode !== school.code) {
         console.warn("[resolveSchoolContext] cross-tenant mismatch", { clientCode, jwtSchool: school.code, route: req.path });
+        logDeniedAccess("schoolCode-match");
         res.status(403).json({ error: "You do not have access to this school." });
         return;
       }
