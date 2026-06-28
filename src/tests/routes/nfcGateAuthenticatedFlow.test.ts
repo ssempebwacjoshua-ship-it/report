@@ -55,6 +55,7 @@ import { enforceSchoolRoleAccess } from "../../server/middleware/enforceSchoolRo
 import { resolveSchoolContext } from "../../server/middleware/resolveSchoolContext";
 import { authRoutes } from "../../server/routes/authRoutes";
 import { nfcOperationsRoutes } from "../../server/routes/nfcOperationsRoutes";
+import { settingsRoutes } from "../../server/routes/settingsRoutes";
 
 function buildApp() {
   const app = express();
@@ -62,8 +63,8 @@ function buildApp() {
   app.use(authRoutes());
   app.use(resolveSchoolContext);
   app.use(enforceSchoolRoleAccess);
+  app.use(settingsRoutes());
   app.use(nfcOperationsRoutes());
-  app.get("/api/settings", (_req, res) => res.json({ ok: true }));
   app.use((error: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
     res.status(error?.status ?? 500).json({ error: error?.message ?? "Unexpected error" });
   });
