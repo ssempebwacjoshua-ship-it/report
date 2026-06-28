@@ -9,7 +9,7 @@ const NEAR_EXPIRY_MS = 30 * 60 * 1000;
 
 function shouldRefresh(validity: SnapshotValidity): boolean {
   if (!validity.meta) return true;
-  if (!validity.valid && ["no_snapshot", "expired", "wrong_device", "wrong_school", "missing_module"].includes(validity.reason ?? "")) {
+  if (!validity.valid && ["no_snapshot", "expired", "wrong_device", "wrong_school", "missing_module", "empty_students", "empty_tags"].includes(validity.reason ?? "")) {
     return true;
   }
   return new Date(validity.meta.expiresAt).getTime() - Date.now() <= NEAR_EXPIRY_MS;
