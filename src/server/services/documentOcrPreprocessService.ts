@@ -57,18 +57,27 @@ export async function preprocessDocumentForOcr(
       notes.push({ code: "ORIENTATION_CORRECTED", message: "Image orientation metadata was corrected before OCR.", severity: "info" });
     }
 
-    const normalized = pipeline
-      .rotate()
-      .trim({ background: "#ffffff", threshold: 12 })
-      .resize({ width: mode === "high_accuracy" ? 2800 : 2200, height: mode === "high_accuracy" ? 2800 : 2200, fit: "inside", withoutEnlargement: true })
-      .flatten({ background: "#ffffff" })
-      .grayscale()
-      .normalize()
-      .median(mode === "high_accuracy" ? 2 : 1)
-      .sharpen({ sigma: mode === "high_accuracy" ? 1.4 : 1.05 })
-      .modulate({ brightness: mode === "high_accuracy" ? 1.08 : 1, saturation: mode === "high_accuracy" ? 0.92 : 1, lightness: mode === "high_accuracy" ? 1.03 : 1 })
-      .linear(mode === "high_accuracy" ? 1.18 : 1, mode === "high_accuracy" ? -18 : 0)
-      .jpeg({ quality: mode === "high_accuracy" ? 92 : 88, mozjpeg: true });
+    const normalized = mode === "high_accuracy"
+      ? pipeline
+          .rotate()
+          .trim({ background: "#ffffff", threshold: 12 })
+          .resize({ width: 2800, height: 2800, fit: "inside", withoutEnlargement: true })
+          .flatten({ background: "#ffffff" })
+          .grayscale()
+          .normalize()
+          .median(2)
+          .sharpen({ sigma: 1.4 })
+          .modulate({ brightness: 1.08, saturation: 0.92, lightness: 1.03 })
+          .linear(1.18, -18)
+          .jpeg({ quality: 92, mozjpeg: true })
+      : pipeline
+          .rotate()
+          .resize({ width: 1800, height: 1800, fit: "inside", withoutEnlargement: true })
+          .flatten({ background: "#ffffff" })
+          .grayscale()
+          .normalize()
+          .sharpen({ sigma: 0.9 })
+          .jpeg({ quality: 84, mozjpeg: true });
 
     const processedBuffer = await normalized.toBuffer();
     const processedMeta = await sharp(processedBuffer).metadata();

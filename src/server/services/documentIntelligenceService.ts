@@ -50,6 +50,36 @@ type SmartPagesActor = {
 
 const LAWYER_PRIMARY_COLOR = "#007FFF";
 const SMART_PAGES_STABLE_MODEL_MESSAGE = "Smart Pages is retrying with a stable model.";
+const SMART_PAGES_EXTRACTION_WORKER_INTERVAL_MS = 2_000;
+const SMART_PAGES_EXTRACTION_STALE_MS = 10 * 60_000;
+const SMART_PAGES_EXTRACTION_DEFAULT_CONCURRENCY = 1;
+const SMART_PAGES_EXTRACTION_MAX_CONCURRENCY = 4;
+
+type ExtractionTelemetry = {
+  queuedAt?: string;
+  pickedAt?: string;
+  queueWaitMs?: number;
+  preprocessStart?: string;
+  preprocessEnd?: string;
+  preprocessMs?: number;
+  geminiStart?: string;
+  geminiEnd?: string;
+  geminiMs?: number;
+  fallbackUsed?: boolean;
+  fallbackMs?: number;
+  completionMs?: number;
+  totalMs?: number;
+  selectedModel?: string;
+  retryCount?: number;
+  fileSize?: number | null;
+  mimeType?: string;
+  stage?: "queued" | "preprocessing" | "reading_ai" | "building_output" | "ready" | "failed";
+};
+
+const _pendingImmediateExtractionIds = new Set<string>();
+let _documentExtractionWorkerStarted = false;
+let _documentExtractionPumpRunning = false;
+let _documentExtractionActiveJobs = 0;
 
 // ── Creator helpers ────────────────────────────────────────────────────────────
 
@@ -176,6 +206,116 @@ async function writeSmartPagesAudit(
       },
     },
   });
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function mergeOcrQuality(existing: unknown, patch: Partial<Record<string, unknown>>): Record<string, unknown> {
+  return { ...(isRecord(existing) ? existing : {}), ...patch };
+}
+
+function logExtractionTelemetry(event: string, details: Record<string, unknown>): void {
+  console.info("[document-intelligence] extraction telemetry", { event, ...details });
+}
+
+function resolveQueuedAtMs(sourceFile: { ocrQuality?: unknown; createdAt?: Date | string | null }): number {
+  if (isRecord(sourceFile.ocrQuality) && typeof sourceFile.ocrQuality.queuedAt === "string") {
+    const parsed = Date.parse(sourceFile.ocrQuality.queuedAt);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  const createdAt = sourceFile.createdAt instanceof Date
+    ? sourceFile.createdAt
+    : sourceFile.createdAt
+      ? new Date(sourceFile.createdAt)
+      : new Date();
+  return createdAt.getTime();
+}
+
+function resolveSmartPagesExtractionConcurrency(): number {
+  const configured = Number(process.env.SMART_PAGES_EXTRACTION_CONCURRENCY ?? SMART_PAGES_EXTRACTION_DEFAULT_CONCURRENCY);
+  if (!Number.isFinite(configured) || configured <= 0) return SMART_PAGES_EXTRACTION_DEFAULT_CONCURRENCY;
+  return Math.max(1, Math.min(SMART_PAGES_EXTRACTION_MAX_CONCURRENCY, Math.floor(configured)));
+}
+
+function enqueueDocumentExtraction(sourceFileId: string): void {
+  _pendingImmediateExtractionIds.add(sourceFileId);
+  void pumpDocumentExtractionQueue();
+}
+
+async function pumpDocumentExtractionQueue(): Promise<void> {
+  if (_documentExtractionPumpRunning) return;
+  _documentExtractionPumpRunning = true;
+  try {
+    const concurrency = resolveSmartPagesExtractionConcurrency();
+    await failStaleExtractionJobs();
+    while (_documentExtractionActiveJobs < concurrency) {
+      const claimedImmediateId = _pendingImmediateExtractionIds.values().next().value as string | undefined;
+      if (claimedImmediateId) {
+        _pendingImmediateExtractionIds.delete(claimedImmediateId);
+        _documentExtractionActiveJobs++;
+        void processSourceFileExtraction(claimedImmediateId).catch((error) => {
+          console.error("[document-extraction-worker] immediate job failed", {
+            sourceFileId: claimedImmediateId,
+            message: error instanceof Error ? error.message : String(error),
+          });
+        }).finally(() => {
+          _documentExtractionActiveJobs--;
+          void pumpDocumentExtractionQueue();
+        });
+        continue;
+      }
+      const next = await claimNextQueuedSourceFile();
+      if (!next) break;
+      _documentExtractionActiveJobs++;
+      void processSourceFileExtraction(next.id, next).catch((error) => {
+        console.error("[document-extraction-worker] queued job failed", {
+          sourceFileId: next.id,
+          message: error instanceof Error ? error.message : String(error),
+        });
+      }).finally(() => {
+        _documentExtractionActiveJobs--;
+        void pumpDocumentExtractionQueue();
+      });
+    }
+  } finally {
+    _documentExtractionPumpRunning = false;
+  }
+}
+
+async function claimNextQueuedSourceFile(): Promise<any | null> {
+  const db = prisma as any;
+  const next = await db.documentSourceFile.findFirst({
+    where: { status: "UPLOADED" },
+    orderBy: { createdAt: "asc" },
+    include: { document: true },
+  });
+  if (!next) return null;
+  const claimTime = new Date();
+  const queuedAt = next.ocrQuality && isRecord(next.ocrQuality) && typeof next.ocrQuality.queuedAt === "string"
+    ? new Date(next.ocrQuality.queuedAt)
+    : next.createdAt instanceof Date
+      ? next.createdAt
+      : new Date(next.createdAt ?? Date.now());
+  const telemetry: ExtractionTelemetry = {
+    ...(isRecord(next.ocrQuality) ? (next.ocrQuality as ExtractionTelemetry) : {}),
+    queuedAt: queuedAt.toISOString(),
+    pickedAt: claimTime.toISOString(),
+    queueWaitMs: Math.max(0, claimTime.getTime() - queuedAt.getTime()),
+    stage: "preprocessing",
+  };
+  const update = await db.documentSourceFile.updateMany({
+    where: { id: next.id, status: "UPLOADED" },
+    data: {
+      status: "PREPROCESSING",
+      extractionStartedAt: claimTime,
+      extractionError: null,
+      ocrQuality: telemetry as any,
+    },
+  });
+  if (!update.count) return null;
+  return next;
 }
 
 async function assertSmartPageCredits(actor: SmartPagesActor, credits: number) {
@@ -546,8 +686,14 @@ export async function uploadAndExtract(
       status: "UPLOADED",
       originalData: file.buffer,
       fileHash,
-      extractionStartedAt: new Date(),
-      ocrQuality: { retryMode: "fast", notes: [{ code: "QUEUED", message: "Extraction job queued.", severity: "info" }] } as any,
+      ocrQuality: {
+        retryMode: "fast",
+        queuedAt: new Date().toISOString(),
+        fileSize: file.size,
+        mimeType: file.mimetype,
+        stage: "queued",
+        notes: [{ code: "QUEUED", message: "Extraction job queued.", severity: "info" }],
+      } as any,
     },
   });
   await db.smartDocument.update({
@@ -555,7 +701,7 @@ export async function uploadAndExtract(
     data: {
       extractionStatus: "PROCESSING",
       extractionError: null,
-      extractionStartedAt: new Date(),
+      extractionStartedAt: null,
       extractionCompletedAt: null,
     },
   });
@@ -566,6 +712,16 @@ export async function uploadAndExtract(
     mimeType: file.mimetype,
     sizeBytes: file.size,
   });
+  logExtractionTelemetry("queued", {
+    sourceFileId: sourceFile.id,
+    documentId,
+    queuedAt: sourceFile.ocrQuality && isRecord(sourceFile.ocrQuality) && typeof sourceFile.ocrQuality.queuedAt === "string"
+      ? sourceFile.ocrQuality.queuedAt
+      : new Date().toISOString(),
+    fileSize: file.size,
+    mimeType: file.mimetype,
+  });
+  enqueueDocumentExtraction(sourceFile.id as string);
   return { sourceFileId: sourceFile.id as string, status: "PROCESSING" };
 }
 
@@ -588,60 +744,89 @@ export async function retryDocumentExtraction(
     data: {
       status: "UPLOADED",
       extractionError: null,
-      extractionStartedAt: new Date(),
+      extractionStartedAt: null,
       extractionCompletedAt: null,
       ocrQuality: {
         ...(typeof sourceFile.ocrQuality === "object" && sourceFile.ocrQuality ? (sourceFile.ocrQuality as Record<string, unknown>) : {}),
         retryMode: highAccuracy ? "high_accuracy" : "fast",
         retryRequestedAt: new Date().toISOString(),
+        queuedAt: new Date().toISOString(),
+        stage: "queued",
       } as any,
     },
   });
   await db.smartDocument.update({
     where: { id: documentId },
-    data: { extractionStatus: "PROCESSING", extractionError: null, extractionStartedAt: new Date(), extractionCompletedAt: null },
+    data: { extractionStatus: "PROCESSING", extractionError: null, extractionStartedAt: null, extractionCompletedAt: null },
   });
+  logExtractionTelemetry("queued", {
+    sourceFileId: sourceFile.id,
+    documentId,
+    queuedAt: new Date().toISOString(),
+    retryMode: highAccuracy ? "high_accuracy" : "fast",
+    retried: true,
+  });
+  enqueueDocumentExtraction(sourceFile.id as string);
   return { sourceFileId: sourceFile.id as string, status: "PROCESSING" };
 }
 
 export async function processNextDocumentExtractionJob(): Promise<boolean> {
   const db = prisma as any;
   await failStaleExtractionJobs();
-  const sourceFile = await db.documentSourceFile.findFirst({
-    where: { status: "UPLOADED" },
-    orderBy: { createdAt: "asc" },
-    include: { document: true },
-  });
+  const sourceFile = await claimNextQueuedSourceFile();
   if (!sourceFile) return false;
-  await processSourceFileExtraction(sourceFile.id);
+  await processSourceFileExtraction(sourceFile.id, sourceFile);
   return true;
 }
 
-let _documentExtractionWorkerRunning = false;
-
 export function startDocumentExtractionWorker(): void {
-  setInterval(async () => {
-    if (_documentExtractionWorkerRunning) return;
-    _documentExtractionWorkerRunning = true;
-    try {
-      await processNextDocumentExtractionJob();
-    } catch (error) {
-      console.error("[document-extraction-worker] error:", error instanceof Error ? error.message : error);
-    } finally {
-      _documentExtractionWorkerRunning = false;
-    }
-  }, 2_000);
+  if (_documentExtractionWorkerStarted) return;
+  _documentExtractionWorkerStarted = true;
+  void pumpDocumentExtractionQueue();
+  setInterval(() => {
+    void pumpDocumentExtractionQueue();
+  }, SMART_PAGES_EXTRACTION_WORKER_INTERVAL_MS);
 }
 
-export async function processSourceFileExtraction(sourceFileId: string): Promise<void> {
+export async function processSourceFileExtraction(sourceFileId: string, claimedSourceFile?: any): Promise<void> {
   const db = prisma as any;
   const findSourceFile = db.documentSourceFile.findFirst ?? db.documentSourceFile.findUnique;
-  const sourceFile = await findSourceFile({ where: { id: sourceFileId }, include: { document: true } });
+  let sourceFile = claimedSourceFile ?? await findSourceFile({ where: { id: sourceFileId }, include: { document: true } });
   if (!sourceFile || sourceFile.status === "READY") return;
   const document = sourceFile.document;
   const actor = await getSmartPagesActor(document.creatorId);
   let intendedModel: string | undefined;
   try {
+    if (!claimedSourceFile) {
+      const claimTime = new Date();
+      const queuedAt = sourceFile.ocrQuality && isRecord(sourceFile.ocrQuality) && typeof sourceFile.ocrQuality.queuedAt === "string"
+        ? new Date(sourceFile.ocrQuality.queuedAt)
+        : sourceFile.createdAt instanceof Date
+          ? sourceFile.createdAt
+          : new Date(sourceFile.createdAt ?? Date.now());
+      const claim = await db.documentSourceFile.updateMany({
+        where: { id: sourceFile.id, status: "UPLOADED" },
+        data: {
+          status: "PREPROCESSING",
+          extractionStartedAt: claimTime,
+          extractionError: null,
+          ocrQuality: mergeOcrQuality(sourceFile.ocrQuality, {
+            queuedAt: queuedAt.toISOString(),
+            pickedAt: claimTime.toISOString(),
+            queueWaitMs: Math.max(0, claimTime.getTime() - queuedAt.getTime()),
+            stage: "preprocessing",
+          }),
+        },
+      });
+      if (!claim.count) return;
+      logExtractionTelemetry("picked", {
+        sourceFileId: sourceFile.id,
+        documentId: document.id,
+        queueWaitMs: claimTime.getTime() - queuedAt.getTime(),
+      });
+      sourceFile = await findSourceFile({ where: { id: sourceFile.id }, include: { document: true } });
+      if (!sourceFile) return;
+    }
     const cached = sourceFile.fileHash
       ? await db.documentSourceFile.findFirst({
           where: {
@@ -662,10 +847,20 @@ export async function processSourceFileExtraction(sourceFileId: string): Promise
         || (!sourceFile.document.schoolId && cached.document?.creatorId === sourceFile.document.creatorId && cached.document?.schoolId == null)
       );
     if (cacheEligible && cached.extractedContent) {
+      const queuedAtMs = resolveQueuedAtMs(sourceFile);
+      const pickedAtMs = sourceFile.extractionStartedAt instanceof Date ? sourceFile.extractionStartedAt.getTime() : queuedAtMs;
+      const completedAtMs = Date.now();
       await completeExtraction(sourceFile, cached.extractedContent as ExtractedKnowledge, actor, {
         processedData: cached.processedData,
         processedMimeType: cached.processedMimeType,
-        ocrQuality: { reusedFromSourceFileId: cached.id, notes: [{ code: "CACHE_HIT", message: "Reused extraction from matching file.", severity: "info" }] },
+        ocrQuality: mergeOcrQuality(sourceFile.ocrQuality, {
+          reusedFromSourceFileId: cached.id,
+          notes: [{ code: "CACHE_HIT", message: "Reused extraction from matching file.", severity: "info" }],
+          pickedAt: new Date(pickedAtMs).toISOString(),
+          completionMs: completedAtMs - pickedAtMs,
+          totalMs: completedAtMs - queuedAtMs,
+          stage: "ready",
+        }),
       });
       return;
     }
@@ -673,16 +868,34 @@ export async function processSourceFileExtraction(sourceFileId: string): Promise
     const originalData = sourceFile.originalData as Buffer | Uint8Array | null;
     if (!originalData) throw new Error("Uploaded file data is missing. Please upload the file again.");
     const original = Buffer.from(originalData);
+    const queuedAtMs = resolveQueuedAtMs(sourceFile);
 
-    await db.documentSourceFile.update({ where: { id: sourceFile.id }, data: { status: "PREPROCESSING", extractionStartedAt: new Date(), extractionError: null } });
-    await db.smartDocument.update({ where: { id: document.id }, data: { extractionStatus: "PROCESSING", extractionError: null, extractionStartedAt: new Date() } });
+    await db.documentSourceFile.update({
+      where: { id: sourceFile.id },
+      data: {
+        status: "PREPROCESSING",
+        extractionStartedAt: sourceFile.extractionStartedAt ?? new Date(),
+        extractionError: null,
+        ocrQuality: mergeOcrQuality(sourceFile.ocrQuality, {
+          stage: "preprocessing",
+        }),
+      },
+    });
+    await db.smartDocument.update({ where: { id: document.id }, data: { extractionStatus: "PROCESSING", extractionError: null, extractionStartedAt: sourceFile.extractionStartedAt ?? new Date() } });
 
     const structured = parseStructuredFile(original, sourceFile.mimeType, sourceFile.originalName);
     if (structured) {
+      const completedAtMs = Date.now();
       await completeExtraction(sourceFile, structured, actor, {
         processedData: original,
         processedMimeType: sourceFile.mimeType,
-        ocrQuality: { notes: [{ code: "LOCAL_STRUCTURED_PARSE", message: "Parsed structured file locally without Gemini.", severity: "info" }] },
+        ocrQuality: mergeOcrQuality(sourceFile.ocrQuality, {
+          notes: [{ code: "LOCAL_STRUCTURED_PARSE", message: "Parsed structured file locally without Gemini.", severity: "info" }],
+          pickedAt: new Date(sourceFile.extractionStartedAt instanceof Date ? sourceFile.extractionStartedAt.getTime() : queuedAtMs).toISOString(),
+          completionMs: completedAtMs - (sourceFile.extractionStartedAt instanceof Date ? sourceFile.extractionStartedAt.getTime() : queuedAtMs),
+          totalMs: completedAtMs - queuedAtMs,
+          stage: "ready",
+        }),
       });
       return;
     }
@@ -693,24 +906,59 @@ export async function processSourceFileExtraction(sourceFileId: string): Promise
     const extractionCredits = calculateExtractionCredits(pagesProcessed, retryMode);
     await assertSmartPageCredits(actor, extractionCredits);
 
+    const preprocessStartMs = Date.now();
+    logExtractionTelemetry("preprocessing", {
+      sourceFileId: sourceFile.id,
+      documentId: document.id,
+      fileSize: sourceFile.sizeBytes,
+      mimeType: sourceFile.mimeType,
+    });
     const preprocessed = await preprocessDocumentForOcr(original, sourceFile.mimeType, retryMode);
+    const preprocessEndMs = Date.now();
+    const preprocessMs = preprocessEndMs - preprocessStartMs;
     await db.documentSourceFile.update({
       where: { id: sourceFile.id },
       data: {
         status: "EXTRACTING",
         processedData: preprocessed.processedBuffer,
         processedMimeType: preprocessed.processedMimeType,
-        ocrQuality: { width: preprocessed.width, height: preprocessed.height, notes: preprocessed.notes, warning: preprocessed.warning } as any,
+        ocrQuality: mergeOcrQuality(sourceFile.ocrQuality, {
+          width: preprocessed.width,
+          height: preprocessed.height,
+          notes: preprocessed.notes,
+          warning: preprocessed.warning,
+          preprocessStart: new Date(preprocessStartMs).toISOString(),
+          preprocessEnd: new Date(preprocessEndMs).toISOString(),
+          preprocessMs,
+          stage: "reading_ai",
+        }),
       },
     });
 
+    const geminiStartMs = Date.now();
+    logExtractionTelemetry("reading_ai", {
+      sourceFileId: sourceFile.id,
+      documentId: document.id,
+      retryMode,
+      selectedModel: intendedModel ?? resolveGeminiDocumentModel(),
+    });
     const knowledge = await extractDocumentKnowledge(original, sourceFile.mimeType, sourceFile.originalName, {
       highAccuracy: isHighAccuracy,
+      extractionMode: retryMode,
       processedBuffer: preprocessed.processedBuffer,
       processedMimeType: preprocessed.processedMimeType,
       sectionBuffers: preprocessed.sectionBuffers,
       priorExtraction: isHighAccuracy ? (document.extractedKnowledge as ExtractedKnowledge | null) : null,
       onStableFallback: async (info) => {
+        const fallbackStartMs = Date.now();
+        logExtractionTelemetry("fallback", {
+          sourceFileId: sourceFile.id,
+          documentId: document.id,
+          requestedModel: info.requestedModel,
+          stableModel: info.stableModel,
+          fallbackReason: info.fallbackReason,
+          providerErrorCode: info.providerErrorCode,
+        });
         await db.documentSourceFile.update({
           where: { id: sourceFile.id },
           data: {
@@ -732,12 +980,26 @@ export async function processSourceFileExtraction(sourceFileId: string): Promise
               retryCount: info.retryCount,
               highAccuracyUsed: isHighAccuracy,
               originalImageRef: sourceFile.originalName,
+              geminiStart: new Date(geminiStartMs).toISOString(),
+              fallbackMs: Date.now() - fallbackStartMs,
+              stage: "reading_ai",
             } as any,
           },
         });
       },
     });
+    const geminiEndMs = Date.now();
     intendedModel = knowledge._meta.selectedModel;
+    await db.documentSourceFile.update({
+      where: { id: sourceFile.id },
+      data: {
+        ocrQuality: mergeOcrQuality(sourceFile.ocrQuality, {
+          stage: "building_output",
+          geminiEnd: new Date(geminiEndMs).toISOString(),
+          geminiMs: geminiEndMs - geminiStartMs,
+        }),
+      },
+    });
     const geminiCostEstimateUgx = estimateGeminiCostUgx(knowledge._meta.tokenUsage);
     const extractionPriceUgx = calculatePriceUgx(extractionCredits);
 
@@ -759,6 +1021,7 @@ export async function processSourceFileExtraction(sourceFileId: string): Promise
       processedData: preprocessed.processedBuffer,
       processedMimeType: preprocessed.processedMimeType,
       ocrQuality: {
+        ...(isRecord(sourceFile.ocrQuality) ? sourceFile.ocrQuality : {}),
         width: preprocessed.width,
         height: preprocessed.height,
         notes: knowledge._meta.fallbackUsed
@@ -769,6 +1032,9 @@ export async function processSourceFileExtraction(sourceFileId: string): Promise
           : preprocessed.notes,
         warning: preprocessed.warning ?? (knowledge._meta.fallbackUsed ? SMART_PAGES_STABLE_MODEL_MESSAGE : undefined),
         retryMode,
+        preprocessStart: new Date(preprocessStartMs).toISOString(),
+        preprocessEnd: new Date(preprocessEndMs).toISOString(),
+        preprocessMs,
         requestedModel: knowledge._meta.requestedModel,
         selectedModel: knowledge._meta.selectedModel,
         attemptedModels: knowledge._meta.attemptedModels,
@@ -777,11 +1043,17 @@ export async function processSourceFileExtraction(sourceFileId: string): Promise
         fallbackReason: knowledge._meta.fallbackReason,
         providerErrorCode: knowledge._meta.providerErrorCode,
         extractionTimeMs: knowledge._meta.extractionTimeMs,
+        geminiStart: new Date(geminiStartMs).toISOString(),
+        geminiEnd: new Date(geminiEndMs).toISOString(),
+        geminiMs: geminiEndMs - geminiStartMs,
+        completionMs: geminiEndMs - (sourceFile.extractionStartedAt instanceof Date ? sourceFile.extractionStartedAt.getTime() : queuedAtMs),
+        totalMs: geminiEndMs - queuedAtMs,
         tokenUsage: knowledge._meta.tokenUsage,
         geminiCostEstimateUgx,
         marginEstimateUgx: extractionPriceUgx - geminiCostEstimateUgx,
         highAccuracyUsed: isHighAccuracy,
         originalImageRef: sourceFile.originalName,
+        stage: "ready",
       },
     }, actor.schoolId ? {
       jobId: sourceFile.id as string,
@@ -799,6 +1071,19 @@ export async function processSourceFileExtraction(sourceFileId: string): Promise
       geminiCostEstimateUgx,
       marginEstimateUgx: extractionPriceUgx - geminiCostEstimateUgx,
     } : undefined);
+    logExtractionTelemetry("ready", {
+      sourceFileId: sourceFile.id,
+      documentId: document.id,
+      totalMs: geminiEndMs - queuedAtMs,
+      completionMs: geminiEndMs - (sourceFile.extractionStartedAt instanceof Date ? sourceFile.extractionStartedAt.getTime() : queuedAtMs),
+      preprocessMs,
+      geminiMs: knowledge._meta.extractionTimeMs,
+      fallbackUsed: knowledge._meta.fallbackUsed,
+      retryCount: knowledge._meta.retryCount,
+      selectedModel: knowledge._meta.selectedModel,
+      fileSize: sourceFile.sizeBytes,
+      mimeType: sourceFile.mimeType,
+    });
   } catch (error) {
     const statusValue = (error as { status?: unknown } | null)?.status;
     const causeValue = error instanceof Error ? (error as { cause?: unknown }).cause : undefined;
@@ -816,6 +1101,17 @@ export async function processSourceFileExtraction(sourceFileId: string): Promise
       errorStatus: typeof statusValue === "number" ? statusValue : undefined,
     };
     console.error("[document-intelligence] extraction failed", diagnostic);
+    logExtractionTelemetry("failed", {
+      sourceFileId: sourceFile.id,
+      documentId: sourceFile.documentId,
+      totalMs: Date.now() - resolveQueuedAtMs(sourceFile),
+      selectedModel: intendedModel ?? resolveGeminiDocumentModel(),
+      retryCount: typeof (error as { retryCount?: unknown } | null)?.retryCount === "number"
+        ? (error as { retryCount?: number }).retryCount
+        : undefined,
+      fileSize: sourceFile.sizeBytes,
+      mimeType: sourceFile.mimeType,
+    });
     if (actor.schoolId && isSmartPagesProviderFailure(error)) {
       const retryMode = resolveRetryMode(sourceFile.ocrQuality);
       const pagesProcessed = estimatePageCount(sourceFile.mimeType);
@@ -838,9 +1134,26 @@ export async function processSourceFileExtraction(sourceFileId: string): Promise
       });
     }
     const message = friendlyExtractionError(error);
+    const completedAt = new Date();
+    const queuedAtMs = resolveQueuedAtMs(sourceFile);
+    const pickedAtMs = sourceFile.extractionStartedAt instanceof Date ? sourceFile.extractionStartedAt.getTime() : queuedAtMs;
     await db.documentSourceFile.update({
       where: { id: sourceFile.id },
-      data: { status: "FAILED", extractionError: message, extractionCompletedAt: new Date() },
+      data: {
+        status: "FAILED",
+        extractionError: message,
+        extractionCompletedAt: completedAt,
+        ocrQuality: mergeOcrQuality(sourceFile.ocrQuality, {
+          stage: "failed",
+          pickedAt: new Date(pickedAtMs).toISOString(),
+          completionMs: Math.max(0, completedAt.getTime() - pickedAtMs),
+          totalMs: Math.max(0, completedAt.getTime() - queuedAtMs),
+          selectedModel: intendedModel ?? resolveGeminiDocumentModel(),
+          retryCount: typeof (error as { retryCount?: unknown } | null)?.retryCount === "number"
+            ? (error as { retryCount?: number }).retryCount
+            : undefined,
+        }),
+      },
     });
     await db.smartDocument.update({
       where: { id: sourceFile.documentId },
@@ -892,7 +1205,7 @@ async function completeExtraction(
         processedData: extras.processedData ?? sourceFile.processedData,
         processedMimeType: extras.processedMimeType ?? sourceFile.processedMimeType,
         extractedContent: knowledge as any,
-        ocrQuality: extras.ocrQuality as any,
+        ocrQuality: mergeOcrQuality(sourceFile.ocrQuality, extras.ocrQuality as any),
         extractionError: null,
         extractionCompletedAt: new Date(),
       },

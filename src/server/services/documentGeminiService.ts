@@ -47,14 +47,20 @@ export interface DocExtractionMeta {
   tokenUsage?: Record<string, unknown> | null;
   extractionTimeMs: number;
   highAccuracy: boolean;
+  mediaResolution?: string;
+  attemptTimeoutMs?: number;
+  retryDelaysMs?: number[];
+  fallbackMs?: number;
 }
 
 const DOC_FALLBACK_RE =
   /429|quota|resource_exhausted|timed out|etimedout|unavailable|503|model overloaded|overloaded|high traffic|model not found|not_found|model_not_found|404|internal server error|500/i;
 const DOC_RETRYABLE_RE =
   /fetch failed|ECONNRESET|ENOTFOUND|ETIMEDOUT|timed out|unavailable|503|model overloaded|overloaded|high traffic/i;
-const DOC_RETRY_DELAYS_MS = [1_000, 2_000, 4_000];
-const MAX_GEMINI_ATTEMPT_TIMEOUT_MS = 60_000;
+const FAST_DOC_RETRY_DELAYS_MS = [500, 1_500];
+const HIGH_ACCURACY_DOC_RETRY_DELAYS_MS = [1_000, 2_000, 4_000];
+const FAST_GEMINI_ATTEMPT_TIMEOUT_MS = 30_000;
+const HIGH_ACCURACY_GEMINI_ATTEMPT_TIMEOUT_MS = 60_000;
 
 function isDocFallbackEligible(err: unknown): boolean {
   if (!(err instanceof Error)) return true;
@@ -103,10 +109,23 @@ function isDocRetryable(err: unknown): boolean {
   return DOC_RETRYABLE_RE.test(msg);
 }
 
-function resolveGeminiAttemptTimeoutMs(): number {
-  const configured = Number(process.env.GEMINI_TIMEOUT_MS ?? MAX_GEMINI_ATTEMPT_TIMEOUT_MS);
-  if (!Number.isFinite(configured) || configured <= 0) return MAX_GEMINI_ATTEMPT_TIMEOUT_MS;
-  return Math.min(configured, MAX_GEMINI_ATTEMPT_TIMEOUT_MS);
+function resolveGeminiAttemptTimeoutMs(highAccuracy: boolean): number {
+  const fallback = highAccuracy ? HIGH_ACCURACY_GEMINI_ATTEMPT_TIMEOUT_MS : FAST_GEMINI_ATTEMPT_TIMEOUT_MS;
+  const configured = Number(
+    highAccuracy
+      ? process.env.SMART_PAGES_GEMINI_HIGH_ACCURACY_TIMEOUT_MS ?? process.env.GEMINI_TIMEOUT_MS ?? fallback
+      : process.env.SMART_PAGES_GEMINI_FAST_TIMEOUT_MS ?? process.env.GEMINI_TIMEOUT_MS ?? fallback,
+  );
+  if (!Number.isFinite(configured) || configured <= 0) return fallback;
+  return Math.min(configured, highAccuracy ? 90_000 : 35_000);
+}
+
+function resolveGeminiRetryDelaysMs(highAccuracy: boolean): number[] {
+  return highAccuracy ? HIGH_ACCURACY_DOC_RETRY_DELAYS_MS : FAST_DOC_RETRY_DELAYS_MS;
+}
+
+function resolveGeminiMediaResolution(highAccuracy: boolean): string {
+  return highAccuracy ? "MEDIA_RESOLUTION_HIGH" : "MEDIA_RESOLUTION_MEDIUM";
 }
 
 function jitterMs(): number {
@@ -117,11 +136,14 @@ async function delay(ms: number): Promise<void> {
   await new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function generateContentWithRetryResult(request: Parameters<GoogleGenAI["models"]["generateContent"]>[0]) {
-  const timeoutMs = resolveGeminiAttemptTimeoutMs();
+async function generateContentWithRetryResult(
+  request: Parameters<GoogleGenAI["models"]["generateContent"]>[0],
+  timeoutMs: number,
+  retryDelaysMs: number[],
+) {
   let lastError: unknown;
   let retryCount = 0;
-  for (let attempt = 0; attempt <= DOC_RETRY_DELAYS_MS.length; attempt++) {
+  for (let attempt = 0; attempt <= retryDelaysMs.length; attempt++) {
     try {
       const response = await withTimeout(getClient().models.generateContent(request), timeoutMs);
       return {
@@ -132,13 +154,13 @@ async function generateContentWithRetryResult(request: Parameters<GoogleGenAI["m
       };
     } catch (error) {
       lastError = error;
-      if (!isDocRetryable(error) || attempt >= DOC_RETRY_DELAYS_MS.length) break;
-      const delayMs = DOC_RETRY_DELAYS_MS[attempt] + jitterMs();
+      if (!isDocRetryable(error) || attempt >= retryDelaysMs.length) break;
+      const delayMs = retryDelaysMs[attempt] + jitterMs();
       retryCount++;
       console.warn("[document-gemini] transient error, will retry", {
         model: request.model,
         attempt: attempt + 1,
-        maxRetries: DOC_RETRY_DELAYS_MS.length,
+        maxRetries: retryDelaysMs.length,
         delayMs,
         providerErrorCode: providerErrorCode(error),
         message: error instanceof Error ? error.message : String(error),
@@ -163,7 +185,7 @@ function extractGeminiTokenUsage(response: unknown): Record<string, unknown> | n
 }
 
 async function generateContentWithRetry(request: Parameters<GoogleGenAI["models"]["generateContent"]>[0]) {
-  const { response } = await generateContentWithRetryResult(request);
+  const { response } = await generateContentWithRetryResult(request, FAST_GEMINI_ATTEMPT_TIMEOUT_MS, FAST_DOC_RETRY_DELAYS_MS);
   return response;
 }
 
@@ -217,11 +239,11 @@ function parseJsonSafe<T>(text: string, fallback: T, modelName?: string): T {
   }
 }
 
-function buildExtractionConfig() {
+function buildExtractionConfig(mediaResolution: string) {
   return {
     temperature: 0,
     responseMimeType: "application/json",
-    mediaResolution: "MEDIA_RESOLUTION_HIGH",
+    mediaResolution,
   } as any;
 }
 
@@ -344,6 +366,7 @@ export async function extractDocumentKnowledge(
   originalName: string,
   options: {
     highAccuracy?: boolean;
+    extractionMode?: "fast" | "high_accuracy";
     processedBuffer?: Buffer;
     processedMimeType?: string;
     sectionBuffers?: Array<{ label: string; buffer: Buffer; mimeType: string }>;
@@ -401,8 +424,9 @@ Document filename: ${originalName}`;
   const addInline = (buffer: Buffer, inlineMime: string) => {
     contents.push({ inlineData: { data: buffer.toString("base64"), mimeType: inlineMime } });
   };
+  const highAccuracy = options.highAccuracy ?? options.extractionMode === "high_accuracy";
 
-  if (options.highAccuracy && options.processedBuffer) {
+  if (highAccuracy && options.processedBuffer) {
     addInline(fileBuffer, mimeType);
     addInline(options.processedBuffer, options.processedMimeType ?? "image/jpeg");
     for (const section of options.sectionBuffers ?? []) {
@@ -442,7 +466,10 @@ ${priorExtractionText}`,
 
   const { primary: primaryHighAccuracy, stable: stableModel } = resolveGeminiHighAccuracyDocumentModel();
   const fastModel = model();
-  const requestedModel = options.modelOverride?.trim() || (options.highAccuracy ? primaryHighAccuracy : fastModel);
+  const requestedModel = options.modelOverride?.trim() || (highAccuracy ? primaryHighAccuracy : fastModel);
+  const retryDelaysMs = resolveGeminiRetryDelaysMs(highAccuracy);
+  const timeoutMs = resolveGeminiAttemptTimeoutMs(highAccuracy);
+  const mediaResolution = resolveGeminiMediaResolution(highAccuracy);
   let selectedModel = requestedModel;
   const attemptedModels: string[] = [requestedModel];
   let retryCount = 0;
@@ -454,7 +481,11 @@ ${priorExtractionText}`,
 
   let res: Awaited<ReturnType<GoogleGenAI["models"]["generateContent"]>>;
   try {
-    const primaryResult = await generateContentWithRetryResult({ model: requestedModel, contents, config: buildExtractionConfig() });
+    const primaryResult = await generateContentWithRetryResult(
+      { model: requestedModel, contents, config: buildExtractionConfig(mediaResolution) },
+      timeoutMs,
+      retryDelaysMs,
+    );
     res = primaryResult.response;
     retryCount += primaryResult.retryCount;
     providerErrorCodeValue = primaryResult.providerErrorCode;
@@ -462,7 +493,10 @@ ${priorExtractionText}`,
   } catch (primaryErr) {
     retryCount += errorRetryCount(primaryErr);
     providerErrorCodeValue = providerErrorCode(primaryErr);
-    if (!options.modelOverride && isDocFallbackEligible(primaryErr) && requestedModel !== stableModel) {
+    const fallbackEligible = highAccuracy
+      ? isDocFallbackEligible(primaryErr)
+      : isFastModeFallbackEligible(primaryErr);
+    if (!options.modelOverride && fallbackEligible && requestedModel !== stableModel) {
       fallbackReason = getDocFallbackReason(primaryErr);
       console.warn("[document-gemini] primary model failed, falling back to stable", {
         requestedModel,
@@ -475,6 +509,7 @@ ${priorExtractionText}`,
       fallbackUsed = true;
       selectedModel = stableModel;
       attemptedModels.push(stableModel);
+      const fallbackStartMs = Date.now();
       await options.onStableFallback?.({
         requestedModel,
         stableModel,
@@ -483,7 +518,11 @@ ${priorExtractionText}`,
         retryCount,
       });
       try {
-        const fallbackResult = await generateContentWithRetryResult({ model: stableModel, contents, config: buildExtractionConfig() });
+        const fallbackResult = await generateContentWithRetryResult(
+          { model: stableModel, contents, config: buildExtractionConfig(mediaResolution) },
+          timeoutMs,
+          retryDelaysMs,
+        );
         res = fallbackResult.response;
         retryCount += fallbackResult.retryCount;
         providerErrorCodeValue ??= fallbackResult.providerErrorCode;
@@ -493,17 +532,42 @@ ${priorExtractionText}`,
         providerErrorCodeValue ??= providerErrorCode(fallbackErr);
         throw fallbackErr;
       }
+      const fallbackMs = Date.now() - fallbackStartMs;
+      const text = res.text ?? "";
+      const fallback = buildExtractionFallback(text, originalName, Boolean(highAccuracy));
+      const knowledge = normalizeExtraction(
+        parseJsonSafe<ExtractedKnowledge>(text, fallback, selectedModel),
+        fallback,
+        highAccuracy,
+      );
+      const _meta: DocExtractionMeta = {
+        requestedModel,
+        attemptedModels,
+        selectedModel,
+        retryCount,
+        fallbackUsed,
+        fallbackReason,
+        providerErrorCode: providerErrorCodeValue,
+        tokenUsage,
+        extractionTimeMs: Date.now() - extractionStartMs,
+        highAccuracy,
+        mediaResolution,
+        attemptTimeoutMs: timeoutMs,
+        retryDelaysMs,
+        fallbackMs,
+      };
+      return { ...knowledge, _meta };
     } else {
       throw primaryErr;
     }
   }
 
   const text = res.text ?? "";
-  const fallback = buildExtractionFallback(text, originalName, Boolean(options.highAccuracy));
+  const fallback = buildExtractionFallback(text, originalName, highAccuracy);
   const knowledge = normalizeExtraction(
     parseJsonSafe<ExtractedKnowledge>(text, fallback, selectedModel),
     fallback,
-    options.highAccuracy ?? false,
+    highAccuracy,
   );
   const _meta: DocExtractionMeta = {
     requestedModel,
@@ -515,9 +579,18 @@ ${priorExtractionText}`,
     providerErrorCode: providerErrorCodeValue,
     tokenUsage,
     extractionTimeMs: Date.now() - extractionStartMs,
-    highAccuracy: Boolean(options.highAccuracy),
+    highAccuracy,
+    mediaResolution,
+    attemptTimeoutMs: timeoutMs,
+    retryDelaysMs,
   };
   return { ...knowledge, _meta };
+}
+
+function isFastModeFallbackEligible(err: unknown): boolean {
+  if (!(err instanceof Error)) return true;
+  const msg = `${err.message} ${String((err as NodeJS.ErrnoException).cause ?? "")}`;
+  return /429|quota|resource_exhausted|timed out|etimedout|unavailable|503|model overloaded|overloaded|high traffic|model not found|not_found|model_not_found|404/i.test(msg);
 }
 
 function normalizeExtraction(knowledge: ExtractedKnowledge, fallback: ExtractedKnowledge, highAccuracy: boolean): ExtractedKnowledge {

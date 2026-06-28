@@ -124,6 +124,37 @@ describe("DocumentEditorPage ? Smart Pages flow", () => {
     expect(documentIntelligenceMocks.getVersionHistory).toHaveBeenCalledTimes(1);
   });
 
+  it("shows staged extraction progress and a stale retry prompt while processing", async () => {
+    documentIntelligenceMocks.getDocument.mockResolvedValue({
+      id: "doc-1",
+      title: "Sample Smart Page",
+      status: "DRAFT",
+      extractionStatus: "PROCESSING",
+      extractionError: null,
+      domain: "school",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      versionCount: 0,
+      hasSourceFiles: true,
+      extractedKnowledge: null,
+      activeVersion: null,
+      latestSourceFile: {
+        id: "source-1",
+        status: "PREPROCESSING",
+        ocrQuality: {
+          queuedAt: new Date(Date.now() - 25_000).toISOString(),
+          stage: "preprocessing",
+        },
+      },
+    });
+
+    renderPage();
+
+    expect(await screen.findByRole("heading", { name: /preprocessing/i })).toBeInTheDocument();
+    expect(await screen.findByText(/still working/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /retry extraction/i })).toBeInTheDocument();
+  });
+
   it("uses applyPrompt when an active version already exists", async () => {
     documentIntelligenceMocks.getDocument.mockResolvedValue({
       id: "doc-1",
