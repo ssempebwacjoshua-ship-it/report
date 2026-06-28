@@ -538,6 +538,103 @@ describe("documentIntelligenceService", () => {
     expect(publishAudit?.data?.details).not.toHaveProperty("token");
   });
 
+  it("getPublishedDocument and downloadPublishedDocumentPdf work for published links", async () => {
+    mockState.prisma.publishedDocument.findUnique.mockResolvedValue({
+      token: "pub-token",
+      documentId: "doc-1",
+      createdAt: new Date("2026-06-28T00:00:00.000Z"),
+      expiresAt: null,
+      passwordHash: null,
+      viewCount: 0,
+      downloadCount: 0,
+      document: {
+        id: "doc-1",
+        title: "Public Smart Pages",
+        activeVersionId: "version-1",
+        extractedKnowledge: null,
+        status: "READY",
+        createdAt: new Date("2026-06-28T00:00:00.000Z"),
+        updatedAt: new Date("2026-06-28T00:00:00.000Z"),
+        vertical: "SCHOOL",
+      },
+    });
+    mockState.prisma.documentVersion.findUnique.mockResolvedValue({
+      id: "version-1",
+      documentId: "doc-1",
+      instruction: "Render to PDF",
+      schema: { theme: { primaryColor: "#111111" }, components: [] },
+      componentTree: [],
+      renderSettings: {},
+      createdAt: new Date("2026-06-28T00:00:00.000Z"),
+    });
+
+    const { getPublishedDocument, downloadPublishedDocumentPdf } = await import("../../server/services/documentIntelligenceService");
+
+    const pageResult = await getPublishedDocument("pub-token");
+    expect(pageResult).not.toBeNull();
+    expect(pageResult).not.toBe("PASSWORD_REQUIRED");
+    expect(pageResult).not.toBe("WRONG_PASSWORD");
+    if (pageResult && pageResult !== "PASSWORD_REQUIRED" && pageResult !== "WRONG_PASSWORD") {
+      expect(pageResult.document.title).toBe("Public Smart Pages");
+    }
+
+    const pdfResult = await downloadPublishedDocumentPdf("pub-token");
+    expect(pdfResult).not.toBeNull();
+    expect(pdfResult).not.toBe("PASSWORD_REQUIRED");
+    expect(pdfResult).not.toBe("WRONG_PASSWORD");
+    if (pdfResult && pdfResult !== "PASSWORD_REQUIRED" && pdfResult !== "WRONG_PASSWORD") {
+      expect(pdfResult.contentType).toBe("application/pdf");
+      expect(Buffer.isBuffer(pdfResult.body)).toBe(true);
+      expect(pdfResult.filename).toBe("public-smart-pages.pdf");
+    }
+
+    expect(mockState.prisma.publishedDocument.update).toHaveBeenCalledWith(expect.objectContaining({
+      where: { token: "pub-token" },
+      data: expect.objectContaining({ downloadCount: { increment: 1 } }),
+    }));
+  });
+
+  it("downloadPublishedDocumentPdf does not throw db is not defined", async () => {
+    mockState.prisma.publishedDocument.findUnique.mockResolvedValue({
+      token: "pub-token",
+      documentId: "doc-1",
+      createdAt: new Date("2026-06-28T00:00:00.000Z"),
+      expiresAt: null,
+      passwordHash: null,
+      viewCount: 0,
+      downloadCount: 0,
+      document: {
+        id: "doc-1",
+        title: "Safety Check",
+        activeVersionId: "version-1",
+        extractedKnowledge: null,
+        status: "READY",
+        createdAt: new Date("2026-06-28T00:00:00.000Z"),
+        updatedAt: new Date("2026-06-28T00:00:00.000Z"),
+        vertical: "SCHOOL",
+      },
+    });
+    mockState.prisma.documentVersion.findUnique.mockResolvedValue({
+      id: "version-1",
+      documentId: "doc-1",
+      instruction: "Render to PDF",
+      schema: { theme: { primaryColor: "#111111" }, components: [] },
+      componentTree: [],
+      renderSettings: {},
+      createdAt: new Date("2026-06-28T00:00:00.000Z"),
+    });
+
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+    const { downloadPublishedDocumentPdf } = await import("../../server/services/documentIntelligenceService");
+
+    await expect(downloadPublishedDocumentPdf("pub-token")).resolves.toMatchObject({
+      contentType: "application/pdf",
+      filename: "safety-check.pdf",
+    });
+    expect(consoleError).not.toHaveBeenCalledWith(expect.stringContaining("db is not defined"));
+    consoleError.mockRestore();
+  });
+
   it("successful extraction deducts exactly once", async () => {
     mockState.prisma.documentSourceFile.findFirst.mockImplementation(async ({ where }: { where: Record<string, unknown> }) => {
       if (where.id === "source-1") {

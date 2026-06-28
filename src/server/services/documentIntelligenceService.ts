@@ -1796,6 +1796,7 @@ export async function downloadPublishedDocumentPdf(
   token: string,
   password?: string,
 ): Promise<{ contentType: string; body: Buffer; filename: string } | null | "PASSWORD_REQUIRED" | "WRONG_PASSWORD"> {
+  const db = prisma as any;
   const resolved = await resolvePublishedDocumentByToken(token, password);
   if (resolved === null || resolved === "PASSWORD_REQUIRED" || resolved === "WRONG_PASSWORD") return resolved;
   const { published, document: doc } = resolved;
@@ -1888,4 +1889,8 @@ function shortenText(value: unknown, limit: number): string {
   if (text.length <= limit) return text;
   const shortened = text.slice(0, limit);
   return `${shortened.slice(0, shortened.lastIndexOf(" ") > 120 ? shortened.lastIndexOf(" ") : limit).trim()}...`;
+}
+
+function slug(value: string) {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || "document";
 }

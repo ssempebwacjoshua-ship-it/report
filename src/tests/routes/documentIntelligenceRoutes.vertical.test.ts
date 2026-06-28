@@ -138,6 +138,104 @@ describe("GET /api/smart-documents — vertical filter routing", () => {
   });
 });
 
+describe("GET /api/smart-documents/p/:token and download routes", () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+  });
+
+  it("returns a published document snapshot", async () => {
+    svcMocks.getPublishedDocument.mockResolvedValue({
+      document: {
+        id: "doc-public",
+        title: "Public Smart Pages",
+        status: "READY",
+        vertical: "SCHOOL",
+        extractionStatus: "READY",
+        extractionError: null,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+      publishedAt: new Date().toISOString(),
+    });
+
+    const res = await request(buildApp()).get("/api/smart-documents/p/demo-token");
+
+    expect(res.status).toBe(200);
+    expect(svcMocks.getPublishedDocument).toHaveBeenCalledWith("demo-token", undefined);
+    expect(res.body.ok).toBe(true);
+    expect(res.body.document.title).toBe("Public Smart Pages");
+  });
+
+  it("returns 404 when the published document is missing", async () => {
+    svcMocks.getPublishedDocument.mockResolvedValue(null);
+
+    const res = await request(buildApp()).get("/api/smart-documents/p/missing-token");
+
+    expect(res.status).toBe(404);
+    expect(res.body.error).toMatch(/document not found or link has expired/i);
+  });
+
+  it("returns 401 when a password is required", async () => {
+    svcMocks.getPublishedDocument.mockResolvedValue("PASSWORD_REQUIRED");
+
+    const res = await request(buildApp()).get("/api/smart-documents/p/locked-token");
+
+    expect(res.status).toBe(401);
+    expect(res.body.code).toBe("PASSWORD_REQUIRED");
+  });
+
+  it("returns 401 when the password is wrong", async () => {
+    svcMocks.getPublishedDocument.mockResolvedValue("WRONG_PASSWORD");
+
+    const res = await request(buildApp()).get("/api/smart-documents/p/locked-token?password=bad");
+
+    expect(res.status).toBe(401);
+    expect(res.body.code).toBe("WRONG_PASSWORD");
+  });
+
+  it("returns a PDF download response", async () => {
+    svcMocks.downloadPublishedDocumentPdf.mockResolvedValue({
+      contentType: "application/pdf",
+      body: Buffer.from("pdf-bytes"),
+      filename: "public-smart-pages.pdf",
+    });
+
+    const res = await request(buildApp()).get("/api/smart-documents/p/demo-token/download/pdf");
+
+    expect(res.status).toBe(200);
+    expect(svcMocks.downloadPublishedDocumentPdf).toHaveBeenCalledWith("demo-token", undefined);
+    expect(res.headers["content-type"]).toContain("application/pdf");
+    expect(res.headers["content-disposition"]).toContain("public-smart-pages.pdf");
+  });
+
+  it("returns 404 for missing PDF links", async () => {
+    svcMocks.downloadPublishedDocumentPdf.mockResolvedValue(null);
+
+    const res = await request(buildApp()).get("/api/smart-documents/p/missing-token/download/pdf");
+
+    expect(res.status).toBe(404);
+    expect(res.body.error).toMatch(/document not found or link has expired/i);
+  });
+
+  it("returns 401 for password-protected PDF links", async () => {
+    svcMocks.downloadPublishedDocumentPdf.mockResolvedValue("PASSWORD_REQUIRED");
+
+    const res = await request(buildApp()).get("/api/smart-documents/p/locked-token/download/pdf");
+
+    expect(res.status).toBe(401);
+    expect(res.body.code).toBe("PASSWORD_REQUIRED");
+  });
+
+  it("returns 401 for wrong password PDF links", async () => {
+    svcMocks.downloadPublishedDocumentPdf.mockResolvedValue("WRONG_PASSWORD");
+
+    const res = await request(buildApp()).get("/api/smart-documents/p/locked-token/download/pdf?password=bad");
+
+    expect(res.status).toBe(401);
+    expect(res.body.code).toBe("WRONG_PASSWORD");
+  });
+});
+
 describe("POST /api/smart-documents — vertical routing", () => {
   beforeEach(() => {
     vi.resetAllMocks();
