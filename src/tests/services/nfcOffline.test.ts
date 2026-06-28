@@ -153,6 +153,14 @@ describe("bootstrapOfflineSnapshot", () => {
     await expect(bootstrapOfflineSnapshot(CASHIER_CTX, {}, db)).rejects.toMatchObject({ status: 403 });
   });
 
+  it("allows CASHIER to download a canteen-only local register without device-management permission", async () => {
+    const db = makeMockDb();
+    const snap = await bootstrapOfflineSnapshot(CASHIER_CTX, { mode: "CANTEEN", modules: ["canteen"], deviceId: "canteen-phone-1" }, db);
+    expect(snap.mode).toBe("CANTEEN");
+    expect(snap.modules).toEqual(["canteen"]);
+    expect(snap.wallets).toHaveLength(1);
+  });
+
   it("allows GATE_SECURITY to bootstrap a gate-only snapshot", async () => {
     const db = makeMockDb();
     const snap = await bootstrapOfflineSnapshot(GATE_CTX, { mode: "GATE", modules: ["gate"], deviceId: "dev-gate" }, db);

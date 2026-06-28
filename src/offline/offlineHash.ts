@@ -25,6 +25,10 @@ export async function hashPayload(payload: unknown): Promise<string> {
   return sha256Hex(deterministicStringify(payload));
 }
 
+export async function hashNfcLookupValue(normalizedValue: string): Promise<string> {
+  return sha256Hex(`nfc-lookup:${normalizedValue}`);
+}
+
 // eventHash = sha256(previousHash | payloadHash | deviceId | sequenceNumber | createdAt | actionType)
 export async function createOfflineEventHash(params: {
   previousHash: string | null;
