@@ -4,6 +4,8 @@ import { NfcGateSecurityPage } from "../../pages/NfcGateSecurityPage";
 
 const state = vi.hoisted(() => ({
   user: { id: "user-1", schoolId: "school-a", name: "Gate User", role: "GATE_SECURITY" as const },
+  token: "school-token",
+  loading: false,
   isOfflineReady: false,
   pendingCount: 0,
   dashboard: { recentScans: [] as Array<{ result: string; reason?: string | null; scannedAt: string; student?: { name: string } }> },
@@ -20,7 +22,7 @@ const mockScanGate = vi.hoisted(() => vi.fn(async () => ({
 const mockFetchAttendanceScan = vi.hoisted(() => vi.fn());
 
 vi.mock("../../contexts/AuthContext", () => ({
-  useAuth: () => ({ user: state.user }),
+  useAuth: () => ({ user: state.user, token: state.token, loading: state.loading }),
 }));
 
 vi.mock("../../hooks/useConnectivityStatus", () => ({
@@ -65,6 +67,9 @@ describe("NfcGateSecurityPage", () => {
     mockFetchAttendanceScan.mockClear();
     state.isOfflineReady = false;
     state.dashboard = { recentScans: [] };
+    state.user = { id: "user-1", schoolId: "school-a", name: "Gate User", role: "GATE_SECURITY" };
+    state.token = "school-token";
+    state.loading = false;
   });
 
   it("uses the gate endpoint and does not call attendance scan", async () => {
@@ -88,5 +93,14 @@ describe("NfcGateSecurityPage", () => {
     expect(pageSource).toContain("scanNfcGate");
     expect(pageSource).not.toContain("/api/nfc/attendance/scan");
     expect(pageSource).not.toContain("scanAttendance");
+  });
+
+  it("shows a sign-in prompt and skips the gate request when the token is missing", async () => {
+    state.token = null;
+
+    render(<NfcGateSecurityPage />);
+
+    await waitFor(() => expect(screen.getByText(/please sign in again to continue using gate security/i)).toBeInTheDocument());
+    expect(mockFetchGateDashboard).not.toHaveBeenCalled();
   });
 });

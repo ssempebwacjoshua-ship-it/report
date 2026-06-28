@@ -20,7 +20,7 @@ function getDeviceId(): string {
 type LocalScanResult = NfcGateScanResponse | { result: "ALLOWED" | "BLOCKED"; reason?: string; student?: { name: string; admissionNumber: string; className?: string | null; streamName?: string | null }; scannedAt: string; offline?: true; queued?: boolean };
 
 export function NfcGateSecurityPage() {
-  const { user } = useAuth();
+  const { user, token, loading: authLoading } = useAuth();
   const deviceId = useRef(getDeviceId()).current;
 
   const { state: connState, isOfflineReady, pendingCount } = useConnectivityStatus(user?.schoolId, deviceId, "gate");
@@ -31,14 +31,26 @@ export function NfcGateSecurityPage() {
   const [offlineQueue, setOfflineQueue] = useState<Array<{ result: string; student?: string; scannedAt: string }>>([]);
 
   async function load() {
-    if (!isOfflineReady) {
+    if (isOfflineReady) return;
+    if (!user || !token) {
+      setDashboard(null);
+      setLoadError("Please sign in again.");
+      return;
+    }
+    try {
+      setLoadError("");
       setDashboard(await fetchNfcGateDashboard());
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Could not load gate scans.";
+      setDashboard(null);
+      setLoadError(/access|session|unauthori[sz]ed|forbidden/i.test(message) ? "Please sign in again." : message);
     }
   }
 
   useEffect(() => {
-    void load().catch((e: Error) => setLoadError(e.message));
-  }, [isOfflineReady]);
+    if (authLoading) return;
+    void load();
+  }, [authLoading, isOfflineReady, token, user?.schoolId]);
 
   const handleScan = async ({ tokenOrUid, idempotencyKey, deviceId: scanDeviceId }: ScanResult) => {
     if (isOfflineReady) {
@@ -101,6 +113,34 @@ export function NfcGateSecurityPage() {
   const scanner = useNfcScanner({ onScan: handleScan });
   const result = scanResult?.result;
   const allowed = result === "ALLOWED";
+
+  if (authLoading) {
+    return (
+      <main className="grid gap-5">
+        <header className="page-header">
+          <p className="text-xs font-bold uppercase tracking-wide text-blue-600">NFC Operations</p>
+          <h1 className="text-xl font-bold text-slate-950 sm:text-2xl">Gate Security</h1>
+        </header>
+        <div className="rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-500 shadow-sm">
+          Checking your gate session...
+        </div>
+      </main>
+    );
+  }
+
+  if (!user || !token) {
+    return (
+      <main className="grid gap-5">
+        <header className="page-header">
+          <p className="text-xs font-bold uppercase tracking-wide text-blue-600">NFC Operations</p>
+          <h1 className="text-xl font-bold text-slate-950 sm:text-2xl">Gate Security</h1>
+        </header>
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 shadow-sm">
+          Please sign in again to continue using Gate Security.
+        </div>
+      </main>
+    );
+  }
 
   return (
     <main className="grid gap-5">
