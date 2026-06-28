@@ -4,11 +4,12 @@ import { WifiOffRegular } from "@fluentui/react-icons";
 import { NfcScanPanel } from "../components/nfc/NfcScanPanel";
 import { useNfcScanner, type ScanResult } from "../hooks/useNfcScanner";
 import { useConnectivityStatus } from "../hooks/useConnectivityStatus";
+import { useNfcOfflineSnapshotRefresh } from "../hooks/useNfcOfflineSnapshotRefresh";
 import { useAuth } from "../contexts/AuthContext";
 import { chargeNfcCanteen, resolveWalletStudent } from "../client/studentCredentialsClient";
 import { resolveOfflineNfcScan } from "../offline/offlineResolver";
 import { queueCanteenCharge, getSnapshotMeta, getAvailableOfflineBalance } from "../offline/offlineStore";
-import { isSnapshotValid, isCanteenOfflineEnabled } from "../offline/offlineStatus";
+import { getSnapshotValidity, isCanteenOfflineEnabled } from "../offline/offlineStatus";
 import type { NfcCanteenChargeResult, NfcWalletStudentResolution } from "../shared/types/studentCredentials";
 
 const inputClass =
@@ -34,6 +35,20 @@ function getDeviceId(): string {
   let id = localStorage.getItem(key);
   if (!id) { id = crypto.randomUUID(); localStorage.setItem(key, id); }
   return id;
+}
+
+function offlineReasonMessage(reason?: string) {
+  switch (reason) {
+    case "no_snapshot": return "Offline snapshot is not downloaded yet.";
+    case "expired": return "Offline snapshot has expired.";
+    case "wrong_school": return "Offline snapshot belongs to another school.";
+    case "wrong_device": return "Offline snapshot belongs to another device.";
+    case "missing_module": return "Offline snapshot is missing the canteen module.";
+    case "empty_students": return "Snapshot downloaded but contains no students.";
+    case "empty_tags": return "Snapshot downloaded but contains no NFC tags.";
+    case "offline_disabled_by_policy": return "Offline canteen charging is disabled by school policy.";
+    default: return "Offline mode is not configured for this device.";
+  }
 }
 
 type Phase = "setup" | "pin" | "done";
@@ -62,6 +77,13 @@ export function NfcCanteenChargePage() {
   const deviceId = useRef(getDeviceId()).current;
 
   const { isOfflineReady, pendingCount } = useConnectivityStatus(user?.schoolId, deviceId, "canteen");
+  const snapshotRefresh = useNfcOfflineSnapshotRefresh({
+    schoolId: user?.schoolId,
+    deviceId,
+    mode: "CANTEEN",
+    requiredModule: "canteen",
+    enabled: !!user,
+  });
 
   const [amount, setAmount] = useState("");
   const [description, setDescription] = useState("");
@@ -87,10 +109,10 @@ export function NfcCanteenChargePage() {
     if (isOfflineReady) {
       if (!user?.schoolId) return;
 
-      const canteen = await isCanteenOfflineEnabled();
+      const canteen = await isCanteenOfflineEnabled({ schoolId: user.schoolId, deviceId, mode: "CANTEEN", requiredModule: "canteen" });
       if (!canteen) throw new Error("Offline canteen charging is not enabled for this school.");
-      const valid = await isSnapshotValid({ schoolId: user.schoolId, requiredModule: "canteen" });
-      if (!valid) throw new Error("Offline snapshot has expired. Request a new one from the Offline page.");
+      const validity = await getSnapshotValidity({ schoolId: user.schoolId, deviceId, mode: "CANTEEN", requiredModule: "canteen" });
+      if (!validity.valid) throw new Error(offlineReasonMessage(validity.reason));
 
       const resolve = await resolveOfflineNfcScan(user.schoolId, tokenOrUid);
       if (!resolve.found) throw new Error("Tag not recognised in offline snapshot.");
@@ -100,7 +122,7 @@ export function NfcCanteenChargePage() {
       const wallet = resolve.wallet;
       if (!wallet) throw new Error("No wallet found for this student.");
       if (wallet.status === "FROZEN") throw new Error("Wallet is frozen.");
-      const meta = await getSnapshotMeta();
+      const meta = await getSnapshotMeta({ schoolId: user.schoolId, deviceId, mode: "CANTEEN" });
       const limits = meta?.settings;
       if (!limits) throw new Error("Offline snapshot is not loaded.");
       if (amountCents > limits.maxOfflineSpendPerTransaction) {
@@ -137,7 +159,7 @@ export function NfcCanteenChargePage() {
       setChargeError("");
       setPhase("pin");
     } else if (typeof navigator !== "undefined" && !navigator.onLine) {
-      throw new Error("Offline mode is not configured for this device.");
+      throw new Error(offlineReasonMessage(snapshotRefresh.validity?.reason));
     } else {
       const studentData = await resolveWalletStudent({ tokenOrUid });
       setPending({ tokenOrUid, idempotencyKey, deviceId: scanDeviceId, student: studentData });
@@ -158,7 +180,7 @@ export function NfcCanteenChargePage() {
       setChargeLoading(true);
       setChargeError("");
       try {
-        const meta = await getSnapshotMeta();
+        const meta = await getSnapshotMeta({ schoolId: user.schoolId, deviceId, mode: "CANTEEN" });
         const chargedAt = new Date().toISOString();
         await queueCanteenCharge({
           schoolId: user.schoolId,
@@ -249,6 +271,16 @@ export function NfcCanteenChargePage() {
             <p className="text-sm font-semibold text-orange-800">Offline Mode — Charges Queued</p>
             <p className="text-xs text-orange-600">Charges are stored locally. {pendingCount > 0 ? `${pendingCount} pending sync.` : "PIN not verified offline — will validate at sync."}</p>
           </div>
+        </div>
+      )}
+
+      {!isOfflineReady && snapshotRefresh.validity && !snapshotRefresh.validity.valid && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+          <p className="font-bold">Offline setup: {offlineReasonMessage(snapshotRefresh.validity.reason)}</p>
+          <p className="mt-1">
+            {snapshotRefresh.isRefreshing ? "Refreshing snapshot in the background..." : "Online canteen charging still works while connected."}
+            {snapshotRefresh.refreshError ? ` Last refresh failed: ${snapshotRefresh.refreshError}` : ""}
+          </p>
         </div>
       )}
 

@@ -14,6 +14,7 @@ import type {
   OfflineSnapshotMeta,
   OfflineStudent,
   OfflineSyncStatus,
+  OfflineKioskMode,
   OfflineTag,
   OfflineWallet,
 } from "./offlineTypes";
@@ -29,6 +30,13 @@ export async function getMeta<T>(key: string): Promise<T | undefined> {
 
 async function setMeta(key: string, value: unknown): Promise<void> {
   await offlineDb.offline_meta.put({ key, value });
+}
+
+export function getSnapshotMetaKey(input: { schoolId?: string | null; deviceId?: string | null; mode?: OfflineKioskMode | null }): string {
+  if (input.schoolId && input.deviceId && input.mode) {
+    return `snapshot:${input.schoolId}:${input.deviceId}:${input.mode}`;
+  }
+  return "snapshot:current";
 }
 
 // ─── Sequence / chain tracking per device ────────────────────────────────────
@@ -77,13 +85,29 @@ export async function saveBootstrapSnapshot(snapshot: OfflineBootstrapSnapshot):
         modules: snapshot.modules,
         settings: snapshot.settings,
       };
+      await setMeta(getSnapshotMetaKey(meta), meta);
       await setMeta("snapshot:current", meta);
     },
   );
 }
 
-export async function getSnapshotMeta(): Promise<OfflineSnapshotMeta | null> {
+export async function getSnapshotMeta(input: { schoolId?: string | null; deviceId?: string | null; mode?: OfflineKioskMode | null } = {}): Promise<OfflineSnapshotMeta | null> {
+  const specificKey = getSnapshotMetaKey(input);
+  if (specificKey !== "snapshot:current") {
+    const specific = await getMeta<OfflineSnapshotMeta>(specificKey);
+    if (specific) return specific;
+  }
   return (await getMeta<OfflineSnapshotMeta>("snapshot:current")) ?? null;
+}
+
+export async function getSnapshotCounts(schoolId?: string): Promise<{ studentCount: number; tagCount: number; walletCount: number }> {
+  if (!schoolId) return { studentCount: 0, tagCount: 0, walletCount: 0 };
+  const [studentCount, tagCount, walletCount] = await Promise.all([
+    offlineDb.offline_students.where("schoolId").equals(schoolId).count(),
+    offlineDb.offline_tags.where("schoolId").equals(schoolId).count(),
+    offlineDb.offline_wallets.where("schoolId").equals(schoolId).count(),
+  ]);
+  return { studentCount, tagCount, walletCount };
 }
 
 // ─── Read-only snapshot lookups ───────────────────────────────────────────────

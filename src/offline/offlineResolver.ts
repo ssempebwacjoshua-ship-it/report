@@ -3,7 +3,6 @@ import { getTagByScanValue, getStudentById, getOfflineWallet } from "./offlineSt
 import type { OfflineResolveResult } from "./offlineTypes";
 
 const BLOCKED_STATUSES = new Set(["DISABLED", "LOST"]);
-const ACTIVE_STATUSES = new Set(["ASSIGNED"]);
 
 export async function resolveOfflineNfcScan(
   schoolId: string,
@@ -21,7 +20,7 @@ export async function resolveOfflineNfcScan(
     return { found: true, blocked: true, reason: tag.status === "LOST" ? "lost or deactivated wristband" : "wristband disabled", tag };
   }
 
-  if (!tag.studentId || !ACTIVE_STATUSES.has(tag.status)) {
+  if (!tag.studentId) {
     return { found: true, blocked: true, reason: "unassigned tag", tag };
   }
 

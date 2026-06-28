@@ -4,6 +4,7 @@ import { WifiOffRegular } from "@fluentui/react-icons";
 import { NfcScanPanel } from "../components/nfc/NfcScanPanel";
 import { useNfcScanner, type ScanResult } from "../hooks/useNfcScanner";
 import { useConnectivityStatus } from "../hooks/useConnectivityStatus";
+import { useNfcOfflineSnapshotRefresh } from "../hooks/useNfcOfflineSnapshotRefresh";
 import { useAuth } from "../contexts/AuthContext";
 import {
   fetchAttendanceClasses,
@@ -269,6 +270,20 @@ function getDeviceId(): string {
   return id;
 }
 
+function offlineReasonMessage(reason?: string) {
+  switch (reason) {
+    case "no_snapshot": return "Offline snapshot is not downloaded yet.";
+    case "expired": return "Offline snapshot has expired.";
+    case "wrong_school": return "Offline snapshot belongs to another school.";
+    case "wrong_device": return "Offline snapshot belongs to another device.";
+    case "missing_module": return "Offline snapshot is missing the attendance module.";
+    case "empty_students": return "Snapshot downloaded but contains no students.";
+    case "empty_tags": return "Snapshot downloaded but contains no NFC tags.";
+    case "offline_disabled_by_policy": return "Offline attendance scanning is disabled by school policy.";
+    default: return "Offline mode is not configured for this device.";
+  }
+}
+
 // ── Page ───────────────────────────────────────────────────────────────────────
 
 export function NfcAttendancePage() {
@@ -277,6 +292,13 @@ export function NfcAttendancePage() {
   const deviceId = useRef(getDeviceId()).current;
 
   const { isOfflineReady, pendingCount } = useConnectivityStatus(user?.schoolId, deviceId, "attendance");
+  const snapshotRefresh = useNfcOfflineSnapshotRefresh({
+    schoolId: user?.schoolId,
+    deviceId,
+    mode: "ATTENDANCE",
+    requiredModule: "attendance",
+    enabled: !!user,
+  });
 
   const [register, setRegister] = useState<AttendanceRegisterResponse | null>(null);
   const [lastScan, setLastScan] = useState<NfcAttendanceScanEvent | null>(null);
@@ -338,7 +360,7 @@ export function NfcAttendancePage() {
     if (isOfflineReady) {
       if (!user?.schoolId) return;
       const resolve = await resolveOfflineNfcScan(user.schoolId, tokenOrUid);
-      const meta = await getSnapshotMeta();
+      const meta = await getSnapshotMeta({ schoolId: user.schoolId, deviceId, mode: "ATTENDANCE" });
       const scannedAt = new Date().toISOString();
       const dateStr = scannedAt.split("T")[0]!;
       const currentDirection = directionRef.current;
@@ -374,7 +396,7 @@ export function NfcAttendancePage() {
       const studentName = resolve.student ? `${resolve.student.firstName} ${resolve.student.lastName}`.trim() : "Unknown";
       setOfflineScans((prev) => [{ name: studentName, direction: currentDirection, status, scannedAt }, ...prev.slice(0, 19)]);
     } else if (typeof navigator !== "undefined" && !navigator.onLine) {
-      throw new Error("Offline mode is not configured for this device.");
+      throw new Error(offlineReasonMessage(snapshotRefresh.validity?.reason));
     } else {
       const data = await scanNfcAttendance({
         tokenOrUid,
@@ -424,6 +446,16 @@ export function NfcAttendancePage() {
             <p className="text-sm font-semibold text-orange-800">Offline Mode Active</p>
             <p className="text-xs text-orange-600">Attendance scans are queued locally. {pendingCount > 0 ? `${pendingCount} pending sync.` : "Will sync when connection returns."}</p>
           </div>
+        </div>
+      )}
+
+      {!isOfflineReady && snapshotRefresh.validity && !snapshotRefresh.validity.valid && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+          <p className="font-bold">Offline setup: {offlineReasonMessage(snapshotRefresh.validity.reason)}</p>
+          <p className="mt-1">
+            {snapshotRefresh.isRefreshing ? "Refreshing snapshot in the background..." : "Online attendance scanning still works while connected."}
+            {snapshotRefresh.refreshError ? ` Last refresh failed: ${snapshotRefresh.refreshError}` : ""}
+          </p>
         </div>
       )}
 

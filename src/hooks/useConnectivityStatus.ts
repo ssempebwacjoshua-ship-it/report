@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { isSnapshotValid } from "../offline/offlineStatus";
+import { getSnapshotValidity } from "../offline/offlineStatus";
 import { listPendingQueue, listAllQueueItems, markQueueItemSynced, markQueueItemFailed, markQueueItemConflict } from "../offline/offlineStore";
 import type { OfflineSyncResponse } from "../offline/offlineTypes";
 import { getApiBaseUrl } from "../client/apiBase";
@@ -17,6 +17,13 @@ const HEARTBEAT_URL = "/api/health/ping";
 const HEARTBEAT_INTERVAL_MS = 12000;
 const DEGRADED_THRESHOLD = 1;
 const OFFLINE_THRESHOLD = 3;
+
+function modeForModule(module?: OfflineModule) {
+  if (module === "gate") return "GATE" as const;
+  if (module === "canteen") return "CANTEEN" as const;
+  if (module === "attendance") return "ATTENDANCE" as const;
+  return undefined;
+}
 
 export function useConnectivityStatus(schoolId?: string, deviceId?: string, requiredModule?: OfflineModule) {
   const [state, setState] = useState<ConnectivityState>("ONLINE");
@@ -124,8 +131,8 @@ export function useConnectivityStatus(schoolId?: string, deviceId?: string, requ
         if (failures === DEGRADED_THRESHOLD) {
           updateState("DEGRADED");
         } else if (failures >= OFFLINE_THRESHOLD) {
-          const valid = await isSnapshotValid({ schoolId, requiredModule });
-          updateState(valid ? "OFFLINE_READY" : "OFFLINE_NOT_READY");
+          const validity = await getSnapshotValidity({ schoolId, deviceId, requiredModule, mode: modeForModule(requiredModule) });
+          updateState(validity.valid ? "OFFLINE_READY" : "OFFLINE_NOT_READY");
         }
       }
     }

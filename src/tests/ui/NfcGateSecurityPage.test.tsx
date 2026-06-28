@@ -45,6 +45,15 @@ vi.mock("../../hooks/useConnectivityStatus", () => ({
   }),
 }));
 
+vi.mock("../../hooks/useNfcOfflineSnapshotRefresh", () => ({
+  useNfcOfflineSnapshotRefresh: () => ({
+    validity: null,
+    isRefreshing: false,
+    refreshError: "",
+    refreshNow: vi.fn(),
+  }),
+}));
+
 vi.mock("../../client/studentCredentialsClient", () => ({
   fetchNfcGateDashboard: mockFetchGateDashboard,
   scanNfcGate: mockScanGate,
