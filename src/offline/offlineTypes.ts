@@ -61,6 +61,8 @@ export interface OfflineWallet {
   balanceCents: number;
   localStartingBalanceCents?: number;
   localCurrentBalanceCents?: number;
+  pinHash?: string | null;
+  pinLockedUntil?: string | null;
   snapshotId: string;
   frozenReason: string | null;
   dailyOfflineLimitCents?: number;

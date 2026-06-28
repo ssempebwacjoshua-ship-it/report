@@ -11,7 +11,7 @@ import {
 
 type MockStudent = { id: string; schoolId: string; admissionNumber: string; firstName: string; lastName: string; isActive: boolean; enrollments: unknown[] };
 type MockTag = { id: string; schoolId: string; publicCode: string; physicalUid: string | null; studentId: string | null; status: string; tagMode: string; purpose: string | null; writtenPayload: string | null };
-type MockWallet = { id: string; studentId: string; schoolId: string; status: string; balanceCents: number; frozenReason: string | null };
+type MockWallet = { id: string; studentId: string; schoolId: string; status: string; balanceCents: number; frozenReason: string | null; pinHash?: string | null; pinLockedUntil?: Date | null };
 type MockTx = { id: string; schoolId: string; studentId: string; walletId: string; type: string; amountCents: number; balanceAfterCents: number; description: string | null; idempotencyKey: string; cashierUserId: string | null; credentialId: string | null };
 type MockGateScan = { id: string; schoolId: string; studentId: string | null; credentialId: null; scannedByUserId: null; result: string; reason: string | null; scannedAt: Date };
 type MockAttendance = { id: string; schoolId: string; studentId: string; credentialId: string | null; direction: string; source: string; status: string; reason: null; scannedAt: Date };
@@ -24,7 +24,7 @@ const tags: MockTag[] = [
   { id: "tag-1", schoolId: "school-a", publicCode: "PUB001", physicalUid: "UID001", studentId: "stu-1", status: "ASSIGNED", tagMode: "WRISTBAND", purpose: null, writtenPayload: null },
 ];
 const wallets: MockWallet[] = [
-  { id: "wal-1", studentId: "stu-1", schoolId: "school-a", status: "ACTIVE", balanceCents: 50000, frozenReason: null },
+  { id: "wal-1", studentId: "stu-1", schoolId: "school-a", status: "ACTIVE", balanceCents: 50000, frozenReason: null, pinHash: "pbkdf2$100000$salt$hash", pinLockedUntil: null },
 ];
 const gateScanStore: MockGateScan[] = [];
 const attendanceStore: MockAttendance[] = [];
@@ -159,6 +159,11 @@ describe("bootstrapOfflineSnapshot", () => {
     expect(snap.mode).toBe("CANTEEN");
     expect(snap.modules).toEqual(["canteen"]);
     expect(snap.wallets).toHaveLength(1);
+    expect(snap.wallets[0]).toMatchObject({
+      pinHash: "pbkdf2$100000$salt$hash",
+    });
+    expect(snap.wallets[0]?.dailyOfflineLimitCents).toBe(300000);
+    expect(snap.settings.maxOfflineSpendPerTransaction).toBe(300000);
   });
 
   it("allows GATE_SECURITY to bootstrap a gate-only snapshot", async () => {

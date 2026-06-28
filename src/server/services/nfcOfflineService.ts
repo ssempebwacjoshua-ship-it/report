@@ -57,9 +57,17 @@ function requireBootstrapPermission(ctx: OfflineContext, mode: "GATE" | "CANTEEN
 const SNAPSHOT_TTL_HOURS = 24;
 const DEFAULT_GATE_SNAPSHOT_VALID_HOURS = 24;
 const DEFAULT_CANTEEN_SNAPSHOT_VALID_HOURS = 12;
-const DEFAULT_MAX_OFFLINE_SPEND_PER_STUDENT_PER_DAY = 5000;
-const DEFAULT_MAX_OFFLINE_SPEND_PER_TRANSACTION = 2000;
-const DEFAULT_MAX_OFFLINE_SPEND_PER_DEVICE_SESSION = 100000;
+const DEFAULT_MAX_OFFLINE_SPEND_PER_STUDENT_PER_DAY_UGX = 3000;
+const DEFAULT_MAX_OFFLINE_SPEND_PER_TRANSACTION_UGX = 3000;
+const DEFAULT_MAX_OFFLINE_SPEND_PER_DEVICE_SESSION_UGX = 100000;
+
+function ugxToCents(value: number): number {
+  return Math.round(value * 100);
+}
+
+function canteenLimitCents(valueUgx: number, minimumUgx: number): number {
+  return ugxToCents(Math.max(valueUgx || 0, minimumUgx));
+}
 
 type OfflinePolicy = {
   gateOfflineEnabled: boolean;
@@ -81,9 +89,9 @@ function defaultOfflinePolicy(): OfflinePolicy {
     canteenOfflineEnabled: false,
     gateSnapshotValidHours: DEFAULT_GATE_SNAPSHOT_VALID_HOURS,
     canteenSnapshotValidHours: DEFAULT_CANTEEN_SNAPSHOT_VALID_HOURS,
-    maxOfflineSpendPerStudentPerDay: DEFAULT_MAX_OFFLINE_SPEND_PER_STUDENT_PER_DAY,
-    maxOfflineSpendPerTransaction: DEFAULT_MAX_OFFLINE_SPEND_PER_TRANSACTION,
-    maxOfflineSpendPerDeviceSession: DEFAULT_MAX_OFFLINE_SPEND_PER_DEVICE_SESSION,
+    maxOfflineSpendPerStudentPerDay: DEFAULT_MAX_OFFLINE_SPEND_PER_STUDENT_PER_DAY_UGX,
+    maxOfflineSpendPerTransaction: DEFAULT_MAX_OFFLINE_SPEND_PER_TRANSACTION_UGX,
+    maxOfflineSpendPerDeviceSession: DEFAULT_MAX_OFFLINE_SPEND_PER_DEVICE_SESSION_UGX,
     unknownCardOfflinePolicy: "DENY",
     frozenCardOfflinePolicy: "DENY",
     deactivatedCardOfflinePolicy: "DENY",
@@ -123,6 +131,13 @@ export async function bootstrapOfflineSnapshot(
 
   const policy = await loadOfflinePolicy(ctx, db);
   const mode = input.mode ?? "GATE";
+  const canteenLimitPolicy = {
+    ...policy,
+    maxOfflineSpendPerStudentPerDay: canteenLimitCents(policy.maxOfflineSpendPerStudentPerDay, DEFAULT_MAX_OFFLINE_SPEND_PER_STUDENT_PER_DAY_UGX),
+    maxOfflineSpendPerTransaction: canteenLimitCents(policy.maxOfflineSpendPerTransaction, DEFAULT_MAX_OFFLINE_SPEND_PER_TRANSACTION_UGX),
+    maxOfflineSpendPerDeviceSession: canteenLimitCents(policy.maxOfflineSpendPerDeviceSession, DEFAULT_MAX_OFFLINE_SPEND_PER_DEVICE_SESSION_UGX),
+  };
+  const outputPolicy = mode === "CANTEEN" ? canteenLimitPolicy : policy;
   const modules = input.modules ?? ["gate", "attendance", "canteen"];
   requireBootstrapPermission(ctx, mode, modules);
   const snapshotId = randomUUID();
@@ -180,6 +195,8 @@ export async function bootstrapOfflineSnapshot(
           status: true,
           balanceCents: true,
           frozenReason: true,
+          pinHash: true,
+          pinLockedUntil: true,
         },
       })
     : [];
@@ -222,10 +239,12 @@ export async function bootstrapOfflineSnapshot(
     balanceCents: w.balanceCents,
     cachedBalanceCents: w.balanceCents,
     rfidStatus: w.status,
-    dailyOfflineLimitCents: policy.maxOfflineSpendPerStudentPerDay,
+    dailyOfflineLimitCents: outputPolicy.maxOfflineSpendPerStudentPerDay,
     alreadySyncedSpendTodayCents: 0,
     snapshotId,
     frozenReason: w.frozenReason,
+    pinHash: w.pinHash,
+    pinLockedUntil: w.pinLockedUntil ? w.pinLockedUntil.toISOString() : null,
   }));
 
   await db.auditLog.create({
@@ -272,9 +291,9 @@ export async function bootstrapOfflineSnapshot(
       canteenOfflineEnabled: policy.canteenOfflineEnabled,
       gateSnapshotValidHours: policy.gateSnapshotValidHours,
       canteenSnapshotValidHours: policy.canteenSnapshotValidHours,
-      maxOfflineSpendPerStudentPerDay: policy.maxOfflineSpendPerStudentPerDay,
-      maxOfflineSpendPerTransaction: policy.maxOfflineSpendPerTransaction,
-      maxOfflineSpendPerDeviceSession: policy.maxOfflineSpendPerDeviceSession,
+      maxOfflineSpendPerStudentPerDay: outputPolicy.maxOfflineSpendPerStudentPerDay,
+      maxOfflineSpendPerTransaction: outputPolicy.maxOfflineSpendPerTransaction,
+      maxOfflineSpendPerDeviceSession: outputPolicy.maxOfflineSpendPerDeviceSession,
       unknownCardOfflinePolicy: policy.unknownCardOfflinePolicy,
       frozenCardOfflinePolicy: policy.frozenCardOfflinePolicy,
       deactivatedCardOfflinePolicy: policy.deactivatedCardOfflinePolicy,

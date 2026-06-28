@@ -11,6 +11,7 @@ import { resolveOfflineNfcScan } from "../offline/offlineResolver";
 import { queueCanteenCharge, getSnapshotMeta, getAvailableOfflineBalance } from "../offline/offlineStore";
 import { getSnapshotValidity, isCanteenOfflineEnabled } from "../offline/offlineStatus";
 import { hashNfcLookupValue } from "../offline/offlineHash";
+import { assertLocalPinFormat, verifyLocalWalletPin } from "../offline/offlinePin";
 import { normalizeNfcScanValue } from "../shared/utils/nfcPayload";
 import type { NfcCanteenChargeResult, NfcWalletStudentResolution } from "../shared/types/studentCredentials";
 
@@ -72,6 +73,8 @@ type OfflinePendingCharge = {
   balanceCents: number;
   availableBalanceCents: number;
   tagId?: string | null;
+  pinHash?: string | null;
+  pinLockedUntil?: string | null;
 };
 
 export function NfcCanteenChargePage() {
@@ -160,6 +163,8 @@ export function NfcCanteenChargePage() {
         balanceCents: wallet.localCurrentBalanceCents ?? wallet.balanceCents,
         availableBalanceCents: availableCents,
         tagId: resolve.tag?.id ?? null,
+        pinHash: wallet.pinHash ?? null,
+        pinLockedUntil: wallet.pinLockedUntil ?? null,
       });
       setChargeError("");
       setUsingLocalRegister(true);
@@ -181,10 +186,23 @@ export function NfcCanteenChargePage() {
       if (!offlinePending || !user?.schoolId) return;
       const amountUgx = Number(amount);
       if (!amountUgx || amountUgx <= 0) { setChargeError("Invalid amount."); return; }
+      try {
+        assertLocalPinFormat(pin);
+      } catch (error) {
+        setChargeError(error instanceof Error ? error.message : "PIN must be 4 to 6 digits.");
+        return;
+      }
       const amountCents = Math.round(amountUgx * 100);
       setChargeLoading(true);
       setChargeError("");
       try {
+        if (!offlinePending.pinHash) throw new Error("Wallet PIN is not set. An admin must set a PIN before offline canteen sales.");
+        if (offlinePending.pinLockedUntil && new Date(offlinePending.pinLockedUntil) > new Date()) {
+          throw new Error("Wallet PIN is temporarily locked. Try again later.");
+        }
+        const pinOk = await verifyLocalWalletPin(pin, offlinePending.pinHash);
+        if (!pinOk) throw new Error("Incorrect PIN.");
+
         const meta = await getSnapshotMeta({ schoolId: user.schoolId, deviceId, mode: "CANTEEN" });
         const chargedAt = new Date().toISOString();
         const tokenOrUidHash = await hashNfcLookupValue(normalizeNfcScanValue(offlinePending.tokenOrUid));
@@ -201,6 +219,8 @@ export function NfcCanteenChargePage() {
             walletId: offlinePending.walletId,
             tagId: offlinePending.tagId,
             amountCents,
+            pinVerified: true,
+            pinVerifiedAt: chargedAt,
             description: descRef.current || null,
             cashierUserId: user.schoolId,
             chargedAt,
@@ -418,7 +438,20 @@ export function NfcCanteenChargePage() {
                 <p className="mt-1 text-sm font-bold text-slate-900">Available: {money(offlinePending.availableBalanceCents)}</p>
               </div>
               <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-700">
-                Local balance updated when queued. PIN will be validated when connection is restored.
+                PIN is verified on this device before the local balance is deducted.
+              </div>
+              <div className="grid gap-2">
+                <label className="text-xs font-bold uppercase text-slate-500">Student enters PIN</label>
+                <input
+                  type="password"
+                  inputMode="numeric"
+                  maxLength={6}
+                  className={`${inputClass} text-center text-xl tracking-widest`}
+                  value={pin}
+                  onChange={(e) => setPin(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                  placeholder="PIN"
+                  autoComplete="off"
+                />
               </div>
               {chargeError && (
                 <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{chargeError}</div>
@@ -427,7 +460,7 @@ export function NfcCanteenChargePage() {
                 <button
                   type="button"
                   className="flex-1 rounded-xl bg-orange-600 px-4 py-3 text-sm font-bold text-white hover:bg-orange-700 disabled:bg-slate-200 disabled:text-slate-400 transition-colors"
-                  disabled={chargeLoading}
+                  disabled={pin.length < 4 || chargeLoading}
                   onClick={() => void submitCharge()}
                 >
                   {chargeLoading ? "Queuing..." : `Queue Sale ${money(Math.round(Number(amount) * 100))}`}
