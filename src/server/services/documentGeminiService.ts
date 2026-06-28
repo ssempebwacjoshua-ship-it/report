@@ -20,7 +20,7 @@ export function resolveGeminiDocumentModel(): string {
   return (
     process.env.SMART_PAGES_GEMINI_FAST_MODEL?.trim() ||
     process.env.GEMINI_MODEL?.trim() ||
-    "gemini-3.5-flash"
+    "gemini-2.5-flash"
   );
 }
 
@@ -57,7 +57,7 @@ const DOC_FALLBACK_RE =
   /429|quota|resource_exhausted|timed out|etimedout|unavailable|503|model overloaded|overloaded|high traffic|model not found|not_found|model_not_found|404|internal server error|500/i;
 const DOC_RETRYABLE_RE =
   /fetch failed|ECONNRESET|ENOTFOUND|ETIMEDOUT|timed out|unavailable|503|model overloaded|overloaded|high traffic/i;
-const FAST_DOC_RETRY_DELAYS_MS = [500, 1_500];
+const FAST_DOC_RETRY_DELAYS_MS = [250, 1_000, 2_000];
 const HIGH_ACCURACY_DOC_RETRY_DELAYS_MS = [1_000, 2_000, 4_000];
 const FAST_GEMINI_ATTEMPT_TIMEOUT_MS = 30_000;
 const HIGH_ACCURACY_GEMINI_ATTEMPT_TIMEOUT_MS = 60_000;
@@ -117,11 +117,14 @@ function resolveGeminiAttemptTimeoutMs(highAccuracy: boolean): number {
       : process.env.SMART_PAGES_GEMINI_FAST_TIMEOUT_MS ?? process.env.GEMINI_TIMEOUT_MS ?? fallback,
   );
   if (!Number.isFinite(configured) || configured <= 0) return fallback;
-  return Math.min(configured, highAccuracy ? 90_000 : 35_000);
+  return configured;
 }
 
 function resolveGeminiRetryDelaysMs(highAccuracy: boolean): number[] {
-  return highAccuracy ? HIGH_ACCURACY_DOC_RETRY_DELAYS_MS : FAST_DOC_RETRY_DELAYS_MS;
+  if (highAccuracy) return HIGH_ACCURACY_DOC_RETRY_DELAYS_MS;
+  const configured = Number(process.env.SMART_PAGES_GEMINI_MAX_RETRIES ?? 1);
+  const maxRetries = Number.isFinite(configured) && configured >= 0 ? Math.floor(configured) : 1;
+  return FAST_DOC_RETRY_DELAYS_MS.slice(0, maxRetries);
 }
 
 function resolveGeminiMediaResolution(highAccuracy: boolean): string {
@@ -496,7 +499,7 @@ ${priorExtractionText}`,
     const fallbackEligible = highAccuracy
       ? isDocFallbackEligible(primaryErr)
       : isFastModeFallbackEligible(primaryErr);
-    if (!options.modelOverride && fallbackEligible && requestedModel !== stableModel) {
+    if (!options.modelOverride && fallbackEligible) {
       fallbackReason = getDocFallbackReason(primaryErr);
       console.warn("[document-gemini] primary model failed, falling back to stable", {
         requestedModel,

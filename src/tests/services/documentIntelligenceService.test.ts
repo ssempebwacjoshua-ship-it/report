@@ -371,7 +371,7 @@ describe("documentIntelligenceService", () => {
         originalName: "scan.png",
         mimeType: "image/png",
         sizeBytes: 1024,
-        geminiModel: "gemini-3.5-flash",
+        geminiModel: "gemini-2.5-flash",
         errorMessage: "Gemini 3.5 JSON parse failed",
       }),
     );
@@ -440,6 +440,14 @@ describe("documentIntelligenceService", () => {
           status: "FAILED",
           pagesCharged: 0,
           creditsCharged: 0,
+        }),
+      }),
+    );
+    expect(mockState.prisma.documentSourceFile.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          extractionError: "AI provider is busy. Retrying with stable model...",
+          status: "FAILED",
         }),
       }),
     );
@@ -585,9 +593,9 @@ describe("documentIntelligenceService", () => {
       unclearItems: [],
       rawText: "hello",
       _meta: {
-        requestedModel: "gemini-3.5-flash",
-        attemptedModels: ["gemini-3.5-flash"],
-        selectedModel: "gemini-3.5-flash",
+        requestedModel: "gemini-2.5-flash",
+        attemptedModels: ["gemini-2.5-flash"],
+        selectedModel: "gemini-2.5-flash",
         retryCount: 0,
         fallbackUsed: false,
         tokenUsage: null,
