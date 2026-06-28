@@ -373,6 +373,8 @@ export function NfcAttendancePage() {
 
       const studentName = resolve.student ? `${resolve.student.firstName} ${resolve.student.lastName}`.trim() : "Unknown";
       setOfflineScans((prev) => [{ name: studentName, direction: currentDirection, status, scannedAt }, ...prev.slice(0, 19)]);
+    } else if (typeof navigator !== "undefined" && !navigator.onLine) {
+      throw new Error("Offline mode is not configured for this device.");
     } else {
       const data = await scanNfcAttendance({
         tokenOrUid,

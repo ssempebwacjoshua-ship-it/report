@@ -108,6 +108,8 @@ export function NfcGateSecurityPage() {
         { result: localResult, student: resolve.student ? `${resolve.student.firstName} ${resolve.student.lastName}`.trim() : undefined, scannedAt },
         ...prev.slice(0, 19),
       ]);
+    } else if (typeof navigator !== "undefined" && !navigator.onLine) {
+      throw new Error("Offline mode is not configured for this device.");
     } else {
       // Online path — send to server
       const result = await scanNfcGate({ tokenOrUid, idempotencyKey, deviceId: scanDeviceId });
@@ -186,7 +188,7 @@ export function NfcGateSecurityPage() {
             onStart={scanner.startScanner}
             onStop={scanner.stopScanner}
             onManualSubmit={scanner.submitManual}
-            scanLabel="Start Gate Scanner"
+            scanLabel={isOfflineReady ? "Start Offline Gate Scanner" : "Start Gate Scanner"}
           />
 
           {scanResult && (

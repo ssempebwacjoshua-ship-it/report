@@ -47,7 +47,7 @@ export function NfcScanPanel({
       {/* Offline banner */}
       {!isOnline && (
         <div className="rounded-t-xl bg-amber-50 border-b border-amber-200 px-4 py-2 text-sm text-amber-800 font-medium">
-          No internet connection — scanning disabled
+          No internet connection - offline scanning may be available
         </div>
       )}
 
@@ -96,10 +96,10 @@ export function NfcScanPanel({
         {/* Action button */}
         {!scanning || state === "ERROR" || state === "BLOCKED" || state === "SUCCESS" ? (
           <button
-            onClick={isWebNfcAvailable && isOnline ? onStart : undefined}
-            disabled={!isOnline}
+            onClick={isWebNfcAvailable ? onStart : undefined}
+            disabled={!isWebNfcAvailable}
             className={`px-5 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-              !isOnline
+              !isWebNfcAvailable
                 ? "bg-gray-100 text-gray-400 cursor-not-allowed"
                 : "bg-blue-600 hover:bg-blue-700 text-white"
             }`}
