@@ -38,6 +38,22 @@ function requirePermission(ctx: OfflineContext, permission: string): void {
   }
 }
 
+function requireBootstrapPermission(ctx: OfflineContext, mode: "GATE" | "CANTEEN" | "ATTENDANCE", modules: string[]): void {
+  if (!ctx.actorId || !ctx.role) throw Object.assign(new Error("Authentication required."), { status: 401 });
+  if (hasPermission(ctx.role, "nfc.devices.manage")) return;
+
+  const required = new Set<string>();
+  if (mode === "GATE" || modules.includes("gate")) required.add("nfc.gate.view");
+  if (mode === "CANTEEN" || modules.includes("canteen")) required.add("nfc.canteen.view");
+  if (mode === "ATTENDANCE" || modules.includes("attendance")) required.add("nfc.devices.manage");
+
+  for (const permission of required) {
+    if (!hasPermission(ctx.role, permission)) {
+      throw Object.assign(new Error("You do not have permission for this action."), { status: 403 });
+    }
+  }
+}
+
 const SNAPSHOT_TTL_HOURS = 24;
 const DEFAULT_GATE_SNAPSHOT_VALID_HOURS = 24;
 const DEFAULT_CANTEEN_SNAPSHOT_VALID_HOURS = 12;
@@ -104,11 +120,11 @@ export async function bootstrapOfflineSnapshot(
   db: OfflineClient = defaultPrisma,
 ) {
   const schoolId = requireSchoolId(ctx);
-  requirePermission(ctx, "nfc.devices.manage");
 
   const policy = await loadOfflinePolicy(ctx, db);
   const mode = input.mode ?? "GATE";
   const modules = input.modules ?? ["gate", "attendance", "canteen"];
+  requireBootstrapPermission(ctx, mode, modules);
   const snapshotId = randomUUID();
   const generatedAt = new Date();
   const ttlHours = mode === "CANTEEN" ? policy.canteenSnapshotValidHours : mode === "ATTENDANCE" ? policy.gateSnapshotValidHours : policy.gateSnapshotValidHours;

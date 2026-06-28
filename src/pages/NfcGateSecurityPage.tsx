@@ -3,12 +3,27 @@ import { WifiOffRegular, ArrowSyncRegular } from "@fluentui/react-icons";
 import { NfcScanPanel } from "../components/nfc/NfcScanPanel";
 import { useNfcScanner, type ScanResult } from "../hooks/useNfcScanner";
 import { useConnectivityStatus } from "../hooks/useConnectivityStatus";
+import { useNfcOfflineSnapshotRefresh } from "../hooks/useNfcOfflineSnapshotRefresh";
 import { useAuth } from "../contexts/AuthContext";
 import { fetchNfcGateDashboard, scanNfcGate } from "../client/studentCredentialsClient";
 import { resolveOfflineNfcScan } from "../offline/offlineResolver";
 import { queueGateScan, getSnapshotMeta } from "../offline/offlineStore";
 import type { NfcGateDashboard, NfcGateScanResponse } from "../shared/types/studentCredentials";
 import type { OfflineResolveResult } from "../offline/offlineTypes";
+
+function offlineReasonMessage(reason?: string) {
+  switch (reason) {
+    case "no_snapshot": return "Offline snapshot is not downloaded yet.";
+    case "expired": return "Offline snapshot has expired.";
+    case "wrong_school": return "Offline snapshot belongs to another school.";
+    case "wrong_device": return "Offline snapshot belongs to another device.";
+    case "missing_module": return "Offline snapshot is missing the gate module.";
+    case "empty_students": return "Snapshot downloaded but contains no students.";
+    case "empty_tags": return "Snapshot downloaded but contains no NFC tags.";
+    case "offline_disabled_by_policy": return "Offline gate scanning is disabled by school policy.";
+    default: return "Offline mode is not configured for this device.";
+  }
+}
 
 function getDeviceId(): string {
   const key = "schoolconnect_nfc_device_id";
@@ -24,6 +39,13 @@ export function NfcGateSecurityPage() {
   const deviceId = useRef(getDeviceId()).current;
 
   const { state: connState, isOfflineReady, pendingCount } = useConnectivityStatus(user?.schoolId, deviceId, "gate");
+  const snapshotRefresh = useNfcOfflineSnapshotRefresh({
+    schoolId: user?.schoolId,
+    deviceId,
+    mode: "GATE",
+    requiredModule: "gate",
+    enabled: !!user && !!token,
+  });
 
   const [scanResult, setScanResult] = useState<LocalScanResult | null>(null);
   const [dashboard, setDashboard] = useState<NfcGateDashboard | null>(null);
@@ -63,7 +85,7 @@ export function NfcGateSecurityPage() {
       // Offline path — resolve locally then queue
       if (!user?.schoolId) return;
       const resolve: OfflineResolveResult = await resolveOfflineNfcScan(user.schoolId, tokenOrUid);
-      const meta = await getSnapshotMeta();
+      const meta = await getSnapshotMeta({ schoolId: user.schoolId, deviceId, mode: "GATE" });
       const scannedAt = new Date().toISOString();
 
       const localResult: "ALLOWED" | "BLOCKED" = resolve.blocked ? "BLOCKED" : "ALLOWED";
@@ -109,7 +131,7 @@ export function NfcGateSecurityPage() {
         ...prev.slice(0, 19),
       ]);
     } else if (typeof navigator !== "undefined" && !navigator.onLine) {
-      throw new Error("Offline mode is not configured for this device.");
+      throw new Error(offlineReasonMessage(snapshotRefresh.validity?.reason));
     } else {
       // Online path — send to server
       const result = await scanNfcGate({ tokenOrUid, idempotencyKey, deviceId: scanDeviceId });
@@ -171,6 +193,16 @@ export function NfcGateSecurityPage() {
         <div className="flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 p-3">
           <ArrowSyncRegular className="h-4 w-4 text-amber-600 animate-spin shrink-0" />
           <p className="text-sm text-amber-800">Connection unstable — scans are still going to the server</p>
+        </div>
+      )}
+
+      {!isOfflineReady && snapshotRefresh.validity && !snapshotRefresh.validity.valid && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+          <p className="font-bold">Offline setup: {offlineReasonMessage(snapshotRefresh.validity.reason)}</p>
+          <p className="mt-1">
+            {snapshotRefresh.isRefreshing ? "Refreshing snapshot in the background..." : "The scanner can still use the online server while connected."}
+            {snapshotRefresh.refreshError ? ` Last refresh failed: ${snapshotRefresh.refreshError}` : ""}
+          </p>
         </div>
       )}
 

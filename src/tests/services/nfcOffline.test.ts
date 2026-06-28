@@ -119,6 +119,7 @@ function makeMockDb() {
 
 const ADMIN_CTX: OfflineContext = { schoolId: "school-a", actorId: "admin-a", role: "ADMIN_OPERATOR" };
 const CASHIER_CTX: OfflineContext = { schoolId: "school-a", actorId: "cashier-a", role: "CASHIER" };
+const GATE_CTX: OfflineContext = { schoolId: "school-a", actorId: "gate-a", role: "GATE_SECURITY" };
 const OTHER_SCHOOL_CTX: OfflineContext = { schoolId: "school-b", actorId: "admin-b", role: "ADMIN_OPERATOR" };
 
 describe("bootstrapOfflineSnapshot", () => {
@@ -150,6 +151,20 @@ describe("bootstrapOfflineSnapshot", () => {
   it("blocks CASHIER (lacks nfc.devices.manage)", async () => {
     const db = makeMockDb();
     await expect(bootstrapOfflineSnapshot(CASHIER_CTX, {}, db)).rejects.toMatchObject({ status: 403 });
+  });
+
+  it("allows GATE_SECURITY to bootstrap a gate-only snapshot", async () => {
+    const db = makeMockDb();
+    const snap = await bootstrapOfflineSnapshot(GATE_CTX, { mode: "GATE", modules: ["gate"], deviceId: "dev-gate" }, db);
+    expect(snap.mode).toBe("GATE");
+    expect(snap.modules).toEqual(["gate"]);
+    expect(snap.tags[0]).toMatchObject({
+      publicCode: "PUB001",
+      physicalUid: "UID001",
+      studentId: "stu-1",
+      status: "ASSIGNED",
+      schoolId: "school-a",
+    });
   });
 
   it("creates an audit log entry", async () => {

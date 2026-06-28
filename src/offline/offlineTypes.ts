@@ -12,6 +12,7 @@ export type OfflineActionType =
   | "ATTENDANCE_SCAN"
   | "CANTEEN_CHARGE";
 
+export type OfflineModule = "gate" | "attendance" | "canteen";
 export type OfflineKioskMode = "GATE" | "CANTEEN" | "ATTENDANCE";
 export type OfflineDeviceStatus = "ACTIVE" | "REVOKED";
 export type OfflineConflictPolicy = "ALLOW_AND_FLAG" | "HOLD_FOR_BURSAR_REVIEW";
@@ -121,7 +122,7 @@ export interface OfflineBootstrapSnapshot {
   generatedAt: string;
   expiresAt: string;
   serverTime: string;
-  modules: string[];
+  modules: OfflineModule[];
   students: OfflineStudent[];
   tags: OfflineTag[];
   wallets: OfflineWallet[];
@@ -149,7 +150,7 @@ export interface OfflineSnapshotMeta {
   mode?: OfflineKioskMode;
   generatedAt: string;
   expiresAt: string;
-  modules: string[];
+  modules: OfflineModule[];
   settings: OfflineBootstrapSnapshot["settings"];
 }
 

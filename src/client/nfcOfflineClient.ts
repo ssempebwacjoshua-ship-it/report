@@ -23,7 +23,7 @@ export async function fetchOfflineBootstrap(modules?: string[], deviceId?: strin
   if (modules?.length) params.set("modules", modules.join(","));
   if (deviceId) params.set("deviceId", deviceId);
   if (mode) params.set("mode", mode);
-  return api<OfflineBootstrapSnapshot>(`/internal/kiosk/offline-snapshot?${params.toString()}`);
+  return api<OfflineBootstrapSnapshot>(`/api/nfc/offline/bootstrap?${params.toString()}`);
 }
 
 export async function fetchOfflineSyncStatus(): Promise<{ batches: unknown[]; devices: unknown[] }> {
