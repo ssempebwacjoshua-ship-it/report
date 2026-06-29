@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   getSnapshotValidity: vi.fn(),
+  getRetryableAttendanceQueueItems: vi.fn(),
   getRetryableCanteenQueueItems: vi.fn(),
   listPendingQueue: vi.fn(),
   listAllQueueItems: vi.fn(),
@@ -16,6 +17,7 @@ vi.mock("../../offline/offlineStatus", () => ({
 }));
 
 vi.mock("../../offline/offlineStore", () => ({
+  getRetryableAttendanceQueueItems: mocks.getRetryableAttendanceQueueItems,
   getRetryableCanteenQueueItems: mocks.getRetryableCanteenQueueItems,
   listPendingQueue: mocks.listPendingQueue,
   listAllQueueItems: mocks.listAllQueueItems,
@@ -203,5 +205,55 @@ describe("useConnectivityStatus", () => {
     expect(postedEvents.map((event) => event.localId)).toEqual(["failed-1"]);
     expect(mocks.markQueueItemSynced).toHaveBeenCalledWith("failed-1", "tx-2");
     expect(result.current.state).toBe("ONLINE");
+  });
+
+  it("includes failed attendance punches when attendance sync retries", async () => {
+    const failedAttendanceEvent = {
+      localId: "att-failed-1",
+      schoolId: "school-a",
+      deviceId: "device-a",
+      snapshotId: "snapshot-1",
+      actionType: "ATTENDANCE_SCAN",
+      sequenceNumber: 2,
+      idempotencyKey: "attendance:device-a:2",
+      payload: { studentId: "stu-1", direction: "TAP_IN" },
+      payloadHash: "hash-att",
+      previousHash: "event-hash",
+      eventHash: "event-hash-att",
+      createdAt: "2026-06-28T10:05:00.000Z",
+      syncStatus: "FAILED",
+    };
+    mocks.getRetryableAttendanceQueueItems.mockResolvedValue([failedAttendanceEvent]);
+    mocks.listAllQueueItems.mockResolvedValue([failedAttendanceEvent]);
+    let postedEvents: Array<{ localId: string }> = [];
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.includes("/api/health/ping")) {
+        return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { "Content-Type": "application/json" } });
+      }
+      if (url.includes("/api/nfc/offline/sync")) {
+        postedEvents = JSON.parse(String(init?.body)).events;
+        return new Response(JSON.stringify({
+          batchId: "batch-attendance",
+          results: [
+            { localId: "att-failed-1", idempotencyKey: "attendance:device-a:2", status: "SYNCED", serverId: "att-2" },
+          ],
+        }), { status: 200, headers: { "Content-Type": "application/json" } });
+      }
+      throw new Error(`Unexpected fetch: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { useConnectivityStatus } = await import("../../hooks/useConnectivityStatus");
+    renderHook(() => useConnectivityStatus("school-a", "device-a", "attendance"));
+
+    await act(async () => {
+      window.dispatchEvent(new Event("online"));
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(postedEvents.map((event) => event.localId)).toEqual(["att-failed-1"]);
+    expect(mocks.markQueueItemSynced).toHaveBeenCalledWith("att-failed-1", "att-2");
   });
 });

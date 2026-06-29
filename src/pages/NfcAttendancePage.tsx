@@ -17,7 +17,10 @@ import {
   type NfcAttendanceScanEvent,
 } from "../client/studentCredentialsClient";
 import { resolveOfflineNfcScan } from "../offline/offlineResolver";
-import { queueAttendanceEvent, getSnapshotMeta, hasPendingAttendanceForDirection } from "../offline/offlineStore";
+import { getNextAttendanceDirection, getSnapshotMeta, hasRecentAttendancePunch, queueAttendanceEvent } from "../offline/offlineStore";
+import { hashNfcLookupValue } from "../offline/offlineHash";
+import { getSnapshotValidity } from "../offline/offlineStatus";
+import { normalizeNfcScanValue } from "../shared/utils/nfcPayload";
 import type { AttendanceDirection } from "../shared/types/studentCredentials";
 
 const inputClass =
@@ -272,15 +275,15 @@ function getDeviceId(): string {
 
 function offlineReasonMessage(reason?: string) {
   switch (reason) {
-    case "no_snapshot": return "Offline snapshot is not downloaded yet.";
-    case "expired": return "Offline snapshot has expired.";
-    case "wrong_school": return "Offline snapshot belongs to another school.";
-    case "wrong_device": return "Offline snapshot belongs to another device.";
-    case "missing_module": return "Offline snapshot is missing the attendance module.";
-    case "empty_students": return "Snapshot downloaded but contains no students.";
-    case "empty_tags": return "Snapshot downloaded but contains no NFC tags.";
+    case "no_snapshot": return "Local Attendance Register is not downloaded yet. Go online to update the Attendance Register.";
+    case "expired": return "Local Attendance Register needs updating.";
+    case "wrong_school": return "Local Attendance Register belongs to another school.";
+    case "wrong_device": return "Local Attendance Register belongs to another device.";
+    case "missing_module": return "Local Attendance Register is missing attendance data.";
+    case "empty_students": return "Local Attendance Register contains no students.";
+    case "empty_tags": return "Local Attendance Register contains no NFC tags.";
     case "offline_disabled_by_policy": return "Offline attendance scanning is disabled by school policy.";
-    default: return "Offline mode is not configured for this device.";
+    default: return "Local Attendance Register is not ready on this device.";
   }
 }
 
@@ -291,7 +294,7 @@ export function NfcAttendancePage() {
   const { user } = useAuth();
   const deviceId = useRef(getDeviceId()).current;
 
-  const { isOfflineReady, pendingCount } = useConnectivityStatus(user?.schoolId, deviceId, "attendance");
+  const { isOfflineReady, pendingCount, triggerSync } = useConnectivityStatus(user?.schoolId, deviceId, "attendance");
   const snapshotRefresh = useNfcOfflineSnapshotRefresh({
     schoolId: user?.schoolId,
     deviceId,
@@ -302,7 +305,7 @@ export function NfcAttendancePage() {
 
   const [register, setRegister] = useState<AttendanceRegisterResponse | null>(null);
   const [lastScan, setLastScan] = useState<NfcAttendanceScanEvent | null>(null);
-  const [offlineScans, setOfflineScans] = useState<Array<{ name: string; direction: string; status: string; scannedAt: string }>>([]);
+  const [offlineScans, setOfflineScans] = useState<Array<{ name: string; admissionNumber?: string; className?: string | null; direction: string; status: string; scannedAt: string; syncStatus: string }>>([]);
 
   const [direction, setDirection] = useState<AttendanceDirection>("TAP_IN");
   const directionRef = useRef<AttendanceDirection>("TAP_IN");
@@ -357,47 +360,10 @@ export function NfcAttendancePage() {
   }, []);
 
   async function handleScan({ tokenOrUid, idempotencyKey, deviceId: scanDeviceId }: ScanResult) {
-    if (isOfflineReady) {
-      if (!user?.schoolId) return;
-      const resolve = await resolveOfflineNfcScan(user.schoolId, tokenOrUid);
-      const meta = await getSnapshotMeta({ schoolId: user.schoolId, deviceId, mode: "ATTENDANCE" });
-      const scannedAt = new Date().toISOString();
-      const dateStr = scannedAt.split("T")[0]!;
-      const currentDirection = directionRef.current;
-
-      let status = "VALID";
-      let reason: string | null = null;
-      if (resolve.blocked) {
-        status = "BLOCKED";
-        reason = resolve.reason ?? "blocked";
-      } else if (resolve.student) {
-        const dup = await hasPendingAttendanceForDirection(user.schoolId, resolve.student.id, currentDirection, dateStr);
-        if (dup) { status = "DUPLICATE"; reason = "already recorded today"; }
-      }
-
-      await queueAttendanceEvent({
-        schoolId: user.schoolId,
-        deviceId: scanDeviceId ?? deviceId,
-        snapshotId: meta?.snapshotId ?? "unknown",
-        studentId: resolve.student?.id ?? null,
-        direction: currentDirection,
-        payload: {
-          actionType: "ATTENDANCE_SCAN",
-          tokenOrUid,
-          studentId: resolve.student?.id ?? null,
-          tagId: resolve.tag?.id ?? null,
-          direction: currentDirection,
-          status,
-          reason,
-          scannedAt,
-        },
-      });
-
-      const studentName = resolve.student ? `${resolve.student.firstName} ${resolve.student.lastName}`.trim() : "Unknown";
-      setOfflineScans((prev) => [{ name: studentName, direction: currentDirection, status, scannedAt }, ...prev.slice(0, 19)]);
-    } else if (typeof navigator !== "undefined" && !navigator.onLine) {
-      throw new Error(offlineReasonMessage(snapshotRefresh.validity?.reason));
-    } else {
+    if (!user?.schoolId) return;
+    const validity = await getSnapshotValidity({ schoolId: user.schoolId, deviceId, mode: "ATTENDANCE", requiredModule: "attendance" });
+    if (!validity.valid) {
+      if (typeof navigator !== "undefined" && !navigator.onLine) throw new Error(offlineReasonMessage(validity.reason));
       const data = await scanNfcAttendance({
         tokenOrUid,
         direction: directionRef.current,
@@ -406,7 +372,80 @@ export function NfcAttendancePage() {
       });
       setLastScan(data.scan);
       await loadRegister();
+      return;
     }
+
+    const resolve = await resolveOfflineNfcScan(user.schoolId, tokenOrUid);
+    const meta = await getSnapshotMeta({ schoolId: user.schoolId, deviceId, mode: "ATTENDANCE" });
+    const scannedAt = new Date().toISOString();
+    const dateStr = scannedAt.split("T")[0]!;
+
+    let status = "VALID";
+    let reason: string | null = null;
+    let currentDirection: AttendanceDirection = "TAP_IN";
+    if (resolve.blocked) {
+      status = "BLOCKED";
+      reason = resolve.reason ?? "blocked";
+      currentDirection = directionRef.current;
+    } else if (resolve.student) {
+      currentDirection = await getNextAttendanceDirection(user.schoolId, resolve.student.id, dateStr);
+      const recentDuplicate = await hasRecentAttendancePunch(user.schoolId, resolve.student.id, currentDirection, scannedAt);
+      if (recentDuplicate) { status = "DUPLICATE"; reason = "recent duplicate punch"; }
+    }
+
+    const studentName = resolve.student ? `${resolve.student.firstName} ${resolve.student.lastName}`.trim() : "Unknown";
+    const studentSummary = {
+      id: resolve.student?.id ?? "unknown",
+      name: studentName,
+      admissionNumber: resolve.student?.admissionNumber ?? "Unknown",
+      className: resolve.student?.className ?? null,
+      streamName: resolve.student?.streamName ?? null,
+    };
+
+    if (status === "DUPLICATE") {
+      setLastScan({ student: studentSummary, direction: currentDirection, status: "DUPLICATE", reason, scannedAt });
+      setOfflineScans((prev) => [{
+        name: studentName,
+        admissionNumber: resolve.student?.admissionNumber,
+        className: resolve.student?.className,
+        direction: currentDirection,
+        status,
+        scannedAt,
+        syncStatus: "SKIPPED",
+      }, ...prev.slice(0, 19)]);
+      return;
+    }
+
+    const tokenOrUidHash = await hashNfcLookupValue(normalizeNfcScanValue(tokenOrUid));
+    await queueAttendanceEvent({
+      schoolId: user.schoolId,
+      deviceId: scanDeviceId ?? deviceId,
+      snapshotId: meta?.snapshotId ?? "unknown",
+      studentId: resolve.student?.id ?? null,
+      direction: currentDirection,
+      payload: {
+        actionType: "ATTENDANCE_SCAN",
+        tokenOrUidHash,
+        studentId: resolve.student?.id ?? null,
+        tagId: resolve.tag?.id ?? null,
+        direction: currentDirection,
+        status,
+        reason,
+        scannedAt,
+      },
+    });
+
+    setLastScan({ student: studentSummary, direction: currentDirection, status: status as NfcAttendanceScanEvent["status"], reason, scannedAt });
+    setOfflineScans((prev) => [{
+      name: studentName,
+      admissionNumber: resolve.student?.admissionNumber,
+      className: resolve.student?.className,
+      direction: currentDirection,
+      status,
+      scannedAt,
+      syncStatus: "PENDING",
+    }, ...prev.slice(0, 19)]);
+    if (typeof navigator !== "undefined" && navigator.onLine) void triggerSync();
   }
 
   const scanner = useNfcScanner({ onScan: handleScan });
@@ -443,18 +482,27 @@ export function NfcAttendancePage() {
         <div className="flex items-center gap-3 rounded-xl border border-orange-200 bg-orange-50 p-3">
           <WifiOffRegular className="h-5 w-5 text-orange-600 shrink-0" />
           <div>
-            <p className="text-sm font-semibold text-orange-800">Offline Mode Active</p>
-            <p className="text-xs text-orange-600">Attendance scans are queued locally. {pendingCount > 0 ? `${pendingCount} pending sync.` : "Will sync when connection returns."}</p>
+            <p className="text-sm font-semibold text-orange-800">Local Attendance Register Active</p>
+            <p className="text-xs text-orange-600">Punches are saved locally first. {pendingCount > 0 ? `${pendingCount} pending attendance sync.` : "Will sync when connection returns."}</p>
           </div>
         </div>
       )}
 
       {!isOfflineReady && snapshotRefresh.validity && !snapshotRefresh.validity.valid && (
         <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
-          <p className="font-bold">Offline setup: {offlineReasonMessage(snapshotRefresh.validity.reason)}</p>
+          <p className="font-bold">Local Attendance Register: {offlineReasonMessage(snapshotRefresh.validity.reason)}</p>
           <p className="mt-1">
-            {snapshotRefresh.isRefreshing ? "Refreshing snapshot in the background..." : "Online attendance scanning still works while connected."}
+            {snapshotRefresh.isRefreshing ? "Updating Attendance Register in the background..." : "Update Attendance Register while online before local-first scanning."}
             {snapshotRefresh.refreshError ? ` Last refresh failed: ${snapshotRefresh.refreshError}` : ""}
+          </p>
+        </div>
+      )}
+
+      {snapshotRefresh.validity?.valid && (
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-800">
+          <p className="font-bold">Local Attendance Register is ready.</p>
+          <p className="mt-1">
+            Students: {snapshotRefresh.validity.diagnostics.studentCount} · Tags: {snapshotRefresh.validity.diagnostics.tagCount} · Pending attendance sync: {pendingCount}
           </p>
         </div>
       )}
@@ -488,7 +536,7 @@ export function NfcAttendancePage() {
       <div className="grid gap-5 lg:grid-cols-[380px_minmax(0,1fr)]">
         <div className="grid gap-4">
           <section className="premium-card rounded-xl p-4">
-            <p className="mb-3 text-sm font-bold text-slate-800">Scan Mode</p>
+            <p className="mb-3 text-sm font-bold text-slate-800">Punch Mode</p>
             <div className="flex overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
               {(["TAP_IN", "TAP_OUT"] as const).map((dir) => (
                 <button
@@ -499,14 +547,14 @@ export function NfcAttendancePage() {
                     direction === dir ? "bg-blue-600 text-white" : "text-slate-600 hover:bg-slate-50"
                   }`}
                 >
-                  {dir === "TAP_IN" ? "Tap In" : "Tap Out"}
+                  {dir === "TAP_IN" ? "Punch IN" : "Punch OUT"}
                 </button>
               ))}
             </div>
             <p className="mt-2 text-xs text-slate-500">
               Current mode:{" "}
               <span className="font-bold text-slate-800">
-                {direction === "TAP_IN" ? "Tap In" : "Tap Out"}
+                {direction === "TAP_IN" ? "Punch IN" : "Punch OUT"}
               </span>
             </p>
           </section>
@@ -519,25 +567,25 @@ export function NfcAttendancePage() {
             onStart={scanner.startScanner}
             onStop={scanner.stopScanner}
             onManualSubmit={scanner.submitManual}
-            scanLabel="Start NFC Scanner"
+            scanLabel="Start Attendance Scanner"
           />
 
-          {isOfflineReady && offlineScans.length > 0 && (
+          {offlineScans.length > 0 && (
             <section className="rounded-xl border border-orange-200 bg-orange-50 p-4">
-              <p className="text-xs font-bold text-orange-700 mb-2">OFFLINE SCANS (queued)</p>
+              <p className="text-xs font-bold text-orange-700 mb-2">LOCAL PUNCHES</p>
               <div className="grid gap-1.5">
                 {offlineScans.slice(0, 5).map((s, i) => (
                   <div key={i} className="flex items-center justify-between text-xs text-slate-700">
                     <span className="font-medium">{s.name}</span>
                     <span className={`rounded-full px-1.5 py-0.5 font-bold ${s.status === "VALID" ? "bg-emerald-100 text-emerald-700" : s.status === "LATE" ? "bg-amber-100 text-amber-700" : s.status === "DUPLICATE" ? "bg-yellow-100 text-yellow-700" : "bg-red-100 text-red-700"}`}>{s.status}</span>
-                    <span className="text-slate-400">{s.direction === "TAP_IN" ? "IN" : "OUT"}</span>
+                    <span className="text-slate-400">{s.direction === "TAP_IN" ? "Punch IN" : "Punch OUT"} · {s.syncStatus}</span>
                   </div>
                 ))}
               </div>
             </section>
           )}
 
-          {!isOfflineReady && lastScan ? (
+          {lastScan ? (
             <section
               className={`rounded-xl border p-4 ${
                 lastScan.status === "VALID" || lastScan.status === "LATE"

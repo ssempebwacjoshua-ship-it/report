@@ -75,7 +75,7 @@ async function saveLastHash(deviceId: string, hash: string): Promise<void> {
 // ─── Bootstrap snapshot ───────────────────────────────────────────────────────
 
 async function prepareTagsForLocalStore(snapshot: OfflineBootstrapSnapshot): Promise<OfflineTag[]> {
-  if (snapshot.mode !== "CANTEEN") return snapshot.tags;
+  if (snapshot.mode !== "CANTEEN" && snapshot.mode !== "ATTENDANCE") return snapshot.tags;
 
   return Promise.all(snapshot.tags.map(async (tag) => ({
     ...tag,
@@ -118,6 +118,7 @@ export async function hasPendingCanteenSales(schoolId: string): Promise<boolean>
 
 export async function saveBootstrapSnapshot(snapshot: OfflineBootstrapSnapshot): Promise<void> {
   const isCanteenRegister = snapshot.mode === "CANTEEN";
+  const isAttendanceRegister = snapshot.mode === "ATTENDANCE";
   if (isCanteenRegister) {
     const summary = await getCanteenSaleSyncSummary(snapshot.schoolId);
     if (summary.pending > 0 || summary.syncing > 0) {
@@ -145,7 +146,7 @@ export async function saveBootstrapSnapshot(snapshot: OfflineBootstrapSnapshot):
     offlineDb.offline_tags,
     offlineDb.offline_wallets,
     async () => {
-      if (!isCanteenRegister) {
+      if (!isCanteenRegister && !isAttendanceRegister) {
         await offlineDb.offline_students.where("schoolId").equals(snapshot.schoolId).delete();
         await offlineDb.offline_tags.where("schoolId").equals(snapshot.schoolId).delete();
         await offlineDb.offline_wallets.where("schoolId").equals(snapshot.schoolId).delete();
@@ -370,7 +371,8 @@ export async function queueAttendanceEvent(input: {
   direction: string;
   payload: {
     actionType: "ATTENDANCE_SCAN";
-    tokenOrUid: string;
+    tokenOrUid?: string;
+    tokenOrUidHash?: string;
     studentId?: string | null;
     tagId?: string | null;
     direction: string;
@@ -449,6 +451,16 @@ export async function getRetryableCanteenQueueItems(schoolId: string): Promise<O
     offlineDb.offline_sync_queue
       .where("[schoolId+actionType+syncStatus]")
       .equals([schoolId, "CANTEEN_CHARGE", status])
+      .toArray(),
+  ));
+  return [...pending, ...failed].sort((a, b) => a.sequenceNumber - b.sequenceNumber);
+}
+
+export async function getRetryableAttendanceQueueItems(schoolId: string): Promise<OfflineQueuedEvent[]> {
+  const [pending, failed] = await Promise.all((["PENDING", "FAILED"] as OfflineSyncStatus[]).map((status) =>
+    offlineDb.offline_sync_queue
+      .where("[schoolId+actionType+syncStatus]")
+      .equals([schoolId, "ATTENDANCE_SCAN", status])
       .toArray(),
   ));
   return [...pending, ...failed].sort((a, b) => a.sequenceNumber - b.sequenceNumber);
@@ -534,4 +546,49 @@ export async function hasPendingAttendanceForDirection(
     .filter((r) => r.createdAt.startsWith(date) && (r.syncStatus === "PENDING" || r.syncStatus === "SYNCED" || r.syncStatus === "SYNCING"))
     .count();
   return items > 0;
+}
+
+export async function getLastAttendancePunchForStudent(
+  schoolId: string,
+  studentId: string,
+  dateKey: string,
+): Promise<OfflineAttendanceEvent | null> {
+  const rows = await offlineDb.offline_attendance_events
+    .where("schoolId")
+    .equals(schoolId)
+    .filter((row) => row.studentId === studentId && row.createdAt.startsWith(dateKey))
+    .toArray();
+  return rows.sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0] ?? null;
+}
+
+export async function getNextAttendanceDirection(
+  schoolId: string,
+  studentId: string,
+  dateKey: string,
+): Promise<"TAP_IN" | "TAP_OUT"> {
+  const last = await getLastAttendancePunchForStudent(schoolId, studentId, dateKey);
+  return last?.direction === "TAP_IN" ? "TAP_OUT" : "TAP_IN";
+}
+
+export async function hasRecentAttendancePunch(
+  schoolId: string,
+  studentId: string,
+  direction: string,
+  nowIso: string,
+  cooldownMs = 15000,
+): Promise<boolean> {
+  const now = new Date(nowIso).getTime();
+  const dateKey = nowIso.slice(0, 10);
+  const rows = await offlineDb.offline_attendance_events
+    .where("schoolId")
+    .equals(schoolId)
+    .filter((row) =>
+      row.studentId === studentId &&
+      row.direction === direction &&
+      row.createdAt.startsWith(dateKey) &&
+      now - new Date(row.createdAt).getTime() >= 0 &&
+      now - new Date(row.createdAt).getTime() <= cooldownMs,
+    )
+    .toArray();
+  return rows.length > 0;
 }
