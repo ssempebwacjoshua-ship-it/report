@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   getSnapshotValidity: vi.fn(),
+  getRetryableCanteenQueueItems: vi.fn(),
   listPendingQueue: vi.fn(),
   listAllQueueItems: vi.fn(),
   markQueueItemSynced: vi.fn(),
@@ -15,6 +16,7 @@ vi.mock("../../offline/offlineStatus", () => ({
 }));
 
 vi.mock("../../offline/offlineStore", () => ({
+  getRetryableCanteenQueueItems: mocks.getRetryableCanteenQueueItems,
   listPendingQueue: mocks.listPendingQueue,
   listAllQueueItems: mocks.listAllQueueItems,
   markQueueItemSynced: mocks.markQueueItemSynced,
@@ -38,22 +40,24 @@ describe("useConnectivityStatus", () => {
       diagnostics: {},
     });
     mocks.listPendingQueue.mockResolvedValue([]);
+    const pendingCanteenEvent = {
+      localId: "local-1",
+      schoolId: "school-a",
+      deviceId: "device-a",
+      snapshotId: "snapshot-1",
+      actionType: "CANTEEN_CHARGE",
+      sequenceNumber: 1,
+      idempotencyKey: "canteen:device-a:1",
+      payload: { studentId: "stu-1", amountCents: 2000 },
+      payloadHash: "hash",
+      previousHash: null,
+      eventHash: "event-hash",
+      createdAt: "2026-06-28T10:00:00.000Z",
+      syncStatus: "PENDING",
+    };
+    mocks.getRetryableCanteenQueueItems.mockResolvedValue([pendingCanteenEvent]);
     mocks.listAllQueueItems.mockResolvedValue([
-      {
-        localId: "local-1",
-        schoolId: "school-a",
-        deviceId: "device-a",
-        snapshotId: "snapshot-1",
-        actionType: "CANTEEN_CHARGE",
-        sequenceNumber: 1,
-        idempotencyKey: "canteen:device-a:1",
-        payload: { studentId: "stu-1", amountCents: 2000 },
-        payloadHash: "hash",
-        previousHash: null,
-        eventHash: "event-hash",
-        createdAt: "2026-06-28T10:00:00.000Z",
-        syncStatus: "PENDING",
-      },
+      pendingCanteenEvent,
     ]);
     vi.spyOn(console, "error").mockImplementation(() => undefined);
   });
@@ -140,6 +144,64 @@ describe("useConnectivityStatus", () => {
 
     expect(mocks.markQueueItemSynced).toHaveBeenCalledWith("local-1", "tx-2");
     expect(syncAttempts).toBe(2);
+    expect(result.current.state).toBe("ONLINE");
+  });
+
+  it("includes failed canteen charges when retry sync runs and keeps conflicts out", async () => {
+    const failedCanteenEvent = {
+      localId: "failed-1",
+      schoolId: "school-a",
+      deviceId: "device-a",
+      snapshotId: "snapshot-1",
+      actionType: "CANTEEN_CHARGE",
+      sequenceNumber: 2,
+      idempotencyKey: "canteen:device-a:2",
+      payload: { studentId: "stu-1", amountCents: 1500 },
+      payloadHash: "hash-failed",
+      previousHash: "event-hash",
+      eventHash: "event-hash-2",
+      createdAt: "2026-06-28T10:05:00.000Z",
+      syncStatus: "FAILED",
+    };
+    const conflictCanteenEvent = {
+      ...failedCanteenEvent,
+      localId: "conflict-1",
+      sequenceNumber: 3,
+      idempotencyKey: "canteen:device-a:3",
+      syncStatus: "CONFLICT",
+    };
+    mocks.getRetryableCanteenQueueItems.mockResolvedValue([failedCanteenEvent]);
+    mocks.listAllQueueItems.mockResolvedValue([failedCanteenEvent, conflictCanteenEvent]);
+    let postedEvents: Array<{ localId: string }> = [];
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.includes("/api/health/ping")) {
+        return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { "Content-Type": "application/json" } });
+      }
+      if (url.includes("/api/nfc/offline/sync")) {
+        postedEvents = JSON.parse(String(init?.body)).events;
+        return new Response(JSON.stringify({
+          batchId: "batch-failed",
+          results: [
+            { localId: "failed-1", idempotencyKey: "canteen:device-a:2", status: "SYNCED", serverId: "tx-2" },
+          ],
+        }), { status: 200, headers: { "Content-Type": "application/json" } });
+      }
+      throw new Error(`Unexpected fetch: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { useConnectivityStatus } = await import("../../hooks/useConnectivityStatus");
+    const { result } = renderHook(() => useConnectivityStatus("school-a", "device-a", "canteen"));
+
+    await act(async () => {
+      window.dispatchEvent(new Event("online"));
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(postedEvents.map((event) => event.localId)).toEqual(["failed-1"]);
+    expect(mocks.markQueueItemSynced).toHaveBeenCalledWith("failed-1", "tx-2");
     expect(result.current.state).toBe("ONLINE");
   });
 });

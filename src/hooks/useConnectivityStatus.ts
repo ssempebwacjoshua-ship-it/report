@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getSnapshotValidity } from "../offline/offlineStatus";
-import { listPendingQueue, listAllQueueItems, markQueueItemSynced, markQueueItemFailed, markQueueItemConflict } from "../offline/offlineStore";
+import { getRetryableCanteenQueueItems, listPendingQueue, listAllQueueItems, markQueueItemSynced, markQueueItemFailed, markQueueItemConflict } from "../offline/offlineStore";
 import type { OfflineSyncResponse } from "../offline/offlineTypes";
 import { getApiBaseUrl } from "../client/apiBase";
 import type { OfflineModule } from "../offline/offlineTypes";
@@ -54,7 +54,9 @@ export function useConnectivityStatus(schoolId?: string, deviceId?: string, requ
 
     try {
       const all = await listAllQueueItems(schoolId);
-      const pending = all.filter((e) => e.syncStatus === "PENDING");
+      const pending = requiredModule === "canteen"
+        ? await getRetryableCanteenQueueItems(schoolId)
+        : all.filter((e) => e.syncStatus === "PENDING");
       if (pending.length === 0) {
         updateState("ONLINE");
         syncingRef.current = false;
@@ -102,7 +104,7 @@ export function useConnectivityStatus(schoolId?: string, deviceId?: string, requ
     } finally {
       syncingRef.current = false;
     }
-  }, [schoolId, deviceId, updateState, refreshPendingCount]);
+  }, [schoolId, deviceId, requiredModule, updateState, refreshPendingCount]);
 
   const heartbeat = useCallback(async () => {
     try {

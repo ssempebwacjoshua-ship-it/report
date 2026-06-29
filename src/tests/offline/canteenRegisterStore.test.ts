@@ -82,6 +82,10 @@ vi.mock("../../offline/offlineDb", () => ({
     offline_sync_queue: {
       where: (index: string) => createWhere("syncQueue", index),
       put: async (row: OfflineQueuedEvent) => { dbState.syncQueue.push(row); },
+      update: async (localId: string, updates: Partial<OfflineQueuedEvent>) => {
+        const row = dbState.syncQueue.find((item) => item.localId === localId);
+        if (row) Object.assign(row, updates);
+      },
     },
     offline_canteen_charges: {
       put: async (row: unknown) => { dbState.canteenCharges.push(row); },
@@ -234,6 +238,65 @@ describe("Local Canteen Register storage", () => {
     await expect(hasPendingCanteenSales("school-a")).resolves.toBe(false);
     await expect(getCanteenSaleSyncSummary("school-a")).resolves.toMatchObject({ failed: 1, pending: 0 });
     await expect(saveBootstrapSnapshot(makeCanteenRegister())).rejects.toThrow(/reconciliation/i);
+  });
+
+  it("returns pending and failed canteen sales as retryable but keeps conflicts separate", async () => {
+    dbState.syncQueue.push(
+      {
+        localId: "pending-1",
+        schoolId: "school-a",
+        deviceId: "device-a",
+        snapshotId: "register-1",
+        actionType: "CANTEEN_CHARGE",
+        sequenceNumber: 1,
+        idempotencyKey: "canteen:device-a:1",
+        payload: {},
+        payloadHash: "hash",
+        previousHash: null,
+        eventHash: "event",
+        createdAt: "2026-06-28T10:00:00.000Z",
+        syncStatus: "PENDING",
+      },
+      {
+        localId: "failed-1",
+        schoolId: "school-a",
+        deviceId: "device-a",
+        snapshotId: "register-1",
+        actionType: "CANTEEN_CHARGE",
+        sequenceNumber: 2,
+        idempotencyKey: "canteen:device-a:2",
+        payload: {},
+        payloadHash: "hash",
+        previousHash: null,
+        eventHash: "event",
+        createdAt: "2026-06-28T10:01:00.000Z",
+        syncStatus: "FAILED",
+      },
+      {
+        localId: "conflict-1",
+        schoolId: "school-a",
+        deviceId: "device-a",
+        snapshotId: "register-1",
+        actionType: "CANTEEN_CHARGE",
+        sequenceNumber: 3,
+        idempotencyKey: "canteen:device-a:3",
+        payload: {},
+        payloadHash: "hash",
+        previousHash: null,
+        eventHash: "event",
+        createdAt: "2026-06-28T10:02:00.000Z",
+        syncStatus: "CONFLICT",
+      },
+    );
+    const { getRetryableCanteenQueueItems, retryFailedCanteenSales } = await import("../../offline/offlineStore");
+
+    await expect(getRetryableCanteenQueueItems("school-a")).resolves.toEqual([
+      expect.objectContaining({ localId: "pending-1" }),
+      expect.objectContaining({ localId: "failed-1" }),
+    ]);
+    await expect(retryFailedCanteenSales("school-a")).resolves.toBe(1);
+    expect(dbState.syncQueue.find((row) => row.localId === "failed-1")?.syncStatus).toBe("PENDING");
+    expect(dbState.syncQueue.find((row) => row.localId === "conflict-1")?.syncStatus).toBe("CONFLICT");
   });
 
   it("queues a local canteen sale without a raw NFC token and deducts local balance", async () => {

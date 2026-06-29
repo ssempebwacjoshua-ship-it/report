@@ -424,6 +424,16 @@ export async function listPendingQueue(schoolId: string): Promise<OfflineQueuedE
     .toArray();
 }
 
+export async function getRetryableCanteenQueueItems(schoolId: string): Promise<OfflineQueuedEvent[]> {
+  const [pending, failed] = await Promise.all((["PENDING", "FAILED"] as OfflineSyncStatus[]).map((status) =>
+    offlineDb.offline_sync_queue
+      .where("[schoolId+actionType+syncStatus]")
+      .equals([schoolId, "CANTEEN_CHARGE", status])
+      .toArray(),
+  ));
+  return [...pending, ...failed].sort((a, b) => a.sequenceNumber - b.sequenceNumber);
+}
+
 export async function listAllQueueItems(schoolId: string): Promise<OfflineQueuedEvent[]> {
   return offlineDb.offline_sync_queue.where("schoolId").equals(schoolId).sortBy("sequenceNumber");
 }
@@ -451,6 +461,15 @@ export async function markQueueItemFailed(localId: string, errorMessage: string)
 
 export async function markQueueItemConflict(localId: string, errorMessage: string): Promise<void> {
   await patchQueueItem(localId, { syncStatus: "CONFLICT", errorMessage });
+}
+
+export async function retryFailedCanteenSales(schoolId: string): Promise<number> {
+  const failed = await offlineDb.offline_sync_queue
+    .where("[schoolId+actionType+syncStatus]")
+    .equals([schoolId, "CANTEEN_CHARGE", "FAILED"])
+    .toArray();
+  await Promise.all(failed.map((item) => patchQueueItem(item.localId, { syncStatus: "PENDING", errorMessage: undefined })));
+  return failed.length;
 }
 
 export async function clearSyncedItems(schoolId: string): Promise<void> {
