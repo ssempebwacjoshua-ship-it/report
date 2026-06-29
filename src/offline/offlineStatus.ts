@@ -111,7 +111,7 @@ export async function getCanteenRegisterStatus(requirement: SnapshotRequirement 
       canSellOffline: false,
       updateRecommended: true,
       updateBlockedReason: "no_register",
-      message: "Local Canteen Register is not downloaded yet.",
+      message: "Local Canteen Register is not downloaded yet. Go online to update register.",
     };
   }
 

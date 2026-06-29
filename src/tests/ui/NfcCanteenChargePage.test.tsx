@@ -29,8 +29,13 @@ const mockGetAvailableOfflineBalance = vi.hoisted(() => vi.fn(async () => ({
   studentSpentCents: 0,
   deviceSpentCents: 0,
 })));
-const mockGetSnapshotValidity = vi.hoisted(() => vi.fn(async () => ({ valid: true })));
-const mockIsCanteenOfflineEnabled = vi.hoisted(() => vi.fn(async () => true));
+const mockGetSnapshotValidity = vi.hoisted(() => vi.fn(async () => ({ valid: false, reason: "expired" })));
+const mockGetCanteenRegisterStatus = vi.hoisted(() => vi.fn(async () => ({
+  available: true,
+  canSellOffline: true,
+  updateRecommended: true,
+  message: "Local Canteen Register is available. Update recommended when online.",
+})));
 const mockVerifyLocalWalletPin = vi.hoisted(() => vi.fn(async () => true));
 
 function setNavigatorOnline(value: boolean) {
@@ -78,7 +83,7 @@ vi.mock("../../offline/offlineStore", () => ({
 
 vi.mock("../../offline/offlineStatus", () => ({
   getSnapshotValidity: mockGetSnapshotValidity,
-  isCanteenOfflineEnabled: mockIsCanteenOfflineEnabled,
+  getCanteenRegisterStatus: mockGetCanteenRegisterStatus,
 }));
 
 vi.mock("../../offline/offlineHash", () => ({
@@ -136,6 +141,8 @@ describe("NfcCanteenChargePage", () => {
     fireEvent.click(screen.getByRole("button", { name: "Go" }));
 
     await waitFor(() => expect(mockResolveOfflineNfcScan).toHaveBeenCalledWith("school-a", "PUB001"));
+    expect(mockGetCanteenRegisterStatus).toHaveBeenCalledWith({ schoolId: "school-a", deviceId: expect.any(String) });
+    expect(mockGetSnapshotValidity).not.toHaveBeenCalled();
     expect(mockResolveWalletStudent).not.toHaveBeenCalled();
     expect(await screen.findByText(/local canteen register - student identified/i)).toBeInTheDocument();
 
@@ -200,5 +207,29 @@ describe("NfcCanteenChargePage", () => {
 
     await waitFor(() => expect(mockResolveOfflineNfcScan).toHaveBeenCalledWith("school-a", "PUB001"));
     expect(await screen.findByText(/local canteen register - student identified/i)).toBeInTheDocument();
+  });
+
+  it("blocks local canteen sale clearly when no register exists", async () => {
+    setNavigatorOnline(false);
+    mockGetCanteenRegisterStatus.mockResolvedValueOnce({
+      available: false,
+      canSellOffline: false,
+      updateRecommended: true,
+      updateBlockedReason: "no_register",
+      message: "Local Canteen Register is not downloaded yet. Go online to update register.",
+    });
+
+    render(
+      <MemoryRouter>
+        <NfcCanteenChargePage />
+      </MemoryRouter>,
+    );
+
+    fireEvent.change(screen.getByLabelText(/amount/i), { target: { value: "20" } });
+    fireEvent.change(screen.getByPlaceholderText(/scan token or uid/i), { target: { value: "PUB001" } });
+    fireEvent.click(screen.getByRole("button", { name: "Go" }));
+
+    expect(await screen.findByText(/local canteen register is not downloaded yet/i)).toBeInTheDocument();
+    expect(mockResolveOfflineNfcScan).not.toHaveBeenCalled();
   });
 });

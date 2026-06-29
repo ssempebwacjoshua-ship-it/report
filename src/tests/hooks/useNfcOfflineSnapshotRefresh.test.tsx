@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({
   fetchOfflineBootstrap: vi.fn(),
   saveBootstrapSnapshot: vi.fn(),
   getCanteenSaleSyncSummary: vi.fn(),
+  getCanteenRegisterStatus: vi.fn(),
   getSnapshotValidity: vi.fn(),
 }));
 
@@ -19,6 +20,7 @@ vi.mock("../../offline/offlineStore", () => ({
 
 vi.mock("../../offline/offlineStatus", () => ({
   getSnapshotValidity: mocks.getSnapshotValidity,
+  getCanteenRegisterStatus: mocks.getCanteenRegisterStatus,
 }));
 
 function online(value: boolean) {
@@ -55,6 +57,12 @@ describe("useNfcOfflineSnapshotRefresh", () => {
     mocks.fetchOfflineBootstrap.mockResolvedValue({ snapshotId: "snapshot-2" });
     mocks.saveBootstrapSnapshot.mockResolvedValue(undefined);
     mocks.getCanteenSaleSyncSummary.mockResolvedValue({ pending: 0, syncing: 0, failed: 0, conflict: 0 });
+    mocks.getCanteenRegisterStatus.mockResolvedValue({
+      available: true,
+      canSellOffline: true,
+      updateRecommended: true,
+      message: "Local Canteen Register is available. Update recommended when online.",
+    });
     vi.spyOn(console, "info").mockImplementation(() => undefined);
   });
 
@@ -162,6 +170,6 @@ describe("useNfcOfflineSnapshotRefresh", () => {
     });
 
     expect(mocks.saveBootstrapSnapshot).not.toHaveBeenCalled();
-    expect(result.current.refreshError).toMatch(/reconciliation/i);
+    expect(result.current.refreshError).toMatch(/register is available/i);
   });
 });

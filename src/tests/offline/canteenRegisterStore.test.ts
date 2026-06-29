@@ -27,6 +27,9 @@ function createWhere(table: "students" | "tags" | "wallets" | "syncQueue", index
         if (Array.isArray(value) && index === "[schoolId+studentId+dateKey]") {
           return row.schoolId === value[0] && row.studentId === value[1] && row.dateKey === value[2];
         }
+        if (Array.isArray(value) && index === "[schoolId+id]") {
+          return row.schoolId === value[0] && row.id === value[1];
+        }
         return row[index] === value;
       };
       return {
@@ -166,6 +169,27 @@ describe("Local Canteen Register storage", () => {
     expect(dbState.wallets[0]?.localStartingBalanceCents).toBe(5000);
     expect(dbState.wallets[0]?.pinHash).toBe("pbkdf2$100000$salt$hash");
     expect(dbState.meta.has("canteen-register:school-a:device-a")).toBe(true);
+  });
+
+  it("does not wipe existing gate or attendance offline data when saving a canteen register", async () => {
+    dbState.students.push({ id: "gate-student", schoolId: "school-a", admissionNumber: "G001" });
+    dbState.tags.push({ id: "gate-tag", schoolId: "school-a", publicCode: "GATE001", physicalUid: "GATEUID" });
+    dbState.wallets.push({
+      id: "gate-wallet",
+      studentId: "gate-student",
+      schoolId: "school-a",
+      status: "ACTIVE",
+      balanceCents: 1000,
+      snapshotId: "gate-snapshot",
+      frozenReason: null,
+    });
+    const { saveBootstrapSnapshot } = await import("../../offline/offlineStore");
+
+    await saveBootstrapSnapshot(makeCanteenRegister());
+
+    expect(dbState.students.some((row) => (row as { id?: string }).id === "gate-student")).toBe(true);
+    expect(dbState.tags.some((row) => row.id === "gate-tag")).toBe(true);
+    expect(dbState.wallets.some((row) => row.id === "gate-wallet")).toBe(true);
   });
 
   it("does not overwrite the register while canteen sales are pending", async () => {
