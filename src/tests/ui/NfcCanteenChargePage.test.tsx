@@ -138,6 +138,119 @@ describe("NfcCanteenChargePage", () => {
     });
   });
 
+  it("uses the Local Canteen Register first even when the phone is online", async () => {
+    setNavigatorOnline(true);
+    state.isOfflineReady = false;
+
+    render(
+      <MemoryRouter>
+        <NfcCanteenChargePage />
+      </MemoryRouter>,
+    );
+
+    fireEvent.change(screen.getByLabelText(/amount/i), { target: { value: "20" } });
+    fireEvent.change(screen.getByPlaceholderText(/scan token or uid/i), { target: { value: "PUB001" } });
+    fireEvent.click(screen.getByRole("button", { name: "Go" }));
+
+    await waitFor(() => expect(mockGetCanteenRegisterStatus).toHaveBeenCalledWith({ schoolId: "school-a", deviceId: expect.any(String) }));
+    await waitFor(() => expect(mockResolveOfflineNfcScan).toHaveBeenCalledWith("school-a", "PUB001"));
+    expect(mockResolveWalletStudent).not.toHaveBeenCalled();
+    expect(mockChargeNfcCanteen).not.toHaveBeenCalled();
+
+    fireEvent.change(screen.getByPlaceholderText(/pin/i), { target: { value: "1234" } });
+    fireEvent.click(screen.getByRole("button", { name: /queue sale/i }));
+
+    await waitFor(() => expect(mockQueueCanteenCharge).toHaveBeenCalled());
+    expect(mockChargeNfcCanteen).not.toHaveBeenCalled();
+    expect(await screen.findByText(/local balance updated/i)).toBeInTheDocument();
+    expect(await screen.findByText(/syncing in background/i)).toBeInTheDocument();
+    await waitFor(() => expect(mockTriggerSync).toHaveBeenCalled());
+  });
+
+  it("shows local charge success before background sync finishes", async () => {
+    setNavigatorOnline(true);
+    mockTriggerSync.mockImplementationOnce(() => new Promise(() => undefined));
+
+    render(
+      <MemoryRouter>
+        <NfcCanteenChargePage />
+      </MemoryRouter>,
+    );
+
+    fireEvent.change(screen.getByLabelText(/amount/i), { target: { value: "20" } });
+    fireEvent.change(screen.getByPlaceholderText(/scan token or uid/i), { target: { value: "PUB001" } });
+    fireEvent.click(screen.getByRole("button", { name: "Go" }));
+
+    await screen.findByText(/local canteen register - student identified/i);
+    fireEvent.change(screen.getByPlaceholderText(/pin/i), { target: { value: "1234" } });
+    fireEvent.click(screen.getByRole("button", { name: /queue sale/i }));
+
+    expect(await screen.findByText(/local balance updated/i)).toBeInTheDocument();
+    expect(screen.getByText(/local remaining balance: ugx 30/i)).toBeInTheDocument();
+    expect(mockTriggerSync).toHaveBeenCalled();
+  });
+
+  it("falls back to the online server charge path only when no local register is usable", async () => {
+    setNavigatorOnline(true);
+    mockGetCanteenRegisterStatus.mockResolvedValueOnce({
+      available: false,
+      canSellOffline: false,
+      updateRecommended: true,
+      updateBlockedReason: "no_register",
+      message: "Local Canteen Register is not downloaded yet. Go online to update register.",
+    });
+    mockResolveWalletStudent.mockResolvedValueOnce({
+      student: { name: "Ada Lovelace", admissionNumber: "A001", className: "P4" },
+      wallet: { balanceCents: 5000, status: "ACTIVE", pinSet: true },
+    });
+
+    render(
+      <MemoryRouter>
+        <NfcCanteenChargePage />
+      </MemoryRouter>,
+    );
+
+    fireEvent.change(screen.getByLabelText(/amount/i), { target: { value: "20" } });
+    fireEvent.change(screen.getByPlaceholderText(/scan token or uid/i), { target: { value: "PUB001" } });
+    fireEvent.click(screen.getByRole("button", { name: "Go" }));
+
+    await waitFor(() => expect(mockResolveWalletStudent).toHaveBeenCalledWith({ tokenOrUid: "PUB001" }));
+    expect(mockResolveOfflineNfcScan).not.toHaveBeenCalled();
+    expect(await screen.findByText(/student identified/i)).toBeInTheDocument();
+  });
+
+  it("allows a new local charge while failed or conflict canteen sales exist", async () => {
+    setNavigatorOnline(true);
+    state.snapshotValidity = { valid: true };
+    state.snapshotRefreshError = "Register update waits for reconciliation.";
+    mockGetCanteenQueueStatus.mockResolvedValue({
+      pending: 0,
+      syncing: 0,
+      failed: 1,
+      conflict: 1,
+      lastError: "Previous test sale needs review",
+      items: [],
+    });
+
+    render(
+      <MemoryRouter>
+        <NfcCanteenChargePage />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText(/previous test sale needs review/i)).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText(/amount/i), { target: { value: "20" } });
+    fireEvent.change(screen.getByPlaceholderText(/scan token or uid/i), { target: { value: "PUB001" } });
+    fireEvent.click(screen.getByRole("button", { name: "Go" }));
+
+    await screen.findByText(/local canteen register - student identified/i);
+    fireEvent.change(screen.getByPlaceholderText(/pin/i), { target: { value: "1234" } });
+    fireEvent.click(screen.getByRole("button", { name: /queue sale/i }));
+
+    await waitFor(() => expect(mockQueueCanteenCharge).toHaveBeenCalled());
+    expect(await screen.findByText(/local balance updated/i)).toBeInTheDocument();
+  });
+
   it("uses the Local Canteen Register when the phone is offline even before connectivity state is OFFLINE_READY", async () => {
     setNavigatorOnline(false);
 
