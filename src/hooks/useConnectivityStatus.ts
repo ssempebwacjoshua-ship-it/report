@@ -13,7 +13,7 @@ export type ConnectivityState =
   | "SYNCING"
   | "SYNC_FAILED";
 
-const HEARTBEAT_URL = "/api/health/ping";
+const HEARTBEAT_PATH = "/api/health/ping";
 const HEARTBEAT_INTERVAL_MS = 12000;
 const DEGRADED_THRESHOLD = 1;
 const OFFLINE_THRESHOLD = 3;
@@ -106,7 +106,7 @@ export function useConnectivityStatus(schoolId?: string, deviceId?: string, requ
 
   const heartbeat = useCallback(async () => {
     try {
-      const res = await fetch(HEARTBEAT_URL, {
+      const res = await fetch(`${getApiBaseUrl()}${HEARTBEAT_PATH}`, {
         method: "GET",
         cache: "no-store",
         signal: AbortSignal.timeout(5000),
@@ -116,10 +116,10 @@ export function useConnectivityStatus(schoolId?: string, deviceId?: string, requ
       failedRef.current = 0;
       const prev = stateRef.current;
 
-      if (prev === "OFFLINE_READY" || prev === "OFFLINE_NOT_READY") {
+      if (prev === "OFFLINE_READY" || prev === "OFFLINE_NOT_READY" || prev === "SYNC_FAILED") {
         // Back online — auto-sync
         void runSync();
-      } else if (prev !== "SYNCING" && prev !== "SYNC_FAILED") {
+      } else if (prev !== "SYNCING") {
         updateState("ONLINE");
       }
     } catch {

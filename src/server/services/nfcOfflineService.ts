@@ -466,7 +466,7 @@ export async function syncOfflineEvents(
             balanceAfterCents,
             description: (payload.description as string) || "Offline canteen charge",
             idempotencyKey: event.idempotencyKey,
-            cashierUserId: (payload.cashierUserId as string) || null,
+            cashierUserId: ctx.actorId ?? null,
             credentialId: null,
           },
         });
