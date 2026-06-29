@@ -29,9 +29,9 @@ function buildCard(overrides: Partial<StudentReportCard> = {}): StudentReportCar
 }
 
 describe("sanitizeReportCardForRender", () => {
-  it("removes legacy upload URLs from passport photos", () => {
+  it("keeps local upload URLs for passport photos", () => {
     const card = sanitizeReportCardForRender(buildCard());
-    expect(card.passportPhotoUrl).toBe("");
+    expect(card.passportPhotoUrl).toBe("/uploads/students/demo/photo.webp");
   });
 
   it("keeps Cloudinary HTTPS passport photo URLs", () => {

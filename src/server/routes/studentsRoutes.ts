@@ -14,7 +14,7 @@ import {
 import { getReportContext } from "../repositories/schoolRepository";
 import { commitStudentImport, createStudentImportJob, getStudentImportJob, parseStudentsCsv, parseStudentsXlsx, previewStudentImport } from "../services/studentImportService";
 import { generateAdmissionNumber } from "../services/studentAdmissionNumberService";
-import { deleteStoredUpload, saveStudentImageUpload } from "../services/uploadStorageService";
+import { deleteStoredUpload, getUploadStorageDiagnostics, saveStudentImageUpload } from "../services/uploadStorageService";
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 const studentPhotoUpload = multer({
@@ -263,6 +263,9 @@ export function studentsRoutes() {
       logStudentPassportPhoto(req, "upload.error", {
         studentId: req.params.id,
         error: error instanceof Error ? error.message : String(error),
+        ...getUploadStorageDiagnostics(),
+        fileMimeType: req.file?.mimetype ?? null,
+        fileSize: req.file?.size ?? null,
       });
       next(error);
     }
