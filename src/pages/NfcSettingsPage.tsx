@@ -19,7 +19,7 @@ export function NfcSettingsPage() {
     gateOfflineEnabled: true,
     canteenOfflineEnabled: true,
     gateSnapshotValidHours: 24,
-    canteenSnapshotValidHours: 12,
+    canteenSnapshotValidHours: 24,
     maxOfflineSpendPerStudentPerDay: 5000,
     maxOfflineSpendPerTransaction: 2000,
     maxOfflineSpendPerDeviceSession: 100000,
