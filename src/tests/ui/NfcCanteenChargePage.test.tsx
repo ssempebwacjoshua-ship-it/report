@@ -145,6 +145,7 @@ describe("NfcCanteenChargePage", () => {
       payload: expect.objectContaining({
         actionType: "CANTEEN_CHARGE",
         amountCents: 2000,
+        cashierUserId: "cashier-1",
         tokenOrUidHash: "hash:PUB001",
         pinVerified: true,
       }),

@@ -226,7 +226,7 @@ export function NfcCanteenChargePage() {
             pinVerified: true,
             pinVerifiedAt: chargedAt,
             description: descRef.current || null,
-            cashierUserId: user.schoolId,
+            cashierUserId: user.id,
             chargedAt,
           },
         });

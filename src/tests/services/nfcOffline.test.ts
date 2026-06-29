@@ -386,7 +386,7 @@ describe("syncOfflineEvents — canteen charge", () => {
           actionType: "CANTEEN_CHARGE",
           sequenceNumber: 0,
           idempotencyKey: "canteen:dev-1:0",
-          payload: { studentId: "stu-1", amountCents: 2000, description: "Lunch", cashierUserId: "cashier-a" },
+          payload: { studentId: "stu-1", amountCents: 2000, description: "Lunch", cashierUserId: "wrong-client-cashier" },
           payloadHash: "h",
           previousHash: null,
           eventHash: "eh",
@@ -397,6 +397,7 @@ describe("syncOfflineEvents — canteen charge", () => {
     );
     expect(result.results[0]?.status).toBe("SYNCED");
     expect(wallets[0]?.balanceCents).toBe(48000);
+    expect(txStore[0]?.cashierUserId).toBe("cashier-a");
   });
 
   it("conflicts when wallet is frozen", async () => {
