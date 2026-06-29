@@ -37,6 +37,8 @@ export interface OfflineStudent {
   streamId: string | null;
   streamName: string | null;
   photoUrl?: string | null;
+  feeHoldStatus?: "ACTIVE" | "CLEARED" | "CANCELLED" | null;
+  gateBlockedReason?: string | null;
 }
 
 export interface OfflineTag {
@@ -144,6 +146,9 @@ export interface OfflineBootstrapSnapshot {
     frozenCardOfflinePolicy: "DENY";
     deactivatedCardOfflinePolicy: "DENY";
     offlineConflictPolicy: OfflineConflictPolicy;
+    feeDefaulterBlockingEnabled?: boolean;
+    feeDefaulterBlockScope?: "DAY_SCHOLARS_ONLY" | "ALL_STUDENTS";
+    feeHoldDataIncluded?: boolean;
   };
   signature?: string;
 }

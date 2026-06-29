@@ -76,4 +76,32 @@ describe("resolveOfflineNfcScan", () => {
       blocked: true,
     });
   });
+
+  it("blocks locally when the Local Gate Register marks an active fee hold", async () => {
+    storeMocks.getTagByScanValue.mockResolvedValue(tag("ASSIGNED"));
+    storeMocks.getStudentById.mockResolvedValue({
+      ...activeStudent,
+      feeHoldStatus: "ACTIVE",
+      gateBlockedReason: "school fees defaulter",
+    });
+    const { resolveOfflineNfcScan } = await import("../../offline/offlineResolver");
+
+    await expect(resolveOfflineNfcScan("school-a", "PUB001")).resolves.toMatchObject({
+      found: true,
+      blocked: true,
+      reason: "school fees defaulter",
+    });
+  });
+
+  it("does not guess fee-hold blocking when fee-hold fields are missing", async () => {
+    storeMocks.getTagByScanValue.mockResolvedValue(tag("ASSIGNED"));
+    storeMocks.getStudentById.mockResolvedValue(activeStudent);
+    const { resolveOfflineNfcScan } = await import("../../offline/offlineResolver");
+
+    await expect(resolveOfflineNfcScan("school-a", "PUB001")).resolves.toMatchObject({
+      found: true,
+      blocked: false,
+      student: activeStudent,
+    });
+  });
 });

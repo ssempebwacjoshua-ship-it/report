@@ -2,7 +2,7 @@ import type { PrismaClient } from "@prisma/client";
 import { createHash, randomUUID } from "crypto";
 import { prisma as defaultPrisma } from "../db/prisma";
 import { hasPermission } from "../../shared/permissions";
-import { getSchoolNfcPolicy } from "./nfcPolicyService";
+import { feeHoldAppliesToStudent, getSchoolNfcPolicy } from "./nfcPolicyService";
 
 type OfflineClient = Pick<
   PrismaClient,
@@ -11,6 +11,7 @@ type OfflineClient = Pick<
   | "nfcTag"
   | "studentWallet"
   | "schoolNfcPolicy"
+  | "studentFeeHold"
   | "studentCredential"
   | "nfcOfflineDevice"
   | "nfcOfflineSyncBatch"
@@ -73,6 +74,8 @@ type OfflinePolicy = {
   frozenCardOfflinePolicy: "DENY";
   deactivatedCardOfflinePolicy: "DENY";
   offlineConflictPolicy: "ALLOW_AND_FLAG" | "HOLD_FOR_BURSAR_REVIEW";
+  feeDefaulterBlockingEnabled: boolean;
+  feeDefaulterBlockScope: "DAY_SCHOLARS_ONLY" | "ALL_STUDENTS";
 };
 
 function defaultOfflinePolicy(): OfflinePolicy {
@@ -88,6 +91,8 @@ function defaultOfflinePolicy(): OfflinePolicy {
     frozenCardOfflinePolicy: "DENY",
     deactivatedCardOfflinePolicy: "DENY",
     offlineConflictPolicy: "ALLOW_AND_FLAG",
+    feeDefaulterBlockingEnabled: false,
+    feeDefaulterBlockScope: "DAY_SCHOLARS_ONLY",
   };
 }
 
@@ -106,6 +111,8 @@ async function loadOfflinePolicy(ctx: OfflineContext, db: OfflineClient): Promis
       frozenCardOfflinePolicy: policy.policy.frozenCardOfflinePolicy as "DENY",
       deactivatedCardOfflinePolicy: policy.policy.deactivatedCardOfflinePolicy as "DENY",
       offlineConflictPolicy: policy.policy.offlineConflictPolicy as "ALLOW_AND_FLAG" | "HOLD_FOR_BURSAR_REVIEW",
+      feeDefaulterBlockingEnabled: policy.policy.feeDefaulterBlockingEnabled,
+      feeDefaulterBlockScope: policy.policy.feeDefaulterBlockScope as "DAY_SCHOLARS_ONLY" | "ALL_STUDENTS",
     };
   } catch {
     return defaultOfflinePolicy();
@@ -187,8 +194,20 @@ export async function bootstrapOfflineSnapshot(
       })
     : [];
 
+  const activeFeeHolds = modules.includes("gate")
+    ? await db.studentFeeHold.findMany({
+        where: { schoolId, status: "ACTIVE" },
+        select: { studentId: true, status: true },
+      })
+    : [];
+  const feeHoldByStudentId = new Map(activeFeeHolds.map((hold) => [hold.studentId, hold]));
+
   const offlineStudents = students.map((s) => {
     const e = s.enrollments[0];
+    const activeHold = feeHoldByStudentId.get(s.id) ?? null;
+    const feeHoldBlocksGate = !!activeHold &&
+      policy.feeDefaulterBlockingEnabled &&
+      feeHoldAppliesToStudent(s.studentType ?? null, policy.feeDefaulterBlockScope as never);
     return {
       id: s.id,
       schoolId,
@@ -202,6 +221,8 @@ export async function bootstrapOfflineSnapshot(
       streamId: e?.stream?.id ?? null,
       streamName: e?.stream?.name ?? null,
       photoUrl: s.passportPhotoUrl ?? null,
+      feeHoldStatus: activeHold?.status ?? null,
+      gateBlockedReason: feeHoldBlocksGate ? "school fees defaulter" : null,
     };
   });
 
@@ -284,6 +305,9 @@ export async function bootstrapOfflineSnapshot(
       frozenCardOfflinePolicy: policy.frozenCardOfflinePolicy,
       deactivatedCardOfflinePolicy: policy.deactivatedCardOfflinePolicy,
       offlineConflictPolicy: policy.offlineConflictPolicy,
+      feeDefaulterBlockingEnabled: policy.feeDefaulterBlockingEnabled,
+      feeDefaulterBlockScope: policy.feeDefaulterBlockScope,
+      feeHoldDataIncluded: modules.includes("gate"),
     },
   };
 }
