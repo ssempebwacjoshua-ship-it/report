@@ -85,13 +85,14 @@ export function NfcCanteenChargePage() {
   const { user } = useAuth();
   const deviceId = useRef(getDeviceId()).current;
 
-  const { isOfflineReady, pendingCount } = useConnectivityStatus(user?.schoolId, deviceId, "canteen");
+  const { isOfflineReady, pendingCount, triggerSync } = useConnectivityStatus(user?.schoolId, deviceId, "canteen");
   const snapshotRefresh = useNfcOfflineSnapshotRefresh({
     schoolId: user?.schoolId,
     deviceId,
     mode: "CANTEEN",
     requiredModule: "canteen",
     enabled: !!user,
+    syncBeforeRefresh: triggerSync,
   });
 
   const [amount, setAmount] = useState("");
@@ -312,6 +313,21 @@ export function NfcCanteenChargePage() {
             {snapshotRefresh.isRefreshing ? "Updating Canteen Register in the background..." : "Online canteen charging still works while connected."}
             {snapshotRefresh.refreshError ? ` Last refresh failed: ${snapshotRefresh.refreshError}` : ""}
           </p>
+        </div>
+      )}
+
+      {snapshotRefresh.validity?.valid && snapshotRefresh.refreshError && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+          <p className="font-bold">Local Canteen Register is available. Update recommended when online.</p>
+          <p className="mt-1">{snapshotRefresh.refreshError}</p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            <button type="button" className="rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-bold text-white" onClick={() => void triggerSync()}>
+              Retry Sync
+            </button>
+            <Link to="/nfc/canteen/reconciliation" className="rounded-lg border border-amber-300 bg-white px-3 py-1.5 text-xs font-bold text-amber-800">
+              Open Reconciliation
+            </Link>
+          </div>
         </div>
       )}
 

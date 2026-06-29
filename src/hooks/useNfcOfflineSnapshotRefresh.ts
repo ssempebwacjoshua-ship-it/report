@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { fetchOfflineBootstrap } from "../client/nfcOfflineClient";
-import { saveBootstrapSnapshot } from "../offline/offlineStore";
+import { getCanteenSaleSyncSummary, saveBootstrapSnapshot } from "../offline/offlineStore";
 import { getSnapshotValidity, type SnapshotValidity } from "../offline/offlineStatus";
 import type { OfflineKioskMode, OfflineModule } from "../offline/offlineTypes";
 
@@ -21,8 +21,9 @@ export function useNfcOfflineSnapshotRefresh(input: {
   mode: OfflineKioskMode;
   requiredModule: OfflineModule;
   enabled?: boolean;
+  syncBeforeRefresh?: () => Promise<void>;
 }) {
-  const { schoolId, deviceId, mode, requiredModule, enabled = true } = input;
+  const { schoolId, deviceId, mode, requiredModule, enabled = true, syncBeforeRefresh } = input;
   const [validity, setValidity] = useState<SnapshotValidity | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [refreshError, setRefreshError] = useState("");
@@ -45,6 +46,19 @@ export function useNfcOfflineSnapshotRefresh(input: {
     setIsRefreshing(true);
     setRefreshError("");
     try {
+      if (mode === "CANTEEN") {
+        let summary = await getCanteenSaleSyncSummary(schoolId);
+        if ((summary.pending > 0 || summary.syncing > 0) && syncBeforeRefresh) {
+          await syncBeforeRefresh();
+          summary = await getCanteenSaleSyncSummary(schoolId);
+        }
+        if (summary.pending > 0 || summary.syncing > 0) {
+          throw new Error("Pending canteen sales must sync before register update.");
+        }
+        if (summary.failed > 0 || summary.conflict > 0) {
+          throw new Error("Some canteen sales need retry or reconciliation before register update.");
+        }
+      }
       const snapshot = await fetchOfflineBootstrap([requiredModule], deviceId, mode);
       await saveBootstrapSnapshot(snapshot);
       const next = await readValidity();
@@ -58,7 +72,7 @@ export function useNfcOfflineSnapshotRefresh(input: {
       refreshInFlight.current = false;
       setIsRefreshing(false);
     }
-  }, [deviceId, enabled, mode, readValidity, requiredModule, schoolId]);
+  }, [deviceId, enabled, mode, readValidity, requiredModule, schoolId, syncBeforeRefresh]);
 
   useEffect(() => {
     if (!enabled || !schoolId) return;

@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   fetchOfflineBootstrap: vi.fn(),
   saveBootstrapSnapshot: vi.fn(),
+  getCanteenSaleSyncSummary: vi.fn(),
   getSnapshotValidity: vi.fn(),
 }));
 
@@ -13,6 +14,7 @@ vi.mock("../../client/nfcOfflineClient", () => ({
 
 vi.mock("../../offline/offlineStore", () => ({
   saveBootstrapSnapshot: mocks.saveBootstrapSnapshot,
+  getCanteenSaleSyncSummary: mocks.getCanteenSaleSyncSummary,
 }));
 
 vi.mock("../../offline/offlineStatus", () => ({
@@ -52,6 +54,7 @@ describe("useNfcOfflineSnapshotRefresh", () => {
     online(true);
     mocks.fetchOfflineBootstrap.mockResolvedValue({ snapshotId: "snapshot-2" });
     mocks.saveBootstrapSnapshot.mockResolvedValue(undefined);
+    mocks.getCanteenSaleSyncSummary.mockResolvedValue({ pending: 0, syncing: 0, failed: 0, conflict: 0 });
     vi.spyOn(console, "info").mockImplementation(() => undefined);
   });
 
@@ -116,5 +119,49 @@ describe("useNfcOfflineSnapshotRefresh", () => {
 
     expect(mocks.fetchOfflineBootstrap).toHaveBeenCalledWith(["gate"], "device-a", "GATE");
     vi.useRealTimers();
+  });
+
+  it("syncs pending canteen sales before updating the local canteen register", async () => {
+    const syncBeforeRefresh = vi.fn(async () => undefined);
+    mocks.getCanteenSaleSyncSummary
+      .mockResolvedValueOnce({ pending: 1, syncing: 0, failed: 0, conflict: 0 })
+      .mockResolvedValueOnce({ pending: 0, syncing: 0, failed: 0, conflict: 0 });
+    mocks.getSnapshotValidity.mockResolvedValue(validSnapshot);
+
+    const { useNfcOfflineSnapshotRefresh } = await import("../../hooks/useNfcOfflineSnapshotRefresh");
+    const { result } = renderHook(() => useNfcOfflineSnapshotRefresh({
+      schoolId: "school-a",
+      deviceId: "device-a",
+      mode: "CANTEEN",
+      requiredModule: "canteen",
+      syncBeforeRefresh,
+    }));
+
+    await act(async () => {
+      await result.current.refreshNow("test");
+    });
+
+    expect(syncBeforeRefresh).toHaveBeenCalled();
+    expect(mocks.saveBootstrapSnapshot).toHaveBeenCalledWith({ snapshotId: "snapshot-2" });
+  });
+
+  it("does not overwrite the canteen register when failed sales need reconciliation", async () => {
+    mocks.getCanteenSaleSyncSummary.mockResolvedValue({ pending: 0, syncing: 0, failed: 1, conflict: 0 });
+    mocks.getSnapshotValidity.mockResolvedValue(validSnapshot);
+
+    const { useNfcOfflineSnapshotRefresh } = await import("../../hooks/useNfcOfflineSnapshotRefresh");
+    const { result } = renderHook(() => useNfcOfflineSnapshotRefresh({
+      schoolId: "school-a",
+      deviceId: "device-a",
+      mode: "CANTEEN",
+      requiredModule: "canteen",
+    }));
+
+    await act(async () => {
+      await result.current.refreshNow("test");
+    });
+
+    expect(mocks.saveBootstrapSnapshot).not.toHaveBeenCalled();
+    expect(result.current.refreshError).toMatch(/reconciliation/i);
   });
 });

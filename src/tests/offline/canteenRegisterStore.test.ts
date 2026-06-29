@@ -189,6 +189,29 @@ describe("Local Canteen Register storage", () => {
     await expect(saveBootstrapSnapshot(makeCanteenRegister())).rejects.toThrow(/pending canteen sales/i);
   });
 
+  it("reports failed canteen sales separately from normal pending sales", async () => {
+    dbState.syncQueue.push({
+      localId: "sale-1",
+      schoolId: "school-a",
+      deviceId: "device-a",
+      snapshotId: "register-1",
+      actionType: "CANTEEN_CHARGE",
+      sequenceNumber: 1,
+      idempotencyKey: "canteen:device-a:1",
+      payload: {},
+      payloadHash: "hash",
+      previousHash: null,
+      eventHash: "event",
+      createdAt: "2026-06-28T10:00:00.000Z",
+      syncStatus: "FAILED",
+    });
+    const { getCanteenSaleSyncSummary, hasPendingCanteenSales, saveBootstrapSnapshot } = await import("../../offline/offlineStore");
+
+    await expect(hasPendingCanteenSales("school-a")).resolves.toBe(false);
+    await expect(getCanteenSaleSyncSummary("school-a")).resolves.toMatchObject({ failed: 1, pending: 0 });
+    await expect(saveBootstrapSnapshot(makeCanteenRegister())).rejects.toThrow(/reconciliation/i);
+  });
+
   it("queues a local canteen sale without a raw NFC token and deducts local balance", async () => {
     const { queueCanteenCharge, saveBootstrapSnapshot } = await import("../../offline/offlineStore");
     await saveBootstrapSnapshot(makeCanteenRegister());
