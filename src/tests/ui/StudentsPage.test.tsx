@@ -24,13 +24,15 @@ vi.mock("../../client/studentsClient", () => ({
   commitStudentImport: vi.fn(),
   createGuardianContact: vi.fn(),
   deleteGuardianContact: vi.fn(),
+  deleteStudentPassportPhoto: vi.fn(),
   fetchStudentImportJob: vi.fn(),
   previewStudentImport: vi.fn(),
   updateGuardianContact: vi.fn(),
+  uploadStudentPassportPhoto: vi.fn(),
 }));
 
 import { fetchReportContext } from "../../client/reportsClient";
-import { commitStudentImport, fetchStudents, previewStudentImport } from "../../client/studentsClient";
+import { commitStudentImport, fetchStudents, previewStudentImport, uploadStudentPassportPhoto } from "../../client/studentsClient";
 
 const defaultContext = {
   school: { code: "SCU-PREVIEW" },
@@ -254,6 +256,37 @@ describe("StudentsPage", () => {
     expect(screen.getByText("Phone: Not provided")).toBeInTheDocument();
     expect(screen.getByText("Email: Not provided")).toBeInTheDocument();
     expect(screen.queryByText(/\s\?\s/)).not.toBeInTheDocument();
+  });
+
+  it("refreshes the selected student after passport photo upload", async () => {
+    const user = userEvent.setup();
+    vi.mocked(uploadStudentPassportPhoto).mockResolvedValueOnce({
+      passportPhotoUrl: "https://res.cloudinary.com/demo/image/upload/v1/school-connect/students/student-1/passport.webp",
+      passportPhotoUpdatedAt: "2026-06-27T00:00:00.000Z",
+    });
+    vi.mocked(fetchStudents)
+      .mockResolvedValueOnce(defaultStudents)
+      .mockResolvedValueOnce({
+        students: [{
+          ...defaultStudents.students[0],
+          passportPhotoUrl: "https://res.cloudinary.com/demo/image/upload/v1/school-connect/students/student-1/passport.webp",
+          passportPhotoUpdatedAt: "2026-06-27T00:00:00.000Z",
+        }],
+      });
+
+    const { container } = render(
+      <MemoryRouter>
+        <StudentsPage />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => expect(screen.getAllByText("Ada Lovelace").length).toBeGreaterThan(0));
+    const input = container.querySelector('input[type="file"][accept*="image"]');
+    expect(input).toBeInstanceOf(HTMLInputElement);
+    await user.upload(input as HTMLInputElement, new File(["photo"], "passport.jpg", { type: "image/jpeg" }));
+
+    await waitFor(() => expect(uploadStudentPassportPhoto).toHaveBeenCalledWith("student-1", expect.any(File)));
+    await waitFor(() => expect(fetchStudents).toHaveBeenCalledTimes(2));
   });
 });
 

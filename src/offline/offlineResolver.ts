@@ -34,6 +34,14 @@ export async function resolveOfflineNfcScan(
     return { found: true, blocked: true, reason: "inactive student", student, tag };
   }
 
+  if (student.gateBlockedReason) {
+    return { found: true, blocked: true, reason: student.gateBlockedReason, student, tag };
+  }
+
+  if (student.feeHoldStatus === "ACTIVE") {
+    return { found: true, blocked: true, reason: "school fees defaulter", student, tag };
+  }
+
   const wallet = await getOfflineWallet(schoolId, student.id);
 
   return { found: true, blocked: false, student, tag, wallet: wallet ?? undefined };

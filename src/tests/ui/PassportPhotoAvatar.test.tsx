@@ -18,11 +18,19 @@ describe("PassportPhotoAvatar", () => {
     expect(img?.getAttribute("src")).toContain("cloudinary.com");
   });
 
-  it("falls back for legacy local upload URLs", () => {
-    render(<PassportPhotoAvatar name="Grace Hopper" src="/uploads/students/demo/photo.webp" className="h-24 w-24" />);
+  it("renders local upload URLs through the API base", () => {
+    const { container } = render(<PassportPhotoAvatar name="Grace Hopper" src="/uploads/students/demo/photo.webp" className="h-24 w-24" />);
+
+    const img = container.querySelector("img");
+    expect(img).toBeTruthy();
+    expect(img?.getAttribute("src")).toBe("http://localhost:4300/uploads/students/demo/photo.webp");
+  });
+
+  it("shows No photo for empty URLs", () => {
+    render(<PassportPhotoAvatar name="Grace Hopper" src="" className="h-24 w-24" />);
 
     expect(screen.queryByRole("img")).not.toBeInTheDocument();
-    expect(screen.getByText(/photo unavailable/i)).toBeInTheDocument();
+    expect(screen.getByText(/no photo/i)).toBeInTheDocument();
   });
 
   it("switches to the fallback avatar when the image errors", () => {

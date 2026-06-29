@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { getApiBaseUrl } from "../../client/apiBase";
 import { isRenderablePassportPhotoUrl } from "../../shared/utils/passportPhotoUrl";
 
 type Props = {
@@ -16,9 +17,17 @@ function getInitials(name: string): string {
   return `${first}${second}`.toUpperCase() || "?";
 }
 
+function resolvePassportPhotoSrc(value: string): string {
+  if (value.startsWith("/uploads/")) {
+    return new URL(value, `${getApiBaseUrl()}/`).toString();
+  }
+  return value;
+}
+
 export function PassportPhotoAvatar({ name, src, alt, className = "" }: Props) {
   const normalizedSrc = typeof src === "string" ? src.trim() : "";
   const canRenderImage = isRenderablePassportPhotoUrl(normalizedSrc);
+  const imageSrc = canRenderImage ? resolvePassportPhotoSrc(normalizedSrc) : "";
   const [imageState, setImageState] = useState<"loading" | "loaded" | "error">("loading");
   const imageContainerClassName = `overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm ${className}`.trim();
   const fallbackContainerClassName = `grid place-items-center overflow-hidden rounded-2xl border-dashed border-slate-300 bg-white text-center shadow-sm ${className}`.trim();
@@ -36,7 +45,7 @@ export function PassportPhotoAvatar({ name, src, alt, className = "" }: Props) {
     return (
       <div className={imageContainerClassName}>
         <img
-          src={normalizedSrc}
+          src={imageSrc}
           alt={alt ?? `${name} passport photo`}
           className="h-full w-full object-cover"
           style={{ visibility: imageState === "loaded" ? "visible" : "hidden" }}

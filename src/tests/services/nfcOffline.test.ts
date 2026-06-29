@@ -9,16 +9,17 @@ import {
 
 // ─── Minimal in-memory DB mock ─────────────────────────────────────────────────
 
-type MockStudent = { id: string; schoolId: string; admissionNumber: string; firstName: string; lastName: string; isActive: boolean; enrollments: unknown[] };
+type MockStudent = { id: string; schoolId: string; admissionNumber: string; firstName: string; lastName: string; isActive: boolean; studentType?: "DAY" | "BOARDING" | null; passportPhotoUrl?: string | null; enrollments: unknown[] };
 type MockTag = { id: string; schoolId: string; publicCode: string; physicalUid: string | null; studentId: string | null; status: string; tagMode: string; purpose: string | null; writtenPayload: string | null };
 type MockWallet = { id: string; studentId: string; schoolId: string; status: string; balanceCents: number; frozenReason: string | null; pinHash?: string | null; pinLockedUntil?: Date | null };
 type MockTx = { id: string; schoolId: string; studentId: string; walletId: string; type: string; amountCents: number; balanceAfterCents: number; description: string | null; idempotencyKey: string; cashierUserId: string | null; credentialId: string | null };
 type MockGateScan = { id: string; schoolId: string; studentId: string | null; credentialId: null; scannedByUserId: null; result: string; reason: string | null; scannedAt: Date };
 type MockAttendance = { id: string; schoolId: string; studentId: string; credentialId: string | null; direction: string; source: string; status: string; reason: null; scannedAt: Date };
+type MockFeeHold = { id: string; schoolId: string; studentId: string; status: "ACTIVE" | "CLEARED" | "CANCELLED" };
 
 const students: MockStudent[] = [
-  { id: "stu-1", schoolId: "school-a", admissionNumber: "A001", firstName: "Alice", lastName: "M", isActive: true, enrollments: [{ isActive: true, status: "ACTIVE", class: { id: "cls-1", name: "P4" }, stream: { id: "str-1", name: "A" } }] },
-  { id: "stu-2", schoolId: "school-a", admissionNumber: "A002", firstName: "Bob", lastName: "K", isActive: true, enrollments: [] },
+  { id: "stu-1", schoolId: "school-a", admissionNumber: "A001", firstName: "Alice", lastName: "M", isActive: true, studentType: "DAY", enrollments: [{ isActive: true, status: "ACTIVE", class: { id: "cls-1", name: "P4" }, stream: { id: "str-1", name: "A" } }] },
+  { id: "stu-2", schoolId: "school-a", admissionNumber: "A002", firstName: "Bob", lastName: "K", isActive: true, studentType: "BOARDING", enrollments: [] },
 ];
 const tags: MockTag[] = [
   { id: "tag-1", schoolId: "school-a", publicCode: "PUB001", physicalUid: "UID001", studentId: "stu-1", status: "ASSIGNED", tagMode: "WRISTBAND", purpose: null, writtenPayload: null },
@@ -32,6 +33,38 @@ const txStore: MockTx[] = [];
 const auditStore: unknown[] = [];
 const offlineDeviceStore: unknown[] = [];
 const offlineBatchStore: unknown[] = [];
+const feeHoldStore: MockFeeHold[] = [];
+
+function mockPolicy(overrides: Record<string, unknown> = {}) {
+  const now = new Date("2026-06-28T10:00:00.000Z");
+  return {
+    id: "policy-1",
+    schoolId: "school-a",
+    feeDefaulterBlockingEnabled: false,
+    feeDefaulterBlockScope: "DAY_SCHOLARS_ONLY",
+    attendanceTapInCutoffEnabled: false,
+    tapInCutoffTime: null,
+    cutoffLateAction: "BLOCK_AND_MARK_ABSENT",
+    timezone: "Africa/Kampala",
+    gateOfflineEnabled: true,
+    canteenOfflineEnabled: true,
+    gateSnapshotValidHours: 24,
+    canteenSnapshotValidHours: 24,
+    maxOfflineSpendPerStudentPerDay: 3000,
+    maxOfflineSpendPerTransaction: 3000,
+    maxOfflineSpendPerDeviceSession: 100000,
+    unknownCardOfflinePolicy: "DENY",
+    frozenCardOfflinePolicy: "DENY",
+    deactivatedCardOfflinePolicy: "DENY",
+    offlineConflictPolicy: "ALLOW_AND_FLAG",
+    updatedByUserId: null,
+    createdAt: now,
+    updatedAt: now,
+    ...overrides,
+  };
+}
+
+let policyRow = mockPolicy();
 
 function makeMockDb() {
   return {
@@ -65,6 +98,13 @@ function makeMockDb() {
       },
     },
     studentCredential: {},
+    schoolNfcPolicy: {
+      upsert: async () => policyRow,
+    },
+    studentFeeHold: {
+      findMany: async ({ where }: { where: { schoolId: string; status?: string } }) =>
+        feeHoldStore.filter((hold) => hold.schoolId === where.schoolId && (!where.status || hold.status === where.status)),
+    },
     nfcGateScan: {
       findFirst: async ({ where }: { where: { schoolId: string; scannedAt: Date } }) =>
         gateScanStore.find((s) => s.schoolId === where.schoolId && s.scannedAt.getTime() === where.scannedAt.getTime()) ?? null,
@@ -123,6 +163,11 @@ const GATE_CTX: OfflineContext = { schoolId: "school-a", actorId: "gate-a", role
 const OTHER_SCHOOL_CTX: OfflineContext = { schoolId: "school-b", actorId: "admin-b", role: "ADMIN_OPERATOR" };
 
 describe("bootstrapOfflineSnapshot", () => {
+  beforeEach(() => {
+    feeHoldStore.length = 0;
+    policyRow = mockPolicy();
+  });
+
   it("returns students, tags, and wallets for the school", async () => {
     const db = makeMockDb();
     const snap = await bootstrapOfflineSnapshot(ADMIN_CTX, {}, db);
@@ -179,6 +224,27 @@ describe("bootstrapOfflineSnapshot", () => {
       status: "ASSIGNED",
       schoolId: "school-a",
     });
+  });
+
+  it("includes active fee-hold gate blocking decisions in a gate register", async () => {
+    policyRow = mockPolicy({ feeDefaulterBlockingEnabled: true, feeDefaulterBlockScope: "DAY_SCHOLARS_ONLY" });
+    feeHoldStore.push({ id: "hold-1", schoolId: "school-a", studentId: "stu-1", status: "ACTIVE" });
+    const db = makeMockDb();
+
+    const snap = await bootstrapOfflineSnapshot(GATE_CTX, { mode: "GATE", modules: ["gate"], deviceId: "dev-gate" }, db);
+    const heldStudent = snap.students.find((student) => student.id === "stu-1");
+    const boardingStudent = snap.students.find((student) => student.id === "stu-2");
+
+    expect(snap.settings).toMatchObject({
+      feeDefaulterBlockingEnabled: true,
+      feeDefaulterBlockScope: "DAY_SCHOLARS_ONLY",
+      feeHoldDataIncluded: true,
+    });
+    expect(heldStudent).toMatchObject({
+      feeHoldStatus: "ACTIVE",
+      gateBlockedReason: "school fees defaulter",
+    });
+    expect(boardingStudent?.gateBlockedReason).toBeNull();
   });
 
   it("creates an audit log entry", async () => {

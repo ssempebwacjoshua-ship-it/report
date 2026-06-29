@@ -17,8 +17,30 @@ export type StoredUpload = {
   sizeBytes: number;
 };
 
+function hasCloudinaryCredentials(): boolean {
+  const cloudinaryUrl = process.env.CLOUDINARY_URL?.trim();
+  return Boolean(
+    cloudinaryUrl ||
+      (process.env.CLOUDINARY_CLOUD_NAME?.trim() &&
+        process.env.CLOUDINARY_API_KEY?.trim() &&
+        process.env.CLOUDINARY_API_SECRET?.trim()),
+  );
+}
+
 function getUploadProvider(): string {
-  return (process.env.UPLOAD_STORAGE_PROVIDER ?? "local").trim().toLowerCase() || "local";
+  const configured = process.env.UPLOAD_STORAGE_PROVIDER?.trim().toLowerCase();
+  if (configured) return configured;
+  return hasCloudinaryCredentials() ? CLOUDINARY_PROVIDER : "local";
+}
+
+export function getUploadStorageDiagnostics() {
+  return {
+    provider: getUploadProvider(),
+    hasCloudinaryCloudName: Boolean(process.env.CLOUDINARY_CLOUD_NAME?.trim()),
+    hasCloudinaryApiKey: Boolean(process.env.CLOUDINARY_API_KEY?.trim()),
+    hasCloudinaryApiSecret: Boolean(process.env.CLOUDINARY_API_SECRET?.trim()),
+    hasCloudinaryUrl: Boolean(process.env.CLOUDINARY_URL?.trim()),
+  };
 }
 
 function getUploadBaseUrl(): string | null {
@@ -32,7 +54,7 @@ function getLocalUploadRoot(strict: boolean): string | null {
   const configuredBaseUrl = process.env.UPLOAD_STORAGE_PUBLIC_BASE_URL?.trim();
   if (strict && process.env.NODE_ENV === "production" && !configuredDir && !configuredBaseUrl) {
     throw Object.assign(
-      new Error("Upload storage is not configured for production. Set UPLOAD_STORAGE_DIR or UPLOAD_STORAGE_PUBLIC_BASE_URL."),
+      new Error("Upload storage is not configured for production. Set Cloudinary env vars or configure local upload storage."),
       { status: 503 },
     );
   }
@@ -219,13 +241,23 @@ export async function saveStudentImageUpload(input: {
   studentId: string;
   prefix?: string;
 }): Promise<StoredUpload> {
-  return saveImageUpload({
-    buffer: input.buffer,
-    originalName: input.originalName,
-    mimeType: input.mimeType,
-    relativeDirParts: ["students", input.schoolCode, input.studentId],
-    prefix: input.prefix,
-  });
+  try {
+    return await saveImageUpload({
+      buffer: input.buffer,
+      originalName: input.originalName,
+      mimeType: input.mimeType,
+      relativeDirParts: ["students", input.schoolCode, input.studentId],
+      prefix: input.prefix,
+    });
+  } catch (error) {
+    if (typeof (error as { status?: unknown })?.status === "number" && (error as { status: number }).status === 503) {
+      throw Object.assign(
+        new Error("Passport photo storage is not configured. Set Cloudinary env vars."),
+        { status: 503 },
+      );
+    }
+    throw error;
+  }
 }
 
 export async function saveSchoolAssetUpload(input: {

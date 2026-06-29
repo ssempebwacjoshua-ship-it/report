@@ -284,6 +284,33 @@ describe("NfcGateSecurityPage", () => {
     expect(screen.getByText(/inactive student/i)).toBeInTheDocument();
   });
 
+  it("shows a local fee-hold block reason from the Local Gate Register", async () => {
+    mockGetSnapshotValidity.mockResolvedValue({ valid: true, meta: { snapshotId: "snapshot-1" } });
+    mockResolveOfflineNfcScan.mockResolvedValueOnce({
+      found: true,
+      blocked: true,
+      reason: "school fees defaulter",
+      student: {
+        id: "student-1",
+        firstName: "Ada",
+        lastName: "Lovelace",
+        admissionNumber: "A-001",
+        className: "S1",
+        streamName: "A",
+      },
+      tag: { id: "tag-1", publicCode: "tag-1", physicalUid: "uid-1" },
+    });
+
+    render(<NfcGateSecurityPage />);
+
+    fireEvent.change(screen.getByPlaceholderText(/scan token or uid/i), { target: { value: "token-a" } });
+    fireEvent.click(screen.getByRole("button", { name: "Go" }));
+
+    await waitFor(() => expect(mockScanGate).not.toHaveBeenCalled());
+    expect(await screen.findByText("BLOCKED")).toBeInTheDocument();
+    expect(screen.getByText(/school fees defaulter/i)).toBeInTheDocument();
+  });
+
   it("shows offline setup guidance when offline without a ready snapshot", async () => {
     state.connectivityState = "OFFLINE_NOT_READY";
     setNavigatorOnline(false);
