@@ -125,9 +125,11 @@ export async function saveBootstrapSnapshot(snapshot: OfflineBootstrapSnapshot):
     offlineDb.offline_tags,
     offlineDb.offline_wallets,
     async () => {
-      await offlineDb.offline_students.where("schoolId").equals(snapshot.schoolId).delete();
-      await offlineDb.offline_tags.where("schoolId").equals(snapshot.schoolId).delete();
-      await offlineDb.offline_wallets.where("schoolId").equals(snapshot.schoolId).delete();
+      if (!isCanteenRegister) {
+        await offlineDb.offline_students.where("schoolId").equals(snapshot.schoolId).delete();
+        await offlineDb.offline_tags.where("schoolId").equals(snapshot.schoolId).delete();
+        await offlineDb.offline_wallets.where("schoolId").equals(snapshot.schoolId).delete();
+      }
 
       if (snapshot.students.length) await offlineDb.offline_students.bulkPut(snapshot.students);
       if (tagsForStore.length) await offlineDb.offline_tags.bulkPut(tagsForStore);
@@ -392,7 +394,7 @@ export async function queueCanteenCharge(input: {
   );
   await offlineDb.offline_canteen_charges.put(record);
   const wallet = input.walletId
-    ? await offlineDb.offline_wallets.where("schoolId").equals(input.schoolId).filter((row) => row.id === input.walletId).first()
+    ? await offlineDb.offline_wallets.where("[schoolId+id]").equals([input.schoolId, input.walletId]).first()
     : null;
   if (wallet) {
     const current = wallet.localCurrentBalanceCents ?? wallet.balanceCents;

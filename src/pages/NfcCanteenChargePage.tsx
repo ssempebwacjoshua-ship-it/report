@@ -9,7 +9,7 @@ import { useAuth } from "../contexts/AuthContext";
 import { chargeNfcCanteen, resolveWalletStudent } from "../client/studentCredentialsClient";
 import { resolveOfflineNfcScan } from "../offline/offlineResolver";
 import { queueCanteenCharge, getSnapshotMeta, getAvailableOfflineBalance } from "../offline/offlineStore";
-import { getSnapshotValidity, isCanteenOfflineEnabled } from "../offline/offlineStatus";
+import { getCanteenRegisterStatus } from "../offline/offlineStatus";
 import { hashNfcLookupValue } from "../offline/offlineHash";
 import { assertLocalPinFormat, verifyLocalWalletPin } from "../offline/offlinePin";
 import { normalizeNfcScanValue } from "../shared/utils/nfcPayload";
@@ -46,7 +46,7 @@ function getDeviceId(): string {
 
 function offlineReasonMessage(reason?: string) {
   switch (reason) {
-    case "no_snapshot": return "Local Canteen Register is not downloaded yet.";
+    case "no_snapshot": return "Local Canteen Register is not downloaded yet. Go online to update register.";
     case "expired": return "Local Canteen Register has expired.";
     case "wrong_school": return "Local Canteen Register belongs to another school.";
     case "wrong_device": return "Local Canteen Register belongs to another device.";
@@ -122,10 +122,8 @@ export function NfcCanteenChargePage() {
     if (isOfflineReady || browserOffline) {
       if (!user?.schoolId) return;
 
-      const canteen = await isCanteenOfflineEnabled({ schoolId: user.schoolId, deviceId, mode: "CANTEEN", requiredModule: "canteen" });
-      if (!canteen) throw new Error("Offline canteen charging is not enabled for this school.");
-      const validity = await getSnapshotValidity({ schoolId: user.schoolId, deviceId, mode: "CANTEEN", requiredModule: "canteen" });
-      if (!validity.valid) throw new Error(offlineReasonMessage(validity.reason));
+      const registerStatus = await getCanteenRegisterStatus({ schoolId: user.schoolId, deviceId });
+      if (!registerStatus.canSellOffline) throw new Error(registerStatus.message);
 
       const resolve = await resolveOfflineNfcScan(user.schoolId, tokenOrUid);
       if (!resolve.found) throw new Error("Tag not recognised in Local Canteen Register.");

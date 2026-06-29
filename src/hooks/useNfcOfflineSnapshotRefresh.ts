@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { fetchOfflineBootstrap } from "../client/nfcOfflineClient";
 import { getCanteenSaleSyncSummary, saveBootstrapSnapshot } from "../offline/offlineStore";
-import { getSnapshotValidity, type SnapshotValidity } from "../offline/offlineStatus";
+import { getCanteenRegisterStatus, getSnapshotValidity, type SnapshotValidity } from "../offline/offlineStatus";
 import type { OfflineKioskMode, OfflineModule } from "../offline/offlineTypes";
 
 const REFRESH_INTERVAL_MS = 15 * 60 * 1000;
@@ -65,9 +65,12 @@ export function useNfcOfflineSnapshotRefresh(input: {
       console.info("[nfc-offline-snapshot]", { refreshReason: reason, ...next.diagnostics });
     } catch (error) {
       const message = error instanceof Error ? error.message : "Could not refresh offline snapshot.";
-      setRefreshError(message);
+      const canteenStatus = mode === "CANTEEN"
+        ? await getCanteenRegisterStatus({ schoolId, deviceId, mode, requiredModule })
+        : null;
+      setRefreshError(canteenStatus?.canSellOffline ? canteenStatus.message : message);
       const next = await readValidity();
-      console.info("[nfc-offline-snapshot]", { refreshReason: reason, refreshFailed: true, error: message, ...next.diagnostics });
+      console.info("[nfc-offline-snapshot]", { refreshReason: reason, refreshFailed: true, advisory: canteenStatus?.canSellOffline ?? false, error: message, ...next.diagnostics });
     } finally {
       refreshInFlight.current = false;
       setIsRefreshing(false);
