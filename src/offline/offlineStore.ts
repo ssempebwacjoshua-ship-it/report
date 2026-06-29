@@ -55,6 +55,11 @@ export type CanteenQueueStatus = CanteenSaleSyncSummary & {
   items: OfflineQueuedEvent[];
 };
 
+export type GateQueueStatus = CanteenSaleSyncSummary & {
+  lastError: string | null;
+  items: OfflineQueuedEvent[];
+};
+
 // ─── Sequence / chain tracking per device ────────────────────────────────────
 
 async function nextSeq(deviceId: string): Promise<number> {
@@ -111,6 +116,21 @@ export async function getCanteenQueueStatus(schoolId: string): Promise<CanteenQu
   return { ...summary, lastError, items };
 }
 
+export async function getGateQueueStatus(schoolId: string): Promise<GateQueueStatus> {
+  const items = (await offlineDb.offline_sync_queue.where("schoolId").equals(schoolId).toArray())
+    .filter((item) => item.actionType === "GATE_SCAN")
+    .sort((a, b) => a.sequenceNumber - b.sequenceNumber);
+  const summary = items.reduce<CanteenSaleSyncSummary>((acc, item) => {
+    if (item.syncStatus === "PENDING") acc.pending += 1;
+    if (item.syncStatus === "SYNCING") acc.syncing += 1;
+    if (item.syncStatus === "FAILED") acc.failed += 1;
+    if (item.syncStatus === "CONFLICT") acc.conflict += 1;
+    return acc;
+  }, { pending: 0, syncing: 0, failed: 0, conflict: 0 });
+  const lastError = [...items].reverse().find((item) => item.errorMessage)?.errorMessage ?? null;
+  return { ...summary, lastError, items };
+}
+
 export async function hasPendingCanteenSales(schoolId: string): Promise<boolean> {
   const summary = await getCanteenSaleSyncSummary(schoolId);
   return summary.pending > 0 || summary.syncing > 0;
@@ -146,7 +166,7 @@ export async function saveBootstrapSnapshot(snapshot: OfflineBootstrapSnapshot):
     offlineDb.offline_tags,
     offlineDb.offline_wallets,
     async () => {
-      if (!isCanteenRegister && !isAttendanceRegister) {
+      if (!snapshot.mode) {
         await offlineDb.offline_students.where("schoolId").equals(snapshot.schoolId).delete();
         await offlineDb.offline_tags.where("schoolId").equals(snapshot.schoolId).delete();
         await offlineDb.offline_wallets.where("schoolId").equals(snapshot.schoolId).delete();
@@ -345,7 +365,8 @@ export async function queueGateScan(input: {
   tagId: string | null;
   payload: {
     actionType: "GATE_SCAN";
-    tokenOrUid: string;
+    tokenOrUid?: string;
+    tokenOrUidHash?: string;
     publicCode?: string | null;
     physicalUid?: string | null;
     studentId?: string | null;
@@ -451,6 +472,16 @@ export async function getRetryableCanteenQueueItems(schoolId: string): Promise<O
     offlineDb.offline_sync_queue
       .where("[schoolId+actionType+syncStatus]")
       .equals([schoolId, "CANTEEN_CHARGE", status])
+      .toArray(),
+  ));
+  return [...pending, ...failed].sort((a, b) => a.sequenceNumber - b.sequenceNumber);
+}
+
+export async function getRetryableGateQueueItems(schoolId: string): Promise<OfflineQueuedEvent[]> {
+  const [pending, failed] = await Promise.all((["PENDING", "FAILED"] as OfflineSyncStatus[]).map((status) =>
+    offlineDb.offline_sync_queue
+      .where("[schoolId+actionType+syncStatus]")
+      .equals([schoolId, "GATE_SCAN", status])
       .toArray(),
   ));
   return [...pending, ...failed].sort((a, b) => a.sequenceNumber - b.sequenceNumber);

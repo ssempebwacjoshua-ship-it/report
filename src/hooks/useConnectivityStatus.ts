@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getSnapshotValidity } from "../offline/offlineStatus";
-import { getRetryableAttendanceQueueItems, getRetryableCanteenQueueItems, listPendingQueue, listAllQueueItems, markQueueItemSynced, markQueueItemFailed, markQueueItemConflict } from "../offline/offlineStore";
+import { getRetryableAttendanceQueueItems, getRetryableCanteenQueueItems, getRetryableGateQueueItems, listPendingQueue, listAllQueueItems, markQueueItemSynced, markQueueItemFailed, markQueueItemConflict } from "../offline/offlineStore";
 import type { OfflineSyncResponse } from "../offline/offlineTypes";
 import { getApiBaseUrl } from "../client/apiBase";
 import type { OfflineModule } from "../offline/offlineTypes";
@@ -58,7 +58,9 @@ export function useConnectivityStatus(schoolId?: string, deviceId?: string, requ
         ? await getRetryableCanteenQueueItems(schoolId)
         : requiredModule === "attendance"
           ? await getRetryableAttendanceQueueItems(schoolId)
-          : all.filter((e) => e.syncStatus === "PENDING");
+          : requiredModule === "gate"
+            ? await getRetryableGateQueueItems(schoolId)
+            : all.filter((e) => e.syncStatus === "PENDING");
       if (pending.length === 0) {
         updateState("ONLINE");
         syncingRef.current = false;
