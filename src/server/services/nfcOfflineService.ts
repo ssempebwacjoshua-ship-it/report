@@ -61,14 +61,6 @@ const DEFAULT_MAX_OFFLINE_SPEND_PER_STUDENT_PER_DAY_UGX = 3000;
 const DEFAULT_MAX_OFFLINE_SPEND_PER_TRANSACTION_UGX = 3000;
 const DEFAULT_MAX_OFFLINE_SPEND_PER_DEVICE_SESSION_UGX = 100000;
 
-function ugxToCents(value: number): number {
-  return Math.round(value * 100);
-}
-
-function canteenLimitCents(valueUgx: number, minimumUgx: number): number {
-  return ugxToCents(Math.max(valueUgx || 0, minimumUgx));
-}
-
 type OfflinePolicy = {
   gateOfflineEnabled: boolean;
   canteenOfflineEnabled: boolean;
@@ -131,13 +123,6 @@ export async function bootstrapOfflineSnapshot(
 
   const policy = await loadOfflinePolicy(ctx, db);
   const mode = input.mode ?? "GATE";
-  const canteenLimitPolicy = {
-    ...policy,
-    maxOfflineSpendPerStudentPerDay: canteenLimitCents(policy.maxOfflineSpendPerStudentPerDay, DEFAULT_MAX_OFFLINE_SPEND_PER_STUDENT_PER_DAY_UGX),
-    maxOfflineSpendPerTransaction: canteenLimitCents(policy.maxOfflineSpendPerTransaction, DEFAULT_MAX_OFFLINE_SPEND_PER_TRANSACTION_UGX),
-    maxOfflineSpendPerDeviceSession: canteenLimitCents(policy.maxOfflineSpendPerDeviceSession, DEFAULT_MAX_OFFLINE_SPEND_PER_DEVICE_SESSION_UGX),
-  };
-  const outputPolicy = mode === "CANTEEN" ? canteenLimitPolicy : policy;
   const modules = input.modules ?? ["gate", "attendance", "canteen"];
   requireBootstrapPermission(ctx, mode, modules);
   const snapshotId = randomUUID();
@@ -239,7 +224,7 @@ export async function bootstrapOfflineSnapshot(
     balanceCents: w.balanceCents,
     cachedBalanceCents: w.balanceCents,
     rfidStatus: w.status,
-    dailyOfflineLimitCents: outputPolicy.maxOfflineSpendPerStudentPerDay,
+    dailyOfflineLimitCents: policy.maxOfflineSpendPerStudentPerDay,
     alreadySyncedSpendTodayCents: 0,
     snapshotId,
     frozenReason: w.frozenReason,
@@ -291,9 +276,9 @@ export async function bootstrapOfflineSnapshot(
       canteenOfflineEnabled: policy.canteenOfflineEnabled,
       gateSnapshotValidHours: policy.gateSnapshotValidHours,
       canteenSnapshotValidHours: policy.canteenSnapshotValidHours,
-      maxOfflineSpendPerStudentPerDay: outputPolicy.maxOfflineSpendPerStudentPerDay,
-      maxOfflineSpendPerTransaction: outputPolicy.maxOfflineSpendPerTransaction,
-      maxOfflineSpendPerDeviceSession: outputPolicy.maxOfflineSpendPerDeviceSession,
+      maxOfflineSpendPerStudentPerDay: policy.maxOfflineSpendPerStudentPerDay,
+      maxOfflineSpendPerTransaction: policy.maxOfflineSpendPerTransaction,
+      maxOfflineSpendPerDeviceSession: policy.maxOfflineSpendPerDeviceSession,
       unknownCardOfflinePolicy: policy.unknownCardOfflinePolicy,
       frozenCardOfflinePolicy: policy.frozenCardOfflinePolicy,
       deactivatedCardOfflinePolicy: policy.deactivatedCardOfflinePolicy,

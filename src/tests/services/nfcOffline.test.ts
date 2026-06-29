@@ -162,8 +162,8 @@ describe("bootstrapOfflineSnapshot", () => {
     expect(snap.wallets[0]).toMatchObject({
       pinHash: "pbkdf2$100000$salt$hash",
     });
-    expect(snap.wallets[0]?.dailyOfflineLimitCents).toBe(300000);
-    expect(snap.settings.maxOfflineSpendPerTransaction).toBe(300000);
+    expect(snap.wallets[0]?.dailyOfflineLimitCents).toBe(3000);
+    expect(snap.settings.maxOfflineSpendPerTransaction).toBe(3000);
   });
 
   it("allows GATE_SECURITY to bootstrap a gate-only snapshot", async () => {

@@ -235,12 +235,16 @@ export async function getAvailableOfflineBalance(
   },
 ): Promise<{ availableCents: number; studentSpentCents: number; deviceSpentCents: number }> {
   const usage = await getOfflineSpendUsage(schoolId, deviceId, studentId, dateKey);
+  const maxOfflineSpendPerStudentPerDayCents = limits.maxOfflineSpendPerStudentPerDay * 100;
+  const maxOfflineSpendPerTransactionCents = limits.maxOfflineSpendPerTransaction * 100;
+  const maxOfflineSpendPerDeviceSessionCents = limits.maxOfflineSpendPerDeviceSession * 100;
   const availableCents = Math.max(
     0,
     Math.min(
       snapshotBalance - usage.studentSpentCents,
-      limits.maxOfflineSpendPerStudentPerDay - usage.studentSpentCents,
-      limits.maxOfflineSpendPerDeviceSession - usage.deviceSpentCents,
+      maxOfflineSpendPerStudentPerDayCents - usage.studentSpentCents,
+      maxOfflineSpendPerTransactionCents,
+      maxOfflineSpendPerDeviceSessionCents - usage.deviceSpentCents,
     ),
   );
   return { availableCents, ...usage };

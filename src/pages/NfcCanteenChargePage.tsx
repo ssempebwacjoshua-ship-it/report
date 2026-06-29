@@ -22,6 +22,10 @@ function money(cents: number) {
   return `UGX ${Math.round(cents / 100).toLocaleString()}`;
 }
 
+function ugx(amount: number) {
+  return `UGX ${Math.round(amount).toLocaleString()}`;
+}
+
 function chargeBlockedMessage(reason?: string) {
   switch (reason) {
     case "insufficient balance": return "Insufficient wallet balance";
@@ -133,8 +137,8 @@ export function NfcCanteenChargePage() {
       const meta = await getSnapshotMeta({ schoolId: user.schoolId, deviceId, mode: "CANTEEN" });
       const limits = meta?.settings;
       if (!limits) throw new Error("Local Canteen Register is not loaded.");
-      if (amountCents > limits.maxOfflineSpendPerTransaction) {
-        throw new Error(`This transaction exceeds the offline per-transaction limit (${money(limits.maxOfflineSpendPerTransaction)}).`);
+      if (amountUgx > limits.maxOfflineSpendPerTransaction) {
+        throw new Error(`This transaction exceeds the offline per-transaction limit (${ugx(limits.maxOfflineSpendPerTransaction)}).`);
       }
 
       const { availableCents, studentSpentCents, deviceSpentCents } = await getAvailableOfflineBalance(
