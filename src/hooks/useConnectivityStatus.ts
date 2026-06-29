@@ -140,6 +140,10 @@ export function useConnectivityStatus(schoolId?: string, deviceId?: string, requ
     await refreshPendingCount();
   }, [schoolId, requiredModule, updateState, refreshPendingCount, runSync]);
 
+  const handleOnline = useCallback(() => {
+    void runSync();
+  }, [runSync]);
+
   useEffect(() => {
     let timer: ReturnType<typeof setInterval>;
     async function init() {
@@ -147,8 +151,12 @@ export function useConnectivityStatus(schoolId?: string, deviceId?: string, requ
       timer = setInterval(() => { void heartbeat(); }, HEARTBEAT_INTERVAL_MS);
     }
     void init();
-    return () => clearInterval(timer);
-  }, [heartbeat]);
+    window.addEventListener("online", handleOnline);
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener("online", handleOnline);
+    };
+  }, [heartbeat, handleOnline]);
 
   return {
     state,
