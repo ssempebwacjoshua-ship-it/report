@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { WifiOffRegular } from "@fluentui/react-icons";
 import { NfcScanPanel } from "../components/nfc/NfcScanPanel";
@@ -8,7 +8,7 @@ import { useNfcOfflineSnapshotRefresh } from "../hooks/useNfcOfflineSnapshotRefr
 import { useAuth } from "../contexts/AuthContext";
 import { chargeNfcCanteen, resolveWalletStudent } from "../client/studentCredentialsClient";
 import { resolveOfflineNfcScan } from "../offline/offlineResolver";
-import { queueCanteenCharge, getSnapshotMeta, getAvailableOfflineBalance } from "../offline/offlineStore";
+import { queueCanteenCharge, getSnapshotMeta, getAvailableOfflineBalance, getCanteenQueueStatus, retryFailedCanteenSales, type CanteenQueueStatus } from "../offline/offlineStore";
 import { getCanteenRegisterStatus } from "../offline/offlineStatus";
 import { hashNfcLookupValue } from "../offline/offlineHash";
 import { assertLocalPinFormat, verifyLocalWalletPin } from "../offline/offlinePin";
@@ -104,6 +104,9 @@ export function NfcCanteenChargePage() {
   const [pin, setPin] = useState("");
   const [chargeLoading, setChargeLoading] = useState(false);
   const [chargeError, setChargeError] = useState("");
+  const [queueStatus, setQueueStatus] = useState<CanteenQueueStatus | null>(null);
+  const [retryMessage, setRetryMessage] = useState("");
+  const [retrying, setRetrying] = useState(false);
   const [result, setResult] = useState<NfcCanteenChargeResult | null>(null);
   const [offlineResult, setOfflineResult] = useState<{ ok: boolean; reason?: string; balanceCents?: number } | null>(null);
 
@@ -111,6 +114,42 @@ export function NfcCanteenChargePage() {
   amountRef.current = amount;
   const descRef = useRef(description);
   descRef.current = description;
+
+  async function refreshCanteenQueueStatus() {
+    if (!user?.schoolId) return;
+    setQueueStatus(await getCanteenQueueStatus(user.schoolId));
+  }
+
+  useEffect(() => {
+    void refreshCanteenQueueStatus();
+  }, [user?.schoolId, pendingCount, snapshotRefresh.refreshError]);
+
+  async function handleRetrySync() {
+    if (!user?.schoolId) return;
+    setRetrying(true);
+    setRetryMessage("");
+    try {
+      const before = await getCanteenQueueStatus(user.schoolId);
+      const retryable = before.pending + before.failed;
+      setQueueStatus(before);
+      setRetryMessage(`Retrying ${retryable} failed/pending sales...`);
+      await retryFailedCanteenSales(user.schoolId);
+      await triggerSync();
+      const after = await getCanteenQueueStatus(user.schoolId);
+      setQueueStatus(after);
+      if (after.failed > 0 || after.conflict > 0) {
+        setRetryMessage(after.lastError ? `Still needs attention: ${after.lastError}` : "Some canteen sales still need retry or reconciliation.");
+      } else if (after.pending > 0 || after.syncing > 0) {
+        setRetryMessage(`Sync still in progress: ${after.pending + after.syncing} sales remaining.`);
+      } else {
+        setRetryMessage("Canteen sales synced. Register update can continue.");
+      }
+    } catch (error) {
+      setRetryMessage(error instanceof Error ? error.message : "Retry sync failed.");
+    } finally {
+      setRetrying(false);
+    }
+  }
 
   const handleScan = async ({ tokenOrUid, idempotencyKey, deviceId: scanDeviceId }: ScanResult) => {
     const amountUgx = Number(amountRef.current);
@@ -229,6 +268,7 @@ export function NfcCanteenChargePage() {
             chargedAt,
           },
         });
+        await refreshCanteenQueueStatus();
         setOfflineResult({ ok: true, balanceCents: offlinePending.availableBalanceCents - amountCents });
         setPhase("done");
         setAmount("");
@@ -317,10 +357,21 @@ export function NfcCanteenChargePage() {
       {snapshotRefresh.validity?.valid && snapshotRefresh.refreshError && (
         <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
           <p className="font-bold">Local Canteen Register is available. Update recommended when online.</p>
-          <p className="mt-1">{snapshotRefresh.refreshError}</p>
+          <p className="mt-1">
+            Local selling can continue. Register update waits until queued canteen sales are synced or reviewed.
+          </p>
+          {queueStatus && (
+            <div className="mt-2 grid gap-1 rounded-lg border border-amber-200 bg-white/70 p-2">
+              <p>Pending sales: <span className="font-bold">{queueStatus.pending}</span></p>
+              <p>Failed sales: <span className="font-bold">{queueStatus.failed}</span></p>
+              <p>Conflict sales: <span className="font-bold">{queueStatus.conflict}</span></p>
+              {queueStatus.lastError ? <p>Last sync error: <span className="font-bold">{queueStatus.lastError}</span></p> : null}
+            </div>
+          )}
+          {retryMessage ? <p className="mt-2 font-bold">{retryMessage}</p> : null}
           <div className="mt-2 flex flex-wrap gap-2">
-            <button type="button" className="rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-bold text-white" onClick={() => void triggerSync()}>
-              Retry Sync
+            <button type="button" className="rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-bold text-white disabled:opacity-60" disabled={retrying} onClick={() => void handleRetrySync()}>
+              {retrying ? "Retrying..." : "Retry Sync"}
             </button>
             <Link to="/nfc/canteen/reconciliation" className="rounded-lg border border-amber-300 bg-white px-3 py-1.5 text-xs font-bold text-amber-800">
               Open Reconciliation

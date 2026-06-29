@@ -3,7 +3,10 @@ import { Link } from "react-router-dom";
 import { approveNfcCanteenReconciliation, closeNfcCanteenReconciliation, fetchNfcCanteenReconciliation, rejectNfcCanteenReconciliation } from "../client/studentCredentialsClient";
 import { fetchStaffUsers, type StaffUser } from "../client/staffUsersClient";
 import { useAuth } from "../contexts/AuthContext";
+import { getCanteenQueueStatus, markLocalCanteenSaleReviewed, retryFailedCanteenSales, voidLocalCanteenSale, type CanteenQueueStatus } from "../offline/offlineStore";
+import { useConnectivityStatus } from "../hooks/useConnectivityStatus";
 import { hasPermission } from "../shared/permissions";
+import type { OfflineQueuedEvent } from "../offline/offlineTypes";
 import type { NfcCanteenReconciliationResponse } from "../shared/types/studentCredentials";
 
 const inputClass = "premium-control h-11 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm text-slate-900 outline-none focus:border-blue-400 focus:bg-white";
@@ -52,8 +55,17 @@ function makeDefaultDate() {
   return new Date().toISOString().slice(0, 10);
 }
 
+function getDeviceId(): string {
+  const key = "schoolconnect_nfc_device_id";
+  let id = localStorage.getItem(key);
+  if (!id) { id = crypto.randomUUID(); localStorage.setItem(key, id); }
+  return id;
+}
+
 export function NfcCanteenReconciliationPage() {
   const { user } = useAuth();
+  const deviceId = useMemo(getDeviceId, []);
+  const { triggerSync } = useConnectivityStatus(user?.schoolId, deviceId, "canteen");
   const canSubmit = hasPermission(user?.role, "nfc.canteen.reconciliation.submit");
   const canApprove = user?.role === "ADMIN_OPERATOR";
   const [date, setDate] = useState(makeDefaultDate());
@@ -68,6 +80,9 @@ export function NfcCanteenReconciliationPage() {
   const [data, setData] = useState<NfcCanteenReconciliationResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [localQueue, setLocalQueue] = useState<CanteenQueueStatus | null>(null);
+  const [localQueueMessage, setLocalQueueMessage] = useState("");
+  const [localQueueBusy, setLocalQueueBusy] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [approving, setApproving] = useState(false);
   const [rejecting, setRejecting] = useState(false);
@@ -107,6 +122,11 @@ export function NfcCanteenReconciliationPage() {
     }
   }
 
+  async function loadLocalQueue() {
+    if (!user?.schoolId) return;
+    setLocalQueue(await getCanteenQueueStatus(user.schoolId));
+  }
+
   useEffect(() => {
     void loadStaff();
   }, [user?.role]);
@@ -114,6 +134,10 @@ export function NfcCanteenReconciliationPage() {
   useEffect(() => {
     void load();
   }, [date, cashierUserId, shiftName]);
+
+  useEffect(() => {
+    void loadLocalQueue();
+  }, [user?.schoolId]);
 
   const varianceCents = useMemo(() => {
     const declaredCash = Math.round(Number(declaredCashUgx || 0) * 100);
@@ -181,7 +205,42 @@ export function NfcCanteenReconciliationPage() {
     }
   }
 
+  async function handleRetryLocalFailed() {
+    if (!user?.schoolId) return;
+    setLocalQueueBusy(true);
+    setLocalQueueMessage("");
+    try {
+      const before = await getCanteenQueueStatus(user.schoolId);
+      await retryFailedCanteenSales(user.schoolId);
+      await triggerSync();
+      const after = await getCanteenQueueStatus(user.schoolId);
+      setLocalQueue(after);
+      setLocalQueueMessage(after.failed || after.conflict
+        ? `Retry complete, but ${after.failed} failed and ${after.conflict} conflict sales still need review.`
+        : `Retry complete. ${before.failed + before.pending} local sales were processed or queued.`);
+    } catch (caught) {
+      setLocalQueueMessage(caught instanceof Error ? caught.message : "Retry failed.");
+    } finally {
+      setLocalQueueBusy(false);
+    }
+  }
+
+  async function handleMarkReviewed(item: OfflineQueuedEvent) {
+    if (!canApprove) return;
+    if (!window.confirm("Mark this local canteen sale as reviewed and keep its local record? It will no longer block register updates.")) return;
+    await markLocalCanteenSaleReviewed(item.localId);
+    await loadLocalQueue();
+  }
+
+  async function handleVoidLocal(item: OfflineQueuedEvent) {
+    if (!canApprove) return;
+    if (!window.confirm("Void this unsynced local canteen sale on this device? Use this only for test/stale rows that should never sync.")) return;
+    await voidLocalCanteenSale(item.localId);
+    await loadLocalQueue();
+  }
+
   const summary = data?.summary;
+  const attentionItems = localQueue?.items.filter((item) => item.syncStatus === "FAILED" || item.syncStatus === "CONFLICT") ?? [];
 
   return (
     <main className="grid gap-5">
@@ -239,6 +298,55 @@ export function NfcCanteenReconciliationPage() {
 
       {staffError ? <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-700">{staffError}</div> : null}
       {error ? <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div> : null}
+      {localQueue && (localQueue.failed > 0 || localQueue.conflict > 0 || localQueue.pending > 0) ? (
+        <section className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="font-black">Local canteen sales on this device</p>
+              <p className="mt-1 text-xs">
+                Pending: <span className="font-bold">{localQueue.pending}</span>
+                {" "}Failed: <span className="font-bold">{localQueue.failed}</span>
+                {" "}Conflict/review: <span className="font-bold">{localQueue.conflict}</span>
+              </p>
+              {localQueue.lastError ? <p className="mt-1 text-xs">Last sync error: <span className="font-bold">{localQueue.lastError}</span></p> : null}
+              {localQueueMessage ? <p className="mt-2 font-bold">{localQueueMessage}</p> : null}
+            </div>
+            <button
+              type="button"
+              className="rounded-xl bg-amber-600 px-4 py-2 text-xs font-bold text-white disabled:opacity-60"
+              disabled={localQueueBusy || (localQueue.pending + localQueue.failed) === 0}
+              onClick={() => void handleRetryLocalFailed()}
+            >
+              {localQueueBusy ? "Retrying..." : `Retry failed sale${localQueue.failed + localQueue.pending === 1 ? "" : "s"}`}
+            </button>
+          </div>
+          {attentionItems.length ? (
+            <div className="mt-3 grid gap-2">
+              {attentionItems.map((item) => (
+                <div key={item.localId} className="rounded-xl border border-amber-200 bg-white p-3">
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div>
+                      <p className="font-bold">{item.syncStatus} - {item.idempotencyKey}</p>
+                      <p className="mt-1 text-xs text-amber-800">{item.errorMessage ?? "No server error message recorded."}</p>
+                      <p className="mt-1 text-[11px] text-slate-500">{new Date(item.createdAt).toLocaleString()}</p>
+                    </div>
+                    {canApprove ? (
+                      <div className="flex flex-wrap gap-2">
+                        <button type="button" className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-700" onClick={() => void handleMarkReviewed(item)}>
+                          Mark reviewed
+                        </button>
+                        <button type="button" className="rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-bold text-red-700" onClick={() => void handleVoidLocal(item)}>
+                          Void local test sale
+                        </button>
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : null}
+        </section>
+      ) : null}
 
       {loading ? (
         <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-500 shadow-sm">Loading reconciliation...</div>
