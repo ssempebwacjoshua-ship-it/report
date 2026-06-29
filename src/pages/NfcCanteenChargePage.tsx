@@ -157,12 +157,12 @@ export function NfcCanteenChargePage() {
     const amountCents = Math.round(amountUgx * 100);
 
     const browserOffline = typeof navigator !== "undefined" && !navigator.onLine;
+    const registerStatus = user?.schoolId
+      ? await getCanteenRegisterStatus({ schoolId: user.schoolId, deviceId })
+      : null;
 
-    if (isOfflineReady || browserOffline) {
+    if (registerStatus?.canSellOffline) {
       if (!user?.schoolId) return;
-
-      const registerStatus = await getCanteenRegisterStatus({ schoolId: user.schoolId, deviceId });
-      if (!registerStatus.canSellOffline) throw new Error(registerStatus.message);
 
       const resolve = await resolveOfflineNfcScan(user.schoolId, tokenOrUid);
       if (!resolve.found) throw new Error("Tag not recognised in Local Canteen Register.");
@@ -212,6 +212,9 @@ export function NfcCanteenChargePage() {
       setUsingLocalRegister(true);
       setPhase("pin");
     } else {
+      if (browserOffline) {
+        throw new Error(registerStatus?.message ?? "Local Canteen Register is not ready on this device. Go online once to update the Canteen Register.");
+      }
       const studentData = await resolveWalletStudent({ tokenOrUid });
       setPending({ tokenOrUid, idempotencyKey, deviceId: scanDeviceId, student: studentData });
       setPin("");
@@ -273,6 +276,11 @@ export function NfcCanteenChargePage() {
         setPhase("done");
         setAmount("");
         setDescription("");
+        if (typeof navigator !== "undefined" && navigator.onLine) {
+          void triggerSync()
+            .then(() => refreshCanteenQueueStatus())
+            .catch(() => refreshCanteenQueueStatus());
+        }
       } catch (e) {
         setChargeError(e instanceof Error ? e.message : "Charge failed.");
       } finally {
@@ -560,7 +568,9 @@ export function NfcCanteenChargePage() {
                 <>
                   <p className="font-bold text-slate-950">{offlinePending.studentName} · {offlinePending.admissionNumber}</p>
                   <p className="text-slate-700">Local remaining balance: {money(offlineResult.balanceCents ?? 0)}</p>
-                  <p className="text-xs text-slate-500">Pending canteen sales sync when connection returns.</p>
+                  <p className="text-xs text-slate-500">
+                    {typeof navigator !== "undefined" && navigator.onLine ? "Syncing in background." : "Pending sync."}
+                  </p>
                 </>
               )}
             </div>
