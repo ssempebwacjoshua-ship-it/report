@@ -51,6 +51,29 @@ function QueueStatusBadge({ status }: { status: string }) {
   );
 }
 
+function money(cents: number) {
+  return `UGX ${Math.round(cents / 100).toLocaleString()}`;
+}
+
+function describeQueueItem(item: OfflineQueuedEvent) {
+  if (item.actionType !== "CANTEEN_CHARGE") {
+    return item.idempotencyKey;
+  }
+
+  const payload = item.payload as {
+    amountCents?: number;
+    description?: string | null;
+    studentId?: string | null;
+  } | null;
+  const parts = [
+    payload?.amountCents != null ? money(payload.amountCents) : null,
+    payload?.description?.trim() || null,
+    payload?.studentId ? `student ${payload.studentId}` : null,
+  ].filter(Boolean);
+
+  return parts.length > 0 ? parts.join(" · ") : item.idempotencyKey;
+}
+
 export function NfcOfflinePage() {
   const { user } = useAuth();
   const deviceId = useRef(getDeviceId()).current;
@@ -92,6 +115,10 @@ export function NfcOfflinePage() {
     void loadLocal();
     void loadRemoteStatus();
   }, [user?.schoolId]);
+
+  useEffect(() => {
+    void loadLocal();
+  }, [pendingCount]);
 
   async function handleRefreshSnapshot() {
     setRefreshing(true);
@@ -155,6 +182,7 @@ export function NfcOfflinePage() {
   const pendingItems = queueItems.filter((i) => i.syncStatus === "PENDING");
   const failedItems = queueItems.filter((i) => i.syncStatus === "FAILED" || i.syncStatus === "CONFLICT");
   const syncedItems = queueItems.filter((i) => i.syncStatus === "SYNCED");
+  const visibleItems = [...pendingItems, ...failedItems, ...syncedItems];
 
   return (
     <main className="grid gap-6">
@@ -275,7 +303,7 @@ export function NfcOfflinePage() {
           <h2 className="text-base font-bold text-slate-950">Pending Sync Queue</h2>
           <p className="text-sm text-slate-500 mt-0.5">Actions recorded while offline, waiting to sync to the server.</p>
         </div>
-        {pendingItems.length === 0 && failedItems.length === 0 ? (
+        {visibleItems.length === 0 ? (
           <div className="p-6 text-center">
             <CheckmarkCircleRegular className="h-8 w-8 text-emerald-400 mx-auto mb-2" />
             <p className="text-sm text-slate-500">No pending offline actions</p>
@@ -286,15 +314,17 @@ export function NfcOfflinePage() {
               <thead>
                 <tr className="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
                   <th className="px-4 py-3">Action</th>
+                  <th className="px-4 py-3">Details</th>
                   <th className="px-4 py-3">Created</th>
                   <th className="px-4 py-3">Status</th>
                   <th className="px-4 py-3">Notes</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {[...pendingItems, ...failedItems].map((item) => (
+                {visibleItems.map((item) => (
                   <tr key={item.localId} className="hover:bg-slate-50">
                     <td className="px-4 py-3 font-medium text-slate-900">{item.actionType.replace(/_/g, " ")}</td>
+                    <td className="px-4 py-3 text-slate-500">{describeQueueItem(item)}</td>
                     <td className="px-4 py-3 text-slate-500">{new Date(item.createdAt).toLocaleString()}</td>
                     <td className="px-4 py-3"><QueueStatusBadge status={item.syncStatus} /></td>
                     <td className="px-4 py-3 text-slate-500 text-xs">{item.errorMessage ?? "—"}</td>
