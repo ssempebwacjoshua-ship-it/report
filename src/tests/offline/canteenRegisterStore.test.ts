@@ -155,6 +155,46 @@ function makeCanteenRegister(): OfflineBootstrapSnapshot {
   };
 }
 
+function makeGateRegister(): OfflineBootstrapSnapshot {
+  return {
+    ...makeCanteenRegister(),
+    snapshotId: "gate-register-1",
+    snapshotVersion: "gate-register-1",
+    deviceId: "gate-device-a",
+    mode: "GATE",
+    modules: ["gate"],
+    students: [{
+      id: "gate-student-new",
+      schoolId: "school-a",
+      admissionNumber: "G002",
+      firstName: "Grace",
+      lastName: "Hopper",
+      isActive: true,
+      classId: null,
+      className: "S2",
+      streamId: null,
+      streamName: null,
+    }],
+    tags: [{
+      id: "gate-tag-new",
+      schoolId: "school-a",
+      publicCode: "GATE002",
+      physicalUid: "GATEUID002",
+      studentId: "gate-student-new",
+      status: "ASSIGNED",
+      tagMode: "WRISTBAND",
+      purpose: "STUDENT",
+      writtenPayload: null,
+    }],
+    wallets: [],
+    settings: {
+      ...makeCanteenRegister().settings,
+      gateOfflineEnabled: true,
+      canteenOfflineEnabled: true,
+    },
+  };
+}
+
 describe("Local Canteen Register storage", () => {
   beforeEach(() => {
     dbState.meta.clear();
@@ -198,6 +238,28 @@ describe("Local Canteen Register storage", () => {
     expect(dbState.students.some((row) => (row as { id?: string }).id === "gate-student")).toBe(true);
     expect(dbState.tags.some((row) => row.id === "gate-tag")).toBe(true);
     expect(dbState.wallets.some((row) => row.id === "gate-wallet")).toBe(true);
+  });
+
+  it("does not wipe canteen or attendance local data when saving a gate register", async () => {
+    dbState.students.push({ id: "canteen-student", schoolId: "school-a", admissionNumber: "C001" });
+    dbState.tags.push({ id: "canteen-tag", schoolId: "school-a", publicCode: "CANTEEN001", physicalUid: "CANTEENUID" });
+    dbState.wallets.push({
+      id: "canteen-wallet",
+      studentId: "canteen-student",
+      schoolId: "school-a",
+      status: "ACTIVE",
+      balanceCents: 1000,
+      snapshotId: "canteen-register",
+      frozenReason: null,
+    });
+    const { saveBootstrapSnapshot } = await import("../../offline/offlineStore");
+
+    await saveBootstrapSnapshot(makeGateRegister());
+
+    expect(dbState.students.some((row) => (row as { id?: string }).id === "canteen-student")).toBe(true);
+    expect(dbState.tags.some((row) => row.id === "canteen-tag")).toBe(true);
+    expect(dbState.wallets.some((row) => row.id === "canteen-wallet")).toBe(true);
+    expect(dbState.meta.has("snapshot:school-a:gate-device-a:GATE")).toBe(true);
   });
 
   it("does not overwrite the register while canteen sales are pending", async () => {

@@ -24,6 +24,16 @@ const mockFetchAttendanceScan = vi.hoisted(() => vi.fn());
 const mockResolveOfflineNfcScan = vi.hoisted(() => vi.fn());
 const mockQueueGateScan = vi.hoisted(() => vi.fn(async () => undefined));
 const mockGetSnapshotMeta = vi.hoisted(() => vi.fn(async () => ({ snapshotId: "snapshot-1" })));
+const mockGetGateQueueStatus = vi.hoisted(() => vi.fn(async () => ({
+  pending: 0,
+  syncing: 0,
+  failed: 0,
+  conflict: 0,
+  lastError: null,
+  items: [],
+})));
+const mockGetSnapshotValidity = vi.hoisted(() => vi.fn(async () => ({ valid: false, reason: "no_snapshot" })));
+const mockTriggerSync = vi.hoisted(() => vi.fn(async () => undefined));
 
 function setNavigatorOnline(value: boolean) {
   Object.defineProperty(navigator, "onLine", {
@@ -42,6 +52,7 @@ vi.mock("../../hooks/useConnectivityStatus", () => ({
     state: state.connectivityState,
     isOfflineReady: state.isOfflineReady,
     pendingCount: state.pendingCount,
+    triggerSync: mockTriggerSync,
   }),
 }));
 
@@ -67,6 +78,15 @@ vi.mock("../../offline/offlineResolver", () => ({
 vi.mock("../../offline/offlineStore", () => ({
   queueGateScan: mockQueueGateScan,
   getSnapshotMeta: mockGetSnapshotMeta,
+  getGateQueueStatus: mockGetGateQueueStatus,
+}));
+
+vi.mock("../../offline/offlineStatus", () => ({
+  getSnapshotValidity: mockGetSnapshotValidity,
+}));
+
+vi.mock("../../offline/offlineHash", () => ({
+  hashNfcLookupValue: vi.fn(async (value: string) => `hash:${value}`),
 }));
 
 describe("NfcGateSecurityPage", () => {
@@ -77,6 +97,18 @@ describe("NfcGateSecurityPage", () => {
     mockResolveOfflineNfcScan.mockReset();
     mockQueueGateScan.mockClear();
     mockGetSnapshotMeta.mockClear();
+    mockGetGateQueueStatus.mockReset();
+    mockGetGateQueueStatus.mockResolvedValue({
+      pending: 0,
+      syncing: 0,
+      failed: 0,
+      conflict: 0,
+      lastError: null,
+      items: [],
+    });
+    mockGetSnapshotValidity.mockReset();
+    mockGetSnapshotValidity.mockResolvedValue({ valid: false, reason: "no_snapshot" });
+    mockTriggerSync.mockClear();
     state.isOfflineReady = false;
     state.connectivityState = "ONLINE";
     state.dashboard = { recentScans: [] };
@@ -95,6 +127,57 @@ describe("NfcGateSecurityPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "Go" }));
 
     await waitFor(() => expect(mockScanGate).toHaveBeenCalledWith(expect.objectContaining({ tokenOrUid: "token-a" })));
+    expect(mockFetchAttendanceScan).not.toHaveBeenCalled();
+  });
+
+  it("uses the Local Gate Register first even when the phone is online", async () => {
+    setNavigatorOnline(true);
+    mockGetSnapshotValidity.mockResolvedValue({ valid: true, meta: { snapshotId: "snapshot-1" } });
+    mockResolveOfflineNfcScan.mockResolvedValueOnce({
+      found: true,
+      blocked: false,
+      reason: null,
+      student: {
+        id: "student-1",
+        firstName: "Ada",
+        lastName: "Lovelace",
+        admissionNumber: "A-001",
+        className: "S1",
+        streamName: "A",
+      },
+      tag: { id: "tag-1", publicCode: "tag-1", physicalUid: "uid-1" },
+    });
+
+    render(<NfcGateSecurityPage />);
+
+    fireEvent.change(screen.getByPlaceholderText(/scan token or uid/i), { target: { value: "token-a" } });
+    fireEvent.click(screen.getByRole("button", { name: "Go" }));
+
+    await waitFor(() => expect(mockResolveOfflineNfcScan).toHaveBeenCalledWith("school-a", "token-a"));
+    await waitFor(() => expect(mockQueueGateScan).toHaveBeenCalledWith(expect.objectContaining({
+      schoolId: "school-a",
+      payload: expect.objectContaining({
+        actionType: "GATE_SCAN",
+        tokenOrUidHash: "hash:token-a",
+        result: "ALLOWED",
+      }),
+    })));
+    expect(mockQueueGateScan.mock.calls[0]?.[0].payload.tokenOrUid).toBeUndefined();
+    expect(mockScanGate).not.toHaveBeenCalled();
+    expect(await screen.findByText(/syncing in background/i)).toBeInTheDocument();
+    await waitFor(() => expect(mockTriggerSync).toHaveBeenCalled());
+  });
+
+  it("keeps server-backed gate scan as online fallback when no Local Gate Register exists", async () => {
+    mockGetSnapshotValidity.mockResolvedValue({ valid: false, reason: "no_snapshot" });
+
+    render(<NfcGateSecurityPage />);
+
+    fireEvent.change(screen.getByPlaceholderText(/scan token or uid/i), { target: { value: "token-a" } });
+    fireEvent.click(screen.getByRole("button", { name: "Go" }));
+
+    await waitFor(() => expect(mockScanGate).toHaveBeenCalledWith(expect.objectContaining({ tokenOrUid: "token-a" })));
+    expect(mockResolveOfflineNfcScan).not.toHaveBeenCalled();
     expect(mockFetchAttendanceScan).not.toHaveBeenCalled();
   });
 
@@ -131,6 +214,7 @@ describe("NfcGateSecurityPage", () => {
     state.isOfflineReady = true;
     state.connectivityState = "OFFLINE_READY";
     setNavigatorOnline(false);
+    mockGetSnapshotValidity.mockResolvedValue({ valid: true, meta: { snapshotId: "snapshot-1" } });
     mockResolveOfflineNfcScan.mockResolvedValueOnce({
       found: true,
       blocked: false,
@@ -153,11 +237,51 @@ describe("NfcGateSecurityPage", () => {
 
     await waitFor(() => expect(mockQueueGateScan).toHaveBeenCalledWith(expect.objectContaining({
       schoolId: "school-a",
-      payload: expect.objectContaining({ tokenOrUid: "offline-token", result: "ALLOWED" }),
+      payload: expect.objectContaining({ tokenOrUidHash: "hash:offline-token", result: "ALLOWED" }),
     })));
+    expect(mockQueueGateScan.mock.calls[0]?.[0].payload.tokenOrUid).toBeUndefined();
     expect(mockScanGate).not.toHaveBeenCalled();
     await waitFor(() => expect(screen.getAllByText("ALLOWED").length).toBeGreaterThan(0));
-    expect(screen.getAllByText(/offline/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/pending/i).length).toBeGreaterThan(0);
+  });
+
+  it("shows gate queue status and retries failed gate sync without blocking scanning", async () => {
+    mockGetSnapshotValidity.mockResolvedValue({ valid: true, meta: { snapshotId: "snapshot-1" } });
+    mockGetGateQueueStatus.mockResolvedValue({
+      pending: 1,
+      syncing: 0,
+      failed: 1,
+      conflict: 0,
+      lastError: "Network timeout",
+      items: [],
+    });
+    mockResolveOfflineNfcScan.mockResolvedValueOnce({
+      found: true,
+      blocked: true,
+      reason: "inactive student",
+      student: {
+        id: "student-1",
+        firstName: "Ada",
+        lastName: "Lovelace",
+        admissionNumber: "A-001",
+        className: "S1",
+        streamName: "A",
+      },
+      tag: { id: "tag-1", publicCode: "tag-1", physicalUid: "uid-1" },
+    });
+
+    render(<NfcGateSecurityPage />);
+
+    expect(await screen.findByText(/network timeout/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /retry sync/i }));
+    await waitFor(() => expect(mockTriggerSync).toHaveBeenCalled());
+
+    fireEvent.change(screen.getByPlaceholderText(/scan token or uid/i), { target: { value: "token-a" } });
+    fireEvent.click(screen.getByRole("button", { name: "Go" }));
+
+    await waitFor(() => expect(mockQueueGateScan).toHaveBeenCalled());
+    expect(await screen.findByText("BLOCKED")).toBeInTheDocument();
+    expect(screen.getByText(/inactive student/i)).toBeInTheDocument();
   });
 
   it("shows offline setup guidance when offline without a ready snapshot", async () => {
@@ -169,7 +293,7 @@ describe("NfcGateSecurityPage", () => {
     fireEvent.change(screen.getByPlaceholderText(/scan token or uid/i), { target: { value: "offline-token" } });
     fireEvent.click(screen.getByRole("button", { name: "Go" }));
 
-    await waitFor(() => expect(screen.getByText(/offline mode is not configured for this device/i)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText(/local gate register is not downloaded yet/i)).toBeInTheDocument());
     expect(mockScanGate).not.toHaveBeenCalled();
     expect(mockResolveOfflineNfcScan).not.toHaveBeenCalled();
   });

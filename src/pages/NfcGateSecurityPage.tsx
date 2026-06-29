@@ -7,21 +7,24 @@ import { useNfcOfflineSnapshotRefresh } from "../hooks/useNfcOfflineSnapshotRefr
 import { useAuth } from "../contexts/AuthContext";
 import { fetchNfcGateDashboard, scanNfcGate } from "../client/studentCredentialsClient";
 import { resolveOfflineNfcScan } from "../offline/offlineResolver";
-import { queueGateScan, getSnapshotMeta } from "../offline/offlineStore";
+import { queueGateScan, getSnapshotMeta, getGateQueueStatus, type GateQueueStatus } from "../offline/offlineStore";
+import { getSnapshotValidity } from "../offline/offlineStatus";
+import { hashNfcLookupValue } from "../offline/offlineHash";
+import { normalizeNfcScanValue } from "../shared/utils/nfcPayload";
 import type { NfcGateDashboard, NfcGateScanResponse } from "../shared/types/studentCredentials";
 import type { OfflineResolveResult } from "../offline/offlineTypes";
 
 function offlineReasonMessage(reason?: string) {
   switch (reason) {
-    case "no_snapshot": return "Offline snapshot is not downloaded yet.";
-    case "expired": return "Offline snapshot has expired.";
-    case "wrong_school": return "Offline snapshot belongs to another school.";
-    case "wrong_device": return "Offline snapshot belongs to another device.";
-    case "missing_module": return "Offline snapshot is missing the gate module.";
-    case "empty_students": return "Snapshot downloaded but contains no students.";
-    case "empty_tags": return "Snapshot downloaded but contains no NFC tags.";
-    case "offline_disabled_by_policy": return "Offline gate scanning is disabled by school policy.";
-    default: return "Offline mode is not configured for this device.";
+    case "no_snapshot": return "Local Gate Register is not downloaded yet.";
+    case "expired": return "Local Gate Register has expired.";
+    case "wrong_school": return "Local Gate Register belongs to another school.";
+    case "wrong_device": return "Local Gate Register belongs to another device.";
+    case "missing_module": return "Local Gate Register is missing gate data.";
+    case "empty_students": return "Local Gate Register downloaded but contains no students.";
+    case "empty_tags": return "Local Gate Register downloaded but contains no NFC tags.";
+    case "offline_disabled_by_policy": return "Local Gate Register scanning is disabled by school policy.";
+    default: return "Local Gate Register is not configured for this device.";
   }
 }
 
@@ -32,13 +35,13 @@ function getDeviceId(): string {
   return id;
 }
 
-type LocalScanResult = NfcGateScanResponse | { result: "ALLOWED" | "BLOCKED"; reason?: string; student?: { name: string; admissionNumber: string; className?: string | null; streamName?: string | null }; scannedAt: string; offline?: true; queued?: boolean };
+type LocalScanResult = NfcGateScanResponse | { result: "ALLOWED" | "BLOCKED"; reason?: string; student?: { name: string; admissionNumber: string; className?: string | null; streamName?: string | null }; scannedAt: string; offline?: true; queued?: boolean; syncStatus?: "Pending" | "Syncing in background" };
 
 export function NfcGateSecurityPage() {
   const { user, token, loading: authLoading } = useAuth();
   const deviceId = useRef(getDeviceId()).current;
 
-  const { state: connState, isOfflineReady, pendingCount } = useConnectivityStatus(user?.schoolId, deviceId, "gate");
+  const { state: connState, isOfflineReady, pendingCount, triggerSync } = useConnectivityStatus(user?.schoolId, deviceId, "gate");
   const snapshotRefresh = useNfcOfflineSnapshotRefresh({
     schoolId: user?.schoolId,
     deviceId,
@@ -51,6 +54,10 @@ export function NfcGateSecurityPage() {
   const [dashboard, setDashboard] = useState<NfcGateDashboard | null>(null);
   const [loadError, setLoadError] = useState("");
   const [offlineQueue, setOfflineQueue] = useState<Array<{ result: string; student?: string; scannedAt: string }>>([]);
+  const [queueStatus, setQueueStatus] = useState<GateQueueStatus | null>(null);
+  const [retryMessage, setRetryMessage] = useState("");
+  const [retrying, setRetrying] = useState(false);
+  const [lastSyncAttemptAt, setLastSyncAttemptAt] = useState<string | null>(null);
 
   async function load() {
     if (isOfflineReady) return;
@@ -80,8 +87,35 @@ export function NfcGateSecurityPage() {
     void load();
   }, [authLoading, isOfflineReady, token, user?.schoolId]);
 
+  async function refreshGateQueueStatus() {
+    if (!user?.schoolId) return;
+    setQueueStatus(await getGateQueueStatus(user.schoolId));
+  }
+
+  useEffect(() => {
+    void refreshGateQueueStatus();
+  }, [user?.schoolId, pendingCount, connState]);
+
+  async function retryGateSync() {
+    if (!user?.schoolId) return;
+    setRetrying(true);
+    setRetryMessage("Retrying pending gate sync...");
+    try {
+      await triggerSync();
+      setLastSyncAttemptAt(new Date().toISOString());
+      await refreshGateQueueStatus();
+      setRetryMessage("Gate sync retried. New scans can continue from the Local Gate Register.");
+    } catch (error) {
+      setRetryMessage(error instanceof Error ? error.message : "Gate sync retry failed.");
+    } finally {
+      setRetrying(false);
+    }
+  }
+
   const handleScan = async ({ tokenOrUid, idempotencyKey, deviceId: scanDeviceId }: ScanResult) => {
-    if (isOfflineReady) {
+    const validity = await getSnapshotValidity({ schoolId: user?.schoolId, deviceId, mode: "GATE", requiredModule: "gate" });
+
+    if (validity.valid) {
       // Offline path — resolve locally then queue
       if (!user?.schoolId) return;
       const resolve: OfflineResolveResult = await resolveOfflineNfcScan(user.schoolId, tokenOrUid);
@@ -89,6 +123,7 @@ export function NfcGateSecurityPage() {
       const scannedAt = new Date().toISOString();
 
       const localResult: "ALLOWED" | "BLOCKED" = resolve.blocked ? "BLOCKED" : "ALLOWED";
+      const tokenOrUidHash = await hashNfcLookupValue(normalizeNfcScanValue(tokenOrUid));
 
       await queueGateScan({
         schoolId: user.schoolId,
@@ -98,7 +133,7 @@ export function NfcGateSecurityPage() {
         tagId: resolve.tag?.id ?? null,
         payload: {
           actionType: "GATE_SCAN",
-          tokenOrUid,
+          tokenOrUidHash,
           publicCode: resolve.tag?.publicCode ?? null,
           physicalUid: resolve.tag?.physicalUid ?? null,
           studentId: resolve.student?.id ?? null,
@@ -123,6 +158,7 @@ export function NfcGateSecurityPage() {
         scannedAt,
         offline: true,
         queued: true,
+        syncStatus: typeof navigator !== "undefined" && navigator.onLine ? "Syncing in background" : "Pending",
       };
 
       setScanResult(offlineData);
@@ -130,8 +166,17 @@ export function NfcGateSecurityPage() {
         { result: localResult, student: resolve.student ? `${resolve.student.firstName} ${resolve.student.lastName}`.trim() : undefined, scannedAt },
         ...prev.slice(0, 19),
       ]);
+      await refreshGateQueueStatus();
+      if (typeof navigator !== "undefined" && navigator.onLine) {
+        void triggerSync()
+          .then(() => {
+            setLastSyncAttemptAt(new Date().toISOString());
+            return refreshGateQueueStatus();
+          })
+          .catch(() => refreshGateQueueStatus());
+      }
     } else if (typeof navigator !== "undefined" && !navigator.onLine) {
-      throw new Error(offlineReasonMessage(snapshotRefresh.validity?.reason));
+      throw new Error(offlineReasonMessage(validity.reason));
     } else {
       // Online path — send to server
       const result = await scanNfcGate({ tokenOrUid, idempotencyKey, deviceId: scanDeviceId });
@@ -179,13 +224,12 @@ export function NfcGateSecurityPage() {
         <h1 className="text-xl font-bold text-slate-950 sm:text-2xl">Gate Security</h1>
       </header>
 
-      {/* Offline mode banner */}
       {isOfflineReady && (
         <div className="flex items-center gap-3 rounded-xl border border-orange-200 bg-orange-50 p-3">
           <WifiOffRegular className="h-5 w-5 text-orange-600 shrink-0" />
           <div>
-            <p className="text-sm font-semibold text-orange-800">Offline Mode Active</p>
-            <p className="text-xs text-orange-600">Scans are being stored locally. {pendingCount > 0 ? `${pendingCount} pending sync.` : "Will sync when connection returns."}</p>
+            <p className="text-sm font-semibold text-orange-800">Local Gate Register Active</p>
+            <p className="text-xs text-orange-600">Gate scans are saved locally first. {pendingCount > 0 ? `Pending gate sync: ${pendingCount} scans.` : "Will sync when connection returns."}</p>
           </div>
         </div>
       )}
@@ -198,11 +242,31 @@ export function NfcGateSecurityPage() {
 
       {!isOfflineReady && snapshotRefresh.validity && !snapshotRefresh.validity.valid && (
         <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
-          <p className="font-bold">Offline setup: {offlineReasonMessage(snapshotRefresh.validity.reason)}</p>
+          <p className="font-bold">Local Gate Register: {offlineReasonMessage(snapshotRefresh.validity.reason)}</p>
           <p className="mt-1">
-            {snapshotRefresh.isRefreshing ? "Refreshing snapshot in the background..." : "The scanner can still use the online server while connected."}
+            {snapshotRefresh.isRefreshing ? "Updating Gate Register in the background..." : "The scanner can still use the online server while connected."}
             {snapshotRefresh.refreshError ? ` Last refresh failed: ${snapshotRefresh.refreshError}` : ""}
           </p>
+        </div>
+      )}
+
+      {queueStatus && (queueStatus.pending > 0 || queueStatus.syncing > 0 || queueStatus.failed > 0 || queueStatus.conflict > 0) && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+          <p className="font-bold">Local Gate Register sync status</p>
+          <div className="mt-2 grid gap-1 rounded-lg border border-amber-200 bg-white/70 p-2">
+            <p>Pending gate sync: <span className="font-bold">{queueStatus.pending}</span></p>
+            <p>Syncing: <span className="font-bold">{queueStatus.syncing}</span></p>
+            <p>Failed: <span className="font-bold">{queueStatus.failed}</span></p>
+            <p>Conflicts: <span className="font-bold">{queueStatus.conflict}</span></p>
+            {queueStatus.lastError ? <p>Last sync error: <span className="font-bold">{queueStatus.lastError}</span></p> : null}
+            {lastSyncAttemptAt ? <p>Last sync time: <span className="font-bold">{new Date(lastSyncAttemptAt).toLocaleTimeString()}</span></p> : null}
+          </div>
+          {retryMessage ? <p className="mt-2 font-bold">{retryMessage}</p> : null}
+          {(queueStatus.failed > 0 || queueStatus.pending > 0) && (
+            <button type="button" className="mt-2 rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-bold text-white disabled:opacity-60" disabled={retrying} onClick={() => void retryGateSync()}>
+              {retrying ? "Retrying..." : "Retry Sync"}
+            </button>
+          )}
         </div>
       )}
 
@@ -230,7 +294,9 @@ export function NfcGateSecurityPage() {
                   {allowed ? "ALLOWED" : "BLOCKED"}
                 </p>
                 {"offline" in scanResult && scanResult.offline && (
-                  <span className="text-xs font-semibold text-orange-600 bg-orange-100 rounded-full px-2 py-0.5">Offline · Queued</span>
+                  <span className="text-xs font-semibold text-orange-600 bg-orange-100 rounded-full px-2 py-0.5">
+                    {scanResult.syncStatus ?? "Pending gate sync"}
+                  </span>
                 )}
               </div>
               <p className="mt-2 text-sm text-slate-700">{scanResult.reason ?? "Valid active student"}</p>

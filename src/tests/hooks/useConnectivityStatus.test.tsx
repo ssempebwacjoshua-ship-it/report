@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({
   getSnapshotValidity: vi.fn(),
   getRetryableAttendanceQueueItems: vi.fn(),
   getRetryableCanteenQueueItems: vi.fn(),
+  getRetryableGateQueueItems: vi.fn(),
   listPendingQueue: vi.fn(),
   listAllQueueItems: vi.fn(),
   markQueueItemSynced: vi.fn(),
@@ -19,6 +20,7 @@ vi.mock("../../offline/offlineStatus", () => ({
 vi.mock("../../offline/offlineStore", () => ({
   getRetryableAttendanceQueueItems: mocks.getRetryableAttendanceQueueItems,
   getRetryableCanteenQueueItems: mocks.getRetryableCanteenQueueItems,
+  getRetryableGateQueueItems: mocks.getRetryableGateQueueItems,
   listPendingQueue: mocks.listPendingQueue,
   listAllQueueItems: mocks.listAllQueueItems,
   markQueueItemSynced: mocks.markQueueItemSynced,
@@ -58,6 +60,7 @@ describe("useConnectivityStatus", () => {
       syncStatus: "PENDING",
     };
     mocks.getRetryableCanteenQueueItems.mockResolvedValue([pendingCanteenEvent]);
+    mocks.getRetryableGateQueueItems.mockResolvedValue([]);
     mocks.listAllQueueItems.mockResolvedValue([
       pendingCanteenEvent,
     ]);
@@ -255,5 +258,55 @@ describe("useConnectivityStatus", () => {
 
     expect(postedEvents.map((event) => event.localId)).toEqual(["att-failed-1"]);
     expect(mocks.markQueueItemSynced).toHaveBeenCalledWith("att-failed-1", "att-2");
+  });
+
+  it("includes failed gate scans when gate sync retries", async () => {
+    const failedGateEvent = {
+      localId: "gate-failed-1",
+      schoolId: "school-a",
+      deviceId: "device-a",
+      snapshotId: "snapshot-1",
+      actionType: "GATE_SCAN",
+      sequenceNumber: 2,
+      idempotencyKey: "gate:device-a:2",
+      payload: { studentId: "stu-1", result: "ALLOWED" },
+      payloadHash: "hash-gate",
+      previousHash: "event-hash",
+      eventHash: "event-hash-gate",
+      createdAt: "2026-06-28T10:05:00.000Z",
+      syncStatus: "FAILED",
+    };
+    mocks.getRetryableGateQueueItems.mockResolvedValue([failedGateEvent]);
+    mocks.listAllQueueItems.mockResolvedValue([failedGateEvent]);
+    let postedEvents: Array<{ localId: string }> = [];
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.includes("/api/health/ping")) {
+        return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { "Content-Type": "application/json" } });
+      }
+      if (url.includes("/api/nfc/offline/sync")) {
+        postedEvents = JSON.parse(String(init?.body)).events;
+        return new Response(JSON.stringify({
+          batchId: "batch-gate",
+          results: [
+            { localId: "gate-failed-1", idempotencyKey: "gate:device-a:2", status: "SYNCED", serverId: "gate-2" },
+          ],
+        }), { status: 200, headers: { "Content-Type": "application/json" } });
+      }
+      throw new Error(`Unexpected fetch: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { useConnectivityStatus } = await import("../../hooks/useConnectivityStatus");
+    renderHook(() => useConnectivityStatus("school-a", "device-a", "gate"));
+
+    await act(async () => {
+      window.dispatchEvent(new Event("online"));
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(postedEvents.map((event) => event.localId)).toEqual(["gate-failed-1"]);
+    expect(mocks.markQueueItemSynced).toHaveBeenCalledWith("gate-failed-1", "gate-2");
   });
 });
