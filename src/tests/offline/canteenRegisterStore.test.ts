@@ -81,19 +81,23 @@ vi.mock("../../offline/offlineDb", () => ({
     },
     offline_sync_queue: {
       where: (index: string) => createWhere("syncQueue", index),
+      get: async (localId: string) => dbState.syncQueue.find((item) => item.localId === localId),
       put: async (row: OfflineQueuedEvent) => { dbState.syncQueue.push(row); },
       update: async (localId: string, updates: Partial<OfflineQueuedEvent>) => {
         const row = dbState.syncQueue.find((item) => item.localId === localId);
         if (row) Object.assign(row, updates);
       },
+      delete: async (localId: string) => { dbState.syncQueue = dbState.syncQueue.filter((item) => item.localId !== localId); },
     },
     offline_canteen_charges: {
       put: async (row: unknown) => { dbState.canteenCharges.push(row); },
       update: async () => undefined,
+      delete: async (localId: string) => { dbState.canteenCharges = dbState.canteenCharges.filter((item) => (item as { localId?: string }).localId !== localId); },
     },
     offline_spend_ledger: {
       put: async (row: unknown) => { dbState.spendLedger.push(row); },
       update: async () => undefined,
+      delete: async (localId: string) => { dbState.spendLedger = dbState.spendLedger.filter((item) => (item as { localId?: string }).localId !== localId); },
       where: (index: string) => createWhere("syncQueue", index),
     },
     offline_gate_scans: { update: async () => undefined },
@@ -297,6 +301,60 @@ describe("Local Canteen Register storage", () => {
     await expect(retryFailedCanteenSales("school-a")).resolves.toBe(1);
     expect(dbState.syncQueue.find((row) => row.localId === "failed-1")?.syncStatus).toBe("PENDING");
     expect(dbState.syncQueue.find((row) => row.localId === "conflict-1")?.syncStatus).toBe("CONFLICT");
+  });
+
+  it("marks a reviewed local canteen sale without deleting the local record", async () => {
+    dbState.syncQueue.push({
+      localId: "conflict-1",
+      schoolId: "school-a",
+      deviceId: "device-a",
+      snapshotId: "register-1",
+      actionType: "CANTEEN_CHARGE",
+      sequenceNumber: 1,
+      idempotencyKey: "canteen:device-a:1",
+      payload: {},
+      payloadHash: "hash",
+      previousHash: null,
+      eventHash: "event",
+      createdAt: "2026-06-28T10:00:00.000Z",
+      syncStatus: "CONFLICT",
+      errorMessage: "Insufficient balance at sync time",
+    });
+    const { markLocalCanteenSaleReviewed } = await import("../../offline/offlineStore");
+
+    await markLocalCanteenSaleReviewed("conflict-1");
+
+    expect(dbState.syncQueue.find((row) => row.localId === "conflict-1")).toMatchObject({
+      syncStatus: "SYNCED",
+      serverId: "local-reviewed:conflict-1",
+    });
+  });
+
+  it("voids an unsynced local test canteen sale", async () => {
+    dbState.syncQueue.push({
+      localId: "failed-1",
+      schoolId: "school-a",
+      deviceId: "device-a",
+      snapshotId: "register-1",
+      actionType: "CANTEEN_CHARGE",
+      sequenceNumber: 1,
+      idempotencyKey: "canteen:device-a:1",
+      payload: {},
+      payloadHash: "hash",
+      previousHash: null,
+      eventHash: "event",
+      createdAt: "2026-06-28T10:00:00.000Z",
+      syncStatus: "FAILED",
+    });
+    dbState.canteenCharges.push({ localId: "failed-1" });
+    dbState.spendLedger.push({ localId: "failed-1" });
+    const { voidLocalCanteenSale } = await import("../../offline/offlineStore");
+
+    await voidLocalCanteenSale("failed-1");
+
+    expect(dbState.syncQueue.some((row) => row.localId === "failed-1")).toBe(false);
+    expect(dbState.canteenCharges.some((row) => (row as { localId?: string }).localId === "failed-1")).toBe(false);
+    expect(dbState.spendLedger.some((row) => (row as { localId?: string }).localId === "failed-1")).toBe(false);
   });
 
   it("queues a local canteen sale without a raw NFC token and deducts local balance", async () => {

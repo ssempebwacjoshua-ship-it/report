@@ -29,6 +29,15 @@ const mockGetAvailableOfflineBalance = vi.hoisted(() => vi.fn(async () => ({
   studentSpentCents: 0,
   deviceSpentCents: 0,
 })));
+const mockGetCanteenQueueStatus = vi.hoisted(() => vi.fn(async () => ({
+  pending: 0,
+  syncing: 0,
+  failed: 0,
+  conflict: 0,
+  lastError: null,
+  items: [],
+})));
+const mockRetryFailedCanteenSales = vi.hoisted(() => vi.fn(async () => 0));
 const mockGetSnapshotValidity = vi.hoisted(() => vi.fn(async () => ({ valid: false, reason: "expired" })));
 const mockGetCanteenRegisterStatus = vi.hoisted(() => vi.fn(async () => ({
   available: true,
@@ -79,6 +88,8 @@ vi.mock("../../offline/offlineStore", () => ({
   queueCanteenCharge: mockQueueCanteenCharge,
   getSnapshotMeta: mockGetSnapshotMeta,
   getAvailableOfflineBalance: mockGetAvailableOfflineBalance,
+  getCanteenQueueStatus: mockGetCanteenQueueStatus,
+  retryFailedCanteenSales: mockRetryFailedCanteenSales,
 }));
 
 vi.mock("../../offline/offlineStatus", () => ({
@@ -207,6 +218,50 @@ describe("NfcCanteenChargePage", () => {
 
     await waitFor(() => expect(mockResolveOfflineNfcScan).toHaveBeenCalledWith("school-a", "PUB001"));
     expect(await screen.findByText(/local canteen register - student identified/i)).toBeInTheDocument();
+  });
+
+  it("shows exact canteen queue status and retry result when register update is blocked", async () => {
+    state.snapshotValidity = { valid: true };
+    state.snapshotRefreshError = "Local Canteen Register is available. Some sales need sync/reconciliation before register update.";
+    mockGetCanteenQueueStatus
+      .mockResolvedValueOnce({
+        pending: 1,
+        syncing: 0,
+        failed: 1,
+        conflict: 1,
+        lastError: "Wallet not found",
+        items: [],
+      })
+      .mockResolvedValueOnce({
+        pending: 1,
+        syncing: 0,
+        failed: 1,
+        conflict: 1,
+        lastError: "Wallet not found",
+        items: [],
+      })
+      .mockResolvedValueOnce({
+        pending: 0,
+        syncing: 0,
+        failed: 0,
+        conflict: 0,
+        lastError: null,
+        items: [],
+      });
+
+    render(
+      <MemoryRouter>
+        <NfcCanteenChargePage />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText(/pending sales:/i)).toBeInTheDocument();
+    expect(screen.getByText(/wallet not found/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /retry sync/i }));
+
+    await waitFor(() => expect(mockRetryFailedCanteenSales).toHaveBeenCalledWith("school-a"));
+    await waitFor(() => expect(mockTriggerSync).toHaveBeenCalled());
+    expect(await screen.findByText(/canteen sales synced/i)).toBeInTheDocument();
   });
 
   it("blocks local canteen sale clearly when no register exists", async () => {

@@ -50,6 +50,11 @@ export type CanteenSaleSyncSummary = {
   conflict: number;
 };
 
+export type CanteenQueueStatus = CanteenSaleSyncSummary & {
+  lastError: string | null;
+  items: OfflineQueuedEvent[];
+};
+
 // ─── Sequence / chain tracking per device ────────────────────────────────────
 
 async function nextSeq(deviceId: string): Promise<number> {
@@ -89,6 +94,21 @@ export async function getCanteenSaleSyncSummary(schoolId: string): Promise<Cante
       .count(),
   ));
   return { pending, syncing, failed, conflict };
+}
+
+export async function getCanteenQueueStatus(schoolId: string): Promise<CanteenQueueStatus> {
+  const items = (await offlineDb.offline_sync_queue.where("schoolId").equals(schoolId).toArray())
+    .filter((item) => item.actionType === "CANTEEN_CHARGE")
+    .sort((a, b) => a.sequenceNumber - b.sequenceNumber);
+  const summary = items.reduce<CanteenSaleSyncSummary>((acc, item) => {
+    if (item.syncStatus === "PENDING") acc.pending += 1;
+    if (item.syncStatus === "SYNCING") acc.syncing += 1;
+    if (item.syncStatus === "FAILED") acc.failed += 1;
+    if (item.syncStatus === "CONFLICT") acc.conflict += 1;
+    return acc;
+  }, { pending: 0, syncing: 0, failed: 0, conflict: 0 });
+  const lastError = [...items].reverse().find((item) => item.errorMessage)?.errorMessage ?? null;
+  return { ...summary, lastError, items };
 }
 
 export async function hasPendingCanteenSales(schoolId: string): Promise<boolean> {
@@ -470,6 +490,22 @@ export async function retryFailedCanteenSales(schoolId: string): Promise<number>
     .toArray();
   await Promise.all(failed.map((item) => patchQueueItem(item.localId, { syncStatus: "PENDING", errorMessage: undefined })));
   return failed.length;
+}
+
+export async function markLocalCanteenSaleReviewed(localId: string): Promise<void> {
+  await patchQueueItem(localId, {
+    syncStatus: "SYNCED",
+    serverId: `local-reviewed:${localId}`,
+    errorMessage: "Reviewed locally and kept as local record.",
+  });
+}
+
+export async function voidLocalCanteenSale(localId: string): Promise<void> {
+  const row = await offlineDb.offline_sync_queue.get(localId);
+  if (!row || row.actionType !== "CANTEEN_CHARGE" || row.syncStatus === "SYNCED") return;
+  await offlineDb.offline_sync_queue.delete(localId);
+  await offlineDb.offline_canteen_charges.delete(localId).catch(() => null);
+  await offlineDb.offline_spend_ledger.delete(localId).catch(() => null);
 }
 
 export async function clearSyncedItems(schoolId: string): Promise<void> {
