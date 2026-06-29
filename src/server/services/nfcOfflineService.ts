@@ -56,7 +56,7 @@ function requireBootstrapPermission(ctx: OfflineContext, mode: "GATE" | "CANTEEN
 
 const SNAPSHOT_TTL_HOURS = 24;
 const DEFAULT_GATE_SNAPSHOT_VALID_HOURS = 24;
-const DEFAULT_CANTEEN_SNAPSHOT_VALID_HOURS = 12;
+const DEFAULT_CANTEEN_SNAPSHOT_VALID_HOURS = 24;
 const DEFAULT_MAX_OFFLINE_SPEND_PER_STUDENT_PER_DAY_UGX = 3000;
 const DEFAULT_MAX_OFFLINE_SPEND_PER_TRANSACTION_UGX = 3000;
 const DEFAULT_MAX_OFFLINE_SPEND_PER_DEVICE_SESSION_UGX = 100000;
@@ -127,7 +127,8 @@ export async function bootstrapOfflineSnapshot(
   requireBootstrapPermission(ctx, mode, modules);
   const snapshotId = randomUUID();
   const generatedAt = new Date();
-  const ttlHours = mode === "CANTEEN" ? policy.canteenSnapshotValidHours : mode === "ATTENDANCE" ? policy.gateSnapshotValidHours : policy.gateSnapshotValidHours;
+  const canteenSnapshotValidHours = Math.max(policy.canteenSnapshotValidHours, DEFAULT_CANTEEN_SNAPSHOT_VALID_HOURS);
+  const ttlHours = mode === "CANTEEN" ? canteenSnapshotValidHours : mode === "ATTENDANCE" ? policy.gateSnapshotValidHours : policy.gateSnapshotValidHours;
   const expiresAt = new Date(generatedAt.getTime() + ttlHours * 60 * 60 * 1000);
 
   // Active students with current enrollment
@@ -275,7 +276,7 @@ export async function bootstrapOfflineSnapshot(
       gateOfflineEnabled: policy.gateOfflineEnabled,
       canteenOfflineEnabled: policy.canteenOfflineEnabled,
       gateSnapshotValidHours: policy.gateSnapshotValidHours,
-      canteenSnapshotValidHours: policy.canteenSnapshotValidHours,
+      canteenSnapshotValidHours,
       maxOfflineSpendPerStudentPerDay: policy.maxOfflineSpendPerStudentPerDay,
       maxOfflineSpendPerTransaction: policy.maxOfflineSpendPerTransaction,
       maxOfflineSpendPerDeviceSession: policy.maxOfflineSpendPerDeviceSession,

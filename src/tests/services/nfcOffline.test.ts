@@ -163,6 +163,7 @@ describe("bootstrapOfflineSnapshot", () => {
       pinHash: "pbkdf2$100000$salt$hash",
     });
     expect(snap.wallets[0]?.dailyOfflineLimitCents).toBe(3000);
+    expect(snap.settings.canteenSnapshotValidHours).toBe(24);
     expect(snap.settings.maxOfflineSpendPerTransaction).toBe(3000);
   });
 
