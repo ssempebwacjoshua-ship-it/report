@@ -7,7 +7,10 @@ const state = vi.hoisted(() => ({
   user: { id: "cashier-1", schoolId: "school-a", name: "Canteen User", role: "CANTEEN" as const },
   isOfflineReady: false,
   pendingCount: 0,
+  snapshotValidity: null as null | { valid: boolean },
+  snapshotRefreshError: "",
 }));
+const mockTriggerSync = vi.hoisted(() => vi.fn(async () => undefined));
 
 const mockResolveWalletStudent = vi.hoisted(() => vi.fn());
 const mockChargeNfcCanteen = vi.hoisted(() => vi.fn());
@@ -46,14 +49,15 @@ vi.mock("../../hooks/useConnectivityStatus", () => ({
   useConnectivityStatus: () => ({
     isOfflineReady: state.isOfflineReady,
     pendingCount: state.pendingCount,
+    triggerSync: mockTriggerSync,
   }),
 }));
 
 vi.mock("../../hooks/useNfcOfflineSnapshotRefresh", () => ({
   useNfcOfflineSnapshotRefresh: () => ({
-    validity: null,
+    validity: state.snapshotValidity,
     isRefreshing: false,
-    refreshError: "",
+    refreshError: state.snapshotRefreshError,
   }),
 }));
 
@@ -92,6 +96,8 @@ describe("NfcCanteenChargePage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     state.isOfflineReady = false;
+    state.snapshotValidity = null;
+    state.snapshotRefreshError = "";
     setNavigatorOnline(true);
     mockResolveOfflineNfcScan.mockResolvedValue({
       found: true,
@@ -174,5 +180,25 @@ describe("NfcCanteenChargePage", () => {
 
     await waitFor(() => expect(screen.getByText(/incorrect pin/i)).toBeInTheDocument());
     expect(mockQueueCanteenCharge).not.toHaveBeenCalled();
+  });
+
+  it("keeps scanner usable when canteen register refresh failed but an existing register is valid", async () => {
+    setNavigatorOnline(false);
+    state.snapshotValidity = { valid: true };
+    state.snapshotRefreshError = "Pending canteen sales must sync before register update.";
+
+    render(
+      <MemoryRouter>
+        <NfcCanteenChargePage />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByText(/local canteen register is available/i)).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText(/amount/i), { target: { value: "20" } });
+    fireEvent.change(screen.getByPlaceholderText(/scan token or uid/i), { target: { value: "PUB001" } });
+    fireEvent.click(screen.getByRole("button", { name: "Go" }));
+
+    await waitFor(() => expect(mockResolveOfflineNfcScan).toHaveBeenCalledWith("school-a", "PUB001"));
+    expect(await screen.findByText(/local canteen register - student identified/i)).toBeInTheDocument();
   });
 });

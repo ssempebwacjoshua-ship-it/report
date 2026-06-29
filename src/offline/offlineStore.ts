@@ -43,6 +43,13 @@ export function getCanteenRegisterMetaKey(schoolId: string, deviceId: string): s
   return `canteen-register:${schoolId}:${deviceId}`;
 }
 
+export type CanteenSaleSyncSummary = {
+  pending: number;
+  syncing: number;
+  failed: number;
+  conflict: number;
+};
+
 // ─── Sequence / chain tracking per device ────────────────────────────────────
 
 async function nextSeq(deviceId: string): Promise<number> {
@@ -74,20 +81,31 @@ async function prepareTagsForLocalStore(snapshot: OfflineBootstrapSnapshot): Pro
   })));
 }
 
-export async function hasPendingCanteenSales(schoolId: string): Promise<boolean> {
-  const counts = await Promise.all((["PENDING", "SYNCING", "FAILED"] as OfflineSyncStatus[]).map((status) =>
+export async function getCanteenSaleSyncSummary(schoolId: string): Promise<CanteenSaleSyncSummary> {
+  const [pending, syncing, failed, conflict] = await Promise.all((["PENDING", "SYNCING", "FAILED", "CONFLICT"] as OfflineSyncStatus[]).map((status) =>
     offlineDb.offline_sync_queue
       .where("[schoolId+actionType+syncStatus]")
       .equals([schoolId, "CANTEEN_CHARGE", status])
       .count(),
   ));
-  return counts.some((count) => count > 0);
+  return { pending, syncing, failed, conflict };
+}
+
+export async function hasPendingCanteenSales(schoolId: string): Promise<boolean> {
+  const summary = await getCanteenSaleSyncSummary(schoolId);
+  return summary.pending > 0 || summary.syncing > 0;
 }
 
 export async function saveBootstrapSnapshot(snapshot: OfflineBootstrapSnapshot): Promise<void> {
   const isCanteenRegister = snapshot.mode === "CANTEEN";
-  if (isCanteenRegister && await hasPendingCanteenSales(snapshot.schoolId)) {
-    throw new Error("This device has pending canteen sales. Sync before updating register.");
+  if (isCanteenRegister) {
+    const summary = await getCanteenSaleSyncSummary(snapshot.schoolId);
+    if (summary.pending > 0 || summary.syncing > 0) {
+      throw new Error("Pending canteen sales must sync before register update.");
+    }
+    if (summary.failed > 0 || summary.conflict > 0) {
+      throw new Error("Some canteen sales need reconciliation before register update.");
+    }
   }
   const tagsForStore = await prepareTagsForLocalStore(snapshot);
   const walletsForStore = snapshot.wallets.map((wallet) => (
