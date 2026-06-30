@@ -390,6 +390,7 @@ describe("tenant isolation", () => {
           return null;
         }),
         findUnique: vi.fn(async () => sourceA),
+        updateMany: vi.fn(async () => ({ count: 1 })),
         update: documentSourceFileUpdate,
       },
       smartDocument: {

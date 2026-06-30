@@ -17,6 +17,10 @@ export type StoredUpload = {
   sizeBytes: number;
 };
 
+function uploadError(message: string, status: number) {
+  return Object.assign(new Error(message), { status, expose: true });
+}
+
 function hasCloudinaryCredentials(): boolean {
   const cloudinaryUrl = process.env.CLOUDINARY_URL?.trim();
   return Boolean(
@@ -55,7 +59,7 @@ function getLocalUploadRoot(strict: boolean): string | null {
   if (strict && process.env.NODE_ENV === "production" && !configuredDir && !configuredBaseUrl) {
     throw Object.assign(
       new Error("Upload storage is not configured for production. Set Cloudinary env vars or configure local upload storage."),
-      { status: 503 },
+      { status: 503, expose: true },
     );
   }
   return configuredDir || LOCAL_UPLOAD_ROOT;
@@ -90,7 +94,7 @@ function ensureCloudinaryConfigured(): { uploadFolder: string } {
   if (!cloudName || !apiKey || !apiSecret) {
     throw Object.assign(
       new Error("Cloudinary upload storage is not configured. Set CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET, or provide CLOUDINARY_URL."),
-      { status: 503 },
+      { status: 503, expose: true },
     );
   }
 
@@ -148,10 +152,7 @@ function buildCloudinaryPublicId(relativeDirParts: string[], fileName: string): 
 }
 
 async function uploadToCloudinary(buffer: Buffer, publicId: string): Promise<StoredUpload> {
-  const processed = await sharp(buffer)
-    .rotate()
-    .webp({ quality: 88 })
-    .toBuffer();
+  const processed = await processPassportImage(buffer);
 
   const uploaded = await new Promise<{
     secure_url?: string;
@@ -175,10 +176,13 @@ async function uploadToCloudinary(buffer: Buffer, publicId: string): Promise<Sto
       },
     );
     stream.end(processed);
+  }).catch((error) => {
+    const message = error instanceof Error ? error.message : String(error);
+    throw Object.assign(new Error(`Cloudinary passport photo upload failed: ${message}`), { status: 502, expose: true });
   });
 
   if (!uploaded.secure_url) {
-    throw Object.assign(new Error("Cloudinary upload did not return a secure URL."), { status: 502 });
+    throw Object.assign(new Error("Cloudinary upload did not return a secure URL."), { status: 502, expose: true });
   }
 
   return {
@@ -190,6 +194,17 @@ async function uploadToCloudinary(buffer: Buffer, publicId: string): Promise<Sto
   };
 }
 
+async function processPassportImage(buffer: Buffer): Promise<Buffer> {
+  try {
+    return await sharp(buffer)
+      .rotate()
+      .webp({ quality: 88 })
+      .toBuffer();
+  } catch {
+    throw uploadError("Invalid image file. Please upload JPG, PNG, or WebP.", 400);
+  }
+}
+
 export async function saveImageUpload(input: {
   buffer: Buffer;
   originalName: string;
@@ -199,7 +214,7 @@ export async function saveImageUpload(input: {
 }): Promise<StoredUpload> {
   const mimeType = input.mimeType.toLowerCase().trim();
   if (!ALLOWED_IMAGE_MIME_TYPES.has(mimeType)) {
-    throw Object.assign(new Error("Unsupported image type. Use JPG, JPEG, PNG, or WEBP."), { status: 400 });
+    throw uploadError("Unsupported image type. Use JPG, JPEG, PNG, or WEBP.", 400);
   }
 
   validateOriginalFileName(input.originalName);
@@ -214,14 +229,11 @@ export async function saveImageUpload(input: {
   const { relativePath, absolutePath } = buildLocalUploadPaths(input.relativeDirParts, fileName);
   const root = getLocalUploadRoot(true);
   if (!root) {
-    throw Object.assign(new Error("Upload storage is not configured. Set UPLOAD_STORAGE_DIR or UPLOAD_STORAGE_PUBLIC_BASE_URL."), { status: 503 });
+    throw Object.assign(new Error("Upload storage is not configured. Set UPLOAD_STORAGE_DIR or UPLOAD_STORAGE_PUBLIC_BASE_URL."), { status: 503, expose: true });
   }
 
   await fs.mkdir(path.dirname(absolutePath), { recursive: true });
-  const processed = await sharp(input.buffer)
-    .rotate()
-    .webp({ quality: 88 })
-    .toBuffer();
+  const processed = await processPassportImage(input.buffer);
   await fs.writeFile(absolutePath, processed);
 
   return {
@@ -253,7 +265,7 @@ export async function saveStudentImageUpload(input: {
     if (typeof (error as { status?: unknown })?.status === "number" && (error as { status: number }).status === 503) {
       throw Object.assign(
         new Error("Passport photo storage is not configured. Set Cloudinary env vars."),
-        { status: 503 },
+        { status: 503, expose: true },
       );
     }
     throw error;

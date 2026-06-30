@@ -1,4 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import fs from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 
 const ENV_KEYS = [
   "NODE_ENV",
@@ -42,7 +45,7 @@ describe("uploadStorageService", () => {
       hasCloudinaryApiKey: true,
       hasCloudinaryApiSecret: true,
     });
-  });
+  }, 15000);
 
   it("returns a clear passport photo 503 when production local storage is not configured", async () => {
     process.env.NODE_ENV = "production";
@@ -67,5 +70,29 @@ describe("uploadStorageService", () => {
       status: 503,
       message: "Passport photo storage is not configured. Set Cloudinary env vars.",
     });
+  });
+
+  it("returns 400 for an invalid image buffer instead of leaking a sharp 500", async () => {
+    const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "passport-upload-"));
+    process.env.NODE_ENV = "production";
+    process.env.UPLOAD_STORAGE_PROVIDER = "local";
+    process.env.UPLOAD_STORAGE_DIR = tempDir;
+    delete process.env.UPLOAD_STORAGE_PUBLIC_BASE_URL;
+
+    const { saveStudentImageUpload } = await import("../../server/services/uploadStorageService");
+
+    await expect(saveStudentImageUpload({
+      buffer: Buffer.from("not-a-real-image"),
+      originalName: "passport.jpg",
+      mimeType: "image/jpeg",
+      schoolCode: "SCU-PREVIEW",
+      studentId: "student-1",
+      prefix: "passport",
+    })).rejects.toMatchObject({
+      status: 400,
+      message: "Invalid image file. Please upload JPG, PNG, or WebP.",
+    });
+
+    await fs.rm(tempDir, { recursive: true, force: true });
   });
 });

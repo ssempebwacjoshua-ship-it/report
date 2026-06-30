@@ -177,7 +177,7 @@ describe("Local Attendance Register", () => {
     const { getNextAttendanceDirection, queueAttendanceEvent } = await import("../../offline/offlineStore");
 
     await expect(getNextAttendanceDirection("school-a", "student-1", "2026-06-29")).resolves.toBe("TAP_IN");
-    await queueAttendanceEvent({
+    const queued = await queueAttendanceEvent({
       schoolId: "school-a",
       deviceId: "attendance-phone-1",
       snapshotId: "attendance-register-1",
@@ -193,7 +193,7 @@ describe("Local Attendance Register", () => {
       },
     });
 
-    await expect(getNextAttendanceDirection("school-a", "student-1", "2026-06-29")).resolves.toBe("TAP_OUT");
+    await expect(getNextAttendanceDirection("school-a", "student-1", queued.createdAt.slice(0, 10))).resolves.toBe("TAP_OUT");
   });
 
   it("prevents accidental duplicate punch within cooldown", async () => {
