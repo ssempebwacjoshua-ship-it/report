@@ -60,4 +60,22 @@ describe("studentsClient school auth", () => {
     ).rejects.toThrow("Please log in again.");
     expect(fetchMock).not.toHaveBeenCalled();
   });
+
+  it("uploadStudentPassportPhoto surfaces the API error message", async () => {
+    vi.stubGlobal("localStorage", { getItem: vi.fn(() => "school-token") });
+    fetchMock.mockResolvedValueOnce(
+      new Response(JSON.stringify({
+        error: "Cloudinary cloud name is missing. Set CLOUDINARY_CLOUD_NAME.",
+      }), {
+        status: 503,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+
+    const { uploadStudentPassportPhoto } = await import("../../client/studentsClient");
+
+    await expect(
+      uploadStudentPassportPhoto("student-1", new File(["photo"], "passport.jpg", { type: "image/jpeg" })),
+    ).rejects.toThrow("Cloudinary cloud name is missing. Set CLOUDINARY_CLOUD_NAME.");
+  });
 });

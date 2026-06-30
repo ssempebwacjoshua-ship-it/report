@@ -8,6 +8,7 @@ const ALLOWED_IMAGE_MIME_TYPES = new Set(["image/jpeg", "image/jpg", "image/png"
 const LOCAL_UPLOAD_ROOT = path.join(process.cwd(), "public", "uploads");
 const CLOUDINARY_PROVIDER = "cloudinary";
 let cloudinaryConfigured = false;
+let configuredCloudinaryKey: string | null = null;
 
 export type StoredUpload = {
   publicUrl: string;
@@ -17,15 +18,15 @@ export type StoredUpload = {
   sizeBytes: number;
 };
 
-function uploadError(message: string, status: number) {
-  return Object.assign(new Error(message), { status, expose: true });
+function uploadError(message: string, status: number, details?: unknown) {
+  return Object.assign(new Error(message), { status, expose: true, details });
 }
 
 function hasCloudinaryCredentials(): boolean {
-  const cloudinaryUrl = process.env.CLOUDINARY_URL?.trim();
+  const cloudinaryUrl = getCloudinaryUrlEnv();
   return Boolean(
     cloudinaryUrl ||
-      (process.env.CLOUDINARY_CLOUD_NAME?.trim() &&
+      (getCloudinaryCloudNameEnv() &&
         process.env.CLOUDINARY_API_KEY?.trim() &&
         process.env.CLOUDINARY_API_SECRET?.trim()),
   );
@@ -38,13 +39,28 @@ function getUploadProvider(): string {
 }
 
 export function getUploadStorageDiagnostics() {
+  const cloudName = getCloudinaryCloudNameEnv();
   return {
     provider: getUploadProvider(),
-    hasCloudinaryCloudName: Boolean(process.env.CLOUDINARY_CLOUD_NAME?.trim()),
+    hasCloudinaryCloudName: Boolean(cloudName),
     hasCloudinaryApiKey: Boolean(process.env.CLOUDINARY_API_KEY?.trim()),
     hasCloudinaryApiSecret: Boolean(process.env.CLOUDINARY_API_SECRET?.trim()),
-    hasCloudinaryUrl: Boolean(process.env.CLOUDINARY_URL?.trim()),
+    hasCloudinaryUrl: Boolean(getCloudinaryUrlEnv()),
+    uploadFolder: getCloudinaryUploadFolder(),
+    cloudName: cloudName ?? null,
   };
+}
+
+function getCloudinaryCloudNameEnv(): string | null {
+  return process.env.CLOUDINARY_CLOUD_NAME?.trim() || process.env.CLOUDINARY_NAME?.trim() || null;
+}
+
+function getCloudinaryUrlEnv(): string | null {
+  return process.env.CLOUDINARY_URL?.trim() || process.env.CLOUDINARY_URI?.trim() || null;
+}
+
+function getCloudinaryUploadFolder(): string {
+  return process.env.CLOUDINARY_UPLOAD_FOLDER?.trim() || "school-connect";
 }
 
 function getUploadBaseUrl(): string | null {
@@ -80,25 +96,29 @@ function parseCloudinaryUrl(value: string): { cloudName: string; apiKey: string;
 }
 
 function ensureCloudinaryConfigured(): { uploadFolder: string } {
-  const explicitCloudName = process.env.CLOUDINARY_CLOUD_NAME?.trim();
+  const explicitCloudName = getCloudinaryCloudNameEnv();
   const explicitApiKey = process.env.CLOUDINARY_API_KEY?.trim();
   const explicitApiSecret = process.env.CLOUDINARY_API_SECRET?.trim();
-  const cloudinaryUrl = process.env.CLOUDINARY_URL?.trim();
-  const uploadFolder = process.env.CLOUDINARY_UPLOAD_FOLDER?.trim() || "school-connect";
+  const cloudinaryUrl = getCloudinaryUrlEnv();
+  const uploadFolder = getCloudinaryUploadFolder();
 
   const parsedUrl = cloudinaryUrl ? parseCloudinaryUrl(cloudinaryUrl) : null;
   const cloudName = explicitCloudName || parsedUrl?.cloudName;
   const apiKey = explicitApiKey || parsedUrl?.apiKey;
   const apiSecret = explicitApiSecret || parsedUrl?.apiSecret;
 
-  if (!cloudName || !apiKey || !apiSecret) {
-    throw Object.assign(
-      new Error("Cloudinary upload storage is not configured. Set CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET, or provide CLOUDINARY_URL."),
-      { status: 503, expose: true },
-    );
+  if (!cloudName) {
+    throw uploadError("Cloudinary cloud name is missing. Set CLOUDINARY_CLOUD_NAME.", 503);
+  }
+  if (!apiKey) {
+    throw uploadError("Cloudinary API key is missing. Set CLOUDINARY_API_KEY.", 503);
+  }
+  if (!apiSecret) {
+    throw uploadError("Cloudinary API secret is missing. Set CLOUDINARY_API_SECRET.", 503);
   }
 
-  if (!cloudinaryConfigured) {
+  const configKey = `${cloudName}:${apiKey}`;
+  if (!cloudinaryConfigured || configuredCloudinaryKey !== configKey) {
     cloudinary.config({
       cloud_name: cloudName,
       api_key: apiKey,
@@ -106,6 +126,7 @@ function ensureCloudinaryConfigured(): { uploadFolder: string } {
       secure: true,
     });
     cloudinaryConfigured = true;
+    configuredCloudinaryKey = configKey;
   }
 
   return { uploadFolder };
@@ -153,6 +174,11 @@ function buildCloudinaryPublicId(relativeDirParts: string[], fileName: string): 
 
 async function uploadToCloudinary(buffer: Buffer, publicId: string): Promise<StoredUpload> {
   const processed = await processPassportImage(buffer);
+  console.info("[passport-upload-storage]", {
+    event: "cloudinary.upload.config",
+    ...getUploadStorageDiagnostics(),
+    publicId,
+  });
 
   const uploaded = await new Promise<{
     secure_url?: string;
@@ -177,8 +203,13 @@ async function uploadToCloudinary(buffer: Buffer, publicId: string): Promise<Sto
     );
     stream.end(processed);
   }).catch((error) => {
-    const message = error instanceof Error ? error.message : String(error);
-    throw Object.assign(new Error(`Cloudinary passport photo upload failed: ${message}`), { status: 502, expose: true });
+    const details = getCloudinaryErrorDetails(error);
+    console.error("[passport-upload-storage]", {
+      event: "cloudinary.upload.error",
+      publicId,
+      ...details,
+    });
+    throw uploadError(`Cloudinary passport photo upload failed: ${details.message}`, 502, details);
   });
 
   if (!uploaded.secure_url) {
@@ -192,6 +223,62 @@ async function uploadToCloudinary(buffer: Buffer, publicId: string): Promise<Sto
     mimeType: "image/webp",
     sizeBytes: uploaded.bytes ?? processed.length,
   };
+}
+
+function getCloudinaryErrorDetails(error: unknown): {
+  message: string;
+  http_code: unknown;
+  name: unknown;
+  code: unknown;
+  nestedMessage: unknown;
+  serialized: string | null;
+} {
+  const record = typeof error === "object" && error !== null ? error as Record<string, unknown> : null;
+  const nested = record && typeof record.error === "object" && record.error !== null ? record.error as Record<string, unknown> : null;
+  const message = firstNonEmptyString([
+    error instanceof Error ? error.message : null,
+    record?.message,
+    nested?.message,
+    typeof error === "string" ? error : null,
+    safeStringify(error),
+  ]) ?? "Unknown Cloudinary upload error";
+
+  return {
+    message,
+    http_code: record?.http_code ?? null,
+    name: error instanceof Error ? error.name : record?.name ?? null,
+    code: record?.code ?? null,
+    nestedMessage: nested?.message ?? null,
+    serialized: safeStringify(error),
+  };
+}
+
+function firstNonEmptyString(values: unknown[]): string | null {
+  for (const value of values) {
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+  return null;
+}
+
+function safeStringify(value: unknown): string | null {
+  if (value === undefined) return null;
+  if (typeof value === "string") return value;
+  try {
+    const seen = new WeakSet<object>();
+    return JSON.stringify(value, (_key, nested) => {
+      if (typeof nested === "object" && nested !== null) {
+        if (seen.has(nested)) return "[Circular]";
+        seen.add(nested);
+      }
+      return nested;
+    });
+  } catch {
+    try {
+      return String(value);
+    } catch {
+      return null;
+    }
+  }
 }
 
 async function processPassportImage(buffer: Buffer): Promise<Buffer> {
@@ -262,7 +349,12 @@ export async function saveStudentImageUpload(input: {
       prefix: input.prefix,
     });
   } catch (error) {
-    if (typeof (error as { status?: unknown })?.status === "number" && (error as { status: number }).status === 503) {
+    const message = error instanceof Error ? error.message : "";
+    if (
+      typeof (error as { status?: unknown })?.status === "number" &&
+      (error as { status: number }).status === 503 &&
+      (message.includes("local upload storage") || message.includes("UPLOAD_STORAGE_DIR"))
+    ) {
       throw Object.assign(
         new Error("Passport photo storage is not configured. Set Cloudinary env vars."),
         { status: 503, expose: true },

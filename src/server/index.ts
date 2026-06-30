@@ -202,12 +202,15 @@ export function createServer() {
       ? Math.max(400, Math.min(599, (error as { status: number }).status))
       : 500;
     const exposeMessage = (error as { expose?: unknown })?.expose === true;
+    const safeDetails = exposeMessage && (error as { details?: unknown })?.details
+      ? (error as { details: unknown }).details
+      : [];
     res.status(status).json({
       error: true,
       code: status >= 500 ? "SERVER_ERROR" : "REQUEST_FAILED",
       message: error instanceof Error && (status < 500 || exposeMessage) ? error.message : "A server error occurred. Please try again or contact support if the problem persists.",
       requestId,
-      details: [],
+      details: safeDetails,
     });
   };
   app.use(errorHandler);
