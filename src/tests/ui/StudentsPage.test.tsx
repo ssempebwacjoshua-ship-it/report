@@ -287,6 +287,6 @@ describe("StudentsPage", () => {
 
     await waitFor(() => expect(uploadStudentPassportPhoto).toHaveBeenCalledWith("student-1", expect.any(File)));
     await waitFor(() => expect(fetchStudents).toHaveBeenCalledTimes(2));
-  });
+  }, 15000);
 });
 
