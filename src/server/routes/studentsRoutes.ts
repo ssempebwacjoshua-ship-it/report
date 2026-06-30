@@ -255,9 +255,12 @@ export function studentsRoutes() {
         studentId: req.params.id,
         uploadedUrl: uploaded.publicUrl,
       });
+      const updatedAt = new Date().toISOString();
       res.status(200).json({
+        studentId: student.id,
         passportPhotoUrl: uploaded.publicUrl,
-        passportPhotoUpdatedAt: new Date().toISOString(),
+        passportPhotoUpdatedAt: updatedAt,
+        updatedAt,
       });
     } catch (error) {
       logStudentPassportPhoto(req, "upload.error", {

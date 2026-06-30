@@ -112,7 +112,7 @@ export async function deleteGuardianContact(studentId: string, contactId: string
   if (!response.ok) throw new Error(await parseApiError(response, "Could not delete contact"));
 }
 
-export async function uploadStudentPassportPhoto(studentId: string, file: File): Promise<{ passportPhotoUrl: string; passportPhotoUpdatedAt: string }> {
+export async function uploadStudentPassportPhoto(studentId: string, file: File): Promise<{ studentId?: string; passportPhotoUrl: string; passportPhotoUpdatedAt: string; updatedAt?: string }> {
   const schoolToken = localStorage.getItem(TOKEN_KEY);
   if (!schoolToken) {
     throw new Error("Please log in again.");

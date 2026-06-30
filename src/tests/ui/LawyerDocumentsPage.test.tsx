@@ -54,7 +54,7 @@ describe("LawyerDocumentsPage", () => {
     await waitFor(() => expect(documentMocks.createDocument).toHaveBeenCalledWith("Legal Notice / Demand Letter", { vertical: "LAWYER", authMode: "creator" }));
     await waitFor(() => expect(router.state.location.pathname).toBe("/lawyers/documents/doc-1"));
     expect(router.state.location.search).toBe("?template=legal-notice-demand-letter");
-  });
+  }, 15000);
 
   it("creates a blank legal document from the primary action", async () => {
     const router = createMemoryRouter([

@@ -97,7 +97,9 @@ describe("students passport photo route auth", () => {
       .attach("file", Buffer.from("photo-bytes"), { filename: "passport.jpg", contentType: "image/jpeg" });
 
     expect(res.status).toBe(200);
+    expect(res.body.studentId).toBe("student-1");
     expect(res.body.passportPhotoUrl).toContain("cloudinary.com");
+    expect(res.body.updatedAt).toEqual(expect.any(String));
     expect(mocks.saveStudentImageUpload).toHaveBeenCalledTimes(1);
     expect(mocks.deleteStoredUpload).toHaveBeenCalledWith(null);
     expect(infoSpy).toHaveBeenCalledWith(

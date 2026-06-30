@@ -201,10 +201,11 @@ export function createServer() {
     const status = typeof (error as { status?: unknown })?.status === "number"
       ? Math.max(400, Math.min(599, (error as { status: number }).status))
       : 500;
+    const exposeMessage = (error as { expose?: unknown })?.expose === true;
     res.status(status).json({
       error: true,
       code: status >= 500 ? "SERVER_ERROR" : "REQUEST_FAILED",
-      message: error instanceof Error && status < 500 ? error.message : "A server error occurred. Please try again or contact support if the problem persists.",
+      message: error instanceof Error && (status < 500 || exposeMessage) ? error.message : "A server error occurred. Please try again or contact support if the problem persists.",
       requestId,
       details: [],
     });
