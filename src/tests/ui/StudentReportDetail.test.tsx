@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { StudentReportDetail } from "../../components/reports/StudentReportDetail";
+import { defaultSettingsSections } from "../../shared/types/settings";
 import type { StudentReportCard } from "../../shared/types/reports";
 
 const card: StudentReportCard = {
@@ -37,6 +38,14 @@ const card: StudentReportCard = {
   }],
 };
 
+const personalizationWithPhoto = {
+  ...defaultSettingsSections.reportPersonalization,
+  layout: {
+    ...defaultSettingsSections.reportPersonalization.layout,
+    showStudentPhoto: true,
+  },
+};
+
 describe("StudentReportDetail", () => {
   it("renders an A4 single-page report template with positions hidden by default", () => {
     const { container } = render(<StudentReportDetail card={card} assessmentType="EOT" />);
@@ -54,6 +63,28 @@ describe("StudentReportDetail", () => {
 
     expect(screen.getAllByText("Overall Position").length).toBeGreaterThan(0);
     expect(screen.queryByText("Pos.")).not.toBeInTheDocument();
+  });
+
+  it("shows the uploaded passport photo on the report card", () => {
+    const { container } = render(
+      <StudentReportDetail
+        card={{
+          ...card,
+          passportPhotoUrl: "https://res.cloudinary.com/demo/image/upload/v1/school-connect/students/s1/passport.webp",
+        }}
+        personalization={personalizationWithPhoto}
+      />,
+    );
+
+    const image = container.querySelector("img[alt='Esther Nakayiza passport']");
+    expect(image).toHaveAttribute("src", "https://res.cloudinary.com/demo/image/upload/v1/school-connect/students/s1/passport.webp");
+  });
+
+  it("does not crash or show a broken image when the report card has no passport photo", () => {
+    render(<StudentReportDetail card={{ ...card, passportPhotoUrl: null }} personalization={personalizationWithPhoto} />);
+
+    expect(screen.queryByRole("img", { name: /esther nakayiza passport/i })).not.toBeInTheDocument();
+    expect(screen.getByText("No photo")).toBeInTheDocument();
   });
 
   it("constrains long teacher comments and avoids raw null or undefined text", () => {
