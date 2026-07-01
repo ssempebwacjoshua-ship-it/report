@@ -664,9 +664,10 @@ export default function geminiMarksImportRoutes() {
         for (const row of validRows) {
           await tx.subjectMark.upsert({
             where: {
-              studentId_subjectId_termId_assessmentType: {
+              studentId_subjectId_componentKey_termId_assessmentType: {
                 studentId: row.matchedStudentId,
                 subjectId: batchContext!.subjectId,
+                componentKey: "",
                 termId: batchContext!.termId,
                 assessmentType,
               },
@@ -679,6 +680,7 @@ export default function geminiMarksImportRoutes() {
               classId: batchContext!.classId,
               streamId,
               subjectId: batchContext!.subjectId,
+              componentKey: "",
               assessmentType,
               marks: parseFloat(row.mark),
               status: "FINALIZED",

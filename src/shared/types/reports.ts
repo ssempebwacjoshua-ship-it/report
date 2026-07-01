@@ -25,6 +25,7 @@ export type ReportFilters = {
 export type SubjectReportRow = {
   subjectId: string;
   subjectName: string;
+  componentFinalMode?: "AVERAGE" | "WEIGHTED" | "MANUAL";
   botMarks: number | null;
   motMarks: number | null;
   eotMarks: number | null;
@@ -34,6 +35,19 @@ export type SubjectReportRow = {
   subjectPosition: number | null;
   missingMarks: string[];
   comments: string;
+  components?: SubjectComponentReportRow[];
+};
+
+export type SubjectComponentReportRow = {
+  componentId: string;
+  componentName: string;
+  componentCode?: string | null;
+  sortOrder: number;
+  weight: number | null;
+  botMarks: number | null;
+  motMarks: number | null;
+  eotMarks: number | null;
+  finalMark: number | null;
 };
 
 export type StudentReportCard = {

@@ -22,7 +22,7 @@ function getContactSummary(
 function emptyInput(
   filters: ReportFilters,
   settings: Awaited<ReturnType<typeof getSettingsSections>>,
-  options: { academicYearName?: string; termName?: string; hasActiveTerm?: boolean; subjects?: Array<{ id: string; name: string; sortOrder: number }>; emptyReasonOverride?: string | null },
+  options: { academicYearName?: string; termName?: string; hasActiveTerm?: boolean; subjects?: EngineInput["subjects"]; emptyReasonOverride?: string | null },
 ): EngineInput {
   return {
     filters,
@@ -52,7 +52,16 @@ export async function loadReportEngineInput(prisma: PrismaClient, filters: Repor
         where: filters.academicYearId ? { id: filters.academicYearId } : { isActive: true },
         include: { terms: { where: filters.termId ? { id: filters.termId } : { isActive: true } } },
       },
-      subjects: { where: { isActive: true }, orderBy: { sortOrder: "asc" } },
+      subjects: {
+        where: { isActive: true },
+        orderBy: { sortOrder: "asc" },
+        include: {
+          components: {
+            where: { isActive: true },
+            orderBy: { sortOrder: "asc" },
+          },
+        },
+      },
     },
   });
 
@@ -63,7 +72,19 @@ export async function loadReportEngineInput(prisma: PrismaClient, filters: Repor
     });
   }
 
-  const activeSubjects = school.subjects.map((subject) => ({ id: subject.id, name: subject.name, sortOrder: subject.sortOrder }));
+  const activeSubjects = school.subjects.map((subject) => ({
+    id: subject.id,
+    name: subject.name,
+    sortOrder: subject.sortOrder,
+    componentFinalMode: subject.componentFinalMode ?? "AVERAGE",
+    components: (subject.components ?? []).map((component) => ({
+      id: component.id,
+      name: component.name,
+      code: component.code,
+      sortOrder: component.sortOrder,
+      weight: component.weight == null ? null : Number(component.weight),
+    })),
+  }));
   const academicYear = school.academicYears[0] ?? null;
   if (!academicYear) {
     return emptyInput(filters, settings, {
@@ -204,6 +225,8 @@ export async function loadReportEngineInput(prisma: PrismaClient, filters: Repor
     marks: marks.map((mark) => ({
       studentId: mark.studentId,
       subjectId: mark.subjectId,
+      componentId: mark.componentId,
+      componentKey: mark.componentKey,
       assessmentType: mark.assessmentType,
       marks: Number(mark.marks),
       comments: mark.comments,

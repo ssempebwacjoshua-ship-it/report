@@ -208,9 +208,9 @@ export function importsRoutes() {
       });
 
       const errorRows = allRows.filter((row) => row.errors.length > 0);
-      const header = "rowNumber,admissionNumber,class,stream,subject,term,examType,marks,errors";
+      const header = "rowNumber,admissionNumber,class,stream,subject,component,term,examType,marks,errors";
       const lines = errorRows.map((row) => {
-        const raw = row.raw as { admissionNumber?: string; class?: string; stream?: string; subject?: string; term?: string; examType?: string; marks?: unknown };
+        const raw = row.raw as { admissionNumber?: string; class?: string; stream?: string; subject?: string; component?: string; term?: string; examType?: string; marks?: unknown };
         const esc = (v: string) => `"${v.replace(/"/g, '""')}"`;
         return [
           row.rowNumber,
@@ -218,6 +218,7 @@ export function importsRoutes() {
           esc(raw.class ?? ""),
           esc(raw.stream ?? ""),
           esc(raw.subject ?? ""),
+          esc(raw.component ?? ""),
           esc(raw.term ?? ""),
           esc(raw.examType ?? ""),
           esc(String(raw.marks ?? "")),
@@ -779,9 +780,10 @@ export function importsRoutes() {
 
             await tx.subjectMark.upsert({
               where: {
-                studentId_subjectId_termId_assessmentType: {
+                studentId_subjectId_componentKey_termId_assessmentType: {
                   studentId: enrollment.student.id,
                   subjectId: subject.id,
+                  componentKey: "",
                   termId: activeTerm.id,
                   assessmentType: toAssessmentType(payload.context.examType),
                 },
@@ -800,6 +802,7 @@ export function importsRoutes() {
                 classId: klass.id,
                 streamId: stream.id,
                 subjectId: subject.id,
+                componentKey: "",
                 assessmentType: toAssessmentType(payload.context.examType),
                 marks: item.mark,
                 comments: item.row.remarks || null,
