@@ -417,10 +417,10 @@ function StudentReportDetailContent({
 
         <div className="px-8 py-5 print:px-4 print:py-2">
           <div className="report-student-profile mb-4 rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-4 shadow-sm print:mb-1 print:p-2 print:shadow-none">
-            <div className={`grid items-center gap-4 ${showStudentPhoto ? "lg:grid-cols-[minmax(0,1fr)_8rem]" : ""}`}>
-              <div>
-                <p className="mb-3 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 print:mb-1 print:text-[6px]">Student Profile</p>
-                <div className="grid grid-cols-2 gap-x-5 gap-y-3 text-sm sm:grid-cols-2 lg:grid-cols-4 print:grid-cols-4 print:gap-y-0.5 print:text-[8px]">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center print:flex-row print:items-center print:gap-2">
+              <div className="min-w-0 flex-1">
+                <p className="mb-2 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 print:mb-1 print:text-[6px]">Student Profile</p>
+                <div className="grid grid-cols-2 gap-x-5 gap-y-3 text-sm sm:grid-cols-4 print:grid-cols-4 print:gap-x-3 print:gap-y-0.5 print:text-[8px]">
                 <div className="min-w-0">
                   <span className="block text-[10px] font-bold uppercase tracking-wide text-slate-500 print:text-[6px]">Full Name</span>
                   <span className="block truncate font-bold text-slate-950">{sanitizedCard.studentName}</span>
@@ -440,7 +440,7 @@ function StudentReportDetailContent({
                 </div>
               </div>
               {showStudentPhoto ? (
-                <div className="report-passport-frame justify-self-center rounded-2xl border border-slate-300 bg-white p-2 text-center shadow-sm print:p-1 print:shadow-none">
+                <div className="report-passport-frame self-center rounded-2xl border border-slate-300 bg-white p-2 text-center shadow-sm lg:self-auto print:self-auto print:p-1 print:shadow-none">
                   <div className="overflow-hidden rounded-xl">
                     <PassportPhotoAvatar
                       name={sanitizedCard.studentName}
