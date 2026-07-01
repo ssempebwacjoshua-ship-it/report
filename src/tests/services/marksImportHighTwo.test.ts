@@ -13,7 +13,7 @@ function makeSchool() {
       { id: "std-1", admissionNumber: "001", firstName: "Ann", lastName: "Bee", isActive: true },
       { id: "std-2", admissionNumber: "002", firstName: "Ben", lastName: "Kay", isActive: true },
     ],
-    subjects: [{ id: "sub-1", name: "Mathematics", code: "MATH", isActive: true }],
+    subjects: [{ id: "sub-1", name: "Mathematics", code: "MATH", isActive: true, components: [] }],
     academicYears: [{
       id: "yr-1",
       name: "2025/2026",
@@ -40,7 +40,7 @@ function makeCsv(rows: string[]) {
 
 function buildServiceMock(options: { failOnUpsertCall?: number } = {}) {
   const persisted = {
-    marks: [] as Array<{ studentId: string; subjectId: string; termId: string; assessmentType: string; marks: number; importBatchId: string }>,
+    marks: [] as Array<{ studentId: string; subjectId: string; componentKey: string; termId: string; assessmentType: string; marks: number; importBatchId: string }>,
     batches: [] as Array<{ id: string; schoolId: string; status: string; source: string; summary: string | null }>,
     rows: [] as Array<{ batchId: string; rowNumber: number; isValid: boolean; errors: string[] }>,
     logs: [] as Array<{ action: string; correlationId?: string | null }>,
@@ -106,10 +106,11 @@ function buildServiceMock(options: { failOnUpsertCall?: number } = {}) {
           throw new Error("Injected subjectMark failure");
         }
 
-        const key = where.studentId_subjectId_termId_assessmentType;
+        const key = where.studentId_subjectId_componentKey_termId_assessmentType;
         const existing = txState.marks.find((item) =>
           item.studentId === key.studentId
           && item.subjectId === key.subjectId
+          && item.componentKey === key.componentKey
           && item.termId === key.termId
           && item.assessmentType === key.assessmentType,
         );
@@ -123,6 +124,7 @@ function buildServiceMock(options: { failOnUpsertCall?: number } = {}) {
         const created = {
           studentId: create.studentId,
           subjectId: create.subjectId,
+          componentKey: create.componentKey ?? "",
           termId: create.termId,
           assessmentType: create.assessmentType,
           marks: Number(create.marks),
@@ -131,6 +133,15 @@ function buildServiceMock(options: { failOnUpsertCall?: number } = {}) {
         txState.marks.push(created);
         return created;
       }),
+    },
+    subjectComponent: {
+      upsert: vi.fn(async ({ where, create }: any) => ({
+        id: `component-${where.subjectId_code.code}`,
+        subjectId: create.subjectId,
+        name: create.name,
+        code: create.code,
+        sortOrder: create.sortOrder,
+      })),
     },
     auditLog: {
       create: vi.fn(async ({ data }: any) => {
@@ -249,6 +260,24 @@ describe("Phase 3 import atomicity", () => {
     expect(persisted.batches).toHaveLength(1);
     expect(persisted.batches[0]?.status).toBe("COMMITTED");
     expect(persisted.logs[0]?.action).toBe("marks.imported");
+  });
+
+  it("maps subject paper suffixes to component marks under the parent subject", async () => {
+    const { mockPrisma, persisted } = buildServiceMock();
+
+    const result = await commitMarksImport(
+      mockPrisma,
+      "H2SCHOOL",
+      makeCsv([
+        "001,P1,A,MATH 1,Term 1,EOT,76",
+        "001,P1,A,MATH 2,Term 1,EOT,84",
+      ]),
+    );
+
+    expect(result.status).toBe("COMMITTED");
+    expect(persisted.marks).toHaveLength(2);
+    expect(persisted.marks.map((mark) => mark.subjectId)).toEqual(["sub-1", "sub-1"]);
+    expect(persisted.marks.map((mark) => mark.componentKey).sort()).toEqual(["component-PAPER-1", "component-PAPER-2"]);
   });
 
   it("re-running the same import stays idempotent for mark records", async () => {

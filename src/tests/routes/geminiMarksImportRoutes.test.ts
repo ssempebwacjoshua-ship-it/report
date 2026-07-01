@@ -766,10 +766,11 @@ describe("POST /api/marks-import/scan/commit ? successful commit", () => {
       .send({ jobId: JOB, reviewedRows: VALID_REVIEWED_ROWS });
 
     const upsertArg = txSubjectMarkUpsert.mock.calls[0][0] as {
-      where: { studentId_subjectId_termId_assessmentType: { assessmentType: string } };
+      where: { studentId_subjectId_componentKey_termId_assessmentType: { assessmentType: string; componentKey: string } };
       create: { assessmentType: string };
     };
-    expect(upsertArg.where.studentId_subjectId_termId_assessmentType.assessmentType).toBe("BOT");
+    expect(upsertArg.where.studentId_subjectId_componentKey_termId_assessmentType.assessmentType).toBe("BOT");
+    expect(upsertArg.where.studentId_subjectId_componentKey_termId_assessmentType.componentKey).toBe("");
     expect(upsertArg.create.assessmentType).toBe("BOT");
   });
 

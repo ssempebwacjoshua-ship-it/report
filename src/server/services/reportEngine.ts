@@ -23,11 +23,23 @@ export type EngineSubject = {
   id: string;
   name: string;
   sortOrder: number;
+  componentFinalMode?: "AVERAGE" | "WEIGHTED" | "MANUAL";
+  components?: EngineSubjectComponent[];
+};
+
+export type EngineSubjectComponent = {
+  id: string;
+  name: string;
+  code?: string | null;
+  sortOrder: number;
+  weight?: number | null;
 };
 
 export type EngineMark = {
   studentId: string;
   subjectId: string;
+  componentId?: string | null;
+  componentKey?: string | null;
   assessmentType: "BOT" | "MOT" | "EOT";
   marks: number;
   comments?: string | null;
@@ -59,6 +71,22 @@ function averageForMarks(values: Array<number | null>): number | null {
   const present = values.filter((value): value is number => value != null);
   if (present.length === 0) return null;
   return roundMark(present.reduce((sum, value) => sum + value, 0) / present.length);
+}
+
+function markForType(markSet: EngineMark[], type: "BOT" | "MOT" | "EOT"): number | null {
+  return markSet.find((mark) => mark.assessmentType === type)?.marks ?? null;
+}
+
+function isSimpleMark(mark: EngineMark): boolean {
+  return !mark.componentId && !mark.componentKey;
+}
+
+function weightedAverage(values: Array<{ value: number | null; weight: number | null | undefined }>): number | null {
+  const present = values.filter((item): item is { value: number; weight: number } => item.value != null && item.weight != null && item.weight > 0);
+  if (present.length === 0) return null;
+  const totalWeight = present.reduce((sum, item) => sum + item.weight, 0);
+  if (totalWeight <= 0) return null;
+  return roundMark(present.reduce((sum, item) => sum + item.value * item.weight, 0) / totalWeight);
 }
 
 function gradingFromPersonalization(
@@ -138,51 +166,106 @@ export function buildReports(input: EngineInput): ReportsResponse {
     marksByStudentSubject.set(key, [...(marksByStudentSubject.get(key) ?? []), mark]);
   }
 
+  const buildSubjectRow = (studentId: string, subject: EngineSubject) => {
+    const markSet = marksByStudentSubject.get(`${studentId}:${subject.id}`) ?? [];
+    const simpleMarks = markSet.filter(isSimpleMark);
+    const botMarks = markForType(simpleMarks, "BOT");
+    const motMarks = markForType(simpleMarks, "MOT");
+    const eotMarks = markForType(simpleMarks, "EOT");
+    const simpleMarkForType = (type: "BOT" | "MOT" | "EOT") => (
+      type === "BOT" ? botMarks : type === "MOT" ? motMarks : eotMarks
+    );
+    const simpleMarksForFilter = required.map(simpleMarkForType);
+    const simpleAverage = averageForMarks(simpleMarksForFilter);
+
+    const components = (subject.components ?? [])
+      .slice()
+      .sort((a, b) => a.sortOrder - b.sortOrder)
+      .map((component) => {
+        const componentMarks = markSet.filter((mark) => mark.componentId === component.id || mark.componentKey === component.id);
+        const componentBot = markForType(componentMarks, "BOT");
+        const componentMot = markForType(componentMarks, "MOT");
+        const componentEot = markForType(componentMarks, "EOT");
+        const componentMarkForType = (type: "BOT" | "MOT" | "EOT") => (
+          type === "BOT" ? componentBot : type === "MOT" ? componentMot : componentEot
+        );
+        return {
+          componentId: component.id,
+          componentName: component.name,
+          componentCode: component.code ?? null,
+          sortOrder: component.sortOrder,
+          weight: component.weight ?? null,
+          botMarks: componentBot,
+          motMarks: componentMot,
+          eotMarks: componentEot,
+          finalMark: averageForMarks(required.map(componentMarkForType)),
+        };
+      });
+
+    const hasComponentMarks = components.some((component) => component.finalMark != null);
+    const componentAverage = averageForMarks(components.map((component) => component.finalMark));
+    const weightedComponentAverage = weightedAverage(components.map((component) => ({
+      value: component.finalMark,
+      weight: component.weight,
+    })));
+    const mode = subject.componentFinalMode ?? "AVERAGE";
+    const componentFinal = mode === "MANUAL" && simpleAverage != null
+      ? simpleAverage
+      : mode === "WEIGHTED" && weightedComponentAverage != null
+        ? weightedComponentAverage
+        : componentAverage;
+
+    const average = hasComponentMarks ? componentFinal : simpleAverage;
+    const total = hasComponentMarks
+      ? null
+      : simpleMarksForFilter.some((value) => value != null)
+        ? roundMark(simpleMarksForFilter.reduce((sum, value) => sum + (value ?? 0), 0))
+        : null;
+    const missingMarks = hasComponentMarks
+      ? components.flatMap((component) => {
+          const missing = required.filter((type) => {
+            const value = type === "BOT" ? component.botMarks : type === "MOT" ? component.motMarks : component.eotMarks;
+            return value == null;
+          });
+          return missing.map((type) => `${component.componentName} ${type}`);
+        })
+      : required.filter((type) => simpleMarkForType(type) == null);
+
+    return {
+      subjectId: subject.id,
+      subjectName: subject.name,
+      componentFinalMode: mode,
+      botMarks,
+      motMarks,
+      eotMarks,
+      total,
+      average,
+      grade: gradeForAverage(average, grading),
+      subjectPosition: null,
+      missingMarks,
+      comments: constrainReportText(
+        markSet.map((mark) => mark.comments).filter(Boolean).join(" "),
+        REPORT_CONTENT_LIMITS.subjectRemark,
+        { preserveLineBreaks: true },
+      ),
+      components,
+    };
+  };
+
   const subjectPositions = new Map<string, Map<string, number | null>>();
   for (const subject of input.subjects) {
     const subjectScores = input.students.map((student) => {
-      const markSet = marksByStudentSubject.get(`${student.id}:${subject.id}`) ?? [];
-      const scores = required.map((type) => markSet.find((mark) => mark.assessmentType === type)?.marks ?? null);
-      return { id: student.id, score: averageForMarks(scores) };
+      return { id: student.id, score: buildSubjectRow(student.id, subject).average };
     });
     subjectPositions.set(subject.id, rankByScore(subjectScores));
   }
 
   const sortedSubjects = [...input.subjects].sort((a, b) => a.sortOrder - b.sortOrder);
   const cardsWithoutPosition: StudentReportCard[] = input.students.map((student) => {
-    const subjects = sortedSubjects.map((subject) => {
-      const markSet = marksByStudentSubject.get(`${student.id}:${subject.id}`) ?? [];
-      const botMarks = markSet.find((mark) => mark.assessmentType === "BOT")?.marks ?? null;
-      const motMarks = markSet.find((mark) => mark.assessmentType === "MOT")?.marks ?? null;
-      const eotMarks = markSet.find((mark) => mark.assessmentType === "EOT")?.marks ?? null;
-      const markForType = (type: "BOT" | "MOT" | "EOT") => (
-        type === "BOT" ? botMarks : type === "MOT" ? motMarks : eotMarks
-      );
-      const marksForFilter = required.map(markForType);
-      const missingMarks = required.filter((type) => markForType(type) == null);
-      const average = averageForMarks(marksForFilter);
-      const total = marksForFilter.some((value) => value != null)
-        ? roundMark(marksForFilter.reduce((sum, value) => sum + (value ?? 0), 0))
-        : null;
-
-      return {
-        subjectId: subject.id,
-        subjectName: subject.name,
-        botMarks,
-        motMarks,
-        eotMarks,
-        total,
-        average,
-        grade: gradeForAverage(average, grading),
-        subjectPosition: subjectPositions.get(subject.id)?.get(student.id) ?? null,
-        missingMarks,
-        comments: constrainReportText(
-          markSet.map((mark) => mark.comments).filter(Boolean).join(" "),
-          REPORT_CONTENT_LIMITS.subjectRemark,
-          { preserveLineBreaks: true },
-        ),
-      };
-    });
+    const subjects = sortedSubjects.map((subject) => ({
+      ...buildSubjectRow(student.id, subject),
+      subjectPosition: subjectPositions.get(subject.id)?.get(student.id) ?? null,
+    }));
 
     const countedSubjectAverages = subjects.map((subject) => subject.average).filter((value): value is number => value != null);
     const average = countedSubjectAverages.length
@@ -190,6 +273,14 @@ export function buildReports(input: EngineInput): ReportsResponse {
       : null;
     const missingMarks = subjects.flatMap((subject) => subject.missingMarks.map((type) => `${subject.subjectName} ${type}`));
     const marksFound = subjects.reduce((sum, subject) => {
+      if (subject.components?.some((component) => component.finalMark != null)) {
+        return sum + subject.components.reduce((componentSum, component) => {
+          const bot = required.includes("BOT") && component.botMarks != null ? 1 : 0;
+          const mot = required.includes("MOT") && component.motMarks != null ? 1 : 0;
+          const eot = required.includes("EOT") && component.eotMarks != null ? 1 : 0;
+          return componentSum + bot + mot + eot;
+        }, 0);
+      }
       const bot = required.includes("BOT") && subject.botMarks != null ? 1 : 0;
       const mot = required.includes("MOT") && subject.motMarks != null ? 1 : 0;
       const eot = required.includes("EOT") && subject.eotMarks != null ? 1 : 0;

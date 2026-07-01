@@ -5,6 +5,7 @@ import { parseMarksCsv } from "../adapters/csvMarksParser";
 import { getSettingsSections } from "../repositories/settingsRepository";
 import { finalizedStatus, toAssessmentType, validateImportRows } from "./marksImportValidator";
 import { validateScoreEntry } from "./scoreValidationService";
+import { resolveSubjectComponent } from "./subjectComponentResolver";
 
 function norm(value: string): string {
   return value.trim().toLowerCase();
@@ -150,7 +151,7 @@ export async function commitMarksImport(prisma: PrismaClient, schoolCode: string
     include: {
       classes: { include: { streams: true } },
       students: true,
-      subjects: true,
+      subjects: { include: { components: true } },
       academicYears: { where: { isActive: true }, include: { terms: { where: { isActive: true } } } },
     },
   });
@@ -220,8 +221,31 @@ export async function commitMarksImport(prisma: PrismaClient, schoolCode: string
         const student = school.students.find((item) => norm(item.admissionNumber) === norm(raw.admissionNumber))!;
         const klass = school.classes.find((item) => norm(item.name) === norm(raw.class) || norm(item.code) === norm(raw.class))!;
         const stream = klass.streams.find((item) => norm(item.name) === norm(raw.stream) || norm(item.code) === norm(raw.stream))!;
-        const subject = school.subjects.find((item) => norm(item.name) === norm(raw.subject) || norm(item.code) === norm(raw.subject))!;
+        const subjectResolution = resolveSubjectComponent(school.subjects, raw.subject, raw.component);
+        const subject = subjectResolution.subject!;
         const score = validateScoreEntry(raw.marks);
+        const component = subjectResolution.componentName
+          ? await tx.subjectComponent.upsert({
+              where: {
+                subjectId_code: {
+                  subjectId: subject.id,
+                  code: subjectResolution.componentCode,
+                },
+              },
+              update: {
+                name: subjectResolution.componentName,
+                isActive: true,
+              },
+              create: {
+                schoolId: school.id,
+                subjectId: subject.id,
+                name: subjectResolution.componentName,
+                code: subjectResolution.componentCode,
+                sortOrder: (subject.components?.length ?? 0) + 1,
+              },
+            })
+          : null;
+        const componentKey = component?.id ?? "";
 
         if (!score.valid || score.kind !== "numeric") {
           throw new Error(`Row ${row.rowNumber} has an invalid numeric mark.`);
@@ -229,9 +253,10 @@ export async function commitMarksImport(prisma: PrismaClient, schoolCode: string
 
         await tx.subjectMark.upsert({
           where: {
-            studentId_subjectId_termId_assessmentType: {
+            studentId_subjectId_componentKey_termId_assessmentType: {
               studentId: student.id,
               subjectId: subject.id,
+              componentKey,
               termId: activeTerm.id,
               assessmentType: toAssessmentType(raw.examType),
             },
@@ -241,6 +266,7 @@ export async function commitMarksImport(prisma: PrismaClient, schoolCode: string
             comments: raw.comments ?? null,
             status: finalizedStatus(),
             importBatchId: batch.id,
+            componentId: component?.id ?? null,
           },
           create: {
             schoolId: school.id,
@@ -250,6 +276,8 @@ export async function commitMarksImport(prisma: PrismaClient, schoolCode: string
             classId: klass.id,
             streamId: stream.id,
             subjectId: subject.id,
+            componentId: component?.id ?? null,
+            componentKey,
             assessmentType: toAssessmentType(raw.examType),
             marks: score.numericValue,
             comments: raw.comments ?? null,

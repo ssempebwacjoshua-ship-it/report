@@ -4,6 +4,7 @@
   class: string;
   stream: string;
   subject: string;
+  component?: string;
   term: string;
   examType: string;
   marks: string;

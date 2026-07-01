@@ -206,6 +206,25 @@ function StudentReportDetailContent({
   const showAttendance = Boolean(personalizationSettings.layout.showAttendance);
   const showFeesBalance = Boolean(personalizationSettings.layout.showFeesBalance);
   const layoutMode = reportLayoutMode(sanitizedCard, effectiveType);
+  const componentColumns = useMemo(() => {
+    const columns = new Map<string, { name: string; sortOrder: number }>();
+    for (const subject of sanitizedCard.subjects) {
+      for (const component of subject.components ?? []) {
+        if (component.finalMark == null && component.botMarks == null && component.motMarks == null && component.eotMarks == null) continue;
+        const key = component.componentName.toLowerCase();
+        const existing = columns.get(key);
+        if (!existing || component.sortOrder < existing.sortOrder) {
+          columns.set(key, { name: component.componentName, sortOrder: component.sortOrder });
+        }
+      }
+    }
+    return [...columns.values()].sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name));
+  }, [sanitizedCard.subjects]);
+  const hasComponentColumns = componentColumns.length > 0;
+  const componentMarkForSubject = (
+    subject: StudentReportCard["subjects"][number],
+    componentName: string,
+  ) => subject.components?.find((component) => component.componentName.toLowerCase() === componentName.toLowerCase())?.finalMark ?? null;
 
   const updateDraft = <K extends keyof ReportDraft>(key: K, value: ReportDraft[K]) => {
     setDraft((current) => ({ ...current, [key]: value }));
@@ -511,7 +530,41 @@ function StudentReportDetailContent({
           </div>
 
           <div className="mb-4 overflow-x-auto rounded-xl border border-slate-200 shadow-sm print:mb-1 print:overflow-visible print:shadow-none">
-            {isTermSummary ? (
+            {hasComponentColumns ? (
+              <table className={`report-table w-full min-w-[620px] border-collapse text-[13px] print:text-[8px] ${layoutMode === "compact" ? "report-table-compact" : ""}`}>
+                <thead>
+                  <tr className="report-table-header bg-[#0f2a5e] text-left text-[10px] font-black uppercase tracking-[0.14em] text-white print:text-[7px]">
+                    <th className="px-3 py-2 text-center">No.</th>
+                    <th className="px-3 py-2">Subject</th>
+                    {componentColumns.map((component) => (
+                      <th key={component.name} className="px-3 py-2 text-center">{component.name}</th>
+                    ))}
+                    <th className="px-3 py-2 text-center">Final</th>
+                    <th className="px-3 py-2 text-center">Grade</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sanitizedCard.subjects.map((subject, index) => (
+                    <tr
+                      key={subject.subjectId}
+                      className={`border-b border-slate-100 ${index % 2 === 1 ? "bg-slate-50/80" : "bg-white"}`}
+                    >
+                      <td className="px-3 py-2 text-center text-xs font-medium text-slate-400">{index + 1}</td>
+                      <td className="px-3 py-2 font-semibold text-slate-900">{subject.subjectName}</td>
+                      {componentColumns.map((component) => (
+                        <td key={`${subject.subjectId}-${component.name}`} className="px-3 py-2 text-center text-slate-700">
+                          {componentMarkForSubject(subject, component.name) ?? "-"}
+                        </td>
+                      ))}
+                      <td className="px-3 py-2 text-center font-semibold text-slate-800">{subject.average ?? "-"}</td>
+                      <td className="px-3 py-2 text-center">
+                        <GradeBadge grade={subject.grade} />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : isTermSummary ? (
               <table className={`report-table w-full min-w-[720px] border-collapse text-[13px] print:text-[8px] ${layoutMode === "compact" ? "report-table-compact" : ""}`}>
                 <thead>
                   <tr className="report-table-header bg-[#0f2a5e] text-left text-[10px] font-black uppercase tracking-[0.14em] text-white print:text-[7px]">
