@@ -368,23 +368,23 @@ function StudentReportDetailContent({
       ) : null}
 
 
-      <div className="report-card-sheet mx-auto max-w-4xl overflow-hidden rounded-2xl bg-white shadow-[0_4px_24px_rgba(0,0,0,0.12)] ring-1 ring-slate-200">
+      <div className="report-card-sheet mx-auto max-w-4xl overflow-hidden rounded-[1.35rem] bg-white shadow-[0_18px_45px_rgba(15,42,94,0.16)] ring-1 ring-slate-200">
         <div
-          className="report-header-bg px-8 py-6 text-white print:px-4 print:py-2"
+          className="report-header-bg px-8 py-5 text-white print:px-4 print:py-2"
           style={{ background: branding.primaryColor }}
         >
           <div className="flex items-center gap-5 print:gap-2">
             {reports.showSchoolLogo ? (
               branding.logoUrl ? (
-                <img src={branding.logoUrl} alt={`${branding.schoolName} logo`} className="h-16 w-14 flex-shrink-0 object-contain print:h-8 print:w-7" />
+                <img src={branding.logoUrl} alt={`${branding.schoolName} logo`} className="h-14 w-14 flex-shrink-0 rounded-2xl object-contain ring-1 ring-white/25 print:h-8 print:w-8" />
               ) : (
-                <div className="grid h-16 w-14 flex-shrink-0 place-items-center rounded-2xl bg-white/10 text-2xl font-black text-white print:h-8 print:w-7 print:text-sm">{branding.initials}</div>
+                <div className="grid h-14 w-14 flex-shrink-0 place-items-center rounded-2xl bg-white/10 text-xl font-black text-white ring-1 ring-white/20 print:h-8 print:w-8 print:text-sm">{branding.initials}</div>
               )
             ) : (
-              <div className="h-16 w-14 flex-shrink-0 print:h-8 print:w-7" />
+              <div className="h-14 w-14 flex-shrink-0 print:h-8 print:w-8" />
             )}
             <div className="flex-1 text-center">
-              <h1 className="text-2xl font-bold tracking-wide print:text-sm">
+              <h1 className="text-3xl font-black uppercase tracking-[0.16em] print:text-sm print:tracking-[0.12em]">
                 {branding.reportTitleOverride || branding.schoolName}
               </h1>
               {branding.motto ? <p className="mt-0.5 text-xs font-semibold text-blue-100 print:text-[7px]">{branding.motto}</p> : null}
@@ -393,16 +393,17 @@ function StudentReportDetailContent({
                   {[branding.address, branding.phone, branding.email, branding.website].filter(Boolean).join(" | ")}
                 </p>
               ) : null}
-              <p className="mt-0.5 text-sm font-medium uppercase tracking-widest text-blue-200 print:text-[7px]">
-                {branding.reportTitleOverride || "Student Academic Report"}
+              <p className="mt-1 text-xs font-bold uppercase tracking-[0.24em] text-blue-100 print:mt-0.5 print:text-[7px]">
+                Student Academic Report
               </p>
             </div>
-            <div className="w-24 flex-shrink-0 text-right text-xs leading-relaxed text-blue-200 print:text-[7px] print:leading-tight">
-              <div className="font-semibold text-white">{formatUgandaSchoolYearLabel(sanitizedCard.academicYear)}</div>
-              <div>{sanitizedCard.term}</div>
+            <div className="w-28 flex-shrink-0 rounded-xl bg-white/10 px-3 py-2 text-right text-xs leading-relaxed text-blue-100 ring-1 ring-white/10 print:w-20 print:px-1.5 print:py-1 print:text-[7px] print:leading-tight">
+              <div className="text-[10px] font-bold uppercase tracking-wider text-blue-200 print:text-[6px]">Academic Year</div>
+              <div className="font-bold text-white">{formatUgandaSchoolYearLabel(sanitizedCard.academicYear)}</div>
+              <div className="text-blue-100">{sanitizedCard.term}</div>
             </div>
           </div>
-          <div className="mt-5 grid grid-cols-2 gap-2 border-t border-blue-800 pt-4 text-center text-xs text-blue-100 print:mt-1 print:pt-1 print:text-[7px]">
+          <div className="mt-4 grid grid-cols-2 gap-2 border-t border-white/15 pt-3 text-center text-xs text-blue-100 print:mt-1 print:pt-1 print:text-[7px]">
             <div>
               <span className="font-semibold text-white">Assessment:</span> {ASSESSMENT_LABELS[effectiveType]}
             </div>
@@ -414,42 +415,48 @@ function StudentReportDetailContent({
 
         <div className="report-gold-line h-1" style={{ background: branding.secondaryColor }} />
 
-        <div className="px-8 py-6 print:px-4 print:py-2">
-          <div className="mb-6 rounded-xl border border-slate-200 bg-slate-50 p-4 print:mb-1 print:p-2">
-            <div className={`grid gap-4 ${showStudentPhoto ? "lg:grid-cols-[minmax(0,1fr)_auto]" : ""}`}>
-              <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm sm:grid-cols-2 lg:grid-cols-4 print:grid-cols-4 print:gap-y-0.5 print:text-[8px]">
-                <div>
-                  <span className="font-semibold text-slate-600">Full Name: </span>
-                  <span className="font-medium text-slate-900">{sanitizedCard.studentName}</span>
+        <div className="px-8 py-5 print:px-4 print:py-2">
+          <div className="report-student-profile mb-4 rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-4 shadow-sm print:mb-1 print:p-2 print:shadow-none">
+            <div className={`grid items-center gap-4 ${showStudentPhoto ? "lg:grid-cols-[minmax(0,1fr)_8rem]" : ""}`}>
+              <div>
+                <p className="mb-3 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 print:mb-1 print:text-[6px]">Student Profile</p>
+                <div className="grid grid-cols-2 gap-x-5 gap-y-3 text-sm sm:grid-cols-2 lg:grid-cols-4 print:grid-cols-4 print:gap-y-0.5 print:text-[8px]">
+                <div className="min-w-0">
+                  <span className="block text-[10px] font-bold uppercase tracking-wide text-slate-500 print:text-[6px]">Full Name</span>
+                  <span className="block truncate font-bold text-slate-950">{sanitizedCard.studentName}</span>
                 </div>
-                <div>
-                  <span className="font-semibold text-slate-600">Adm. No.: </span>
-                  <span className="font-mono font-medium text-slate-900">{sanitizedCard.admissionNumber}</span>
+                <div className="min-w-0">
+                  <span className="block text-[10px] font-bold uppercase tracking-wide text-slate-500 print:text-[6px]">Admission No.</span>
+                  <span className="block truncate font-mono font-semibold text-slate-950">{sanitizedCard.admissionNumber}</span>
                 </div>
-                <div>
-                  <span className="font-semibold text-slate-600">Class: </span>
-                  <span className="text-slate-900">{sanitizedCard.className}</span>
+                <div className="min-w-0">
+                  <span className="block text-[10px] font-bold uppercase tracking-wide text-slate-500 print:text-[6px]">Class</span>
+                  <span className="block truncate font-semibold text-slate-950">{sanitizedCard.className}</span>
                 </div>
-                <div>
-                  <span className="font-semibold text-slate-600">Stream: </span>
-                  <span className="text-slate-900">{sanitizedCard.streamName}</span>
+                <div className="min-w-0">
+                  <span className="block text-[10px] font-bold uppercase tracking-wide text-slate-500 print:text-[6px]">Stream</span>
+                  <span className="block truncate font-semibold text-slate-950">{sanitizedCard.streamName}</span>
+                </div>
                 </div>
               </div>
               {showStudentPhoto ? (
-                <div className="flex items-center justify-center">
-                  <PassportPhotoAvatar
-                    name={sanitizedCard.studentName}
-                    src={sanitizedCard.passportPhotoUrl}
-                    alt={`${sanitizedCard.studentName} passport`}
-                    className="h-28 w-28 print:h-16 print:w-16"
-                  />
+                <div className="report-passport-frame justify-self-center rounded-2xl border border-slate-300 bg-white p-2 text-center shadow-sm print:p-1 print:shadow-none">
+                  <div className="overflow-hidden rounded-xl">
+                    <PassportPhotoAvatar
+                      name={sanitizedCard.studentName}
+                      src={sanitizedCard.passportPhotoUrl}
+                      alt={`${sanitizedCard.studentName} passport`}
+                      className="h-24 w-24 rounded-xl print:h-16 print:w-16"
+                    />
+                  </div>
+                  <div className="mt-1 text-[9px] font-bold uppercase tracking-wider text-slate-400 print:hidden">Passport Photo</div>
                 </div>
               ) : null}
             </div>
           </div>
 
           <div
-            className={`report-summary-cards mb-6 grid gap-3 text-center print:mb-1 print:gap-1 ${
+            className={`report-summary-cards mb-4 grid gap-2 text-center print:mb-1 print:gap-1 ${
               [visibleShowPositions, visibleStreamPosition, visibleClassAverage].filter(Boolean).length >= 2
                 ? "grid-cols-4"
                 : [visibleShowPositions, visibleStreamPosition, visibleClassAverage].filter(Boolean).length === 1
@@ -457,81 +464,81 @@ function StudentReportDetailContent({
                   : "grid-cols-2"
             }`}
           >
-            <div className="report-summary-card rounded-xl bg-blue-600 p-4 text-white print:p-1.5">
-              <b className="block text-3xl font-bold tabular-nums print:text-sm">
+            <div className="report-summary-card rounded-xl bg-blue-600 px-4 py-3 text-white shadow-sm print:p-1.5 print:shadow-none">
+              <b className="block text-2xl font-black tabular-nums leading-none print:text-sm">
                 {sanitizedCard.average ?? "-"}
               </b>
-              <span className="mt-1 block text-xs font-semibold uppercase tracking-wider text-blue-100 print:mt-0.5 print:text-[7px]">
+              <span className="mt-1 block text-[10px] font-bold uppercase tracking-[0.16em] text-blue-100 print:mt-0.5 print:text-[7px]">
                 Average
               </span>
             </div>
-            <div className="report-summary-card rounded-xl bg-[#4c1d95] p-4 text-white print:p-1.5">
-              <b className="block text-3xl font-bold print:text-sm">{sanitizedCard.grade ?? "-"}</b>
-              <span className="mt-1 block text-xs font-semibold uppercase tracking-wider text-purple-200 print:mt-0.5 print:text-[7px]">
+            <div className="report-summary-card rounded-xl bg-[#4c1d95] px-4 py-3 text-white shadow-sm print:p-1.5 print:shadow-none">
+              <b className="block text-2xl font-black leading-none print:text-sm">{sanitizedCard.grade ?? "-"}</b>
+              <span className="mt-1 block text-[10px] font-bold uppercase tracking-[0.16em] text-purple-200 print:mt-0.5 print:text-[7px]">
                 Grade
               </span>
             </div>
             {visibleShowPositions ? (
-              <div className="report-summary-card rounded-xl bg-emerald-600 p-4 text-white print:p-1.5">
-                <b className="block text-3xl font-bold tabular-nums print:text-sm">
+              <div className="report-summary-card rounded-xl bg-emerald-600 px-4 py-3 text-white shadow-sm print:p-1.5 print:shadow-none">
+                <b className="block text-2xl font-black tabular-nums leading-none print:text-sm">
                   {sanitizedCard.overallPosition != null ? `#${sanitizedCard.overallPosition}` : "-"}
                 </b>
-                <span className="mt-1 block text-xs font-semibold uppercase tracking-wider text-emerald-100 print:mt-0.5 print:text-[7px]">
+                <span className="mt-1 block text-[10px] font-bold uppercase tracking-[0.16em] text-emerald-100 print:mt-0.5 print:text-[7px]">
                   Overall Position
                 </span>
               </div>
             ) : null}
             {visibleStreamPosition ? (
-              <div className="report-summary-card rounded-xl bg-cyan-700 p-4 text-white print:p-1.5">
-                <b className="block text-3xl font-bold tabular-nums print:text-sm">
+              <div className="report-summary-card rounded-xl bg-cyan-700 px-4 py-3 text-white shadow-sm print:p-1.5 print:shadow-none">
+                <b className="block text-2xl font-black tabular-nums leading-none print:text-sm">
                   {sanitizedCard.overallPosition != null ? `#${sanitizedCard.overallPosition}` : "-"}
                 </b>
-                <span className="mt-1 block text-xs font-semibold uppercase tracking-wider text-cyan-100 print:mt-0.5 print:text-[7px]">
+                <span className="mt-1 block text-[10px] font-bold uppercase tracking-[0.16em] text-cyan-100 print:mt-0.5 print:text-[7px]">
                   Stream Position
                 </span>
               </div>
             ) : null}
             {visibleClassAverage ? (
-              <div className="report-summary-card rounded-xl bg-slate-700 p-4 text-white print:p-1.5">
-                <b className="block text-3xl font-bold tabular-nums print:text-sm">
+              <div className="report-summary-card rounded-xl bg-slate-700 px-4 py-3 text-white shadow-sm print:p-1.5 print:shadow-none">
+                <b className="block text-2xl font-black tabular-nums leading-none print:text-sm">
                   {classAverage ?? "-"}
                 </b>
-                <span className="mt-1 block text-xs font-semibold uppercase tracking-wider text-slate-200 print:mt-0.5 print:text-[7px]">
+                <span className="mt-1 block text-[10px] font-bold uppercase tracking-[0.16em] text-slate-200 print:mt-0.5 print:text-[7px]">
                   Class Average
                 </span>
               </div>
             ) : null}
           </div>
 
-          <div className="mb-6 overflow-x-auto rounded-xl border border-slate-200 print:mb-1 print:overflow-visible">
+          <div className="mb-4 overflow-x-auto rounded-xl border border-slate-200 shadow-sm print:mb-1 print:overflow-visible print:shadow-none">
             {isTermSummary ? (
-              <table className={`report-table w-full min-w-[720px] border-collapse text-sm print:text-[8px] ${layoutMode === "compact" ? "report-table-compact" : ""}`}>
+              <table className={`report-table w-full min-w-[720px] border-collapse text-[13px] print:text-[8px] ${layoutMode === "compact" ? "report-table-compact" : ""}`}>
                 <thead>
-                  <tr className="report-table-header bg-[#0f2a5e] text-left text-xs font-semibold uppercase tracking-wide text-white print:text-[7px]">
-                    <th className="p-2 text-center">No.</th>
-                    <th className="p-2">Subject</th>
-                    <th className="p-2 text-center">BOT</th>
-                    <th className="p-2 text-center">MOT</th>
-                    <th className="p-2 text-center">EOT</th>
-                    <th className="p-2 text-center">Total</th>
-                    <th className="p-2 text-center">Average</th>
-                    <th className="p-2 text-center">Grade</th>
+                  <tr className="report-table-header bg-[#0f2a5e] text-left text-[10px] font-black uppercase tracking-[0.14em] text-white print:text-[7px]">
+                    <th className="px-3 py-2 text-center">No.</th>
+                    <th className="px-3 py-2">Subject</th>
+                    <th className="px-3 py-2 text-center">BOT</th>
+                    <th className="px-3 py-2 text-center">MOT</th>
+                    <th className="px-3 py-2 text-center">EOT</th>
+                    <th className="px-3 py-2 text-center">Total</th>
+                    <th className="px-3 py-2 text-center">Average</th>
+                    <th className="px-3 py-2 text-center">Grade</th>
                   </tr>
                 </thead>
                 <tbody>
                   {sanitizedCard.subjects.map((subject, index) => (
                     <tr
                       key={subject.subjectId}
-                      className={`border-b border-slate-100 ${index % 2 === 1 ? "bg-slate-50" : "bg-white"}`}
+                      className={`border-b border-slate-100 ${index % 2 === 1 ? "bg-slate-50/80" : "bg-white"}`}
                     >
-                      <td className="p-2 text-center text-xs text-slate-400">{index + 1}</td>
-                      <td className="p-2 font-semibold text-slate-900">{subject.subjectName}</td>
-                      <td className="p-2 text-center text-slate-700">{subject.botMarks ?? "-"}</td>
-                      <td className="p-2 text-center text-slate-700">{subject.motMarks ?? "-"}</td>
-                      <td className="p-2 text-center text-slate-700">{subject.eotMarks ?? "-"}</td>
-                      <td className="p-2 text-center font-medium text-slate-800">{subject.total ?? "-"}</td>
-                      <td className="p-2 text-center font-medium text-slate-800">{subject.average ?? "-"}</td>
-                      <td className="p-2 text-center">
+                      <td className="px-3 py-2 text-center text-xs font-medium text-slate-400">{index + 1}</td>
+                      <td className="px-3 py-2 font-semibold text-slate-900">{subject.subjectName}</td>
+                      <td className="px-3 py-2 text-center text-slate-700">{subject.botMarks ?? "-"}</td>
+                      <td className="px-3 py-2 text-center text-slate-700">{subject.motMarks ?? "-"}</td>
+                      <td className="px-3 py-2 text-center text-slate-700">{subject.eotMarks ?? "-"}</td>
+                      <td className="px-3 py-2 text-center font-semibold text-slate-800">{subject.total ?? "-"}</td>
+                      <td className="px-3 py-2 text-center font-semibold text-slate-800">{subject.average ?? "-"}</td>
+                      <td className="px-3 py-2 text-center">
                         <GradeBadge grade={subject.grade} />
                       </td>
                     </tr>
@@ -539,13 +546,13 @@ function StudentReportDetailContent({
                 </tbody>
               </table>
             ) : (
-              <table className={`report-table w-full min-w-[400px] border-collapse text-sm print:text-[8px] ${layoutMode === "compact" ? "report-table-compact" : ""}`}>
+              <table className={`report-table w-full min-w-[400px] border-collapse text-[13px] print:text-[8px] ${layoutMode === "compact" ? "report-table-compact" : ""}`}>
                 <thead>
-                  <tr className="report-table-header bg-[#0f2a5e] text-left text-xs font-semibold uppercase tracking-wide text-white print:text-[7px]">
-                    <th className="p-2 text-center">No.</th>
-                    <th className="p-2">Subject</th>
-                    <th className="p-2 text-center">{effectiveType}</th>
-                    <th className="p-2 text-center">Grade</th>
+                  <tr className="report-table-header bg-[#0f2a5e] text-left text-[10px] font-black uppercase tracking-[0.14em] text-white print:text-[7px]">
+                    <th className="px-3 py-2 text-center">No.</th>
+                    <th className="px-3 py-2">Subject</th>
+                    <th className="px-3 py-2 text-center">{effectiveType}</th>
+                    <th className="px-3 py-2 text-center">Grade</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -560,12 +567,12 @@ function StudentReportDetailContent({
                     return (
                       <tr
                         key={subject.subjectId}
-                        className={`border-b border-slate-100 ${index % 2 === 1 ? "bg-slate-50" : "bg-white"}`}
+                        className={`border-b border-slate-100 ${index % 2 === 1 ? "bg-slate-50/80" : "bg-white"}`}
                       >
-                        <td className="p-2 text-center text-xs text-slate-400">{index + 1}</td>
-                        <td className="p-2 font-semibold text-slate-900">{subject.subjectName}</td>
-                        <td className="p-2 text-center text-slate-700">{singleMark ?? "-"}</td>
-                        <td className="p-2 text-center">
+                        <td className="px-3 py-2 text-center text-xs font-medium text-slate-400">{index + 1}</td>
+                        <td className="px-3 py-2 font-semibold text-slate-900">{subject.subjectName}</td>
+                        <td className="px-3 py-2 text-center text-slate-700">{singleMark ?? "-"}</td>
+                        <td className="px-3 py-2 text-center">
                           <GradeBadge grade={subject.grade} />
                         </td>
                       </tr>
@@ -577,19 +584,19 @@ function StudentReportDetailContent({
           </div>
 
           {visibleGradingScale ? (
-            <div className="mb-6 rounded-xl border border-slate-200 bg-slate-50 p-4 print:mb-1 print:p-2">
-              <h3 className="mb-3 text-xs font-bold uppercase tracking-widest text-slate-400 print:mb-1 print:text-[7px]">
+            <div className="mb-4 rounded-xl border border-slate-200 bg-slate-50/80 px-4 py-3 print:mb-1 print:p-2">
+              <h3 className="mb-2 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 print:mb-1 print:text-[7px]">
                 Grading Key
               </h3>
-              <div className="grid grid-cols-3 gap-2 text-xs sm:grid-cols-5 print:flex print:flex-wrap print:gap-1">
+              <div className="grid grid-cols-3 gap-1.5 text-[11px] sm:grid-cols-5 print:flex print:flex-wrap print:gap-1">
                 {scale.grades.map((band) => {
                   return (
                     <div
                       key={band.label}
-                      className="flex items-center gap-2 rounded-lg bg-white px-3 py-2 shadow-sm ring-1 ring-slate-100 print:gap-1 print:px-2 print:py-0.5 print:shadow-none print:ring-0"
+                      className="flex items-center gap-1.5 rounded-md bg-white px-2 py-1.5 ring-1 ring-slate-100 print:gap-1 print:px-1.5 print:py-0.5 print:ring-0"
                     >
                       <GradeBadge grade={band.label} />
-                      <span className="text-slate-600">
+                      <span className="font-medium text-slate-600">
                         {band.minScore}-{band.maxScore}
                       </span>
                     </div>
@@ -599,16 +606,16 @@ function StudentReportDetailContent({
             </div>
           ) : null}
 
-          <div className="report-comments mb-6 print:mb-1">
-            <h3 className="mb-3 text-xs font-bold uppercase tracking-widest text-slate-400 print:mb-1 print:text-[7px]">
+          <div className="report-comments mb-5 print:mb-1">
+            <h3 className="mb-2 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 print:mb-1 print:text-[7px]">
               Comments
             </h3>
-            <div className={`grid gap-4 print:gap-1 ${showConductCard ? "sm:grid-cols-3 print:grid-cols-3" : "sm:grid-cols-2 print:grid-cols-2"}`}>
-              <div className="rounded-xl border border-slate-200 p-4 print:p-1.5">
-                <p className="mb-2 text-xs font-bold text-slate-600 print:mb-1 print:text-[7px]">
+            <div className={`grid gap-3 print:gap-1 ${showConductCard ? "sm:grid-cols-3 print:grid-cols-3" : "sm:grid-cols-2 print:grid-cols-2"}`}>
+              <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm print:p-1.5 print:shadow-none">
+                <p className="mb-2 text-xs font-black uppercase tracking-wide text-slate-700 print:mb-1 print:text-[7px]">
                   Class Teacher&apos;s Comment
                 </p>
-                <div className="mb-3 min-h-[56px] whitespace-pre-line break-words rounded-lg border border-dashed border-slate-200 bg-slate-50 p-2 text-xs italic text-slate-500 print:mb-1 print:min-h-0 print:p-1">
+                <div className="mb-3 min-h-[54px] whitespace-pre-line break-words border-b border-slate-200 pb-2 text-xs leading-5 text-slate-600 print:mb-1 print:min-h-0 print:p-1">
                   {draft.classTeacherComment || <span className="text-slate-300">—</span>}
                 </div>
                 {draft.classTeacherName ? (
@@ -617,11 +624,11 @@ function StudentReportDetailContent({
                   </p>
                 ) : null}
               </div>
-              <div className="rounded-xl border border-slate-200 p-4 print:p-1.5">
-                <p className="mb-2 text-xs font-bold text-slate-600 print:mb-1 print:text-[7px]">
+              <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm print:p-1.5 print:shadow-none">
+                <p className="mb-2 text-xs font-black uppercase tracking-wide text-slate-700 print:mb-1 print:text-[7px]">
                   Head Teacher&apos;s Comment
                 </p>
-                <div className="mb-3 min-h-[56px] whitespace-pre-line break-words rounded-lg border border-dashed border-slate-200 bg-slate-50 p-2 text-xs italic text-slate-500 print:mb-1 print:min-h-0 print:p-1">
+                <div className="mb-3 min-h-[54px] whitespace-pre-line break-words border-b border-slate-200 pb-2 text-xs leading-5 text-slate-600 print:mb-1 print:min-h-0 print:p-1">
                   {draft.headTeacherComment || <span className="text-slate-300">—</span>}
                 </div>
                 {draft.headTeacherName ? (
@@ -631,35 +638,35 @@ function StudentReportDetailContent({
                 ) : null}
               </div>
               {showConductCard ? (
-                <div className="rounded-xl border border-slate-200 p-4 print:p-1.5">
-                  <p className="mb-2 text-xs font-bold text-slate-600 print:mb-1 print:text-[7px]">
+                <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm print:p-1.5 print:shadow-none">
+                  <p className="mb-2 text-xs font-black uppercase tracking-wide text-slate-700 print:mb-1 print:text-[7px]">
                     Conduct / Progression
                   </p>
-                  <div className="min-h-[56px] whitespace-pre-line break-words rounded-lg border border-dashed border-slate-200 bg-slate-50 p-2 text-xs italic text-slate-500 print:min-h-0 print:p-1">
+                  <div className="min-h-[54px] whitespace-pre-line break-words border-b border-slate-200 pb-2 text-xs leading-5 text-slate-600 print:min-h-0 print:p-1">
                     {conductContent}
                   </div>
                 </div>
               ) : null}
             </div>
             {showParentCommentBox || showAttendance || showFeesBalance ? (
-              <div className="mt-4 grid gap-3 sm:grid-cols-3 print:mt-1 print:gap-1">
+              <div className="mt-3 grid gap-3 sm:grid-cols-3 print:mt-1 print:gap-1">
                 {showParentCommentBox ? (
-                  <div className="rounded-xl border border-dashed border-slate-300 bg-white p-4 print:p-1.5">
-                    <p className="mb-2 text-xs font-bold text-slate-600 print:mb-1 print:text-[7px]">Parent Comment</p>
-                    <div className="min-h-[44px] rounded-lg border border-slate-100 bg-slate-50 p-2 text-xs italic text-slate-400 print:min-h-0 print:p-1">
+                  <div className="rounded-xl border border-slate-200 bg-white p-4 print:p-1.5">
+                    <p className="mb-2 text-xs font-black uppercase tracking-wide text-slate-700 print:mb-1 print:text-[7px]">Parent Comment</p>
+                    <div className="min-h-[40px] border-b border-slate-200 pb-2 text-xs text-slate-400 print:min-h-0 print:p-1">
                       For parent feedback and acknowledgement.
                     </div>
                   </div>
                 ) : null}
                 {showAttendance ? (
                   <div className="rounded-xl border border-slate-200 bg-white p-4 print:p-1.5">
-                    <p className="mb-2 text-xs font-bold text-slate-600 print:mb-1 print:text-[7px]">Attendance</p>
+                    <p className="mb-2 text-xs font-black uppercase tracking-wide text-slate-700 print:mb-1 print:text-[7px]">Attendance</p>
                     <div className="text-xs text-slate-500 print:text-[7px]">Attendance summary not recorded.</div>
                   </div>
                 ) : null}
                 {showFeesBalance ? (
                   <div className="rounded-xl border border-slate-200 bg-white p-4 print:p-1.5">
-                    <p className="mb-2 text-xs font-bold text-slate-600 print:mb-1 print:text-[7px]">Fees Balance</p>
+                    <p className="mb-2 text-xs font-black uppercase tracking-wide text-slate-700 print:mb-1 print:text-[7px]">Fees Balance</p>
                     <div className="text-xs text-slate-500 print:text-[7px]">Fees balance is not available in this report.</div>
                   </div>
                 ) : null}
@@ -667,8 +674,26 @@ function StudentReportDetailContent({
             ) : null}
           </div>
 
-          <div className="report-footer border-t border-slate-200 pt-4 text-center text-xs text-slate-400 print:pt-2">
-            <p className="font-medium text-slate-500">
+          <div className="report-signature-panel mb-4 grid gap-4 border-t border-slate-200 pt-4 text-xs text-slate-600 sm:grid-cols-3 print:mb-1 print:gap-2 print:pt-2 print:text-[7px]">
+            <div>
+              <div className="mb-2 h-8 border-b border-slate-300 print:h-5" />
+              <p className="font-bold uppercase tracking-wide text-slate-500">Class Teacher</p>
+              <p className="text-slate-400">{draft.classTeacherName || "Name / Signature"}</p>
+            </div>
+            <div>
+              <div className="mb-2 h-8 border-b border-slate-300 print:h-5" />
+              <p className="font-bold uppercase tracking-wide text-slate-500">Head Teacher</p>
+              <p className="text-slate-400">{draft.headTeacherName || branding.headteacherName || "Name / Signature"}</p>
+            </div>
+            <div>
+              <div className="mb-2 h-8 border-b border-slate-300 print:h-5" />
+              <p className="font-bold uppercase tracking-wide text-slate-500">Date Issued</p>
+              <p className="text-slate-400">{issueDate}</p>
+            </div>
+          </div>
+
+          <div className="report-footer border-t border-slate-200 pt-3 text-center text-[11px] text-slate-400 print:pt-1 print:text-[7px]">
+            <p className="font-semibold text-slate-500">
               {branding.reportFooterText || school.reportFooterText}
             </p>
             {branding.stampUrl || branding.headteacherSignatureUrl ? (
@@ -685,8 +710,11 @@ function StudentReportDetailContent({
                 ) : null}
               </div>
             ) : null}
-            <p className="mt-1 print:mt-0">
-              Verification: SC-REPORT-PREVIEW
+            <p className="mt-1 font-medium print:mt-0">
+              Verification Code: SC-REPORT-PREVIEW
+            </p>
+            <p className="mt-0.5 text-slate-300 print:mt-0">
+              Generated securely by School Connect
             </p>
           </div>
         </div>

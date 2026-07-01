@@ -711,6 +711,33 @@ body {
   padding-bottom: 0.35rem;
 }
 
+.report-card-sheet {
+  color: #0f172a;
+}
+
+.report-student-profile,
+.report-summary-cards,
+.report-comments,
+.report-signature-panel,
+.report-footer {
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+.report-passport-frame img {
+  aspect-ratio: 1 / 1;
+}
+
+.report-table th,
+.report-table td {
+  border-right: 1px solid rgba(226, 232, 240, 0.75);
+}
+
+.report-table th:last-child,
+.report-table td:last-child {
+  border-right: 0;
+}
+
 /* Hidden on screen; shown in @media print block below */
 .print-only {
   display: none;
@@ -779,6 +806,7 @@ body {
     max-width: 100% !important;
     margin: 0 !important;
     overflow: visible !important;
+    border: 1px solid #d7dde7 !important;
     print-color-adjust: exact !important;
     -webkit-print-color-adjust: exact !important;
   }
@@ -811,7 +839,8 @@ body {
 
   .report-table th,
   .report-table td {
-    padding: 3px 4px !important;
+    padding: 2.5px 4px !important;
+    line-height: 1.2 !important;
   }
 
   .report-layout-compact .report-table-compact {
@@ -830,6 +859,20 @@ body {
     -webkit-print-color-adjust: exact !important;
   }
 
+  .report-student-profile {
+    background: #f8fafc !important;
+    box-shadow: none !important;
+  }
+
+  .report-passport-frame {
+    width: fit-content !important;
+    box-shadow: none !important;
+  }
+
+  .report-passport-frame img {
+    object-fit: cover !important;
+  }
+
   /* Zebra rows — ensure they print */
   .report-table tbody tr:nth-child(even) {
     background-color: #f8fafc !important;
@@ -841,6 +884,12 @@ body {
   .report-summary-card {
     print-color-adjust: exact !important;
     -webkit-print-color-adjust: exact !important;
+  }
+
+  .report-signature-panel,
+  .report-footer {
+    page-break-inside: avoid;
+    break-inside: avoid;
   }
 
   /* Comments — never split mid-signature across pages */
