@@ -945,8 +945,8 @@ body {
 
   /* Keep parent/final report header visually consistent with the draft preview */
   .report-parent-page .report-header-bg {
-    padding-top: 18px !important;
-    padding-bottom: 18px !important;
+    padding-top: 26px !important;
+    padding-bottom: 26px !important;
   }
 
   /* Strip screen card chrome from the marksheet preview wrapper */

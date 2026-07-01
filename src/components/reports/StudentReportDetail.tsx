@@ -370,40 +370,40 @@ function StudentReportDetailContent({
 
       <div className="report-card-sheet mx-auto max-w-4xl overflow-hidden rounded-[1.35rem] bg-white shadow-[0_18px_45px_rgba(15,42,94,0.16)] ring-1 ring-slate-200">
         <div
-          className="report-header-bg px-10 py-8 text-white print:px-7 print:py-5"
+          className="report-header-bg px-12 py-10 text-white print:px-8 print:py-7"
           style={{ background: `linear-gradient(135deg, #020817 0%, ${branding.primaryColor} 58%, #06142c 100%)` }}
         >
-          <div className="flex items-center gap-6 print:gap-4">
+          <div className="flex items-center gap-8 print:gap-5">
             {reports.showSchoolLogo ? (
               branding.logoUrl ? (
-                <img src={branding.logoUrl} alt={`${branding.schoolName} logo`} className="h-20 w-20 flex-shrink-0 rounded-3xl object-contain ring-1 ring-white/25 print:h-14 print:w-14" />
+                <img src={branding.logoUrl} alt={`${branding.schoolName} logo`} className="h-24 w-24 flex-shrink-0 rounded-3xl object-contain ring-1 ring-white/25 print:h-16 print:w-16" />
               ) : (
-                <div className="grid h-20 w-20 flex-shrink-0 place-items-center rounded-3xl bg-white/10 text-3xl font-black text-white ring-1 ring-white/20 print:h-14 print:w-14 print:text-xl">{branding.initials}</div>
+                <div className="grid h-24 w-24 flex-shrink-0 place-items-center rounded-3xl bg-white/10 text-4xl font-black text-white ring-1 ring-white/20 print:h-16 print:w-16 print:text-2xl">{branding.initials}</div>
               )
             ) : (
-              <div className="h-20 w-20 flex-shrink-0 print:h-14 print:w-14" />
+              <div className="h-24 w-24 flex-shrink-0 print:h-16 print:w-16" />
             )}
             <div className="flex-1 text-center">
-              <h1 className="text-4xl font-black uppercase tracking-[0.18em] print:text-2xl print:tracking-[0.16em]">
+              <h1 className="text-5xl font-black uppercase tracking-[0.2em] print:text-3xl print:tracking-[0.18em]">
                 {branding.reportTitleOverride || branding.schoolName}
               </h1>
-              {branding.motto ? <p className="mt-1 text-base font-semibold text-blue-100 print:text-sm">{branding.motto}</p> : null}
+              {branding.motto ? <p className="mt-2 text-xl font-semibold text-blue-100 print:text-base">{branding.motto}</p> : null}
               {branding.address || branding.phone || branding.email || branding.website ? (
-                <p className="mt-1 text-xs font-medium text-blue-100 print:text-[8px]">
+                <p className="mt-1 text-sm font-medium text-blue-100 print:text-[10px]">
                   {[branding.address, branding.phone, branding.email, branding.website].filter(Boolean).join(" | ")}
                 </p>
               ) : null}
-              <p className="mt-2 text-base font-bold uppercase tracking-[0.28em] text-blue-100 print:mt-1 print:text-sm print:tracking-[0.22em]">
+              <p className="mt-3 text-xl font-bold uppercase tracking-[0.3em] text-blue-100 print:mt-2 print:text-base print:tracking-[0.24em]">
                 Student Academic Report
               </p>
             </div>
-            <div className="w-40 flex-shrink-0 rounded-2xl bg-white/10 px-5 py-4 text-right text-base leading-relaxed text-blue-100 ring-1 ring-white/10 print:w-32 print:px-3 print:py-3 print:text-sm print:leading-snug">
-              <div className="text-xs font-bold uppercase tracking-wider text-blue-200 print:text-[9px]">Academic Year</div>
-              <div className="text-xl font-bold text-white print:text-base">{formatUgandaSchoolYearLabel(sanitizedCard.academicYear)}</div>
+            <div className="w-44 flex-shrink-0 rounded-3xl bg-white/10 px-6 py-5 text-right text-lg leading-relaxed text-blue-100 ring-1 ring-white/10 print:w-36 print:px-4 print:py-4 print:text-base print:leading-snug">
+              <div className="text-sm font-bold uppercase tracking-wider text-blue-200 print:text-[10px]">Academic Year</div>
+              <div className="text-2xl font-bold text-white print:text-xl">{formatUgandaSchoolYearLabel(sanitizedCard.academicYear)}</div>
               <div className="text-blue-100">{sanitizedCard.term}</div>
             </div>
           </div>
-          <div className="mt-7 grid grid-cols-2 gap-2 border-t border-white/15 pt-5 text-center text-base text-blue-100 print:mt-4 print:pt-3 print:text-sm">
+          <div className="mt-8 grid grid-cols-2 gap-2 border-t border-white/15 pt-6 text-center text-lg text-blue-100 print:mt-5 print:pt-4 print:text-base">
             <div>
               <span className="font-semibold text-white">Assessment:</span> {ASSESSMENT_LABELS[effectiveType]}
             </div>
