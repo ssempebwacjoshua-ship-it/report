@@ -813,7 +813,8 @@ body {
 
   /* Header — must keep navy even if browser strips backgrounds */
   .report-header-bg {
-    background-color: #0f2a5e !important;
+    background: linear-gradient(135deg, #020817 0%, #0f2a5e 58%, #06142c 100%) !important;
+    background-color: #020817 !important;
     color: white !important;
     print-color-adjust: exact !important;
     -webkit-print-color-adjust: exact !important;
@@ -942,10 +943,10 @@ body {
     min-height: 0 !important;
   }
 
-  /* Squeeze the blue header a little more on parent report print */
+  /* Keep parent/final report header visually consistent with the draft preview */
   .report-parent-page .report-header-bg {
-    padding-top: 4px !important;
-    padding-bottom: 4px !important;
+    padding-top: 18px !important;
+    padding-bottom: 18px !important;
   }
 
   /* Strip screen card chrome from the marksheet preview wrapper */
