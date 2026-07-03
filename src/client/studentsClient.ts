@@ -24,7 +24,7 @@ export async function fetchStudents(filters: { classId?: string; streamId?: stri
   return response.json();
 }
 
-export async function createStudent(input: StudentCreateInput): Promise<{ admissionNumber: string }> {
+export async function createStudent(input: StudentCreateInput): Promise<{ student: { id: string }; admissionNumber: string }> {
   const response = await fetch(`${API_BASE}/api/students`, {
     method: "POST",
     headers: makeSchoolRequestHeaders({ "Content-Type": "application/json" }),
