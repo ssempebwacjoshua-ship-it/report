@@ -3,6 +3,7 @@ import type { RawMarkImportRow, ValidatedMarkImportRow } from "../../shared/type
 import type { SettingsSections } from "../../shared/types/settings";
 import { getSettingsSections } from "../repositories/settingsRepository";
 import { validateScoreEntry } from "./scoreValidationService";
+import { resolveSubjectComponent } from "./subjectComponentResolver";
 
 export type ImportReferenceData = Awaited<ReturnType<typeof loadImportReferenceData>>;
 
@@ -18,7 +19,7 @@ export async function loadImportReferenceData(prisma: PrismaClient, schoolCode: 
     include: {
       classes: { include: { streams: true } },
       students: true,
-      subjects: true,
+      subjects: { include: { components: true } },
       academicYears: { where: { isActive: true }, include: { terms: { where: { isActive: true } } } },
     },
   });
@@ -49,14 +50,15 @@ export async function validateImportRows(
         },
       })
     : [];
-  const lockedMarkKeys = new Set(existingMarks.map((mark) => `${mark.studentId}:${mark.subjectId}:${mark.assessmentType}`));
+  const lockedMarkKeys = new Set(existingMarks.map((mark) => `${mark.studentId}:${mark.subjectId}:${mark.componentKey ?? ""}:${mark.assessmentType}`));
 
   return rows.map((raw, index) => {
     const errors: string[] = [];
     const student = school.students.find((item) => norm(item.admissionNumber) === norm(raw.admissionNumber));
     const klass = school.classes.find((item) => norm(item.name) === norm(raw.class) || norm(item.code) === norm(raw.class));
     const stream = klass?.streams.find((item) => norm(item.name) === norm(raw.stream) || norm(item.code) === norm(raw.stream));
-    const subject = school.subjects.find((item) => norm(item.name) === norm(raw.subject) || norm(item.code) === norm(raw.subject));
+    const subjectResolution = resolveSubjectComponent(school.subjects, raw.subject, raw.component);
+    const subject = subjectResolution.subject;
     const examType = toAssessmentType(raw.examType);
 
     if (!raw.admissionNumber) errors.push("Admission number is required.");
@@ -73,8 +75,8 @@ export async function validateImportRows(
       errors.push(markCheck.error);
     }
 
-    if (student && subject && validExamTypes.has(examType) && lockedMarkKeys.has(`${student.id}:${subject.id}:${examType}`)) {
-      errors.push("A finalized non-import-owned mark already exists for this student, subject, and exam type.");
+    if (student && subject && validExamTypes.has(examType) && lockedMarkKeys.has(`${student.id}:${subject.id}:${subjectResolution.componentKey}:${examType}`)) {
+      errors.push("A finalized non-import-owned mark already exists for this student, subject/component, and exam type.");
     }
 
     return { rowNumber: index + 2, raw, isValid: errors.length === 0, errors };

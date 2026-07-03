@@ -128,6 +128,37 @@ describe("reportEngine", () => {
     expect(report.cards[0].readiness).toBe("READY");
   });
 
+  it("calculates a subject final from component papers by default average", () => {
+    const report = buildReports({
+      ...baseInput,
+      students: [baseInput.students[0]],
+      subjects: [{
+        id: "math",
+        name: "Mathematics",
+        sortOrder: 1,
+        componentFinalMode: "AVERAGE",
+        components: [
+          { id: "math-p1", name: "Paper 1", code: "P1", sortOrder: 1, weight: null },
+          { id: "math-p2", name: "Paper 2", code: "P2", sortOrder: 2, weight: null },
+        ],
+      }],
+      marks: [
+        { studentId: "s1", subjectId: "math", componentId: "math-p1", componentKey: "math-p1", assessmentType: "EOT", marks: 76 },
+        { studentId: "s1", subjectId: "math", componentId: "math-p2", componentKey: "math-p2", assessmentType: "EOT", marks: 84 },
+      ],
+      filters: { ...baseInput.filters, assessmentType: "EOT" },
+    });
+
+    const math = report.cards[0].subjects[0];
+    expect(math.components?.map((component) => [component.componentName, component.finalMark])).toEqual([
+      ["Paper 1", 76],
+      ["Paper 2", 84],
+    ]);
+    expect(math.average).toBe(80);
+    expect(math.grade).toBe("D1");
+    expect(report.cards[0].average).toBe(80);
+  });
+
   it("reports no active term empty state", () => {
     const report = buildReports({ ...baseInput, hasActiveTerm: false });
     expect(report.readiness).toBe("NO_ACTIVE_TERM");

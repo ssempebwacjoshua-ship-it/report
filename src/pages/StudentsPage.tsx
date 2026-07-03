@@ -66,6 +66,7 @@ export function StudentsPage() {
     guardianEmail: "",
     notes: "",
   });
+  const [passportPhotoFile, setPassportPhotoFile] = useState<File | null>(null);
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importPreview, setImportPreview] = useState<StudentImportPreview | null>(null);
   const [importJob, setImportJob] = useState<StudentImportJob | null>(null);
@@ -83,6 +84,15 @@ export function StudentsPage() {
 
   useEffect(() => {
     if (!context) return;
+    setStudentForm((current) => {
+      const nextClassId = current.classId || (context.classes[0]?.id ?? "");
+      const nextStreamId =
+        current.streamId && context.streams.some((stream) => stream.id === current.streamId && stream.classId === nextClassId)
+          ? current.streamId
+          : context.streams.find((stream) => stream.classId === nextClassId)?.id ?? "";
+      if (current.classId === nextClassId && current.streamId === nextStreamId) return current;
+      return { ...current, classId: nextClassId, streamId: nextStreamId };
+    });
     fetchStudents(filters)
       .then((response) => {
         setStudents(response.students);
@@ -90,6 +100,18 @@ export function StudentsPage() {
       })
       .catch((caught: Error) => setError(caught.message));
   }, [context, filters]);
+
+  useEffect(() => {
+    if (!context) return;
+    setStudentForm((current) => {
+      if (!current.classId) return current;
+      const hasStreamForClass = context.streams.some((stream) => stream.id === current.streamId && stream.classId === current.classId);
+      if (hasStreamForClass) return current;
+      const nextStreamId = context.streams.find((stream) => stream.classId === current.classId)?.id ?? "";
+      if (nextStreamId === current.streamId) return current;
+      return { ...current, streamId: nextStreamId };
+    });
+  }, [context, studentForm.classId, studentForm.streamId]);
 
   const selected = useMemo(() => students.find((student) => student.id === selectedId) ?? students[0] ?? null, [students, selectedId]);
   const streams = context?.streams.filter((stream) => stream.classId === filters.classId) ?? [];
@@ -105,9 +127,29 @@ export function StudentsPage() {
 
   async function submitStudent() {
     try {
+      setError("");
       const result = await createStudent({ ...studentForm });
-      setError(`Student created: ${result.admissionNumber}`);
+      if (passportPhotoFile) {
+        try {
+          await uploadStudentPassportPhoto(result.student.id, passportPhotoFile);
+        } catch (caught) {
+          setError(caught instanceof Error ? `Student created, but passport photo upload failed: ${caught.message}` : "Student created, but passport photo upload failed.");
+        }
+      }
       setShowAddForm(false);
+      setPassportPhotoFile(null);
+      setStudentForm({
+        fullName: "",
+        admissionNumber: "",
+        gender: "",
+        classId: context?.classes[0]?.id ?? "",
+        streamId: context?.streams.find((stream) => stream.classId === context?.classes[0]?.id)?.id ?? "",
+        isActive: true,
+        guardianName: "",
+        guardianPhone: "",
+        guardianEmail: "",
+        notes: "",
+      });
       const refreshed = await fetchStudents(filters);
       setStudents(refreshed.students);
     } catch (caught) {
@@ -163,6 +205,7 @@ export function StudentsPage() {
   const previewProblemRows = importPreview?.rows.filter((row) => !row.isValid || row.action === "duplicate") ?? [];
   const previewWarnings = importPreview?.warnings ?? [];
   const importWarnings = importJob?.warnings ?? [];
+  const canCreateStudent = Boolean(studentForm.fullName.trim() && studentForm.classId && studentForm.streamId);
 
   function pickImportFile() {
     importFileInputRef.current?.click();
@@ -294,7 +337,17 @@ export function StudentsPage() {
               <input className="premium-control h-9 rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm outline-none" placeholder="Guardian name" value={studentForm.guardianName} onChange={(e) => setStudentForm({ ...studentForm, guardianName: e.target.value })} />
               <input className="premium-control h-9 rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm outline-none" placeholder="Guardian phone" value={studentForm.guardianPhone} onChange={(e) => setStudentForm({ ...studentForm, guardianPhone: e.target.value })} />
               <input className="premium-control h-9 rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm outline-none" placeholder="Guardian email" value={studentForm.guardianEmail} onChange={(e) => setStudentForm({ ...studentForm, guardianEmail: e.target.value })} />
-              <button type="button" className="btn btn-primary" onClick={() => void submitStudent()}>
+              <label className="col-span-2 grid gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Passport photo
+                <input
+                  className="premium-control h-9 rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm outline-none"
+                  type="file"
+                  accept="image/png,image/jpeg,image/jpg,image/webp"
+                  onChange={(event) => setPassportPhotoFile(event.target.files?.[0] ?? null)}
+                />
+              </label>
+              <p className="col-span-2 text-xs text-slate-500">Optional. JPG, PNG, or WEBP up to 2 MB. The photo uploads right after the student is created.</p>
+              <button type="button" className="btn btn-primary" onClick={() => void submitStudent()} disabled={!canCreateStudent}>
                 Create
               </button>
             </div>

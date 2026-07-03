@@ -133,4 +133,57 @@ describe("StudentReportDetail", () => {
     expect(printPage).toHaveAttribute("data-report-layout", "compact");
     expect(table?.className).toContain("report-table-compact");
   });
+
+  it("renders subject component paper columns with a final mark", () => {
+    render(
+      <StudentReportDetail
+        card={{
+          ...card,
+          subjects: [{
+            ...card.subjects[0],
+            subjectId: "math",
+            subjectName: "Mathematics",
+            botMarks: null,
+            motMarks: null,
+            eotMarks: null,
+            total: null,
+            average: 80,
+            grade: "D1",
+            components: [
+              {
+                componentId: "math-p1",
+                componentName: "Paper 1",
+                componentCode: "P1",
+                sortOrder: 1,
+                weight: null,
+                botMarks: null,
+                motMarks: null,
+                eotMarks: 76,
+                finalMark: 76,
+              },
+              {
+                componentId: "math-p2",
+                componentName: "Paper 2",
+                componentCode: "P2",
+                sortOrder: 2,
+                weight: null,
+                botMarks: null,
+                motMarks: null,
+                eotMarks: 84,
+                finalMark: 84,
+              },
+            ],
+          }],
+        }}
+        assessmentType="EOT"
+      />,
+    );
+
+    expect(screen.getByRole("columnheader", { name: "Paper 1" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Paper 2" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Final" })).toBeInTheDocument();
+    expect(screen.getByText("76")).toBeInTheDocument();
+    expect(screen.getByText("84")).toBeInTheDocument();
+    expect(screen.getByText("80")).toBeInTheDocument();
+  });
 });

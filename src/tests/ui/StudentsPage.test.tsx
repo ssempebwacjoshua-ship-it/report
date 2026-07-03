@@ -32,7 +32,7 @@ vi.mock("../../client/studentsClient", () => ({
 }));
 
 import { fetchReportContext } from "../../client/reportsClient";
-import { commitStudentImport, fetchStudents, previewStudentImport, uploadStudentPassportPhoto } from "../../client/studentsClient";
+import { commitStudentImport, createStudent, fetchStudents, previewStudentImport, uploadStudentPassportPhoto } from "../../client/studentsClient";
 
 const defaultContext = {
   school: { code: "SCU-PREVIEW" },
@@ -288,5 +288,45 @@ describe("StudentsPage", () => {
     await waitFor(() => expect(uploadStudentPassportPhoto).toHaveBeenCalledWith("student-1", expect.any(File)));
     await waitFor(() => expect(fetchStudents).toHaveBeenCalledTimes(2));
   }, 15000);
+
+  it("creates a student with a default class and stream and uploads an optional passport photo", async () => {
+    const user = userEvent.setup();
+    const passportPhoto = new File(["photo"], "passport.jpg", { type: "image/jpeg" });
+    vi.mocked(createStudent).mockResolvedValueOnce({
+      student: { id: "student-new" },
+      admissionNumber: "ADM-002",
+    });
+    vi.mocked(uploadStudentPassportPhoto).mockResolvedValueOnce({
+      passportPhotoUrl: "https://res.cloudinary.com/demo/image/upload/v1/school-connect/students/student-new/passport.webp",
+      passportPhotoUpdatedAt: "2026-06-28T00:00:00.000Z",
+    });
+    vi.mocked(fetchStudents)
+      .mockResolvedValueOnce(defaultStudents)
+      .mockResolvedValueOnce(defaultStudents);
+
+    const { container } = render(
+      <MemoryRouter>
+        <StudentsPage />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => expect(screen.getAllByText("Ada Lovelace").length).toBeGreaterThan(0));
+    await user.click(screen.getByRole("button", { name: "Add Student" }));
+    await user.type(screen.getByPlaceholderText("Full name"), "New Student");
+    const photoInput = container.querySelector('input[type="file"][accept*="image"]');
+    expect(photoInput).toBeInstanceOf(HTMLInputElement);
+    await user.upload(photoInput as HTMLInputElement, passportPhoto);
+    await user.click(screen.getByRole("button", { name: "Create" }));
+
+    await waitFor(() => expect(createStudent).toHaveBeenCalledTimes(1));
+    expect(createStudent).toHaveBeenCalledWith(expect.objectContaining({
+      fullName: "New Student",
+      classId: "class-1",
+      streamId: "stream-1",
+      isActive: true,
+    }));
+    expect(uploadStudentPassportPhoto).toHaveBeenCalledWith("student-new", passportPhoto);
+    expect(fetchStudents).toHaveBeenCalledTimes(2);
+  });
 });
 

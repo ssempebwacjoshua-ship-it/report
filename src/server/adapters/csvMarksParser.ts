@@ -1,7 +1,7 @@
 ﻿import { parse } from "csv-parse/sync";
 import type { RawMarkImportRow } from "../../shared/types/imports";
 
-const COLUMNS = ["admissionNumber", "studentName", "class", "stream", "subject", "term", "examType", "marks", "comments"] as const;
+const COLUMNS = ["admissionNumber", "studentName", "class", "stream", "subject", "component", "term", "examType", "marks", "comments"] as const;
 
 export function parseMarksCsv(input: string): RawMarkImportRow[] {
   return parse(input, {

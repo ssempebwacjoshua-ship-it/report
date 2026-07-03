@@ -206,6 +206,25 @@ function StudentReportDetailContent({
   const showAttendance = Boolean(personalizationSettings.layout.showAttendance);
   const showFeesBalance = Boolean(personalizationSettings.layout.showFeesBalance);
   const layoutMode = reportLayoutMode(sanitizedCard, effectiveType);
+  const componentColumns = useMemo(() => {
+    const columns = new Map<string, { name: string; sortOrder: number }>();
+    for (const subject of sanitizedCard.subjects) {
+      for (const component of subject.components ?? []) {
+        if (component.finalMark == null && component.botMarks == null && component.motMarks == null && component.eotMarks == null) continue;
+        const key = component.componentName.toLowerCase();
+        const existing = columns.get(key);
+        if (!existing || component.sortOrder < existing.sortOrder) {
+          columns.set(key, { name: component.componentName, sortOrder: component.sortOrder });
+        }
+      }
+    }
+    return [...columns.values()].sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name));
+  }, [sanitizedCard.subjects]);
+  const hasComponentColumns = componentColumns.length > 0;
+  const componentMarkForSubject = (
+    subject: StudentReportCard["subjects"][number],
+    componentName: string,
+  ) => subject.components?.find((component) => component.componentName.toLowerCase() === componentName.toLowerCase())?.finalMark ?? null;
 
   const updateDraft = <K extends keyof ReportDraft>(key: K, value: ReportDraft[K]) => {
     setDraft((current) => ({ ...current, [key]: value }));
@@ -370,40 +389,40 @@ function StudentReportDetailContent({
 
       <div className="report-card-sheet mx-auto max-w-4xl overflow-hidden rounded-[1.35rem] bg-white shadow-[0_18px_45px_rgba(15,42,94,0.16)] ring-1 ring-slate-200">
         <div
-          className="report-header-bg px-8 py-5 text-white print:px-4 print:py-2"
-          style={{ background: branding.primaryColor }}
+          className="report-header-bg px-12 py-10 text-white print:px-8 print:py-7"
+          style={{ background: `linear-gradient(135deg, #020817 0%, ${branding.primaryColor} 58%, #06142c 100%)` }}
         >
-          <div className="flex items-center gap-5 print:gap-2">
+          <div className="flex items-center gap-8 print:gap-5">
             {reports.showSchoolLogo ? (
               branding.logoUrl ? (
-                <img src={branding.logoUrl} alt={`${branding.schoolName} logo`} className="h-14 w-14 flex-shrink-0 rounded-2xl object-contain ring-1 ring-white/25 print:h-8 print:w-8" />
+                <img src={branding.logoUrl} alt={`${branding.schoolName} logo`} className="h-24 w-24 flex-shrink-0 rounded-3xl object-contain ring-1 ring-white/25 print:h-16 print:w-16" />
               ) : (
-                <div className="grid h-14 w-14 flex-shrink-0 place-items-center rounded-2xl bg-white/10 text-xl font-black text-white ring-1 ring-white/20 print:h-8 print:w-8 print:text-sm">{branding.initials}</div>
+                <div className="grid h-24 w-24 flex-shrink-0 place-items-center rounded-3xl bg-white/10 text-4xl font-black text-white ring-1 ring-white/20 print:h-16 print:w-16 print:text-2xl">{branding.initials}</div>
               )
             ) : (
-              <div className="h-14 w-14 flex-shrink-0 print:h-8 print:w-8" />
+              <div className="h-24 w-24 flex-shrink-0 print:h-16 print:w-16" />
             )}
             <div className="flex-1 text-center">
-              <h1 className="text-3xl font-black uppercase tracking-[0.16em] print:text-sm print:tracking-[0.12em]">
+              <h1 className="text-5xl font-black uppercase tracking-[0.2em] print:text-3xl print:tracking-[0.18em]">
                 {branding.reportTitleOverride || branding.schoolName}
               </h1>
-              {branding.motto ? <p className="mt-0.5 text-xs font-semibold text-blue-100 print:text-[7px]">{branding.motto}</p> : null}
+              {branding.motto ? <p className="mt-2 text-xl font-semibold text-blue-100 print:text-base">{branding.motto}</p> : null}
               {branding.address || branding.phone || branding.email || branding.website ? (
-                <p className="mt-0.5 text-xs font-medium text-blue-100 print:text-[7px]">
+                <p className="mt-1 text-sm font-medium text-blue-100 print:text-[10px]">
                   {[branding.address, branding.phone, branding.email, branding.website].filter(Boolean).join(" | ")}
                 </p>
               ) : null}
-              <p className="mt-1 text-xs font-bold uppercase tracking-[0.24em] text-blue-100 print:mt-0.5 print:text-[7px]">
+              <p className="mt-3 text-xl font-bold uppercase tracking-[0.3em] text-blue-100 print:mt-2 print:text-base print:tracking-[0.24em]">
                 Student Academic Report
               </p>
             </div>
-            <div className="w-28 flex-shrink-0 rounded-xl bg-white/10 px-3 py-2 text-right text-xs leading-relaxed text-blue-100 ring-1 ring-white/10 print:w-20 print:px-1.5 print:py-1 print:text-[7px] print:leading-tight">
-              <div className="text-[10px] font-bold uppercase tracking-wider text-blue-200 print:text-[6px]">Academic Year</div>
-              <div className="font-bold text-white">{formatUgandaSchoolYearLabel(sanitizedCard.academicYear)}</div>
+            <div className="w-44 flex-shrink-0 rounded-3xl bg-white/10 px-6 py-5 text-right text-lg leading-relaxed text-blue-100 ring-1 ring-white/10 print:w-36 print:px-4 print:py-4 print:text-base print:leading-snug">
+              <div className="text-sm font-bold uppercase tracking-wider text-blue-200 print:text-[10px]">Academic Year</div>
+              <div className="text-2xl font-bold text-white print:text-xl">{formatUgandaSchoolYearLabel(sanitizedCard.academicYear)}</div>
               <div className="text-blue-100">{sanitizedCard.term}</div>
             </div>
           </div>
-          <div className="mt-4 grid grid-cols-2 gap-2 border-t border-white/15 pt-3 text-center text-xs text-blue-100 print:mt-1 print:pt-1 print:text-[7px]">
+          <div className="mt-8 grid grid-cols-2 gap-2 border-t border-white/15 pt-6 text-center text-lg text-blue-100 print:mt-5 print:pt-4 print:text-base">
             <div>
               <span className="font-semibold text-white">Assessment:</span> {ASSESSMENT_LABELS[effectiveType]}
             </div>
@@ -511,7 +530,41 @@ function StudentReportDetailContent({
           </div>
 
           <div className="mb-4 overflow-x-auto rounded-xl border border-slate-200 shadow-sm print:mb-1 print:overflow-visible print:shadow-none">
-            {isTermSummary ? (
+            {hasComponentColumns ? (
+              <table className={`report-table w-full min-w-[620px] border-collapse text-[13px] print:text-[8px] ${layoutMode === "compact" ? "report-table-compact" : ""}`}>
+                <thead>
+                  <tr className="report-table-header bg-[#0f2a5e] text-left text-[10px] font-black uppercase tracking-[0.14em] text-white print:text-[7px]">
+                    <th className="px-3 py-2 text-center">No.</th>
+                    <th className="px-3 py-2">Subject</th>
+                    {componentColumns.map((component) => (
+                      <th key={component.name} className="px-3 py-2 text-center">{component.name}</th>
+                    ))}
+                    <th className="px-3 py-2 text-center">Final</th>
+                    <th className="px-3 py-2 text-center">Grade</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sanitizedCard.subjects.map((subject, index) => (
+                    <tr
+                      key={subject.subjectId}
+                      className={`border-b border-slate-100 ${index % 2 === 1 ? "bg-slate-50/80" : "bg-white"}`}
+                    >
+                      <td className="px-3 py-2 text-center text-xs font-medium text-slate-400">{index + 1}</td>
+                      <td className="px-3 py-2 font-semibold text-slate-900">{subject.subjectName}</td>
+                      {componentColumns.map((component) => (
+                        <td key={`${subject.subjectId}-${component.name}`} className="px-3 py-2 text-center text-slate-700">
+                          {componentMarkForSubject(subject, component.name) ?? "-"}
+                        </td>
+                      ))}
+                      <td className="px-3 py-2 text-center font-semibold text-slate-800">{subject.average ?? "-"}</td>
+                      <td className="px-3 py-2 text-center">
+                        <GradeBadge grade={subject.grade} />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : isTermSummary ? (
               <table className={`report-table w-full min-w-[720px] border-collapse text-[13px] print:text-[8px] ${layoutMode === "compact" ? "report-table-compact" : ""}`}>
                 <thead>
                   <tr className="report-table-header bg-[#0f2a5e] text-left text-[10px] font-black uppercase tracking-[0.14em] text-white print:text-[7px]">

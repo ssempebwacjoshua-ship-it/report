@@ -196,20 +196,41 @@ model GuardianContact {
 }
 
 model Subject {
-  id        String        @id @default(uuid()) @db.Uuid
-  schoolId  String        @db.Uuid
-  name      String
-  code      String
-  sortOrder Int
-  isActive  Boolean       @default(true)
-  createdAt DateTime      @default(now())
-  updatedAt DateTime      @updatedAt
-  school    School        @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  marks     SubjectMark[]
+  id                 String                    @id @default(uuid()) @db.Uuid
+  schoolId           String                    @db.Uuid
+  name               String
+  code               String
+  sortOrder          Int
+  isActive           Boolean                   @default(true)
+  componentFinalMode SubjectComponentFinalMode @default(AVERAGE)
+  createdAt          DateTime                  @default(now())
+  updatedAt          DateTime                  @updatedAt
+  school             School                    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  components         SubjectComponent[]
+  marks              SubjectMark[]
 
   @@unique([schoolId, name])
   @@unique([schoolId, code])
   @@index([schoolId, isActive, sortOrder])
+}
+
+model SubjectComponent {
+  id        String        @id @default(uuid()) @db.Uuid
+  schoolId  String        @db.Uuid
+  subjectId String        @db.Uuid
+  name      String
+  code      String
+  sortOrder Int
+  weight    Decimal?      @db.Decimal(5, 2)
+  isActive  Boolean       @default(true)
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+  subject   Subject       @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  marks     SubjectMark[]
+
+  @@unique([subjectId, name])
+  @@unique([subjectId, code])
+  @@index([schoolId, subjectId, isActive, sortOrder])
 }
 
 model SubjectMark {
@@ -221,6 +242,8 @@ model SubjectMark {
   classId        String           @db.Uuid
   streamId       String           @db.Uuid
   subjectId      String           @db.Uuid
+  componentId    String?          @db.Uuid
+  componentKey   String           @default("")
   assessmentType AssessmentType
   marks          Decimal          @db.Decimal(5, 2)
   status         MarkStatus       @default(DRAFT)
@@ -235,12 +258,14 @@ model SubjectMark {
   stream         Stream           @relation(fields: [streamId], references: [id], onDelete: Cascade)
   student        Student          @relation(fields: [studentId], references: [id], onDelete: Cascade)
   subject        Subject          @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  component      SubjectComponent? @relation(fields: [componentId], references: [id], onDelete: Cascade)
   term           Term             @relation(fields: [termId], references: [id], onDelete: Cascade)
 
-  @@unique([studentId, subjectId, termId, assessmentType])
+  @@unique([studentId, subjectId, componentKey, termId, assessmentType])
   @@index([schoolId, academicYearId, termId, classId, streamId, assessmentType, status])
   @@index([schoolId, studentId, academicYearId, termId, assessmentType])
   @@index([schoolId, subjectId, academicYearId, termId, assessmentType])
+  @@index([schoolId, subjectId, componentId, academicYearId, termId, assessmentType])
   @@index([schoolId, studentId, subjectId, termId, assessmentType], map: "SubjectMark_school_student_subject_term_type_idx")
   @@index([importBatchId])
 }
@@ -1009,6 +1034,12 @@ enum AssessmentType {
 enum MarkStatus {
   DRAFT
   FINALIZED
+}
+
+enum SubjectComponentFinalMode {
+  AVERAGE
+  WEIGHTED
+  MANUAL
 }
 
 enum ImportStatus {
