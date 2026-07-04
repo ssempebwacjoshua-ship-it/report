@@ -21,6 +21,7 @@ import {
   listTagInventory,
   verifyTag,
 } from "../services/nfcTagBatchService";
+import { attachUsageWarning, recordPlatformUsage, requirePlatformModule } from "../platformIntegration";
 
 const generateSchema = z.object({
   count: z.coerce.number().int().min(1).max(100).default(1),
@@ -154,6 +155,9 @@ export function nfcTagsRoutes() {
 
   router.get("/api/nfc/tag-batches", async (req, res, next) => {
     try {
+      if (!(await requirePlatformModule(req, res, "nfc.tags"))) {
+        return;
+      }
       const { tagMode } = z.object({ tagMode: z.enum(["URL", "UID"]).optional() }).parse(req.query);
       res.json(await listTagBatches(ctx(req), { tagMode }));
     } catch (error) {
@@ -163,8 +167,22 @@ export function nfcTagsRoutes() {
 
   router.post("/api/nfc/tag-batches", async (req, res, next) => {
     try {
+      if (!(await requirePlatformModule(req, res, "nfc.tags"))) {
+        return;
+      }
       const input = createUrlBatchSchema.parse(req.body);
-      res.status(201).json(await createUrlTagBatch(ctx(req), { ...input, baseUrl: getPublicAppUrl(req) }));
+      const result = await createUrlTagBatch(ctx(req), { ...input, baseUrl: getPublicAppUrl(req) });
+      if (result.tags.length > 0) {
+        const warning = await Promise.all(result.tags.map((tag) => recordPlatformUsage(req, {
+          moduleCode: "nfc.tags",
+          quantity: 1,
+          sourceType: "nfc_tag_issue",
+          sourceId: tag.id,
+          metadataJson: { batchId: result.batch.id, tagMode: "URL" },
+        })));
+        attachUsageWarning(res, warning.find(Boolean) ?? null);
+      }
+      res.status(201).json(result);
     } catch (error) {
       next(error);
     }
@@ -174,6 +192,9 @@ export function nfcTagsRoutes() {
 
   router.get("/api/nfc/tags/inventory", async (req, res, next) => {
     try {
+      if (!(await requirePlatformModule(req, res, "nfc.tags"))) {
+        return;
+      }
       res.json(await listTagInventory(ctx(req), inventoryFiltersSchema.parse(req.query)));
     } catch (error) {
       next(error);
@@ -182,8 +203,20 @@ export function nfcTagsRoutes() {
 
   router.post("/api/nfc/tags/generate", async (req, res, next) => {
     try {
+      if (!(await requirePlatformModule(req, res, "nfc.tags"))) {
+        return;
+      }
       const { count } = generateSchema.parse(req.body);
-      res.status(201).json(await generateTags(ctx(req), count, getPublicAppUrl(req)));
+      const result = await generateTags(ctx(req), count, getPublicAppUrl(req));
+      const warning = await Promise.all(result.tags.map((tag) => recordPlatformUsage(req, {
+        moduleCode: "nfc.tags",
+        quantity: 1,
+        sourceType: "nfc_tag_issue",
+        sourceId: tag.id,
+        metadataJson: { tagMode: "TEXT" },
+      })));
+      attachUsageWarning(res, warning.find(Boolean) ?? null);
+      res.status(201).json(result);
     } catch (error) {
       next(error);
     }
@@ -191,7 +224,19 @@ export function nfcTagsRoutes() {
 
   router.post("/api/nfc/tags/bulk-import-uids", async (req, res, next) => {
     try {
-      res.status(201).json(await bulkImportUids(ctx(req), bulkImportUidsSchema.parse(req.body)));
+      if (!(await requirePlatformModule(req, res, "nfc.tags"))) {
+        return;
+      }
+      const result = await bulkImportUids(ctx(req), bulkImportUidsSchema.parse(req.body));
+      const warnings = await Promise.all(result.tags.map((tag) => recordPlatformUsage(req, {
+        moduleCode: "nfc.tags",
+        quantity: 1,
+        sourceType: "nfc_tag_issue",
+        sourceId: tag.id,
+        metadataJson: { batchId: result.batch.id, tagMode: "UID" },
+      })));
+      attachUsageWarning(res, warnings.find(Boolean) ?? null);
+      res.status(201).json(result);
     } catch (error) {
       next(error);
     }
@@ -199,9 +244,19 @@ export function nfcTagsRoutes() {
 
   router.post("/api/nfc/tags/bulk-allocate", async (req, res, next) => {
     try {
-      res.status(201).json(
-        await bulkAllocateFromInventory(ctx(req), bulkAllocateInventorySchema.parse(req.body)),
-      );
+      if (!(await requirePlatformModule(req, res, "nfc.tags"))) {
+        return;
+      }
+      const result = await bulkAllocateFromInventory(ctx(req), bulkAllocateInventorySchema.parse(req.body));
+      const warnings = await Promise.all(result.tags.map((tag) => recordPlatformUsage(req, {
+        moduleCode: "nfc.tags",
+        quantity: 1,
+        sourceType: "nfc_tag_issue",
+        sourceId: tag.id,
+        metadataJson: { kind: "allocation" },
+      })));
+      attachUsageWarning(res, warnings.find(Boolean) ?? null);
+      res.status(201).json(result);
     } catch (error) {
       next(error);
     }
@@ -211,6 +266,9 @@ export function nfcTagsRoutes() {
 
   router.get("/api/nfc/tags", async (req, res, next) => {
     try {
+      if (!(await requirePlatformModule(req, res, "nfc.tags"))) {
+        return;
+      }
       res.json(await listTags(ctx(req), listFiltersSchema.parse(req.query)));
     } catch (error) {
       next(error);
@@ -219,6 +277,9 @@ export function nfcTagsRoutes() {
 
   router.patch("/api/nfc/tags/:id/assign", async (req, res, next) => {
     try {
+      if (!(await requirePlatformModule(req, res, "nfc.tags"))) {
+        return;
+      }
       const assignment = assignSchema.parse(req.body);
       res.json(await assignTag(ctx(req), req.params.id, assignment));
     } catch (error) {
@@ -228,6 +289,9 @@ export function nfcTagsRoutes() {
 
   router.patch("/api/nfc/tags/:id/unassign", async (req, res, next) => {
     try {
+      if (!(await requirePlatformModule(req, res, "nfc.tags"))) {
+        return;
+      }
       res.json(await unassignTag(ctx(req), req.params.id));
     } catch (error) {
       next(error);
@@ -236,6 +300,9 @@ export function nfcTagsRoutes() {
 
   router.patch("/api/nfc/tags/:id/disable", async (req, res, next) => {
     try {
+      if (!(await requirePlatformModule(req, res, "nfc.tags"))) {
+        return;
+      }
       res.json(await disableTag(ctx(req), req.params.id));
     } catch (error) {
       next(error);
@@ -244,6 +311,9 @@ export function nfcTagsRoutes() {
 
   router.patch("/api/nfc/tags/:id/enable", async (req, res, next) => {
     try {
+      if (!(await requirePlatformModule(req, res, "nfc.tags"))) {
+        return;
+      }
       const { reason } = z.object({ reason: z.string().trim().min(1, "Reason is required.") }).parse(req.body);
       res.json(await enableTag(ctx(req), req.params.id, reason));
     } catch (error) {
@@ -253,6 +323,9 @@ export function nfcTagsRoutes() {
 
   router.patch("/api/nfc/tags/:id/verify", async (req, res, next) => {
     try {
+      if (!(await requirePlatformModule(req, res, "nfc.tags"))) {
+        return;
+      }
       res.json(await verifyTag(ctx(req), req.params.id));
     } catch (error) {
       next(error);
@@ -261,6 +334,9 @@ export function nfcTagsRoutes() {
 
   router.patch("/api/nfc/tags/:id/amend", async (req, res, next) => {
     try {
+      if (!(await requirePlatformModule(req, res, "nfc.tags"))) {
+        return;
+      }
       res.json(await amendTag(ctx(req), req.params.id, amendTagSchema.parse(req.body)));
     } catch (error) {
       next(error);
@@ -269,6 +345,9 @@ export function nfcTagsRoutes() {
 
   router.get("/api/nfc/tags/:id/events", async (req, res, next) => {
     try {
+      if (!(await requirePlatformModule(req, res, "nfc.tags"))) {
+        return;
+      }
       res.json(await getTagEvents(ctx(req), req.params.id));
     } catch (error) {
       next(error);

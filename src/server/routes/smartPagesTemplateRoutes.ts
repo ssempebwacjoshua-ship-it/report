@@ -6,6 +6,7 @@ import {
   searchSmartPageTemplates,
   type SmartPageTemplateScope,
 } from "../../shared/smartPagesTemplates";
+import { requirePlatformModule } from "../platformIntegration";
 
 const VALID_SCOPES = new Set<SmartPageTemplateScope>(["parsed", "ready", "bulk"]);
 
@@ -22,7 +23,10 @@ function lawyerVerticalEnabled(): boolean {
 export function smartPagesTemplateRoutes() {
   const router = Router();
 
-  router.get("/api/smart-pages/school/templates", (req, res) => {
+  router.get("/api/smart-pages/school/templates", async (req, res) => {
+    if (req.school && !(await requirePlatformModule(req as never, res, "smart_pages.templates", req.school.id))) {
+      return;
+    }
     const scope = readScope(req.query.scope);
     const query = typeof req.query.search === "string" ? req.query.search : "";
     const templates = query.trim()
@@ -31,7 +35,10 @@ export function smartPagesTemplateRoutes() {
     res.json({ ok: true, vertical: "SCHOOL", templates });
   });
 
-  router.get("/api/smart-pages/school/templates/:templateId", (req, res) => {
+  router.get("/api/smart-pages/school/templates/:templateId", async (req, res) => {
+    if (req.school && !(await requirePlatformModule(req as never, res, "smart_pages.templates", req.school.id))) {
+      return;
+    }
     const template = getSmartPageTemplateById(req.params.templateId, "SCHOOL");
     if (!template) {
       res.status(404).json({ ok: false, error: "Template is not available for School Connect Smart Pages." });

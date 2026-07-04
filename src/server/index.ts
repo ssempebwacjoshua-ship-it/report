@@ -54,6 +54,7 @@ import { prisma } from "./db/prisma";
 import { recoverStaleStudentImportJobs } from "./services/studentImportService";
 import { validateEnv } from "./middleware/validateEnv";
 import { checkNfcWristbandSchema } from "./utils/nfcSchemaCheck";
+import { assertPlatformIntegrationConfigured } from "./platformClient";
 
 export function createServer() {
   const app = express();
@@ -224,6 +225,10 @@ if (process.env.NODE_ENV !== "test") {
   if (!envResult.valid) {
     for (const error of envResult.errors) console.error("[env-check] FATAL:", error);
     process.exit(1);
+  }
+
+  if (process.env.SSAMENJ_PLATFORM_INTEGRATION_ENABLED === "true") {
+    assertPlatformIntegrationConfigured();
   }
 
   const port = Number(process.env.PORT ?? 4300);
