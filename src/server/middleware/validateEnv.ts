@@ -81,6 +81,15 @@ export function validateEnv(env: Record<string, string | undefined> = process.en
       );
     }
 
+    if (env.SSAMENJ_PLATFORM_INTEGRATION_ENABLED === "true") {
+      if (!env.SSAMENJ_PLATFORM_URL) {
+        errors.push("SSAMENJ_PLATFORM_URL is required when SSAMENJ_PLATFORM_INTEGRATION_ENABLED=true.");
+      }
+      if (!env.SSAMENJ_PLATFORM_SERVICE_TOKEN) {
+        errors.push("SSAMENJ_PLATFORM_SERVICE_TOKEN is required when SSAMENJ_PLATFORM_INTEGRATION_ENABLED=true.");
+      }
+    }
+
     if (!env.INTERNAL_TEST_KEY) {
       warnings.push(
         "INTERNAL_TEST_KEY is not set. Protected diagnostics such as /api/health/env will be unavailable in production.",

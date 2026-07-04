@@ -40,6 +40,7 @@ import {
   searchNfcFeeHoldStudents,
   updateSchoolNfcPolicy,
 } from "../services/nfcPolicyService";
+import { attachUsageWarning, recordPlatformUsage, requirePlatformModule } from "../platformIntegration";
 
 const { AttendanceDirection } = prismaPkg;
 
@@ -235,6 +236,9 @@ export function nfcOperationsRoutes() {
 
   router.get("/api/nfc/attendance", async (req, res, next) => {
     try {
+      if (!(await requirePlatformModule(req, res, "nfc.core"))) {
+        return;
+      }
       res.json(await getAttendanceDashboard(ctx(req), filtersSchema.parse(req.query)));
     } catch (error) {
       next(error);
@@ -243,6 +247,9 @@ export function nfcOperationsRoutes() {
 
   router.get("/api/nfc/attendance/register", async (req, res, next) => {
     try {
+      if (!(await requirePlatformModule(req, res, "nfc.core"))) {
+        return;
+      }
       res.json(await getAttendanceRegister(ctx(req), registerFiltersSchema.parse(req.query)));
     } catch (error) {
       next(error);
@@ -251,6 +258,9 @@ export function nfcOperationsRoutes() {
 
   router.get("/api/nfc/classes", async (req, res, next) => {
     try {
+      if (!(await requirePlatformModule(req, res, "nfc.core"))) {
+        return;
+      }
       res.json(await listAttendanceClasses(ctx(req)));
     } catch (error) {
       next(error);
@@ -259,6 +269,9 @@ export function nfcOperationsRoutes() {
 
   router.get("/api/nfc/policy", async (req, res, next) => {
     try {
+      if (!(await requirePlatformModule(req, res, "nfc.core"))) {
+        return;
+      }
       res.json(await getSchoolNfcPolicy(ctx(req)));
     } catch (error) {
       next(error);
@@ -267,6 +280,9 @@ export function nfcOperationsRoutes() {
 
   router.put("/api/nfc/policy", async (req, res, next) => {
     try {
+      if (!(await requirePlatformModule(req, res, "nfc.core"))) {
+        return;
+      }
       res.json(await updateSchoolNfcPolicy(ctx(req), nfcPolicySchema.parse(req.body)));
     } catch (error) {
       next(error);
@@ -275,6 +291,9 @@ export function nfcOperationsRoutes() {
 
   router.get("/api/nfc/fee-holds", async (req, res, next) => {
     try {
+      if (!(await requirePlatformModule(req, res, "nfc.core"))) {
+        return;
+      }
       res.json(await listStudentFeeHolds(ctx(req), feeHoldFiltersSchema.parse(req.query)));
     } catch (error) {
       next(error);
@@ -283,6 +302,9 @@ export function nfcOperationsRoutes() {
 
   router.get("/api/nfc/fee-holds/students", async (req, res, next) => {
     try {
+      if (!(await requirePlatformModule(req, res, "nfc.core"))) {
+        return;
+      }
       res.json(await searchNfcFeeHoldStudents(ctx(req), feeHoldFiltersSchema.parse(req.query)));
     } catch (error) {
       next(error);
@@ -291,6 +313,9 @@ export function nfcOperationsRoutes() {
 
   router.post("/api/nfc/fee-holds", async (req, res, next) => {
     try {
+      if (!(await requirePlatformModule(req, res, "nfc.core"))) {
+        return;
+      }
       res.status(201).json(await createStudentFeeHold(ctx(req), createFeeHoldSchema.parse(req.body)));
     } catch (error) {
       next(error);
@@ -299,6 +324,9 @@ export function nfcOperationsRoutes() {
 
   router.patch("/api/nfc/fee-holds/:id/clear", async (req, res, next) => {
     try {
+      if (!(await requirePlatformModule(req, res, "nfc.core"))) {
+        return;
+      }
       res.json(await clearStudentFeeHold(ctx(req), req.params.id, clearFeeHoldSchema.parse(req.body).reason));
     } catch (error) {
       next(error);
@@ -307,7 +335,18 @@ export function nfcOperationsRoutes() {
 
   router.post("/api/nfc/attendance/scan", async (req, res, next) => {
     try {
-      res.json(await scanAttendance(ctx(req), attendanceScanSchema.parse(req.body)));
+      if (!(await requirePlatformModule(req, res, "nfc.attendance"))) {
+        return;
+      }
+      const result = await scanAttendance(ctx(req), attendanceScanSchema.parse(req.body));
+      attachUsageWarning(res, await recordPlatformUsage(req, {
+        moduleCode: "nfc.attendance",
+        quantity: 1,
+        sourceType: "nfc_attendance_tap",
+        sourceId: result.scan.scannedAt,
+        metadataJson: { route: "/api/nfc/attendance/scan" },
+      }));
+      res.json(result);
     } catch (error) {
       next(error);
     }
@@ -315,6 +354,9 @@ export function nfcOperationsRoutes() {
 
   router.get("/api/nfc/wallets", async (req, res, next) => {
     try {
+      if (!(await requirePlatformModule(req, res, "nfc.wallet"))) {
+        return;
+      }
       res.json(await getWalletDashboard(ctx(req), filtersSchema.parse(req.query)));
     } catch (error) {
       next(error);
@@ -323,6 +365,9 @@ export function nfcOperationsRoutes() {
 
   router.post("/api/nfc/wallets/resolve-student", async (req, res, next) => {
     try {
+      if (!(await requirePlatformModule(req, res, "nfc.wallet"))) {
+        return;
+      }
       res.json(await resolveWalletStudent(ctx(req), resolveWalletStudentSchema.parse(req.body)));
     } catch (error) {
       next(error);
@@ -331,7 +376,20 @@ export function nfcOperationsRoutes() {
 
   router.post("/api/nfc/wallets/top-up", async (req, res, next) => {
     try {
-      res.status(201).json(await topUpWallet(ctx(req), topUpSchema.parse(req.body)));
+      if (!(await requirePlatformModule(req, res, "nfc.wallet"))) {
+        return;
+      }
+      const result = await topUpWallet(ctx(req), topUpSchema.parse(req.body));
+      if (result.ok && result.transaction?.id) {
+        attachUsageWarning(res, await recordPlatformUsage(req, {
+          moduleCode: "nfc.wallet",
+          quantity: 1,
+          sourceType: "nfc_wallet_transaction",
+          sourceId: result.transaction.id,
+          metadataJson: { route: "/api/nfc/wallets/top-up", kind: "top-up" },
+        }));
+      }
+      res.status(201).json(result);
     } catch (error) {
       next(error);
     }
@@ -339,7 +397,20 @@ export function nfcOperationsRoutes() {
 
   router.post("/api/wallet/top-up", async (req, res, next) => {
     try {
-      res.status(201).json(await topUpWallet(ctx(req), topUpSchema.parse(req.body)));
+      if (!(await requirePlatformModule(req, res, "nfc.wallet"))) {
+        return;
+      }
+      const result = await topUpWallet(ctx(req), topUpSchema.parse(req.body));
+      if (result.ok && result.transaction?.id) {
+        attachUsageWarning(res, await recordPlatformUsage(req, {
+          moduleCode: "nfc.wallet",
+          quantity: 1,
+          sourceType: "nfc_wallet_transaction",
+          sourceId: result.transaction.id,
+          metadataJson: { route: "/api/wallet/top-up", kind: "top-up" },
+        }));
+      }
+      res.status(201).json(result);
     } catch (error) {
       next(error);
     }
@@ -347,7 +418,20 @@ export function nfcOperationsRoutes() {
 
   router.post("/api/nfc/wallet/top-up", async (req, res, next) => {
     try {
-      res.status(201).json(await topUpWallet(ctx(req), topUpSchema.parse(req.body)));
+      if (!(await requirePlatformModule(req, res, "nfc.wallet"))) {
+        return;
+      }
+      const result = await topUpWallet(ctx(req), topUpSchema.parse(req.body));
+      if (result.ok && result.transaction?.id) {
+        attachUsageWarning(res, await recordPlatformUsage(req, {
+          moduleCode: "nfc.wallet",
+          quantity: 1,
+          sourceType: "nfc_wallet_transaction",
+          sourceId: result.transaction.id,
+          metadataJson: { route: "/api/nfc/wallet/top-up", kind: "top-up" },
+        }));
+      }
+      res.status(201).json(result);
     } catch (error) {
       next(error);
     }
@@ -355,6 +439,9 @@ export function nfcOperationsRoutes() {
 
   router.get("/api/nfc/students/:studentId/wallet", async (req, res, next) => {
     try {
+      if (!(await requirePlatformModule(req, res, "nfc.wallet"))) {
+        return;
+      }
       res.json(await getStudentWalletDetail(ctx(req), req.params.studentId));
     } catch (error) {
       next(error);
@@ -363,6 +450,9 @@ export function nfcOperationsRoutes() {
 
   router.get("/api/nfc/wallet-transactions", async (req, res, next) => {
     try {
+      if (!(await requirePlatformModule(req, res, "nfc.wallet"))) {
+        return;
+      }
       res.json(await listWalletTransactions(ctx(req), txFiltersSchema.parse(req.query)));
     } catch (error) {
       next(error);
@@ -371,8 +461,21 @@ export function nfcOperationsRoutes() {
 
   router.post("/api/nfc/wallet-transactions/:id/reverse", async (req, res, next) => {
     try {
+      if (!(await requirePlatformModule(req, res, "nfc.wallet"))) {
+        return;
+      }
       const { reason } = reverseSchema.parse(req.body);
-      res.status(201).json(await reverseTransaction(ctx(req), req.params.id, reason));
+      const result = await reverseTransaction(ctx(req), req.params.id, reason);
+      if (result.reversal?.id) {
+        attachUsageWarning(res, await recordPlatformUsage(req, {
+          moduleCode: "nfc.wallet",
+          quantity: 1,
+          sourceType: "nfc_wallet_transaction",
+          sourceId: result.reversal.id,
+          metadataJson: { route: "/api/nfc/wallet-transactions/:id/reverse", kind: "reverse" },
+        }));
+      }
+      res.status(201).json(result);
     } catch (error) {
       next(error);
     }
@@ -380,7 +483,20 @@ export function nfcOperationsRoutes() {
 
   router.post("/api/nfc/wallets/adjust", async (req, res, next) => {
     try {
-      res.status(201).json(await adjustWallet(ctx(req), adjustSchema.parse(req.body)));
+      if (!(await requirePlatformModule(req, res, "nfc.wallet"))) {
+        return;
+      }
+      const result = await adjustWallet(ctx(req), adjustSchema.parse(req.body));
+      if (result.transaction?.id) {
+        attachUsageWarning(res, await recordPlatformUsage(req, {
+          moduleCode: "nfc.wallet",
+          quantity: 1,
+          sourceType: "nfc_wallet_transaction",
+          sourceId: result.transaction.id,
+          metadataJson: { route: "/api/nfc/wallets/adjust", kind: "adjust" },
+        }));
+      }
+      res.status(201).json(result);
     } catch (error) {
       next(error);
     }
@@ -388,6 +504,9 @@ export function nfcOperationsRoutes() {
 
   router.get("/api/nfc/canteen/daily-summary", async (req, res, next) => {
     try {
+      if (!(await requirePlatformModule(req, res, "nfc.core"))) {
+        return;
+      }
       res.json(await getDailySummary(ctx(req), dailySummarySchema.parse(req.query)));
     } catch (error) {
       next(error);
@@ -396,6 +515,9 @@ export function nfcOperationsRoutes() {
 
   router.get("/api/nfc/canteen/reconciliation", async (req, res, next) => {
     try {
+      if (!(await requirePlatformModule(req, res, "nfc.canteen"))) {
+        return;
+      }
       res.json(await getCanteenReconciliation(ctx(req), reconciliationFiltersSchema.parse(req.query)));
     } catch (error) {
       next(error);
@@ -404,6 +526,9 @@ export function nfcOperationsRoutes() {
 
   router.post("/api/nfc/canteen/reconciliation/close", async (req, res, next) => {
     try {
+      if (!(await requirePlatformModule(req, res, "nfc.canteen"))) {
+        return;
+      }
       res.status(201).json(await closeCanteenReconciliation(ctx(req), reconciliationCloseSchema.parse(req.body)));
     } catch (error) {
       next(error);
@@ -412,6 +537,9 @@ export function nfcOperationsRoutes() {
 
   router.post("/api/nfc/canteen/reconciliation/:id/approve", async (req, res, next) => {
     try {
+      if (!(await requirePlatformModule(req, res, "nfc.canteen"))) {
+        return;
+      }
       res.json(await approveCanteenReconciliation(ctx(req), req.params.id));
     } catch (error) {
       next(error);
@@ -420,6 +548,9 @@ export function nfcOperationsRoutes() {
 
   router.post("/api/nfc/canteen/reconciliation/:id/reject", async (req, res, next) => {
     try {
+      if (!(await requirePlatformModule(req, res, "nfc.canteen"))) {
+        return;
+      }
       res.json(await rejectCanteenReconciliation(ctx(req), req.params.id, reconciliationRejectSchema.parse(req.body).notes));
     } catch (error) {
       next(error);
@@ -428,7 +559,20 @@ export function nfcOperationsRoutes() {
 
   router.post("/api/nfc/canteen/charge", async (req, res, next) => {
     try {
-      res.json(await chargeCanteen(ctx(req), chargeSchema.parse(req.body)));
+      if (!(await requirePlatformModule(req, res, "nfc.canteen"))) {
+        return;
+      }
+      const result = await chargeCanteen(ctx(req), chargeSchema.parse(req.body));
+      if (result.ok && result.transaction?.id) {
+        attachUsageWarning(res, await recordPlatformUsage(req, {
+          moduleCode: "nfc.canteen",
+          quantity: 1,
+          sourceType: "nfc_canteen_payment",
+          sourceId: result.transaction.id,
+          metadataJson: { route: "/api/nfc/canteen/charge" },
+        }));
+      }
+      res.json(result);
     } catch (error) {
       next(error);
     }
@@ -436,6 +580,9 @@ export function nfcOperationsRoutes() {
 
   router.get("/api/nfc/gate", async (req, res, next) => {
     try {
+      if (!(await requirePlatformModule(req, res, "nfc.core"))) {
+        return;
+      }
       res.json(await getGateDashboard(ctx(req)));
     } catch (error) {
       next(error);
@@ -444,7 +591,18 @@ export function nfcOperationsRoutes() {
 
   router.post("/api/nfc/gate/scan", async (req, res, next) => {
     try {
-      res.json(await scanGate(ctx(req), scanSchema.parse(req.body)));
+      if (!(await requirePlatformModule(req, res, "nfc.attendance"))) {
+        return;
+      }
+      const result = await scanGate(ctx(req), scanSchema.parse(req.body));
+      attachUsageWarning(res, await recordPlatformUsage(req, {
+        moduleCode: "nfc.attendance",
+        quantity: 1,
+        sourceType: "nfc_attendance_tap",
+        sourceId: result.scannedAt,
+        metadataJson: { route: "/api/nfc/gate/scan" },
+      }));
+      res.json(result);
     } catch (error) {
       next(error);
     }
@@ -452,6 +610,9 @@ export function nfcOperationsRoutes() {
 
   router.get("/api/nfc/wallets/student/:studentId/pin-status", async (req, res, next) => {
     try {
+      if (!(await requirePlatformModule(req, res, "nfc.wallet"))) {
+        return;
+      }
       res.json(await getStudentWalletPinStatus(ctx(req), req.params.studentId));
     } catch (error) {
       next(error);
@@ -460,6 +621,9 @@ export function nfcOperationsRoutes() {
 
   router.post("/api/nfc/wallets/student/:studentId/pin", async (req, res, next) => {
     try {
+      if (!(await requirePlatformModule(req, res, "nfc.wallet"))) {
+        return;
+      }
       res.json(await setStudentWalletPin(ctx(req), { studentId: req.params.studentId, ...setPinSchema.parse(req.body) }));
     } catch (error) {
       next(error);
@@ -468,6 +632,9 @@ export function nfcOperationsRoutes() {
 
   router.get("/api/nfc/wallets/:walletId/pin-status", async (req, res, next) => {
     try {
+      if (!(await requirePlatformModule(req, res, "nfc.wallet"))) {
+        return;
+      }
       res.json(await getWalletPinStatus(ctx(req), req.params.walletId));
     } catch (error) {
       next(error);
@@ -476,6 +643,9 @@ export function nfcOperationsRoutes() {
 
   router.post("/api/nfc/wallets/:walletId/pin", async (req, res, next) => {
     try {
+      if (!(await requirePlatformModule(req, res, "nfc.wallet"))) {
+        return;
+      }
       res.json(await setWalletPin(ctx(req), { walletId: req.params.walletId, ...setPinSchema.parse(req.body) }));
     } catch (error) {
       next(error);
@@ -484,6 +654,9 @@ export function nfcOperationsRoutes() {
 
   router.patch("/api/nfc/wallets/:walletId/pin", async (req, res, next) => {
     try {
+      if (!(await requirePlatformModule(req, res, "nfc.wallet"))) {
+        return;
+      }
       res.json(await changeWalletPin(ctx(req), { walletId: req.params.walletId, ...changePinSchema.parse(req.body) }));
     } catch (error) {
       next(error);

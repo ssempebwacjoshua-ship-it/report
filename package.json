@@ -18,6 +18,7 @@
     "db:generate:raw": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:studio": "prisma studio",
+    "typecheck": "tsc -b",
     "seed:preview": "tsx scripts/seed-preview.ts",
     "seed:s1-marks:test": "tsx scripts/seed-s1-marks-test.ts",
     "verify:s1-marks:test": "tsx scripts/verify-s1-marks-test.ts",

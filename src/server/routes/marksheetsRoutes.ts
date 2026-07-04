@@ -1,8 +1,9 @@
-﻿import { Router } from "express";
+import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../db/prisma";
 import { listEnrolledStudents } from "../repositories/studentRepository";
 import { commitMarksImport, dryRunMarksImport } from "../services/marksImportService";
+import { attachUsageWarning, recordPlatformUsage, requirePlatformModule } from "../platformIntegration";
 
 const contextSchema = z.object({
   className: z.string(),
@@ -18,9 +19,11 @@ const contextSchema = z.object({
 export function marksheetsRoutes() {
   const router = Router();
 
-  // Enrolled students for a marksheet context
   router.get("/api/marksheets/students", async (req, res, next) => {
     try {
+      if (!(await requirePlatformModule(req, res, "report_lab.core"))) {
+        return;
+      }
       const query = z
         .object({ classId: z.string().min(1), streamId: z.string().optional() })
         .parse(req.query);
@@ -43,9 +46,11 @@ export function marksheetsRoutes() {
     }
   });
 
-  // Dry run marks from marksheet form (reuses same service)
   router.post("/api/marksheets/dry-run", async (req, res, next) => {
     try {
+      if (!(await requirePlatformModule(req, res, "report_lab.marks_import"))) {
+        return;
+      }
       const body = z.object({ csvText: z.string().min(1) }).parse(req.body);
       const result = await dryRunMarksImport(prisma, req.school!.code, body.csvText);
       res.json(result);
@@ -54,9 +59,11 @@ export function marksheetsRoutes() {
     }
   });
 
-  // Commit marks with marksheet context stored in batch summary
   router.post("/api/marksheets/commit", async (req, res, next) => {
     try {
+      if (!(await requirePlatformModule(req, res, "report_lab.marks_import"))) {
+        return;
+      }
       const body = z
         .object({
           csvText: z.string().min(1),
@@ -91,6 +98,14 @@ export function marksheetsRoutes() {
             }),
           },
         });
+
+        attachUsageWarning(res, await recordPlatformUsage(req, {
+          moduleCode: "report_lab.marks_import",
+          quantity: 1,
+          sourceType: "marks_import",
+          sourceId: result.batchId,
+          metadataJson: { schoolCode, source: "marksheet" },
+        }));
       }
 
       res.json(result);
@@ -99,9 +114,11 @@ export function marksheetsRoutes() {
     }
   });
 
-  // List committed batches for HM review
   router.get("/api/marksheets/batches", async (req, res, next) => {
     try {
+      if (!(await requirePlatformModule(req, res, "report_lab.core"))) {
+        return;
+      }
       const school = req.school!;
 
       const batches = await prisma.markImportBatch.findMany({
@@ -158,9 +175,11 @@ export function marksheetsRoutes() {
     }
   });
 
-  // HM approve
   router.post("/api/marksheets/batches/:batchId/approve", async (req, res, next) => {
     try {
+      if (!(await requirePlatformModule(req, res, "report_lab.core"))) {
+        return;
+      }
       const body = z.object({ note: z.string().optional() }).parse(req.body);
       const school = req.school!;
 
@@ -187,9 +206,11 @@ export function marksheetsRoutes() {
     }
   });
 
-  // HM return for correction
   router.post("/api/marksheets/batches/:batchId/return", async (req, res, next) => {
     try {
+      if (!(await requirePlatformModule(req, res, "report_lab.core"))) {
+        return;
+      }
       const body = z.object({ note: z.string().min(1, "A reason is required when returning marks.") }).parse(req.body);
       const school = req.school!;
 
@@ -218,4 +239,3 @@ export function marksheetsRoutes() {
 
   return router;
 }
-

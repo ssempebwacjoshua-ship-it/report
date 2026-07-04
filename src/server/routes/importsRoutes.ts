@@ -16,9 +16,10 @@ import {
   type MarksheetIdDetectionResult,
 } from "../services/marksheetIdDetectionService";
 import { extractMarksFromScan } from "../services/scanExtractionService";
-import { parseScanMark, validateScanRows } from "../services/scanImportValidator";
+import { validateScanRows } from "../services/scanImportValidator";
 import { getSettingsSections } from "../repositories/settingsRepository";
 import { validateScoreEntry } from "../services/scoreValidationService";
+import { attachUsageWarning, recordPlatformUsage, requirePlatformModule } from "../platformIntegration";
 
 const SCAN_FILE_TYPES = new Set(["PDF", "PNG", "JPG", "JPEG", "WEBP"]);
 const SHEET_ID_NOT_DETECTED_MESSAGE =
@@ -157,6 +158,9 @@ export function importsRoutes() {
 
   router.post("/api/imports/marks/dry-run", async (req, res, next) => {
     try {
+      if (!(await requirePlatformModule(req, res, "report_lab.marks_import"))) {
+        return;
+      }
       const payload = importPayload.parse(req.body);
       res.json(await dryRunMarksImport(prisma, req.school!.code, payload.csvText));
     } catch (error) {
@@ -174,8 +178,21 @@ export function importsRoutes() {
 
   router.post("/api/imports/marks/commit", async (req, res, next) => {
     try {
+      if (!(await requirePlatformModule(req, res, "report_lab.marks_import"))) {
+        return;
+      }
       const payload = importPayload.parse(req.body);
-      res.json(await commitMarksImport(prisma, req.school!.code, payload.csvText));
+      const result = await commitMarksImport(prisma, req.school!.code, payload.csvText);
+      if (result.status === "COMMITTED" && result.batchId) {
+        attachUsageWarning(res, await recordPlatformUsage(req, {
+          moduleCode: "report_lab.marks_import",
+          quantity: 1,
+          sourceType: "marks_import",
+          sourceId: result.batchId,
+          metadataJson: { schoolCode: req.school!.code, source: "csv" },
+        }));
+      }
+      res.json(result);
     } catch (error) {
       if (isCsvParseError(error)) {
         res.status(400).json(importErr(
@@ -250,6 +267,9 @@ export function importsRoutes() {
     upload.single("file"),
     async (req, res, next) => {
       try {
+        if (!(await requirePlatformModule(req, res, "report_lab.marks_import"))) {
+          return;
+        }
         const school = req.school!;
 
         const file = req.file;
@@ -350,6 +370,9 @@ export function importsRoutes() {
    */
   router.get("/api/imports/scans/context", async (req, res, next) => {
     try {
+      if (!(await requirePlatformModule(req, res, "report_lab.marks_import"))) {
+        return;
+      }
       let marksheetId = String(req.query.marksheetId ?? "").trim();
 
       if (!marksheetId) {
@@ -383,6 +406,9 @@ export function importsRoutes() {
     upload.single("file"),
     async (req, res, next) => {
       try {
+        if (!(await requirePlatformModule(req, res, "report_lab.marks_import"))) {
+          return;
+        }
         // 1. Require actual file bytes
         const file = req.file;
         if (!file) {
@@ -481,6 +507,13 @@ export function importsRoutes() {
             }),
           },
         });
+        attachUsageWarning(res, await recordPlatformUsage(req, {
+          moduleCode: "report_lab.marks_import",
+          quantity: 1,
+          sourceType: "marks_import",
+          sourceId: batch.id,
+          metadataJson: { schoolCode: school.id, source: "scan" },
+        }));
 
         // 6. Run extraction engine
         const extraction = await extractMarksFromScan(
@@ -557,6 +590,9 @@ export function importsRoutes() {
 
   router.post("/api/imports/scans/dry-run", async (req, res, next) => {
     try {
+      if (!(await requirePlatformModule(req, res, "report_lab.marks_import"))) {
+        return;
+      }
       const payload = z.object({
         batchId: z.string().optional(),
         context: scanContextSchema,
@@ -629,6 +665,9 @@ export function importsRoutes() {
 
   router.post("/api/imports/scans/commit", async (req, res, next) => {
     try {
+      if (!(await requirePlatformModule(req, res, "report_lab.marks_import"))) {
+        return;
+      }
       const payload = z.object({
         batchId: z.string().optional(),
         context: scanContextSchema,
@@ -843,6 +882,13 @@ export function importsRoutes() {
           skippedRows: rows.length - numericRows.length,
           message: `Committed ${numericRows.length} scanned mark rows.`,
         });
+        attachUsageWarning(res, await recordPlatformUsage(req, {
+          moduleCode: "report_lab.marks_import",
+          quantity: 1,
+          sourceType: "marks_import",
+          sourceId: committedBatchId,
+          metadataJson: { schoolCode: school.id, source: "scan" },
+        }));
       } catch (error) {
         if (existingBatch) {
           await prisma.markImportBatch.update({
