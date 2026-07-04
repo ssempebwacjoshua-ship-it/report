@@ -24,7 +24,8 @@ export function smartPagesTemplateRoutes() {
   const router = Router();
 
   router.get("/api/smart-pages/school/templates", async (req, res) => {
-    if (req.school && !(await requirePlatformModule(req as never, res, "smart_pages.templates", req.school.id))) {
+    // School templates are tenant-owned and must only be served from an authenticated school context.
+    if (!(await requirePlatformModule(req as never, res, "smart_pages.templates", req.school?.id))) {
       return;
     }
     const scope = readScope(req.query.scope);
@@ -36,7 +37,7 @@ export function smartPagesTemplateRoutes() {
   });
 
   router.get("/api/smart-pages/school/templates/:templateId", async (req, res) => {
-    if (req.school && !(await requirePlatformModule(req as never, res, "smart_pages.templates", req.school.id))) {
+    if (!(await requirePlatformModule(req as never, res, "smart_pages.templates", req.school?.id))) {
       return;
     }
     const template = getSmartPageTemplateById(req.params.templateId, "SCHOOL");

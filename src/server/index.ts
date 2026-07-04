@@ -100,7 +100,6 @@ export function createServer() {
   app.use("/api/document-os", documentOsRoutes());
   app.use("/api/collections", collectionRoutes());
   app.use("/api/bulk-jobs", bulkGenerationRoutes());
-  app.use(smartPagesTemplateRoutes());
 
   // Platform-owner provisioning ? protected by PLATFORM_ADMIN_KEY, not by school JWT
   app.use(platformAdminRoutes());
@@ -138,6 +137,7 @@ export function createServer() {
   app.use(nfcOfflineRoutes());
   app.use(staffUsersRoutes());
   app.use(smartPagesBillingRoutes());
+  app.use(smartPagesTemplateRoutes());
   app.use(geminiMarksImportRoutes());
   app.use(promotionRoutes());
 
