@@ -1,16 +1,20 @@
 type PlatformEntitlementCheckInput = {
   organizationId: string;
-  moduleCode: string;
+  moduleCode?: string;
+  module?: string;
   quantity?: number;
 };
 
 type PlatformUsageInput = {
   organizationId: string;
-  moduleCode: string;
+  moduleCode?: string;
+  module?: string;
   quantity: number;
-  sourceType: string;
+  sourceType?: string;
+  event?: string;
   sourceId: string;
   metadataJson?: unknown;
+  requestId?: string;
 };
 
 export class PlatformIntegrationError extends Error {
@@ -123,21 +127,31 @@ async function platformRequest<T>(path: string, body: unknown): Promise<T> {
   }
 }
 
-export async function checkEntitlement(input: PlatformEntitlementCheckInput): Promise<{ allowed: true; entitlement?: unknown } | { allowed: false; entitlement?: unknown }> {
+function resolveModuleCode(input: { moduleCode?: string; module?: string }) {
+  return (input.moduleCode ?? input.module ?? "").trim();
+}
+
+function resolveUsageEvent(input: { sourceType?: string; event?: string }) {
+  return (input.sourceType ?? input.event ?? "").trim();
+}
+
+export async function checkEntitlement(input: PlatformEntitlementCheckInput): Promise<{ allowed: true; entitlement?: unknown; status?: string | null; plan?: string | null; limits?: unknown } | { allowed: false; entitlement?: unknown; status?: string | null; plan?: string | null; limits?: unknown }> {
   if (!isEnabled()) {
     return { allowed: true };
   }
 
-  const response = await platformRequest<{ allowed: boolean; entitlement?: unknown }>(
+  const response = await platformRequest<{ allowed: boolean; entitlement?: unknown; status?: string | null; plan?: string | null; limits?: unknown }>(
     "/api/platform/service/entitlements/check",
     {
       organizationId: input.organizationId,
-      moduleCode: input.moduleCode,
+      moduleCode: resolveModuleCode(input),
       quantity: input.quantity ?? 1,
     },
   );
 
-  return response.allowed ? { allowed: true, entitlement: response.entitlement } : { allowed: false, entitlement: response.entitlement };
+  return response.allowed
+    ? { allowed: true, entitlement: response.entitlement, status: response.status ?? null, plan: response.plan ?? null, limits: response.limits }
+    : { allowed: false, entitlement: response.entitlement, status: response.status ?? null, plan: response.plan ?? null, limits: response.limits };
 }
 
 export async function recordUsage(input: PlatformUsageInput): Promise<void> {
@@ -145,7 +159,11 @@ export async function recordUsage(input: PlatformUsageInput): Promise<void> {
     return;
   }
 
-  await platformRequest("/api/platform/service/usage", input);
+  await platformRequest("/api/platform/service/usage", {
+    ...input,
+    moduleCode: resolveModuleCode(input),
+    sourceType: resolveUsageEvent(input),
+  });
 }
 
 export async function recordUsageWithWarning(input: PlatformUsageInput): Promise<string | null> {
@@ -155,9 +173,10 @@ export async function recordUsageWithWarning(input: PlatformUsageInput): Promise
   } catch (error) {
     console.warn("[platform-integration] usage recording failed", {
       organizationId: input.organizationId,
-      moduleCode: input.moduleCode,
-      sourceType: input.sourceType,
+      moduleCode: resolveModuleCode(input),
+      sourceType: resolveUsageEvent(input),
       sourceId: input.sourceId,
+      requestId: input.requestId ?? null,
       message: error instanceof Error ? error.message : String(error),
     });
     return "Usage recording failed";
