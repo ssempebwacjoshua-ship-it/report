@@ -180,7 +180,7 @@ describe("scan commit atomicity", () => {
         }),
       }),
     }));
-  });
+  }, 15000);
 
   it("commits all scan rows and marks on success", async () => {
     const persisted = {

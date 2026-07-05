@@ -14,8 +14,8 @@ function deepClone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
 }
 
-function formatIsoDate(value: Date) {
-  return value.toISOString().slice(0, 10);
+function formatIsoDate(value: Date | null | undefined) {
+  return value ? value.toISOString().slice(0, 10) : null;
 }
 
 function parseIsoDate(value: string) {
@@ -169,14 +169,18 @@ function hydrateAcademicSectionFromDb(
   const activeTerm = activeAcademicYear?.terms[0] ?? null;
   if (!activeAcademicYear || !activeTerm) return sections;
 
+  const termStartDate = formatIsoDate(activeTerm.startsOn);
+  const termEndDate = formatIsoDate(activeTerm.endsOn);
+  if (!termStartDate || !termEndDate) return sections;
+
   return settingsSectionsSchema.parse({
     ...sections,
     academic: {
       ...sections.academic,
       activeAcademicYear: activeAcademicYear.name,
       activeTerm: activeTerm.name,
-      termStartDate: formatIsoDate(activeTerm.startsOn),
-      termEndDate: formatIsoDate(activeTerm.endsOn),
+      termStartDate,
+      termEndDate,
     },
   });
 }

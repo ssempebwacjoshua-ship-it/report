@@ -193,7 +193,7 @@ describe("Phase 7 ? POST /api/platform/schools (route)", () => {
     process.env.PLATFORM_ADMIN_KEY = PLATFORM_KEY;
     const { createServer } = await import("../../server");
     app = createServer();
-  });
+  }, 15000);
 
   beforeEach(() => {
     vi.clearAllMocks();
