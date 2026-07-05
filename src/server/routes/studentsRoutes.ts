@@ -15,11 +15,12 @@ import { getReportContext } from "../repositories/schoolRepository";
 import { commitStudentImport, createStudentImportJob, getStudentImportJob, parseStudentsCsv, parseStudentsXlsx, previewStudentImport } from "../services/studentImportService";
 import { generateAdmissionNumber } from "../services/studentAdmissionNumberService";
 import { deleteStoredUpload, getUploadStorageDiagnostics, saveStudentImageUpload } from "../services/uploadStorageService";
+import { ensureNonEmptyUpload, isUploadValidationError, sendUploadValidationError, validateStudentImportUpload } from "../utils/uploadSafety";
 
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024, files: 1 } });
 const studentPhotoUpload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 2 * 1024 * 1024 },
+  limits: { fileSize: 2 * 1024 * 1024, files: 1 },
 });
 
 const studentCreateSchema = z.object({
@@ -53,11 +54,14 @@ function admissionModeFromQuery(value: unknown) {
 
 function parseUploadedStudentRows(file: Express.Multer.File) {
   try {
-    const isXlsx = file.originalname.toLowerCase().endsWith(".xlsx")
-      || file.mimetype.includes("spreadsheetml")
-      || file.mimetype.includes("excel");
-    return isXlsx ? parseStudentsXlsx(file.buffer) : parseStudentsCsv(file.buffer.toString("utf8"));
+    const uploadType = validateStudentImportUpload(file);
+    return uploadType.kind === "xlsx"
+      ? parseStudentsXlsx(file.buffer)
+      : parseStudentsCsv(file.buffer.toString("utf8"));
   } catch (error) {
+    if (isUploadValidationError(error)) {
+      throw error;
+    }
     const message = error instanceof Error ? error.message : "Could not parse import file.";
     throw Object.assign(new Error(`Could not parse import file. Check the headers and CSV/XLSX formatting. ${message}`), { status: 400 });
   }
@@ -234,6 +238,7 @@ export function studentsRoutes() {
         res.status(400).json({ error: "Upload an image file." });
         return;
       }
+      ensureNonEmptyUpload(file, "The passport photo file");
       const uploaded = await saveStudentImageUpload({
         buffer: file.buffer,
         originalName: file.originalname,
@@ -263,6 +268,9 @@ export function studentsRoutes() {
         updatedAt,
       });
     } catch (error) {
+      if (sendUploadValidationError(res, error)) {
+        return;
+      }
       logStudentPassportPhoto(req, "upload.error", {
         studentId: req.params.id,
         error: error instanceof Error ? error.message : String(error),
@@ -322,6 +330,9 @@ export function studentsRoutes() {
       logStudentImport(req, "preview.done", { parsedRows: rows.length, validRows: result.validRows, errorCount: result.invalidRows });
       res.json(result);
     } catch (error) {
+      if (sendUploadValidationError(res, error)) {
+        return;
+      }
       logStudentImport(req, "preview.error", { error: error instanceof Error ? error.message : String(error) });
       next(error);
     }
@@ -352,6 +363,9 @@ export function studentsRoutes() {
       logStudentImport(req, "commit.done", { parsedRows: rows.length, status: result.status, jobId: "jobId" in result ? result.jobId : undefined, validRows: result.validRows, errorCount: result.invalidRows });
       res.json(result);
     } catch (error) {
+      if (sendUploadValidationError(res, error)) {
+        return;
+      }
       logStudentImport(req, "commit.error", { error: error instanceof Error ? error.message : String(error) });
       next(error);
     }
@@ -378,6 +392,9 @@ export function studentsRoutes() {
       logStudentImport(req, "job-upload.queued", { parsedRows: rows.length, jobId: job.jobId, validRows: job.validRows, errorCount: job.invalidRows });
       res.status(202).json(job);
     } catch (error) {
+      if (sendUploadValidationError(res, error)) {
+        return;
+      }
       logStudentImport(req, "job-upload.error", { error: error instanceof Error ? error.message : String(error) });
       next(error);
     }
@@ -420,6 +437,9 @@ export function studentsRoutes() {
       logStudentImport(req, "internal-job-upload.queued", { parsedRows: rows.length, jobId: job.jobId, validRows: job.validRows, errorCount: job.invalidRows });
       res.status(202).json(job);
     } catch (error) {
+      if (sendUploadValidationError(res, error)) {
+        return;
+      }
       logStudentImport(req, "internal-job-upload.error", { error: error instanceof Error ? error.message : String(error) });
       next(error);
     }

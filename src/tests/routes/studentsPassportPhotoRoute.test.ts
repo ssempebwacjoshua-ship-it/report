@@ -165,6 +165,20 @@ describe("students passport photo route auth", () => {
     expect(mocks.saveStudentImageUpload).not.toHaveBeenCalled();
   });
 
+  it("returns 400 for empty passport photo uploads", async () => {
+    const app = await mountApp({ authenticated: true });
+
+    const res = await request(app)
+      .post("/api/students/student-1/passport-photo")
+      .set("Authorization", "Bearer fake-token")
+      .attach("file", Buffer.alloc(0), { filename: "passport.jpg", contentType: "image/jpeg" });
+
+    expect(res.status).toBe(400);
+    expect(res.body.code).toBe("EMPTY_UPLOAD");
+    expect(res.body.message).toMatch(/empty/i);
+    expect(mocks.saveStudentImageUpload).not.toHaveBeenCalled();
+  });
+
   it("returns clear 503 and logs diagnostics when storage is not configured", async () => {
     const infoSpy = vi.spyOn(console, "info").mockImplementation(() => {});
     mocks.saveStudentImageUpload.mockRejectedValueOnce(Object.assign(new Error("Passport photo storage is not configured. Set Cloudinary env vars."), { status: 503 }));

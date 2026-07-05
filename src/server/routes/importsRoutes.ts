@@ -20,8 +20,7 @@ import { validateScanRows } from "../services/scanImportValidator";
 import { getSettingsSections } from "../repositories/settingsRepository";
 import { validateScoreEntry } from "../services/scoreValidationService";
 import { attachUsageWarning, recordPlatformUsage, requirePlatformModule } from "../platformIntegration";
-
-const SCAN_FILE_TYPES = new Set(["PDF", "PNG", "JPG", "JPEG", "WEBP"]);
+import { sendUploadValidationError, validateScanUpload } from "../utils/uploadSafety";
 const SHEET_ID_NOT_DETECTED_MESSAGE =
   "Could not read the marksheet ID from the top-right corner. Please upload a clearer image or enter the sheet ID manually.";
 
@@ -148,7 +147,7 @@ async function findOwnedScanBatch(batchId: string, schoolId: string) {
 // Accept scan files up to 20 MB in memory
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 20 * 1024 * 1024 },
+  limits: { fileSize: 20 * 1024 * 1024, files: 1 },
 });
 
 export function importsRoutes() {
@@ -273,6 +272,7 @@ export function importsRoutes() {
         const school = req.school!;
 
         const file = req.file;
+        if (file) validateScanUpload(file);
         const idDetection = file ? await tryDetectMarksheetId(file) : null;
         let foundId = idDetection?.rawRecognizedId || null;
 
@@ -357,6 +357,7 @@ export function importsRoutes() {
           contextWarning: resolution.contextWarning,
         });
       } catch (error) {
+        if (sendUploadValidationError(res, error)) return;
         next(error);
       }
     },
@@ -419,15 +420,8 @@ export function importsRoutes() {
           return;
         }
 
-        // 2. Validate file type from extension
+        validateScanUpload(file);
         const ext = (file.originalname.split(".").pop() ?? "").trim().toUpperCase();
-        if (!SCAN_FILE_TYPES.has(ext)) {
-          res.status(400).json(importErr(
-            "UNSUPPORTED_FILE_TYPE",
-            `Unsupported file type: .${ext.toLowerCase()}. Accepted formats: PDF, PNG, JPG, JPEG, WEBP.`,
-          ));
-          return;
-        }
 
         const school = req.school!;
         const settings = await getSettingsSections(prisma, school.code);
@@ -583,6 +577,7 @@ export function importsRoutes() {
           fallbackReason: extraction.fallbackReason,
         });
       } catch (error) {
+        if (sendUploadValidationError(res, error)) return;
         next(error);
       }
     },

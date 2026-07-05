@@ -5,8 +5,9 @@ import { getSettings, patchSettingsSection } from "../repositories/settingsRepos
 import { SETTING_SECTIONS, type SettingSection } from "../../shared/types/settings";
 import { requireSchoolPermission } from "../middleware/requireSchoolPermission";
 import { saveSchoolAssetUpload } from "../services/uploadStorageService";
+import { ensureNonEmptyUpload, sendUploadValidationError } from "../utils/uploadSafety";
 
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 2 * 1024 * 1024 } });
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 2 * 1024 * 1024, files: 1 } });
 
 function updatedByFromRequest(req: { header: (name: string) => string | undefined; user?: { name?: string; email?: string } }) {
   return req.user?.name ?? req.user?.email ?? req.header("x-user-name") ?? req.header("x-user-email") ?? null;
@@ -35,6 +36,7 @@ export function settingsRoutes() {
         res.status(400).json({ error: "Upload an image file." });
         return;
       }
+      ensureNonEmptyUpload(req.file, "The settings asset file");
       const uploaded = await saveSchoolAssetUpload({
         buffer: req.file.buffer,
         originalName: req.file.originalname,
@@ -44,6 +46,9 @@ export function settingsRoutes() {
       });
       res.json({ assetType, assetUrl: uploaded.publicUrl });
     } catch (error) {
+      if (sendUploadValidationError(res, error)) {
+        return;
+      }
       next(error);
     }
   });

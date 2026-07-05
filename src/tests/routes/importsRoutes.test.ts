@@ -448,7 +448,7 @@ describe("POST /api/imports/scans/upload", () => {
       .attach("file", Buffer.from("a,b,c"), { filename: "marks.csv", contentType: "text/csv" });
     expect(res.status).toBe(400);
     expect(res.body.error).toBe(true);
-    expect(res.body.code).toBe("UNSUPPORTED_FILE_TYPE");
+    expect(res.body.code).toBe("INVALID_FILE_TYPE");
     expect(res.body.message).toMatch(/unsupported file type/i);
   });
 
@@ -462,8 +462,19 @@ describe("POST /api/imports/scans/upload", () => {
       });
     expect(res.status).toBe(400);
     expect(res.body.error).toBe(true);
-    expect(res.body.code).toBe("UNSUPPORTED_FILE_TYPE");
+    expect(res.body.code).toBe("INVALID_FILE_TYPE");
     expect(res.body.message).toMatch(/unsupported file type/i);
+  });
+
+  it("returns 400 EMPTY_UPLOAD for a zero-byte scan file", async () => {
+    const res = await authPost("/api/imports/scans/upload")
+      .field("schoolCode", SCHOOL)
+      .field("context", validContext)
+      .attach("file", Buffer.alloc(0), { filename: "empty.png", contentType: "image/png" });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe(true);
+    expect(res.body.code).toBe("EMPTY_UPLOAD");
+    expect(res.body.message).toMatch(/empty/i);
   });
 
   it("accepts PDF but blocks cross-tenant schoolCode with 403", async () => {
