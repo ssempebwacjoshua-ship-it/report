@@ -53,25 +53,134 @@ import geminiOcrBenchmarkRoutes from "./routes/geminiOcrBenchmarkRoutes";
 import { prisma } from "./db/prisma";
 import { recoverStaleStudentImportJobs } from "./services/studentImportService";
 import { validateEnv } from "./middleware/validateEnv";
+import { createRateLimiter, rateLimitWhen } from "./middleware/rateLimiters";
+import { securityHeaders } from "./middleware/securityHeaders";
 import { checkNfcWristbandSchema } from "./utils/nfcSchemaCheck";
 import { assertPlatformIntegrationConfigured } from "./platformClient";
 
+const LOCALHOST_ORIGIN = /^https?:\/\/(?:localhost|127\.0\.0\.1)(:\d+)?$/;
+
+function isAuthAttemptPath(pathname: string) {
+  return pathname === "/api/auth/login" || pathname === "/api/creator/login" || pathname === "/api/creator/signup";
+}
+
+function isUploadOrImportPath(pathname: string) {
+  return pathname.startsWith("/api/imports/")
+    || pathname.startsWith("/api/marks-import/")
+    || pathname.startsWith("/api/marksheets/")
+    || pathname.includes("/import-jobs/upload")
+    || pathname.includes("/passport-photo")
+    || pathname.includes("/import/")
+    || pathname.includes("/upload")
+    || pathname.endsWith("/import-csv");
+}
+
+function isPublicTokenPath(pathname: string) {
+  return pathname.startsWith("/api/verify/")
+    || pathname.startsWith("/api/p/")
+    || pathname.startsWith("/api/nfc/t/")
+    || pathname.startsWith("/api/nfc/resolve/")
+    || /^\/api\/smart-documents\/p\/[^/]+/.test(pathname);
+}
+
+function isOcrOrScanPath(pathname: string) {
+  return pathname.includes("/scan")
+    || pathname.includes("/ocr")
+    || pathname.includes("gemini")
+    || pathname === "/internal/ocr/read";
+}
+
+export const errorHandler: ErrorRequestHandler = (error, req, res, _next) => {
+    if (error instanceof ZodError) {
+      const fieldErrors = error.flatten().fieldErrors;
+      const details = error.issues
+        .map((issue) => issue.message)
+        .filter((message): message is string => typeof message === "string" && message.trim().length > 0);
+      const requestId = typeof req.headers["x-request-id"] === "string"
+        ? req.headers["x-request-id"]
+        : randomUUID();
+      res.status(400).json({
+        ok: false,
+        error: true,
+        code: "VALIDATION_ERROR",
+        message: "Please check the submitted details.",
+        requestId,
+        fieldErrors,
+        details,
+      });
+      return;
+    }
+    if (error instanceof multer.MulterError) {
+      const message = error.code === "LIMIT_FILE_SIZE"
+        ? (req.url.includes("/passport-photo") || req.url.includes("/assets/"))
+          ? "File is too large. Please upload a smaller image (max 2 MB)."
+          : "File is too large. Please upload a smaller image (max 10 MB)."
+        : `Upload failed: ${error.message}`;
+      res.status(400).json({
+        error: true,
+        code: "FILE_TOO_LARGE",
+        message,
+        details: [error.code],
+      });
+      return;
+    }
+    const requestId = typeof req.headers["x-request-id"] === "string"
+      ? req.headers["x-request-id"]
+      : randomUUID();
+    const status = typeof (error as { status?: unknown })?.status === "number"
+      ? Math.max(400, Math.min(599, (error as { status: number }).status))
+      : 500;
+    const isProduction = process.env.NODE_ENV === "production";
+    console.error("[server-error]", {
+      route: `${req.method} ${req.url}`,
+      requestId,
+      status,
+      message: isProduction && status >= 500
+        ? "Internal server error"
+        : error instanceof Error ? error.message : String(error),
+      stack: !isProduction && error instanceof Error ? error.stack : undefined,
+    });
+    const exposeMessage = (error as { expose?: unknown })?.expose === true;
+    const safeDetails = !isProduction && exposeMessage && (error as { details?: unknown })?.details
+      ? (error as { details: unknown }).details
+      : [];
+    res.status(status).json({
+      ok: false,
+      error: true,
+      code: status >= 500 ? "SERVER_ERROR" : "REQUEST_FAILED",
+      message: error instanceof Error && (status < 500 || (!isProduction && exposeMessage)) ? error.message : "A server error occurred. Please try again or contact support if the problem persists.",
+      requestId,
+      details: safeDetails,
+    });
+};
+
 export function createServer() {
   const app = express();
+  app.use(securityHeaders);
   app.use(cors({
     origin: (origin, callback) => {
       const allowed = process.env.CLIENT_ORIGIN?.trim();
+      const isProduction = process.env.NODE_ENV === "production";
       if (!origin) return callback(null, true); // non-browser (curl, server-to-server)
       if (allowed) {
-        return callback(null, origin === allowed || /^https?:\/\/localhost(:\d+)?$/.test(origin));
+        return callback(null, origin === allowed || (!isProduction && LOCALHOST_ORIGIN.test(origin)));
       }
-      return callback(null, true); // no CLIENT_ORIGIN ? allow all (local dev)
+      return callback(null, !isProduction); // production requires an explicit CLIENT_ORIGIN
     },
     credentials: true,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization", "x-request-id", "x-internal-test-key"],
   }));
   app.use(express.json({ limit: "2mb" }));
+
+  const authLimiter = createRateLimiter({ name: "auth", windowMs: 60_000, max: 20 });
+  const uploadImportLimiter = createRateLimiter({ name: "upload-import", windowMs: 10 * 60_000, max: 120 });
+  const publicTokenLimiter = createRateLimiter({ name: "public-token", windowMs: 60_000, max: 120 });
+  const ocrScanLimiter = createRateLimiter({ name: "ocr-scan", windowMs: 10 * 60_000, max: 180 });
+  app.use(rateLimitWhen((req) => isAuthAttemptPath(req.path), authLimiter));
+  app.use(rateLimitWhen((req) => req.method !== "GET" && isUploadOrImportPath(req.path), uploadImportLimiter));
+  app.use(rateLimitWhen((req) => isPublicTokenPath(req.path), publicTokenLimiter));
+  app.use(rateLimitWhen((req) => req.method !== "GET" && isOcrOrScanPath(req.path), ocrScanLimiter));
 
   app.use(
     "/templates",
@@ -163,57 +272,6 @@ export function createServer() {
     });
   }
 
-  const errorHandler: ErrorRequestHandler = (error, req, res, _next) => {
-    if (error instanceof ZodError) {
-      const fieldErrors = error.flatten().fieldErrors;
-      res.status(400).json({
-        error: true,
-        code: "IMPORT_VALIDATION_FAILED",
-        message: "Invalid request",
-        fieldErrors,
-        issues: error.issues,
-        details: error.issues.map((issue) => issue.message),
-      });
-      return;
-    }
-    if (error instanceof multer.MulterError) {
-      const message = error.code === "LIMIT_FILE_SIZE"
-        ? (req.url.includes("/passport-photo") || req.url.includes("/assets/"))
-          ? "File is too large. Please upload a smaller image (max 2 MB)."
-          : "File is too large. Please upload a smaller image (max 10 MB)."
-        : `Upload failed: ${error.message}`;
-      res.status(400).json({
-        error: true,
-        code: "FILE_TOO_LARGE",
-        message,
-        details: [error.code],
-      });
-      return;
-    }
-    const requestId = typeof req.headers["x-request-id"] === "string"
-      ? req.headers["x-request-id"]
-      : randomUUID();
-    console.error("[server-error]", {
-      route: `${req.method} ${req.url}`,
-      requestId,
-      message: error instanceof Error ? error.message : String(error),
-      stack: error instanceof Error ? error.stack : undefined,
-    });
-    const status = typeof (error as { status?: unknown })?.status === "number"
-      ? Math.max(400, Math.min(599, (error as { status: number }).status))
-      : 500;
-    const exposeMessage = (error as { expose?: unknown })?.expose === true;
-    const safeDetails = exposeMessage && (error as { details?: unknown })?.details
-      ? (error as { details: unknown }).details
-      : [];
-    res.status(status).json({
-      error: true,
-      code: status >= 500 ? "SERVER_ERROR" : "REQUEST_FAILED",
-      message: error instanceof Error && (status < 500 || exposeMessage) ? error.message : "A server error occurred. Please try again or contact support if the problem persists.",
-      requestId,
-      details: safeDetails,
-    });
-  };
   app.use(errorHandler);
 
   return app;

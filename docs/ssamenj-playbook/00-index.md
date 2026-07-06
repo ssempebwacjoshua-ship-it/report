@@ -31,10 +31,14 @@ Before implementing anything new, read this index first, then the relevant modul
 - [`23-rag-data-provenance.md`](./23-rag-data-provenance.md) - secure RAG ingestion, hashing, metadata, approval status, tenant-separated indexes, poisoning detection, and reindex/removal rules.
 - [`24-identity-access-hardening.md`](./24-identity-access-hardening.md) - zero standing privilege, just-in-time access, dual authorization, hardware MFA, and break-glass governance.
 - [`25-continuous-red-teaming.md`](./25-continuous-red-teaming.md) - continuous web, dependency, upload, tenant, AI, RAG, agent, canary, and cost-DoS security testing.
+- [`26-roadmap-decisions.md`](./26-roadmap-decisions.md) - durable SSAMENJ product and engineering decisions that future Codex tasks must respect.
+- [`27-pending-implementation-events.md`](./27-pending-implementation-events.md) - upcoming implementation phases, follow-ups, and known planned changes.
 
 ## Mandatory security rule
 
 Files `16` through `25` are mandatory for all SSAMENJ projects. Before adding a route, upload, import, public token, privileged operation, AI workflow, RAG index, ingestion pipeline, or agent tool, confirm the relevant threat category, required controls, approval model, sandboxing/provenance requirements, and tests from these pages.
+
+Codex must also check `26-roadmap-decisions.md` and `27-pending-implementation-events.md` before implementing future modules, unclear product decisions, or follow-up phases.
 
 ## How to use it
 

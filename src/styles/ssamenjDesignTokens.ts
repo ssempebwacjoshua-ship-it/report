@@ -1,6 +1,8 @@
 export const ssamenjDesignTokens = {
   colors: {
     primary: "#007FFF",
+    primaryHover: "#006FE6",
+    primaryActive: "#005FCC",
     primarySoft: "#EFF6FF",
     heroBorder: "rgba(255, 255, 255, 0.18)",
     heroTextMuted: "#BFDBFE",
@@ -52,7 +54,7 @@ export const ssamenjDesignTokens = {
     hoverCard: "0 2px 4px rgba(15, 23, 42, 0.05), 0 16px 36px rgba(37, 99, 235, 0.12)",
     button: "0 10px 20px rgba(0, 127, 255, 0.22)",
     buttonStrong: "0 14px 26px rgba(0, 127, 255, 0.28)",
-    iconBlue: "0 10px 20px rgba(0, 120, 212, 0.22)",
+    iconBlue: "0 10px 20px rgba(0, 127, 255, 0.22)",
     neutralSm: "0 1px 2px rgba(15, 23, 42, 0.04)",
     neutralMd: "0 10px 24px rgba(15, 23, 42, 0.14)",
   },
@@ -123,6 +125,8 @@ export const ssamenjDesignTokens = {
   },
   cssVariables: {
     primary: "--sc-primary",
+    primaryHover: "--sc-primary-hover",
+    primaryActive: "--sc-primary-active",
     primarySoft: "--sc-primary-soft",
     appPagePadding: "--app-page-padding",
     appSectionGap: "--app-section-gap",
@@ -134,8 +138,6 @@ export const ssamenjDesignTokens = {
     appSidebarWidth: "--app-sidebar-width",
   },
   knownGaps: {
-    primaryActive: "Referenced as --sc-primary-active in class names, but not defined in src/index.css.",
-    primaryHover: "Referenced as --sc-primary-hover in class names, but not defined in src/index.css.",
     printMarginConflict: "There are two @page margin values in src/index.css (8mm and 14mm).",
   },
 } as const;

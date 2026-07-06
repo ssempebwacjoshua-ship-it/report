@@ -27,7 +27,7 @@ const tones = {
     badge: "bg-violet-50 text-violet-700 ring-violet-100",
   },
   blue: {
-    icon: "bg-[color:var(--sc-primary)] text-white shadow-[0_10px_20px_rgba(0,120,212,0.22)]",
+    icon: "bg-[color:var(--sc-primary)] text-white shadow-[0_10px_20px_rgba(0,127,255,0.22)]",
     accent: "from-[color:var(--sc-primary)] to-[color:var(--sc-primary-active)]",
     badge: "bg-[color:var(--sc-primary-soft)] text-[color:var(--sc-primary-active)] ring-[color:var(--sc-primary-soft)]",
   },

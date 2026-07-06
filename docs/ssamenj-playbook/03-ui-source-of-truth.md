@@ -70,7 +70,7 @@ shadows.card = "0 1px 2px rgba(15, 23, 42, 0.04), 0 10px 28px rgba(15, 23, 42, 0
 shadows.hoverCard = "0 2px 4px rgba(15, 23, 42, 0.05), 0 16px 36px rgba(37, 99, 235, 0.12)"
 shadows.button = "0 10px 20px rgba(0, 127, 255, 0.22)"
 shadows.buttonStrong = "0 14px 26px rgba(0, 127, 255, 0.28)"
-shadows.iconBlue = "0 10px 20px rgba(0, 120, 212, 0.22)"
+shadows.iconBlue = "0 10px 20px rgba(0, 127, 255, 0.22)"
 ```
 
 ## Exact utility classes found
@@ -132,16 +132,13 @@ shadows.iconBlue = "0 10px 20px rgba(0, 120, 212, 0.22)"
 
 ## Exact inconsistencies and gaps
 
-1. `--sc-primary-active` is referenced in multiple components but is not defined in `src/index.css`.
-2. `--sc-primary-hover` is referenced in some editors but is not defined in `src/index.css`.
-3. Blue shadows are not perfectly consistent:
-   - `rgba(0, 127, 255, 0.22)` is used in dashboard and buttons.
-   - `rgba(0, 120, 212, 0.22)` appears in `StatCard`.
-4. Print margins are inconsistent between `8mm` and `14mm`.
+1. Resolved in Phase 2: `--sc-primary-active` is now defined as `#005FCC` in `src/index.css`.
+2. Resolved in Phase 2: `--sc-primary-hover` is now defined as `#006FE6` in `src/index.css`.
+3. Resolved in Phase 2: primary-blue shadows now use the `rgba(0, 127, 255, ...)` family for dashboard primary elevations.
+4. Print margins remain intentionally separate between `8mm` and `14mm`.
 
 ## Safe normalization later
 
 - Safe later: yes for repeating button, badge, card, and spacing values.
 - Safe later: yes for the blue shadow family after deciding one canonical blue.
 - Safe later: no for print margins until the report print flows are verified.
-

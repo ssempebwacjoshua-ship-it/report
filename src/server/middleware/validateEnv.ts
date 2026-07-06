@@ -23,7 +23,7 @@ export type EnvValidationResult = {
  * Production rules (NODE_ENV=production):
  *  - JWT_SECRET must be set, not the dev default, and at least 32 characters.
  *  - DATABASE_URL must be set.
- *  - CLIENT_ORIGIN must be set (without it CORS allows all origins).
+ *  - CLIENT_ORIGIN must be set (without it browser CORS rejects explicit origins).
  *
  * Always (all environments):
  *  - Any VITE_-prefixed var that looks like an API key is an error ? it would
@@ -56,7 +56,7 @@ export function validateEnv(env: Record<string, string | undefined> = process.en
     }
 
     if (!env.CLIENT_ORIGIN) {
-      errors.push("CLIENT_ORIGIN is not set. CORS will accept requests from any origin.");
+      errors.push("CLIENT_ORIGIN is not set. Production browser CORS will reject explicit origins; set the real frontend origin.");
     } else if (isLocalUrl(env.CLIENT_ORIGIN)) {
       errors.push("CLIENT_ORIGIN points at localhost. Production must use the real frontend origin.");
     }

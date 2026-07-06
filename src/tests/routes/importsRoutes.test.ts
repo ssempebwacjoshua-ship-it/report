@@ -738,7 +738,9 @@ describe("POST /api/imports/marks/dry-run (digital)", () => {
     });
     expect(res.status).toBe(400);
     expect(res.body.error).toBe(true);
-    expect(res.body.code).toBe("IMPORT_VALIDATION_FAILED");
+    expect(res.body.code).toBe("VALIDATION_ERROR");
+    expect(res.body.ok).toBe(false);
+    expect(res.body.message).toBe("Please check the submitted details.");
     expect(Array.isArray(res.body.details)).toBe(true);
   });
 
@@ -893,15 +895,17 @@ describe("Import error responses always use structured shape", () => {
     }
   });
 
-  it("server 500 returns safe structured error ? not 'Unexpected error'", async () => {
+  it("validation error returns safe structured envelope ? not 'Unexpected error'", async () => {
     // ZodError on malformed request body hits the global handler ? structured response
     const res = await authPost("/api/imports/scans/dry-run").send({
       schoolCode: SCHOOL,
-      // context is required but missing ? ZodError ? IMPORT_VALIDATION_FAILED
+      // context is required but missing ? ZodError ? VALIDATION_ERROR
     });
     expect(res.status).toBe(400);
     expect(res.body.error).toBe(true);
-    expect(res.body.code).toBe("IMPORT_VALIDATION_FAILED");
+    expect(res.body.code).toBe("VALIDATION_ERROR");
+    expect(res.body.ok).toBe(false);
+    expect(res.body.message).toBe("Please check the submitted details.");
     expect(typeof res.body.message).toBe("string");
     expect(res.body.message).not.toBe("Unexpected error");
     expect(Array.isArray(res.body.details)).toBe(true);
