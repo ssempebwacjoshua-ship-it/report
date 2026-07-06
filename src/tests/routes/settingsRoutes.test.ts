@@ -267,9 +267,11 @@ describe("settingsRoutes", () => {
         email: "not-an-email",
         website: "not-a-url",
         logoUrl: "not-a-logo-url",
-      });
+    });
     expect(res.status).toBe(400);
-    expect(res.body.message).toBe("Invalid request");
+    expect(res.body.ok).toBe(false);
+    expect(res.body.code).toBe("VALIDATION_ERROR");
+    expect(res.body.message).toBe("Please check the submitted details.");
     expect(res.body.fieldErrors.email[0]).toMatch(/email/i);
     expect(res.body.fieldErrors.website[0]).toMatch(/url/i);
     expect(res.body.fieldErrors.logoUrl[0]).toMatch(/url/i);
@@ -311,7 +313,9 @@ describe("settingsRoutes", () => {
         ],
       });
     expect(res.status).toBe(400);
-    expect(JSON.stringify(res.body.issues)).toMatch(/overlap/i);
+    expect(res.body.ok).toBe(false);
+    expect(res.body.code).toBe("VALIDATION_ERROR");
+    expect(JSON.stringify(res.body.details)).toMatch(/overlap/i);
   });
 
   it("settings survive reload", async () => {
