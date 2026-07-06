@@ -1,4 +1,4 @@
-import { buildWhatsAppUrl } from "../../config/contact";
+import { buildWhatsAppUrl, WHATSAPP_DISPLAY } from "../../config/contact";
 import { WhatsAppIcon } from "./Icons";
 
 const BOOK_DEMO_URL = buildWhatsAppUrl(
@@ -102,7 +102,7 @@ export function MarketingFooter() {
             <ul className="space-y-2">
               <li>
                 <a
-                  href="https://wa.me/971563704103"
+                  href={buildWhatsAppUrl("Hello SSAMENJ Technologies! I would like to chat with the global team.")}
                   target="_blank"
                   rel="noreferrer"
                   className="flex items-center gap-1.5 text-xs text-[#BFDBFE] transition-colors hover:text-white"
@@ -110,7 +110,7 @@ export function MarketingFooter() {
                   <WhatsAppIcon className="h-3.5 w-3.5 flex-shrink-0" />
                   <span>
                     <span className="block text-[10px] font-bold uppercase tracking-wide text-[#93C5FD]">Global</span>
-                    +971 56 370 4103
+                    {WHATSAPP_DISPLAY}
                   </span>
                 </a>
               </li>

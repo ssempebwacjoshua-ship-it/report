@@ -3,6 +3,8 @@ import { Outlet, useLocation } from "react-router-dom";
 import { FloatingWhatsAppButton } from "./FloatingWhatsAppButton";
 import { MarketingFooter } from "./MarketingFooter";
 import { MarketingHeader } from "./MarketingHeader";
+import { Seo } from "./Seo";
+import { getSeoForPathname } from "../../config/seo";
 
 function HashScroller() {
   const { pathname, hash } = useLocation();
@@ -25,8 +27,12 @@ function HashScroller() {
 }
 
 export function PublicLayout() {
+  const { pathname } = useLocation();
+  const seo = getSeoForPathname(pathname);
+
   return (
     <>
+      <Seo {...seo} />
       <HashScroller />
       <MarketingHeader />
       <div style={{ paddingTop: "42px" }}>
