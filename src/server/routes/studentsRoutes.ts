@@ -16,6 +16,7 @@ import { commitStudentImport, createStudentImportJob, getStudentImportJob, parse
 import { generateAdmissionNumber } from "../services/studentAdmissionNumberService";
 import { deleteStoredUpload, getUploadStorageDiagnostics, saveStudentImageUpload } from "../services/uploadStorageService";
 import { ensureNonEmptyUpload, isUploadValidationError, sendUploadValidationError, validateStudentImportUpload } from "../utils/uploadSafety";
+import { escapeSpreadsheetRow, sanitizeSpreadsheetDisplayValue } from "../utils/spreadsheetSafety";
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024, files: 1 } });
 const studentPhotoUpload = multer({
@@ -328,7 +329,7 @@ export function studentsRoutes() {
       const rows = parseUploadedStudentRows(file);
       const result = await previewStudentImport(prisma, schoolCode, rows, mode);
       logStudentImport(req, "preview.done", { parsedRows: rows.length, validRows: result.validRows, errorCount: result.invalidRows });
-      res.json(result);
+      res.json(sanitizeSpreadsheetDisplayValue(result));
     } catch (error) {
       if (sendUploadValidationError(res, error)) {
         return;
@@ -661,7 +662,9 @@ export function studentsPublicRoutes() {
   r.get("/api/students/import/template.xlsx", async (_req, res) => {
     const xlsx = await import("xlsx");
     const wb = xlsx.utils.book_new();
-    const ws = xlsx.utils.aoa_to_sheet([["admissionNumber", "fullName", "gender", "class", "stream", "guardianName", "guardianPhone", "guardianEmail", "status"]]);
+    const ws = xlsx.utils.aoa_to_sheet([
+      escapeSpreadsheetRow(["admissionNumber", "fullName", "gender", "class", "stream", "guardianName", "guardianPhone", "guardianEmail", "status"]),
+    ]);
     xlsx.utils.book_append_sheet(wb, ws, "Students");
     const buf = xlsx.write(wb, { type: "buffer", bookType: "xlsx" });
     res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");

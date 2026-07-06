@@ -20,6 +20,7 @@ import { validateScanRows } from "../services/scanImportValidator";
 import { getSettingsSections } from "../repositories/settingsRepository";
 import { validateScoreEntry } from "../services/scoreValidationService";
 import { attachUsageWarning, recordPlatformUsage, requirePlatformModule } from "../platformIntegration";
+import { escapeSpreadsheetCell, sanitizeSpreadsheetDisplayValue } from "../utils/spreadsheetSafety";
 import { sendUploadValidationError, validateScanUpload } from "../utils/uploadSafety";
 const SHEET_ID_NOT_DETECTED_MESSAGE =
   "Could not read the marksheet ID from the top-right corner. Please upload a clearer image or enter the sheet ID manually.";
@@ -226,17 +227,17 @@ export function importsRoutes() {
       const errorRows = allRows.filter((row) => row.errors.length > 0);
       const header = "rowNumber,admissionNumber,class,stream,subject,component,term,examType,marks,errors";
       const lines = errorRows.map((row) => {
-        const raw = row.raw as { admissionNumber?: string; class?: string; stream?: string; subject?: string; component?: string; term?: string; examType?: string; marks?: unknown };
-        const esc = (v: string) => `"${v.replace(/"/g, '""')}"`;
+        const raw = sanitizeSpreadsheetDisplayValue(row.raw) as { admissionNumber?: string; class?: string; stream?: string; subject?: string; component?: string; term?: string; examType?: string; marks?: unknown };
+        const esc = (v: string) => `"${escapeSpreadsheetCell(v).replace(/"/g, '""')}"`;
         return [
           row.rowNumber,
-          esc(raw.admissionNumber ?? ""),
-          esc(raw.class ?? ""),
-          esc(raw.stream ?? ""),
-          esc(raw.subject ?? ""),
-          esc(raw.component ?? ""),
-          esc(raw.term ?? ""),
-          esc(raw.examType ?? ""),
+          esc(String(raw.admissionNumber ?? "")),
+          esc(String(raw.class ?? "")),
+          esc(String(raw.stream ?? "")),
+          esc(String(raw.subject ?? "")),
+          esc(String(raw.component ?? "")),
+          esc(String(raw.term ?? "")),
+          esc(String(raw.examType ?? "")),
           esc(String(raw.marks ?? "")),
           esc(row.errors.join("; ")),
         ].join(",");

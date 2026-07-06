@@ -28,6 +28,23 @@ describe("students import routes", () => {
       .attach("file", Buffer.from(csv), { filename: "students.csv", contentType: "text/csv" });
     expect([200, 401, 404]).toContain(res.status);
   });
+
+  it("escapes formula-like values in student import preview responses", async () => {
+    const csv = [
+      "admissionNumber,fullName,gender,class,stream,guardianName,guardianPhone,guardianEmail,status",
+      "=1+1,+Ada,-Female,@Senior 1,A,Guard,+256 700 000000,grace@example.test,ACTIVE",
+    ].join("\n");
+    const res = await request(createServer())
+      .post("/api/students/import/preview")
+      .field("schoolCode", "SCU-PREVIEW")
+      .attach("file", Buffer.from(csv), { filename: "students.csv", contentType: "text/csv" });
+    expect([200, 401, 404]).toContain(res.status);
+    if (res.status === 200) {
+      expect(String(res.body.rows?.[0]?.raw?.admissionNumber ?? "")).toMatch(/^'/);
+      expect(String(res.body.rows?.[0]?.raw?.fullName ?? "")).toMatch(/^'/);
+      expect(String(res.body.rows?.[0]?.raw?.className ?? "")).toMatch(/^'/);
+    }
+  });
 });
 
 describe("students routes ? new /api routes exist and do not 404", () => {

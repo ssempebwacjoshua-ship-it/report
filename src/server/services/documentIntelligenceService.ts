@@ -9,6 +9,7 @@ import {
   generateLawyerDocumentEditPlan,
   resolveGeminiDocumentModel,
 } from "./documentGeminiService";
+import { assertSpreadsheetMatrixShape } from "../utils/spreadsheetSafety";
 import {
   createNotification,
   executeWorkflows,
@@ -1321,6 +1322,7 @@ function parseStructuredFile(buffer: Buffer, mimeType: string, originalName: str
     const sheetName = workbook.SheetNames[0];
     if (!sheetName) throw new Error("No worksheet found.");
     const rows = XLSX.utils.sheet_to_json<Array<string | number>>(workbook.Sheets[sheetName], { header: 1, raw: false, defval: "" });
+    assertSpreadsheetMatrixShape(rows as Array<Array<unknown>>, "The structured file");
     const nonEmptyRows = rows
       .map((row) => row.map((cell) => String(cell ?? "").trim()))
       .filter((row) => row.some(Boolean));

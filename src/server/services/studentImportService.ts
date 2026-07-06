@@ -10,6 +10,7 @@ import type {
 import { ensureAcademicSettingsBackedByDatabase } from "../repositories/settingsRepository";
 import { generateAdmissionNumber } from "./studentAdmissionNumberService";
 import { resolveCanonicalClassAndStreamInput } from "../../shared/utils/classStreamNormalization";
+import { MAX_SPREADSHEET_CELL_LENGTH, MAX_SPREADSHEET_COLUMNS, MAX_SPREADSHEET_ROWS } from "../utils/spreadsheetSafety";
 
 /** Rows shown in the preview response. The full row set is always processed. */
 const PREVIEW_RESPONSE_LIMIT = 50;
@@ -125,6 +126,29 @@ function pick(lookup: Map<string, unknown>, ...aliases: string[]): unknown {
   return "";
 }
 
+function validateStudentImportSheetShape(rows: Array<Record<string, unknown>>, sourceLabel: string) {
+  if (rows.length > MAX_SPREADSHEET_ROWS) {
+    throw Object.assign(new Error(`${sourceLabel} has too many rows. Maximum allowed is ${MAX_SPREADSHEET_ROWS}.`), { status: 400 });
+  }
+
+  const columns = rows[0] ? Object.keys(rows[0]).length : 0;
+  if (columns > MAX_SPREADSHEET_COLUMNS) {
+    throw Object.assign(new Error(`${sourceLabel} has too many columns. Maximum allowed is ${MAX_SPREADSHEET_COLUMNS}.`), { status: 400 });
+  }
+
+  for (const row of rows) {
+    if (Object.keys(row).length > MAX_SPREADSHEET_COLUMNS) {
+      throw Object.assign(new Error(`${sourceLabel} has too many columns. Maximum allowed is ${MAX_SPREADSHEET_COLUMNS}.`), { status: 400 });
+    }
+    for (const value of Object.values(row)) {
+      const textValue = typeof value === "string" ? value : value == null ? "" : String(value);
+      if (textValue.length > MAX_SPREADSHEET_CELL_LENGTH) {
+        throw Object.assign(new Error(`${sourceLabel} has a cell that exceeds the maximum allowed length.`), { status: 400 });
+      }
+    }
+  }
+}
+
 export function parseStudentsCsv(csvText: string): StudentImportRowInput[] {
   const records = parseCsv(csvText, {
     columns: (headers: string[]) => headers.map(normalizeKey),
@@ -132,6 +156,7 @@ export function parseStudentsCsv(csvText: string): StudentImportRowInput[] {
     trim: true,
     relax_column_count: true,
   }) as Record<string, unknown>[];
+  validateStudentImportSheetShape(records, "The student import file");
   return records.map((row) => {
     const lk = makeRowLookup(row);
     return {
@@ -152,6 +177,7 @@ export function parseStudentsXlsx(buffer: Buffer): StudentImportRowInput[] {
   const workbook = read(buffer, { type: "buffer" });
   const sheet = workbook.Sheets[workbook.SheetNames[0]];
   const rows = utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: "" });
+  validateStudentImportSheetShape(rows, "The student import file");
   return rows.map((row) => {
     const lk = makeRowLookup(row);
     return {
