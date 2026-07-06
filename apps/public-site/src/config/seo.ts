@@ -21,6 +21,18 @@ const SEO_BY_PATH: Record<string, SeoPage> = {
       "Explore SSAMENJ school and office software including Report Lab, Smart Pages, School Connect, NFC bands, Kids Wallet, and custom digital products.",
     canonicalPath: "/products",
   },
+  "/report-lab": {
+    title: "Report Lab for Schools | SSAMENJ Technologies",
+    description:
+      "Learn about SSAMENJ Report Lab, the school reporting system that helps teachers generate clean, professional student reports.",
+    canonicalPath: "/products",
+  },
+  "/smart-pages": {
+    title: "Smart Pages for Schools and Offices | SSAMENJ Technologies",
+    description:
+      "Learn about SSAMENJ Smart Pages, the digital document workflow for schools and offices that need clean, shareable pages.",
+    canonicalPath: "/products",
+  },
   "/nfc": {
     title: "School Connect NFC | Gate Security, Attendance & Wallets",
     description:

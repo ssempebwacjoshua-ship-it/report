@@ -16,6 +16,8 @@ export default function App() {
       <Route element={<PublicLayout />}>
         <Route index element={<SSAMENJHomePage />} />
         <Route path="/products" element={<ProductsPage />} />
+        <Route path="/report-lab" element={<Navigate to="/products#report-lab" replace />} />
+        <Route path="/smart-pages" element={<Navigate to="/products#smart-pages" replace />} />
         <Route path="/nfc" element={<NfcPage />} />
         <Route path="/demos" element={<DemosPage />} />
         <Route path="/pricing" element={<PricingPage />} />

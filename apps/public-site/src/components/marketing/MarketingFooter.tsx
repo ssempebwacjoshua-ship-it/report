@@ -109,14 +109,14 @@ export function MarketingFooter() {
                 >
                   <WhatsAppIcon className="h-3.5 w-3.5 flex-shrink-0" />
                   <span>
-                    <span className="block text-[10px] font-bold uppercase tracking-wide text-[#93C5FD]">Global</span>
+                    <span className="block text-[10px] font-bold uppercase tracking-wide text-[#93C5FD]">Global Support</span>
                     {WHATSAPP_DISPLAY}
                   </span>
                 </a>
               </li>
               <li>
                 <a
-                  href="https://wa.me/256774549869"
+                  href={buildWhatsAppUrl("Hello SSAMENJ Technologies! I would like to chat with the team.")}
                   target="_blank"
                   rel="noreferrer"
                   className="flex items-center gap-1.5 text-xs text-[#BFDBFE] transition-colors hover:text-white"

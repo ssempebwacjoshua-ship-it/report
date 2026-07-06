@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { buildWhatsAppUgUrl, buildWhatsAppUrl, WHATSAPP_DISPLAY, WHATSAPP_UG_DISPLAY } from "../config/contact";
+import { buildWhatsAppUrl, WHATSAPP_DISPLAY } from "../config/contact";
 import { PhoneIcon, SparklesIcon } from "../components/marketing/Icons";
 import { TestimonialsSection } from "../components/marketing/TestimonialsSection";
 
@@ -57,7 +57,22 @@ export function ContactPage() {
   );
 
   const demoHref = useMemo(() => buildWhatsAppUrl(demoMessage), [demoMessage]);
-  const ugandaPmHref = buildWhatsAppUgUrl("Hello SSAMENJ Technologies! I would like to speak with the Uganda team.");
+  const globalSupportHref = useMemo(
+    () =>
+      buildWhatsAppUrl(
+        [
+          "Hello SSAMENJ Technologies, I would like to speak with the team.",
+          `School: ${form.schoolName || "-"}`,
+          `Contact person: ${form.contactPerson || "-"}`,
+          `Phone: ${form.phone || "-"}`,
+          `Location: ${form.location || "-"}`,
+          `Students: ${form.students || "-"}`,
+          `Interested in: ${form.interest}`,
+          `Message: ${form.message || "-"}`,
+        ].join("\n"),
+      ),
+    [form],
+  );
 
   const pricingHref = useMemo(
     () =>
@@ -284,7 +299,7 @@ export function ContactPage() {
               </ContactInfoCard>
 
               <a
-                href={ugandaPmHref}
+                href={globalSupportHref}
                 target="_blank"
                 rel="noreferrer"
                 className="marketing-card-motion block rounded-[1.5rem] border border-slate-200 bg-white p-5 shadow-sm transition hover:border-blue-200"
@@ -294,11 +309,11 @@ export function ContactPage() {
                     <PhoneIcon className="h-5 w-5" />
                   </div>
                   <div>
-                    <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Uganda Product Manager</p>
-                    <p className="text-sm font-black text-slate-950">{WHATSAPP_UG_DISPLAY}</p>
+                    <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Global support</p>
+                    <p className="text-sm font-black text-slate-950">{WHATSAPP_DISPLAY}</p>
                   </div>
                 </div>
-                <p className="mt-2 text-xs font-semibold text-blue-700">Chat with Uganda PM on WhatsApp →</p>
+                <p className="mt-2 text-xs font-semibold text-blue-700">Chat with SSAMENJ on WhatsApp →</p>
               </a>
 
               <ContactInfoCard>
