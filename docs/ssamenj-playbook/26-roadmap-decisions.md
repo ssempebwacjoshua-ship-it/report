@@ -28,10 +28,18 @@ Temporary ideas should not be added here unless they affect future implementatio
 - Production CORS must use an explicit allowlist and must not silently allow all browser origins.
 - Production error handling must hide stack traces and raw provider/internal errors.
 
+## Development Standards Decisions
+
+- All future SSAMENJ development must use the templates and standards in files 28 through 45 before implementation.
+- Docs-only, runtime, test, and migration changes should remain separate where practical.
+
 ## Product/Module Decisions
 
 - Keep completed flows protected: Admin login, Gate Security login and scan, Student list, passport photo upload, Smart Pages extraction/public/PDF, report preview, and build.
 - Business logic changes must stay scoped to the requested module.
+- Preserve Report Lab as the strongest UI/source-of-truth reference.
+- Emphasize marks import, scan/OCR upload, report generation, student data, passport photos, verification, and print/report layout.
+- Keep exact measurement rules for colors, spacing, padding, gaps, widths, heights, typography, shadows, radii, and breakpoints.
 
 ## Decisions Awaiting Confirmation
 

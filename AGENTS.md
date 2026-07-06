@@ -105,6 +105,29 @@ Folder-specific `AGENTS.md` files override or tighten these rules for their subt
 
 Before changing code in this repo, read `docs/ssamenj-playbook/00-index.md` first, then the module-specific playbook page for the work you are doing.
 
+
+## Extended Development Standards
+
+Before implementing any new feature or module, Codex must also read:
+
+- `docs/ssamenj-playbook/28-feature-template.md`
+- `docs/ssamenj-playbook/29-module-scaffold-checklist.md`
+- `docs/ssamenj-playbook/30-api-route-template.md`
+- `docs/ssamenj-playbook/31-database-model-template.md`
+- `docs/ssamenj-playbook/39-review-checklist.md`
+- `docs/ssamenj-playbook/45-definition-of-done.md`
+
+Additional task-specific standards:
+
+- Forms: read `docs/ssamenj-playbook/35-form-standard.md`.
+- Imports/exports: read `docs/ssamenj-playbook/36-import-export-template.md`.
+- Env vars: read `docs/ssamenj-playbook/37-env-standard.md`.
+- Git/commits: read `docs/ssamenj-playbook/38-git-branch-commit-standard.md`.
+- CI: read `docs/ssamenj-playbook/40-ci-standard.md`.
+- Demo/seed data: read `docs/ssamenj-playbook/41-demo-data-standard.md`.
+- WhatsApp/notifications: read `docs/ssamenj-playbook/42-notification-whatsapp-standard.md`.
+- Smart device/rentals automation: read `docs/ssamenj-playbook/43-smart-device-automation-standard.md`.
+- Pricing/billing: read `docs/ssamenj-playbook/44-pricing-billing-standard.md`.
 9. SSAMENJ safety baseline
 
 Preserve tenant isolation, auth, permissions, audit logs, upload safety, safe errors, AI/RAG safety, and production secret handling.

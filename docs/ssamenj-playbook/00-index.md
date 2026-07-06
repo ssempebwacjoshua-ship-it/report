@@ -32,7 +32,25 @@ Before implementing anything new, read this index first, then the relevant modul
 - [`24-identity-access-hardening.md`](./24-identity-access-hardening.md) - zero standing privilege, just-in-time access, dual authorization, hardware MFA, and break-glass governance.
 - [`25-continuous-red-teaming.md`](./25-continuous-red-teaming.md) - continuous web, dependency, upload, tenant, AI, RAG, agent, canary, and cost-DoS security testing.
 - [`26-roadmap-decisions.md`](./26-roadmap-decisions.md) - durable SSAMENJ product and engineering decisions that future Codex tasks must respect.
-- [`27-pending-implementation-events.md`](./27-pending-implementation-events.md) - upcoming implementation phases, follow-ups, and known planned changes.
+- [27-pending-implementation-events.md](./27-pending-implementation-events.md) - upcoming implementation phases, follow-ups, and known planned changes.
+- [`28-feature-template.md`](./28-feature-template.md) - reusable feature planning template for business goal, scope, routes, UI, tests, risk, and definition of done.
+- [`29-module-scaffold-checklist.md`](./29-module-scaffold-checklist.md) - checklist for new modules, pages, routes, services, tests, and launch readiness.
+- [`30-api-route-template.md`](./30-api-route-template.md) - required contract for API routes, auth, permissions, validation, rate limits, audit, responses, and tests.
+- [`31-database-model-template.md`](./31-database-model-template.md) - database ownership, timestamps, indexes, migrations, audit, demo data, and production safety rules.
+- [`32-permission-naming-standard.md`](./32-permission-naming-standard.md) - `module.action` permission naming and examples across SSAMENJ modules.
+- [`33-audit-event-standard.md`](./33-audit-event-standard.md) - `entity.action` audit naming, required fields, and sensitive-action audit rules.
+- [`34-ui-page-template.md`](./34-ui-page-template.md) - reusable page structure, dashboard checklist, states, mobile behavior, and measurement expectations.
+- [`35-form-standard.md`](./35-form-standard.md) - frontend/backend validation, safe errors, submit behavior, mobile layout, and audit rules for forms.
+- [`36-import-export-template.md`](./36-import-export-template.md) - safe import/export flow, dry-run, preview, row errors, audit, permissions, and CSV formula protection.
+- [`37-env-standard.md`](./37-env-standard.md) - environment variable documentation, `.env.example`, secret/public boundaries, and failure behavior.
+- [`38-git-branch-commit-standard.md`](./38-git-branch-commit-standard.md) - branch, commit, staging, dirty-worktree, and commit-prefix rules.
+- [`39-review-checklist.md`](./39-review-checklist.md) - review questions Codex must answer before handoff or commit.
+- [`40-ci-standard.md`](./40-ci-standard.md) - expected CI checks and repo-specific command documentation.
+- [`41-demo-data-standard.md`](./41-demo-data-standard.md) - fake realistic demo data, tenant separation, repeatable seeds, and production wipe protection.
+- [`42-notification-whatsapp-standard.md`](./42-notification-whatsapp-standard.md) - WhatsApp/messaging safety, approved numbers, public-link privacy, and audit requirements.
+- [`43-smart-device-automation-standard.md`](./43-smart-device-automation-standard.md) - smart-device automation, checkout grace periods, manual override, audit, and guest safety.
+- [`44-pricing-billing-standard.md`](./44-pricing-billing-standard.md) - centralized pricing, offers, explicit currency, discounts, invoices, payments, and audit rules.
+- [`45-definition-of-done.md`](./45-definition-of-done.md) - SSAMENJ completion checklist for UI, mobile, backend, permissions, tenant isolation, tests, build, docs, and envs.
 
 ## Mandatory security rule
 
@@ -40,6 +58,18 @@ Files `16` through `25` are mandatory for all SSAMENJ projects. Before adding a 
 
 Codex must also check `26-roadmap-decisions.md` and `27-pending-implementation-events.md` before implementing future modules, unclear product decisions, or follow-up phases.
 
+## Extended task routing
+
+- New feature/module work: read `28-feature-template.md`, `29-module-scaffold-checklist.md`, `30-api-route-template.md`, `31-database-model-template.md`, `39-review-checklist.md`, and `45-definition-of-done.md`.
+- Forms: read `35-form-standard.md`.
+- Imports/exports: read `36-import-export-template.md`.
+- Env vars: read `37-env-standard.md`.
+- Git/commits: read `38-git-branch-commit-standard.md`.
+- CI: read `40-ci-standard.md`.
+- Demo/seed data: read `41-demo-data-standard.md`.
+- WhatsApp/notifications: read `42-notification-whatsapp-standard.md`.
+- Smart device or rentals automation: read `43-smart-device-automation-standard.md`.
+- Pricing/billing: read `44-pricing-billing-standard.md`.
 ## How to use it
 
 1. Read this index.

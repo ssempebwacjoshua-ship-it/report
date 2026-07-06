@@ -4,6 +4,8 @@ This file tracks upcoming implementation work, follow-up phases, and known plann
 
 ## Next Safe Implementation Steps
 
+- Use files 28 through 45 before the next runtime feature or module implementation.
+
 - Keep runtime hardening small and verify critical smoke tests after each phase.
 - Prefer shared middleware, helpers, and tokens over broad route or UI rewrites.
 
@@ -36,4 +38,5 @@ This file tracks upcoming implementation work, follow-up phases, and known plann
 ## Completed Items
 
 - SSAMENJ engineering playbook created.
+- Extended standards files 28 through 45 applied.
 - Initial runtime security controls drafted for headers, CORS, focused rate limiting, safe production errors, and validation error envelope.
