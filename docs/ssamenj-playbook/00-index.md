@@ -43,7 +43,7 @@ Before implementing anything new, read this index first, then the relevant modul
 - [`35-form-standard.md`](./35-form-standard.md) - frontend/backend validation, safe errors, submit behavior, mobile layout, and audit rules for forms.
 - [`36-import-export-template.md`](./36-import-export-template.md) - safe import/export flow, dry-run, preview, row errors, audit, permissions, and CSV formula protection.
 - [`37-env-standard.md`](./37-env-standard.md) - environment variable documentation, `.env.example`, secret/public boundaries, and failure behavior.
-- [`38-git-branch-commit-standard.md`](./38-git-branch-commit-standard.md) - branch, commit, staging, dirty-worktree, and commit-prefix rules.
+- [`38-git-branch-commit-standard.md`](./38-git-branch-commit-standard.md) - branch, commit, staging, dirty-worktree, and commit-prefix rules; read this before staging, committing, or pushing.
 - [`39-review-checklist.md`](./39-review-checklist.md) - review questions Codex must answer before handoff or commit.
 - [`40-ci-standard.md`](./40-ci-standard.md) - expected CI checks and repo-specific command documentation.
 - [`41-demo-data-standard.md`](./41-demo-data-standard.md) - fake realistic demo data, tenant separation, repeatable seeds, and production wipe protection.
@@ -51,6 +51,11 @@ Before implementing anything new, read this index first, then the relevant modul
 - [`43-smart-device-automation-standard.md`](./43-smart-device-automation-standard.md) - smart-device automation, checkout grace periods, manual override, audit, and guest safety.
 - [`44-pricing-billing-standard.md`](./44-pricing-billing-standard.md) - centralized pricing, offers, explicit currency, discounts, invoices, payments, and audit rules.
 - [`45-definition-of-done.md`](./45-definition-of-done.md) - SSAMENJ completion checklist for UI, mobile, backend, permissions, tenant isolation, tests, build, docs, and envs.
+- [`46-database-data-protection-standard.md`](./46-database-data-protection-standard.md) - environment separation, least-privilege DB URLs, private data classification, logging, exports, and tenant data protection.
+- [`47-production-migration-safety.md`](./47-production-migration-safety.md) - production migration commands, destructive-change review, expand-contract pattern, and migration checklists.
+- [`48-backup-restore-pitr-standard.md`](./48-backup-restore-pitr-standard.md) - scheduled backups, PITR, backup monitoring, restore drills, retention, and restore safety.
+- [`49-data-retention-delete-archive-standard.md`](./49-data-retention-delete-archive-standard.md) - soft delete/archive defaults, retention fields, immutable records, ledger/reversal rules, and cascade safety.
+- [`50-client-data-incident-response.md`](./50-client-data-incident-response.md) - response steps for data loss, corruption, cross-tenant exposure, bad migrations/imports, and secret leaks.
 
 ## Mandatory security rule
 
@@ -70,6 +75,8 @@ Codex must also check `26-roadmap-decisions.md` and `27-pending-implementation-e
 - WhatsApp/notifications: read `42-notification-whatsapp-standard.md`.
 - Smart device or rentals automation: read `43-smart-device-automation-standard.md`.
 - Pricing/billing: read `44-pricing-billing-standard.md`.
+- Database, migration, seed, import/export, backup/restore, production-data, retention/delete/archive, or data incident work: read `46-database-data-protection-standard.md`, `47-production-migration-safety.md`, `48-backup-restore-pitr-standard.md`, `49-data-retention-delete-archive-standard.md`, and `50-client-data-incident-response.md`.
+
 ## How to use it
 
 1. Read this index.

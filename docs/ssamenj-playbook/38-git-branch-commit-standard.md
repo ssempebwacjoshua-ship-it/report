@@ -2,6 +2,50 @@
 
 Use Git intentionally and avoid mixing unrelated work.
 
+## Commit-after-task standard
+
+Every completed SSAMENJ task should end with a clean commit.
+
+Default rule:
+
+* One completed task = one commit.
+* One feature pass = one commit.
+* One fix = one commit.
+* Documentation-only work must be committed separately from runtime code.
+* Database/migration changes must be committed separately from UI changes where practical.
+
+Before committing:
+
+* Run `git status`.
+* Confirm the changed files belong to the current task.
+* Do not stage unrelated dirty files.
+* Do not use `git add .` unless the worktree is clean except for the current task.
+* Run relevant tests/build/typecheck where practical.
+
+Commit message format:
+
+* `docs: add SSAMENJ playbook files`
+* `feat: complete StayOS bookings workflow`
+* `fix: resolve platform route type errors`
+* `security: add upload rate limiting`
+* `test: cover tenant isolation checks`
+* `chore: update env example`
+
+Do not commit when:
+
+* the user explicitly says not to commit
+* the task is incomplete and the partial work is risky
+* tests fail because of the current task and the failure is not understood
+* secrets or production data are present in the diff
+* unrelated dirty files cannot be safely separated
+
+If not committing:
+
+* explain why
+* list files changed
+* list exact suggested `git add` commands
+* list tests/build results
+
 ## Rules
 
 - One task = one branch where practical.

@@ -106,6 +106,32 @@ Folder-specific `AGENTS.md` files override or tighten these rules for their subt
 Before changing code in this repo, read `docs/ssamenj-playbook/00-index.md` first, then the module-specific playbook page for the work you are doing.
 
 
+## Commit-after-task rule
+
+At the end of every completed task, prepare a commit for only the current task’s files.
+
+Required flow:
+
+1. Run `git status`.
+2. Identify unrelated dirty files.
+3. Stage only files changed for this task.
+4. Never use `git add .` if unrelated dirty files exist.
+5. Run relevant verification commands where practical.
+6. Commit with a clear message.
+7. Push only when the user asked for push or the current repo workflow expects push.
+
+Commit format:
+
+* `docs: ...`
+* `feat: ...`
+* `fix: ...`
+* `test: ...`
+* `refactor: ...`
+* `chore: ...`
+* `security: ...`
+
+If the task is not safe to commit, Codex must explain why and list the exact files that should be committed later.
+
 ## Extended Development Standards
 
 Before implementing any new feature or module, Codex must also read:
@@ -128,6 +154,26 @@ Additional task-specific standards:
 - WhatsApp/notifications: read `docs/ssamenj-playbook/42-notification-whatsapp-standard.md`.
 - Smart device/rentals automation: read `docs/ssamenj-playbook/43-smart-device-automation-standard.md`.
 - Pricing/billing: read `docs/ssamenj-playbook/44-pricing-billing-standard.md`.
+
+## Database And Client Data Protection
+
+Before any database, migration, seed, import, export, backup, restore, incident, or production-data task, Codex must read:
+
+- `docs/ssamenj-playbook/46-database-data-protection-standard.md`
+- `docs/ssamenj-playbook/47-production-migration-safety.md`
+- `docs/ssamenj-playbook/48-backup-restore-pitr-standard.md`
+- `docs/ssamenj-playbook/49-data-retention-delete-archive-standard.md`
+- `docs/ssamenj-playbook/50-client-data-incident-response.md`
+
+Permanent database/client-data rules:
+
+- Never run destructive database commands against production.
+- Never use `prisma db push` in production.
+- Never run tests, seed, reset, or demo scripts against production.
+- Never log secrets or private client data.
+- Sensitive data should be archived, versioned, or reversed rather than silently deleted.
+- Database changes must preserve tenant isolation and auditability.
+
 9. SSAMENJ safety baseline
 
 Preserve tenant isolation, auth, permissions, audit logs, upload safety, safe errors, AI/RAG safety, and production secret handling.
