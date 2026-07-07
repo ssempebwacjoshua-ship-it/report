@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import { FaqSection } from "../components/marketing/FaqSection";
 import { TestimonialsSection } from "../components/marketing/TestimonialsSection";
 import {
   ArrowRightIcon,
@@ -15,6 +16,7 @@ import {
 } from "../components/marketing/Icons";
 import { MarketingFeatureCard } from "../components/marketing/MarketingFeatureCard";
 import { buildWhatsAppUrl } from "../config/contact";
+import { DEMOS_FAQS } from "../content/discoverability";
 
 const BOOK_DEMO_URL = buildWhatsAppUrl(
   "Hello SSAMENJ Technologies! I'd like to book a product demo for my organisation.",
@@ -298,6 +300,12 @@ export function DemosPage() {
                 <div className="mt-3 flex flex-col gap-2">
                   <a href="#report-lab" className="rounded-xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50">Read about Report Lab ↓</a>
                   <a href="#smart-pages" className="rounded-xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50">Read about Smart Pages ↓</a>
+                  <Link to="/report-lab" className="rounded-xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+                    Open the Report Lab page
+                  </Link>
+                  <Link to="/smart-pages" className="rounded-xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+                    Open the Smart Pages page
+                  </Link>
                   <a href={BOOK_DEMO_URL} target="_blank" rel="noreferrer" className="rounded-xl border border-blue-200 px-4 py-3 text-sm font-semibold text-blue-700 hover:bg-blue-50">Request a walkthrough on WhatsApp</a>
                 </div>
               </div>
@@ -493,6 +501,14 @@ export function DemosPage() {
           </div>
         </div>
       ) : null}
+
+      <section className="border-t border-slate-200 bg-slate-50 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+        <FaqSection
+          title="Demo questions"
+          description="These help schools decide what to ask when they book a walkthrough."
+          items={DEMOS_FAQS}
+        />
+      </section>
     </div>
   );
 }

@@ -1,9 +1,10 @@
 import { useEffect } from "react";
-import { DEFAULT_OG_IMAGE, SITE_NAME, SITE_URL, type SeoPage } from "../../config/seo";
+import { DEFAULT_OG_IMAGE, SITE_NAME, SITE_URL, type JsonLdValue, type SeoPage } from "../../config/seo";
 
 type SeoProps = SeoPage & {
   image?: string;
   type?: "website" | "article";
+  structuredData?: JsonLdValue;
 };
 
 function upsertMeta(
@@ -36,12 +37,38 @@ function upsertLink(rel: string, href: string) {
   element.setAttribute("href", href);
 }
 
+function upsertJsonLd(structuredData?: JsonLdValue) {
+  const selector = 'script[data-seo-json-ld="true"]';
+  let element = document.head.querySelector(selector) as HTMLScriptElement | null;
+
+  if (!structuredData) {
+    element?.remove();
+    return;
+  }
+
+  const payload = Array.isArray(structuredData)
+    ? { "@context": "https://schema.org", "@graph": structuredData }
+    : "@context" in structuredData
+      ? structuredData
+      : { "@context": "https://schema.org", ...structuredData };
+
+  if (!element) {
+    element = document.createElement("script");
+    element.type = "application/ld+json";
+    element.dataset.seoJsonLd = "true";
+    document.head.appendChild(element);
+  }
+
+  element.textContent = JSON.stringify(payload);
+}
+
 export function Seo({
   title,
   description,
   canonicalPath,
   image = DEFAULT_OG_IMAGE,
   type = "website",
+  structuredData,
 }: SeoProps) {
   useEffect(() => {
     const canonicalUrl = new URL(canonicalPath, SITE_URL).toString();
@@ -61,8 +88,8 @@ export function Seo({
     upsertMeta("name", "twitter:description", description);
     upsertMeta("name", "twitter:image", image);
     upsertLink("canonical", canonicalUrl);
-  }, [canonicalPath, description, image, title, type]);
+    upsertJsonLd(structuredData);
+  }, [canonicalPath, description, image, structuredData, title, type]);
 
   return null;
 }
-

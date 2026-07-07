@@ -34,8 +34,8 @@ interface BuildCard {
 }
 
 const BUILD_CARDS: BuildCard[] = [
-  { name: "Report Lab", tagline: "Professional student reports from marksheets.", href: "/products#report-lab", status: "live" },
-  { name: "Smart Pages", tagline: "Documents turned into clean, shareable digital pages.", href: "/products#smart-pages", status: "live" },
+  { name: "Report Lab", tagline: "Professional student reports from marksheets.", href: "/report-lab", status: "live" },
+  { name: "Smart Pages", tagline: "Documents turned into clean, shareable digital pages.", href: "/smart-pages", status: "live" },
   { name: "School Connect", tagline: "One connected platform for your entire school.", href: "/products#school-connect", status: "live" },
   { name: "Legal Smart Pages", tagline: "Smart document workflows for legal teams.", href: "/products#legal-smart-pages", status: "demo" },
   { name: "PearlMart", tagline: "Marketplace & digital commerce platform.", href: "/products#pearlmart", status: "demo" },

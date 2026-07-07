@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { FaqSection } from "../components/marketing/FaqSection";
 import { TestimonialsSection } from "../components/marketing/TestimonialsSection";
 import {
   ArrowRightIcon,
@@ -10,6 +11,7 @@ import {
 } from "../components/marketing/Icons";
 import { MarketingFeatureCard } from "../components/marketing/MarketingFeatureCard";
 import { buildWhatsAppUrl } from "../config/contact";
+import { HOME_FAQS } from "../content/discoverability";
 
 const BOOK_DEMO_URL = buildWhatsAppUrl(
   "Hello SSAMENJ Technologies! I'd like to book a product demo for my organisation.",
@@ -65,11 +67,11 @@ export function SSAMENJHomePage() {
                 <p className="text-sm font-black text-white">School Connect</p>
                 <p className="mt-0.5 text-[11px] uppercase tracking-[0.16em] text-blue-100">POWERING SMART SCHOOLS.</p>
               </Link>
-              <Link to="/demos" className="marketing-fade-up-delay-2 cursor-pointer rounded-2xl border border-white/25 bg-white/[0.12] px-4 py-3 transition-all duration-200 hover:-translate-y-0.5 hover:border-white/40 hover:bg-white/[0.18]" style={{ backdropFilter: "blur(6px)" }}>
+              <Link to="/report-lab" className="marketing-fade-up-delay-2 cursor-pointer rounded-2xl border border-white/25 bg-white/[0.12] px-4 py-3 transition-all duration-200 hover:-translate-y-0.5 hover:border-white/40 hover:bg-white/[0.18]" style={{ backdropFilter: "blur(6px)" }}>
                 <p className="text-sm font-black text-white">Report Lab</p>
                 <p className="mt-0.5 text-[11px] uppercase tracking-[0.16em] text-blue-100">STUDENT REPORTS FASTER.</p>
               </Link>
-              <Link to="/demos" className="marketing-fade-up-delay-3 cursor-pointer rounded-2xl border border-white/25 bg-white/[0.12] px-4 py-3 transition-all duration-200 hover:-translate-y-0.5 hover:border-white/40 hover:bg-white/[0.18]" style={{ backdropFilter: "blur(6px)" }}>
+              <Link to="/smart-pages" className="marketing-fade-up-delay-3 cursor-pointer rounded-2xl border border-white/25 bg-white/[0.12] px-4 py-3 transition-all duration-200 hover:-translate-y-0.5 hover:border-white/40 hover:bg-white/[0.18]" style={{ backdropFilter: "blur(6px)" }}>
                 <p className="text-sm font-black text-white">Smart Pages</p>
                 <p className="mt-0.5 text-[11px] uppercase tracking-[0.16em] text-blue-100">HANDWRITTEN DOCS TO READY PDFS.</p>
               </Link>
@@ -246,6 +248,12 @@ export function SSAMENJHomePage() {
               <Link to="/demos" className="btn marketing-button-motion rounded-xl bg-gradient-to-r from-blue-600 to-blue-700 px-4 py-2.5 text-sm font-black text-white shadow-lg shadow-blue-600/20 hover:shadow-xl hover:shadow-blue-600/25">
                 Watch Demo
               </Link>
+              <Link to="/report-lab" className="btn marketing-button-motion rounded-xl border border-blue-200 bg-white px-4 py-2.5 text-sm font-bold text-blue-700 shadow-sm hover:bg-blue-50">
+                See Report Lab
+              </Link>
+              <Link to="/smart-pages" className="btn marketing-button-motion rounded-xl border border-blue-200 bg-white px-4 py-2.5 text-sm font-bold text-blue-700 shadow-sm hover:bg-blue-50">
+                See Smart Pages
+              </Link>
               <a href="/pricing" className="btn marketing-button-motion rounded-xl border border-blue-200 bg-white px-4 py-2.5 text-sm font-bold text-blue-700 shadow-sm hover:bg-blue-50">
                 View Pricing
               </a>
@@ -255,6 +263,14 @@ export function SSAMENJHomePage() {
             </div>
           </div>
         </div>
+      </section>
+
+      <section className="border-b border-slate-200 bg-white px-4 py-6 sm:px-6 lg:px-8 lg:py-7">
+        <FaqSection
+          title="Home page questions"
+          description="These are the quick questions schools usually ask before they move to a demo."
+          items={HOME_FAQS}
+        />
       </section>
     </div>
   );

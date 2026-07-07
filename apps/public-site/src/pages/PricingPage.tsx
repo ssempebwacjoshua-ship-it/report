@@ -667,12 +667,16 @@ export function PricingPage() {
                 body="All School Connect plans are annual — billed once per year. There are no monthly subscriptions or per-term fees."
               />
               <InfoCard
-                title="What does the setup fee cover?"
-                body="The setup fee is a one-time cost paid during onboarding. It covers school branding, staff setup, student configuration, and a guided onboarding session."
+                title="What is included in the first-term-free offer?"
+                body="The launch offer gives schools the first term free on the core school software package, while the setup fee still applies during onboarding."
               />
               <InfoCard
-                title="Can we start with Report Lab only?"
-                body="Yes. A school can start with Report Lab and add Smart Pages credits as needed. The annual plan includes access to both products."
+                title="Does setup fee apply?"
+                body="Yes. The setup fee is a one-time onboarding cost that covers school branding, staff setup, student configuration, and guided onboarding."
+              />
+              <InfoCard
+                title="Can schools start with one product first?"
+                body="Yes. Schools can begin with Report Lab or Smart Pages and add the other tool later when the workflow needs it."
               />
               <InfoCard
                 title="Can we use Smart Pages without Report Lab?"
@@ -681,10 +685,6 @@ export function PricingPage() {
               <InfoCard
                 title="What if our school has more than 2,000 students?"
                 body="Contact us for a custom quote. We'll configure the right package and pricing for larger institutions and school groups."
-              />
-              <InfoCard
-                title="Do Smart Pages credits expire?"
-                body="No. Smart Pages credits don't have an expiry date once purchased. Use them at your own pace."
               />
             </div>
           </div>
@@ -722,6 +722,12 @@ export function PricingPage() {
                 >
                   Request Pricing on WhatsApp
                 </a>
+                <Link to="/report-lab" className="btn marketing-button-motion rounded-xl border border-blue-200 bg-white px-4 py-3 text-center text-sm font-bold text-blue-700 shadow-sm hover:bg-blue-50">
+                  Read Report Lab
+                </Link>
+                <Link to="/smart-pages" className="btn marketing-button-motion rounded-xl border border-blue-200 bg-white px-4 py-3 text-center text-sm font-bold text-blue-700 shadow-sm hover:bg-blue-50">
+                  Read Smart Pages
+                </Link>
               </div>
             </div>
 

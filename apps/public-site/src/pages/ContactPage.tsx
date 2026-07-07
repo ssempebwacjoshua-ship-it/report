@@ -1,7 +1,9 @@
 import { useMemo, useState } from "react";
+import { FaqSection } from "../components/marketing/FaqSection";
 import { buildWhatsAppUrl, WHATSAPP_DISPLAY } from "../config/contact";
 import { PhoneIcon, SparklesIcon } from "../components/marketing/Icons";
 import { TestimonialsSection } from "../components/marketing/TestimonialsSection";
+import { CONTACT_FAQS } from "../content/discoverability";
 
 // Compact action card — white floating card on dark hero background
 function ActionCard({ title, body, cta, href }: { title: string; body: string; cta: string; href: string }) {
@@ -328,6 +330,42 @@ export function ContactPage() {
       </section>
 
       <TestimonialsSection className="bg-slate-50 px-4 py-8 sm:px-6 lg:px-8" compact />
+
+      <section className="border-t border-slate-200 bg-white px-4 py-8 sm:px-6 lg:px-8">
+        <FaqSection
+          title="Contact questions"
+          description="If you are ready to talk, these answers make the first WhatsApp message a little easier."
+          items={CONTACT_FAQS}
+        />
+      </section>
+
+      <section className="border-t border-slate-200 bg-slate-50 px-4 py-8 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-5xl rounded-[1.75rem] border border-slate-200 bg-white p-5 shadow-sm">
+          <p className="text-xs font-black uppercase tracking-[0.2em] text-blue-700">Search engine readiness</p>
+          <h2 className="mt-2 text-2xl font-black tracking-tight text-slate-950">Google Search Console and Bing Webmaster Tools</h2>
+          <p className="mt-2 text-sm leading-6 text-slate-600">
+            Once verification details are provided, the site can use a config-driven verification tag or file without changing the public offer or pricing.
+          </p>
+          <div className="mt-4 grid gap-3 md:grid-cols-2">
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <p className="text-sm font-black text-slate-950">Google Search Console</p>
+              <ol className="mt-2 space-y-1 text-sm leading-6 text-slate-600">
+                <li>1. Add the https://ssamenj.vercel.app property.</li>
+                <li>2. Verify ownership with a provided token or file.</li>
+                <li>3. Submit https://ssamenj.vercel.app/sitemap.xml.</li>
+              </ol>
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <p className="text-sm font-black text-slate-950">Bing Webmaster Tools</p>
+              <ol className="mt-2 space-y-1 text-sm leading-6 text-slate-600">
+                <li>1. Add the site and verify ownership.</li>
+                <li>2. Submit the sitemap.</li>
+                <li>3. Check index coverage and URL inspection results.</li>
+              </ol>
+            </div>
+          </div>
+        </div>
+      </section>
     </div>
   );
 }
