@@ -36,19 +36,19 @@ export function SmartPagesPage() {
                 href={BOOK_DEMO_URL}
                 target="_blank"
                 rel="noreferrer"
-                className="btn marketing-button-motion rounded-xl bg-white px-4 py-3 text-sm font-black text-blue-700 hover:bg-blue-50"
+                className="btn marketing-button-motion motion-cta rounded-xl bg-white px-4 py-3 text-sm font-black text-blue-700 hover:bg-blue-50"
               >
                 Request Demo
               </a>
               <Link
                 to="/pricing"
-                className="btn marketing-button-motion rounded-xl border border-white/25 bg-white/10 px-4 py-3 text-sm font-bold text-white hover:bg-white/15"
+                className="btn marketing-button-motion motion-cta rounded-xl border border-white/25 bg-white/10 px-4 py-3 text-sm font-bold text-white hover:bg-white/15"
               >
                 View Pricing
               </Link>
               <Link
                 to="/report-lab"
-                className="btn marketing-button-motion rounded-xl border border-white/25 bg-white/10 px-4 py-3 text-sm font-bold text-white hover:bg-white/15"
+                className="btn marketing-button-motion motion-cta rounded-xl border border-white/25 bg-white/10 px-4 py-3 text-sm font-bold text-white hover:bg-white/15"
               >
                 Explore Report Lab
               </Link>
@@ -56,7 +56,7 @@ export function SmartPagesPage() {
           </div>
 
           <div className="lg:col-span-5">
-            <div className="rounded-[1.75rem] border border-white/20 bg-white/95 p-5 shadow-xl backdrop-blur">
+            <div className="motion-media floating-media soft-glow rounded-[1.75rem] border border-white/20 bg-white/95 p-5 shadow-xl backdrop-blur">
               <p className="text-[11px] font-black uppercase tracking-[0.18em] text-blue-700">What Smart Pages solves</p>
               <ul className="mt-3 space-y-3">
                 {SMART_PAGES_BULLETS.map((bullet) => (
@@ -121,13 +121,13 @@ export function SmartPagesPage() {
               href={BOOK_DEMO_URL}
               target="_blank"
               rel="noreferrer"
-              className="btn marketing-button-motion rounded-xl bg-gradient-to-r from-blue-600 to-blue-700 px-4 py-3 text-center text-sm font-black text-white shadow-lg shadow-blue-600/20 hover:shadow-xl hover:shadow-blue-600/25"
+              className="btn marketing-button-motion motion-cta rounded-xl bg-gradient-to-r from-blue-600 to-blue-700 px-4 py-3 text-center text-sm font-black text-white shadow-lg shadow-blue-600/20 hover:shadow-xl hover:shadow-blue-600/25"
             >
               Book a Demo
             </a>
             <Link
               to="/contact"
-              className="btn marketing-button-motion rounded-xl border border-blue-200 bg-white px-4 py-3 text-center text-sm font-bold text-blue-700 shadow-sm hover:bg-blue-50"
+              className="btn marketing-button-motion motion-cta rounded-xl border border-blue-200 bg-white px-4 py-3 text-center text-sm font-bold text-blue-700 shadow-sm hover:bg-blue-50"
             >
               Contact SSAMENJ
             </Link>

@@ -24,7 +24,7 @@ export function FaqSection({
           {items.map((item) => (
             <article
               key={item.question}
-              className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:border-blue-200 hover:shadow-md"
+              className="motion-card motion-card-stagger rounded-2xl border border-slate-200 bg-white p-4 shadow-sm hover:border-blue-200"
             >
               <h3 className="text-sm font-black text-slate-950">{item.question}</h3>
               <p className="mt-1.5 text-sm leading-6 text-slate-600">{item.answer}</p>

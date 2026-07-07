@@ -90,8 +90,8 @@ function DemoShowcasePlayer({
   const thumbnail = item.thumbnailSrc ?? `https://img.youtube.com/vi/${item.videoId}/maxresdefault.jpg`;
   const outerCard =
     variant === "hero"
-      ? "border border-white/30 bg-white/95 shadow-xl backdrop-blur"
-      : "border border-slate-200 bg-white shadow-sm";
+      ? "motion-media floating-media soft-glow border border-white/30 bg-white/95 shadow-xl backdrop-blur"
+      : "motion-card border border-slate-200 bg-white shadow-sm";
 
   return (
     <div className={`overflow-hidden rounded-[1.5rem] p-2 ${outerCard} ${className}`}>
@@ -150,7 +150,7 @@ function DemoCard({
     <button
       type="button"
       onClick={() => onSelect(item)}
-      className={`w-full rounded-2xl border p-4 text-left transition ${
+    className={`motion-card motion-card-stagger w-full rounded-2xl border p-4 text-left transition ${
         active
           ? "border-blue-500 bg-blue-50 text-blue-800 shadow-sm"
           : "border-slate-200 bg-white text-slate-700 hover:border-blue-200 hover:bg-blue-50"
@@ -218,20 +218,20 @@ export function DemosPage() {
                 href={BOOK_DEMO_URL}
                 target="_blank"
                 rel="noreferrer"
-                className="btn marketing-button-motion rounded-xl bg-white px-4 py-2.5 text-sm font-black text-blue-700 hover:bg-blue-50"
+                className="btn marketing-button-motion motion-cta rounded-xl bg-white px-4 py-2.5 text-sm font-black text-blue-700 hover:bg-blue-50"
               >
                 Request Demo
-                <ArrowRightIcon className="h-4 w-4" />
+                <ArrowRightIcon className="link-arrow h-4 w-4" />
               </a>
               <a
                 href="#report-lab"
-                className="btn marketing-button-motion rounded-xl border border-white/25 bg-white/10 px-4 py-2.5 text-sm font-bold text-white hover:bg-white/15"
+                className="btn marketing-button-motion motion-cta rounded-xl border border-white/25 bg-white/10 px-4 py-2.5 text-sm font-bold text-white hover:bg-white/15"
               >
                 Explore Report Lab
               </a>
               <a
                 href="#smart-pages"
-                className="btn marketing-button-motion rounded-xl border border-white/25 bg-white/10 px-4 py-2.5 text-sm font-bold text-white hover:bg-white/15"
+                className="btn marketing-button-motion motion-cta rounded-xl border border-white/25 bg-white/10 px-4 py-2.5 text-sm font-bold text-white hover:bg-white/15"
               >
                 Explore Smart Pages
               </a>
@@ -306,7 +306,7 @@ export function DemosPage() {
                   <Link to="/smart-pages" className="rounded-xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50">
                     Open the Smart Pages page
                   </Link>
-                  <a href={BOOK_DEMO_URL} target="_blank" rel="noreferrer" className="rounded-xl border border-blue-200 px-4 py-3 text-sm font-semibold text-blue-700 hover:bg-blue-50">Request a walkthrough on WhatsApp</a>
+                  <a href={BOOK_DEMO_URL} target="_blank" rel="noreferrer" className="motion-cta rounded-xl border border-blue-200 px-4 py-3 text-sm font-semibold text-blue-700 hover:bg-blue-50">Request a walkthrough on WhatsApp</a>
                 </div>
               </div>
             </div>

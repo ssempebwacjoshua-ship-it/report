@@ -50,32 +50,32 @@ export function SSAMENJHomePage() {
             </p>
 
             <div className="marketing-fade-up-delay-3 mt-3.5 flex flex-col gap-2 sm:flex-row">
-              <Link to="/demos" className="btn marketing-button-motion rounded-xl bg-white px-4 py-2.5 text-sm font-black text-blue-700 hover:bg-blue-50">
+              <Link to="/demos" className="btn marketing-button-motion motion-cta rounded-xl bg-white px-4 py-2.5 text-sm font-black text-blue-700 hover:bg-blue-50">
                 View Demos
-                <ArrowRightIcon className="h-4 w-4" />
+                <ArrowRightIcon className="link-arrow h-4 w-4" />
               </Link>
-              <Link to="/products" className="btn marketing-button-motion rounded-xl border border-white bg-white/15 px-4 py-2.5 text-sm font-bold text-white hover:bg-white/25">
+              <Link to="/products" className="btn marketing-button-motion motion-cta rounded-xl border border-white bg-white/15 px-4 py-2.5 text-sm font-bold text-white hover:bg-white/25">
                 Explore Products
               </Link>
-              <a href={BOOK_DEMO_URL} target="_blank" rel="noreferrer" className="btn marketing-button-motion rounded-xl border border-white bg-white/15 px-4 py-2.5 text-sm font-bold text-white hover:bg-white/25">
+              <a href={BOOK_DEMO_URL} target="_blank" rel="noreferrer" className="btn marketing-button-motion motion-cta rounded-xl border border-white bg-white/15 px-4 py-2.5 text-sm font-bold text-white hover:bg-white/25">
                 Book Demo
               </a>
             </div>
 
             <div className="mt-6 grid grid-cols-2 gap-2.5 sm:grid-cols-4">
-              <Link to="/contact" className="marketing-fade-up-delay-1 cursor-pointer rounded-2xl border border-white/25 bg-white/[0.12] px-4 py-3 transition-all duration-200 hover:-translate-y-0.5 hover:border-white/40 hover:bg-white/[0.18]" style={{ backdropFilter: "blur(6px)" }}>
+              <Link to="/contact" className="motion-card motion-card-stagger marketing-fade-up-delay-1 cursor-pointer rounded-2xl border border-white/25 bg-white/[0.12] px-4 py-3 transition-all duration-200 hover:border-white/40 hover:bg-white/[0.18]" style={{ backdropFilter: "blur(6px)" }}>
                 <p className="text-sm font-black text-white">School Connect</p>
                 <p className="mt-0.5 text-[11px] uppercase tracking-[0.16em] text-blue-100">POWERING SMART SCHOOLS.</p>
               </Link>
-              <Link to="/report-lab" className="marketing-fade-up-delay-2 cursor-pointer rounded-2xl border border-white/25 bg-white/[0.12] px-4 py-3 transition-all duration-200 hover:-translate-y-0.5 hover:border-white/40 hover:bg-white/[0.18]" style={{ backdropFilter: "blur(6px)" }}>
+              <Link to="/report-lab" className="motion-card motion-card-stagger marketing-fade-up-delay-2 cursor-pointer rounded-2xl border border-white/25 bg-white/[0.12] px-4 py-3 transition-all duration-200 hover:border-white/40 hover:bg-white/[0.18]" style={{ backdropFilter: "blur(6px)" }}>
                 <p className="text-sm font-black text-white">Report Lab</p>
                 <p className="mt-0.5 text-[11px] uppercase tracking-[0.16em] text-blue-100">STUDENT REPORTS FASTER.</p>
               </Link>
-              <Link to="/smart-pages" className="marketing-fade-up-delay-3 cursor-pointer rounded-2xl border border-white/25 bg-white/[0.12] px-4 py-3 transition-all duration-200 hover:-translate-y-0.5 hover:border-white/40 hover:bg-white/[0.18]" style={{ backdropFilter: "blur(6px)" }}>
+              <Link to="/smart-pages" className="motion-card motion-card-stagger marketing-fade-up-delay-3 cursor-pointer rounded-2xl border border-white/25 bg-white/[0.12] px-4 py-3 transition-all duration-200 hover:border-white/40 hover:bg-white/[0.18]" style={{ backdropFilter: "blur(6px)" }}>
                 <p className="text-sm font-black text-white">Smart Pages</p>
                 <p className="mt-0.5 text-[11px] uppercase tracking-[0.16em] text-blue-100">HANDWRITTEN DOCS TO READY PDFS.</p>
               </Link>
-              <Link to="/nfc" className="marketing-fade-up-delay-3 cursor-pointer rounded-2xl border border-white/25 bg-white/[0.12] px-4 py-3 transition-all duration-200 hover:-translate-y-0.5 hover:border-white/40 hover:bg-white/[0.18]" style={{ backdropFilter: "blur(6px)" }}>
+              <Link to="/nfc" className="motion-card motion-card-stagger marketing-fade-up-delay-3 cursor-pointer rounded-2xl border border-white/25 bg-white/[0.12] px-4 py-3 transition-all duration-200 hover:border-white/40 hover:bg-white/[0.18]" style={{ backdropFilter: "blur(6px)" }}>
                 <p className="text-sm font-black text-white">NFC Wristbands</p>
                 <p className="mt-0.5 text-[11px] uppercase tracking-[0.16em] text-blue-100">TAP TO IDENTIFY.</p>
               </Link>

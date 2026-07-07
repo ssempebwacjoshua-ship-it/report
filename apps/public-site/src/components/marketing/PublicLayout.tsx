@@ -35,7 +35,7 @@ export function PublicLayout() {
       <Seo {...seo} />
       <HashScroller />
       <MarketingHeader />
-      <div style={{ paddingTop: "42px" }}>
+      <div style={{ paddingTop: "42px" }} className="site-motion-shell">
         <Outlet />
       </div>
       <MarketingFooter />

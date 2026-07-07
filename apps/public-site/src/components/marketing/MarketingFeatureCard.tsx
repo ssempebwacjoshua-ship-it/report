@@ -46,7 +46,7 @@ export function MarketingFeatureCard({
   const stepLabel = `Step ${String(step).padStart(2, "0")}`;
 
   return (
-    <article className={`group relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-xl ${className}`}>
+    <article className={`motion-card motion-card-stagger group relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-sm hover:border-blue-200 ${className}`}>
       <div className={`absolute inset-x-0 top-0 h-1 ${currentTone.accent}`} />
       <div className="absolute -right-10 top-6 h-24 w-24 rounded-full bg-blue-50/70 blur-3xl transition duration-200 group-hover:bg-blue-100/80" />
 

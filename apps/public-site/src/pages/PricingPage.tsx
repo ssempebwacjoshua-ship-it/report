@@ -82,7 +82,7 @@ function AnnualPlanCard({
   return (
     <article
       className={[
-        "group relative flex flex-col overflow-hidden rounded-2xl border bg-white shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-xl",
+        "motion-card motion-card-stagger group relative flex flex-col overflow-hidden rounded-2xl border bg-white shadow-sm hover:shadow-xl",
         highlighted ? "border-blue-300 ring-1 ring-blue-200" : "border-slate-200 hover:border-blue-200",
       ].join(" ")}
     >
@@ -165,7 +165,7 @@ function CreditPackCard({
   href: string;
 }) {
   return (
-    <article className="group relative flex flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-lg">
+    <article className="motion-card motion-card-stagger group relative flex flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 shadow-sm hover:border-blue-200 hover:shadow-lg">
       <div className="absolute inset-x-0 top-0 h-0.5 bg-gradient-to-r from-blue-200 via-sky-300 to-blue-200" />
 
       <div className="mb-3 flex items-start justify-between">
@@ -202,7 +202,7 @@ function CreditPackCard({
 
 function InfoCard({ title, body }: { title: string; body: string }) {
   return (
-    <div className="group relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-xl">
+    <div className="motion-card motion-card-stagger group relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-sm hover:border-blue-200 hover:shadow-xl">
       <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-blue-600 via-sky-400 to-cyan-300" />
       <h3 className="text-sm font-black text-slate-950">{title}</h3>
       <p className="mt-1.5 text-xs leading-5 text-slate-600">{body}</p>
@@ -732,15 +732,15 @@ export function PricingPage() {
             </div>
 
             <div className="mt-5 grid gap-3 md:grid-cols-3">
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3.5">
+              <div className="motion-card rounded-2xl border border-slate-200 bg-slate-50 p-3.5">
                 <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">Billing</p>
                 <p className="mt-1.5 text-sm font-semibold text-slate-950">Annual license billed once per year</p>
               </div>
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3.5">
+              <div className="motion-card rounded-2xl border border-slate-200 bg-slate-50 p-3.5">
                 <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">WhatsApp</p>
                 <p className="mt-1.5 text-sm font-semibold text-slate-950">{WHATSAPP_DISPLAY}</p>
               </div>
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3.5">
+              <div className="motion-card rounded-2xl border border-slate-200 bg-slate-50 p-3.5">
                 <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">Setup</p>
                 <p className="mt-1.5 text-sm font-semibold text-slate-950">One-time fee during onboarding</p>
               </div>

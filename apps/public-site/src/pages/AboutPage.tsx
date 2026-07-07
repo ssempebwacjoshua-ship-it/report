@@ -54,7 +54,7 @@ const STATUS_META: Record<SuiteStatus, { dot: string; text: string; textColor: s
 function HeroSuiteVisual() {
   return (
     <div
-      className="overflow-hidden rounded-[1.5rem] border border-white/25 marketing-card-motion"
+      className="motion-media floating-media soft-glow overflow-hidden rounded-[1.5rem] border border-white/25 marketing-card-motion"
       style={{
         background: "linear-gradient(135deg, rgba(18,92,205,0.48) 0%, rgba(9,44,112,0.38) 100%)",
         backdropFilter: "blur(14px)",
@@ -134,7 +134,7 @@ function BuildCardItem({ card }: { card: BuildCard }) {
   return (
     <a
       href={card.href}
-      className="group rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-md"
+      className="motion-card motion-card-stagger group rounded-2xl border border-slate-200 bg-white p-4 shadow-sm hover:border-blue-200"
     >
       <div className="flex items-start justify-between gap-2">
         <h3 className="text-sm font-extrabold text-slate-950">{card.name}</h3>
@@ -170,13 +170,13 @@ export function AboutPage() {
             <div className="marketing-fade-up-delay-3 mt-4 flex flex-col gap-2 sm:flex-row">
               <Link
                 to="/products"
-                className="btn marketing-button-motion rounded-xl bg-white px-4 py-2.5 text-sm font-black text-blue-700 hover:bg-blue-50"
+                className="btn marketing-button-motion motion-cta rounded-xl bg-white px-4 py-2.5 text-sm font-black text-blue-700 hover:bg-blue-50"
               >
                 View Products
               </Link>
               <Link
                 to="/demos"
-                className="btn marketing-button-motion rounded-xl border border-white/25 bg-white/10 px-4 py-2.5 text-sm font-bold text-white hover:bg-white/15"
+                className="btn marketing-button-motion motion-cta rounded-xl border border-white/25 bg-white/10 px-4 py-2.5 text-sm font-bold text-white hover:bg-white/15"
               >
                 View Demos
               </Link>

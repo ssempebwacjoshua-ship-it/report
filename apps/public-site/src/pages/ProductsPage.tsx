@@ -280,7 +280,7 @@ function StatusBadge({ status }: { status: Status }) {
 
 function ProductCard({ product }: { product: Product }) {
   return (
-    <article className="flex h-full flex-col rounded-2xl border bg-white" style={{ borderColor: "#D8E2F0", boxShadow: "0 2px 10px rgba(11,47,107,0.05)" }}>
+    <article className="motion-card motion-card-stagger flex h-full flex-col rounded-2xl border bg-white" style={{ borderColor: "#D8E2F0", boxShadow: "0 2px 10px rgba(11,47,107,0.05)" }}>
       <div className="flex flex-1 flex-col gap-3 p-5">
         <div className="flex items-start justify-between gap-2">
           <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl" style={{ background: product.accentBg, color: product.accentColor }}>
@@ -324,11 +324,11 @@ function ProductCard({ product }: { product: Product }) {
         </div>
 
         <div className="mt-auto flex flex-col gap-2 pt-2">
-          <a href={product.ctaHref} className="inline-flex items-center justify-center rounded-xl px-4 py-2.5 text-sm font-bold text-white transition-colors hover:opacity-95" style={{ background: "#0F5BD8" }}>
+          <a href={product.ctaHref} className="motion-cta inline-flex items-center justify-center rounded-xl px-4 py-2.5 text-sm font-bold text-white" style={{ background: "#0F5BD8" }}>
             {product.ctaLabel}
           </a>
           {product.secondaryHref ? (
-            <a href={product.secondaryHref} target={product.secondaryHref.startsWith("http") ? "_blank" : undefined} rel={product.secondaryHref.startsWith("http") ? "noreferrer" : undefined} className="inline-flex items-center justify-center rounded-xl border border-blue-200 bg-white px-4 py-2.5 text-sm font-bold text-blue-700 shadow-sm hover:bg-blue-50">
+            <a href={product.secondaryHref} target={product.secondaryHref.startsWith("http") ? "_blank" : undefined} rel={product.secondaryHref.startsWith("http") ? "noreferrer" : undefined} className="motion-cta inline-flex items-center justify-center rounded-xl border border-blue-200 bg-white px-4 py-2.5 text-sm font-bold text-blue-700 shadow-sm hover:bg-blue-50">
               {product.secondaryLabel}
             </a>
           ) : null}
@@ -357,10 +357,10 @@ export function ProductsPage() {
             </p>
 
             <div className="marketing-fade-up-delay-3 mt-3.5 flex flex-col gap-2 sm:flex-row">
-              <Link to="/demos" className="btn marketing-button-motion rounded-xl bg-white px-4 py-2.5 text-sm font-black text-blue-700 hover:bg-blue-50">
+              <Link to="/demos" className="btn marketing-button-motion motion-cta rounded-xl bg-white px-4 py-2.5 text-sm font-black text-blue-700 hover:bg-blue-50">
                 View demos
               </Link>
-              <a href={BOOK_DEMO_URL} target="_blank" rel="noreferrer" className="btn marketing-button-motion rounded-xl border border-white bg-white/15 px-4 py-2.5 text-sm font-bold text-white hover:bg-white/25">
+              <a href={BOOK_DEMO_URL} target="_blank" rel="noreferrer" className="btn marketing-button-motion motion-cta rounded-xl border border-white bg-white/15 px-4 py-2.5 text-sm font-bold text-white hover:bg-white/25">
                 Book a walkthrough
               </a>
             </div>
@@ -379,7 +379,7 @@ export function ProductsPage() {
                 <a
                   key={id}
                   href={`#${id}`}
-                  className="rounded-full border border-white/30 bg-white/10 px-2.5 py-1 text-[11px] font-bold text-white hover:border-white/50 hover:bg-white/20"
+                  className="motion-cta rounded-full border border-white/30 bg-white/10 px-2.5 py-1 text-[11px] font-bold text-white hover:border-white/50 hover:bg-white/20"
                 >
                   {label}
                 </a>

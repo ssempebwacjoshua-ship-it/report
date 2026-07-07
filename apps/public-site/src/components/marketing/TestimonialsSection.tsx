@@ -6,7 +6,7 @@ function TestimonialCard({
   attribution: string;
 }) {
   return (
-    <figure className="group relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-xl">
+    <figure className="motion-card motion-card-stagger group relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-sm hover:border-blue-200">
       <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-blue-600 via-sky-400 to-cyan-300" />
       <div className="absolute -right-10 top-6 h-24 w-24 rounded-full bg-blue-50/70 blur-3xl transition duration-200 group-hover:bg-blue-100/80" />
       <blockquote className="relative text-sm leading-6 text-slate-700">"{quote}"</blockquote>

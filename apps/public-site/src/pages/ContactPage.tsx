@@ -8,7 +8,7 @@ import { CONTACT_FAQS } from "../content/discoverability";
 // Compact action card — white floating card on dark hero background
 function ActionCard({ title, body, cta, href }: { title: string; body: string; cta: string; href: string }) {
   return (
-    <div className="relative overflow-hidden rounded-2xl border border-white/30 bg-white/95 p-3.5 shadow-sm backdrop-blur-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-md">
+    <div className="motion-card motion-card-stagger relative overflow-hidden rounded-2xl border border-white/30 bg-white/95 p-3.5 shadow-sm backdrop-blur-sm">
       <div className="absolute inset-x-0 top-0 h-[3px] bg-gradient-to-r from-blue-600 via-sky-400 to-cyan-300" />
       <h3 className="text-sm font-black text-slate-950">{title}</h3>
       <p className="mt-1 text-xs leading-5 text-slate-600">{body}</p>
@@ -16,7 +16,7 @@ function ActionCard({ title, body, cta, href }: { title: string; body: string; c
         href={href}
         target="_blank"
         rel="noreferrer"
-        className="btn mt-3 w-full rounded-xl border border-blue-200 bg-white px-3 py-2 text-center text-xs font-black text-blue-700 hover:bg-blue-50"
+        className="btn motion-cta mt-3 w-full rounded-xl border border-blue-200 bg-white px-3 py-2 text-center text-xs font-black text-blue-700 hover:bg-blue-50"
       >
         {cta}
       </a>
@@ -26,7 +26,7 @@ function ActionCard({ title, body, cta, href }: { title: string; body: string; c
 
 function ContactInfoCard({ children }: { children: React.ReactNode }) {
   return (
-    <div className="marketing-card-motion rounded-[1.5rem] border border-slate-200 bg-white p-5 shadow-sm">
+    <div className="motion-card rounded-[1.5rem] border border-slate-200 bg-white p-5 shadow-sm">
       {children}
     </div>
   );
@@ -134,13 +134,13 @@ export function ContactPage() {
                 href={demoHref}
                 target="_blank"
                 rel="noreferrer"
-                className="btn marketing-button-motion rounded-xl bg-white px-4 py-2.5 text-sm font-black text-blue-700 hover:bg-blue-50"
+                className="btn marketing-button-motion motion-cta rounded-xl bg-white px-4 py-2.5 text-sm font-black text-blue-700 hover:bg-blue-50"
               >
                 Chat with us on WhatsApp
               </a>
               <a
                 href="#contact-form"
-                className="btn marketing-button-motion rounded-xl border border-white/25 bg-white/10 px-4 py-2.5 text-sm font-bold text-white hover:bg-white/15"
+                className="btn marketing-button-motion motion-cta rounded-xl border border-white/25 bg-white/10 px-4 py-2.5 text-sm font-bold text-white hover:bg-white/15"
               >
                 Fill contact form
               </a>
@@ -192,7 +192,7 @@ export function ContactPage() {
                 <label className="grid gap-2 text-sm font-semibold text-slate-700">
                   School name
                   <input
-                    className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-950 outline-none transition focus:border-blue-300 focus:bg-white"
+                  className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-950 outline-none transition focus:border-blue-300 focus:bg-white"
                     value={form.schoolName}
                     onChange={(e) => setForm((c) => ({ ...c, schoolName: e.target.value }))}
                     placeholder="Your school name"
