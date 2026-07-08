@@ -1,47 +1,547 @@
 import { Link } from "react-router-dom";
+import type { ReactNode } from "react";
 import { FaqSection } from "../components/marketing/FaqSection";
-import { MarketingFeatureCard } from "../components/marketing/MarketingFeatureCard";
 import { buildWhatsAppUrl } from "../config/contact";
 import { RENTFLOW_FAQS } from "../content/discoverability";
-import { BuildingIcon, CashIcon, DocumentIcon, WrenchIcon } from "../components/marketing/Icons";
+import {
+  BuildingIcon,
+  CashIcon,
+  DocumentIcon,
+  HomeIcon,
+  OfficeIcon,
+  PhoneIcon,
+  PrinterIcon,
+  SmartphoneIcon,
+  WrenchIcon,
+} from "../components/marketing/Icons";
 
 const BOOK_DEMO_URL = buildWhatsAppUrl(
   "Hello SSAMENJ Technologies! I would like to book a RentFlow demo for my property portfolio.",
 );
 
-const RENTFLOW_FEATURES = [
+const HERO_METRICS = [
+  { label: "Occupancy", value: "92%" },
+  { label: "Bookings today", value: "14" },
+  { label: "Payments collected", value: "UGX 4.8m" },
+  { label: "Pending balances", value: "UGX 1.2m" },
+] as const;
+
+const WORKFLOW_STEPS = [
   {
     step: 1,
-    title: "Bookings and tenants",
-    body: "Track Airbnb stays, residential tenants, move-in dates, and unit occupancy from one workflow.",
+    title: "Add property and units",
+    body: "Create a portfolio, add rooms or shops, and keep every unit visible in one clean screen.",
     icon: <BuildingIcon className="h-5 w-5" />,
-    tone: "blue" as const,
+    preview: (
+      <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-3">
+        <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
+          <span>Kampala Heights</span>
+          <span>12 units</span>
+        </div>
+        <div className="mt-3 space-y-2">
+          <div className="h-2.5 w-11/12 rounded-full bg-blue-200" />
+          <div className="h-2.5 w-4/5 rounded-full bg-slate-200" />
+          <div className="h-2.5 w-2/3 rounded-full bg-slate-200" />
+        </div>
+      </div>
+    ),
   },
   {
     step: 2,
-    title: "Payments and deposits",
-    body: "Record rent, deposits, part-payments, and outstanding balances without spreadsheet drift.",
-    icon: <CashIcon className="h-5 w-5" />,
-    tone: "slate" as const,
+    title: "Record bookings or tenants",
+    body: "Capture check-ins, leases, and move-in dates without splitting short-stay and long-stay workflows.",
+    icon: <PhoneIcon className="h-5 w-5" />,
+    preview: (
+      <div className="mt-4 rounded-2xl border border-blue-100 bg-blue-50/70 p-3">
+        <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.18em] text-blue-700">
+          <span className="rounded-full bg-white px-2 py-1 shadow-sm">Today</span>
+          <span>3 check-ins</span>
+        </div>
+        <div className="mt-3 space-y-2">
+          <div className="flex items-center justify-between rounded-xl bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-sm">
+            <span>Room 4B</span>
+            <span className="text-blue-700">Booked</span>
+          </div>
+          <div className="flex items-center justify-between rounded-xl bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-sm">
+            <span>Unit 2A</span>
+            <span className="text-emerald-600">Arriving</span>
+          </div>
+        </div>
+      </div>
+    ),
   },
   {
     step: 3,
-    title: "Maintenance and cleaning",
-    body: "Assign jobs, monitor turnovers, and keep housekeepers and maintenance work visible.",
-    icon: <WrenchIcon className="h-5 w-5" />,
-    tone: "emerald" as const,
+    title: "Track payments and deposits",
+    body: "See rent, deposit, and balance movement together so nothing gets lost in spreadsheets.",
+    icon: <CashIcon className="h-5 w-5" />,
+    preview: (
+      <div className="mt-4 rounded-2xl border border-emerald-100 bg-emerald-50/70 p-3">
+        <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-[0.18em] text-emerald-700">
+          <span>Collected</span>
+          <span>65%</span>
+        </div>
+        <div className="mt-2 h-2 rounded-full bg-white">
+          <div className="h-full w-[65%] rounded-full bg-gradient-to-r from-emerald-500 to-emerald-400" />
+        </div>
+        <div className="mt-3 grid grid-cols-2 gap-2 text-xs font-semibold text-slate-700">
+          <div className="rounded-xl bg-white px-3 py-2 shadow-sm">Rent</div>
+          <div className="rounded-xl bg-white px-3 py-2 shadow-sm">Deposit</div>
+        </div>
+      </div>
+    ),
   },
   {
     step: 4,
-    title: "Owner statements",
-    body: "Prepare statements, checkout balances, and property summaries for owners in one place.",
-    icon: <DocumentIcon className="h-5 w-5" />,
-    tone: "blue" as const,
+    title: "Generate checkout bills and owner statements",
+    body: "Close out each stay with a bill, a balance summary, and an owner-ready statement.",
+    icon: <PrinterIcon className="h-5 w-5" />,
+    preview: (
+      <div className="mt-4 rounded-2xl border border-amber-100 bg-amber-50/70 p-3">
+        <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.18em] text-amber-700">
+          <DocumentIcon className="h-3.5 w-3.5" />
+          <span>Ready to send</span>
+        </div>
+        <div className="mt-3 space-y-2">
+          <div className="rounded-xl bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-sm">Checkout bill</div>
+          <div className="rounded-xl bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-sm">Owner statement</div>
+        </div>
+      </div>
+    ),
   },
 ] as const;
 
-const PORTFOLIO_TYPES = ["Airbnb rooms", "Residential rentals", "Commercial shops", "Apartments"];
-const KEY_METRICS = ["Bookings", "Tenants", "Deposits", "Owner statements"];
+const RENTFLOW_VISUALS = [
+  {
+    title: "Short-stay / Airbnb",
+    body: "Fast booking, quick turnover, and simple occupancy tracking for busy hosts.",
+    icon: <HomeIcon className="h-5 w-5" />,
+    bg: "bg-blue-50",
+    accent: "text-blue-700",
+  },
+  {
+    title: "Residential rentals",
+    body: "Lease records, rent reminders, and clear tenant history for longer stays.",
+    icon: <BuildingIcon className="h-5 w-5" />,
+    bg: "bg-slate-50",
+    accent: "text-slate-700",
+  },
+  {
+    title: "Commercial shops & offices",
+    body: "Track shop units, office occupancy, and portfolio-level payment status.",
+    icon: <OfficeIcon className="h-5 w-5" />,
+    bg: "bg-blue-50",
+    accent: "text-blue-700",
+  },
+  {
+    title: "Owner statements",
+    body: "Prepare clear summaries owners can review without extra back-and-forth.",
+    icon: <DocumentIcon className="h-5 w-5" />,
+    bg: "bg-amber-50",
+    accent: "text-amber-700",
+  },
+  {
+    title: "Payments / deposits",
+    body: "See collected amounts, pending balances, and deposit movement at a glance.",
+    icon: <CashIcon className="h-5 w-5" />,
+    bg: "bg-emerald-50",
+    accent: "text-emerald-700",
+  },
+  {
+    title: "Cleaning / maintenance",
+    body: "Keep turnovers visible and assign follow-up work before the next arrival.",
+    icon: <WrenchIcon className="h-5 w-5" />,
+    bg: "bg-slate-50",
+    accent: "text-slate-700",
+  },
+] as const;
+
+const DEVICE_CHECKS = [
+  { label: "Light status", value: "ON" },
+  { label: "TV socket", value: "OFF" },
+  { label: "Checkout rule", value: "Auto-off at checkout" },
+  { label: "Critical warning", value: "Needs operator review" },
+] as const;
+
+const PRICING_PLANS = [
+  {
+    name: "Starter",
+    unitLimit: "Up to 10 units",
+    monthlyPrice: "UGX 120,000 / mo",
+    setupFee: "UGX 250,000 setup fee",
+    ctaLabel: "Choose Starter",
+    featured: false,
+  },
+  {
+    name: "Standard",
+    unitLimit: "Up to 25 units",
+    monthlyPrice: "UGX 220,000 / mo",
+    setupFee: "UGX 400,000 setup fee",
+    ctaLabel: "Choose Standard",
+    featured: true,
+  },
+  {
+    name: "Growth",
+    unitLimit: "Up to 60 units",
+    monthlyPrice: "UGX 390,000 / mo",
+    setupFee: "UGX 650,000 setup fee",
+    ctaLabel: "Choose Growth",
+    featured: false,
+  },
+  {
+    name: "Business",
+    unitLimit: "Up to 120 units",
+    monthlyPrice: "UGX 650,000 / mo",
+    setupFee: "UGX 900,000 setup fee",
+    ctaLabel: "Choose Business",
+    featured: false,
+  },
+  {
+    name: "Enterprise",
+    unitLimit: "Large portfolios",
+    monthlyPrice: "Custom monthly quote",
+    setupFee: "Tailored setup fee",
+    ctaLabel: "Request Enterprise Quote",
+    featured: false,
+  },
+] as const;
+
+function SectionHeading({
+  eyebrow,
+  title,
+  description,
+}: {
+  eyebrow: string;
+  title: string;
+  description: string;
+}) {
+  return (
+    <div className="max-w-2xl">
+      <p className="text-xs font-black uppercase tracking-[0.2em] text-blue-700">{eyebrow}</p>
+      <h2 className="mt-2 text-3xl font-black tracking-tight text-slate-950">{title}</h2>
+      <p className="mt-2 text-sm leading-6 text-slate-600">{description}</p>
+    </div>
+  );
+}
+
+function WorkflowCard({
+  step,
+  title,
+  body,
+  icon,
+  preview,
+}: {
+  step: number;
+  title: string;
+  body: string;
+  icon: ReactNode;
+  preview: ReactNode;
+}) {
+  return (
+    <article className="motion-card motion-card-stagger relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:border-blue-200 hover:shadow-md">
+      <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-blue-600 via-sky-400 to-cyan-300" />
+      <div className="flex items-start justify-between gap-3">
+        <span className="rounded-full bg-blue-50 px-2.5 py-1 text-[11px] font-black uppercase tracking-[0.18em] text-blue-700">
+          Step {String(step).padStart(2, "0")}
+        </span>
+        <div className="grid h-11 w-11 place-items-center rounded-xl bg-gradient-to-br from-blue-600 to-blue-700 text-white shadow-lg shadow-blue-600/20">
+          {icon}
+        </div>
+      </div>
+      <h3 className="mt-4 text-base font-black text-slate-950">{title}</h3>
+      <p className="mt-2 text-sm leading-6 text-slate-600">{body}</p>
+      {preview}
+    </article>
+  );
+}
+
+function VisualTile({
+  title,
+  body,
+  icon,
+  bg,
+  accent,
+}: {
+  title: string;
+  body: string;
+  icon: ReactNode;
+  bg: string;
+  accent: string;
+}) {
+  return (
+    <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:border-blue-200 hover:shadow-md">
+      <div className={`flex h-11 w-11 items-center justify-center rounded-xl ${bg} ${accent}`}>{icon}</div>
+      <h3 className="mt-3 text-sm font-black text-slate-950">{title}</h3>
+      <p className="mt-1.5 text-sm leading-6 text-slate-600">{body}</p>
+    </article>
+  );
+}
+
+function PricingCard({
+  name,
+  unitLimit,
+  monthlyPrice,
+  setupFee,
+  ctaLabel,
+  featured,
+}: {
+  name: string;
+  unitLimit: string;
+  monthlyPrice: string;
+  setupFee: string;
+  ctaLabel: string;
+  featured: boolean;
+}) {
+  return (
+    <article
+      className={[
+        "motion-card motion-card-stagger relative flex h-full flex-col overflow-hidden rounded-[1.5rem] border bg-white p-5 shadow-sm transition hover:shadow-lg",
+        featured ? "border-blue-300 ring-1 ring-blue-200" : "border-slate-200 hover:border-blue-200",
+      ].join(" ")}
+    >
+      <div className={`absolute inset-x-0 top-0 h-1 ${featured ? "bg-gradient-to-r from-blue-600 via-sky-400 to-cyan-300" : "bg-gradient-to-r from-slate-200 via-blue-100 to-slate-200"}`} />
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-[11px] font-black uppercase tracking-[0.2em] text-blue-700">{name}</p>
+          <p className="mt-1 text-sm font-semibold text-slate-500">{unitLimit}</p>
+        </div>
+        <span className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-amber-700">
+          First month free
+        </span>
+      </div>
+
+      <div className="mt-4">
+        <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">Monthly price</p>
+        <p className="mt-1 text-2xl font-black tracking-tight text-slate-950">{monthlyPrice}</p>
+      </div>
+
+      <div className="mt-3 rounded-2xl border border-slate-100 bg-slate-50 px-3 py-2.5">
+        <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">Setup fee</p>
+        <p className="mt-1 text-sm font-black text-slate-700">{setupFee}</p>
+      </div>
+
+      <div className="mt-4 space-y-2">
+        <div className="flex items-center justify-between rounded-xl border border-slate-100 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-sm">
+          <span>Units</span>
+          <span>{unitLimit}</span>
+        </div>
+        <div className="flex items-center justify-between rounded-xl border border-slate-100 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-sm">
+          <span>Offer</span>
+          <span>First month free</span>
+        </div>
+      </div>
+
+      <a
+        href={BOOK_DEMO_URL}
+        target="_blank"
+        rel="noreferrer"
+        className={[
+          "btn marketing-button-motion mt-5 inline-flex w-full items-center justify-center rounded-xl px-4 py-3 text-sm font-black",
+          featured
+            ? "bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-lg shadow-blue-600/20 hover:shadow-xl hover:shadow-blue-600/25"
+            : "border border-blue-200 bg-white text-blue-700 hover:bg-blue-50",
+        ].join(" ")}
+      >
+        {ctaLabel}
+      </a>
+    </article>
+  );
+}
+
+function DashboardPreview() {
+  return (
+    <div className="relative overflow-hidden rounded-[1.75rem] border border-white/20 bg-white/95 p-4 text-slate-950 shadow-2xl backdrop-blur">
+      <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-blue-600 via-sky-400 to-amber-300" />
+      <div className="absolute right-4 top-4 rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-[11px] font-black uppercase tracking-[0.16em] text-amber-700">
+        First month free — setup fee applies.
+      </div>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <p className="text-[11px] font-black uppercase tracking-[0.18em] text-blue-700">Portfolio dashboard</p>
+          <h2 className="mt-1 text-lg font-black text-slate-950">Everything on one screen</h2>
+        </div>
+        <div className="rounded-2xl bg-blue-50 px-3 py-2 text-right">
+          <p className="text-[10px] font-black uppercase tracking-[0.16em] text-blue-700">Today</p>
+          <p className="mt-0.5 text-sm font-black text-slate-950">32 tasks</p>
+        </div>
+      </div>
+
+      <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {HERO_METRICS.map((metric, index) => (
+          <div
+            key={metric.label}
+            className={[
+              "rounded-2xl border p-3 shadow-sm",
+              index === 0
+                ? "border-blue-200 bg-blue-50"
+                : index === 1
+                  ? "border-slate-200 bg-white"
+                  : index === 2
+                    ? "border-emerald-200 bg-emerald-50"
+                    : "border-amber-200 bg-amber-50",
+            ].join(" ")}
+          >
+            <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">{metric.label}</p>
+            <p className="mt-1 text-xl font-black text-slate-950">{metric.value}</p>
+          </div>
+        ))}
+      </div>
+
+      <div className="mt-4 grid gap-3 lg:grid-cols-[1.15fr_0.85fr]">
+        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">Cleaning tasks</p>
+            <span className="rounded-full bg-white px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-blue-700 shadow-sm">
+              3 pending
+            </span>
+          </div>
+          <div className="mt-3 space-y-2">
+            <div className="flex items-center justify-between rounded-xl bg-white px-3 py-2 shadow-sm">
+              <span className="text-xs font-semibold text-slate-700">Suite 2A turnover</span>
+              <span className="text-xs font-black text-amber-700">Queued</span>
+            </div>
+            <div className="flex items-center justify-between rounded-xl bg-white px-3 py-2 shadow-sm">
+              <span className="text-xs font-semibold text-slate-700">Studio 6B refresh</span>
+              <span className="text-xs font-black text-emerald-600">Ready</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid gap-3">
+          <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+            <div className="flex items-center justify-between">
+              <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">Maintenance</p>
+              <span className="text-xs font-black text-blue-700">2 items</span>
+            </div>
+            <div className="mt-3 space-y-2">
+              <div className="h-2 rounded-full bg-slate-100">
+                <div className="h-full w-[72%] rounded-full bg-gradient-to-r from-blue-600 to-sky-400" />
+              </div>
+              <div className="h-2 rounded-full bg-slate-100">
+                <div className="h-full w-[44%] rounded-full bg-gradient-to-r from-amber-400 to-amber-300" />
+              </div>
+            </div>
+          </div>
+          <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+            <div className="flex items-center justify-between">
+              <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">Owner statements</p>
+              <DocumentIcon className="h-4 w-4 text-blue-700" />
+            </div>
+            <p className="mt-2 text-sm font-semibold text-slate-700">Ready for month-end export and review.</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-4 grid gap-3 sm:grid-cols-[1.05fr_0.95fr]">
+        <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+          <div className="flex items-center gap-2">
+            <span className="grid h-8 w-8 place-items-center rounded-xl bg-blue-50 text-blue-700">
+              <CashIcon className="h-4 w-4" />
+            </span>
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">Pending balances</p>
+              <p className="text-sm font-semibold text-slate-700">UGX 1.2m across 7 units</p>
+            </div>
+          </div>
+        </div>
+        <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+          <div className="flex items-center gap-2">
+            <span className="grid h-8 w-8 place-items-center rounded-xl bg-amber-50 text-amber-700">
+              <WrenchIcon className="h-4 w-4" />
+            </span>
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">Maintenance note</p>
+              <p className="text-sm font-semibold text-slate-700">One guest-reported issue needs follow-up.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PhonePreview() {
+  return (
+    <div className="mx-auto w-full max-w-[280px] rounded-[1.9rem] border border-slate-200 bg-slate-950 p-2.5 shadow-2xl">
+      <div className="rounded-[1.6rem] bg-white p-3">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-blue-700">RentFlow PWA</p>
+            <p className="mt-0.5 text-sm font-black text-slate-950">Today's bookings</p>
+          </div>
+          <SmartphoneIcon className="h-5 w-5 text-blue-700" />
+        </div>
+        <div className="mt-3 rounded-2xl bg-blue-50 p-3">
+          <p className="text-[10px] font-black uppercase tracking-[0.18em] text-blue-700">Unit status</p>
+          <p className="mt-1 text-sm font-black text-slate-950">4 ready, 2 occupied</p>
+        </div>
+        <div className="mt-3 space-y-2">
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2">
+            <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Payment balance</p>
+            <p className="mt-0.5 text-sm font-semibold text-slate-700">UGX 420,000 due</p>
+          </div>
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2">
+            <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Cleaning task</p>
+            <p className="mt-0.5 text-sm font-semibold text-slate-700">Suite 2A ready after checkout</p>
+          </div>
+        </div>
+        <div className="mt-3 rounded-2xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-black uppercase tracking-[0.16em] text-slate-400">Quick actions</span>
+            <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.14em] text-emerald-700">
+              Online
+            </span>
+          </div>
+          <div className="mt-2 grid grid-cols-2 gap-2">
+            <div className="rounded-xl bg-blue-50 px-2 py-2 text-center text-[11px] font-black text-blue-700">Check in</div>
+            <div className="rounded-xl bg-amber-50 px-2 py-2 text-center text-[11px] font-black text-amber-700">Collect payment</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DevicePanel() {
+  return (
+    <div className="rounded-[1.75rem] border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="flex items-center gap-3">
+        <div className="grid h-11 w-11 place-items-center rounded-2xl bg-amber-50 text-amber-700">
+          <WrenchIcon className="h-5 w-5" />
+        </div>
+        <div>
+          <p className="text-xs font-black uppercase tracking-[0.18em] text-amber-700">Optional smart lights and sockets setup</p>
+          <h3 className="mt-1 text-2xl font-black tracking-tight text-slate-950">Room-level device status in one place</h3>
+        </div>
+      </div>
+
+      <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">Room / unit</p>
+            <p className="mt-0.5 text-sm font-black text-slate-950">Suite 3B</p>
+          </div>
+          <span className="rounded-full bg-blue-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-blue-700">
+            Occupied
+          </span>
+        </div>
+
+        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+          {DEVICE_CHECKS.map((item) => (
+            <div key={item.label} className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+              <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">{item.label}</p>
+              <p className="mt-1.5 text-sm font-black text-slate-950">{item.value}</p>
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-900">
+          Wi-Fi smart lights and sockets are optional installation add-ons, quoted separately.
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export function RentFlowPage() {
   return (
@@ -58,7 +558,8 @@ export function RentFlowPage() {
               Manage rentals, Airbnb rooms, shops, and apartments from one system.
             </h1>
             <p className="marketing-fade-up-delay-2 mt-2.5 max-w-2xl text-sm leading-7 text-blue-50 sm:text-base">
-              SSAMENJ RentFlow helps property owners and managers track bookings, tenants, payments, deposits, maintenance, cleaning, owner statements, and checkout balances.
+              SSAMENJ RentFlow helps property owners and managers track bookings, tenants, payments, deposits,
+              maintenance, cleaning, owner statements, and checkout balances.
             </p>
 
             <div className="marketing-fade-up-delay-3 mt-4 flex flex-col gap-3 sm:flex-row">
@@ -85,37 +586,29 @@ export function RentFlowPage() {
             </div>
 
             <div className="mt-4 grid grid-cols-2 gap-2.5 sm:grid-cols-4">
-              {KEY_METRICS.map((metric, index) => (
+              {[
+                "Bookings",
+                "Tenants",
+                "Deposits",
+                "Owner statements",
+              ].map((metric, index) => (
                 <div
                   key={metric}
                   className={`marketing-card-motion rounded-2xl border border-white/25 bg-white/[0.12] px-4 py-3 transition-all duration-200 hover:border-white/40 hover:bg-white/[0.18] ${index === 0 ? "marketing-fade-up-delay-1" : index === 1 ? "marketing-fade-up-delay-2" : "marketing-fade-up-delay-3"}`}
                   style={{ backdropFilter: "blur(6px)" }}
                 >
                   <p className="text-sm font-black text-white">{metric}</p>
-                  <p className="mt-0.5 text-[11px] uppercase tracking-[0.16em] text-blue-100">
-                    Property tracking
-                  </p>
+                  <p className="mt-0.5 text-[11px] uppercase tracking-[0.16em] text-blue-100">Property tracking</p>
                 </div>
               ))}
             </div>
           </div>
 
           <div className="lg:col-span-5">
-            <div className="motion-media floating-media soft-glow rounded-[1.75rem] border border-white/20 bg-white/95 p-5 text-slate-950 shadow-xl backdrop-blur">
-              <p className="text-[11px] font-black uppercase tracking-[0.18em] text-blue-700">Pricing</p>
-              <h2 className="mt-2 text-3xl font-black tracking-tight text-slate-950">First month free — setup fee applies.</h2>
-              <p className="mt-2 text-sm leading-6 text-slate-600">
-                Simple pricing by number of rooms, units, shops, or apartments.
-              </p>
-              <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-                Built for mixed portfolios that need one reliable operations hub.
-              </div>
-              <div className="mt-4 grid gap-2 sm:grid-cols-2">
-                {PORTFOLIO_TYPES.map((item) => (
-                  <div key={item} className="rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700">
-                    {item}
-                  </div>
-                ))}
+            <div className="relative">
+              <DashboardPreview />
+              <div className="mt-4 lg:absolute lg:-bottom-10 lg:right-3 lg:mt-0 lg:w-[260px]">
+                <PhonePreview />
               </div>
             </div>
           </div>
@@ -124,71 +617,99 @@ export function RentFlowPage() {
 
       <section className="border-b border-slate-200 bg-white px-4 py-8 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-7xl">
-          <div className="max-w-2xl">
-            <p className="text-xs font-black uppercase tracking-[0.2em] text-blue-700">What RentFlow covers</p>
-            <h2 className="mt-2 text-3xl font-black tracking-tight text-slate-950">
-              Built for property teams that need bookings, balances, and owner reporting in one system.
-            </h2>
-            <p className="mt-2 text-sm leading-6 text-slate-600">
-              Keep short-stay rentals, residential units, and commercial properties in one clear workflow without splitting the business across separate tools.
-            </p>
-          </div>
+          <SectionHeading
+            eyebrow="What RentFlow covers"
+            title="Built for property teams that need bookings, balances, and owner reporting in one system."
+            description="Keep short-stay rentals, residential units, and commercial properties in one clear workflow without splitting the business across separate tools."
+          />
 
-          <div className="mt-4 grid gap-3 lg:grid-cols-2 xl:grid-cols-4">
-            {RENTFLOW_FEATURES.map((feature) => (
-              <MarketingFeatureCard key={feature.title} {...feature} />
+          <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            {WORKFLOW_STEPS.map((feature) => (
+              <WorkflowCard key={feature.title} {...feature} />
             ))}
           </div>
         </div>
       </section>
 
       <section className="border-b border-slate-200 bg-slate-50 px-4 py-8 sm:px-6 lg:px-8">
-        <div className="mx-auto grid max-w-7xl gap-4 lg:grid-cols-12 lg:items-start">
+        <div className="mx-auto max-w-7xl">
+          <SectionHeading
+            eyebrow="Visual coverage"
+            title="Use one product across every property type."
+            description="RentFlow keeps the same clean flow whether you manage a few short-stay rooms or a mixed portfolio with residential and commercial units."
+          />
+
+          <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {RENTFLOW_VISUALS.map((item) => (
+              <VisualTile key={item.title} {...item} />
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="border-b border-slate-200 bg-white px-4 py-8 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-7xl">
+          <div className="grid gap-4 lg:grid-cols-12 lg:items-start">
+            <div className="lg:col-span-5">
+              <SectionHeading
+                eyebrow="Smart device add-ons"
+                title="Optional smart lights and sockets setup"
+                description="Show the room and device state in a simple operations view. This is an add-on concept, not a claim that vendor automation is universally live."
+              />
+            </div>
+            <div className="lg:col-span-7">
+              <DevicePanel />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="border-b border-slate-200 bg-slate-50 px-4 py-8 sm:px-6 lg:px-8">
+        <div className="mx-auto grid max-w-7xl gap-4 lg:grid-cols-12 lg:items-center">
           <div className="lg:col-span-7">
-            <div className="rounded-[1.75rem] border border-slate-200 bg-white p-5 shadow-sm">
-              <p className="text-xs font-black uppercase tracking-[0.2em] text-blue-700">Common portfolio types</p>
-              <h2 className="mt-2 text-2xl font-black tracking-tight text-slate-950">
-                One system can serve multiple property formats.
-              </h2>
-              <div className="mt-4 flex flex-wrap gap-2">
-                {PORTFOLIO_TYPES.map((item) => (
-                  <span key={item} className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-[11px] font-black uppercase tracking-[0.18em] text-blue-700">
-                    {item}
-                  </span>
-                ))}
+            <SectionHeading
+              eyebrow="Phone-first operations"
+              title="Built for phone-first property operations."
+              description="Property managers and caretakers can open RentFlow from a phone and keep daily work moving, even when they are away from a desktop."
+            />
+            <div className="mt-4 grid gap-3 sm:grid-cols-3">
+              <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Today</p>
+                <p className="mt-1 text-sm font-semibold text-slate-700">Bookings, units, and payment work stay visible.</p>
               </div>
-              <p className="mt-4 text-sm leading-6 text-slate-600">
-                Use RentFlow to manage bookings, tenants, deposits, maintenance, cleaning, owner statements, and checkout balances from one branded website experience.
-              </p>
+              <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Mobile</p>
+                <p className="mt-1 text-sm font-semibold text-slate-700">Caregivers can act from the home screen like an app.</p>
+              </div>
+              <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">PWA</p>
+                <p className="mt-1 text-sm font-semibold text-slate-700">Optimized for quick checks, updates, and task reviews.</p>
+              </div>
+            </div>
+          </div>
+          <div className="lg:col-span-5">
+            <PhonePreview />
+          </div>
+        </div>
+      </section>
+
+      <section className="border-b border-slate-200 bg-white px-4 py-8 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-7xl">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+            <SectionHeading
+              eyebrow="Pricing"
+              title="Pricing cards that read like a SaaS plan grid."
+              description="The launch offer keeps the first month free while the setup fee still applies during onboarding."
+            />
+            <div className="rounded-full border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-black uppercase tracking-[0.18em] text-amber-700">
+              First month free — setup fee applies.
             </div>
           </div>
 
-          <div className="lg:col-span-5">
-            <div className="rounded-[1.75rem] border border-blue-200 bg-white p-5 shadow-sm">
-              <p className="text-xs font-black uppercase tracking-[0.2em] text-blue-700">Simple pricing</p>
-              <h2 className="mt-2 text-2xl font-black tracking-tight text-slate-950">
-                First month free — setup fee applies.
-              </h2>
-              <p className="mt-2 text-sm leading-6 text-slate-600">
-                Pricing scales by the rooms, units, shops, or apartments you manage.
-              </p>
-              <div className="mt-4 flex flex-col gap-3 sm:flex-row">
-                <a
-                  href={BOOK_DEMO_URL}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="btn marketing-button-motion rounded-xl bg-gradient-to-r from-blue-600 to-blue-700 px-4 py-3 text-sm font-black text-white shadow-lg shadow-blue-600/20 hover:shadow-xl hover:shadow-blue-600/25"
-                >
-                  Request demo
-                </a>
-                <Link
-                  to="/pricing"
-                  className="btn marketing-button-motion rounded-xl border border-blue-200 bg-white px-4 py-3 text-sm font-bold text-blue-700 shadow-sm hover:bg-blue-50"
-                >
-                  See pricing
-                </Link>
-              </div>
-            </div>
+          <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+            {PRICING_PLANS.map((plan) => (
+              <PricingCard key={plan.name} {...plan} />
+            ))}
           </div>
         </div>
       </section>

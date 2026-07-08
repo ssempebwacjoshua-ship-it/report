@@ -223,6 +223,28 @@ export function BuildingIcon(props: SVGProps<SVGSVGElement>) {
   );
 }
 
+export function HomeIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <Icon {...props}>
+      <path d="M4 11.5 12 5l8 6.5" />
+      <path d="M6.5 10.5V20h11V10.5" />
+      <path d="M10 20v-5h4v5" />
+    </Icon>
+  );
+}
+
+export function OfficeIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <Icon {...props}>
+      <rect x="4" y="4" width="16" height="16" rx="2" />
+      <path d="M8 8h8" />
+      <path d="M8 12h8" />
+      <path d="M8 16h8" />
+      <path d="M11 20v-4h2v4" />
+    </Icon>
+  );
+}
+
 export function CashIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <Icon {...props}>

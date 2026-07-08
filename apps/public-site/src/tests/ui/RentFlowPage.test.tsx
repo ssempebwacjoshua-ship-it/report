@@ -18,14 +18,24 @@ vi.mock("react-router-dom", async () => {
 });
 
 describe("RentFlow public website", () => {
-  it("renders the RentFlow marketing page content", () => {
+  it("renders the RentFlow marketing page content and visual sections", () => {
     render(<RentFlowPage />);
 
     expect(screen.getByText("SSAMENJ RentFlow")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Manage rentals, Airbnb rooms, shops, and apartments from one system." })).toBeInTheDocument();
-    expect(screen.getAllByText("First month free — setup fee applies.")).toHaveLength(2);
-    expect(screen.getByText("Bookings and tenants")).toBeInTheDocument();
-    expect(screen.getAllByText("Owner statements")).toHaveLength(2);
+    expect(screen.getByText("Portfolio dashboard")).toBeInTheDocument();
+    expect(screen.getByText("Occupancy")).toBeInTheDocument();
+    expect(screen.getAllByText("Today's bookings")).toHaveLength(2);
+    expect(screen.getByRole("heading", { name: "Built for phone-first property operations." })).toBeInTheDocument();
+    expect(screen.getAllByText("First month free").length).toBeGreaterThanOrEqual(5);
+    expect(screen.getByText("Starter")).toBeInTheDocument();
+    expect(screen.getByText("Standard")).toBeInTheDocument();
+    expect(screen.getByText("Growth")).toBeInTheDocument();
+    expect(screen.getByText("Business")).toBeInTheDocument();
+    expect(screen.getByText("Enterprise")).toBeInTheDocument();
+    expect(
+      screen.getByText("Wi-Fi smart lights and sockets are optional installation add-ons, quoted separately."),
+    ).toBeInTheDocument();
   });
 
   it("exposes RentFlow SEO metadata and aliases rentals to rentflow", () => {
