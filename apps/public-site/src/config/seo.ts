@@ -4,6 +4,7 @@ import {
   HOME_FAQS,
   PRICING_FAQS,
   REPORT_LAB_FAQS,
+  RENTFLOW_FAQS,
   SMART_PAGES_FAQS,
 } from "../content/discoverability";
 
@@ -38,6 +39,22 @@ const SEO_BY_PATH: Record<string, SeoPage> = {
     description:
       "Explore SSAMENJ school software and office tools including Report Lab, Smart Pages, School Connect, NFC bands, Kids Wallet, and custom digital products.",
     canonicalPath: "/products",
+  },
+  "/rentflow": {
+    title: "SSAMENJ RentFlow - Rental and Property Management Software Uganda",
+    description:
+      "SSAMENJ RentFlow helps Uganda property owners manage Airbnb rooms, residential rentals, commercial shops, payments, deposits, maintenance, cleaning, and owner statements.",
+    canonicalPath: "/rentflow",
+    structuredData: [
+      buildSoftwareApplicationSchema({
+        name: "SSAMENJ RentFlow",
+        description:
+          "Rental and property management software for Airbnb rooms, residential rentals, commercial shops, and apartments.",
+        url: `${SITE_URL}/rentflow`,
+        category: "BusinessApplication",
+      }),
+      buildFaqSchema(RENTFLOW_FAQS),
+    ],
   },
   "/report-lab": {
     title: "School Report Card System Uganda | Report Lab by SSAMENJ",
@@ -124,6 +141,7 @@ export function normalizeSeoPath(pathname: string) {
   const trimmed = pathname.length > 1 ? pathname.replace(/\/+$/, "") : pathname;
 
   if (trimmed === "/demo" || trimmed === "/features-demo") return "/demos";
+  if (trimmed === "/rentals") return "/rentflow";
   return trimmed || "/";
 }
 

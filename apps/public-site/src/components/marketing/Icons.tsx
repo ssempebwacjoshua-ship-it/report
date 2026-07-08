@@ -208,6 +208,21 @@ export function MarketIcon(props: SVGProps<SVGSVGElement>) {
   );
 }
 
+export function BuildingIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <Icon {...props}>
+      <rect x="4" y="4" width="16" height="16" rx="2" />
+      <path d="M8 8h2" />
+      <path d="M8 12h2" />
+      <path d="M8 16h2" />
+      <path d="M14 8h2" />
+      <path d="M14 12h2" />
+      <path d="M14 16h2" />
+      <path d="M11 20v-6h2v6" />
+    </Icon>
+  );
+}
+
 export function CashIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <Icon {...props}>

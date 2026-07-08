@@ -9,6 +9,7 @@ const BOOK_DEMO_URL = buildWhatsAppUrl(
 
 const NAV_ITEMS = [
   { label: "Products", href: "/products" },
+  { label: "RentFlow", href: "/rentflow" },
   { label: "NFC", href: "/nfc" },
   { label: "Demos", href: "/demos" },
   { label: "Pricing", href: "/pricing" },

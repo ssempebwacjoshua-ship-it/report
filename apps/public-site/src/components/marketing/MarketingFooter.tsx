@@ -11,6 +11,7 @@ const REQUEST_DEMO_URL = buildWhatsAppUrl(
 const PRODUCT_LINKS = [
   { label: "Report Lab", href: "/report-lab" },
   { label: "Smart Pages", href: "/smart-pages" },
+  { label: "RentFlow", href: "/rentflow" },
   { label: "School Connect", href: "/products#school-connect" },
   { label: "Legal Smart Pages", href: "/products#legal-smart-pages" },
   { label: "Kids Wallet", href: "/products#kids-wallet" },

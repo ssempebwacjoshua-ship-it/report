@@ -127,3 +127,26 @@ export const DEMOS_FAQS: FaqItem[] = [
       "Yes. The demo flow is written for Uganda schools first, while still supporting other organisations that want the same workflow.",
   },
 ];
+
+export const RENTFLOW_FAQS: FaqItem[] = [
+  {
+    question: "What is SSAMENJ RentFlow?",
+    answer:
+      "SSAMENJ RentFlow is the public property management product for Airbnb rooms, residential rentals, shops, and apartments, with one system for bookings, tenants, payments, and owner reporting.",
+  },
+  {
+    question: "Does RentFlow handle both short stays and longer rentals?",
+    answer:
+      "Yes. RentFlow is designed for mixed property portfolios, so teams can manage Airbnb bookings, residential tenants, and commercial units from the same workflow.",
+  },
+  {
+    question: "Is the first month free?",
+    answer:
+      "Yes. The RentFlow launch offer gives the first month free, and a setup fee still applies during onboarding.",
+  },
+  {
+    question: "What does RentFlow help track?",
+    answer:
+      "RentFlow helps teams track bookings, tenants, payments, deposits, maintenance, cleaning, owner statements, and checkout balances in one place.",
+  },
+];

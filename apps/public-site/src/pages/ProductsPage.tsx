@@ -4,6 +4,7 @@ import { buildWhatsAppUrl } from "../config/contact";
 import {
   CashIcon,
   CheckIcon,
+  BuildingIcon,
   FileTextIcon,
   GridIcon,
   MarketIcon,
@@ -237,6 +238,31 @@ const PRODUCTS: Product[] = [
     accentBg: "#EAF3FF",
   },
   {
+    id: "rentflow",
+    name: "SSAMENJ RentFlow",
+    tagline: "Rental, Airbnb, and property management in one system.",
+    description:
+      "RentFlow helps property owners and managers track bookings, tenants, payments, deposits, maintenance, cleaning, owner statements, and checkout balances across residential and commercial portfolios.",
+    icon: <BuildingIcon className="h-6 w-6" />,
+    iconBig: <BuildingIcon className="h-8 w-8" />,
+    status: "live",
+    category: "commerce",
+    audience: ["Property Owners", "Airbnb Hosts", "Managers", "Commercial Landlords"],
+    features: [
+      "Short-stay bookings and tenant records",
+      "Rent, deposit, and balance tracking",
+      "Maintenance and cleaning follow-up",
+      "Owner statements and checkout balances",
+      "Residential and commercial portfolio support",
+    ],
+    ctaLabel: "Explore RentFlow",
+    ctaHref: "/rentflow",
+    secondaryLabel: "View pricing",
+    secondaryHref: "/pricing",
+    accentColor: "#0F5BD8",
+    accentBg: "#EAF3FF",
+  },
+  {
     id: "custom-digital-products",
     name: "Custom Digital Products",
     tagline: "Built around your specific workflow.",
@@ -350,10 +376,10 @@ export function ProductsPage() {
           <div className="max-w-xl">
             <p className="marketing-fade-up text-xs font-black uppercase tracking-[0.2em] text-blue-200">Products</p>
             <h1 className="marketing-fade-up-delay-1 mt-2 hero-title font-black text-white">
-              A practical product family for schools, legal teams, and custom digital work.
+              A practical product family for schools, legal teams, property management, and custom digital work.
             </h1>
             <p className="marketing-fade-up-delay-2 mt-2.5 text-sm leading-6 text-blue-50 sm:text-base">
-              From school reports and document workflows to NFC wristbands and custom builds, the SSAMENJ product family stays focused on useful work.
+              From school reports and document workflows to NFC wristbands, property management, and custom builds, the SSAMENJ product family stays focused on useful work.
             </p>
 
             <div className="marketing-fade-up-delay-3 mt-3.5 flex flex-col gap-2 sm:flex-row">
@@ -369,6 +395,7 @@ export function ProductsPage() {
               {[
                 { label: "Report Lab", id: "report-lab" },
                 { label: "Smart Pages", id: "smart-pages" },
+                { label: "RentFlow", id: "rentflow" },
                 { label: "School Connect", id: "school-connect" },
                 { label: "Legal Smart Pages", id: "legal-smart-pages" },
                 { label: "Kids Wallet", id: "kids-wallet" },
@@ -400,13 +427,13 @@ export function ProductsPage() {
             ))}
           </div>
 
-          {/* Commerce & Financial Logistics divider */}
+          {/* Commerce & Property Operations divider */}
           {commerceProducts.length > 0 && (
             <div>
               <div className="mb-5 flex items-center gap-3">
                 <div className="h-px flex-1 bg-slate-200" />
                 <span className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-[11px] font-black uppercase tracking-[0.2em] text-blue-700">
-                  Commerce &amp; Financial Logistics
+                  Commerce &amp; Property Operations
                 </span>
                 <div className="h-px flex-1 bg-slate-200" />
               </div>

@@ -62,7 +62,7 @@ export function SSAMENJHomePage() {
               </a>
             </div>
 
-            <div className="mt-6 grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+            <div className="mt-6 grid grid-cols-2 gap-2.5 sm:grid-cols-4 xl:grid-cols-5">
               <Link to="/contact" className="motion-card motion-card-stagger marketing-fade-up-delay-1 cursor-pointer rounded-2xl border border-white/25 bg-white/[0.12] px-4 py-3 transition-all duration-200 hover:border-white/40 hover:bg-white/[0.18]" style={{ backdropFilter: "blur(6px)" }}>
                 <p className="text-sm font-black text-white">School Connect</p>
                 <p className="mt-0.5 text-[11px] uppercase tracking-[0.16em] text-blue-100">POWERING SMART SCHOOLS.</p>
@@ -78,6 +78,10 @@ export function SSAMENJHomePage() {
               <Link to="/nfc" className="motion-card motion-card-stagger marketing-fade-up-delay-3 cursor-pointer rounded-2xl border border-white/25 bg-white/[0.12] px-4 py-3 transition-all duration-200 hover:border-white/40 hover:bg-white/[0.18]" style={{ backdropFilter: "blur(6px)" }}>
                 <p className="text-sm font-black text-white">NFC Wristbands</p>
                 <p className="mt-0.5 text-[11px] uppercase tracking-[0.16em] text-blue-100">TAP TO IDENTIFY.</p>
+              </Link>
+              <Link to="/rentflow" className="motion-card motion-card-stagger marketing-fade-up-delay-3 cursor-pointer rounded-2xl border border-white/25 bg-white/[0.12] px-4 py-3 transition-all duration-200 hover:border-white/40 hover:bg-white/[0.18]" style={{ backdropFilter: "blur(6px)" }}>
+                <p className="text-sm font-black text-white">RentFlow</p>
+                <p className="mt-0.5 text-[11px] uppercase tracking-[0.16em] text-blue-100">PROPERTY MANAGEMENT.</p>
               </Link>
             </div>
           </div>

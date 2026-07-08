@@ -9,6 +9,7 @@ import { NfcPage } from "./pages/NfcPage";
 import { PricingPage } from "./pages/PricingPage";
 import { ProductsPage } from "./pages/ProductsPage";
 import { ReportLabPage } from "./pages/ReportLabPage";
+import { RentFlowPage } from "./pages/RentFlowPage";
 import { SSAMENJHomePage } from "./pages/SSAMENJHomePage";
 import { SmartPagesPage } from "./pages/SmartPagesPage";
 
@@ -18,6 +19,8 @@ export default function App() {
       <Route element={<PublicLayout />}>
         <Route index element={<SSAMENJHomePage />} />
         <Route path="/products" element={<ProductsPage />} />
+        <Route path="/rentflow" element={<RentFlowPage />} />
+        <Route path="/rentals" element={<RentFlowPage />} />
         <Route path="/report-lab" element={<ReportLabPage />} />
         <Route path="/smart-pages" element={<SmartPagesPage />} />
         <Route path="/nfc" element={<NfcPage />} />
