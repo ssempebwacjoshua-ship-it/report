@@ -1,4 +1,4 @@
-﻿import { Link } from "react-router-dom";
+import { Link } from "react-router-dom";
 import type { ReactNode } from "react";
 import { buildWhatsAppUrl, WHATSAPP_DISPLAY } from "../config/contact";
 import {
@@ -9,7 +9,7 @@ import {
 } from "../components/marketing/Icons";
 import { TestimonialsSection } from "../components/marketing/TestimonialsSection";
 
-// â”€â”€ WhatsApp links â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── WhatsApp links ─────────────────────────────────────────────────────────────
 
 const REQUEST_PRICING_WA = buildWhatsAppUrl(
   "Hello SSAMENJ Technologies, I would like to ask about pricing for School Connect.",
@@ -27,39 +27,40 @@ const BOOK_DEMO_WA = buildWhatsAppUrl(
   "Hello SSAMENJ Technologies! I would like to book a demo for School Connect.",
 );
 
-
-function formatUgx(amount: number) {
-  return `UGX ${amount.toLocaleString("en-UG")}`;
-}
-
-type PricingPlan = {
-  range: string;
-  annualLicenceUgx: number;
-  standardSetupFeeUgx: number;
-  launchSetupFeeUgx: number;
-  highlighted?: boolean;
-};
-
 function planWA(plan: PricingPlan) {
-  const launchSetupSavingUgx = plan.standardSetupFeeUgx - plan.launchSetupFeeUgx;
-  const firstYearTotalUgx = plan.annualLicenceUgx + plan.launchSetupFeeUgx;
+  const launchSetupSaving = plan.standardSetupFee - plan.launchSetupFee;
+  const firstYearTotal = plan.annualLicence + plan.launchSetupFee;
 
   return buildWhatsAppUrl(
     [
-      `Hello SSAMENJ Technologies! I would like to get started with School Connect for ${plan.range.toLowerCase()}.`,
-      `Annual Licence: ${formatUgx(plan.annualLicenceUgx)}`,
-      `One-Time Setup Fee: ${formatUgx(plan.launchSetupFeeUgx)}`,
-      `Launch Setup Saving: ${formatUgx(launchSetupSavingUgx)}`,
-      `First Year Total: ${formatUgx(firstYearTotalUgx)}`,
+      `Hello SSAMENJ Technologies! I would like to get started with School Connect for ${plan.range}.`,
+      `Annual Licence: UGX ${formatUgx(plan.annualLicence)}`,
+      `One-Time Setup Fee: UGX ${formatUgx(plan.launchSetupFee)}`,
+      `Launch Setup Saving: UGX ${formatUgx(launchSetupSaving)}`,
+      `First Year Total: UGX ${formatUgx(firstYearTotal)}`,
     ].join("\n"),
   );
 }
-
 function creditWA(pack: string) {
   return buildWhatsAppUrl(
     `Hello SSAMENJ Technologies! I would like to get the ${pack} Smart Pages credit pack.`,
   );
 }
+
+function formatUgx(amount: number) {
+  return amount.toLocaleString("en-US");
+}
+
+type PricingPlan = {
+  range: string;
+  annualLicence: number;
+  standardSetupFee: number;
+  launchSetupFee: number;
+  highlighted?: boolean;
+};
+
+// ── Badge ──────────────────────────────────────────────────────────────────────
+
 function Badge({
   children,
   tone = "blue",
@@ -82,21 +83,21 @@ function Badge({
   );
 }
 
-// â”€â”€ Annual Plan Card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Annual Plan Card ───────────────────────────────────────────────────────────
 
 function AnnualPlanCard({
   range,
-  annualLicenceUgx,
-  standardSetupFeeUgx,
-  launchSetupFeeUgx,
+  annualLicence,
+  standardSetupFee,
+  launchSetupFee,
   href,
   highlighted = false,
   isCustom = false,
 }: {
   range: string;
-  annualLicenceUgx?: number;
-  standardSetupFeeUgx?: number;
-  launchSetupFeeUgx?: number;
+  annualLicence?: number;
+  standardSetupFee?: number;
+  launchSetupFee?: number;
   href: string;
   highlighted?: boolean;
   isCustom?: boolean;
@@ -133,19 +134,25 @@ function AnnualPlanCard({
           </div>
         ) : (
           <div className="mt-3 flex-1">
+            {/* Annual licence — prominent */}
             <div>
               <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">ANNUAL LICENCE</p>
               <div className="mt-1 flex items-baseline gap-1">
                 <span className="text-xs font-bold text-slate-500">UGX</span>
-                <span className="text-3xl font-black tracking-tight text-slate-950">{annualLicenceUgx?.toLocaleString("en-UG")}</span>
+                <span className="text-3xl font-black tracking-tight text-slate-950">{formatUgx(annualLicence ?? 0)}</span>
                 <span className="text-sm font-bold text-slate-400">/ yr</span>
               </div>
             </div>
 
+            {/* Setup fee — secondary */}
             <div className="mt-3 rounded-xl border border-slate-100 bg-slate-50 px-3 py-2.5">
               <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">ONE-TIME SETUP FEE</p>
-              <p className="mt-0.5 text-sm font-black text-slate-400 line-through">Standard: {formatUgx(standardSetupFeeUgx ?? 0)}</p>
-              <p className="mt-0.5 text-sm font-black text-slate-700">Launch Offer: {formatUgx(launchSetupFeeUgx ?? 0)}</p>
+              <p className="mt-0.5 text-sm font-black text-slate-400 line-through">
+                Standard: UGX {formatUgx(standardSetupFee ?? 0)}
+              </p>
+              <p className="mt-0.5 text-sm font-black text-slate-700">
+                Launch Offer: UGX {formatUgx(launchSetupFee ?? 0)}
+              </p>
             </div>
           </div>
         )}
@@ -167,6 +174,9 @@ function AnnualPlanCard({
     </article>
   );
 }
+
+// ── Credit Pack Card ───────────────────────────────────────────────────────────
+
 function CreditPackCard({
   name,
   credits,
@@ -216,7 +226,7 @@ function CreditPackCard({
   );
 }
 
-// â”€â”€ InfoCard â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── InfoCard ───────────────────────────────────────────────────────────────────
 
 function InfoCard({ title, body }: { title: string; body: string }) {
   return (
@@ -228,7 +238,7 @@ function InfoCard({ title, body }: { title: string; body: string }) {
   );
 }
 
-// â”€â”€ Included features & add-ons â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Included features & add-ons ────────────────────────────────────────────────
 
 const INCLUDED_FEATURES = [
   "Marks upload / import tool",
@@ -252,16 +262,16 @@ const OPTIONAL_ADDONS = [
   "Dedicated premium support package",
 ];
 
-// â”€â”€ Plans â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Plans ──────────────────────────────────────────────────────────────────────
 
-const PLANS = [
-  { range: "Up to 500 Students", annualLicenceUgx: 900_000, standardSetupFeeUgx: 800_000, launchSetupFeeUgx: 500_000 },
-  { range: "Up to 1,000 Students", annualLicenceUgx: 1_800_000, standardSetupFeeUgx: 800_000, launchSetupFeeUgx: 500_000, highlighted: true },
-  { range: "Up to 1,500 Students", annualLicenceUgx: 2_700_000, standardSetupFeeUgx: 1_500_000, launchSetupFeeUgx: 1_000_000 },
-  { range: "Up to 2,000 Students", annualLicenceUgx: 3_600_000, standardSetupFeeUgx: 1_500_000, launchSetupFeeUgx: 1_000_000 },
+const PLANS: PricingPlan[] = [
+  { range: "Up to 500 Students", annualLicence: 900000, standardSetupFee: 800000, launchSetupFee: 500000 },
+  { range: "Up to 1,000 Students", annualLicence: 1800000, standardSetupFee: 800000, launchSetupFee: 500000, highlighted: true },
+  { range: "Up to 1,500 Students", annualLicence: 2700000, standardSetupFee: 1500000, launchSetupFee: 1000000 },
+  { range: "Up to 2,000 Students", annualLicence: 3600000, standardSetupFee: 1500000, launchSetupFee: 1000000 },
 ];
 
-// Page// Page// Page â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Page ───────────────────────────────────────────────────────────────────────
 
 export function PricingPage() {
   return (
@@ -273,33 +283,30 @@ export function PricingPage() {
           style={{ background: "#0B2F6B", borderColor: "rgba(255,255,255,0.1)" }}
         >
           <span className="font-black text-amber-300">Launch Offer:</span>{" "}
-          <span className="font-medium text-white/90">Annual school licence for School Connect Report Lab and Smart Pages. Pricing is based on student capacity and covers the full academic year, with no monthly or termly subscription shown. A one-time onboarding setup fee applies once, with a launch offer available for early schools.</span>
+          <span className="font-medium text-white/90">Reduced setup fee available for early schools. Annual licence pricing is shown below.</span>
         </div>
 
-        {/* â”€â”€ Hero â”€â”€ */}
+        {/* ── Hero ── */}
         <section className="home-hero-image-bg site-hero-compact border-b text-white" style={{ borderColor: "rgba(15,91,216,0.3)" }}>
           <div className="absolute inset-0 bg-dot-grid opacity-[0.12]" />
           <div className="home-hero-content mx-auto grid max-w-7xl gap-6 px-4 sm:px-6 lg:grid-cols-12 lg:items-center lg:px-8">
             <div className="lg:col-span-7">
               <div className="marketing-fade-up inline-flex items-center rounded-full border border-white/20 bg-white/10 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.2em] text-blue-50">
-                School Connect Â· Pricing
+                School Connect · Pricing
               </div>
               <h1 className="marketing-fade-up-delay-1 mt-2 hero-title font-black text-white">
                 Annual school licence for School Connect Report Lab &amp; Smart Pages.
               </h1>
               <p className="marketing-fade-up-delay-2 mt-2.5 max-w-2xl text-sm leading-7 text-blue-50 sm:text-base">
-                Annual school licence for School Connect Report Lab and Smart Pages. Pricing is based on student capacity and covers the full academic year, with no monthly or termly subscription shown. A one-time onboarding setup fee applies once, with a launch offer available for early schools.
-                
+                Pricing is based on student capacity and covers the full academic year, with no monthly or termly subscription shown. A one-time onboarding setup fee applies once, with a launch offer available for early schools.
               </p>
               <p className="mt-2 text-xs text-blue-200">
                 Looking for NFC Wristbands pricing?{" "}
                 <a href="#nfc" className="font-bold text-white underline hover:text-blue-100">
-                  School Connect NFC is priced by quotation â†“
+                  School Connect NFC is priced by quotation ↓
                 </a>
               </p>
-              <p className="mt-2 text-sm font-semibold text-blue-200">
-                No monthly or termly payments are shown on the public pricing page.
-              </p>
+              <p className="mt-2 text-sm font-semibold text-blue-200">Annual licence is billed yearly. Setup fee is paid once during onboarding.</p>
               <div className="marketing-fade-up-delay-3 mt-5 flex flex-col gap-3 sm:flex-row">
                 <a
                   href={REQUEST_PRICING_WA}
@@ -324,7 +331,7 @@ export function PricingPage() {
                   <div className="absolute inset-x-0 top-0 h-[3px] bg-gradient-to-r from-blue-600 via-sky-400 to-cyan-300" />
                   <p className="text-[11px] font-black uppercase tracking-[0.18em] text-blue-700">Annual Licence</p>
                   <p className="mt-1.5 text-xs leading-5 text-slate-600">
-                    The public pricing page shows annual licence totals only, with no monthly or termly subscription shown.
+                    One annual licence covers your full school — no monthly or termly billing is shown.
                   </p>
                 </div>
                 <div className="marketing-card-motion marketing-fade-up-delay-2 relative overflow-hidden rounded-2xl border border-white/30 bg-white/95 p-3.5 shadow-sm backdrop-blur-sm">
@@ -345,7 +352,7 @@ export function PricingPage() {
                   <div className="absolute inset-x-0 top-0 h-[3px] bg-gradient-to-r from-amber-400 via-orange-400 to-amber-400" />
                   <p className="text-[11px] font-black uppercase tracking-[0.18em] text-amber-700">School Connect NFC</p>
                   <p className="mt-1.5 text-xs leading-5 text-slate-600">
-                    Gate access, attendance, canteen wallets, and smart student identity â€” by quotation.
+                    Gate access, attendance, canteen wallets, and smart student identity — by quotation.
                   </p>
                 </div>
               </div>
@@ -353,16 +360,16 @@ export function PricingPage() {
           </div>
         </section>
 
-        {/* â”€â”€ Annual Plans â”€â”€ */}
+        {/* ── Annual Plans ── */}
         <section id="plans" className="border-b border-slate-200 bg-white px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
           <div className="mx-auto max-w-7xl">
             <div className="mb-6">
-              <p className="text-xs font-black uppercase tracking-[0.2em] text-blue-700">Annual Plans</p>
+              <p className="text-xs font-black uppercase tracking-[0.2em] text-blue-700">Annual Licence Plans</p>
               <h2 className="mt-1.5 text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">
                 School Connect Report Lab + Smart Pages
               </h2>
               <p className="mt-2 text-sm text-slate-500">
-                All plans include both Report Lab and Smart Pages. The card shows the annual licence total, and checkout uses the same annual value.
+                All plans include both Report Lab and Smart Pages. Annual licence pricing is shown here, and the setup fee is one-time.
               </p>
             </div>
 
@@ -371,16 +378,16 @@ export function PricingPage() {
                 <AnnualPlanCard
                   key={plan.range}
                   range={plan.range}
-                  annualLicenceUgx={plan.annualLicenceUgx}
-                  standardSetupFeeUgx={plan.standardSetupFeeUgx}
-                  launchSetupFeeUgx={plan.launchSetupFeeUgx}
+                  annualLicence={plan.annualLicence}
+                  standardSetupFee={plan.standardSetupFee}
+                  launchSetupFee={plan.launchSetupFee}
                   href={planWA(plan)}
                   highlighted={plan.highlighted}
                 />
               ))}
             </div>
 
-            {/* Above 2,000 students â€” custom */}
+            {/* Above 2,000 students — custom */}
             <div className="mt-4">
               <AnnualPlanCard
                 range="Above 2,000 Students"
@@ -390,12 +397,12 @@ export function PricingPage() {
             </div>
 
             <p className="mt-4 text-xs text-slate-400">
-              Annual licence is shown on the cards. Checkout keeps the annual licence and one-time setup fee together for the first year total.
+              Annual licence is billed yearly. Setup fee is a one-time payment made during onboarding.
             </p>
           </div>
         </section>
 
-        {/* â”€â”€ School Connect NFC â€” By Quotation â”€â”€ */}
+        {/* ── School Connect NFC — By Quotation ── */}
         <section id="nfc" className="border-b border-slate-200 bg-slate-50 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
           <div className="mx-auto max-w-7xl">
             <div className="mb-5 flex items-center gap-3">
@@ -489,7 +496,7 @@ export function PricingPage() {
           </div>
         </section>
 
-        {/* â”€â”€ What's Included â”€â”€ */}
+        {/* ── What's Included ── */}
         <section className="border-b border-slate-200 bg-slate-50 px-4 py-6 sm:px-6 lg:px-8 lg:py-7">
           <div className="mx-auto max-w-7xl">
             <div className="grid gap-8 lg:grid-cols-2">
@@ -536,7 +543,7 @@ export function PricingPage() {
           </div>
         </section>
 
-        {/* â”€â”€ Smart Pages Credit Packs â”€â”€ */}
+        {/* ── Smart Pages Credit Packs ── */}
         <section id="credits" className="border-b border-slate-200 bg-white px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
           <div className="mx-auto max-w-7xl">
             <div className="mb-6">
@@ -545,7 +552,7 @@ export function PricingPage() {
                 Credit Packs
               </h2>
               <p className="mt-2 text-sm text-slate-500">
-                Smart Pages uses a credit system. Buy credits as needed â€” they don&apos;t expire.
+                Smart Pages uses a credit system. Buy credits as needed — they don&apos;t expire.
               </p>
             </div>
 
@@ -605,7 +612,7 @@ export function PricingPage() {
           </div>
         </section>
 
-        {/* â”€â”€ Setup & Onboarding â”€â”€ */}
+        {/* ── Setup & Onboarding ── */}
         <section id="setup" className="border-b border-slate-200 bg-slate-50 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
           <div className="mx-auto max-w-7xl">
             <div className="mb-5">
@@ -655,7 +662,7 @@ export function PricingPage() {
 
               <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
                 <h3 className="text-base font-black text-slate-950">Setup Fees by School Size</h3>
-                <p className="mt-1 text-xs text-slate-500">One-time fee â€” paid once during onboarding.</p>
+                <p className="mt-1 text-xs text-slate-500">One-time fee — paid once during onboarding.</p>
                 <div className="mt-4 space-y-2">
                   {[
                     { range: "Up to 500 students",   fee: "UGX 500,000" },
@@ -675,19 +682,19 @@ export function PricingPage() {
           </div>
         </section>
 
-        {/* â”€â”€ FAQ â”€â”€ */}
+        {/* ── FAQ ── */}
         <section className="border-b border-slate-200 bg-white px-4 py-6 sm:px-6 lg:px-8 lg:py-7">
           <div className="mx-auto max-w-4xl">
             <p className="text-xs font-black uppercase tracking-[0.2em] text-blue-700">FAQ</p>
             <h2 className="mt-2 text-2xl font-black tracking-tight text-slate-950">Common pricing questions</h2>
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
               <InfoCard
-                title="Is this monthly or yearly pricing?"
-                body="All School Connect plans are annual â€” billed once per year. There are no monthly subscriptions or per-term fees."
+                title="Is this monthly, termly, or yearly pricing?"
+                body="All School Connect plans are annual licence pricing only. The public pricing page does not show monthly or termly billing."
               />
               <InfoCard
-                title="What is included in the first-term-free offer?"
-                body="The launch offer gives schools the first term free on the core school software package, while the setup fee still applies during onboarding."
+                title="What is included in the launch offer?"
+                body="The launch offer reduces the one-time setup fee for early schools. The annual licence itself is not discounted."
               />
               <InfoCard
                 title="Does setup fee apply?"
@@ -699,7 +706,7 @@ export function PricingPage() {
               />
               <InfoCard
                 title="Can we use Smart Pages without Report Lab?"
-                body="Yes. Smart Pages can be used on its own with a credit pack. Buy credits as you need them â€” they don't expire."
+                body="Yes. Smart Pages can be used on its own with a credit pack. Buy credits as you need them — they don't expire."
               />
               <InfoCard
                 title="What if our school has more than 2,000 students?"
@@ -711,7 +718,7 @@ export function PricingPage() {
 
         <TestimonialsSection className="bg-slate-50 px-4 py-6 sm:px-6 lg:px-8 lg:py-7" compact />
 
-        {/* â”€â”€ Final CTA â”€â”€ */}
+        {/* ── Final CTA ── */}
         <section className="border-t border-slate-200 bg-blue-50/40 px-4 py-6 sm:px-6 lg:px-8 lg:py-7">
           <div className="mx-auto max-w-7xl rounded-[2rem] border border-blue-200 bg-white p-5 shadow-sm sm:p-6">
             <div className="grid gap-5 lg:grid-cols-12 lg:items-center">
@@ -721,7 +728,7 @@ export function PricingPage() {
                   Get your school set up on School Connect this year.
                 </h2>
                 <p className="mt-2 text-sm text-slate-500">
-                  Termly license. One-time setup. Everything your school needs to generate reports and manage documents.
+                  Annual licence. One-time setup. Everything your school needs to generate reports and manage documents.
                 </p>
               </div>
               <div id="contact" className="grid gap-3 lg:col-span-4">
@@ -753,7 +760,7 @@ export function PricingPage() {
             <div className="mt-5 grid gap-3 md:grid-cols-3">
               <div className="motion-card rounded-2xl border border-slate-200 bg-slate-50 p-3.5">
                 <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">Billing</p>
-                <p className="mt-1.5 text-sm font-semibold text-slate-950">Termly license shown on cards</p>
+                <p className="mt-1.5 text-sm font-semibold text-slate-950">Annual licence billed once per year</p>
               </div>
               <div className="motion-card rounded-2xl border border-slate-200 bg-slate-50 p-3.5">
                 <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">WhatsApp</p>
@@ -770,14 +777,3 @@ export function PricingPage() {
     </div>
   );
 }
-
-
-
-
-
-
-
-
-
-
-
