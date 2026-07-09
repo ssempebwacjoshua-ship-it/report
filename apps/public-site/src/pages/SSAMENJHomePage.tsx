@@ -43,10 +43,10 @@ export function SSAMENJHomePage() {
               SSAMENJ Technologies
             </div>
             <h1 className="marketing-fade-up-delay-1 mt-2 hero-title font-black text-white">
-              Smart systems. Simple work.
+              School management software for Uganda schools.
             </h1>
             <p className="marketing-fade-up-delay-2 mt-2.5 text-sm leading-6 text-blue-50 sm:text-base">
-              SSAMENJ Technologies builds practical digital products for schools, legal teams, and growing organizations. Start with Report Lab, Smart Pages, and School Connect, then add more tools as the workflow grows.
+              SSAMENJ Technologies builds practical school management software for Uganda schools, plus digital products for legal teams and growing organizations. Start with Report Lab, Smart Pages, School Connect NFC, and Kids Wallet, then add more tools as the workflow grows.
             </p>
 
             <div className="marketing-fade-up-delay-3 mt-3.5 flex flex-col gap-2 sm:flex-row">
@@ -65,31 +65,31 @@ export function SSAMENJHomePage() {
             <div className="mt-6 grid grid-cols-2 gap-2.5 sm:grid-cols-4 xl:grid-cols-7">
               <Link to="/contact" className="motion-card motion-card-stagger marketing-fade-up-delay-1 cursor-pointer rounded-2xl border border-white/25 bg-white/[0.12] px-4 py-3 transition-all duration-200 hover:border-white/40 hover:bg-white/[0.18]" style={{ backdropFilter: "blur(6px)" }}>
                 <p className="text-sm font-black text-white">School Connect</p>
-                <p className="mt-0.5 text-[11px] uppercase tracking-[0.16em] text-blue-100">POWERING SMART SCHOOLS.</p>
+                <p className="mt-0.5 text-[11px] uppercase tracking-[0.16em] text-blue-100">SCHOOL MANAGEMENT SOFTWARE.</p>
               </Link>
               <Link to="/report-lab" className="motion-card motion-card-stagger marketing-fade-up-delay-2 cursor-pointer rounded-2xl border border-white/25 bg-white/[0.12] px-4 py-3 transition-all duration-200 hover:border-white/40 hover:bg-white/[0.18]" style={{ backdropFilter: "blur(6px)" }}>
                 <p className="text-sm font-black text-white">Report Lab</p>
-                <p className="mt-0.5 text-[11px] uppercase tracking-[0.16em] text-blue-100">STUDENT REPORTS FASTER.</p>
+                <p className="mt-0.5 text-[11px] uppercase tracking-[0.16em] text-blue-100">REPORT CARD SYSTEM.</p>
               </Link>
               <Link to="/smart-pages" className="motion-card motion-card-stagger marketing-fade-up-delay-3 cursor-pointer rounded-2xl border border-white/25 bg-white/[0.12] px-4 py-3 transition-all duration-200 hover:border-white/40 hover:bg-white/[0.18]" style={{ backdropFilter: "blur(6px)" }}>
                 <p className="text-sm font-black text-white">Smart Pages</p>
-                <p className="mt-0.5 text-[11px] uppercase tracking-[0.16em] text-blue-100">HANDWRITTEN DOCS TO READY PDFS.</p>
+                <p className="mt-0.5 text-[11px] uppercase tracking-[0.16em] text-blue-100">DIGITAL SCHOOL DOCUMENTS.</p>
               </Link>
               <Link to="/nfc" className="motion-card motion-card-stagger marketing-fade-up-delay-3 cursor-pointer rounded-2xl border border-white/25 bg-white/[0.12] px-4 py-3 transition-all duration-200 hover:border-white/40 hover:bg-white/[0.18]" style={{ backdropFilter: "blur(6px)" }}>
                 <p className="text-sm font-black text-white">NFC Wristbands</p>
-                <p className="mt-0.5 text-[11px] uppercase tracking-[0.16em] text-blue-100">TAP TO IDENTIFY.</p>
+                <p className="mt-0.5 text-[11px] uppercase tracking-[0.16em] text-blue-100">ATTENDANCE AND GATE CONTROL.</p>
               </Link>
               <Link to="/rentflow" className="motion-card motion-card-stagger marketing-fade-up-delay-3 cursor-pointer rounded-2xl border border-white/25 bg-white/[0.12] px-4 py-3 transition-all duration-200 hover:border-white/40 hover:bg-white/[0.18]" style={{ backdropFilter: "blur(6px)" }}>
                 <p className="text-sm font-black text-white">RentFlow</p>
-                <p className="mt-0.5 text-[11px] uppercase tracking-[0.16em] text-blue-100">PROPERTY MANAGEMENT.</p>
+                <p className="mt-0.5 text-[11px] uppercase tracking-[0.16em] text-blue-100">PROPERTY MANAGEMENT SOFTWARE.</p>
               </Link>
               <Link to="/cashless-canteen" className="motion-card motion-card-stagger marketing-fade-up-delay-3 cursor-pointer rounded-2xl border border-white/25 bg-white/[0.12] px-4 py-3 transition-all duration-200 hover:border-white/40 hover:bg-white/[0.18]" style={{ backdropFilter: "blur(6px)" }}>
                 <p className="text-sm font-black text-white">Cashless Canteen</p>
-                <p className="mt-0.5 text-[11px] uppercase tracking-[0.16em] text-blue-100">KIDS WALLET FLOW.</p>
+                <p className="mt-0.5 text-[11px] uppercase tracking-[0.16em] text-blue-100">CASHLESS SCHOOL CANTEEN.</p>
               </Link>
               <Link to="/stayos" className="motion-card motion-card-stagger marketing-fade-up-delay-3 cursor-pointer rounded-2xl border border-white/25 bg-white/[0.12] px-4 py-3 transition-all duration-200 hover:border-white/40 hover:bg-white/[0.18]" style={{ backdropFilter: "blur(6px)" }}>
                 <p className="text-sm font-black text-white">StayOS</p>
-                <p className="mt-0.5 text-[11px] uppercase tracking-[0.16em] text-blue-100">PROPERTY OPERATIONS.</p>
+                <p className="mt-0.5 text-[11px] uppercase tracking-[0.16em] text-blue-100">PROPERTY OPERATIONS SOFTWARE.</p>
               </Link>
             </div>
           </div>
@@ -100,9 +100,9 @@ export function SSAMENJHomePage() {
         <div className="mx-auto max-w-7xl">
           <div className="max-w-2xl">
             <p className="text-xs font-black uppercase tracking-[0.2em] text-blue-700">Report Lab</p>
-            <h2 className="mt-2 text-3xl font-black tracking-tight text-slate-950">A smarter way to prepare school reports.</h2>
+            <h2 className="mt-2 text-3xl font-black tracking-tight text-slate-950">A school report card system built for Uganda schools.</h2>
             <p className="mt-2 text-sm leading-6 text-slate-600">
-              Report Lab is built to help schools move from manual marksheets and formatting delays to clean, professional student reports. Upload marks, review results, generate reports, print them, and share parent-ready links from one guided workflow.
+              Report Lab is built to help Uganda schools move from manual marksheets and formatting delays to clean, professional student reports. Upload marks, review results, generate reports, print them, and share parent-ready links from one guided workflow.
             </p>
           </div>
 
@@ -119,7 +119,7 @@ export function SSAMENJHomePage() {
           <div className="lg:col-span-5">
             <p className="text-xs font-black uppercase tracking-[0.2em] text-blue-700">Smart Pages</p>
             <h2 className="mt-2 text-3xl font-black tracking-tight text-slate-950">
-              From handwritten school documents to ready-to-print PDFs.
+              Digital school documents from handwritten notes to ready-to-print PDFs.
             </h2>
             <p className="mt-2 text-sm leading-6 text-slate-600">
               Upload a handwritten note, scanned letter, form, table, or school document. Smart Pages reads it, cleans it, formats it, and helps you produce a polished PDF you can print or share without typing it all again.
@@ -174,7 +174,7 @@ export function SSAMENJHomePage() {
             <div className="order-1 lg:order-2 lg:col-span-7">
               <p className="text-xs font-black uppercase tracking-[0.2em] text-blue-700">School Connect NFC</p>
               <h2 className="mt-2 text-3xl font-black tracking-tight text-slate-950">
-                NFC Wristbands &amp; Smart ID System
+                NFC wristbands for attendance, gate access, and canteen wallets.
               </h2>
               <p className="mt-2 text-sm leading-6 text-slate-600">
                 Tap-to-identify students for gate access, attendance, canteen wallets, and offline-ready school operations. Every student gets an NFC wristband, card, or tag linked to their school profile.

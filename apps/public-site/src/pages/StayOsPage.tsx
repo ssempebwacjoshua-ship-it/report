@@ -131,7 +131,7 @@ export function StayOsPage() {
               Property Operations
             </div>
             <h1 className="marketing-fade-up-delay-1 mt-2 hero-title font-black text-white">
-              StayOS for rentals, short stays, and mixed property portfolios.
+              Property management software Uganda landlords can use for stays and rentals.
             </h1>
             <p className="marketing-fade-up-delay-2 mt-2.5 max-w-2xl text-sm leading-7 text-blue-50 sm:text-base">
               StayOS is the public keyword landing page for SSAMENJ's property operations workflow. It points

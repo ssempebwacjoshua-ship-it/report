@@ -106,7 +106,7 @@ export function CashlessCanteenPage() {
               Kids Wallet + NFC
             </div>
             <h1 className="marketing-fade-up-delay-1 mt-2 hero-title font-black text-white">
-              Cashless school canteen payments that stay easy for staff and clear for administrators.
+              Cashless school canteen Uganda schools can use for simple wallet-based payments.
             </h1>
             <p className="marketing-fade-up-delay-2 mt-2.5 max-w-2xl text-sm leading-7 text-blue-50 sm:text-base">
               The cashless canteen landing page shows how SSAMENJ links student wallets to the school canteen.

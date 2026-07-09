@@ -22,7 +22,7 @@ describe("Public keyword landing pages", () => {
   it("renders the cashless canteen landing page and SEO metadata", () => {
     render(<CashlessCanteenPage />);
 
-    expect(screen.getByRole("heading", { name: "Cashless school canteen payments that stay easy for staff and clear for administrators." })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Cashless school canteen Uganda schools can use for simple wallet-based payments." })).toBeInTheDocument();
     expect(screen.getByText("Cashless Canteen FAQ")).toBeInTheDocument();
     expect(screen.getAllByText("Request quotation").length).toBeGreaterThanOrEqual(1);
 
@@ -35,12 +35,12 @@ describe("Public keyword landing pages", () => {
   it("renders the StayOS landing page and SEO metadata", () => {
     render(<StayOsPage />);
 
-    expect(screen.getByRole("heading", { name: "StayOS for rentals, short stays, and mixed property portfolios." })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Property management software Uganda landlords can use for stays and rentals." })).toBeInTheDocument();
     expect(screen.getByText("StayOS FAQ")).toBeInTheDocument();
     expect(screen.getAllByText("Book a walkthrough").length).toBeGreaterThanOrEqual(1);
 
     const seo = getSeoForPathname("/stayos");
-    expect(seo.title).toBe("StayOS | Property Operations Software by SSAMENJ");
+    expect(seo.title).toBe("Property Management Software Uganda | StayOS by SSAMENJ");
     expect(seo.canonicalPath).toBe("/stayos");
     expect(seo.structuredData).toBeDefined();
   });

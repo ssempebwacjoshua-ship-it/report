@@ -424,10 +424,10 @@ export function ProductsPage() {
           <div className="max-w-xl">
             <p className="marketing-fade-up text-xs font-black uppercase tracking-[0.2em] text-blue-200">Products</p>
             <h1 className="marketing-fade-up-delay-1 mt-2 hero-title font-black text-white">
-              A practical product family for schools, legal teams, property management, and custom digital work.
+              School software in Uganda for reports, documents, NFC, property management, and custom digital work.
             </h1>
             <p className="marketing-fade-up-delay-2 mt-2.5 text-sm leading-6 text-blue-50 sm:text-base">
-              From school reports and document workflows to NFC wristbands, property management, and custom builds, the SSAMENJ product family stays focused on useful work.
+              From school reports and digital document workflows to NFC wristbands, property management, and custom builds, the SSAMENJ product family stays focused on useful work.
             </p>
 
             <div className="marketing-fade-up-delay-3 mt-3.5 flex flex-col gap-2 sm:flex-row">

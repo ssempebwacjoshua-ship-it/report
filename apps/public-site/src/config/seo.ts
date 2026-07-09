@@ -30,16 +30,16 @@ export type SeoPage = {
 
 const SEO_BY_PATH: Record<string, SeoPage> = {
   "/": {
-    title: "SSAMENJ Technologies | Uganda School Software, Report Lab & Smart Pages",
+    title: "School Management Software Uganda | SSAMENJ Technologies",
     description:
-      "SSAMENJ Technologies builds Uganda school software for report cards, digital documents, School Connect workflows, and NFC tools for schools and offices.",
+      "SSAMENJ Technologies builds school management software for Uganda schools, including report cards, digital documents, School Connect NFC, cashless canteen, property management software, and custom workflows.",
     canonicalPath: "/",
     structuredData: buildFaqSchema(HOME_FAQS),
   },
   "/products": {
-    title: "SSAMENJ Products | Report Lab, Smart Pages, School Connect & NFC",
+    title: "School Software Uganda | Report Lab, Smart Pages, NFC & RentFlow",
     description:
-      "Explore SSAMENJ school software and office tools including Report Lab, Smart Pages, School Connect, NFC bands, Kids Wallet, and custom digital products.",
+      "Explore SSAMENJ school software for Uganda schools, including Report Lab, Smart Pages, School Connect NFC, Kids Wallet, RentFlow, StayOS, and custom digital products.",
     canonicalPath: "/products",
     structuredData: buildBreadcrumbSchema([
       { name: "Home", path: "/" },
@@ -89,9 +89,9 @@ const SEO_BY_PATH: Record<string, SeoPage> = {
     ],
   },
   "/smart-pages": {
-    title: "Smart Pages Uganda | Digital School Documents by SSAMENJ",
+    title: "Digital School Documents Uganda | Smart Pages by SSAMENJ",
     description:
-      "Smart Pages turns school documents into clean digital pages for circulars, notices, timetables, and shareable PDFs.",
+      "Smart Pages turns school documents into clean digital pages for Uganda schools, including circulars, notices, timetables, and shareable PDFs.",
     canonicalPath: "/smart-pages",
     structuredData: [
       buildSoftwareApplicationSchema({
@@ -196,9 +196,9 @@ const SEO_BY_PATH: Record<string, SeoPage> = {
     ],
   },
   "/stayos": {
-    title: "StayOS | Property Operations Software by SSAMENJ",
+    title: "Property Management Software Uganda | StayOS by SSAMENJ",
     description:
-      "StayOS is the public landing page for SSAMENJ's property operations workflow for rentals, short stays, and mixed portfolios, powered by RentFlow.",
+      "StayOS is SSAMENJ's property management software for Uganda landlords, short stays, and mixed portfolios, powered by RentFlow for booking, balance, and statement workflows.",
     canonicalPath: "/stayos",
     structuredData: [
       buildSoftwareApplicationSchema({
