@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import type { ReactNode } from "react";
 import { FaqSection } from "../components/marketing/FaqSection";
+import { HERO_CHIP_CARD_CLASS, HERO_CHIP_SUBTITLE_CLASS, HERO_CHIP_TITLE_CLASS } from "../components/marketing/heroChipStyles";
 import { buildWhatsAppUrl } from "../config/contact";
 import { RENTFLOW_FAQS } from "../content/discoverability";
 import shortStayAirbnbImage from "../assets/rentflow/short-stay-airbnb.webp";
@@ -662,10 +663,10 @@ export function RentFlowPage() {
               {HERO_FEATURES.map((feature) => (
                 <div
                   key={feature.title}
-                  className="marketing-card-motion rounded-xl border border-white/15 bg-white/[0.08] px-3 py-2.5 transition-all duration-200 hover:border-white/25 hover:bg-white/[0.12]"
+                  className={`${HERO_CHIP_CARD_CLASS} px-3 py-2.5`}
                 >
-                  <p className="text-sm font-black text-white">{feature.title}</p>
-                  <p className="mt-0.5 text-[11px] uppercase tracking-[0.14em] text-blue-100">{feature.note}</p>
+                  <p className={HERO_CHIP_TITLE_CLASS}>{feature.title}</p>
+                  <p className={HERO_CHIP_SUBTITLE_CLASS}>{feature.note}</p>
                 </div>
               ))}
             </div>
