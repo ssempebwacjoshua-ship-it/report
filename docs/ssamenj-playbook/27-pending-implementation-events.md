@@ -34,6 +34,12 @@ This file tracks upcoming implementation work, follow-up phases, and known plann
 
 - Review production platform/WAF rate limits to complement in-process application rate limits.
 - Confirm production environment validation matches deployment provider settings before release.
+- Implement production `DATABASE_URL` safety guard.
+- Document provider backup/PITR setup per repo.
+- Add restore-drill checklist to deployment docs.
+- Add migration safety checklist to PR/review flow.
+- Audit current Prisma schema for unsafe cascade deletes and hard-delete patterns.
+- Audit logs for sensitive data leakage.
 
 ## Completed Items
 
