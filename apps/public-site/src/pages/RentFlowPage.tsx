@@ -401,9 +401,59 @@ function PricingCard({
   );
 }
 
+function PropertyBackdrop() {
+  return (
+    <div className="absolute inset-0 overflow-hidden rounded-[2rem] border border-white/10 bg-slate-950/20">
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_18%,rgba(255,255,255,0.16),transparent_28%),radial-gradient(circle_at_82%_22%,rgba(191,219,254,0.28),transparent_28%),linear-gradient(145deg,rgba(2,6,23,0.82),rgba(11,47,107,0.56) 52%,rgba(37,99,235,0.24))]" />
+      <div className="absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-slate-950/88 to-transparent" />
+
+      <div className="absolute left-5 bottom-0 h-52 w-28 rounded-t-[1.75rem] border border-white/10 bg-slate-900/60 shadow-[0_24px_50px_rgba(2,8,23,0.32)]">
+        <div className="absolute inset-x-3 top-4 flex items-center justify-between">
+          <span className="h-1.5 w-1.5 rounded-full bg-white/40" />
+          <span className="h-1.5 w-1.5 rounded-full bg-white/25" />
+          <span className="h-1.5 w-1.5 rounded-full bg-white/35" />
+        </div>
+        <div className="absolute inset-x-3 bottom-4 grid grid-cols-2 gap-2">
+          {Array.from({ length: 8 }).map((_, index) => (
+            <div key={`left-window-${index}`} className="h-6 rounded-sm bg-white/18 shadow-inner" />
+          ))}
+        </div>
+      </div>
+
+      <div className="absolute left-28 bottom-0 h-36 w-36 rounded-t-[1.75rem] border border-white/10 bg-slate-900/45 shadow-[0_22px_44px_rgba(2,8,23,0.28)]">
+        <div className="absolute inset-x-4 top-4 flex items-center gap-2">
+          <span className="h-1.5 w-10 rounded-full bg-white/18" />
+          <span className="h-1.5 w-6 rounded-full bg-white/14" />
+        </div>
+        <div className="absolute inset-x-4 bottom-4 grid grid-cols-3 gap-2">
+          {Array.from({ length: 9 }).map((_, index) => (
+            <div key={`middle-window-${index}`} className="h-5 rounded-sm bg-white/16" />
+          ))}
+        </div>
+      </div>
+
+      <div className="absolute right-6 top-7 h-36 w-32 rounded-[1.75rem] border border-white/10 bg-white/10 shadow-[0_22px_44px_rgba(2,8,23,0.24)] backdrop-blur-[2px]">
+        <div className="absolute inset-x-3 top-3 flex items-center justify-between">
+          <span className="h-1.5 w-8 rounded-full bg-white/25" />
+          <span className="h-1.5 w-3 rounded-full bg-white/20" />
+        </div>
+        <div className="absolute inset-x-3 bottom-3 grid grid-cols-2 gap-2">
+          {Array.from({ length: 8 }).map((_, index) => (
+            <div key={`right-window-${index}`} className="h-6 rounded-sm bg-white/15" />
+          ))}
+        </div>
+      </div>
+
+      <div className="absolute inset-x-0 bottom-6 h-px bg-white/12" />
+      <div className="absolute left-8 bottom-8 h-3 w-20 rounded-full bg-cyan-300/20 blur-[2px]" />
+      <div className="absolute right-12 bottom-10 h-3 w-14 rounded-full bg-blue-200/18 blur-[2px]" />
+    </div>
+  );
+}
+
 function DashboardPreview() {
   return (
-    <div className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 text-slate-950 shadow-lg">
+    <div className="relative overflow-hidden rounded-2xl border border-slate-200/80 bg-white/94 p-4 text-slate-950 shadow-[0_24px_50px_rgba(2,8,23,0.24)] backdrop-blur-sm">
       <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-blue-700 via-blue-500 to-slate-300" />
       <div className="mb-4 flex items-start justify-between gap-4">
         <div>
@@ -605,10 +655,17 @@ export function RentFlowPage() {
           </div>
 
           <div className="lg:col-span-5">
-            <div className="relative">
-              <DashboardPreview />
-              <div className="mt-4 lg:absolute lg:-bottom-8 lg:right-3 lg:mt-0 lg:w-[232px]">
-                <PhonePreview />
+            <div className="relative mx-auto max-w-[560px]">
+              <div className="relative rounded-[2rem] border border-white/10 bg-slate-950/15 p-3 shadow-[0_24px_60px_rgba(2,8,23,0.26)]">
+                <PropertyBackdrop />
+                <div className="relative z-10 pt-2 lg:pr-24 lg:pb-14">
+                  <div className="max-w-[470px]">
+                    <DashboardPreview />
+                  </div>
+                </div>
+                <div className="mt-4 lg:absolute lg:-bottom-8 lg:right-3 lg:mt-0 lg:w-[232px]">
+                  <PhonePreview />
+                </div>
               </div>
             </div>
           </div>
