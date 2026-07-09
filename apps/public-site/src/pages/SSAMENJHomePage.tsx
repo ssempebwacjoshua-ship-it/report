@@ -62,70 +62,72 @@ export function SSAMENJHomePage() {
               </a>
             </div>
 
-            <div className="mt-6 grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            <div className="mt-6 rounded-[1.75rem] border border-white/10 bg-slate-950/22 p-2 shadow-[0_18px_40px_rgba(2,8,23,0.18)]">
+              <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               <Link
                 to="/contact"
-                className="motion-card motion-card-stagger marketing-fade-up-delay-1 min-w-0 cursor-pointer rounded-2xl border border-white/15 bg-slate-950/65 px-4 py-3 shadow-[0_10px_24px_rgba(2,8,23,0.22)] transition-all duration-200 hover:border-white/25 hover:bg-slate-950/72"
+                className="motion-card motion-card-stagger marketing-fade-up-delay-1 min-w-0 cursor-pointer rounded-2xl border border-white/12 bg-slate-950/78 px-4 py-3 shadow-[0_10px_24px_rgba(2,8,23,0.28)] transition-all duration-200 hover:border-white/20 hover:bg-slate-950/84"
               >
                 <p className="truncate text-sm font-black text-white">School Connect</p>
-                <p className="mt-0.5 break-words text-[11px] uppercase tracking-[0.16em] text-blue-50/90">
+                <p className="mt-0.5 break-words text-[11px] uppercase tracking-[0.16em] text-blue-50">
                   School Management Software
                 </p>
               </Link>
               <Link
                 to="/report-lab"
-                className="motion-card motion-card-stagger marketing-fade-up-delay-2 min-w-0 cursor-pointer rounded-2xl border border-white/15 bg-slate-950/65 px-4 py-3 shadow-[0_10px_24px_rgba(2,8,23,0.22)] transition-all duration-200 hover:border-white/25 hover:bg-slate-950/72"
+                className="motion-card motion-card-stagger marketing-fade-up-delay-2 min-w-0 cursor-pointer rounded-2xl border border-white/12 bg-slate-950/78 px-4 py-3 shadow-[0_10px_24px_rgba(2,8,23,0.28)] transition-all duration-200 hover:border-white/20 hover:bg-slate-950/84"
               >
                 <p className="truncate text-sm font-black text-white">Report Lab</p>
-                <p className="mt-0.5 break-words text-[11px] uppercase tracking-[0.16em] text-blue-50/90">
+                <p className="mt-0.5 break-words text-[11px] uppercase tracking-[0.16em] text-blue-50">
                   Report Card System
                 </p>
               </Link>
               <Link
                 to="/smart-pages"
-                className="motion-card motion-card-stagger marketing-fade-up-delay-3 min-w-0 cursor-pointer rounded-2xl border border-white/15 bg-slate-950/65 px-4 py-3 shadow-[0_10px_24px_rgba(2,8,23,0.22)] transition-all duration-200 hover:border-white/25 hover:bg-slate-950/72"
+                className="motion-card motion-card-stagger marketing-fade-up-delay-3 min-w-0 cursor-pointer rounded-2xl border border-white/12 bg-slate-950/78 px-4 py-3 shadow-[0_10px_24px_rgba(2,8,23,0.28)] transition-all duration-200 hover:border-white/20 hover:bg-slate-950/84"
               >
                 <p className="truncate text-sm font-black text-white">Smart Pages</p>
-                <p className="mt-0.5 break-words text-[11px] uppercase tracking-[0.16em] text-blue-50/90">
+                <p className="mt-0.5 break-words text-[11px] uppercase tracking-[0.16em] text-blue-50">
                   Digital School Documents
                 </p>
               </Link>
               <Link
                 to="/nfc"
-                className="motion-card motion-card-stagger marketing-fade-up-delay-3 min-w-0 cursor-pointer rounded-2xl border border-white/15 bg-slate-950/65 px-4 py-3 shadow-[0_10px_24px_rgba(2,8,23,0.22)] transition-all duration-200 hover:border-white/25 hover:bg-slate-950/72"
+                className="motion-card motion-card-stagger marketing-fade-up-delay-3 min-w-0 cursor-pointer rounded-2xl border border-white/12 bg-slate-950/78 px-4 py-3 shadow-[0_10px_24px_rgba(2,8,23,0.28)] transition-all duration-200 hover:border-white/20 hover:bg-slate-950/84"
               >
                 <p className="truncate text-sm font-black text-white">NFC Wristbands</p>
-                <p className="mt-0.5 break-words text-[11px] uppercase tracking-[0.16em] text-blue-50/90">
+                <p className="mt-0.5 break-words text-[11px] uppercase tracking-[0.16em] text-blue-50">
                   Attendance and Gate Control
                 </p>
               </Link>
               <Link
                 to="/rentflow"
-                className="motion-card motion-card-stagger marketing-fade-up-delay-3 min-w-0 cursor-pointer rounded-2xl border border-white/15 bg-slate-950/65 px-4 py-3 shadow-[0_10px_24px_rgba(2,8,23,0.22)] transition-all duration-200 hover:border-white/25 hover:bg-slate-950/72"
+                className="motion-card motion-card-stagger marketing-fade-up-delay-3 min-w-0 cursor-pointer rounded-2xl border border-white/12 bg-slate-950/78 px-4 py-3 shadow-[0_10px_24px_rgba(2,8,23,0.28)] transition-all duration-200 hover:border-white/20 hover:bg-slate-950/84"
               >
                 <p className="truncate text-sm font-black text-white">RentFlow</p>
-                <p className="mt-0.5 break-words text-[11px] uppercase tracking-[0.16em] text-blue-50/90">
+                <p className="mt-0.5 break-words text-[11px] uppercase tracking-[0.16em] text-blue-50">
                   Property Management Software
                 </p>
               </Link>
               <Link
                 to="/cashless-canteen"
-                className="motion-card motion-card-stagger marketing-fade-up-delay-3 min-w-0 cursor-pointer rounded-2xl border border-white/15 bg-slate-950/65 px-4 py-3 shadow-[0_10px_24px_rgba(2,8,23,0.22)] transition-all duration-200 hover:border-white/25 hover:bg-slate-950/72"
+                className="motion-card motion-card-stagger marketing-fade-up-delay-3 min-w-0 cursor-pointer rounded-2xl border border-white/12 bg-slate-950/78 px-4 py-3 shadow-[0_10px_24px_rgba(2,8,23,0.28)] transition-all duration-200 hover:border-white/20 hover:bg-slate-950/84"
               >
                 <p className="truncate text-sm font-black text-white">Cashless Canteen</p>
-                <p className="mt-0.5 break-words text-[11px] uppercase tracking-[0.16em] text-blue-50/90">
+                <p className="mt-0.5 break-words text-[11px] uppercase tracking-[0.16em] text-blue-50">
                   Cashless School Canteen
                 </p>
               </Link>
               <Link
                 to="/stayos"
-                className="motion-card motion-card-stagger marketing-fade-up-delay-3 min-w-0 cursor-pointer rounded-2xl border border-white/15 bg-slate-950/65 px-4 py-3 shadow-[0_10px_24px_rgba(2,8,23,0.22)] transition-all duration-200 hover:border-white/25 hover:bg-slate-950/72"
+                className="motion-card motion-card-stagger marketing-fade-up-delay-3 min-w-0 cursor-pointer rounded-2xl border border-white/12 bg-slate-950/78 px-4 py-3 shadow-[0_10px_24px_rgba(2,8,23,0.28)] transition-all duration-200 hover:border-white/20 hover:bg-slate-950/84"
               >
                 <p className="truncate text-sm font-black text-white">StayOS</p>
-                <p className="mt-0.5 break-words text-[11px] uppercase tracking-[0.16em] text-blue-50/90">
+                <p className="mt-0.5 break-words text-[11px] uppercase tracking-[0.16em] text-blue-50">
                   Property Operations Software
                 </p>
               </Link>
+              </div>
             </div>
           </div>
         </div>
