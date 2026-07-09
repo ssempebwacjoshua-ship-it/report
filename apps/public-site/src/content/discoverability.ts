@@ -128,6 +128,52 @@ export const DEMOS_FAQS: FaqItem[] = [
   },
 ];
 
+export const CASHLESS_CANTEEN_FAQS: FaqItem[] = [
+  {
+    question: "What is the cashless canteen page for?",
+    answer:
+      "It is the public landing page for the cashless school canteen workflow that uses Kids Wallet and NFC to manage student spending at school.",
+  },
+  {
+    question: "How do students pay in the canteen?",
+    answer:
+      "Schools can link the canteen workflow to a student wallet and use NFC wristbands, cards, or tags to identify the student and record the payment.",
+  },
+  {
+    question: "Does it work with the wider school system?",
+    answer:
+      "Yes. The cashless canteen workflow sits alongside School Connect NFC, so gate access, attendance, and canteen spending can stay in one school environment.",
+  },
+  {
+    question: "Can schools ask for pricing and setup details?",
+    answer:
+      "Yes. Schools can contact SSAMENJ for a quotation, setup requirements, and a demo of the cashless canteen workflow.",
+  },
+];
+
+export const STAYOS_FAQS: FaqItem[] = [
+  {
+    question: "What is StayOS?",
+    answer:
+      "StayOS is the public landing page for SSAMENJ's stay operations workflow for rentals, short stays, and mixed property portfolios.",
+  },
+  {
+    question: "Is StayOS a separate product from RentFlow?",
+    answer:
+      "StayOS is the keyword landing page for the same property operations family, while RentFlow remains the main product page for the workflow behind it.",
+  },
+  {
+    question: "What does the property workflow cover?",
+    answer:
+      "The workflow covers bookings, tenants, payments, deposits, maintenance, cleaning, and owner statements for property teams.",
+  },
+  {
+    question: "Can I request a walkthrough?",
+    answer:
+      "Yes. Property owners and managers can request a walkthrough or pricing discussion from the contact page or the RentFlow page.",
+  },
+];
+
 export const RENTFLOW_FAQS: FaqItem[] = [
   {
     question: "What is SSAMENJ RentFlow?",

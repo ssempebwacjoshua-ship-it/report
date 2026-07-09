@@ -62,7 +62,7 @@ export function SSAMENJHomePage() {
               </a>
             </div>
 
-            <div className="mt-6 grid grid-cols-2 gap-2.5 sm:grid-cols-4 xl:grid-cols-5">
+            <div className="mt-6 grid grid-cols-2 gap-2.5 sm:grid-cols-4 xl:grid-cols-7">
               <Link to="/contact" className="motion-card motion-card-stagger marketing-fade-up-delay-1 cursor-pointer rounded-2xl border border-white/25 bg-white/[0.12] px-4 py-3 transition-all duration-200 hover:border-white/40 hover:bg-white/[0.18]" style={{ backdropFilter: "blur(6px)" }}>
                 <p className="text-sm font-black text-white">School Connect</p>
                 <p className="mt-0.5 text-[11px] uppercase tracking-[0.16em] text-blue-100">POWERING SMART SCHOOLS.</p>
@@ -82,6 +82,14 @@ export function SSAMENJHomePage() {
               <Link to="/rentflow" className="motion-card motion-card-stagger marketing-fade-up-delay-3 cursor-pointer rounded-2xl border border-white/25 bg-white/[0.12] px-4 py-3 transition-all duration-200 hover:border-white/40 hover:bg-white/[0.18]" style={{ backdropFilter: "blur(6px)" }}>
                 <p className="text-sm font-black text-white">RentFlow</p>
                 <p className="mt-0.5 text-[11px] uppercase tracking-[0.16em] text-blue-100">PROPERTY MANAGEMENT.</p>
+              </Link>
+              <Link to="/cashless-canteen" className="motion-card motion-card-stagger marketing-fade-up-delay-3 cursor-pointer rounded-2xl border border-white/25 bg-white/[0.12] px-4 py-3 transition-all duration-200 hover:border-white/40 hover:bg-white/[0.18]" style={{ backdropFilter: "blur(6px)" }}>
+                <p className="text-sm font-black text-white">Cashless Canteen</p>
+                <p className="mt-0.5 text-[11px] uppercase tracking-[0.16em] text-blue-100">KIDS WALLET FLOW.</p>
+              </Link>
+              <Link to="/stayos" className="motion-card motion-card-stagger marketing-fade-up-delay-3 cursor-pointer rounded-2xl border border-white/25 bg-white/[0.12] px-4 py-3 transition-all duration-200 hover:border-white/40 hover:bg-white/[0.18]" style={{ backdropFilter: "blur(6px)" }}>
+                <p className="text-sm font-black text-white">StayOS</p>
+                <p className="mt-0.5 text-[11px] uppercase tracking-[0.16em] text-blue-100">PROPERTY OPERATIONS.</p>
               </Link>
             </div>
           </div>

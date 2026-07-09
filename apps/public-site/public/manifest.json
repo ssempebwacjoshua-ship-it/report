@@ -1,0 +1,25 @@
+{
+  "name": "SSAMENJ Technologies",
+  "short_name": "SSAMENJ",
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#0B2F6B",
+  "theme_color": "#0B5CFF",
+  "description": "SSAMENJ Technologies public marketing site for school software, NFC, report cards, and property operations.",
+  "icons": [
+    {
+      "src": "/icons/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/favicon.png",
+      "sizes": "64x64",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}

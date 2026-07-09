@@ -10,7 +10,9 @@ import { PricingPage } from "./pages/PricingPage";
 import { ProductsPage } from "./pages/ProductsPage";
 import { ReportLabPage } from "./pages/ReportLabPage";
 import { RentFlowPage } from "./pages/RentFlowPage";
+import { CashlessCanteenPage } from "./pages/CashlessCanteenPage";
 import { SSAMENJHomePage } from "./pages/SSAMENJHomePage";
+import { StayOsPage } from "./pages/StayOsPage";
 import { SmartPagesPage } from "./pages/SmartPagesPage";
 
 export default function App() {
@@ -21,6 +23,8 @@ export default function App() {
         <Route path="/products" element={<ProductsPage />} />
         <Route path="/rentflow" element={<RentFlowPage />} />
         <Route path="/rentals" element={<RentFlowPage />} />
+        <Route path="/cashless-canteen" element={<CashlessCanteenPage />} />
+        <Route path="/stayos" element={<StayOsPage />} />
         <Route path="/report-lab" element={<ReportLabPage />} />
         <Route path="/smart-pages" element={<SmartPagesPage />} />
         <Route path="/nfc" element={<NfcPage />} />
