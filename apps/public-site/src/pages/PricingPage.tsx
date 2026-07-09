@@ -28,15 +28,15 @@ const BOOK_DEMO_WA = buildWhatsAppUrl(
 );
 
 function planWA(plan: PricingPlan) {
-  const launchSetupSaving = plan.standardSetupFee - plan.launchSetupFee;
-  const firstYearTotal = plan.annualLicence + plan.launchSetupFee;
+  const annualLicence = plan.termFee * plan.termsPerYear;
+  const firstYearTotal = annualLicence + plan.launchSetupFee;
 
   return buildWhatsAppUrl(
     [
       `Hello SSAMENJ Technologies! I would like to get started with School Connect for ${plan.range}.`,
-      `Annual Licence: UGX ${formatUgx(plan.annualLicence)}`,
+      `Equivalent term fee: UGX ${formatUgx(plan.termFee)}`,
+      `Annual licence: UGX ${formatUgx(plan.termFee)} x ${plan.termsPerYear} terms = UGX ${formatUgx(annualLicence)} / year`,
       `One-Time Setup Fee: UGX ${formatUgx(plan.launchSetupFee)}`,
-      `Launch Setup Saving: UGX ${formatUgx(launchSetupSaving)}`,
       `First Year Total: UGX ${formatUgx(firstYearTotal)}`,
     ].join("\n"),
   );
@@ -53,7 +53,8 @@ function formatUgx(amount: number) {
 
 type PricingPlan = {
   range: string;
-  annualLicence: number;
+  termFee: number;
+  termsPerYear: number;
   standardSetupFee: number;
   launchSetupFee: number;
   highlighted?: boolean;
@@ -87,7 +88,8 @@ function Badge({
 
 function AnnualPlanCard({
   range,
-  annualLicence,
+  termFee,
+  termsPerYear,
   standardSetupFee,
   launchSetupFee,
   href,
@@ -95,13 +97,15 @@ function AnnualPlanCard({
   isCustom = false,
 }: {
   range: string;
-  annualLicence?: number;
+  termFee?: number;
+  termsPerYear?: number;
   standardSetupFee?: number;
   launchSetupFee?: number;
   href: string;
   highlighted?: boolean;
   isCustom?: boolean;
 }) {
+  const annualLicence = (termFee ?? 0) * (termsPerYear ?? 3);
   return (
     <article
       className={[
@@ -136,12 +140,16 @@ function AnnualPlanCard({
           <div className="mt-3 flex-1">
             {/* Annual licence — prominent */}
             <div>
-              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">ANNUAL LICENCE</p>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">EQUIVALENT TERM FEE</p>
               <div className="mt-1 flex items-baseline gap-1">
                 <span className="text-xs font-bold text-slate-500">UGX</span>
-                <span className="text-3xl font-black tracking-tight text-slate-950">{formatUgx(annualLicence ?? 0)}</span>
-                <span className="text-sm font-bold text-slate-400">/ yr</span>
+                <span className="text-3xl font-black tracking-tight text-slate-950">{formatUgx(termFee ?? 0)}</span>
+                <span className="text-sm font-bold text-slate-400">/ term</span>
               </div>
+              <p className="mt-1.5 text-xs leading-5 text-slate-500">Annual licence is calculated across 3 school terms.</p>
+              <p className="mt-1 text-xs font-semibold text-slate-500">
+                Annual licence: UGX {formatUgx(termFee ?? 0)} x {termsPerYear ?? 3} terms = UGX {formatUgx(annualLicence)} / year
+              </p>
             </div>
 
             {/* Setup fee — secondary */}
@@ -265,10 +273,10 @@ const OPTIONAL_ADDONS = [
 // ── Plans ──────────────────────────────────────────────────────────────────────
 
 const PLANS: PricingPlan[] = [
-  { range: "Up to 500 Students", annualLicence: 900000, standardSetupFee: 800000, launchSetupFee: 500000 },
-  { range: "Up to 1,000 Students", annualLicence: 1800000, standardSetupFee: 800000, launchSetupFee: 500000, highlighted: true },
-  { range: "Up to 1,500 Students", annualLicence: 2700000, standardSetupFee: 1500000, launchSetupFee: 1000000 },
-  { range: "Up to 2,000 Students", annualLicence: 3600000, standardSetupFee: 1500000, launchSetupFee: 1000000 },
+  { range: "Up to 500 Students", termFee: 300000, termsPerYear: 3, standardSetupFee: 800000, launchSetupFee: 500000 },
+  { range: "Up to 1,000 Students", termFee: 600000, termsPerYear: 3, standardSetupFee: 800000, launchSetupFee: 500000, highlighted: true },
+  { range: "Up to 1,500 Students", termFee: 900000, termsPerYear: 3, standardSetupFee: 1500000, launchSetupFee: 1000000 },
+  { range: "Up to 2,000 Students", termFee: 1200000, termsPerYear: 3, standardSetupFee: 1500000, launchSetupFee: 1000000 },
 ];
 
 // ── Page ───────────────────────────────────────────────────────────────────────
@@ -283,7 +291,7 @@ export function PricingPage() {
           style={{ background: "#0B2F6B", borderColor: "rgba(255,255,255,0.1)" }}
         >
           <span className="font-black text-amber-300">Launch Offer:</span>{" "}
-          <span className="font-medium text-white/90">Reduced setup fee available for early schools. Annual licence pricing is shown below.</span>
+          <span className="font-medium text-white/90">Reduced setup fee available for early schools. Pricing is shown as an equivalent term amount, while the annual licence is calculated across 3 school terms.</span>
         </div>
 
         {/* ── Hero ── */}
@@ -295,10 +303,10 @@ export function PricingPage() {
                 School Connect · Pricing
               </div>
               <h1 className="marketing-fade-up-delay-1 mt-2 hero-title font-black text-white">
-                Annual school licence for School Connect Report Lab &amp; Smart Pages.
+                Annual licence plans for School Connect Report Lab &amp; Smart Pages.
               </h1>
               <p className="marketing-fade-up-delay-2 mt-2.5 max-w-2xl text-sm leading-7 text-blue-50 sm:text-base">
-                Pricing is based on student capacity and covers the full academic year, with no monthly or termly subscription shown. A one-time onboarding setup fee applies once, with a launch offer available for early schools.
+                All plans include both Report Lab and Smart Pages. Pricing is shown as an equivalent term amount, and the annual licence is calculated across 3 school terms.
               </p>
               <p className="mt-2 text-xs text-blue-200">
                 Looking for NFC Wristbands pricing?{" "}
@@ -306,7 +314,7 @@ export function PricingPage() {
                   School Connect NFC is priced by quotation ↓
                 </a>
               </p>
-              <p className="mt-2 text-sm font-semibold text-blue-200">Annual licence is billed yearly. Setup fee is paid once during onboarding.</p>
+              <p className="mt-2 text-sm font-semibold text-blue-200">We charge yearly. The term amount is shown only as an equivalent display price.</p>
               <div className="marketing-fade-up-delay-3 mt-5 flex flex-col gap-3 sm:flex-row">
                 <a
                   href={REQUEST_PRICING_WA}
@@ -329,9 +337,9 @@ export function PricingPage() {
               <div className="grid gap-2.5 sm:grid-cols-3 lg:grid-cols-1">
                 <div className="marketing-card-motion marketing-fade-up-delay-1 relative overflow-hidden rounded-2xl border border-white/30 bg-white/95 p-3.5 shadow-sm backdrop-blur-sm">
                   <div className="absolute inset-x-0 top-0 h-[3px] bg-gradient-to-r from-blue-600 via-sky-400 to-cyan-300" />
-                  <p className="text-[11px] font-black uppercase tracking-[0.18em] text-blue-700">Annual Licence</p>
+                  <p className="text-[11px] font-black uppercase tracking-[0.18em] text-blue-700">Equivalent Term Fee</p>
                   <p className="mt-1.5 text-xs leading-5 text-slate-600">
-                    One annual licence covers your full school — no monthly or termly billing is shown.
+                    Annual licence is calculated across 3 school terms.
                   </p>
                 </div>
                 <div className="marketing-card-motion marketing-fade-up-delay-2 relative overflow-hidden rounded-2xl border border-white/30 bg-white/95 p-3.5 shadow-sm backdrop-blur-sm">
@@ -369,7 +377,7 @@ export function PricingPage() {
                 School Connect Report Lab + Smart Pages
               </h2>
               <p className="mt-2 text-sm text-slate-500">
-                All plans include both Report Lab and Smart Pages. Annual licence pricing is shown here, and the setup fee is one-time.
+                All plans include both Report Lab and Smart Pages. Pricing is shown as an equivalent term amount, and the annual licence is calculated across 3 school terms.
               </p>
             </div>
 
@@ -378,7 +386,8 @@ export function PricingPage() {
                 <AnnualPlanCard
                   key={plan.range}
                   range={plan.range}
-                  annualLicence={plan.annualLicence}
+                  termFee={plan.termFee}
+                  termsPerYear={plan.termsPerYear}
                   standardSetupFee={plan.standardSetupFee}
                   launchSetupFee={plan.launchSetupFee}
                   href={planWA(plan)}
@@ -397,7 +406,7 @@ export function PricingPage() {
             </div>
 
             <p className="mt-4 text-xs text-slate-400">
-              Annual licence is billed yearly. Setup fee is a one-time payment made during onboarding.
+              We charge yearly. The term amount is shown only as an equivalent display price.
             </p>
           </div>
         </section>
