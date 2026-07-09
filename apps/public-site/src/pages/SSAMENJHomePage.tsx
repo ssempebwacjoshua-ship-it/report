@@ -34,7 +34,7 @@ export function SSAMENJHomePage() {
         <span className="font-medium text-white/90">First Term Free for pioneer schools — setup fee applies. Smart Pages trial includes 10 pages.</span>
       </div>
 
-      <section className="home-hero-image-bg site-hero-compact border-b text-white" style={{ borderColor: "rgba(15,91,216,0.3)" }}>
+      <section className="home-hero-image-bg site-hero-compact hero-rhythm border-b text-white" style={{ borderColor: "rgba(15,91,216,0.3)" }}>
         <div className="absolute inset-0 bg-dot-grid opacity-[0.12]" />
         <div className="home-hero-content mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="max-w-4xl">

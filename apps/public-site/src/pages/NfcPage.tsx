@@ -142,7 +142,7 @@ export function NfcPage() {
 
       {/* ── Hero ── */}
       <section
-        className="nfc-hero-image-bg site-hero-compact border-b text-white"
+        className="nfc-hero-image-bg site-hero-compact hero-rhythm border-b text-white"
         style={{ borderColor: "rgba(15,91,216,0.3)" }}
       >
         <div className="absolute inset-0 bg-dot-grid opacity-[0.12]" />
@@ -193,7 +193,7 @@ export function NfcPage() {
 
           {/* ── Right: video player card (stacks below text on mobile) ── */}
           <div className="flex justify-center">
-            <div className="mx-auto w-full max-w-[320px] overflow-hidden rounded-[1.5rem] border border-white/30 bg-white/95 p-2 shadow-xl backdrop-blur">
+            <div className="mx-auto w-full max-w-[260px] overflow-hidden rounded-[1.5rem] border border-white/30 bg-white/95 p-2 shadow-xl backdrop-blur">
               <div className="mb-2 px-2 pt-1.5">
                 <p className="text-xs font-black uppercase tracking-[0.18em] text-blue-700">Watch NFC In Action</p>
                 <p className="mt-1 text-sm leading-6 text-slate-600">See NFC Tags Work in Real School Operations</p>

@@ -510,7 +510,7 @@ function DevicePanel() {
 export function RentFlowPage() {
   return (
     <div className="bg-slate-50 text-slate-950">
-      <section className="site-hero-blue site-hero-compact border-b text-white" style={{ borderColor: "rgba(15,91,216,0.3)" }}>
+      <section className="site-hero-blue site-hero-compact hero-rhythm border-b text-white" style={{ borderColor: "rgba(15,91,216,0.3)" }}>
         <div className="absolute inset-0 bg-dot-grid opacity-[0.08]" />
         <div className="home-hero-content mx-auto grid max-w-7xl gap-8 px-4 sm:px-6 lg:grid-cols-12 lg:items-center lg:px-8">
           <div className="lg:col-span-7">
@@ -518,7 +518,7 @@ export function RentFlowPage() {
               <BuildingIcon className="h-3.5 w-3.5" />
               SSAMENJ RentFlow
             </div>
-            <h1 className="marketing-fade-up-delay-1 mt-3 max-w-2xl text-[2.2rem] font-black leading-[1.05] tracking-tight text-white sm:text-5xl lg:text-[3.45rem]">
+            <h1 className="marketing-fade-up-delay-1 mt-3 max-w-2xl text-[2.1rem] font-black leading-[1.06] tracking-tight text-white sm:text-5xl lg:text-[3.1rem]">
               Manage rentals, Airbnb rooms, shops, and apartments from one system.
             </h1>
             <p className="marketing-fade-up-delay-2 mt-3 max-w-2xl text-sm leading-7 text-blue-50 sm:text-base">
@@ -565,7 +565,7 @@ export function RentFlowPage() {
           <div className="lg:col-span-5">
             <div className="relative">
               <DashboardPreview />
-              <div className="mt-4 lg:absolute lg:-bottom-8 lg:right-3 lg:mt-0 lg:w-[250px]">
+              <div className="mt-4 lg:absolute lg:-bottom-8 lg:right-3 lg:mt-0 lg:w-[232px]">
                 <PhonePreview />
               </div>
             </div>

@@ -196,7 +196,7 @@ export function DemosPage() {
   return (
     <div className="bg-slate-50 text-slate-950">
       {/* Blue gradient hero */}
-      <section className="site-hero-blue site-hero-compact border-b text-white" style={{ borderColor: "rgba(15,91,216,0.3)" }}>
+      <section className="site-hero-blue site-hero-compact hero-rhythm border-b text-white" style={{ borderColor: "rgba(15,91,216,0.3)" }}>
         <div className="absolute inset-0 bg-dot-grid opacity-[0.15]" />
         <div className="relative mx-auto grid max-w-7xl gap-5 px-4 sm:px-6 lg:grid-cols-12 lg:px-8">
           <div className="lg:col-span-6">
