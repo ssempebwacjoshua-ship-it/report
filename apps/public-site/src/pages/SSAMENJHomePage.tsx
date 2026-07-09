@@ -62,11 +62,11 @@ export function SSAMENJHomePage() {
               </a>
             </div>
 
-            <div className="mt-6 rounded-[1.75rem] border border-white/10 bg-slate-950/22 p-2 shadow-[0_18px_40px_rgba(2,8,23,0.18)]">
+            <div className="mt-6 rounded-[1.75rem] border border-white/10 bg-blue-950/20 p-2 shadow-[0_18px_40px_rgba(2,8,23,0.18)]">
               <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               <Link
                 to="/contact"
-                className="motion-card motion-card-stagger marketing-fade-up-delay-1 min-w-0 cursor-pointer rounded-2xl border border-white/12 bg-slate-950/78 px-4 py-3 shadow-[0_10px_24px_rgba(2,8,23,0.28)] transition-all duration-200 hover:border-white/20 hover:bg-slate-950/84"
+                className="motion-card motion-card-stagger marketing-fade-up-delay-1 min-w-0 cursor-pointer rounded-2xl border border-white/12 bg-blue-950/76 px-4 py-3 shadow-[0_10px_24px_rgba(2,8,23,0.26)] transition-all duration-200 hover:border-white/20 hover:bg-blue-950/82"
               >
                 <p className="truncate text-sm font-black text-white">School Connect</p>
                 <p className="mt-0.5 break-words text-[11px] uppercase tracking-[0.16em] text-blue-50">
@@ -75,7 +75,7 @@ export function SSAMENJHomePage() {
               </Link>
               <Link
                 to="/report-lab"
-                className="motion-card motion-card-stagger marketing-fade-up-delay-2 min-w-0 cursor-pointer rounded-2xl border border-white/12 bg-slate-950/78 px-4 py-3 shadow-[0_10px_24px_rgba(2,8,23,0.28)] transition-all duration-200 hover:border-white/20 hover:bg-slate-950/84"
+                className="motion-card motion-card-stagger marketing-fade-up-delay-2 min-w-0 cursor-pointer rounded-2xl border border-white/12 bg-blue-950/76 px-4 py-3 shadow-[0_10px_24px_rgba(2,8,23,0.26)] transition-all duration-200 hover:border-white/20 hover:bg-blue-950/82"
               >
                 <p className="truncate text-sm font-black text-white">Report Lab</p>
                 <p className="mt-0.5 break-words text-[11px] uppercase tracking-[0.16em] text-blue-50">
@@ -84,7 +84,7 @@ export function SSAMENJHomePage() {
               </Link>
               <Link
                 to="/smart-pages"
-                className="motion-card motion-card-stagger marketing-fade-up-delay-3 min-w-0 cursor-pointer rounded-2xl border border-white/12 bg-slate-950/78 px-4 py-3 shadow-[0_10px_24px_rgba(2,8,23,0.28)] transition-all duration-200 hover:border-white/20 hover:bg-slate-950/84"
+                className="motion-card motion-card-stagger marketing-fade-up-delay-3 min-w-0 cursor-pointer rounded-2xl border border-white/12 bg-blue-950/76 px-4 py-3 shadow-[0_10px_24px_rgba(2,8,23,0.26)] transition-all duration-200 hover:border-white/20 hover:bg-blue-950/82"
               >
                 <p className="truncate text-sm font-black text-white">Smart Pages</p>
                 <p className="mt-0.5 break-words text-[11px] uppercase tracking-[0.16em] text-blue-50">
@@ -93,7 +93,7 @@ export function SSAMENJHomePage() {
               </Link>
               <Link
                 to="/nfc"
-                className="motion-card motion-card-stagger marketing-fade-up-delay-3 min-w-0 cursor-pointer rounded-2xl border border-white/12 bg-slate-950/78 px-4 py-3 shadow-[0_10px_24px_rgba(2,8,23,0.28)] transition-all duration-200 hover:border-white/20 hover:bg-slate-950/84"
+                className="motion-card motion-card-stagger marketing-fade-up-delay-3 min-w-0 cursor-pointer rounded-2xl border border-white/12 bg-blue-950/76 px-4 py-3 shadow-[0_10px_24px_rgba(2,8,23,0.26)] transition-all duration-200 hover:border-white/20 hover:bg-blue-950/82"
               >
                 <p className="truncate text-sm font-black text-white">NFC Wristbands</p>
                 <p className="mt-0.5 break-words text-[11px] uppercase tracking-[0.16em] text-blue-50">
@@ -102,7 +102,7 @@ export function SSAMENJHomePage() {
               </Link>
               <Link
                 to="/rentflow"
-                className="motion-card motion-card-stagger marketing-fade-up-delay-3 min-w-0 cursor-pointer rounded-2xl border border-white/12 bg-slate-950/78 px-4 py-3 shadow-[0_10px_24px_rgba(2,8,23,0.28)] transition-all duration-200 hover:border-white/20 hover:bg-slate-950/84"
+                className="motion-card motion-card-stagger marketing-fade-up-delay-3 min-w-0 cursor-pointer rounded-2xl border border-white/12 bg-blue-950/76 px-4 py-3 shadow-[0_10px_24px_rgba(2,8,23,0.26)] transition-all duration-200 hover:border-white/20 hover:bg-blue-950/82"
               >
                 <p className="truncate text-sm font-black text-white">RentFlow</p>
                 <p className="mt-0.5 break-words text-[11px] uppercase tracking-[0.16em] text-blue-50">
@@ -111,7 +111,7 @@ export function SSAMENJHomePage() {
               </Link>
               <Link
                 to="/cashless-canteen"
-                className="motion-card motion-card-stagger marketing-fade-up-delay-3 min-w-0 cursor-pointer rounded-2xl border border-white/12 bg-slate-950/78 px-4 py-3 shadow-[0_10px_24px_rgba(2,8,23,0.28)] transition-all duration-200 hover:border-white/20 hover:bg-slate-950/84"
+                className="motion-card motion-card-stagger marketing-fade-up-delay-3 min-w-0 cursor-pointer rounded-2xl border border-white/12 bg-blue-950/76 px-4 py-3 shadow-[0_10px_24px_rgba(2,8,23,0.26)] transition-all duration-200 hover:border-white/20 hover:bg-blue-950/82"
               >
                 <p className="truncate text-sm font-black text-white">Cashless Canteen</p>
                 <p className="mt-0.5 break-words text-[11px] uppercase tracking-[0.16em] text-blue-50">
@@ -120,7 +120,7 @@ export function SSAMENJHomePage() {
               </Link>
               <Link
                 to="/stayos"
-                className="motion-card motion-card-stagger marketing-fade-up-delay-3 min-w-0 cursor-pointer rounded-2xl border border-white/12 bg-slate-950/78 px-4 py-3 shadow-[0_10px_24px_rgba(2,8,23,0.28)] transition-all duration-200 hover:border-white/20 hover:bg-slate-950/84"
+                className="motion-card motion-card-stagger marketing-fade-up-delay-3 min-w-0 cursor-pointer rounded-2xl border border-white/12 bg-blue-950/76 px-4 py-3 shadow-[0_10px_24px_rgba(2,8,23,0.26)] transition-all duration-200 hover:border-white/20 hover:bg-blue-950/82"
               >
                 <p className="truncate text-sm font-black text-white">StayOS</p>
                 <p className="mt-0.5 break-words text-[11px] uppercase tracking-[0.16em] text-blue-50">
