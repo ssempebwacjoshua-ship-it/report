@@ -37,7 +37,7 @@ export function SSAMENJHomePage() {
       <section className="home-hero-image-bg site-hero-compact border-b text-white" style={{ borderColor: "rgba(15,91,216,0.3)" }}>
         <div className="absolute inset-0 bg-dot-grid opacity-[0.12]" />
         <div className="home-hero-content mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="max-w-xl">
+          <div className="max-w-4xl">
             <div className="marketing-fade-up inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.2em] text-blue-50">
               <SparklesIcon className="h-3.5 w-3.5" />
               SSAMENJ Technologies
@@ -62,34 +62,76 @@ export function SSAMENJHomePage() {
               </a>
             </div>
 
-            <div className="mt-6 grid grid-cols-2 gap-2.5 sm:grid-cols-4 xl:grid-cols-7">
-              <Link to="/contact" className="motion-card motion-card-stagger marketing-fade-up-delay-1 cursor-pointer rounded-2xl border border-white/25 bg-white/[0.12] px-4 py-3 transition-all duration-200 hover:border-white/40 hover:bg-white/[0.18]" style={{ backdropFilter: "blur(6px)" }}>
-                <p className="text-sm font-black text-white">School Connect</p>
-                <p className="mt-0.5 text-[11px] uppercase tracking-[0.16em] text-blue-100">SCHOOL MANAGEMENT SOFTWARE.</p>
+            <div className="mt-6 grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              <Link
+                to="/contact"
+                className="motion-card motion-card-stagger marketing-fade-up-delay-1 min-w-0 cursor-pointer rounded-2xl border border-white/25 bg-white/[0.12] px-4 py-3 transition-all duration-200 hover:border-white/40 hover:bg-white/[0.18]"
+                style={{ backdropFilter: "blur(6px)" }}
+              >
+                <p className="truncate text-sm font-black text-white">School Connect</p>
+                <p className="mt-0.5 break-words text-[11px] uppercase tracking-[0.16em] text-blue-100">
+                  School Management Software
+                </p>
               </Link>
-              <Link to="/report-lab" className="motion-card motion-card-stagger marketing-fade-up-delay-2 cursor-pointer rounded-2xl border border-white/25 bg-white/[0.12] px-4 py-3 transition-all duration-200 hover:border-white/40 hover:bg-white/[0.18]" style={{ backdropFilter: "blur(6px)" }}>
-                <p className="text-sm font-black text-white">Report Lab</p>
-                <p className="mt-0.5 text-[11px] uppercase tracking-[0.16em] text-blue-100">REPORT CARD SYSTEM.</p>
+              <Link
+                to="/report-lab"
+                className="motion-card motion-card-stagger marketing-fade-up-delay-2 min-w-0 cursor-pointer rounded-2xl border border-white/25 bg-white/[0.12] px-4 py-3 transition-all duration-200 hover:border-white/40 hover:bg-white/[0.18]"
+                style={{ backdropFilter: "blur(6px)" }}
+              >
+                <p className="truncate text-sm font-black text-white">Report Lab</p>
+                <p className="mt-0.5 break-words text-[11px] uppercase tracking-[0.16em] text-blue-100">
+                  Report Card System
+                </p>
               </Link>
-              <Link to="/smart-pages" className="motion-card motion-card-stagger marketing-fade-up-delay-3 cursor-pointer rounded-2xl border border-white/25 bg-white/[0.12] px-4 py-3 transition-all duration-200 hover:border-white/40 hover:bg-white/[0.18]" style={{ backdropFilter: "blur(6px)" }}>
-                <p className="text-sm font-black text-white">Smart Pages</p>
-                <p className="mt-0.5 text-[11px] uppercase tracking-[0.16em] text-blue-100">DIGITAL SCHOOL DOCUMENTS.</p>
+              <Link
+                to="/smart-pages"
+                className="motion-card motion-card-stagger marketing-fade-up-delay-3 min-w-0 cursor-pointer rounded-2xl border border-white/25 bg-white/[0.12] px-4 py-3 transition-all duration-200 hover:border-white/40 hover:bg-white/[0.18]"
+                style={{ backdropFilter: "blur(6px)" }}
+              >
+                <p className="truncate text-sm font-black text-white">Smart Pages</p>
+                <p className="mt-0.5 break-words text-[11px] uppercase tracking-[0.16em] text-blue-100">
+                  Digital School Documents
+                </p>
               </Link>
-              <Link to="/nfc" className="motion-card motion-card-stagger marketing-fade-up-delay-3 cursor-pointer rounded-2xl border border-white/25 bg-white/[0.12] px-4 py-3 transition-all duration-200 hover:border-white/40 hover:bg-white/[0.18]" style={{ backdropFilter: "blur(6px)" }}>
-                <p className="text-sm font-black text-white">NFC Wristbands</p>
-                <p className="mt-0.5 text-[11px] uppercase tracking-[0.16em] text-blue-100">ATTENDANCE AND GATE CONTROL.</p>
+              <Link
+                to="/nfc"
+                className="motion-card motion-card-stagger marketing-fade-up-delay-3 min-w-0 cursor-pointer rounded-2xl border border-white/25 bg-white/[0.12] px-4 py-3 transition-all duration-200 hover:border-white/40 hover:bg-white/[0.18]"
+                style={{ backdropFilter: "blur(6px)" }}
+              >
+                <p className="truncate text-sm font-black text-white">NFC Wristbands</p>
+                <p className="mt-0.5 break-words text-[11px] uppercase tracking-[0.16em] text-blue-100">
+                  Attendance and Gate Control
+                </p>
               </Link>
-              <Link to="/rentflow" className="motion-card motion-card-stagger marketing-fade-up-delay-3 cursor-pointer rounded-2xl border border-white/25 bg-white/[0.12] px-4 py-3 transition-all duration-200 hover:border-white/40 hover:bg-white/[0.18]" style={{ backdropFilter: "blur(6px)" }}>
-                <p className="text-sm font-black text-white">RentFlow</p>
-                <p className="mt-0.5 text-[11px] uppercase tracking-[0.16em] text-blue-100">PROPERTY MANAGEMENT SOFTWARE.</p>
+              <Link
+                to="/rentflow"
+                className="motion-card motion-card-stagger marketing-fade-up-delay-3 min-w-0 cursor-pointer rounded-2xl border border-white/25 bg-white/[0.12] px-4 py-3 transition-all duration-200 hover:border-white/40 hover:bg-white/[0.18]"
+                style={{ backdropFilter: "blur(6px)" }}
+              >
+                <p className="truncate text-sm font-black text-white">RentFlow</p>
+                <p className="mt-0.5 break-words text-[11px] uppercase tracking-[0.16em] text-blue-100">
+                  Property Management Software
+                </p>
               </Link>
-              <Link to="/cashless-canteen" className="motion-card motion-card-stagger marketing-fade-up-delay-3 cursor-pointer rounded-2xl border border-white/25 bg-white/[0.12] px-4 py-3 transition-all duration-200 hover:border-white/40 hover:bg-white/[0.18]" style={{ backdropFilter: "blur(6px)" }}>
-                <p className="text-sm font-black text-white">Cashless Canteen</p>
-                <p className="mt-0.5 text-[11px] uppercase tracking-[0.16em] text-blue-100">CASHLESS SCHOOL CANTEEN.</p>
+              <Link
+                to="/cashless-canteen"
+                className="motion-card motion-card-stagger marketing-fade-up-delay-3 min-w-0 cursor-pointer rounded-2xl border border-white/25 bg-white/[0.12] px-4 py-3 transition-all duration-200 hover:border-white/40 hover:bg-white/[0.18]"
+                style={{ backdropFilter: "blur(6px)" }}
+              >
+                <p className="truncate text-sm font-black text-white">Cashless Canteen</p>
+                <p className="mt-0.5 break-words text-[11px] uppercase tracking-[0.16em] text-blue-100">
+                  Cashless School Canteen
+                </p>
               </Link>
-              <Link to="/stayos" className="motion-card motion-card-stagger marketing-fade-up-delay-3 cursor-pointer rounded-2xl border border-white/25 bg-white/[0.12] px-4 py-3 transition-all duration-200 hover:border-white/40 hover:bg-white/[0.18]" style={{ backdropFilter: "blur(6px)" }}>
-                <p className="text-sm font-black text-white">StayOS</p>
-                <p className="mt-0.5 text-[11px] uppercase tracking-[0.16em] text-blue-100">PROPERTY OPERATIONS SOFTWARE.</p>
+              <Link
+                to="/stayos"
+                className="motion-card motion-card-stagger marketing-fade-up-delay-3 min-w-0 cursor-pointer rounded-2xl border border-white/25 bg-white/[0.12] px-4 py-3 transition-all duration-200 hover:border-white/40 hover:bg-white/[0.18]"
+                style={{ backdropFilter: "blur(6px)" }}
+              >
+                <p className="truncate text-sm font-black text-white">StayOS</p>
+                <p className="mt-0.5 break-words text-[11px] uppercase tracking-[0.16em] text-blue-100">
+                  Property Operations Software
+                </p>
               </Link>
             </div>
           </div>
