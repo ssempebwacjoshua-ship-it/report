@@ -3,6 +3,12 @@ import type { ReactNode } from "react";
 import { FaqSection } from "../components/marketing/FaqSection";
 import { buildWhatsAppUrl } from "../config/contact";
 import { RENTFLOW_FAQS } from "../content/discoverability";
+import shortStayAirbnbImage from "../assets/rentflow/short-stay-airbnb.webp";
+import residentialRentalsImage from "../assets/rentflow/residential-rentals.webp";
+import commercialShopsOfficesImage from "../assets/rentflow/commercial-shops-offices.webp";
+import ownerStatementsImage from "../assets/rentflow/owner-statements.webp";
+import paymentsDepositsImage from "../assets/rentflow/payments-deposits.webp";
+import cleaningMaintenanceImage from "../assets/rentflow/cleaning-maintenance.webp";
 import {
   BuildingIcon,
   CashIcon,
@@ -169,43 +175,43 @@ const RENTFLOW_VISUALS = [
     title: "Short-stay / Airbnb",
     body: "Fast booking, quick turnover, and simple occupancy tracking for busy hosts.",
     icon: <HomeIcon className="h-5 w-5" />,
-    bg: "bg-blue-50",
-    accent: "text-blue-700",
+    image: shortStayAirbnbImage,
+    imageAlt: "A furnished short-stay apartment room with a bed, windows, and warm lighting.",
   },
   {
     title: "Residential rentals",
     body: "Lease records, rent reminders, and clear tenant history for longer stays.",
     icon: <BuildingIcon className="h-5 w-5" />,
-    bg: "bg-slate-50",
-    accent: "text-slate-700",
+    image: residentialRentalsImage,
+    imageAlt: "A residential apartment building representing rental units and long-term tenancy.",
   },
   {
     title: "Commercial shops & offices",
     body: "Track shop units, office occupancy, and portfolio-level payment status.",
     icon: <OfficeIcon className="h-5 w-5" />,
-    bg: "bg-blue-50",
-    accent: "text-blue-700",
+    image: commercialShopsOfficesImage,
+    imageAlt: "A modern commercial storefront and office frontage for mixed property portfolios.",
   },
   {
     title: "Owner statements",
     body: "Prepare clear summaries owners can review without extra back-and-forth.",
     icon: <DocumentIcon className="h-5 w-5" />,
-    bg: "bg-amber-50",
-    accent: "text-amber-700",
+    image: ownerStatementsImage,
+    imageAlt: "A professional statement and document review scene for owner reporting.",
   },
   {
     title: "Payments / deposits",
     body: "See collected amounts, pending balances, and deposit movement at a glance.",
     icon: <CashIcon className="h-5 w-5" />,
-    bg: "bg-emerald-50",
-    accent: "text-emerald-700",
+    image: paymentsDepositsImage,
+    imageAlt: "A payment and deposit tracking scene with receipts and finance records.",
   },
   {
     title: "Cleaning / maintenance",
     body: "Keep turnovers visible and assign follow-up work before the next arrival.",
     icon: <WrenchIcon className="h-5 w-5" />,
-    bg: "bg-slate-50",
-    accent: "text-slate-700",
+    image: cleaningMaintenanceImage,
+    imageAlt: "A professional cleaning and maintenance scene for serviced property turnover.",
   },
 ] as const;
 
@@ -312,20 +318,31 @@ function VisualTile({
   title,
   body,
   icon,
-  bg,
-  accent,
+  image,
+  imageAlt,
 }: {
   title: string;
   body: string;
   icon: ReactNode;
-  bg: string;
-  accent: string;
+  image: string;
+  imageAlt: string;
 }) {
   return (
-    <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:border-blue-200 hover:shadow-md">
-      <div className={`flex h-11 w-11 items-center justify-center rounded-xl ${bg} ${accent}`}>{icon}</div>
-      <h3 className="mt-3 text-sm font-black text-slate-950">{title}</h3>
-      <p className="mt-1.5 text-sm leading-6 text-slate-600">{body}</p>
+    <article className="flex h-full flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:border-blue-200 hover:shadow-md">
+      <div className="relative overflow-hidden border-b border-slate-200 bg-slate-100">
+        <img src={image} alt={imageAlt} className="h-40 w-full object-cover sm:h-44" loading="lazy" />
+        <div className="absolute inset-0 bg-gradient-to-t from-slate-950/18 via-transparent to-transparent" />
+      </div>
+      <div className="flex flex-1 flex-col p-4">
+        <div className="inline-flex items-center gap-2 self-start rounded-full border border-blue-100 bg-blue-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-blue-700">
+          <span className="grid h-4 w-4 place-items-center rounded-full bg-white text-blue-700 shadow-sm">
+            {icon}
+          </span>
+          <span>Property view</span>
+        </div>
+        <h3 className="mt-3 text-sm font-black text-slate-950">{title}</h3>
+        <p className="mt-1.5 text-sm leading-6 text-slate-600">{body}</p>
+      </div>
     </article>
   );
 }
