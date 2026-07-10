@@ -6,20 +6,11 @@ import { requireAuth } from "../middleware/requireAuth";
 import { loadReportEngineInput } from "../repositories/reportsRepository";
 import { getSettingsSections } from "../repositories/settingsRepository";
 import { buildReports } from "../services/reportEngine";
+import { buildReportLinkToken, buildReportVersionSignature, getReportLinkExpiry, isReportLinkExpired, sha256Hex } from "../services/reportLinkService";
 import { defaultSettingsSections } from "../../shared/types/settings";
 import type { PreferredContactMethod } from "@prisma/client";
 import { getPublicAppUrl } from "../config/publicUrl";
 import { sanitizeReportCardForRender, sanitizeReportPersonalizationForReport, sanitizeSchoolSettingsForReport } from "../../shared/utils/reportContentLimits";
-
-// ── Token helpers (mirrors reportIssueRoutes.ts) ─────────────────────────────
-
-function generateToken(): string {
-  return crypto.randomBytes(32).toString("hex");
-}
-
-function hashToken(token: string): string {
-  return crypto.createHash("sha256").update(token).digest("hex");
-}
 
 function generateReferenceCode(): string {
   const now = new Date();
@@ -79,8 +70,9 @@ export type DeliveryStatus =
 
 function computeDeliveryStatus(
   readiness: string,
-  issued: { status: string; viewedAt: Date | null; downloadedAt: Date | null; sentAt: Date | null } | null,
+  issued: { status: string; viewedAt: Date | null; downloadedAt: Date | null; sentAt: Date | null; expiresAt: Date | null } | null,
   hasContact: boolean,
+  isExpired: boolean,
 ): DeliveryStatus {
   if (readiness === "NO_FINALIZED_MARKS" || readiness === "NO_STUDENTS" || readiness === "NO_SUBJECTS" || readiness === "NO_ACTIVE_TERM") {
     return "NOT_FINALIZED";
@@ -88,6 +80,7 @@ function computeDeliveryStatus(
   if (!issued) return hasContact ? "NOT_ISSUED" : "MISSING_CONTACT";
   if (issued.status === "REVOKED") return "REVOKED";
   if (issued.status === "SUPERSEDED") return "SUPERSEDED";
+  if (isExpired) return hasContact ? "NOT_ISSUED" : "MISSING_CONTACT";
   // issued.status === "ISSUED"
   if (issued.downloadedAt) return "DOWNLOADED";
   if (issued.viewedAt) return "OPENED";
@@ -178,6 +171,7 @@ export function releaseCenterRoutes() {
 
       const search = filters.search?.toLowerCase();
 
+      const now = new Date();
       const rows = reportResult.cards
         .filter((card) => {
           if (!search) return true;
@@ -192,7 +186,8 @@ export function releaseCenterRoutes() {
           const contacts = contactsByStudent.get(card.studentId) ?? [];
           const contact = resolveContact(contacts);
           const issued = issuedByStudent.get(card.studentId) ?? null;
-          const deliveryStatus = computeDeliveryStatus(card.readiness, issued, contact !== null);
+          const isExpired = issued ? isReportLinkExpired(issued.expiresAt, now) : false;
+          const deliveryStatus = computeDeliveryStatus(card.readiness, issued, contact !== null, isExpired);
 
           return {
             studentId: card.studentId,
@@ -200,16 +195,24 @@ export function releaseCenterRoutes() {
             studentName: card.studentName,
             reportReadiness: card.readiness,
             primaryContact: contact,
+            isExpired,
             issuedReport: issued
               ? {
                   id: issued.id,
                   referenceCode: issued.referenceCode,
                   status: issued.status,
                   issuedAt: issued.issuedAt.toISOString(),
+                  expiresAt: issued.expiresAt?.toISOString() ?? null,
                   issuedByName: issued.issuedByName,
                   viewedAt: issued.viewedAt?.toISOString() ?? null,
+                  lastViewedAt: issued.lastViewedAt?.toISOString() ?? null,
+                  openCount: issued.openCount,
                   downloadedAt: issued.downloadedAt?.toISOString() ?? null,
+                  lastDownloadedAt: issued.lastDownloadedAt?.toISOString() ?? null,
+                  downloadCount: issued.downloadCount,
                   sentAt: issued.sentAt?.toISOString() ?? null,
+                  revokedAt: issued.revokedAt?.toISOString() ?? null,
+                  revokeReason: issued.revokeReason ?? null,
                 }
               : null,
             deliveryStatus,
@@ -228,7 +231,8 @@ export function releaseCenterRoutes() {
         sentManually: rows.filter((r) => r.deliveryStatus === "SENT_MANUALLY").length,
         opened: rows.filter((r) => r.deliveryStatus === "OPENED").length,
         downloaded: rows.filter((r) => r.deliveryStatus === "DOWNLOADED").length,
-        needsAttention: rows.filter((r) => ["NOT_FINALIZED", "MISSING_CONTACT", "REVOKED"].includes(r.deliveryStatus)).length,
+        expired: rows.filter((r) => r.isExpired).length,
+        needsAttention: rows.filter((r) => ["NOT_FINALIZED", "MISSING_CONTACT", "REVOKED"].includes(r.deliveryStatus) || r.isExpired).length,
       };
 
       res.json({
@@ -253,6 +257,7 @@ export function releaseCenterRoutes() {
       const schoolCode = req.school!.code;
       const user = req.user!;
       const settings = await getSettingsSections(prisma, schoolCode);
+      const termExpiry = getReportLinkExpiry(settings.academic.termEndDate);
 
       const filters = {
         ...body,
@@ -284,19 +289,6 @@ export function releaseCenterRoutes() {
           continue;
         }
 
-        // Supersede existing ISSUED reports
-        await prisma.issuedReport.updateMany({
-          where: {
-            schoolId: user.schoolId,
-            studentId: card.studentId,
-            academicYear: engineInput.academicYearName,
-            term: engineInput.termName,
-            assessmentType: filters.assessmentType,
-            status: "ISSUED",
-          },
-          data: { status: "SUPERSEDED", updatedAt: new Date() },
-        });
-
         const snapshot = {
           card: sanitizeReportCardForRender(card),
           settings: {
@@ -308,13 +300,108 @@ export function releaseCenterRoutes() {
           issuedByName: user.name,
           filters,
         };
+        const snapshotSignature = buildReportVersionSignature(snapshot);
+        const existingReports = await prisma.issuedReport.findMany({
+          where: {
+            schoolId: user.schoolId,
+            studentId: card.studentId,
+            academicYear: engineInput.academicYearName,
+            term: engineInput.termName,
+            assessmentType: filters.assessmentType,
+          },
+          orderBy: { issuedAt: "desc" },
+        });
+        const activeExisting = existingReports.find((report) => report.status === "ISSUED" && !isReportLinkExpired(report.expiresAt));
+        const activeExistingSignature = activeExisting ? buildReportVersionSignature(activeExisting.reportSnapshotJson) : null;
 
-        const rawToken = generateToken();
-        const tokenHash = hashToken(rawToken);
+        if (activeExisting && activeExistingSignature === snapshotSignature) {
+          const rawToken = buildReportLinkToken({
+            reportId: activeExisting.id,
+            snapshotSignature,
+            schoolId: user.schoolId,
+            studentId: card.studentId,
+            academicYear: engineInput.academicYearName,
+            term: engineInput.termName,
+            assessmentType: filters.assessmentType,
+          });
+
+          issued.push({
+            studentId: card.studentId,
+            studentName: card.studentName,
+            referenceCode: activeExisting.referenceCode,
+            parentLink: `${getPublicAppUrl()}/parent/r/${rawToken}`,
+            parentAccessToken: rawToken,
+            issuedReportId: activeExisting.id,
+          });
+
+          await prisma.auditLog.create({
+            data: {
+              schoolId: user.schoolId,
+              action: "report.link_reused",
+              correlationId: activeExisting.id,
+              details: {
+                issuedReportId: activeExisting.id,
+                referenceCode: activeExisting.referenceCode,
+                studentId: card.studentId,
+                academicYear: engineInput.academicYearName,
+                term: engineInput.termName,
+                assessmentType: filters.assessmentType,
+                actorId: user.userId,
+                actorName: user.name,
+              },
+            },
+          });
+          continue;
+        }
+
+        if (activeExisting) {
+          await prisma.issuedReport.updateMany({
+            where: {
+              schoolId: user.schoolId,
+              studentId: card.studentId,
+              academicYear: engineInput.academicYearName,
+              term: engineInput.termName,
+              assessmentType: filters.assessmentType,
+              status: "ISSUED",
+            },
+            data: { status: "SUPERSEDED", updatedAt: new Date() },
+          });
+
+          await prisma.auditLog.create({
+            data: {
+              schoolId: user.schoolId,
+              action: "report.link_replaced",
+              correlationId: activeExisting.id,
+              details: {
+                previousIssuedReportId: activeExisting.id,
+                previousReferenceCode: activeExisting.referenceCode,
+                studentId: card.studentId,
+                academicYear: engineInput.academicYearName,
+                term: engineInput.termName,
+                assessmentType: filters.assessmentType,
+                actorId: user.userId,
+                actorName: user.name,
+              },
+            },
+          });
+        }
+
+        const recordId = crypto.randomUUID();
+        const rawToken = buildReportLinkToken({
+          reportId: recordId,
+          snapshotSignature,
+          schoolId: user.schoolId,
+          studentId: card.studentId,
+          academicYear: engineInput.academicYearName,
+          term: engineInput.termName,
+          assessmentType: filters.assessmentType,
+        });
+        const tokenHash = sha256Hex(rawToken);
         const referenceCode = generateReferenceCode();
 
         const record = await prisma.issuedReport.create({
           data: {
+            id: recordId,
             schoolId: user.schoolId,
             studentId: card.studentId,
             academicYear: engineInput.academicYearName,
@@ -324,8 +411,27 @@ export function releaseCenterRoutes() {
             referenceCode,
             parentAccessToken: tokenHash,
             status: "ISSUED",
+            expiresAt: termExpiry,
             issuedById: user.userId,
             issuedByName: user.name,
+          },
+        });
+
+        await prisma.auditLog.create({
+          data: {
+            schoolId: user.schoolId,
+            action: "report.link_issued",
+            correlationId: record.id,
+            details: {
+              issuedReportId: record.id,
+              referenceCode,
+              studentId: card.studentId,
+              academicYear: engineInput.academicYearName,
+              term: engineInput.termName,
+              assessmentType: filters.assessmentType,
+              actorId: user.userId,
+              actorName: user.name,
+            },
           },
         });
 
@@ -361,7 +467,37 @@ export function releaseCenterRoutes() {
           skipped.push({ studentId, studentName: "", reason: "No issued link" });
           continue;
         }
-        await prisma.issuedReport.updateMany({ where: { id: record.id, schoolId: user.schoolId }, data: { sentAt: record.sentAt ?? new Date() } });
+        if (record.status !== "ISSUED") {
+          skipped.push({ studentId, studentName: `${record.student.firstName} ${record.student.lastName}`, reason: `Already ${record.status.toLowerCase()}` });
+          continue;
+        }
+        if (isReportLinkExpired(record.expiresAt)) {
+          skipped.push({ studentId, studentName: `${record.student.firstName} ${record.student.lastName}`, reason: "Expired" });
+          continue;
+        }
+        const sentAt = record.sentAt ?? new Date();
+        await prisma.issuedReport.updateMany({
+          where: { id: record.id, schoolId: user.schoolId },
+          data: {
+            sentAt,
+          },
+        });
+        if (!record.sentAt) {
+          await prisma.auditLog.create({
+            data: {
+              schoolId: user.schoolId,
+              action: "report.link_marked_sent",
+              correlationId: record.id,
+              details: {
+                issuedReportId: record.id,
+                studentId: record.studentId,
+                sentAt: sentAt.toISOString(),
+                actorId: user.userId,
+                actorName: user.name,
+              },
+            },
+          });
+        }
         updated += 1;
       }
       res.json({ updated, skipped });
@@ -390,7 +526,32 @@ export function releaseCenterRoutes() {
           skipped.push({ studentId, studentName: `${record.student.firstName} ${record.student.lastName}`, reason: "Already revoked" });
           continue;
         }
-        await prisma.issuedReport.updateMany({ where: { id: record.id, schoolId: user.schoolId }, data: { status: "REVOKED", updatedAt: new Date() } });
+        if (record.status !== "ISSUED") {
+          skipped.push({ studentId, studentName: `${record.student.firstName} ${record.student.lastName}`, reason: `Already ${record.status.toLowerCase()}` });
+          continue;
+        }
+        if (isReportLinkExpired(record.expiresAt)) {
+          skipped.push({ studentId, studentName: `${record.student.firstName} ${record.student.lastName}`, reason: "Expired" });
+          continue;
+        }
+        const revokedAt = new Date();
+        await prisma.issuedReport.updateMany({
+          where: { id: record.id, schoolId: user.schoolId },
+          data: { status: "REVOKED", revokedAt, revokeReason: null, updatedAt: revokedAt },
+        });
+        await prisma.auditLog.create({
+          data: {
+            schoolId: user.schoolId,
+            action: "report.link_revoked",
+            correlationId: record.id,
+            details: {
+              issuedReportId: record.id,
+              studentId: record.studentId,
+              actorId: user.userId,
+              actorName: user.name,
+            },
+          },
+        });
         updated += 1;
       }
       res.json({ updated, skipped });
@@ -402,7 +563,7 @@ export function releaseCenterRoutes() {
   // POST /api/reports/release/:id/mark-sent
   router.post("/api/reports/release/:id/mark-sent", requireAuth, async (req, res, next) => {
     try {
-      const { id } = req.params;
+      const { id } = req.params as { id: string };
       const user = req.user!;
 
       const existing = await prisma.issuedReport.findFirst({
@@ -419,6 +580,11 @@ export function releaseCenterRoutes() {
         return;
       }
 
+      if (isReportLinkExpired(existing.expiresAt)) {
+        res.status(410).json({ error: "Cannot mark as sent: report link has expired." });
+        return;
+      }
+
       const updated = await prisma.issuedReport.updateMany({
         where: { id, schoolId: user.schoolId },
         data: { sentAt: existing.sentAt ?? new Date() },
@@ -426,6 +592,21 @@ export function releaseCenterRoutes() {
       if (!updated.count) {
         res.status(404).json({ error: "Issued report not found." });
         return;
+      }
+
+      if (!existing.sentAt) {
+        await prisma.auditLog.create({
+          data: {
+            schoolId: user.schoolId,
+            action: "report.link_marked_sent",
+            correlationId: id,
+            details: {
+              issuedReportId: id,
+              actorId: user.userId,
+              actorName: user.name,
+            },
+          },
+        });
       }
 
       res.json({ id, sentAt: existing.sentAt ?? new Date() });
@@ -437,7 +618,7 @@ export function releaseCenterRoutes() {
   // POST /api/reports/release/:id/revoke
   router.post("/api/reports/release/:id/revoke", requireAuth, async (req, res, next) => {
     try {
-      const { id } = req.params;
+      const { id } = req.params as { id: string };
       const user = req.user!;
 
       const existing = await prisma.issuedReport.findFirst({
@@ -454,14 +635,33 @@ export function releaseCenterRoutes() {
         return;
       }
 
+      if (isReportLinkExpired(existing.expiresAt)) {
+        res.status(410).json({ error: "Report link has expired." });
+        return;
+      }
+
+      const revokedAt = new Date();
       const updated = await prisma.issuedReport.updateMany({
         where: { id, schoolId: user.schoolId },
-        data: { status: "REVOKED", updatedAt: new Date() },
+        data: { status: "REVOKED", revokedAt, revokeReason: null, updatedAt: revokedAt },
       });
       if (!updated.count) {
         res.status(404).json({ error: "Issued report not found." });
         return;
       }
+
+      await prisma.auditLog.create({
+        data: {
+          schoolId: user.schoolId,
+          action: "report.link_revoked",
+          correlationId: id,
+          details: {
+            issuedReportId: id,
+            actorId: user.userId,
+            actorName: user.name,
+          },
+        },
+      });
 
       res.json({ id, status: "REVOKED" });
     } catch (error) {

@@ -26,15 +26,23 @@ export type ReleaseRow = {
   studentName: string;
   reportReadiness: string;
   primaryContact: ResolvedContact;
+  isExpired?: boolean;
   issuedReport: {
     id: string;
     referenceCode: string;
     status: "ISSUED" | "REVOKED" | "SUPERSEDED";
     issuedAt: string;
+    expiresAt: string | null;
     issuedByName: string | null;
     viewedAt: string | null;
+    lastViewedAt: string | null;
+    openCount: number;
     downloadedAt: string | null;
+    lastDownloadedAt: string | null;
+    downloadCount: number;
     sentAt: string | null;
+    revokedAt: string | null;
+    revokeReason: string | null;
   } | null;
   deliveryStatus: DeliveryStatus;
 };
@@ -48,6 +56,7 @@ export type ReleaseSummary = {
   sentManually: number;
   opened: number;
   downloaded: number;
+  expired: number;
   needsAttention: number;
 };
 

@@ -34,6 +34,7 @@ vi.mock("../../client/releaseCenterClient", () => ({
       sentManually: 0,
       opened: 0,
       downloaded: 0,
+      expired: 0,
       needsAttention: 1,
     },
     meta: { academicYear: "2025/2026", term: "Term 1", assessmentType: "EOT", schoolName: "Demo School" },
