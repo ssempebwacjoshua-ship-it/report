@@ -1,8 +1,15 @@
 import { Link } from "react-router-dom";
 import type { ReactNode } from "react";
 import { FaqSection } from "../components/marketing/FaqSection";
+import { HERO_CHIP_CARD_CLASS, HERO_CHIP_SUBTITLE_CLASS, HERO_CHIP_TITLE_CLASS } from "../components/marketing/heroChipStyles";
 import { buildWhatsAppUrl } from "../config/contact";
 import { RENTFLOW_FAQS } from "../content/discoverability";
+import shortStayAirbnbImage from "../assets/rentflow/short-stay-airbnb.webp";
+import residentialRentalsImage from "../assets/rentflow/residential-rentals.webp";
+import commercialShopsOfficesImage from "../assets/rentflow/commercial-shops-offices.webp";
+import ownerStatementsImage from "../assets/rentflow/owner-statements.webp";
+import paymentsDepositsImage from "../assets/rentflow/payments-deposits.webp";
+import cleaningMaintenanceImage from "../assets/rentflow/cleaning-maintenance.webp";
 import {
   BuildingIcon,
   CashIcon,
@@ -24,6 +31,17 @@ const HERO_METRICS = [
   { label: "Bookings today", value: "14" },
   { label: "Payments collected", value: "UGX 4.8m" },
   { label: "Pending balances", value: "UGX 1.2m" },
+  { label: "Cleaning tasks", value: "3" },
+  { label: "Checkout balance", value: "UGX 420k" },
+] as const;
+
+const HERO_FEATURES = [
+  { title: "Bookings", note: "Check-ins and stays" },
+  { title: "Tenants", note: "Lease records" },
+  { title: "Payments", note: "Rent and deposit tracking" },
+  { title: "Deposits", note: "Clear balances" },
+  { title: "Maintenance", note: "Open tasks" },
+  { title: "Owner Statements", note: "Month-end reporting" },
 ] as const;
 
 const WORKFLOW_STEPS = [
@@ -33,15 +51,27 @@ const WORKFLOW_STEPS = [
     body: "Create a portfolio, add rooms or shops, and keep every unit visible in one clean screen.",
     icon: <BuildingIcon className="h-5 w-5" />,
     preview: (
-      <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-3">
-        <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
-          <span>Kampala Heights</span>
-          <span>12 units</span>
-        </div>
-        <div className="mt-3 space-y-2">
-          <div className="h-2.5 w-11/12 rounded-full bg-blue-200" />
-          <div className="h-2.5 w-4/5 rounded-full bg-slate-200" />
-          <div className="h-2.5 w-2/3 rounded-full bg-slate-200" />
+      <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200 bg-slate-950 shadow-sm">
+        <div className="relative h-36 bg-gradient-to-br from-slate-950 via-blue-950 to-blue-700">
+          <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(255,255,255,0.08)_0%,rgba(255,255,255,0.02)_45%,rgba(2,6,23,0.18)_100%)]" />
+          <div className="absolute left-3 top-3 inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-white/90 backdrop-blur-sm">
+            <span>Kampala Heights</span>
+          </div>
+          <BuildingIcon className="absolute right-3 top-3 h-10 w-10 text-white/20" />
+          <div className="absolute inset-x-3 bottom-3 rounded-2xl border border-white/10 bg-slate-950/72 p-3 shadow-[0_10px_24px_rgba(2,8,23,0.25)] backdrop-blur-sm">
+            <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-[0.18em] text-blue-100">
+              <span>Unit overview</span>
+              <span>12 units</span>
+            </div>
+            <div className="mt-2 grid grid-cols-6 gap-1.5">
+              <div className="h-8 rounded-md bg-white/20" />
+              <div className="h-8 rounded-md bg-white/12" />
+              <div className="h-8 rounded-md bg-white/16" />
+              <div className="h-8 rounded-md bg-white/12" />
+              <div className="h-8 rounded-md bg-white/18" />
+              <div className="h-8 rounded-md bg-white/12" />
+            </div>
+          </div>
         </div>
       </div>
     ),
@@ -52,19 +82,29 @@ const WORKFLOW_STEPS = [
     body: "Capture check-ins, leases, and move-in dates without splitting short-stay and long-stay workflows.",
     icon: <PhoneIcon className="h-5 w-5" />,
     preview: (
-      <div className="mt-4 rounded-2xl border border-blue-100 bg-blue-50/70 p-3">
-        <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.18em] text-blue-700">
-          <span className="rounded-full bg-white px-2 py-1 shadow-sm">Today</span>
-          <span>3 check-ins</span>
-        </div>
-        <div className="mt-3 space-y-2">
-          <div className="flex items-center justify-between rounded-xl bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-sm">
-            <span>Room 4B</span>
-            <span className="text-blue-700">Booked</span>
+      <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200 bg-slate-950 shadow-sm">
+        <div className="relative h-36 bg-gradient-to-br from-blue-950 via-blue-800 to-cyan-500">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.24),transparent_34%),linear-gradient(180deg,rgba(255,255,255,0.08),transparent_55%)]" />
+          <div className="absolute left-3 top-3 inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-white/90 backdrop-blur-sm">
+            <span>Today</span>
           </div>
-          <div className="flex items-center justify-between rounded-xl bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-sm">
-            <span>Unit 2A</span>
-            <span className="text-emerald-600">Arriving</span>
+          <div className="absolute right-3 top-3 rounded-full border border-white/15 bg-white/10 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-white/90 backdrop-blur-sm">
+            3 check-ins
+          </div>
+          <div className="absolute left-4 right-4 top-12 grid grid-cols-7 gap-1 opacity-35">
+            {Array.from({ length: 21 }).map((_, index) => (
+              <div key={`booking-cell-${index}`} className="h-3 rounded-sm bg-white/40" />
+            ))}
+          </div>
+          <div className="absolute inset-x-3 bottom-3 space-y-2 rounded-2xl border border-white/10 bg-white/92 p-3 shadow-[0_10px_24px_rgba(2,8,23,0.22)]">
+            <div className="flex items-center justify-between rounded-xl bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-sm">
+              <span>Room 4B</span>
+              <span className="text-blue-700">Booked</span>
+            </div>
+            <div className="flex items-center justify-between rounded-xl bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-sm">
+              <span>Unit 2A</span>
+              <span className="text-emerald-600">Arriving</span>
+            </div>
           </div>
         </div>
       </div>
@@ -76,17 +116,24 @@ const WORKFLOW_STEPS = [
     body: "See rent, deposit, and balance movement together so nothing gets lost in spreadsheets.",
     icon: <CashIcon className="h-5 w-5" />,
     preview: (
-      <div className="mt-4 rounded-2xl border border-emerald-100 bg-emerald-50/70 p-3">
-        <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-[0.18em] text-emerald-700">
-          <span>Collected</span>
-          <span>65%</span>
-        </div>
-        <div className="mt-2 h-2 rounded-full bg-white">
-          <div className="h-full w-[65%] rounded-full bg-gradient-to-r from-emerald-500 to-emerald-400" />
-        </div>
-        <div className="mt-3 grid grid-cols-2 gap-2 text-xs font-semibold text-slate-700">
-          <div className="rounded-xl bg-white px-3 py-2 shadow-sm">Rent</div>
-          <div className="rounded-xl bg-white px-3 py-2 shadow-sm">Deposit</div>
+      <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200 bg-slate-950 shadow-sm">
+        <div className="relative h-36 bg-gradient-to-br from-slate-950 via-emerald-700 to-emerald-400">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.2),transparent_32%),linear-gradient(180deg,rgba(255,255,255,0.08),transparent_58%)]" />
+          <div className="absolute left-3 top-3 inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-white/90 backdrop-blur-sm">
+            <span>Collected</span>
+          </div>
+          <div className="absolute right-3 top-3 rounded-full border border-white/15 bg-white/10 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-white/90 backdrop-blur-sm">
+            65%
+          </div>
+          <div className="absolute left-4 right-4 top-12 rounded-2xl border border-white/10 bg-white/10 p-3 backdrop-blur-sm">
+            <div className="h-2 rounded-full bg-white/22">
+              <div className="h-full w-[65%] rounded-full bg-gradient-to-r from-white to-emerald-200" />
+            </div>
+            <div className="mt-3 grid grid-cols-2 gap-2 text-xs font-semibold text-white">
+              <div className="rounded-xl border border-white/10 bg-white/12 px-3 py-2 shadow-sm">Rent</div>
+              <div className="rounded-xl border border-white/10 bg-white/12 px-3 py-2 shadow-sm">Deposit</div>
+            </div>
+          </div>
         </div>
       </div>
     ),
@@ -97,14 +144,27 @@ const WORKFLOW_STEPS = [
     body: "Close out each stay with a bill, a balance summary, and an owner-ready statement.",
     icon: <PrinterIcon className="h-5 w-5" />,
     preview: (
-      <div className="mt-4 rounded-2xl border border-amber-100 bg-amber-50/70 p-3">
-        <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.18em] text-amber-700">
-          <DocumentIcon className="h-3.5 w-3.5" />
-          <span>Ready to send</span>
-        </div>
-        <div className="mt-3 space-y-2">
-          <div className="rounded-xl bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-sm">Checkout bill</div>
-          <div className="rounded-xl bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-sm">Owner statement</div>
+      <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200 bg-slate-950 shadow-sm">
+        <div className="relative h-36 bg-gradient-to-br from-slate-950 via-amber-700 to-orange-400">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.2),transparent_34%),linear-gradient(180deg,rgba(255,255,255,0.08),transparent_58%)]" />
+          <div className="absolute left-3 top-3 inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-white/90 backdrop-blur-sm">
+            <DocumentIcon className="h-3.5 w-3.5" />
+            <span>Ready to send</span>
+          </div>
+          <div className="absolute inset-x-4 top-12">
+            <div className="relative mx-auto max-w-[170px] rounded-2xl border border-white/15 bg-white/95 p-3 shadow-[0_14px_26px_rgba(2,8,23,0.25)]">
+              <div className="h-2 w-16 rounded-full bg-slate-200" />
+              <div className="mt-3 space-y-2">
+                <div className="h-2.5 rounded-full bg-slate-200/80" />
+                <div className="h-2.5 rounded-full bg-slate-200/80" />
+                <div className="h-2.5 w-4/5 rounded-full bg-slate-200/80" />
+              </div>
+            </div>
+          </div>
+          <div className="absolute inset-x-3 bottom-3 space-y-2 rounded-2xl border border-white/10 bg-white/92 p-3 shadow-[0_10px_24px_rgba(2,8,23,0.22)]">
+            <div className="rounded-xl bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-sm">Checkout bill</div>
+            <div className="rounded-xl bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-sm">Owner statement</div>
+          </div>
         </div>
       </div>
     ),
@@ -116,43 +176,43 @@ const RENTFLOW_VISUALS = [
     title: "Short-stay / Airbnb",
     body: "Fast booking, quick turnover, and simple occupancy tracking for busy hosts.",
     icon: <HomeIcon className="h-5 w-5" />,
-    bg: "bg-blue-50",
-    accent: "text-blue-700",
+    image: shortStayAirbnbImage,
+    imageAlt: "A furnished short-stay apartment room with a bed, windows, and warm lighting.",
   },
   {
     title: "Residential rentals",
     body: "Lease records, rent reminders, and clear tenant history for longer stays.",
     icon: <BuildingIcon className="h-5 w-5" />,
-    bg: "bg-slate-50",
-    accent: "text-slate-700",
+    image: residentialRentalsImage,
+    imageAlt: "A residential apartment building representing rental units and long-term tenancy.",
   },
   {
     title: "Commercial shops & offices",
     body: "Track shop units, office occupancy, and portfolio-level payment status.",
     icon: <OfficeIcon className="h-5 w-5" />,
-    bg: "bg-blue-50",
-    accent: "text-blue-700",
+    image: commercialShopsOfficesImage,
+    imageAlt: "A modern commercial storefront and office frontage for mixed property portfolios.",
   },
   {
     title: "Owner statements",
     body: "Prepare clear summaries owners can review without extra back-and-forth.",
     icon: <DocumentIcon className="h-5 w-5" />,
-    bg: "bg-amber-50",
-    accent: "text-amber-700",
+    image: ownerStatementsImage,
+    imageAlt: "A professional statement and document review scene for owner reporting.",
   },
   {
     title: "Payments / deposits",
     body: "See collected amounts, pending balances, and deposit movement at a glance.",
     icon: <CashIcon className="h-5 w-5" />,
-    bg: "bg-emerald-50",
-    accent: "text-emerald-700",
+    image: paymentsDepositsImage,
+    imageAlt: "A payment and deposit tracking scene with receipts and finance records.",
   },
   {
     title: "Cleaning / maintenance",
     body: "Keep turnovers visible and assign follow-up work before the next arrival.",
     icon: <WrenchIcon className="h-5 w-5" />,
-    bg: "bg-slate-50",
-    accent: "text-slate-700",
+    image: cleaningMaintenanceImage,
+    imageAlt: "A professional cleaning and maintenance scene for serviced property turnover.",
   },
 ] as const;
 
@@ -238,7 +298,7 @@ function WorkflowCard({
   preview: ReactNode;
 }) {
   return (
-    <article className="motion-card motion-card-stagger relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:border-blue-200 hover:shadow-md">
+    <article className="motion-card motion-card-stagger relative flex h-full flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:border-blue-200 hover:shadow-md">
       <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-blue-600 via-sky-400 to-cyan-300" />
       <div className="flex items-start justify-between gap-3">
         <span className="rounded-full bg-blue-50 px-2.5 py-1 text-[11px] font-black uppercase tracking-[0.18em] text-blue-700">
@@ -259,20 +319,31 @@ function VisualTile({
   title,
   body,
   icon,
-  bg,
-  accent,
+  image,
+  imageAlt,
 }: {
   title: string;
   body: string;
   icon: ReactNode;
-  bg: string;
-  accent: string;
+  image: string;
+  imageAlt: string;
 }) {
   return (
-    <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:border-blue-200 hover:shadow-md">
-      <div className={`flex h-11 w-11 items-center justify-center rounded-xl ${bg} ${accent}`}>{icon}</div>
-      <h3 className="mt-3 text-sm font-black text-slate-950">{title}</h3>
-      <p className="mt-1.5 text-sm leading-6 text-slate-600">{body}</p>
+    <article className="flex h-full flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:border-blue-200 hover:shadow-md">
+      <div className="relative overflow-hidden border-b border-slate-200 bg-slate-100">
+        <img src={image} alt={imageAlt} className="h-40 w-full object-cover sm:h-44" loading="lazy" />
+        <div className="absolute inset-0 bg-gradient-to-t from-slate-950/18 via-transparent to-transparent" />
+      </div>
+      <div className="flex flex-1 flex-col p-4">
+        <div className="inline-flex items-center gap-2 self-start rounded-full border border-blue-100 bg-blue-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-blue-700">
+          <span className="grid h-4 w-4 place-items-center rounded-full bg-white text-blue-700 shadow-sm">
+            {icon}
+          </span>
+          <span>Property view</span>
+        </div>
+        <h3 className="mt-3 text-sm font-black text-slate-950">{title}</h3>
+        <p className="mt-1.5 text-sm leading-6 text-slate-600">{body}</p>
+      </div>
     </article>
   );
 }
@@ -305,8 +376,8 @@ function PricingCard({
           <p className="text-[11px] font-black uppercase tracking-[0.2em] text-blue-700">{name}</p>
           <p className="mt-1 text-sm font-semibold text-slate-500">{unitLimit}</p>
         </div>
-        <span className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-amber-700">
-          First month free
+        <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-semibold tracking-[0.08em] text-slate-600">
+          Launch offer
         </span>
       </div>
 
@@ -327,7 +398,7 @@ function PricingCard({
         </div>
         <div className="flex items-center justify-between rounded-xl border border-slate-100 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-sm">
           <span>Offer</span>
-          <span>First month free</span>
+          <span>Launch offer</span>
         </div>
       </div>
 
@@ -348,94 +419,97 @@ function PricingCard({
   );
 }
 
-function DashboardPreview() {
+function PropertyBackdrop() {
   return (
-    <div className="relative overflow-hidden rounded-[1.75rem] border border-white/20 bg-white/95 p-4 text-slate-950 shadow-2xl backdrop-blur">
-      <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-blue-600 via-sky-400 to-amber-300" />
-      <div className="absolute right-4 top-4 rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-[11px] font-black uppercase tracking-[0.16em] text-amber-700">
-        First month free — setup fee applies.
-      </div>
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <p className="text-[11px] font-black uppercase tracking-[0.18em] text-blue-700">Portfolio dashboard</p>
-          <h2 className="mt-1 text-lg font-black text-slate-950">Everything on one screen</h2>
+    <div className="absolute inset-0 overflow-hidden rounded-[2rem] border border-white/10 bg-slate-950/20">
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_18%,rgba(255,255,255,0.16),transparent_28%),radial-gradient(circle_at_82%_22%,rgba(191,219,254,0.28),transparent_28%),linear-gradient(145deg,rgba(2,6,23,0.82),rgba(11,47,107,0.56) 52%,rgba(37,99,235,0.24))]" />
+      <div className="absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-slate-950/88 to-transparent" />
+
+      <div className="absolute left-5 bottom-0 h-52 w-28 rounded-t-[1.75rem] border border-white/10 bg-slate-900/60 shadow-[0_24px_50px_rgba(2,8,23,0.32)]">
+        <div className="absolute inset-x-3 top-4 flex items-center justify-between">
+          <span className="h-1.5 w-1.5 rounded-full bg-white/40" />
+          <span className="h-1.5 w-1.5 rounded-full bg-white/25" />
+          <span className="h-1.5 w-1.5 rounded-full bg-white/35" />
         </div>
-        <div className="rounded-2xl bg-blue-50 px-3 py-2 text-right">
-          <p className="text-[10px] font-black uppercase tracking-[0.16em] text-blue-700">Today</p>
-          <p className="mt-0.5 text-sm font-black text-slate-950">32 tasks</p>
+        <div className="absolute inset-x-3 bottom-4 grid grid-cols-2 gap-2">
+          {Array.from({ length: 8 }).map((_, index) => (
+            <div key={`left-window-${index}`} className="h-6 rounded-sm bg-white/18 shadow-inner" />
+          ))}
         </div>
       </div>
 
-      <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        {HERO_METRICS.map((metric, index) => (
+      <div className="absolute left-28 bottom-0 h-36 w-36 rounded-t-[1.75rem] border border-white/10 bg-slate-900/45 shadow-[0_22px_44px_rgba(2,8,23,0.28)]">
+        <div className="absolute inset-x-4 top-4 flex items-center gap-2">
+          <span className="h-1.5 w-10 rounded-full bg-white/18" />
+          <span className="h-1.5 w-6 rounded-full bg-white/14" />
+        </div>
+        <div className="absolute inset-x-4 bottom-4 grid grid-cols-3 gap-2">
+          {Array.from({ length: 9 }).map((_, index) => (
+            <div key={`middle-window-${index}`} className="h-5 rounded-sm bg-white/16" />
+          ))}
+        </div>
+      </div>
+
+      <div className="absolute right-6 top-7 h-36 w-32 rounded-[1.75rem] border border-white/10 bg-white/10 shadow-[0_22px_44px_rgba(2,8,23,0.24)] backdrop-blur-[2px]">
+        <div className="absolute inset-x-3 top-3 flex items-center justify-between">
+          <span className="h-1.5 w-8 rounded-full bg-white/25" />
+          <span className="h-1.5 w-3 rounded-full bg-white/20" />
+        </div>
+        <div className="absolute inset-x-3 bottom-3 grid grid-cols-2 gap-2">
+          {Array.from({ length: 8 }).map((_, index) => (
+            <div key={`right-window-${index}`} className="h-6 rounded-sm bg-white/15" />
+          ))}
+        </div>
+      </div>
+
+      <div className="absolute inset-x-0 bottom-6 h-px bg-white/12" />
+      <div className="absolute left-8 bottom-8 h-3 w-20 rounded-full bg-cyan-300/20 blur-[2px]" />
+      <div className="absolute right-12 bottom-10 h-3 w-14 rounded-full bg-blue-200/18 blur-[2px]" />
+    </div>
+  );
+}
+
+function DashboardPreview() {
+  return (
+    <div className="relative overflow-hidden rounded-2xl border border-slate-200/80 bg-white/94 p-4 text-slate-950 shadow-[0_24px_50px_rgba(2,8,23,0.24)] backdrop-blur-sm">
+      <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-blue-700 via-blue-500 to-slate-300" />
+      <div className="mb-4 flex items-start justify-between gap-4">
+        <div>
+          <p className="text-[11px] font-black uppercase tracking-[0.18em] text-blue-700">Portfolio dashboard</p>
+          <h2 className="mt-1 text-base font-black tracking-tight text-slate-950">Daily operations at a glance</h2>
+        </div>
+        <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-right">
+          <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">Status</p>
+          <p className="mt-0.5 text-sm font-black text-slate-950">Live portfolio</p>
+        </div>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        {HERO_METRICS.map((metric) => (
           <div
             key={metric.label}
-            className={[
-              "rounded-2xl border p-3 shadow-sm",
-              index === 0
-                ? "border-blue-200 bg-blue-50"
-                : index === 1
-                  ? "border-slate-200 bg-white"
-                  : index === 2
-                    ? "border-emerald-200 bg-emerald-50"
-                    : "border-amber-200 bg-amber-50",
-            ].join(" ")}
+            className="rounded-xl border border-slate-200 bg-slate-50 p-3 shadow-sm"
           >
-            <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">{metric.label}</p>
-            <p className="mt-1 text-xl font-black text-slate-950">{metric.value}</p>
+            <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">{metric.label}</p>
+            <p className="mt-1 text-lg font-black tracking-tight text-slate-950">{metric.value}</p>
           </div>
         ))}
       </div>
 
-      <div className="mt-4 grid gap-3 lg:grid-cols-[1.15fr_0.85fr]">
-        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
-          <div className="flex items-center justify-between gap-3">
-            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">Cleaning tasks</p>
-            <span className="rounded-full bg-white px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-blue-700 shadow-sm">
-              3 pending
-            </span>
-          </div>
-          <div className="mt-3 space-y-2">
-            <div className="flex items-center justify-between rounded-xl bg-white px-3 py-2 shadow-sm">
-              <span className="text-xs font-semibold text-slate-700">Suite 2A turnover</span>
-              <span className="text-xs font-black text-amber-700">Queued</span>
-            </div>
-            <div className="flex items-center justify-between rounded-xl bg-white px-3 py-2 shadow-sm">
-              <span className="text-xs font-semibold text-slate-700">Studio 6B refresh</span>
-              <span className="text-xs font-black text-emerald-600">Ready</span>
-            </div>
-          </div>
+      <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3">
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">Operational note</p>
+          <DocumentIcon className="h-4 w-4 text-slate-700" />
         </div>
-
-        <div className="grid gap-3">
-          <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
-            <div className="flex items-center justify-between">
-              <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">Maintenance</p>
-              <span className="text-xs font-black text-blue-700">2 items</span>
-            </div>
-            <div className="mt-3 space-y-2">
-              <div className="h-2 rounded-full bg-slate-100">
-                <div className="h-full w-[72%] rounded-full bg-gradient-to-r from-blue-600 to-sky-400" />
-              </div>
-              <div className="h-2 rounded-full bg-slate-100">
-                <div className="h-full w-[44%] rounded-full bg-gradient-to-r from-amber-400 to-amber-300" />
-              </div>
-            </div>
-          </div>
-          <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
-            <div className="flex items-center justify-between">
-              <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">Owner statements</p>
-              <DocumentIcon className="h-4 w-4 text-blue-700" />
-            </div>
-            <p className="mt-2 text-sm font-semibold text-slate-700">Ready for month-end export and review.</p>
-          </div>
-        </div>
+        <p className="mt-2 text-sm font-semibold leading-6 text-slate-700">
+          Owner statements are ready for month-end export, with cleaning and checkout work kept visible in the same dashboard.
+        </p>
       </div>
 
       <div className="mt-4 grid gap-3 sm:grid-cols-[1.05fr_0.95fr]">
-        <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+        <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
           <div className="flex items-center gap-2">
-            <span className="grid h-8 w-8 place-items-center rounded-xl bg-blue-50 text-blue-700">
+            <span className="grid h-8 w-8 place-items-center rounded-lg bg-slate-50 text-slate-700">
               <CashIcon className="h-4 w-4" />
             </span>
             <div>
@@ -444,10 +518,10 @@ function DashboardPreview() {
             </div>
           </div>
         </div>
-        <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
-          <div className="flex items-center gap-2">
-            <span className="grid h-8 w-8 place-items-center rounded-xl bg-amber-50 text-amber-700">
-              <WrenchIcon className="h-4 w-4" />
+          <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+            <div className="flex items-center gap-2">
+              <span className="grid h-8 w-8 place-items-center rounded-lg bg-slate-50 text-slate-700">
+                <WrenchIcon className="h-4 w-4" />
             </span>
             <div>
               <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">Maintenance note</p>
@@ -546,69 +620,70 @@ function DevicePanel() {
 export function RentFlowPage() {
   return (
     <div className="bg-slate-50 text-slate-950">
-      <section className="site-hero-blue site-hero-compact border-b text-white" style={{ borderColor: "rgba(15,91,216,0.3)" }}>
-        <div className="absolute inset-0 bg-dot-grid opacity-[0.12]" />
-        <div className="home-hero-content mx-auto grid max-w-7xl gap-6 px-4 sm:px-6 lg:grid-cols-12 lg:items-center lg:px-8">
+      <section className="site-hero-blue site-hero-compact hero-rhythm border-b text-white" style={{ borderColor: "rgba(15,91,216,0.3)" }}>
+        <div className="absolute inset-0 bg-dot-grid opacity-[0.08]" />
+        <div className="home-hero-content mx-auto grid max-w-7xl gap-8 px-4 sm:px-6 lg:grid-cols-12 lg:items-center lg:px-8">
           <div className="lg:col-span-7">
-            <div className="marketing-fade-up inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.2em] text-blue-50">
+            <div className="marketing-fade-up inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-blue-50">
               <BuildingIcon className="h-3.5 w-3.5" />
               SSAMENJ RentFlow
             </div>
-            <h1 className="marketing-fade-up-delay-1 mt-2 hero-title font-black text-white">
+            <h1 className="marketing-fade-up-delay-1 mt-3 max-w-2xl text-[2.1rem] font-black leading-[1.06] tracking-tight text-white sm:text-5xl lg:text-[3.1rem]">
               Manage rentals, Airbnb rooms, shops, and apartments from one system.
             </h1>
-            <p className="marketing-fade-up-delay-2 mt-2.5 max-w-2xl text-sm leading-7 text-blue-50 sm:text-base">
+            <p className="marketing-fade-up-delay-2 mt-3 max-w-2xl text-sm leading-7 text-blue-50 sm:text-base">
               SSAMENJ RentFlow helps property owners and managers track bookings, tenants, payments, deposits,
               maintenance, cleaning, owner statements, and checkout balances.
             </p>
 
-            <div className="marketing-fade-up-delay-3 mt-4 flex flex-col gap-3 sm:flex-row">
+            <div className="marketing-fade-up-delay-3 mt-5 flex flex-col gap-3 sm:flex-row">
               <a
                 href={BOOK_DEMO_URL}
                 target="_blank"
                 rel="noreferrer"
-                className="btn marketing-button-motion motion-cta rounded-xl bg-white px-4 py-3 text-sm font-black text-blue-700 hover:bg-blue-50"
+                className="btn marketing-button-motion motion-cta rounded-xl bg-white px-4 py-3 text-sm font-black text-blue-700 shadow-sm hover:bg-slate-50"
               >
                 Book a walkthrough
               </a>
               <Link
                 to="/pricing"
-                className="btn marketing-button-motion motion-cta rounded-xl border border-white/25 bg-white/10 px-4 py-3 text-sm font-bold text-white hover:bg-white/15"
+                className="btn marketing-button-motion motion-cta rounded-xl border border-white/20 bg-white/10 px-4 py-3 text-sm font-semibold text-white hover:bg-white/15"
               >
                 View pricing
               </Link>
               <Link
                 to="/contact"
-                className="btn marketing-button-motion motion-cta rounded-xl border border-white/25 bg-white/10 px-4 py-3 text-sm font-bold text-white hover:bg-white/15"
+                className="btn marketing-button-motion motion-cta rounded-xl border border-white/20 bg-transparent px-4 py-3 text-sm font-semibold text-white hover:bg-white/10"
               >
                 Contact us
               </Link>
             </div>
 
-            <div className="mt-4 grid grid-cols-2 gap-2.5 sm:grid-cols-4">
-              {[
-                "Bookings",
-                "Tenants",
-                "Deposits",
-                "Owner statements",
-              ].map((metric, index) => (
+            <div className="mt-5 grid grid-cols-2 gap-2.5 sm:grid-cols-3">
+              {HERO_FEATURES.map((feature) => (
                 <div
-                  key={metric}
-                  className={`marketing-card-motion rounded-2xl border border-white/25 bg-white/[0.12] px-4 py-3 transition-all duration-200 hover:border-white/40 hover:bg-white/[0.18] ${index === 0 ? "marketing-fade-up-delay-1" : index === 1 ? "marketing-fade-up-delay-2" : "marketing-fade-up-delay-3"}`}
-                  style={{ backdropFilter: "blur(6px)" }}
+                  key={feature.title}
+                  className={`${HERO_CHIP_CARD_CLASS} px-3 py-2.5`}
                 >
-                  <p className="text-sm font-black text-white">{metric}</p>
-                  <p className="mt-0.5 text-[11px] uppercase tracking-[0.16em] text-blue-100">Property tracking</p>
+                  <p className={HERO_CHIP_TITLE_CLASS}>{feature.title}</p>
+                  <p className={HERO_CHIP_SUBTITLE_CLASS}>{feature.note}</p>
                 </div>
               ))}
             </div>
           </div>
 
           <div className="lg:col-span-5">
-            <div className="relative">
-              <DashboardPreview />
-              <div className="mt-4 lg:absolute lg:-bottom-10 lg:right-3 lg:mt-0 lg:w-[260px]">
-                <PhonePreview />
+            <div className="relative mx-auto max-w-[560px]">
+              <div className="relative rounded-[2rem] border border-white/10 bg-slate-950/15 p-3 shadow-[0_24px_60px_rgba(2,8,23,0.26)]">
+                <PropertyBackdrop />
+                <div className="relative z-10 pt-2 lg:pr-24 lg:pb-14">
+                  <div className="max-w-[470px]">
+                    <DashboardPreview />
+                  </div>
+                </div>
+                <div className="mt-4 lg:absolute lg:-bottom-8 lg:right-3 lg:mt-0 lg:w-[232px]">
+                  <PhonePreview />
+                </div>
               </div>
             </div>
           </div>
@@ -699,10 +774,10 @@ export function RentFlowPage() {
             <SectionHeading
               eyebrow="Pricing"
               title="Pricing cards that read like a SaaS plan grid."
-              description="The launch offer keeps the first month free while the setup fee still applies during onboarding."
+              description="The launch offer keeps pricing straightforward while the setup fee still applies during onboarding."
             />
-            <div className="rounded-full border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-black uppercase tracking-[0.18em] text-amber-700">
-              First month free — setup fee applies.
+            <div className="rounded-full border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] font-semibold tracking-[0.08em] text-slate-600">
+              Launch offer: first month free. Setup fee applies.
             </div>
           </div>
 

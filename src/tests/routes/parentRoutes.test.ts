@@ -34,15 +34,27 @@ describe("parentRoutes - GET /api/p/:token", () => {
   });
 
   it("returns a limited public snapshot without internal ids", async () => {
+    const auditLogCreate = vi.fn(async () => ({}));
+    const issuedUpdate = vi.fn(async () => ({}));
     const prisma = {
       issuedReport: {
         findUnique: vi.fn(async () => ({
           id: "issued-1",
+          schoolId: "school-1",
           status: "ISSUED",
           referenceCode: "20260626-ABC123",
           issuedAt: new Date("2026-06-26T00:00:00.000Z"),
+          expiresAt: null,
           issuedByName: "School Admin",
           viewedAt: null,
+          lastViewedAt: null,
+          openCount: 0,
+          downloadedAt: null,
+          lastDownloadedAt: null,
+          downloadCount: 0,
+          sentAt: null,
+          revokedAt: null,
+          revokeReason: null,
           reportSnapshotJson: {
             card: {
               studentId: "student-1",
@@ -87,18 +99,58 @@ describe("parentRoutes - GET /api/p/:token", () => {
           },
           school: { name: "Preview School" },
         })),
-        update: vi.fn(async () => ({})),
+        update: issuedUpdate,
       },
+      auditLog: { create: auditLogCreate },
     };
 
     const app = await mountRouteApp("../../server/routes/parentRoutes", "parentRoutes", prisma);
     const res = await request(app).get(`/api/p/${"b".repeat(64)}`);
 
     expect(res.status).toBe(200);
+    expect(issuedUpdate).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: "issued-1" },
+      data: expect.objectContaining({
+        viewedAt: expect.any(Date),
+        lastViewedAt: expect.any(Date),
+      }),
+    }));
+    expect(auditLogCreate).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        schoolId: "school-1",
+        action: "report.link_opened",
+        correlationId: "issued-1",
+      }),
+    }));
     expect(res.body).not.toHaveProperty("id");
     expect(res.body.snapshot.card.studentId).toBe("");
     expect(res.body.snapshot.card.subjects[0].subjectId).toBe("");
     expect(res.body.snapshot.card.contactSummary).toBe("");
+  });
+
+  it("returns 410 for expired links", async () => {
+    const prisma = {
+      issuedReport: {
+        findUnique: vi.fn(async () => ({
+          id: "issued-expired",
+          schoolId: "school-1",
+          status: "ISSUED",
+          expiresAt: new Date("2020-01-01T00:00:00.000Z"),
+          reportSnapshotJson: {},
+          school: { name: "Preview School" },
+        })),
+        update: vi.fn(async () => ({})),
+      },
+      auditLog: { create: vi.fn(async () => ({})) },
+    };
+
+    const app = await mountRouteApp("../../server/routes/parentRoutes", "parentRoutes", prisma);
+    const res = await request(app).get(`/api/p/${"x".repeat(64)}`);
+
+    expect(res.status).toBe(410);
+    expect(res.body.code).toBe("REPORT_LINK_EXPIRED");
+    expect(prisma.issuedReport.update).not.toHaveBeenCalled();
+    expect(prisma.auditLog.create).not.toHaveBeenCalled();
   });
 
   it("returns 410 for revoked links", async () => {
@@ -106,7 +158,9 @@ describe("parentRoutes - GET /api/p/:token", () => {
       issuedReport: {
         findUnique: vi.fn(async () => ({
           id: "issued-1",
+          schoolId: "school-1",
           status: "REVOKED",
+          expiresAt: null,
           reportSnapshotJson: {},
           school: { name: "Preview School" },
         })),
@@ -138,11 +192,14 @@ describe("parentRoutes - POST /api/p/:token/downloaded", () => {
       issuedReport: {
         findUnique: vi.fn(async () => ({
           id: "issued-1",
+          schoolId: "school-1",
           status: "REVOKED",
+          expiresAt: null,
           downloadedAt: null,
         })),
         update: vi.fn(async () => ({})),
       },
+      auditLog: { create: vi.fn(async () => ({})) },
     };
 
     const app = await mountRouteApp("../../server/routes/parentRoutes", "parentRoutes", prisma);
@@ -150,6 +207,44 @@ describe("parentRoutes - POST /api/p/:token/downloaded", () => {
 
     expect(res.status).toBe(410);
     expect(prisma.issuedReport.update).not.toHaveBeenCalled();
+  });
+
+  it("records downloads and audit events for valid links", async () => {
+    const issuedUpdate = vi.fn(async () => ({}));
+    const auditLogCreate = vi.fn(async () => ({}));
+    const prisma = {
+      issuedReport: {
+        findUnique: vi.fn(async () => ({
+          id: "issued-2",
+          schoolId: "school-1",
+          status: "ISSUED",
+          expiresAt: null,
+          downloadedAt: null,
+          viewedAt: null,
+        })),
+        update: issuedUpdate,
+      },
+      auditLog: { create: auditLogCreate },
+    };
+
+    const app = await mountRouteApp("../../server/routes/parentRoutes", "parentRoutes", prisma);
+    const res = await request(app).post(`/api/p/${"f".repeat(64)}/downloaded`);
+
+    expect(res.status).toBe(200);
+    expect(issuedUpdate).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: "issued-2" },
+      data: expect.objectContaining({
+        downloadedAt: expect.any(Date),
+        lastDownloadedAt: expect.any(Date),
+      }),
+    }));
+    expect(auditLogCreate).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        schoolId: "school-1",
+        action: "report.link_downloaded",
+        correlationId: "issued-2",
+      }),
+    }));
   });
 });
 

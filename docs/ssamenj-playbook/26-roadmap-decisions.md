@@ -14,6 +14,9 @@ Temporary ideas should not be added here unless they affect future implementatio
 - Security is part of every task, not a final hardening phase.
 - Never weaken auth, permissions, tenant isolation, upload safety, safe errors, audit logs, AI/RAG safety, or production secret handling.
 - New routes must define auth, permission, tenant scope, validation, audit need, rate-limit need, safe error behavior, and tests before implementation.
+- Client data safety, backup/PITR, production migration safety, soft delete/archive behavior, and incident response are mandatory for every SSAMENJ production app.
+- Production databases must be separated from staging, development, and test databases, with least-privilege credentials for app, migration, read-only, and break-glass access.
+- Sensitive client data should be archived, versioned, voided, or reversed rather than silently deleted.
 
 ## AI/RAG Decisions
 

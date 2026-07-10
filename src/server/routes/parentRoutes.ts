@@ -1,10 +1,10 @@
-import crypto from "node:crypto";
 import { Router } from "express";
 import { prisma } from "../db/prisma";
+import { isReportLinkExpired, sha256Hex } from "../services/reportLinkService";
 import { sanitizeReportCardForRender, sanitizeReportComments, sanitizeReportPersonalizationForReport, sanitizeSchoolSettingsForReport } from "../../shared/utils/reportContentLimits";
 
 function hashToken(token: string): string {
-  return crypto.createHash("sha256").update(token).digest("hex");
+  return sha256Hex(token);
 }
 
 function buildPublicSnapshot(snapshot: any) {
@@ -107,12 +107,31 @@ export function parentRoutes() {
         return;
       }
 
-      if (!issued.viewedAt) {
-        await prisma.issuedReport.update({
-          where: { id: issued.id },
-          data: { viewedAt: new Date() },
-        });
+      if (isReportLinkExpired(issued.expiresAt)) {
+        res.status(410).json({ message: "This report link has expired", code: "REPORT_LINK_EXPIRED" });
+        return;
       }
+
+      const openedAt = new Date();
+      await prisma.issuedReport.update({
+        where: { id: issued.id },
+        data: {
+          viewedAt: issued.viewedAt ?? openedAt,
+          lastViewedAt: openedAt,
+          openCount: { increment: 1 },
+        },
+      });
+      await prisma.auditLog.create({
+        data: {
+          schoolId: issued.schoolId,
+          action: "report.link_opened",
+          correlationId: issued.id,
+          details: {
+            issuedReportId: issued.id,
+            referenceCode: issued.referenceCode,
+          },
+        },
+      });
 
       res.json({
         status: issued.status,
@@ -151,12 +170,31 @@ export function parentRoutes() {
         return;
       }
 
-      if (!issued.downloadedAt) {
-        await prisma.issuedReport.update({
-          where: { id: issued.id },
-          data: { downloadedAt: new Date() },
-        });
+      if (isReportLinkExpired(issued.expiresAt)) {
+        res.status(410).json({ message: "This report link has expired", code: "REPORT_LINK_EXPIRED" });
+        return;
       }
+
+      const downloadedAt = new Date();
+      await prisma.issuedReport.update({
+        where: { id: issued.id },
+        data: {
+          downloadedAt: issued.downloadedAt ?? downloadedAt,
+          lastDownloadedAt: downloadedAt,
+          downloadCount: { increment: 1 },
+        },
+      });
+      await prisma.auditLog.create({
+        data: {
+          schoolId: issued.schoolId,
+          action: "report.link_downloaded",
+          correlationId: issued.id,
+          details: {
+            issuedReportId: issued.id,
+            referenceCode: issued.referenceCode,
+          },
+        },
+      });
 
       res.json({ ok: true });
     } catch (error) {

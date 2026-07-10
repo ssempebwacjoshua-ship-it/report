@@ -27,9 +27,18 @@ const BOOK_DEMO_WA = buildWhatsAppUrl(
   "Hello SSAMENJ Technologies! I would like to book a demo for School Connect.",
 );
 
-function planWA(range: string) {
+function planWA(plan: PricingPlan) {
+  const annualLicence = plan.termFee * plan.termsPerYear;
+  const firstYearTotal = annualLicence + plan.launchSetupFee;
+
   return buildWhatsAppUrl(
-    `Hello SSAMENJ Technologies! I would like to get started with School Connect for ${range}.`,
+    [
+      `Hello SSAMENJ Technologies! I would like to get started with School Connect for ${plan.range}.`,
+      `Equivalent term fee: UGX ${formatUgx(plan.termFee)}`,
+      `Annual licence: UGX ${formatUgx(plan.termFee)} x ${plan.termsPerYear} terms = UGX ${formatUgx(annualLicence)} / year`,
+      `One-Time Setup Fee: UGX ${formatUgx(plan.launchSetupFee)}`,
+      `First Year Total: UGX ${formatUgx(firstYearTotal)}`,
+    ].join("\n"),
   );
 }
 function creditWA(pack: string) {
@@ -37,6 +46,19 @@ function creditWA(pack: string) {
     `Hello SSAMENJ Technologies! I would like to get the ${pack} Smart Pages credit pack.`,
   );
 }
+
+function formatUgx(amount: number) {
+  return amount.toLocaleString("en-US");
+}
+
+type PricingPlan = {
+  range: string;
+  termFee: number;
+  termsPerYear: number;
+  standardSetupFee: number;
+  launchSetupFee: number;
+  highlighted?: boolean;
+};
 
 // ── Badge ──────────────────────────────────────────────────────────────────────
 
@@ -66,19 +88,24 @@ function Badge({
 
 function AnnualPlanCard({
   range,
-  annualPrice,
-  setupFee,
+  termFee,
+  termsPerYear,
+  standardSetupFee,
+  launchSetupFee,
   href,
   highlighted = false,
   isCustom = false,
 }: {
   range: string;
-  annualPrice?: string;
-  setupFee?: string;
+  termFee?: number;
+  termsPerYear?: number;
+  standardSetupFee?: number;
+  launchSetupFee?: number;
   href: string;
   highlighted?: boolean;
   isCustom?: boolean;
 }) {
+  const annualLicence = (termFee ?? 0) * (termsPerYear ?? 3);
   return (
     <article
       className={[
@@ -111,20 +138,29 @@ function AnnualPlanCard({
           </div>
         ) : (
           <div className="mt-3 flex-1">
-            {/* Annual license — prominent */}
+            {/* Annual licence — prominent */}
             <div>
-              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Annual License</p>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">EQUIVALENT TERM FEE</p>
               <div className="mt-1 flex items-baseline gap-1">
                 <span className="text-xs font-bold text-slate-500">UGX</span>
-                <span className="text-3xl font-black tracking-tight text-slate-950">{annualPrice}</span>
-                <span className="text-sm font-bold text-slate-400">/ yr</span>
+                <span className="text-3xl font-black tracking-tight text-slate-950">{formatUgx(termFee ?? 0)}</span>
+                <span className="text-sm font-bold text-slate-400">/ term</span>
               </div>
+              <p className="mt-1.5 text-xs leading-5 text-slate-500">Annual licence is calculated across 3 school terms.</p>
+              <p className="mt-1 text-xs font-semibold text-slate-500">
+                Annual licence: UGX {formatUgx(termFee ?? 0)} x {termsPerYear ?? 3} terms = UGX {formatUgx(annualLicence)} / year
+              </p>
             </div>
 
             {/* Setup fee — secondary */}
             <div className="mt-3 rounded-xl border border-slate-100 bg-slate-50 px-3 py-2.5">
-              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">One-time Setup Fee</p>
-              <p className="mt-0.5 text-sm font-black text-slate-700">UGX {setupFee}</p>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">ONE-TIME SETUP FEE</p>
+              <p className="mt-0.5 text-sm font-black text-slate-400 line-through">
+                Standard: UGX {formatUgx(standardSetupFee ?? 0)}
+              </p>
+              <p className="mt-0.5 text-sm font-black text-slate-700">
+                Launch Offer: UGX {formatUgx(launchSetupFee ?? 0)}
+              </p>
             </div>
           </div>
         )}
@@ -236,11 +272,11 @@ const OPTIONAL_ADDONS = [
 
 // ── Plans ──────────────────────────────────────────────────────────────────────
 
-const PLANS = [
-  { range: "Up to 500 Students",   annualPrice: "300,000",   setupFee: "500,000" },
-  { range: "Up to 1,000 Students", annualPrice: "600,000",   setupFee: "500,000", highlighted: true },
-  { range: "Up to 1,500 Students", annualPrice: "900,000",   setupFee: "1,000,000" },
-  { range: "Up to 2,000 Students", annualPrice: "1,200,000", setupFee: "1,000,000" },
+const PLANS: PricingPlan[] = [
+  { range: "Up to 500 Students", termFee: 300000, termsPerYear: 3, standardSetupFee: 800000, launchSetupFee: 500000 },
+  { range: "Up to 1,000 Students", termFee: 600000, termsPerYear: 3, standardSetupFee: 800000, launchSetupFee: 500000, highlighted: true },
+  { range: "Up to 1,500 Students", termFee: 900000, termsPerYear: 3, standardSetupFee: 1500000, launchSetupFee: 1000000 },
+  { range: "Up to 2,000 Students", termFee: 1200000, termsPerYear: 3, standardSetupFee: 1500000, launchSetupFee: 1000000 },
 ];
 
 // ── Page ───────────────────────────────────────────────────────────────────────
@@ -255,11 +291,11 @@ export function PricingPage() {
           style={{ background: "#0B2F6B", borderColor: "rgba(255,255,255,0.1)" }}
         >
           <span className="font-black text-amber-300">Launch Offer:</span>{" "}
-          <span className="font-medium text-white/90">First Term Free — setup fee applies. Annual license is billed yearly. Smart Pages trial includes 10 pages.</span>
+          <span className="font-medium text-white/90">Reduced setup fee available for early schools. Pricing is shown as an equivalent term amount, while the annual licence is calculated across 3 school terms.</span>
         </div>
 
         {/* ── Hero ── */}
-        <section className="home-hero-image-bg site-hero-compact border-b text-white" style={{ borderColor: "rgba(15,91,216,0.3)" }}>
+        <section className="home-hero-image-bg site-hero-compact hero-rhythm border-b text-white" style={{ borderColor: "rgba(15,91,216,0.3)" }}>
           <div className="absolute inset-0 bg-dot-grid opacity-[0.12]" />
           <div className="home-hero-content mx-auto grid max-w-7xl gap-6 px-4 sm:px-6 lg:grid-cols-12 lg:items-center lg:px-8">
             <div className="lg:col-span-7">
@@ -267,11 +303,10 @@ export function PricingPage() {
                 School Connect · Pricing
               </div>
               <h1 className="marketing-fade-up-delay-1 mt-2 hero-title font-black text-white">
-                Annual pricing for School Connect Report Lab &amp; Smart Pages.
+                Annual licence plans for School Connect Report Lab &amp; Smart Pages.
               </h1>
               <p className="marketing-fade-up-delay-2 mt-2.5 max-w-2xl text-sm leading-7 text-blue-50 sm:text-base">
-                One annual license covers both Report Lab and Smart Pages for your entire school.
-                Choose the plan that fits your student count. Setup is a one-time fee paid during onboarding.
+                All plans include both Report Lab and Smart Pages. Pricing is shown as an equivalent term amount, and the annual licence is calculated across 3 school terms.
               </p>
               <p className="mt-2 text-xs text-blue-200">
                 Looking for NFC Wristbands pricing?{" "}
@@ -279,9 +314,7 @@ export function PricingPage() {
                   School Connect NFC is priced by quotation ↓
                 </a>
               </p>
-              <p className="mt-2 text-sm font-semibold text-blue-200">
-                Annual license is billed yearly. Setup fee is paid once during onboarding.
-              </p>
+              <p className="mt-2 text-sm font-semibold text-blue-200">We charge yearly. The term amount is shown only as an equivalent display price.</p>
               <div className="marketing-fade-up-delay-3 mt-5 flex flex-col gap-3 sm:flex-row">
                 <a
                   href={REQUEST_PRICING_WA}
@@ -304,9 +337,9 @@ export function PricingPage() {
               <div className="grid gap-2.5 sm:grid-cols-3 lg:grid-cols-1">
                 <div className="marketing-card-motion marketing-fade-up-delay-1 relative overflow-hidden rounded-2xl border border-white/30 bg-white/95 p-3.5 shadow-sm backdrop-blur-sm">
                   <div className="absolute inset-x-0 top-0 h-[3px] bg-gradient-to-r from-blue-600 via-sky-400 to-cyan-300" />
-                  <p className="text-[11px] font-black uppercase tracking-[0.18em] text-blue-700">Annual License</p>
+                  <p className="text-[11px] font-black uppercase tracking-[0.18em] text-blue-700">Equivalent Term Fee</p>
                   <p className="mt-1.5 text-xs leading-5 text-slate-600">
-                    One license per year covers your full school — no per-user or per-term fees.
+                    Annual licence is calculated across 3 school terms.
                   </p>
                 </div>
                 <div className="marketing-card-motion marketing-fade-up-delay-2 relative overflow-hidden rounded-2xl border border-white/30 bg-white/95 p-3.5 shadow-sm backdrop-blur-sm">
@@ -339,12 +372,12 @@ export function PricingPage() {
         <section id="plans" className="border-b border-slate-200 bg-white px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
           <div className="mx-auto max-w-7xl">
             <div className="mb-6">
-              <p className="text-xs font-black uppercase tracking-[0.2em] text-blue-700">Annual Plans</p>
+              <p className="text-xs font-black uppercase tracking-[0.2em] text-blue-700">Annual Licence Plans</p>
               <h2 className="mt-1.5 text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">
                 School Connect Report Lab + Smart Pages
               </h2>
               <p className="mt-2 text-sm text-slate-500">
-                All plans include both Report Lab and Smart Pages. Billed annually. Setup fee is one-time.
+                All plans include both Report Lab and Smart Pages. Pricing is shown as an equivalent term amount, and the annual licence is calculated across 3 school terms.
               </p>
             </div>
 
@@ -353,9 +386,11 @@ export function PricingPage() {
                 <AnnualPlanCard
                   key={plan.range}
                   range={plan.range}
-                  annualPrice={plan.annualPrice}
-                  setupFee={plan.setupFee}
-                  href={planWA(plan.range)}
+                  termFee={plan.termFee}
+                  termsPerYear={plan.termsPerYear}
+                  standardSetupFee={plan.standardSetupFee}
+                  launchSetupFee={plan.launchSetupFee}
+                  href={planWA(plan)}
                   highlighted={plan.highlighted}
                 />
               ))}
@@ -371,7 +406,7 @@ export function PricingPage() {
             </div>
 
             <p className="mt-4 text-xs text-slate-400">
-              Annual license is billed yearly. Setup fee is a one-time payment made during onboarding.
+              We charge yearly. The term amount is shown only as an equivalent display price.
             </p>
           </div>
         </section>
@@ -663,12 +698,12 @@ export function PricingPage() {
             <h2 className="mt-2 text-2xl font-black tracking-tight text-slate-950">Common pricing questions</h2>
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
               <InfoCard
-                title="Is this monthly or yearly pricing?"
-                body="All School Connect plans are annual — billed once per year. There are no monthly subscriptions or per-term fees."
+                title="Is this monthly, termly, or yearly pricing?"
+                body="All School Connect plans are annual licence pricing only. The public pricing page does not show monthly or termly billing."
               />
               <InfoCard
-                title="What is included in the first-term-free offer?"
-                body="The launch offer gives schools the first term free on the core school software package, while the setup fee still applies during onboarding."
+                title="What is included in the launch offer?"
+                body="The launch offer reduces the one-time setup fee for early schools. The annual licence itself is not discounted."
               />
               <InfoCard
                 title="Does setup fee apply?"
@@ -702,7 +737,7 @@ export function PricingPage() {
                   Get your school set up on School Connect this year.
                 </h2>
                 <p className="mt-2 text-sm text-slate-500">
-                  Annual license. One-time setup. Everything your school needs to generate reports and manage documents.
+                  Annual licence. One-time setup. Everything your school needs to generate reports and manage documents.
                 </p>
               </div>
               <div id="contact" className="grid gap-3 lg:col-span-4">
@@ -734,7 +769,7 @@ export function PricingPage() {
             <div className="mt-5 grid gap-3 md:grid-cols-3">
               <div className="motion-card rounded-2xl border border-slate-200 bg-slate-50 p-3.5">
                 <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">Billing</p>
-                <p className="mt-1.5 text-sm font-semibold text-slate-950">Annual license billed once per year</p>
+                <p className="mt-1.5 text-sm font-semibold text-slate-950">Annual licence billed once per year</p>
               </div>
               <div className="motion-card rounded-2xl border border-slate-200 bg-slate-50 p-3.5">
                 <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">WhatsApp</p>

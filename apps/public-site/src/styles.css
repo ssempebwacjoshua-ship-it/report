@@ -259,6 +259,10 @@ body {
   padding-bottom: 1.75rem;
 }
 
+.hero-rhythm {
+  min-height: clamp(34rem, 70svh, 40rem);
+}
+
 @media (min-width: 640px) {
   .site-hero-compact {
     padding-top: 2.25rem;
@@ -270,6 +274,12 @@ body {
   .site-hero-compact {
     padding-top: 2.75rem;
     padding-bottom: 2.75rem;
+  }
+}
+
+@media (max-width: 767px) {
+  .hero-rhythm {
+    min-height: auto;
   }
 }
 

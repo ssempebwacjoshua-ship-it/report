@@ -10,6 +10,7 @@ import {
   SparklesIcon,
 } from "../components/marketing/Icons";
 import { MarketingFeatureCard } from "../components/marketing/MarketingFeatureCard";
+import { HERO_CHIP_CARD_CLASS, HERO_CHIP_SUBTITLE_CLASS, HERO_CHIP_TITLE_CLASS } from "../components/marketing/heroChipStyles";
 import { buildWhatsAppUrl } from "../config/contact";
 import { HOME_FAQS } from "../content/discoverability";
 
@@ -34,10 +35,10 @@ export function SSAMENJHomePage() {
         <span className="font-medium text-white/90">First Term Free for pioneer schools — setup fee applies. Smart Pages trial includes 10 pages.</span>
       </div>
 
-      <section className="home-hero-image-bg site-hero-compact border-b text-white" style={{ borderColor: "rgba(15,91,216,0.3)" }}>
+      <section className="home-hero-image-bg site-hero-compact hero-rhythm border-b text-white" style={{ borderColor: "rgba(15,91,216,0.3)" }}>
         <div className="absolute inset-0 bg-dot-grid opacity-[0.12]" />
         <div className="home-hero-content mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="max-w-xl">
+          <div className="max-w-4xl">
             <div className="marketing-fade-up inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.2em] text-blue-50">
               <SparklesIcon className="h-3.5 w-3.5" />
               SSAMENJ Technologies
@@ -62,35 +63,37 @@ export function SSAMENJHomePage() {
               </a>
             </div>
 
-            <div className="mt-6 grid grid-cols-2 gap-2.5 sm:grid-cols-4 xl:grid-cols-7">
-              <Link to="/contact" className="motion-card motion-card-stagger marketing-fade-up-delay-1 cursor-pointer rounded-2xl border border-white/25 bg-white/[0.12] px-4 py-3 transition-all duration-200 hover:border-white/40 hover:bg-white/[0.18]" style={{ backdropFilter: "blur(6px)" }}>
-                <p className="text-sm font-black text-white">School Connect</p>
-                <p className="mt-0.5 text-[11px] uppercase tracking-[0.16em] text-blue-100">SCHOOL MANAGEMENT SOFTWARE.</p>
+            <div className="mt-6 rounded-[1.75rem] border border-white/10 bg-blue-950/20 p-2 shadow-[0_18px_40px_rgba(2,8,23,0.18)]">
+              <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              <Link to="/contact" className={`${HERO_CHIP_CARD_CLASS} marketing-fade-up-delay-1`}>
+                <p className={HERO_CHIP_TITLE_CLASS}>School Connect</p>
+                <p className={HERO_CHIP_SUBTITLE_CLASS}>School Management Software</p>
               </Link>
-              <Link to="/report-lab" className="motion-card motion-card-stagger marketing-fade-up-delay-2 cursor-pointer rounded-2xl border border-white/25 bg-white/[0.12] px-4 py-3 transition-all duration-200 hover:border-white/40 hover:bg-white/[0.18]" style={{ backdropFilter: "blur(6px)" }}>
-                <p className="text-sm font-black text-white">Report Lab</p>
-                <p className="mt-0.5 text-[11px] uppercase tracking-[0.16em] text-blue-100">REPORT CARD SYSTEM.</p>
+              <Link to="/report-lab" className={`${HERO_CHIP_CARD_CLASS} marketing-fade-up-delay-2`}>
+                <p className={HERO_CHIP_TITLE_CLASS}>Report Lab</p>
+                <p className={HERO_CHIP_SUBTITLE_CLASS}>Report Card System</p>
               </Link>
-              <Link to="/smart-pages" className="motion-card motion-card-stagger marketing-fade-up-delay-3 cursor-pointer rounded-2xl border border-white/25 bg-white/[0.12] px-4 py-3 transition-all duration-200 hover:border-white/40 hover:bg-white/[0.18]" style={{ backdropFilter: "blur(6px)" }}>
-                <p className="text-sm font-black text-white">Smart Pages</p>
-                <p className="mt-0.5 text-[11px] uppercase tracking-[0.16em] text-blue-100">DIGITAL SCHOOL DOCUMENTS.</p>
+              <Link to="/smart-pages" className={`${HERO_CHIP_CARD_CLASS} marketing-fade-up-delay-3`}>
+                <p className={HERO_CHIP_TITLE_CLASS}>Smart Pages</p>
+                <p className={HERO_CHIP_SUBTITLE_CLASS}>Digital School Documents</p>
               </Link>
-              <Link to="/nfc" className="motion-card motion-card-stagger marketing-fade-up-delay-3 cursor-pointer rounded-2xl border border-white/25 bg-white/[0.12] px-4 py-3 transition-all duration-200 hover:border-white/40 hover:bg-white/[0.18]" style={{ backdropFilter: "blur(6px)" }}>
-                <p className="text-sm font-black text-white">NFC Wristbands</p>
-                <p className="mt-0.5 text-[11px] uppercase tracking-[0.16em] text-blue-100">ATTENDANCE AND GATE CONTROL.</p>
+              <Link to="/nfc" className={`${HERO_CHIP_CARD_CLASS} marketing-fade-up-delay-3`}>
+                <p className={HERO_CHIP_TITLE_CLASS}>NFC Wristbands</p>
+                <p className={HERO_CHIP_SUBTITLE_CLASS}>Attendance and Gate Control</p>
               </Link>
-              <Link to="/rentflow" className="motion-card motion-card-stagger marketing-fade-up-delay-3 cursor-pointer rounded-2xl border border-white/25 bg-white/[0.12] px-4 py-3 transition-all duration-200 hover:border-white/40 hover:bg-white/[0.18]" style={{ backdropFilter: "blur(6px)" }}>
-                <p className="text-sm font-black text-white">RentFlow</p>
-                <p className="mt-0.5 text-[11px] uppercase tracking-[0.16em] text-blue-100">PROPERTY MANAGEMENT SOFTWARE.</p>
+              <Link to="/rentflow" className={`${HERO_CHIP_CARD_CLASS} marketing-fade-up-delay-3`}>
+                <p className={HERO_CHIP_TITLE_CLASS}>RentFlow</p>
+                <p className={HERO_CHIP_SUBTITLE_CLASS}>Property Management Software</p>
               </Link>
-              <Link to="/cashless-canteen" className="motion-card motion-card-stagger marketing-fade-up-delay-3 cursor-pointer rounded-2xl border border-white/25 bg-white/[0.12] px-4 py-3 transition-all duration-200 hover:border-white/40 hover:bg-white/[0.18]" style={{ backdropFilter: "blur(6px)" }}>
-                <p className="text-sm font-black text-white">Cashless Canteen</p>
-                <p className="mt-0.5 text-[11px] uppercase tracking-[0.16em] text-blue-100">CASHLESS SCHOOL CANTEEN.</p>
+              <Link to="/cashless-canteen" className={`${HERO_CHIP_CARD_CLASS} marketing-fade-up-delay-3`}>
+                <p className={HERO_CHIP_TITLE_CLASS}>Cashless Canteen</p>
+                <p className={HERO_CHIP_SUBTITLE_CLASS}>Cashless School Canteen</p>
               </Link>
-              <Link to="/stayos" className="motion-card motion-card-stagger marketing-fade-up-delay-3 cursor-pointer rounded-2xl border border-white/25 bg-white/[0.12] px-4 py-3 transition-all duration-200 hover:border-white/40 hover:bg-white/[0.18]" style={{ backdropFilter: "blur(6px)" }}>
-                <p className="text-sm font-black text-white">StayOS</p>
-                <p className="mt-0.5 text-[11px] uppercase tracking-[0.16em] text-blue-100">PROPERTY OPERATIONS SOFTWARE.</p>
+              <Link to="/stayos" className={`${HERO_CHIP_CARD_CLASS} marketing-fade-up-delay-3`}>
+                <p className={HERO_CHIP_TITLE_CLASS}>StayOS</p>
+                <p className={HERO_CHIP_SUBTITLE_CLASS}>Property Operations Software</p>
               </Link>
+              </div>
             </div>
           </div>
         </div>

@@ -24,10 +24,15 @@ describe("RentFlow public website", () => {
     expect(screen.getByText("SSAMENJ RentFlow")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Manage rentals, Airbnb rooms, shops, and apartments from one system." })).toBeInTheDocument();
     expect(screen.getByText("Portfolio dashboard")).toBeInTheDocument();
-    expect(screen.getByText("Occupancy")).toBeInTheDocument();
+    expect(screen.getAllByText("Occupancy")).toHaveLength(1);
+    expect(screen.getAllByText("Bookings today")).toHaveLength(1);
+    expect(screen.getAllByText("Payments collected")).toHaveLength(1);
+    expect(screen.getAllByText("Pending balances")).toHaveLength(2);
+    expect(screen.getAllByText("Cleaning tasks")).toHaveLength(1);
+    expect(screen.getByText("Checkout balance")).toBeInTheDocument();
     expect(screen.getAllByText("Today's bookings")).toHaveLength(2);
     expect(screen.getByRole("heading", { name: "Built for phone-first property operations." })).toBeInTheDocument();
-    expect(screen.getAllByText("First month free").length).toBeGreaterThanOrEqual(5);
+    expect(screen.getAllByText("Launch offer").length).toBeGreaterThanOrEqual(5);
     expect(screen.getByText("Starter")).toBeInTheDocument();
     expect(screen.getByText("Standard")).toBeInTheDocument();
     expect(screen.getByText("Growth")).toBeInTheDocument();
