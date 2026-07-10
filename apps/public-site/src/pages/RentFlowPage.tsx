@@ -331,7 +331,16 @@ function VisualTile({
   return (
     <article className="flex h-full flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:border-blue-200 hover:shadow-md">
       <div className="relative overflow-hidden border-b border-slate-200 bg-slate-100">
-        <img src={image} alt={imageAlt} className="h-40 w-full object-cover sm:h-44" loading="lazy" />
+        <img
+          src={image}
+          alt={imageAlt}
+          className="h-40 w-full object-cover sm:h-44"
+          width={1600}
+          height={900}
+          loading="lazy"
+          decoding="async"
+          sizes="(min-width: 1280px) 33vw, (min-width: 768px) 50vw, 100vw"
+        />
         <div className="absolute inset-0 bg-gradient-to-t from-slate-950/18 via-transparent to-transparent" />
       </div>
       <div className="flex flex-1 flex-col p-4">
