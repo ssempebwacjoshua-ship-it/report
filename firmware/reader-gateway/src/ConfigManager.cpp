@@ -53,7 +53,7 @@ ReaderGatewayConfig ConfigManager::defaults() {
 bool ConfigManager::load(ReaderGatewayConfig& config) {
   config = defaults();
   if (!LittleFS.exists(path_)) {
-    return false;
+    return save(config);
   }
 
   File file = LittleFS.open(path_, FILE_READ);

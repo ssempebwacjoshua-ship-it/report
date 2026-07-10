@@ -64,25 +64,55 @@ The device loads JSON from LittleFS at:
 /reader-gateway/config.json
 ```
 
+First-time provisioning workflow:
+
+1. Copy the committed example to the live LittleFS config path:
+
+   ```powershell
+   Copy-Item .\data\reader-gateway\config.json.example .\data\reader-gateway\config.json
+   ```
+
+2. Edit `data/reader-gateway/config.json` and fill in:
+   - `wifiSsid`
+   - `wifiPassword`
+   - `schoolId`
+   - `readerId`
+   - `apiBaseUrl`
+   - `bearerToken`
+   - optional `tlsInsecure`
+   - optional `retryIntervalMs`
+
+3. Upload the filesystem image to the ESP32 with PlatformIO LittleFS:
+
+   ```powershell
+   & "$env:USERPROFILE\.platformio\penv\Scripts\platformio.exe" run --target uploadfs --upload-port COM6
+   ```
+
+4. Reboot the reader. On boot, the serial monitor should move from `Queued Offline` to:
+
+   ```text
+   Wi-Fi Connected
+   Upload Success
+   ```
+
 Example configuration:
 
 ```json
 {
-  "deviceId": "attendance-gate-01",
-  "schoolId": "school-001",
   "readerId": "attendance-gate-01",
-  "wifiSsid": "School Wi-Fi",
-  "wifiPassword": "secret",
-  "apiBaseUrl": "https://school-connect.example.com",
+  "schoolId": "YOUR_SCHOOL_ID",
+  "wifiSsid": "YOUR_WIFI_NAME",
+  "wifiPassword": "YOUR_WIFI_PASSWORD",
+  "apiBaseUrl": "https://YOUR_API_DOMAIN",
+  "bearerToken": "YOUR_DEVICE_TOKEN",
+  "tlsInsecure": true,
+  "retryIntervalMs": 30000,
   "eventsPath": "/api/readers/events",
   "registrationPath": "/api/readers/register",
-  "bearerToken": "replace-me",
   "firmwareVersion": "1.0.0",
-  "retryIntervalMs": 10000,
   "wifiReconnectIntervalMs": 15000,
   "wiegandTimeoutMs": 30,
-  "ntpServer": "pool.ntp.org",
-  "tlsInsecure": true
+  "ntpServer": "pool.ntp.org"
 }
 ```
 

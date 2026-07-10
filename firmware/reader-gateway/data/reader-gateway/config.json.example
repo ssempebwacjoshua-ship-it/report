@@ -1,0 +1,17 @@
+{
+  "readerId": "attendance-gate-01",
+  "schoolId": "YOUR_SCHOOL_ID",
+  "wifiSsid": "YOUR_WIFI_NAME",
+  "wifiPassword": "YOUR_WIFI_PASSWORD",
+  "apiBaseUrl": "https://YOUR_API_DOMAIN",
+  "bearerToken": "YOUR_DEVICE_TOKEN",
+  "tlsInsecure": true,
+  "retryIntervalMs": 30000,
+  "eventsPath": "/api/readers/events",
+  "registrationPath": "/api/readers/register",
+  "firmwareVersion": "1.0.0",
+  "wifiReconnectIntervalMs": 15000,
+  "wiegandTimeoutMs": 30,
+  "ntpServer": "pool.ntp.org",
+  "autoRegister": true
+}
