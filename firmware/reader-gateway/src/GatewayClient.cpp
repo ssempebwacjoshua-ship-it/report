@@ -36,7 +36,7 @@ void GatewayClient::applyTls(WiFiClientSecure& client, const ReaderGatewayConfig
 }
 
 String GatewayClient::buildBasePayload(const ReaderGatewayConfig& config, const ReaderScanEvent* event, bool registration) const {
-  DynamicJsonDocument doc(1536);
+  JsonDocument doc;
   doc["deviceId"] = config.deviceId;
   doc["readerId"] = config.readerId;
   doc["schoolId"] = config.schoolId;
@@ -69,7 +69,7 @@ bool GatewayClient::parseResponse(const String& body, int statusCode, ReaderApiR
     return response.success;
   }
 
-  DynamicJsonDocument doc(768);
+  JsonDocument doc;
   const DeserializationError error = deserializeJson(doc, body);
   if (error) {
     return response.success;
@@ -90,7 +90,7 @@ bool GatewayClient::sendJson(const ReaderGatewayConfig& config, const String& pa
   std::unique_ptr<WiFiClientSecure> secureClient;
   WiFiClient plainClient;
   if (url.startsWith("https://")) {
-    secureClient = std::make_unique<WiFiClientSecure>();
+    secureClient.reset(new WiFiClientSecure());
     applyTls(*secureClient, config);
     if (!http.begin(*secureClient, url)) {
       return false;

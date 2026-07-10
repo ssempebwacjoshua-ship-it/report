@@ -2,6 +2,10 @@
 
 #include "ssamenj/WiegandDecoder.h"
 
+void setUp() {}
+
+void tearDown() {}
+
 void test_decodes_wiegand26_payload() {
   const WiegandDecodeResult result = decodeWiegandFrame((1ULL << 25) | 1ULL, 26);
   TEST_ASSERT_TRUE(result.valid);
@@ -22,12 +26,10 @@ void test_marks_unknown_format_invalid() {
   TEST_ASSERT_EQUAL_STRING("wiegand-8", result.format.c_str());
 }
 
-void setup() {
+int main() {
   UNITY_BEGIN();
   RUN_TEST(test_decodes_wiegand26_payload);
   RUN_TEST(test_decodes_wiegand34_payload);
   RUN_TEST(test_marks_unknown_format_invalid);
-  UNITY_END();
+  return UNITY_END();
 }
-
-void loop() {}

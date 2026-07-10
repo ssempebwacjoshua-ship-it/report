@@ -61,7 +61,7 @@ bool ConfigManager::load(ReaderGatewayConfig& config) {
     return false;
   }
 
-  DynamicJsonDocument doc(2048);
+  JsonDocument doc;
   const DeserializationError error = deserializeJson(doc, file);
   file.close();
   if (error) {
@@ -95,7 +95,7 @@ bool ConfigManager::load(ReaderGatewayConfig& config) {
 }
 
 bool ConfigManager::save(const ReaderGatewayConfig& config) {
-  DynamicJsonDocument doc(3072);
+  JsonDocument doc;
   doc["deviceId"] = config.deviceId;
   doc["schoolId"] = config.schoolId;
   doc["readerId"] = config.readerId;

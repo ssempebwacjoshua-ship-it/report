@@ -1,9 +1,5 @@
 #include "ssamenj/WiegandReader.h"
 
-namespace {
-WiegandReader* g_instance = nullptr;
-}
-
 bool WiegandReader::begin(int8_t d0Pin, int8_t d1Pin, uint32_t timeoutMs) {
   d0Pin_ = d0Pin;
   d1Pin_ = d1Pin;
@@ -11,7 +7,6 @@ bool WiegandReader::begin(int8_t d0Pin, int8_t d1Pin, uint32_t timeoutMs) {
 
   pinMode(d0Pin_, INPUT_PULLUP);
   pinMode(d1Pin_, INPUT_PULLUP);
-  g_instance = this;
 
   attachInterruptArg(d0Pin_, &WiegandReader::onD0Thunk, this, FALLING);
   attachInterruptArg(d1Pin_, &WiegandReader::onD1Thunk, this, FALLING);
@@ -44,18 +39,27 @@ void IRAM_ATTR WiegandReader::onPulse(bool oneBit) {
 }
 
 bool WiegandReader::poll(ReaderScanEvent& event) {
-  if (bitCount_ == 0) {
+  noInterrupts();
+  const uint8_t currentBitCount = bitCount_;
+  const uint32_t lastPulseMs = lastPulseMs_;
+  interrupts();
+
+  if (currentBitCount == 0) {
     return false;
   }
 
-  const uint32_t elapsed = millis() - lastPulseMs_;
+  const uint32_t elapsed = millis() - lastPulseMs;
   if (elapsed < timeoutMs_) {
     return false;
   }
 
+  noInterrupts();
   const uint64_t frameBits = frameBits_;
   const uint8_t bits = bitCount_;
-  reset();
+  frameBits_ = 0;
+  bitCount_ = 0;
+  lastPulseMs_ = millis();
+  interrupts();
 
   const WiegandDecodeResult decoded = decodeWiegandFrame(frameBits, bits);
   if (!decoded.valid) {

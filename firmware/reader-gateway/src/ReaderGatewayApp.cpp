@@ -20,7 +20,7 @@ GatewayFeedbackTone toneFromBeep(const String& beep) {
 }
 
 bool isTimeValid() {
-  return time(nullptr) > 1'700'000'000;
+  return time(nullptr) > 1700000000;
 }
 }  // namespace
 
@@ -202,6 +202,7 @@ void ReaderGatewayApp::processOfflineQueue() {
     offlineQueue_.pop();
     Serial.println("Upload Success");
     feedback_.play(toneFromBeep(response.beep));
+    yield();
   }
 }
 

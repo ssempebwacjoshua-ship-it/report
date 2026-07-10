@@ -3,6 +3,36 @@
 #include <LittleFS.h>
 #include <ArduinoJson.h>
 
+namespace {
+const char* kQueueRewriteTempPath = "/reader-gateway/queue.tmp";
+const char* kQueueRewriteBackupPath = "/reader-gateway/queue.bak";
+
+bool replaceFileAtomically(const char* tempPath, const String& finalPath) {
+  if (LittleFS.exists(kQueueRewriteBackupPath)) {
+    LittleFS.remove(kQueueRewriteBackupPath);
+  }
+
+  if (LittleFS.exists(finalPath)) {
+    if (!LittleFS.rename(finalPath.c_str(), kQueueRewriteBackupPath)) {
+      LittleFS.remove(tempPath);
+      return false;
+    }
+  }
+
+  if (!LittleFS.rename(tempPath, finalPath.c_str())) {
+    if (LittleFS.exists(kQueueRewriteBackupPath)) {
+      LittleFS.rename(kQueueRewriteBackupPath, finalPath.c_str());
+    }
+    return false;
+  }
+
+  if (LittleFS.exists(kQueueRewriteBackupPath)) {
+    LittleFS.remove(kQueueRewriteBackupPath);
+  }
+  return true;
+}
+}  // namespace
+
 OfflineQueue::OfflineQueue(const char* path) : path_(path) {}
 
 bool OfflineQueue::begin() {
@@ -20,7 +50,7 @@ bool OfflineQueue::begin() {
 }
 
 String OfflineQueue::serializeEvent(const ReaderScanEvent& event) {
-  DynamicJsonDocument doc(1024);
+  JsonDocument doc;
   doc["eventId"] = event.eventId;
   doc["credential"] = event.credential;
   doc["format"] = event.format;
@@ -38,7 +68,7 @@ String OfflineQueue::serializeEvent(const ReaderScanEvent& event) {
 }
 
 bool OfflineQueue::parseEventLine(const String& line, ReaderScanEvent& event) {
-  DynamicJsonDocument doc(1024);
+  JsonDocument doc;
   const DeserializationError error = deserializeJson(doc, line);
   if (error) {
     return false;
@@ -81,7 +111,7 @@ bool OfflineQueue::loadAll(std::vector<ReaderScanEvent>& events) {
 }
 
 bool OfflineQueue::rewriteAll(const std::vector<ReaderScanEvent>& events) {
-  File file = LittleFS.open(path_, FILE_WRITE);
+  File file = LittleFS.open(kQueueRewriteTempPath, FILE_WRITE);
   if (!file) {
     return false;
   }
@@ -91,7 +121,7 @@ bool OfflineQueue::rewriteAll(const std::vector<ReaderScanEvent>& events) {
   }
 
   file.close();
-  return true;
+  return replaceFileAtomically(kQueueRewriteTempPath, path_);
 }
 
 bool OfflineQueue::enqueue(const ReaderScanEvent& event) {
