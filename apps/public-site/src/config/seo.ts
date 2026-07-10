@@ -47,15 +47,15 @@ const SEO_BY_PATH: Record<string, SeoPage> = {
     ]),
   },
   "/rentflow": {
-    title: "SSAMENJ RentFlow - Rental and Property Management Software Uganda",
+    title: "RentFlow Property Management Software Uganda | SSAMENJ",
     description:
-      "SSAMENJ RentFlow helps Uganda property owners manage Airbnb rooms, residential rentals, commercial shops, payments, deposits, maintenance, cleaning, and owner statements.",
+      "Manage rentals, tenants, bookings, rent payments, maintenance, and occupancy with SSAMENJ RentFlow, property management software built for Uganda.",
     canonicalPath: "/rentflow",
     structuredData: [
       buildSoftwareApplicationSchema({
         name: "SSAMENJ RentFlow",
         description:
-          "Rental and property management software for Airbnb rooms, residential rentals, commercial shops, and apartments.",
+          "Property management software for Airbnb rooms, residential rentals, commercial shops, and apartments in Uganda.",
         url: `${SITE_URL}/rentflow`,
         category: "BusinessApplication",
       }),

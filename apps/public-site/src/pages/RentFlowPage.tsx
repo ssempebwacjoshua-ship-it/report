@@ -638,11 +638,11 @@ export function RentFlowPage() {
               SSAMENJ RentFlow
             </div>
             <h1 className="marketing-fade-up-delay-1 mt-3 max-w-2xl text-[2.1rem] font-black leading-[1.06] tracking-tight text-white sm:text-5xl lg:text-[3.1rem]">
-              Manage rentals, Airbnb rooms, shops, and apartments from one system.
+              Property and rental management software built for Uganda.
             </h1>
             <p className="marketing-fade-up-delay-2 mt-3 max-w-2xl text-sm leading-7 text-blue-50 sm:text-base">
-              SSAMENJ RentFlow helps property owners and managers track bookings, tenants, payments, deposits,
-              maintenance, cleaning, owner statements, and checkout balances.
+              SSAMENJ RentFlow helps Uganda landlords, Airbnb hosts, and property managers track bookings, tenants,
+              payments, deposits, maintenance, cleaning, owner statements, and checkout balances in one organized workspace.
             </p>
 
             <div className="marketing-fade-up-delay-3 mt-5 flex flex-col gap-3 sm:flex-row">

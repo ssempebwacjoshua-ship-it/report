@@ -1,4 +1,6 @@
 import "@testing-library/jest-dom/vitest";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import type { ReactNode } from "react";
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
@@ -22,7 +24,7 @@ describe("RentFlow public website", () => {
     render(<RentFlowPage />);
 
     expect(screen.getByText("SSAMENJ RentFlow")).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Manage rentals, Airbnb rooms, shops, and apartments from one system." })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Property and rental management software built for Uganda." })).toBeInTheDocument();
     expect(screen.getByText("Portfolio dashboard")).toBeInTheDocument();
     expect(screen.getAllByText("Occupancy")).toHaveLength(1);
     expect(screen.getAllByText("Bookings today")).toHaveLength(1);
@@ -47,9 +49,9 @@ describe("RentFlow public website", () => {
     const seo = getSeoForPathname("/rentflow");
     const rentalsSeo = getSeoForPathname("/rentals");
 
-    expect(seo.title).toBe("SSAMENJ RentFlow - Rental and Property Management Software Uganda");
+    expect(seo.title).toBe("RentFlow Property Management Software Uganda | SSAMENJ");
     expect(seo.description).toBe(
-      "SSAMENJ RentFlow helps Uganda property owners manage Airbnb rooms, residential rentals, commercial shops, payments, deposits, maintenance, cleaning, and owner statements.",
+      "Manage rentals, tenants, bookings, rent payments, maintenance, and occupancy with SSAMENJ RentFlow, property management software built for Uganda.",
     );
     expect(seo.canonicalPath).toBe("/rentflow");
     expect(seo.structuredData).toBeDefined();
@@ -57,5 +59,17 @@ describe("RentFlow public website", () => {
     expect(rentalsSeo.canonicalPath).toBe("/rentflow");
     expect(rentalsSeo.title).toBe(seo.title);
     expect(rentalsSeo.description).toBe(seo.description);
+  });
+
+  it("keeps RentFlow in the sitemap and leaves robots.txt permissive", () => {
+    const sitemap = readFileSync(join(process.cwd(), "apps/public-site/public/sitemap.xml"), "utf8");
+    const robots = readFileSync(join(process.cwd(), "apps/public-site/public/robots.txt"), "utf8");
+
+    expect(sitemap).toContain("<loc>https://ssamenj.vercel.app/rentflow</loc>");
+    expect(sitemap).not.toContain("localhost");
+    expect(sitemap).not.toContain("/api/");
+    expect(robots).toContain("Allow: /");
+    expect(robots).toContain("Sitemap: https://ssamenj.vercel.app/sitemap.xml");
+    expect(robots).not.toContain("Disallow: /rentflow");
   });
 });

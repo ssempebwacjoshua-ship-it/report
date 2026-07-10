@@ -176,23 +176,33 @@ export const STAYOS_FAQS: FaqItem[] = [
 
 export const RENTFLOW_FAQS: FaqItem[] = [
   {
-    question: "What is SSAMENJ RentFlow?",
+    question: "What types of properties can RentFlow manage?",
     answer:
-      "SSAMENJ RentFlow is the public property management product for Airbnb rooms, residential rentals, shops, and apartments, with one system for bookings, tenants, payments, and owner reporting.",
+      "SSAMENJ RentFlow is built for short-stay properties, Airbnb units, residential rentals, shops, offices, apartments, and mixed property portfolios.",
   },
   {
-    question: "Does RentFlow handle both short stays and longer rentals?",
+    question: "Can RentFlow manage both long-term and short-stay rentals?",
     answer:
       "Yes. RentFlow is designed for mixed property portfolios, so teams can manage Airbnb bookings, residential tenants, and commercial units from the same workflow.",
   },
   {
-    question: "Is the first month free?",
+    question: "Does it support rent and payment tracking?",
     answer:
-      "Yes. The RentFlow launch offer gives the first month free, and a setup fee still applies during onboarding.",
+      "Yes. RentFlow helps teams track rent, deposits, payment status, balances, and owner statements in one place.",
   },
   {
-    question: "What does RentFlow help track?",
+    question: "Can it track maintenance and cleaning?",
     answer:
-      "RentFlow helps teams track bookings, tenants, payments, deposits, maintenance, cleaning, owner statements, and checkout balances in one place.",
+      "Yes. RentFlow keeps maintenance tasks, cleaning follow-up, and checkout work visible so property teams can act on them quickly.",
+  },
+  {
+    question: "Does RentFlow support smart devices?",
+    answer:
+      "Optional smart lights, sockets, or other compatible devices can be shown as add-ons where the installation supports them, but they are not required for the main workflow.",
+  },
+  {
+    question: "Is RentFlow designed for Uganda?",
+    answer:
+      "Yes. RentFlow is written for Uganda workflows with UGX-based records, WhatsApp-friendly follow-up, and local landlord and tenant terminology.",
   },
 ];

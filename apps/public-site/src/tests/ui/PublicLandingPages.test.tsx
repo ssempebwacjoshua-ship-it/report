@@ -2,6 +2,7 @@ import "@testing-library/jest-dom/vitest";
 import type { ReactNode } from "react";
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
+import { SSAMENJHomePage } from "../../pages/SSAMENJHomePage";
 import { CashlessCanteenPage } from "../../pages/CashlessCanteenPage";
 import { StayOsPage } from "../../pages/StayOsPage";
 import { getSeoForPathname } from "../../config/seo";
@@ -43,5 +44,11 @@ describe("Public keyword landing pages", () => {
     expect(seo.title).toBe("Property Management Software Uganda | StayOS by SSAMENJ");
     expect(seo.canonicalPath).toBe("/stayos");
     expect(seo.structuredData).toBeDefined();
+  });
+
+  it("links to RentFlow from the homepage product strip", () => {
+    render(<SSAMENJHomePage />);
+
+    expect(screen.getByRole("link", { name: /RentFlow/ })).toHaveAttribute("href", "/rentflow");
   });
 });
