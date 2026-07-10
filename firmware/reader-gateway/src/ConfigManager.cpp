@@ -53,11 +53,20 @@ ReaderGatewayConfig ConfigManager::defaults() {
 bool ConfigManager::load(ReaderGatewayConfig& config) {
   config = defaults();
   if (!LittleFS.exists(path_)) {
-    return save(config);
+    Serial.printf("Config file missing, creating defaults at %s\n", path_.c_str());
+    const bool saved = save(config);
+    if (saved) {
+      Serial.println("Config file created with defaults");
+    } else {
+      Serial.println("Failed to create default config file");
+    }
+    return saved;
   }
 
+  Serial.printf("Loading config from %s\n", path_.c_str());
   File file = LittleFS.open(path_, FILE_READ);
   if (!file) {
+    Serial.println("Failed to open config file for reading");
     return false;
   }
 
@@ -65,6 +74,7 @@ bool ConfigManager::load(ReaderGatewayConfig& config) {
   const DeserializationError error = deserializeJson(doc, file);
   file.close();
   if (error) {
+    Serial.printf("Failed to parse config JSON: %s\n", error.c_str());
     return false;
   }
 
@@ -91,6 +101,7 @@ bool ConfigManager::load(ReaderGatewayConfig& config) {
   config.ledPin = doc["ledPin"] | config.ledPin;
   config.tlsInsecure = doc["tlsInsecure"] | config.tlsInsecure;
   config.autoRegister = doc["autoRegister"] | config.autoRegister;
+  Serial.println("Config loaded from LittleFS");
   return true;
 }
 

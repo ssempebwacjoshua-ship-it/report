@@ -14,6 +14,17 @@ String joinPath(const String& base, const String& path) {
   }
   return base + path;
 }
+
+void logTlsError(WiFiClientSecure& client) {
+  char errorBuffer[128] = {0};
+  const int errorCode = client.lastError(errorBuffer, sizeof(errorBuffer));
+  if (errorCode != 0 || errorBuffer[0] != '\0') {
+    Serial.printf("TLS error code: %d\n", errorCode);
+    if (errorBuffer[0] != '\0') {
+      Serial.printf("TLS error detail: %s\n", errorBuffer);
+    }
+  }
+}
 }  // namespace
 
 bool GatewayClient::begin(const ReaderGatewayConfig& config) {
@@ -93,10 +104,13 @@ bool GatewayClient::sendJson(const ReaderGatewayConfig& config, const String& pa
     secureClient.reset(new WiFiClientSecure());
     applyTls(*secureClient, config);
     if (!http.begin(*secureClient, url)) {
+      Serial.printf("HTTP begin failed for %s\n", url.c_str());
+      logTlsError(*secureClient);
       return false;
     }
   } else {
     if (!http.begin(plainClient, url)) {
+      Serial.printf("HTTP begin failed for %s\n", url.c_str());
       return false;
     }
   }
@@ -113,6 +127,14 @@ bool GatewayClient::sendJson(const ReaderGatewayConfig& config, const String& pa
 
   const int statusCode = http.POST(body);
   const String responseBody = http.getString();
+  Serial.printf("HTTP status code: %d\n", statusCode);
+  if (statusCode < 0) {
+    Serial.printf("HTTP error: %s\n", HTTPClient::errorToString(statusCode).c_str());
+    if (secureClient) {
+      logTlsError(*secureClient);
+    }
+  }
+  Serial.printf("API response body: %s\n", responseBody.isEmpty() ? "(empty)" : responseBody.c_str());
   http.end();
 
   return parseResponse(responseBody, statusCode, response);

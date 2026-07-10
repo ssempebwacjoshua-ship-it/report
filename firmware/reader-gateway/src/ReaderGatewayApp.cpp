@@ -6,6 +6,27 @@
 #include <time.h>
 
 namespace {
+const char* wifiStatusToString(wl_status_t status) {
+  switch (status) {
+    case WL_IDLE_STATUS:
+      return "IDLE";
+    case WL_NO_SSID_AVAIL:
+      return "NO_SSID_AVAIL";
+    case WL_SCAN_COMPLETED:
+      return "SCAN_COMPLETED";
+    case WL_CONNECTED:
+      return "CONNECTED";
+    case WL_CONNECT_FAILED:
+      return "CONNECT_FAILED";
+    case WL_CONNECTION_LOST:
+      return "CONNECTION_LOST";
+    case WL_DISCONNECTED:
+      return "DISCONNECTED";
+    default:
+      return "UNKNOWN";
+  }
+}
+
 GatewayFeedbackTone toneFromBeep(const String& beep) {
   if (beep.equalsIgnoreCase("success")) {
     return GatewayFeedbackTone::Success;
@@ -39,8 +60,13 @@ bool ReaderGatewayApp::begin() {
   }
 
   config_ = ConfigManager::defaults();
-  configManager_.load(config_);
+  const bool configLoaded = configManager_.load(config_);
+  Serial.println(configLoaded ? "Config load complete" : "Config load failed; using defaults");
   config_.firmwareVersion = SSAMENJ_GATEWAY_VERSION;
+  Serial.printf("Loaded readerId: %s\n", config_.readerId.c_str());
+  Serial.printf("Loaded schoolId: %s\n", config_.schoolId.c_str());
+  Serial.printf("Loaded apiBaseUrl: %s\n", config_.apiBaseUrl.c_str());
+  Serial.printf("Wi-Fi SSID configured: %s\n", config_.wifiSsid.c_str());
 
   feedback_.begin(config_);
   gatewayClient_.begin(config_);
@@ -77,6 +103,8 @@ void ReaderGatewayApp::ensureWiFi() {
   }
   lastWifiAttemptMs_ = now;
 
+  Serial.printf("Wi-Fi state: %s (%d)\n", wifiStatusToString(WiFi.status()), static_cast<int>(WiFi.status()));
+  Serial.printf("Connecting to SSID: %s\n", config_.wifiSsid.c_str());
   WiFi.disconnect(true);
   WiFi.begin(config_.wifiSsid.c_str(), config_.wifiPassword.c_str());
 }
@@ -213,6 +241,9 @@ void ReaderGatewayApp::loop() {
   if (WiFi.status() == WL_CONNECTED) {
     if (!wifiConnectedLogged_) {
       Serial.println("Wi-Fi Connected");
+      Serial.printf("Wi-Fi state: %s (%d)\n", wifiStatusToString(WiFi.status()), static_cast<int>(WiFi.status()));
+      Serial.printf("Wi-Fi IP: %s\n", WiFi.localIP().toString().c_str());
+      Serial.printf("Wi-Fi RSSI: %d dBm\n", WiFi.RSSI());
       wifiConnectedLogged_ = true;
       syncClock();
       ensureOta();
@@ -222,6 +253,9 @@ void ReaderGatewayApp::loop() {
     }
     processOfflineQueue();
   } else {
+    if (wifiConnectedLogged_) {
+      Serial.printf("Wi-Fi state: %s (%d)\n", wifiStatusToString(WiFi.status()), static_cast<int>(WiFi.status()));
+    }
     wifiConnectedLogged_ = false;
   }
 
