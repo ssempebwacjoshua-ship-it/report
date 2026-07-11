@@ -1,11 +1,12 @@
-﻿import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AppShell } from "../../components/layout/AppShell";
+import { useConnectivityStatus } from "../../hooks/useConnectivityStatus";
 import { defaultSettingsSections, type SettingsResponse } from "../../shared/types/settings";
 
 const authState = vi.hoisted(() => ({
-  user: null as null | { id: string; name: string; role: "ADMIN_OPERATOR" },
+  user: null as null | { id: string; name: string; role: "ADMIN_OPERATOR"; schoolId: string },
   token: null as string | null,
   loading: false,
 }));
@@ -35,12 +36,20 @@ function makeSettings(): SettingsResponse {
   };
 }
 
-function renderShell() {
+function ConnectivityConsumerPage() {
+  const { state } = useConnectivityStatus("school-1", "device-1", "gate");
+  return <div>Consumer state: {state}</div>;
+}
+
+function renderShell(initialEntries: string[] = ["/dashboard"]) {
   return render(
-    <MemoryRouter initialEntries={["/dashboard"]}>
+    <MemoryRouter initialEntries={initialEntries}>
       <Routes>
         <Route element={<AppShell />}>
           <Route path="/dashboard" element={<div>Dashboard Content</div>} />
+          <Route path="/smart-pages" element={<div>Smart Pages Content</div>} />
+          <Route path="/nfc/gate" element={<ConnectivityConsumerPage />} />
+          <Route path="/nfc/tags" element={<ConnectivityConsumerPage />} />
         </Route>
       </Routes>
     </MemoryRouter>,
@@ -66,6 +75,11 @@ describe("AppShell workspace loading", () => {
     });
   });
 
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
+
   it("shows auth loading while auth is loading", () => {
     authState.loading = true;
 
@@ -76,7 +90,7 @@ describe("AppShell workspace loading", () => {
   });
 
   it("shows workspace loading and hides the sidebar until settings are ready", async () => {
-    authState.user = { id: "u1", name: "Test Admin", role: "ADMIN_OPERATOR" };
+    authState.user = { id: "u1", name: "Test Admin", role: "ADMIN_OPERATOR", schoolId: "school-1" };
     authState.token = "tok";
 
     let resolveSettings!: (value: SettingsResponse) => void;
@@ -100,7 +114,7 @@ describe("AppShell workspace loading", () => {
   });
 
   it("shows a retry state when settings load fails and recovers after retry", async () => {
-    authState.user = { id: "u1", name: "Test Admin", role: "ADMIN_OPERATOR" };
+    authState.user = { id: "u1", name: "Test Admin", role: "ADMIN_OPERATOR", schoolId: "school-1" };
     authState.token = "tok";
     mockFetchSettings
       .mockRejectedValueOnce(new Error("temporary network issue"))
@@ -117,5 +131,82 @@ describe("AppShell workspace loading", () => {
     await waitFor(() => expect(screen.getByRole("button", { name: "Report Lab" })).toBeInTheDocument());
     expect(mockFetchSettings).toHaveBeenCalledTimes(3);
   });
-});
 
+  it("shares one heartbeat coordinator between Topbar and an NFC consumer page", async () => {
+    vi.useFakeTimers();
+    authState.user = { id: "u1", name: "Test Admin", role: "ADMIN_OPERATOR", schoolId: "school-1" };
+    authState.token = "tok";
+    mockFetchSettings.mockResolvedValue(makeSettings());
+
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/api/health/ping")) {
+        return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { "Content-Type": "application/json" } });
+      }
+      if (url.includes("/api/nfc/offline/sync")) {
+        return new Response(JSON.stringify({ batchId: "batch-1", results: [] }), { status: 200, headers: { "Content-Type": "application/json" } });
+      }
+      throw new Error(`Unexpected fetch ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    renderShell(["/nfc/gate"]);
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(screen.getByText(/Consumer state:/)).toBeInTheDocument();
+    expect(fetchMock.mock.calls.filter(([input]) => String(input).includes("/api/health/ping")).length).toBe(1);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(12000);
+    });
+
+    expect(fetchMock.mock.calls.filter(([input]) => String(input).includes("/api/health/ping")).length).toBe(2);
+  });
+
+  it("keeps navigation responsive across repeated route changes", async () => {
+    authState.user = { id: "u1", name: "Test Admin", role: "ADMIN_OPERATOR", schoolId: "school-1" };
+    authState.token = "tok";
+    mockFetchSettings.mockResolvedValue(makeSettings());
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ ok: true }), { status: 200, headers: { "Content-Type": "application/json" } })));
+
+    renderShell();
+
+    await screen.findByText("Dashboard Content");
+
+    for (let index = 0; index < 18; index += 1) {
+      fireEvent.click(screen.getByRole("button", { name: "Smart Pages" }));
+      await waitFor(() => expect(screen.getByText("Smart Pages Content")).toBeInTheDocument());
+
+      fireEvent.click(screen.getByRole("button", { name: "NFC" }));
+      await waitFor(() => expect(screen.getByText(/Consumer state:/)).toBeInTheDocument());
+
+      fireEvent.click(screen.getByRole("button", { name: "Report Lab" }));
+      await waitFor(() => expect(screen.getByText("Dashboard Content")).toBeInTheDocument());
+    }
+
+    expect(screen.getByRole("button", { name: "Smart Pages" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "NFC" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Report Lab" })).toBeEnabled();
+  });
+
+  it("closes the mobile sidebar and restores body overflow after route navigation", async () => {
+    authState.user = { id: "u1", name: "Test Admin", role: "ADMIN_OPERATOR", schoolId: "school-1" };
+    authState.token = "tok";
+    mockFetchSettings.mockResolvedValue(makeSettings());
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ ok: true }), { status: 200, headers: { "Content-Type": "application/json" } })));
+
+    renderShell();
+
+    await screen.findByText("Dashboard Content");
+
+    fireEvent.click(screen.getByRole("button", { name: "Open navigation" }));
+    await waitFor(() => expect(document.body.style.overflow).toBe("hidden"));
+
+    fireEvent.click(screen.getByRole("link", { name: /reports/i }));
+
+    await waitFor(() => expect(document.body.style.overflow).toBe(""));
+  });
+});

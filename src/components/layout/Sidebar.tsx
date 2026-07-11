@@ -1,4 +1,4 @@
-import type { CSSProperties } from "react";
+import { useEffect, useRef, type CSSProperties } from "react";
 import { Link, useLocation } from "react-router-dom";
 import {
   ArrowUploadRegular,
@@ -134,18 +134,25 @@ function SidebarSection({
 
 export function Sidebar({ open, onClose, collapsed, onToggleCollapsed, width }: Props) {
   const location = useLocation();
+  const previousPathRef = useRef(location.pathname);
   const { settings } = useAppSettings() ?? {};
   const school = settings?.sections.school;
   const schoolName = getSchoolDisplayName(school, "School Connect");
   const sidebarWidth = collapsed ? 72 : width;
   const product = getProductFromPath(location.pathname);
 
+  useEffect(() => {
+    if (previousPathRef.current === location.pathname) return;
+    previousPathRef.current = location.pathname;
+    if (open) onClose();
+  }, [location.pathname, onClose, open]);
+
   return (
     <>
       <button
         type="button"
         aria-label="Close navigation"
-        className={`fixed inset-0 z-30 bg-slate-950/40 transition lg:hidden ${open ? "block" : "hidden"}`}
+        className={`fixed inset-0 z-30 bg-slate-950/40 transition lg:hidden ${open ? "block" : "pointer-events-none hidden"}`}
         onClick={onClose}
       />
       <aside

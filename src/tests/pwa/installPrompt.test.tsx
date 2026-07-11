@@ -1,6 +1,6 @@
-﻿import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
-import { act } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { InstallPrompt } from "../../components/pwa/InstallPrompt";
 
 function mockMatchMedia(standalone: boolean) {
@@ -19,21 +19,28 @@ function mockMatchMedia(standalone: boolean) {
 }
 
 function makeInstallEvent() {
-  const e = new Event("beforeinstallprompt");
-  Object.assign(e, {
+  const event = new Event("beforeinstallprompt");
+  Object.assign(event, {
     prompt: vi.fn().mockResolvedValue(undefined),
     userChoice: Promise.resolve({ outcome: "accepted" }),
   });
-  return e;
+  return event;
 }
 
-// Simulate Android Chrome UA so the banner is eligible to show
 function mockAndroidChrome() {
   vi.stubGlobal("navigator", {
     ...navigator,
     userAgent:
       "Mozilla/5.0 (Linux; Android 10; Pixel 4) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Mobile Safari/537.36",
   });
+}
+
+function renderPrompt(initialEntries: string[] = ["/dashboard"]) {
+  return render(
+    <MemoryRouter initialEntries={initialEntries}>
+      <InstallPrompt />
+    </MemoryRouter>,
+  );
 }
 
 const DISMISSED_KEY = "sc_pwa_dismissed_v3";
@@ -51,14 +58,13 @@ afterEach(() => {
 });
 
 describe("InstallPrompt", () => {
-  it("renders nothing by default (no beforeinstallprompt, not iOS)", () => {
-    const { container } = render(<InstallPrompt />);
-    // Before the 4-second fallback fires, nothing visible
+  it("renders nothing by default", () => {
+    const { container } = renderPrompt();
     expect(container.firstChild).toBeNull();
   });
 
   it("shows the install banner when beforeinstallprompt fires", async () => {
-    render(<InstallPrompt />);
+    renderPrompt();
     await act(async () => {
       window.dispatchEvent(makeInstallEvent());
     });
@@ -67,7 +73,7 @@ describe("InstallPrompt", () => {
   });
 
   it("stores a dismissal timestamp and hides when Maybe Later is clicked", async () => {
-    render(<InstallPrompt />);
+    renderPrompt();
     await act(async () => {
       window.dispatchEvent(makeInstallEvent());
     });
@@ -83,12 +89,12 @@ describe("InstallPrompt", () => {
 
   it("calls prompt() when Install app is clicked", async () => {
     const mockPrompt = vi.fn().mockResolvedValue(undefined);
-    render(<InstallPrompt />);
+    renderPrompt();
 
-    const e = new Event("beforeinstallprompt");
-    Object.assign(e, { prompt: mockPrompt, userChoice: Promise.resolve({ outcome: "accepted" }) });
+    const event = new Event("beforeinstallprompt");
+    Object.assign(event, { prompt: mockPrompt, userChoice: Promise.resolve({ outcome: "accepted" }) });
     await act(async () => {
-      window.dispatchEvent(e);
+      window.dispatchEvent(event);
     });
 
     fireEvent.click(screen.getByRole("button", { name: /install app/i }));
@@ -97,7 +103,7 @@ describe("InstallPrompt", () => {
 
   it("does not show when already in standalone mode", async () => {
     mockMatchMedia(true);
-    render(<InstallPrompt />);
+    renderPrompt();
     await act(async () => {
       window.dispatchEvent(makeInstallEvent());
     });
@@ -106,7 +112,7 @@ describe("InstallPrompt", () => {
 
   it("stays hidden when dismissed within the last 3 days", async () => {
     localStorage.setItem(DISMISSED_KEY, String(Date.now()));
-    const { container } = render(<InstallPrompt />);
+    const { container } = renderPrompt();
     await act(async () => {
       window.dispatchEvent(makeInstallEvent());
     });
@@ -114,9 +120,8 @@ describe("InstallPrompt", () => {
   });
 
   it("shows again when previous dismissal was more than 3 days ago", async () => {
-    const fourDaysAgo = Date.now() - 4 * 24 * 60 * 60 * 1000;
-    localStorage.setItem(DISMISSED_KEY, String(fourDaysAgo));
-    render(<InstallPrompt />);
+    localStorage.setItem(DISMISSED_KEY, String(Date.now() - 4 * 24 * 60 * 60 * 1000));
+    renderPrompt();
     await act(async () => {
       window.dispatchEvent(makeInstallEvent());
     });
@@ -125,7 +130,7 @@ describe("InstallPrompt", () => {
 
   it("stays hidden when already installed", async () => {
     localStorage.setItem(INSTALLED_KEY, "true");
-    const { container } = render(<InstallPrompt />);
+    const { container } = renderPrompt();
     await act(async () => {
       window.dispatchEvent(makeInstallEvent());
     });
@@ -133,7 +138,7 @@ describe("InstallPrompt", () => {
   });
 
   it("hides and stores installed key when appinstalled fires", async () => {
-    render(<InstallPrompt />);
+    renderPrompt();
     await act(async () => {
       window.dispatchEvent(makeInstallEvent());
     });
@@ -146,4 +151,3 @@ describe("InstallPrompt", () => {
     expect(screen.queryByText("Install Smart Pages")).not.toBeInTheDocument();
   });
 });
-

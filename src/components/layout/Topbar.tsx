@@ -59,10 +59,7 @@ export function Topbar({ onMenuClick }: Props) {
   const currentProduct = getProductFromPath(location.pathname);
   const visibleProducts = getVisibleProductSwitcherProducts(user?.role, location.pathname);
 
-  const { state: connState, pendingCount } = useConnectivityStatus(
-    user?.schoolId,
-    typeof window !== "undefined" ? (localStorage.getItem("schoolconnect_nfc_device_id") ?? undefined) : undefined,
-  );
+  const { state: connState, pendingCount } = useConnectivityStatus();
 
   function handleLogout() {
     logout();

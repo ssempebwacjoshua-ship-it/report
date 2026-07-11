@@ -1,6 +1,6 @@
 ﻿import { useEffect, useState, type CSSProperties } from "react";
 import type { Dispatch, SetStateAction } from "react";
-import { Navigate, Outlet } from "react-router-dom";
+import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "../../contexts/AuthContext";
 import { InstallPrompt } from "../pwa/InstallPrompt";
 import { SupportWidget } from "../support/SupportWidget";
@@ -8,6 +8,7 @@ import { Sidebar } from "./Sidebar";
 import { Topbar } from "./Topbar";
 import { SettingsProvider, useAppSettings } from "./SettingsContext";
 import { hasPermission } from "../../shared/permissions";
+import { ConnectivityProvider } from "../../hooks/useConnectivityStatus";
 
 const SIDEBAR_WIDTH_KEY = "school-connect-sidebar-width";
 const DEFAULT_SIDEBAR_WIDTH = 232;
@@ -90,21 +91,21 @@ function AppShellAuthenticated() {
 }
 
 function AppShellWorkspaceGate({
-  sidebarOpen,
-  setSidebarOpen,
-  sidebarCollapsed,
-  setSidebarCollapsed,
-  sidebarWidth,
-  setSidebarWidth,
-  setSidebarOpenAndClose,
+  sidebarOpen = false,
+  setSidebarOpen = () => undefined,
+  sidebarCollapsed = false,
+  setSidebarCollapsed = () => undefined,
+  sidebarWidth = DEFAULT_SIDEBAR_WIDTH,
+  setSidebarWidth = () => undefined,
+  setSidebarOpenAndClose = () => undefined,
 }: {
-  sidebarOpen: boolean;
-  setSidebarOpen: Dispatch<SetStateAction<boolean>>;
-  sidebarCollapsed: boolean;
-  setSidebarCollapsed: Dispatch<SetStateAction<boolean>>;
-  sidebarWidth: number;
-  setSidebarWidth: Dispatch<SetStateAction<number>>;
-  setSidebarOpenAndClose: () => void;
+  sidebarOpen?: boolean;
+  setSidebarOpen?: Dispatch<SetStateAction<boolean>>;
+  sidebarCollapsed?: boolean;
+  setSidebarCollapsed?: Dispatch<SetStateAction<boolean>>;
+  sidebarWidth?: number;
+  setSidebarWidth?: Dispatch<SetStateAction<number>>;
+  setSidebarOpenAndClose?: () => void;
 }) {
   const settingsState = useAppSettings();
 
@@ -170,6 +171,20 @@ function AppShellInner({
   setSidebarOpenAndClose: () => void;
 }) {
   const { settings } = useAppSettings() ?? {};
+  const { user } = useAuth();
+  const location = useLocation();
+  const [deviceId] = useState(() => {
+    const key = "schoolconnect_nfc_device_id";
+    try {
+      const existing = localStorage.getItem(key);
+      if (existing) return existing;
+      const created = crypto.randomUUID();
+      localStorage.setItem(key, created);
+      return created;
+    } catch {
+      return "web-shell";
+    }
+  });
 
   useEffect(() => {
     if (!settings) return;
@@ -193,28 +208,35 @@ function AppShellInner({
     };
   }, [sidebarOpen]);
 
+  useEffect(() => {
+    setSidebarOpen(false);
+    document.body.style.overflow = "";
+  }, [location.pathname, setSidebarOpen]);
+
   return (
-    <div
-      className="app-shell-root min-h-screen overflow-x-hidden bg-slate-50 text-slate-950 lg:h-screen lg:overflow-hidden"
-      style={{
-        "--sidebar-width": `${sidebarCollapsed ? 72 : sidebarWidth}px`,
-      } as CSSProperties}
-    >
-      <Sidebar
-        open={sidebarOpen}
-        onClose={() => setSidebarOpen(false)}
-        collapsed={sidebarCollapsed}
-        onToggleCollapsed={() => setSidebarCollapsed((current) => !current)}
-        width={sidebarWidth}
-      />
-      <div className="app-shell-content flex min-w-0 flex-col lg:h-screen lg:min-h-0">
-        <Topbar onMenuClick={setSidebarOpenAndClose} />
-        <main className="app-page mx-auto min-h-0 w-full max-w-[1540px] flex-1 overflow-y-auto">
-          <Outlet />
-        </main>
+    <ConnectivityProvider schoolId={user?.schoolId} deviceId={deviceId}>
+      <div
+        className="app-shell-root min-h-screen overflow-x-hidden bg-slate-50 text-slate-950 lg:h-screen lg:overflow-hidden"
+        style={{
+          "--sidebar-width": `${sidebarCollapsed ? 72 : sidebarWidth}px`,
+        } as CSSProperties}
+      >
+        <Sidebar
+          open={sidebarOpen}
+          onClose={() => setSidebarOpen(false)}
+          collapsed={sidebarCollapsed}
+          onToggleCollapsed={() => setSidebarCollapsed((current) => !current)}
+          width={sidebarWidth}
+        />
+        <div className="app-shell-content flex min-w-0 flex-col lg:h-screen lg:min-h-0">
+          <Topbar onMenuClick={setSidebarOpenAndClose} />
+          <main className="app-page mx-auto min-h-0 w-full max-w-[1540px] flex-1 overflow-y-auto">
+            <Outlet />
+          </main>
+        </div>
+        <InstallPrompt />
+        <SupportWidget />
       </div>
-      <InstallPrompt />
-      <SupportWidget />
-    </div>
+    </ConnectivityProvider>
   );
 }

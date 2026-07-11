@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useLocation } from "react-router-dom";
 import { postSupportTelegram } from "../../client/supportClient";
 import { useAuth } from "../../contexts/AuthContext";
@@ -17,6 +17,7 @@ export function SupportWidget() {
   const [contact, setContact] = useState("");
   const [status, setStatus] = useState<"idle" | "submitting" | "sent" | "error">("idle");
   const [error, setError] = useState("");
+  const previousPathRef = useRef(location.pathname);
 
   const pageUrl = useMemo(() => {
     const path = `${location.pathname}${location.search}${location.hash}`;
@@ -28,6 +29,33 @@ export function SupportWidget() {
       setStatus("idle");
       setError("");
     }
+  }, [open]);
+
+  useEffect(() => {
+    if (previousPathRef.current === location.pathname) return;
+    previousPathRef.current = location.pathname;
+    if (!open) return;
+    if (import.meta.env.DEV) {
+      console.debug("[support-widget] closing overlay on route change", { pathname: location.pathname });
+    }
+    setOpen(false);
+  }, [location.pathname, open]);
+
+  useEffect(() => {
+    if (!open) return;
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") setOpen(false);
+    }
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      document.body.style.overflow = previousOverflow;
+    };
   }, [open]);
 
   if (!supportModeEnabled() || !user) {

@@ -1,12 +1,9 @@
-﻿import { useEffect, useRef, useState } from "react";
-
-// ── Storage keys ───────────────────────────────────────────────────────────────
+import { useEffect, useRef, useState } from "react";
+import { useLocation } from "react-router-dom";
 
 const DISMISSED_KEY = "sc_pwa_dismissed_v3";
 const INSTALLED_KEY = "sc_pwa_installed";
-const DISMISS_TTL_MS = 3 * 24 * 60 * 60 * 1000; // 3 days
-
-// ── Platform detection ─────────────────────────────────────────────────────────
+const DISMISS_TTL_MS = 3 * 24 * 60 * 60 * 1000;
 
 function isStandalone() {
   return (
@@ -46,16 +43,12 @@ function wasInstalled() {
   }
 }
 
-// ── Types ──────────────────────────────────────────────────────────────────────
-
 type BeforeInstallPromptEvent = Event & {
   prompt: () => Promise<void>;
   userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
 };
 
 type BannerState = "hidden" | "chrome-prompt" | "manual-android" | "manual-ios";
-
-// ── Manual instruction modals ──────────────────────────────────────────────────
 
 function AndroidInstructions({ onDismiss }: { onDismiss: () => void }) {
   return (
@@ -70,7 +63,7 @@ function AndroidInstructions({ onDismiss }: { onDismiss: () => void }) {
         </div>
         <ol className="mb-5 grid gap-3">
           {[
-            ["1", "Tap ⋮ (three-dot menu)", "Top right corner of Chrome"],
+            ["1", "Tap menu", "Top right corner of Chrome"],
             ["2", 'Tap "Add to Home screen"', 'Or "Install app"'],
             ["3", 'Tap "Add" to confirm', "The app installs in seconds"],
           ].map(([num, title, sub]) => (
@@ -110,7 +103,7 @@ function IosInstructions({ onDismiss }: { onDismiss: () => void }) {
         </div>
         <ol className="mb-5 grid gap-3">
           {[
-            ["1", "Tap Share ↑", "Bottom toolbar in Safari"],
+            ["1", "Tap Share", "Bottom toolbar in Safari"],
             ["2", 'Tap "Add to Home Screen"', "Scroll down in the share sheet"],
             ["3", 'Tap "Add"', "The app installs immediately"],
           ].map(([num, title, sub]) => (
@@ -137,8 +130,6 @@ function IosInstructions({ onDismiss }: { onDismiss: () => void }) {
   );
 }
 
-// ── Big install banner (Chrome prompt available) ───────────────────────────────
-
 function InstallBanner({
   onInstall,
   onDismiss,
@@ -149,9 +140,8 @@ function InstallBanner({
   onShowManual: () => void;
 }) {
   return (
-    <div className="no-print fixed inset-x-0 bottom-0 z-50 border-t border-blue-100 bg-white px-4 pb-safe-area-inset-bottom shadow-[0_-4px_24px_rgba(0,0,0,0.10)] sm:inset-x-auto sm:right-4 sm:bottom-4 sm:max-w-sm sm:rounded-2xl sm:border sm:border-blue-100">
+    <div className="no-print fixed inset-x-0 bottom-0 z-50 border-t border-blue-100 bg-white px-4 pb-safe-area-inset-bottom shadow-[0_-4px_24px_rgba(0,0,0,0.10)] sm:inset-x-auto sm:bottom-4 sm:right-4 sm:max-w-sm sm:rounded-2xl sm:border sm:border-blue-100">
       <div className="px-0 py-4 sm:px-4">
-        {/* Header row */}
         <div className="mb-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <img src="/icons/icon-192.png" alt="" className="h-10 w-10 rounded-xl shadow-sm" />
@@ -172,7 +162,6 @@ function InstallBanner({
           </button>
         </div>
 
-        {/* Install button with pulse */}
         <button
           type="button"
           onClick={onInstall}
@@ -184,7 +173,6 @@ function InstallBanner({
             </svg>
             Install App
           </span>
-          {/* Pulse ring */}
           <span className="absolute inset-0 animate-ping rounded-xl bg-blue-400 opacity-20" />
         </button>
 
@@ -210,29 +198,43 @@ function InstallBanner({
   );
 }
 
-// ── Main component ─────────────────────────────────────────────────────────────
-
 export function InstallPrompt() {
+  const location = useLocation();
   const [bannerState, setBannerState] = useState<BannerState>("hidden");
   const [showManual, setShowManual] = useState(false);
   const deferredPromptRef = useRef<BeforeInstallPromptEvent | null>(null);
   const promptCaptured = useRef(false);
 
+  const overlayOpen = showManual || bannerState === "manual-android" || bannerState === "manual-ios";
+
+  function dismiss() {
+    setBannerState("hidden");
+    setShowManual(false);
+    deferredPromptRef.current = null;
+    try {
+      localStorage.setItem(DISMISSED_KEY, String(Date.now()));
+    } catch {
+      // noop
+    }
+  }
+
   useEffect(() => {
-    // Never show if already installed or dismissed recently
     if (isStandalone() || wasInstalled() || wasDismissedRecently()) return;
-    // Only show on mobile
     if (!isMobile()) return;
 
-    function onBeforeInstallPrompt(e: Event) {
-      e.preventDefault();
-      deferredPromptRef.current = e as BeforeInstallPromptEvent;
+    function onBeforeInstallPrompt(event: Event) {
+      event.preventDefault();
+      deferredPromptRef.current = event as BeforeInstallPromptEvent;
       promptCaptured.current = true;
       setBannerState("chrome-prompt");
     }
 
     function onAppInstalled() {
-      try { localStorage.setItem(INSTALLED_KEY, "true"); } catch { /* noop */ }
+      try {
+        localStorage.setItem(INSTALLED_KEY, "true");
+      } catch {
+        // noop
+      }
       setBannerState("hidden");
       deferredPromptRef.current = null;
     }
@@ -240,9 +242,8 @@ export function InstallPrompt() {
     window.addEventListener("beforeinstallprompt", onBeforeInstallPrompt);
     window.addEventListener("appinstalled", onAppInstalled);
 
-    // After 4 s, if Chrome prompt never fired, show manual fallback on mobile
-    const fallbackTimer = setTimeout(() => {
-       if (promptCaptured.current) return; // prompt fired - already showing
+    const fallbackTimer = window.setTimeout(() => {
+      if (promptCaptured.current) return;
       if (isStandalone() || wasInstalled() || wasDismissedRecently()) return;
       if (isAndroidChrome()) setBannerState("manual-android");
       else if (isIos()) setBannerState("manual-ios");
@@ -251,20 +252,42 @@ export function InstallPrompt() {
     return () => {
       window.removeEventListener("beforeinstallprompt", onBeforeInstallPrompt);
       window.removeEventListener("appinstalled", onAppInstalled);
-      clearTimeout(fallbackTimer);
+      window.clearTimeout(fallbackTimer);
     };
   }, []);
 
-  function dismiss() {
-    setBannerState("hidden");
-    setShowManual(false);
-    deferredPromptRef.current = null;
-    try { localStorage.setItem(DISMISSED_KEY, String(Date.now())); } catch { /* noop */ }
-  }
+  useEffect(() => {
+    if (!overlayOpen) return;
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") dismiss();
+    }
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [overlayOpen]);
+
+  useEffect(() => {
+    if (!overlayOpen) return;
+    if (import.meta.env.DEV) {
+      console.debug("[install-prompt] closing overlay on route change", { pathname: location.pathname });
+    }
+    dismiss();
+  }, [location.pathname, overlayOpen]);
 
   async function install() {
     const prompt = deferredPromptRef.current;
-    if (!prompt) { setShowManual(true); return; }
+    if (!prompt) {
+      setShowManual(true);
+      return;
+    }
+
     try {
       await prompt.prompt();
       const choice = await prompt.userChoice;
@@ -272,6 +295,7 @@ export function InstallPrompt() {
     } catch {
       setShowManual(true);
     }
+
     deferredPromptRef.current = null;
   }
 
@@ -294,4 +318,3 @@ export function InstallPrompt() {
     />
   );
 }
-
