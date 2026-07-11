@@ -406,6 +406,34 @@ body {
   background: rgba(255, 255, 255, 0.18);
 }
 
+/* Keep the desktop sidebar fixed below the topbar while page content scrolls */
+@media screen and (min-width: 1024px) {
+  .app-shell-root {
+    height: 100vh;
+    min-height: 100vh;
+  }
+
+  .app-shell-sidebar {
+    position: fixed;
+    top: var(--app-topbar-height);
+    bottom: auto;
+    left: 0;
+    z-index: 40;
+    height: calc(100vh - var(--app-topbar-height));
+    margin-top: 0;
+    width: var(--sidebar-width);
+    max-width: var(--sidebar-width);
+    min-width: var(--sidebar-width);
+    overflow-y: auto;
+    overflow-x: hidden;
+  }
+
+  .app-shell-content {
+    min-width: 0;
+    margin-left: var(--sidebar-width);
+  }
+}
+
 /* ── Marksheet screen styles ──────────────────────────────────────────────── */
 
 .marksheet-print-area {
@@ -1256,8 +1284,12 @@ body {
 
   @supports (height: 100dvh) {
     @media (min-width: 1024px) {
-      .app-shell-sidebar {
+      .app-shell-root {
         height: 100dvh;
+      }
+
+      .app-shell-sidebar {
+        height: calc(100dvh - var(--app-topbar-height));
       }
     }
   }

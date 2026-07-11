@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from "react";
+﻿import { useEffect, useState, type CSSProperties } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import { Navigate, Outlet } from "react-router-dom";
 import { useAuth } from "../../contexts/AuthContext";
@@ -195,8 +195,10 @@ function AppShellInner({
 
   return (
     <div
-      className="app-shell-root min-h-screen overflow-x-hidden bg-slate-50 text-slate-950 lg:grid"
-      style={{ gridTemplateColumns: `${sidebarCollapsed ? 72 : sidebarWidth}px minmax(0,1fr)` }}
+      className="app-shell-root min-h-screen overflow-x-hidden bg-slate-50 text-slate-950 lg:h-screen lg:overflow-hidden"
+      style={{
+        "--sidebar-width": `${sidebarCollapsed ? 72 : sidebarWidth}px`,
+      } as CSSProperties}
     >
       <Sidebar
         open={sidebarOpen}
@@ -205,11 +207,11 @@ function AppShellInner({
         onToggleCollapsed={() => setSidebarCollapsed((current) => !current)}
         width={sidebarWidth}
       />
-      <div className="min-w-0">
+      <div className="app-shell-content flex min-w-0 flex-col lg:h-screen lg:min-h-0">
         <Topbar onMenuClick={setSidebarOpenAndClose} />
-        <div className="app-page mx-auto w-full max-w-[1540px]">
+        <main className="app-page mx-auto min-h-0 w-full max-w-[1540px] flex-1 overflow-y-auto">
           <Outlet />
-        </div>
+        </main>
       </div>
       <InstallPrompt />
       <SupportWidget />
