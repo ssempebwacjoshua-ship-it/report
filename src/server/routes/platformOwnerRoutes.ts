@@ -1,6 +1,6 @@
 ﻿import { Router } from "express";
 import { z } from "zod";
-import { randomUUID } from "node:crypto";
+import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { prisma } from "../db/prisma";
 import { requirePlatformOwner } from "../middleware/requirePlatformOwner";
 import { hashPassword } from "../services/authService";
@@ -10,9 +10,63 @@ import { getSmartPagesPackage } from "../services/smartPagesService";
 import type { SmartPagesPackageCode, SmartPagesPaymentNetwork, SmartPagesPaymentRequest } from "../../shared/types/smartPages";
 
 const validPlanCodes = REPORT_LAB_PLANS.map((p) => p.code) as [string, ...string[]];
+const FEATURE_FLAGS = ["REPORT_LAB", "SMART_PAGES", "ATTENDANCE", "WALLET", "GATE", "NFC", "OCR", "AI"] as const;
+const MAINTENANCE_ACTIONS = ["FORCE_SYNC", "REBUILD_SEARCH", "REPAIR_DOCUMENTS", "REGENERATE_QR_CODES", "RESEND_PENDING_EMAILS"] as const;
+const READER_ACTIONS = ["RESTART", "SYNC", "UPDATE_FIRMWARE", "RE_REGISTER"] as const;
 
 function ownerAudit(actorId: string, schoolId: string, action: string, details?: Record<string, unknown>) {
   return prisma.auditLog.create({ data: { schoolId, action, details: { actorUserId: actorId, ...details } } });
+}
+
+function hashToken(token: string) {
+  return createHash("sha256").update(token).digest("hex");
+}
+
+function generateTemporaryPassword() {
+  return `Sc-${randomBytes(9).toString("base64url")}!`;
+}
+
+function generateDeviceToken() {
+  return randomBytes(32).toString("base64url");
+}
+
+async function requireOwnerSchool(schoolId: string) {
+  const school = await prisma.school.findUnique({ where: { id: schoolId }, select: { id: true, name: true, code: true } });
+  if (!school) throw Object.assign(new Error("School not found."), { status: 404 });
+  return school;
+}
+
+function mapAuditLog(row: { id: string; action: string; correlationId: string | null; details: unknown; createdAt: Date }) {
+  return {
+    id: row.id,
+    action: row.action,
+    correlationId: row.correlationId,
+    details: row.details,
+    createdAt: row.createdAt.toISOString(),
+  };
+}
+
+function mapReader(row: any) {
+  return {
+    id: row.id,
+    name: row.name,
+    deviceKey: row.deviceKey,
+    location: row.location,
+    mode: row.mode,
+    status: row.status,
+    isActive: row.isActive,
+    firmwareVersion: row.firmwareVersion ?? null,
+    lastIp: row.lastIp ?? null,
+    lastRssi: row.lastRssi ?? null,
+    lastSeenAt: row.lastSeenAt ? row.lastSeenAt.toISOString() : null,
+    lastScanAt: row.lastScanAt ? row.lastScanAt.toISOString() : null,
+    lastScanStatus: row.lastScanStatus ?? null,
+    lastScanMessage: row.lastScanMessage ?? null,
+    queueDepth: row.queueDepth ?? 0,
+    onlineStatus: row.onlineStatus ?? "OFFLINE",
+    hasToken: Boolean(row.deviceTokenHash),
+    tokenHashPrefix: row.deviceTokenHash ? `${String(row.deviceTokenHash).slice(0, 10)}...` : null,
+  };
 }
 
 function smartPagesPaymentToDto(row: any): SmartPagesPaymentRequest {
@@ -86,7 +140,11 @@ export function platformOwnerRoutes() {
           code: true,
           name: true,
           phone: true,
+          email: true,
           address: true,
+          logoUrl: true,
+          timezone: true,
+          brandingMode: true,
           isActive: true,
           createdAt: true,
           subscription: { select: { planCode: true, status: true, currentPeriodEnd: true, studentLimit: true } },
@@ -101,7 +159,11 @@ export function platformOwnerRoutes() {
           code: s.code,
           name: s.name,
           phone: s.phone,
+          email: s.email,
           address: s.address,
+          logoUrl: s.logoUrl,
+          timezone: s.timezone,
+          brandingMode: s.brandingMode,
           isActive: s.isActive,
           createdAt: s.createdAt.toISOString(),
           subscription: s.subscription ?? null,
@@ -230,7 +292,11 @@ export function platformOwnerRoutes() {
   router.post("/api/owner/users/:userId/reset-password", requirePlatformOwner, async (req, res, next) => {
     try {
       const { userId } = req.params;
-      const { temporaryPassword } = z.object({ temporaryPassword: z.string().min(8) }).parse(req.body);
+      const body = z.object({
+        temporaryPassword: z.string().min(8).optional(),
+        generateTemporaryPassword: z.boolean().optional(),
+        sendResetEmail: z.boolean().optional(),
+      }).parse(req.body);
 
       const user = await prisma.user.findUnique({ where: { id: userId } });
       if (!user || user.isPlatformOwner) {
@@ -238,11 +304,30 @@ export function platformOwnerRoutes() {
         return;
       }
 
-      const passwordHash = await hashPassword(temporaryPassword);
-      await prisma.user.update({ where: { id: userId }, data: { passwordHash, mustChangePassword: true } });
+      const temporaryPassword = body.generateTemporaryPassword ? generateTemporaryPassword() : body.temporaryPassword;
+      if (!temporaryPassword) {
+        res.status(400).json({ error: "Temporary password is required unless generation is requested." });
+        return;
+      }
 
-      void ownerAudit(req.user!.userId, user.schoolId, "OWNER_RESET_PASSWORD", { targetUserId: userId }).catch(() => {});
-      res.json({ ok: true, mustChangePassword: true });
+      const passwordHash = await hashPassword(temporaryPassword);
+      await prisma.user.update({
+        where: { id: userId },
+        data: { passwordHash, mustChangePassword: true, tokenVersion: { increment: 1 } },
+      });
+
+      void ownerAudit(req.user!.userId, user.schoolId, "PASSWORD_RESET_BY_OWNER", {
+        targetUserId: userId,
+        generatedTemporaryPassword: Boolean(body.generateTemporaryPassword),
+        resetEmailRequested: Boolean(body.sendResetEmail),
+        resetEmailQueued: false,
+      }).catch(() => {});
+      res.json({
+        ok: true,
+        mustChangePassword: true,
+        temporaryPassword: body.generateTemporaryPassword ? temporaryPassword : undefined,
+        resetEmailQueued: false,
+      });
     } catch (error) {
       next(error);
     }
@@ -257,8 +342,8 @@ export function platformOwnerRoutes() {
         return;
       }
 
-      await prisma.user.update({ where: { id: userId }, data: { isActive: false } });
-      void ownerAudit(req.user!.userId, user.schoolId, "OWNER_DISABLE_USER", { targetUserId: userId }).catch(() => {});
+      await prisma.user.update({ where: { id: userId }, data: { isActive: false, tokenVersion: { increment: 1 } } });
+      void ownerAudit(req.user!.userId, user.schoolId, "USER_SUSPENDED_BY_OWNER", { targetUserId: userId }).catch(() => {});
       res.json({ ok: true });
     } catch (error) {
       next(error);
@@ -275,7 +360,59 @@ export function platformOwnerRoutes() {
       }
 
       await prisma.user.update({ where: { id: userId }, data: { isActive: true } });
-      void ownerAudit(req.user!.userId, user.schoolId, "OWNER_ENABLE_USER", { targetUserId: userId }).catch(() => {});
+      void ownerAudit(req.user!.userId, user.schoolId, "USER_REACTIVATED_BY_OWNER", { targetUserId: userId }).catch(() => {});
+      res.json({ ok: true });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/api/owner/users/:userId/unlock", requirePlatformOwner, async (req, res, next) => {
+    try {
+      const { userId } = req.params;
+      const user = await prisma.user.findUnique({ where: { id: userId } });
+      if (!user || user.isPlatformOwner) {
+        res.status(404).json({ error: "User not found." });
+        return;
+      }
+
+      await prisma.user.update({
+        where: { id: userId },
+        data: { isActive: true, tokenVersion: { increment: 1 } },
+      });
+      void ownerAudit(req.user!.userId, user.schoolId, "ACCOUNT_UNLOCKED_BY_OWNER", { targetUserId: userId }).catch(() => {});
+      res.json({ ok: true, sessionsInvalidated: true });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/api/owner/users/:userId/suspend", requirePlatformOwner, async (req, res, next) => {
+    try {
+      const { userId } = req.params;
+      const user = await prisma.user.findUnique({ where: { id: userId } });
+      if (!user || user.isPlatformOwner) {
+        res.status(404).json({ error: "User not found." });
+        return;
+      }
+      await prisma.user.update({ where: { id: userId }, data: { isActive: false, tokenVersion: { increment: 1 } } });
+      void ownerAudit(req.user!.userId, user.schoolId, "USER_SUSPENDED_BY_OWNER", { targetUserId: userId }).catch(() => {});
+      res.json({ ok: true });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/api/owner/users/:userId/reactivate", requirePlatformOwner, async (req, res, next) => {
+    try {
+      const { userId } = req.params;
+      const user = await prisma.user.findUnique({ where: { id: userId } });
+      if (!user || user.isPlatformOwner) {
+        res.status(404).json({ error: "User not found." });
+        return;
+      }
+      await prisma.user.update({ where: { id: userId }, data: { isActive: true } });
+      void ownerAudit(req.user!.userId, user.schoolId, "USER_REACTIVATED_BY_OWNER", { targetUserId: userId }).catch(() => {});
       res.json({ ok: true });
     } catch (error) {
       next(error);
@@ -391,7 +528,11 @@ export function platformOwnerRoutes() {
           code: true,
           name: true,
           phone: true,
+          email: true,
           address: true,
+          logoUrl: true,
+          timezone: true,
+          brandingMode: true,
           isActive: true,
           createdAt: true,
           subscription: {
@@ -430,7 +571,11 @@ export function platformOwnerRoutes() {
   const patchSchoolSchema = z.object({
     name: z.string().min(2).max(200).optional(),
     phone: z.string().max(50).nullable().optional(),
+    email: z.string().email().nullable().optional(),
     address: z.string().max(500).nullable().optional(),
+    logoUrl: z.string().url().nullable().optional(),
+    timezone: z.string().min(2).max(80).optional(),
+    brandingMode: z.enum(["PLATFORM_DEFAULTS", "SCHOOL_BRANDED"]).optional(),
     isActive: z.boolean().optional(),
   });
 
@@ -450,15 +595,478 @@ export function platformOwnerRoutes() {
         data: {
           ...(body.name !== undefined ? { name: body.name } : {}),
           ...(body.phone !== undefined ? { phone: body.phone } : {}),
+          ...(body.email !== undefined ? { email: body.email } : {}),
           ...(body.address !== undefined ? { address: body.address } : {}),
+          ...(body.logoUrl !== undefined ? { logoUrl: body.logoUrl } : {}),
+          ...(body.timezone !== undefined ? { timezone: body.timezone } : {}),
+          ...(body.brandingMode !== undefined ? { brandingMode: body.brandingMode } : {}),
           ...(body.isActive !== undefined ? { isActive: body.isActive } : {}),
         },
-        select: { id: true, code: true, name: true, phone: true, address: true, isActive: true },
+        select: { id: true, code: true, name: true, phone: true, email: true, address: true, logoUrl: true, timezone: true, brandingMode: true, isActive: true },
       });
 
       const action = body.isActive === false ? "OWNER_DISABLE_SCHOOL" : body.isActive === true ? "OWNER_ENABLE_SCHOOL" : "OWNER_UPDATE_SCHOOL";
       void ownerAudit(req.user!.userId, schoolId, action, { changes: body }).catch(() => {});
       res.json({ ok: true, school: updated });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  const schoolDetailsSchema = z.object({
+    name: z.string().min(2).max(200).optional(),
+    phone: z.string().max(50).nullable().optional(),
+    email: z.string().email().nullable().optional(),
+    address: z.string().max(500).nullable().optional(),
+    logoUrl: z.string().url().nullable().optional(),
+    timezone: z.string().min(2).max(80).optional(),
+    brandingMode: z.enum(["PLATFORM_DEFAULTS", "SCHOOL_BRANDED"]).optional(),
+  });
+
+  router.get("/api/owner/schools/:schoolId/console", requirePlatformOwner, async (req, res, next) => {
+    try {
+      const { schoolId } = req.params;
+      await requireOwnerSchool(schoolId);
+
+      const [school, users, readers, featureFlags, auditLogs, supportSessions, smartPlan, smartLedgerCount] = await Promise.all([
+        prisma.school.findUnique({
+          where: { id: schoolId },
+          select: {
+            id: true,
+            code: true,
+            name: true,
+            phone: true,
+            email: true,
+            address: true,
+            logoUrl: true,
+            timezone: true,
+            brandingMode: true,
+            isActive: true,
+            createdAt: true,
+            subscription: { select: { id: true, planCode: true, status: true, currentPeriodStart: true, currentPeriodEnd: true, studentLimit: true } },
+            _count: { select: { students: true, users: true, issuedReports: true, imports: true } },
+          },
+        }),
+        prisma.user.findMany({
+          where: { schoolId, isPlatformOwner: false },
+          orderBy: [{ role: "asc" }, { name: "asc" }],
+          take: 100,
+          select: { id: true, name: true, email: true, role: true, isActive: true, mustChangePassword: true, lastLoginAt: true, createdAt: true },
+        }),
+        prisma.nfcOfflineDevice.findMany({ where: { schoolId }, orderBy: { createdAt: "desc" } }),
+        (prisma as any).schoolFeatureFlag.findMany({ where: { schoolId }, orderBy: { feature: "asc" } }),
+        prisma.auditLog.findMany({ where: { schoolId }, orderBy: { createdAt: "desc" }, take: 50 }),
+        (prisma as any).platformSupportSession.findMany({ where: { schoolId }, orderBy: { createdAt: "desc" }, take: 10 }),
+        (prisma as any).schoolSmartPagePlan.findUnique({ where: { schoolId } }).catch(() => null),
+        (prisma as any).smartPageLedger.count({ where: { schoolId } }).catch(() => 0),
+      ]);
+
+      const flagMap = new Map((featureFlags as Array<{ feature: string; enabled: boolean }>).map((flag) => [flag.feature, flag.enabled]));
+      const now = Date.now();
+      res.json({
+        school: school ? {
+          ...school,
+          createdAt: school.createdAt.toISOString(),
+          subscription: school.subscription ? {
+            ...school.subscription,
+            currentPeriodStart: school.subscription.currentPeriodStart.toISOString(),
+            currentPeriodEnd: school.subscription.currentPeriodEnd.toISOString(),
+          } : null,
+          studentCount: school._count.students,
+          userCount: school._count.users,
+          reportCount: school._count.issuedReports,
+          importCount: school._count.imports,
+          _count: undefined,
+        } : null,
+        users: users.map((user) => ({
+          ...user,
+          lastLoginAt: user.lastLoginAt?.toISOString() ?? null,
+          createdAt: user.createdAt.toISOString(),
+        })),
+        admins: users.filter((user) => user.role === "ADMIN_OPERATOR"),
+        readers: readers.map(mapReader),
+        featureFlags: FEATURE_FLAGS.map((feature) => ({ feature, enabled: flagMap.get(feature) ?? false })),
+        auditLogs: auditLogs.map(mapAuditLog),
+        supportSessions: (supportSessions as any[]).map((session) => ({
+          id: session.id,
+          mode: session.mode,
+          status: session.status,
+          reason: session.reason,
+          expiresAt: session.expiresAt.toISOString(),
+          endedAt: session.endedAt ? session.endedAt.toISOString() : null,
+          createdAt: session.createdAt.toISOString(),
+        })),
+        sessions: {
+          active: [],
+          note: "Per-device browser session storage is not configured yet. Terminate Session invalidates all tokens for the selected user.",
+        },
+        apiKeys: {
+          readerTokens: readers.map((reader) => ({
+            id: reader.id,
+            name: reader.name,
+            deviceKey: reader.deviceKey,
+            hasToken: Boolean(reader.deviceTokenHash),
+            tokenHashPrefix: reader.deviceTokenHash ? `${reader.deviceTokenHash.slice(0, 10)}...` : null,
+          })),
+          webhookKeys: [],
+        },
+        health: {
+          studentCount: school?._count.students ?? 0,
+          userCount: school?._count.users ?? 0,
+          issuedReportCount: school?._count.issuedReports ?? 0,
+          importCount: school?._count.imports ?? 0,
+          storageUsage: null,
+          databaseSize: null,
+          lastBackup: null,
+          ocrUsage: smartLedgerCount,
+          gatewayStatus: readers.some((reader) => reader.lastSeenAt && now - reader.lastSeenAt.getTime() < 2 * 60 * 1000) ? "ONLINE" : "OFFLINE",
+          smartPagesStatus: smartPlan?.status ?? "NOT_CONFIGURED",
+        },
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.patch("/api/owner/schools/:schoolId/details", requirePlatformOwner, async (req, res, next) => {
+    try {
+      const { schoolId } = req.params;
+      await requireOwnerSchool(schoolId);
+      const body = schoolDetailsSchema.parse(req.body);
+      const school = await prisma.school.update({
+        where: { id: schoolId },
+        data: body,
+        select: { id: true, code: true, name: true, phone: true, email: true, address: true, logoUrl: true, timezone: true, brandingMode: true, isActive: true },
+      });
+      void ownerAudit(req.user!.userId, schoolId, "SCHOOL_DETAILS_UPDATED_BY_OWNER", { changes: body }).catch(() => {});
+      res.json({ ok: true, school });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.get("/api/owner/schools/:schoolId/audit-log", requirePlatformOwner, async (req, res, next) => {
+    try {
+      const { schoolId } = req.params;
+      await requireOwnerSchool(schoolId);
+      const event = typeof req.query.event === "string" ? req.query.event.trim() : "";
+      const userId = typeof req.query.userId === "string" ? req.query.userId.trim() : "";
+      const from = typeof req.query.from === "string" ? new Date(req.query.from) : null;
+      const to = typeof req.query.to === "string" ? new Date(req.query.to) : null;
+      const logs = await prisma.auditLog.findMany({
+        where: {
+          schoolId,
+          ...(event ? { action: { contains: event, mode: "insensitive" } } : {}),
+          ...(from && !Number.isNaN(from.getTime()) || to && !Number.isNaN(to.getTime()) ? {
+            createdAt: {
+              ...(from && !Number.isNaN(from.getTime()) ? { gte: from } : {}),
+              ...(to && !Number.isNaN(to.getTime()) ? { lte: to } : {}),
+            },
+          } : {}),
+        },
+        orderBy: { createdAt: "desc" },
+        take: 200,
+      });
+      const filtered = userId
+        ? logs.filter((log) => JSON.stringify(log.details ?? {}).includes(userId))
+        : logs;
+      res.json({ auditLogs: filtered.map(mapAuditLog) });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.patch("/api/owner/schools/:schoolId/feature-flags", requirePlatformOwner, async (req, res, next) => {
+    try {
+      const { schoolId } = req.params;
+      await requireOwnerSchool(schoolId);
+      const body = z.object({
+        flags: z.array(z.object({ feature: z.enum(FEATURE_FLAGS), enabled: z.boolean() })).min(1),
+      }).parse(req.body);
+      await prisma.$transaction(body.flags.map((flag) => (prisma as any).schoolFeatureFlag.upsert({
+        where: { schoolId_feature: { schoolId, feature: flag.feature } },
+        update: { enabled: flag.enabled, updatedByUserId: req.user!.userId },
+        create: { schoolId, feature: flag.feature, enabled: flag.enabled, updatedByUserId: req.user!.userId },
+      })));
+      void ownerAudit(req.user!.userId, schoolId, "FEATURE_FLAGS_UPDATED_BY_OWNER", { flags: body.flags }).catch(() => {});
+      res.json({ ok: true, featureFlags: body.flags });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.patch("/api/owner/schools/:schoolId/subscription", requirePlatformOwner, async (req, res, next) => {
+    try {
+      const { schoolId } = req.params;
+      await requireOwnerSchool(schoolId);
+      const body = z.object({
+        action: z.enum(["EXTEND", "CANCEL", "PAUSE", "CHANGE_PLAN"]),
+        planCode: z.enum(validPlanCodes as [string, ...string[]]).optional(),
+        extendDays: z.coerce.number().int().min(1).max(730).optional(),
+        studentLimit: z.coerce.number().int().min(0).nullable().optional(),
+      }).parse(req.body);
+      const current = await prisma.reportLabSubscription.findUnique({ where: { schoolId } });
+      if (!current) {
+        res.status(404).json({ error: "Subscription not found." });
+        return;
+      }
+      const data: Record<string, unknown> = {};
+      if (body.action === "EXTEND") {
+        const base = current.currentPeriodEnd > new Date() ? current.currentPeriodEnd : new Date();
+        data.currentPeriodEnd = new Date(base.getTime() + (body.extendDays ?? 30) * 24 * 60 * 60 * 1000);
+        data.status = "ACTIVE";
+      }
+      if (body.action === "CANCEL" || body.action === "PAUSE") data.status = "SUSPENDED";
+      if (body.action === "CHANGE_PLAN") {
+        if (!body.planCode) {
+          res.status(400).json({ error: "Plan code is required to change plan." });
+          return;
+        }
+        data.planCode = body.planCode;
+      }
+      if (body.studentLimit !== undefined) data.studentLimit = body.studentLimit;
+      const subscription = await prisma.reportLabSubscription.update({ where: { schoolId }, data });
+      void ownerAudit(req.user!.userId, schoolId, "SUBSCRIPTION_CHANGED_BY_OWNER", { action: body.action, changes: data }).catch(() => {});
+      res.json({
+        ok: true,
+        subscription: {
+          ...subscription,
+          currentPeriodStart: subscription.currentPeriodStart.toISOString(),
+          currentPeriodEnd: subscription.currentPeriodEnd.toISOString(),
+        },
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/api/owner/schools/:schoolId/support-sessions", requirePlatformOwner, async (req, res, next) => {
+    try {
+      const { schoolId } = req.params;
+      await requireOwnerSchool(schoolId);
+      const body = z.object({
+        mode: z.enum(["READ_ONLY", "WRITE"]).default("READ_ONLY"),
+        reason: z.string().min(3).max(500),
+        durationMinutes: z.coerce.number().int().min(5).max(240).default(30),
+        writeConfirmed: z.boolean().optional(),
+      }).parse(req.body);
+      if (body.mode === "WRITE" && !body.writeConfirmed) {
+        res.status(400).json({ error: "Write-mode support sessions require explicit confirmation." });
+        return;
+      }
+      const expiresAt = new Date(Date.now() + body.durationMinutes * 60 * 1000);
+      const session = await (prisma as any).platformSupportSession.create({
+        data: { schoolId, ownerUserId: req.user!.userId, mode: body.mode, reason: body.reason, expiresAt },
+      });
+      void ownerAudit(req.user!.userId, schoolId, "SUPPORT_SESSION_STARTED", {
+        supportSessionId: session.id,
+        mode: body.mode,
+        expiresAt: expiresAt.toISOString(),
+      }).catch(() => {});
+      res.status(201).json({
+        ok: true,
+        supportSession: {
+          id: session.id,
+          mode: session.mode,
+          status: session.status,
+          reason: session.reason,
+          expiresAt: session.expiresAt.toISOString(),
+          banner: "Support Session - Platform Owner",
+          readOnly: session.mode === "READ_ONLY",
+        },
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/api/owner/support-sessions/:sessionId/end", requirePlatformOwner, async (req, res, next) => {
+    try {
+      const { sessionId } = req.params;
+      const session = await (prisma as any).platformSupportSession.findUnique({ where: { id: sessionId } });
+      if (!session) {
+        res.status(404).json({ error: "Support session not found." });
+        return;
+      }
+      const ended = await (prisma as any).platformSupportSession.update({
+        where: { id: sessionId },
+        data: { status: "ENDED", endedAt: new Date() },
+      });
+      void ownerAudit(req.user!.userId, session.schoolId, "SUPPORT_SESSION_ENDED", { supportSessionId: sessionId }).catch(() => {});
+      res.json({ ok: true, supportSession: { id: ended.id, status: ended.status, endedAt: ended.endedAt.toISOString() } });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/api/owner/schools/:schoolId/maintenance", requirePlatformOwner, async (req, res, next) => {
+    try {
+      const { schoolId } = req.params;
+      await requireOwnerSchool(schoolId);
+      const body = z.object({ action: z.enum(MAINTENANCE_ACTIONS), reason: z.string().max(500).optional() }).parse(req.body);
+      void ownerAudit(req.user!.userId, schoolId, `MAINTENANCE_${body.action}_REQUESTED_BY_OWNER`, { reason: body.reason ?? null }).catch(() => {});
+      res.json({ ok: true, action: body.action, queued: false, message: "Maintenance request audited. Worker execution is not configured yet." });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/api/owner/schools/:schoolId/readers/:deviceId/actions", requirePlatformOwner, async (req, res, next) => {
+    try {
+      const { schoolId, deviceId } = req.params;
+      await requireOwnerSchool(schoolId);
+      const body = z.object({ action: z.enum(READER_ACTIONS), firmwareVersion: z.string().max(50).optional() }).parse(req.body);
+      const reader = await prisma.nfcOfflineDevice.findFirst({ where: { schoolId, OR: [{ id: deviceId }, { deviceKey: deviceId }] } });
+      if (!reader) {
+        res.status(404).json({ error: "Reader not found." });
+        return;
+      }
+      if (body.action === "RE_REGISTER") {
+        await prisma.nfcOfflineDevice.update({ where: { id: reader.id }, data: { status: "ACTIVE", isActive: true } });
+      }
+      void ownerAudit(req.user!.userId, schoolId, `READER_${body.action}_REQUESTED_BY_OWNER`, {
+        readerId: reader.id,
+        deviceKey: reader.deviceKey,
+        firmwareVersion: body.firmwareVersion ?? null,
+      }).catch(() => {});
+      res.json({ ok: true, action: body.action, delivered: false, message: "Reader command was audited. Live device command transport is not configured yet." });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/api/owner/schools/:schoolId/readers/:deviceId/rotate-token", requirePlatformOwner, async (req, res, next) => {
+    try {
+      const { schoolId, deviceId } = req.params;
+      await requireOwnerSchool(schoolId);
+      const reader = await prisma.nfcOfflineDevice.findFirst({ where: { schoolId, OR: [{ id: deviceId }, { deviceKey: deviceId }] } });
+      if (!reader) {
+        res.status(404).json({ error: "Reader not found." });
+        return;
+      }
+      const oneTimeToken = generateDeviceToken();
+      await prisma.nfcOfflineDevice.update({ where: { id: reader.id }, data: { deviceTokenHash: hashToken(oneTimeToken), status: "ACTIVE", isActive: true } });
+      void ownerAudit(req.user!.userId, schoolId, "READER_TOKEN_ROTATED_BY_OWNER", { readerId: reader.id, deviceKey: reader.deviceKey }).catch(() => {});
+      res.json({ ok: true, readerId: reader.id, deviceKey: reader.deviceKey, oneTimeToken });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/api/owner/users/:userId/terminate-sessions", requirePlatformOwner, async (req, res, next) => {
+    try {
+      const { userId } = req.params;
+      const user = await prisma.user.findUnique({ where: { id: userId } });
+      if (!user || user.isPlatformOwner) {
+        res.status(404).json({ error: "User not found." });
+        return;
+      }
+      await prisma.user.update({ where: { id: userId }, data: { tokenVersion: { increment: 1 } } });
+      void ownerAudit(req.user!.userId, user.schoolId, "SESSION_TERMINATED_BY_OWNER", { targetUserId: userId, scope: "ALL_TOKENS" }).catch(() => {});
+      res.json({ ok: true, terminated: "ALL_TOKENS" });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/api/owner/users/:userId/reset-mfa", requirePlatformOwner, async (req, res, next) => {
+    try {
+      const { userId } = req.params;
+      const user = await prisma.user.findUnique({ where: { id: userId } });
+      if (!user || user.isPlatformOwner) {
+        res.status(404).json({ error: "User not found." });
+        return;
+      }
+      void ownerAudit(req.user!.userId, user.schoolId, "MFA_RESET_BY_OWNER", { targetUserId: userId, configured: false }).catch(() => {});
+      res.json({ ok: true, reset: false, message: "MFA is not configured for this account model yet." });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/api/owner/schools/:schoolId/admins", requirePlatformOwner, async (req, res, next) => {
+    try {
+      const { schoolId } = req.params;
+      await requireOwnerSchool(schoolId);
+      const body = z.object({
+        userId: z.string().uuid().optional(),
+        name: z.string().min(2).optional(),
+        email: z.string().email().optional(),
+        temporaryPassword: z.string().min(8).optional(),
+      }).parse(req.body);
+      if (body.userId) {
+        const user = await prisma.user.findFirst({ where: { id: body.userId, schoolId, isPlatformOwner: false } });
+        if (!user) {
+          res.status(404).json({ error: "User not found in this school." });
+          return;
+        }
+        const updated = await prisma.user.update({ where: { id: user.id }, data: { role: "ADMIN_OPERATOR", isActive: true, tokenVersion: { increment: 1 } } });
+        void ownerAudit(req.user!.userId, schoolId, "SCHOOL_ADMIN_ADDED_BY_OWNER", { targetUserId: user.id, existingUser: true }).catch(() => {});
+        res.json({ ok: true, user: { id: updated.id, name: updated.name, email: updated.email, role: updated.role, isActive: updated.isActive } });
+        return;
+      }
+      if (!body.name || !body.email || !body.temporaryPassword) {
+        res.status(400).json({ error: "Name, email, and temporary password are required when creating an admin." });
+        return;
+      }
+      const existing = await prisma.user.findFirst({ where: { schoolId, email: body.email.toLowerCase() } });
+      if (existing) {
+        res.status(409).json({ error: "A user with this email already exists in this school." });
+        return;
+      }
+      const created = await prisma.user.create({
+        data: {
+          schoolId,
+          name: body.name,
+          email: body.email.toLowerCase(),
+          role: "ADMIN_OPERATOR",
+          passwordHash: await hashPassword(body.temporaryPassword),
+          mustChangePassword: true,
+          isActive: true,
+        },
+        select: { id: true, name: true, email: true, role: true, isActive: true, mustChangePassword: true },
+      });
+      void ownerAudit(req.user!.userId, schoolId, "SCHOOL_ADMIN_ADDED_BY_OWNER", { targetUserId: created.id, existingUser: false }).catch(() => {});
+      res.status(201).json({ ok: true, user: created });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.delete("/api/owner/schools/:schoolId/admins/:userId", requirePlatformOwner, async (req, res, next) => {
+    try {
+      const { schoolId, userId } = req.params;
+      await requireOwnerSchool(schoolId);
+      const user = await prisma.user.findFirst({ where: { id: userId, schoolId, isPlatformOwner: false } });
+      if (!user) {
+        res.status(404).json({ error: "User not found in this school." });
+        return;
+      }
+      const activeAdmins = await prisma.user.count({ where: { schoolId, role: "ADMIN_OPERATOR", isActive: true, isPlatformOwner: false, NOT: { id: userId } } });
+      if (activeAdmins === 0) {
+        res.status(409).json({ error: "Cannot remove the last active school administrator." });
+        return;
+      }
+      await prisma.user.update({ where: { id: userId }, data: { isActive: false, tokenVersion: { increment: 1 } } });
+      void ownerAudit(req.user!.userId, schoolId, "SCHOOL_ADMIN_REMOVED_BY_OWNER", { targetUserId: userId }).catch(() => {});
+      res.json({ ok: true });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/api/owner/schools/:schoolId/admins/:userId/transfer-headteacher", requirePlatformOwner, async (req, res, next) => {
+    try {
+      const { schoolId, userId } = req.params;
+      await requireOwnerSchool(schoolId);
+      const user = await prisma.user.findFirst({ where: { id: userId, schoolId, isPlatformOwner: false } });
+      if (!user) {
+        res.status(404).json({ error: "User not found in this school." });
+        return;
+      }
+      const updated = await prisma.user.update({ where: { id: userId }, data: { role: "ADMIN_OPERATOR", isActive: true, tokenVersion: { increment: 1 } } });
+      void ownerAudit(req.user!.userId, schoolId, "HEADTEACHER_OWNERSHIP_TRANSFERRED_BY_OWNER", { targetUserId: userId }).catch(() => {});
+      res.json({ ok: true, user: { id: updated.id, name: updated.name, email: updated.email, role: updated.role, isActive: updated.isActive } });
     } catch (error) {
       next(error);
     }

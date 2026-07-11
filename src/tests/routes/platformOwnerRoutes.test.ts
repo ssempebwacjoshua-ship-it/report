@@ -2,6 +2,7 @@
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import { createServer } from "../../server";
 import { signToken } from "../../server/services/authService";
+import { prisma } from "../../server/db/prisma";
 import type { PrismaClient } from "@prisma/client";
 
 // ─── Shared tokens ────────────────────────────────────────────────────────────
@@ -311,6 +312,106 @@ describe("platformOwnerRoutes ? audit log (unit mock)", () => {
         }),
       }),
     );
+  });
+});
+
+describe("platformOwnerRoutes ? school management console", () => {
+  async function firstSchoolId() {
+    const schoolsRes = await request(createServer())
+      .get("/api/owner/schools")
+      .set("Authorization", `Bearer ${ownerToken}`);
+    const schools = schoolsRes.body.schools as Array<{ id: string }>;
+    return schools[0]?.id ?? null;
+  }
+
+  it("returns composite owner console data for a school", async () => {
+    const schoolId = await firstSchoolId();
+    if (!schoolId) return;
+
+    const res = await request(createServer())
+      .get(`/api/owner/schools/${schoolId}/console`)
+      .set("Authorization", `Bearer ${ownerToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.school.id).toBe(schoolId);
+    expect(Array.isArray(res.body.users)).toBe(true);
+    expect(Array.isArray(res.body.readers)).toBe(true);
+    expect(Array.isArray(res.body.featureFlags)).toBe(true);
+    expect(res.body.sessions.note).toMatch(/token/i);
+  });
+
+  it("starts an audited read-only support session", async () => {
+    const schoolId = await firstSchoolId();
+    if (!schoolId) return;
+
+    const res = await request(createServer())
+      .post(`/api/owner/schools/${schoolId}/support-sessions`)
+      .set("Authorization", `Bearer ${ownerToken}`)
+      .send({ mode: "READ_ONLY", reason: "Help school verify attendance setup", durationMinutes: 15 });
+
+    expect(res.status).toBe(201);
+    expect(res.body.supportSession.banner).toMatch(/Support Session/i);
+    expect(res.body.supportSession.readOnly).toBe(true);
+
+    const audit = await prisma.auditLog.findFirst({
+      where: { schoolId, action: "SUPPORT_SESSION_STARTED" },
+      orderBy: { createdAt: "desc" },
+    });
+    expect(audit).toBeTruthy();
+  });
+
+  it("blocks write-mode support sessions without explicit confirmation", async () => {
+    const schoolId = await firstSchoolId();
+    if (!schoolId) return;
+
+    const res = await request(createServer())
+      .post(`/api/owner/schools/${schoolId}/support-sessions`)
+      .set("Authorization", `Bearer ${ownerToken}`)
+      .send({ mode: "WRITE", reason: "Need to update settings", durationMinutes: 15 });
+
+    expect(res.status).toBe(400);
+  });
+
+  it("persists feature flags for a school", async () => {
+    const schoolId = await firstSchoolId();
+    if (!schoolId) return;
+
+    const res = await request(createServer())
+      .patch(`/api/owner/schools/${schoolId}/feature-flags`)
+      .set("Authorization", `Bearer ${ownerToken}`)
+      .send({ flags: [{ feature: "ATTENDANCE", enabled: true }, { feature: "NFC", enabled: true }] });
+
+    expect(res.status).toBe(200);
+    expect(res.body.ok).toBe(true);
+  });
+
+  it("rotates reader token without returning stored hashes as the token", async () => {
+    const schoolId = await firstSchoolId();
+    if (!schoolId) return;
+
+    const reader = await prisma.nfcOfflineDevice.create({
+      data: {
+        schoolId,
+        name: `Owner Test Reader ${Date.now()}`,
+        deviceKey: `owner-test-reader-${Date.now()}`,
+        deviceTokenHash: "old-hash",
+        mode: "ATTENDANCE",
+        status: "ACTIVE",
+        roleScope: "ADMIN_OPERATOR",
+        isActive: true,
+      },
+    });
+
+    const res = await request(createServer())
+      .post(`/api/owner/schools/${schoolId}/readers/${reader.id}/rotate-token`)
+      .set("Authorization", `Bearer ${ownerToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.oneTimeToken).toBeTruthy();
+    expect(res.body.oneTimeToken).not.toBe("old-hash");
+
+    const updated = await prisma.nfcOfflineDevice.findUnique({ where: { id: reader.id } });
+    expect(updated?.deviceTokenHash).not.toBe(res.body.oneTimeToken);
   });
 });
 

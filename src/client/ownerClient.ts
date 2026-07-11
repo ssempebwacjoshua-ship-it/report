@@ -18,7 +18,11 @@ export type OwnerSchool = {
   code: string;
   name: string;
   phone: string | null;
+  email?: string | null;
   address: string | null;
+  logoUrl?: string | null;
+  timezone?: string;
+  brandingMode?: string;
   isActive: boolean;
   createdAt: string;
   subscription: { planCode: string; status: string; currentPeriodEnd: string; studentLimit: number | null } | null;
@@ -72,6 +76,69 @@ export type OwnerUser = {
   school: { id: string; code: string; name: string };
 };
 
+export type OwnerReader = {
+  id: string;
+  name: string;
+  deviceKey: string;
+  location: string | null;
+  mode: string;
+  status: string;
+  isActive: boolean;
+  firmwareVersion: string | null;
+  lastIp: string | null;
+  lastRssi: number | null;
+  lastSeenAt: string | null;
+  lastScanAt: string | null;
+  lastScanStatus: string | null;
+  lastScanMessage: string | null;
+  queueDepth: number;
+  onlineStatus: string;
+  hasToken: boolean;
+  tokenHashPrefix: string | null;
+};
+
+export type OwnerAuditLog = {
+  id: string;
+  action: string;
+  correlationId: string | null;
+  details: unknown;
+  createdAt: string;
+};
+
+export type OwnerFeatureFlag = {
+  feature: "REPORT_LAB" | "SMART_PAGES" | "ATTENDANCE" | "WALLET" | "GATE" | "NFC" | "OCR" | "AI";
+  enabled: boolean;
+};
+
+export type OwnerSchoolConsole = {
+  school: OwnerSchool & {
+    studentCount: number;
+    userCount: number;
+    reportCount: number;
+    importCount: number;
+  };
+  users: OwnerUser[];
+  admins: OwnerUser[];
+  readers: OwnerReader[];
+  featureFlags: OwnerFeatureFlag[];
+  auditLogs: OwnerAuditLog[];
+  supportSessions: Array<{ id: string; mode: string; status: string; reason: string | null; expiresAt: string; endedAt: string | null; createdAt: string }>;
+  sessions: { active: unknown[]; note: string };
+  apiKeys: { readerTokens: Array<{ id: string; name: string; deviceKey: string; hasToken: boolean; tokenHashPrefix: string | null }>; webhookKeys: unknown[] };
+  health: {
+    studentCount: number;
+    userCount: number;
+    issuedReportCount: number;
+    importCount: number;
+    storageUsage: string | null;
+    databaseSize: string | null;
+    lastBackup: string | null;
+    ocrUsage: number;
+    gatewayStatus: string;
+    smartPagesStatus: string;
+  };
+};
+
 export async function fetchOwnerDashboard(): Promise<OwnerDashboardStats> {
   const res = await fetch(`${API_BASE}/api/owner/dashboard`, { headers: makeRequestHeaders() });
   if (!res.ok) throw new Error(await parseApiError(res, "Could not load owner dashboard"));
@@ -119,6 +186,16 @@ export async function ownerResetPassword(userId: string, temporaryPassword: stri
   if (!res.ok) throw new Error(await parseApiError(res, "Could not reset password"));
 }
 
+export async function ownerResetPasswordAdvanced(userId: string, input: { temporaryPassword?: string; generateTemporaryPassword?: boolean; sendResetEmail?: boolean }): Promise<{ temporaryPassword?: string; resetEmailQueued: boolean }> {
+  const res = await fetch(`${API_BASE}/api/owner/users/${encodeURIComponent(userId)}/reset-password`, {
+    method: "POST",
+    headers: makeRequestHeaders({ "Content-Type": "application/json" }),
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) throw new Error(await parseApiError(res, "Could not reset password"));
+  return res.json();
+}
+
 export async function ownerDisableUser(userId: string): Promise<void> {
   const res = await fetch(`${API_BASE}/api/owner/users/${encodeURIComponent(userId)}/disable`, {
     method: "POST",
@@ -133,6 +210,31 @@ export async function ownerEnableUser(userId: string): Promise<void> {
     headers: makeRequestHeaders(),
   });
   if (!res.ok) throw new Error(await parseApiError(res, "Could not enable user"));
+}
+
+export async function ownerUnlockUser(userId: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/owner/users/${encodeURIComponent(userId)}/unlock`, {
+    method: "POST",
+    headers: makeRequestHeaders(),
+  });
+  if (!res.ok) throw new Error(await parseApiError(res, "Could not unlock account"));
+}
+
+export async function ownerTerminateUserSessions(userId: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/owner/users/${encodeURIComponent(userId)}/terminate-sessions`, {
+    method: "POST",
+    headers: makeRequestHeaders(),
+  });
+  if (!res.ok) throw new Error(await parseApiError(res, "Could not terminate sessions"));
+}
+
+export async function ownerResetMfa(userId: string): Promise<{ reset: boolean; message: string }> {
+  const res = await fetch(`${API_BASE}/api/owner/users/${encodeURIComponent(userId)}/reset-mfa`, {
+    method: "POST",
+    headers: makeRequestHeaders(),
+  });
+  if (!res.ok) throw new Error(await parseApiError(res, "Could not reset MFA"));
+  return res.json();
 }
 
 export async function createOwnerSchool(input: CreateOwnerSchoolInput): Promise<CreateOwnerSchoolResult> {
@@ -163,6 +265,78 @@ export async function patchOwnerSchool(
     body: JSON.stringify(data),
   });
   if (!res.ok) throw new Error(await parseApiError(res, "Could not update school"));
+}
+
+export async function fetchOwnerSchoolConsole(schoolId: string): Promise<OwnerSchoolConsole> {
+  const res = await fetch(`${API_BASE}/api/owner/schools/${encodeURIComponent(schoolId)}/console`, {
+    headers: makeRequestHeaders(),
+  });
+  if (!res.ok) throw new Error(await parseApiError(res, "Could not load school console"));
+  return res.json();
+}
+
+export async function updateOwnerSchoolDetails(schoolId: string, data: Partial<Pick<OwnerSchool, "name" | "phone" | "email" | "address" | "logoUrl" | "timezone" | "brandingMode">>): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/owner/schools/${encodeURIComponent(schoolId)}/details`, {
+    method: "PATCH",
+    headers: makeRequestHeaders({ "Content-Type": "application/json" }),
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error(await parseApiError(res, "Could not update school details"));
+}
+
+export async function updateOwnerSubscription(schoolId: string, input: { action: "EXTEND" | "CANCEL" | "PAUSE" | "CHANGE_PLAN"; planCode?: string; extendDays?: number; studentLimit?: number | null }): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/owner/schools/${encodeURIComponent(schoolId)}/subscription`, {
+    method: "PATCH",
+    headers: makeRequestHeaders({ "Content-Type": "application/json" }),
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) throw new Error(await parseApiError(res, "Could not update subscription"));
+}
+
+export async function startOwnerSupportSession(schoolId: string, input: { mode: "READ_ONLY" | "WRITE"; reason: string; durationMinutes: number; writeConfirmed?: boolean }): Promise<{ supportSession: { id: string; banner: string; expiresAt: string; readOnly: boolean } }> {
+  const res = await fetch(`${API_BASE}/api/owner/schools/${encodeURIComponent(schoolId)}/support-sessions`, {
+    method: "POST",
+    headers: makeRequestHeaders({ "Content-Type": "application/json" }),
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) throw new Error(await parseApiError(res, "Could not start support session"));
+  return res.json();
+}
+
+export async function updateOwnerFeatureFlags(schoolId: string, flags: OwnerFeatureFlag[]): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/owner/schools/${encodeURIComponent(schoolId)}/feature-flags`, {
+    method: "PATCH",
+    headers: makeRequestHeaders({ "Content-Type": "application/json" }),
+    body: JSON.stringify({ flags }),
+  });
+  if (!res.ok) throw new Error(await parseApiError(res, "Could not update feature flags"));
+}
+
+export async function requestOwnerMaintenance(schoolId: string, action: "FORCE_SYNC" | "REBUILD_SEARCH" | "REPAIR_DOCUMENTS" | "REGENERATE_QR_CODES" | "RESEND_PENDING_EMAILS"): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/owner/schools/${encodeURIComponent(schoolId)}/maintenance`, {
+    method: "POST",
+    headers: makeRequestHeaders({ "Content-Type": "application/json" }),
+    body: JSON.stringify({ action }),
+  });
+  if (!res.ok) throw new Error(await parseApiError(res, "Could not request maintenance"));
+}
+
+export async function requestOwnerReaderAction(schoolId: string, deviceId: string, action: "RESTART" | "SYNC" | "UPDATE_FIRMWARE" | "RE_REGISTER"): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/owner/schools/${encodeURIComponent(schoolId)}/readers/${encodeURIComponent(deviceId)}/actions`, {
+    method: "POST",
+    headers: makeRequestHeaders({ "Content-Type": "application/json" }),
+    body: JSON.stringify({ action }),
+  });
+  if (!res.ok) throw new Error(await parseApiError(res, "Could not request reader action"));
+}
+
+export async function rotateOwnerReaderToken(schoolId: string, deviceId: string): Promise<{ oneTimeToken: string; deviceKey: string }> {
+  const res = await fetch(`${API_BASE}/api/owner/schools/${encodeURIComponent(schoolId)}/readers/${encodeURIComponent(deviceId)}/rotate-token`, {
+    method: "POST",
+    headers: makeRequestHeaders(),
+  });
+  if (!res.ok) throw new Error(await parseApiError(res, "Could not rotate reader token"));
+  return res.json();
 }
 
 export async function fetchOwnerSmartPagesPayments(status = "PENDING"): Promise<{ payments: SmartPagesPaymentRequest[] }> {

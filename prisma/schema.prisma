@@ -14,7 +14,11 @@ model School {
   createdAt                 DateTime                   @default(now())
   updatedAt                 DateTime                   @updatedAt
   phone                     String?
+  email                     String?
   address                   String?
+  logoUrl                   String?
+  timezone                  String                     @default("Africa/Kampala")
+  brandingMode              String                     @default("PLATFORM_DEFAULTS")
   isActive                  Boolean                    @default(true)
   academicYears             AcademicYear[]
   auditLogs                 AuditLog[]
@@ -310,6 +314,35 @@ model AuditLog {
   @@index([schoolId, action, createdAt])
   @@index([schoolId, correlationId])
   @@index([schoolId, createdAt], map: "AuditLog_schoolId_createdAt_idx")
+}
+
+model PlatformSupportSession {
+  id          String    @id @default(uuid()) @db.Uuid
+  schoolId    String    @db.Uuid
+  ownerUserId String
+  mode        String    @default("READ_ONLY")
+  status      String    @default("ACTIVE")
+  reason      String?
+  expiresAt   DateTime
+  endedAt     DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([schoolId, status, expiresAt])
+  @@index([ownerUserId, createdAt])
+}
+
+model SchoolFeatureFlag {
+  id              String   @id @default(uuid()) @db.Uuid
+  schoolId        String   @db.Uuid
+  feature         String
+  enabled         Boolean  @default(false)
+  updatedByUserId String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([schoolId, feature])
+  @@index([schoolId, enabled])
 }
 
 model AppSetting {

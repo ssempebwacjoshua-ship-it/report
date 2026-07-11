@@ -2,9 +2,23 @@ import { useEffect, useMemo, useState } from "react";
 import {
   createOwnerSchool,
   fetchOwnerSchools,
+  fetchOwnerSchoolConsole,
+  ownerResetMfa,
+  ownerResetPasswordAdvanced,
+  ownerTerminateUserSessions,
+  ownerUnlockUser,
   patchOwnerSchool,
+  requestOwnerMaintenance,
+  requestOwnerReaderAction,
+  rotateOwnerReaderToken,
+  startOwnerSupportSession,
+  updateOwnerFeatureFlags,
+  updateOwnerSchoolDetails,
+  updateOwnerSubscription,
   type CreateOwnerSchoolResult,
+  type OwnerFeatureFlag,
   type OwnerSchool,
+  type OwnerSchoolConsole,
 } from "../../client/ownerClient";
 import { REPORT_LAB_PLANS } from "../../shared/constants/subscriptionPlans";
 
@@ -51,7 +65,58 @@ function PlanBadge({ plan }: { plan: string }) {
   );
 }
 
-function SchoolCard({ school, onToggle }: { school: OwnerSchool; onToggle: (school: OwnerSchool) => void }) {
+type SchoolAction =
+  | "view"
+  | "users"
+  | "reset-password"
+  | "unlock"
+  | "support"
+  | "readers"
+  | "subscription"
+  | "health"
+  | "features"
+  | "api-keys"
+  | "audit"
+  | "toggle";
+
+const ACTION_LABELS: Record<SchoolAction, string> = {
+  view: "View School",
+  users: "Manage Users",
+  "reset-password": "Reset Password",
+  unlock: "Unlock Account",
+  support: "Support Session",
+  readers: "Manage Readers",
+  subscription: "Subscription",
+  health: "Health",
+  features: "Feature Flags",
+  "api-keys": "API Keys",
+  audit: "Audit Log",
+  toggle: "Disable School",
+};
+
+function ActionsMenu({ school, onAction }: { school: OwnerSchool; onAction: (school: OwnerSchool, action: SchoolAction) => void }) {
+  return (
+    <details className="relative">
+      <summary className="list-none rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-black text-blue-700 hover:bg-blue-100">
+        Actions
+      </summary>
+      <div className="absolute right-0 z-20 mt-2 w-56 overflow-hidden rounded-2xl border border-slate-200 bg-white p-1 shadow-xl">
+        {(Object.keys(ACTION_LABELS) as SchoolAction[]).map((action) => (
+          <button
+            key={action}
+            type="button"
+            onClick={() => onAction(school, action)}
+            className={`block w-full rounded-xl px-3 py-2 text-left text-xs font-bold hover:bg-slate-50 ${action === "toggle" ? "text-red-600" : "text-slate-700"}`}
+          >
+            {action === "toggle" ? (school.isActive ? "Disable School" : "Enable School") : ACTION_LABELS[action]}
+          </button>
+        ))}
+      </div>
+    </details>
+  );
+}
+
+function SchoolCard({ school, onAction }: { school: OwnerSchool; onAction: (school: OwnerSchool, action: SchoolAction) => void }) {
   return (
     <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
       <div className="flex items-start justify-between gap-3">
@@ -80,13 +145,7 @@ function SchoolCard({ school, onToggle }: { school: OwnerSchool; onToggle: (scho
         </div>
       </div>
       <div className="mt-3 flex justify-end">
-        <button
-          type="button"
-          onClick={() => onToggle(school)}
-          className={`rounded-xl px-3 py-2 text-xs font-bold ${school.isActive ? "bg-red-50 text-red-700" : "bg-emerald-50 text-emerald-700"}`}
-        >
-          {school.isActive ? "Disable" : "Enable"}
-        </button>
+        <ActionsMenu school={school} onAction={onAction} />
       </div>
     </article>
   );
@@ -116,6 +175,12 @@ export function OwnerSchoolsPage() {
   const [creationResult, setCreationResult] = useState<CreateOwnerSchoolResult | null>(null);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+  const [selectedSchool, setSelectedSchool] = useState<OwnerSchool | null>(null);
+  const [selectedSection, setSelectedSection] = useState<SchoolAction>("view");
+  const [consoleData, setConsoleData] = useState<OwnerSchoolConsole | null>(null);
+  const [consoleLoading, setConsoleLoading] = useState(false);
+  const [consoleError, setConsoleError] = useState("");
+  const [oneTimeSecret, setOneTimeSecret] = useState("");
 
   async function loadSchools() {
     setLoading(true);
@@ -203,6 +268,33 @@ export function OwnerSchoolsPage() {
     }
   }
 
+  async function loadSchoolConsole(school: OwnerSchool, section: SchoolAction = "view") {
+    setSelectedSchool(school);
+    setSelectedSection(section === "toggle" ? "view" : section);
+    setConsoleLoading(true);
+    setConsoleError("");
+    setOneTimeSecret("");
+    try {
+      setConsoleData(await fetchOwnerSchoolConsole(school.id));
+    } catch (e: unknown) {
+      setConsoleError(e instanceof Error ? e.message : "Could not load school console.");
+    } finally {
+      setConsoleLoading(false);
+    }
+  }
+
+  async function handleSchoolAction(school: OwnerSchool, action: SchoolAction) {
+    if (action === "toggle") {
+      await handleToggle(school);
+      return;
+    }
+    await loadSchoolConsole(school, action);
+  }
+
+  async function refreshSelectedConsole() {
+    if (selectedSchool) await loadSchoolConsole(selectedSchool, selectedSection);
+  }
+
   const selectedPlan = useMemo(() => REPORT_LAB_PLANS.find((p) => p.code === form.planCode), [form.planCode]);
   const filteredSchools = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -268,7 +360,7 @@ export function OwnerSchoolsPage() {
           <>
             <div className="grid gap-3 md:hidden">
               {filteredSchools.map((school) => (
-                <SchoolCard key={school.id} school={school} onToggle={(item) => void handleToggle(item)} />
+                <SchoolCard key={school.id} school={school} onAction={(item, action) => { void handleSchoolAction(item, action); }} />
               ))}
             </div>
 
@@ -301,13 +393,7 @@ export function OwnerSchoolsPage() {
                         <td className="px-4 py-3"><SchoolBadge active={school.isActive} /></td>
                         <td className="px-4 py-3 whitespace-nowrap text-xs text-slate-500">{formatDate(school.createdAt)}</td>
                         <td className="px-4 py-3">
-                          <button
-                            type="button"
-                            onClick={() => void handleToggle(school)}
-                            className={`text-xs font-semibold hover:underline ${school.isActive ? "text-red-600" : "text-emerald-600"}`}
-                          >
-                            {school.isActive ? "Disable" : "Enable"}
-                          </button>
+                          <ActionsMenu school={school} onAction={(item, action) => { void handleSchoolAction(item, action); }} />
                         </td>
                       </tr>
                     ))}
@@ -433,6 +519,302 @@ export function OwnerSchoolsPage() {
           </div>
         </div>
       ) : null}
+
+      {selectedSchool ? (
+        <OwnerSchoolConsoleDrawer
+          school={selectedSchool}
+          section={selectedSection}
+          setSection={setSelectedSection}
+          data={consoleData}
+          loading={consoleLoading}
+          error={consoleError}
+          oneTimeSecret={oneTimeSecret}
+          setOneTimeSecret={setOneTimeSecret}
+          onClose={() => { setSelectedSchool(null); setConsoleData(null); setConsoleError(""); setOneTimeSecret(""); }}
+          onRefresh={() => { void refreshSelectedConsole(); }}
+          onNotice={setNotice}
+          onError={setError}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+function OwnerSchoolConsoleDrawer({
+  school,
+  section,
+  setSection,
+  data,
+  loading,
+  error,
+  oneTimeSecret,
+  setOneTimeSecret,
+  onClose,
+  onRefresh,
+  onNotice,
+  onError,
+}: {
+  school: OwnerSchool;
+  section: SchoolAction;
+  setSection: (section: SchoolAction) => void;
+  data: OwnerSchoolConsole | null;
+  loading: boolean;
+  error: string;
+  oneTimeSecret: string;
+  setOneTimeSecret: (value: string) => void;
+  onClose: () => void;
+  onRefresh: () => void;
+  onNotice: (value: string) => void;
+  onError: (value: string) => void;
+}) {
+  async function run(label: string, action: () => Promise<void>) {
+    try {
+      await action();
+      onNotice(label);
+      onRefresh();
+    } catch (e: unknown) {
+      onError(e instanceof Error ? e.message : "Owner action failed.");
+    }
+  }
+
+  async function resetPassword(userId: string) {
+    const generated = await ownerResetPasswordAdvanced(userId, { generateTemporaryPassword: true });
+    setOneTimeSecret(generated.temporaryPassword ? `Temporary password: ${generated.temporaryPassword}` : "");
+    onNotice("Temporary password generated. It is shown once in this browser session.");
+    onRefresh();
+  }
+
+  async function startSupport(mode: "READ_ONLY" | "WRITE") {
+    const reason = window.prompt("Support reason for audit log?");
+    if (!reason) return;
+    const writeConfirmed = mode === "WRITE" ? window.confirm("Write-mode support session requires explicit confirmation. Continue?") : false;
+    if (mode === "WRITE" && !writeConfirmed) return;
+    const result = await startOwnerSupportSession(school.id, { mode, reason, durationMinutes: 30, writeConfirmed });
+    onNotice(`${result.supportSession.banner}. Expires ${new Date(result.supportSession.expiresAt).toLocaleString()}.`);
+    onRefresh();
+  }
+
+  const tabs: Array<{ key: SchoolAction; label: string }> = [
+    { key: "view", label: "View" },
+    { key: "users", label: "Users" },
+    { key: "support", label: "Support" },
+    { key: "readers", label: "Readers" },
+    { key: "subscription", label: "Subscription" },
+    { key: "health", label: "Health" },
+    { key: "features", label: "Feature Flags" },
+    { key: "api-keys", label: "API Keys" },
+    { key: "audit", label: "Audit Log" },
+  ];
+
+  return (
+    <div className="fixed inset-0 z-50 flex justify-end bg-slate-950/35">
+      <aside className="h-full w-full overflow-y-auto bg-white p-4 shadow-2xl sm:max-w-4xl sm:p-6">
+        <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-100 pb-4">
+          <div>
+            <p className="text-xs font-black uppercase tracking-[0.2em] text-blue-700">Owner School Management</p>
+            <h3 className="text-xl font-black text-slate-950">{school.name}</h3>
+            <p className="font-mono text-xs text-slate-400">{school.code}</p>
+          </div>
+          <button type="button" onClick={onClose} className="rounded-full border border-slate-200 px-3 py-1.5 text-sm font-bold text-slate-600">Close</button>
+        </div>
+
+        <div className="my-4 flex gap-2 overflow-x-auto pb-1">
+          {tabs.map((tab) => (
+            <button key={tab.key} type="button" onClick={() => setSection(tab.key)} className={`whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-black ${section === tab.key ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-700"}`}>
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        {oneTimeSecret ? (
+          <div className="mb-4 rounded-2xl border border-amber-200 bg-amber-50 p-3 text-sm font-bold text-amber-900">
+            {oneTimeSecret}
+          </div>
+        ) : null}
+        {loading ? <div className="rounded-2xl border border-slate-200 p-6 text-center text-sm text-slate-500">Loading owner console...</div> : null}
+        {error ? <div className="rounded-2xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div> : null}
+        {!loading && data ? (
+          <div className="grid gap-4">
+            {section === "view" || section === "reset-password" || section === "unlock" ? (
+              <section className="rounded-2xl border border-slate-200 p-4">
+                <h4 className="font-black text-slate-900">School Details</h4>
+                <div className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
+                  <InfoRow label="Name" value={data.school.name} />
+                  <InfoRow label="Phone" value={data.school.phone ?? "-"} />
+                  <InfoRow label="Email" value={data.school.email ?? "-"} />
+                  <InfoRow label="Address" value={data.school.address ?? "-"} />
+                  <InfoRow label="Timezone" value={data.school.timezone ?? "-"} />
+                  <InfoRow label="Branding" value={data.school.brandingMode ?? "PLATFORM_DEFAULTS"} />
+                </div>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <button type="button" className="btn text-sm" onClick={() => {
+                    const name = window.prompt("School name", data.school.name);
+                    if (name) void run("School details updated.", () => updateOwnerSchoolDetails(school.id, { name }));
+                  }}>Edit name</button>
+                  <button type="button" className="btn text-sm" onClick={() => {
+                    const email = window.prompt("School email", data.school.email ?? "");
+                    if (email !== null) void run("School email updated.", () => updateOwnerSchoolDetails(school.id, { email: email || null }));
+                  }}>Edit email</button>
+                </div>
+              </section>
+            ) : null}
+
+            {section === "users" || section === "reset-password" || section === "unlock" ? (
+              <section className="rounded-2xl border border-slate-200 p-4">
+                <h4 className="font-black text-slate-900">Manage Users</h4>
+                <div className="mt-3 overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="bg-slate-50 text-xs uppercase text-slate-500">
+                      <tr><th className="px-3 py-2 text-left">User</th><th className="px-3 py-2 text-left">Role</th><th className="px-3 py-2 text-left">Status</th><th className="px-3 py-2 text-left">Actions</th></tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {data.users.map((user) => (
+                        <tr key={user.id}>
+                          <td className="px-3 py-2"><b>{user.name}</b><br /><span className="text-xs text-slate-500">{user.email}</span></td>
+                          <td className="px-3 py-2">{user.role}</td>
+                          <td className="px-3 py-2">{user.isActive ? "Active" : "Suspended"}</td>
+                          <td className="px-3 py-2">
+                            <div className="flex flex-wrap gap-2">
+                              <button type="button" className="text-xs font-bold text-blue-700" onClick={() => { void resetPassword(user.id); }}>Reset Password</button>
+                              <button type="button" className="text-xs font-bold text-emerald-700" onClick={() => { void run("Account unlocked.", () => ownerUnlockUser(user.id)); }}>Unlock</button>
+                              <button type="button" className="text-xs font-bold text-slate-700" onClick={() => { void run("Sessions terminated.", () => ownerTerminateUserSessions(user.id)); }}>Terminate Session</button>
+                              <button type="button" className="text-xs font-bold text-amber-700" onClick={() => { void run("MFA reset checked.", async () => { await ownerResetMfa(user.id); }); }}>Reset MFA</button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+            ) : null}
+
+            {section === "support" ? (
+              <section className="rounded-2xl border border-slate-200 p-4">
+                <h4 className="font-black text-slate-900">Support Session</h4>
+                <p className="mt-1 text-sm text-slate-500">Start a time-limited support session without using a school user's password. Read-only is the default.</p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <button type="button" className="btn btn-primary text-sm" onClick={() => { void startSupport("READ_ONLY"); }}>Start Read-only Session</button>
+                  <button type="button" className="btn text-sm" onClick={() => { void startSupport("WRITE"); }}>Start Write Session</button>
+                </div>
+                <div className="mt-4 grid gap-2">
+                  {data.supportSessions.map((session) => (
+                    <div key={session.id} className="rounded-xl bg-slate-50 p-3 text-sm">
+                      <b>{session.mode}</b> - {session.status} - expires {new Date(session.expiresAt).toLocaleString()}
+                    </div>
+                  ))}
+                </div>
+              </section>
+            ) : null}
+
+            {section === "readers" || section === "api-keys" ? (
+              <section className="rounded-2xl border border-slate-200 p-4">
+                <h4 className="font-black text-slate-900">Manage Readers</h4>
+                <div className="mt-3 grid gap-3">
+                  {data.readers.length === 0 ? <p className="text-sm text-slate-500">No readers registered.</p> : data.readers.map((reader) => (
+                    <div key={reader.id} className="rounded-2xl border border-slate-100 p-3">
+                      <div className="flex flex-wrap justify-between gap-2">
+                        <div><b>{reader.name}</b><p className="font-mono text-xs text-slate-400">{reader.deviceKey}</p></div>
+                        <SchoolBadge active={reader.isActive && reader.status === "ACTIVE"} />
+                      </div>
+                      <div className="mt-2 grid gap-2 text-sm sm:grid-cols-4">
+                        <DetailMini label="Firmware" value={reader.firmwareVersion ?? "-"} />
+                        <DetailMini label="IP" value={reader.lastIp ?? "-"} />
+                        <DetailMini label="RSSI" value={reader.lastRssi != null ? `${reader.lastRssi} dBm` : "-"} />
+                        <DetailMini label="Queue" value={`${reader.queueDepth}`} />
+                      </div>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {(["RESTART", "SYNC", "UPDATE_FIRMWARE", "RE_REGISTER"] as const).map((action) => (
+                          <button key={action} type="button" className="rounded-xl bg-slate-100 px-3 py-2 text-xs font-bold text-slate-700" onClick={() => { void run(`Reader ${action.toLowerCase().replace(/_/g, " ")} requested.`, () => requestOwnerReaderAction(school.id, reader.id, action)); }}>
+                            {action.replace(/_/g, " ")}
+                          </button>
+                        ))}
+                        <button type="button" className="rounded-xl bg-amber-50 px-3 py-2 text-xs font-bold text-amber-800" onClick={async () => {
+                          if (!window.confirm("Rotate this reader token? The new token is shown once.")) return;
+                          try {
+                            const rotated = await rotateOwnerReaderToken(school.id, reader.id);
+                            setOneTimeSecret(`Reader ${rotated.deviceKey} token: ${rotated.oneTimeToken}`);
+                            onRefresh();
+                          } catch (e: unknown) {
+                            onError(e instanceof Error ? e.message : "Could not rotate token.");
+                          }
+                        }}>Rotate Token</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            ) : null}
+
+            {section === "subscription" ? (
+              <section className="rounded-2xl border border-slate-200 p-4">
+                <h4 className="font-black text-slate-900">Subscription</h4>
+                <p className="mt-1 text-sm text-slate-500">{data.school.subscription?.planCode ?? "No plan"} - {data.school.subscription?.status ?? "No subscription"}</p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <button type="button" className="btn text-sm" onClick={() => { void run("Subscription extended.", () => updateOwnerSubscription(school.id, { action: "EXTEND", extendDays: 30 })); }}>Extend 30 days</button>
+                  <button type="button" className="btn text-sm" onClick={() => { void run("Subscription paused.", () => updateOwnerSubscription(school.id, { action: "PAUSE" })); }}>Pause</button>
+                  <button type="button" className="btn text-sm" onClick={() => { void run("Subscription cancelled.", () => updateOwnerSubscription(school.id, { action: "CANCEL" })); }}>Cancel</button>
+                </div>
+              </section>
+            ) : null}
+
+            {section === "health" ? (
+              <section className="rounded-2xl border border-slate-200 p-4">
+                <h4 className="font-black text-slate-900">School Health</h4>
+                <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                  <DetailMini label="Students" value={`${data.health.studentCount}`} />
+                  <DetailMini label="Reports" value={`${data.health.issuedReportCount}`} />
+                  <DetailMini label="OCR usage" value={`${data.health.ocrUsage}`} />
+                  <DetailMini label="Gateway" value={data.health.gatewayStatus} />
+                  <DetailMini label="Storage" value={data.health.storageUsage ?? "Not configured"} />
+                  <DetailMini label="Last backup" value={data.health.lastBackup ?? "Provider check required"} />
+                </div>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {(["FORCE_SYNC", "REBUILD_SEARCH", "REPAIR_DOCUMENTS", "REGENERATE_QR_CODES", "RESEND_PENDING_EMAILS"] as const).map((action) => (
+                    <button key={action} type="button" className="rounded-xl bg-slate-100 px-3 py-2 text-xs font-bold text-slate-700" onClick={() => { void run(`${action.replace(/_/g, " ")} requested.`, () => requestOwnerMaintenance(school.id, action)); }}>
+                      {action.replace(/_/g, " ")}
+                    </button>
+                  ))}
+                </div>
+              </section>
+            ) : null}
+
+            {section === "features" ? (
+              <section className="rounded-2xl border border-slate-200 p-4">
+                <h4 className="font-black text-slate-900">Feature Flags</h4>
+                <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                  {data.featureFlags.map((flag) => (
+                    <label key={flag.feature} className="flex items-center justify-between rounded-xl border border-slate-100 px-3 py-2 text-sm font-bold text-slate-700">
+                      {flag.feature.replace(/_/g, " ")}
+                      <input
+                        type="checkbox"
+                        checked={flag.enabled}
+                        onChange={(event) => {
+                          const nextFlags: OwnerFeatureFlag[] = data.featureFlags.map((item) => item.feature === flag.feature ? { ...item, enabled: event.target.checked } : item);
+                          void run("Feature flags updated.", () => updateOwnerFeatureFlags(school.id, nextFlags));
+                        }}
+                      />
+                    </label>
+                  ))}
+                </div>
+              </section>
+            ) : null}
+
+            {section === "audit" ? (
+              <section className="rounded-2xl border border-slate-200 p-4">
+                <h4 className="font-black text-slate-900">Audit Log</h4>
+                <div className="mt-3 grid gap-2">
+                  {data.auditLogs.map((log) => (
+                    <div key={log.id} className="rounded-xl bg-slate-50 p-3 text-sm">
+                      <b>{log.action}</b><p className="text-xs text-slate-500">{new Date(log.createdAt).toLocaleString()}</p>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            ) : null}
+          </div>
+        ) : null}
+      </aside>
     </div>
   );
 }
@@ -461,6 +843,15 @@ function InfoRow({ label, value, strong = true, mono = false }: { label: string;
     <div className="flex items-start justify-between gap-3">
       <span className="text-slate-500">{label}</span>
       <span className={`${strong ? "font-bold text-slate-900" : "text-slate-700"} ${mono ? "font-mono text-xs break-all" : ""}`}>{value}</span>
+    </div>
+  );
+}
+
+function DetailMini({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-xl bg-slate-50 px-3 py-2">
+      <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-500">{label}</p>
+      <p className="mt-0.5 break-words text-sm font-semibold text-slate-900">{value}</p>
     </div>
   );
 }
