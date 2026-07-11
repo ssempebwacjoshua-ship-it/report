@@ -415,11 +415,11 @@ body {
 
   .app-shell-sidebar {
     position: fixed;
-    top: var(--app-topbar-height);
+    top: 0;
     bottom: auto;
     left: 0;
     z-index: 40;
-    height: calc(100vh - var(--app-topbar-height));
+    height: 100vh;
     margin-top: 0;
     width: var(--sidebar-width);
     max-width: var(--sidebar-width);
@@ -1289,7 +1289,7 @@ body {
       }
 
       .app-shell-sidebar {
-        height: calc(100dvh - var(--app-topbar-height));
+        height: 100dvh;
       }
     }
   }
