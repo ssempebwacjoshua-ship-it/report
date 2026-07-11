@@ -18,6 +18,47 @@ import { fetchSettings as loadSettings } from "../client/settingsClient";
 import { buildParentReportReleaseMessage, formatTermLabel } from "../shared/reportReleaseMessage";
 import type { ReportContext } from "../shared/types/reports";
 
+const ISSUABLE_ASSESSMENTS = ["TERM_SUMMARY", "BOT", "MOT", "EOT"] as const;
+const ISSUABLE_READINESS = new Set(["READY", "MISSING_MARKS"]);
+
+function canIssueReportLink(row: ReleaseRow, issuing: boolean) {
+  return ISSUABLE_READINESS.has(row.reportReadiness) && !issuing;
+}
+
+function getIssueActionLabel(row: ReleaseRow) {
+  return row.issuedReport ? "Reissue" : "Issue link";
+}
+
+function getIssueBlockedReason(row: ReleaseRow) {
+  if (ISSUABLE_READINESS.has(row.reportReadiness)) return null;
+
+  switch (row.reportReadiness) {
+    case "NO_FINALIZED_MARKS":
+      return "No finalized EOT marks";
+    case "NO_ACTIVE_TERM":
+      return "No active term";
+    case "NO_STUDENTS":
+      return "No students";
+    case "NO_SUBJECTS":
+      return "No subjects";
+    default:
+      return "This report is not ready to issue";
+  }
+}
+
+function summarizeSkippedReasons(skipped: Array<{ studentName: string; reason: string }>) {
+  if (skipped.length === 0) return "";
+
+  const breakdown = new Map<string, number>();
+  for (const item of skipped) {
+    breakdown.set(item.reason, (breakdown.get(item.reason) ?? 0) + 1);
+  }
+
+  return Array.from(breakdown.entries())
+    .map(([reason, count]) => `${reason} (${count})`)
+    .join("; ");
+}
+
 // ── Status display ────────────────────────────────────────────────────────────
 
 const STATUS_CONFIG: Record<DeliveryStatus, { label: string; classes: string }> = {
@@ -122,7 +163,8 @@ function RowActions({
     setTimeout(() => setCopied(null), 2000);
   }
 
-  const canIssue = row.reportReadiness === "READY" || row.reportReadiness === "MISSING_MARKS";
+  const canIssue = canIssueReportLink(row, issuing);
+  const issueBlockedReason = getIssueBlockedReason(row);
   const issuedId = link?.issuedReportId ?? row.issuedReport?.id ?? null;
   const canMarkSent = !!issuedId && row.deliveryStatus !== "REVOKED" && row.deliveryStatus !== "SUPERSEDED" && row.deliveryStatus !== "SENT_MANUALLY" && row.deliveryStatus !== "OPENED" && row.deliveryStatus !== "DOWNLOADED";
   const canRevoke = !!issuedId && (row.deliveryStatus === "LINK_GENERATED" || row.deliveryStatus === "READY_TO_SEND" || row.deliveryStatus === "SENT_MANUALLY" || row.deliveryStatus === "OPENED" || row.deliveryStatus === "DOWNLOADED");
@@ -138,15 +180,19 @@ function RowActions({
 
   return (
     <div className="flex flex-wrap items-center gap-1.5">
-      {!link && canIssue && (
+      {canIssue && (
         <button
           type="button"
           className="btn btn-secondary py-1 text-xs"
           onClick={onIssue}
           disabled={issuing}
         >
-          {issuing ? "Issuing?" : row.issuedReport ? "Reissue" : "Issue link"}
+          {issuing ? "Issuing..." : getIssueActionLabel(row)}
         </button>
+      )}
+
+      {!canIssue && issueBlockedReason && (
+        <span className="text-xs font-medium text-amber-700">{issueBlockedReason}</span>
       )}
 
       {link && (
@@ -208,17 +254,6 @@ function RowActions({
         </>
       )}
 
-      {!link && row.issuedReport && (
-        <button
-          type="button"
-          className="btn btn-secondary py-1 text-xs"
-          onClick={onIssue}
-          disabled={issuing || row.deliveryStatus === "REVOKED"}
-        >
-          Reissue
-        </button>
-      )}
-
       {canRevoke && (
         <button
           type="button"
@@ -261,6 +296,7 @@ export function ReleaseCenterPage() {
   const [issuingIds, setIssuingIds] = useState<Set<string>>(new Set());
   const [bulkIssuing, setBulkIssuing] = useState(false);
   const [bulkResult, setBulkResult] = useState<string | null>(null);
+  const [assessmentMismatchWarning, setAssessmentMismatchWarning] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [activeFilter, setActiveFilter] = useState<"ALL" | "READY" | "MISSING_CONTACT" | "SENT" | "OPENED" | "DOWNLOADED" | "NEEDS_ATTENTION">("ALL");
 
@@ -296,8 +332,30 @@ export function ReleaseCenterPage() {
       setSummary(result.summary);
       setMeta({ term: result.meta.term, assessmentType: result.meta.assessmentType, academicYear: result.meta.academicYear });
       if (result.meta.schoolName) setSchoolName(result.meta.schoolName);
+
+      const currentIssuableCount = result.rows.filter((row) => canIssueReportLink(row, false)).length;
+      if (currentIssuableCount > 0) {
+        setAssessmentMismatchWarning(null);
+        return;
+      }
+
+      const otherAssessments = ISSUABLE_ASSESSMENTS.filter((assessment) => assessment !== f.assessmentType);
+      const alternativeAssessment = await Promise.all(
+        otherAssessments.map(async (assessmentType) => {
+          const alt = await fetchReleaseStatus({ ...f, assessmentType, search: q || undefined });
+          const issuableCount = alt.rows.filter((row) => canIssueReportLink(row, false)).length;
+          return issuableCount > 0 ? { assessmentType, issuableCount } : null;
+        }),
+      ).then((matches) => matches.find(Boolean) ?? null);
+
+      setAssessmentMismatchWarning(
+        alternativeAssessment
+          ? `No issuable reports were found for ${f.assessmentType ?? "the selected assessment"}. ${alternativeAssessment.assessmentType} has finalized reports. Select ${alternativeAssessment.assessmentType} to issue those links.`
+          : null,
+      );
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load release status.");
+      setAssessmentMismatchWarning(null);
     } finally {
       setLoading(false);
     }
@@ -313,8 +371,10 @@ export function ReleaseCenterPage() {
     return ["NOT_FINALIZED", "MISSING_CONTACT", "REVOKED"].includes(row.deliveryStatus);
   });
   const selectedRows = visibleRows.filter((row) => selectedIds.has(row.studentId));
+  const selectedIssuableRows = selectedRows.filter((row) => canIssueReportLink(row, issuingIds.has(row.studentId)));
   const allVisibleSelected = visibleRows.length > 0 && visibleRows.every((row) => selectedIds.has(row.studentId));
   const anySelected = selectedRows.length > 0;
+  const anyIssuableSelected = selectedIssuableRows.length > 0;
 
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -365,7 +425,10 @@ export function ReleaseCenterPage() {
         newLinks.set(item.studentId, item);
       }
       setIssuedLinks(newLinks);
-      setBulkResult(`Issued ${result.issued.length} link${result.issued.length !== 1 ? "s" : ""}${result.skipped.length ? `, skipped ${result.skipped.length}` : ""}.`);
+      const skippedSummary = summarizeSkippedReasons(result.skipped);
+      setBulkResult(
+        `Issued ${result.issued.length} link${result.issued.length !== 1 ? "s" : ""}${result.skipped.length ? `, skipped ${result.skipped.length}: ${skippedSummary}` : ""}.`,
+      );
       void loadStatus(filters, search);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Bulk issue failed.");
@@ -375,13 +438,33 @@ export function ReleaseCenterPage() {
   }
 
   async function handleBulkIssueSelected() {
-    const ids = selectedRows.map((row) => row.studentId);
-    if (ids.length === 0) return;
+    const ids = selectedIssuableRows.map((row) => row.studentId);
+    const locallyBlocked = selectedRows
+      .filter((row) => !canIssueReportLink(row, issuingIds.has(row.studentId)))
+      .map((row) => ({
+        studentId: row.studentId,
+        studentName: row.studentName,
+        reason: getIssueBlockedReason(row) ?? "This report is not ready to issue",
+      }));
+
+    if (ids.length === 0) {
+      setBulkResult(locallyBlocked.length ? `No links were issued. ${summarizeSkippedReasons(locallyBlocked)}.` : "No eligible rows selected.");
+      return;
+    }
+
     setBulkIssuing(true);
+    setBulkResult(null);
+    setError("");
     try {
       const result = await issueBulk({ ...filters, studentIds: ids });
-      setBulkResult(`Issued ${result.issued.length} links. Skipped ${result.skipped.length}.`);
+      const combinedSkipped = [...locallyBlocked, ...result.skipped];
+      const skippedSummary = summarizeSkippedReasons(combinedSkipped);
+      setBulkResult(
+        `Issued ${result.issued.length} link${result.issued.length !== 1 ? "s" : ""}${combinedSkipped.length ? `, skipped ${combinedSkipped.length}: ${skippedSummary}` : ""}.`,
+      );
       void loadStatus(filters, search);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Bulk issue failed.");
     } finally {
       setBulkIssuing(false);
     }
@@ -506,9 +589,7 @@ export function ReleaseCenterPage() {
   }
 
   const streams = context?.streams.filter((s) => s.classId === filters.classId) ?? [];
-  const readyToIssueCount = rows.filter(
-    (r) => (r.reportReadiness === "READY" || r.reportReadiness === "MISSING_MARKS") && !issuedLinks.has(r.studentId) && r.deliveryStatus !== "REVOKED" && r.deliveryStatus !== "SUPERSEDED"
-  ).length;
+  const readyToIssueCount = rows.filter((row) => canIssueReportLink(row, issuingIds.has(row.studentId))).length;
 
   return (
     <main className="grid gap-5">
@@ -530,7 +611,7 @@ export function ReleaseCenterPage() {
             type="button"
             className="btn btn-secondary"
             onClick={() => void handleBulkIssueSelected()}
-            disabled={!anySelected || bulkIssuing}
+            disabled={!anyIssuableSelected || bulkIssuing}
           >
             Issue links for selected
           </button>
@@ -681,6 +762,11 @@ export function ReleaseCenterPage() {
       {bulkResult && !error && (
         <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700">
           {bulkResult}
+        </div>
+      )}
+      {assessmentMismatchWarning && !error && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-800">
+          {assessmentMismatchWarning}
         </div>
       )}
 

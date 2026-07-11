@@ -151,6 +151,56 @@ afterEach(() => {
 });
 
 describe("releaseCenterRoutes workflow", () => {
+  it("creates a replacement report when the previous link is expired", async () => {
+    const auditLogCreate = vi.fn(async () => ({}));
+    const issuedUpdateMany = vi.fn(async () => ({ count: 0 }));
+    const created = vi.fn(async () => ({ id: "issued-2" }));
+    const existingRecord = {
+      id: "issued-1",
+      schoolId: baseSchoolId,
+      studentId: baseStudentId,
+      academicYear: baseAcademicYear,
+      term: baseTerm,
+      assessmentType: baseAssessmentType,
+      referenceCode: "20260710-OLD111",
+      status: "ISSUED",
+      issuedAt: new Date("2026-07-10T00:00:00.000Z"),
+      expiresAt: new Date("2026-07-11T00:00:00.000Z"),
+      reportSnapshotJson: buildVersionSnapshot(baseReportResult.cards[0]),
+      viewedAt: null,
+      lastViewedAt: null,
+      openCount: 0,
+      downloadedAt: null,
+      lastDownloadedAt: null,
+      downloadCount: 0,
+      sentAt: null,
+      revokedAt: null,
+      revokeReason: null,
+    };
+
+    const prisma = {
+      issuedReport: {
+        findMany: vi.fn(async () => [existingRecord]),
+        updateMany: issuedUpdateMany,
+        create: created,
+      },
+      auditLog: { create: auditLogCreate },
+      guardianContact: { findMany: vi.fn(async () => [{ studentId: baseStudentId, guardianName: "Parent", preferredContactMethod: "WHATSAPP", phone: "+256700000000", email: null, isPrimary: true, canReceiveReports: true }]) },
+    };
+
+    const app = await mountReleaseCenterApp(prisma);
+    const res = await request(app)
+      .post("/api/reports/issue-bulk")
+      .send({ classId: "class-1", assessmentType: baseAssessmentType });
+
+    expect(res.status).toBe(201);
+    expect(issuedUpdateMany).not.toHaveBeenCalled();
+    expect(created).toHaveBeenCalledTimes(1);
+    expect(auditLogCreate).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ action: "report.link_issued" }),
+    }));
+  });
+
   it("reuses an active link when the report version matches", async () => {
     const auditLogCreate = vi.fn(async () => ({}));
     const issuedUpdateMany = vi.fn(async () => ({ count: 0 }));
