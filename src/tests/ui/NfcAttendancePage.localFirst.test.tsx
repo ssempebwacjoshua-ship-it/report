@@ -42,9 +42,21 @@ vi.mock("../../hooks/useNfcOfflineSnapshotRefresh", () => ({
 vi.mock("../../client/studentCredentialsClient", () => ({
   fetchAttendanceClasses: vi.fn(async () => ({ classes: [] })),
   fetchNfcAttendanceRegister: vi.fn(async () => ({
+    date: "2026-07-12",
     summary: { totalStudents: 1, present: 0, out: 0, absent: 1, blockedScans: 0, duplicateScans: 0 },
     rows: [],
   })),
+  fetchGateAttendanceReport: vi.fn(async () => ({
+    date: "2026-07-12",
+    summary: { totalStudents: 0, present: 0, late: 0, absent: 0, onCampus: 0, offCampus: 0, departureMissing: 0, restrictedAttempts: 0, manualOverrides: 0 },
+    rows: [],
+  })),
+  fetchClassroomAttendanceReport: vi.fn(async () => ({
+    date: "2026-07-12",
+    summary: { totalEvents: 0, morningPresent: 0, nightPrepPresent: 0, missingBoarders: 0, wrongClassAttempts: 0, sessionClosedScans: 0 },
+    rows: [],
+  })),
+  approveGateAttendanceOverride: vi.fn(),
   scanNfcAttendance: mockScanNfcAttendance,
 }));
 

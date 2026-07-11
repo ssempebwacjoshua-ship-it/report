@@ -1,11 +1,17 @@
-﻿import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { fetchDashboardStats } from "../client/dashboardClient";
+import {
+  fetchDashboardAttendanceSummary,
+  fetchDashboardStats,
+} from "../client/dashboardClient";
 import { StatCard } from "../components/dashboard/StatCard";
 import { Icon } from "../components/layout/Icon";
 import { getSchoolDisplayName } from "../components/layout/branding";
 import { useAppSettings } from "../components/layout/SettingsContext";
-import type { DashboardStats } from "../shared/types/dashboard";
+import type {
+  DashboardAttendanceSummary,
+  DashboardStats,
+} from "../shared/types/dashboard";
 
 const dashboardTabs = [
   { label: "Overview", href: null },
@@ -29,7 +35,31 @@ const workflowTone = {
   yellow: "bg-amber-400 text-white shadow-amber-200",
 } as const;
 
+const attendanceCardTone = {
+  green: {
+    value: "text-green-700",
+    badge: "bg-green-50 text-green-700 ring-green-100",
+    accent: "from-green-500 to-emerald-500",
+  },
+  red: {
+    value: "text-red-700",
+    badge: "bg-red-50 text-red-700 ring-red-100",
+    accent: "from-red-500 to-rose-500",
+  },
+  amber: {
+    value: "text-amber-700",
+    badge: "bg-amber-50 text-amber-700 ring-amber-100",
+    accent: "from-amber-400 to-orange-400",
+  },
+  blue: {
+    value: "text-[color:var(--sc-primary-active)]",
+    badge: "bg-[color:var(--sc-primary-soft)] text-[color:var(--sc-primary-active)] ring-[color:var(--sc-primary-soft)]",
+    accent: "from-[color:var(--sc-primary)] to-[color:var(--sc-primary-active)]",
+  },
+} as const;
+
 type WorkflowToneKey = keyof typeof workflowTone;
+type AttendanceToneKey = keyof typeof attendanceCardTone;
 
 const workflowStageMeta: Array<{
   label: string;
@@ -44,16 +74,51 @@ const workflowStageMeta: Array<{
   { label: "Released", note: "Sent to parents", tone: "yellow", key: "released" },
 ];
 
+const DASHBOARD_ATTENDANCE_REFRESH_MS = 15_000;
+
 function fmt(n: number): string {
   return n.toLocaleString();
 }
 
-function fmtDate(iso: string): string {
-  return new Date(iso).toLocaleDateString("en-GB", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
+function fmtPercent(value: number): string {
+  return `${Number.isFinite(value) ? value.toFixed(1) : "0.0"}%`;
+}
+
+function fmtTime(iso: string): string {
+  return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
+function AttendanceCard({
+  label,
+  value,
+  note,
+  tone,
+  href,
+}: {
+  label: string;
+  value: string;
+  note: string;
+  tone: AttendanceToneKey;
+  href: string;
+}) {
+  return (
+    <Link to={href} className="premium-card premium-card-hover group relative overflow-hidden rounded-xl p-3">
+      <div className={`absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${attendanceCardTone[tone].accent}`} />
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <p className="text-xs font-bold text-slate-600">{label}</p>
+          <p className={`mt-1 text-xl font-bold tracking-tight ${attendanceCardTone[tone].value}`}>{value}</p>
+          <p className="mt-1 text-xs font-semibold text-slate-500">{note}</p>
+        </div>
+        <span className={`rounded-full px-2 py-0.5 text-[11px] font-extrabold ring-1 ${attendanceCardTone[tone].badge}`}>
+          Live
+        </span>
+      </div>
+      <p className="mt-2 text-[11px] font-bold text-slate-400 transition-colors group-hover:text-[color:var(--sc-primary)]">
+        Open attendance
+      </p>
+    </Link>
+  );
 }
 
 export function DashboardPage() {
@@ -65,13 +130,124 @@ export function DashboardPage() {
   const [statsError, setStatsError] = useState("");
   const [statsLoading, setStatsLoading] = useState(true);
 
+  const [attendanceSummary, setAttendanceSummary] = useState<DashboardAttendanceSummary | null>(null);
+  const [attendanceLoading, setAttendanceLoading] = useState(true);
+  const [attendancePaused, setAttendancePaused] = useState(false);
+  const [attendanceError, setAttendanceError] = useState("");
+
+  const refreshTimerRef = useRef<number | null>(null);
+  const attendanceAbortRef = useRef<AbortController | null>(null);
+  const attendanceInFlightRef = useRef(false);
+  const attendanceFailureCountRef = useRef(0);
 
   useEffect(() => {
-    fetchDashboardStats()
+    const controller = new AbortController();
+    fetchDashboardStats(controller.signal)
       .then(setStats)
-      .catch((err: Error) => setStatsError(err.message))
-      .finally(() => setStatsLoading(false));
+      .catch((err: Error) => {
+        if (controller.signal.aborted) return;
+        setStatsError(err.message);
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) {
+          setStatsLoading(false);
+        }
+      });
 
+    return () => controller.abort();
+  }, []);
+
+  useEffect(() => {
+    const clearRefreshTimer = () => {
+      if (refreshTimerRef.current !== null) {
+        window.clearTimeout(refreshTimerRef.current);
+        refreshTimerRef.current = null;
+      }
+    };
+
+    const canRefreshAttendance = () =>
+      typeof document !== "undefined"
+      && document.visibilityState === "visible"
+      && (typeof navigator === "undefined" || navigator.onLine !== false);
+
+    const scheduleRefresh = () => {
+      clearRefreshTimer();
+      if (!canRefreshAttendance()) return;
+      refreshTimerRef.current = window.setTimeout(() => {
+        void refreshAttendanceSummary();
+      }, DASHBOARD_ATTENDANCE_REFRESH_MS);
+    };
+
+    async function refreshAttendanceSummary() {
+      if (!canRefreshAttendance() || attendanceInFlightRef.current) {
+        return;
+      }
+
+      attendanceAbortRef.current?.abort();
+      const controller = new AbortController();
+      attendanceAbortRef.current = controller;
+      attendanceInFlightRef.current = true;
+
+      try {
+        const summary = await fetchDashboardAttendanceSummary(controller.signal);
+        if (controller.signal.aborted) return;
+        setAttendanceSummary(summary);
+        setAttendanceError("");
+        setAttendancePaused(false);
+        attendanceFailureCountRef.current = 0;
+      } catch (err) {
+        if (controller.signal.aborted) return;
+        const message = err instanceof Error ? err.message : "Could not load attendance summary";
+        setAttendanceError(message);
+        attendanceFailureCountRef.current += 1;
+        if (attendanceFailureCountRef.current >= 2) {
+          setAttendancePaused(true);
+        }
+      } finally {
+        if (!controller.signal.aborted) {
+          setAttendanceLoading(false);
+          attendanceInFlightRef.current = false;
+          scheduleRefresh();
+        }
+      }
+    }
+
+    const handleVisibilityChange = () => {
+      if (!canRefreshAttendance()) {
+        clearRefreshTimer();
+        return;
+      }
+      void refreshAttendanceSummary();
+    };
+
+    const handleWindowFocus = () => {
+      if (!canRefreshAttendance()) return;
+      void refreshAttendanceSummary();
+    };
+
+    const handleOnline = () => {
+      void refreshAttendanceSummary();
+    };
+
+    const handleOffline = () => {
+      clearRefreshTimer();
+    };
+
+    void refreshAttendanceSummary();
+    window.addEventListener("focus", handleWindowFocus);
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      clearRefreshTimer();
+      attendanceAbortRef.current?.abort();
+      attendanceInFlightRef.current = false;
+      window.removeEventListener("focus", handleWindowFocus);
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
   }, []);
 
   const activeTerm = stats?.activeTerm;
@@ -88,9 +264,19 @@ export function DashboardPage() {
       ? "Could not load live stats. Check your connection."
       : `${fmt(issuedCount)} reports issued - ${fmt(pendingCount)} marks uploads pending review`;
 
+  const attendanceValues = attendanceSummary
+    ? {
+        totalStudents: attendanceSummary.totalStudents,
+        present: attendanceSummary.present,
+        absent: attendanceSummary.absent,
+        late: attendanceSummary.late,
+        attendanceRate: attendanceSummary.attendanceRate,
+        onCampus: attendanceSummary.onCampus,
+      }
+    : null;
+
   return (
     <main className="grid gap-3">
-      {/* ── Hero ──────────────────────────────────────────────────────────── */}
       <section
         className="overflow-hidden rounded-2xl border p-4 text-white shadow-[0_12px_32px_rgba(15,23,42,0.18)]"
         style={{
@@ -136,7 +322,6 @@ export function DashboardPage() {
         </div>
       </section>
 
-      {/* ── Tabs ─────────────────────────────────────────────────────────── */}
       <section className="flex overflow-x-auto pb-1">
         <div className="tab-tray">
           {dashboardTabs.map((tab, index) => (
@@ -152,7 +337,6 @@ export function DashboardPage() {
         </div>
       </section>
 
-      {/* ── KPI cards ────────────────────────────────────────────────────── */}
       <section className="grid grid-cols-2 gap-3 sm:grid-cols-2 md:gap-4 xl:grid-cols-4">
         <StatCard
           label="Enrolled Students"
@@ -192,7 +376,77 @@ export function DashboardPage() {
         />
       </section>
 
-      {/* ── Workflow pipeline ─────────────────────────────────────────────── */}
+      <section className="premium-card rounded-xl p-4">
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <div>
+            <h2 className="text-sm font-bold text-slate-950">Today&apos;s Attendance</h2>
+            <p className="mt-0.5 text-xs text-slate-500">
+              Live summary from physical reader attendance records.
+            </p>
+          </div>
+          <div className="text-right text-xs text-slate-500">
+            <p>
+              {attendanceSummary
+                ? `Last updated ${fmtTime(attendanceSummary.lastUpdatedAt)}`
+                : attendanceLoading
+                  ? "Loading attendance..."
+                  : "Attendance unavailable"}
+            </p>
+            {attendancePaused ? (
+              <p className="mt-1 font-semibold text-amber-600">Attendance update paused</p>
+            ) : null}
+          </div>
+        </div>
+
+        {attendanceError && !attendanceSummary ? (
+          <div className="mt-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+            {attendanceError}
+          </div>
+        ) : null}
+
+        <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-2 md:gap-4 xl:grid-cols-5">
+          <AttendanceCard
+            label="Present"
+            value={attendanceValues ? fmt(attendanceValues.present) : "-"}
+            note="Present includes late students"
+            tone="green"
+            href="/nfc/attendance?view=GATE&attendanceStatus=PRESENT"
+          />
+          <AttendanceCard
+            label="Absent"
+            value={attendanceValues ? fmt(attendanceValues.absent) : "-"}
+            note={attendanceValues?.totalStudents === 0 ? "No active students" : "No qualifying attendance today"}
+            tone="red"
+            href="/nfc/attendance?view=GATE&attendanceStatus=ABSENT"
+          />
+          <AttendanceCard
+            label="Late"
+            value={attendanceValues ? fmt(attendanceValues.late) : "-"}
+            note="Late students remain counted as present"
+            tone="amber"
+            href="/nfc/attendance?view=GATE&attendanceStatus=LATE"
+          />
+          <AttendanceCard
+            label="Attendance Rate"
+            value={attendanceValues ? fmtPercent(attendanceValues.attendanceRate) : "-"}
+            note={attendanceValues?.totalStudents === 0 ? "No active students" : "Present divided by active students"}
+            tone="blue"
+            href="/nfc/attendance?view=GATE"
+          />
+          <AttendanceCard
+            label="On Campus"
+            value={attendanceValues ? fmt(attendanceValues.onCampus) : "-"}
+            note="Latest gate movement is an entry"
+            tone="blue"
+            href="/nfc/attendance?view=GATE&campusStatus=ON_CAMPUS"
+          />
+        </div>
+
+        {attendanceSummary?.totalStudents === 0 ? (
+          <p className="mt-3 text-xs font-semibold text-slate-500">No active students.</p>
+        ) : null}
+      </section>
+
       <section className="premium-card rounded-xl p-4">
         <div className="flex flex-wrap items-start justify-between gap-2">
           <div>
@@ -210,11 +464,11 @@ export function DashboardPage() {
           {workflowStageMeta.map((stage, index) => {
             const value = stats?.workflow[stage.key] ?? 0;
             return (
-            <Link
-              key={stage.label}
-              to={workflowStageHrefs[index]}
-              className="relative rounded-xl border border-slate-100 bg-white p-3 shadow-sm transition hover:border-blue-200 hover:bg-blue-50/40"
-            >
+              <Link
+                key={stage.label}
+                to={workflowStageHrefs[index]}
+                className="relative rounded-xl border border-slate-100 bg-white p-3 shadow-sm transition hover:border-blue-200 hover:bg-blue-50/40"
+              >
                 {index < workflowStageMeta.length - 1 ? (
                   <div className="absolute left-[calc(50%+1.5rem)] top-5 hidden h-0.5 w-[calc(100%-3rem)] bg-slate-200 md:block" />
                 ) : null}
@@ -234,7 +488,6 @@ export function DashboardPage() {
         </div>
       </section>
 
-      {/* ── Recent uploads + Reports overview ────────────────────────────── */}
       <footer className="flex flex-wrap justify-between gap-3 pb-1 text-xs text-slate-400">
         <span>&copy; 2026 {schoolName}. All rights reserved.</span>
         <span>Version 1.0.0</span>
@@ -242,5 +495,3 @@ export function DashboardPage() {
     </main>
   );
 }
-
-

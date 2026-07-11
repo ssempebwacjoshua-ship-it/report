@@ -40,3 +40,16 @@ export type DashboardStats = {
   recentActivity: DashboardActivity[];
 };
 
+export type DashboardAttendanceSummary = {
+  date: string;
+  timezone: string;
+  totalStudents: number;
+  present: number;
+  absent: number;
+  late: number;
+  attendanceRate: number;
+  onCampus: number;
+  offCampus: number;
+  lastUpdatedAt: string;
+};
+

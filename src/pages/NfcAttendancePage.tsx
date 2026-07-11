@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { WifiOffRegular } from "@fluentui/react-icons";
 import { NfcScanPanel } from "../components/nfc/NfcScanPanel";
+import { getSchoolBranding } from "../components/layout/branding";
+import { useAppSettings } from "../components/layout/SettingsContext";
 import { useNfcScanner, type ScanResult } from "../hooks/useNfcScanner";
 import { useConnectivityStatus } from "../hooks/useConnectivityStatus";
 import { useNfcOfflineSnapshotRefresh } from "../hooks/useNfcOfflineSnapshotRefresh";
@@ -69,6 +71,202 @@ function formatTime(iso: string | null | undefined) {
 function formatDateTime(iso: string | null | undefined) {
   if (!iso) return "â€”";
   return new Date(iso).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+}
+
+type PrintMode = "FULL" | "PRESENT" | "ABSENT";
+
+type AttendancePrintDocument = {
+  html: string;
+};
+
+function escapeHtml(value: string | null | undefined) {
+  return (value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll("\"", "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+function formatPrintDate(value: string) {
+  return new Date(`${value}T00:00:00`).toLocaleDateString("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+}
+
+function formatPrintDateTime(value: string) {
+  return new Date(value).toLocaleString([], {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function summarizePrintedRows(rows: GateAttendanceReport["rows"]) {
+  const late = rows.filter((row) => row.attendanceStatus === "LATE").length;
+  const present = rows.filter((row) => row.attendanceStatus === "PRESENT").length + late;
+  const totalStudents = rows.length;
+  return {
+    totalStudents,
+    present,
+    absent: rows.filter((row) => row.attendanceStatus === "ABSENT").length,
+    late,
+    attendanceRate: totalStudents > 0 ? ((present / totalStudents) * 100).toFixed(1) : "0.0",
+    onCampus: rows.filter((row) => row.campusStatus === "ON_CAMPUS").length,
+    offCampus: rows.filter((row) => row.campusStatus === "OFF_CAMPUS").length,
+  };
+}
+
+function buildAttendancePrintDocument(input: {
+  schoolName: string;
+  schoolAddress: string;
+  schoolPhone: string;
+  schoolEmail: string;
+  schoolLogoUrl: string;
+  date: string;
+  className: string;
+  streamName: string;
+  studentType: string;
+  attendanceStatus: string;
+  campusStatus: string;
+  generatedAt: string;
+  rows: GateAttendanceReport["rows"];
+}): AttendancePrintDocument {
+  const summary = summarizePrintedRows(input.rows);
+  const contactLine = [input.schoolAddress, input.schoolPhone, input.schoolEmail]
+    .filter((value) => value.trim().length > 0)
+    .join(" | ");
+  const rowsHtml = input.rows.map((row, index) => `
+    <tr>
+      <td>${index + 1}</td>
+      <td>${escapeHtml(row.studentName)}</td>
+      <td>${escapeHtml(row.admissionNumber)}</td>
+      <td>${escapeHtml(row.className ?? "—")}</td>
+      <td>${escapeHtml(row.streamName ?? "—")}</td>
+      <td>${escapeHtml(row.scholarType ?? "—")}</td>
+      <td>${escapeHtml(row.arrivalTime ? formatPrintDateTime(row.arrivalTime) : "Not recorded")}</td>
+      <td>${escapeHtml(row.departureTime ? formatPrintDateTime(row.departureTime) : "Not recorded")}</td>
+      <td>${escapeHtml(row.attendanceStatus)}</td>
+      <td>${escapeHtml(row.campusStatus)}</td>
+      <td>${escapeHtml(row.readerUsed ?? "—")}</td>
+    </tr>
+  `).join("");
+
+  const summaryItems = [
+    ["Total students", String(summary.totalStudents)],
+    ["Present", String(summary.present)],
+    ["Absent", String(summary.absent)],
+    ["Late", String(summary.late)],
+    ["Attendance rate", `${summary.attendanceRate}%`],
+    ["On campus", String(summary.onCampus)],
+    ["Off campus", String(summary.offCampus)],
+  ].map(([label, value]) => `
+    <div class="summary-card">
+      <div class="summary-label">${escapeHtml(label)}</div>
+      <div class="summary-value">${escapeHtml(value)}</div>
+    </div>
+  `).join("");
+
+  const filtersHtml = [
+    ["Selected date", formatPrintDate(input.date)],
+    ["Class", input.className],
+    ["Stream", input.streamName],
+    ["Student type", input.studentType],
+    ["Attendance status", input.attendanceStatus],
+    ["Campus status", input.campusStatus],
+    ["Generated", formatPrintDateTime(input.generatedAt)],
+  ].map(([label, value]) => `
+    <div class="filter-item">
+      <span class="filter-label">${escapeHtml(label)}</span>
+      <span class="filter-value">${escapeHtml(value)}</span>
+    </div>
+  `).join("");
+
+  const logoHtml = input.schoolLogoUrl
+    ? `<img class="school-logo" src="${escapeHtml(input.schoolLogoUrl)}" alt="${escapeHtml(input.schoolName)} logo" />`
+    : "";
+
+  return {
+    html: `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Daily Attendance Register</title>
+    <style>
+      @page { size: A4 landscape; margin: 12mm; }
+      * { box-sizing: border-box; }
+      body { margin: 0; font-family: Inter, "Segoe UI", sans-serif; color: #0f172a; background: #ffffff; }
+      .page { width: 100%; }
+      .header { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; border-bottom: 2px solid #0f172a; padding-bottom: 12px; }
+      .brand { display: flex; gap: 14px; align-items: flex-start; }
+      .school-logo { width: 64px; height: 64px; object-fit: contain; }
+      .school-name { font-size: 22px; font-weight: 800; line-height: 1.1; }
+      .school-contact { margin-top: 4px; font-size: 12px; color: #475569; }
+      .title { margin-top: 8px; font-size: 17px; font-weight: 800; letter-spacing: 0.08em; }
+      .filters { margin-top: 14px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px 16px; }
+      .filter-item { border: 1px solid #cbd5e1; border-radius: 8px; padding: 8px 10px; }
+      .filter-label { display: block; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #64748b; }
+      .filter-value { display: block; margin-top: 3px; font-size: 13px; font-weight: 700; }
+      .summary-grid { margin-top: 14px; display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 8px; }
+      .summary-card { border: 1px solid #cbd5e1; border-radius: 8px; padding: 8px 10px; background: #f8fafc; }
+      .summary-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #64748b; }
+      .summary-value { margin-top: 4px; font-size: 18px; font-weight: 800; }
+      table { width: 100%; margin-top: 14px; border-collapse: collapse; font-size: 11px; }
+      thead { display: table-header-group; }
+      th, td { border: 1px solid #cbd5e1; padding: 7px 8px; vertical-align: top; text-align: left; }
+      th { background: #e2e8f0; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em; }
+      tr { break-inside: avoid; page-break-inside: avoid; }
+      .signatures { margin-top: 18px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+      .signature-line { border-top: 1px solid #0f172a; padding-top: 6px; font-size: 12px; font-weight: 600; }
+      .footer { margin-top: 12px; font-size: 11px; color: #475569; }
+    </style>
+  </head>
+  <body>
+    <main class="page">
+      <section class="header">
+        <div class="brand">
+          ${logoHtml}
+          <div>
+            <div class="school-name">${escapeHtml(input.schoolName)}</div>
+            ${contactLine ? `<div class="school-contact">${escapeHtml(contactLine)}</div>` : ""}
+            <div class="title">DAILY ATTENDANCE REGISTER</div>
+          </div>
+        </div>
+      </section>
+      <section class="filters">${filtersHtml}</section>
+      <section class="summary-grid">${summaryItems}</section>
+      <table>
+        <thead>
+          <tr>
+            <th>Number</th>
+            <th>Student name</th>
+            <th>Admission number</th>
+            <th>Class</th>
+            <th>Stream</th>
+            <th>Student type</th>
+            <th>Arrival time</th>
+            <th>Departure time</th>
+            <th>Attendance status</th>
+            <th>Campus status</th>
+            <th>Reader used</th>
+          </tr>
+        </thead>
+        <tbody>${rowsHtml}</tbody>
+      </table>
+      <section class="signatures">
+        <div class="signature-line">Prepared by: ____________________</div>
+        <div class="signature-line">Verified by: ____________________</div>
+        <div class="signature-line">Headteacher: ____________________</div>
+      </section>
+      <div class="footer">Page generation timestamp: ${escapeHtml(formatPrintDateTime(input.generatedAt))}</div>
+    </main>
+  </body>
+</html>`,
+  };
 }
 
 function SummaryCard({ label, value, color }: { label: string; value: number; color: string }) {
@@ -302,7 +500,12 @@ function offlineReasonMessage(reason?: string) {
 export function NfcAttendancePage() {
   const [params] = useSearchParams();
   const { user } = useAuth();
+  const { settings } = useAppSettings() ?? {};
+  const schoolBranding = getSchoolBranding(settings?.sections.school, "School Connect");
   const deviceId = useRef(getDeviceId()).current;
+  const initialViewParam = params.get("view");
+  const initialAttendanceStatusParam = params.get("attendanceStatus");
+  const initialCampusStatusParam = params.get("campusStatus");
 
   const { isOfflineReady, pendingCount, triggerSync } = useConnectivityStatus(user?.schoolId, deviceId, "attendance");
   const snapshotRefresh = useNfcOfflineSnapshotRefresh({
@@ -318,7 +521,9 @@ export function NfcAttendancePage() {
   const [classroomReport, setClassroomReport] = useState<ClassroomAttendanceReport | null>(null);
   const [lastScan, setLastScan] = useState<NfcAttendanceScanEvent | null>(null);
   const [offlineScans, setOfflineScans] = useState<Array<{ name: string; admissionNumber?: string; className?: string | null; direction: string; status: string; scannedAt: string; syncStatus: string }>>([]);
-  const [view, setView] = useState<"REGISTER" | "GATE" | "CLASSROOM">("REGISTER");
+  const [view, setView] = useState<"REGISTER" | "GATE" | "CLASSROOM">(
+    initialViewParam === "GATE" || initialViewParam === "CLASSROOM" ? initialViewParam : "REGISTER",
+  );
 
   const [direction, setDirection] = useState<AttendanceDirection>("TAP_IN");
   const directionRef = useRef<AttendanceDirection>("TAP_IN");
@@ -329,8 +534,16 @@ export function NfcAttendancePage() {
   const [streamId, setStreamId] = useState("");
   const [studentType, setStudentType] = useState<"ALL" | "DAY" | "BOARDING">("ALL");
   const [search, setSearch] = useState("");
-  const [gateStatusFilter, setGateStatusFilter] = useState<"ALL" | "PRESENT" | "LATE" | "ABSENT">("ALL");
-  const [campusStatusFilter, setCampusStatusFilter] = useState<"ALL" | "ON_CAMPUS" | "OFF_CAMPUS">("ALL");
+  const [gateStatusFilter, setGateStatusFilter] = useState<"ALL" | "PRESENT" | "LATE" | "ABSENT">(
+    initialAttendanceStatusParam === "PRESENT" || initialAttendanceStatusParam === "LATE" || initialAttendanceStatusParam === "ABSENT"
+      ? initialAttendanceStatusParam
+      : "ALL",
+  );
+  const [campusStatusFilter, setCampusStatusFilter] = useState<"ALL" | "ON_CAMPUS" | "OFF_CAMPUS">(
+    initialCampusStatusParam === "ON_CAMPUS" || initialCampusStatusParam === "OFF_CAMPUS"
+      ? initialCampusStatusParam
+      : "ALL",
+  );
   const [departureMissingOnly, setDepartureMissingOnly] = useState(false);
   const [classroomSessionFilter, setClassroomSessionFilter] = useState<"ALL" | "MORNING_CLASS" | "NIGHT_PREP" | "UNCLASSIFIED">("ALL");
 
@@ -339,6 +552,7 @@ export function NfcAttendancePage() {
 
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState("");
+  const [printing, setPrinting] = useState<PrintMode | null>(null);
 
   // Load class list once
   useEffect(() => {
@@ -350,6 +564,21 @@ export function NfcAttendancePage() {
   // When classId changes, clear streamId if it doesn't belong to the new class
   const selectedClass = classes.find((c) => c.id === classId) ?? null;
   const availableStreams = selectedClass?.streams ?? [];
+  const selectedStream = availableStreams.find((stream) => stream.id === streamId) ?? null;
+
+  function buildGateFilters(
+    attendanceStatusOverride?: "ALL" | "PRESENT" | "LATE" | "ABSENT",
+  ) {
+    return {
+      date,
+      classId: classId || undefined,
+      streamId: streamId || undefined,
+      studentType,
+      attendanceStatus: attendanceStatusOverride ?? gateStatusFilter,
+      campusStatus: campusStatusFilter,
+      departureMissing: departureMissingOnly || undefined,
+    };
+  }
 
   async function loadRegister() {
     setLoading(true);
@@ -375,14 +604,8 @@ export function NfcAttendancePage() {
     setLoadError("");
     try {
       const data = await fetchGateAttendanceReport({
-        date,
-        classId: classId || undefined,
-        streamId: streamId || undefined,
+        ...buildGateFilters(),
         search: search || undefined,
-        studentType,
-        attendanceStatus: gateStatusFilter,
-        campusStatus: campusStatusFilter,
-        departureMissing: departureMissingOnly || undefined,
       });
       setGateReport(data);
     } catch (caught) {
@@ -422,6 +645,69 @@ export function NfcAttendancePage() {
       return;
     }
     await loadRegister();
+  }
+
+  async function handlePrint(mode: PrintMode) {
+    setPrinting(mode);
+    setLoadError("");
+    try {
+      const attendanceStatus = mode === "FULL"
+        ? gateStatusFilter
+        : mode === "PRESENT"
+          ? "PRESENT"
+          : "ABSENT";
+      const freshReport = await fetchGateAttendanceReport(buildGateFilters(attendanceStatus));
+      const printRows = mode === "FULL"
+        ? freshReport.rows
+        : mode === "PRESENT"
+          ? freshReport.rows.filter((row) => row.attendanceStatus === "PRESENT" || row.attendanceStatus === "LATE")
+          : freshReport.rows.filter((row) => row.attendanceStatus === "ABSENT");
+
+      if (printRows.length === 0) {
+        setLoadError("No students match these filters.");
+        return;
+      }
+
+      const printWindow = window.open("", "attendance-register-print", "width=1280,height=900");
+      if (!printWindow) {
+        throw new Error("Print window was blocked. Please allow pop-ups and try again.");
+      }
+
+      const generatedAt = new Date().toISOString();
+      const documentPayload = buildAttendancePrintDocument({
+        schoolName: schoolBranding.schoolName,
+        schoolAddress: schoolBranding.address,
+        schoolPhone: schoolBranding.phone,
+        schoolEmail: schoolBranding.email,
+        schoolLogoUrl: schoolBranding.logoUrl,
+        date: freshReport.date,
+        className: selectedClass?.name ?? "All classes",
+        streamName: selectedStream?.name ?? "All streams",
+        studentType: studentType === "ALL" ? "All students" : studentType === "DAY" ? "Day students" : "Boarding students",
+        attendanceStatus: attendanceStatus === "ALL" ? "All statuses" : attendanceStatus,
+        campusStatus: campusStatusFilter === "ALL" ? "All campus statuses" : campusStatusFilter,
+        generatedAt,
+        rows: printRows,
+      });
+
+      let printed = false;
+      const finalizePrint = () => {
+        if (printed) return;
+        printed = true;
+        printWindow.print();
+        printWindow.close();
+      };
+      printWindow.onload = finalizePrint;
+      printWindow.document.open();
+      printWindow.document.write(documentPayload.html);
+      printWindow.document.close();
+      printWindow.focus();
+      window.setTimeout(finalizePrint, 250);
+    } catch (caught) {
+      setLoadError(caught instanceof Error ? caught.message : "Could not prepare attendance register printout");
+    } finally {
+      setPrinting(null);
+    }
   }
 
   useEffect(() => {
@@ -875,6 +1161,39 @@ export function NfcAttendancePage() {
                   </select>
                 </div>
               ) : null}
+
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                <p className="text-xs font-bold uppercase tracking-wide text-slate-600">Print Register</p>
+                <p className="mt-1 text-xs text-slate-500">
+                  Uses one fresh canonical gate-attendance fetch before printing.
+                </p>
+                <div className="mt-3 grid gap-2">
+                  <button
+                    type="button"
+                    className="btn btn-secondary justify-center"
+                    onClick={() => void handlePrint("FULL")}
+                    disabled={loading || printing !== null}
+                  >
+                    {printing === "FULL" ? "Preparing..." : "Print full register"}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-secondary justify-center"
+                    onClick={() => void handlePrint("PRESENT")}
+                    disabled={loading || printing !== null}
+                  >
+                    {printing === "PRESENT" ? "Preparing..." : "Print present students"}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-secondary justify-center"
+                    onClick={() => void handlePrint("ABSENT")}
+                    disabled={loading || printing !== null}
+                  >
+                    {printing === "ABSENT" ? "Preparing..." : "Print absent students"}
+                  </button>
+                </div>
+              </div>
 
               <button
                 className="btn btn-secondary"

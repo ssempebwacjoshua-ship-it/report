@@ -1,5 +1,11 @@
 ﻿import type { PrismaClient } from "@prisma/client";
-import type { DashboardActivity, DashboardStats, RecentBatch } from "../../shared/types/dashboard";
+import type {
+  DashboardActivity,
+  DashboardAttendanceSummary,
+  DashboardStats,
+  RecentBatch,
+} from "../../shared/types/dashboard";
+import { getDashboardAttendanceSummary as getCanonicalDashboardAttendanceSummary } from "./locationAttendanceService";
 
 function extractRowCount(summary: string | null): number {
   if (!summary) return 0;
@@ -162,5 +168,12 @@ export async function getDashboardStats(
     recentBatches,
     recentActivity,
   };
+}
+
+export async function getDashboardAttendanceSummary(
+  prisma: PrismaClient,
+  ctx: { schoolId?: string | null; actorId?: string | null; role?: string | null },
+): Promise<DashboardAttendanceSummary> {
+  return getCanonicalDashboardAttendanceSummary(ctx, prisma as never);
 }
 
