@@ -1244,9 +1244,19 @@ model NfcOfflineDevice {
   status            String    @default("ACTIVE") // ACTIVE | REVOKED
   roleScope         String // GATE_SECURITY | CASHIER | ADMIN_OPERATOR
   isActive          Boolean   @default(true)
+  direction         String?   @default("ENTRY")
   lastSyncAt        DateTime?
   lastSeenAt        DateTime?
   lastSnapshotAt    DateTime?
+  lastIp            String?
+  lastRssi          Int?
+  firmwareVersion   String?
+  queueDepth        Int       @default(0)
+  onlineStatus      String    @default("OFFLINE")
+  lastApiContactAt  DateTime?
+  lastScanAt        DateTime?
+  lastScanStatus    String?
+  lastScanMessage   String?
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 

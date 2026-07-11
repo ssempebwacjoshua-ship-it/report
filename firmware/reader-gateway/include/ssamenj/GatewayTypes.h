@@ -22,6 +22,7 @@ struct ReaderGatewayConfig {
   String apiBaseUrl;
   String eventsPath;
   String registrationPath;
+  String heartbeatPath;
   String bearerToken;
   String firmwareVersion;
   String ntpServer;
@@ -61,4 +62,13 @@ struct ReaderApiResponse {
   String message;
   String studentName;
   String beep = "none";
+};
+
+struct ReaderHeartbeatMetrics {
+  int32_t wifiRssi = 0;
+  String localIp;
+  uint32_t uptimeMs = 0;
+  uint32_t freeHeap = 0;
+  size_t queueDepth = 0;
+  String lastSuccessfulApiContactAt;
 };

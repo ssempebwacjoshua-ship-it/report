@@ -3,6 +3,7 @@ import { WifiOffRegular, ArrowSyncRegular, DatabaseRegular, CheckmarkCircleRegul
 import { useAuth } from "../contexts/AuthContext";
 import { useConnectivityStatus } from "../hooks/useConnectivityStatus";
 import { fetchOfflineBootstrap, fetchOfflineSyncStatus } from "../client/nfcOfflineClient";
+import type { OfflineDeviceStatus, OfflineSyncStatus } from "../client/nfcOfflineClient";
 import {
   saveBootstrapSnapshot,
   listAllQueueItems,
@@ -55,6 +56,12 @@ function money(cents: number) {
   return `UGX ${Math.round(cents / 100).toLocaleString()}`;
 }
 
+function isRecentlyOnline(device: OfflineDeviceStatus) {
+  if (device.onlineStatus === "ONLINE") return true;
+  if (!device.lastSeenAt) return false;
+  return Date.now() - new Date(device.lastSeenAt).getTime() < 2 * 60 * 1000;
+}
+
 function describeQueueItem(item: OfflineQueuedEvent) {
   if (item.actionType !== "CANTEEN_CHARGE") {
     return item.idempotencyKey;
@@ -85,7 +92,7 @@ export function NfcOfflinePage() {
 
   const [snapshot, setSnapshot] = useState<OfflineSnapshotMeta | null>(null);
   const [queueItems, setQueueItems] = useState<OfflineQueuedEvent[]>([]);
-  const [syncStatus, setSyncStatus] = useState<{ batches: unknown[]; devices: unknown[] } | null>(null);
+  const [syncStatus, setSyncStatus] = useState<OfflineSyncStatus | null>(null);
 
   const [refreshing, setRefreshing] = useState(false);
   const [refreshError, setRefreshError] = useState("");
@@ -183,6 +190,7 @@ export function NfcOfflinePage() {
   const failedItems = queueItems.filter((i) => i.syncStatus === "FAILED" || i.syncStatus === "CONFLICT");
   const syncedItems = queueItems.filter((i) => i.syncStatus === "SYNCED");
   const visibleItems = [...pendingItems, ...failedItems, ...syncedItems];
+  const attendanceDevices = syncStatus?.devices.filter((device) => device.mode === "ATTENDANCE") ?? [];
 
   return (
     <main className="grid gap-6">
@@ -335,6 +343,66 @@ export function NfcOfflinePage() {
           </div>
         )}
       </section>
+
+      {/* Reader device status (admin only) */}
+      {attendanceDevices.length > 0 && (
+        <section className="premium-card rounded-xl overflow-hidden">
+          <div className="p-5 border-b border-slate-100">
+            <h2 className="text-base font-bold text-slate-950">Attendance Reader Status</h2>
+            <p className="text-sm text-slate-500 mt-0.5">Production attendance reader health and last scan feedback.</p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  <th className="px-4 py-3">Reader</th>
+                  <th className="px-4 py-3">Status</th>
+                  <th className="px-4 py-3">Online</th>
+                  <th className="px-4 py-3">Location</th>
+                  <th className="px-4 py-3">Last seen</th>
+                  <th className="px-4 py-3">Wi-Fi</th>
+                  <th className="px-4 py-3">Firmware</th>
+                  <th className="px-4 py-3">Queue</th>
+                  <th className="px-4 py-3">Last scan</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {attendanceDevices.map((device) => {
+                  const online = isRecentlyOnline(device);
+                  return (
+                    <tr key={device.id} className="hover:bg-slate-50">
+                      <td className="px-4 py-3">
+                        <div className="font-semibold text-slate-900">{device.name}</div>
+                        <div className="font-mono text-xs text-slate-500">{device.deviceKey}</div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${device.isActive && device.status === "ACTIVE" ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"}`}>
+                          {device.isActive && device.status === "ACTIVE" ? "Active" : "Disabled"}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className="inline-flex items-center gap-1.5">
+                          <StatusDot ok={online} warn={!online && !!device.lastSeenAt} />
+                          {online ? "Online" : "Offline"}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-slate-600">{device.location ?? "Not set"}</td>
+                      <td className="px-4 py-3 text-slate-600">{device.lastSeenAt ? new Date(device.lastSeenAt).toLocaleString() : "Never"}</td>
+                      <td className="px-4 py-3 text-slate-600">{device.lastRssi != null ? `${device.lastRssi} dBm` : "Unknown"}</td>
+                      <td className="px-4 py-3 text-slate-600">{device.firmwareVersion ?? "Unknown"}</td>
+                      <td className="px-4 py-3 text-slate-600">{device.queueDepth ?? 0}</td>
+                      <td className="px-4 py-3">
+                        <div className="font-semibold text-slate-800">{device.lastScanStatus ?? "No scans yet"}</div>
+                        <div className="text-xs text-slate-500">{device.lastScanMessage ?? (device.lastScanAt ? new Date(device.lastScanAt).toLocaleString() : "Awaiting first tap")}</div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
 
       {/* Failed / conflict items */}
       {failedItems.length > 0 && (

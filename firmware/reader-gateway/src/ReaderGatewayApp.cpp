@@ -34,6 +34,9 @@ GatewayFeedbackTone toneFromBeep(const String& beep) {
   if (beep.equalsIgnoreCase("warning")) {
     return GatewayFeedbackTone::Warning;
   }
+  if (beep.equalsIgnoreCase("duplicate")) {
+    return GatewayFeedbackTone::Warning;
+  }
   if (beep.equalsIgnoreCase("error")) {
     return GatewayFeedbackTone::Error;
   }
@@ -43,6 +46,8 @@ GatewayFeedbackTone toneFromBeep(const String& beep) {
 bool isTimeValid() {
   return time(nullptr) > 1700000000;
 }
+
+constexpr unsigned long HEARTBEAT_INTERVAL_MS = 60000;
 }  // namespace
 
 bool ReaderGatewayApp::begin() {
@@ -174,6 +179,39 @@ String ReaderGatewayApp::createEventId() const {
   return String(buffer);
 }
 
+void ReaderGatewayApp::markApiContact() {
+  lastSuccessfulApiContactAt_ = utcIso8601Now();
+}
+
+void ReaderGatewayApp::sendHeartbeat() {
+  if (!hasWorkingNetwork()) {
+    return;
+  }
+
+  const unsigned long now = millis();
+  if (now - lastHeartbeatMs_ < HEARTBEAT_INTERVAL_MS) {
+    return;
+  }
+  lastHeartbeatMs_ = now;
+
+  ReaderHeartbeatMetrics metrics;
+  metrics.wifiRssi = WiFi.RSSI();
+  metrics.localIp = WiFi.localIP().toString();
+  metrics.uptimeMs = now;
+  metrics.freeHeap = ESP.getFreeHeap();
+  metrics.queueDepth = offlineQueue_.size();
+  metrics.lastSuccessfulApiContactAt = lastSuccessfulApiContactAt_;
+
+  ReaderApiResponse response;
+  if (gatewayClient_.postHeartbeat(config_, metrics, response) && response.success) {
+    markApiContact();
+    Serial.println("Heartbeat Success");
+    return;
+  }
+
+  Serial.println("Heartbeat Failed");
+}
+
 void ReaderGatewayApp::processScan(const ReaderScanEvent& scan) {
   ReaderScanEvent event = scan;
   event.eventId = createEventId();
@@ -191,6 +229,7 @@ void ReaderGatewayApp::processScan(const ReaderScanEvent& scan) {
     ReaderApiResponse response;
     const bool uploaded = gatewayClient_.postScan(config_, event, response) && response.success;
     if (uploaded) {
+      markApiContact();
       Serial.println("Upload Success");
       feedback_.play(toneFromBeep(response.beep));
       return;
@@ -228,6 +267,7 @@ void ReaderGatewayApp::processOfflineQueue() {
     }
 
     offlineQueue_.pop();
+    markApiContact();
     Serial.println("Upload Success");
     feedback_.play(toneFromBeep(response.beep));
     yield();
@@ -252,6 +292,7 @@ void ReaderGatewayApp::loop() {
       }
     }
     processOfflineQueue();
+    sendHeartbeat();
   } else {
     if (wifiConnectedLogged_) {
       Serial.printf("Wi-Fi state: %s (%d)\n", wifiStatusToString(WiFi.status()), static_cast<int>(WiFi.status()));

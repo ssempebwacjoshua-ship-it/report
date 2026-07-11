@@ -18,6 +18,30 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
   return body;
 }
 
+export type OfflineDeviceStatus = {
+  id: string;
+  name: string;
+  deviceKey: string;
+  location: string | null;
+  mode: string;
+  status: string;
+  isActive: boolean;
+  lastSeenAt: string | null;
+  lastIp?: string | null;
+  lastRssi?: number | null;
+  firmwareVersion?: string | null;
+  queueDepth?: number | null;
+  onlineStatus?: string | null;
+  lastScanAt?: string | null;
+  lastScanStatus?: string | null;
+  lastScanMessage?: string | null;
+};
+
+export type OfflineSyncStatus = {
+  batches: unknown[];
+  devices: OfflineDeviceStatus[];
+};
+
 export async function fetchOfflineBootstrap(modules?: string[], deviceId?: string, mode?: "GATE" | "CANTEEN" | "ATTENDANCE"): Promise<OfflineBootstrapSnapshot> {
   const params = new URLSearchParams();
   if (modules?.length) params.set("modules", modules.join(","));
@@ -26,6 +50,6 @@ export async function fetchOfflineBootstrap(modules?: string[], deviceId?: strin
   return api<OfflineBootstrapSnapshot>(`/api/nfc/offline/bootstrap?${params.toString()}`);
 }
 
-export async function fetchOfflineSyncStatus(): Promise<{ batches: unknown[]; devices: unknown[] }> {
-  return api<{ batches: unknown[]; devices: unknown[] }>("/api/nfc/offline/sync-status");
+export async function fetchOfflineSyncStatus(): Promise<OfflineSyncStatus> {
+  return api<OfflineSyncStatus>("/api/nfc/offline/sync-status");
 }

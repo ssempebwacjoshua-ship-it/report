@@ -79,6 +79,7 @@ First-time provisioning workflow:
    - `readerId`
    - `apiBaseUrl`
    - `bearerToken`
+   - optional `heartbeatPath`
    - optional `tlsInsecure`
    - optional `retryIntervalMs`
 
@@ -109,6 +110,7 @@ Example configuration:
   "retryIntervalMs": 30000,
   "eventsPath": "/api/readers/events",
   "registrationPath": "/api/readers/register",
+  "heartbeatPath": "/api/readers/heartbeat",
   "firmwareVersion": "1.0.0",
   "wifiReconnectIntervalMs": 15000,
   "wiegandTimeoutMs": 30,

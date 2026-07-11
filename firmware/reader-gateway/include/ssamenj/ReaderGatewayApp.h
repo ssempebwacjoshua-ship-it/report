@@ -20,6 +20,8 @@ class ReaderGatewayApp {
   void ensureOta();
   void processScan(const ReaderScanEvent& event);
   void processOfflineQueue();
+  void sendHeartbeat();
+  void markApiContact();
   bool hasWorkingNetwork() const;
   String utcIso8601Now() const;
   String createEventId() const;
@@ -35,5 +37,7 @@ class ReaderGatewayApp {
   bool otaStarted_ = false;
   unsigned long lastWifiAttemptMs_ = 0;
   unsigned long lastQueueAttemptMs_ = 0;
+  unsigned long lastHeartbeatMs_ = 0;
+  String lastSuccessfulApiContactAt_;
   bool wifiConnectedLogged_ = false;
 };

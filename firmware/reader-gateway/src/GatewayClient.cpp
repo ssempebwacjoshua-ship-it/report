@@ -71,6 +71,26 @@ String GatewayClient::buildBasePayload(const ReaderGatewayConfig& config, const 
   return payload;
 }
 
+String GatewayClient::buildHeartbeatPayload(const ReaderGatewayConfig& config, const ReaderHeartbeatMetrics& metrics) const {
+  JsonDocument doc;
+  doc["deviceId"] = config.deviceId;
+  doc["readerId"] = config.readerId;
+  doc["schoolId"] = config.schoolId;
+  doc["firmwareVersion"] = config.firmwareVersion;
+  doc["wifiRssi"] = metrics.wifiRssi;
+  doc["localIp"] = metrics.localIp;
+  doc["uptimeMs"] = metrics.uptimeMs;
+  doc["freeHeap"] = metrics.freeHeap;
+  doc["queueDepth"] = static_cast<uint32_t>(metrics.queueDepth);
+  if (!metrics.lastSuccessfulApiContactAt.isEmpty()) {
+    doc["lastSuccessfulApiContactAt"] = metrics.lastSuccessfulApiContactAt;
+  }
+
+  String payload;
+  serializeJson(doc, payload);
+  return payload;
+}
+
 bool GatewayClient::parseResponse(const String& body, int statusCode, ReaderApiResponse& response) {
   response = ReaderApiResponse{};
   response.success = statusCode >= 200 && statusCode < 300;
@@ -148,4 +168,9 @@ bool GatewayClient::postScan(const ReaderGatewayConfig& config, const ReaderScan
 bool GatewayClient::registerDevice(const ReaderGatewayConfig& config, ReaderApiResponse& response) {
   const String body = buildBasePayload(config, nullptr, true);
   return sendJson(config, config.registrationPath, body, response);
+}
+
+bool GatewayClient::postHeartbeat(const ReaderGatewayConfig& config, const ReaderHeartbeatMetrics& metrics, ReaderApiResponse& response) {
+  const String body = buildHeartbeatPayload(config, metrics);
+  return sendJson(config, config.heartbeatPath, body, response);
 }

@@ -32,6 +32,7 @@ ReaderGatewayConfig ConfigManager::defaults() {
   config.apiBaseUrl = "https://school-connect.example.com";
   config.eventsPath = "/api/readers/events";
   config.registrationPath = "/api/readers/register";
+  config.heartbeatPath = "/api/readers/heartbeat";
   config.bearerToken = "";
   config.firmwareVersion = SSAMENJ_GATEWAY_VERSION;
   config.ntpServer = "pool.ntp.org";
@@ -86,6 +87,7 @@ bool ConfigManager::load(ReaderGatewayConfig& config) {
   config.apiBaseUrl = doc["apiBaseUrl"] | config.apiBaseUrl;
   config.eventsPath = doc["eventsPath"] | config.eventsPath;
   config.registrationPath = doc["registrationPath"] | config.registrationPath;
+  config.heartbeatPath = doc["heartbeatPath"] | config.heartbeatPath;
   config.bearerToken = doc["bearerToken"] | config.bearerToken;
   config.firmwareVersion = doc["firmwareVersion"] | config.firmwareVersion;
   config.ntpServer = doc["ntpServer"] | config.ntpServer;
@@ -115,6 +117,7 @@ bool ConfigManager::save(const ReaderGatewayConfig& config) {
   doc["apiBaseUrl"] = config.apiBaseUrl;
   doc["eventsPath"] = config.eventsPath;
   doc["registrationPath"] = config.registrationPath;
+  doc["heartbeatPath"] = config.heartbeatPath;
   doc["bearerToken"] = config.bearerToken;
   doc["firmwareVersion"] = config.firmwareVersion;
   doc["ntpServer"] = config.ntpServer;
