@@ -5,6 +5,7 @@ import {
   getOfflineSyncStatus,
   registerOfflineDevice,
   syncOfflineEvents,
+  updateOfflineDeviceConfiguration,
 } from "../services/nfcOfflineService";
 import type { OfflineContext } from "../services/nfcOfflineService";
 
@@ -38,6 +39,17 @@ const bootstrapQuerySchema = z.object({
   mode: z.enum(["GATE", "CANTEEN", "ATTENDANCE"]).optional(),
 });
 
+const updateDeviceSchema = z.object({
+  location: z.string().trim().optional().nullable(),
+  locationType: z.enum(["GATE", "CLASSROOM"]).optional().nullable(),
+  locationName: z.string().trim().optional().nullable(),
+  attendanceMode: z.enum(["GATE_ATTENDANCE", "CLASSROOM_ATTENDANCE"]).optional().nullable(),
+  studentScope: z.enum(["ALL_STUDENTS", "DAY_SCHOLARS", "BOARDING_STUDENTS", "ASSIGNED_CLASS"]).optional().nullable(),
+  classId: z.string().uuid().optional().nullable(),
+  streamId: z.string().uuid().optional().nullable(),
+  direction: z.enum(["ENTRY", "EXIT"]).optional().nullable(),
+});
+
 const syncSchema = z.object({
   deviceId: z.string().min(1),
   snapshotId: z.string().min(1),
@@ -67,6 +79,14 @@ export function nfcOfflineRoutes() {
     try {
       const body = registerDeviceSchema.parse(req.body);
       res.status(201).json(await registerOfflineDevice(ctx(req), body));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.patch("/api/nfc/offline/devices/:deviceId", async (req, res, next) => {
+    try {
+      res.json(await updateOfflineDeviceConfiguration(ctx(req), req.params.deviceId, updateDeviceSchema.parse(req.body)));
     } catch (error) {
       next(error);
     }

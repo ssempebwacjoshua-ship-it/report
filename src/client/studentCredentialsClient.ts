@@ -2,10 +2,13 @@ import type {
   AllocationResult,
   AllocationStatus,
   AttendanceDirection,
+  AttendanceCurrentStatus,
   AttendanceLateAction,
+  ClassroomAttendanceReport,
   CredentialStatus,
-  DailySummary,
   CanteenReconciliationRecord,
+  DailySummary,
+  GateAttendanceReport,
   NfcCanteenReconciliationResponse,
   NfcAttendanceDashboard,
   NfcAttendanceScanResponse,
@@ -27,7 +30,6 @@ import type {
   WalletPinStatus,
   WalletReversalResult,
   WalletTransactionListResponse,
-  AttendanceCurrentStatus,
 } from "../shared/types/studentCredentials";
 import { getApiBaseUrl, makeSchoolRequestHeaders, parseApiError } from "./apiBase";
 
@@ -320,6 +322,62 @@ export async function fetchNfcAttendanceRegister(
   });
   if (!response.ok) throw new Error(await parseApiError(response, "Could not load attendance register"));
   return response.json() as Promise<AttendanceRegisterResponse>;
+}
+
+export async function fetchGateAttendanceReport(
+  filters: {
+    date?: string;
+    classId?: string;
+    streamId?: string;
+    search?: string;
+    studentType?: string;
+    attendanceStatus?: string;
+    campusStatus?: string;
+    departureMissing?: boolean;
+  } = {},
+) {
+  const params = new URLSearchParams();
+  Object.entries(filters).forEach(([key, value]) => {
+    if (value === undefined || value === "" || value === false) return;
+    params.set(key, String(value));
+  });
+  const response = await fetch(`${API_BASE}/api/nfc/attendance/gate-report?${params.toString()}`, {
+    headers: makeSchoolRequestHeaders(),
+  });
+  if (!response.ok) throw new Error(await parseApiError(response, "Could not load gate attendance report"));
+  return response.json() as Promise<GateAttendanceReport>;
+}
+
+export async function fetchClassroomAttendanceReport(
+  filters: {
+    date?: string;
+    classId?: string;
+    streamId?: string;
+    search?: string;
+    studentType?: string;
+    sessionType?: string;
+  } = {},
+) {
+  const params = new URLSearchParams();
+  Object.entries(filters).forEach(([key, value]) => {
+    if (!value) return;
+    params.set(key, String(value));
+  });
+  const response = await fetch(`${API_BASE}/api/nfc/attendance/classroom-report?${params.toString()}`, {
+    headers: makeSchoolRequestHeaders(),
+  });
+  if (!response.ok) throw new Error(await parseApiError(response, "Could not load classroom attendance report"));
+  return response.json() as Promise<ClassroomAttendanceReport>;
+}
+
+export async function approveGateAttendanceOverride(input: { studentId: string; reason: string; expiresAt: string }) {
+  const response = await fetch(`${API_BASE}/api/nfc/attendance/gate-overrides`, {
+    method: "POST",
+    headers: makeSchoolRequestHeaders({ "Content-Type": "application/json" }),
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) throw new Error(await parseApiError(response, "Could not approve gate override"));
+  return response.json() as Promise<{ gateOverride: { id: string; status: string; activeUntil: string | null }; idempotent: boolean }>;
 }
 
 export type AttendanceClassItem = {

@@ -382,6 +382,25 @@ function defaultPolicy(schoolId: string): NfcPolicyRow {
   };
 }
 
+function parseTimeToMinutes(value: string) {
+  const [hours, minutes] = value.split(":").map((part) => Number(part));
+  return (hours * 60) + minutes;
+}
+
+function assertValidTimeZone(timeZone: string) {
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone }).format(new Date());
+  } catch {
+    throw Object.assign(new Error("Timezone is not valid."), { status: 400 });
+  }
+}
+
+function assertNonCrossingWindow(label: string, startTime: string, endTime: string) {
+  if (parseTimeToMinutes(endTime) < parseTimeToMinutes(startTime)) {
+    throw Object.assign(new Error(`${label} cannot cross midnight.`), { status: 400 });
+  }
+}
+
 export async function getSchoolNfcPolicy(
   ctx: NfcPolicyContext,
   db: NfcPolicyClient = defaultPrisma,
@@ -408,6 +427,7 @@ export async function updateSchoolNfcPolicy(
   if (merged.attendanceTapInCutoffEnabled && !tapInCutoffTime) {
     throw Object.assign(new Error("Tap-in cut-off time is required when the cut-off is enabled."), { status: 400 });
   }
+  assertValidTimeZone(merged.timezone?.trim() || "Africa/Kampala");
   if (tapInCutoffTime && !/^\d{2}:\d{2}$/.test(tapInCutoffTime)) {
     throw Object.assign(new Error("Tap-in cut-off time must use HH:MM."), { status: 400 });
   }
@@ -430,6 +450,10 @@ export async function updateSchoolNfcPolicy(
   if (merged.gateArrivalLateAfter < merged.gateArrivalStart || merged.gateArrivalLateAfter > merged.gateArrivalEnd) {
     throw Object.assign(new Error("Gate late threshold must sit inside the arrival window."), { status: 400 });
   }
+  assertNonCrossingWindow("Gate arrival window", merged.gateArrivalStart, merged.gateArrivalEnd);
+  assertNonCrossingWindow("Morning classroom window", merged.morningClassroomStart, merged.morningClassroomEnd);
+  assertNonCrossingWindow("Gate departure window", merged.gateDepartureStart, merged.gateDepartureEnd);
+  assertNonCrossingWindow("Night prep window", merged.nightPrepStart, merged.nightPrepEnd);
   if (merged.duplicateWindowSeconds < 15 || merged.duplicateWindowSeconds > 600) {
     throw Object.assign(new Error("Duplicate window must be between 15 and 600 seconds."), { status: 400 });
   }

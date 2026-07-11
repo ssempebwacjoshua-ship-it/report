@@ -16,7 +16,8 @@ function createDb(options: {
   classId?: string | null;
   streamId?: string | null;
   feeGatePolicyEnabled?: boolean;
-  approvedGateHold?: boolean;
+  activeFeeHold?: boolean;
+  approvedGateOverride?: boolean;
 } = {}) {
   const student: StudentRecord = {
     id: "student-1",
@@ -30,7 +31,14 @@ function createDb(options: {
   const dailyAttendances: Array<Record<string, any>> = [];
   const campusMovementEvents: Array<Record<string, any>> = [];
   const classroomAttendanceEvents: Array<Record<string, any>> = [];
-  const gateHolds = options.approvedGateHold ? [{
+  const feeHolds = options.activeFeeHold ? [{
+    id: "fee-hold-1",
+    schoolId: "school-1",
+    studentId: student.id,
+    status: "ACTIVE",
+    updatedAt: new Date("2026-07-11T00:00:00.000Z"),
+  }] : [];
+  const gateHolds = options.approvedGateOverride ? [{
     id: "hold-1",
     schoolId: "school-1",
     studentId: student.id,
@@ -80,8 +88,17 @@ function createDb(options: {
     nfcTag: {
       findFirst: async () => null,
     },
+    studentFeeHold: {
+      findFirst: async () => feeHolds[0] ?? null,
+    },
     studentGateHold: {
       findFirst: async () => gateHolds[0] ?? null,
+      update: async ({ where, data }: { where: { id: string }; data: Record<string, any> }) => {
+        const hold = gateHolds.find((item) => item.id === where.id);
+        if (!hold) throw new Error("gate hold missing");
+        Object.assign(hold, data);
+        return hold;
+      },
     },
     dailyAttendance: {
       findFirst: async ({ where }: { where: { schoolId: string; studentId: string; attendanceDate: Date } }) =>
@@ -145,6 +162,7 @@ function createDb(options: {
       dailyAttendances,
       campusMovementEvents,
       classroomAttendanceEvents,
+      gateHolds,
     },
   };
 }
@@ -225,27 +243,13 @@ describe("readerAttendanceService", () => {
     expect(db.stores.campusMovementEvents).toHaveLength(1);
   });
 
-  it.skip("records a gate departure later without erasing the daily attendance", async () => {
+  it("records a gate departure later without erasing the daily attendance", async () => {
     const db = createDb();
-    db.stores.dailyAttendances.push({
-      id: "daily-1",
-      schoolId: "school-1",
-      studentId: "student-1",
-      attendanceDate: new Date("2026-07-10T21:00:00.000Z"),
-      status: "PRESENT",
-      firstRecordedAt: new Date("2026-07-11T04:45:00.000Z"),
-      source: "GATE_READER",
-    });
-    db.stores.campusMovementEvents.push({
-      id: "move-1",
+    await processLocationAwareReaderEvent(gateReader(), {
       eventId: "event-entry",
-      schoolId: "school-1",
-      studentId: "student-1",
-      readerId: "reader-1",
-      type: "GATE_ENTRY",
-      occurredAt: new Date("2026-07-11T04:45:00.000Z"),
-      deviceTime: new Date("2026-07-11T04:45:00.000Z"),
-    });
+      credential: "WB-1",
+      deviceTime: "2026-07-11T04:45:00.000Z",
+    }, db as never);
     const departure = await processLocationAwareReaderEvent(gateReader(), {
       eventId: "event-2",
       credential: "WB-1",
@@ -260,6 +264,87 @@ describe("readerAttendanceService", () => {
     });
     expect(db.stores.dailyAttendances).toHaveLength(1);
     expect(db.stores.campusMovementEvents.map((item) => item.type)).toEqual(["GATE_ENTRY", "GATE_EXIT"]);
+  });
+
+  it("records a late arrival after the configured threshold", async () => {
+    const db = createDb();
+    const result = await processLocationAwareReaderEvent(gateReader(), {
+      eventId: "event-late",
+      credential: "WB-1",
+      deviceTime: "2026-07-11T05:30:00.000Z",
+    }, db as never);
+
+    expect(result.response.status).toBe("LATE");
+    expect(db.stores.dailyAttendances[0]?.status).toBe("LATE");
+  });
+
+  it("records an unclassified daytime scan without changing attendance", async () => {
+    const db = createDb();
+    db.stores.dailyAttendances.push({
+      id: "daily-1",
+      schoolId: "school-1",
+      studentId: "student-1",
+      attendanceDate: new Date("2026-07-10T21:00:00.000Z"),
+      status: "PRESENT",
+      firstRecordedAt: new Date("2026-07-11T04:45:00.000Z"),
+      source: "GATE_READER",
+    });
+
+    const result = await processLocationAwareReaderEvent(gateReader(), {
+      eventId: "event-unclassified",
+      credential: "WB-1",
+      deviceTime: "2026-07-11T08:30:00.000Z",
+    }, db as never);
+
+    expect(result.response.status).toBe("UNCLASSIFIED");
+    expect(db.stores.dailyAttendances).toHaveLength(1);
+    expect(db.stores.campusMovementEvents[0]?.type).toBe("UNCLASSIFIED_GATE_SCAN");
+  });
+
+  it("does not fabricate a departure outside the dismissal window", async () => {
+    const db = createDb();
+    db.stores.dailyAttendances.push({
+      id: "daily-1",
+      schoolId: "school-1",
+      studentId: "student-1",
+      attendanceDate: new Date("2026-07-10T21:00:00.000Z"),
+      status: "PRESENT",
+      firstRecordedAt: new Date("2026-07-11T04:45:00.000Z"),
+      source: "GATE_READER",
+    });
+
+    const result = await processLocationAwareReaderEvent(gateReader(), {
+      eventId: "event-no-departure",
+      credential: "WB-1",
+      deviceTime: "2026-07-11T11:30:00.000Z",
+    }, db as never);
+
+    expect(result.response.status).toBe("UNCLASSIFIED");
+    expect(db.stores.campusMovementEvents[0]?.type).toBe("UNCLASSIFIED_GATE_SCAN");
+  });
+
+  it("blocks a fee-restricted day scholar until an approved override is used", async () => {
+    const blockedDb = createDb({ feeGatePolicyEnabled: true, activeFeeHold: true });
+    const blocked = await processLocationAwareReaderEvent(gateReader(), {
+      eventId: "event-fee-hold",
+      credential: "WB-1",
+      deviceTime: "2026-07-11T04:45:00.000Z",
+    }, blockedDb as never);
+
+    expect(blocked.statusCode).toBe(403);
+    expect(blocked.response.status).toBe("FEES_HOLD");
+    expect(blockedDb.stores.campusMovementEvents[0]?.type).toBe("RESTRICTED_ENTRY_ATTEMPT");
+
+    const overrideDb = createDb({ feeGatePolicyEnabled: true, activeFeeHold: true, approvedGateOverride: true });
+    const allowed = await processLocationAwareReaderEvent(gateReader(), {
+      eventId: "event-override",
+      credential: "WB-1",
+      deviceTime: "2026-07-11T04:45:00.000Z",
+    }, overrideDb as never);
+
+    expect(allowed.statusCode).toBe(200);
+    expect(overrideDb.stores.campusMovementEvents.map((item) => item.type)).toEqual(["MANUAL_GATE_OVERRIDE", "GATE_ENTRY"]);
+    expect(overrideDb.stores.gateHolds[0]?.status).toBe("CONSUMED");
   });
 
   it("rejects a day scholar from night prep", async () => {

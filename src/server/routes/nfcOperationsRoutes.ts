@@ -40,6 +40,11 @@ import {
   searchNfcFeeHoldStudents,
   updateSchoolNfcPolicy,
 } from "../services/nfcPolicyService";
+import {
+  approveGateOverride,
+  listClassroomAttendanceReport,
+  listGateAttendanceReport,
+} from "../services/locationAttendanceService";
 import { attachUsageWarning, recordPlatformUsage, requirePlatformModule } from "../platformIntegration";
 
 const { AttendanceDirection } = prismaPkg;
@@ -66,6 +71,16 @@ const registerFiltersSchema = z.object({
   streamId: z.string().uuid().optional(),
   search: z.string().optional(),
   studentType: z.enum(["ALL", "DAY", "BOARDING"]).optional(),
+});
+
+const gateAttendanceReportFiltersSchema = registerFiltersSchema.extend({
+  attendanceStatus: z.enum(["ALL", "PRESENT", "LATE", "ABSENT"]).optional(),
+  campusStatus: z.enum(["ALL", "ON_CAMPUS", "OFF_CAMPUS"]).optional(),
+  departureMissing: z.coerce.boolean().optional(),
+});
+
+const classroomAttendanceReportFiltersSchema = registerFiltersSchema.extend({
+  sessionType: z.enum(["ALL", "MORNING_CLASS", "NIGHT_PREP", "UNCLASSIFIED"]).optional(),
 });
 const chargeSchema = scanSchema.extend({
   amountCents: z.coerce.number().int().positive(),
@@ -187,6 +202,12 @@ const clearFeeHoldSchema = z.object({
   reason: z.string().trim().optional().nullable(),
 });
 
+const gateOverrideSchema = z.object({
+  studentId: z.string().uuid(),
+  reason: z.string().trim().min(1, "Override reason is required."),
+  expiresAt: z.string().trim().min(1, "Override expiry is required."),
+});
+
 const resolveWalletStudentSchema = z
   .object({
     studentId: z.string().uuid().optional(),
@@ -265,6 +286,39 @@ export function nfcOperationsRoutes() {
         return;
       }
       res.json(await getAttendanceRegister(ctx(req), registerFiltersSchema.parse(req.query)));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.get("/api/nfc/attendance/gate-report", async (req, res, next) => {
+    try {
+      if (!(await requirePlatformModule(req, res, "nfc.attendance"))) {
+        return;
+      }
+      res.json(await listGateAttendanceReport(ctx(req), gateAttendanceReportFiltersSchema.parse(req.query)));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.get("/api/nfc/attendance/classroom-report", async (req, res, next) => {
+    try {
+      if (!(await requirePlatformModule(req, res, "nfc.attendance"))) {
+        return;
+      }
+      res.json(await listClassroomAttendanceReport(ctx(req), classroomAttendanceReportFiltersSchema.parse(req.query)));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/api/nfc/attendance/gate-overrides", async (req, res, next) => {
+    try {
+      if (!(await requirePlatformModule(req, res, "nfc.attendance"))) {
+        return;
+      }
+      res.status(201).json(await approveGateOverride(ctx(req), gateOverrideSchema.parse(req.body)));
     } catch (error) {
       next(error);
     }

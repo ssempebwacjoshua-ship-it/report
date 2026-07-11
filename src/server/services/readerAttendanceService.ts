@@ -51,7 +51,7 @@ type EventBody = {
 
 type ReaderAttendanceDb = Pick<
   PrismaClient,
-  "schoolNfcPolicy" | "studentCredential" | "nfcTag" | "studentGateHold" | "dailyAttendance" | "campusMovementEvent" | "classroomAttendanceEvent"
+  "schoolNfcPolicy" | "studentCredential" | "nfcTag" | "studentFeeHold" | "studentGateHold" | "dailyAttendance" | "campusMovementEvent" | "classroomAttendanceEvent"
 >;
 
 type ResolvedStudent = {
@@ -280,25 +280,51 @@ async function resolveStudentForReader(
   };
 }
 
-async function hasActiveGateHold(
+async function hasActiveFeeHold(
+  schoolId: string,
+  studentId: string,
+  db: ReaderAttendanceDb,
+) {
+  return db.studentFeeHold.findFirst({
+    where: {
+      schoolId,
+      studentId,
+      status: "ACTIVE",
+    },
+    orderBy: { updatedAt: "desc" },
+  });
+}
+
+async function findApprovedGateOverride(
   schoolId: string,
   studentId: string,
   occurredAt: Date,
   db: ReaderAttendanceDb,
 ) {
-  const hold = await db.studentGateHold.findFirst({
+  return db.studentGateHold.findFirst({
     where: {
       schoolId,
       studentId,
-      status: { in: ["APPROVED", "ACTIVE"] },
+      status: "APPROVED",
       OR: [{ activeFrom: null }, { activeFrom: { lte: occurredAt } }],
       AND: [{ OR: [{ activeUntil: null }, { activeUntil: { gte: occurredAt } }] }],
     },
     orderBy: { updatedAt: "desc" },
   });
-  if (!hold) return false;
-  if (hold.overrideUntil && hold.overrideUntil >= occurredAt) return false;
-  return true;
+}
+
+async function consumeApprovedGateOverride(
+  holdId: string,
+  occurredAt: Date,
+  db: ReaderAttendanceDb,
+) {
+  return db.studentGateHold.update({
+    where: { id: holdId },
+    data: {
+      status: "CONSUMED",
+      overrideUntil: occurredAt,
+    },
+  });
 }
 
 async function upsertDailyAttendance(
@@ -368,7 +394,14 @@ async function processGateAttendance(
         statusCode: 200,
       };
     }
-    if (policy.feeGatePolicyEnabled && student.studentType !== "BOARDING" && await hasActiveGateHold(device.schoolId, student.studentId, scannedAt, db)) {
+    const feeHold = policy.feeGatePolicyEnabled && student.studentType !== "BOARDING"
+      ? await hasActiveFeeHold(device.schoolId, student.studentId, db)
+      : null;
+    const approvedOverride = feeHold
+      ? await findApprovedGateOverride(device.schoolId, student.studentId, scannedAt, db)
+      : null;
+
+    if (feeHold && !approvedOverride) {
       await db.campusMovementEvent.create({
         data: {
           eventId: body.eventId,
@@ -389,6 +422,28 @@ async function processGateAttendance(
       };
     }
 
+    if (approvedOverride) {
+      await consumeApprovedGateOverride(approvedOverride.id, scannedAt, db);
+      await db.campusMovementEvent.create({
+        data: {
+          eventId: `${body.eventId}:override`,
+          schoolId: device.schoolId,
+          studentId: student.studentId,
+          readerId: device.id,
+          type: "MANUAL_GATE_OVERRIDE",
+          occurredAt: scannedAt,
+          deviceTime: scannedAt,
+          offlineSynced: Boolean(body.syncStatus),
+          metadata: {
+            locationType: device.locationType,
+            locationName: device.locationName ?? device.location ?? null,
+            gateHoldId: approvedOverride.id,
+            overrideReason: approvedOverride.overrideReason ?? approvedOverride.reason ?? null,
+          },
+        },
+      });
+    }
+
     const timeString = `${String(getTimeParts(scannedAt, policy.timezone).hour).padStart(2, "0")}:${String(getTimeParts(scannedAt, policy.timezone).minute).padStart(2, "0")}`;
     const dailyStatus = timeString >= policy.gateArrivalLateAfter ? "LATE" : "PRESENT";
     await upsertDailyAttendance(device.schoolId, student.studentId, dailyDate, dailyStatus, "GATE_READER", scannedAt, db);
@@ -402,7 +457,12 @@ async function processGateAttendance(
         occurredAt: scannedAt,
         deviceTime: scannedAt,
         offlineSynced: Boolean(body.syncStatus),
-        metadata: { locationType: device.locationType, locationName: device.locationName ?? device.location ?? null, attendanceStatus: dailyStatus },
+        metadata: {
+          locationType: device.locationType,
+          locationName: device.locationName ?? device.location ?? null,
+          attendanceStatus: dailyStatus,
+          manualOverride: Boolean(approvedOverride),
+        },
       },
     });
     return {

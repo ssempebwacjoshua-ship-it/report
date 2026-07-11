@@ -23,7 +23,14 @@ export type OfflineDeviceStatus = {
   name: string;
   deviceKey: string;
   location: string | null;
+  locationType?: string | null;
+  locationName?: string | null;
   mode: string;
+  attendanceMode?: string | null;
+  studentScope?: string | null;
+  classId?: string | null;
+  streamId?: string | null;
+  direction?: string | null;
   status: string;
   isActive: boolean;
   lastSeenAt: string | null;
@@ -52,4 +59,20 @@ export async function fetchOfflineBootstrap(modules?: string[], deviceId?: strin
 
 export async function fetchOfflineSyncStatus(): Promise<OfflineSyncStatus> {
   return api<OfflineSyncStatus>("/api/nfc/offline/sync-status");
+}
+
+export async function updateOfflineDeviceConfig(deviceId: string, input: {
+  location?: string | null;
+  locationType?: "GATE" | "CLASSROOM" | null;
+  locationName?: string | null;
+  attendanceMode?: "GATE_ATTENDANCE" | "CLASSROOM_ATTENDANCE" | null;
+  studentScope?: "ALL_STUDENTS" | "DAY_SCHOLARS" | "BOARDING_STUDENTS" | "ASSIGNED_CLASS" | null;
+  classId?: string | null;
+  streamId?: string | null;
+  direction?: "ENTRY" | "EXIT" | null;
+}) {
+  return api<OfflineDeviceStatus>(`/api/nfc/offline/devices/${encodeURIComponent(deviceId)}`, {
+    method: "PATCH",
+    body: JSON.stringify(input),
+  });
 }

@@ -7,13 +7,18 @@ import { useConnectivityStatus } from "../hooks/useConnectivityStatus";
 import { useNfcOfflineSnapshotRefresh } from "../hooks/useNfcOfflineSnapshotRefresh";
 import { useAuth } from "../contexts/AuthContext";
 import {
+  approveGateAttendanceOverride,
+  fetchClassroomAttendanceReport,
   fetchAttendanceClasses,
+  fetchGateAttendanceReport,
   fetchNfcAttendanceRegister,
   scanNfcAttendance,
   type AttendanceClassItem,
   type AttendanceCurrentStatus,
   type AttendanceRegisterResponse,
   type AttendanceRegisterRow,
+  type ClassroomAttendanceReport,
+  type GateAttendanceReport,
   type NfcAttendanceScanEvent,
 } from "../client/studentCredentialsClient";
 import { resolveOfflineNfcScan } from "../offline/offlineResolver";
@@ -59,6 +64,11 @@ const SCAN_STATUS_COLORS: Record<string, string> = {
 function formatTime(iso: string | null | undefined) {
   if (!iso) return "—";
   return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
+function formatDateTime(iso: string | null | undefined) {
+  if (!iso) return "â€”";
+  return new Date(iso).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
 }
 
 function SummaryCard({ label, value, color }: { label: string; value: number; color: string }) {
@@ -304,8 +314,11 @@ export function NfcAttendancePage() {
   });
 
   const [register, setRegister] = useState<AttendanceRegisterResponse | null>(null);
+  const [gateReport, setGateReport] = useState<GateAttendanceReport | null>(null);
+  const [classroomReport, setClassroomReport] = useState<ClassroomAttendanceReport | null>(null);
   const [lastScan, setLastScan] = useState<NfcAttendanceScanEvent | null>(null);
   const [offlineScans, setOfflineScans] = useState<Array<{ name: string; admissionNumber?: string; className?: string | null; direction: string; status: string; scannedAt: string; syncStatus: string }>>([]);
+  const [view, setView] = useState<"REGISTER" | "GATE" | "CLASSROOM">("REGISTER");
 
   const [direction, setDirection] = useState<AttendanceDirection>("TAP_IN");
   const directionRef = useRef<AttendanceDirection>("TAP_IN");
@@ -316,6 +329,10 @@ export function NfcAttendancePage() {
   const [streamId, setStreamId] = useState("");
   const [studentType, setStudentType] = useState<"ALL" | "DAY" | "BOARDING">("ALL");
   const [search, setSearch] = useState("");
+  const [gateStatusFilter, setGateStatusFilter] = useState<"ALL" | "PRESENT" | "LATE" | "ABSENT">("ALL");
+  const [campusStatusFilter, setCampusStatusFilter] = useState<"ALL" | "ON_CAMPUS" | "OFF_CAMPUS">("ALL");
+  const [departureMissingOnly, setDepartureMissingOnly] = useState(false);
+  const [classroomSessionFilter, setClassroomSessionFilter] = useState<"ALL" | "MORNING_CLASS" | "NIGHT_PREP" | "UNCLASSIFIED">("ALL");
 
   const [classes, setClasses] = useState<AttendanceClassItem[]>([]);
   const [drillDown, setDrillDown] = useState<"PRESENT" | "ABSENT" | null>(null);
@@ -353,11 +370,71 @@ export function NfcAttendancePage() {
     }
   }
 
+  async function loadGateReport() {
+    setLoading(true);
+    setLoadError("");
+    try {
+      const data = await fetchGateAttendanceReport({
+        date,
+        classId: classId || undefined,
+        streamId: streamId || undefined,
+        search: search || undefined,
+        studentType,
+        attendanceStatus: gateStatusFilter,
+        campusStatus: campusStatusFilter,
+        departureMissing: departureMissingOnly || undefined,
+      });
+      setGateReport(data);
+    } catch (caught) {
+      setLoadError(caught instanceof Error ? caught.message : "Could not load gate attendance report");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function loadClassroomReport() {
+    setLoading(true);
+    setLoadError("");
+    try {
+      const data = await fetchClassroomAttendanceReport({
+        date,
+        classId: classId || undefined,
+        streamId: streamId || undefined,
+        search: search || undefined,
+        studentType,
+        sessionType: classroomSessionFilter,
+      });
+      setClassroomReport(data);
+    } catch (caught) {
+      setLoadError(caught instanceof Error ? caught.message : "Could not load classroom attendance report");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function loadCurrentView() {
+    if (view === "GATE") {
+      await loadGateReport();
+      return;
+    }
+    if (view === "CLASSROOM") {
+      await loadClassroomReport();
+      return;
+    }
+    await loadRegister();
+  }
+
   useEffect(() => {
-    void loadRegister();
+    void loadCurrentView();
     // initial load only
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    void loadCurrentView();
+    // reload when switching tabs
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view]);
 
   async function handleScan({ tokenOrUid, idempotencyKey, deviceId: scanDeviceId }: ScanResult) {
     if (!user?.schoolId) return;
@@ -448,6 +525,19 @@ export function NfcAttendancePage() {
     if (typeof navigator !== "undefined" && navigator.onLine) void triggerSync();
   }
 
+  async function handleApproveOverride(studentId: string) {
+    const reason = window.prompt("Reason for manual gate override?");
+    if (!reason?.trim()) return;
+    const expiresAt = window.prompt("Override expiry (YYYY-MM-DDTHH:MM)?", `${date}T18:00`);
+    if (!expiresAt?.trim()) return;
+    try {
+      await approveGateAttendanceOverride({ studentId, reason: reason.trim(), expiresAt });
+      await loadGateReport();
+    } catch (caught) {
+      setLoadError(caught instanceof Error ? caught.message : "Could not approve gate override");
+    }
+  }
+
   const scanner = useNfcScanner({ onScan: handleScan });
 
   useEffect(() => {
@@ -475,7 +565,23 @@ export function NfcAttendancePage() {
     <main className="grid gap-5">
       <header className="page-header">
         <p className="text-xs font-bold uppercase tracking-wide text-blue-600">NFC Operations</p>
-        <h1 className="text-xl font-bold text-slate-950 sm:text-2xl">Attendance Register</h1>
+        <h1 className="text-xl font-bold text-slate-950 sm:text-2xl">Attendance Operations</h1>
+        <div className="mt-3 flex flex-wrap gap-2">
+          {([
+            ["REGISTER", "Register"],
+            ["GATE", "Gate View"],
+            ["CLASSROOM", "Classroom View"],
+          ] as const).map(([key, label]) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setView(key)}
+              className={`rounded-full px-3 py-1.5 text-xs font-black ${view === key ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-700"}`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
       </header>
 
       {isOfflineReady && (
@@ -514,24 +620,48 @@ export function NfcAttendancePage() {
       ) : null}
 
       {/* Summary cards — PRESENT and ABSENT are clickable */}
-      <section className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-        <SummaryCard label="Total" value={summary?.totalStudents ?? 0} color="text-slate-900" />
-        <ClickableSummaryCard
-          label="Present"
-          value={summary?.present ?? 0}
-          color="text-green-700"
-          onClick={() => setDrillDown("PRESENT")}
-        />
-        <SummaryCard label="Tapped Out" value={summary?.out ?? 0} color="text-amber-700" />
-        <ClickableSummaryCard
-          label="Absent"
-          value={summary?.absent ?? 0}
-          color="text-slate-600"
-          onClick={() => setDrillDown("ABSENT")}
-        />
-        <SummaryCard label="Blocked" value={summary?.blockedScans ?? 0} color="text-red-700" />
-        <SummaryCard label="Duplicates" value={summary?.duplicateScans ?? 0} color="text-orange-700" />
-      </section>
+      {view === "REGISTER" ? (
+        <section className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+          <SummaryCard label="Total" value={summary?.totalStudents ?? 0} color="text-slate-900" />
+          <ClickableSummaryCard
+            label="Present"
+            value={summary?.present ?? 0}
+            color="text-green-700"
+            onClick={() => setDrillDown("PRESENT")}
+          />
+          <SummaryCard label="Tapped Out" value={summary?.out ?? 0} color="text-amber-700" />
+          <ClickableSummaryCard
+            label="Absent"
+            value={summary?.absent ?? 0}
+            color="text-slate-600"
+            onClick={() => setDrillDown("ABSENT")}
+          />
+          <SummaryCard label="Blocked" value={summary?.blockedScans ?? 0} color="text-red-700" />
+          <SummaryCard label="Duplicates" value={summary?.duplicateScans ?? 0} color="text-orange-700" />
+        </section>
+      ) : null}
+
+      {view === "GATE" ? (
+        <section className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+          <SummaryCard label="Total" value={gateReport?.summary.totalStudents ?? 0} color="text-slate-900" />
+          <SummaryCard label="Present" value={gateReport?.summary.present ?? 0} color="text-green-700" />
+          <SummaryCard label="Late" value={gateReport?.summary.late ?? 0} color="text-amber-700" />
+          <SummaryCard label="On Campus" value={gateReport?.summary.onCampus ?? 0} color="text-blue-700" />
+          <SummaryCard label="Missing Departure" value={gateReport?.summary.departureMissing ?? 0} color="text-red-700" />
+          <SummaryCard label="Overrides" value={gateReport?.summary.manualOverrides ?? 0} color="text-slate-900" />
+        </section>
+      ) : null}
+
+      {view === "CLASSROOM" ? (
+        <section className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+          <SummaryCard label="Events" value={classroomReport?.summary.totalEvents ?? 0} color="text-slate-900" />
+          <SummaryCard label="Morning Present" value={classroomReport?.summary.morningPresent ?? 0} color="text-green-700" />
+          <SummaryCard label="Night Prep" value={classroomReport?.summary.nightPrepPresent ?? 0} color="text-blue-700" />
+          <SummaryCard label="Missing Boarders" value={classroomReport?.summary.missingBoarders ?? 0} color="text-red-700" />
+          <SummaryCard label="Wrong Class" value={classroomReport?.summary.wrongClassAttempts ?? 0} color="text-amber-700" />
+          <SummaryCard label="Session Closed" value={classroomReport?.summary.sessionClosedScans ?? 0} color="text-slate-700" />
+        </section>
+      ) : null}
 
       <div className="grid gap-5 lg:grid-cols-[380px_minmax(0,1fr)]">
         <div className="grid gap-4">
@@ -708,10 +838,48 @@ export function NfcAttendancePage() {
                 />
               </div>
 
+              {view === "GATE" ? (
+                <>
+                  <div>
+                    <label className="mb-1 block text-xs font-semibold text-slate-600">Attendance Status</label>
+                    <select className={selectClass + " w-full"} value={gateStatusFilter} onChange={(e) => setGateStatusFilter(e.target.value as typeof gateStatusFilter)}>
+                      <option value="ALL">All</option>
+                      <option value="PRESENT">Present</option>
+                      <option value="LATE">Late</option>
+                      <option value="ABSENT">Absent</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs font-semibold text-slate-600">Campus Status</label>
+                    <select className={selectClass + " w-full"} value={campusStatusFilter} onChange={(e) => setCampusStatusFilter(e.target.value as typeof campusStatusFilter)}>
+                      <option value="ALL">All</option>
+                      <option value="ON_CAMPUS">On Campus</option>
+                      <option value="OFF_CAMPUS">Off Campus</option>
+                    </select>
+                  </div>
+                  <label className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-700">
+                    <input type="checkbox" checked={departureMissingOnly} onChange={(e) => setDepartureMissingOnly(e.target.checked)} />
+                    Departure not recorded
+                  </label>
+                </>
+              ) : null}
+
+              {view === "CLASSROOM" ? (
+                <div>
+                  <label className="mb-1 block text-xs font-semibold text-slate-600">Classroom Session</label>
+                  <select className={selectClass + " w-full"} value={classroomSessionFilter} onChange={(e) => setClassroomSessionFilter(e.target.value as typeof classroomSessionFilter)}>
+                    <option value="ALL">All</option>
+                    <option value="MORNING_CLASS">Morning Class</option>
+                    <option value="NIGHT_PREP">Night Prep</option>
+                    <option value="UNCLASSIFIED">Unclassified</option>
+                  </select>
+                </div>
+              ) : null}
+
               <button
                 className="btn btn-secondary"
                 type="button"
-                onClick={() => void loadRegister()}
+                onClick={() => void loadCurrentView()}
                 disabled={loading}
               >
                 {loading ? "Loading…" : "Apply Filters"}
@@ -720,8 +888,8 @@ export function NfcAttendancePage() {
           </section>
         </div>
 
-        {/* Register table */}
-        <section className="premium-card overflow-hidden rounded-xl">
+	        {view === "REGISTER" ? (
+	        <section className="premium-card overflow-hidden rounded-xl">
           <div className="border-b border-slate-100 px-4 py-3">
             <h2 className="text-base font-bold text-slate-950">Class Attendance Register</h2>
             <p className="text-xs text-slate-500">
@@ -799,7 +967,117 @@ export function NfcAttendancePage() {
               </tbody>
             </table>
           </div>
-        </section>
+	        </section>
+          ) : null}
+
+          {view === "GATE" ? (
+            <section className="premium-card overflow-hidden rounded-xl">
+              <div className="border-b border-slate-100 px-4 py-3">
+                <h2 className="text-base font-bold text-slate-950">Gate Attendance View</h2>
+                <p className="text-xs text-slate-500">Arrival, departure, campus status, fee-hold attempts, and manual overrides for the selected date.</p>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-slate-200 bg-slate-50 text-left">
+                      <th className="px-4 py-3 font-semibold text-slate-600">Student</th>
+                      <th className="px-4 py-3 font-semibold text-slate-600">Class</th>
+                      <th className="px-4 py-3 font-semibold text-slate-600">Type</th>
+                      <th className="px-4 py-3 font-semibold text-slate-600">Attendance</th>
+                      <th className="px-4 py-3 font-semibold text-slate-600">Arrival</th>
+                      <th className="px-4 py-3 font-semibold text-slate-600">Departure</th>
+                      <th className="px-4 py-3 font-semibold text-slate-600">Campus</th>
+                      <th className="px-4 py-3 font-semibold text-slate-600">Reader</th>
+                      <th className="px-4 py-3 font-semibold text-slate-600">Flags</th>
+                      <th className="px-4 py-3 font-semibold text-slate-600">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {(gateReport?.rows ?? []).map((row) => (
+                      <tr key={row.studentId} className="hover:bg-slate-50/50">
+                        <td className="px-4 py-3">
+                          <p className="font-medium text-slate-900">{row.studentName}</p>
+                          <p className="font-mono text-xs text-slate-500">{row.admissionNumber}</p>
+                        </td>
+                        <td className="px-4 py-3 text-slate-600">{row.className ?? "â€”"}{row.streamName ? ` / ${row.streamName}` : ""}</td>
+                        <td className="px-4 py-3 text-slate-600">{row.scholarType ?? "â€”"}</td>
+                        <td className="px-4 py-3">
+                          <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-bold ${row.attendanceStatus === "PRESENT" ? "bg-green-100 text-green-700" : row.attendanceStatus === "LATE" ? "bg-amber-100 text-amber-700" : "bg-slate-100 text-slate-600"}`}>
+                            {row.attendanceStatus}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-slate-700">{formatTime(row.arrivalTime)}{row.lateIndicator ? " Â· Late" : ""}</td>
+                        <td className="px-4 py-3 text-slate-700">{row.departureNotRecorded ? "Departure not recorded" : formatTime(row.departureTime)}</td>
+                        <td className="px-4 py-3 text-slate-700">{row.campusStatus}</td>
+                        <td className="px-4 py-3 text-slate-600">{row.readerUsed ?? "â€”"}</td>
+                        <td className="px-4 py-3 text-xs text-slate-600">
+                          <div>{row.feeHoldAttempt ? `Restricted attempt ${formatDateTime(row.lastRestrictedAttemptAt)}` : "No fee-hold attempt"}</div>
+                          <div>{row.manualOverride ? "Manual override used" : row.offlineSynced ? "Offline-synced event" : "Live event"}</div>
+                        </td>
+                        <td className="px-4 py-3">
+                          {row.feeHoldAttempt && !row.manualOverride ? (
+                            <button type="button" className="rounded-xl bg-blue-600 px-3 py-2 text-xs font-bold text-white hover:bg-blue-700" onClick={() => { void handleApproveOverride(row.studentId); }}>
+                              Approve override
+                            </button>
+                          ) : (
+                            <span className="text-xs text-slate-400">â€”</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                    {gateReport && gateReport.rows.length === 0 ? (
+                      <tr><td colSpan={10} className="px-4 py-10 text-center text-slate-500">No gate attendance rows match the selected filters.</td></tr>
+                    ) : null}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          ) : null}
+
+          {view === "CLASSROOM" ? (
+            <section className="premium-card overflow-hidden rounded-xl">
+              <div className="border-b border-slate-100 px-4 py-3">
+                <h2 className="text-base font-bold text-slate-950">Classroom Attendance View</h2>
+                <p className="text-xs text-slate-500">Morning attendance, night prep, missing boarders, wrong-class attempts, and original device times.</p>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-slate-200 bg-slate-50 text-left">
+                      <th className="px-4 py-3 font-semibold text-slate-600">Student</th>
+                      <th className="px-4 py-3 font-semibold text-slate-600">Class</th>
+                      <th className="px-4 py-3 font-semibold text-slate-600">Morning</th>
+                      <th className="px-4 py-3 font-semibold text-slate-600">Night Prep</th>
+                      <th className="px-4 py-3 font-semibold text-slate-600">Flags</th>
+                      <th className="px-4 py-3 font-semibold text-slate-600">Reader</th>
+                      <th className="px-4 py-3 font-semibold text-slate-600">Device Time</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {(classroomReport?.rows ?? []).map((row) => (
+                      <tr key={row.id} className="hover:bg-slate-50/50">
+                        <td className="px-4 py-3">
+                          <p className="font-medium text-slate-900">{row.studentName}</p>
+                          <p className="font-mono text-xs text-slate-500">{row.admissionNumber}</p>
+                        </td>
+                        <td className="px-4 py-3 text-slate-600">{row.className ?? "â€”"}{row.streamName ? ` / ${row.streamName}` : ""}</td>
+                        <td className="px-4 py-3 text-slate-700">{row.morningAttendance ? "Present" : "â€”"}</td>
+                        <td className="px-4 py-3 text-slate-700">{row.nightPrepAttendance ? "Present" : row.missingBoarder ? "Missing boarder" : "â€”"}</td>
+                        <td className="px-4 py-3 text-xs text-slate-600">
+                          {row.wrongClassAttempt ? "Wrong class attempt" : row.sessionClosedScan ? "Session closed scan" : row.eventStatus}
+                        </td>
+                        <td className="px-4 py-3 text-slate-600">{row.readerUsed ?? "â€”"}</td>
+                        <td className="px-4 py-3 text-slate-600">{formatDateTime(row.originalDeviceTime)}</td>
+                      </tr>
+                    ))}
+                    {classroomReport && classroomReport.rows.length === 0 ? (
+                      <tr><td colSpan={7} className="px-4 py-10 text-center text-slate-500">No classroom attendance rows match the selected filters.</td></tr>
+                    ) : null}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          ) : null}
       </div>
 
       {/* Drill-down modal */}

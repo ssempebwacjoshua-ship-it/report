@@ -27,6 +27,17 @@ export type OfflineContext = {
   role?: string | null;
 };
 
+export type OfflineDeviceConfigurationInput = {
+  location?: string | null;
+  locationType?: string | null;
+  locationName?: string | null;
+  attendanceMode?: string | null;
+  studentScope?: string | null;
+  classId?: string | null;
+  streamId?: string | null;
+  direction?: string | null;
+};
+
 function requireSchoolId(ctx: OfflineContext): string {
   if (!ctx.schoolId) throw Object.assign(new Error("School context required."), { status: 401 });
   return ctx.schoolId;
@@ -51,6 +62,33 @@ function requireBootstrapPermission(ctx: OfflineContext, mode: "GATE" | "CANTEEN
   for (const permission of required) {
     if (!hasPermission(ctx.role, permission)) {
       throw Object.assign(new Error("You do not have permission for this action."), { status: 403 });
+    }
+  }
+}
+
+function validateAttendanceReaderConfiguration(input: OfflineDeviceConfigurationInput) {
+  if (!input.locationType && !input.attendanceMode && !input.studentScope && !input.classId && !input.streamId) {
+    return;
+  }
+
+  if (input.locationType === "GATE") {
+    if (input.classId || input.streamId) {
+      throw Object.assign(new Error("Gate readers cannot be scoped to a class or stream."), { status: 400 });
+    }
+    if (input.attendanceMode && input.attendanceMode !== "GATE_ATTENDANCE") {
+      throw Object.assign(new Error("Gate readers must use gate attendance mode."), { status: 400 });
+    }
+  }
+
+  if (input.locationType === "CLASSROOM") {
+    if (!input.classId) {
+      throw Object.assign(new Error("Classroom readers require a class assignment."), { status: 400 });
+    }
+    if (input.attendanceMode && input.attendanceMode !== "CLASSROOM_ATTENDANCE") {
+      throw Object.assign(new Error("Classroom readers must use classroom attendance mode."), { status: 400 });
+    }
+    if (input.studentScope === "ASSIGNED_CLASS" && !input.streamId) {
+      throw Object.assign(new Error("Assigned-class classroom readers require a stream assignment."), { status: 400 });
     }
   }
 }
@@ -580,6 +618,7 @@ export async function registerOfflineDevice(
 ) {
   const schoolId = requireSchoolId(ctx);
   requirePermission(ctx, "nfc.devices.manage");
+  validateAttendanceReaderConfiguration(input);
   const token = input.deviceToken ?? input.deviceKey ?? randomUUID();
   const tokenHash = createHash("sha256").update(token).digest("hex");
 
@@ -604,4 +643,59 @@ export async function registerOfflineDevice(
   });
 
   return { ...device, deviceToken: token };
+}
+
+export async function updateOfflineDeviceConfiguration(
+  ctx: OfflineContext,
+  deviceId: string,
+  input: OfflineDeviceConfigurationInput,
+  db: OfflineClient = defaultPrisma,
+) {
+  const schoolId = requireSchoolId(ctx);
+  requirePermission(ctx, "nfc.devices.manage");
+  validateAttendanceReaderConfiguration(input);
+
+  const existing = await db.nfcOfflineDevice.findFirst({
+    where: {
+      schoolId,
+      OR: [{ id: deviceId }, { deviceKey: deviceId }],
+    },
+  });
+  if (!existing) {
+    throw Object.assign(new Error("Offline device not found."), { status: 404 });
+  }
+
+  const updated = await db.nfcOfflineDevice.update({
+    where: { id: existing.id },
+    data: {
+      location: input.location ?? existing.location ?? null,
+      locationType: input.locationType ?? null,
+      locationName: input.locationName ?? input.location ?? existing.locationName ?? existing.location ?? null,
+      attendanceMode: input.attendanceMode ?? null,
+      studentScope: input.studentScope ?? null,
+      classId: input.classId ?? null,
+      streamId: input.streamId ?? null,
+      direction: input.direction ?? existing.direction ?? null,
+    },
+  });
+
+  await db.auditLog.create({
+    data: {
+      schoolId,
+      action: "nfc_offline.device_config_updated",
+      correlationId: updated.id,
+      details: {
+        actorId: ctx.actorId ?? null,
+        deviceKey: updated.deviceKey,
+        locationType: updated.locationType,
+        locationName: updated.locationName,
+        attendanceMode: updated.attendanceMode,
+        studentScope: updated.studentScope,
+        classId: updated.classId,
+        streamId: updated.streamId,
+      },
+    },
+  });
+
+  return updated;
 }

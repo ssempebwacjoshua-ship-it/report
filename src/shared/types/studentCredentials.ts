@@ -139,6 +139,74 @@ export type NfcAttendanceScanResponse = NfcAttendanceDashboard & {
 
 export type AttendanceCurrentStatus = "ABSENT" | "PRESENT" | "LATE" | "OUT" | "OUT_ONLY" | "BLOCKED" | "DUPLICATE";
 
+export type GateAttendanceReportRow = {
+  studentId: string;
+  studentName: string;
+  admissionNumber: string;
+  className: string | null;
+  streamName: string | null;
+  scholarType: "DAY" | "BOARDING" | null;
+  attendanceStatus: "PRESENT" | "LATE" | "ABSENT";
+  arrivalTime: string | null;
+  lateIndicator: boolean;
+  departureTime: string | null;
+  departureNotRecorded: boolean;
+  campusStatus: "ON_CAMPUS" | "OFF_CAMPUS";
+  feeHoldAttempt: boolean;
+  manualOverride: boolean;
+  readerUsed: string | null;
+  offlineSynced: boolean;
+  lastRestrictedAttemptAt: string | null;
+};
+
+export type GateAttendanceReport = {
+  date: string;
+  summary: {
+    totalStudents: number;
+    present: number;
+    late: number;
+    absent: number;
+    onCampus: number;
+    offCampus: number;
+    departureMissing: number;
+    restrictedAttempts: number;
+    manualOverrides: number;
+  };
+  rows: GateAttendanceReportRow[];
+};
+
+export type ClassroomAttendanceReportRow = {
+  id: string;
+  studentId: string;
+  studentName: string;
+  admissionNumber: string;
+  className: string | null;
+  streamName: string | null;
+  scholarType: "DAY" | "BOARDING" | null;
+  morningAttendance: boolean;
+  nightPrepAttendance: boolean;
+  missingBoarder: boolean;
+  wrongClassAttempt: boolean;
+  sessionClosedScan: boolean;
+  readerUsed: string | null;
+  originalDeviceTime: string;
+  eventType: string;
+  eventStatus: string;
+};
+
+export type ClassroomAttendanceReport = {
+  date: string;
+  summary: {
+    totalEvents: number;
+    morningPresent: number;
+    nightPrepPresent: number;
+    missingBoarders: number;
+    wrongClassAttempts: number;
+    sessionClosedScans: number;
+  };
+  rows: ClassroomAttendanceReportRow[];
+};
+
 export type NfcWalletRow = {
   student: NfcStudentSummary;
   wallet: {

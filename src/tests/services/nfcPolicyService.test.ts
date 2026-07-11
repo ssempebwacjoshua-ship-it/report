@@ -192,6 +192,29 @@ describe("NFC policy and fee holds", () => {
     }, db)).rejects.toMatchObject({ status: 403 });
   });
 
+  it("rejects invalid timezone values", async () => {
+    const { db } = createDb();
+    await expect(updateSchoolNfcPolicy(ADMIN_CTX, {
+      feeDefaulterBlockingEnabled: true,
+      feeDefaulterBlockScope: "DAY_SCHOLARS_ONLY",
+      attendanceTapInCutoffEnabled: false,
+      tapInCutoffTime: null,
+      cutoffLateAction: "BLOCK_AND_MARK_ABSENT",
+      timezone: "Mars/Phobos",
+      gateOfflineEnabled: true,
+      canteenOfflineEnabled: true,
+      gateSnapshotValidHours: 24,
+      canteenSnapshotValidHours: 12,
+      maxOfflineSpendPerStudentPerDay: 5000,
+      maxOfflineSpendPerTransaction: 2000,
+      maxOfflineSpendPerDeviceSession: 100000,
+      unknownCardOfflinePolicy: "DENY",
+      frozenCardOfflinePolicy: "DENY",
+      deactivatedCardOfflinePolicy: "DENY",
+      offlineConflictPolicy: "ALLOW_AND_FLAG",
+    }, db)).rejects.toMatchObject({ status: 400 });
+  });
+
   it("lets CASHIER create and clear fee holds", async () => {
     const { db, feeHolds } = createDb();
     const created = await createStudentFeeHold(CASHIER_CTX, {
