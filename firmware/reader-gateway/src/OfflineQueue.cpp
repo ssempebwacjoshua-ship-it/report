@@ -5,29 +5,15 @@
 
 namespace {
 const char* kQueueRewriteTempPath = "/reader-gateway/queue.tmp";
-const char* kQueueRewriteBackupPath = "/reader-gateway/queue.bak";
 
 bool replaceFileAtomically(const char* tempPath, const String& finalPath) {
-  if (LittleFS.exists(kQueueRewriteBackupPath)) {
-    LittleFS.remove(kQueueRewriteBackupPath);
-  }
-
   if (LittleFS.exists(finalPath)) {
-    if (!LittleFS.rename(finalPath.c_str(), kQueueRewriteBackupPath)) {
-      LittleFS.remove(tempPath);
-      return false;
-    }
+    LittleFS.remove(finalPath);
   }
 
   if (!LittleFS.rename(tempPath, finalPath.c_str())) {
-    if (LittleFS.exists(kQueueRewriteBackupPath)) {
-      LittleFS.rename(kQueueRewriteBackupPath, finalPath.c_str());
-    }
+    LittleFS.remove(tempPath);
     return false;
-  }
-
-  if (LittleFS.exists(kQueueRewriteBackupPath)) {
-    LittleFS.remove(kQueueRewriteBackupPath);
   }
   return true;
 }
