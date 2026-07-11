@@ -193,6 +193,10 @@ describe("studentCredentialService", () => {
     expect(normalizeCredentialUID("  nfc-00ab  ")).toBe("NFC-00AB");
   });
 
+  it("normalizes numeric credential UIDs without leading zeros", () => {
+    expect(normalizeCredentialUID("  001  ")).toBe("1");
+  });
+
   it("rejects a duplicate active wristband in the same school", async () => {
     const { db } = createMockDb();
     await issueStudentCredential({ schoolId: "school-a" }, { studentId: "student-a", credentialUID: "AB12" }, db);

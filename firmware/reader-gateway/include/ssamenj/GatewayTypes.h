@@ -47,11 +47,17 @@ struct ReaderScanEvent {
   String eventId;
   String credential;
   String format;
+  String rawWiegandBinary;
+  String rawWiegandDecimal;
+  String rawWiegandHex;
+  String facilityCode;
+  String cardNumber;
   String deviceTime;
   String readerId;
   String schoolId;
   String deviceId;
   String firmwareVersion;
+  uint8_t rawWiegandBitCount = 0;
   uint32_t retryCount = 0;
   String syncStatus = "pending";
 };

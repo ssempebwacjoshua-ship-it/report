@@ -179,6 +179,45 @@ describe("readerGatewayRoutes", () => {
     }));
   });
 
+  it("matches a Wiegand card number variant when the raw payload credential differs", async () => {
+    const res = await request(buildApp())
+      .post("/api/readers/events")
+      .set("Authorization", "Bearer device-token-123")
+      .send(eventBody({
+        credential: "786777",
+        rawWiegandBitCount: 26,
+        rawWiegandBinary: "10000110000000010101100101",
+        rawWiegandDecimal: "35128677",
+        rawWiegandHex: "2180565",
+        facilityCode: "12",
+        cardNumber: "1",
+      }));
+
+    expect(res.status).toBe(200);
+    expect(prismaMocks.studentCredentialFindFirst).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({
+        schoolId: "school-1",
+        OR: expect.arrayContaining([
+          expect.objectContaining({
+            credentialUID: expect.objectContaining({
+              in: expect.arrayContaining(["1", "001", "786777", "12-1"]),
+            }),
+          }),
+        ]),
+      }),
+    }));
+    expect(prismaMocks.auditLogCreate).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        details: expect.objectContaining({
+          credentialDiagnostics: expect.objectContaining({
+            receivedMasked: expect.any(String),
+            rawWiegandBitCount: 26,
+          }),
+        }),
+      }),
+    }));
+  });
+
   it("returns a duplicate response without creating another attendance row", async () => {
     prismaMocks.studentAttendanceEventFindFirst.mockResolvedValue({ id: "att-existing" });
 
@@ -216,6 +255,17 @@ describe("readerGatewayRoutes", () => {
       beep: "error",
     });
     expect(prismaMocks.studentAttendanceEventCreate).not.toHaveBeenCalled();
+    expect(prismaMocks.auditLogCreate).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        action: "reader_event.attendance",
+        details: expect.objectContaining({
+          credentialDiagnostics: expect.objectContaining({
+            receivedMasked: expect.any(String),
+            normalizedMasked: expect.any(String),
+          }),
+        }),
+      }),
+    }));
   });
 
   it("rejects a wrong-school credential by searching only inside the reader school", async () => {

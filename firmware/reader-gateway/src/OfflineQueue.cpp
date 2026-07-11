@@ -40,6 +40,12 @@ String OfflineQueue::serializeEvent(const ReaderScanEvent& event) {
   doc["eventId"] = event.eventId;
   doc["credential"] = event.credential;
   doc["format"] = event.format;
+  doc["rawWiegandBitCount"] = event.rawWiegandBitCount;
+  doc["rawWiegandBinary"] = event.rawWiegandBinary;
+  doc["rawWiegandDecimal"] = event.rawWiegandDecimal;
+  doc["rawWiegandHex"] = event.rawWiegandHex;
+  doc["facilityCode"] = event.facilityCode;
+  doc["cardNumber"] = event.cardNumber;
   doc["deviceTime"] = event.deviceTime;
   doc["readerId"] = event.readerId;
   doc["schoolId"] = event.schoolId;
@@ -63,6 +69,12 @@ bool OfflineQueue::parseEventLine(const String& line, ReaderScanEvent& event) {
   event.eventId = doc["eventId"] | "";
   event.credential = doc["credential"] | "";
   event.format = doc["format"] | "";
+  event.rawWiegandBitCount = doc["rawWiegandBitCount"] | 0;
+  event.rawWiegandBinary = doc["rawWiegandBinary"] | "";
+  event.rawWiegandDecimal = doc["rawWiegandDecimal"] | "";
+  event.rawWiegandHex = doc["rawWiegandHex"] | "";
+  event.facilityCode = doc["facilityCode"] | "";
+  event.cardNumber = doc["cardNumber"] | "";
   event.deviceTime = doc["deviceTime"] | "";
   event.readerId = doc["readerId"] | "";
   event.schoolId = doc["schoolId"] | "";

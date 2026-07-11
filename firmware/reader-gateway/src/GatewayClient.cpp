@@ -61,6 +61,16 @@ String GatewayClient::buildBasePayload(const ReaderGatewayConfig& config, const 
     doc["eventId"] = event->eventId;
     doc["credential"] = event->credential;
     doc["format"] = event->format;
+    doc["rawWiegandBitCount"] = event->rawWiegandBitCount;
+    doc["rawWiegandBinary"] = event->rawWiegandBinary;
+    doc["rawWiegandDecimal"] = event->rawWiegandDecimal;
+    doc["rawWiegandHex"] = event->rawWiegandHex;
+    if (!event->facilityCode.isEmpty()) {
+      doc["facilityCode"] = event->facilityCode;
+    }
+    if (!event->cardNumber.isEmpty()) {
+      doc["cardNumber"] = event->cardNumber;
+    }
     doc["deviceTime"] = event->deviceTime;
     doc["retryCount"] = event->retryCount;
     doc["syncStatus"] = event->syncStatus;
@@ -162,6 +172,7 @@ bool GatewayClient::sendJson(const ReaderGatewayConfig& config, const String& pa
 
 bool GatewayClient::postScan(const ReaderGatewayConfig& config, const ReaderScanEvent& event, ReaderApiResponse& response) {
   const String body = buildBasePayload(config, &event, false);
+  Serial.printf("Payload sent: %s\n", body.c_str());
   return sendJson(config, config.eventsPath, body, response);
 }
 

@@ -2,9 +2,9 @@ import prismaPkg from "@prisma/client";
 import type { Prisma, PrismaClient } from "@prisma/client";
 import { prisma as defaultPrisma } from "../db/prisma";
 import type { SchoolUserRole } from "./authService";
-import { normalizeCredentialUID } from "./studentCredentialService";
 import { assertPinFormat, checkPin, hashWalletPin } from "./walletPinService";
 import { hasPermission } from "../../shared/permissions";
+import { normalizeCredentialUID } from "../../shared/utils/credentialNormalization";
 import { normalizeNfcScanValue } from "../../shared/utils/nfcPayload";
 import {
   getSchoolNfcPolicy,

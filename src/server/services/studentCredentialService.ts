@@ -1,6 +1,7 @@
 import prismaPkg, { Prisma, type PrismaClient } from "@prisma/client";
 import { randomBytes } from "node:crypto";
 import { prisma as defaultPrisma } from "../db/prisma";
+import { normalizeCredentialUID } from "../../shared/utils/credentialNormalization";
 
 const { CredentialStatus, CredentialType } = prismaPkg;
 
@@ -66,9 +67,7 @@ type CredentialWithStudent = {
   student: StudentSummary;
 };
 
-export function normalizeCredentialUID(value: string): string {
-  return value.trim().toUpperCase();
-}
+export { normalizeCredentialUID };
 
 export function generateCredentialScanToken(): string {
   return randomBytes(24).toString("base64url");

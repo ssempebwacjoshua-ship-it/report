@@ -3,6 +3,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { AttendanceDirection, AttendanceScanSource, AttendanceScanStatus, CredentialStatus, CredentialType } from "@prisma/client";
 import { prisma } from "../db/prisma";
+import { maskCredentialValue, normalizeCredentialForLookup } from "../../shared/utils/credentialNormalization";
 
 type ReaderGatewayDevice = {
   id: string;
@@ -42,6 +43,12 @@ const eventSchema = readerIdentitySchema.extend({
   credential: z.string().trim().optional(),
   credentialUID: z.string().trim().optional(),
   format: z.string().trim().optional(),
+  rawWiegandBitCount: z.coerce.number().int().min(0).optional(),
+  rawWiegandBinary: z.string().trim().optional(),
+  rawWiegandDecimal: z.string().trim().optional(),
+  rawWiegandHex: z.string().trim().optional(),
+  facilityCode: z.string().trim().optional(),
+  cardNumber: z.string().trim().optional(),
   deviceTime: z.string().trim().optional(),
   firmwareVersion: z.string().trim().optional(),
   retryCount: z.coerce.number().int().min(0).optional().default(0),
@@ -148,12 +155,46 @@ function dayRange(date: Date) {
   return { start, end };
 }
 
-async function resolveAttendanceCredential(schoolId: string, credentialValue: string) {
+type ReaderCredentialDiagnostics = {
+  receivedMasked: string | null;
+  normalizedMasked: string | null;
+  lookupCount: number;
+  format: string | null;
+  rawWiegandBitCount: number | null;
+  rawWiegandHexMasked: string | null;
+  facilityCodeMasked: string | null;
+  cardNumberMasked: string | null;
+};
+
+function buildCredentialDiagnostics(
+  rawValue: string,
+  normalized: ReturnType<typeof normalizeCredentialForLookup>,
+  body: z.infer<typeof eventSchema>,
+): ReaderCredentialDiagnostics {
+  return {
+    receivedMasked: maskCredentialValue(rawValue),
+    normalizedMasked: maskCredentialValue(normalized.canonical),
+    lookupCount: normalized.lookupValues.length,
+    format: body.format ?? null,
+    rawWiegandBitCount: body.rawWiegandBitCount ?? null,
+    rawWiegandHexMasked: maskCredentialValue(body.rawWiegandHex),
+    facilityCodeMasked: maskCredentialValue(body.facilityCode),
+    cardNumberMasked: maskCredentialValue(body.cardNumber),
+  };
+}
+
+async function resolveAttendanceCredential(
+  schoolId: string,
+  normalized: ReturnType<typeof normalizeCredentialForLookup>,
+) {
   const credential = await prisma.studentCredential.findFirst({
     where: {
       schoolId,
       type: CredentialType.NFC_WRISTBAND,
-      OR: [{ scanToken: credentialValue }, { credentialUID: credentialValue }],
+      OR: [
+        ...(normalized.tokenValues.length ? [{ scanToken: { in: normalized.tokenValues } }] : []),
+        ...(normalized.lookupValues.length ? [{ credentialUID: { in: normalized.lookupValues } }] : []),
+      ],
     },
     include: {
       student: {
@@ -179,8 +220,8 @@ async function resolveAttendanceCredential(schoolId: string, credentialValue: st
     where: {
       schoolId,
       OR: [
-        { publicCode: credentialValue },
-        { physicalUid: { equals: credentialValue, mode: "insensitive" } },
+        ...(normalized.tokenValues.length ? [{ publicCode: { in: normalized.tokenValues } }] : []),
+        ...(normalized.lookupValues.map((value) => ({ physicalUid: { equals: value, mode: "insensitive" as const } }))),
       ],
     },
     include: {
@@ -307,7 +348,15 @@ export function readerGatewayRoutes() {
       }
 
       const scannedAt = parseDeviceTime(body.deviceTime);
-      const credential = await resolveAttendanceCredential(device.schoolId, tokenOrUid);
+      const normalizedCredential = normalizeCredentialForLookup({
+        value: tokenOrUid,
+        cardNumber: body.cardNumber,
+        facilityCode: body.facilityCode,
+        rawWiegandDecimal: body.rawWiegandDecimal,
+        rawWiegandHex: body.rawWiegandHex,
+      });
+      const credentialDiagnostics = buildCredentialDiagnostics(tokenOrUid, normalizedCredential, body);
+      const credential = await resolveAttendanceCredential(device.schoolId, normalizedCredential);
       if (!credential) {
         const response: ReaderGatewayResponse = {
           success: false,
@@ -317,7 +366,35 @@ export function readerGatewayRoutes() {
           beep: "error",
           feedback: { beep: "error" },
         };
-        await recordLastScan(device, "UNKNOWN_CREDENTIAL", response.message, scannedAt);
+        await prisma.$transaction(async (tx) => {
+          await tx.auditLog.create({
+            data: {
+              schoolId: device.schoolId,
+              action: "reader_event.attendance",
+              correlationId: eventToken,
+              details: {
+                deviceId: body.deviceId,
+                readerId: body.readerId,
+                credentialDiagnostics,
+                deviceTime: body.deviceTime ?? null,
+                firmwareVersion: body.firmwareVersion ?? null,
+                retryCount: body.retryCount ?? 0,
+                syncStatus: body.syncStatus ?? null,
+                response,
+              },
+            },
+          });
+          await tx.nfcOfflineDevice.update({
+            where: { id: device.id },
+            data: {
+              lastSeenAt: new Date(),
+              lastScanAt: scannedAt,
+              lastScanStatus: "UNKNOWN_CREDENTIAL",
+              lastScanMessage: response.message,
+              onlineStatus: "ONLINE",
+            },
+          });
+        });
         res.status(404).json(response);
         return;
       }
@@ -367,8 +444,7 @@ export function readerGatewayRoutes() {
               details: {
                 deviceId: body.deviceId,
                 readerId: body.readerId,
-                credentialUID: tokenOrUid,
-                format: body.format ?? null,
+                credentialDiagnostics,
                 deviceTime: body.deviceTime ?? null,
                 firmwareVersion: body.firmwareVersion ?? null,
                 retryCount: body.retryCount ?? 0,
@@ -425,8 +501,7 @@ export function readerGatewayRoutes() {
             details: {
               deviceId: body.deviceId,
               readerId: body.readerId,
-              credentialUID: tokenOrUid,
-              format: body.format ?? null,
+              credentialDiagnostics,
               deviceTime: body.deviceTime ?? null,
               firmwareVersion: body.firmwareVersion ?? null,
               retryCount: body.retryCount ?? 0,

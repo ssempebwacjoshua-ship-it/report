@@ -224,6 +224,17 @@ void ReaderGatewayApp::processScan(const ReaderScanEvent& scan) {
   event.syncStatus = "pending";
 
   Serial.println("Card Read");
+  Serial.printf("Wiegand bit count: %u\n", static_cast<unsigned int>(event.rawWiegandBitCount));
+  Serial.printf("Wiegand raw binary: %s\n", event.rawWiegandBinary.c_str());
+  Serial.printf("Wiegand raw decimal: %s\n", event.rawWiegandDecimal.c_str());
+  Serial.printf("Wiegand raw hex: %s\n", event.rawWiegandHex.c_str());
+  Serial.printf("Wiegand credential decimal: %s\n", event.credential.c_str());
+  if (!event.facilityCode.isEmpty()) {
+    Serial.printf("Wiegand facility code: %s\n", event.facilityCode.c_str());
+  }
+  if (!event.cardNumber.isEmpty()) {
+    Serial.printf("Wiegand card number: %s\n", event.cardNumber.c_str());
+  }
 
   if (hasWorkingNetwork()) {
     ReaderApiResponse response;

@@ -69,5 +69,11 @@ bool WiegandReader::poll(ReaderScanEvent& event) {
   event = ReaderScanEvent{};
   event.credential = String(decoded.credential.c_str());
   event.format = String(decoded.format.c_str());
+  event.rawWiegandBitCount = decoded.bitCount;
+  event.rawWiegandBinary = String(decoded.rawBinary.c_str());
+  event.rawWiegandDecimal = String(decoded.rawDecimal.c_str());
+  event.rawWiegandHex = String(decoded.rawHex.c_str());
+  event.facilityCode = String(decoded.facilityCode.c_str());
+  event.cardNumber = String(decoded.cardNumber.c_str());
   return true;
 }
