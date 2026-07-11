@@ -31,6 +31,22 @@ if [ -z "${DATABASE_URL:-}" ]; then
   exit 1
 fi
 
+RUNTIME_SIGNALS="${APP_ENV:-} ${NODE_ENV:-} ${RAILWAY_ENVIRONMENT:-} ${RAILWAY_ENVIRONMENT_NAME:-} ${VERCEL_ENV:-}"
+if echo "${RUNTIME_SIGNALS}" | grep -Eiq '(^| )(prod|production)( |$)'; then
+  echo "ERROR: Refusing destructive restore in production. ALLOW_DESTRUCTIVE_OPERATIONS cannot override production safety."
+  exit 1
+fi
+
+if [ "${ALLOW_DESTRUCTIVE_OPERATIONS:-}" != "true" ]; then
+  echo "ERROR: Set ALLOW_DESTRUCTIVE_OPERATIONS=true for non-production restore."
+  exit 1
+fi
+
+if [ "${CONFIRM_DESTRUCTIVE_OPERATION:-}" != "I_UNDERSTAND_THIS_MUTATES_SCHOOL_DATA" ]; then
+  echo "ERROR: Set CONFIRM_DESTRUCTIVE_OPERATION=I_UNDERSTAND_THIS_MUTATES_SCHOOL_DATA."
+  exit 1
+fi
+
 echo "[restore] Restoring ${DUMP_FILE} to ${DATABASE_URL%%@*}@..."
 echo "[restore] WARNING: this will overwrite all data in the target database."
 echo "[restore] Press Ctrl-C within 5 seconds to cancel."

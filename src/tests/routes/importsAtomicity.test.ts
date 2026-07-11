@@ -105,6 +105,9 @@ describe("scan commit atomicity", () => {
           return persisted.batch;
         }),
       },
+      reportLabSubscription: {
+        findUnique: vi.fn(async () => ({ status: "ACTIVE", currentPeriodEnd: new Date("2030-01-01T00:00:00.000Z") })),
+      },
       $transaction: vi.fn(async (callback: (tx: any) => Promise<unknown>) => {
         const temp = {
           batch: { ...persisted.batch },
@@ -206,6 +209,9 @@ describe("scan commit atomicity", () => {
           { student: { id: "student-2", admissionNumber: "A-2" }, class: { id: "class-1" }, stream: { id: "stream-1" } },
         ]),
       },
+      reportLabSubscription: {
+        findUnique: vi.fn(async () => ({ status: "ACTIVE", currentPeriodEnd: new Date("2030-01-01T00:00:00.000Z") })),
+      },
       auditLog: { findFirst: vi.fn(async () => ({ id: "audit-1" })), create: auditLogCreate },
       markImportBatch: {
         findFirst: vi.fn(async () => persisted.batch),
@@ -293,6 +299,9 @@ describe("scan commit atomicity", () => {
           { student: { id: "student-1", admissionNumber: "A-1" }, class: { id: "class-1" }, stream: { id: "stream-1" } },
           { student: { id: "student-2", admissionNumber: "A-2" }, class: { id: "class-1" }, stream: { id: "stream-1" } },
         ]),
+      },
+      reportLabSubscription: {
+        findUnique: vi.fn(async () => ({ status: "ACTIVE", currentPeriodEnd: new Date("2030-01-01T00:00:00.000Z") })),
       },
       auditLog: { findFirst: vi.fn(async () => ({ id: "audit-1" })), create: auditLogCreate },
       markImportBatch: {

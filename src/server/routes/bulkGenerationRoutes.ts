@@ -1,11 +1,12 @@
 ﻿import { Router } from "express";
 import { requireCreator } from "../middleware/requireCreator";
 import * as svc from "../services/bulkGenerationService";
+import { requireCreatorSchoolEntitlement } from "../services/subscriptionEntitlementService";
 
 const router = Router();
 
 // Submit a new bulk generation job
-router.post("/", requireCreator, async (req, res) => {
+router.post("/", requireCreator, requireCreatorSchoolEntitlement("smart_pages.ai"), async (req, res) => {
   const { collectionId, intent } = req.body as { collectionId?: string; intent?: string };
   if (!collectionId?.trim()) { res.status(400).json({ error: "collectionId is required." }); return; }
   if (!intent?.trim()) { res.status(400).json({ error: "Describe what you want to generate." }); return; }

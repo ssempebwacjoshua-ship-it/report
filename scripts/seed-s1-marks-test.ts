@@ -1,6 +1,7 @@
 import "dotenv/config";
 import { pathToFileURL } from "node:url";
 import { prisma } from "../src/server/db/prisma";
+import { assertNonProductionDestructiveOperation } from "../src/server/utils/productionSafety";
 import { seedPreviewData, PREVIEW_SCHOOL_CODE } from "./seed-preview";
 
 export const S1_MARKS_SEED_KEY = "reports-lab-s1-olevel-test-marks";
@@ -84,6 +85,7 @@ export async function seedS1Marks() {
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  assertNonProductionDestructiveOperation({ operation: "seed-s1-marks-test" });
   seedS1Marks()
     .then((result) => {
       console.log(`Seeded ${result.marks} finalized BOT/MOT/EOT marks for ${result.students} S1 students.`);

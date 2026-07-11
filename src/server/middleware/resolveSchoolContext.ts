@@ -2,6 +2,7 @@ import type { Request, Response, NextFunction } from "express";
 import { verifyToken } from "../services/authService";
 import { prisma } from "../db/prisma";
 import { validateSchoolSession } from "../services/sessionValidationService";
+import { classifyRuntimeEnvironment } from "../utils/productionSafety";
 
 type SchoolRecord = { id: string; code: string; name: string };
 
@@ -73,8 +74,14 @@ export async function resolveSchoolContext(
     }
 
     // No token
-    if (process.env.NODE_ENV === "production") {
-      console.warn("[resolveSchoolContext] unauthenticated request in production", { route: req.path, method: req.method });
+    const runtime = classifyRuntimeEnvironment(process.env);
+    if (runtime.isProduction || runtime.isAmbiguous) {
+      console.warn("[resolveSchoolContext] unauthenticated request denied", {
+        route: req.path,
+        method: req.method,
+        runtime: runtime.environment,
+        reasons: runtime.reasons,
+      });
       res.status(401).json({ error: "Authentication required." });
       return;
     }

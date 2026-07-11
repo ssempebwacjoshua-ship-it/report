@@ -18,6 +18,11 @@ function ownerAudit(actorId: string, schoolId: string, action: string, details?:
   return prisma.auditLog.create({ data: { schoolId, action, details: { actorUserId: actorId, ...details } } });
 }
 
+function requestIdFrom(req: { headers: Record<string, unknown> }) {
+  const header = req.headers["x-request-id"];
+  return typeof header === "string" && header.trim() ? header.trim() : randomUUID();
+}
+
 function hashToken(token: string) {
   return createHash("sha256").update(token).digest("hex");
 }
@@ -804,7 +809,9 @@ export function platformOwnerRoutes() {
         planCode: z.enum(validPlanCodes as [string, ...string[]]).optional(),
         extendDays: z.coerce.number().int().min(1).max(730).optional(),
         studentLimit: z.coerce.number().int().min(0).nullable().optional(),
+        reason: z.string().trim().min(5, "Reason is required for subscription changes.").max(1000),
       }).parse(req.body);
+      const requestId = requestIdFrom(req);
       const current = await prisma.reportLabSubscription.findUnique({ where: { schoolId } });
       if (!current) {
         res.status(404).json({ error: "Subscription not found." });
@@ -825,8 +832,26 @@ export function platformOwnerRoutes() {
         data.planCode = body.planCode;
       }
       if (body.studentLimit !== undefined) data.studentLimit = body.studentLimit;
-      const subscription = await prisma.reportLabSubscription.update({ where: { schoolId }, data });
-      void ownerAudit(req.user!.userId, schoolId, "SUBSCRIPTION_CHANGED_BY_OWNER", { action: body.action, changes: data }).catch(() => {});
+      const subscription = await prisma.$transaction(async (tx) => {
+        const updated = await tx.reportLabSubscription.update({ where: { schoolId }, data });
+        await tx.auditLog.create({
+          data: {
+            schoolId,
+            action: "SUBSCRIPTION_CHANGED_BY_OWNER",
+            correlationId: requestId,
+            details: {
+              actorUserId: req.user!.userId,
+              tenant: schoolId,
+              target: current.id,
+              requestId,
+              reason: body.reason,
+              subscriptionAction: body.action,
+              changes: data,
+            },
+          },
+        });
+        return updated;
+      });
       res.json({
         ok: true,
         subscription: {
@@ -1129,6 +1154,7 @@ export function platformOwnerRoutes() {
   });
 
   const paymentDecisionSchema = z.object({
+    reason: z.string().trim().min(5, "Reason is required for payment decisions.").max(1000),
     notes: z.string().max(1000).optional(),
   });
 
@@ -1136,12 +1162,17 @@ export function platformOwnerRoutes() {
     try {
       const { paymentId } = req.params;
       const body = paymentDecisionSchema.parse(req.body);
+      const requestId = requestIdFrom(req);
       const payment = await (prisma as any).smartPagePaymentRequest.findUnique({
         where: { id: paymentId },
         include: { school: { select: { id: true, code: true, name: true } } },
       });
       if (!payment) {
         res.status(404).json({ error: "Payment request not found." });
+        return;
+      }
+      if (payment.status === "CONFIRMED") {
+        res.json({ payment: smartPagesPaymentToDto(payment), idempotent: true });
         return;
       }
       if (payment.status !== "PENDING") {
@@ -1162,17 +1193,33 @@ export function platformOwnerRoutes() {
       const now = new Date();
       const cycleEnd = new Date(now.getFullYear() + 1, now.getMonth(), now.getDate());
       const db = prisma as any;
-      const updated = await db.$transaction(async (tx: any) => {
-        const confirmed = await tx.smartPagePaymentRequest.update({
-          where: { id: payment.id },
+      const result = await db.$transaction(async (tx: any) => {
+        const claimed = await tx.smartPagePaymentRequest.updateMany({
+          where: { id: payment.id, status: "PENDING" },
           data: {
             status: "CONFIRMED",
             adminNotes: body.notes ?? null,
             confirmedByUserId: req.user!.userId,
             confirmedAt: now,
           },
+        });
+
+        if (claimed.count === 0) {
+          const existing = await tx.smartPagePaymentRequest.findUnique({
+            where: { id: payment.id },
+            include: { school: { select: { id: true, code: true, name: true } } },
+          });
+          if (existing?.status === "CONFIRMED") return { payment: existing, idempotent: true };
+          throw Object.assign(new Error("Only pending payments can be confirmed."), { status: 409 });
+        }
+
+        const confirmed = await tx.smartPagePaymentRequest.findUnique({
+          where: { id: payment.id },
           include: { school: { select: { id: true, code: true, name: true } } },
         });
+        if (!confirmed) {
+          throw Object.assign(new Error("Payment request not found."), { status: 404 });
+        }
 
         await tx.schoolSmartPagePlan.upsert({
           where: { schoolId: payment.schoolId },
@@ -1231,13 +1278,16 @@ export function platformOwnerRoutes() {
               packageCode: payment.packageCode,
               credits: payment.credits,
               amountUgx: payment.amountUgx,
+              reason: body.reason,
+              requestId,
+              target: payment.id,
             },
           },
         });
-        return confirmed;
+        return { payment: confirmed, idempotent: false };
       });
 
-      res.json({ payment: smartPagesPaymentToDto(updated) });
+      res.json({ payment: smartPagesPaymentToDto(result.payment), idempotent: result.idempotent });
     } catch (error) {
       next(error);
     }
@@ -1247,6 +1297,7 @@ export function platformOwnerRoutes() {
     try {
       const { paymentId } = req.params;
       const body = paymentDecisionSchema.parse(req.body);
+      const requestId = requestIdFrom(req);
       const payment = await (prisma as any).smartPagePaymentRequest.findUnique({
         where: { id: paymentId },
         include: { school: { select: { id: true, code: true, name: true } } },
@@ -1259,17 +1310,31 @@ export function platformOwnerRoutes() {
         res.status(409).json({ error: "Only pending payments can be rejected." });
         return;
       }
-      const updated = await (prisma as any).smartPagePaymentRequest.update({
-        where: { id: payment.id },
-        data: { status: "REJECTED", adminNotes: body.notes ?? null, rejectedAt: new Date(), rejectedByUserId: req.user!.userId },
-        include: { school: { select: { id: true, code: true, name: true } } },
+      const updated = await (prisma as any).$transaction(async (tx: any) => {
+        const rejected = await tx.smartPagePaymentRequest.update({
+          where: { id: payment.id },
+          data: { status: "REJECTED", adminNotes: body.notes ?? null, rejectedAt: new Date(), rejectedByUserId: req.user!.userId },
+          include: { school: { select: { id: true, code: true, name: true } } },
+        });
+        await tx.auditLog.create({
+          data: {
+            schoolId: payment.schoolId,
+            action: "SMART_PAGES_PAYMENT_REJECTED",
+            correlationId: requestId,
+            details: {
+              actorUserId: req.user!.userId,
+              tenant: payment.schoolId,
+              target: payment.id,
+              requestId,
+              reason: body.reason,
+              network: payment.network,
+              transactionId: payment.transactionId,
+              notes: body.notes ?? null,
+            },
+          },
+        });
+        return rejected;
       });
-      void ownerAudit(req.user!.userId, payment.schoolId, "SMART_PAGES_PAYMENT_REJECTED", {
-        paymentId: payment.id,
-        network: payment.network,
-        transactionId: payment.transactionId,
-        notes: body.notes ?? null,
-      }).catch(() => {});
       res.json({ payment: smartPagesPaymentToDto(updated) });
     } catch (error) {
       next(error);

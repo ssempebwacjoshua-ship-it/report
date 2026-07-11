@@ -1,6 +1,7 @@
 import "dotenv/config";
 import { pathToFileURL } from "node:url";
 import { prisma } from "../src/server/db/prisma";
+import { assertNonProductionDestructiveOperation } from "../src/server/utils/productionSafety";
 import { O_LEVEL_SUBJECTS } from "../src/shared/constants/subjects";
 import { getPlanByCode } from "../src/shared/constants/subscriptionPlans";
 
@@ -243,6 +244,7 @@ export async function seedPreviewData() {
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  assertNonProductionDestructiveOperation({ operation: "seed-preview" });
   seedPreviewData()
     .then((result) => {
       console.log(`Seeded ${result.school.code}: ${result.students} students, ${O_LEVEL_SUBJECTS.length} subjects.`);

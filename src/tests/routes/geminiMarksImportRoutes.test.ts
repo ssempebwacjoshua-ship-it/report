@@ -98,6 +98,9 @@ vi.mock("../../server/db/prisma", () => ({
   prisma: {
     $transaction: mockTransaction,
     school: { findUnique: vi.fn(async () => ({ id: "school-1", code: "SCU-PREVIEW" })) },
+    reportLabSubscription: {
+      findUnique: vi.fn(async () => ({ status: "ACTIVE", currentPeriodEnd: new Date("2030-01-01T00:00:00.000Z") })),
+    },
     schoolClass: {
       findFirst: vi.fn(async () => ({ id: "class-1", schoolId: "school-1", streams: [] })),
       findMany: vi.fn(async () => [{ id: "class-1", name: "Senior 1", code: "S1" }]),

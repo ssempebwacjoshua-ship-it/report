@@ -101,6 +101,9 @@ const baseEngineInput = {
 };
 
 function mountReleaseCenterApp(prisma: any) {
+  prisma.reportLabSubscription ??= {
+    findUnique: vi.fn(async () => ({ status: "ACTIVE", currentPeriodEnd: new Date("2030-01-01T00:00:00.000Z") })),
+  };
   vi.doMock("../../server/db/prisma", () => ({ prisma }));
   vi.doMock("../../server/middleware/requireAuth", () => ({
     requireAuth: (req: any, _res: any, next: () => void) => {

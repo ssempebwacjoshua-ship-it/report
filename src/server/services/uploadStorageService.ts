@@ -6,6 +6,7 @@ import sharp from "sharp";
 
 const ALLOWED_IMAGE_MIME_TYPES = new Set(["image/jpeg", "image/jpg", "image/png", "image/webp"]);
 const LOCAL_UPLOAD_ROOT = path.join(process.cwd(), "public", "uploads");
+const LOCAL_PRIVATE_UPLOAD_ROOT = path.join(process.cwd(), "private-uploads");
 const CLOUDINARY_PROVIDER = "cloudinary";
 let cloudinaryConfigured = false;
 let configuredCloudinaryKey: string | null = null;
@@ -79,6 +80,17 @@ function getLocalUploadRoot(strict: boolean): string | null {
     );
   }
   return configuredDir || LOCAL_UPLOAD_ROOT;
+}
+
+function getPrivateUploadRoot(strict: boolean): string {
+  const configuredDir = process.env.PRIVATE_UPLOAD_STORAGE_DIR?.trim() || process.env.UPLOAD_STORAGE_DIR?.trim();
+  if (strict && process.env.NODE_ENV === "production" && !configuredDir) {
+    throw Object.assign(
+      new Error("Passport photo storage is not configured. Set Cloudinary env vars."),
+      { status: 503, expose: true },
+    );
+  }
+  return configuredDir || LOCAL_PRIVATE_UPLOAD_ROOT;
 }
 
 function parseCloudinaryUrl(value: string): { cloudName: string; apiKey: string; apiSecret: string } | null {
@@ -156,11 +168,22 @@ function sanitizeUploadPathSegment(segment: string): string {
   return segment.trim().replace(/[^A-Za-z0-9._-]+/g, "-").replace(/^-+|-+$/g, "") || "upload";
 }
 
-function buildLocalUploadPaths(relativeDirParts: string[], fileName: string): { relativePath: string; absolutePath: string } {
-  const relativeDir = path.posix.join("uploads", ...relativeDirParts.map((part) => part.trim()).filter(Boolean));
+function buildLocalUploadPaths(
+  relativeDirParts: string[],
+  fileName: string,
+  privateAccess = false,
+): { relativePath: string; absolutePath: string } {
+  const safeParts = relativeDirParts.map((part) => sanitizeUploadPathSegment(part)).filter(Boolean);
+  if (privateAccess) {
+    return {
+      relativePath: path.posix.join("/api/private-uploads", ...safeParts, fileName),
+      absolutePath: path.join(getPrivateUploadRoot(true), ...safeParts, fileName),
+    };
+  }
+  const relativeDir = path.posix.join("uploads", ...safeParts);
   return {
     relativePath: path.posix.join("/", relativeDir, fileName),
-    absolutePath: path.join(getLocalUploadRoot(true) ?? LOCAL_UPLOAD_ROOT, ...relativeDirParts, fileName),
+    absolutePath: path.join(getLocalUploadRoot(true) ?? LOCAL_UPLOAD_ROOT, ...safeParts, fileName),
   };
 }
 
@@ -298,6 +321,7 @@ export async function saveImageUpload(input: {
   mimeType: string;
   relativeDirParts: string[];
   prefix?: string;
+  privateAccess?: boolean;
 }): Promise<StoredUpload> {
   const mimeType = input.mimeType.toLowerCase().trim();
   if (!ALLOWED_IMAGE_MIME_TYPES.has(mimeType)) {
@@ -313,8 +337,10 @@ export async function saveImageUpload(input: {
     return uploadToCloudinary(input.buffer, buildCloudinaryPublicId(input.relativeDirParts, fileName));
   }
 
-  const { relativePath, absolutePath } = buildLocalUploadPaths(input.relativeDirParts, fileName);
-  const root = getLocalUploadRoot(true);
+  const { relativePath, absolutePath } = buildLocalUploadPaths(input.relativeDirParts, fileName, input.privateAccess === true);
+  const root = input.privateAccess === true
+    ? getPrivateUploadRoot(true)
+    : getLocalUploadRoot(true);
   if (!root) {
     throw Object.assign(new Error("Upload storage is not configured. Set UPLOAD_STORAGE_DIR or UPLOAD_STORAGE_PUBLIC_BASE_URL."), { status: 503, expose: true });
   }
@@ -347,6 +373,7 @@ export async function saveStudentImageUpload(input: {
       mimeType: input.mimeType,
       relativeDirParts: ["students", input.schoolCode, input.studentId],
       prefix: input.prefix,
+      privateAccess: true,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "";
@@ -411,7 +438,32 @@ export async function deleteStoredUpload(publicUrl: string | null | undefined): 
       return;
     }
   }
+  if (pathname.startsWith("/api/private-uploads/")) {
+    const privateRoot = process.env.PRIVATE_UPLOAD_STORAGE_DIR?.trim() || LOCAL_PRIVATE_UPLOAD_ROOT;
+    const absolutePath = path.join(privateRoot, pathname.replace(/^\/api\/private-uploads\//, ""));
+    if (!absolutePath.startsWith(privateRoot)) return;
+    await fs.rm(absolutePath, { force: true });
+    return;
+  }
   if (!pathname.startsWith("/uploads/")) return;
   const absolutePath = path.join(root, pathname.replace(/^\/uploads\//, "uploads/"));
   await fs.rm(absolutePath, { force: true });
+}
+
+export function resolvePrivateStudentUploadPath(input: {
+  schoolCode: string;
+  studentId: string;
+  fileName: string;
+}): string | null {
+  const privateRoot = process.env.PRIVATE_UPLOAD_STORAGE_DIR?.trim() || LOCAL_PRIVATE_UPLOAD_ROOT;
+  const fileName = path.basename(input.fileName);
+  if (fileName !== input.fileName || !/^[A-Za-z0-9._-]+$/.test(fileName)) return null;
+  const absolutePath = path.join(
+    privateRoot,
+    "students",
+    sanitizeUploadPathSegment(input.schoolCode),
+    sanitizeUploadPathSegment(input.studentId),
+    fileName,
+  );
+  return absolutePath.startsWith(privateRoot) ? absolutePath : null;
 }

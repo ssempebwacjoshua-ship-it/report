@@ -13,6 +13,7 @@
 import "dotenv/config";
 import { pathToFileURL } from "node:url";
 import { prisma } from "../src/server/db/prisma";
+import { assertNonProductionDestructiveOperation } from "../src/server/utils/productionSafety";
 
 const args = process.argv.slice(2);
 const schoolCode = args.find((a) => a.startsWith("--school="))?.split("=")[1];
@@ -92,6 +93,8 @@ async function main() {
     console.log("or re-import them via the Students page to assign them to a class.");
     return;
   }
+
+  assertNonProductionDestructiveOperation({ operation: "repair-orphan-student-enrollments --commit" });
 
   const { count } = await prisma.student.deleteMany({
     where: { id: { in: orphans.map((s) => s.id) } },

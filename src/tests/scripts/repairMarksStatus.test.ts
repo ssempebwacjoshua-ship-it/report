@@ -1,8 +1,7 @@
-﻿import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { repairMarksStatus } from "../../../scripts/repair-marks-status";
+import { DESTRUCTIVE_CONFIRMATION_TOKEN } from "../../server/utils/productionSafety";
 import type { PrismaClient } from "@prisma/client";
-
-// ── Shared fixtures ───────────────────────────────────────────────────────────
 
 const SCHOOL_ID = "sch-repair-1";
 const MARK_ID_1 = "mark-1";
@@ -14,7 +13,7 @@ const stuckMark = {
   subjectId: "sub-1",
   assessmentType: "EOT",
   marks: 75,
-  createdAt: new Date(Date.now() - 48 * 60 * 60 * 1000), // 48h ago
+  createdAt: new Date(Date.now() - 48 * 60 * 60 * 1000),
 };
 
 function buildMock(stuckMarks: typeof stuckMark[] = [stuckMark]) {
@@ -31,9 +30,12 @@ function buildMock(stuckMarks: typeof stuckMark[] = [stuckMark]) {
   };
 }
 
-// ── Dry-run: never writes ─────────────────────────────────────────────────────
+function allowDestructiveTestRepair() {
+  vi.stubEnv("ALLOW_DESTRUCTIVE_OPERATIONS", "true");
+  vi.stubEnv("CONFIRM_DESTRUCTIVE_OPERATION", DESTRUCTIVE_CONFIRMATION_TOKEN);
+}
 
-describe("repairMarksStatus ? dry-run mode", () => {
+describe("repairMarksStatus dry-run mode", () => {
   it("returns wouldRepair count but does NOT call updateMany", async () => {
     const { db, updateMany } = buildMock();
 
@@ -46,7 +48,7 @@ describe("repairMarksStatus ? dry-run mode", () => {
   });
 
   it("dry-run with no stuck marks reports zero and still does not write", async () => {
-    const { db, updateMany } = buildMock([]); // no stuck marks
+    const { db, updateMany } = buildMock([]);
 
     const result = await repairMarksStatus({ dryRun: true, schoolCode: "REPSCH", limit: 100, db });
 
@@ -55,10 +57,9 @@ describe("repairMarksStatus ? dry-run mode", () => {
   });
 });
 
-// ── Live repair: writes updateMany ────────────────────────────────────────────
-
-describe("repairMarksStatus ? live mode", () => {
+describe("repairMarksStatus live mode", () => {
   it("calls updateMany with the stuck mark IDs when dryRun is false", async () => {
+    allowDestructiveTestRepair();
     const { db, updateMany } = buildMock();
 
     const result = await repairMarksStatus({ dryRun: false, schoolCode: "REPSCH", limit: 100, db });
@@ -74,6 +75,7 @@ describe("repairMarksStatus ? live mode", () => {
   });
 
   it("repairs multiple stuck marks in a single updateMany call", async () => {
+    allowDestructiveTestRepair();
     const mark2 = { ...stuckMark, id: MARK_ID_2 };
     const { db, updateMany } = buildMock([stuckMark, mark2]);
 
@@ -87,9 +89,7 @@ describe("repairMarksStatus ? live mode", () => {
   });
 });
 
-// ── School not found ──────────────────────────────────────────────────────────
-
-describe("repairMarksStatus ? school not found", () => {
+describe("repairMarksStatus school not found", () => {
   it("returns repaired=0 and does not call updateMany when school is missing", async () => {
     const updateMany = vi.fn();
     const db = {
@@ -103,4 +103,3 @@ describe("repairMarksStatus ? school not found", () => {
     expect(updateMany).not.toHaveBeenCalled();
   });
 });
-

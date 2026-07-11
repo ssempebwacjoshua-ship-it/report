@@ -1,4 +1,6 @@
-﻿const DEV_JWT_SECRET = "dev-secret-change-in-production";
+import { classifyRuntimeEnvironment } from "../utils/productionSafety";
+
+const DEV_JWT_SECRET = "dev-secret-change-in-production";
 const MIN_JWT_SECRET_LENGTH = 32;
 
 function isLocalUrl(value: string) {
@@ -18,23 +20,23 @@ export type EnvValidationResult = {
 
 /**
  * Validate that required environment variables are present and safe.
- * Accepts an env object for testability ? defaults to process.env.
- *
- * Production rules (NODE_ENV=production):
- *  - JWT_SECRET must be set, not the dev default, and at least 32 characters.
- *  - DATABASE_URL must be set.
- *  - CLIENT_ORIGIN must be set (without it browser CORS rejects explicit origins).
- *
- * Always (all environments):
- *  - Any VITE_-prefixed var that looks like an API key is an error ? it would
- *    be bundled into the frontend and exposed to the browser.
+ * Accepts an env object for testability and defaults to process.env.
  */
 export function validateEnv(env: Record<string, string | undefined> = process.env): EnvValidationResult {
   const errors: string[] = [];
   const warnings: string[] = [];
-  const isProd = env.NODE_ENV === "production";
+  const runtime = classifyRuntimeEnvironment(env);
+  const isProd = runtime.isProduction;
+
+  if (runtime.isAmbiguous) {
+    errors.push(`Runtime environment is ambiguous and will fail closed: ${runtime.reasons.join(" ")}`);
+  }
 
   if (isProd) {
+    if (env.ALLOW_DESTRUCTIVE_OPERATIONS === "true") {
+      errors.push("ALLOW_DESTRUCTIVE_OPERATIONS must never be enabled in production.");
+    }
+
     if (!env.JWT_SECRET) {
       errors.push("JWT_SECRET is not set. The server cannot sign authentication tokens safely.");
     } else if (env.JWT_SECRET === DEV_JWT_SECRET) {
@@ -97,7 +99,7 @@ export function validateEnv(env: Record<string, string | undefined> = process.en
     }
   }
 
-  // Any VITE_-prefixed API key is bundled into the frontend JS bundle ? a secret leak.
+  // Any VITE_-prefixed API key is bundled into the frontend JS bundle: a secret leak.
   for (const key of Object.keys(env)) {
     if (key.startsWith("VITE_") && /API.?KEY|SECRET|TOKEN/i.test(key)) {
       errors.push(
@@ -108,4 +110,3 @@ export function validateEnv(env: Record<string, string | undefined> = process.en
 
   return { valid: errors.length === 0, errors, warnings };
 }
-

@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import multer from "multer";
 import { z } from "zod";
 import { prisma } from "../db/prisma";
+import { requireSubscriptionEntitlement } from "../services/subscriptionEntitlementService";
 import { commitMarksImport, dryRunMarksImport } from "../services/marksImportService";
 import { finalizedStatus, toAssessmentType } from "../services/marksImportValidator";
 import {
@@ -176,7 +177,7 @@ export function importsRoutes() {
     }
   });
 
-  router.post("/api/imports/marks/commit", async (req, res, next) => {
+  router.post("/api/imports/marks/commit", requireSubscriptionEntitlement("marks.import.commit"), async (req, res, next) => {
     try {
       if (!(await requirePlatformModule(req, res, "report_lab.marks_import"))) {
         return;
@@ -264,6 +265,7 @@ export function importsRoutes() {
    */
   router.post(
     "/api/imports/scans/detect-context",
+    requireSubscriptionEntitlement("ocr.scan"),
     upload.single("file"),
     async (req, res, next) => {
       try {
@@ -405,6 +407,7 @@ export function importsRoutes() {
    */
   router.post(
     "/api/imports/scans/upload",
+    requireSubscriptionEntitlement("ocr.scan"),
     upload.single("file"),
     async (req, res, next) => {
       try {
@@ -659,7 +662,7 @@ export function importsRoutes() {
     }
   });
 
-  router.post("/api/imports/scans/commit", async (req, res, next) => {
+  router.post("/api/imports/scans/commit", requireSubscriptionEntitlement("marks.import.commit"), async (req, res, next) => {
     try {
       if (!(await requirePlatformModule(req, res, "report_lab.marks_import"))) {
         return;

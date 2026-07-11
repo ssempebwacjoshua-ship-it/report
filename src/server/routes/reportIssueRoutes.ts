@@ -7,6 +7,7 @@ import { requireAuth } from "../middleware/requireAuth";
 import { loadReportEngineInput } from "../repositories/reportsRepository";
 import { getSettingsSections } from "../repositories/settingsRepository";
 import { buildReports } from "../services/reportEngine";
+import { entitlementErrorBody, evaluateSubscriptionEntitlement } from "../services/subscriptionEntitlementService";
 import { COMMENT_LIMITS } from "../../shared/utils/reportComments";
 import { defaultSettingsSections } from "../../shared/types/settings";
 import { sanitizeReportCardForRender, sanitizeReportComments, sanitizeReportPersonalizationForReport, sanitizeSchoolSettingsForReport } from "../../shared/utils/reportContentLimits";
@@ -60,6 +61,14 @@ export function reportIssueRoutes() {
       const body = issueSchema.parse(req.body);
       const user = req.user!;
       const schoolCode = req.school!.code;
+      const entitlement = await evaluateSubscriptionEntitlement({
+        schoolId: req.school!.id,
+        entitlement: "report.generate",
+      });
+      if (!entitlement.allowed) {
+        res.status(entitlement.status).json(entitlementErrorBody(entitlement, "report.generate"));
+        return;
+      }
 
       const settings = await getSettingsSections(prisma, schoolCode);
       const filters = {

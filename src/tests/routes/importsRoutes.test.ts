@@ -278,6 +278,9 @@ vi.mock("../../server/db/prisma", () => ({
       )),
     },
     appSetting: { findUnique: vi.fn(async () => null) },
+    reportLabSubscription: {
+      findUnique: vi.fn(async () => ({ status: "ACTIVE", currentPeriodEnd: new Date("2030-01-01T00:00:00.000Z") })),
+    },
     auditLog: {
       create: vi.fn(async ({ data }: { data: { action: string; correlationId?: string | null } }) => {
         routeState.auditLogs.push({ action: data.action, correlationId: data.correlationId ?? null });

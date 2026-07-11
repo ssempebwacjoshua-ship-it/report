@@ -11,6 +11,7 @@
 
 import type { PrismaClient } from "@prisma/client";
 import { pathToFileURL } from "node:url";
+import { assertNonProductionDestructiveOperation } from "../server/utils/productionSafety";
 import {
   CANONICAL_CLASSES,
   getClassesForSections,
@@ -240,6 +241,10 @@ async function main() {
     .filter((arg, index) => !arg.startsWith("--") && index !== schoolCodeFlagIndex + 1)
     .filter(Boolean);
   const dryRun = !args.includes("--apply");
+
+  if (!dryRun) {
+    assertNonProductionDestructiveOperation({ operation: "repairPreviewClasses --apply" });
+  }
 
   try {
     const targets = explicitSchoolCode

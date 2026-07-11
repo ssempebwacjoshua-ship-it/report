@@ -130,6 +130,9 @@ describe("tenant isolation", () => {
       schoolClass: { findMany: vi.fn(async () => []) },
       subject: { findMany: vi.fn(async () => []) },
       classEnrollment: { findMany: vi.fn(async () => []) },
+      reportLabSubscription: {
+        findUnique: vi.fn(async () => ({ status: "ACTIVE", currentPeriodEnd: new Date("2030-01-01T00:00:00.000Z") })),
+      },
       auditLog: { findFirst: vi.fn(async () => ({ id: "audit-1" })) },
     };
 

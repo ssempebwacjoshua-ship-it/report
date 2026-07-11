@@ -7,6 +7,7 @@ import { renderSchemaToHtml } from "../services/documentRenderService";
 import type { DocumentSchema, ComponentNode, SmartDocumentVertical } from "../../shared/types/documentIntelligence";
 import { getSmartPageTemplateById } from "../../shared/smartPagesTemplates";
 import { attachUsageWarning, recordPlatformUsage, requirePlatformModule } from "../platformIntegration";
+import { requireCreatorSchoolEntitlement } from "../services/subscriptionEntitlementService";
 
 const router = Router();
 const upload = multer({
@@ -93,7 +94,7 @@ router.get("/:id", requireCreator, async (req, res) => {
 });
 
 // Upload file — school OCR flow only (LAWYER vertical is rejected in service)
-router.post("/:id/upload", requireCreator, upload.single("file"), async (req, res) => {
+router.post("/:id/upload", requireCreator, requireCreatorSchoolEntitlement("smart_pages.ai"), upload.single("file"), async (req, res) => {
   if (!req.file) { res.status(400).json({ error: "No file uploaded." }); return; }
   try {
     if (req.creator?.schoolId && !(await requirePlatformModule(req, res, "smart_pages.upload", req.creator.schoolId))) {
@@ -114,7 +115,7 @@ router.post("/:id/upload", requireCreator, upload.single("file"), async (req, re
   }
 });
 
-router.post("/:id/extraction/retry", requireCreator, async (req, res) => {
+router.post("/:id/extraction/retry", requireCreator, requireCreatorSchoolEntitlement("smart_pages.ai"), async (req, res) => {
   const { sourceFileId, highAccuracy } = req.body as { sourceFileId?: string; highAccuracy?: boolean };
   try {
     if (req.creator?.schoolId && !(await requirePlatformModule(req, res, "smart_pages.upload", req.creator.schoolId))) {
@@ -127,7 +128,7 @@ router.post("/:id/extraction/retry", requireCreator, async (req, res) => {
   }
 });
 
-router.patch("/:id/extracted-knowledge", requireCreator, async (req, res) => {
+router.patch("/:id/extracted-knowledge", requireCreator, requireCreatorSchoolEntitlement("smart_pages.ai"), async (req, res) => {
   const { knowledge } = req.body as { knowledge?: any };
   if (!knowledge || typeof knowledge !== "object") { res.status(400).json({ error: "Extracted knowledge is required." }); return; }
   try {
@@ -142,7 +143,7 @@ router.patch("/:id/extracted-knowledge", requireCreator, async (req, res) => {
 });
 
 // Generate initial schema from intent
-router.post("/:id/generate", requireCreator, async (req, res) => {
+router.post("/:id/generate", requireCreator, requireCreatorSchoolEntitlement("smart_pages.ai"), async (req, res) => {
   const { intent, templateId } = req.body as { intent?: string; templateId?: string };
   if (!intent?.trim()) { res.status(400).json({ error: "Describe how you want the document to look." }); return; }
   if (templateId && !getSmartPageTemplateById(templateId, "SCHOOL")) {
@@ -169,7 +170,7 @@ router.post("/:id/generate", requireCreator, async (req, res) => {
 });
 
 // Apply conversational prompt ? new version
-router.post("/:id/prompt", requireCreator, async (req, res) => {
+router.post("/:id/prompt", requireCreator, requireCreatorSchoolEntitlement("smart_pages.ai"), async (req, res) => {
   const { instruction } = req.body as { instruction?: string };
   if (!instruction?.trim()) { res.status(400).json({ error: "Instruction is required." }); return; }
   try {
@@ -191,7 +192,7 @@ router.post("/:id/prompt", requireCreator, async (req, res) => {
   }
 });
 
-router.post("/:id/manual-version", requireCreator, async (req, res) => {
+router.post("/:id/manual-version", requireCreator, requireCreatorSchoolEntitlement("smart_pages.ai"), async (req, res) => {
   const { draft, title } = req.body as { draft?: string; title?: string };
   if (!draft?.trim()) { res.status(400).json({ error: "Manual draft content is required." }); return; }
   try {
@@ -243,7 +244,7 @@ router.get("/:id/versions", requireCreator, async (req, res) => {
 });
 
 // Restore version
-router.post("/:id/versions/:versionId/restore", requireCreator, async (req, res) => {
+router.post("/:id/versions/:versionId/restore", requireCreator, requireCreatorSchoolEntitlement("smart_pages.ai"), async (req, res) => {
   try {
     if (req.creator?.schoolId && !(await requirePlatformModule(req, res, "smart_pages.document_generation", req.creator.schoolId))) {
       return;
@@ -278,7 +279,7 @@ router.get("/:id/print", requireCreator, async (req, res) => {
 });
 
 // Publish
-router.post("/:id/publish", requireCreator, async (req, res) => {
+router.post("/:id/publish", requireCreator, requireCreatorSchoolEntitlement("smart_pages.ai"), async (req, res) => {
   const { expiresInDays, password } = req.body as { expiresInDays?: number; password?: string };
   try {
     if (req.creator?.schoolId && !(await requirePlatformModule(req, res, "smart_pages.document_generation", req.creator.schoolId))) {

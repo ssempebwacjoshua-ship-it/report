@@ -5,6 +5,7 @@ import { getSettings, patchSettingsSection } from "../repositories/settingsRepos
 import { SETTING_SECTIONS, type SettingSection } from "../../shared/types/settings";
 import { requireSchoolPermission } from "../middleware/requireSchoolPermission";
 import { saveSchoolAssetUpload } from "../services/uploadStorageService";
+import { requireSubscriptionEntitlement } from "../services/subscriptionEntitlementService";
 import { ensureNonEmptyUpload, sendUploadValidationError } from "../utils/uploadSafety";
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 2 * 1024 * 1024, files: 1 } });
@@ -25,7 +26,7 @@ export function settingsRoutes() {
     }
   });
 
-  router.post("/api/settings/report-personalization/assets/:assetType", upload.single("file"), async (req, res, next) => {
+  router.post("/api/settings/report-personalization/assets/:assetType", requireSubscriptionEntitlement("settings.premium_branding"), upload.single("file"), async (req, res, next) => {
     try {
       const assetType = req.params.assetType;
       if (!["logo", "stamp", "signature"].includes(assetType)) {
@@ -54,7 +55,10 @@ export function settingsRoutes() {
   });
 
   for (const section of SETTING_SECTIONS) {
-    router.patch(`/api/settings/${section}`, async (req, res, next) => {
+    const handlers = section === "reportPersonalization"
+      ? [requireSubscriptionEntitlement("settings.premium_branding")]
+      : [];
+    router.patch(`/api/settings/${section}`, ...handlers, async (req, res, next) => {
       try {
         res.json(
           await patchSettingsSection(

@@ -3,6 +3,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../db/prisma";
 import { requireAuth } from "../middleware/requireAuth";
+import { entitlementErrorBody, evaluateSubscriptionEntitlement } from "../services/subscriptionEntitlementService";
 import { loadReportEngineInput } from "../repositories/reportsRepository";
 import { getSettingsSections } from "../repositories/settingsRepository";
 import { buildReports } from "../services/reportEngine";
@@ -256,6 +257,14 @@ export function releaseCenterRoutes() {
       const body = bulkIssueSchema.parse(req.body);
       const schoolCode = req.school!.code;
       const user = req.user!;
+      const entitlement = await evaluateSubscriptionEntitlement({
+        schoolId: req.school!.id,
+        entitlement: "report.bulk_generate",
+      });
+      if (!entitlement.allowed) {
+        res.status(entitlement.status).json(entitlementErrorBody(entitlement, "report.bulk_generate"));
+        return;
+      }
       const settings = await getSettingsSections(prisma, schoolCode);
       const termExpiry = getReportLinkExpiry(settings.academic.termEndDate);
 

@@ -1,5 +1,6 @@
 import "dotenv/config";
 import { prisma } from "../src/server/db/prisma";
+import { assertNonProductionDestructiveOperation } from "../src/server/utils/productionSafety";
 import { hashPassword } from "../src/server/services/authService";
 import { O_LEVEL_SUBJECTS } from "../src/shared/constants/subjects";
 
@@ -55,6 +56,8 @@ async function seedAdmin() {
     console.log(`Admin user created: ${ADMIN_EMAIL}`);
   }
 }
+
+assertNonProductionDestructiveOperation({ operation: "seed-admin" });
 
 seedAdmin()
   .catch((error) => {

@@ -1,4 +1,5 @@
-﻿import { Router } from "express";
+import { randomUUID } from "node:crypto";
+import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../db/prisma";
 import { requirePlatformKey } from "../middleware/requirePlatformKey";
@@ -34,6 +35,7 @@ const subscriptionSchema = z.object({
     status: z.enum(["UNPAID", "PAID", "CANCELLED"]).default("UNPAID"),
     notes: z.string().optional(),
   }),
+  reason: z.string().trim().min(5, "reason is required for subscription changes.").max(1000),
 });
 
 export function platformAdminRoutes() {
@@ -57,6 +59,9 @@ export function platformAdminRoutes() {
         const { schoolCode } = req.params as { schoolCode: string };
         const input = subscriptionSchema.parse(req.body);
         const plan = getPlanByCode(input.planCode);
+        const requestId = typeof req.headers["x-request-id"] === "string" && req.headers["x-request-id"].trim()
+          ? req.headers["x-request-id"].trim()
+          : randomUUID();
 
         const school = await prisma.school.findUnique({ where: { code: schoolCode } });
         if (!school) {
@@ -64,36 +69,58 @@ export function platformAdminRoutes() {
           return;
         }
 
-        const sub = await prisma.reportLabSubscription.upsert({
-          where: { schoolId: school.id },
-          update: {
-            planCode: input.planCode,
-            studentLimit: plan?.studentLimit ?? null,
-            currentPeriodStart: new Date(input.currentPeriodStart),
-            currentPeriodEnd: new Date(input.currentPeriodEnd),
-            status: input.status,
-          },
-          create: {
-            schoolId: school.id,
-            planCode: input.planCode,
-            billingCycle: "YEAR",
-            studentLimit: plan?.studentLimit ?? null,
-            currentPeriodStart: new Date(input.currentPeriodStart),
-            currentPeriodEnd: new Date(input.currentPeriodEnd),
-            status: input.status,
-          },
-        });
+        const { sub, invoice } = await prisma.$transaction(async (tx) => {
+          const sub = await tx.reportLabSubscription.upsert({
+            where: { schoolId: school.id },
+            update: {
+              planCode: input.planCode,
+              studentLimit: plan?.studentLimit ?? null,
+              currentPeriodStart: new Date(input.currentPeriodStart),
+              currentPeriodEnd: new Date(input.currentPeriodEnd),
+              status: input.status,
+            },
+            create: {
+              schoolId: school.id,
+              planCode: input.planCode,
+              billingCycle: "YEAR",
+              studentLimit: plan?.studentLimit ?? null,
+              currentPeriodStart: new Date(input.currentPeriodStart),
+              currentPeriodEnd: new Date(input.currentPeriodEnd),
+              status: input.status,
+            },
+          });
 
-        const invoice = await prisma.reportLabInvoice.create({
-          data: {
-            subscriptionId: sub.id,
-            setupFeeUgx: input.invoice.setupFeeUgx,
-            amountUgx: input.invoice.amountUgx,
-            totalUgx: input.invoice.totalUgx,
-            status: input.invoice.status,
-            paidAt: input.invoice.status === "PAID" ? new Date() : null,
-            notes: input.invoice.notes ?? null,
-          },
+          const invoice = await tx.reportLabInvoice.create({
+            data: {
+              subscriptionId: sub.id,
+              setupFeeUgx: input.invoice.setupFeeUgx,
+              amountUgx: input.invoice.amountUgx,
+              totalUgx: input.invoice.totalUgx,
+              status: input.invoice.status,
+              paidAt: input.invoice.status === "PAID" ? new Date() : null,
+              notes: input.invoice.notes ?? null,
+            },
+          });
+
+          await tx.auditLog.create({
+            data: {
+              schoolId: school.id,
+              action: "PLATFORM_ADMIN_SUBSCRIPTION_CHANGED",
+              correlationId: requestId,
+              details: {
+                actorUserId: "platform-admin-key",
+                tenant: school.id,
+                target: sub.id,
+                requestId,
+                reason: input.reason,
+                planCode: input.planCode,
+                status: input.status,
+                invoiceId: invoice.id,
+              },
+            },
+          });
+
+          return { sub, invoice };
         });
 
         res.status(200).json({
@@ -106,10 +133,6 @@ export function platformAdminRoutes() {
       }
     },
   );
-
-  // ── NFC tag URL repair ────────────────────────────────────────────────────
-  // Rewrites writtenUrl on NfcTag rows whose URL starts with the wrong (Railway
-  // API) domain. Protected by PLATFORM_ADMIN_KEY; safe to run repeatedly.
 
   const repairSchema = z.object({
     wrongDomain: z.string().url("wrongDomain must be an absolute URL (no trailing slash)."),
@@ -124,7 +147,6 @@ export function platformAdminRoutes() {
       const wrong = wrongDomain.replace(/\/+$/, "");
       const correct = correctDomain.replace(/\/+$/, "");
 
-      // Count how many rows will be affected before touching anything.
       const affected = await prisma.nfcTag.count({
         where: { writtenUrl: { startsWith: wrong } },
       });
@@ -134,7 +156,6 @@ export function platformAdminRoutes() {
         return;
       }
 
-      // Prisma doesn't expose SQL REPLACE(); use updateMany with a raw expression.
       await prisma.$executeRaw`
         UPDATE "NfcTag"
         SET "writtenUrl" = replace("writtenUrl", ${wrong}, ${correct})
@@ -149,4 +170,3 @@ export function platformAdminRoutes() {
 
   return router;
 }
-

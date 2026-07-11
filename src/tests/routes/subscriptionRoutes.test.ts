@@ -7,6 +7,12 @@ const schoolFindUnique = vi.fn();
 const subFindUnique = vi.fn();
 const subUpsert = vi.fn();
 const invoiceCreate = vi.fn();
+const auditLogCreate = vi.fn();
+const transaction = vi.fn(async (callback: any) => callback({
+  reportLabSubscription: { upsert: subUpsert },
+  reportLabInvoice: { create: invoiceCreate },
+  auditLog: { create: auditLogCreate },
+}));
 
 vi.mock("../../server/db/prisma", () => ({
   prisma: {
@@ -16,6 +22,8 @@ vi.mock("../../server/db/prisma", () => ({
       upsert: subUpsert,
     },
     reportLabInvoice: { create: invoiceCreate },
+    auditLog: { create: auditLogCreate },
+    $transaction: transaction,
   },
 }));
 
@@ -163,6 +171,12 @@ describe("POST /api/platform/schools/:schoolCode/subscription", () => {
       totalUgx: 1_100_000,
       status: "PAID",
     });
+    auditLogCreate.mockResolvedValue({});
+    transaction.mockImplementation(async (callback: any) => callback({
+      reportLabSubscription: { upsert: subUpsert },
+      reportLabInvoice: { create: invoiceCreate },
+      auditLog: { create: auditLogCreate },
+    }));
   });
 
   const validPayload = {
@@ -170,6 +184,7 @@ describe("POST /api/platform/schools/:schoolCode/subscription", () => {
     currentPeriodStart: "2026-06-16T00:00:00.000Z",
     currentPeriodEnd: "2027-06-16T00:00:00.000Z",
     invoice: { setupFeeUgx: 500_000, amountUgx: 600_000, totalUgx: 1_100_000, status: "PAID" },
+    reason: "Initial paid subscription setup",
   };
 
   it("returns 401 without platform key", async () => {
@@ -214,6 +229,9 @@ describe("POST /api/platform/schools/:schoolCode/subscription", () => {
     expect(res.body.success).toBe(true);
     expect(res.body.subscription.planCode).toBe("REPORT_LAB_1000");
     expect(res.body.invoice.totalUgx).toBe(1_100_000);
+    expect(auditLogCreate).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ action: "PLATFORM_ADMIN_SUBSCRIPTION_CHANGED" }),
+    }));
   });
 });
 

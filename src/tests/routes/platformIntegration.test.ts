@@ -9,6 +9,9 @@ const integrationMocks = vi.hoisted(() => ({
 }));
 
 const prismaMocks = vi.hoisted(() => ({
+  reportLabSubscription: {
+    findUnique: vi.fn(),
+  },
   markImportBatch: {
     findFirst: vi.fn(),
     update: vi.fn(),
@@ -135,6 +138,10 @@ describe("platform integration routes", () => {
     vi.clearAllMocks();
     integrationMocks.requirePlatformModule.mockResolvedValue(true);
     integrationMocks.recordPlatformUsage.mockResolvedValue(null);
+    prismaMocks.reportLabSubscription.findUnique.mockResolvedValue({
+      status: "ACTIVE",
+      currentPeriodEnd: new Date("2030-01-01T00:00:00.000Z"),
+    });
     prismaMocks.markImportBatch.findFirst.mockResolvedValue({ id: "batch-1", summary: null });
     prismaMocks.markImportBatch.update.mockResolvedValue({ id: "batch-1" });
     prismaMocks.auditLog.create.mockResolvedValue({ id: "audit-1" });

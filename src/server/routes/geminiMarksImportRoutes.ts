@@ -16,6 +16,7 @@ import {
 import { validateScore } from "../../shared/utils/validateScore";
 import { createHash } from "node:crypto";
 import { canUseCredits, deductPages, isDuplicateJob } from "../services/smartPagesService";
+import { requireSubscriptionEntitlement } from "../services/subscriptionEntitlementService";
 
 const MAX_FILE_BYTES = 10 * 1024 * 1024;
 const SCAN_MIME_TYPES = new Set([
@@ -97,6 +98,7 @@ export default function geminiMarksImportRoutes() {
   router.post(
     "/api/marks-import/scan/extract",
     requireImportAuth,
+    requireSubscriptionEntitlement("ocr.scan"),
     upload.single("image"),
     async (req: Request, res: Response, _next: NextFunction) => {
       const reqId = (req.headers["x-request-id"] as string | undefined)
@@ -516,7 +518,7 @@ export default function geminiMarksImportRoutes() {
    * The server re-validates every row before writing ? the client is never
    * trusted to gate the write.
    */
-  router.post("/api/marks-import/scan/commit", requireImportAuth, async (req: Request, res: Response) => {
+  router.post("/api/marks-import/scan/commit", requireImportAuth, requireSubscriptionEntitlement("marks.import.commit"), async (req: Request, res: Response) => {
     const reqId = (req.headers["x-request-id"] as string | undefined)
       ?? `gc-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
 

@@ -7,6 +7,9 @@ import { COMMENT_LIMITS } from "../../shared/utils/reportComments";
 const VALID_STUDENT_ID = "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11";
 
 function mountReportIssueApp(prisma: any, overrides: { cardReadiness?: "READY" | "MISSING_MARKS" | "NO_FINALIZED_MARKS" } = {}) {
+  prisma.reportLabSubscription ??= {
+    findUnique: vi.fn(async () => ({ status: "ACTIVE", currentPeriodEnd: new Date("2030-01-01T00:00:00.000Z") })),
+  };
   vi.doMock("../../server/db/prisma", () => ({ prisma }));
   vi.doMock("../../server/middleware/requireAuth", () => ({
     requireAuth: (req: any, _res: any, next: () => void) => {

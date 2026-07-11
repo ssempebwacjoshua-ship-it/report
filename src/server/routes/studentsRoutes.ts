@@ -2,6 +2,7 @@
 import multer from "multer";
 import { z } from "zod";
 import { prisma } from "../db/prisma";
+import { requireSubscriptionEntitlement } from "../services/subscriptionEntitlementService";
 import {
   createStudentRecord,
   deleteGuardianContact,
@@ -14,7 +15,7 @@ import {
 import { getReportContext } from "../repositories/schoolRepository";
 import { commitStudentImport, createStudentImportJob, getStudentImportJob, parseStudentsCsv, parseStudentsXlsx, previewStudentImport } from "../services/studentImportService";
 import { generateAdmissionNumber } from "../services/studentAdmissionNumberService";
-import { deleteStoredUpload, getUploadStorageDiagnostics, saveStudentImageUpload } from "../services/uploadStorageService";
+import { deleteStoredUpload, getUploadStorageDiagnostics, resolvePrivateStudentUploadPath, saveStudentImageUpload } from "../services/uploadStorageService";
 import { ensureNonEmptyUpload, isUploadValidationError, sendUploadValidationError, validateStudentImportUpload } from "../utils/uploadSafety";
 import { escapeSpreadsheetRow, sanitizeSpreadsheetDisplayValue } from "../utils/spreadsheetSafety";
 
@@ -96,6 +97,36 @@ function logStudentPassportPhoto(req: { method: string; originalUrl?: string; pa
 
 export function studentsRoutes() {
   const router = Router();
+
+  router.get("/api/private-uploads/students/:schoolCode/:studentId/:fileName", async (req, res, next) => {
+    try {
+      const { schoolCode, studentId, fileName } = req.params;
+      if (schoolCode !== req.school!.code) {
+        res.status(403).json({ error: "You do not have access to this file." });
+        return;
+      }
+      const student = await prisma.student.findFirst({
+        where: { id: studentId, schoolId: req.school!.id },
+        select: { id: true },
+      });
+      if (!student) {
+        res.status(404).json({ error: "File not found." });
+        return;
+      }
+      const absolutePath = resolvePrivateStudentUploadPath({ schoolCode, studentId, fileName });
+      if (!absolutePath) {
+        res.status(400).json({ error: "Invalid file path." });
+        return;
+      }
+      res.sendFile(absolutePath, (error) => {
+        if (error && !res.headersSent) {
+          res.status(404).json({ error: "File not found." });
+        }
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
 
   // ── Student list ──────────────────────────────────────────────────────────────
 
@@ -339,7 +370,7 @@ export function studentsRoutes() {
     }
   });
 
-  router.post("/api/students/import/commit", upload.single("file"), async (req, res, next) => {
+  router.post("/api/students/import/commit", requireSubscriptionEntitlement("student.import.commit"), upload.single("file"), async (req, res, next) => {
     try {
       if (!req.school) {
         res.status(401).json({ error: "School context required." });
@@ -374,7 +405,7 @@ export function studentsRoutes() {
 
   // ── Import jobs (browser-facing) ──────────────────────────────────────────────
 
-  router.post("/api/students/import-jobs/upload", upload.single("file"), async (req, res, next) => {
+  router.post("/api/students/import-jobs/upload", requireSubscriptionEntitlement("student.import.commit"), upload.single("file"), async (req, res, next) => {
     try {
       if (!req.school) {
         res.status(401).json({ error: "School context required." });
@@ -419,7 +450,7 @@ export function studentsRoutes() {
   });
 
   // Legacy internal import-job routes (not called from browser)
-  router.post("/internal/students/import-jobs/upload", upload.single("file"), async (req, res, next) => {
+  router.post("/internal/students/import-jobs/upload", requireSubscriptionEntitlement("student.import.commit"), upload.single("file"), async (req, res, next) => {
     try {
       if (!req.school) {
         res.status(401).json({ error: "School context required." });

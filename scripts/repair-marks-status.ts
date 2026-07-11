@@ -22,6 +22,7 @@
 
 import "dotenv/config";
 import { prisma } from "../src/server/db/prisma";
+import { assertNonProductionDestructiveOperation } from "../src/server/utils/productionSafety";
 
 // ── Arg parsing ───────────────────────────────────────────────────────────────
 
@@ -80,6 +81,8 @@ export async function repairMarksStatus(opts: {
     console.log(`[repair] DRY-RUN: no changes written. Re-run without --dry-run to apply.`);
     return { repaired: 0, dryRun: true, wouldRepair: stuckMarks.length };
   }
+
+  assertNonProductionDestructiveOperation({ operation: "repair-marks-status" });
 
   const ids = stuckMarks.map((m) => m.id);
   const result = await db.subjectMark.updateMany({
