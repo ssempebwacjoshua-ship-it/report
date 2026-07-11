@@ -1,53 +1,67 @@
 #include "ssamenj/FeedbackController.h"
-
-namespace {
-void pulsePinOnce(int8_t pin, uint16_t onMs, uint16_t offMs) {
-  if (pin < 0) {
-    return;
-  }
-  digitalWrite(pin, HIGH);
-  delay(onMs);
-  digitalWrite(pin, LOW);
-  delay(offMs);
-}
-}  // namespace
+#include "ssamenj/FeedbackPattern.h"
 
 void FeedbackController::begin(const ReaderGatewayConfig& config) {
   buzzerPin_ = config.buzzerPin;
   ledPin_ = config.ledPin;
+  enabled_ = config.feedbackOutputsEnabled && (buzzerPin_ >= 0 || ledPin_ >= 0);
+  activeLevel_ = config.feedbackDriverActiveHigh ? HIGH : LOW;
+  idleLevel_ = config.feedbackDriverActiveHigh ? LOW : HIGH;
+
+  if (!enabled_) {
+    Serial.println("Feedback outputs disabled; control wires must remain disconnected");
+    return;
+  }
 
   if (buzzerPin_ >= 0) {
+    digitalWrite(buzzerPin_, idleLevel_);
     pinMode(buzzerPin_, OUTPUT);
-    digitalWrite(buzzerPin_, LOW);
   }
   if (ledPin_ >= 0) {
+    digitalWrite(ledPin_, idleLevel_);
     pinMode(ledPin_, OUTPUT);
-    digitalWrite(ledPin_, LOW);
   }
 }
 
-void FeedbackController::pulsePin(int8_t pin, uint8_t pulses, uint16_t onMs, uint16_t offMs) {
-  for (uint8_t index = 0; index < pulses; ++index) {
-    pulsePinOnce(pin, onMs, offMs);
+void FeedbackController::setOutputs(uint8_t level) {
+  if (buzzerPin_ >= 0) {
+    digitalWrite(buzzerPin_, level);
+  }
+  if (ledPin_ >= 0) {
+    digitalWrite(ledPin_, level);
   }
 }
 
 void FeedbackController::play(GatewayFeedbackTone tone) {
   switch (tone) {
     case GatewayFeedbackTone::Success:
-      pulsePin(buzzerPin_, 2, 80, 60);
-      pulsePin(ledPin_, 2, 80, 60);
+      Serial.println("Feedback: success");
       break;
-    case GatewayFeedbackTone::Warning:
-      pulsePin(buzzerPin_, 3, 50, 35);
-      pulsePin(ledPin_, 3, 50, 35);
+    case GatewayFeedbackTone::Duplicate:
+      Serial.println("Feedback: duplicate");
       break;
     case GatewayFeedbackTone::Error:
-      pulsePin(buzzerPin_, 1, 220, 100);
-      pulsePin(ledPin_, 1, 220, 100);
+      Serial.println("Feedback: error");
+      break;
+    case GatewayFeedbackTone::Offline:
+      Serial.println("Feedback: offline");
       break;
     case GatewayFeedbackTone::None:
     default:
-      break;
+      return;
+  }
+
+  if (!enabled_) {
+    return;
+  }
+
+  const FeedbackPattern pattern = feedbackPatternForTone(tone);
+  for (uint8_t index = 0; index < pattern.pulses; ++index) {
+    setOutputs(activeLevel_);
+    delay(pattern.onMs);
+    setOutputs(idleLevel_);
+    if (pattern.offMs > 0 && index + 1 < pattern.pulses) {
+      delay(pattern.offMs);
+    }
   }
 }

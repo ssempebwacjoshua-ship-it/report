@@ -32,19 +32,27 @@ GatewayFeedbackTone toneFromBeep(const String& beep) {
     return GatewayFeedbackTone::Success;
   }
   if (beep.equalsIgnoreCase("warning")) {
-    return GatewayFeedbackTone::Warning;
+    return GatewayFeedbackTone::Duplicate;
   }
   if (beep.equalsIgnoreCase("duplicate")) {
-    return GatewayFeedbackTone::Warning;
+    return GatewayFeedbackTone::Duplicate;
   }
   if (beep.equalsIgnoreCase("error")) {
     return GatewayFeedbackTone::Error;
+  }
+  if (beep.equalsIgnoreCase("offline") || beep.equalsIgnoreCase("offline_queued")) {
+    return GatewayFeedbackTone::Offline;
   }
   return GatewayFeedbackTone::None;
 }
 
 bool isTimeValid() {
   return time(nullptr) > 1700000000;
+}
+
+bool isTerminalApiResponse(const ReaderApiResponse& response) {
+  return response.statusCode >= 200 && response.statusCode < 500 &&
+         response.statusCode != 408 && response.statusCode != 429;
 }
 
 constexpr unsigned long HEARTBEAT_INTERVAL_MS = 60000;
@@ -238,10 +246,10 @@ void ReaderGatewayApp::processScan(const ReaderScanEvent& scan) {
 
   if (hasWorkingNetwork()) {
     ReaderApiResponse response;
-    const bool uploaded = gatewayClient_.postScan(config_, event, response) && response.success;
-    if (uploaded) {
+    gatewayClient_.postScan(config_, event, response);
+    if (isTerminalApiResponse(response)) {
       markApiContact();
-      Serial.println("Upload Success");
+      Serial.println(response.success ? "Upload Success" : "Scan Rejected");
       feedback_.play(toneFromBeep(response.beep));
       return;
     }
@@ -251,8 +259,10 @@ void ReaderGatewayApp::processScan(const ReaderScanEvent& scan) {
 
   if (offlineQueue_.enqueue(event)) {
     Serial.println("Queued Offline");
+    feedback_.play(GatewayFeedbackTone::Offline);
+    return;
   }
-  feedback_.play(hasWorkingNetwork() ? GatewayFeedbackTone::Error : GatewayFeedbackTone::Warning);
+  feedback_.play(GatewayFeedbackTone::Error);
 }
 
 void ReaderGatewayApp::processOfflineQueue() {
@@ -268,8 +278,8 @@ void ReaderGatewayApp::processOfflineQueue() {
   ReaderScanEvent event;
   while (offlineQueue_.peek(event)) {
     ReaderApiResponse response;
-    const bool uploaded = gatewayClient_.postScan(config_, event, response) && response.success;
-    if (!uploaded) {
+    gatewayClient_.postScan(config_, event, response);
+    if (!isTerminalApiResponse(response)) {
       event.retryCount += 1;
       event.syncStatus = "pending";
       offlineQueue_.updateFront(event);
@@ -279,7 +289,7 @@ void ReaderGatewayApp::processOfflineQueue() {
 
     offlineQueue_.pop();
     markApiContact();
-    Serial.println("Upload Success");
+    Serial.println(response.success ? "Upload Success" : "Queued Scan Rejected");
     feedback_.play(toneFromBeep(response.beep));
     yield();
   }

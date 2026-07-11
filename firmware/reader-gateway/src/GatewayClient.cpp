@@ -103,6 +103,7 @@ String GatewayClient::buildHeartbeatPayload(const ReaderGatewayConfig& config, c
 
 bool GatewayClient::parseResponse(const String& body, int statusCode, ReaderApiResponse& response) {
   response = ReaderApiResponse{};
+  response.statusCode = statusCode;
   response.success = statusCode >= 200 && statusCode < 300;
   response.beep = response.success ? "success" : "error";
 

@@ -2,16 +2,11 @@
 
 #include <Arduino.h>
 
+#include "FeedbackTone.h"
+
 #ifndef SSAMENJ_GATEWAY_VERSION
 #define SSAMENJ_GATEWAY_VERSION "1.0.0"
 #endif
-
-enum class GatewayFeedbackTone {
-  None,
-  Success,
-  Warning,
-  Error,
-};
 
 struct ReaderGatewayConfig {
   String deviceId;
@@ -41,6 +36,8 @@ struct ReaderGatewayConfig {
 
   bool tlsInsecure = true;
   bool autoRegister = true;
+  bool feedbackOutputsEnabled = false;
+  bool feedbackDriverActiveHigh = true;
 };
 
 struct ReaderScanEvent {
@@ -64,6 +61,7 @@ struct ReaderScanEvent {
 
 struct ReaderApiResponse {
   bool success = false;
+  int statusCode = 0;
   String action;
   String message;
   String studentName;

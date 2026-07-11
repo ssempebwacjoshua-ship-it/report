@@ -13,6 +13,10 @@
   "firmwareVersion": "1.0.0",
   "wifiReconnectIntervalMs": 15000,
   "wiegandTimeoutMs": 30,
+  "buzzerPin": -1,
+  "ledPin": -1,
+  "feedbackOutputsEnabled": false,
+  "feedbackDriverActiveHigh": true,
   "ntpServer": "pool.ntp.org",
   "autoRegister": true
 }

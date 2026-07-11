@@ -12,5 +12,8 @@ class FeedbackController {
  private:
   int8_t buzzerPin_ = -1;
   int8_t ledPin_ = -1;
-  void pulsePin(int8_t pin, uint8_t pulses, uint16_t onMs, uint16_t offMs);
+  bool enabled_ = false;
+  uint8_t activeLevel_ = HIGH;
+  uint8_t idleLevel_ = LOW;
+  void setOutputs(uint8_t level);
 };

@@ -48,6 +48,8 @@ ReaderGatewayConfig ConfigManager::defaults() {
   config.ledPin = -1;
   config.tlsInsecure = true;
   config.autoRegister = true;
+  config.feedbackOutputsEnabled = false;
+  config.feedbackDriverActiveHigh = true;
   return config;
 }
 
@@ -103,6 +105,8 @@ bool ConfigManager::load(ReaderGatewayConfig& config) {
   config.ledPin = doc["ledPin"] | config.ledPin;
   config.tlsInsecure = doc["tlsInsecure"] | config.tlsInsecure;
   config.autoRegister = doc["autoRegister"] | config.autoRegister;
+  config.feedbackOutputsEnabled = doc["feedbackOutputsEnabled"] | config.feedbackOutputsEnabled;
+  config.feedbackDriverActiveHigh = doc["feedbackDriverActiveHigh"] | config.feedbackDriverActiveHigh;
   Serial.println("Config loaded from LittleFS");
   return true;
 }
@@ -133,6 +137,8 @@ bool ConfigManager::save(const ReaderGatewayConfig& config) {
   doc["ledPin"] = config.ledPin;
   doc["tlsInsecure"] = config.tlsInsecure;
   doc["autoRegister"] = config.autoRegister;
+  doc["feedbackOutputsEnabled"] = config.feedbackOutputsEnabled;
+  doc["feedbackDriverActiveHigh"] = config.feedbackDriverActiveHigh;
 
   File file = LittleFS.open(path_, FILE_WRITE);
   if (!file) {

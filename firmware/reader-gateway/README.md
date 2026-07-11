@@ -28,7 +28,7 @@ Wi-Fi
 School Connect API
 ```
 
-## Wiring
+## Wiegand wiring
 
 Use the reader datasheet as the final authority. Typical wiring:
 
@@ -44,6 +44,52 @@ Important:
 - Keep reader ground and ESP32 ground common.
 - Power the Felix F-P001M according to its own voltage requirements.
 - Use a level-safe wiring approach if your reader outputs are not already ESP32-safe.
+
+For the current EL-SR10C installation, the verified data wiring remains:
+
+| EL-SR10C wire | Connection |
+| --- | --- |
+| Green (D0) | ESP32 GPIO 4 |
+| White (D1) | ESP32 GPIO 5 |
+| Black (GND) | Reader supply negative and ESP32 GND |
+
+## EL-SR10C buzzer and LED safety
+
+Leave the reported purple BUZZ and yellow LED control wires disconnected until the exact reader variant is electrically verified. Available EL-SR10C documentation is not consistent with this unit's wire colors: one published sheet identifies blue as LED and yellow as BEEP. It does not specify enough input electrical detail to prove that a direct 3.3 V ESP32 connection is safe.
+
+Treat both reader control inputs as active-low: feedback is requested by pulling the reader control line to reader ground. Do not connect either control wire directly to an ESP32 GPIO. Use a separate open-collector NPN transistor or a suitable optocoupler per control line so the ESP32 only drives the isolator/driver input. The reader-side transistor collector connects to the confirmed control wire and its emitter connects to reader ground. Select and validate base/input resistors against the chosen component's datasheet.
+
+Before installing that interface, with the control wires isolated from the ESP32:
+
+1. Confirm the wire labels for this exact unit from its label/manual or supplier.
+2. Measure each disconnected control wire's idle voltage relative to reader black/GND.
+3. Measure or safely establish the pull-down current required by the reader input.
+4. Confirm that a current-limited, momentary pull-down produces the expected buzzer or LED response.
+5. Confirm the chosen transistor/optocoupler voltage and current ratings exceed the measured values.
+
+Only after those checks may the local ignored configuration set GPIO numbers and enable feedback. Example for an external active-high driver input:
+
+```json
+{
+  "buzzerPin": 18,
+  "ledPin": 19,
+  "feedbackOutputsEnabled": false,
+  "feedbackDriverActiveHigh": true
+}
+```
+
+Keep `feedbackOutputsEnabled` set to `false` until the driver circuit and reader-side measurements are confirmed. GPIO 18 and GPIO 19 above are examples, not approved wiring assignments. Check the actual ESP32 board and connected peripherals before selecting pins. If an electrically isolated driver has an active-low ESP32 input, set `feedbackDriverActiveHigh` to `false`.
+
+The reader may still emit its built-in scan beep. API-directed feedback starts immediately after the scan response arrives and therefore follows that automatic beep:
+
+| API `beep` | Physical response | Serial log |
+| --- | --- | --- |
+| `success` | 1 short pulse | `Feedback: success` |
+| `duplicate` (or legacy `warning`) | 2 short pulses | `Feedback: duplicate` |
+| `error` | 1 long pulse | `Feedback: error` |
+| `offline` / queued locally | 3 short pulses | `Feedback: offline` |
+
+When feedback outputs are disabled, these serial logs still appear but no feedback GPIO is configured as an output.
 
 ## Firmware modules
 
@@ -82,6 +128,9 @@ First-time provisioning workflow:
    - optional `heartbeatPath`
    - optional `tlsInsecure`
    - optional `retryIntervalMs`
+   - optional `buzzerPin` and `ledPin` after electrical verification
+   - `feedbackOutputsEnabled` (safe default: `false`)
+   - `feedbackDriverActiveHigh` for the external driver input
 
 3. Upload the filesystem image to the ESP32 with PlatformIO LittleFS:
 
