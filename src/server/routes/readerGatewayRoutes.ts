@@ -97,6 +97,102 @@ function cachedResponse(details: unknown): ReaderGatewayResponse | null {
   };
 }
 
+type StoredReaderEventReplay = {
+  response: ReaderGatewayResponse;
+  statusCode: number;
+};
+
+function inferReaderEventStatusCode(response: ReaderGatewayResponse) {
+  switch (response.status) {
+    case "UNKNOWN_CREDENTIAL":
+      return 404;
+    case "BLOCKED":
+    case "FEES_HOLD":
+    case "NOT_ELIGIBLE":
+    case "DAY_SCHOLAR_NOT_ELIGIBLE":
+    case "WRONG_CLASS":
+      return 403;
+    case "MISCONFIGURED":
+    case "SESSION_CLOSED":
+      return 409;
+    default:
+      return response.success ? 200 : 400;
+  }
+}
+
+function cachedReplay(details: unknown): StoredReaderEventReplay | null {
+  const response = cachedResponse(details);
+  if (!response) return null;
+  const payload = details && typeof details === "object"
+    ? details as { responseStatusCode?: unknown }
+    : null;
+  const statusCode = typeof payload?.responseStatusCode === "number"
+    ? payload.responseStatusCode
+    : inferReaderEventStatusCode(response);
+  return { response, statusCode };
+}
+
+function isExpectedLocationAwareReplayConflict(error: unknown) {
+  const candidate = error as {
+    code?: unknown;
+    meta?: { target?: unknown };
+    message?: unknown;
+  } | null;
+  if (!candidate || candidate.code !== "P2002") {
+    return false;
+  }
+
+  const targets = Array.isArray(candidate.meta?.target)
+    ? candidate.meta.target.map((value) => String(value))
+    : candidate.meta?.target
+      ? [String(candidate.meta.target)]
+      : [];
+  const message = typeof candidate.message === "string" ? candidate.message : "";
+
+  const hasReaderEventCompoundKey = targets.includes("schoolId") && targets.includes("eventId");
+  const hasExpectedIndexName = targets.some((target) =>
+    target.includes("CampusMovementEvent_schoolId_eventId_key")
+    || target.includes("ClassroomAttendanceEvent_schoolId_eventId_key")
+    || target.includes("campusmovementevent_schoolid_eventid_key")
+    || target.includes("classroomattendanceevent_schoolid_eventid_key"));
+
+  return hasReaderEventCompoundKey
+    || hasExpectedIndexName
+    || message.includes("CampusMovementEvent_schoolId_eventId_key")
+    || message.includes("ClassroomAttendanceEvent_schoolId_eventId_key");
+}
+
+function wait(ms: number) {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
+async function loadStoredReaderEventReplay(
+  schoolId: string,
+  eventToken: string,
+  attempts = 3,
+): Promise<StoredReaderEventReplay | null> {
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    const existing = await prisma.auditLog.findFirst({
+      where: {
+        schoolId,
+        action: "reader_event.attendance",
+        correlationId: eventToken,
+      },
+      orderBy: { createdAt: "desc" },
+    });
+    const replay = cachedReplay(existing?.details);
+    if (replay) {
+      return replay;
+    }
+    if (attempt < attempts - 1) {
+      await wait(15);
+    }
+  }
+  return null;
+}
+
 async function authenticateDevice(req: Express.Request, body: { deviceId: string; readerId: string; schoolId: string }) {
   const token = bearerToken(req);
   if (!token) {
@@ -326,21 +422,13 @@ export function readerGatewayRoutes() {
       }
 
       const eventToken = body.eventId;
-      const existing = await prisma.auditLog.findFirst({
-        where: {
-          schoolId: device.schoolId,
-          action: "reader_event.attendance",
-          correlationId: eventToken,
-        },
-        orderBy: { createdAt: "desc" },
-      });
-      const replay = cachedResponse(existing?.details);
+      const replay = await loadStoredReaderEventReplay(device.schoolId, eventToken, 1);
       if (replay) {
         await prisma.nfcOfflineDevice.update({
           where: { id: device.id },
           data: { lastSeenAt: new Date() },
         }).catch(() => null);
-        res.json(replay);
+        res.status(replay.statusCode).json(replay.response);
         return;
       }
 
@@ -359,47 +447,71 @@ export function readerGatewayRoutes() {
       const scannedAt = parseDeviceTime(body.deviceTime);
       const credentialDiagnostics = buildReaderCredentialDiagnostics(body);
       if (isLocationAwareReader(device)) {
-        const processed = await processLocationAwareReaderEvent(device, body);
-        await prisma.$transaction(async (tx) => {
-          await tx.auditLog.create({
-            data: {
-              schoolId: device.schoolId,
-              action: "reader_event.attendance",
-              correlationId: eventToken,
-              details: {
-                deviceId: body.deviceId,
-                readerId: body.readerId,
-                credentialDiagnostics,
-                deviceTime: body.deviceTime ?? null,
-                firmwareVersion: body.firmwareVersion ?? null,
-                retryCount: body.retryCount ?? 0,
-                syncStatus: body.syncStatus ?? null,
-                readerConfig: {
-                  locationType: device.locationType,
-                  locationName: device.locationName ?? device.location,
-                  attendanceMode: device.attendanceMode,
-                  studentScope: device.studentScope,
-                  classId: device.classId,
-                  streamId: device.streamId,
+        try {
+          const processed = await prisma.$transaction(async (tx) => {
+            const committed = await processLocationAwareReaderEvent(device, body, tx);
+            await tx.auditLog.create({
+              data: {
+                schoolId: device.schoolId,
+                action: "reader_event.attendance",
+                correlationId: eventToken,
+                details: {
+                  deviceId: body.deviceId,
+                  readerId: body.readerId,
+                  credentialDiagnostics,
+                  deviceTime: body.deviceTime ?? null,
+                  firmwareVersion: body.firmwareVersion ?? null,
+                  retryCount: body.retryCount ?? 0,
+                  syncStatus: body.syncStatus ?? null,
+                  readerConfig: {
+                    locationType: device.locationType,
+                    locationName: device.locationName ?? device.location,
+                    attendanceMode: device.attendanceMode,
+                    studentScope: device.studentScope,
+                    classId: device.classId,
+                    streamId: device.streamId,
+                  },
+                  responseStatusCode: committed.statusCode,
+                  response: committed.response,
                 },
-                response: processed.response,
               },
-            },
+            });
+            await tx.nfcOfflineDevice.update({
+              where: { id: device.id },
+              data: {
+                lastSeenAt: new Date(),
+                lastSyncAt: new Date(),
+                lastScanAt: committed.scannedAt,
+                lastScanStatus: committed.response.status ?? (committed.response.success ? "SUCCESS" : "ERROR"),
+                lastScanMessage: committed.response.message,
+                onlineStatus: "ONLINE",
+              },
+            });
+            return committed;
           });
-          await tx.nfcOfflineDevice.update({
-            where: { id: device.id },
-            data: {
-              lastSeenAt: new Date(),
-              lastSyncAt: new Date(),
-              lastScanAt: processed.scannedAt,
-              lastScanStatus: processed.response.status ?? (processed.response.success ? "SUCCESS" : "ERROR"),
-              lastScanMessage: processed.response.message,
-              onlineStatus: "ONLINE",
-            },
-          });
-        });
-        res.status(processed.statusCode).json(processed.response);
-        return;
+          res.status(processed.statusCode).json(processed.response);
+          return;
+        } catch (error) {
+          if (!isExpectedLocationAwareReplayConflict(error)) {
+            throw error;
+          }
+
+          const conflictReplay = await loadStoredReaderEventReplay(device.schoolId, eventToken);
+          if (conflictReplay) {
+            res.status(conflictReplay.statusCode).json(conflictReplay.response);
+            return;
+          }
+
+          res.status(409).json({
+            success: false,
+            action: "ATTENDANCE",
+            status: "RETRY",
+            message: "Reader event is still being finalized. Please retry this scan.",
+            beep: "none",
+            feedback: { beep: "none" },
+          } satisfies ReaderGatewayResponse);
+          return;
+        }
       }
       const normalizedCredential = normalizeCredentialForLookup({
         value: tokenOrUid,
@@ -433,6 +545,7 @@ export function readerGatewayRoutes() {
                 firmwareVersion: body.firmwareVersion ?? null,
                 retryCount: body.retryCount ?? 0,
                 syncStatus: body.syncStatus ?? null,
+                responseStatusCode: 404,
                 response,
               },
             },
@@ -503,6 +616,7 @@ export function readerGatewayRoutes() {
                 retryCount: body.retryCount ?? 0,
                 syncStatus: body.syncStatus ?? null,
                 duplicateOf: duplicate.id,
+                responseStatusCode: 200,
                 response,
               },
             },
@@ -559,6 +673,7 @@ export function readerGatewayRoutes() {
               firmwareVersion: body.firmwareVersion ?? null,
               retryCount: body.retryCount ?? 0,
               syncStatus: body.syncStatus ?? null,
+              responseStatusCode: 200,
               response,
             },
           },

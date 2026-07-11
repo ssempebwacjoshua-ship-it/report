@@ -1,4 +1,4 @@
-import type { PrismaClient } from "@prisma/client";
+import type { Prisma } from "@prisma/client";
 import { CredentialStatus, CredentialType } from "@prisma/client";
 import { prisma as defaultPrisma } from "../db/prisma";
 import { maskCredentialValue, normalizeCredentialForLookup } from "../../shared/utils/credentialNormalization";
@@ -50,7 +50,7 @@ type EventBody = {
 };
 
 type ReaderAttendanceDb = Pick<
-  PrismaClient,
+  Prisma.TransactionClient,
   "schoolNfcPolicy" | "studentCredential" | "nfcTag" | "studentFeeHold" | "studentGateHold" | "dailyAttendance" | "campusMovementEvent" | "classroomAttendanceEvent"
 >;
 
@@ -314,17 +314,29 @@ async function findApprovedGateOverride(
 }
 
 async function consumeApprovedGateOverride(
-  holdId: string,
+  hold: {
+    id: string;
+    schoolId: string;
+    studentId: string;
+  },
   occurredAt: Date,
   db: ReaderAttendanceDb,
 ) {
-  return db.studentGateHold.update({
-    where: { id: holdId },
+  const claimed = await db.studentGateHold.updateMany({
+    where: {
+      id: hold.id,
+      schoolId: hold.schoolId,
+      studentId: hold.studentId,
+      status: "APPROVED",
+      OR: [{ activeFrom: null }, { activeFrom: { lte: occurredAt } }],
+      AND: [{ OR: [{ activeUntil: null }, { activeUntil: { gte: occurredAt } }] }],
+    },
     data: {
       status: "CONSUMED",
       overrideUntil: occurredAt,
     },
   });
+  return claimed.count === 1;
 }
 
 async function upsertDailyAttendance(
@@ -394,12 +406,26 @@ async function processGateAttendance(
         statusCode: 200,
       };
     }
-    const feeHold = policy.feeGatePolicyEnabled && student.studentType !== "BOARDING"
+    let feeHold = policy.feeGatePolicyEnabled && student.studentType !== "BOARDING"
       ? await hasActiveFeeHold(device.schoolId, student.studentId, db)
       : null;
-    const approvedOverride = feeHold
+    let approvedOverride = feeHold
       ? await findApprovedGateOverride(device.schoolId, student.studentId, scannedAt, db)
       : null;
+
+    if (approvedOverride) {
+      const claimed = await consumeApprovedGateOverride({
+        id: approvedOverride.id,
+        schoolId: device.schoolId,
+        studentId: student.studentId,
+      }, scannedAt, db);
+      if (!claimed) {
+        approvedOverride = null;
+        feeHold = policy.feeGatePolicyEnabled && student.studentType !== "BOARDING"
+          ? await hasActiveFeeHold(device.schoolId, student.studentId, db)
+          : null;
+      }
+    }
 
     if (feeHold && !approvedOverride) {
       await db.campusMovementEvent.create({
@@ -423,7 +449,6 @@ async function processGateAttendance(
     }
 
     if (approvedOverride) {
-      await consumeApprovedGateOverride(approvedOverride.id, scannedAt, db);
       await db.campusMovementEvent.create({
         data: {
           eventId: `${body.eventId}:override`,

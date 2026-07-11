@@ -18,6 +18,7 @@ function createDb(options: {
   feeGatePolicyEnabled?: boolean;
   activeFeeHold?: boolean;
   approvedGateOverride?: boolean;
+  overrideClaimSequence?: number[];
 } = {}) {
   const student: StudentRecord = {
     id: "student-1",
@@ -48,6 +49,7 @@ function createDb(options: {
     overrideUntil: null,
     updatedAt: new Date("2026-07-11T00:00:00.000Z"),
   }] : [];
+  const overrideClaimSequence = [...(options.overrideClaimSequence ?? [])];
 
   return {
     schoolNfcPolicy: {
@@ -93,11 +95,23 @@ function createDb(options: {
     },
     studentGateHold: {
       findFirst: async () => gateHolds[0] ?? null,
-      update: async ({ where, data }: { where: { id: string }; data: Record<string, any> }) => {
-        const hold = gateHolds.find((item) => item.id === where.id);
-        if (!hold) throw new Error("gate hold missing");
+      updateMany: async ({ where, data }: { where: Record<string, any>; data: Record<string, any> }) => {
+        const next = overrideClaimSequence.length > 0 ? overrideClaimSequence.shift() ?? 0 : null;
+        if (next !== null) {
+          if (next === 1) {
+            const hold = gateHolds.find((item) => item.id === where.id);
+            if (hold) Object.assign(hold, data);
+          }
+          return { count: next };
+        }
+        const hold = gateHolds.find((item) =>
+          item.id === where.id
+          && item.schoolId === where.schoolId
+          && item.studentId === where.studentId
+          && item.status === where.status);
+        if (!hold) return { count: 0 };
         Object.assign(hold, data);
-        return hold;
+        return { count: 1 };
       },
     },
     dailyAttendance: {
@@ -345,6 +359,51 @@ describe("readerAttendanceService", () => {
     expect(allowed.statusCode).toBe(200);
     expect(overrideDb.stores.campusMovementEvents.map((item) => item.type)).toEqual(["MANUAL_GATE_OVERRIDE", "GATE_ENTRY"]);
     expect(overrideDb.stores.gateHolds[0]?.status).toBe("CONSUMED");
+  });
+
+  it("treats an override that loses the claim race as unavailable and keeps the fee restriction", async () => {
+    const db = createDb({
+      feeGatePolicyEnabled: true,
+      activeFeeHold: true,
+      approvedGateOverride: true,
+      overrideClaimSequence: [0],
+    });
+
+    const result = await processLocationAwareReaderEvent(gateReader(), {
+      eventId: "event-claim-race",
+      credential: "WB-1",
+      deviceTime: "2026-07-11T04:45:00.000Z",
+    }, db as never);
+
+    expect(result.statusCode).toBe(403);
+    expect(result.response.status).toBe("FEES_HOLD");
+    expect(db.stores.gateHolds[0]?.status).toBe("APPROVED");
+    expect(db.stores.campusMovementEvents.map((item) => item.type)).toEqual(["RESTRICTED_ENTRY_ATTEMPT"]);
+    expect(db.stores.dailyAttendances).toHaveLength(0);
+  });
+
+  it("does not allow a consumed override to be used again by a different event", async () => {
+    const db = createDb({ feeGatePolicyEnabled: true, activeFeeHold: true, approvedGateOverride: true });
+
+    const first = await processLocationAwareReaderEvent(gateReader(), {
+      eventId: "event-override-first",
+      credential: "WB-1",
+      deviceTime: "2026-07-11T04:45:00.000Z",
+    }, db as never);
+    const second = await processLocationAwareReaderEvent(gateReader(), {
+      eventId: "event-override-second",
+      credential: "WB-1",
+      deviceTime: "2026-07-11T04:46:30.000Z",
+    }, db as never);
+
+    expect(first.statusCode).toBe(200);
+    expect(second.statusCode).toBe(403);
+    expect(second.response.status).toBe("FEES_HOLD");
+    expect(db.stores.campusMovementEvents.map((item) => item.type)).toEqual([
+      "MANUAL_GATE_OVERRIDE",
+      "GATE_ENTRY",
+      "RESTRICTED_ENTRY_ATTEMPT",
+    ]);
   });
 
   it("rejects a day scholar from night prep", async () => {

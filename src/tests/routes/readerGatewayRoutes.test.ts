@@ -5,10 +5,20 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const prismaMocks = vi.hoisted(() => ({
   nfcOfflineDeviceFindFirst: vi.fn(),
   nfcOfflineDeviceUpdate: vi.fn(),
+  schoolNfcPolicyFindUnique: vi.fn(),
   auditLogFindFirst: vi.fn(),
   auditLogCreate: vi.fn(),
   studentCredentialFindFirst: vi.fn(),
   nfcTagFindFirst: vi.fn(),
+  studentFeeHoldFindFirst: vi.fn(),
+  studentGateHoldFindFirst: vi.fn(),
+  studentGateHoldUpdateMany: vi.fn(),
+  dailyAttendanceFindFirst: vi.fn(),
+  dailyAttendanceUpsert: vi.fn(),
+  campusMovementEventFindFirst: vi.fn(),
+  campusMovementEventCreate: vi.fn(),
+  classroomAttendanceEventFindFirst: vi.fn(),
+  classroomAttendanceEventCreate: vi.fn(),
   studentAttendanceEventFindFirst: vi.fn(),
   studentAttendanceEventCreate: vi.fn(),
   transaction: vi.fn(),
@@ -20,6 +30,9 @@ vi.mock("../../server/db/prisma", () => ({
       findFirst: prismaMocks.nfcOfflineDeviceFindFirst,
       update: prismaMocks.nfcOfflineDeviceUpdate,
     },
+    schoolNfcPolicy: {
+      findUnique: prismaMocks.schoolNfcPolicyFindUnique,
+    },
     auditLog: {
       findFirst: prismaMocks.auditLogFindFirst,
       create: prismaMocks.auditLogCreate,
@@ -29,6 +42,25 @@ vi.mock("../../server/db/prisma", () => ({
     },
     nfcTag: {
       findFirst: prismaMocks.nfcTagFindFirst,
+    },
+    studentFeeHold: {
+      findFirst: prismaMocks.studentFeeHoldFindFirst,
+    },
+    studentGateHold: {
+      findFirst: prismaMocks.studentGateHoldFindFirst,
+      updateMany: prismaMocks.studentGateHoldUpdateMany,
+    },
+    dailyAttendance: {
+      findFirst: prismaMocks.dailyAttendanceFindFirst,
+      upsert: prismaMocks.dailyAttendanceUpsert,
+    },
+    campusMovementEvent: {
+      findFirst: prismaMocks.campusMovementEventFindFirst,
+      create: prismaMocks.campusMovementEventCreate,
+    },
+    classroomAttendanceEvent: {
+      findFirst: prismaMocks.classroomAttendanceEventFindFirst,
+      create: prismaMocks.classroomAttendanceEventCreate,
     },
     studentAttendanceEvent: {
       findFirst: prismaMocks.studentAttendanceEventFindFirst,
@@ -96,16 +128,364 @@ function eventBody(overrides: Record<string, unknown> = {}) {
   };
 }
 
+type LocationAwareState = {
+  device: ReturnType<typeof device>;
+  policy: Record<string, unknown>;
+  credential: ReturnType<typeof credential> & {
+    student: ReturnType<typeof credential>["student"] & {
+      studentType: "DAY" | "BOARDING";
+      enrollments: Array<{ classId: string | null; streamId: string | null }>;
+    };
+  };
+  feeHolds: Array<Record<string, any>>;
+  gateHolds: Array<Record<string, any>>;
+  dailyAttendances: Array<Record<string, any>>;
+  campusMovementEvents: Array<Record<string, any>>;
+  classroomAttendanceEvents: Array<Record<string, any>>;
+  auditLogs: Array<Record<string, any>>;
+};
+
+function deferred() {
+  let resolve!: () => void;
+  const promise = new Promise<void>((res) => {
+    resolve = res;
+  });
+  return { promise, resolve };
+}
+
+function locationAwareDevice(overrides: Record<string, unknown> = {}) {
+  return device({
+    locationType: "GATE",
+    locationName: "Main Entrance",
+    attendanceMode: "GATE_ATTENDANCE",
+    studentScope: "DAY_SCHOLARS",
+    classId: null,
+    streamId: null,
+    direction: "ENTRY",
+    ...overrides,
+  });
+}
+
+function locationAwareState(overrides: {
+  device?: Record<string, unknown>;
+  policy?: Record<string, unknown>;
+  studentType?: "DAY" | "BOARDING";
+  classId?: string | null;
+  streamId?: string | null;
+  activeFeeHold?: boolean;
+  approvedGateOverride?: boolean;
+} = {}): LocationAwareState {
+  return {
+    device: locationAwareDevice(overrides.device),
+    policy: {
+      schoolId: "school-1",
+      timezone: "Africa/Kampala",
+      duplicateWindowSeconds: 60,
+      gateArrivalStart: "05:30",
+      gateArrivalLateAfter: "08:00",
+      gateArrivalEnd: "10:00",
+      morningClassroomStart: "06:30",
+      morningClassroomEnd: "10:00",
+      gateDepartureStart: "14:00",
+      gateDepartureEnd: "19:00",
+      nightPrepStart: "18:30",
+      nightPrepEnd: "22:30",
+      nightPrepBoardingOnly: true,
+      allowAutomaticCheckout: false,
+      recordUnclassifiedScans: true,
+      feeGatePolicyEnabled: Boolean(overrides.activeFeeHold || overrides.approvedGateOverride),
+      ...overrides.policy,
+    },
+    credential: {
+      ...credential(),
+      student: {
+        ...credential().student,
+        studentType: overrides.studentType ?? "DAY",
+        enrollments: [{
+          classId: overrides.classId ?? "class-a",
+          streamId: overrides.streamId ?? "stream-a",
+        }],
+      },
+    },
+    feeHolds: overrides.activeFeeHold ? [{
+      id: "fee-hold-1",
+      schoolId: "school-1",
+      studentId: "stu-1",
+      status: "ACTIVE",
+      updatedAt: new Date("2026-07-11T00:00:00.000Z"),
+    }] : [],
+    gateHolds: overrides.approvedGateOverride ? [{
+      id: "hold-1",
+      schoolId: "school-1",
+      studentId: "stu-1",
+      status: "APPROVED",
+      activeFrom: new Date("2026-07-11T00:00:00.000Z"),
+      activeUntil: null,
+      overrideUntil: null,
+      overrideReason: "Office approval",
+      reason: "Office approval",
+      updatedAt: new Date("2026-07-11T00:00:00.000Z"),
+    }] : [],
+    dailyAttendances: [],
+    campusMovementEvents: [],
+    classroomAttendanceEvents: [],
+    auditLogs: [],
+  };
+}
+
+function buildLocationAwareTransactionMocks(
+  state: LocationAwareState,
+  options: {
+    failAuditCreate?: boolean;
+    failDeviceUpdate?: boolean;
+    firstReady?: ReturnType<typeof deferred>;
+    allowFirstCommit?: ReturnType<typeof deferred>;
+    firstCommitted?: ReturnType<typeof deferred>;
+  } = {},
+) {
+  let transactionCount = 0;
+
+  prismaMocks.nfcOfflineDeviceFindFirst.mockImplementation(async () => state.device);
+  prismaMocks.schoolNfcPolicyFindUnique.mockImplementation(async () => state.policy);
+  prismaMocks.studentCredentialFindFirst.mockImplementation(async () => state.credential);
+  prismaMocks.nfcTagFindFirst.mockImplementation(async () => null);
+  prismaMocks.studentFeeHoldFindFirst.mockImplementation(async ({ where }: { where: Record<string, any> }) =>
+    state.feeHolds.find((hold) =>
+      hold.schoolId === where.schoolId
+      && hold.studentId === where.studentId
+      && hold.status === where.status) ?? null);
+  prismaMocks.auditLogFindFirst.mockImplementation(async ({ where }: { where: Record<string, any> }) => {
+    const matches = state.auditLogs.filter((log) =>
+      log.schoolId === where.schoolId
+      && log.action === where.action
+      && log.correlationId === where.correlationId);
+    return matches.at(-1) ?? null;
+  });
+
+  const buildTx = (working: LocationAwareState) => ({
+    schoolNfcPolicy: {
+      findUnique: async () => working.policy,
+    },
+    studentCredential: {
+      findFirst: async () => working.credential,
+    },
+    nfcTag: {
+      findFirst: async () => null,
+    },
+    studentFeeHold: {
+      findFirst: async ({ where }: { where: Record<string, any> }) =>
+        working.feeHolds.find((hold) =>
+          hold.schoolId === where.schoolId
+          && hold.studentId === where.studentId
+          && hold.status === where.status) ?? null,
+    },
+    studentGateHold: {
+      findFirst: async ({ where }: { where: Record<string, any> }) =>
+        working.gateHolds.find((hold) =>
+          hold.schoolId === where.schoolId
+          && hold.studentId === where.studentId
+          && hold.status === where.status
+          && (!where.OR || hold.activeFrom === null || hold.activeFrom <= where.OR[1].activeFrom.lte)
+          && (!where.AND || hold.activeUntil === null || hold.activeUntil >= where.AND[0].OR[1].activeUntil.gte)) ?? null,
+      updateMany: async ({ where, data }: { where: Record<string, any>; data: Record<string, any> }) => {
+        const hold = working.gateHolds.find((item) =>
+          item.id === where.id
+          && item.schoolId === where.schoolId
+          && item.studentId === where.studentId
+          && item.status === where.status
+          && (item.activeFrom === null || item.activeFrom <= where.OR[1].activeFrom.lte)
+          && (item.activeUntil === null || item.activeUntil >= where.AND[0].OR[1].activeUntil.gte));
+        if (!hold) {
+          return { count: 0 };
+        }
+        Object.assign(hold, data);
+        return { count: 1 };
+      },
+    },
+    dailyAttendance: {
+      findFirst: async ({ where }: { where: Record<string, any> }) =>
+        working.dailyAttendances.find((item) =>
+          item.schoolId === where.schoolId
+          && item.studentId === where.studentId
+          && item.attendanceDate.getTime() === where.attendanceDate.getTime()) ?? null,
+      upsert: async ({ where, create }: { where: Record<string, any>; create: Record<string, any> }) => {
+        const existing = working.dailyAttendances.find((item) =>
+          item.schoolId === where.schoolId_studentId_attendanceDate.schoolId
+          && item.studentId === where.schoolId_studentId_attendanceDate.studentId
+          && item.attendanceDate.getTime() === where.schoolId_studentId_attendanceDate.attendanceDate.getTime());
+        if (existing) {
+          return existing;
+        }
+        const row = { id: `daily-${working.dailyAttendances.length + 1}`, ...create };
+        working.dailyAttendances.push(row);
+        return row;
+      },
+    },
+    campusMovementEvent: {
+      findFirst: async ({ where, orderBy }: { where: Record<string, any>; orderBy?: { occurredAt: "asc" | "desc" } }) => {
+        const filtered = working.campusMovementEvents.filter((item) => {
+          if (where.schoolId && item.schoolId !== where.schoolId) return false;
+          if (where.studentId && item.studentId !== where.studentId) return false;
+          if (where.readerId && item.readerId !== where.readerId) return false;
+          if (where.type?.in && !where.type.in.includes(item.type)) return false;
+          if (where.occurredAt?.gte && item.occurredAt < where.occurredAt.gte) return false;
+          if (where.occurredAt?.lte && item.occurredAt > where.occurredAt.lte) return false;
+          if (where.occurredAt?.lt && item.occurredAt >= where.occurredAt.lt) return false;
+          return true;
+        });
+        filtered.sort((left, right) => orderBy?.occurredAt === "asc"
+          ? left.occurredAt.getTime() - right.occurredAt.getTime()
+          : right.occurredAt.getTime() - left.occurredAt.getTime());
+        return filtered[0] ?? null;
+      },
+      create: async ({ data }: { data: Record<string, any> }) => {
+        const row = { id: `move-${working.campusMovementEvents.length + 1}`, ...data };
+        working.campusMovementEvents.push(row);
+        return row;
+      },
+    },
+    classroomAttendanceEvent: {
+      findFirst: async ({ where, orderBy }: { where: Record<string, any>; orderBy?: { occurredAt: "asc" | "desc" } }) => {
+        const filtered = working.classroomAttendanceEvents.filter((item) => {
+          if (where.schoolId && item.schoolId !== where.schoolId) return false;
+          if (where.studentId && item.studentId !== where.studentId) return false;
+          if (where.readerId && item.readerId !== where.readerId) return false;
+          if (where.sessionType && item.sessionType !== where.sessionType) return false;
+          if (where.sessionDate && item.sessionDate.getTime() !== where.sessionDate.getTime()) return false;
+          if (where.status?.in && !where.status.in.includes(item.status)) return false;
+          if (where.occurredAt?.gte && item.occurredAt < where.occurredAt.gte) return false;
+          if (where.occurredAt?.lte && item.occurredAt > where.occurredAt.lte) return false;
+          return true;
+        });
+        filtered.sort((left, right) => orderBy?.occurredAt === "asc"
+          ? left.occurredAt.getTime() - right.occurredAt.getTime()
+          : right.occurredAt.getTime() - left.occurredAt.getTime());
+        return filtered[0] ?? null;
+      },
+      create: async ({ data }: { data: Record<string, any> }) => {
+        const row = { id: `class-${working.classroomAttendanceEvents.length + 1}`, ...data };
+        working.classroomAttendanceEvents.push(row);
+        return row;
+      },
+    },
+    auditLog: {
+      create: async ({ data }: { data: Record<string, any> }) => {
+        if (options.failAuditCreate) {
+          throw new Error("audit create failed");
+        }
+        const row = { id: `audit-${working.auditLogs.length + 1}`, createdAt: new Date(), ...data };
+        working.auditLogs.push(row);
+        return row;
+      },
+    },
+    nfcOfflineDevice: {
+      update: async ({ data }: { data: Record<string, any> }) => {
+        if (options.failDeviceUpdate) {
+          throw new Error("device update failed");
+        }
+        Object.assign(working.device, data);
+        return working.device;
+      },
+    },
+  });
+
+  prismaMocks.transaction.mockImplementation(async (fn: (tx: any) => Promise<unknown>) => {
+    transactionCount += 1;
+    const currentCall = transactionCount;
+    const working = structuredClone(state) as LocationAwareState;
+    const result = await fn(buildTx(working));
+
+    if (currentCall === 1 && options.firstReady) {
+      options.firstReady.resolve();
+    }
+
+    if (currentCall === 1 && options.allowFirstCommit) {
+      await options.allowFirstCommit.promise;
+    }
+
+    if (currentCall > 1 && options.firstCommitted) {
+      await options.firstCommitted.promise;
+    }
+
+    for (const event of working.campusMovementEvents) {
+      const alreadyCommitted = state.campusMovementEvents.some((item) => item.id === event.id);
+      const uniqueConflict = state.campusMovementEvents.some((item) =>
+        item.schoolId === event.schoolId && item.eventId === event.eventId);
+      if (!alreadyCommitted && uniqueConflict) {
+        const error = Object.assign(new Error("Unique constraint failed"), {
+          code: "P2002",
+          meta: { target: ["schoolId", "eventId"] },
+        });
+        throw error;
+      }
+    }
+
+    for (const event of working.classroomAttendanceEvents) {
+      const alreadyCommitted = state.classroomAttendanceEvents.some((item) => item.id === event.id);
+      const uniqueConflict = state.classroomAttendanceEvents.some((item) =>
+        item.schoolId === event.schoolId && item.eventId === event.eventId);
+      if (!alreadyCommitted && uniqueConflict) {
+        const error = Object.assign(new Error("Unique constraint failed"), {
+          code: "P2002",
+          meta: { target: ["schoolId", "eventId"] },
+        });
+        throw error;
+      }
+    }
+
+    state.device = working.device;
+    state.feeHolds = working.feeHolds;
+    state.gateHolds = working.gateHolds;
+    state.dailyAttendances = working.dailyAttendances;
+    state.campusMovementEvents = working.campusMovementEvents;
+    state.classroomAttendanceEvents = working.classroomAttendanceEvents;
+    state.auditLogs = working.auditLogs;
+
+    if (currentCall === 1 && options.firstCommitted) {
+      options.firstCommitted.resolve();
+    }
+
+    return result;
+  });
+}
+
 describe("readerGatewayRoutes", () => {
   beforeEach(() => {
     vi.clearAllMocks();
 
     prismaMocks.nfcOfflineDeviceFindFirst.mockResolvedValue(device());
     prismaMocks.nfcOfflineDeviceUpdate.mockResolvedValue({});
+    prismaMocks.schoolNfcPolicyFindUnique.mockResolvedValue({
+      schoolId: "school-1",
+      timezone: "Africa/Kampala",
+      duplicateWindowSeconds: 60,
+      gateArrivalStart: "05:30",
+      gateArrivalLateAfter: "08:00",
+      gateArrivalEnd: "10:00",
+      morningClassroomStart: "06:30",
+      morningClassroomEnd: "10:00",
+      gateDepartureStart: "14:00",
+      gateDepartureEnd: "19:00",
+      nightPrepStart: "18:30",
+      nightPrepEnd: "22:30",
+      nightPrepBoardingOnly: true,
+      allowAutomaticCheckout: false,
+      recordUnclassifiedScans: true,
+      feeGatePolicyEnabled: false,
+    });
     prismaMocks.auditLogFindFirst.mockResolvedValue(null);
     prismaMocks.auditLogCreate.mockResolvedValue({});
     prismaMocks.studentCredentialFindFirst.mockResolvedValue(credential());
     prismaMocks.nfcTagFindFirst.mockResolvedValue(null);
+    prismaMocks.studentFeeHoldFindFirst.mockResolvedValue(null);
+    prismaMocks.studentGateHoldFindFirst.mockResolvedValue(null);
+    prismaMocks.studentGateHoldUpdateMany.mockResolvedValue({ count: 0 });
+    prismaMocks.dailyAttendanceFindFirst.mockResolvedValue(null);
+    prismaMocks.dailyAttendanceUpsert.mockResolvedValue({ id: "daily-1" });
+    prismaMocks.campusMovementEventFindFirst.mockResolvedValue(null);
+    prismaMocks.campusMovementEventCreate.mockResolvedValue({ id: "move-1" });
+    prismaMocks.classroomAttendanceEventFindFirst.mockResolvedValue(null);
+    prismaMocks.classroomAttendanceEventCreate.mockResolvedValue({ id: "class-1" });
     prismaMocks.studentAttendanceEventFindFirst.mockResolvedValue(null);
     prismaMocks.studentAttendanceEventCreate.mockResolvedValue({ id: "att-1" });
     prismaMocks.transaction.mockImplementation(async (fn: (tx: any) => Promise<unknown>) => {
@@ -290,7 +670,7 @@ describe("readerGatewayRoutes", () => {
     const res = await request(buildApp())
       .post("/api/readers/events")
       .set("Authorization", "Bearer device-token-123")
-      .send(eventBody());
+      .send(eventBody({ deviceTime: "2026-07-11T04:45:00Z" }));
 
     expect(res.status).toBe(403);
     expect(res.body.error).toMatch(/disabled/i);
@@ -326,7 +706,7 @@ describe("readerGatewayRoutes", () => {
     const res = await request(buildApp())
       .post("/api/readers/events")
       .set("Authorization", "Bearer device-token-123")
-      .send(eventBody());
+      .send(eventBody({ deviceTime: "2026-07-11T04:45:00Z" }));
 
     expect(res.status).toBe(200);
     expect(res.body.status).toBe("PRESENT");
@@ -369,5 +749,143 @@ describe("readerGatewayRoutes", () => {
         lastApiContactAt: new Date("2026-07-10T08:00:00Z"),
       }),
     }));
+  });
+});
+
+describe("readerGatewayRoutes location-aware atomicity", () => {
+  it("commits override consumption, movement, attendance, audit, and device update together", async () => {
+    const state = locationAwareState({ activeFeeHold: true, approvedGateOverride: true });
+    buildLocationAwareTransactionMocks(state);
+
+    const res = await request(buildApp())
+      .post("/api/readers/events")
+      .set("Authorization", "Bearer device-token-123")
+      .send(eventBody({ deviceTime: "2026-07-11T04:45:00Z" }));
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({
+      success: true,
+      action: "GATE_ENTRY",
+      status: "PRESENT",
+      message: "Arrival recorded",
+    });
+    expect(state.gateHolds[0]?.status).toBe("CONSUMED");
+    expect(state.campusMovementEvents.map((item) => item.type)).toEqual(["MANUAL_GATE_OVERRIDE", "GATE_ENTRY"]);
+    expect(state.dailyAttendances).toHaveLength(1);
+    expect(state.auditLogs).toHaveLength(1);
+    expect(state.auditLogs[0]?.details?.responseStatusCode).toBe(200);
+    expect(state.device.lastScanStatus).toBe("PRESENT");
+  });
+
+  it("rolls back an approved override when audit creation fails", async () => {
+    const state = locationAwareState({ activeFeeHold: true, approvedGateOverride: true });
+    buildLocationAwareTransactionMocks(state, { failAuditCreate: true });
+
+    const res = await request(buildApp())
+      .post("/api/readers/events")
+      .set("Authorization", "Bearer device-token-123")
+      .send(eventBody());
+
+    expect(res.status).toBe(500);
+    expect(state.gateHolds[0]?.status).toBe("APPROVED");
+    expect(state.campusMovementEvents).toHaveLength(0);
+    expect(state.dailyAttendances).toHaveLength(0);
+    expect(state.auditLogs).toHaveLength(0);
+  });
+
+  it("rolls back the full location-aware write when device update fails", async () => {
+    const state = locationAwareState({ activeFeeHold: true, approvedGateOverride: true });
+    buildLocationAwareTransactionMocks(state, { failDeviceUpdate: true });
+
+    const res = await request(buildApp())
+      .post("/api/readers/events")
+      .set("Authorization", "Bearer device-token-123")
+      .send(eventBody());
+
+    expect(res.status).toBe(500);
+    expect(state.gateHolds[0]?.status).toBe("APPROVED");
+    expect(state.campusMovementEvents).toHaveLength(0);
+    expect(state.dailyAttendances).toHaveLength(0);
+    expect(state.auditLogs).toHaveLength(0);
+    expect(state.device.lastScanStatus).toBeUndefined();
+  });
+
+  it("replays the same location-aware event idempotently after success", async () => {
+    const state = locationAwareState();
+    buildLocationAwareTransactionMocks(state);
+
+    const first = await request(buildApp())
+      .post("/api/readers/events")
+      .set("Authorization", "Bearer device-token-123")
+      .send(eventBody({ deviceTime: "2026-07-11T04:45:00Z" }));
+    const second = await request(buildApp())
+      .post("/api/readers/events")
+      .set("Authorization", "Bearer device-token-123")
+      .send(eventBody({ deviceTime: "2026-07-10T04:45:00Z" }));
+
+    expect(first.status).toBe(200);
+    expect(second.status).toBe(200);
+    expect(second.body).toEqual(first.body);
+    expect(state.campusMovementEvents).toHaveLength(1);
+    expect(state.dailyAttendances).toHaveLength(1);
+    expect(state.auditLogs).toHaveLength(1);
+  });
+
+  it("returns a stored replay instead of 500 during a same-event race", async () => {
+    const state = locationAwareState();
+    const firstReady = deferred();
+    const allowFirstCommit = deferred();
+    const firstCommitted = deferred();
+    buildLocationAwareTransactionMocks(state, { firstReady, allowFirstCommit, firstCommitted });
+
+    const firstRequest = request(buildApp())
+      .post("/api/readers/events")
+      .set("Authorization", "Bearer device-token-123")
+      .send(eventBody({ deviceTime: "2026-07-11T04:45:00Z" }))
+      .then((response) => response);
+
+    await firstReady.promise;
+
+    const secondRequest = request(buildApp())
+      .post("/api/readers/events")
+      .set("Authorization", "Bearer device-token-123")
+      .send(eventBody({ deviceTime: "2026-07-11T04:45:00Z" }))
+      .then((response) => response);
+
+    allowFirstCommit.resolve();
+
+    const [first, second] = await Promise.all([firstRequest, secondRequest]);
+
+    expect(first.status).toBe(200);
+    expect(second.status).toBe(200);
+    expect(second.body).toEqual(first.body);
+    expect(state.campusMovementEvents).toHaveLength(1);
+    expect(state.dailyAttendances).toHaveLength(1);
+    expect(state.auditLogs).toHaveLength(1);
+  });
+
+  it("rolls back classroom attendance and morning daily attendance together on failure", async () => {
+    const state = locationAwareState({
+      studentType: "BOARDING",
+      device: {
+        locationType: "CLASSROOM",
+        locationName: "Senior 1 A",
+        attendanceMode: "CLASSROOM_ATTENDANCE",
+        studentScope: "ASSIGNED_CLASS",
+        classId: "class-a",
+        streamId: "stream-a",
+      },
+    });
+    buildLocationAwareTransactionMocks(state, { failDeviceUpdate: true });
+
+    const res = await request(buildApp())
+      .post("/api/readers/events")
+      .set("Authorization", "Bearer device-token-123")
+      .send(eventBody({ eventId: "classroom-event-1", deviceTime: "2026-07-11T05:00:00Z" }));
+
+    expect(res.status).toBe(500);
+    expect(state.classroomAttendanceEvents).toHaveLength(0);
+    expect(state.dailyAttendances).toHaveLength(0);
+    expect(state.auditLogs).toHaveLength(0);
   });
 });
