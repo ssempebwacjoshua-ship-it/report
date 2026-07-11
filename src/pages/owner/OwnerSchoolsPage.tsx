@@ -718,11 +718,21 @@ function OwnerSchoolConsoleDrawer({
                         <SchoolBadge active={reader.isActive && reader.status === "ACTIVE"} />
                       </div>
                       <div className="mt-2 grid gap-2 text-sm sm:grid-cols-4">
+                        <DetailMini label="Location" value={reader.locationName ?? reader.location ?? "-"} />
+                        <DetailMini label="Type" value={reader.locationType ?? reader.mode} />
+                        <DetailMini label="Attendance mode" value={reader.attendanceMode ?? "-"} />
+                        <DetailMini label="Scope" value={reader.studentScope ?? "-"} />
                         <DetailMini label="Firmware" value={reader.firmwareVersion ?? "-"} />
                         <DetailMini label="IP" value={reader.lastIp ?? "-"} />
                         <DetailMini label="RSSI" value={reader.lastRssi != null ? `${reader.lastRssi} dBm` : "-"} />
                         <DetailMini label="Queue" value={`${reader.queueDepth}`} />
                       </div>
+                      {(reader.classId || reader.streamId) ? (
+                        <div className="mt-2 grid gap-2 text-sm sm:grid-cols-2">
+                          <DetailMini label="Class ID" value={reader.classId ?? "-"} />
+                          <DetailMini label="Stream ID" value={reader.streamId ?? "-"} />
+                        </div>
+                      ) : null}
                       <div className="mt-3 flex flex-wrap gap-2">
                         {(["RESTART", "SYNC", "UPDATE_FIRMWARE", "RE_REGISTER"] as const).map((action) => (
                           <button key={action} type="button" className="rounded-xl bg-slate-100 px-3 py-2 text-xs font-bold text-slate-700" onClick={() => { void run(`Reader ${action.toLowerCase().replace(/_/g, " ")} requested.`, () => requestOwnerReaderAction(school.id, reader.id, action)); }}>

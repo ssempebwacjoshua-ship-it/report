@@ -40,8 +40,12 @@ model School {
   studentWalletTransactions StudentWalletTransaction[]
   nfcPolicy                 SchoolNfcPolicy?
   studentFeeHolds           StudentFeeHold[]
+  studentGateHolds          StudentGateHold[]
   canteenReconciliations    CanteenReconciliation[]
   studentAttendanceEvents   StudentAttendanceEvent[]
+  dailyAttendances          DailyAttendance[]
+  campusMovementEvents      CampusMovementEvent[]
+  classroomAttendanceEvents ClassroomAttendanceEvent[]
   nfcGateScans              NfcGateScan[]
   nfcTags                   NfcTag[]
   nfcTagBatches             NfcTagBatch[]
@@ -139,8 +143,12 @@ model Student {
   wallet             StudentWallet?
   walletTransactions StudentWalletTransaction[]
   feeHolds           StudentFeeHold[]
-  attendanceEvents   StudentAttendanceEvent[]
-  gateScans          NfcGateScan[]
+  gateHolds          StudentGateHold[]
+  attendanceEvents      StudentAttendanceEvent[]
+  dailyAttendances      DailyAttendance[]
+  campusMovementEvents  CampusMovementEvent[]
+  classroomAttendanceEvents ClassroomAttendanceEvent[]
+  gateScans             NfcGateScan[]
   nfcTags            NfcTag[]
   school             School                     @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   marks              SubjectMark[]
@@ -552,6 +560,20 @@ model SchoolNfcPolicy {
   tapInCutoffTime              String?
   cutoffLateAction             AttendanceLateAction   @default(BLOCK_AND_MARK_ABSENT)
   timezone                     String                 @default("Africa/Kampala")
+  duplicateWindowSeconds       Int                    @default(60)
+  gateArrivalStart             String                 @default("05:30")
+  gateArrivalLateAfter         String                 @default("08:00")
+  gateArrivalEnd               String                 @default("10:00")
+  morningClassroomStart        String                 @default("06:30")
+  morningClassroomEnd          String                 @default("10:00")
+  gateDepartureStart           String                 @default("14:00")
+  gateDepartureEnd             String                 @default("19:00")
+  nightPrepStart               String                 @default("18:30")
+  nightPrepEnd                 String                 @default("22:30")
+  nightPrepBoardingOnly        Boolean                @default(true)
+  allowAutomaticCheckout       Boolean                @default(false)
+  recordUnclassifiedScans      Boolean                @default(true)
+  feeGatePolicyEnabled         Boolean                @default(false)
   gateOfflineEnabled           Boolean                @default(false)
   canteenOfflineEnabled        Boolean                @default(false)
   gateSnapshotValidHours       Int                    @default(24)
@@ -594,6 +616,28 @@ model StudentFeeHold {
 
   @@index([schoolId, studentId, status])
   @@index([schoolId, status, createdAt])
+}
+
+model StudentGateHold {
+  id                String   @id @default(uuid()) @db.Uuid
+  schoolId          String   @db.Uuid
+  studentId         String   @db.Uuid
+  status            String   @default("REQUESTED")
+  reason            String?
+  requestedByUserId String?  @db.Uuid
+  approvedByUserId  String?  @db.Uuid
+  activeFrom        DateTime?
+  activeUntil       DateTime?
+  overrideUntil     DateTime?
+  overrideReason    String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  school  School  @relation(fields: [schoolId], references: [id])
+  student Student @relation(fields: [studentId], references: [id])
+
+  @@index([schoolId, studentId, status])
+  @@index([schoolId, status, activeFrom, activeUntil])
 }
 
 model CanteenReconciliation {
@@ -653,6 +697,72 @@ model StudentAttendanceEvent {
   @@index([schoolId, scannedAt])
   @@index([schoolId, studentId, scannedAt])
   @@index([schoolId, credentialId, scannedAt])
+}
+
+model DailyAttendance {
+  id              String   @id @default(uuid()) @db.Uuid
+  schoolId        String   @db.Uuid
+  studentId       String   @db.Uuid
+  attendanceDate  DateTime
+  status          String
+  firstRecordedAt DateTime
+  source          String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  school  School  @relation(fields: [schoolId], references: [id])
+  student Student @relation(fields: [studentId], references: [id])
+
+  @@unique([schoolId, studentId, attendanceDate])
+  @@index([schoolId, attendanceDate, status])
+  @@index([schoolId, studentId, attendanceDate])
+}
+
+model CampusMovementEvent {
+  id          String   @id @default(uuid()) @db.Uuid
+  eventId     String
+  schoolId    String   @db.Uuid
+  studentId   String   @db.Uuid
+  readerId    String   @db.Uuid
+  type        String
+  occurredAt  DateTime
+  deviceTime  DateTime
+  receivedAt  DateTime @default(now())
+  offlineSynced Boolean @default(false)
+  metadata    Json?
+
+  school  School  @relation(fields: [schoolId], references: [id])
+  student Student @relation(fields: [studentId], references: [id])
+
+  @@unique([schoolId, eventId])
+  @@index([schoolId, studentId, occurredAt])
+  @@index([schoolId, readerId, occurredAt])
+  @@index([schoolId, type, occurredAt])
+}
+
+model ClassroomAttendanceEvent {
+  id          String   @id @default(uuid()) @db.Uuid
+  eventId     String
+  schoolId    String   @db.Uuid
+  studentId   String   @db.Uuid
+  readerId    String   @db.Uuid
+  classId     String?  @db.Uuid
+  streamId    String?  @db.Uuid
+  sessionDate DateTime
+  sessionType String
+  status      String
+  occurredAt  DateTime
+  deviceTime  DateTime
+  receivedAt  DateTime @default(now())
+  metadata    Json?
+
+  school  School  @relation(fields: [schoolId], references: [id])
+  student Student @relation(fields: [studentId], references: [id])
+
+  @@unique([schoolId, eventId])
+  @@index([schoolId, studentId, sessionDate, sessionType])
+  @@index([schoolId, classId, streamId, sessionDate, sessionType])
+  @@index([schoolId, readerId, occurredAt])
 }
 
 model NfcGateScan {
@@ -1271,9 +1381,15 @@ model NfcOfflineDevice {
   schoolId          String    @db.Uuid
   name              String
   location          String?
+  locationType      String?
+  locationName      String?
   deviceKey         String
   deviceTokenHash   String?
   mode              String    @default("GATE") // GATE | CANTEEN | ATTENDANCE
+  attendanceMode    String?
+  studentScope      String?
+  classId           String?   @db.Uuid
+  streamId          String?   @db.Uuid
   status            String    @default("ACTIVE") // ACTIVE | REVOKED
   roleScope         String // GATE_SECURITY | CASHIER | ADMIN_OPERATOR
   isActive          Boolean   @default(true)

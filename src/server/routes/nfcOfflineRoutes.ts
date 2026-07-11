@@ -19,10 +19,17 @@ function ctx(req: Express.Request): OfflineContext {
 const registerDeviceSchema = z.object({
   name: z.string().min(1, "Device name is required."),
   location: z.string().trim().optional().nullable(),
+  locationType: z.enum(["GATE", "CLASSROOM"]).optional().nullable(),
+  locationName: z.string().trim().optional().nullable(),
   deviceKey: z.string().trim().optional(),
   deviceToken: z.string().trim().optional(),
   roleScope: z.enum(["GATE_SECURITY", "CASHIER", "CANTEEN", "ADMIN_OPERATOR"]),
   mode: z.enum(["GATE", "CANTEEN", "ATTENDANCE"]).optional(),
+  attendanceMode: z.enum(["GATE_ATTENDANCE", "CLASSROOM_ATTENDANCE"]).optional().nullable(),
+  studentScope: z.enum(["ALL_STUDENTS", "DAY_SCHOLARS", "BOARDING_STUDENTS", "ASSIGNED_CLASS"]).optional().nullable(),
+  classId: z.string().uuid().optional().nullable(),
+  streamId: z.string().uuid().optional().nullable(),
+  direction: z.enum(["ENTRY", "EXIT"]).optional().nullable(),
 });
 
 const bootstrapQuerySchema = z.object({

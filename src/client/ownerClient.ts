@@ -81,7 +81,13 @@ export type OwnerReader = {
   name: string;
   deviceKey: string;
   location: string | null;
+  locationType: string | null;
+  locationName: string | null;
   mode: string;
+  attendanceMode: string | null;
+  studentScope: string | null;
+  classId: string | null;
+  streamId: string | null;
   status: string;
   isActive: boolean;
   firmwareVersion: string | null;

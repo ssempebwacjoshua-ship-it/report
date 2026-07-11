@@ -25,6 +25,20 @@ export type NfcPolicyRow = {
   tapInCutoffTime: string | null;
   cutoffLateAction: AttendanceLateAction;
   timezone: string;
+  duplicateWindowSeconds: number;
+  gateArrivalStart: string;
+  gateArrivalLateAfter: string;
+  gateArrivalEnd: string;
+  morningClassroomStart: string;
+  morningClassroomEnd: string;
+  gateDepartureStart: string;
+  gateDepartureEnd: string;
+  nightPrepStart: string;
+  nightPrepEnd: string;
+  nightPrepBoardingOnly: boolean;
+  allowAutomaticCheckout: boolean;
+  recordUnclassifiedScans: boolean;
+  feeGatePolicyEnabled: boolean;
   gateOfflineEnabled: boolean;
   canteenOfflineEnabled: boolean;
   gateSnapshotValidHours: number;
@@ -91,6 +105,20 @@ export type NfcPolicyInput = {
   tapInCutoffTime?: string | null;
   cutoffLateAction: AttendanceLateAction;
   timezone: string;
+  duplicateWindowSeconds: number;
+  gateArrivalStart: string;
+  gateArrivalLateAfter: string;
+  gateArrivalEnd: string;
+  morningClassroomStart: string;
+  morningClassroomEnd: string;
+  gateDepartureStart: string;
+  gateDepartureEnd: string;
+  nightPrepStart: string;
+  nightPrepEnd: string;
+  nightPrepBoardingOnly: boolean;
+  allowAutomaticCheckout: boolean;
+  recordUnclassifiedScans: boolean;
+  feeGatePolicyEnabled: boolean;
   gateOfflineEnabled: boolean;
   canteenOfflineEnabled: boolean;
   gateSnapshotValidHours: number;
@@ -167,6 +195,20 @@ function formatPolicyRow(policy: {
   tapInCutoffTime: string | null;
   cutoffLateAction: AttendanceLateAction;
   timezone: string;
+  duplicateWindowSeconds: number;
+  gateArrivalStart: string;
+  gateArrivalLateAfter: string;
+  gateArrivalEnd: string;
+  morningClassroomStart: string;
+  morningClassroomEnd: string;
+  gateDepartureStart: string;
+  gateDepartureEnd: string;
+  nightPrepStart: string;
+  nightPrepEnd: string;
+  nightPrepBoardingOnly: boolean;
+  allowAutomaticCheckout: boolean;
+  recordUnclassifiedScans: boolean;
+  feeGatePolicyEnabled: boolean;
   gateOfflineEnabled: boolean;
   canteenOfflineEnabled: boolean;
   gateSnapshotValidHours: number;
@@ -191,6 +233,20 @@ function formatPolicyRow(policy: {
     tapInCutoffTime: policy.tapInCutoffTime,
     cutoffLateAction: policy.cutoffLateAction,
     timezone: policy.timezone,
+    duplicateWindowSeconds: policy.duplicateWindowSeconds,
+    gateArrivalStart: policy.gateArrivalStart,
+    gateArrivalLateAfter: policy.gateArrivalLateAfter,
+    gateArrivalEnd: policy.gateArrivalEnd,
+    morningClassroomStart: policy.morningClassroomStart,
+    morningClassroomEnd: policy.morningClassroomEnd,
+    gateDepartureStart: policy.gateDepartureStart,
+    gateDepartureEnd: policy.gateDepartureEnd,
+    nightPrepStart: policy.nightPrepStart,
+    nightPrepEnd: policy.nightPrepEnd,
+    nightPrepBoardingOnly: policy.nightPrepBoardingOnly,
+    allowAutomaticCheckout: policy.allowAutomaticCheckout,
+    recordUnclassifiedScans: policy.recordUnclassifiedScans,
+    feeGatePolicyEnabled: policy.feeGatePolicyEnabled,
     gateOfflineEnabled: policy.gateOfflineEnabled,
     canteenOfflineEnabled: policy.canteenOfflineEnabled,
     gateSnapshotValidHours: policy.gateSnapshotValidHours,
@@ -295,6 +351,31 @@ function defaultPolicy(schoolId: string): NfcPolicyRow {
     tapInCutoffTime: null,
     cutoffLateAction: "BLOCK_AND_MARK_ABSENT",
     timezone: "Africa/Kampala",
+    duplicateWindowSeconds: 60,
+    gateArrivalStart: "05:30",
+    gateArrivalLateAfter: "08:00",
+    gateArrivalEnd: "10:00",
+    morningClassroomStart: "06:30",
+    morningClassroomEnd: "10:00",
+    gateDepartureStart: "14:00",
+    gateDepartureEnd: "19:00",
+    nightPrepStart: "18:30",
+    nightPrepEnd: "22:30",
+    nightPrepBoardingOnly: true,
+    allowAutomaticCheckout: false,
+    recordUnclassifiedScans: true,
+    feeGatePolicyEnabled: false,
+    gateOfflineEnabled: false,
+    canteenOfflineEnabled: false,
+    gateSnapshotValidHours: 24,
+    canteenSnapshotValidHours: 12,
+    maxOfflineSpendPerStudentPerDay: 5000,
+    maxOfflineSpendPerTransaction: 2000,
+    maxOfflineSpendPerDeviceSession: 100000,
+    unknownCardOfflinePolicy: "DENY",
+    frozenCardOfflinePolicy: "DENY",
+    deactivatedCardOfflinePolicy: "DENY",
+    offlineConflictPolicy: "ALLOW_AND_FLAG",
     updatedByUserId: null,
     createdAt: now.toISOString(),
     updatedAt: now.toISOString(),
@@ -321,13 +402,36 @@ export async function updateSchoolNfcPolicy(
 ): Promise<NfcPolicyResponse> {
   const schoolId = requireSchoolId(ctx);
   requirePermission(ctx, "app.admin");
-  const tapInCutoffTime = input.attendanceTapInCutoffEnabled ? (input.tapInCutoffTime?.trim() || null) : null;
+  const merged = { ...defaultPolicy(schoolId), ...input };
+  const tapInCutoffTime = merged.attendanceTapInCutoffEnabled ? (merged.tapInCutoffTime?.trim() || null) : null;
 
-  if (input.attendanceTapInCutoffEnabled && !tapInCutoffTime) {
+  if (merged.attendanceTapInCutoffEnabled && !tapInCutoffTime) {
     throw Object.assign(new Error("Tap-in cut-off time is required when the cut-off is enabled."), { status: 400 });
   }
   if (tapInCutoffTime && !/^\d{2}:\d{2}$/.test(tapInCutoffTime)) {
     throw Object.assign(new Error("Tap-in cut-off time must use HH:MM."), { status: 400 });
+  }
+  const timeFields = [
+    ["gateArrivalStart", merged.gateArrivalStart],
+    ["gateArrivalLateAfter", merged.gateArrivalLateAfter],
+    ["gateArrivalEnd", merged.gateArrivalEnd],
+    ["morningClassroomStart", merged.morningClassroomStart],
+    ["morningClassroomEnd", merged.morningClassroomEnd],
+    ["gateDepartureStart", merged.gateDepartureStart],
+    ["gateDepartureEnd", merged.gateDepartureEnd],
+    ["nightPrepStart", merged.nightPrepStart],
+    ["nightPrepEnd", merged.nightPrepEnd],
+  ] as const;
+  for (const [label, value] of timeFields) {
+    if (!/^\d{2}:\d{2}$/.test(value)) {
+      throw Object.assign(new Error(`${label} must use HH:MM.`), { status: 400 });
+    }
+  }
+  if (merged.gateArrivalLateAfter < merged.gateArrivalStart || merged.gateArrivalLateAfter > merged.gateArrivalEnd) {
+    throw Object.assign(new Error("Gate late threshold must sit inside the arrival window."), { status: 400 });
+  }
+  if (merged.duplicateWindowSeconds < 15 || merged.duplicateWindowSeconds > 600) {
+    throw Object.assign(new Error("Duplicate window must be between 15 and 600 seconds."), { status: 400 });
   }
 
   const policy = await runWrite(db, async (tx) => {
@@ -335,43 +439,71 @@ export async function updateSchoolNfcPolicy(
       where: { schoolId },
     create: {
       schoolId,
-      feeDefaulterBlockingEnabled: input.feeDefaulterBlockingEnabled,
-      feeDefaulterBlockScope: input.feeDefaulterBlockScope,
-      attendanceTapInCutoffEnabled: input.attendanceTapInCutoffEnabled,
+      feeDefaulterBlockingEnabled: merged.feeDefaulterBlockingEnabled,
+      feeDefaulterBlockScope: merged.feeDefaulterBlockScope,
+      attendanceTapInCutoffEnabled: merged.attendanceTapInCutoffEnabled,
       tapInCutoffTime,
-      cutoffLateAction: input.cutoffLateAction,
-      timezone: input.timezone?.trim() || "Africa/Kampala",
-      gateOfflineEnabled: input.gateOfflineEnabled,
-      canteenOfflineEnabled: input.canteenOfflineEnabled,
-      gateSnapshotValidHours: input.gateSnapshotValidHours,
-      canteenSnapshotValidHours: input.canteenSnapshotValidHours,
-      maxOfflineSpendPerStudentPerDay: input.maxOfflineSpendPerStudentPerDay,
-      maxOfflineSpendPerTransaction: input.maxOfflineSpendPerTransaction,
-      maxOfflineSpendPerDeviceSession: input.maxOfflineSpendPerDeviceSession,
-      unknownCardOfflinePolicy: input.unknownCardOfflinePolicy,
-      frozenCardOfflinePolicy: input.frozenCardOfflinePolicy,
-      deactivatedCardOfflinePolicy: input.deactivatedCardOfflinePolicy,
-      offlineConflictPolicy: input.offlineConflictPolicy,
+      cutoffLateAction: merged.cutoffLateAction,
+      timezone: merged.timezone?.trim() || "Africa/Kampala",
+      duplicateWindowSeconds: merged.duplicateWindowSeconds,
+      gateArrivalStart: merged.gateArrivalStart,
+      gateArrivalLateAfter: merged.gateArrivalLateAfter,
+      gateArrivalEnd: merged.gateArrivalEnd,
+      morningClassroomStart: merged.morningClassroomStart,
+      morningClassroomEnd: merged.morningClassroomEnd,
+      gateDepartureStart: merged.gateDepartureStart,
+      gateDepartureEnd: merged.gateDepartureEnd,
+      nightPrepStart: merged.nightPrepStart,
+      nightPrepEnd: merged.nightPrepEnd,
+      nightPrepBoardingOnly: merged.nightPrepBoardingOnly,
+      allowAutomaticCheckout: merged.allowAutomaticCheckout,
+      recordUnclassifiedScans: merged.recordUnclassifiedScans,
+      feeGatePolicyEnabled: merged.feeGatePolicyEnabled,
+      gateOfflineEnabled: merged.gateOfflineEnabled,
+      canteenOfflineEnabled: merged.canteenOfflineEnabled,
+      gateSnapshotValidHours: merged.gateSnapshotValidHours,
+      canteenSnapshotValidHours: merged.canteenSnapshotValidHours,
+      maxOfflineSpendPerStudentPerDay: merged.maxOfflineSpendPerStudentPerDay,
+      maxOfflineSpendPerTransaction: merged.maxOfflineSpendPerTransaction,
+      maxOfflineSpendPerDeviceSession: merged.maxOfflineSpendPerDeviceSession,
+      unknownCardOfflinePolicy: merged.unknownCardOfflinePolicy,
+      frozenCardOfflinePolicy: merged.frozenCardOfflinePolicy,
+      deactivatedCardOfflinePolicy: merged.deactivatedCardOfflinePolicy,
+      offlineConflictPolicy: merged.offlineConflictPolicy,
       updatedByUserId: ctx.actorId ?? null,
     },
     update: {
-      feeDefaulterBlockingEnabled: input.feeDefaulterBlockingEnabled,
-      feeDefaulterBlockScope: input.feeDefaulterBlockScope,
-      attendanceTapInCutoffEnabled: input.attendanceTapInCutoffEnabled,
+      feeDefaulterBlockingEnabled: merged.feeDefaulterBlockingEnabled,
+      feeDefaulterBlockScope: merged.feeDefaulterBlockScope,
+      attendanceTapInCutoffEnabled: merged.attendanceTapInCutoffEnabled,
       tapInCutoffTime,
-      cutoffLateAction: input.cutoffLateAction,
-      timezone: input.timezone?.trim() || "Africa/Kampala",
-      gateOfflineEnabled: input.gateOfflineEnabled,
-      canteenOfflineEnabled: input.canteenOfflineEnabled,
-      gateSnapshotValidHours: input.gateSnapshotValidHours,
-      canteenSnapshotValidHours: input.canteenSnapshotValidHours,
-      maxOfflineSpendPerStudentPerDay: input.maxOfflineSpendPerStudentPerDay,
-      maxOfflineSpendPerTransaction: input.maxOfflineSpendPerTransaction,
-      maxOfflineSpendPerDeviceSession: input.maxOfflineSpendPerDeviceSession,
-      unknownCardOfflinePolicy: input.unknownCardOfflinePolicy,
-      frozenCardOfflinePolicy: input.frozenCardOfflinePolicy,
-      deactivatedCardOfflinePolicy: input.deactivatedCardOfflinePolicy,
-      offlineConflictPolicy: input.offlineConflictPolicy,
+      cutoffLateAction: merged.cutoffLateAction,
+      timezone: merged.timezone?.trim() || "Africa/Kampala",
+      duplicateWindowSeconds: merged.duplicateWindowSeconds,
+      gateArrivalStart: merged.gateArrivalStart,
+      gateArrivalLateAfter: merged.gateArrivalLateAfter,
+      gateArrivalEnd: merged.gateArrivalEnd,
+      morningClassroomStart: merged.morningClassroomStart,
+      morningClassroomEnd: merged.morningClassroomEnd,
+      gateDepartureStart: merged.gateDepartureStart,
+      gateDepartureEnd: merged.gateDepartureEnd,
+      nightPrepStart: merged.nightPrepStart,
+      nightPrepEnd: merged.nightPrepEnd,
+      nightPrepBoardingOnly: merged.nightPrepBoardingOnly,
+      allowAutomaticCheckout: merged.allowAutomaticCheckout,
+      recordUnclassifiedScans: merged.recordUnclassifiedScans,
+      feeGatePolicyEnabled: merged.feeGatePolicyEnabled,
+      gateOfflineEnabled: merged.gateOfflineEnabled,
+      canteenOfflineEnabled: merged.canteenOfflineEnabled,
+      gateSnapshotValidHours: merged.gateSnapshotValidHours,
+      canteenSnapshotValidHours: merged.canteenSnapshotValidHours,
+      maxOfflineSpendPerStudentPerDay: merged.maxOfflineSpendPerStudentPerDay,
+      maxOfflineSpendPerTransaction: merged.maxOfflineSpendPerTransaction,
+      maxOfflineSpendPerDeviceSession: merged.maxOfflineSpendPerDeviceSession,
+      unknownCardOfflinePolicy: merged.unknownCardOfflinePolicy,
+      frozenCardOfflinePolicy: merged.frozenCardOfflinePolicy,
+      deactivatedCardOfflinePolicy: merged.deactivatedCardOfflinePolicy,
+      offlineConflictPolicy: merged.offlineConflictPolicy,
       updatedByUserId: ctx.actorId ?? null,
     },
   });
@@ -675,13 +807,15 @@ export function getTimeParts(date: Date, timeZone: string) {
   };
 }
 
-function zonedDateToUtc(year: number, month: number, day: number, hour: number, minute: number, second: number, timeZone: string) {
-  let guess = Date.UTC(year, month - 1, day, hour, minute, second);
-  for (let index = 0; index < 2; index += 1) {
+export function zonedDateToUtc(year: number, month: number, day: number, hour: number, minute: number, second: number, timeZone: string) {
+  const target = Date.UTC(year, month - 1, day, hour, minute, second);
+  let guess = target;
+  for (let index = 0; index < 3; index += 1) {
     const parts = getTimeParts(new Date(guess), timeZone);
-    const adjusted = Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour, parts.minute, parts.second);
-    const offset = adjusted - guess;
-    guess -= offset;
+    const rendered = Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour, parts.minute, parts.second);
+    const diff = target - rendered;
+    guess += diff;
+    if (diff === 0) break;
   }
   return new Date(guess);
 }

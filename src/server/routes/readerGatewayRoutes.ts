@@ -4,6 +4,12 @@ import { z } from "zod";
 import { AttendanceDirection, AttendanceScanSource, AttendanceScanStatus, CredentialStatus, CredentialType } from "@prisma/client";
 import { prisma } from "../db/prisma";
 import { maskCredentialValue, normalizeCredentialForLookup } from "../../shared/utils/credentialNormalization";
+import {
+  buildReaderCredentialDiagnostics,
+  isLocationAwareReader,
+  processLocationAwareReaderEvent,
+  type ReaderGatewayResponse,
+} from "../services/readerAttendanceService";
 
 type ReaderGatewayDevice = {
   id: string;
@@ -11,20 +17,17 @@ type ReaderGatewayDevice = {
   deviceKey: string;
   name: string;
   location: string | null;
+  locationType: string | null;
+  locationName: string | null;
   mode: string;
+  attendanceMode: string | null;
+  studentScope: string | null;
+  classId: string | null;
+  streamId: string | null;
+  direction: string | null;
   roleScope: string;
   isActive: boolean;
   status: string;
-};
-
-type ReaderGatewayResponse = {
-  success: boolean;
-  action: "REGISTER" | "ATTENDANCE";
-  status?: "REGISTERED" | "PRESENT" | "DUPLICATE" | "UNKNOWN_CREDENTIAL" | "BLOCKED";
-  message: string;
-  beep: "success" | "duplicate" | "warning" | "error" | "none";
-  studentName?: string;
-  feedback: { beep: "success" | "duplicate" | "warning" | "error" | "none" };
 };
 
 const readerIdentitySchema = z.object({
@@ -80,8 +83,7 @@ function cachedResponse(details: unknown): ReaderGatewayResponse | null {
   if (!payload.response || typeof payload.response !== "object") return null;
   const response = payload.response as Partial<ReaderGatewayResponse>;
   if (typeof response.success !== "boolean") return null;
-  if (response.action !== "REGISTER" && response.action !== "ATTENDANCE") return null;
-  if (typeof response.message !== "string" || typeof response.beep !== "string") return null;
+  if (typeof response.action !== "string" || typeof response.message !== "string" || typeof response.beep !== "string") return null;
   return {
     success: response.success,
     action: response.action,
@@ -109,6 +111,13 @@ async function authenticateDevice(req: Express.Request, body: { deviceId: string
       deviceKey: true,
       name: true,
       mode: true,
+      locationType: true,
+      locationName: true,
+      attendanceMode: true,
+      studentScope: true,
+      classId: true,
+      streamId: true,
+      direction: true,
       roleScope: true,
       location: true,
       isActive: true,
@@ -348,6 +357,50 @@ export function readerGatewayRoutes() {
       }
 
       const scannedAt = parseDeviceTime(body.deviceTime);
+      const credentialDiagnostics = buildReaderCredentialDiagnostics(body);
+      if (isLocationAwareReader(device)) {
+        const processed = await processLocationAwareReaderEvent(device, body);
+        await prisma.$transaction(async (tx) => {
+          await tx.auditLog.create({
+            data: {
+              schoolId: device.schoolId,
+              action: "reader_event.attendance",
+              correlationId: eventToken,
+              details: {
+                deviceId: body.deviceId,
+                readerId: body.readerId,
+                credentialDiagnostics,
+                deviceTime: body.deviceTime ?? null,
+                firmwareVersion: body.firmwareVersion ?? null,
+                retryCount: body.retryCount ?? 0,
+                syncStatus: body.syncStatus ?? null,
+                readerConfig: {
+                  locationType: device.locationType,
+                  locationName: device.locationName ?? device.location,
+                  attendanceMode: device.attendanceMode,
+                  studentScope: device.studentScope,
+                  classId: device.classId,
+                  streamId: device.streamId,
+                },
+                response: processed.response,
+              },
+            },
+          });
+          await tx.nfcOfflineDevice.update({
+            where: { id: device.id },
+            data: {
+              lastSeenAt: new Date(),
+              lastSyncAt: new Date(),
+              lastScanAt: processed.scannedAt,
+              lastScanStatus: processed.response.status ?? (processed.response.success ? "SUCCESS" : "ERROR"),
+              lastScanMessage: processed.response.message,
+              onlineStatus: "ONLINE",
+            },
+          });
+        });
+        res.status(processed.statusCode).json(processed.response);
+        return;
+      }
       const normalizedCredential = normalizeCredentialForLookup({
         value: tokenOrUid,
         cardNumber: body.cardNumber,
@@ -355,7 +408,7 @@ export function readerGatewayRoutes() {
         rawWiegandDecimal: body.rawWiegandDecimal,
         rawWiegandHex: body.rawWiegandHex,
       });
-      const credentialDiagnostics = buildCredentialDiagnostics(tokenOrUid, normalizedCredential, body);
+      const legacyCredentialDiagnostics = buildCredentialDiagnostics(tokenOrUid, normalizedCredential, body);
       const credential = await resolveAttendanceCredential(device.schoolId, normalizedCredential);
       if (!credential) {
         const response: ReaderGatewayResponse = {
@@ -375,7 +428,7 @@ export function readerGatewayRoutes() {
               details: {
                 deviceId: body.deviceId,
                 readerId: body.readerId,
-                credentialDiagnostics,
+                credentialDiagnostics: legacyCredentialDiagnostics,
                 deviceTime: body.deviceTime ?? null,
                 firmwareVersion: body.firmwareVersion ?? null,
                 retryCount: body.retryCount ?? 0,
@@ -444,7 +497,7 @@ export function readerGatewayRoutes() {
               details: {
                 deviceId: body.deviceId,
                 readerId: body.readerId,
-                credentialDiagnostics,
+                credentialDiagnostics: legacyCredentialDiagnostics,
                 deviceTime: body.deviceTime ?? null,
                 firmwareVersion: body.firmwareVersion ?? null,
                 retryCount: body.retryCount ?? 0,
@@ -501,7 +554,7 @@ export function readerGatewayRoutes() {
             details: {
               deviceId: body.deviceId,
               readerId: body.readerId,
-              credentialDiagnostics,
+              credentialDiagnostics: legacyCredentialDiagnostics,
               deviceTime: body.deviceTime ?? null,
               firmwareVersion: body.firmwareVersion ?? null,
               retryCount: body.retryCount ?? 0,

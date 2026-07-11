@@ -16,6 +16,20 @@ export function NfcSettingsPage() {
     tapInCutoffTime: "08:00",
     cutoffLateAction: "BLOCK_AND_MARK_ABSENT" as const,
     timezone: "Africa/Kampala",
+    duplicateWindowSeconds: 60,
+    gateArrivalStart: "05:30",
+    gateArrivalLateAfter: "08:00",
+    gateArrivalEnd: "10:00",
+    morningClassroomStart: "06:30",
+    morningClassroomEnd: "10:00",
+    gateDepartureStart: "14:00",
+    gateDepartureEnd: "19:00",
+    nightPrepStart: "18:30",
+    nightPrepEnd: "22:30",
+    nightPrepBoardingOnly: true,
+    allowAutomaticCheckout: false,
+    recordUnclassifiedScans: true,
+    feeGatePolicyEnabled: false,
     gateOfflineEnabled: true,
     canteenOfflineEnabled: true,
     gateSnapshotValidHours: 24,
@@ -39,6 +53,20 @@ export function NfcSettingsPage() {
           tapInCutoffTime: policy.tapInCutoffTime ?? "08:00",
           cutoffLateAction: policy.cutoffLateAction,
           timezone: policy.timezone || "Africa/Kampala",
+          duplicateWindowSeconds: policy.duplicateWindowSeconds,
+          gateArrivalStart: policy.gateArrivalStart,
+          gateArrivalLateAfter: policy.gateArrivalLateAfter,
+          gateArrivalEnd: policy.gateArrivalEnd,
+          morningClassroomStart: policy.morningClassroomStart,
+          morningClassroomEnd: policy.morningClassroomEnd,
+          gateDepartureStart: policy.gateDepartureStart,
+          gateDepartureEnd: policy.gateDepartureEnd,
+          nightPrepStart: policy.nightPrepStart,
+          nightPrepEnd: policy.nightPrepEnd,
+          nightPrepBoardingOnly: policy.nightPrepBoardingOnly,
+          allowAutomaticCheckout: policy.allowAutomaticCheckout,
+          recordUnclassifiedScans: policy.recordUnclassifiedScans,
+          feeGatePolicyEnabled: policy.feeGatePolicyEnabled,
           gateOfflineEnabled: policy.gateOfflineEnabled,
           canteenOfflineEnabled: policy.canteenOfflineEnabled,
           gateSnapshotValidHours: policy.gateSnapshotValidHours,
@@ -89,6 +117,86 @@ export function NfcSettingsPage() {
       {saved ? <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700">Saved successfully.</div> : null}
 
       <section className="grid gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="grid gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
+          <h2 className="text-sm font-bold text-slate-950">Location attendance windows</h2>
+          <label className="grid gap-1 text-xs font-bold uppercase text-slate-500">
+            Duplicate window (seconds)
+            <input className={inputClass} type="number" min="15" max="600" value={form.duplicateWindowSeconds} onChange={(event) => setForm((current) => ({ ...current, duplicateWindowSeconds: Number(event.target.value) }))} />
+          </label>
+          <div className="grid gap-3 sm:grid-cols-3">
+            <label className="grid gap-1 text-xs font-bold uppercase text-slate-500">
+              Gate arrival start
+              <input className={inputClass} type="time" value={form.gateArrivalStart} onChange={(event) => setForm((current) => ({ ...current, gateArrivalStart: event.target.value }))} />
+            </label>
+            <label className="grid gap-1 text-xs font-bold uppercase text-slate-500">
+              Gate late after
+              <input className={inputClass} type="time" value={form.gateArrivalLateAfter} onChange={(event) => setForm((current) => ({ ...current, gateArrivalLateAfter: event.target.value }))} />
+            </label>
+            <label className="grid gap-1 text-xs font-bold uppercase text-slate-500">
+              Gate arrival end
+              <input className={inputClass} type="time" value={form.gateArrivalEnd} onChange={(event) => setForm((current) => ({ ...current, gateArrivalEnd: event.target.value }))} />
+            </label>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="grid gap-1 text-xs font-bold uppercase text-slate-500">
+              Morning classroom start
+              <input className={inputClass} type="time" value={form.morningClassroomStart} onChange={(event) => setForm((current) => ({ ...current, morningClassroomStart: event.target.value }))} />
+            </label>
+            <label className="grid gap-1 text-xs font-bold uppercase text-slate-500">
+              Morning classroom end
+              <input className={inputClass} type="time" value={form.morningClassroomEnd} onChange={(event) => setForm((current) => ({ ...current, morningClassroomEnd: event.target.value }))} />
+            </label>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="grid gap-1 text-xs font-bold uppercase text-slate-500">
+              Gate departure start
+              <input className={inputClass} type="time" value={form.gateDepartureStart} onChange={(event) => setForm((current) => ({ ...current, gateDepartureStart: event.target.value }))} />
+            </label>
+            <label className="grid gap-1 text-xs font-bold uppercase text-slate-500">
+              Gate departure end
+              <input className={inputClass} type="time" value={form.gateDepartureEnd} onChange={(event) => setForm((current) => ({ ...current, gateDepartureEnd: event.target.value }))} />
+            </label>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="grid gap-1 text-xs font-bold uppercase text-slate-500">
+              Night prep start
+              <input className={inputClass} type="time" value={form.nightPrepStart} onChange={(event) => setForm((current) => ({ ...current, nightPrepStart: event.target.value }))} />
+            </label>
+            <label className="grid gap-1 text-xs font-bold uppercase text-slate-500">
+              Night prep end
+              <input className={inputClass} type="time" value={form.nightPrepEnd} onChange={(event) => setForm((current) => ({ ...current, nightPrepEnd: event.target.value }))} />
+            </label>
+          </div>
+          <label className="grid gap-1 text-xs font-bold uppercase text-slate-500">
+            Night prep boarding only
+            <select className={selectClass} value={form.nightPrepBoardingOnly ? "yes" : "no"} onChange={(event) => setForm((current) => ({ ...current, nightPrepBoardingOnly: event.target.value === "yes" }))}>
+              <option value="yes">Yes</option>
+              <option value="no">No</option>
+            </select>
+          </label>
+          <label className="grid gap-1 text-xs font-bold uppercase text-slate-500">
+            Record unclassified scans
+            <select className={selectClass} value={form.recordUnclassifiedScans ? "yes" : "no"} onChange={(event) => setForm((current) => ({ ...current, recordUnclassifiedScans: event.target.value === "yes" }))}>
+              <option value="yes">Yes</option>
+              <option value="no">No</option>
+            </select>
+          </label>
+          <label className="grid gap-1 text-xs font-bold uppercase text-slate-500">
+            Automatic checkout
+            <select className={selectClass} value={form.allowAutomaticCheckout ? "yes" : "no"} onChange={(event) => setForm((current) => ({ ...current, allowAutomaticCheckout: event.target.value === "yes" }))}>
+              <option value="no">Disabled</option>
+              <option value="yes">Enabled</option>
+            </select>
+          </label>
+          <label className="grid gap-1 text-xs font-bold uppercase text-slate-500">
+            Gate fee restriction workflow
+            <select className={selectClass} value={form.feeGatePolicyEnabled ? "yes" : "no"} onChange={(event) => setForm((current) => ({ ...current, feeGatePolicyEnabled: event.target.value === "yes" }))}>
+              <option value="no">Disabled</option>
+              <option value="yes">Enabled</option>
+            </select>
+          </label>
+        </div>
+
         <div className="grid gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
           <h2 className="text-sm font-bold text-slate-950">Offline NFC policy</h2>
           <label className="grid gap-1 text-xs font-bold uppercase text-slate-500">

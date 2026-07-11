@@ -561,7 +561,21 @@ export async function getOfflineSyncStatus(
 
 export async function registerOfflineDevice(
   ctx: OfflineContext,
-  input: { name: string; deviceKey?: string; deviceToken?: string; roleScope: string; mode?: "GATE" | "CANTEEN" | "ATTENDANCE"; location?: string | null },
+  input: {
+    name: string;
+    deviceKey?: string;
+    deviceToken?: string;
+    roleScope: string;
+    mode?: "GATE" | "CANTEEN" | "ATTENDANCE";
+    location?: string | null;
+    locationType?: string | null;
+    locationName?: string | null;
+    attendanceMode?: string | null;
+    studentScope?: string | null;
+    classId?: string | null;
+    streamId?: string | null;
+    direction?: string | null;
+  },
   db: OfflineClient = defaultPrisma,
 ) {
   const schoolId = requireSchoolId(ctx);
@@ -574,11 +588,18 @@ export async function registerOfflineDevice(
       schoolId,
       name: input.name,
       location: input.location ?? null,
+      locationType: input.locationType ?? null,
+      locationName: input.locationName ?? input.location ?? null,
       deviceKey: input.deviceKey ?? token,
       deviceTokenHash: tokenHash,
       mode: input.mode ?? "GATE",
+      attendanceMode: input.attendanceMode ?? null,
+      studentScope: input.studentScope ?? null,
+      classId: input.classId ?? null,
+      streamId: input.streamId ?? null,
       status: "ACTIVE",
       roleScope: input.roleScope,
+      direction: input.direction ?? "ENTRY",
     },
   });
 
