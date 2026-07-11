@@ -71,6 +71,10 @@ vi.mock("../../server/db/prisma", () => ({
 }));
 
 import { readerGatewayRoutes } from "../../server/routes/readerGatewayRoutes";
+import {
+  __resetReaderCredentialCaptureSessionsForTests,
+  startReaderCredentialCapture,
+} from "../../server/services/readerCredentialLinkService";
 
 function buildApp() {
   const app = express();
@@ -452,6 +456,7 @@ function buildLocationAwareTransactionMocks(
 describe("readerGatewayRoutes", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    __resetReaderCredentialCaptureSessionsForTests();
 
     prismaMocks.nfcOfflineDeviceFindFirst.mockResolvedValue(device());
     prismaMocks.nfcOfflineDeviceUpdate.mockResolvedValue({});
@@ -747,6 +752,80 @@ describe("readerGatewayRoutes", () => {
         queueDepth: 0,
         onlineStatus: "ONLINE",
         lastApiContactAt: new Date("2026-07-10T08:00:00Z"),
+      }),
+    }));
+  });
+
+  it("captures a pending reader-link tap before attendance resolution", async () => {
+    const captureDb = {
+      nfcTag: {
+        findFirst: async () => ({
+          id: "tag-1",
+          schoolId: "school-1",
+          publicCode: "PUBCODE1234567890",
+          label: "Student Wristband 1",
+          status: "ASSIGNED",
+          studentId: "stu-1",
+          student: {
+            id: "stu-1",
+            firstName: "Jane",
+            lastName: "Doe",
+            admissionNumber: "A001",
+          },
+        }),
+      },
+      studentCredential: {
+        findFirst: async () => null,
+      },
+      nfcOfflineDevice: {
+        findFirst: async () => ({
+          id: "dev-1",
+          schoolId: "school-1",
+          name: "Attendance Gate 01",
+          deviceKey: "attendance-gate-01",
+          mode: "ATTENDANCE",
+          location: "Main Entrance",
+          locationName: "Main Entrance",
+          isActive: true,
+          status: "ACTIVE",
+        }),
+      },
+      auditLog: {
+        create: async () => ({}),
+      },
+      $transaction: async <T>(fn: (tx: any) => Promise<T>) => fn(captureDb),
+    } as never;
+
+    await startReaderCredentialCapture(
+      { schoolId: "school-1", actorId: "admin-1", role: "ADMIN_OPERATOR" },
+      { tagId: "tag-1", deviceId: "dev-1" },
+      captureDb,
+    );
+
+    const res = await request(buildApp())
+      .post("/api/readers/events")
+      .set("Authorization", "Bearer device-token-123")
+      .send(eventBody({
+        credential: "786777",
+        rawWiegandDecimal: "35128677",
+        rawWiegandHex: "02180565",
+        facilityCode: "12",
+        cardNumber: "1",
+      }));
+
+    expect(res.status).toBe(202);
+    expect(res.body).toMatchObject({
+      success: true,
+      action: "LINK_CAPTURE",
+      status: "CAPTURED",
+      message: "Reader credential captured for linking",
+      beep: "success",
+    });
+    expect(prismaMocks.studentAttendanceEventCreate).not.toHaveBeenCalled();
+    expect(prismaMocks.nfcOfflineDeviceUpdate).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        lastScanStatus: "CAPTURED",
+        lastScanMessage: "Reader credential captured for linking",
       }),
     }));
   });

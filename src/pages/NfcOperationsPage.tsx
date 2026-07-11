@@ -2,17 +2,23 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { NfcTag } from "../shared/types/nfcTags";
 import {
   assignNfcTag,
+  confirmReaderCredentialCapture,
   disableNfcTag,
   enableNfcTag,
   generateNfcTags,
+  getReaderCredentialCapture,
   getNfcTagEvents,
   listNfcTags,
+  startReaderCredentialCapture,
   unassignNfcTag,
 } from "../client/nfcTagsClient";
+import { fetchOfflineSyncStatus } from "../client/nfcOfflineClient";
 import { fetchStudents } from "../client/studentsClient";
 import { getStudentWalletPinStatus, setStudentWalletPin } from "../client/studentCredentialsClient";
 import type { StudentListItem } from "../shared/types/students";
 import type { WalletPinStatus } from "../shared/types/studentCredentials";
+import type { OfflineDeviceStatus } from "../client/nfcOfflineClient";
+import type { ReaderCredentialCaptureSession, ReaderCredentialCaptureStartResponse } from "../shared/types/nfcTags";
 
 type StatusFilter = "" | "UNASSIGNED" | "ASSIGNED" | "DISABLED" | "LOST";
 
@@ -49,6 +55,7 @@ type TagActions = {
   onDisable: () => void;
   onEnable: () => void;
   onEvents: () => void;
+  onLinkReaderCredential: () => void;
   onWalletPin: () => void;
   copiedId: string | null;
   copiedPayloadId: string | null;
@@ -77,6 +84,7 @@ function ActionsDropdown({ tag, actions, isOpen, onToggle, onClose }: {
   const canDisable = tag.status !== "DISABLED" && tag.status !== "LOST";
   const canEnable = tag.status === "DISABLED" || tag.status === "LOST";
   const canWalletPin = tag.status === "ASSIGNED" && !!tag.student;
+  const canLinkReaderCredential = tag.status === "ASSIGNED" && !!tag.student;
 
   return (
     <div ref={ref} className="relative">
@@ -133,6 +141,15 @@ function ActionsDropdown({ tag, actions, isOpen, onToggle, onClose }: {
               className="flex w-full items-center px-4 py-3 text-left text-sm text-violet-700 hover:bg-violet-50"
             >
               Wallet PIN
+            </button>
+          )}
+          {canLinkReaderCredential && (
+            <button
+              type="button"
+              onClick={() => { actions.onLinkReaderCredential(); onClose(); }}
+              className="flex w-full items-center px-4 py-3 text-left text-sm text-amber-700 hover:bg-amber-50"
+            >
+              Link reader credential
             </button>
           )}
 
@@ -254,6 +271,14 @@ function MobileTagCard({ tag, actions, isDropdownOpen, onToggleDropdown, onClose
 }
 
 export function NfcOperationsPage() {
+  type LinkReaderTarget = {
+    id: string;
+    publicCode: string;
+    label: string | null;
+    physicalUid: string | null;
+    student: NonNullable<NfcTag["student"]>;
+  };
+
   const [tags, setTags] = useState<NfcTag[]>([]);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("");
   const [loading, setLoading] = useState(false);
@@ -305,6 +330,18 @@ export function NfcOperationsPage() {
   const [walletPinError, setWalletPinError] = useState<string | null>(null);
   const [walletPinSuccess, setWalletPinSuccess] = useState(false);
 
+  // Reader credential link modal
+  const [linkReaderTarget, setLinkReaderTarget] = useState<LinkReaderTarget | null>(null);
+  const [linkReaderDevices, setLinkReaderDevices] = useState<OfflineDeviceStatus[]>([]);
+  const [linkReaderDevicesLoading, setLinkReaderDevicesLoading] = useState(false);
+  const [linkReaderDeviceId, setLinkReaderDeviceId] = useState("");
+  const [linkReaderCapture, setLinkReaderCapture] = useState<ReaderCredentialCaptureStartResponse | ReaderCredentialCaptureSession | null>(null);
+  const [linkReaderLoading, setLinkReaderLoading] = useState(false);
+  const [linkReaderConfirming, setLinkReaderConfirming] = useState(false);
+  const [linkReaderError, setLinkReaderError] = useState<string | null>(null);
+  const [linkReaderSuccess, setLinkReaderSuccess] = useState<string | null>(null);
+  const linkReaderPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
   // Open dropdown tracking (one at a time)
   const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
 
@@ -322,6 +359,78 @@ export function NfcOperationsPage() {
   }, [statusFilter]);
 
   useEffect(() => { void loadTags(); }, [loadTags]);
+
+  useEffect(() => {
+    if (!linkReaderTarget) {
+      setLinkReaderDevices([]);
+      setLinkReaderDeviceId("");
+      setLinkReaderCapture(null);
+      setLinkReaderError(null);
+      setLinkReaderSuccess(null);
+      if (linkReaderPollRef.current) {
+        clearInterval(linkReaderPollRef.current);
+        linkReaderPollRef.current = null;
+      }
+      return;
+    }
+
+    setLinkReaderDevicesLoading(true);
+    setLinkReaderError(null);
+    fetchOfflineSyncStatus()
+      .then((status) => {
+        const attendanceDevices = status.devices.filter((device) => device.mode === "ATTENDANCE" && device.isActive);
+        setLinkReaderDevices(attendanceDevices);
+        setLinkReaderDeviceId((current) => current || attendanceDevices[0]?.id || attendanceDevices[0]?.deviceKey || "");
+      })
+      .catch((loadError) => {
+        setLinkReaderDevices([]);
+        setLinkReaderError(loadError instanceof Error ? loadError.message : "Failed to load attendance readers.");
+      })
+      .finally(() => setLinkReaderDevicesLoading(false));
+  }, [linkReaderTarget]);
+
+  useEffect(() => {
+    if (!linkReaderCapture || !linkReaderTarget) {
+      if (linkReaderPollRef.current) {
+        clearInterval(linkReaderPollRef.current);
+        linkReaderPollRef.current = null;
+      }
+      return;
+    }
+
+    if (linkReaderCapture.status !== "PENDING") {
+      if (linkReaderPollRef.current) {
+        clearInterval(linkReaderPollRef.current);
+        linkReaderPollRef.current = null;
+      }
+      return;
+    }
+
+    if (linkReaderPollRef.current) {
+      clearInterval(linkReaderPollRef.current);
+    }
+
+    linkReaderPollRef.current = setInterval(() => {
+      void getReaderCredentialCapture(linkReaderCapture.captureId)
+        .then((session) => {
+          setLinkReaderCapture(session);
+        })
+        .catch((pollError) => {
+          setLinkReaderError(pollError instanceof Error ? pollError.message : "Failed to refresh reader capture.");
+          if (linkReaderPollRef.current) {
+            clearInterval(linkReaderPollRef.current);
+            linkReaderPollRef.current = null;
+          }
+        });
+    }, 1500);
+
+    return () => {
+      if (linkReaderPollRef.current) {
+        clearInterval(linkReaderPollRef.current);
+        linkReaderPollRef.current = null;
+      }
+    };
+  }, [linkReaderCapture, linkReaderTarget]);
 
   async function handleGenerate() {
     setGenerating(true);
@@ -479,6 +588,57 @@ export function NfcOperationsPage() {
     setTimeout(() => setCopiedPayloadId((id) => (id === tag.id ? null : id)), 2000);
   }
 
+  function openLinkReaderModal(tag: NfcTag) {
+    if (!tag.student) return;
+    setLinkReaderTarget({
+      id: tag.id,
+      publicCode: tag.publicCode,
+      label: tag.label,
+      physicalUid: tag.physicalUid,
+      student: tag.student,
+    });
+    setLinkReaderCapture(null);
+    setLinkReaderError(null);
+    setLinkReaderSuccess(null);
+  }
+
+  function closeLinkReaderModal() {
+    setLinkReaderTarget(null);
+  }
+
+  async function handleStartReaderLinkCapture() {
+    if (!linkReaderTarget) return;
+    setLinkReaderLoading(true);
+    setLinkReaderError(null);
+    setLinkReaderSuccess(null);
+    try {
+      const session = await startReaderCredentialCapture(linkReaderTarget.id, {
+        deviceId: linkReaderDeviceId || undefined,
+      });
+      setLinkReaderCapture(session);
+    } catch (startError) {
+      setLinkReaderError(startError instanceof Error ? startError.message : "Failed to start reader credential capture.");
+    } finally {
+      setLinkReaderLoading(false);
+    }
+  }
+
+  async function handleConfirmReaderLink() {
+    if (!linkReaderTarget || !linkReaderCapture) return;
+    setLinkReaderConfirming(true);
+    setLinkReaderError(null);
+    try {
+      const result = await confirmReaderCredentialCapture(linkReaderCapture.captureId);
+      setLinkReaderSuccess("Reader credential linked successfully.");
+      setLinkReaderCapture((current) => current ? { ...current, status: "CONFIRMED", confirmedAt: new Date().toISOString() } : current);
+      setTags((prev) => prev.map((tag) => (tag.id === result.tag.id ? { ...tag, physicalUid: result.tag.physicalUid } : tag)));
+    } catch (confirmError) {
+      setLinkReaderError(confirmError instanceof Error ? confirmError.message : "Failed to confirm reader credential link.");
+    } finally {
+      setLinkReaderConfirming(false);
+    }
+  }
+
   function makeActions(tag: NfcTag): TagActions {
     return {
       onCopyPayload: () => handleCopyPayload(tag),
@@ -488,6 +648,7 @@ export function NfcOperationsPage() {
       onDisable: () => { if (confirm("Disable this tag? It will no longer resolve.")) void handleDisable(tag.id); },
       onEnable: () => { setEnableTarget(tag); setEnableReason(""); setEnableError(null); },
       onEvents: () => { void handleViewEvents(tag.id); },
+      onLinkReaderCredential: () => { openLinkReaderModal(tag); },
       onWalletPin: () => {
         if (tag.student) {
           openWalletPinModal({ studentId: tag.student.id, studentName: tag.student.name, admissionNumber: tag.student.admissionNumber });
@@ -663,6 +824,15 @@ export function NfcOperationsPage() {
                           className="rounded-lg border border-violet-200 px-2.5 py-1 text-[11px] font-black text-violet-700 hover:bg-violet-50"
                         >
                           Wallet PIN
+                        </button>
+                      )}
+                      {tag.status === "ASSIGNED" && tag.student && (
+                        <button
+                          type="button"
+                          onClick={() => openLinkReaderModal(tag)}
+                          className="rounded-lg border border-amber-200 px-2.5 py-1 text-[11px] font-black text-amber-700 hover:bg-amber-50"
+                        >
+                          Link reader credential
                         </button>
                       )}
                       {tag.status !== "DISABLED" && tag.status !== "LOST" && (
@@ -845,6 +1015,166 @@ export function NfcOperationsPage() {
                 disabled={enableLoading}
               >
                 Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Link reader credential modal */}
+      {linkReaderTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={closeLinkReaderModal}>
+          <div className="w-full max-w-2xl rounded-2xl bg-white p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h2 className="text-lg font-black text-slate-950">Link reader credential</h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  Preserve the written <span className="font-mono">SCNFC:{linkReaderTarget.publicCode}</span> payload and link a separate Wiegand credential for this wristband.
+                </p>
+              </div>
+              <button type="button" onClick={closeLinkReaderModal} className="text-slate-400 hover:text-slate-700">x</button>
+            </div>
+
+            <div className="mt-4 grid gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm sm:grid-cols-2">
+              <div>
+                <p className="text-xs font-black uppercase tracking-wider text-slate-500">Student</p>
+                <p className="mt-1 font-semibold text-slate-900">{linkReaderTarget.student.name}</p>
+                <p className="text-xs text-slate-500">{linkReaderTarget.student.admissionNumber}</p>
+              </div>
+              <div>
+                <p className="text-xs font-black uppercase tracking-wider text-slate-500">Wristband</p>
+                <p className="mt-1 font-semibold text-slate-900">{linkReaderTarget.label ?? `Tag ${linkReaderTarget.publicCode.slice(0, 8)}...`}</p>
+                <p className="font-mono text-xs text-slate-500">SCNFC:{linkReaderTarget.publicCode}</p>
+                <p className="mt-1 text-xs text-slate-500">
+                  Current reader credential: {linkReaderTarget.physicalUid ? "Linked" : "Not linked"}
+                </p>
+              </div>
+            </div>
+
+            {!linkReaderCapture && (
+              <div className="mt-5 space-y-4">
+                <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+                  Start capture mode, tap the already assigned physical wristband on an active attendance reader, then review the masked reader identifiers before confirming.
+                </div>
+                <label className="grid gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-500">
+                  Attendance reader
+                  <select
+                    className="premium-control"
+                    value={linkReaderDeviceId}
+                    onChange={(e) => setLinkReaderDeviceId(e.target.value)}
+                    disabled={linkReaderDevicesLoading || linkReaderLoading}
+                  >
+                    {linkReaderDevices.length === 0 && <option value="">No active attendance readers found</option>}
+                    {linkReaderDevices.map((device) => (
+                      <option key={device.id} value={device.id}>
+                        {(device.locationName ?? device.location ?? device.name)} ({device.deviceKey})
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                {linkReaderDevicesLoading && <p className="text-xs text-slate-500">Loading attendance readers...</p>}
+                <button
+                  type="button"
+                  onClick={() => { void handleStartReaderLinkCapture(); }}
+                  disabled={linkReaderLoading || linkReaderDevicesLoading || !linkReaderDeviceId}
+                  className="btn btn-primary min-h-[44px] rounded-xl px-4 py-2.5 text-sm font-black"
+                >
+                  {linkReaderLoading ? "Starting capture..." : "Start capture mode"}
+                </button>
+              </div>
+            )}
+
+            {linkReaderCapture && (
+              <div className="mt-5 space-y-4">
+                <div className="grid gap-3 rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm sm:grid-cols-2">
+                  <div>
+                    <p className="text-xs font-black uppercase tracking-wider text-blue-700">Capture status</p>
+                    <p className="mt-1 font-semibold text-slate-900">{linkReaderCapture.status}</p>
+                    <p className="text-xs text-slate-600">Expires: {new Date(linkReaderCapture.expiresAt).toLocaleTimeString()}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-black uppercase tracking-wider text-blue-700">Reader</p>
+                    <p className="mt-1 font-semibold text-slate-900">{linkReaderCapture.deviceLabel ?? "Any linked attendance reader"}</p>
+                  </div>
+                </div>
+
+                {linkReaderCapture.status === "PENDING" && (
+                  <div className="rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-700">
+                    Waiting for one physical tap from the selected wristband on the attendance reader. This page refreshes automatically when the reader sends the Wiegand credential.
+                  </div>
+                )}
+
+                {linkReaderCapture.preview && (
+                  <div className="grid gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm sm:grid-cols-2">
+                    <div>
+                      <p className="text-xs font-black uppercase tracking-wider text-emerald-700">Masked canonical credential</p>
+                      <p className="mt-1 font-mono text-slate-900">{linkReaderCapture.preview.maskedCanonicalCredential ?? "-"}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs font-black uppercase tracking-wider text-emerald-700">Reader source</p>
+                      <p className="mt-1 font-semibold text-slate-900">{linkReaderCapture.preview.readerName}</p>
+                      <p className="text-xs text-slate-600">Captured {new Date(linkReaderCapture.preview.capturedAt).toLocaleTimeString()}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs font-black uppercase tracking-wider text-emerald-700">Structured fields</p>
+                      <ul className="mt-1 space-y-1 text-xs text-slate-700">
+                        <li>Credential: {linkReaderCapture.preview.credential ?? "-"}</li>
+                        <li>Raw decimal: {linkReaderCapture.preview.rawWiegandDecimal ?? "-"}</li>
+                        <li>Raw hex: {linkReaderCapture.preview.rawWiegandHex ?? "-"}</li>
+                        <li>Facility code: {linkReaderCapture.preview.facilityCode ?? "-"}</li>
+                        <li>Card number: {linkReaderCapture.preview.cardNumber ?? "-"}</li>
+                      </ul>
+                    </div>
+                    <div>
+                      <p className="text-xs font-black uppercase tracking-wider text-emerald-700">Deterministic aliases</p>
+                      <ul className="mt-1 space-y-1 text-xs text-slate-700">
+                        {linkReaderCapture.preview.maskedAliases.length === 0 ? (
+                          <li>-</li>
+                        ) : (
+                          linkReaderCapture.preview.maskedAliases.map((alias) => <li key={alias}>{alias}</li>)
+                        )}
+                      </ul>
+                    </div>
+                  </div>
+                )}
+
+                {linkReaderCapture.status === "CAPTURED" && (
+                  <div className="rounded-xl border border-emerald-200 bg-white p-4 text-sm text-slate-700">
+                    Review the masked reader identifiers above, confirm the student and wristband, then save the canonical reader credential. The written NFC payload will not be changed.
+                  </div>
+                )}
+              </div>
+            )}
+
+            {linkReaderError && <p className="mt-4 text-sm text-red-600">{linkReaderError}</p>}
+            {linkReaderSuccess && <p className="mt-4 text-sm font-semibold text-emerald-700">{linkReaderSuccess}</p>}
+
+            <div className="mt-6 flex flex-wrap gap-3">
+              {linkReaderCapture?.status === "CAPTURED" && (
+                <button
+                  type="button"
+                  onClick={() => { void handleConfirmReaderLink(); }}
+                  disabled={linkReaderConfirming}
+                  className="btn btn-primary min-h-[44px] rounded-xl px-4 py-2.5 text-sm font-black"
+                >
+                  {linkReaderConfirming ? "Saving link..." : "Confirm link"}
+                </button>
+              )}
+              {linkReaderCapture?.status === "CONFIRMED" && (
+                <button
+                  type="button"
+                  onClick={closeLinkReaderModal}
+                  className="btn btn-primary min-h-[44px] rounded-xl px-4 py-2.5 text-sm font-black"
+                >
+                  Done
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={closeLinkReaderModal}
+                className="btn btn-secondary min-h-[44px] rounded-xl px-4 py-2.5 text-sm font-bold"
+              >
+                {linkReaderCapture?.status === "CONFIRMED" ? "Close" : "Cancel"}
               </button>
             </div>
           </div>

@@ -14,6 +14,11 @@ export type CredentialNormalizationResult = {
   tokenValues: string[];
 };
 
+export type ReaderCredentialAliasResult = {
+  canonical: string;
+  aliases: string[];
+};
+
 function unique(values: string[]): string[] {
   return [...new Set(values.filter(Boolean))];
 }
@@ -50,18 +55,9 @@ export function normalizeCredentialUID(value: string): string {
   return stripNumericLeadingZeros(clean(value).toUpperCase());
 }
 
-export function normalizeCredentialForLookup(input: CredentialNormalizationInput): CredentialNormalizationResult {
+export function buildReaderCredentialAliases(input: CredentialNormalizationInput): ReaderCredentialAliasResult {
   const credentialValues = new Set<string>();
-  const tokenValues = new Set<string>();
 
-  const token = clean(input.value);
-  if (token) {
-    tokenValues.add(token);
-    tokenValues.add(token.toUpperCase());
-  }
-
-  addCredentialForms(credentialValues, input.value);
-  addCredentialForms(credentialValues, input.cardNumber);
   addCredentialForms(credentialValues, input.rawWiegandDecimal);
   addCredentialForms(credentialValues, input.rawWiegandHex);
 
@@ -70,9 +66,28 @@ export function normalizeCredentialForLookup(input: CredentialNormalizationInput
     addCredentialForms(credentialValues, `${input.facilityCode}:${input.cardNumber}`);
   }
 
-  const lookupValues = unique([...credentialValues]);
+  addCredentialForms(credentialValues, input.cardNumber);
+  addCredentialForms(credentialValues, input.value);
+
+  const aliases = unique([...credentialValues]);
   return {
-    canonical: lookupValues[0] ?? "",
+    canonical: aliases[0] ?? "",
+    aliases,
+  };
+}
+
+export function normalizeCredentialForLookup(input: CredentialNormalizationInput): CredentialNormalizationResult {
+  const tokenValues = new Set<string>();
+
+  const token = clean(input.value);
+  if (token) {
+    tokenValues.add(token);
+    tokenValues.add(token.toUpperCase());
+  }
+  const readerAliases = buildReaderCredentialAliases(input);
+  const lookupValues = readerAliases.aliases;
+  return {
+    canonical: readerAliases.canonical,
     lookupValues,
     tokenValues: unique([...tokenValues]),
   };

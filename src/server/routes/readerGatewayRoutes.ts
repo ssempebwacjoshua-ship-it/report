@@ -10,6 +10,7 @@ import {
   processLocationAwareReaderEvent,
   type ReaderGatewayResponse,
 } from "../services/readerAttendanceService";
+import { captureReaderCredentialFromReader } from "../services/readerCredentialLinkService";
 
 type ReaderGatewayDevice = {
   id: string;
@@ -441,6 +442,36 @@ export function readerGatewayRoutes() {
           beep: "error",
           feedback: { beep: "error" },
         });
+        return;
+      }
+
+      const capturedLink = await captureReaderCredentialFromReader(device, {
+        credential: body.credential ?? null,
+        credentialUID: body.credentialUID ?? null,
+        rawWiegandDecimal: body.rawWiegandDecimal ?? null,
+        rawWiegandHex: body.rawWiegandHex ?? null,
+        facilityCode: body.facilityCode ?? null,
+        cardNumber: body.cardNumber ?? null,
+      });
+      if (capturedLink) {
+        await prisma.nfcOfflineDevice.update({
+          where: { id: device.id },
+          data: {
+            lastSeenAt: new Date(),
+            lastScanAt: parseDeviceTime(body.deviceTime),
+            lastScanStatus: "CAPTURED",
+            lastScanMessage: "Reader credential captured for linking",
+            onlineStatus: "ONLINE",
+          },
+        }).catch(() => null);
+        res.status(202).json({
+          success: true,
+          action: "LINK_CAPTURE",
+          status: "CAPTURED",
+          message: "Reader credential captured for linking",
+          beep: "success",
+          feedback: { beep: "success" },
+        } satisfies ReaderGatewayResponse);
         return;
       }
 

@@ -21,6 +21,11 @@ import {
   listTagInventory,
   verifyTag,
 } from "../services/nfcTagBatchService";
+import {
+  confirmReaderCredentialLink,
+  getReaderCredentialCapture,
+  startReaderCredentialCapture,
+} from "../services/readerCredentialLinkService";
 import { attachUsageWarning, recordPlatformUsage, requirePlatformModule } from "../platformIntegration";
 
 const generateSchema = z.object({
@@ -77,6 +82,11 @@ const bulkAllocateInventorySchema = z.object({
     )
     .min(1),
   reason: z.string().min(1, "Reason is required."),
+});
+
+const readerCredentialCaptureStartSchema = z.object({
+  deviceId: z.string().trim().optional().nullable(),
+  expiresInSeconds: z.coerce.number().int().min(15).max(180).optional().nullable(),
 });
 
 function ctx(req: Express.Request): NfcTagsContext {
@@ -262,6 +272,28 @@ export function nfcTagsRoutes() {
     }
   });
 
+  router.get("/api/nfc/tags/reader-credential-captures/:captureId", async (req, res, next) => {
+    try {
+      if (!(await requirePlatformModule(req, res, "nfc.tags"))) {
+        return;
+      }
+      res.json(await getReaderCredentialCapture(ctx(req), req.params.captureId));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/api/nfc/tags/reader-credential-captures/:captureId/confirm", async (req, res, next) => {
+    try {
+      if (!(await requirePlatformModule(req, res, "nfc.tags"))) {
+        return;
+      }
+      res.json(await confirmReaderCredentialLink(ctx(req), req.params.captureId));
+    } catch (error) {
+      next(error);
+    }
+  });
+
   // ── Per-tag routes (/:id) ─────────────────────────────────────────────────
 
   router.get("/api/nfc/tags", async (req, res, next) => {
@@ -338,6 +370,23 @@ export function nfcTagsRoutes() {
         return;
       }
       res.json(await amendTag(ctx(req), req.params.id, amendTagSchema.parse(req.body)));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/api/nfc/tags/:id/link-reader-credential/capture", async (req, res, next) => {
+    try {
+      if (!(await requirePlatformModule(req, res, "nfc.tags"))) {
+        return;
+      }
+      res.status(201).json(await startReaderCredentialCapture(
+        ctx(req),
+        {
+          tagId: req.params.id,
+          ...readerCredentialCaptureStartSchema.parse(req.body),
+        },
+      ));
     } catch (error) {
       next(error);
     }

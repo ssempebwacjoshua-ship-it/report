@@ -122,3 +122,60 @@ export interface NfcInventoryAllocateResponse {
   tags: NfcTag[];
   credentialCount: number;
 }
+
+export interface ReaderCredentialCapturePreview {
+  maskedCanonicalCredential: string | null;
+  maskedAliases: string[];
+  credential: string | null;
+  rawWiegandDecimal: string | null;
+  rawWiegandHex: string | null;
+  facilityCode: string | null;
+  cardNumber: string | null;
+  capturedAt: string;
+  readerId: string;
+  readerName: string;
+}
+
+export interface ReaderCredentialCaptureSession {
+  captureId: string;
+  tagId: string;
+  studentId: string;
+  deviceId: string | null;
+  deviceLabel: string | null;
+  createdAt: string;
+  expiresAt: string;
+  confirmedAt: string | null;
+  status: "PENDING" | "CAPTURED" | "CONFIRMED" | "EXPIRED";
+  preview: ReaderCredentialCapturePreview | null;
+}
+
+export interface ReaderCredentialCaptureStartResponse extends ReaderCredentialCaptureSession {
+  tag: {
+    id: string;
+    publicCode: string;
+    label: string | null;
+    student: {
+      id: string;
+      name: string;
+      admissionNumber: string;
+    };
+  };
+}
+
+export interface ReaderCredentialLinkConfirmResponse {
+  ok: true;
+  captureId: string;
+  maskedCanonicalCredential: string | null;
+  credentialId: string;
+  tag: {
+    id: string;
+    publicCode: string;
+    physicalUid: string | null;
+    studentId: string | null;
+    student: {
+      id: string;
+      name: string;
+      admissionNumber: string;
+    } | null;
+  };
+}

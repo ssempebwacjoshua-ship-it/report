@@ -12,6 +12,9 @@ import type {
   NfcTagStatus,
   NfcUidImportResponse,
   NfcUrlBatchCreateResponse,
+  ReaderCredentialCaptureSession,
+  ReaderCredentialCaptureStartResponse,
+  ReaderCredentialLinkConfirmResponse,
 } from "../shared/types/nfcTags";
 
 export async function listNfcTags(filters: { status?: string } = {}): Promise<NfcTagListResponse> {
@@ -176,5 +179,36 @@ export async function bulkAllocateFromInventory(input: {
     body: JSON.stringify(input),
   });
   if (!res.ok) throw new Error(await parseApiError(res, "Failed to allocate tags from inventory."));
+  return res.json();
+}
+
+export async function startReaderCredentialCapture(
+  tagId: string,
+  input: { deviceId?: string | null; expiresInSeconds?: number | null } = {},
+): Promise<ReaderCredentialCaptureStartResponse> {
+  const res = await fetch(`${getApiBaseUrl()}/api/nfc/tags/${encodeURIComponent(tagId)}/link-reader-credential/capture`, {
+    method: "POST",
+    headers: makeSchoolRequestHeaders({ "Content-Type": "application/json" }),
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) throw new Error(await parseApiError(res, "Failed to start reader credential capture."));
+  return res.json();
+}
+
+export async function getReaderCredentialCapture(captureId: string): Promise<ReaderCredentialCaptureSession> {
+  const res = await fetch(`${getApiBaseUrl()}/api/nfc/tags/reader-credential-captures/${encodeURIComponent(captureId)}`, {
+    headers: makeSchoolRequestHeaders(),
+  });
+  if (!res.ok) throw new Error(await parseApiError(res, "Failed to load reader credential capture."));
+  return res.json();
+}
+
+export async function confirmReaderCredentialCapture(captureId: string): Promise<ReaderCredentialLinkConfirmResponse> {
+  const res = await fetch(`${getApiBaseUrl()}/api/nfc/tags/reader-credential-captures/${encodeURIComponent(captureId)}/confirm`, {
+    method: "POST",
+    headers: makeSchoolRequestHeaders({ "Content-Type": "application/json" }),
+    body: JSON.stringify({}),
+  });
+  if (!res.ok) throw new Error(await parseApiError(res, "Failed to confirm reader credential link."));
   return res.json();
 }
