@@ -36,6 +36,7 @@ import { nfcOperationsRoutes, nfcPublicRoutes } from "./routes/nfcOperationsRout
 import { staffUsersRoutes } from "./routes/staffUsersRoutes";
 import { nfcTagsPublicRoutes, nfcTagsRoutes } from "./routes/nfcTagsRoutes";
 import { nfcOfflineRoutes } from "./routes/nfcOfflineRoutes";
+import { readerGatewayRoutes } from "./routes/readerGatewayRoutes";
 import { documentIntelligenceRoutes } from "./routes/documentIntelligenceRoutes";
 import { creatorAuthRoutes } from "./routes/creatorAuthRoutes";
 import { collectionRoutes } from "./routes/collectionRoutes";
@@ -80,6 +81,7 @@ function isPublicTokenPath(pathname: string) {
     || pathname.startsWith("/api/p/")
     || pathname.startsWith("/api/nfc/t/")
     || pathname.startsWith("/api/nfc/resolve/")
+    || pathname.startsWith("/api/readers/")
     || /^\/api\/smart-documents\/p\/[^/]+/.test(pathname);
 }
 
@@ -202,6 +204,7 @@ export function createServer() {
   app.use(studentsPublicRoutes());
   app.use(nfcPublicRoutes());
   app.use(nfcTagsPublicRoutes());
+  app.use(readerGatewayRoutes());
 
   // Document Intelligence Engine ? creator auth accepts both school JWTs and external creator JWTs
   app.use("/api/creator", creatorAuthRoutes());
