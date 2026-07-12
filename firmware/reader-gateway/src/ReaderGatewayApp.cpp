@@ -3,8 +3,11 @@
 #include <ArduinoJson.h>
 #include <HTTPClient.h>
 #include <LittleFS.h>
+#include <Preferences.h>
+#include <Ticker.h>
 #include <Update.h>
 #include <WiFi.h>
+#include <WiFiManager.h>
 #include <esp_ota_ops.h>
 #include <mbedtls/base64.h>
 #include <mbedtls/pk.h>
@@ -15,8 +18,25 @@
 namespace {
 constexpr const char* FACTORY_RESET_FLAG_PATH = "/reader-gateway/factory-reset.once";
 constexpr const char* PENDING_OTA_STATE_PATH = "/reader-gateway/ota-pending.json";
+constexpr const char* PROVISIONING_NAMESPACE = "rg-setup";
+constexpr const char* PROVISIONING_WIFI_SSID_KEY = "wifiSsid";
+constexpr const char* PROVISIONING_WIFI_PASSWORD_KEY = "wifiPass";
+constexpr const char* PROVISIONING_SCHOOL_CODE_KEY = "schoolCode";
+constexpr const char* PROVISIONING_CONTROLLER_NAME_KEY = "controller";
+constexpr const char* PROVISIONING_SETUP_REQUIRED_KEY = "setupReq";
+constexpr const char* SETUP_PORTAL_PASSWORD = "ssamenj123";
 constexpr unsigned long HEARTBEAT_INTERVAL_MS = 60000;
+constexpr unsigned long SETUP_PORTAL_REOPEN_DELAY_MS = 2UL * 60UL * 1000UL;
+constexpr unsigned long FACTORY_RESET_HOLD_MS = 10000;
 constexpr unsigned long MAX_RETRY_INTERVAL_MS = 5UL * 60UL * 1000UL;
+#ifdef LED_BUILTIN
+constexpr int SETUP_LED_PIN = LED_BUILTIN;
+#else
+constexpr int SETUP_LED_PIN = 2;
+#endif
+constexpr uint8_t SETUP_LED_ACTIVE_LEVEL = HIGH;
+constexpr uint8_t SETUP_LED_IDLE_LEVEL = LOW;
+constexpr int FACTORY_RESET_BUTTON_PIN = 0;
 
 String joinPath(const String& base, const String& path) {
   if (base.endsWith("/") && path.startsWith("/")) {
@@ -174,6 +194,244 @@ void ReaderGatewayApp::clearPendingOtaManifest() const {
   if (LittleFS.exists(PENDING_OTA_STATE_PATH)) {
     LittleFS.remove(PENDING_OTA_STATE_PATH);
   }
+}
+
+bool ReaderGatewayApp::beginProvisioningStorage() {
+  if (provisioningStorageReady_) {
+    return true;
+  }
+  provisioningStorageReady_ = provisioningPreferences_.begin(PROVISIONING_NAMESPACE, false);
+  if (!provisioningStorageReady_) {
+    Serial.println("Provisioning storage init failed");
+  }
+  return provisioningStorageReady_;
+}
+
+void ReaderGatewayApp::loadProvisioningState() {
+  provisionedWifiSsid_ = "";
+  provisionedWifiPassword_ = "";
+  provisionedSchoolCode_ = "";
+  provisionedControllerName_ = "";
+  setupRequired_ = false;
+
+  if (!beginProvisioningStorage()) {
+    return;
+  }
+
+  provisionedWifiSsid_ = provisioningPreferences_.getString(PROVISIONING_WIFI_SSID_KEY, "");
+  provisionedWifiPassword_ = provisioningPreferences_.getString(PROVISIONING_WIFI_PASSWORD_KEY, "");
+  provisionedSchoolCode_ = provisioningPreferences_.getString(PROVISIONING_SCHOOL_CODE_KEY, "");
+  provisionedControllerName_ = provisioningPreferences_.getString(PROVISIONING_CONTROLLER_NAME_KEY, "");
+  setupRequired_ = provisioningPreferences_.getBool(PROVISIONING_SETUP_REQUIRED_KEY, false);
+  provisionedWifiSsid_.trim();
+  provisionedWifiPassword_.trim();
+  provisionedSchoolCode_.trim();
+  provisionedControllerName_.trim();
+}
+
+void ReaderGatewayApp::applyProvisioningOverrides() {
+  config_.firmwareVersion = SSAMENJ_GATEWAY_VERSION;
+
+  const String wifiSsid = configuredWifiSsid();
+  const String wifiPassword = configuredWifiPassword();
+  if (!wifiSsid.isEmpty()) {
+    config_.wifiSsid = wifiSsid;
+    config_.wifiPassword = wifiPassword;
+  }
+
+  if (!provisionedControllerName_.isEmpty()) {
+    config_.deviceId = provisionedControllerName_;
+    config_.readerId = provisionedControllerName_;
+  }
+}
+
+bool ReaderGatewayApp::hasStoredWifiCredentials() const {
+  if (setupRequired_) {
+    return false;
+  }
+  return !configuredWifiSsid().isEmpty();
+}
+
+String ReaderGatewayApp::configuredWifiSsid() const {
+  return !provisionedWifiSsid_.isEmpty() ? provisionedWifiSsid_ : config_.wifiSsid;
+}
+
+String ReaderGatewayApp::configuredWifiPassword() const {
+  if (!provisionedWifiSsid_.isEmpty()) {
+    return provisionedWifiPassword_;
+  }
+  return config_.wifiPassword;
+}
+
+String ReaderGatewayApp::setupAccessPointSsid() const {
+  const uint64_t chipId = ESP.getEfuseMac();
+  char buffer[24];
+  snprintf(buffer, sizeof(buffer), "SSAMENJ-Setup-%04llX", static_cast<unsigned long long>(chipId & 0xFFFFULL));
+  return String(buffer);
+}
+
+void ReaderGatewayApp::toggleSetupLed() {
+  setupLedState_ = !setupLedState_;
+  digitalWrite(SETUP_LED_PIN, setupLedState_ ? SETUP_LED_ACTIVE_LEVEL : SETUP_LED_IDLE_LEVEL);
+}
+
+void ReaderGatewayApp::toggleSetupLedTick(ReaderGatewayApp* app) {
+  if (app != nullptr) {
+    app->toggleSetupLed();
+  }
+}
+
+void ReaderGatewayApp::startSetupLedBlink() {
+  pinMode(SETUP_LED_PIN, OUTPUT);
+  setupLedState_ = false;
+  digitalWrite(SETUP_LED_PIN, SETUP_LED_IDLE_LEVEL);
+  setupLedTicker_.detach();
+  setupLedTicker_.attach_ms(500, &ReaderGatewayApp::toggleSetupLedTick, this);
+}
+
+void ReaderGatewayApp::stopSetupLedBlink() {
+  setupLedTicker_.detach();
+  setupLedState_ = false;
+  pinMode(SETUP_LED_PIN, OUTPUT);
+  digitalWrite(SETUP_LED_PIN, SETUP_LED_IDLE_LEVEL);
+}
+
+bool ReaderGatewayApp::openSetupPortal(const char* reason) {
+  if (!beginProvisioningStorage()) {
+    return false;
+  }
+
+  WiFi.mode(WIFI_AP_STA);
+  WiFi.setAutoReconnect(true);
+
+  String schoolCodeValue = provisionedSchoolCode_;
+  if (schoolCodeValue.isEmpty()) {
+    schoolCodeValue = config_.schoolId;
+  }
+  String controllerNameValue = provisionedControllerName_;
+  if (controllerNameValue.isEmpty()) {
+    controllerNameValue = config_.deviceId;
+  }
+
+  char schoolCodeBuffer[65];
+  char controllerNameBuffer[65];
+  schoolCodeValue.toCharArray(schoolCodeBuffer, sizeof(schoolCodeBuffer));
+  controllerNameValue.toCharArray(controllerNameBuffer, sizeof(controllerNameBuffer));
+
+  WiFiManager manager;
+  WiFiManagerParameter schoolCodeParam("schoolCode", "School Code (optional)", schoolCodeBuffer, sizeof(schoolCodeBuffer));
+  WiFiManagerParameter controllerNameParam("controllerName", "Controller Name", controllerNameBuffer, sizeof(controllerNameBuffer));
+
+  manager.setTitle("SSAMENJ Attendance Controller");
+  manager.setCaptivePortalEnable(true);
+  manager.setConnectTimeout(30);
+  manager.addParameter(&schoolCodeParam);
+  manager.addParameter(&controllerNameParam);
+
+  const String apSsid = setupAccessPointSsid();
+  Serial.printf("Opening setup portal: %s\n", reason == nullptr ? "manual" : reason);
+  Serial.printf("Setup portal SSID: %s\n", apSsid.c_str());
+  Serial.println("Setup portal fallback URL: http://192.168.4.1");
+
+  startSetupLedBlink();
+  const bool connected = manager.startConfigPortal(apSsid.c_str(), SETUP_PORTAL_PASSWORD);
+  stopSetupLedBlink();
+
+  provisionedSchoolCode_ = String(schoolCodeParam.getValue());
+  provisionedSchoolCode_.trim();
+  provisionedControllerName_ = String(controllerNameParam.getValue());
+  provisionedControllerName_.trim();
+
+  const String configuredSsid = manager.getWiFiSSID();
+  const String configuredPassword = manager.getWiFiPass();
+  if (!configuredSsid.isEmpty()) {
+    provisionedWifiSsid_ = configuredSsid;
+    provisionedWifiPassword_ = configuredPassword;
+    provisioningPreferences_.putString(PROVISIONING_WIFI_SSID_KEY, provisionedWifiSsid_);
+    provisioningPreferences_.putString(PROVISIONING_WIFI_PASSWORD_KEY, provisionedWifiPassword_);
+  }
+  setupRequired_ = false;
+  provisioningPreferences_.putBool(PROVISIONING_SETUP_REQUIRED_KEY, false);
+  provisioningPreferences_.putString(PROVISIONING_SCHOOL_CODE_KEY, provisionedSchoolCode_);
+  provisioningPreferences_.putString(PROVISIONING_CONTROLLER_NAME_KEY, provisionedControllerName_);
+
+  applyProvisioningOverrides();
+  wifiDisconnectedSinceMs_ = 0;
+  lastWifiAttemptMs_ = millis();
+
+  if (!connected) {
+    Serial.println("Setup portal closed without a successful Wi-Fi connection");
+    return false;
+  }
+
+  Serial.printf("Provisioned Wi-Fi SSID: %s\n", provisionedWifiSsid_.c_str());
+  if (!provisionedSchoolCode_.isEmpty()) {
+    Serial.printf("Provisioned school code: %s\n", provisionedSchoolCode_.c_str());
+  }
+  if (!provisionedControllerName_.isEmpty()) {
+    Serial.printf("Provisioned controller name: %s\n", provisionedControllerName_.c_str());
+  }
+  Serial.printf("Provisioned IP: %s\n", WiFi.localIP().toString().c_str());
+  WiFi.softAPdisconnect(true);
+  WiFi.mode(WIFI_STA);
+  return true;
+}
+
+void ReaderGatewayApp::clearStoredWifiCredentials() {
+  if (!beginProvisioningStorage()) {
+    return;
+  }
+
+  provisioningPreferences_.remove(PROVISIONING_WIFI_SSID_KEY);
+  provisioningPreferences_.remove(PROVISIONING_WIFI_PASSWORD_KEY);
+  provisioningPreferences_.putBool(PROVISIONING_SETUP_REQUIRED_KEY, true);
+  provisionedWifiSsid_ = "";
+  provisionedWifiPassword_ = "";
+  setupRequired_ = true;
+  WiFi.disconnect(true, true);
+  WiFi.mode(WIFI_STA);
+  wifiDisconnectedSinceMs_ = 0;
+  lastWifiAttemptMs_ = 0;
+}
+
+void ReaderGatewayApp::updateOfflinePortalFallback() {
+  if (!hasStoredWifiCredentials() || WiFi.status() == WL_CONNECTED) {
+    wifiDisconnectedSinceMs_ = 0;
+    return;
+  }
+
+  if (wifiDisconnectedSinceMs_ == 0) {
+    wifiDisconnectedSinceMs_ = millis();
+    return;
+  }
+
+  if (millis() - wifiDisconnectedSinceMs_ < SETUP_PORTAL_REOPEN_DELAY_MS) {
+    return;
+  }
+
+  openSetupPortal("Wi-Fi unavailable for 2 minutes; reopening setup portal");
+}
+
+void ReaderGatewayApp::handleFactoryResetButton() {
+  const bool pressed = digitalRead(FACTORY_RESET_BUTTON_PIN) == LOW;
+  if (!pressed) {
+    bootButtonPressedAtMs_ = 0;
+    return;
+  }
+
+  if (bootButtonPressedAtMs_ == 0) {
+    bootButtonPressedAtMs_ = millis();
+    return;
+  }
+
+  if (millis() - bootButtonPressedAtMs_ < FACTORY_RESET_HOLD_MS) {
+    return;
+  }
+
+  Serial.println("Factory reset button held for 10 seconds; clearing saved Wi-Fi");
+  bootButtonPressedAtMs_ = 0;
+  clearStoredWifiCredentials();
+  openSetupPortal("Factory reset requested");
 }
 
 bool ReaderGatewayApp::consumeFactoryResetFlag() {
@@ -563,6 +821,9 @@ bool ReaderGatewayApp::begin() {
   Serial.begin(115200);
   delay(200);
   Serial.println("Reader Ready");
+  pinMode(FACTORY_RESET_BUTTON_PIN, INPUT_PULLUP);
+  pinMode(SETUP_LED_PIN, OUTPUT);
+  digitalWrite(SETUP_LED_PIN, SETUP_LED_IDLE_LEVEL);
 
   if (!configManager_.begin()) {
     Serial.println("Config storage init failed");
@@ -576,23 +837,31 @@ bool ReaderGatewayApp::begin() {
 
   config_ = ConfigManager::defaults();
   const bool configLoaded = configManager_.load(config_);
+  loadProvisioningState();
+  applyProvisioningOverrides();
   Serial.println(configLoaded ? "Config load complete" : "Config load failed; using defaults");
-  config_.firmwareVersion = SSAMENJ_GATEWAY_VERSION;
   Serial.printf("Loaded readerId: %s\n", config_.readerId.c_str());
   Serial.printf("Loaded schoolId: %s\n", config_.schoolId.c_str());
   Serial.printf("Loaded apiBaseUrl: %s\n", config_.apiBaseUrl.c_str());
   Serial.printf("Loaded firmwareChannel: %s\n", config_.firmwareChannel.c_str());
   Serial.printf("Loaded otaPublicKeyId: %s\n", config_.otaPublicKeyId.isEmpty() ? "(blank)" : config_.otaPublicKeyId.c_str());
   Serial.printf("OTA public key configured: %s\n", config_.otaPublicKeyPem.isEmpty() ? "no" : "yes");
-  Serial.printf("Wi-Fi SSID configured: %s\n", config_.wifiSsid.c_str());
+  Serial.printf("Wi-Fi SSID configured: %s\n", configuredWifiSsid().c_str());
   Serial.printf("Configured D0 pin: %d\n", static_cast<int>(config_.d0Pin));
   Serial.printf("Configured D1 pin: %d\n", static_cast<int>(config_.d1Pin));
+  if (!provisionedSchoolCode_.isEmpty()) {
+    Serial.printf("Provisioned school code: %s\n", provisionedSchoolCode_.c_str());
+  }
 
   checkRollbackState();
   feedback_.begin(config_);
   gatewayClient_.begin(config_);
   deviceRegistration_.begin(&gatewayClient_, &config_);
   wiegand_.begin(config_.d0Pin, config_.d1Pin, config_.wiegandTimeoutMs);
+
+  if (!hasStoredWifiCredentials()) {
+    openSetupPortal("No saved Wi-Fi credentials were found");
+  }
 
   ensureWiFi();
   if (WiFi.status() == WL_CONNECTED) {
@@ -607,7 +876,7 @@ bool ReaderGatewayApp::begin() {
 }
 
 void ReaderGatewayApp::ensureWiFi() {
-  if (config_.wifiSsid.isEmpty()) {
+  if (!hasStoredWifiCredentials()) {
     return;
   }
 
@@ -624,9 +893,9 @@ void ReaderGatewayApp::ensureWiFi() {
   lastWifiAttemptMs_ = now;
 
   Serial.printf("Wi-Fi state: %s (%d)\n", wifiStatusToString(WiFi.status()), static_cast<int>(WiFi.status()));
-  Serial.printf("Connecting to SSID: %s\n", config_.wifiSsid.c_str());
+  Serial.printf("Connecting to SSID: %s\n", configuredWifiSsid().c_str());
   WiFi.disconnect(true);
-  WiFi.begin(config_.wifiSsid.c_str(), config_.wifiPassword.c_str());
+  WiFi.begin(configuredWifiSsid().c_str(), configuredWifiPassword().c_str());
 }
 
 void ReaderGatewayApp::syncClock() {
@@ -827,7 +1096,9 @@ void ReaderGatewayApp::processOfflineQueue() {
 
 void ReaderGatewayApp::loop() {
   feedback_.loop();
+  handleFactoryResetButton();
   ensureWiFi();
+  updateOfflinePortalFallback();
 
   if (WiFi.status() == WL_CONNECTED) {
     if (!wifiConnectedLogged_) {

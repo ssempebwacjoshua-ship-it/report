@@ -112,38 +112,32 @@ The device loads JSON from LittleFS at:
 
 First-time provisioning workflow:
 
-1. Copy the committed example to the live LittleFS config path:
+1. Flash the gateway firmware and LittleFS image once. The firmware now supports first-time Wi-Fi setup from the device itself.
 
-   ```powershell
-   Copy-Item .\data\reader-gateway\config.json.example .\data\reader-gateway\config.json
-   ```
-
-2. Edit `data/reader-gateway/config.json` and fill in:
-   - `wifiSsid`
-   - `wifiPassword`
-   - `schoolId`
-   - `readerId`
-   - `apiBaseUrl`
-   - `bearerToken`
-   - optional `heartbeatPath`
-   - optional `tlsInsecure`
-   - optional `retryIntervalMs`
-   - optional `buzzerPin` and `ledPin` after electrical verification
-   - `feedbackOutputsEnabled` (safe default: `false`)
-   - `feedbackDriverActiveHigh` for the external driver input
-
-3. Upload the filesystem image to the ESP32 with PlatformIO LittleFS:
-
-   ```powershell
-   & "$env:USERPROFILE\.platformio\penv\Scripts\platformio.exe" run --target uploadfs --upload-port COM6
-   ```
-
-4. Reboot the reader. On boot, the serial monitor should move from `Queued Offline` to:
+2. On first boot, when no Wi-Fi credentials are stored in NVS, the ESP32 opens a captive portal:
 
    ```text
-   Wi-Fi Connected
-   Upload Success
+   SSID: SSAMENJ-Setup-<last4ChipID>
+   Password: ssamenj123
+   URL fallback: http://192.168.4.1
    ```
+
+3. The setup page lets the installer:
+   - choose a nearby school Wi-Fi network;
+   - enter the Wi-Fi password;
+   - optionally store a school code for operator reference;
+   - set the controller name (default: `attendance-gate-01`).
+
+4. On save, the firmware stores Wi-Fi and local setup metadata in ESP32 NVS/Preferences, connects to Wi-Fi, stops AP mode, and resumes the normal School Connect registration, heartbeat, offline queue replay, and attendance loop.
+
+5. On every reboot, the gateway first tries the stored Wi-Fi credentials. If Wi-Fi stays unavailable for 2 minutes, it automatically reopens the setup portal so the installer can update the network without USB access.
+
+6. Factory reset Wi-Fi by holding the ESP32 BOOT button for 10 seconds. This clears only the stored Wi-Fi credentials and reopens the setup portal.
+
+Important:
+
+- The secure attendance token and school-bound runtime API configuration still remain part of the deployed reader configuration; this change removes manual Wi-Fi editing, but it does not create a new unauthenticated backend token bootstrap path.
+- Existing LittleFS `wifiSsid` and `wifiPassword` values remain as a fallback for previously provisioned devices until NVS credentials are saved.
 
 Example configuration:
 
