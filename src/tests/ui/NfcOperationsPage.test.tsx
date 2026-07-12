@@ -5,6 +5,7 @@ import { NfcOperationsPage } from "../../pages/NfcOperationsPage";
 import type { NfcTag } from "../../shared/types/nfcTags";
 
 const mockAssignNfcTag = vi.hoisted(() => vi.fn());
+const mockStartReaderCredentialCapture = vi.hoisted(() => vi.fn());
 const mockListNfcTags = vi.hoisted(() => vi.fn());
 const mockFetchOfflineSyncStatus = vi.hoisted(() => vi.fn());
 const mockFetchStudents = vi.hoisted(() => vi.fn());
@@ -13,6 +14,7 @@ const mockSetStudentWalletPin = vi.hoisted(() => vi.fn());
 
 vi.mock("../../client/nfcTagsClient", () => ({
   assignNfcTag: mockAssignNfcTag,
+  startReaderCredentialCapture: mockStartReaderCredentialCapture,
   confirmReaderCredentialCapture: vi.fn(),
   disableNfcTag: vi.fn(),
   enableNfcTag: vi.fn(),
@@ -20,7 +22,6 @@ vi.mock("../../client/nfcTagsClient", () => ({
   getReaderCredentialCapture: vi.fn(),
   getNfcTagEvents: vi.fn(),
   listNfcTags: mockListNfcTags,
-  startReaderCredentialCapture: vi.fn(),
   transferReaderCredentialCapture: vi.fn(),
   unassignNfcTag: vi.fn(),
 }));
@@ -191,6 +192,28 @@ beforeEach(() => {
     },
     assignedAt: "2026-07-12T08:30:00.000Z",
   });
+  mockStartReaderCredentialCapture.mockResolvedValue({
+    captureId: "capture-1",
+    tagId: "tag-1",
+    studentId: "student-1",
+    deviceId: "device-1",
+    deviceLabel: "Main Entrance Reader",
+    createdAt: "2026-07-12T08:30:00.000Z",
+    expiresAt: "2026-07-12T08:35:00.000Z",
+    confirmedAt: null,
+    status: "PENDING",
+    preview: null,
+    tag: {
+      id: "tag-1",
+      publicCode: "PUBLICCODE-ASSIGNED-001",
+      label: "Tag 48048b9f",
+      student: {
+        id: "student-1",
+        name: "Claire Nakibuuka With A Very Long Display Name For Layout",
+        admissionNumber: "SCU-S1A-018",
+      },
+    },
+  });
 });
 
 function renderPage() {
@@ -313,5 +336,37 @@ describe("NfcOperationsPage wristband grid layout", () => {
     await waitFor(() => expect(mockAssignNfcTag).toHaveBeenCalledWith("tag-2", "student-2"));
     expect(screen.getByText("Tag assigned successfully")).toBeInTheDocument();
     expect(screen.getByText("Student: Mike Ssempebwa")).toBeInTheDocument();
+  });
+
+  it("opens the link reader modal from the link reader button", async () => {
+    mockFetchOfflineSyncStatus.mockResolvedValueOnce({
+      providerReachable: true,
+      lastSyncAt: "2026-07-12T08:00:00.000Z",
+      pendingCount: 0,
+      stale: false,
+      devices: [
+        {
+          id: "device-1",
+          name: "Attendance Gate 01",
+          deviceKey: "attendance-gate-01",
+          location: "Main Entrance",
+          locationName: "Main Entrance",
+          mode: "ATTENDANCE",
+          status: "ACTIVE",
+          isActive: true,
+          lastSeenAt: "2026-07-12T08:00:00.000Z",
+        },
+      ],
+    });
+
+    renderPage();
+
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Wristbands" })).toBeInTheDocument());
+
+    fireEvent.click(screen.getAllByRole("button", { name: /Link reader/i })[0]);
+
+    expect(await screen.findByText("Link reader credential")).toBeInTheDocument();
+    expect(screen.getByText(/Preserve the written/)).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: /Main Entrance/ })).toBeInTheDocument();
   });
 });

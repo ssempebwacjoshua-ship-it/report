@@ -767,6 +767,119 @@ export function NfcOperationsPage() {
     }
   }
 
+  function openLinkReaderModal(tag: NfcTag) {
+    if (!tag.student) {
+      return;
+    }
+
+    setLinkReaderTarget({
+      id: tag.id,
+      publicCode: tag.publicCode,
+      label: tag.label,
+      physicalUid: tag.physicalUid,
+      student: tag.student,
+    });
+    setLinkReaderCapture(null);
+    setLinkReaderLoading(false);
+    setLinkReaderConfirming(false);
+    setLinkReaderTransferring(false);
+    setLinkReaderError(null);
+    setLinkReaderSuccess(null);
+    setLinkReaderConflict(null);
+    setLinkReaderTransferReason("");
+  }
+
+  function closeLinkReaderModal() {
+    setLinkReaderTarget(null);
+    setLinkReaderCapture(null);
+    setLinkReaderLoading(false);
+    setLinkReaderConfirming(false);
+    setLinkReaderTransferring(false);
+    setLinkReaderError(null);
+    setLinkReaderSuccess(null);
+    setLinkReaderConflict(null);
+    setLinkReaderTransferReason("");
+  }
+
+  async function handleStartReaderLinkCapture() {
+    if (!linkReaderTarget) {
+      return;
+    }
+
+    setLinkReaderLoading(true);
+    setLinkReaderError(null);
+    setLinkReaderSuccess(null);
+    setLinkReaderConflict(null);
+
+    try {
+      const capture = await startReaderCredentialCapture(linkReaderTarget.id, {
+        deviceId: linkReaderDeviceId || null,
+      });
+      setLinkReaderCapture(capture);
+    } catch (caught) {
+      setLinkReaderError(caught instanceof Error ? caught.message : "Failed to start reader credential capture.");
+    } finally {
+      setLinkReaderLoading(false);
+    }
+  }
+
+  async function handleConfirmReaderLink() {
+    if (!linkReaderCapture) {
+      return;
+    }
+
+    setLinkReaderConfirming(true);
+    setLinkReaderError(null);
+    setLinkReaderSuccess(null);
+    setLinkReaderConflict(null);
+
+    try {
+      const response = await confirmReaderCredentialCapture(linkReaderCapture.captureId);
+      setTags((current) => current.map((tag) => (tag.id === response.tag.id ? { ...tag, physicalUid: response.tag.physicalUid, studentId: response.tag.studentId, student: response.tag.student } : tag)));
+      setLinkReaderCapture((current) => current ? { ...current, status: "CONFIRMED" } : current);
+      setLinkReaderSuccess("Reader credential linked successfully.");
+      setLinkReaderTarget((current) => current ? { ...current, physicalUid: response.tag.physicalUid } : current);
+    } catch (caught) {
+      const maybeConflict = (caught as Error & { data?: ReaderCredentialConflictResponse }).data;
+      if (maybeConflict?.code === "READER_CREDENTIAL_CONFLICT") {
+        setLinkReaderConflict(maybeConflict.conflict);
+        setLinkReaderError(maybeConflict.message);
+      } else {
+        setLinkReaderError(caught instanceof Error ? caught.message : "Failed to confirm reader credential link.");
+      }
+    } finally {
+      setLinkReaderConfirming(false);
+    }
+  }
+
+  async function handleTransferReaderLink() {
+    if (!linkReaderCapture || !linkReaderConflict?.canTransfer) {
+      return;
+    }
+
+    if (!linkReaderTransferReason.trim()) {
+      setLinkReaderError("Transfer reason is required.");
+      return;
+    }
+
+    setLinkReaderTransferring(true);
+    setLinkReaderError(null);
+    setLinkReaderSuccess(null);
+
+    try {
+      const response = await transferReaderCredentialCapture(linkReaderCapture.captureId, linkReaderTransferReason.trim());
+      setTags((current) => current.map((tag) => (tag.id === response.tag.id ? { ...tag, physicalUid: response.tag.physicalUid, studentId: response.tag.studentId, student: response.tag.student } : tag)));
+      setLinkReaderCapture((current) => current ? { ...current, status: "CONFIRMED" } : current);
+      setLinkReaderConflict(null);
+      setLinkReaderSuccess("Reader credential transferred and linked successfully.");
+      setLinkReaderTarget((current) => current ? { ...current, physicalUid: response.tag.physicalUid } : current);
+    } catch (caught) {
+      setLinkReaderError(caught instanceof Error ? caught.message : "Failed to transfer reader credential.");
+    } finally {
+      setLinkReaderTransferring(false);
+    }
+  }
+
   function makeActions(tag: NfcTag): TagActions {
     return {
       onCopyPayload: () => handleCopyPayload(tag),
