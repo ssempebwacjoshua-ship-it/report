@@ -29,8 +29,8 @@ struct ReaderGatewayConfig {
   uint32_t wiegandTimeoutMs = 30;
   uint32_t timeSyncTimeoutMs = 5000;
 
-  int8_t d0Pin = 4;
-  int8_t d1Pin = 5;
+  int8_t d0Pin = 18;
+  int8_t d1Pin = 19;
   int8_t buzzerPin = -1;
   int8_t ledPin = -1;
 

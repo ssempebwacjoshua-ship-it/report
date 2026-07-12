@@ -42,8 +42,8 @@ ReaderGatewayConfig ConfigManager::defaults() {
   config.wifiReconnectIntervalMs = 15000;
   config.wiegandTimeoutMs = 30;
   config.timeSyncTimeoutMs = 5000;
-  config.d0Pin = 4;
-  config.d1Pin = 5;
+  config.d0Pin = 18;
+  config.d1Pin = 19;
   config.buzzerPin = -1;
   config.ledPin = -1;
   config.tlsInsecure = true;

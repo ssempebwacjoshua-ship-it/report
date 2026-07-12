@@ -5,6 +5,7 @@
 
 namespace {
 const char* kQueueRewriteTempPath = "/reader-gateway/queue.tmp";
+const char* kQueueBackupPath = "/reader-gateway/queue.bak";
 
 bool replaceFileAtomically(const char* tempPath, const String& finalPath) {
   if (LittleFS.exists(finalPath)) {
@@ -158,6 +159,18 @@ bool OfflineQueue::updateFront(const ReaderScanEvent& event) {
   }
   events.front() = event;
   return rewriteAll(events);
+}
+
+bool OfflineQueue::clear() {
+  std::vector<ReaderScanEvent> empty;
+  const bool rewritten = rewriteAll(empty);
+  if (LittleFS.exists(kQueueRewriteTempPath)) {
+    LittleFS.remove(kQueueRewriteTempPath);
+  }
+  if (LittleFS.exists(kQueueBackupPath)) {
+    LittleFS.remove(kQueueBackupPath);
+  }
+  return rewritten;
 }
 
 size_t OfflineQueue::size() {

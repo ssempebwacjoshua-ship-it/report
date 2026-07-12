@@ -34,8 +34,8 @@ Use the reader datasheet as the final authority. Typical wiring:
 
 | Reader | ESP32 |
 | --- | --- |
-| D0 | GPIO 4 |
-| D1 | GPIO 5 |
+| D0 | GPIO 18 |
+| D1 | GPIO 19 |
 | GND | GND |
 | VCC | 5V or reader-rated supply |
 
@@ -49,8 +49,8 @@ For the current EL-SR10C installation, the verified data wiring remains:
 
 | EL-SR10C wire | Connection |
 | --- | --- |
-| Green (D0) | ESP32 GPIO 4 |
-| White (D1) | ESP32 GPIO 5 |
+| Green (D0) | ESP32 GPIO 18 |
+| White (D1) | ESP32 GPIO 19 |
 | Black (GND) | Reader supply negative and ESP32 GND |
 
 ## EL-SR10C buzzer and LED safety
@@ -226,6 +226,7 @@ Content-Type: application/json
 
 ## Notes
 
-- Offline events are stored in LittleFS and retried oldest-first.
+- Offline events are stored in LittleFS at `/reader-gateway/queue.ndjson` and retried oldest-first.
+- Invalid zero-value Wiegand frames are dropped locally and never queued.
 - The firmware does not decide attendance, wallet, library, or hostel rules.
 - All business logic stays on School Connect.

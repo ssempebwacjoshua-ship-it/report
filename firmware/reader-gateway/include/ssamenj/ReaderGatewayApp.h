@@ -15,6 +15,9 @@ class ReaderGatewayApp {
   void loop();
 
  private:
+  bool consumeFactoryResetFlag();
+  bool isValidScanEvent(const ReaderScanEvent& event, const char*& reason) const;
+  unsigned long retryDelayFor(const ReaderScanEvent& event) const;
   void ensureWiFi();
   void syncClock();
   void ensureOta();

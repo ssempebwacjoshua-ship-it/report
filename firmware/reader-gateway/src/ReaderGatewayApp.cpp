@@ -6,6 +6,8 @@
 #include <time.h>
 
 namespace {
+constexpr const char* FACTORY_RESET_FLAG_PATH = "/reader-gateway/factory-reset.once";
+
 const char* wifiStatusToString(wl_status_t status) {
   switch (status) {
     case WL_IDLE_STATUS:
@@ -56,7 +58,77 @@ bool isTerminalApiResponse(const ReaderApiResponse& response) {
 }
 
 constexpr unsigned long HEARTBEAT_INTERVAL_MS = 60000;
+constexpr unsigned long MAX_RETRY_INTERVAL_MS = 5UL * 60UL * 1000UL;
+
+bool isZeroValue(const String& value) {
+  return value.length() > 0 && value.equals("0");
+}
 }  // namespace
+
+bool ReaderGatewayApp::consumeFactoryResetFlag() {
+  if (!LittleFS.exists(FACTORY_RESET_FLAG_PATH)) {
+    return false;
+  }
+
+  Serial.println("Factory reset flag detected");
+  const bool queueCleared = offlineQueue_.clear();
+  wiegand_.reset();
+  lastQueueAttemptMs_ = 0;
+  lastHeartbeatMs_ = 0;
+  lastSuccessfulApiContactAt_ = "";
+  const bool flagRemoved = LittleFS.remove(FACTORY_RESET_FLAG_PATH);
+  Serial.printf("Factory reset queue cleared: %s\n", queueCleared ? "yes" : "no");
+  Serial.printf("Factory reset flag removed: %s\n", flagRemoved ? "yes" : "no");
+  return true;
+}
+
+bool ReaderGatewayApp::isValidScanEvent(const ReaderScanEvent& event, const char*& reason) const {
+  reason = nullptr;
+
+  if (event.rawWiegandBitCount == 0) {
+    reason = "no pulses received";
+    return false;
+  }
+  if (event.rawWiegandBitCount != 26 && event.rawWiegandBitCount != 34 && event.rawWiegandBitCount != 37) {
+    reason = "unsupported bit count";
+    return false;
+  }
+  if (event.rawWiegandBinary.indexOf('1') < 0) {
+    reason = "all-zero bit frame";
+    return false;
+  }
+  if (isZeroValue(event.rawWiegandDecimal)) {
+    reason = "raw wiegand decimal is zero";
+    return false;
+  }
+  if (isZeroValue(event.credential)) {
+    reason = "credential is zero";
+    return false;
+  }
+  if (isZeroValue(event.cardNumber)) {
+    reason = "card number is zero";
+    return false;
+  }
+  if (isZeroValue(event.facilityCode) && isZeroValue(event.cardNumber)) {
+    reason = "facility code and card number are both zero";
+    return false;
+  }
+  return true;
+}
+
+unsigned long ReaderGatewayApp::retryDelayFor(const ReaderScanEvent& event) const {
+  uint8_t exponent = static_cast<uint8_t>(event.retryCount > 5 ? 5 : event.retryCount);
+  unsigned long delayMs = config_.retryIntervalMs;
+  while (exponent > 0 && delayMs < MAX_RETRY_INTERVAL_MS) {
+    if (delayMs > MAX_RETRY_INTERVAL_MS / 2UL) {
+      delayMs = MAX_RETRY_INTERVAL_MS;
+      break;
+    }
+    delayMs *= 2UL;
+    exponent -= 1;
+  }
+  return delayMs > MAX_RETRY_INTERVAL_MS ? MAX_RETRY_INTERVAL_MS : delayMs;
+}
 
 bool ReaderGatewayApp::begin() {
   Serial.begin(115200);
@@ -71,6 +143,7 @@ bool ReaderGatewayApp::begin() {
     Serial.println("Offline queue init failed");
     return false;
   }
+  consumeFactoryResetFlag();
 
   config_ = ConfigManager::defaults();
   const bool configLoaded = configManager_.load(config_);
@@ -80,6 +153,8 @@ bool ReaderGatewayApp::begin() {
   Serial.printf("Loaded schoolId: %s\n", config_.schoolId.c_str());
   Serial.printf("Loaded apiBaseUrl: %s\n", config_.apiBaseUrl.c_str());
   Serial.printf("Wi-Fi SSID configured: %s\n", config_.wifiSsid.c_str());
+  Serial.printf("Configured D0 pin: %d\n", static_cast<int>(config_.d0Pin));
+  Serial.printf("Configured D1 pin: %d\n", static_cast<int>(config_.d1Pin));
 
   feedback_.begin(config_);
   gatewayClient_.begin(config_);
@@ -222,6 +297,13 @@ void ReaderGatewayApp::sendHeartbeat() {
 
 void ReaderGatewayApp::processScan(const ReaderScanEvent& scan) {
   ReaderScanEvent event = scan;
+  const char* invalidReason = nullptr;
+  if (!isValidScanEvent(event, invalidReason)) {
+    Serial.printf("Dropped scan before queue/upload: %s\n", invalidReason == nullptr ? "invalid event" : invalidReason);
+    feedback_.play(GatewayFeedbackTone::Error);
+    return;
+  }
+
   event.eventId = createEventId();
   event.deviceTime = utcIso8601Now();
   event.readerId = config_.readerId;
@@ -270,26 +352,43 @@ void ReaderGatewayApp::processOfflineQueue() {
     return;
   }
 
-  if (millis() - lastQueueAttemptMs_ < config_.retryIntervalMs) {
-    return;
-  }
-  lastQueueAttemptMs_ = millis();
-
   ReaderScanEvent event;
   while (offlineQueue_.peek(event)) {
+    const char* invalidReason = nullptr;
+    if (!isValidScanEvent(event, invalidReason)) {
+      Serial.printf("Dropped queued event: %s\n", invalidReason == nullptr ? "invalid event" : invalidReason);
+      offlineQueue_.pop();
+      yield();
+      continue;
+    }
+
+    const unsigned long retryDelayMs = retryDelayFor(event);
+    if (event.retryCount > 0 && millis() - lastQueueAttemptMs_ < retryDelayMs) {
+      return;
+    }
+    lastQueueAttemptMs_ = millis();
+
     ReaderApiResponse response;
     gatewayClient_.postScan(config_, event, response);
     if (!isTerminalApiResponse(response)) {
       event.retryCount += 1;
       event.syncStatus = "pending";
       offlineQueue_.updateFront(event);
-      Serial.println("Upload Failed");
+      Serial.printf("Upload Failed; retryCount=%lu nextRetryMs=%lu\n", static_cast<unsigned long>(event.retryCount), retryDelayFor(event));
       break;
     }
 
     offlineQueue_.pop();
+    lastQueueAttemptMs_ = 0;
     markApiContact();
-    Serial.println(response.success ? "Upload Success" : "Queued Scan Rejected");
+    if (response.success) {
+      Serial.println("Upload Success");
+    } else {
+      Serial.printf("Dropped queued event after permanent API response: status=%d action=%s message=%s\n",
+        response.statusCode,
+        response.action.c_str(),
+        response.message.c_str());
+    }
     feedback_.play(toneFromBeep(response.beep));
     yield();
   }

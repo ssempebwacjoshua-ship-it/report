@@ -14,6 +14,7 @@ class OfflineQueue {
   bool peek(ReaderScanEvent& event);
   bool pop();
   bool updateFront(const ReaderScanEvent& event);
+  bool clear();
   size_t size();
 
  private:
