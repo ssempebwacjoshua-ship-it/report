@@ -1,4 +1,5 @@
 export type NfcPermission =
+  | "nfc.attendance.operate"
   | "nfc.gate.view"
   | "nfc.gate.scan"
   | "nfc.canteen.view"
@@ -17,8 +18,8 @@ export type NfcPermission =
 export const rolePermissions: Record<string, string[]> = {
   ADMIN_OPERATOR: ["*"],
   TEACHER: [],
-  SECURITY: ["nfc.gate.view", "nfc.gate.scan"],
-  GATE_SECURITY: ["nfc.gate.view", "nfc.gate.scan"],
+  SECURITY: ["nfc.attendance.operate", "nfc.gate.view", "nfc.gate.scan"],
+  GATE_SECURITY: ["nfc.attendance.operate", "nfc.gate.view", "nfc.gate.scan"],
   CANTEEN: ["nfc.canteen.view", "nfc.canteen.charge", "nfc.canteen.transactions.view", "nfc.canteen.reconciliation.view", "nfc.canteen.reconciliation.submit"],
   CASHIER: ["nfc.canteen.view", "nfc.canteen.charge", "nfc.canteen.transactions.view", "nfc.wallets.topup", "nfc.fee-holds.manage", "nfc.canteen.reconciliation.view", "nfc.canteen.reconciliation.submit"],
 };
@@ -27,6 +28,16 @@ export function hasPermission(role: string | null | undefined, permission: strin
   if (!role) return false;
   const permissions = rolePermissions[role] ?? [];
   return permissions.includes("*") || permissions.includes(permission);
+}
+
+export function hasExplicitPermission(role: string | null | undefined, permission: string): boolean {
+  if (!role) return false;
+  const permissions = rolePermissions[role] ?? [];
+  return permissions.includes(permission);
+}
+
+export function canOperateAttendance(role: string | null | undefined): boolean {
+  return hasExplicitPermission(role, "nfc.attendance.operate");
 }
 
 export const ROLE_LABELS: Record<string, string> = {

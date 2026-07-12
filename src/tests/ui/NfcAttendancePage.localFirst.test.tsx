@@ -9,6 +9,9 @@ const mockScanNfcAttendance = vi.hoisted(() => vi.fn());
 const mockGetNextAttendanceDirection = vi.hoisted(() => vi.fn(async () => "TAP_IN"));
 const mockHasRecentAttendancePunch = vi.hoisted(() => vi.fn(async () => false));
 const mockTriggerSync = vi.hoisted(() => vi.fn(async () => undefined));
+const authState = vi.hoisted(() => ({
+  role: "GATE_SECURITY",
+}));
 
 function setNavigatorOnline(value: boolean) {
   Object.defineProperty(navigator, "onLine", { configurable: true, value });
@@ -16,7 +19,7 @@ function setNavigatorOnline(value: boolean) {
 
 vi.mock("../../contexts/AuthContext", () => ({
   useAuth: () => ({
-    user: { id: "user-1", schoolId: "school-a", name: "Attendance User", role: "ADMIN_OPERATOR" },
+    user: { id: "user-1", schoolId: "school-a", name: "Attendance User", role: authState.role },
   }),
 }));
 
@@ -82,6 +85,7 @@ vi.mock("../../offline/offlineHash", () => ({
 describe("NfcAttendancePage local-first", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    authState.role = "GATE_SECURITY";
     setNavigatorOnline(true);
     mockResolveOfflineNfcScan.mockResolvedValue({
       found: true,

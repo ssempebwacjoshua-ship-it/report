@@ -27,6 +27,7 @@ import { resolveOfflineNfcScan } from "../offline/offlineResolver";
 import { getNextAttendanceDirection, getSnapshotMeta, hasRecentAttendancePunch, queueAttendanceEvent } from "../offline/offlineStore";
 import { hashNfcLookupValue } from "../offline/offlineHash";
 import { getSnapshotValidity } from "../offline/offlineStatus";
+import { canOperateAttendance } from "../shared/permissions";
 import { normalizeNfcScanValue } from "../shared/utils/nfcPayload";
 import type { AttendanceDirection } from "../shared/types/studentCredentials";
 
@@ -500,6 +501,7 @@ function offlineReasonMessage(reason?: string) {
 export function NfcAttendancePage() {
   const [params] = useSearchParams();
   const { user } = useAuth();
+  const attendanceOperator = canOperateAttendance(user?.role);
   const { settings } = useAppSettings() ?? {};
   const schoolBranding = getSchoolBranding(settings?.sections.school, "School Connect");
   const deviceId = useRef(getDeviceId()).current;
@@ -949,82 +951,89 @@ export function NfcAttendancePage() {
         </section>
       ) : null}
 
-      <div className="grid gap-5 lg:grid-cols-[380px_minmax(0,1fr)]">
+      <div
+        data-testid="attendance-main-layout"
+        className={attendanceOperator ? "grid gap-5 lg:grid-cols-[380px_minmax(0,1fr)]" : "grid gap-5"}
+      >
         <div className="grid gap-4">
-          <section className="premium-card rounded-xl p-4">
-            <p className="mb-3 text-sm font-bold text-slate-800">Punch Mode</p>
-            <div className="flex overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-              {(["TAP_IN", "TAP_OUT"] as const).map((dir) => (
-                <button
-                  key={dir}
-                  type="button"
-                  onClick={() => setDirection(dir)}
-                  className={`flex-1 py-3 text-sm font-semibold transition-colors ${
-                    direction === dir ? "bg-blue-600 text-white" : "text-slate-600 hover:bg-slate-50"
+          {attendanceOperator ? (
+            <>
+              <section className="premium-card rounded-xl p-4">
+                <p className="mb-3 text-sm font-bold text-slate-800">Punch Mode</p>
+                <div className="flex overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+                  {(["TAP_IN", "TAP_OUT"] as const).map((dir) => (
+                    <button
+                      key={dir}
+                      type="button"
+                      onClick={() => setDirection(dir)}
+                      className={`flex-1 py-3 text-sm font-semibold transition-colors ${
+                        direction === dir ? "bg-blue-600 text-white" : "text-slate-600 hover:bg-slate-50"
+                      }`}
+                    >
+                      {dir === "TAP_IN" ? "Punch IN" : "Punch OUT"}
+                    </button>
+                  ))}
+                </div>
+                <p className="mt-2 text-xs text-slate-500">
+                  Current mode:{" "}
+                  <span className="font-bold text-slate-800">
+                    {direction === "TAP_IN" ? "Punch IN" : "Punch OUT"}
+                  </span>
+                </p>
+              </section>
+
+              <NfcScanPanel
+                state={scanner.state}
+                error={scanner.error}
+                isOnline={scanner.isOnline}
+                isWebNfcAvailable={scanner.isWebNfcAvailable}
+                onStart={scanner.startScanner}
+                onStop={scanner.stopScanner}
+                onManualSubmit={scanner.submitManual}
+                scanLabel="Start Attendance Scanner"
+              />
+
+              {offlineScans.length > 0 && (
+                <section className="rounded-xl border border-orange-200 bg-orange-50 p-4">
+                  <p className="text-xs font-bold text-orange-700 mb-2">LOCAL PUNCHES</p>
+                  <div className="grid gap-1.5">
+                    {offlineScans.slice(0, 5).map((s, i) => (
+                      <div key={i} className="flex items-center justify-between text-xs text-slate-700">
+                        <span className="font-medium">{s.name}</span>
+                        <span className={`rounded-full px-1.5 py-0.5 font-bold ${s.status === "VALID" ? "bg-emerald-100 text-emerald-700" : s.status === "LATE" ? "bg-amber-100 text-amber-700" : s.status === "DUPLICATE" ? "bg-yellow-100 text-yellow-700" : "bg-red-100 text-red-700"}`}>{s.status}</span>
+                        <span className="text-slate-400">{s.direction === "TAP_IN" ? "Punch IN" : "Punch OUT"} · {s.syncStatus}</span>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              )}
+
+              {lastScan ? (
+                <section
+                  className={`rounded-xl border p-4 ${
+                    lastScan.status === "VALID" || lastScan.status === "LATE"
+                      ? "border-green-200 bg-green-50"
+                      : lastScan.status === "BLOCKED"
+                        ? "border-red-200 bg-red-50"
+                        : "border-yellow-200 bg-yellow-50"
                   }`}
                 >
-                  {dir === "TAP_IN" ? "Punch IN" : "Punch OUT"}
-                </button>
-              ))}
-            </div>
-            <p className="mt-2 text-xs text-slate-500">
-              Current mode:{" "}
-              <span className="font-bold text-slate-800">
-                {direction === "TAP_IN" ? "Punch IN" : "Punch OUT"}
-              </span>
-            </p>
-          </section>
-
-          <NfcScanPanel
-            state={scanner.state}
-            error={scanner.error}
-            isOnline={scanner.isOnline}
-            isWebNfcAvailable={scanner.isWebNfcAvailable}
-            onStart={scanner.startScanner}
-            onStop={scanner.stopScanner}
-            onManualSubmit={scanner.submitManual}
-            scanLabel="Start Attendance Scanner"
-          />
-
-          {offlineScans.length > 0 && (
-            <section className="rounded-xl border border-orange-200 bg-orange-50 p-4">
-              <p className="text-xs font-bold text-orange-700 mb-2">LOCAL PUNCHES</p>
-              <div className="grid gap-1.5">
-                {offlineScans.slice(0, 5).map((s, i) => (
-                  <div key={i} className="flex items-center justify-between text-xs text-slate-700">
-                    <span className="font-medium">{s.name}</span>
-                    <span className={`rounded-full px-1.5 py-0.5 font-bold ${s.status === "VALID" ? "bg-emerald-100 text-emerald-700" : s.status === "LATE" ? "bg-amber-100 text-amber-700" : s.status === "DUPLICATE" ? "bg-yellow-100 text-yellow-700" : "bg-red-100 text-red-700"}`}>{s.status}</span>
-                    <span className="text-slate-400">{s.direction === "TAP_IN" ? "Punch IN" : "Punch OUT"} · {s.syncStatus}</span>
+                  <div className="mb-1 flex items-center justify-between gap-3">
+                    <p className="text-sm font-bold text-slate-900">{lastScan.student.name}</p>
+                    <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${SCAN_STATUS_COLORS[lastScan.status] ?? "bg-slate-100 text-slate-700"}`}>
+                      {lastScan.status}
+                    </span>
                   </div>
-                ))}
-              </div>
-            </section>
-          )}
-
-          {lastScan ? (
-            <section
-              className={`rounded-xl border p-4 ${
-                lastScan.status === "VALID" || lastScan.status === "LATE"
-                  ? "border-green-200 bg-green-50"
-                  : lastScan.status === "BLOCKED"
-                    ? "border-red-200 bg-red-50"
-                    : "border-yellow-200 bg-yellow-50"
-              }`}
-            >
-              <div className="mb-1 flex items-center justify-between gap-3">
-                <p className="text-sm font-bold text-slate-900">{lastScan.student.name}</p>
-                <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${SCAN_STATUS_COLORS[lastScan.status] ?? "bg-slate-100 text-slate-700"}`}>
-                  {lastScan.status}
-                </span>
-              </div>
-              <p className="text-xs text-slate-600">
-                {lastScan.student.admissionNumber} · {lastScan.student.className ?? "No class"}
-              </p>
-              <p className="mt-1 text-xs text-slate-500">
-                {lastScan.direction} · {new Date(lastScan.scannedAt).toLocaleTimeString()}
-                {lastScan.reason ? ` · ${lastScan.reason}` : ""}
-              </p>
-            </section>
+                  <p className="text-xs text-slate-600">
+                    {lastScan.student.admissionNumber} · {lastScan.student.className ?? "No class"}
+                  </p>
+                  <p className="mt-1 text-xs text-slate-500">
+                    {lastScan.direction} · {new Date(lastScan.scannedAt).toLocaleTimeString()}
+                    {lastScan.reason ? ` · ${lastScan.reason}` : ""}
+                  </p>
+                </section>
+              ) : null}
+            </>
           ) : null}
 
           {/* Filters */}

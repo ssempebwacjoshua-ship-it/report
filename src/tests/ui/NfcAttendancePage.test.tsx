@@ -6,10 +6,13 @@ import { NfcAttendancePage } from "../../pages/NfcAttendancePage";
 const mockFetchAttendanceClasses = vi.hoisted(() => vi.fn());
 const mockFetchNfcAttendanceRegister = vi.hoisted(() => vi.fn());
 const mockFetchGateAttendanceReport = vi.hoisted(() => vi.fn());
+const authState = vi.hoisted(() => ({
+  role: "ADMIN_OPERATOR",
+}));
 
 vi.mock("../../contexts/AuthContext", () => ({
   useAuth: () => ({
-    user: { id: "user-1", schoolId: "school-a", name: "Attendance User", role: "ADMIN_OPERATOR" },
+    user: { id: "user-1", schoolId: "school-a", name: "Attendance User", role: authState.role },
   }),
 }));
 
@@ -155,6 +158,7 @@ const gateRows = [
 
 beforeEach(() => {
   vi.clearAllMocks();
+  authState.role = "ADMIN_OPERATOR";
   mockFetchAttendanceClasses.mockResolvedValue({
     classes: [{ id: "class-1", name: "Senior 1", code: "S1", streams: [{ id: "stream-1", name: "A", code: "A" }] }],
   });
@@ -171,6 +175,33 @@ beforeEach(() => {
 });
 
 describe("NfcAttendancePage", () => {
+  it("keeps oversight data visible for administrators while hiding manual punch controls and collapsing the operator layout", async () => {
+    renderPage();
+
+    await waitFor(() => expect(mockFetchNfcAttendanceRegister).toHaveBeenCalled());
+    expect(screen.getByText(/class attendance register/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/^present$/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/^absent$/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/^filters$/i).length).toBeGreaterThan(0);
+    expect(screen.queryByText(/punch mode/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /punch in/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /punch out/i })).not.toBeInTheDocument();
+    expect(screen.queryByText(/current mode/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /start attendance scanner/i })).not.toBeInTheDocument();
+    expect(screen.getByTestId("attendance-main-layout")).not.toHaveClass("lg:grid-cols-[380px_minmax(0,1fr)]");
+  });
+
+  it("shows punch mode to explicitly authorized attendance operators", async () => {
+    authState.role = "GATE_SECURITY";
+    renderPage();
+
+    await waitFor(() => expect(mockFetchNfcAttendanceRegister).toHaveBeenCalled());
+    expect(screen.getByText(/punch mode/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /punch in/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /punch out/i })).toBeInTheDocument();
+    expect(screen.getByTestId("attendance-main-layout")).toHaveClass("lg:grid-cols-[380px_minmax(0,1fr)]");
+  });
+
   it("applies initial dashboard query parameters only on first load", async () => {
     renderPage("/nfc/attendance?view=GATE&attendanceStatus=PRESENT");
 

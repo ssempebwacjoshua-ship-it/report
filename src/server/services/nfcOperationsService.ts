@@ -3,7 +3,7 @@ import type { Prisma, PrismaClient } from "@prisma/client";
 import { prisma as defaultPrisma } from "../db/prisma";
 import type { SchoolUserRole } from "./authService";
 import { assertPinFormat, checkPin, hashWalletPin } from "./walletPinService";
-import { hasPermission } from "../../shared/permissions";
+import { canOperateAttendance, hasPermission } from "../../shared/permissions";
 import { normalizeCredentialUID } from "../../shared/utils/credentialNormalization";
 import { normalizeNfcScanValue } from "../../shared/utils/nfcPayload";
 import {
@@ -468,7 +468,15 @@ export async function getAttendanceDashboard(
 ) {
   const schoolId = requireSchoolId(ctx);
   requirePermission(ctx, "nfc.devices.manage", "GET /api/nfc/attendance");
-  const policy = await getSchoolNfcPolicy(ctx, db);
+  return buildAttendanceDashboardData(schoolId, filters, db);
+}
+
+async function buildAttendanceDashboardData(
+  schoolId: string,
+  filters: { search?: string; classId?: string; streamId?: string } = {},
+  db: NfcOperationsClient = defaultPrisma,
+) {
+  const policy = await getSchoolNfcPolicy({ schoolId, actorId: null, role: null }, db);
   const { start, end } = getZonedDayRange(new Date(), policy.policy.timezone);
   const [events, students] = await Promise.all([
     db.studentAttendanceEvent.findMany({
@@ -508,7 +516,11 @@ export async function scanAttendance(
   db: NfcOperationsClient = defaultPrisma,
 ) {
   const schoolId = requireSchoolId(ctx);
-  requirePermission(ctx, "nfc.devices.manage", "POST /api/nfc/attendance/scan");
+  if (!ctx.actorId || !ctx.role) throw Object.assign(new Error("Authentication required."), { status: 401 });
+  if (!canOperateAttendance(ctx.role)) {
+    logPermissionDenied(ctx, "nfc.attendance.operate", "POST /api/nfc/attendance/scan");
+    throw Object.assign(new Error("You do not have permission for this action."), { status: 403 });
+  }
   const policy = await getSchoolNfcPolicy(ctx, db);
   const target = await resolveNfcScanTarget(db, schoolId, input.tokenOrUid, { applyFeeHoldBlocking: true });
   if (!target) throw Object.assign(new Error("NFC token not recognized."), { status: 404 });
@@ -570,7 +582,7 @@ export async function scanAttendance(
     });
   }
 
-  const dashboard = await getAttendanceDashboard(ctx, {}, db);
+  const dashboard = await buildAttendanceDashboardData(schoolId, {}, db);
 
   return {
     scan: {

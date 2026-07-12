@@ -175,6 +175,15 @@ function createDb(options: {
         }));
       },
     },
+    dailyAttendance: {
+      findMany: async () => [],
+    },
+    campusMovementEvent: {
+      findMany: async () => [],
+    },
+    nfcOfflineDevice: {
+      findMany: async () => [],
+    },
     nfcTag: {
       findFirst: async () => null,
     },
@@ -196,7 +205,7 @@ function createDb(options: {
 describe("NFC attendance operations", () => {
   it("records school-scoped NFC attendance scans and protects duplicates", async () => {
     const { db, events } = createDb();
-    const ctx = { schoolId: "school-a", actorId: "device-a", role: "ADMIN_OPERATOR" };
+    const ctx = { schoolId: "school-a", actorId: "device-a", role: "GATE_SECURITY" };
 
     const first = await scanAttendance(ctx, { tokenOrUid: "token-a", direction: AttendanceDirection.TAP_IN }, db);
     const duplicate = await scanAttendance(ctx, { tokenOrUid: "token-a", direction: AttendanceDirection.TAP_IN }, db);
@@ -209,7 +218,7 @@ describe("NFC attendance operations", () => {
   it("keeps fee defaulter blocking off by default", async () => {
     const { db } = createDb({ feeHoldStatus: "ACTIVE" });
     const gate = await scanGate({ schoolId: "school-a", actorId: "security-a", role: "SECURITY" }, { tokenOrUid: "token-a" }, db);
-    const attendance = await scanAttendance({ schoolId: "school-a", actorId: "device-a", role: "ADMIN_OPERATOR" }, { tokenOrUid: "token-a", direction: AttendanceDirection.TAP_IN }, db);
+    const attendance = await scanAttendance({ schoolId: "school-a", actorId: "device-a", role: "GATE_SECURITY" }, { tokenOrUid: "token-a", direction: AttendanceDirection.TAP_IN }, db);
 
     expect(gate.result).toBe(GateScanResult.ALLOWED);
     expect(attendance.scan.status).toBe(AttendanceScanStatus.VALID);
@@ -248,7 +257,7 @@ describe("NFC attendance operations", () => {
   it("blocks fee-defaulter scans when policy is enabled", async () => {
     const { db } = createDb({ feeDefaulterBlockingEnabled: true, feeHoldStatus: "ACTIVE" });
     const gate = await scanGate({ schoolId: "school-a", actorId: "security-a", role: "SECURITY" }, { tokenOrUid: "token-a" }, db);
-    const attendance = await scanAttendance({ schoolId: "school-a", actorId: "device-a", role: "ADMIN_OPERATOR" }, { tokenOrUid: "token-a", direction: AttendanceDirection.TAP_IN }, db);
+    const attendance = await scanAttendance({ schoolId: "school-a", actorId: "device-a", role: "GATE_SECURITY" }, { tokenOrUid: "token-a", direction: AttendanceDirection.TAP_IN }, db);
 
     expect(gate.result).toBe(GateScanResult.BLOCKED);
     expect(gate.reason).toBe("school fees defaulter");
@@ -276,7 +285,7 @@ describe("NFC attendance operations", () => {
     vi.setSystemTime(new Date("2026-06-24T04:30:00.000Z"));
     try {
       const { db } = createDb({ attendanceTapInCutoffEnabled: true, tapInCutoffTime: "08:00" });
-      const scan = await scanAttendance({ schoolId: "school-a", actorId: "device-a", role: "ADMIN_OPERATOR" }, { tokenOrUid: "token-a", direction: AttendanceDirection.TAP_IN }, db);
+      const scan = await scanAttendance({ schoolId: "school-a", actorId: "device-a", role: "GATE_SECURITY" }, { tokenOrUid: "token-a", direction: AttendanceDirection.TAP_IN }, db);
       expect(scan.scan.status).toBe(AttendanceScanStatus.VALID);
     } finally {
       vi.useRealTimers();
@@ -288,7 +297,7 @@ describe("NFC attendance operations", () => {
     vi.setSystemTime(new Date("2026-06-24T06:30:00.000Z"));
     try {
       const { db } = createDb({ attendanceTapInCutoffEnabled: true, tapInCutoffTime: "08:00" });
-      const scan = await scanAttendance({ schoolId: "school-a", actorId: "device-a", role: "ADMIN_OPERATOR" }, { tokenOrUid: "token-a", direction: AttendanceDirection.TAP_IN }, db);
+      const scan = await scanAttendance({ schoolId: "school-a", actorId: "device-a", role: "GATE_SECURITY" }, { tokenOrUid: "token-a", direction: AttendanceDirection.TAP_IN }, db);
       const register = await getAttendanceRegister({ schoolId: "school-a", actorId: "device-a", role: "ADMIN_OPERATOR" }, { date: "2026-06-24" }, db);
 
       expect(scan.scan.status).toBe(AttendanceScanStatus.BLOCKED);
@@ -297,5 +306,17 @@ describe("NFC attendance operations", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it("blocks administrators from directly invoking manual attendance punch operations", async () => {
+    const { db } = createDb();
+
+    await expect(
+      scanAttendance(
+        { schoolId: "school-a", actorId: "admin-a", role: "ADMIN_OPERATOR" },
+        { tokenOrUid: "token-a", direction: AttendanceDirection.TAP_IN },
+        db,
+      ),
+    ).rejects.toMatchObject({ status: 403 });
   });
 });

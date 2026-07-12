@@ -113,13 +113,14 @@ describe("NFC gate operations", () => {
     expect(scan.credentialStatus).toBe("ACTIVE");
   });
 
-  it("blocks GATE_SECURITY from attendance dashboard and attendance scans", async () => {
+  it("blocks GATE_SECURITY from the admin attendance dashboard but allows explicit attendance operation scans", async () => {
     const { db } = createDb();
     const ctx = { schoolId: "school-a", actorId: "gate-a", role: "GATE_SECURITY" as const };
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
     await expect(getAttendanceDashboard(ctx, {}, db)).rejects.toMatchObject({ status: 403 });
-    await expect(scanAttendance(ctx, { tokenOrUid: "token-a", direction: AttendanceDirection.TAP_IN }, db)).rejects.toMatchObject({ status: 403 });
+    const scan = await scanAttendance(ctx, { tokenOrUid: "token-a", direction: AttendanceDirection.TAP_IN }, db);
+    expect(scan.scan.status).toBe("VALID");
     expect(warnSpy).toHaveBeenCalledWith(
       "[nfc-permission-denied]",
       expect.objectContaining({
