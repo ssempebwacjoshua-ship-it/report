@@ -191,6 +191,29 @@ describe("NfcAttendancePage", () => {
     expect(screen.getByTestId("attendance-main-layout")).not.toHaveClass("lg:grid-cols-[380px_minmax(0,1fr)]");
   });
 
+  it("renders filters in a compact desktop layout with horizontal print actions", async () => {
+    renderPage();
+
+    await waitFor(() => expect(mockFetchNfcAttendanceRegister).toHaveBeenCalled());
+    expect(screen.getByTestId("attendance-filter-grid")).toHaveClass("xl:grid-cols-[160px_220px_180px_180px_minmax(0,1fr)]");
+    expect(screen.getByTestId("attendance-print-actions")).toHaveClass("flex", "flex-wrap", "gap-2");
+    expect(screen.getByTestId("attendance-filter-actions")).toHaveClass("flex", "flex-wrap", "items-center", "gap-2");
+  });
+
+  it("keeps the register directly after filters and preserves filter handlers", async () => {
+    renderPage();
+
+    await waitFor(() => expect(mockFetchNfcAttendanceRegister).toHaveBeenCalledTimes(2));
+    fireEvent.change(screen.getByPlaceholderText(/name or admission number/i), { target: { value: "Ada" } });
+    fireEvent.click(screen.getByRole("button", { name: /apply filters/i }));
+
+    await waitFor(() => expect(mockFetchNfcAttendanceRegister).toHaveBeenCalledTimes(3));
+    expect(mockFetchNfcAttendanceRegister.mock.calls.at(-1)?.[0]).toEqual(
+      expect.objectContaining({ search: "Ada" }),
+    );
+    expect(screen.getByTestId("attendance-register-card")).toBeInTheDocument();
+  });
+
   it("shows punch mode to explicitly authorized attendance operators", async () => {
     authState.role = "GATE_SECURITY";
     renderPage();
@@ -226,7 +249,7 @@ describe("NfcAttendancePage", () => {
     renderPage("/nfc/attendance?view=GATE");
 
     await waitFor(() => expect(mockFetchGateAttendanceReport).toHaveBeenCalledTimes(2));
-    fireEvent.click(screen.getByRole("button", { name: /print full register/i }));
+    fireEvent.click(screen.getByRole("button", { name: /full register/i }));
 
     await waitFor(() => expect(mockFetchGateAttendanceReport).toHaveBeenCalledTimes(3));
     const popup = openSpy.mock.results[0]?.value as unknown as {
@@ -263,14 +286,14 @@ describe("NfcAttendancePage", () => {
 
     await waitFor(() => expect(mockFetchGateAttendanceReport).toHaveBeenCalledTimes(2));
 
-    fireEvent.click(screen.getByRole("button", { name: /print present students/i }));
+    fireEvent.click(screen.getByRole("button", { name: /present students/i }));
     await waitFor(() => expect(mockFetchGateAttendanceReport).toHaveBeenCalledTimes(3));
     const presentHtml = vi.mocked((openSpy.mock.results[0]?.value as any).document.write).mock.calls[0]?.[0] as string;
     expect(presentHtml).toContain("Ada Lovelace");
     expect(presentHtml).toContain("Grace Hopper");
     expect(presentHtml).not.toContain("Alan Turing");
 
-    fireEvent.click(screen.getByRole("button", { name: /print absent students/i }));
+    fireEvent.click(screen.getByRole("button", { name: /absent students/i }));
     await waitFor(() => expect(mockFetchGateAttendanceReport).toHaveBeenCalledTimes(4));
     const absentHtml = vi.mocked((openSpy.mock.results[1]?.value as any).document.write).mock.calls[0]?.[0] as string;
     expect(absentHtml).toContain("Alan Turing");
@@ -300,7 +323,7 @@ describe("NfcAttendancePage", () => {
     renderPage("/nfc/attendance?view=GATE");
 
     await waitFor(() => expect(mockFetchGateAttendanceReport).toHaveBeenCalledTimes(2));
-    fireEvent.click(screen.getByRole("button", { name: /print full register/i }));
+    fireEvent.click(screen.getByRole("button", { name: /full register/i }));
 
     await waitFor(() => expect(screen.getByText(/no students match these filters/i)).toBeInTheDocument());
     expect(openSpy).not.toHaveBeenCalled();

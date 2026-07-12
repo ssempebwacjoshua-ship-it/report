@@ -272,9 +272,9 @@ function buildAttendancePrintDocument(input: {
 
 function SummaryCard({ label, value, color }: { label: string; value: number; color: string }) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-      <p className="text-xs font-bold uppercase tracking-wide text-slate-500">{label}</p>
-      <p className={`mt-1 text-2xl font-bold ${color}`}>{value}</p>
+    <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+      <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">{label}</p>
+      <p className={`mt-1 text-2xl font-bold leading-none ${color}`}>{value}</p>
     </div>
   );
 }
@@ -294,10 +294,10 @@ function ClickableSummaryCard({
     <button
       type="button"
       onClick={onClick}
-      className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm text-left transition hover:border-blue-300 hover:shadow-md active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-1"
+      className="rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm text-left transition hover:border-blue-300 hover:shadow-md active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-1"
     >
-      <p className="text-xs font-bold uppercase tracking-wide text-slate-500">{label}</p>
-      <p className={`mt-1 text-2xl font-bold ${color}`}>{value}</p>
+      <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">{label}</p>
+      <p className={`mt-1 text-2xl font-bold leading-none ${color}`}>{value}</p>
       <p className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-blue-500">View list →</p>
     </button>
   );
@@ -548,6 +548,8 @@ export function NfcAttendancePage() {
   );
   const [departureMissingOnly, setDepartureMissingOnly] = useState(false);
   const [classroomSessionFilter, setClassroomSessionFilter] = useState<"ALL" | "MORNING_CLASS" | "NIGHT_PREP" | "UNCLASSIFIED">("ALL");
+  const [registerPage, setRegisterPage] = useState(1);
+  const [rowsPerPage, setRowsPerPage] = useState(20);
 
   const [classes, setClasses] = useState<AttendanceClassItem[]>([]);
   const [drillDown, setDrillDown] = useState<"PRESENT" | "ABSENT" | null>(null);
@@ -555,6 +557,8 @@ export function NfcAttendancePage() {
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState("");
   const [printing, setPrinting] = useState<PrintMode | null>(null);
+
+  const todayDate = new Date().toISOString().split("T")[0]!;
 
   // Load class list once
   useEffect(() => {
@@ -638,6 +642,7 @@ export function NfcAttendancePage() {
   }
 
   async function loadCurrentView() {
+    setRegisterPage(1);
     if (view === "GATE") {
       await loadGateReport();
       return;
@@ -647,6 +652,20 @@ export function NfcAttendancePage() {
       return;
     }
     await loadRegister();
+  }
+
+  function handleResetFilters() {
+    setDate(todayDate);
+    setClassId("");
+    setStreamId("");
+    setStudentType("ALL");
+    setSearch("");
+    setGateStatusFilter("ALL");
+    setCampusStatusFilter("ALL");
+    setDepartureMissingOnly(false);
+    setClassroomSessionFilter("ALL");
+    setLoadError("");
+    setRegisterPage(1);
   }
 
   async function handlePrint(mode: PrintMode) {
@@ -841,6 +860,13 @@ export function NfcAttendancePage() {
   }, []);
 
   const summary = register?.summary;
+  const registerRows = register?.rows ?? [];
+  const totalRegisterRows = registerRows.length;
+  const totalRegisterPages = Math.max(1, Math.ceil(totalRegisterRows / rowsPerPage));
+  const currentRegisterPage = Math.min(registerPage, totalRegisterPages);
+  const registerPageStart = totalRegisterRows === 0 ? 0 : (currentRegisterPage - 1) * rowsPerPage;
+  const paginatedRegisterRows = registerRows.slice(registerPageStart, registerPageStart + rowsPerPage);
+  const registerPageEnd = totalRegisterRows === 0 ? 0 : Math.min(totalRegisterRows, registerPageStart + rowsPerPage);
 
   // Drill-down filter context label
   const drillDownFilters = {
@@ -850,25 +876,48 @@ export function NfcAttendancePage() {
   };
 
   return (
-    <main className="grid gap-5">
-      <header className="page-header">
-        <p className="text-xs font-bold uppercase tracking-wide text-blue-600">NFC Operations</p>
-        <h1 className="text-xl font-bold text-slate-950 sm:text-2xl">Attendance Operations</h1>
-        <div className="mt-3 flex flex-wrap gap-2">
-          {([
-            ["REGISTER", "Register"],
-            ["GATE", "Gate View"],
-            ["CLASSROOM", "Classroom View"],
-          ] as const).map(([key, label]) => (
+    <main className="grid gap-4 lg:gap-5">
+      <header className="page-header pb-0">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div className="min-w-0">
+            <p className="text-xs font-bold uppercase tracking-wide text-blue-600">NFC Operations</p>
+            <h1 className="text-xl font-bold text-slate-950 sm:text-2xl">Attendance Operations</h1>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {([
+                ["REGISTER", "Register"],
+                ["GATE", "Gate View"],
+                ["CLASSROOM", "Classroom View"],
+              ] as const).map(([key, label]) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setView(key)}
+                  className={`rounded-full px-4 py-2 text-xs font-black ${view === key ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-700"}`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-3 lg:justify-end">
+            <div className="flex min-w-[180px] items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
+              <input
+                type="date"
+                aria-label="Attendance date"
+                className="w-full border-0 bg-transparent p-0 text-sm font-medium text-slate-900 outline-none"
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+              />
+            </div>
             <button
-              key={key}
               type="button"
-              onClick={() => setView(key)}
-              className={`rounded-full px-3 py-1.5 text-xs font-black ${view === key ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-700"}`}
+              className="btn btn-secondary px-4"
+              onClick={() => void handlePrint("FULL")}
+              disabled={loading || printing !== null}
             >
-              {label}
+              {printing === "FULL" ? "Preparing..." : "Export"}
             </button>
-          ))}
+          </div>
         </div>
       </header>
 
@@ -893,7 +942,7 @@ export function NfcAttendancePage() {
       )}
 
       {snapshotRefresh.validity?.valid && (
-        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-800">
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-xs text-emerald-800">
           <p className="font-bold">Local Attendance Register is ready.</p>
           <p className="mt-1">
             Students: {snapshotRefresh.validity.diagnostics.studentCount} · Tags: {snapshotRefresh.validity.diagnostics.tagCount} · Pending attendance sync: {pendingCount}
@@ -909,8 +958,8 @@ export function NfcAttendancePage() {
 
       {/* Summary cards — PRESENT and ABSENT are clickable */}
       {view === "REGISTER" ? (
-        <section className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-          <SummaryCard label="Total" value={summary?.totalStudents ?? 0} color="text-slate-900" />
+        <section className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+          <SummaryCard label="Total Students" value={summary?.totalStudents ?? 0} color="text-slate-900" />
           <ClickableSummaryCard
             label="Present"
             value={summary?.present ?? 0}
@@ -930,7 +979,7 @@ export function NfcAttendancePage() {
       ) : null}
 
       {view === "GATE" ? (
-        <section className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+        <section className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
           <SummaryCard label="Total" value={gateReport?.summary.totalStudents ?? 0} color="text-slate-900" />
           <SummaryCard label="Present" value={gateReport?.summary.present ?? 0} color="text-green-700" />
           <SummaryCard label="Late" value={gateReport?.summary.late ?? 0} color="text-amber-700" />
@@ -941,7 +990,7 @@ export function NfcAttendancePage() {
       ) : null}
 
       {view === "CLASSROOM" ? (
-        <section className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+        <section className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
           <SummaryCard label="Events" value={classroomReport?.summary.totalEvents ?? 0} color="text-slate-900" />
           <SummaryCard label="Morning Present" value={classroomReport?.summary.morningPresent ?? 0} color="text-green-700" />
           <SummaryCard label="Night Prep" value={classroomReport?.summary.nightPrepPresent ?? 0} color="text-blue-700" />
@@ -1039,8 +1088,7 @@ export function NfcAttendancePage() {
           {/* Filters */}
           <section className="premium-card rounded-xl p-4">
             <p className="mb-3 text-sm font-bold text-slate-800">Filters</p>
-            <div className="grid gap-3">
-              {/* Date */}
+            <div data-testid="attendance-filter-grid" className="grid gap-3 xl:grid-cols-[160px_220px_180px_180px_minmax(0,1fr)]">
               <div>
                 <label className="mb-1 block text-xs font-semibold text-slate-600">Date</label>
                 <input
@@ -1051,7 +1099,6 @@ export function NfcAttendancePage() {
                 />
               </div>
 
-              {/* Student type */}
               <div>
                 <label className="mb-1 block text-xs font-semibold text-slate-600">Student Type</label>
                 <div className="flex overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
@@ -1070,7 +1117,6 @@ export function NfcAttendancePage() {
                 </div>
               </div>
 
-              {/* Class */}
               <div>
                 <label className="mb-1 block text-xs font-semibold text-slate-600">Class</label>
                 {classes.length > 0 ? (
@@ -1097,7 +1143,6 @@ export function NfcAttendancePage() {
                 )}
               </div>
 
-              {/* Stream */}
               <div>
                 <label className="mb-1 block text-xs font-semibold text-slate-600">Stream</label>
                 {availableStreams.length > 0 ? (
@@ -1122,7 +1167,6 @@ export function NfcAttendancePage() {
                 )}
               </div>
 
-              {/* Search */}
               <div>
                 <label className="mb-1 block text-xs font-semibold text-slate-600">Search Student</label>
                 <input
@@ -1152,7 +1196,7 @@ export function NfcAttendancePage() {
                       <option value="OFF_CAMPUS">Off Campus</option>
                     </select>
                   </div>
-                  <label className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-700">
+                  <label className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 xl:col-span-2">
                     <input type="checkbox" checked={departureMissingOnly} onChange={(e) => setDepartureMissingOnly(e.target.checked)} />
                     Departure not recorded
                   </label>
@@ -1160,7 +1204,7 @@ export function NfcAttendancePage() {
               ) : null}
 
               {view === "CLASSROOM" ? (
-                <div>
+                <div className="xl:col-span-2">
                   <label className="mb-1 block text-xs font-semibold text-slate-600">Classroom Session</label>
                   <select className={selectClass + " w-full"} value={classroomSessionFilter} onChange={(e) => setClassroomSessionFilter(e.target.value as typeof classroomSessionFilter)}>
                     <option value="ALL">All</option>
@@ -1170,54 +1214,70 @@ export function NfcAttendancePage() {
                   </select>
                 </div>
               ) : null}
+            </div>
 
-              <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                <p className="text-xs font-bold uppercase tracking-wide text-slate-600">Print Register</p>
-                <p className="mt-1 text-xs text-slate-500">
-                  Uses one fresh canonical gate-attendance fetch before printing.
-                </p>
-                <div className="mt-3 grid gap-2">
+            <div className="mt-4 flex flex-col gap-3 border-t border-slate-100 pt-3 lg:flex-row lg:items-end lg:justify-between">
+              <div data-testid="attendance-filter-actions" className="flex flex-wrap items-center gap-2">
+                <button
+                  className="btn btn-primary px-5"
+                  type="button"
+                  onClick={() => void loadCurrentView()}
+                  disabled={loading}
+                >
+                  {loading ? "Loading…" : "Apply Filters"}
+                </button>
+                <button
+                  className="btn btn-secondary px-4"
+                  type="button"
+                  onClick={() => {
+                    handleResetFilters();
+                    window.setTimeout(() => {
+                      void loadCurrentView();
+                    }, 0);
+                  }}
+                >
+                  Reset
+                </button>
+              </div>
+
+              <div className="flex flex-col gap-2 lg:items-end">
+                <div>
+                  <p className="text-[11px] font-bold uppercase tracking-wide text-slate-600">Print Register</p>
+                  <p className="mt-1 text-xs text-slate-500">One fresh fetch before printing</p>
+                </div>
+                <div data-testid="attendance-print-actions" className="flex flex-wrap gap-2">
                   <button
                     type="button"
-                    className="btn btn-secondary justify-center"
+                    className="btn btn-secondary justify-center px-4"
                     onClick={() => void handlePrint("FULL")}
                     disabled={loading || printing !== null}
                   >
-                    {printing === "FULL" ? "Preparing..." : "Print full register"}
+                    {printing === "FULL" ? "Preparing..." : "Full Register"}
                   </button>
                   <button
                     type="button"
-                    className="btn btn-secondary justify-center"
+                    className="btn btn-secondary justify-center px-4"
                     onClick={() => void handlePrint("PRESENT")}
                     disabled={loading || printing !== null}
                   >
-                    {printing === "PRESENT" ? "Preparing..." : "Print present students"}
+                    {printing === "PRESENT" ? "Preparing..." : "Present Students"}
                   </button>
                   <button
                     type="button"
-                    className="btn btn-secondary justify-center"
+                    className="btn btn-secondary justify-center px-4"
                     onClick={() => void handlePrint("ABSENT")}
                     disabled={loading || printing !== null}
                   >
-                    {printing === "ABSENT" ? "Preparing..." : "Print absent students"}
+                    {printing === "ABSENT" ? "Preparing..." : "Absent Students"}
                   </button>
                 </div>
               </div>
-
-              <button
-                className="btn btn-secondary"
-                type="button"
-                onClick={() => void loadCurrentView()}
-                disabled={loading}
-              >
-                {loading ? "Loading…" : "Apply Filters"}
-              </button>
             </div>
           </section>
         </div>
 
 	        {view === "REGISTER" ? (
-	        <section className="premium-card overflow-hidden rounded-xl">
+	        <section data-testid="attendance-register-card" className="premium-card overflow-hidden rounded-xl">
           <div className="border-b border-slate-100 px-4 py-3">
             <h2 className="text-base font-bold text-slate-950">Class Attendance Register</h2>
             <p className="text-xs text-slate-500">
@@ -1229,26 +1289,26 @@ export function NfcAttendancePage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50 text-left">
-                  <th className="px-4 py-3 font-semibold text-slate-600">Student</th>
-                  <th className="px-4 py-3 font-semibold text-slate-600">Adm #</th>
-                  <th className="px-4 py-3 font-semibold text-slate-600">Class</th>
-                  <th className="px-4 py-3 font-semibold text-slate-600">Type</th>
-                  <th className="px-4 py-3 font-semibold text-slate-600">Tap In</th>
-                  <th className="px-4 py-3 font-semibold text-slate-600">Tap Out</th>
-                  <th className="px-4 py-3 font-semibold text-slate-600">Status</th>
-                  <th className="px-4 py-3 font-semibold text-slate-600">Last Scan</th>
+                  <th className="px-4 py-2.5 font-semibold text-slate-600">Student</th>
+                  <th className="px-4 py-2.5 font-semibold text-slate-600">Adm #</th>
+                  <th className="px-4 py-2.5 font-semibold text-slate-600">Class</th>
+                  <th className="px-4 py-2.5 font-semibold text-slate-600">Type</th>
+                  <th className="px-4 py-2.5 font-semibold text-slate-600">Tap In</th>
+                  <th className="px-4 py-2.5 font-semibold text-slate-600">Tap Out</th>
+                  <th className="px-4 py-2.5 font-semibold text-slate-600">Status</th>
+                  <th className="px-4 py-2.5 font-semibold text-slate-600">Last Scan</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {(register?.rows ?? []).map((row) => (
+                {paginatedRegisterRows.map((row) => (
                   <tr key={row.student.id} className="hover:bg-slate-50/50">
-                    <td className="px-4 py-3 font-medium text-slate-900">{row.student.name}</td>
-                    <td className="px-4 py-3 font-mono text-xs text-slate-600">{row.student.admissionNumber}</td>
-                    <td className="px-4 py-3 text-slate-600">
+                    <td className="px-4 py-2.5 font-medium text-slate-900">{row.student.name}</td>
+                    <td className="px-4 py-2.5 font-mono text-xs text-slate-600">{row.student.admissionNumber}</td>
+                    <td className="px-4 py-2.5 text-slate-600">
                       {row.student.className ?? "—"}
                       {row.student.streamName ? ` / ${row.student.streamName}` : ""}
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-2.5">
                       {row.student.studentType ? (
                         <span className={`inline-block rounded-full px-2 py-0.5 text-[10px] font-bold ${row.student.studentType === "DAY" ? "bg-sky-100 text-sky-700" : "bg-violet-100 text-violet-700"}`}>
                           {row.student.studentType}
@@ -1257,14 +1317,14 @@ export function NfcAttendancePage() {
                         <span className="text-slate-300">—</span>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-slate-700">{formatTime(row.tapIn?.scannedAt)}</td>
-                    <td className="px-4 py-3 text-slate-700">{formatTime(row.tapOut?.scannedAt)}</td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-2.5 text-slate-700">{formatTime(row.tapIn?.scannedAt)}</td>
+                    <td className="px-4 py-2.5 text-slate-700">{formatTime(row.tapOut?.scannedAt)}</td>
+                    <td className="px-4 py-2.5">
                       <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-bold ${STATUS_COLORS[row.currentStatus]}`}>
                         {STATUS_LABELS[row.currentStatus]}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-slate-500">
+                    <td className="px-4 py-2.5 text-slate-500">
                       {row.lastScan ? (
                         <span>
                           {formatTime(row.lastScan.scannedAt)}
@@ -1295,6 +1355,61 @@ export function NfcAttendancePage() {
               </tbody>
             </table>
           </div>
+          {register ? (
+            <div className="flex flex-col gap-3 border-t border-slate-100 px-4 py-3 text-sm text-slate-500 lg:flex-row lg:items-center lg:justify-between">
+              <p>
+                Showing {totalRegisterRows === 0 ? 0 : registerPageStart + 1} to {registerPageEnd} of {totalRegisterRows} students
+              </p>
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-bold text-slate-600 disabled:opacity-40"
+                    onClick={() => setRegisterPage((current) => Math.max(1, current - 1))}
+                    disabled={currentRegisterPage === 1}
+                  >
+                    Previous
+                  </button>
+                  {Array.from({ length: totalRegisterPages }).slice(0, 5).map((_, index) => {
+                    const pageNumber = index + 1;
+                    return (
+                      <button
+                        key={pageNumber}
+                        type="button"
+                        className={`rounded-lg px-2.5 py-1.5 text-xs font-bold ${currentRegisterPage === pageNumber ? "bg-blue-600 text-white" : "border border-slate-200 text-slate-600"}`}
+                        onClick={() => setRegisterPage(pageNumber)}
+                      >
+                        {pageNumber}
+                      </button>
+                    );
+                  })}
+                  <button
+                    type="button"
+                    className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-bold text-slate-600 disabled:opacity-40"
+                    onClick={() => setRegisterPage((current) => Math.min(totalRegisterPages, current + 1))}
+                    disabled={currentRegisterPage === totalRegisterPages}
+                  >
+                    Next
+                  </button>
+                </div>
+                <label className="flex items-center gap-2 text-xs font-semibold text-slate-600">
+                  Rows per page
+                  <select
+                    className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-700"
+                    value={rowsPerPage}
+                    onChange={(e) => {
+                      setRowsPerPage(Number(e.target.value));
+                      setRegisterPage(1);
+                    }}
+                  >
+                    {[10, 20, 50].map((size) => (
+                      <option key={size} value={size}>{size}</option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+            </div>
+          ) : null}
 	        </section>
           ) : null}
 
