@@ -192,6 +192,70 @@ function ActionsDropdown({ tag, actions, isOpen, onToggle, onClose }: {
   );
 }
 
+function RowMoreMenu({ tag, actions, isOpen, onToggle, onClose }: {
+  tag: NfcTag;
+  actions: TagActions;
+  isOpen: boolean;
+  onToggle: () => void;
+  onClose: () => void;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) onClose();
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [isOpen, onClose]);
+
+  const canDisable = tag.status !== "DISABLED" && tag.status !== "LOST";
+  const canEnable = tag.status === "DISABLED" || tag.status === "LOST";
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={onToggle}
+        className="inline-flex min-h-[34px] items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-black leading-none text-slate-700 hover:bg-slate-50"
+      >
+        More
+        <svg className="h-3.5 w-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+
+      {isOpen ? (
+        <div className="absolute right-0 top-full z-40 mt-1.5 w-56 overflow-visible rounded-xl border border-slate-200 bg-white shadow-lg">
+          <button type="button" onClick={() => { actions.onCopyPayload(); onClose(); }} className="flex w-full items-center px-3 py-2.5 text-left text-sm font-semibold text-blue-700 hover:bg-blue-50">
+            {actions.copiedPayloadId === tag.id ? "Copied!" : "Copy Payload"}
+          </button>
+          <button type="button" onClick={() => { actions.onCopyUrl(); onClose(); }} className="flex w-full items-center px-3 py-2.5 text-left text-sm text-slate-700 hover:bg-slate-50">
+            {actions.copiedId === tag.id ? "Copied!" : "Copy URL"}
+          </button>
+          <button type="button" onClick={() => { actions.onWalletPin(); onClose(); }} className="flex w-full items-center px-3 py-2.5 text-left text-sm text-violet-700 hover:bg-violet-50">
+            Wallet PIN
+          </button>
+          <button type="button" onClick={() => { actions.onEvents(); onClose(); }} className="flex w-full items-center px-3 py-2.5 text-left text-sm text-slate-700 hover:bg-slate-50">
+            Events
+          </button>
+          {canDisable ? (
+            <button type="button" onClick={() => { actions.onDisable(); onClose(); }} className="flex w-full items-center px-3 py-2.5 text-left text-sm text-red-600 hover:bg-red-50">
+              Disable
+            </button>
+          ) : null}
+          {canEnable ? (
+            <button type="button" onClick={() => { actions.onEnable(); onClose(); }} className="flex w-full items-center px-3 py-2.5 text-left text-sm text-emerald-700 hover:bg-emerald-50">
+              Re-enable
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function MobileTagCard({ tag, actions, isDropdownOpen, onToggleDropdown, onCloseDropdown }: {
   tag: NfcTag;
   actions: TagActions;
@@ -703,29 +767,29 @@ export function NfcOperationsPage() {
   }
 
   return (
-    <div className="space-y-4 p-4 sm:p-5 xl:p-6">
+    <div className="space-y-3 px-4 pb-24 pt-6 sm:px-5 sm:pb-24 sm:pt-6 xl:px-6 xl:pb-28 xl:pt-7">
       <div className="space-y-1">
         <h1 className="text-2xl font-black tracking-tight text-slate-950">NFC Tags</h1>
         <p className="text-sm text-slate-500">Manage physical NFC tags — generate, assign to students, and monitor taps.</p>
       </div>
 
       {/* Generate strip — stacks on mobile */}
-      <div className="rounded-2xl border border-slate-200 bg-white p-3.5 shadow-sm">
-        <p className="text-sm font-black text-slate-950">Generate new tags</p>
-        <div className="mt-2.5 grid gap-2.5 sm:flex sm:flex-wrap sm:items-center">
+      <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+        <div className="flex flex-wrap items-center gap-3">
+          <p className="text-sm font-black text-slate-950">Generate new tags</p>
           <input
             type="number"
             min={1}
             max={100}
             value={generateCount}
             onChange={(e) => setGenerateCount(Math.max(1, Math.min(100, Number(e.target.value))))}
-            className="premium-control w-full sm:w-24"
+            className="premium-control w-full sm:w-[104px]"
           />
           <button
             type="button"
             onClick={() => { void handleGenerate(); }}
             disabled={generating}
-            className="btn btn-primary min-h-[40px] w-full rounded-xl px-4 py-2 text-sm font-black sm:w-auto"
+            className="btn btn-primary min-h-[38px] w-full rounded-xl px-4 py-2 text-sm font-black sm:w-auto"
           >
             {generating ? "Generating…" : `Generate ${generateCount} tag${generateCount > 1 ? "s" : ""}`}
           </button>
@@ -773,7 +837,7 @@ export function NfcOperationsPage() {
       </div>
 
       {/* Desktop table — hidden below md */}
-      <div className="hidden overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm md:block">
+      <div className="hidden overflow-visible rounded-2xl border border-slate-200 bg-white shadow-sm md:block">
         {loading ? (
           <p className="p-6 text-sm text-slate-500">Loading tags…</p>
         ) : tags.length === 0 ? (
@@ -832,26 +896,8 @@ export function NfcOperationsPage() {
                   </td>
                   <td className="px-3 py-2.5 align-middle text-center font-semibold text-slate-700">{tag.tapCount ?? 0}</td>
                   <td className="px-3 py-2.5 align-middle">
-                    <div className="flex max-w-full flex-wrap gap-1.5">
-                      <button
-                        type="button"
-                        onClick={() => handleCopyPayload(tag)}
-                        className={`${compactActionButtonClass} ${
-                          copiedPayloadId === tag.id
-                            ? "border-green-200 bg-green-50 text-green-700"
-                            : "border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100"
-                        }`}
-                      >
-                        {copiedPayloadId === tag.id ? "Copied!" : "Copy Payload"}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleCopy(tag)}
-                        className={`${compactActionButtonClass} border-slate-200 bg-white text-slate-700 hover:bg-slate-50`}
-                      >
-                        {copiedId === tag.id ? "Copied!" : "Copy URL"}
-                      </button>
-                      {tag.status !== "DISABLED" && tag.status !== "ASSIGNED" && (
+                    <div className="flex max-w-full flex-wrap items-center gap-1.5">
+                      {tag.status !== "DISABLED" && tag.status !== "ASSIGNED" ? (
                         <button
                           type="button"
                           onClick={() => { setAssignTagId(tag.id); setAssignSearch(""); setAssignSelected(null); setAssignResults([]); setAssignError(null); }}
@@ -859,8 +905,7 @@ export function NfcOperationsPage() {
                         >
                           Assign
                         </button>
-                      )}
-                      {tag.status === "ASSIGNED" && (
+                      ) : (
                         <button
                           type="button"
                           onClick={() => { void handleUnassign(tag.id); }}
@@ -869,49 +914,22 @@ export function NfcOperationsPage() {
                           Unassign
                         </button>
                       )}
-                      {tag.status === "ASSIGNED" && tag.student && (
-                        <button
-                          type="button"
-                          onClick={() => openWalletPinModal({ studentId: tag.student!.id, studentName: tag.student!.name, admissionNumber: tag.student!.admissionNumber })}
-                          className={`${compactActionButtonClass} border-violet-200 text-violet-700 hover:bg-violet-50`}
-                        >
-                          Wallet PIN
-                        </button>
-                      )}
-                      {tag.status === "ASSIGNED" && tag.student && (
+                      {tag.status === "ASSIGNED" && tag.student ? (
                         <button
                           type="button"
                           onClick={() => openLinkReaderModal(tag)}
                           className={`${compactActionButtonClass} border-amber-200 text-amber-700 hover:bg-amber-50`}
                         >
-                          Link reader credential
+                          Link reader
                         </button>
-                      )}
-                      {tag.status !== "DISABLED" && tag.status !== "LOST" && (
-                        <button
-                          type="button"
-                          onClick={() => { if (confirm("Disable this tag? It will no longer resolve.")) void handleDisable(tag.id); }}
-                          className={`${compactActionButtonClass} border-red-200 text-red-600 hover:bg-red-50`}
-                        >
-                          Disable
-                        </button>
-                      )}
-                      {(tag.status === "DISABLED" || tag.status === "LOST") && (
-                        <button
-                          type="button"
-                          onClick={() => { setEnableTarget(tag); setEnableReason(""); setEnableError(null); }}
-                          className={`${compactActionButtonClass} border-emerald-300 text-emerald-700 hover:bg-emerald-50`}
-                        >
-                          Re-enable
-                        </button>
-                      )}
-                      <button
-                        type="button"
-                        onClick={() => { void handleViewEvents(tag.id); }}
-                        className={`${compactActionButtonClass} border-slate-200 bg-white text-slate-700 hover:bg-slate-50`}
-                      >
-                        Events
-                      </button>
+                      ) : null}
+                      <RowMoreMenu
+                        tag={tag}
+                        actions={makeActions(tag)}
+                        isOpen={openDropdownId === tag.id}
+                        onToggle={() => setOpenDropdownId((id) => (id === tag.id ? null : tag.id))}
+                        onClose={() => setOpenDropdownId(null)}
+                      />
                     </div>
                   </td>
                 </tr>

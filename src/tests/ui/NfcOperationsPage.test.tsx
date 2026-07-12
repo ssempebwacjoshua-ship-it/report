@@ -1,5 +1,5 @@
 import { MemoryRouter } from "react-router-dom";
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NfcOperationsPage } from "../../pages/NfcOperationsPage";
 import type { NfcTag } from "../../shared/types/nfcTags";
@@ -167,14 +167,17 @@ describe("NfcOperationsPage compact table layout", () => {
     const table = document.querySelector("table.table-fixed");
     expect(table).not.toBeNull();
 
+    expect(screen.getAllByRole("button", { name: "More" }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole("button", { name: "Unassign" }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole("button", { name: "Assign" }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole("button", { name: /Link reader/i }).length).toBeGreaterThan(0);
+
+    fireEvent.click(screen.getAllByRole("button", { name: "More" })[0]);
     expect(screen.getAllByRole("button", { name: /Copy Payload/i }).length).toBeGreaterThan(0);
     expect(screen.getAllByRole("button", { name: /Copy URL/i }).length).toBeGreaterThan(0);
-    expect(screen.getByRole("button", { name: "Unassign" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Assign" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Wallet PIN" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Link reader credential" })).toBeInTheDocument();
-    expect(screen.getAllByRole("button", { name: "Disable" }).length).toBeGreaterThan(0);
-    expect(screen.getAllByRole("button", { name: "Events" }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole("button", { name: /Wallet PIN/i }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole("button", { name: /Events/i }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole("button", { name: /Disable/i }).length).toBeGreaterThan(0);
 
     expect(screen.getAllByText("Claire Nakibuuka With A Very Long Display Name For Layout").length).toBeGreaterThan(0);
     expect(screen.getAllByText("SCNFC:PUBLICCODE-ASSIGNED-001-WITH-A-LONG-PAYLOAD-VALUE").length).toBeGreaterThan(0);
