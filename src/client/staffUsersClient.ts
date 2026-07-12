@@ -11,6 +11,7 @@ export type StaffUser = {
   mustChangePassword: boolean;
   lastLoginAt: string | null;
   createdAt: string;
+  invitationStatus?: string;
 };
 
 export type StaffUserRole = "ADMIN_OPERATOR" | "GATE_SECURITY" | "SECURITY" | "CANTEEN" | "CASHIER";
@@ -29,14 +30,23 @@ export async function fetchStaffUsers() {
   return res.json() as Promise<{ users: StaffUser[] }>;
 }
 
-export async function createStaffUser(input: { name: string; email: string; phone?: string; role: StaffUserRole; temporaryPassword: string }) {
+export async function createStaffUser(input: { name: string; email: string; phone?: string; role: StaffUserRole }) {
   const res = await fetch(`${API_BASE}/api/staff-users`, {
     method: "POST",
     headers: makeSchoolRequestHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify(input),
   });
   if (!res.ok) throw new Error(await parseApiError(res, "Could not create staff user"));
-  return res.json() as Promise<{ user: StaffUser }>;
+  return res.json() as Promise<{ user: StaffUser; invitationDeliveryStatus: string }>;
+}
+
+export async function resendStaffInvitation(userId: string) {
+  const res = await fetch(`${API_BASE}/api/staff-users/${encodeURIComponent(userId)}/resend-invitation`, {
+    method: "POST",
+    headers: makeSchoolRequestHeaders({ "Content-Type": "application/json" }),
+  });
+  if (!res.ok) throw new Error(await parseApiError(res, "Could not resend invitation"));
+  return res.json() as Promise<{ invitationDeliveryStatus: string }>;
 }
 
 export async function changeStaffRole(userId: string, input: { role: StaffUserRole; reason: string }) {

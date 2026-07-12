@@ -50,6 +50,10 @@ npx prisma migrate deploy && node dist/server/index.js
 | `JWT_SECRET` | A long random string |
 | `CLIENT_ORIGIN` | `https://YOUR-VERCEL-APP.vercel.app` |
 | `APP_BASE_URL` | Branded parent report URL, for example `https://reports.schoolconnect.example` |
+| `APP_PUBLIC_URL` | Branded app URL used in account setup and password reset links |
+| `RESEND_API_KEY` | Server-only Resend API key for authentication emails |
+| `AUTH_EMAIL_FROM` | Verified Resend sender, for example `SSAMENJ Technologies <accounts@your-verified-domain.com>` |
+| `AUTH_EMAIL_REPLY_TO` | Optional reply-to support address |
 | `NODE_ENV` | `production` |
 | `OCR_ENABLED` | `true` |
 | `OCR_PROVIDER` | `azure` |
@@ -57,6 +61,8 @@ npx prisma migrate deploy && node dist/server/index.js
 | `PORT` | Set automatically by Railway — do not override |
 
 `CLIENT_ORIGIN` controls CORS. Parent report links use `APP_BASE_URL` when set, then fall back to `PUBLIC_APP_URL` or `CLIENT_ORIGIN`. Replace any Vercel preview URL with the production branded report domain before releasing reports to parents.
+
+Account setup and password reset links use `APP_PUBLIC_URL`. In production it must be HTTPS. Do not send production auth emails until the sender domain is verified in Resend.
 
 The server binds to `0.0.0.0` and the port from `process.env.PORT`, which Railway injects automatically.
 
@@ -77,7 +83,7 @@ The script is idempotent.
 ## Migration strategy
 
 - **Production (Railway):** `npx prisma migrate deploy` — applies pending migrations from `prisma/migrations/`
-- **Development:** `prisma db push` — push schema changes directly, no migration history required (avoids drift issues in dev)
+- **Development:** use reviewed local migrations for schema work. Never run `prisma db push` against production.
 
 ## Checklist
 

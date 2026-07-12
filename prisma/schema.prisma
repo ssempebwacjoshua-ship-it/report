@@ -58,6 +58,7 @@ model School {
   communicationConsents        CommunicationConsent[]
   communicationUsageRecords    CommunicationUsageRecord[]
   communicationChannelSettings CommunicationChannelSetting[]
+  authTokens                   AuthToken[]
 }
 
 model AcademicYear {
@@ -407,11 +408,36 @@ model User {
   canteenReconciliationOperators  CanteenReconciliation[]         @relation("CanteenReconciliationOperator")
   submittedCanteenReconciliations CanteenReconciliation[]         @relation("CanteenReconciliationSubmittedBy")
   approvedCanteenReconciliations  CanteenReconciliation[]         @relation("CanteenReconciliationApprovedBy")
+  authTokens                      AuthToken[]
   school                          School                          @relation(fields: [schoolId], references: [id], onDelete: Cascade)
 
   @@unique([schoolId, email])
   @@index([schoolId, role])
   @@index([isPlatformOwner])
+}
+
+model AuthToken {
+  id                 String        @id @default(uuid()) @db.Uuid
+  schoolId           String        @db.Uuid
+  userId             String        @db.Uuid
+  type               AuthTokenType
+  tokenHash          String        @unique
+  expiresAt          DateTime
+  usedAt             DateTime?
+  revokedAt          DateTime?
+  requestedIp        String?
+  requestedUserAgent String?
+  resendMessageId    String?
+  deliveryStatus     String        @default("PENDING")
+  deliveryErrorCode  String?
+  createdAt          DateTime      @default(now())
+
+  school School @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@index([schoolId, userId, type, expiresAt])
+  @@index([type, expiresAt])
+  @@index([schoolId, deliveryStatus, createdAt])
 }
 
 model SchoolSmartPagePlan {
@@ -1232,6 +1258,12 @@ enum UserRole {
   CANTEEN
   SECURITY
   GATE_SECURITY
+}
+
+enum AuthTokenType {
+  ACCOUNT_SETUP
+  PASSWORD_RESET
+  EMAIL_VERIFICATION
 }
 
 enum CredentialType {

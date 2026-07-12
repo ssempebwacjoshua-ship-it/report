@@ -1,14 +1,25 @@
 import { Router } from "express";
 import { z } from "zod";
+import { Prisma } from "@prisma/client";
 import { prisma } from "../db/prisma";
 import { isSupportedPasswordHash, normalizeLoginEmail, normalizeSchoolCode, signToken, verifyPassword, verifyToken, type SchoolUserRole } from "../services/authService";
 import { classifyRuntimeEnvironment } from "../security/environmentSafety";
 import { validateSchoolSession } from "../services/sessionValidationService";
+import { consumeAccountSetup, requestPasswordReset, resetPasswordWithToken } from "../services/authTokenService";
 
 const loginSchema = z.object({
   email: z.string().email("Enter a valid email address."),
   password: z.string().min(1, "Password is required."),
   schoolCode: z.string().min(1, "School code is required."),
+});
+
+const forgotPasswordSchema = z.object({
+  email: z.string().email("Enter a valid email address."),
+});
+
+const tokenPasswordSchema = z.object({
+  token: z.string().min(32, "Token is required."),
+  password: z.string().min(10, "Password must be at least 10 characters."),
 });
 
 type LoginFailureCategory =
@@ -30,7 +41,7 @@ async function writeLoginAudit(schoolId: string, action: "LOGIN_SUCCEEDED" | "LO
     data: {
       schoolId,
       action,
-      details,
+      details: details as Prisma.InputJsonValue,
     },
   });
 }
@@ -130,7 +141,7 @@ export function authRoutes() {
         res.status(401).json({ error: "Invalid credentials." });
         return;
       }
-      const authenticatedUser = user;
+      const authenticatedUser = user!;
 
       console.warn("[auth-login-succeeded]", {
         requestId,
@@ -172,6 +183,40 @@ export function authRoutes() {
           ...(authenticatedUser.isPlatformOwner ? { isPlatformOwner: true } : {}),
         },
       });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/api/auth/forgot-password", async (req, res, next) => {
+    try {
+      const { email } = forgotPasswordSchema.parse(req.body);
+      await requestPasswordReset({
+        email,
+        requestedIp: req.ip,
+        requestedUserAgent: req.headers["user-agent"],
+      });
+      res.json({ ok: true, message: "If an account exists for that email, a password reset link will be sent." });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/api/auth/reset-password", async (req, res, next) => {
+    try {
+      const { token, password } = tokenPasswordSchema.parse(req.body);
+      await resetPasswordWithToken(token, password);
+      res.json({ ok: true });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/api/auth/account-setup", async (req, res, next) => {
+    try {
+      const { token, password } = tokenPasswordSchema.parse(req.body);
+      await consumeAccountSetup(token, password);
+      res.json({ ok: true });
     } catch (error) {
       next(error);
     }

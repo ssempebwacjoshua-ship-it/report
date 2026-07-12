@@ -141,6 +141,9 @@ export function LoginPage() {
                   </span>
                 ) : "Sign in"}
               </button>
+              <a href="/forgot-password" className="text-center text-sm font-semibold text-blue-600 hover:text-blue-800">
+                Forgot password?
+              </a>
             </div>
           </form>
         </div>

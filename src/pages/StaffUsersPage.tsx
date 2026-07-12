@@ -4,6 +4,7 @@ import {
   changeStaffRole,
   createStaffUser,
   fetchStaffUsers,
+  resendStaffInvitation,
   resetStaffPassword,
   setStaffStatus,
   STAFF_ROLE_LABELS,
@@ -58,6 +59,7 @@ export function StaffUsersPage() {
   const [error, setError] = useState("");
   const [modal, setModal] = useState<Modal | null>(null);
   const [search, setSearch] = useState("");
+  const [actionMessage, setActionMessage] = useState("");
 
   async function load() {
     setLoading(true);
@@ -133,6 +135,11 @@ export function StaffUsersPage() {
                         Must change password
                       </span>
                     )}
+                    {!u.isActive && (
+                      <span className="inline-flex items-center rounded-full bg-sky-100 px-2.5 py-0.5 text-xs font-semibold text-sky-700">
+                        Invitation pending
+                      </span>
+                    )}
                     {u.id === authUser?.id && (
                       <span className="inline-flex items-center rounded-full bg-blue-50 px-2.5 py-0.5 text-xs font-semibold text-blue-600">You</span>
                     )}
@@ -140,6 +147,23 @@ export function StaffUsersPage() {
                   <div className="mt-0.5 text-xs text-slate-500">{u.email} · Last login: {formatDate(u.lastLoginAt)} · Added: {formatDate(u.createdAt)}</div>
                 </div>
                 <div className="flex flex-shrink-0 flex-wrap gap-2">
+                  {!u.isActive && (
+                    <button
+                      onClick={async () => {
+                        setActionMessage("");
+                        try {
+                          const result = await resendStaffInvitation(u.id);
+                          setActionMessage(result.invitationDeliveryStatus === "SENT" ? "Invitation sent." : "Invitation pending; email delivery failed or is not configured.");
+                          await load();
+                        } catch (e) {
+                          setError(e instanceof Error ? e.message : "Could not resend invitation.");
+                        }
+                      }}
+                      className="premium-control rounded-lg border border-blue-200 bg-white px-3 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-50"
+                    >
+                      Resend setup email
+                    </button>
+                  )}
                   <button
                     onClick={() => setModal({ type: "role", user: u })}
                     className="premium-control rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
@@ -152,7 +176,7 @@ export function StaffUsersPage() {
                   >
                     Reset Password
                   </button>
-                  {u.id !== authUser?.userId && (
+                  {u.id !== authUser?.id && (
                     <button
                       onClick={() =>
                         setModal({ type: "status", user: u, action: u.isActive ? "disable" : "enable" })
@@ -201,6 +225,7 @@ export function StaffUsersPage() {
           onClose={() => setModal(null)}
         />
       )}
+      {actionMessage && <div className="fixed bottom-4 right-4 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 shadow-lg">{actionMessage}</div>}
     </main>
   );
 }
@@ -224,7 +249,6 @@ function CreateModal({ onDone, onClose }: { onDone: () => void; onClose: () => v
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<StaffUserRole>("GATE_SECURITY");
-  const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -233,7 +257,7 @@ function CreateModal({ onDone, onClose }: { onDone: () => void; onClose: () => v
     setLoading(true);
     setError("");
     try {
-      await createStaffUser({ name, email, role, temporaryPassword: password });
+      await createStaffUser({ name, email, role });
       onDone();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to create staff user.");
@@ -243,7 +267,7 @@ function CreateModal({ onDone, onClose }: { onDone: () => void; onClose: () => v
   }
 
   return (
-    <ModalShell title="Add Staff User" subtitle="A temporary password will be set. Staff must change it on first login." onClose={onClose}>
+    <ModalShell title="Invite Staff User" subtitle="A setup email will be sent so the staff member can set their password." onClose={onClose}>
       <form onSubmit={submit} className="grid gap-4">
         <div>
           <label className={labelClass}>Full Name</label>
@@ -258,10 +282,6 @@ function CreateModal({ onDone, onClose }: { onDone: () => void; onClose: () => v
           <select className={inputClass} value={role} onChange={(e) => setRole(e.target.value as StaffUserRole)}>
             {ROLES.map((r) => <option key={r} value={r}>{STAFF_ROLE_LABELS[r]}</option>)}
           </select>
-        </div>
-        <div>
-          <label className={labelClass}>Temporary Password</label>
-          <input required type="password" className={inputClass} value={password} onChange={(e) => setPassword(e.target.value)} placeholder="At least 4 characters" minLength={4} />
         </div>
         {error && <p className="rounded-xl bg-red-50 p-3 text-sm text-red-600">{error}</p>}
         <div className="flex justify-end gap-3 pt-2">

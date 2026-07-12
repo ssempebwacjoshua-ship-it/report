@@ -14,6 +14,8 @@ import { StudentsPage } from "../pages/StudentsPage";
 import { StudentCredentialsPage } from "../pages/StudentCredentialsPage";
 import { SettingsPage } from "../pages/SettingsPage";
 import { LoginPage } from "../pages/LoginPage";
+import { ForgotPasswordPage } from "../pages/ForgotPasswordPage";
+import { TokenPasswordPage } from "../pages/TokenPasswordPage";
 import { LogoutPage } from "../pages/LogoutPage";
 import { DemoPage } from "../pages/DemoPage";
 import { FeaturesDemoPage } from "../pages/FeaturesDemoPage";
@@ -86,6 +88,9 @@ export const router = createBrowserRouter([
   { path: "/pricing", element: <PricingPage /> },
   { path: "/contact", element: <ContactPage /> },
   { path: "/login", element: <LoginPage /> },
+  { path: "/forgot-password", element: <ForgotPasswordPage /> },
+  { path: "/reset-password", element: <TokenPasswordPage mode="reset" /> },
+  { path: "/account/setup", element: <TokenPasswordPage mode="setup" /> },
   { path: "/logout", element: <LogoutPage /> },
   { path: "/parent/r/:token", element: <ParentReportPage /> },
   { path: "/verify/:code", element: <VerifyPage /> },

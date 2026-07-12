@@ -40,9 +40,21 @@ Required environment:
 DATABASE_URL="postgresql://postgres:postgres@localhost:5432/school_connect_reports_lab?schema=public"
 PORT=4300
 VITE_API_BASE_URL="http://localhost:4300"
+APP_PUBLIC_URL="http://localhost:5173"
 ```
 
 This lab must use its own local database. Do not point `DATABASE_URL` at the old School Connect database or any production database.
+
+Authentication emails use Resend when configured:
+
+```env
+RESEND_API_KEY=""
+AUTH_EMAIL_FROM="SSAMENJ Technologies <accounts@your-verified-domain.com>"
+AUTH_EMAIL_REPLY_TO=""
+APP_PUBLIC_URL="http://localhost:5173"
+```
+
+Production senders must use a verified Resend domain. Do not use a Gmail address as the production sender.
 
 ## Commands
 

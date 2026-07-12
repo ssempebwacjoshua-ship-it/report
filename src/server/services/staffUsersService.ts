@@ -1,9 +1,9 @@
-import prismaPkg from "@prisma/client";
+import { Prisma, UserRole } from "@prisma/client";
 import type { PrismaClient } from "@prisma/client";
+import crypto from "node:crypto";
 import { prisma as defaultPrisma } from "../db/prisma";
 import { hashPassword } from "./authService";
-
-const { UserRole } = prismaPkg;
+import { createAndSendAccountSetup } from "./authTokenService";
 
 type StaffContext = {
   schoolId?: string | null;
@@ -39,11 +39,12 @@ function safeUser(user: { id: string; name: string; email: string; role: UserRol
     mustChangePassword: user.mustChangePassword,
     lastLoginAt: user.lastLoginAt?.toISOString() ?? null,
     createdAt: user.createdAt.toISOString(),
+    invitationStatus: user.isActive ? "ACCOUNT_ACTIVE" : "INVITATION_PENDING",
   };
 }
 
 function auditLog(db: Pick<PrismaClient, "auditLog">, schoolId: string, action: string, details: Record<string, unknown>) {
-  return db.auditLog.create({ data: { schoolId, action, details } });
+  return db.auditLog.create({ data: { schoolId, action, details: details as Prisma.InputJsonValue } });
 }
 
 export async function listStaffUsers(ctx: StaffContext, db: Pick<PrismaClient, "user"> = defaultPrisma) {
@@ -57,16 +58,13 @@ export async function listStaffUsers(ctx: StaffContext, db: Pick<PrismaClient, "
 
 export async function createStaffUser(
   ctx: StaffContext,
-  input: { name: string; email: string; phone?: string; role: string; temporaryPassword: string },
-  db: Pick<PrismaClient, "user" | "auditLog"> = defaultPrisma,
+  input: { name: string; email: string; phone?: string; role: string },
+  db: Pick<PrismaClient, "user" | "school" | "authToken" | "auditLog"> = defaultPrisma,
 ) {
   const schoolId = requireSchoolAdmin(ctx);
 
   if (!MANAGEABLE_ROLES.includes(input.role as UserRole)) {
     throw Object.assign(new Error(`Invalid role: ${input.role}. Allowed: ${MANAGEABLE_ROLES.join(", ")}`), { status: 400 });
-  }
-  if (!input.temporaryPassword || input.temporaryPassword.length < TEMP_PASSWORD_MIN_LENGTH) {
-    throw Object.assign(new Error(`Temporary password must be at least ${TEMP_PASSWORD_MIN_LENGTH} characters.`), { status: 400 });
   }
   if (!input.name.trim()) throw Object.assign(new Error("Name is required."), { status: 400 });
   if (!input.email.trim()) throw Object.assign(new Error("Email is required."), { status: 400 });
@@ -75,7 +73,7 @@ export async function createStaffUser(
   const existing = await db.user.findFirst({ where: { schoolId, email: normalizedEmail } });
   if (existing) throw Object.assign(new Error("A user with this email already exists in this school."), { status: 409 });
 
-  const passwordHash = await hashPassword(input.temporaryPassword);
+  const passwordHash = await hashPassword(createPlaceholderPassword());
   const user = await db.user.create({
     data: {
       schoolId,
@@ -83,20 +81,35 @@ export async function createStaffUser(
       email: normalizedEmail,
       passwordHash,
       role: input.role as UserRole,
-      isActive: true,
+      isActive: false,
       mustChangePassword: true,
       tokenVersion: 0,
     },
   });
+
+  const delivery = await createAndSendAccountSetup({
+    userId: user.id,
+    schoolId,
+    inviterName: ctx.actorId ? "your school administrator" : "SSAMENJ",
+  }, db as never);
 
   void auditLog(db, schoolId, "STAFF_USER_CREATED", {
     actorId: ctx.actorId,
     targetUserId: user.id,
     role: user.role,
     email: user.email,
+    invitationDeliveryStatus: delivery.deliveryStatus,
   });
 
-  return { user: safeUser(user) };
+  return { user: safeUser(user), invitationDeliveryStatus: delivery.deliveryStatus };
+}
+
+function createPlaceholderPassword() {
+  return `Pending-${cryptoRandom()}-Setup1`;
+}
+
+function cryptoRandom() {
+  return crypto.randomBytes(16).toString("hex");
 }
 
 export async function changeStaffRole(
@@ -200,4 +213,28 @@ export async function resetStaffPassword(
   });
 
   return { user: safeUser(updated) };
+}
+
+export async function resendStaffInvitation(
+  ctx: StaffContext,
+  userId: string,
+  db: Pick<PrismaClient, "user" | "school" | "authToken" | "auditLog"> = defaultPrisma,
+) {
+  const schoolId = requireSchoolAdmin(ctx);
+  const target = await db.user.findFirst({ where: { id: userId, schoolId } });
+  if (!target) throw Object.assign(new Error("Staff user not found."), { status: 404 });
+  if (target.isActive && !target.mustChangePassword) {
+    throw Object.assign(new Error("This account is already active."), { status: 400 });
+  }
+  const delivery = await createAndSendAccountSetup({
+    userId,
+    schoolId,
+    inviterName: "your school administrator",
+  }, db as never);
+  void auditLog(db, schoolId, "STAFF_INVITATION_RESENT", {
+    actorId: ctx.actorId,
+    targetUserId: userId,
+    invitationDeliveryStatus: delivery.deliveryStatus,
+  });
+  return { invitationDeliveryStatus: delivery.deliveryStatus };
 }

@@ -4,6 +4,10 @@ vi.mock("../../server/services/authService", () => ({
   hashPassword: vi.fn(async (password: string) => `hashed:${password}`),
 }));
 
+vi.mock("../../server/services/authTokenService", () => ({
+  createAndSendAccountSetup: vi.fn(async () => ({ deliveryStatus: "SENT" })),
+}));
+
 import {
   changeStaffRole,
   createStaffUser,
@@ -25,25 +29,19 @@ function createDb() {
     auditLog: {
       create: vi.fn(),
     },
+    school: {
+      findUnique: vi.fn(),
+    },
+    authToken: {
+      create: vi.fn(),
+      update: vi.fn(),
+    },
   };
 }
 
 describe("staffUsersService", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-  });
-
-  it("creating staff with a weak temp password fails", async () => {
-    const db = createDb();
-    await expect(createStaffUser(ADMIN_CTX, {
-      name: "Cashier",
-      email: "cashier@test.com",
-      role: "CASHIER",
-      temporaryPassword: "short",
-    }, db as any)).rejects.toMatchObject({
-      message: "Temporary password must be at least 10 characters.",
-      status: 400,
-    });
   });
 
   it("resetting a password with a weak temp password fails", async () => {
@@ -57,7 +55,7 @@ describe("staffUsersService", () => {
     });
   });
 
-  it("creating staff with a strong temp password works and keeps mustChangePassword", async () => {
+  it("creating staff sends setup invitation and keeps account pending", async () => {
     const db = createDb();
     db.user.findFirst.mockResolvedValue(null);
     db.user.create.mockResolvedValue({
@@ -65,7 +63,7 @@ describe("staffUsersService", () => {
       name: "Cashier",
       email: "cashier@test.com",
       role: "CASHIER",
-      isActive: true,
+      isActive: false,
       mustChangePassword: true,
       lastLoginAt: null,
       createdAt: new Date("2026-01-01T00:00:00Z"),
@@ -75,12 +73,13 @@ describe("staffUsersService", () => {
       name: "Cashier",
       email: "cashier@test.com",
       role: "CASHIER",
-      temporaryPassword: "StrongPass1",
     }, db as any);
 
     expect(result.user.mustChangePassword).toBe(true);
+    expect(result.invitationDeliveryStatus).toBe("SENT");
     expect(db.user.create).toHaveBeenCalledWith(expect.objectContaining({
       data: expect.objectContaining({
+        isActive: false,
         mustChangePassword: true,
       }),
     }));

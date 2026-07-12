@@ -4,6 +4,7 @@ import {
   changeStaffRole,
   createStaffUser,
   listStaffUsers,
+  resendStaffInvitation,
   resetStaffPassword,
   setStaffStatus,
 } from "../services/staffUsersService";
@@ -17,7 +18,6 @@ const createSchema = z.object({
   email: z.string().email("Enter a valid email."),
   phone: z.string().trim().optional(),
   role: z.enum(ALLOWED_ROLES),
-  temporaryPassword: z.string().min(10, "Temporary password must be at least 10 characters."),
 });
 
 const changeRoleSchema = z.object({
@@ -82,6 +82,14 @@ export function staffUsersRoutes() {
   router.post("/api/staff-users/:id/reset-password", async (req, res, next) => {
     try {
       res.json(await resetStaffPassword(ctx(req), req.params.id, resetPasswordSchema.parse(req.body)));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/api/staff-users/:id/resend-invitation", async (req, res, next) => {
+    try {
+      res.json(await resendStaffInvitation(ctx(req), req.params.id));
     } catch (error) {
       next(error);
     }

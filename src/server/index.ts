@@ -63,7 +63,13 @@ import { assertPlatformIntegrationConfigured } from "./platformClient";
 const LOCALHOST_ORIGIN = /^https?:\/\/(?:localhost|127\.0\.0\.1)(:\d+)?$/;
 
 function isAuthAttemptPath(pathname: string) {
-  return pathname === "/api/auth/login" || pathname === "/api/creator/login" || pathname === "/api/creator/signup";
+  return pathname === "/api/auth/login"
+    || pathname === "/api/auth/forgot-password"
+    || pathname === "/api/auth/reset-password"
+    || pathname === "/api/auth/account-setup"
+    || pathname.endsWith("/resend-invitation")
+    || pathname === "/api/creator/login"
+    || pathname === "/api/creator/signup";
 }
 
 function isUploadOrImportPath(pathname: string) {
