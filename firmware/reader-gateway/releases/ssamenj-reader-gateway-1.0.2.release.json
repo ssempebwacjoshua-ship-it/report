@@ -1,0 +1,35 @@
+{
+  "releaseId": "ssamenj-reader-gateway-1-0-2-stable",
+  "version": "1.0.2",
+  "channel": "stable",
+  "artifactPath": "firmware/reader-gateway/releases/ssamenj-reader-gateway-1.0.2.bin",
+  "sha256": "fe65eae92a037830278093b17df99ed125060bbb17627a045e68b2af1b589e16",
+  "routeManifestCanonicalJson": "{\"channel\":\"stable\",\"downloadPath\":\"/api/readers/ota/download/ssamenj-reader-gateway-1-0-2-stable\",\"publicKeyId\":\"ssamenj-reader-ota-2026-01\",\"releaseId\":\"ssamenj-reader-gateway-1-0-2-stable\",\"sha256\":\"fe65eae92a037830278093b17df99ed125060bbb17627a045e68b2af1b589e16\",\"signature\":\"MEUCIQCAhlUVRC/BIWcm5JxIQZZR+ZpKesRBs+HWedhDaqxQrAIgPbaIAV1EJV4fWVzsM1RL6foXdWZypE6Z64jWUrojfDE=\",\"signatureAlgorithm\":\"ECDSA_P256_SHA256\",\"sizeBytes\":1159904,\"updateAvailable\":true,\"version\":\"1.0.2\"}",
+  "routeManifest": {
+    "updateAvailable": true,
+    "releaseId": "ssamenj-reader-gateway-1-0-2-stable",
+    "version": "1.0.2",
+    "channel": "stable",
+    "downloadPath": "/api/readers/ota/download/ssamenj-reader-gateway-1-0-2-stable",
+    "sha256": "fe65eae92a037830278093b17df99ed125060bbb17627a045e68b2af1b589e16",
+    "signature": "MEUCIQCAhlUVRC/BIWcm5JxIQZZR+ZpKesRBs+HWedhDaqxQrAIgPbaIAV1EJV4fWVzsM1RL6foXdWZypE6Z64jWUrojfDE=",
+    "signatureAlgorithm": "ECDSA_P256_SHA256",
+    "publicKeyId": "ssamenj-reader-ota-2026-01",
+    "sizeBytes": 1159904
+  },
+  "railwayRelease": {
+    "releaseId": "ssamenj-reader-gateway-1-0-2-stable",
+    "version": "1.0.2",
+    "channel": "stable",
+    "sha256": "fe65eae92a037830278093b17df99ed125060bbb17627a045e68b2af1b589e16",
+    "signature": "MEUCIQCAhlUVRC/BIWcm5JxIQZZR+ZpKesRBs+HWedhDaqxQrAIgPbaIAV1EJV4fWVzsM1RL6foXdWZypE6Z64jWUrojfDE=",
+    "signatureAlgorithm": "ECDSA_P256_SHA256",
+    "publicKeyId": "ssamenj-reader-ota-2026-01",
+    "sizeBytes": 1159904,
+    "artifactPath": "firmware/reader-gateway/releases/ssamenj-reader-gateway-1.0.2.bin",
+    "enabled": true,
+    "targetDeviceIds": [
+      "attendance-gate-01"
+    ]
+  }
+}
