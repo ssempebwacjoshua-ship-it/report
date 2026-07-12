@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
 import { Link } from "react-router-dom";
+import { NfcSectionTabs } from "../components/nfc/NfcSectionTabs";
 import { NfcScanPanel } from "../components/nfc/NfcScanPanel";
 import { useNfcScanner, type ScanResult } from "../hooks/useNfcScanner";
 import { resolveWalletStudent, topUpNfcWallet } from "../client/studentCredentialsClient";
@@ -103,10 +104,19 @@ export function NfcWalletTopUpPage() {
   return (
     <main className="grid gap-5">
       <header className="page-header">
-        <p className="text-xs font-bold uppercase tracking-wide text-blue-600">NFC Operations</p>
-        <h1 className="text-xl font-bold text-slate-950 sm:text-2xl">Wallet Top-Up</h1>
+        <p className="text-xs font-bold uppercase tracking-wide text-blue-600">Wallets</p>
+        <h1 className="text-xl font-bold text-slate-950 sm:text-2xl">Top Up</h1>
         <p className="mt-1 text-sm text-slate-500">Scan a student tag, then add wallet money manually.</p>
       </header>
+
+      <NfcSectionTabs
+        tabs={[
+          { to: "/nfc/wallets", label: "Wallets" },
+          { to: "/nfc/wallets/top-up", label: "Top Up" },
+          { to: "/nfc/wallets/transactions", label: "Transactions" },
+          { to: "/nfc/wallets/reconcile", label: "Reconcile" },
+        ]}
+      />
 
       <section className="grid gap-4 lg:grid-cols-[380px_minmax(0,1fr)]">
         <div className="flex flex-col gap-4">

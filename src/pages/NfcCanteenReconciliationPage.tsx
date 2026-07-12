@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
+import { NfcSectionTabs } from "../components/nfc/NfcSectionTabs";
 import { approveNfcCanteenReconciliation, closeNfcCanteenReconciliation, fetchNfcCanteenReconciliation, rejectNfcCanteenReconciliation } from "../client/studentCredentialsClient";
 import { fetchStaffUsers, type StaffUser } from "../client/staffUsersClient";
 import { useAuth } from "../contexts/AuthContext";
@@ -246,15 +247,24 @@ export function NfcCanteenReconciliationPage() {
     <main className="grid gap-5">
       <header className="page-header flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <p className="text-xs font-black uppercase tracking-[0.18em] text-blue-600">NFC Operations</p>
-          <h1 className="text-xl font-bold text-slate-950 sm:text-2xl">Canteen Reconciliation</h1>
+          <p className="text-xs font-black uppercase tracking-[0.18em] text-blue-600">Wallets</p>
+          <h1 className="text-xl font-bold text-slate-950 sm:text-2xl">Reconcile</h1>
           <p className="mt-1 text-sm text-slate-500">Review wallet movement, close the day, and approve the final reconciliation.</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Link to="/nfc/canteen" className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50">Canteen Purchase</Link>
-          <Link to="/nfc/wallets" className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50">Add Wallet</Link>
+          <Link to="/nfc/wallets" className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50">Wallets</Link>
         </div>
       </header>
+
+      <NfcSectionTabs
+        tabs={[
+          { to: "/nfc/wallets", label: "Wallets" },
+          { to: "/nfc/wallets/top-up", label: "Top Up" },
+          { to: "/nfc/wallets/transactions", label: "Transactions" },
+          { to: "/nfc/wallets/reconcile", label: "Reconcile" },
+        ]}
+      />
 
       <section className="grid gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm lg:grid-cols-4">
         <label className="grid gap-1 text-xs font-black uppercase text-slate-500">

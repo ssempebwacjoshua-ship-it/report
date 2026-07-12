@@ -27,7 +27,7 @@ export type NavItem = {
 export const productSwitcherItems: Record<ProductKey, { label: string; to: string }> = {
   reportLab: { label: "Report Lab", to: "/dashboard" },
   smartPages: { label: "Smart Pages", to: "/smart-pages" },
-  nfc: { label: "NFC", to: "/nfc/tags" },
+  nfc: { label: "NFC", to: "/nfc/wristbands" },
 };
 
 export function getVisibleProductSwitcherProducts(role: string | null | undefined, pathname: string): ProductKey[] {
@@ -61,16 +61,10 @@ export const navItemsByProduct: Record<ProductKey, NavItem[]> = {
     { to: "/preferences", label: "Settings", icon: "settings", requiredPermission: "app.admin" },
   ],
   nfc: [
-    { to: "/nfc/tags", label: "Tags", icon: "shield", exact: true, requiredPermission: "nfc.tags.manage" },
-    { to: "/nfc/wristbands", label: "Bands", icon: "shield", exact: true, requiredPermission: "nfc.tags.manage" },
-    { to: "/nfc/bulk-issuing", label: "Issue Tags", icon: "upload", exact: true, requiredPermission: "nfc.tags.manage" },
-    { to: "/nfc/bulk-allocation", label: "Allocate", icon: "upload", exact: true, requiredPermission: "nfc.tags.manage" },
+    { to: "/nfc/wristbands", label: "Wristbands", icon: "shield", exact: true, requiredPermission: "nfc.tags.manage" },
     { to: "/nfc/attendance", label: "Attendance", icon: "activity", exact: true, requiredPermission: "nfc.devices.manage" },
     { to: "/nfc/wallets", label: "Wallets", icon: "credit-card", exact: true, requiredPermission: "nfc.wallets.pin.manage" },
-    { to: "/nfc/wallets/top-up", label: "Top Up", icon: "credit-card", exact: true, requiredPermission: "nfc.wallets.topup" },
     { to: "/nfc/canteen", label: "Charge", icon: "credit-card", exact: true, requiredPermission: "nfc.canteen.charge" },
-    { to: "/nfc/canteen/transactions", label: "Transactions", icon: "clipboard", exact: true, requiredPermission: "nfc.canteen.transactions.view" },
-    { to: "/nfc/canteen/reconciliation", label: "Reconcile", icon: "clipboard", exact: true, requiredPermission: "nfc.canteen.reconciliation.view" },
     { to: "/nfc/fee-holds", label: "Holds", icon: "clipboard", exact: true, requiredPermission: "nfc.fee-holds.manage" },
     { to: "/nfc/gate", label: "Gate", icon: "shield", exact: true, requiredPermission: "nfc.gate.view" },
     { to: "/nfc/settings", label: "Settings", icon: "settings", exact: true, requiredPermission: "app.admin" },
@@ -97,9 +91,9 @@ const legacyNfcPaths = [
   "/nfc-tags",
   "/nfc-attendance",
   "/nfc-wallets",
+  "/student-credentials",
   "/canteen-charge",
   "/gate-security",
-  "/student-credentials",
 ];
 
 export function getProductFromPath(pathname: string): ProductKey {

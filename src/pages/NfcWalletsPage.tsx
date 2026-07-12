@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Link } from "react-router-dom";
+import { NfcSectionTabs } from "../components/nfc/NfcSectionTabs";
 import { fetchNfcWallets, setWalletPin } from "../client/studentCredentialsClient";
 import type { NfcWalletDashboard, NfcWalletRow } from "../shared/types/studentCredentials";
 
@@ -83,24 +84,21 @@ export function NfcWalletsPage() {
 
   return (
     <main className="grid gap-5">
-      <header className="page-header flex items-start justify-between gap-4">
-        <div>
-          <p className="text-xs font-bold uppercase tracking-wide text-blue-600">NFC Operations</p>
-          <h1 className="text-xl font-bold text-slate-950 sm:text-2xl">NFC Wallets</h1>
-        </div>
-        <div className="flex shrink-0 flex-wrap gap-2">
-          <Link to="/nfc/canteen/reconciliation" className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50">
-            Reconciliation
-          </Link>
-          <button
-            type="button"
-            className="btn btn-primary rounded-xl px-4 py-2 text-sm font-bold"
-            onClick={() => navigate("/nfc/wallets/top-up")}
-          >
-            + Top Up
-          </button>
-        </div>
+      <header className="page-header">
+        <p className="text-xs font-bold uppercase tracking-wide text-blue-600">Wallets</p>
+        <h1 className="text-xl font-bold text-slate-950 sm:text-2xl">Wallets</h1>
+        <p className="mt-1 text-sm text-slate-500">View wallets, top up balances, view transactions and reconcile.</p>
       </header>
+
+      <NfcSectionTabs
+        tabs={[
+          { to: "/nfc/wallets", label: "Wallets" },
+          { to: "/nfc/wallets/top-up", label: "Top Up" },
+          { to: "/nfc/wallets/transactions", label: "Transactions" },
+          { to: "/nfc/wallets/reconcile", label: "Reconcile" },
+        ]}
+      />
+
       {error ? <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div> : null}
       <section className="grid gap-3 sm:grid-cols-4">
         <Metric label="Active wallets" value={dashboard?.summary.totalActiveWallets ?? 0} />

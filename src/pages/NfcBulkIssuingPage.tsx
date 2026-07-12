@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { NfcSectionTabs } from "../components/nfc/NfcSectionTabs";
 import {
   bulkImportUids,
   createUrlTagBatch,
@@ -198,12 +199,20 @@ export function NfcBulkIssuingPage() {
   return (
     <main className="grid gap-5">
       <header className="page-header">
-        <p className="text-xs font-bold uppercase tracking-wide text-blue-600">NFC Operations</p>
-        <h1 className="text-xl font-bold tracking-tight text-slate-950 sm:text-2xl">Bulk Tag Issuing</h1>
+        <p className="text-xs font-bold uppercase tracking-wide text-blue-600">Wristbands</p>
+        <h1 className="text-xl font-bold tracking-tight text-slate-950 sm:text-2xl">Bulk Issue</h1>
         <p className="mt-1 text-sm text-slate-500">
           Create URL tag batches or register UID wristbands into inventory before allocating to students.
         </p>
       </header>
+
+      <NfcSectionTabs
+        tabs={[
+          { to: "/nfc/wristbands", label: "Wristbands" },
+          { to: "/nfc/wristbands/register", label: "Register" },
+          { to: "/nfc/wristbands/bulk-issue", label: "Bulk Issue" },
+        ]}
+      />
 
       {error ? <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div> : null}
       {notice ? <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700">{notice}</div> : null}

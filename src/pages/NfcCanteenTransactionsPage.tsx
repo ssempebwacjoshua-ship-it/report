@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { NfcSectionTabs } from "../components/nfc/NfcSectionTabs";
 import { getDailySummary, listWalletTransactions, reverseWalletTransaction } from "../client/studentCredentialsClient";
 import type { DailySummary, WalletTransactionRow } from "../shared/types/studentCredentials";
 
@@ -206,9 +207,18 @@ export function NfcCanteenTransactionsPage() {
   return (
     <main className="grid gap-5">
       <header className="page-header">
-        <p className="text-xs font-bold uppercase tracking-wide text-blue-600">NFC Operations</p>
-        <h1 className="text-xl font-bold text-slate-950 sm:text-2xl">Canteen Transactions</h1>
+        <p className="text-xs font-bold uppercase tracking-wide text-blue-600">Wallets</p>
+        <h1 className="text-xl font-bold text-slate-950 sm:text-2xl">Transactions</h1>
       </header>
+
+      <NfcSectionTabs
+        tabs={[
+          { to: "/nfc/wallets", label: "Wallets" },
+          { to: "/nfc/wallets/top-up", label: "Top Up" },
+          { to: "/nfc/wallets/transactions", label: "Transactions" },
+          { to: "/nfc/wallets/reconcile", label: "Reconcile" },
+        ]}
+      />
 
       {/* ── Daily summary cards ─────────────────────────────────────────── */}
       <section>

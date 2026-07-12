@@ -155,13 +155,15 @@ function renderPage() {
   );
 }
 
-describe("NfcOperationsPage compact table layout", () => {
-  it("renders the compact NFC tags table with all row actions available", async () => {
+describe("NfcOperationsPage wristband grid layout", () => {
+  it("renders the compact wristband grid with all row actions available", async () => {
     renderPage();
 
-    await waitFor(() => expect(screen.getByRole("heading", { name: "NFC Tags" })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Wristbands" })).toBeInTheDocument());
 
-    expect(screen.queryByText("Filter:")).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Wristbands" })).toHaveAttribute("href", "/nfc/wristbands");
+    expect(screen.getByRole("link", { name: "Register" })).toHaveAttribute("href", "/nfc/wristbands/register");
+    expect(screen.getByRole("link", { name: "Bulk Issue" })).toHaveAttribute("href", "/nfc/wristbands/bulk-issue");
 
     const cards = document.querySelectorAll(".rounded-2xl.border.border-slate-200.bg-white.p-4.shadow-sm");
     expect(cards.length).toBeGreaterThanOrEqual(2);

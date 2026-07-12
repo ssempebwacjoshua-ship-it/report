@@ -133,6 +133,21 @@ describe("Sidebar navigation", () => {
     expect(screen.queryByRole("button", { name: /smart pages/i })).not.toBeInTheDocument();
   });
 
+  it("shows the condensed NFC workflow links", async () => {
+    authState.user = { name: "Test Admin", role: "ADMIN_OPERATOR" };
+    renderSidebar("/nfc/wristbands");
+
+    await waitFor(() => expect(screen.getByText("NFC")).toBeInTheDocument());
+    expect(screen.getByRole("link", { name: /wristbands/i })).toHaveAttribute("href", "/nfc/wristbands");
+    expect(screen.getByRole("link", { name: /^wallets$/i })).toHaveAttribute("href", "/nfc/wallets");
+    expect(screen.getByRole("link", { name: /^attendance$/i })).toHaveAttribute("href", "/nfc/attendance");
+    expect(screen.getByRole("link", { name: /^charge$/i })).toHaveAttribute("href", "/nfc/canteen");
+    expect(screen.queryByRole("link", { name: /^tags$/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /^bands$/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /^issue tags$/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /^allocate$/i })).not.toBeInTheDocument();
+  });
+
   it("hides labels when collapsed but keeps icon buttons", async () => {
     authState.user = { name: "Test Admin", role: "ADMIN_OPERATOR" };
     renderSidebar("/dashboard", true);

@@ -49,7 +49,7 @@ function renderShell(initialEntries: string[] = ["/dashboard"]) {
           <Route path="/dashboard" element={<div>Dashboard Content</div>} />
           <Route path="/smart-pages" element={<div>Smart Pages Content</div>} />
           <Route path="/nfc/gate" element={<ConnectivityConsumerPage />} />
-          <Route path="/nfc/tags" element={<ConnectivityConsumerPage />} />
+          <Route path="/nfc/wristbands" element={<ConnectivityConsumerPage />} />
         </Route>
       </Routes>
     </MemoryRouter>,

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { NfcSectionTabs } from "../components/nfc/NfcSectionTabs";
 import {
   amendStudentCredential,
   deactivateStudentCredential,
@@ -216,11 +217,19 @@ export function StudentCredentialsPage() {
     <main className="grid gap-5">
       <header className="page-header flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="text-xs font-bold uppercase tracking-wide text-blue-600">Student Credentials</p>
-          <h1 className="text-xl font-bold tracking-tight text-slate-950 sm:text-2xl">NFC wristbands</h1>
+          <p className="text-xs font-bold uppercase tracking-wide text-blue-600">Wristbands</p>
+          <h1 className="text-xl font-bold tracking-tight text-slate-950 sm:text-2xl">Register wristbands</h1>
           <p className="mt-1 text-sm text-slate-500">Register, verify, and deactivate student wristband identifiers.</p>
         </div>
       </header>
+
+      <NfcSectionTabs
+        tabs={[
+          { to: "/nfc/wristbands", label: "Wristbands" },
+          { to: "/nfc/wristbands/register", label: "Register" },
+          { to: "/nfc/wristbands/bulk-issue", label: "Bulk Issue" },
+        ]}
+      />
 
       {error ? <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div> : null}
       {notice ? <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700">{notice}</div> : null}
