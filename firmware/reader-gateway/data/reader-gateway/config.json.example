@@ -1,6 +1,7 @@
 {
   "readerId": "attendance-gate-01",
   "schoolId": "YOUR_SCHOOL_ID",
+  "firmwareChannel": "stable",
   "wifiSsid": "YOUR_WIFI_NAME",
   "wifiPassword": "YOUR_WIFI_PASSWORD",
   "apiBaseUrl": "https://YOUR_API_DOMAIN",
@@ -10,7 +11,10 @@
   "eventsPath": "/api/readers/events",
   "registrationPath": "/api/readers/register",
   "heartbeatPath": "/api/readers/heartbeat",
+  "otaCheckPath": "/api/readers/ota/check",
+  "otaStatusPath": "/api/readers/ota/status",
   "firmwareVersion": "1.0.0",
+  "otaCheckIntervalMs": 3600000,
   "wifiReconnectIntervalMs": 15000,
   "wiegandTimeoutMs": 30,
   "buzzerPin": -1,
@@ -18,5 +22,7 @@
   "feedbackOutputsEnabled": false,
   "feedbackDriverActiveHigh": true,
   "ntpServer": "pool.ntp.org",
-  "autoRegister": true
+  "autoRegister": true,
+  "otaPublicKeyId": "reader-gateway-2026",
+  "otaPublicKeyPem": "-----BEGIN PUBLIC KEY-----\\nREPLACE_WITH_REAL_ECDSA_P256_KEY\\n-----END PUBLIC KEY-----\\n"
 }

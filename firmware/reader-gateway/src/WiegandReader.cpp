@@ -14,6 +14,19 @@ bool WiegandReader::begin(int8_t d0Pin, int8_t d1Pin, uint32_t timeoutMs) {
   return true;
 }
 
+bool WiegandReader::hasPendingFrame() const {
+  noInterrupts();
+  const uint8_t currentBitCount = bitCount_;
+  const uint32_t lastPulseMs = lastPulseMs_;
+  interrupts();
+
+  if (currentBitCount == 0) {
+    return false;
+  }
+
+  return (millis() - lastPulseMs) < timeoutMs_;
+}
+
 void WiegandReader::reset() {
   noInterrupts();
   frameBits_ = 0;

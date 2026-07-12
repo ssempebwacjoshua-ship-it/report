@@ -9,6 +9,7 @@ class WiegandReader {
  public:
   bool begin(int8_t d0Pin, int8_t d1Pin, uint32_t timeoutMs);
   bool poll(ReaderScanEvent& event);
+  bool hasPendingFrame() const;
   void reset();
 
  private:

@@ -1,3 +1,6 @@
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import express from "express";
 import request from "supertest";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -97,6 +100,7 @@ function device(overrides: Record<string, unknown> = {}) {
     deviceKey: "attendance-gate-01",
     name: "Attendance Gate 01",
     location: "Main Entrance",
+    firmwareVersion: "1.0.0",
     mode: "ATTENDANCE",
     roleScope: "ADMIN_OPERATOR",
     isActive: true,
@@ -508,6 +512,7 @@ describe("readerGatewayRoutes", () => {
       };
       return fn(tx);
     });
+    delete process.env.READER_GATEWAY_OTA_RELEASES_JSON;
   });
 
   it("registers a device heartbeat with bearer-token auth", async () => {
@@ -780,6 +785,120 @@ describe("readerGatewayRoutes", () => {
         queueDepth: 0,
         onlineStatus: "ONLINE",
         lastApiContactAt: new Date("2026-07-10T08:00:00Z"),
+      }),
+    }));
+  });
+
+  it("returns a staged OTA release for an assigned firmware channel", async () => {
+    const artifactPath = path.join(os.tmpdir(), "reader-gateway-ota.bin");
+    fs.writeFileSync(artifactPath, Buffer.from("firmware-binary"));
+    process.env.READER_GATEWAY_OTA_RELEASES_JSON = JSON.stringify([{
+      releaseId: "release-stable-101",
+      version: "1.0.1",
+      channel: "stable",
+      sha256: "abc123",
+      signature: "ZmFrZS1zaWduYXR1cmU=",
+      signatureAlgorithm: "ECDSA_P256_SHA256",
+      publicKeyId: "reader-gateway-2026",
+      artifactPath,
+      sizeBytes: fs.statSync(artifactPath).size,
+    }]);
+
+    const res = await request(buildApp())
+      .post("/api/readers/ota/check")
+      .set("Authorization", "Bearer device-token-123")
+      .send({
+        deviceId: "attendance-gate-01",
+        readerId: "attendance-gate-01",
+        schoolId: "school-1",
+        firmwareVersion: "1.0.0",
+        firmwareChannel: "stable",
+        queueDepth: 0,
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({
+      success: true,
+      action: "OTA",
+      status: "UPDATE_AVAILABLE",
+      updateAvailable: true,
+      releaseId: "release-stable-101",
+      version: "1.0.1",
+      channel: "stable",
+      downloadPath: "/api/readers/ota/download/release-stable-101",
+      sha256: "abc123",
+      signatureAlgorithm: "ECDSA_P256_SHA256",
+    });
+  });
+
+  it("serves an assigned OTA artifact only to the authenticated device", async () => {
+    const artifactPath = path.join(os.tmpdir(), "reader-gateway-ota-download.bin");
+    const artifact = Buffer.from("signed-firmware-image");
+    fs.writeFileSync(artifactPath, artifact);
+    process.env.READER_GATEWAY_OTA_RELEASES_JSON = JSON.stringify([{
+      releaseId: "release-device-101",
+      version: "1.0.1",
+      channel: "beta",
+      sha256: "abc123",
+      signature: "ZmFrZS1zaWduYXR1cmU=",
+      signatureAlgorithm: "ECDSA_P256_SHA256",
+      publicKeyId: "reader-gateway-2026",
+      artifactPath,
+      sizeBytes: artifact.length,
+      targetDeviceIds: ["attendance-gate-01"],
+    }]);
+
+    const res = await request(buildApp())
+      .get("/api/readers/ota/download/release-device-101")
+      .set("Authorization", "Bearer device-token-123")
+      .set("X-Device-Id", "attendance-gate-01")
+      .set("X-Reader-Id", "attendance-gate-01")
+      .set("X-School-Id", "school-1")
+      .set("X-Firmware-Channel", "beta");
+
+    expect(res.status).toBe(200);
+    expect(res.headers["x-firmware-version"]).toBe("1.0.1");
+    expect(Buffer.from(res.body).toString()).toBe(artifact.toString());
+  });
+
+  it("records OTA status updates for audit and device health", async () => {
+    prismaMocks.transaction.mockImplementation(async (fn: (tx: any) => Promise<unknown>) => {
+      const tx = {
+        nfcOfflineDevice: { update: prismaMocks.nfcOfflineDeviceUpdate },
+        auditLog: { create: prismaMocks.auditLogCreate },
+      };
+      return fn(tx);
+    });
+
+    const res = await request(buildApp())
+      .post("/api/readers/ota/status")
+      .set("Authorization", "Bearer device-token-123")
+      .send({
+        deviceId: "attendance-gate-01",
+        readerId: "attendance-gate-01",
+        schoolId: "school-1",
+        releaseId: "release-stable-101",
+        firmwareVersion: "1.0.0",
+        firmwareChannel: "stable",
+        fromVersion: "1.0.0",
+        toVersion: "1.0.1",
+        status: "INSTALLED",
+        message: "Firmware update installed; restarting device.",
+      });
+
+    expect(res.status).toBe(200);
+    expect(prismaMocks.nfcOfflineDeviceUpdate).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        firmwareVersion: "1.0.1",
+      }),
+    }));
+    expect(prismaMocks.auditLogCreate).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        action: "reader_device.ota_status",
+        details: expect.objectContaining({
+          releaseId: "release-stable-101",
+          status: "INSTALLED",
+        }),
       }),
     }));
   });

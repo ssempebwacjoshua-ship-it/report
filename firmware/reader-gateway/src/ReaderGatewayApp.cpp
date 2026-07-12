@@ -1,12 +1,72 @@
 #include "ssamenj/ReaderGatewayApp.h"
 
-#include <ArduinoOTA.h>
+#include <HTTPClient.h>
 #include <LittleFS.h>
+#include <Update.h>
 #include <WiFi.h>
+#include <esp_ota_ops.h>
+#include <mbedtls/base64.h>
+#include <mbedtls/pk.h>
+#include <mbedtls/sha256.h>
+#include <memory>
 #include <time.h>
 
 namespace {
 constexpr const char* FACTORY_RESET_FLAG_PATH = "/reader-gateway/factory-reset.once";
+constexpr unsigned long HEARTBEAT_INTERVAL_MS = 60000;
+constexpr unsigned long MAX_RETRY_INTERVAL_MS = 5UL * 60UL * 1000UL;
+
+String joinPath(const String& base, const String& path) {
+  if (base.endsWith("/") && path.startsWith("/")) {
+    return base.substring(0, base.length() - 1) + path;
+  }
+  if (!base.endsWith("/") && !path.startsWith("/")) {
+    return base + "/" + path;
+  }
+  return base + path;
+}
+
+String lowerTrimmed(const String& value) {
+  String normalized = value;
+  normalized.trim();
+  normalized.toLowerCase();
+  return normalized;
+}
+
+String digestToHex(const uint8_t digest[32]) {
+  static constexpr char kHex[] = "0123456789abcdef";
+  char buffer[65];
+  for (size_t index = 0; index < 32; index += 1) {
+    buffer[index * 2] = kHex[(digest[index] >> 4) & 0x0F];
+    buffer[index * 2 + 1] = kHex[digest[index] & 0x0F];
+  }
+  buffer[64] = '\0';
+  return String(buffer);
+}
+
+bool decodeBase64(const String& input, std::unique_ptr<uint8_t[]>& decoded, size_t& decodedLength) {
+  decodedLength = 0;
+  size_t outputLength = 0;
+  const int estimate = (input.length() * 3) / 4 + 4;
+  if (estimate <= 0) {
+    return false;
+  }
+
+  decoded.reset(new uint8_t[static_cast<size_t>(estimate)]);
+  const int result = mbedtls_base64_decode(
+    decoded.get(),
+    static_cast<size_t>(estimate),
+    &outputLength,
+    reinterpret_cast<const unsigned char*>(input.c_str()),
+    input.length()
+  );
+  if (result != 0) {
+    decoded.reset();
+    return false;
+  }
+  decodedLength = outputLength;
+  return true;
+}
 
 const char* wifiStatusToString(wl_status_t status) {
   switch (status) {
@@ -33,13 +93,7 @@ GatewayFeedbackTone toneFromBeep(const String& beep) {
   if (beep.equalsIgnoreCase("success")) {
     return GatewayFeedbackTone::Success;
   }
-  if (beep.equalsIgnoreCase("warning")) {
-    return GatewayFeedbackTone::Error;
-  }
-  if (beep.equalsIgnoreCase("duplicate")) {
-    return GatewayFeedbackTone::Error;
-  }
-  if (beep.equalsIgnoreCase("error")) {
+  if (beep.equalsIgnoreCase("warning") || beep.equalsIgnoreCase("duplicate") || beep.equalsIgnoreCase("error")) {
     return GatewayFeedbackTone::Error;
   }
   if (beep.equalsIgnoreCase("offline") || beep.equalsIgnoreCase("offline_queued")) {
@@ -57,11 +111,19 @@ bool isTerminalApiResponse(const ReaderApiResponse& response) {
          response.statusCode != 408 && response.statusCode != 429;
 }
 
-constexpr unsigned long HEARTBEAT_INTERVAL_MS = 60000;
-constexpr unsigned long MAX_RETRY_INTERVAL_MS = 5UL * 60UL * 1000UL;
-
 bool isZeroValue(const String& value) {
   return value.length() > 0 && value.equals("0");
+}
+
+void logTlsError(WiFiClientSecure& client) {
+  char errorBuffer[128] = {0};
+  const int errorCode = client.lastError(errorBuffer, sizeof(errorBuffer));
+  if (errorCode != 0 || errorBuffer[0] != '\0') {
+    Serial.printf("TLS error code: %d\n", errorCode);
+    if (errorBuffer[0] != '\0') {
+      Serial.printf("TLS error detail: %s\n", errorBuffer);
+    }
+  }
 }
 }  // namespace
 
@@ -75,11 +137,318 @@ bool ReaderGatewayApp::consumeFactoryResetFlag() {
   wiegand_.reset();
   lastQueueAttemptMs_ = 0;
   lastHeartbeatMs_ = 0;
+  lastOtaCheckMs_ = 0;
   lastSuccessfulApiContactAt_ = "";
   const bool flagRemoved = LittleFS.remove(FACTORY_RESET_FLAG_PATH);
   Serial.printf("Factory reset queue cleared: %s\n", queueCleared ? "yes" : "no");
   Serial.printf("Factory reset flag removed: %s\n", flagRemoved ? "yes" : "no");
   return true;
+}
+
+bool ReaderGatewayApp::checkRollbackState() {
+  const esp_partition_t* running = esp_ota_get_running_partition();
+  if (running == nullptr) {
+    return false;
+  }
+
+  esp_ota_img_states_t otaState;
+  if (esp_ota_get_state_partition(running, &otaState) != ESP_OK) {
+    return false;
+  }
+
+  otaPendingRollbackConfirm_ = otaState == ESP_OTA_IMG_PENDING_VERIFY;
+  if (otaPendingRollbackConfirm_) {
+    Serial.println("OTA image pending verification");
+  }
+  return otaPendingRollbackConfirm_;
+}
+
+bool ReaderGatewayApp::shouldDeferOtaUpdate() const {
+  return transactionActive_ || otaUpdateInProgress_ || wiegand_.hasPendingFrame();
+}
+
+bool ReaderGatewayApp::verifyDownloadedFirmware(const String& digestHex, const ReaderOtaManifest& manifest) const {
+  const String expectedSha = lowerTrimmed(manifest.sha256);
+  if (expectedSha.isEmpty() || digestHex != expectedSha) {
+    Serial.printf("OTA digest mismatch expected=%s actual=%s\n", expectedSha.c_str(), digestHex.c_str());
+    return false;
+  }
+
+  if (!manifest.signatureAlgorithm.equalsIgnoreCase("ECDSA_P256_SHA256")) {
+    Serial.printf("Unsupported OTA signature algorithm: %s\n", manifest.signatureAlgorithm.c_str());
+    return false;
+  }
+
+  if (!config_.otaPublicKeyId.isEmpty() && manifest.publicKeyId != config_.otaPublicKeyId) {
+    Serial.printf("OTA public key mismatch expected=%s actual=%s\n", config_.otaPublicKeyId.c_str(), manifest.publicKeyId.c_str());
+    return false;
+  }
+
+  if (config_.otaPublicKeyPem.isEmpty()) {
+    Serial.println("OTA public key is not configured");
+    return false;
+  }
+
+  std::unique_ptr<uint8_t[]> signature;
+  size_t signatureLength = 0;
+  if (!decodeBase64(manifest.signature, signature, signatureLength)) {
+    Serial.println("Failed to decode OTA signature");
+    return false;
+  }
+
+  uint8_t digest[32];
+  for (size_t index = 0; index < 32; index += 1) {
+    const String byteHex = digestHex.substring(index * 2, index * 2 + 2);
+    digest[index] = static_cast<uint8_t>(strtoul(byteHex.c_str(), nullptr, 16));
+  }
+
+  mbedtls_pk_context pk;
+  mbedtls_pk_init(&pk);
+  const int keyResult = mbedtls_pk_parse_public_key(
+    &pk,
+    reinterpret_cast<const unsigned char*>(config_.otaPublicKeyPem.c_str()),
+    config_.otaPublicKeyPem.length() + 1
+  );
+  if (keyResult != 0) {
+    Serial.printf("Failed to parse OTA public key: %d\n", keyResult);
+    mbedtls_pk_free(&pk);
+    return false;
+  }
+
+  const int verifyResult = mbedtls_pk_verify(&pk, MBEDTLS_MD_SHA256, digest, sizeof(digest), signature.get(), signatureLength);
+  mbedtls_pk_free(&pk);
+  if (verifyResult != 0) {
+    Serial.printf("OTA signature verification failed: %d\n", verifyResult);
+    return false;
+  }
+
+  return true;
+}
+
+void ReaderGatewayApp::reportOtaStatus(const String& status, const String& message, const ReaderOtaManifest& manifest) {
+  if (config_.otaStatusPath.isEmpty()) {
+    return;
+  }
+
+  ReaderOtaStatusReport report;
+  report.releaseId = manifest.releaseId;
+  report.fromVersion = config_.firmwareVersion;
+  report.toVersion = manifest.version;
+  report.status = status;
+  report.message = message;
+
+  ReaderApiResponse response;
+  if (!gatewayClient_.reportOtaStatus(config_, report, response)) {
+    Serial.printf("OTA status report failed: %s\n", status.c_str());
+    return;
+  }
+  Serial.printf("OTA status reported: %s\n", status.c_str());
+}
+
+bool ReaderGatewayApp::installOtaUpdate(const ReaderOtaManifest& manifest) {
+  if (shouldDeferOtaUpdate()) {
+    reportOtaStatus("DEFERRED", "Reader transaction is active; OTA deferred.", manifest);
+    return false;
+  }
+
+  otaUpdateInProgress_ = true;
+  reportOtaStatus("DOWNLOADING", "Downloading firmware update.", manifest);
+
+  const String url = manifest.downloadUrl.isEmpty()
+    ? joinPath(config_.apiBaseUrl, manifest.downloadPath)
+    : manifest.downloadUrl;
+
+  HTTPClient http;
+  std::unique_ptr<WiFiClientSecure> secureClient;
+  WiFiClient plainClient;
+  if (url.startsWith("https://")) {
+    secureClient.reset(new WiFiClientSecure());
+    if (!config_.tlsRootCaPem.isEmpty()) {
+      secureClient->setCACert(config_.tlsRootCaPem.c_str());
+    } else if (config_.tlsInsecure) {
+      secureClient->setInsecure();
+      Serial.println("Warning: OTA TLS is running in insecure mode; signature verification remains mandatory.");
+    }
+    if (!http.begin(*secureClient, url)) {
+      Serial.printf("OTA HTTP begin failed for %s\n", url.c_str());
+      logTlsError(*secureClient);
+      otaUpdateInProgress_ = false;
+      reportOtaStatus("FAILED", "Failed to open OTA download URL.", manifest);
+      return false;
+    }
+  } else if (!http.begin(plainClient, url)) {
+    Serial.printf("OTA HTTP begin failed for %s\n", url.c_str());
+    otaUpdateInProgress_ = false;
+    reportOtaStatus("FAILED", "Failed to open OTA download URL.", manifest);
+    return false;
+  }
+
+  http.setTimeout(15000);
+  http.addHeader("X-Device-Id", config_.deviceId);
+  http.addHeader("X-Reader-Id", config_.readerId);
+  http.addHeader("X-School-Id", config_.schoolId);
+  http.addHeader("X-Firmware-Version", config_.firmwareVersion);
+  http.addHeader("X-Firmware-Channel", config_.firmwareChannel);
+  if (!config_.bearerToken.isEmpty()) {
+    http.addHeader("Authorization", String("Bearer ") + config_.bearerToken);
+  }
+
+  const int statusCode = http.GET();
+  if (statusCode != 200) {
+    Serial.printf("OTA download failed with status %d\n", statusCode);
+    if (statusCode < 0 && secureClient) {
+      logTlsError(*secureClient);
+    }
+    http.end();
+    otaUpdateInProgress_ = false;
+    reportOtaStatus("FAILED", "OTA download request failed.", manifest);
+    return false;
+  }
+
+  const int contentLength = http.getSize();
+  if (manifest.sizeBytes > 0 && contentLength > 0 && static_cast<uint32_t>(contentLength) != manifest.sizeBytes) {
+    Serial.printf("OTA size mismatch expected=%lu actual=%d\n", static_cast<unsigned long>(manifest.sizeBytes), contentLength);
+    http.end();
+    otaUpdateInProgress_ = false;
+    reportOtaStatus("FAILED", "OTA size mismatch.", manifest);
+    return false;
+  }
+
+  if (!Update.begin(manifest.sizeBytes > 0 ? manifest.sizeBytes : UPDATE_SIZE_UNKNOWN, U_FLASH)) {
+    Serial.printf("OTA Update.begin failed: %s\n", Update.errorString());
+    http.end();
+    otaUpdateInProgress_ = false;
+    reportOtaStatus("FAILED", "OTA partition init failed.", manifest);
+    return false;
+  }
+
+  reportOtaStatus("VERIFYING", "Streaming firmware and computing SHA-256.", manifest);
+
+  WiFiClient* stream = http.getStreamPtr();
+  mbedtls_sha256_context sha;
+  mbedtls_sha256_init(&sha);
+  mbedtls_sha256_starts_ret(&sha, 0);
+
+  uint8_t buffer[1024];
+  int remaining = contentLength;
+  while (http.connected() && (remaining > 0 || remaining == -1)) {
+    const size_t available = stream->available();
+    if (available == 0) {
+      delay(1);
+      yield();
+      continue;
+    }
+
+    const size_t chunkSize = available > sizeof(buffer) ? sizeof(buffer) : available;
+    const int bytesRead = stream->readBytes(reinterpret_cast<char*>(buffer), chunkSize);
+    if (bytesRead <= 0) {
+      continue;
+    }
+
+    mbedtls_sha256_update_ret(&sha, buffer, static_cast<size_t>(bytesRead));
+    if (Update.write(buffer, static_cast<size_t>(bytesRead)) != static_cast<size_t>(bytesRead)) {
+      Serial.printf("OTA write failed: %s\n", Update.errorString());
+      mbedtls_sha256_free(&sha);
+      Update.abort();
+      http.end();
+      otaUpdateInProgress_ = false;
+      reportOtaStatus("FAILED", "OTA write failed.", manifest);
+      return false;
+    }
+
+    if (remaining > 0) {
+      remaining -= bytesRead;
+    }
+    yield();
+  }
+
+  uint8_t digest[32];
+  mbedtls_sha256_finish_ret(&sha, digest);
+  mbedtls_sha256_free(&sha);
+  const String digestHex = digestToHex(digest);
+
+  if (remaining > 0) {
+    Serial.println("OTA download ended before expected size was received");
+    Update.abort();
+    http.end();
+    otaUpdateInProgress_ = false;
+    reportOtaStatus("FAILED", "OTA download ended early.", manifest);
+    return false;
+  }
+
+  if (!verifyDownloadedFirmware(digestHex, manifest)) {
+    Update.abort();
+    http.end();
+    otaUpdateInProgress_ = false;
+    reportOtaStatus("FAILED", "OTA digest or signature verification failed.", manifest);
+    return false;
+  }
+
+  reportOtaStatus("INSTALLING", "Verified firmware image; switching boot partition.", manifest);
+  if (!Update.end(true) || !Update.isFinished()) {
+    Serial.printf("OTA finalize failed: %s\n", Update.errorString());
+    http.end();
+    otaUpdateInProgress_ = false;
+    reportOtaStatus("FAILED", "OTA finalize failed.", manifest);
+    return false;
+  }
+
+  http.end();
+  reportOtaStatus("INSTALLED", "Firmware update installed; restarting device.", manifest);
+  Serial.printf("OTA installed successfully: %s -> %s\n", config_.firmwareVersion.c_str(), manifest.version.c_str());
+  delay(250);
+  ESP.restart();
+  return true;
+}
+
+void ReaderGatewayApp::maybeCheckForOtaUpdate() {
+  if (!hasWorkingNetwork() || config_.otaCheckPath.isEmpty() || config_.otaPublicKeyPem.isEmpty()) {
+    return;
+  }
+
+  const unsigned long now = millis();
+  if (now - lastOtaCheckMs_ < config_.otaCheckIntervalMs) {
+    return;
+  }
+  lastOtaCheckMs_ = now;
+
+  ReaderOtaManifest manifest;
+  if (!gatewayClient_.checkForOtaUpdate(config_, offlineQueue_.size(), manifest)) {
+    Serial.println("OTA check failed");
+    return;
+  }
+
+  markApiContact();
+
+  if (!manifest.updateAvailable) {
+    Serial.println("OTA: no update available");
+    return;
+  }
+
+  Serial.printf("OTA available release=%s version=%s channel=%s\n",
+    manifest.releaseId.c_str(),
+    manifest.version.c_str(),
+    manifest.channel.c_str());
+
+  if (shouldDeferOtaUpdate()) {
+    reportOtaStatus("DEFERRED", "Reader transaction is active; OTA deferred.", manifest);
+    return;
+  }
+
+  installOtaUpdate(manifest);
+}
+
+void ReaderGatewayApp::maybeConfirmOtaBoot() {
+  if (!otaPendingRollbackConfirm_ || lastSuccessfulApiContactAt_.isEmpty()) {
+    return;
+  }
+
+  if (esp_ota_mark_app_valid_cancel_rollback() == ESP_OK) {
+    otaPendingRollbackConfirm_ = false;
+    Serial.println("OTA image marked valid");
+  } else {
+    Serial.println("Failed to mark OTA image valid");
+  }
 }
 
 bool ReaderGatewayApp::isValidScanEvent(const ReaderScanEvent& event, const char*& reason) const {
@@ -152,21 +521,22 @@ bool ReaderGatewayApp::begin() {
   Serial.printf("Loaded readerId: %s\n", config_.readerId.c_str());
   Serial.printf("Loaded schoolId: %s\n", config_.schoolId.c_str());
   Serial.printf("Loaded apiBaseUrl: %s\n", config_.apiBaseUrl.c_str());
+  Serial.printf("Loaded firmwareChannel: %s\n", config_.firmwareChannel.c_str());
   Serial.printf("Wi-Fi SSID configured: %s\n", config_.wifiSsid.c_str());
   Serial.printf("Configured D0 pin: %d\n", static_cast<int>(config_.d0Pin));
   Serial.printf("Configured D1 pin: %d\n", static_cast<int>(config_.d1Pin));
 
+  checkRollbackState();
   feedback_.begin(config_);
   gatewayClient_.begin(config_);
   deviceRegistration_.begin(&gatewayClient_, &config_);
   wiegand_.begin(config_.d0Pin, config_.d1Pin, config_.wiegandTimeoutMs);
 
   ensureWiFi();
-  ensureOta();
   if (WiFi.status() == WL_CONNECTED) {
     syncClock();
-    if (config_.autoRegister) {
-      deviceRegistration_.registerNow();
+    if (config_.autoRegister && deviceRegistration_.registerNow()) {
+      markApiContact();
     }
     processOfflineQueue();
   }
@@ -210,19 +580,6 @@ void ReaderGatewayApp::syncClock() {
   clockSynced_ = isTimeValid();
 }
 
-void ReaderGatewayApp::ensureOta() {
-  if (otaStarted_ || WiFi.status() != WL_CONNECTED) {
-    return;
-  }
-
-  ArduinoOTA.setHostname(config_.deviceId.c_str());
-  if (!config_.otaPassword.isEmpty()) {
-    ArduinoOTA.setPassword(config_.otaPassword.c_str());
-  }
-  ArduinoOTA.begin();
-  otaStarted_ = true;
-}
-
 bool ReaderGatewayApp::hasWorkingNetwork() const {
   return WiFi.status() == WL_CONNECTED;
 }
@@ -264,6 +621,7 @@ String ReaderGatewayApp::createEventId() const {
 
 void ReaderGatewayApp::markApiContact() {
   lastSuccessfulApiContactAt_ = utcIso8601Now();
+  maybeConfirmOtaBoot();
 }
 
 void ReaderGatewayApp::sendHeartbeat() {
@@ -326,11 +684,13 @@ void ReaderGatewayApp::processScan(const ReaderScanEvent& scan) {
     Serial.printf("Wiegand card number: %s\n", event.cardNumber.c_str());
   }
 
+  transactionActive_ = true;
   if (hasWorkingNetwork()) {
     ReaderApiResponse response;
     gatewayClient_.postScan(config_, event, response);
     if (isTerminalApiResponse(response)) {
       markApiContact();
+      transactionActive_ = false;
       Serial.println(response.success ? "Upload Success" : "Scan Rejected");
       feedback_.play(toneFromBeep(response.beep));
       return;
@@ -340,6 +700,7 @@ void ReaderGatewayApp::processScan(const ReaderScanEvent& scan) {
     Serial.printf("Queue status before offline enqueue: %u\n", static_cast<unsigned int>(offlineQueue_.size()));
   }
 
+  transactionActive_ = false;
   if (offlineQueue_.enqueue(event)) {
     Serial.println("Queued Offline");
     Serial.printf("Queue status after enqueue: %u\n", static_cast<unsigned int>(offlineQueue_.size()));
@@ -371,9 +732,11 @@ void ReaderGatewayApp::processOfflineQueue() {
     }
     lastQueueAttemptMs_ = millis();
 
+    transactionActive_ = true;
     ReaderApiResponse response;
     gatewayClient_.postScan(config_, event, response);
     if (!isTerminalApiResponse(response)) {
+      transactionActive_ = false;
       event.retryCount += 1;
       event.syncStatus = "pending";
       offlineQueue_.updateFront(event);
@@ -382,6 +745,7 @@ void ReaderGatewayApp::processOfflineQueue() {
       break;
     }
 
+    transactionActive_ = false;
     offlineQueue_.pop();
     lastQueueAttemptMs_ = 0;
     markApiContact();
@@ -401,7 +765,6 @@ void ReaderGatewayApp::processOfflineQueue() {
 
 void ReaderGatewayApp::loop() {
   feedback_.loop();
-  ArduinoOTA.handle();
   ensureWiFi();
 
   if (WiFi.status() == WL_CONNECTED) {
@@ -412,13 +775,13 @@ void ReaderGatewayApp::loop() {
       Serial.printf("Wi-Fi RSSI: %d dBm\n", WiFi.RSSI());
       wifiConnectedLogged_ = true;
       syncClock();
-      ensureOta();
-      if (config_.autoRegister) {
-        deviceRegistration_.registerNow();
+      if (config_.autoRegister && deviceRegistration_.registerNow()) {
+        markApiContact();
       }
     }
     processOfflineQueue();
     sendHeartbeat();
+    maybeCheckForOtaUpdate();
   } else {
     if (wifiConnectedLogged_) {
       Serial.printf("Wi-Fi state: %s (%d)\n", wifiStatusToString(WiFi.status()), static_cast<int>(WiFi.status()));
@@ -426,8 +789,8 @@ void ReaderGatewayApp::loop() {
     wifiConnectedLogged_ = false;
   }
 
-  if (WiFi.status() == WL_CONNECTED && deviceRegistration_.shouldRegister(millis())) {
-    deviceRegistration_.registerNow();
+  if (WiFi.status() == WL_CONNECTED && deviceRegistration_.shouldRegister(millis()) && deviceRegistration_.registerNow()) {
+    markApiContact();
   }
 
   ReaderScanEvent event;

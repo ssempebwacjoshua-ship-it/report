@@ -8,7 +8,7 @@ This gateway is a transport layer only:
 - Sends scan events to School Connect over Wi-Fi
 - Stores offline events in LittleFS
 - Replays queued events oldest-first when connectivity returns
-- Supports OTA firmware updates
+- Supports authenticated HTTPS pull OTA with SHA-256 and signature verification
 
 It does not control doors, locks, relays, or fingerprint readers.
 
@@ -187,9 +187,37 @@ pio run -t upload
 pio run -t uploadfs
 ```
 
-## OTA
+## Secure OTA
 
-Once Wi-Fi is connected and OTA is enabled in the firmware, later deployments can use Arduino OTA without a USB cable.
+The gateway now uses backend-driven HTTPS pull OTA:
+
+- The device checks `/api/readers/ota/check`
+- The backend returns a staged release by `deviceId` or `firmwareChannel`
+- The device downloads the artifact over HTTPS with bearer-token auth
+- The device verifies the SHA-256 digest and ECDSA P-256 signature before install
+- OTA uses ESP32 `ota_0` / `ota_1` partitions with rollback-aware boot validation
+- LittleFS queue data survives firmware updates
+- USB flashing remains the emergency recovery path
+
+Required config keys:
+
+```json
+{
+  "firmwareChannel": "stable",
+  "otaCheckPath": "/api/readers/ota/check",
+  "otaStatusPath": "/api/readers/ota/status",
+  "otaCheckIntervalMs": 3600000,
+  "otaPublicKeyId": "reader-gateway-2026",
+  "otaPublicKeyPem": "-----BEGIN PUBLIC KEY-----\\n...\\n-----END PUBLIC KEY-----\\n"
+}
+```
+
+Important:
+
+- The first OTA-capable install must still be flashed by USB.
+- Do not publish an OTA port on the local network.
+- Do not offer unsigned firmware images.
+- If `tlsInsecure` is still `true`, firmware signature verification remains mandatory, but production should move to a real CA bundle in `tlsRootCaPem`.
 
 ## Example API request
 

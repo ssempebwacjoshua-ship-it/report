@@ -46,6 +46,18 @@ void GatewayClient::applyTls(WiFiClientSecure& client, const ReaderGatewayConfig
   }
 }
 
+void GatewayClient::applyRequestHeaders(HTTPClient& http, const ReaderGatewayConfig& config) {
+  http.addHeader("Content-Type", "application/json");
+  http.addHeader("X-Device-Id", config.deviceId);
+  http.addHeader("X-Reader-Id", config.readerId);
+  http.addHeader("X-School-Id", config.schoolId);
+  http.addHeader("X-Firmware-Version", config.firmwareVersion);
+  http.addHeader("X-Firmware-Channel", config.firmwareChannel);
+  if (!config.bearerToken.isEmpty()) {
+    http.addHeader("Authorization", String("Bearer ") + config.bearerToken);
+  }
+}
+
 String GatewayClient::buildBasePayload(const ReaderGatewayConfig& config, const ReaderScanEvent* event, bool registration) const {
   JsonDocument doc;
   doc["deviceId"] = config.deviceId;
@@ -101,6 +113,38 @@ String GatewayClient::buildHeartbeatPayload(const ReaderGatewayConfig& config, c
   return payload;
 }
 
+String buildOtaCheckPayload(const ReaderGatewayConfig& config, size_t queueDepth) {
+  JsonDocument doc;
+  doc["deviceId"] = config.deviceId;
+  doc["readerId"] = config.readerId;
+  doc["schoolId"] = config.schoolId;
+  doc["firmwareVersion"] = config.firmwareVersion;
+  doc["firmwareChannel"] = config.firmwareChannel;
+  doc["queueDepth"] = static_cast<uint32_t>(queueDepth);
+
+  String payload;
+  serializeJson(doc, payload);
+  return payload;
+}
+
+String buildOtaStatusPayload(const ReaderGatewayConfig& config, const ReaderOtaStatusReport& report) {
+  JsonDocument doc;
+  doc["deviceId"] = config.deviceId;
+  doc["readerId"] = config.readerId;
+  doc["schoolId"] = config.schoolId;
+  doc["firmwareVersion"] = config.firmwareVersion;
+  doc["firmwareChannel"] = config.firmwareChannel;
+  doc["releaseId"] = report.releaseId;
+  doc["fromVersion"] = report.fromVersion;
+  doc["toVersion"] = report.toVersion;
+  doc["status"] = report.status;
+  doc["message"] = report.message;
+
+  String payload;
+  serializeJson(doc, payload);
+  return payload;
+}
+
 bool GatewayClient::parseResponse(const String& body, int statusCode, ReaderApiResponse& response) {
   response = ReaderApiResponse{};
   response.statusCode = statusCode;
@@ -126,6 +170,16 @@ bool GatewayClient::parseResponse(const String& body, int statusCode, ReaderApiR
 }
 
 bool GatewayClient::sendJson(const ReaderGatewayConfig& config, const String& path, const String& body, ReaderApiResponse& response) {
+  int statusCode = 0;
+  String responseBody;
+  if (!sendJsonRaw(config, path, body, statusCode, responseBody)) {
+    response.statusCode = statusCode;
+    return false;
+  }
+  return parseResponse(responseBody, statusCode, response);
+}
+
+bool GatewayClient::sendJsonRaw(const ReaderGatewayConfig& config, const String& path, const String& body, int& statusCode, String& responseBody) {
   const String url = buildUrl(config, path);
   HTTPClient http;
 
@@ -147,17 +201,10 @@ bool GatewayClient::sendJson(const ReaderGatewayConfig& config, const String& pa
   }
 
   http.setTimeout(10000);
-  http.addHeader("Content-Type", "application/json");
-  http.addHeader("X-Device-Id", config.deviceId);
-  http.addHeader("X-Reader-Id", config.readerId);
-  http.addHeader("X-School-Id", config.schoolId);
-  http.addHeader("X-Firmware-Version", config.firmwareVersion);
-  if (!config.bearerToken.isEmpty()) {
-    http.addHeader("Authorization", String("Bearer ") + config.bearerToken);
-  }
+  applyRequestHeaders(http, config);
 
-  const int statusCode = http.POST(body);
-  const String responseBody = http.getString();
+  statusCode = http.POST(body);
+  responseBody = http.getString();
   Serial.printf("HTTP status code: %d\n", statusCode);
   if (statusCode < 0) {
     Serial.printf("HTTP error: %s\n", HTTPClient::errorToString(statusCode).c_str());
@@ -168,7 +215,7 @@ bool GatewayClient::sendJson(const ReaderGatewayConfig& config, const String& pa
   Serial.printf("API response body: %s\n", responseBody.isEmpty() ? "(empty)" : responseBody.c_str());
   http.end();
 
-  return parseResponse(responseBody, statusCode, response);
+  return statusCode >= 0;
 }
 
 bool GatewayClient::postScan(const ReaderGatewayConfig& config, const ReaderScanEvent& event, ReaderApiResponse& response) {
@@ -185,4 +232,52 @@ bool GatewayClient::registerDevice(const ReaderGatewayConfig& config, ReaderApiR
 bool GatewayClient::postHeartbeat(const ReaderGatewayConfig& config, const ReaderHeartbeatMetrics& metrics, ReaderApiResponse& response) {
   const String body = buildHeartbeatPayload(config, metrics);
   return sendJson(config, config.heartbeatPath, body, response);
+}
+
+bool GatewayClient::checkForOtaUpdate(const ReaderGatewayConfig& config, size_t queueDepth, ReaderOtaManifest& manifest) {
+  manifest = ReaderOtaManifest{};
+  if (config.otaCheckPath.isEmpty()) {
+    return false;
+  }
+
+  const String body = buildOtaCheckPayload(config, queueDepth);
+  int statusCode = 0;
+  String responseBody;
+  if (!sendJsonRaw(config, config.otaCheckPath, body, statusCode, responseBody)) {
+    return false;
+  }
+  if (statusCode < 200 || statusCode >= 300) {
+    return false;
+  }
+
+  JsonDocument doc;
+  const DeserializationError error = deserializeJson(doc, responseBody);
+  if (error) {
+    return false;
+  }
+
+  manifest.updateAvailable = doc["updateAvailable"] | false;
+  if (!manifest.updateAvailable) {
+    return true;
+  }
+  manifest.releaseId = doc["releaseId"] | "";
+  manifest.version = doc["version"] | "";
+  manifest.channel = doc["channel"] | "";
+  manifest.downloadPath = doc["downloadPath"] | "";
+  manifest.downloadUrl = doc["downloadUrl"] | "";
+  manifest.sha256 = doc["sha256"] | "";
+  manifest.signature = doc["signature"] | "";
+  manifest.signatureAlgorithm = doc["signatureAlgorithm"] | "";
+  manifest.publicKeyId = doc["publicKeyId"] | "";
+  manifest.sizeBytes = doc["sizeBytes"] | 0UL;
+  return !manifest.releaseId.isEmpty() && !manifest.version.isEmpty() && !manifest.sha256.isEmpty() && !manifest.signature.isEmpty()
+    && (!manifest.downloadPath.isEmpty() || !manifest.downloadUrl.isEmpty());
+}
+
+bool GatewayClient::reportOtaStatus(const ReaderGatewayConfig& config, const ReaderOtaStatusReport& report, ReaderApiResponse& response) {
+  if (config.otaStatusPath.isEmpty()) {
+    return false;
+  }
+  const String body = buildOtaStatusPayload(config, report);
+  return sendJson(config, config.otaStatusPath, body, response);
 }

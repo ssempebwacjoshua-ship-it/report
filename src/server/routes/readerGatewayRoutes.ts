@@ -3,6 +3,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { AttendanceDirection, AttendanceScanSource, AttendanceScanStatus, CredentialStatus, CredentialType } from "@prisma/client";
 import { prisma } from "../db/prisma";
+import { findReaderGatewayOtaRelease, getReaderGatewayOtaReleaseById } from "../config/readerGatewayOtaCatalog";
 import { maskCredentialValue, normalizeCredentialForLookup } from "../../shared/utils/credentialNormalization";
 import {
   buildReaderCredentialDiagnostics,
@@ -27,6 +28,7 @@ type ReaderGatewayDevice = {
   streamId: string | null;
   direction: string | null;
   roleScope: string;
+  firmwareVersion: string | null;
   isActive: boolean;
   status: string;
 };
@@ -67,6 +69,22 @@ const heartbeatSchema = readerIdentitySchema.extend({
   freeHeap: z.coerce.number().int().min(0).optional(),
   queueDepth: z.coerce.number().int().min(0).optional(),
   lastSuccessfulApiContactAt: z.string().trim().optional().nullable(),
+});
+
+const otaCheckSchema = readerIdentitySchema.extend({
+  firmwareVersion: z.string().trim().min(1, "Firmware version is required."),
+  firmwareChannel: z.string().trim().min(1).optional().default("stable"),
+  queueDepth: z.coerce.number().int().min(0).optional().default(0),
+});
+
+const otaStatusSchema = readerIdentitySchema.extend({
+  releaseId: z.string().trim().min(1, "Release ID is required."),
+  firmwareVersion: z.string().trim().min(1, "Firmware version is required."),
+  firmwareChannel: z.string().trim().min(1).optional().default("stable"),
+  fromVersion: z.string().trim().min(1, "From version is required."),
+  toVersion: z.string().trim().min(1, "To version is required."),
+  status: z.enum(["DOWNLOADING", "VERIFYING", "INSTALLING", "INSTALLED", "FAILED", "DEFERRED"]),
+  message: z.string().trim().min(1).max(500),
 });
 
 function bearerToken(req: Express.Request) {
@@ -217,6 +235,7 @@ async function authenticateDevice(req: Express.Request, body: { deviceId: string
       direction: true,
       roleScope: true,
       location: true,
+      firmwareVersion: true,
       isActive: true,
       status: true,
     },
@@ -825,6 +844,145 @@ export function readerGatewayRoutes() {
         beep: "none",
         feedback: { beep: "none" },
       } satisfies ReaderGatewayResponse);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/api/readers/ota/check", async (req, res, next) => {
+    try {
+      const body = otaCheckSchema.parse(req.body);
+      const device = await authenticateDevice(req, body);
+      const release = findReaderGatewayOtaRelease({
+        deviceId: body.deviceId,
+        deviceKey: device.deviceKey,
+        firmwareChannel: body.firmwareChannel,
+        currentVersion: body.firmwareVersion,
+      });
+
+      await prisma.nfcOfflineDevice.update({
+        where: { id: device.id },
+        data: {
+          lastSeenAt: new Date(),
+          queueDepth: body.queueDepth,
+          onlineStatus: "ONLINE",
+        },
+      }).catch(() => null);
+
+      if (!release) {
+        res.json({
+          success: true,
+          action: "OTA",
+          status: "NO_UPDATE",
+          updateAvailable: false,
+          message: "No firmware update available.",
+        });
+        return;
+      }
+
+      res.json({
+        success: true,
+        action: "OTA",
+        status: "UPDATE_AVAILABLE",
+        updateAvailable: true,
+        message: "Firmware update available.",
+        releaseId: release.releaseId,
+        version: release.version,
+        channel: release.channel,
+        downloadPath: `/api/readers/ota/download/${encodeURIComponent(release.releaseId)}`,
+        sha256: release.sha256,
+        signature: release.signature,
+        signatureAlgorithm: release.signatureAlgorithm,
+        publicKeyId: release.publicKeyId ?? null,
+        sizeBytes: release.sizeBytes ?? null,
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.get("/api/readers/ota/download/:releaseId", async (req, res, next) => {
+    try {
+      const releaseId = z.string().trim().min(1).parse(req.params.releaseId);
+      const identity = readerIdentitySchema.parse({
+        deviceId: req.header("X-Device-Id"),
+        readerId: req.header("X-Reader-Id"),
+        schoolId: req.header("X-School-Id"),
+      });
+      const firmwareChannel = z.string().trim().default("stable").parse(req.header("X-Firmware-Channel") ?? "stable");
+      const device = await authenticateDevice(req, identity);
+      const release = getReaderGatewayOtaReleaseById(releaseId);
+      if (!release) {
+        res.status(404).json({ ok: false, code: "NOT_FOUND", message: "Firmware release not found." });
+        return;
+      }
+
+      const assignedRelease = findReaderGatewayOtaRelease({
+        deviceId: identity.deviceId,
+        deviceKey: device.deviceKey,
+        firmwareChannel,
+        currentVersion: device.firmwareVersion ?? "0.0.0",
+      });
+      if (!assignedRelease || assignedRelease.releaseId !== release.releaseId) {
+        res.status(403).json({ ok: false, code: "FORBIDDEN", message: "Firmware release is not assigned to this device." });
+        return;
+      }
+
+      res.setHeader("Content-Type", "application/octet-stream");
+      res.setHeader("Cache-Control", "no-store");
+      res.setHeader("X-Firmware-Version", release.version);
+      res.setHeader("X-Firmware-Channel", release.channel);
+      res.setHeader("X-Firmware-Sha256", release.sha256);
+      res.setHeader("X-Firmware-Signature", release.signature);
+      if (release.sizeBytes) {
+        res.setHeader("Content-Length", String(release.sizeBytes));
+      }
+      res.sendFile(release.artifactPath);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/api/readers/ota/status", async (req, res, next) => {
+    try {
+      const body = otaStatusSchema.parse(req.body);
+      const device = await authenticateDevice(req, body);
+      const now = new Date();
+
+      await prisma.$transaction(async (tx) => {
+        await tx.nfcOfflineDevice.update({
+          where: { id: device.id },
+          data: {
+            lastSeenAt: now,
+            onlineStatus: "ONLINE",
+            ...(body.status === "INSTALLED" ? { firmwareVersion: body.toVersion, lastSyncAt: now } : {}),
+          },
+        });
+        await tx.auditLog.create({
+          data: {
+            schoolId: device.schoolId,
+            action: "reader_device.ota_status",
+            correlationId: `${device.deviceKey}:${body.releaseId}:${body.status}`,
+            details: {
+              deviceId: body.deviceId,
+              readerId: body.readerId,
+              releaseId: body.releaseId,
+              firmwareChannel: body.firmwareChannel,
+              fromVersion: body.fromVersion,
+              toVersion: body.toVersion,
+              status: body.status,
+              message: body.message,
+            },
+          },
+        });
+      });
+
+      res.json({
+        success: true,
+        action: "OTA",
+        status: body.status,
+        message: "OTA status recorded.",
+      });
     } catch (error) {
       next(error);
     }
