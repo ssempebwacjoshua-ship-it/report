@@ -14,10 +14,12 @@ void FeedbackController::begin(const ReaderGatewayConfig& config) {
   }
 
   if (buzzerPin_ >= 0) {
+    digitalWrite(buzzerPin_, idleLevel_);
     pinMode(buzzerPin_, OUTPUT);
     digitalWrite(buzzerPin_, idleLevel_);
   }
   if (ledPin_ >= 0) {
+    digitalWrite(ledPin_, idleLevel_);
     pinMode(ledPin_, OUTPUT);
     digitalWrite(ledPin_, idleLevel_);
   }

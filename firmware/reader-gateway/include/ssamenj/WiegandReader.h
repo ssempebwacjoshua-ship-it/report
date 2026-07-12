@@ -13,14 +13,36 @@ class WiegandReader {
   void reset();
 
  private:
+  struct PendingFrame {
+    uint64_t bits = 0;
+    uint8_t bitCount = 0;
+    uint32_t firstPulseUs = 0;
+    uint32_t lastPulseUs = 0;
+    bool overflow = false;
+  };
+
+  static constexpr uint8_t kPendingFrameCapacity = 8;
+  static constexpr uint32_t kMinPulseSpacingUs = 150;
+
   static void IRAM_ATTR onD0Thunk(void* arg);
   static void IRAM_ATTR onD1Thunk(void* arg);
   void IRAM_ATTR onPulse(bool oneBit);
+  void IRAM_ATTR finalizeActiveFrame();
+  bool popPendingFrame(PendingFrame& frame);
+  void logRejectedFrame(const PendingFrame& frame, const WiegandDecodeResult& decoded, const char* reason) const;
 
-  volatile uint64_t frameBits_ = 0;
-  volatile uint8_t bitCount_ = 0;
-  volatile uint32_t lastPulseMs_ = 0;
+  volatile uint64_t activeFrameBits_ = 0;
+  volatile uint8_t activeBitCount_ = 0;
+  volatile uint32_t activeFirstPulseUs_ = 0;
+  volatile uint32_t activeLastPulseUs_ = 0;
+  volatile bool activeOverflow_ = false;
+  PendingFrame pendingFrames_[kPendingFrameCapacity] {};
+  volatile uint8_t pendingHead_ = 0;
+  volatile uint8_t pendingTail_ = 0;
+  volatile uint8_t pendingCount_ = 0;
+  volatile uint32_t timeoutUs_ = 30000;
+  volatile uint32_t droppedFrames_ = 0;
   int8_t d0Pin_ = -1;
   int8_t d1Pin_ = -1;
-  uint32_t timeoutMs_ = 30;
+  mutable unsigned long lastRejectedLogMs_ = 0;
 };

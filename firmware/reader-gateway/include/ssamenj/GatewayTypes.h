@@ -42,7 +42,7 @@ struct ReaderGatewayConfig {
   bool tlsInsecure = true;
   bool autoRegister = true;
   bool feedbackOutputsEnabled = false;
-  bool feedbackDriverActiveHigh = true;
+  bool feedbackDriverActiveHigh = false;
 };
 
 struct ReaderScanEvent {

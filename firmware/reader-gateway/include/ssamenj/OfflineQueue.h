@@ -15,12 +15,12 @@ class OfflineQueue {
   bool pop();
   bool updateFront(const ReaderScanEvent& event);
   bool clear();
-  size_t size();
+  size_t size() const;
 
  private:
-  bool loadAll(std::vector<ReaderScanEvent>& events);
+  bool loadAll(std::vector<ReaderScanEvent>& events) const;
   bool rewriteAll(const std::vector<ReaderScanEvent>& events);
-  bool parseEventLine(const String& line, ReaderScanEvent& event);
+  bool parseEventLine(const String& line, ReaderScanEvent& event) const;
   String serializeEvent(const ReaderScanEvent& event);
 
   String path_;

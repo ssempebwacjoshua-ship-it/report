@@ -60,7 +60,7 @@ String OfflineQueue::serializeEvent(const ReaderScanEvent& event) {
   return output;
 }
 
-bool OfflineQueue::parseEventLine(const String& line, ReaderScanEvent& event) {
+bool OfflineQueue::parseEventLine(const String& line, ReaderScanEvent& event) const {
   JsonDocument doc;
   const DeserializationError error = deserializeJson(doc, line);
   if (error) {
@@ -86,7 +86,7 @@ bool OfflineQueue::parseEventLine(const String& line, ReaderScanEvent& event) {
   return !event.eventId.isEmpty();
 }
 
-bool OfflineQueue::loadAll(std::vector<ReaderScanEvent>& events) {
+bool OfflineQueue::loadAll(std::vector<ReaderScanEvent>& events) const {
   events.clear();
   File file = LittleFS.open(path_, FILE_READ);
   if (!file) {
@@ -173,7 +173,7 @@ bool OfflineQueue::clear() {
   return rewritten;
 }
 
-size_t OfflineQueue::size() {
+size_t OfflineQueue::size() const {
   std::vector<ReaderScanEvent> events;
   if (!loadAll(events)) {
     return 0;

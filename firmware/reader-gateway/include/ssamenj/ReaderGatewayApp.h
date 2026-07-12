@@ -52,6 +52,8 @@ class ReaderGatewayApp {
   void sendHeartbeat();
   void markApiContact();
   bool hasWorkingNetwork() const;
+  bool shouldSuppressDuplicateScan(const ReaderScanEvent& event) const;
+  void rememberAcceptedScan(const ReaderScanEvent& event);
   String utcIso8601Now() const;
   String createEventId() const;
 
@@ -83,5 +85,9 @@ class ReaderGatewayApp {
   String provisionedSchoolCode_;
   String provisionedControllerName_;
   bool wifiConnectedLogged_ = false;
+  String lastAcceptedCredential_;
+  String lastAcceptedReaderId_;
+  unsigned long lastAcceptedScanAtMs_ = 0;
+  size_t offlineQueueDepth_ = 0;
   Ticker setupLedTicker_;
 };

@@ -54,7 +54,7 @@ ReaderGatewayConfig ConfigManager::defaults() {
   config.tlsInsecure = true;
   config.autoRegister = true;
   config.feedbackOutputsEnabled = false;
-  config.feedbackDriverActiveHigh = true;
+  config.feedbackDriverActiveHigh = false;
   return config;
 }
 
