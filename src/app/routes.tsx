@@ -6,6 +6,7 @@ import { useAuth } from "../contexts/AuthContext";
 import { getDefaultRouteForRole } from "../shared/permissions";
 import { DashboardPage } from "../pages/DashboardPage";
 import { ReleaseCenterPage } from "../pages/ReleaseCenterPage";
+import { CommunicationsPage } from "../pages/CommunicationsPage";
 import { ReportsPage } from "../pages/ReportsPage";
 import { MarksImportPage } from "../pages/MarksImportPage";
 import { MarksheetsPage } from "../pages/MarksheetsPage";
@@ -162,6 +163,7 @@ export const router = createBrowserRouter([
       { path: "gate/nfc/:token", element: <PermissionGuard permission="nfc.gate.scan"><NfcGateSecurityPage /></PermissionGuard> },
       { path: "reports", element: <PermissionGuard permission="app.admin"><ReportsPage /></PermissionGuard> },
       { path: "reports/release", element: <PermissionGuard permission="app.admin"><ReleaseCenterPage /></PermissionGuard> },
+      { path: "communications", element: <PermissionGuard permission="communications.view"><CommunicationsPage /></PermissionGuard> },
       { path: "promotions", element: <PermissionGuard permission="app.admin"><PromotionWorkspacePage /></PermissionGuard> },
       { path: "imports/marks", element: <PermissionGuard permission="app.admin"><MarksImportPage /></PermissionGuard> },
       { path: "marksheets", element: <PermissionGuard permission="app.admin"><MarksheetsPage /></PermissionGuard> },

@@ -27,6 +27,7 @@ import { reportIssueRoutes } from "./routes/reportIssueRoutes";
 import { reportAssistantRoutes } from "./routes/reportAssistantRoutes";
 import { promotionRoutes } from "./routes/promotionRoutes";
 import { releaseCenterRoutes } from "./routes/releaseCenterRoutes";
+import { communicationRoutes } from "./routes/communicationRoutes";
 import { parentRoutes } from "./routes/parentRoutes";
 import { verifyRoutes } from "./routes/verifyRoutes";
 import { ocrRoutes } from "./routes/ocrRoutes";
@@ -236,6 +237,7 @@ export function createServer() {
   app.use(reportIssueRoutes());
   app.use(reportAssistantRoutes());
   app.use(releaseCenterRoutes());
+  app.use(communicationRoutes());
   app.use(importsRoutes());
   app.use(studentsRoutes());
   app.use(marksheetsRoutes());

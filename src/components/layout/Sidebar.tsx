@@ -2,6 +2,7 @@ import { useEffect, useRef, type CSSProperties } from "react";
 import { Link, useLocation } from "react-router-dom";
 import {
   ArrowUploadRegular,
+  AlertRegular,
   ChevronLeftRegular,
   DocumentRegular,
   DocumentTextRegular,
@@ -75,6 +76,8 @@ function ShellNavIcon({ name, active }: { name: NavItem["icon"]; active: boolean
       return <DocumentRegular className={className} />;
     case "send":
       return <SendRegular className={className} />;
+    case "bell":
+      return <AlertRegular className={className} />;
     case "credit-card":
       return <ReceiptRegular className={className} />;
     case "settings":

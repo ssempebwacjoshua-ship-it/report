@@ -13,7 +13,21 @@ export type NfcPermission =
   | "nfc.wallets.pin.manage"
   | "nfc.devices.manage"
   | "staff.manage"
-  | "app.admin";
+  | "app.admin"
+  | "communications.view"
+  | "communications.create"
+  | "communications.edit"
+  | "communications.validate"
+  | "communications.requestApproval"
+  | "communications.approve"
+  | "communications.send"
+  | "communications.pause"
+  | "communications.retry"
+  | "communications.cancel"
+  | "communications.templates.manage"
+  | "communications.audiences.manage"
+  | "communications.replies.view"
+  | "communications.settings.manage";
 
 export const rolePermissions: Record<string, string[]> = {
   ADMIN_OPERATOR: ["*"],
@@ -21,7 +35,7 @@ export const rolePermissions: Record<string, string[]> = {
   SECURITY: ["nfc.attendance.operate", "nfc.gate.view", "nfc.gate.scan"],
   GATE_SECURITY: ["nfc.attendance.operate", "nfc.gate.view", "nfc.gate.scan"],
   CANTEEN: ["nfc.canteen.view", "nfc.canteen.charge", "nfc.canteen.transactions.view", "nfc.canteen.reconciliation.view", "nfc.canteen.reconciliation.submit"],
-  CASHIER: ["nfc.canteen.view", "nfc.canteen.charge", "nfc.canteen.transactions.view", "nfc.wallets.topup", "nfc.fee-holds.manage", "nfc.canteen.reconciliation.view", "nfc.canteen.reconciliation.submit"],
+  CASHIER: ["nfc.canteen.view", "nfc.canteen.charge", "nfc.canteen.transactions.view", "nfc.wallets.topup", "nfc.fee-holds.manage", "nfc.canteen.reconciliation.view", "nfc.canteen.reconciliation.submit", "communications.view", "communications.create"],
 };
 
 export function hasPermission(role: string | null | undefined, permission: string): boolean {

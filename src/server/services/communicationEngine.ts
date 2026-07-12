@@ -1,0 +1,321 @@
+import type { PrismaClient } from "@prisma/client";
+import {
+  assertCampaignTransition,
+  buildDeliveryIdempotencyKey,
+  estimateSmsSegments,
+  hashRenderedContent,
+  normalizePhoneToE164,
+  type AudienceDefinition,
+  type CommunicationChannel,
+  type CommunicationCampaignStatus,
+  type ValidationIssue,
+} from "../../shared/communications";
+
+type Db = PrismaClient;
+
+export type CommunicationContext = {
+  schoolId: string;
+  schoolName: string;
+  actorId?: string;
+  actorName?: string;
+};
+
+export function isCommunicationDryRun() {
+  return process.env.COMMUNICATION_DRY_RUN !== "false";
+}
+
+export async function createCampaign(db: Db, ctx: CommunicationContext, input: {
+  type: string;
+  title: string;
+  body: string;
+  subject?: string;
+  shortBody?: string;
+  acknowledgementRequired?: boolean;
+  audience?: AudienceDefinition;
+}) {
+  const campaign = await db.communicationCampaign.create({
+    data: {
+      schoolId: ctx.schoolId,
+      type: input.type as never,
+      title: input.title,
+      acknowledgementRequired: input.acknowledgementRequired ?? false,
+      createdByUserId: ctx.actorId,
+      contents: {
+        create: {
+          version: 1,
+          subject: input.subject,
+          body: input.body,
+          shortBody: input.shortBody,
+          createdByUserId: ctx.actorId,
+        },
+      },
+      audience: input.audience ? { create: { definitionJson: input.audience as never } } : undefined,
+    },
+    include: { contents: { orderBy: { version: "desc" }, take: 1 }, audience: true },
+  });
+  await audit(db, ctx, "communication.campaign_created", campaign.id, { type: input.type });
+  return campaign;
+}
+
+export async function listCampaigns(db: Db, ctx: CommunicationContext) {
+  const campaigns = await db.communicationCampaign.findMany({
+    where: { schoolId: ctx.schoolId },
+    orderBy: { createdAt: "desc" },
+    take: 100,
+    include: {
+      contents: { orderBy: { version: "desc" }, take: 1 },
+      _count: { select: { recipients: true, deliveries: true } },
+    },
+  });
+  const summary = await db.communicationCampaign.groupBy({
+    by: ["status"],
+    where: { schoolId: ctx.schoolId },
+    _count: { status: true },
+  });
+  return { campaigns, summary };
+}
+
+export async function getCampaignOrThrow(db: Db, ctx: CommunicationContext, id: string) {
+  const campaign = await db.communicationCampaign.findFirst({
+    where: { id, schoolId: ctx.schoolId },
+    include: {
+      contents: { orderBy: { version: "desc" } },
+      audience: true,
+      audienceSnapshots: { orderBy: { snapshotVersion: "desc" }, take: 1 },
+      _count: { select: { recipients: true, deliveries: true } },
+    },
+  });
+  if (!campaign) throw httpError(404, "Communication campaign not found.");
+  return campaign;
+}
+
+export async function updateCampaignDraft(db: Db, ctx: CommunicationContext, id: string, input: {
+  title?: string;
+  body?: string;
+  subject?: string;
+  audience?: AudienceDefinition;
+}) {
+  const campaign = await getCampaignOrThrow(db, ctx, id);
+  if (["QUEUED", "SENDING", "DELIVERED", "CANCELLED"].includes(campaign.status)) {
+    throw httpError(400, "This campaign can no longer be edited.");
+  }
+  const nextVersion = campaign.status === "APPROVED" ? campaign.contentVersion + 1 : campaign.contentVersion;
+  const updated = await db.$transaction(async (tx) => {
+    if (input.body || input.subject) {
+      await tx.communicationContent.create({
+        data: {
+          campaignId: id,
+          version: nextVersion,
+          subject: input.subject ?? campaign.contents[0]?.subject ?? null,
+          body: input.body ?? campaign.contents[0]?.body ?? "",
+          createdByUserId: ctx.actorId,
+        },
+      });
+    }
+    if (input.audience) {
+      await tx.communicationAudience.upsert({
+        where: { campaignId: id },
+        update: { definitionJson: input.audience as never },
+        create: { campaignId: id, definitionJson: input.audience as never },
+      });
+    }
+    return tx.communicationCampaign.update({
+      where: { id },
+      data: {
+        title: input.title,
+        contentVersion: nextVersion,
+        status: campaign.status === "APPROVED" ? "APPROVAL_PENDING" : campaign.status,
+        approvedAt: campaign.status === "APPROVED" ? null : campaign.approvedAt,
+        approvedByUserId: campaign.status === "APPROVED" ? null : campaign.approvedByUserId,
+      },
+    });
+  });
+  await audit(db, ctx, "communication.content_edited", id, { nextVersion });
+  return updated;
+}
+
+export async function createAudienceSnapshot(db: Db, ctx: CommunicationContext, campaignId: string, definition: AudienceDefinition) {
+  const campaign = await getCampaignOrThrow(db, ctx, campaignId);
+  const students = await resolveStudents(db, ctx.schoolId, definition);
+  const contacts = await db.guardianContact.findMany({
+    where: { schoolId: ctx.schoolId, studentId: { in: students.map((s) => s.id) }, canReceiveReports: true },
+    orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }],
+  });
+  const latest = campaign.audienceSnapshots[0]?.snapshotVersion ?? 0;
+  const seenGeneral = new Set<string>();
+  let ready = 0;
+  let warnings = 0;
+  let blocked = 0;
+  const snapshot = await db.$transaction(async (tx) => {
+    const row = await tx.communicationAudienceSnapshot.create({
+      data: { campaignId, snapshotVersion: latest + 1, createdByUserId: ctx.actorId },
+    });
+    const recipients = [];
+    for (const student of students) {
+      for (const contact of contacts.filter((c) => c.studentId === student.id)) {
+        if ((definition.mode ?? "GENERAL") === "GENERAL") {
+          const key = `${contact.guardianName}:${contact.phone ?? ""}:${contact.email ?? ""}`;
+          if (seenGeneral.has(key)) continue;
+          seenGeneral.add(key);
+        }
+        const phoneE164 = normalizePhoneToE164(contact.phone);
+        const status = phoneE164 ? "READY" : "BLOCKED";
+        if (status === "READY") ready += 1; else blocked += 1;
+        if (contact.preferredContactMethod === "EMAIL") warnings += 1;
+        recipients.push({
+          schoolId: ctx.schoolId,
+          campaignId,
+          audienceSnapshotId: row.id,
+          guardianId: contact.id,
+          studentId: student.id,
+          displayName: contact.guardianName,
+          relationship: contact.relationship,
+          phoneE164,
+          email: contact.email,
+          preferredChannel: contact.preferredContactMethod === "SMS" ? "SMS" : "WHATSAPP",
+          status,
+          warningCodesJson: contact.preferredContactMethod === "EMAIL" ? ["PREFERRED_EMAIL_UNSUPPORTED"] : [],
+          blockedReasonCode: phoneE164 ? null : "MISSING_PHONE",
+          personalisationJson: {
+            guardianName: contact.guardianName,
+            studentName: `${student.firstName} ${student.lastName}`,
+            admissionNumber: student.admissionNumber,
+            schoolName: ctx.schoolName,
+            communicationTitle: campaign.title,
+          },
+        });
+      }
+    }
+    if (recipients.length) await tx.communicationRecipient.createMany({ data: recipients as never[] });
+    return tx.communicationAudienceSnapshot.update({ where: { id: row.id }, data: { recipientCount: recipients.length } });
+  });
+  await audit(db, ctx, "communication.audience_snapshot_created", campaignId, { snapshotId: snapshot.id, ready, warnings, blocked });
+  return { snapshot, total: ready + blocked, ready, warnings, blocked };
+}
+
+export async function validateCampaign(db: Db, ctx: CommunicationContext, campaignId: string) {
+  const campaign = await getCampaignOrThrow(db, ctx, campaignId);
+  if (campaign.status === "DRAFT" || campaign.status === "VALIDATION_FAILED") {
+    await transitionCampaign(db, ctx, campaignId, "VALIDATING");
+  }
+  const recipients = await db.communicationRecipient.findMany({ where: { schoolId: ctx.schoolId, campaignId } });
+  const issues: ValidationIssue[] = [];
+  if (!campaign.contents[0]?.body?.trim()) issues.push({ code: "MISSING_CONTENT", severity: "BLOCKING", message: "Message body is required." });
+  if (recipients.length === 0) issues.push({ code: "NO_RECIPIENTS", severity: "BLOCKING", message: "Create an audience snapshot before validation." });
+  for (const recipient of recipients) {
+    if (!recipient.phoneE164) issues.push({ code: "MISSING_PHONE", severity: "BLOCKING", recipientId: recipient.id, message: "Recipient has no valid phone number." });
+    if (!recipient.preferredChannel) issues.push({ code: "NO_USABLE_CHANNEL", severity: "BLOCKING", recipientId: recipient.id, message: "Recipient has no usable delivery channel." });
+  }
+  const sms = estimateSmsSegments(campaign.contents[0]?.shortBody || campaign.contents[0]?.body || "");
+  if (sms.segments > 3) issues.push({ code: "SMS_SEGMENT_POLICY_WARNING", severity: "WARNING", message: "SMS body is longer than three segments." });
+  await transitionCampaign(db, ctx, campaignId, issues.some((i) => i.severity === "BLOCKING") ? "VALIDATION_FAILED" : "READY_FOR_APPROVAL");
+  await audit(db, ctx, "communication.validation_completed", campaignId, { issueCount: issues.length });
+  return { issues, sms };
+}
+
+export async function requestApproval(db: Db, ctx: CommunicationContext, campaignId: string) {
+  await transitionCampaign(db, ctx, campaignId, "APPROVAL_PENDING");
+  await db.communicationApproval.create({
+    data: { campaignId, requiredRole: "ADMIN_OPERATOR", requestedByUserId: ctx.actorId },
+  });
+  await audit(db, ctx, "communication.approval_requested", campaignId, {});
+}
+
+export async function approveCampaign(db: Db, ctx: CommunicationContext, campaignId: string) {
+  await transitionCampaign(db, ctx, campaignId, "APPROVED", { approvedAt: new Date(), approvedByUserId: ctx.actorId });
+  await db.communicationApproval.updateMany({
+    where: { campaignId, status: "PENDING" },
+    data: { status: "APPROVED", reviewedByUserId: ctx.actorId, reviewedAt: new Date() },
+  });
+  await audit(db, ctx, "communication.campaign_approved", campaignId, {});
+}
+
+export async function queueCampaign(db: Db, ctx: CommunicationContext, campaignId: string, channels: CommunicationChannel[] = ["WHATSAPP"]) {
+  const campaign = await getCampaignOrThrow(db, ctx, campaignId);
+  if (campaign.status !== "APPROVED" && campaign.status !== "FAILED") throw httpError(400, "Only approved campaigns can be queued.");
+  const recipients = await db.communicationRecipient.findMany({ where: { schoolId: ctx.schoolId, campaignId, status: { in: ["READY", "WARNING"] } } });
+  const content = campaign.contents.find((c) => c.version === campaign.contentVersion) ?? campaign.contents[0];
+  await db.$transaction(async (tx) => {
+    for (const recipient of recipients) {
+      const vars = (recipient.personalisationJson ?? {}) as Record<string, string>;
+      const body = renderContent(content?.shortBody || content?.body || "", vars);
+      for (const channel of channels) {
+        const idempotencyKey = buildDeliveryIdempotencyKey({ schoolId: ctx.schoolId, campaignId, recipientId: recipient.id, channel, contentVersion: campaign.contentVersion });
+        const delivery = await tx.communicationDelivery.upsert({
+          where: { idempotencyKey },
+          update: { status: "QUEUED", queuedAt: new Date() },
+          create: {
+            schoolId: ctx.schoolId,
+            campaignId,
+            recipientId: recipient.id,
+            channel: channel as never,
+            contentVersion: campaign.contentVersion,
+            idempotencyKey,
+            provider: "DRY_RUN",
+            status: "QUEUED",
+            queuedAt: new Date(),
+            renderedContentHash: hashRenderedContent(body),
+          },
+        });
+        await tx.communicationDeliveryAttempt.create({
+          data: {
+            deliveryId: delivery.id,
+            attemptNumber: delivery.attemptCount + 1,
+            provider: "DRY_RUN",
+            status: isCommunicationDryRun() ? "PROVIDER_ACCEPTED" : "STARTED",
+            completedAt: new Date(),
+            errorCode: isCommunicationDryRun() ? "DRY_RUN_ONLY" : null,
+          },
+        });
+        await tx.communicationDelivery.update({
+          where: { id: delivery.id },
+          data: { status: isCommunicationDryRun() ? "ACCEPTED" : "QUEUED", acceptedAt: isCommunicationDryRun() ? new Date() : null, attemptCount: { increment: 1 } },
+        });
+      }
+    }
+    await tx.communicationRecipient.updateMany({ where: { schoolId: ctx.schoolId, campaignId, status: { in: ["READY", "WARNING"] } }, data: { status: "QUEUED" } });
+    await tx.communicationCampaign.update({ where: { id: campaignId }, data: { status: "QUEUED" } });
+  });
+  await audit(db, ctx, "communication.campaign_queued", campaignId, { dryRun: isCommunicationDryRun(), channels });
+}
+
+export async function transitionCampaign(db: Db, ctx: CommunicationContext, campaignId: string, to: CommunicationCampaignStatus, extra: Record<string, unknown> = {}) {
+  const campaign = await getCampaignOrThrow(db, ctx, campaignId);
+  if (campaign.status !== to) assertCampaignTransition(campaign.status as CommunicationCampaignStatus, to);
+  return db.communicationCampaign.update({ where: { id: campaignId }, data: { status: to as never, ...extra } });
+}
+
+export function renderContent(template: string, values: Record<string, unknown>) {
+  return template.replace(/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g, (_match, key) => String(values[key] ?? ""));
+}
+
+async function resolveStudents(db: Db, schoolId: string, definition: AudienceDefinition) {
+  if (definition.studentIds?.length) {
+    return db.student.findMany({ where: { schoolId, id: { in: definition.studentIds }, isActive: true } });
+  }
+  if (definition.classId) {
+    const enrollments = await db.classEnrollment.findMany({
+      where: { schoolId, classId: definition.classId, streamId: definition.streamId, isActive: true, status: "ACTIVE" },
+      include: { student: true },
+    });
+    return enrollments.map((e) => e.student).filter((s) => s.isActive);
+  }
+  return db.student.findMany({ where: { schoolId, isActive: true }, take: 500 });
+}
+
+async function audit(db: Db, ctx: CommunicationContext, action: string, correlationId: string, details: Record<string, unknown>) {
+  await db.auditLog.create({
+    data: {
+      schoolId: ctx.schoolId,
+      action,
+      correlationId,
+      details: { ...details, actorId: ctx.actorId ?? "system", actorName: ctx.actorName ?? null },
+    },
+  });
+}
+
+function httpError(status: number, message: string) {
+  const error = new Error(message);
+  Object.assign(error, { status, expose: true });
+  return error;
+}

@@ -8,49 +8,56 @@ datasource db {
 }
 
 model School {
-  id                        String                     @id @default(uuid()) @db.Uuid
-  code                      String                     @unique
-  name                      String
-  createdAt                 DateTime                   @default(now())
-  updatedAt                 DateTime                   @updatedAt
-  phone                     String?
-  email                     String?
-  address                   String?
-  logoUrl                   String?
-  timezone                  String                     @default("Africa/Kampala")
-  brandingMode              String                     @default("PLATFORM_DEFAULTS")
-  isActive                  Boolean                    @default(true)
-  academicYears             AcademicYear[]
-  auditLogs                 AuditLog[]
-  enrollments               ClassEnrollment[]
-  guardianContacts          GuardianContact[]
-  issuedReports             IssuedReport[]
-  imports                   MarkImportBatch[]
-  subscription              ReportLabSubscription?
-  classes                   SchoolClass[]
-  streams                   Stream[]
-  students                  Student[]
-  subjects                  Subject[]
-  users                     User[]
-  smartPagePayments         SmartPagePaymentRequest[]
-  promotionBatches          PromotionBatch[]
-  promotionActions          PromotionAction[]
-  studentCredentials        StudentCredential[]
-  studentWallets            StudentWallet[]
-  studentWalletTransactions StudentWalletTransaction[]
-  nfcPolicy                 SchoolNfcPolicy?
-  studentFeeHolds           StudentFeeHold[]
-  studentGateHolds          StudentGateHold[]
-  canteenReconciliations    CanteenReconciliation[]
-  studentAttendanceEvents   StudentAttendanceEvent[]
-  dailyAttendances          DailyAttendance[]
-  campusMovementEvents      CampusMovementEvent[]
-  classroomAttendanceEvents ClassroomAttendanceEvent[]
-  nfcGateScans              NfcGateScan[]
-  nfcTags                   NfcTag[]
-  nfcTagBatches             NfcTagBatch[]
-  nfcOfflineDevices         NfcOfflineDevice[]
-  nfcOfflineSyncBatches     NfcOfflineSyncBatch[]
+  id                           String                        @id @default(uuid()) @db.Uuid
+  code                         String                        @unique
+  name                         String
+  createdAt                    DateTime                      @default(now())
+  updatedAt                    DateTime                      @updatedAt
+  phone                        String?
+  email                        String?
+  address                      String?
+  logoUrl                      String?
+  timezone                     String                        @default("Africa/Kampala")
+  brandingMode                 String                        @default("PLATFORM_DEFAULTS")
+  isActive                     Boolean                       @default(true)
+  academicYears                AcademicYear[]
+  auditLogs                    AuditLog[]
+  enrollments                  ClassEnrollment[]
+  guardianContacts             GuardianContact[]
+  issuedReports                IssuedReport[]
+  imports                      MarkImportBatch[]
+  subscription                 ReportLabSubscription?
+  classes                      SchoolClass[]
+  streams                      Stream[]
+  students                     Student[]
+  subjects                     Subject[]
+  users                        User[]
+  smartPagePayments            SmartPagePaymentRequest[]
+  promotionBatches             PromotionBatch[]
+  promotionActions             PromotionAction[]
+  studentCredentials           StudentCredential[]
+  studentWallets               StudentWallet[]
+  studentWalletTransactions    StudentWalletTransaction[]
+  nfcPolicy                    SchoolNfcPolicy?
+  studentFeeHolds              StudentFeeHold[]
+  studentGateHolds             StudentGateHold[]
+  canteenReconciliations       CanteenReconciliation[]
+  studentAttendanceEvents      StudentAttendanceEvent[]
+  dailyAttendances             DailyAttendance[]
+  campusMovementEvents         CampusMovementEvent[]
+  classroomAttendanceEvents    ClassroomAttendanceEvent[]
+  nfcGateScans                 NfcGateScan[]
+  nfcTags                      NfcTag[]
+  nfcTagBatches                NfcTagBatch[]
+  nfcOfflineDevices            NfcOfflineDevice[]
+  nfcOfflineSyncBatches        NfcOfflineSyncBatch[]
+  communicationCampaigns       CommunicationCampaign[]
+  communicationRecipients      CommunicationRecipient[]
+  communicationDeliveries      CommunicationDelivery[]
+  communicationTemplates       CommunicationTemplate[]
+  communicationConsents        CommunicationConsent[]
+  communicationUsageRecords    CommunicationUsageRecord[]
+  communicationChannelSettings CommunicationChannelSetting[]
 }
 
 model AcademicYear {
@@ -124,35 +131,36 @@ model Stream {
 }
 
 model Student {
-  id                 String                     @id @default(uuid()) @db.Uuid
-  schoolId           String                     @db.Uuid
-  admissionNumber    String
-  firstName          String
-  lastName           String
-  attendanceProfile  AttendanceProfile         @default(DAY_SCHOLAR)
-  studentType        StudentType?
-  passportPhotoUrl   String?
-  passportPhotoUpdatedAt DateTime?
-  isActive           Boolean                    @default(true)
-  createdAt          DateTime                   @default(now())
-  updatedAt          DateTime                   @updatedAt
-  enrollments        ClassEnrollment[]
-  guardianContacts   GuardianContact[]
-  issuedReports      IssuedReport[]
-  promotionActions   PromotionAction[]
-  credentials        StudentCredential[]
-  wallet             StudentWallet?
-  walletTransactions StudentWalletTransaction[]
-  feeHolds           StudentFeeHold[]
-  gateHolds          StudentGateHold[]
-  attendanceEvents      StudentAttendanceEvent[]
-  dailyAttendances      DailyAttendance[]
-  campusMovementEvents  CampusMovementEvent[]
+  id                        String                     @id @default(uuid()) @db.Uuid
+  schoolId                  String                     @db.Uuid
+  admissionNumber           String
+  firstName                 String
+  lastName                  String
+  attendanceProfile         AttendanceProfile          @default(DAY_SCHOLAR)
+  studentType               StudentType?
+  passportPhotoUrl          String?
+  passportPhotoUpdatedAt    DateTime?
+  isActive                  Boolean                    @default(true)
+  createdAt                 DateTime                   @default(now())
+  updatedAt                 DateTime                   @updatedAt
+  enrollments               ClassEnrollment[]
+  guardianContacts          GuardianContact[]
+  issuedReports             IssuedReport[]
+  communicationRecipients   CommunicationRecipient[]
+  promotionActions          PromotionAction[]
+  credentials               StudentCredential[]
+  wallet                    StudentWallet?
+  walletTransactions        StudentWalletTransaction[]
+  feeHolds                  StudentFeeHold[]
+  gateHolds                 StudentGateHold[]
+  attendanceEvents          StudentAttendanceEvent[]
+  dailyAttendances          DailyAttendance[]
+  campusMovementEvents      CampusMovementEvent[]
   classroomAttendanceEvents ClassroomAttendanceEvent[]
-  gateScans             NfcGateScan[]
-  nfcTags            NfcTag[]
-  school             School                     @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  marks              SubjectMark[]
+  gateScans                 NfcGateScan[]
+  nfcTags                   NfcTag[]
+  school                    School                     @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  marks                     SubjectMark[]
 
   @@unique([schoolId, admissionNumber])
   @@index([schoolId, isActive])
@@ -187,21 +195,23 @@ model ClassEnrollment {
 }
 
 model GuardianContact {
-  id                     String                 @id @default(uuid()) @db.Uuid
-  schoolId               String                 @db.Uuid
-  studentId              String                 @db.Uuid
-  guardianName           String
-  relationship           String
-  phone                  String?
-  email                  String?
-  preferredContactMethod PreferredContactMethod @default(PHONE)
-  isPrimary              Boolean                @default(false)
-  canReceiveReports      Boolean                @default(true)
-  notes                  String?
-  createdAt              DateTime               @default(now())
-  updatedAt              DateTime               @updatedAt
-  school                 School                 @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  student                Student                @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  id                      String                   @id @default(uuid()) @db.Uuid
+  schoolId                String                   @db.Uuid
+  studentId               String                   @db.Uuid
+  guardianName            String
+  relationship            String
+  phone                   String?
+  email                   String?
+  preferredContactMethod  PreferredContactMethod   @default(PHONE)
+  isPrimary               Boolean                  @default(false)
+  canReceiveReports       Boolean                  @default(true)
+  notes                   String?
+  createdAt               DateTime                 @default(now())
+  updatedAt               DateTime                 @updatedAt
+  school                  School                   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  student                 Student                  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  communicationRecipients CommunicationRecipient[]
+  communicationConsents   CommunicationConsent[]
 
   @@unique([studentId, guardianName, relationship])
   @@index([schoolId, studentId, isPrimary])
@@ -247,32 +257,32 @@ model SubjectComponent {
 }
 
 model SubjectMark {
-  id             String           @id @default(uuid()) @db.Uuid
-  schoolId       String           @db.Uuid
-  studentId      String           @db.Uuid
-  academicYearId String           @db.Uuid
-  termId         String           @db.Uuid
-  classId        String           @db.Uuid
-  streamId       String           @db.Uuid
-  subjectId      String           @db.Uuid
-  componentId    String?          @db.Uuid
-  componentKey   String           @default("")
+  id             String            @id @default(uuid()) @db.Uuid
+  schoolId       String            @db.Uuid
+  studentId      String            @db.Uuid
+  academicYearId String            @db.Uuid
+  termId         String            @db.Uuid
+  classId        String            @db.Uuid
+  streamId       String            @db.Uuid
+  subjectId      String            @db.Uuid
+  componentId    String?           @db.Uuid
+  componentKey   String            @default("")
   assessmentType AssessmentType
-  marks          Decimal          @db.Decimal(5, 2)
-  status         MarkStatus       @default(DRAFT)
+  marks          Decimal           @db.Decimal(5, 2)
+  status         MarkStatus        @default(DRAFT)
   comments       String?
-  importBatchId  String?          @db.Uuid
+  importBatchId  String?           @db.Uuid
   seedKey        String?
-  createdAt      DateTime         @default(now())
-  updatedAt      DateTime         @updatedAt
-  academicYear   AcademicYear     @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
-  class          SchoolClass      @relation(fields: [classId], references: [id], onDelete: Cascade)
-  importBatch    MarkImportBatch? @relation(fields: [importBatchId], references: [id])
-  stream         Stream           @relation(fields: [streamId], references: [id], onDelete: Cascade)
-  student        Student          @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  subject        Subject          @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+  academicYear   AcademicYear      @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
+  class          SchoolClass       @relation(fields: [classId], references: [id], onDelete: Cascade)
+  importBatch    MarkImportBatch?  @relation(fields: [importBatchId], references: [id])
+  stream         Stream            @relation(fields: [streamId], references: [id], onDelete: Cascade)
+  student        Student           @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  subject        Subject           @relation(fields: [subjectId], references: [id], onDelete: Cascade)
   component      SubjectComponent? @relation(fields: [componentId], references: [id], onDelete: Cascade)
-  term           Term             @relation(fields: [termId], references: [id], onDelete: Cascade)
+  term           Term              @relation(fields: [termId], references: [id], onDelete: Cascade)
 
   @@unique([studentId, subjectId, componentKey, termId, assessmentType])
   @@index([schoolId, academicYearId, termId, classId, streamId, assessmentType, status])
@@ -366,31 +376,38 @@ model AppSetting {
 }
 
 model User {
-  id                              String                     @id @default(uuid()) @db.Uuid
-  schoolId                        String                     @db.Uuid
+  id                              String                          @id @default(uuid()) @db.Uuid
+  schoolId                        String                          @db.Uuid
   name                            String
   email                           String
   passwordHash                    String
-  role                            UserRole                   @default(ADMIN_OPERATOR)
-  isActive                        Boolean                    @default(true)
-  createdAt                       DateTime                   @default(now())
-  updatedAt                       DateTime                   @updatedAt
-  isPlatformOwner                 Boolean                    @default(false)
-  mustChangePassword              Boolean                    @default(false)
+  role                            UserRole                        @default(ADMIN_OPERATOR)
+  isActive                        Boolean                         @default(true)
+  createdAt                       DateTime                        @default(now())
+  updatedAt                       DateTime                        @updatedAt
+  isPlatformOwner                 Boolean                         @default(false)
+  mustChangePassword              Boolean                         @default(false)
   lastLoginAt                     DateTime?
-  tokenVersion                    Int                        @default(0)
+  tokenVersion                    Int                             @default(0)
   issuedReports                   IssuedReport[]
-  studentCredentialsIssued        StudentCredential[]        @relation("StudentCredentialIssuedBy")
-  walletTransactions              StudentWalletTransaction[] @relation("StudentWalletTransactionCashier")
-  gateScans                       NfcGateScan[]              @relation("NfcGateScanScannedBy")
-  nfcPoliciesUpdated              SchoolNfcPolicy[]          @relation("SchoolNfcPolicyUpdatedBy")
-  feeHoldsCreated                 StudentFeeHold[]           @relation("StudentFeeHoldCreatedBy")
-  feeHoldsCleared                 StudentFeeHold[]           @relation("StudentFeeHoldClearedBy")
-  canteenReconciliationCashiers   CanteenReconciliation[]    @relation("CanteenReconciliationCashier")
-  canteenReconciliationOperators  CanteenReconciliation[]    @relation("CanteenReconciliationOperator")
-  submittedCanteenReconciliations CanteenReconciliation[]    @relation("CanteenReconciliationSubmittedBy")
-  approvedCanteenReconciliations  CanteenReconciliation[]    @relation("CanteenReconciliationApprovedBy")
-  school                          School                     @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  studentCredentialsIssued        StudentCredential[]             @relation("StudentCredentialIssuedBy")
+  walletTransactions              StudentWalletTransaction[]      @relation("StudentWalletTransactionCashier")
+  gateScans                       NfcGateScan[]                   @relation("NfcGateScanScannedBy")
+  nfcPoliciesUpdated              SchoolNfcPolicy[]               @relation("SchoolNfcPolicyUpdatedBy")
+  communicationCampaignsCreated   CommunicationCampaign[]         @relation("CommunicationCampaignCreatedBy")
+  communicationCampaignsApproved  CommunicationCampaign[]         @relation("CommunicationCampaignApprovedBy")
+  communicationContentsCreated    CommunicationContent[]          @relation("CommunicationContentCreatedBy")
+  communicationSnapshotsCreated   CommunicationAudienceSnapshot[] @relation("CommunicationAudienceSnapshotCreatedBy")
+  communicationApprovalsRequested CommunicationApproval[]         @relation("CommunicationApprovalRequestedBy")
+  communicationApprovalsReviewed  CommunicationApproval[]         @relation("CommunicationApprovalReviewedBy")
+  communicationConsentsRecorded   CommunicationConsent[]          @relation("CommunicationConsentRecordedBy")
+  feeHoldsCreated                 StudentFeeHold[]                @relation("StudentFeeHoldCreatedBy")
+  feeHoldsCleared                 StudentFeeHold[]                @relation("StudentFeeHoldClearedBy")
+  canteenReconciliationCashiers   CanteenReconciliation[]         @relation("CanteenReconciliationCashier")
+  canteenReconciliationOperators  CanteenReconciliation[]         @relation("CanteenReconciliationOperator")
+  submittedCanteenReconciliations CanteenReconciliation[]         @relation("CanteenReconciliationSubmittedBy")
+  approvedCanteenReconciliations  CanteenReconciliation[]         @relation("CanteenReconciliationApprovedBy")
+  school                          School                          @relation(fields: [schoolId], references: [id], onDelete: Cascade)
 
   @@unique([schoolId, email])
   @@index([schoolId, role])
@@ -553,42 +570,42 @@ model StudentWalletTransaction {
 }
 
 model SchoolNfcPolicy {
-  id                           String                 @id @default(uuid()) @db.Uuid
-  schoolId                     String                 @unique @db.Uuid
-  feeDefaulterBlockingEnabled  Boolean                @default(false)
-  feeDefaulterBlockScope       FeeDefaulterBlockScope @default(DAY_SCHOLARS_ONLY)
-  attendanceTapInCutoffEnabled Boolean                @default(false)
-  tapInCutoffTime              String?
-  cutoffLateAction             AttendanceLateAction   @default(BLOCK_AND_MARK_ABSENT)
-  timezone                     String                 @default("Africa/Kampala")
-  duplicateWindowSeconds       Int                    @default(60)
-  gateArrivalStart             String                 @default("05:30")
-  gateArrivalLateAfter         String                 @default("08:00")
-  gateArrivalEnd               String                 @default("10:00")
-  morningClassroomStart        String                 @default("06:30")
-  morningClassroomEnd          String                 @default("10:00")
-  gateDepartureStart           String                 @default("14:00")
-  gateDepartureEnd             String                 @default("19:00")
-  nightPrepStart               String                 @default("18:30")
-  nightPrepEnd                 String                 @default("22:30")
-  nightPrepBoardingOnly        Boolean                @default(true)
-  allowAutomaticCheckout       Boolean                @default(false)
-  recordUnclassifiedScans      Boolean                @default(true)
-  feeGatePolicyEnabled         Boolean                @default(false)
-  gateOfflineEnabled           Boolean                @default(false)
-  canteenOfflineEnabled        Boolean                @default(false)
-  gateSnapshotValidHours       Int                    @default(24)
-  canteenSnapshotValidHours    Int                    @default(12)
-  maxOfflineSpendPerStudentPerDay Int                 @default(5000)
-  maxOfflineSpendPerTransaction Int                  @default(2000)
-  maxOfflineSpendPerDeviceSession Int                 @default(100000)
-  unknownCardOfflinePolicy     String                 @default("DENY")
-  frozenCardOfflinePolicy      String                 @default("DENY")
-  deactivatedCardOfflinePolicy String                 @default("DENY")
-  offlineConflictPolicy        String                 @default("ALLOW_AND_FLAG")
-  createdAt                    DateTime               @default(now())
-  updatedAt                    DateTime               @updatedAt
-  updatedByUserId              String?                @db.Uuid
+  id                              String                 @id @default(uuid()) @db.Uuid
+  schoolId                        String                 @unique @db.Uuid
+  feeDefaulterBlockingEnabled     Boolean                @default(false)
+  feeDefaulterBlockScope          FeeDefaulterBlockScope @default(DAY_SCHOLARS_ONLY)
+  attendanceTapInCutoffEnabled    Boolean                @default(false)
+  tapInCutoffTime                 String?
+  cutoffLateAction                AttendanceLateAction   @default(BLOCK_AND_MARK_ABSENT)
+  timezone                        String                 @default("Africa/Kampala")
+  duplicateWindowSeconds          Int                    @default(60)
+  gateArrivalStart                String                 @default("05:30")
+  gateArrivalLateAfter            String                 @default("08:00")
+  gateArrivalEnd                  String                 @default("10:00")
+  morningClassroomStart           String                 @default("06:30")
+  morningClassroomEnd             String                 @default("10:00")
+  gateDepartureStart              String                 @default("14:00")
+  gateDepartureEnd                String                 @default("19:00")
+  nightPrepStart                  String                 @default("18:30")
+  nightPrepEnd                    String                 @default("22:30")
+  nightPrepBoardingOnly           Boolean                @default(true)
+  allowAutomaticCheckout          Boolean                @default(false)
+  recordUnclassifiedScans         Boolean                @default(true)
+  feeGatePolicyEnabled            Boolean                @default(false)
+  gateOfflineEnabled              Boolean                @default(false)
+  canteenOfflineEnabled           Boolean                @default(false)
+  gateSnapshotValidHours          Int                    @default(24)
+  canteenSnapshotValidHours       Int                    @default(12)
+  maxOfflineSpendPerStudentPerDay Int                    @default(5000)
+  maxOfflineSpendPerTransaction   Int                    @default(2000)
+  maxOfflineSpendPerDeviceSession Int                    @default(100000)
+  unknownCardOfflinePolicy        String                 @default("DENY")
+  frozenCardOfflinePolicy         String                 @default("DENY")
+  deactivatedCardOfflinePolicy    String                 @default("DENY")
+  offlineConflictPolicy           String                 @default("ALLOW_AND_FLAG")
+  createdAt                       DateTime               @default(now())
+  updatedAt                       DateTime               @updatedAt
+  updatedByUserId                 String?                @db.Uuid
 
   school    School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   updatedBy User?  @relation("SchoolNfcPolicyUpdatedBy", fields: [updatedByUserId], references: [id], onDelete: SetNull)
@@ -620,19 +637,19 @@ model StudentFeeHold {
 }
 
 model StudentGateHold {
-  id                String   @id @default(uuid()) @db.Uuid
-  schoolId          String   @db.Uuid
-  studentId         String   @db.Uuid
-  status            String   @default("REQUESTED")
+  id                String    @id @default(uuid()) @db.Uuid
+  schoolId          String    @db.Uuid
+  studentId         String    @db.Uuid
+  status            String    @default("REQUESTED")
   reason            String?
-  requestedByUserId String?  @db.Uuid
-  approvedByUserId  String?  @db.Uuid
+  requestedByUserId String?   @db.Uuid
+  approvedByUserId  String?   @db.Uuid
   activeFrom        DateTime?
   activeUntil       DateTime?
   overrideUntil     DateTime?
   overrideReason    String?
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
   school  School  @relation(fields: [schoolId], references: [id])
   student Student @relation(fields: [studentId], references: [id])
@@ -720,17 +737,17 @@ model DailyAttendance {
 }
 
 model CampusMovementEvent {
-  id          String   @id @default(uuid()) @db.Uuid
-  eventId     String
-  schoolId    String   @db.Uuid
-  studentId   String   @db.Uuid
-  readerId    String   @db.Uuid
-  type        String
-  occurredAt  DateTime
-  deviceTime  DateTime
-  receivedAt  DateTime @default(now())
-  offlineSynced Boolean @default(false)
-  metadata    Json?
+  id            String   @id @default(uuid()) @db.Uuid
+  eventId       String
+  schoolId      String   @db.Uuid
+  studentId     String   @db.Uuid
+  readerId      String   @db.Uuid
+  type          String
+  occurredAt    DateTime
+  deviceTime    DateTime
+  receivedAt    DateTime @default(now())
+  offlineSynced Boolean  @default(false)
+  metadata      Json?
 
   school  School  @relation(fields: [schoolId], references: [id])
   student Student @relation(fields: [studentId], references: [id])
@@ -1383,37 +1400,37 @@ enum CanteenReconciliationStatus {
 // ─── NFC Offline Mode ────────────────────────────────────────────────────────
 
 model NfcOfflineDevice {
-  id                String    @id @default(uuid()) @db.Uuid
-  schoolId          String    @db.Uuid
-  name              String
-  location          String?
-  locationType      String?
-  locationName      String?
-  deviceKey         String
-  deviceTokenHash   String?
-  mode              String    @default("GATE") // GATE | CANTEEN | ATTENDANCE
-  attendanceMode    String?
-  studentScope      String?
-  classId           String?   @db.Uuid
-  streamId          String?   @db.Uuid
-  status            String    @default("ACTIVE") // ACTIVE | REVOKED
-  roleScope         String // GATE_SECURITY | CASHIER | ADMIN_OPERATOR
-  isActive          Boolean   @default(true)
-  direction         String?   @default("ENTRY")
-  lastSyncAt        DateTime?
-  lastSeenAt        DateTime?
-  lastSnapshotAt    DateTime?
-  lastIp            String?
-  lastRssi          Int?
-  firmwareVersion   String?
-  queueDepth        Int       @default(0)
-  onlineStatus      String    @default("OFFLINE")
-  lastApiContactAt  DateTime?
-  lastScanAt        DateTime?
-  lastScanStatus    String?
-  lastScanMessage   String?
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
+  id               String    @id @default(uuid()) @db.Uuid
+  schoolId         String    @db.Uuid
+  name             String
+  location         String?
+  locationType     String?
+  locationName     String?
+  deviceKey        String
+  deviceTokenHash  String?
+  mode             String    @default("GATE") // GATE | CANTEEN | ATTENDANCE
+  attendanceMode   String?
+  studentScope     String?
+  classId          String?   @db.Uuid
+  streamId         String?   @db.Uuid
+  status           String    @default("ACTIVE") // ACTIVE | REVOKED
+  roleScope        String // GATE_SECURITY | CASHIER | ADMIN_OPERATOR
+  isActive         Boolean   @default(true)
+  direction        String?   @default("ENTRY")
+  lastSyncAt       DateTime?
+  lastSeenAt       DateTime?
+  lastSnapshotAt   DateTime?
+  lastIp           String?
+  lastRssi         Int?
+  firmwareVersion  String?
+  queueDepth       Int       @default(0)
+  onlineStatus     String    @default("OFFLINE")
+  lastApiContactAt DateTime?
+  lastScanAt       DateTime?
+  lastScanStatus   String?
+  lastScanMessage  String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
 
   school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
 
@@ -1512,4 +1529,395 @@ model NfcTapEvent {
   @@index([publicCode])
   @@index([tagId, createdAt])
   @@index([schoolId, publicCode, createdAt], map: "NfcTapEvent_school_publicCode_createdAt_idx")
+}
+
+model CommunicationCampaign {
+  id                      String                      @id @default(uuid()) @db.Uuid
+  schoolId                String                      @db.Uuid
+  type                    CommunicationType
+  title                   String
+  status                  CommunicationCampaignStatus @default(DRAFT)
+  priority                String                      @default("NORMAL")
+  contentVersion          Int                         @default(1)
+  createdByUserId         String?                     @db.Uuid
+  approvedByUserId        String?                     @db.Uuid
+  approvedAt              DateTime?
+  scheduledAt             DateTime?
+  sendingStartedAt        DateTime?
+  completedAt             DateTime?
+  cancelledAt             DateTime?
+  replyPolicy             String                      @default("NONE")
+  acknowledgementRequired Boolean                     @default(false)
+  metadataJson            Json?
+  createdAt               DateTime                    @default(now())
+  updatedAt               DateTime                    @updatedAt
+
+  school            School                          @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  createdBy         User?                           @relation("CommunicationCampaignCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  approvedBy        User?                           @relation("CommunicationCampaignApprovedBy", fields: [approvedByUserId], references: [id], onDelete: SetNull)
+  contents          CommunicationContent[]
+  audience          CommunicationAudience?
+  audienceSnapshots CommunicationAudienceSnapshot[]
+  recipients        CommunicationRecipient[]
+  deliveries        CommunicationDelivery[]
+  approvals         CommunicationApproval[]
+  usageRecords      CommunicationUsageRecord[]
+
+  @@index([schoolId, status, createdAt])
+  @@index([schoolId, type, createdAt])
+}
+
+model CommunicationContent {
+  id                    String   @id @default(uuid()) @db.Uuid
+  campaignId            String   @db.Uuid
+  version               Int
+  subject               String?
+  body                  String
+  shortBody             String?
+  callToActionLabel     String?
+  callToActionUrl       String?
+  templateVariablesJson Json?
+  createdByUserId       String?  @db.Uuid
+  createdAt             DateTime @default(now())
+
+  campaign  CommunicationCampaign @relation(fields: [campaignId], references: [id], onDelete: Restrict)
+  createdBy User?                 @relation("CommunicationContentCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+
+  @@unique([campaignId, version])
+  @@index([campaignId, createdAt])
+}
+
+model CommunicationAudience {
+  id                  String   @id @default(uuid()) @db.Uuid
+  campaignId          String   @unique @db.Uuid
+  definitionJson      Json
+  estimatedRecipients Int      @default(0)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  campaign CommunicationCampaign @relation(fields: [campaignId], references: [id], onDelete: Restrict)
+}
+
+model CommunicationAudienceSnapshot {
+  id              String   @id @default(uuid()) @db.Uuid
+  campaignId      String   @db.Uuid
+  snapshotVersion Int
+  recipientCount  Int      @default(0)
+  createdByUserId String?  @db.Uuid
+  createdAt       DateTime @default(now())
+
+  campaign   CommunicationCampaign    @relation(fields: [campaignId], references: [id], onDelete: Restrict)
+  createdBy  User?                    @relation("CommunicationAudienceSnapshotCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  recipients CommunicationRecipient[]
+
+  @@unique([campaignId, snapshotVersion])
+  @@index([campaignId, createdAt])
+}
+
+model CommunicationRecipient {
+  id                  String                       @id @default(uuid()) @db.Uuid
+  schoolId            String                       @db.Uuid
+  campaignId          String                       @db.Uuid
+  audienceSnapshotId  String                       @db.Uuid
+  guardianId          String?                      @db.Uuid
+  studentId           String?                      @db.Uuid
+  staffUserId         String?                      @db.Uuid
+  displayName         String
+  relationship        String?
+  phoneE164           String?
+  email               String?
+  preferredChannel    CommunicationChannel?
+  status              CommunicationRecipientStatus @default(PENDING)
+  warningCodesJson    Json?
+  blockedReasonCode   String?
+  personalisationJson Json?
+  acknowledgedAt      DateTime?
+  createdAt           DateTime                     @default(now())
+  updatedAt           DateTime                     @updatedAt
+
+  school           School                        @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  campaign         CommunicationCampaign         @relation(fields: [campaignId], references: [id], onDelete: Restrict)
+  audienceSnapshot CommunicationAudienceSnapshot @relation(fields: [audienceSnapshotId], references: [id], onDelete: Restrict)
+  guardian         GuardianContact?              @relation(fields: [guardianId], references: [id], onDelete: SetNull)
+  student          Student?                      @relation(fields: [studentId], references: [id], onDelete: SetNull)
+  deliveries       CommunicationDelivery[]
+
+  @@index([schoolId, campaignId, status])
+  @@index([schoolId, studentId])
+  @@index([schoolId, guardianId])
+}
+
+model CommunicationDelivery {
+  id                   String                      @id @default(uuid()) @db.Uuid
+  schoolId             String                      @db.Uuid
+  campaignId           String                      @db.Uuid
+  recipientId          String                      @db.Uuid
+  channel              CommunicationChannel
+  provider             String                      @default("DRY_RUN")
+  status               CommunicationDeliveryStatus @default(PENDING)
+  contentVersion       Int
+  idempotencyKey       String                      @unique
+  renderedContentHash  String?
+  providerMessageId    String?
+  queuedAt             DateTime?
+  submittedAt          DateTime?
+  acceptedAt           DateTime?
+  deliveredAt          DateTime?
+  readAt               DateTime?
+  failedAt             DateTime?
+  lastErrorCode        String?
+  lastErrorMessageSafe String?
+  attemptCount         Int                         @default(0)
+  nextRetryAt          DateTime?
+  createdAt            DateTime                    @default(now())
+  updatedAt            DateTime                    @updatedAt
+
+  school       School                         @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  campaign     CommunicationCampaign          @relation(fields: [campaignId], references: [id], onDelete: Restrict)
+  recipient    CommunicationRecipient         @relation(fields: [recipientId], references: [id], onDelete: Restrict)
+  attempts     CommunicationDeliveryAttempt[]
+  usageRecords CommunicationUsageRecord[]
+
+  @@unique([campaignId, recipientId, channel, contentVersion])
+  @@index([schoolId, campaignId, status])
+  @@index([schoolId, status, nextRetryAt])
+}
+
+model CommunicationDeliveryAttempt {
+  id                   String                     @id @default(uuid()) @db.Uuid
+  deliveryId           String                     @db.Uuid
+  attemptNumber        Int
+  provider             String
+  status               CommunicationAttemptStatus
+  requestId            String?
+  providerMessageId    String?
+  providerResponseCode String?
+  errorCode            String?
+  errorMessageSafe     String?
+  startedAt            DateTime                   @default(now())
+  completedAt          DateTime?
+  createdAt            DateTime                   @default(now())
+
+  delivery CommunicationDelivery @relation(fields: [deliveryId], references: [id], onDelete: Restrict)
+
+  @@unique([deliveryId, attemptNumber])
+  @@index([deliveryId, createdAt])
+}
+
+model CommunicationApproval {
+  id                String                      @id @default(uuid()) @db.Uuid
+  campaignId        String                      @db.Uuid
+  requiredRole      String
+  requestedByUserId String?                     @db.Uuid
+  requestedAt       DateTime                    @default(now())
+  reviewedByUserId  String?                     @db.Uuid
+  reviewedAt        DateTime?
+  status            CommunicationApprovalStatus @default(PENDING)
+  comment           String?
+  createdAt         DateTime                    @default(now())
+
+  campaign    CommunicationCampaign @relation(fields: [campaignId], references: [id], onDelete: Restrict)
+  requestedBy User?                 @relation("CommunicationApprovalRequestedBy", fields: [requestedByUserId], references: [id], onDelete: SetNull)
+  reviewedBy  User?                 @relation("CommunicationApprovalReviewedBy", fields: [reviewedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([campaignId, status])
+}
+
+model CommunicationTemplate {
+  id                   String               @id @default(uuid()) @db.Uuid
+  schoolId             String               @db.Uuid
+  channel              CommunicationChannel
+  communicationType    CommunicationType
+  name                 String
+  providerTemplateName String?
+  providerTemplateId   String?
+  languageCode         String               @default("en")
+  category             String?
+  status               String               @default("DRAFT")
+  content              String
+  variablesJson        Json?
+  createdAt            DateTime             @default(now())
+  updatedAt            DateTime             @updatedAt
+
+  school School @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+
+  @@unique([schoolId, channel, name, languageCode])
+  @@index([schoolId, communicationType, channel])
+}
+
+model CommunicationConsent {
+  id                 String                     @id @default(uuid()) @db.Uuid
+  schoolId           String                     @db.Uuid
+  guardianId         String                     @db.Uuid
+  channel            CommunicationChannel
+  status             CommunicationConsentStatus @default(UNKNOWN)
+  source             String                     @default("SYSTEM")
+  consentTextVersion String?
+  optedInAt          DateTime?
+  optedOutAt         DateTime?
+  recordedByUserId   String?                    @db.Uuid
+  createdAt          DateTime                   @default(now())
+  updatedAt          DateTime                   @updatedAt
+
+  school     School          @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  guardian   GuardianContact @relation(fields: [guardianId], references: [id], onDelete: Restrict)
+  recordedBy User?           @relation("CommunicationConsentRecordedBy", fields: [recordedByUserId], references: [id], onDelete: SetNull)
+
+  @@unique([schoolId, guardianId, channel])
+  @@index([schoolId, channel, status])
+}
+
+model CommunicationWebhookEvent {
+  id               String                               @id @default(uuid()) @db.Uuid
+  provider         String
+  externalEventId  String
+  eventType        String
+  payloadHash      String
+  processingStatus CommunicationWebhookProcessingStatus @default(RECEIVED)
+  receivedAt       DateTime                             @default(now())
+  processedAt      DateTime?
+  errorCode        String?
+
+  @@unique([provider, externalEventId])
+  @@index([provider, eventType, receivedAt])
+}
+
+model CommunicationUsageRecord {
+  id                String               @id @default(uuid()) @db.Uuid
+  schoolId          String               @db.Uuid
+  campaignId        String               @db.Uuid
+  deliveryId        String?              @db.Uuid
+  channel           CommunicationChannel
+  provider          String
+  billableUnits     Int                  @default(0)
+  unitType          String               @default("MESSAGE")
+  providerCostMinor Int?
+  schoolChargeMinor Int?
+  currency          String               @default("UGX")
+  status            String               @default("ESTIMATED")
+  recordedAt        DateTime             @default(now())
+
+  school   School                 @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  campaign CommunicationCampaign  @relation(fields: [campaignId], references: [id], onDelete: Restrict)
+  delivery CommunicationDelivery? @relation(fields: [deliveryId], references: [id], onDelete: SetNull)
+
+  @@index([schoolId, campaignId, recordedAt])
+  @@index([schoolId, channel, provider, recordedAt])
+}
+
+model CommunicationChannelSetting {
+  id                   String               @id @default(uuid()) @db.Uuid
+  schoolId             String               @db.Uuid
+  channel              CommunicationChannel
+  provider             String               @default("DRY_RUN")
+  sendingEnabled       Boolean              @default(false)
+  connectionStatus     String               @default("NOT_CONFIGURED")
+  displayName          String?
+  displayPhoneNumber   String?
+  senderId             String?
+  providerMetadataJson Json?
+  verifiedAt           DateTime?
+  lastHealthCheckAt    DateTime?
+  createdAt            DateTime             @default(now())
+  updatedAt            DateTime             @updatedAt
+
+  school School @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+
+  @@unique([schoolId, channel, provider])
+  @@index([schoolId, channel, sendingEnabled])
+}
+
+enum CommunicationType {
+  REPORT_RELEASE
+  CIRCULAR
+  ANNOUNCEMENT
+  EVENT
+  VIDEO_MESSAGE
+  EMERGENCY_ALERT
+  FEE_NOTICE
+  ATTENDANCE_ALERT
+  RECEIPT
+  CUSTOM
+}
+
+enum CommunicationChannel {
+  WHATSAPP
+  SMS
+  PARENT_PORTAL
+  EMAIL
+  PRINT
+}
+
+enum CommunicationCampaignStatus {
+  DRAFT
+  VALIDATING
+  VALIDATION_FAILED
+  READY_FOR_APPROVAL
+  APPROVAL_PENDING
+  APPROVED
+  SCHEDULED
+  QUEUED
+  SENDING
+  PARTIALLY_DELIVERED
+  DELIVERED
+  FAILED
+  PAUSED
+  CANCELLED
+}
+
+enum CommunicationRecipientStatus {
+  PENDING
+  READY
+  WARNING
+  BLOCKED
+  EXCLUDED
+  QUEUED
+  SENDING
+  DELIVERED
+  PARTIALLY_DELIVERED
+  FAILED
+  ACKNOWLEDGED
+}
+
+enum CommunicationDeliveryStatus {
+  PENDING
+  QUEUED
+  SUBMITTING
+  SUBMITTED
+  ACCEPTED
+  DELIVERED
+  READ
+  FAILED
+  RETRY_SCHEDULED
+  CANCELLED
+  SKIPPED
+}
+
+enum CommunicationAttemptStatus {
+  STARTED
+  PROVIDER_ACCEPTED
+  PROVIDER_REJECTED
+  DELIVERED
+  READ
+  FAILED
+  TIMED_OUT
+}
+
+enum CommunicationApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum CommunicationConsentStatus {
+  OPTED_IN
+  OPTED_OUT
+  UNKNOWN
+}
+
+enum CommunicationWebhookProcessingStatus {
+  RECEIVED
+  PROCESSED
+  DUPLICATE
+  FAILED
 }
