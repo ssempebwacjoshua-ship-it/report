@@ -83,7 +83,7 @@ const otaStatusSchema = readerIdentitySchema.extend({
   firmwareChannel: z.string().trim().min(1).optional().default("stable"),
   fromVersion: z.string().trim().min(1, "From version is required."),
   toVersion: z.string().trim().min(1, "To version is required."),
-  status: z.enum(["DOWNLOADING", "VERIFYING", "INSTALLING", "INSTALLED", "FAILED", "DEFERRED"]),
+  status: z.enum(["DOWNLOADING", "VERIFYING", "INSTALLING", "CONFIRMED", "FAILED", "DEFERRED"]),
   message: z.string().trim().min(1).max(500),
 });
 
@@ -955,7 +955,7 @@ export function readerGatewayRoutes() {
           data: {
             lastSeenAt: now,
             onlineStatus: "ONLINE",
-            ...(body.status === "INSTALLED" ? { firmwareVersion: body.toVersion, lastSyncAt: now } : {}),
+            ...(body.status === "CONFIRMED" ? { firmwareVersion: body.toVersion, lastSyncAt: now } : {}),
           },
         });
         await tx.auditLog.create({

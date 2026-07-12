@@ -1,5 +1,6 @@
 #include "ssamenj/ReaderGatewayApp.h"
 
+#include <ArduinoJson.h>
 #include <HTTPClient.h>
 #include <LittleFS.h>
 #include <Update.h>
@@ -13,6 +14,7 @@
 
 namespace {
 constexpr const char* FACTORY_RESET_FLAG_PATH = "/reader-gateway/factory-reset.once";
+constexpr const char* PENDING_OTA_STATE_PATH = "/reader-gateway/ota-pending.json";
 constexpr unsigned long HEARTBEAT_INTERVAL_MS = 60000;
 constexpr unsigned long MAX_RETRY_INTERVAL_MS = 5UL * 60UL * 1000UL;
 
@@ -127,6 +129,53 @@ void logTlsError(WiFiClientSecure& client) {
 }
 }  // namespace
 
+bool ReaderGatewayApp::loadPendingOtaManifest(ReaderOtaManifest& manifest) const {
+  manifest = ReaderOtaManifest{};
+  if (!LittleFS.exists(PENDING_OTA_STATE_PATH)) {
+    return false;
+  }
+
+  File file = LittleFS.open(PENDING_OTA_STATE_PATH, FILE_READ);
+  if (!file) {
+    return false;
+  }
+
+  JsonDocument doc;
+  const DeserializationError error = deserializeJson(doc, file);
+  file.close();
+  if (error) {
+    return false;
+  }
+
+  manifest.releaseId = doc["releaseId"] | "";
+  manifest.version = doc["version"] | "";
+  manifest.channel = doc["channel"] | "";
+  manifest.publicKeyId = doc["publicKeyId"] | "";
+  return !manifest.releaseId.isEmpty() && !manifest.version.isEmpty();
+}
+
+bool ReaderGatewayApp::savePendingOtaManifest(const ReaderOtaManifest& manifest) const {
+  JsonDocument doc;
+  doc["releaseId"] = manifest.releaseId;
+  doc["version"] = manifest.version;
+  doc["channel"] = manifest.channel;
+  doc["publicKeyId"] = manifest.publicKeyId;
+
+  File file = LittleFS.open(PENDING_OTA_STATE_PATH, FILE_WRITE);
+  if (!file) {
+    return false;
+  }
+  const bool ok = serializeJson(doc, file) > 0;
+  file.close();
+  return ok;
+}
+
+void ReaderGatewayApp::clearPendingOtaManifest() const {
+  if (LittleFS.exists(PENDING_OTA_STATE_PATH)) {
+    LittleFS.remove(PENDING_OTA_STATE_PATH);
+  }
+}
+
 bool ReaderGatewayApp::consumeFactoryResetFlag() {
   if (!LittleFS.exists(FACTORY_RESET_FLAG_PATH)) {
     return false;
@@ -158,6 +207,7 @@ bool ReaderGatewayApp::checkRollbackState() {
 
   otaPendingRollbackConfirm_ = otaState == ESP_OTA_IMG_PENDING_VERIFY;
   if (otaPendingRollbackConfirm_) {
+    loadPendingOtaManifest(pendingOtaManifest_);
     Serial.println("OTA image pending verification");
   }
   return otaPendingRollbackConfirm_;
@@ -394,7 +444,12 @@ bool ReaderGatewayApp::installOtaUpdate(const ReaderOtaManifest& manifest) {
   }
 
   http.end();
-  reportOtaStatus("INSTALLED", "Firmware update installed; restarting device.", manifest);
+  pendingOtaManifest_ = manifest;
+  if (!savePendingOtaManifest(manifest)) {
+    otaUpdateInProgress_ = false;
+    reportOtaStatus("FAILED", "Failed to persist OTA pending state before reboot.", manifest);
+    return false;
+  }
   Serial.printf("OTA installed successfully: %s -> %s\n", config_.firmwareVersion.c_str(), manifest.version.c_str());
   delay(250);
   ESP.restart();
@@ -446,6 +501,11 @@ void ReaderGatewayApp::maybeConfirmOtaBoot() {
   if (esp_ota_mark_app_valid_cancel_rollback() == ESP_OK) {
     otaPendingRollbackConfirm_ = false;
     Serial.println("OTA image marked valid");
+    if (!pendingOtaManifest_.releaseId.isEmpty()) {
+      reportOtaStatus("CONFIRMED", "OTA reboot confirmed after successful backend contact.", pendingOtaManifest_);
+      clearPendingOtaManifest();
+      pendingOtaManifest_ = ReaderOtaManifest{};
+    }
   } else {
     Serial.println("Failed to mark OTA image valid");
   }
@@ -522,6 +582,8 @@ bool ReaderGatewayApp::begin() {
   Serial.printf("Loaded schoolId: %s\n", config_.schoolId.c_str());
   Serial.printf("Loaded apiBaseUrl: %s\n", config_.apiBaseUrl.c_str());
   Serial.printf("Loaded firmwareChannel: %s\n", config_.firmwareChannel.c_str());
+  Serial.printf("Loaded otaPublicKeyId: %s\n", config_.otaPublicKeyId.isEmpty() ? "(blank)" : config_.otaPublicKeyId.c_str());
+  Serial.printf("OTA public key configured: %s\n", config_.otaPublicKeyPem.isEmpty() ? "no" : "yes");
   Serial.printf("Wi-Fi SSID configured: %s\n", config_.wifiSsid.c_str());
   Serial.printf("Configured D0 pin: %d\n", static_cast<int>(config_.d0Pin));
   Serial.printf("Configured D1 pin: %d\n", static_cast<int>(config_.d1Pin));

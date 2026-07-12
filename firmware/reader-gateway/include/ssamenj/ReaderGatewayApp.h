@@ -17,6 +17,9 @@ class ReaderGatewayApp {
  private:
   bool consumeFactoryResetFlag();
   bool checkRollbackState();
+  bool loadPendingOtaManifest(ReaderOtaManifest& manifest) const;
+  bool savePendingOtaManifest(const ReaderOtaManifest& manifest) const;
+  void clearPendingOtaManifest() const;
   bool shouldDeferOtaUpdate() const;
   bool verifyDownloadedFirmware(const String& digestHex, const ReaderOtaManifest& manifest) const;
   bool installOtaUpdate(const ReaderOtaManifest& manifest);
@@ -46,6 +49,7 @@ class ReaderGatewayApp {
   bool transactionActive_ = false;
   bool otaUpdateInProgress_ = false;
   bool otaPendingRollbackConfirm_ = false;
+  ReaderOtaManifest pendingOtaManifest_;
   unsigned long lastWifiAttemptMs_ = 0;
   unsigned long lastQueueAttemptMs_ = 0;
   unsigned long lastHeartbeatMs_ = 0;

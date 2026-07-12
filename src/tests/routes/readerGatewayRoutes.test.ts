@@ -882,8 +882,8 @@ describe("readerGatewayRoutes", () => {
         firmwareChannel: "stable",
         fromVersion: "1.0.0",
         toVersion: "1.0.1",
-        status: "INSTALLED",
-        message: "Firmware update installed; restarting device.",
+        status: "CONFIRMED",
+        message: "OTA reboot confirmed after successful backend contact.",
       });
 
     expect(res.status).toBe(200);
@@ -897,7 +897,7 @@ describe("readerGatewayRoutes", () => {
         action: "reader_device.ota_status",
         details: expect.objectContaining({
           releaseId: "release-stable-101",
-          status: "INSTALLED",
+          status: "CONFIRMED",
         }),
       }),
     }));

@@ -23,3 +23,9 @@ db-audit.zip
 .env
 .vercel
 .env*
+
+firmware/reader-gateway/secrets/
+firmware/reader-gateway/ota-private-key.pem
+firmware/reader-gateway/ota-public-key.pem
+firmware/reader-gateway/releases/*.json
+firmware/reader-gateway/releases/*.sig

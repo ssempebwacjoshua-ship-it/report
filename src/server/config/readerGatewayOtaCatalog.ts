@@ -1,4 +1,5 @@
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 type ReaderGatewayOtaRelease = {
   releaseId: string;
@@ -24,6 +25,8 @@ export type ReaderGatewayOtaDeviceContext = {
 export type ReaderGatewayResolvedRelease = ReaderGatewayOtaRelease & {
   artifactPath: string;
 };
+
+const catalogRepoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 
 function parseVersion(value: string) {
   return value.split(".").map((part) => Number.parseInt(part, 10)).filter((part) => Number.isFinite(part));
@@ -60,7 +63,7 @@ function loadReaderGatewayOtaCatalog(): ReaderGatewayResolvedRelease[] {
         ...item,
         artifactPath: path.isAbsolute(item.artifactPath)
           ? item.artifactPath
-          : path.resolve(process.cwd(), item.artifactPath),
+          : path.resolve(catalogRepoRoot, item.artifactPath),
       }));
   } catch {
     return [];
