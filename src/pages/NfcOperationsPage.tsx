@@ -34,6 +34,31 @@ const STATUS_COLORS: Record<string, string> = {
   DISABLED:   "bg-red-50 text-red-700",
 };
 
+function normalizeSearchValue(value: string) {
+  return value.trim().toLowerCase();
+}
+
+function filterAssignableStudents(students: StudentListItem[], query: string) {
+  const normalizedQuery = normalizeSearchValue(query);
+  if (!normalizedQuery) {
+    return students;
+  }
+
+  return students.filter((student) => {
+    const searchable = [
+      student.studentName,
+      student.admissionNumber,
+      student.className,
+      student.streamName,
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
+
+    return searchable.includes(normalizedQuery);
+  });
+}
+
 function StatusBadge({ status }: { status: string }) {
   return (
     <span className={`inline-block rounded-full px-2.5 py-0.5 text-[11px] font-black uppercase tracking-wider ${STATUS_COLORS[status] ?? "bg-slate-100 text-slate-600"}`}>
@@ -426,6 +451,7 @@ export function NfcOperationsPage() {
   // Assign panel
   const [assignTagId, setAssignTagId] = useState<string | null>(null);
   const [assignSearch, setAssignSearch] = useState("");
+  const [assignStudents, setAssignStudents] = useState<StudentListItem[]>([]);
   const [assignResults, setAssignResults] = useState<StudentListItem[]>([]);
   const [assignSearching, setAssignSearching] = useState(false);
   const [assignSelected, setAssignSelected] = useState<StudentListItem | null>(null);
@@ -500,6 +526,47 @@ export function NfcOperationsPage() {
   useEffect(() => { void loadTags(); }, [loadTags]);
 
   useEffect(() => {
+    if (!assignTagId) {
+      setAssignStudents([]);
+      setAssignResults([]);
+      setAssignSearching(false);
+      setAssignSelected(null);
+      if (searchDebounceRef.current) {
+        clearTimeout(searchDebounceRef.current);
+        searchDebounceRef.current = null;
+      }
+      return;
+    }
+
+    let cancelled = false;
+    setAssignSearching(true);
+    setAssignError(null);
+
+    fetchStudents({ isActive: "true" })
+      .then((result) => {
+        if (cancelled) return;
+        const students = result.students;
+        setAssignStudents(students);
+        setAssignResults(filterAssignableStudents(students, assignSearch));
+      })
+      .catch((caught) => {
+        if (cancelled) return;
+        setAssignStudents([]);
+        setAssignResults([]);
+        setAssignError(caught instanceof Error ? caught.message : "Could not load students.");
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setAssignSearching(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [assignTagId]);
+
+  useEffect(() => {
     if (!linkReaderTarget) {
       setLinkReaderDevices([]);
       setLinkReaderDeviceId("");
@@ -572,6 +639,133 @@ export function NfcOperationsPage() {
       }
     };
   }, [linkReaderCapture, linkReaderTarget]);
+
+  function openWalletPinModal(target: WalletPinTarget) {
+    setWalletPinTarget(target);
+    setWalletPinStatus(null);
+    setWalletPinStatusLoading(true);
+    setWalletPinNewPin("");
+    setWalletPinConfirmPin("");
+    setWalletPinReason("");
+    setWalletPinLoading(false);
+    setWalletPinError(null);
+    setWalletPinSuccess(false);
+
+    void getStudentWalletPinStatus(target.studentId)
+      .then((status) => {
+        setWalletPinStatus(status);
+      })
+      .catch((caught) => {
+        setWalletPinError(caught instanceof Error ? caught.message : "Could not load PIN status.");
+      })
+      .finally(() => {
+        setWalletPinStatusLoading(false);
+      });
+  }
+
+  function closeWalletPinModal() {
+    setWalletPinTarget(null);
+    setWalletPinStatus(null);
+    setWalletPinStatusLoading(false);
+    setWalletPinNewPin("");
+    setWalletPinConfirmPin("");
+    setWalletPinReason("");
+    setWalletPinLoading(false);
+    setWalletPinError(null);
+    setWalletPinSuccess(false);
+  }
+
+  async function handleSetWalletPin() {
+    if (!walletPinTarget) {
+      return;
+    }
+
+    if (!/^\d{4,6}$/.test(walletPinNewPin)) {
+      setWalletPinError("PIN must be 4 to 6 digits.");
+      return;
+    }
+
+    if (walletPinNewPin !== walletPinConfirmPin) {
+      setWalletPinError("PINs do not match.");
+      return;
+    }
+
+    if (!walletPinReason.trim()) {
+      setWalletPinError("Reason is required.");
+      return;
+    }
+
+    setWalletPinLoading(true);
+    setWalletPinError(null);
+
+    try {
+      const result = await setStudentWalletPin(walletPinTarget.studentId, {
+        pin: walletPinNewPin,
+        reason: walletPinReason.trim(),
+      });
+      setWalletPinStatus({
+        pinSet: result.pinSet,
+        locked: result.pinLocked,
+        pinLockedUntil: result.pinLockedUntil,
+        pinFailedAttempts: 0,
+      });
+      setWalletPinSuccess(true);
+      setWalletPinNewPin("");
+      setWalletPinConfirmPin("");
+    } catch (caught) {
+      setWalletPinError(caught instanceof Error ? caught.message : "Could not set wallet PIN.");
+    } finally {
+      setWalletPinLoading(false);
+    }
+  }
+
+  function handleSearchInput(value: string) {
+    setAssignSearch(value);
+    setAssignSelected(null);
+    setAssignError(null);
+
+    if (searchDebounceRef.current) {
+      clearTimeout(searchDebounceRef.current);
+    }
+
+    setAssignSearching(true);
+    searchDebounceRef.current = setTimeout(() => {
+      setAssignResults(filterAssignableStudents(assignStudents, value));
+      setAssignSearching(false);
+      searchDebounceRef.current = null;
+    }, 80);
+  }
+
+  function selectStudent(student: StudentListItem) {
+    setAssignSelected(student);
+    setAssignSearch(student.studentName);
+    setAssignResults([]);
+    setAssignError(null);
+  }
+
+  async function handleAssign() {
+    if (!assignTagId || !assignSelected) {
+      return;
+    }
+
+    setAssignLoading(true);
+    setAssignError(null);
+
+    try {
+      const assignedTag = await assignNfcTag(assignTagId, assignSelected.id);
+      setTags((current) => current.map((tag) => (tag.id === assignedTag.id ? assignedTag : tag)));
+      setAssignResults([]);
+      setAssignSuccess({
+        studentId: assignSelected.id,
+        studentName: assignSelected.studentName,
+        admissionNumber: assignSelected.admissionNumber,
+      });
+    } catch (caught) {
+      setAssignError(caught instanceof Error ? caught.message : "Could not assign wristband.");
+    } finally {
+      setAssignLoading(false);
+    }
+  }
 
   function makeActions(tag: NfcTag): TagActions {
     return {
@@ -709,6 +903,7 @@ export function NfcOperationsPage() {
                 <div className="relative mt-4">
                   <input
                     type="text"
+                    aria-label="Search student"
                     placeholder="Search student…"
                     value={assignSearch}
                     onChange={(e) => handleSearchInput(e.target.value)}
@@ -735,6 +930,11 @@ export function NfcOperationsPage() {
                         </li>
                       ))}
                     </ul>
+                  )}
+                  {!assignSearching && assignSearch.trim() && assignResults.length === 0 && !assignError && (
+                    <p className="mt-2 rounded-xl border border-dashed border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-500">
+                      No students match your search.
+                    </p>
                   )}
                 </div>
 
@@ -1050,6 +1250,7 @@ export function NfcOperationsPage() {
                   <label className="text-xs font-bold uppercase text-slate-500">New PIN (4–6 digits)</label>
                   <input
                     type="password"
+                    aria-label="New PIN (4–6 digits)"
                     inputMode="numeric"
                     maxLength={6}
                     className="premium-control h-11 rounded-xl border border-slate-200 bg-slate-50 px-3 text-center text-xl tracking-widest outline-none focus:border-blue-400 focus:bg-white"
@@ -1063,6 +1264,7 @@ export function NfcOperationsPage() {
                   <label className="text-xs font-bold uppercase text-slate-500">Confirm PIN</label>
                   <input
                     type="password"
+                    aria-label="Confirm PIN"
                     inputMode="numeric"
                     maxLength={6}
                     className="premium-control h-11 rounded-xl border border-slate-200 bg-slate-50 px-3 text-center text-xl tracking-widest outline-none focus:border-blue-400 focus:bg-white"
@@ -1075,6 +1277,7 @@ export function NfcOperationsPage() {
                 <div className="grid gap-1">
                   <label className="text-xs font-bold uppercase text-slate-500">Reason</label>
                   <textarea
+                    aria-label="Reason"
                     className="premium-control w-full resize-none rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-900 outline-none focus:border-blue-400 focus:bg-white"
                     rows={2}
                     value={walletPinReason}

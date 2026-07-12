@@ -1,3 +1,4 @@
+import { MemoryRouter } from "react-router-dom";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { StudentCredentialsPage } from "../../pages/StudentCredentialsPage";
@@ -68,7 +69,11 @@ describe("StudentCredentialsPage", () => {
   });
 
   it("disables issuing when the selected student already has an active NFC wristband", async () => {
-    render(<StudentCredentialsPage />);
+    render(
+      <MemoryRouter>
+        <StudentCredentialsPage />
+      </MemoryRouter>,
+    );
 
     await waitFor(() => {
       expect(screen.getByText(/student already has active nfc wristband ab12/i)).toBeInTheDocument();

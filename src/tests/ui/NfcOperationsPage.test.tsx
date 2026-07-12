@@ -4,13 +4,15 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NfcOperationsPage } from "../../pages/NfcOperationsPage";
 import type { NfcTag } from "../../shared/types/nfcTags";
 
+const mockAssignNfcTag = vi.hoisted(() => vi.fn());
 const mockListNfcTags = vi.hoisted(() => vi.fn());
 const mockFetchOfflineSyncStatus = vi.hoisted(() => vi.fn());
 const mockFetchStudents = vi.hoisted(() => vi.fn());
 const mockGetStudentWalletPinStatus = vi.hoisted(() => vi.fn());
+const mockSetStudentWalletPin = vi.hoisted(() => vi.fn());
 
 vi.mock("../../client/nfcTagsClient", () => ({
-  assignNfcTag: vi.fn(),
+  assignNfcTag: mockAssignNfcTag,
   confirmReaderCredentialCapture: vi.fn(),
   disableNfcTag: vi.fn(),
   enableNfcTag: vi.fn(),
@@ -33,38 +35,8 @@ vi.mock("../../client/studentsClient", () => ({
 
 vi.mock("../../client/studentCredentialsClient", () => ({
   getStudentWalletPinStatus: mockGetStudentWalletPinStatus,
-  setStudentWalletPin: vi.fn(),
+  setStudentWalletPin: mockSetStudentWalletPin,
 }));
-
-beforeEach(() => {
-  mockListNfcTags.mockResolvedValue({ tags: SAMPLE_TAGS, total: SAMPLE_TAGS.length });
-  mockFetchOfflineSyncStatus.mockResolvedValue({
-    providerReachable: true,
-    lastSyncAt: "2026-07-12T08:00:00.000Z",
-    pendingCount: 0,
-    stale: false,
-  });
-  mockFetchStudents.mockResolvedValue({
-    students: [
-      {
-        id: "student-1",
-        name: "Claire Nakibuuka With A Very Long Display Name For Layout",
-        admissionNumber: "SCU-S1A-018",
-        className: "Senior 1",
-        streamName: "A",
-        status: "ACTIVE",
-      },
-    ],
-    total: 1,
-  });
-  mockGetStudentWalletPinStatus.mockResolvedValue({
-    hasPin: true,
-    canSetPin: true,
-    canResetPin: true,
-    maskedPin: "12••",
-    updatedAt: "2026-07-12T08:05:00.000Z",
-  });
-});
 
 const SAMPLE_TAGS: NfcTag[] = [
   {
@@ -147,6 +119,80 @@ const SAMPLE_TAGS: NfcTag[] = [
   },
 ];
 
+beforeEach(() => {
+  vi.clearAllMocks();
+  mockListNfcTags.mockResolvedValue({ tags: SAMPLE_TAGS, total: SAMPLE_TAGS.length });
+  mockFetchOfflineSyncStatus.mockResolvedValue({
+    providerReachable: true,
+    lastSyncAt: "2026-07-12T08:00:00.000Z",
+    pendingCount: 0,
+    stale: false,
+    devices: [],
+  });
+  mockFetchStudents.mockResolvedValue({
+    students: [
+      {
+        id: "student-1",
+        studentName: "Claire Nakibuuka With A Very Long Display Name For Layout",
+        admissionNumber: "SCU-S1A-018",
+        className: "Senior 1",
+        streamName: "A",
+        isActive: true,
+        enrollmentStatus: "ACTIVE",
+        classId: "class-1",
+        streamId: "stream-1",
+        academicYearId: "year-1",
+        termId: "term-1",
+        contactReadiness: "READY",
+        contactSummary: "Ready",
+        guardianContacts: [],
+      },
+      {
+        id: "student-2",
+        studentName: "Mike Ssempebwa",
+        admissionNumber: "SCU-S1B-030",
+        className: "Senior 1",
+        streamName: "B",
+        isActive: true,
+        enrollmentStatus: "ACTIVE",
+        classId: "class-1",
+        streamId: "stream-2",
+        academicYearId: "year-1",
+        termId: "term-1",
+        contactReadiness: "READY",
+        contactSummary: "Ready",
+        guardianContacts: [],
+      },
+    ],
+  });
+  mockGetStudentWalletPinStatus.mockResolvedValue({
+    pinSet: true,
+    locked: false,
+    pinLockedUntil: null,
+    pinFailedAttempts: 0,
+  });
+  mockSetStudentWalletPin.mockResolvedValue({
+    walletId: "wallet-1",
+    studentId: "student-1",
+    pinSet: true,
+    pinLocked: false,
+    pinLockedUntil: null,
+  });
+  mockAssignNfcTag.mockResolvedValue({
+    ...SAMPLE_TAGS[1],
+    status: "ASSIGNED",
+    studentId: "student-2",
+    student: {
+      id: "student-2",
+      name: "Mike Ssempebwa",
+      admissionNumber: "SCU-S1B-030",
+      className: "Senior 1",
+      streamName: "B",
+    },
+    assignedAt: "2026-07-12T08:30:00.000Z",
+  });
+});
+
 function renderPage() {
   return render(
     <MemoryRouter>
@@ -182,5 +228,90 @@ describe("NfcOperationsPage wristband grid layout", () => {
     expect(screen.getAllByText("Claire Nakibuuka With A Very Long Display Name For Layout").length).toBeGreaterThan(0);
     expect(screen.getAllByText("SCNFC:PUBLICCODE-ASSIGNED-001-WITH-A-LONG-PAYLOAD-VALUE").length).toBeGreaterThan(0);
     expect(screen.getAllByText("No student assigned").length).toBeGreaterThan(0);
+  });
+
+  it("opens the wallet PIN modal, saves a PIN, and clears stale modal state on close", async () => {
+    renderPage();
+
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Wristbands" })).toBeInTheDocument());
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Open actions" })[0]);
+    fireEvent.click(screen.getByRole("button", { name: "Wallet PIN" }));
+
+    expect(await screen.findByText("Reset wallet PIN")).toBeInTheDocument();
+    expect(mockGetStudentWalletPinStatus).toHaveBeenCalledWith("student-1");
+
+    fireEvent.change(screen.getByLabelText("New PIN (4–6 digits)"), { target: { value: "1234" } });
+    fireEvent.change(screen.getByLabelText("Confirm PIN"), { target: { value: "1234" } });
+    fireEvent.change(screen.getByLabelText("Reason"), { target: { value: "Initial setup" } });
+
+    fireEvent.click(screen.getByRole("button", { name: "Reset PIN" }));
+
+    await waitFor(() => expect(mockSetStudentWalletPin).toHaveBeenCalledWith("student-1", { pin: "1234", reason: "Initial setup" }));
+    expect(screen.getByText("PIN reset successfully.")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+
+    await waitFor(() => expect(screen.queryByText("PIN reset successfully.")).not.toBeInTheDocument());
+    expect(screen.queryByDisplayValue("1234")).not.toBeInTheDocument();
+  });
+
+  it("shows a safe error when the wallet PIN API fails", async () => {
+    mockSetStudentWalletPin.mockRejectedValueOnce(new Error("Could not set wallet PIN"));
+
+    renderPage();
+
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Wristbands" })).toBeInTheDocument());
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Open actions" })[0]);
+    fireEvent.click(screen.getByRole("button", { name: "Wallet PIN" }));
+
+    fireEvent.change(await screen.findByLabelText("New PIN (4–6 digits)"), { target: { value: "1234" } });
+    fireEvent.change(screen.getByLabelText("Confirm PIN"), { target: { value: "1234" } });
+    fireEvent.change(screen.getByLabelText("Reason"), { target: { value: "Initial setup" } });
+
+    fireEvent.click(screen.getByRole("button", { name: "Reset PIN" }));
+
+    expect(await screen.findByText("Could not set wallet PIN")).toBeInTheDocument();
+  });
+
+  it("filters assignable students by trimmed case-insensitive name, admission number, and class/stream", async () => {
+    renderPage();
+
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Wristbands" })).toBeInTheDocument());
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Assign" })[0]);
+
+    const searchInput = await screen.findByLabelText("Search student");
+
+    fireEvent.change(searchInput, { target: { value: "  mike  " } });
+    expect(await screen.findByRole("button", { name: /Mike Ssempebwa/i })).toBeInTheDocument();
+
+    fireEvent.change(searchInput, { target: { value: "SCU-S1A-018" } });
+    expect(await screen.findByRole("button", { name: /Claire Nakibuuka With A Very Long Display Name For Layout/i })).toBeInTheDocument();
+
+    fireEvent.change(searchInput, { target: { value: "senior 1 b" } });
+    expect(await screen.findByRole("button", { name: /Mike Ssempebwa/i })).toBeInTheDocument();
+  });
+
+  it("shows an empty assign-search state and assigns the selected student", async () => {
+    renderPage();
+
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Wristbands" })).toBeInTheDocument());
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Assign" })[0]);
+
+    const searchInput = await screen.findByLabelText("Search student");
+
+    fireEvent.change(searchInput, { target: { value: "zzz" } });
+    expect(await screen.findByText("No students match your search.")).toBeInTheDocument();
+
+    fireEvent.change(searchInput, { target: { value: "mike" } });
+    fireEvent.click(await screen.findByRole("button", { name: /Mike Ssempebwa/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Assign to selected student" }));
+
+    await waitFor(() => expect(mockAssignNfcTag).toHaveBeenCalledWith("tag-2", "student-2"));
+    expect(screen.getByText("Tag assigned successfully")).toBeInTheDocument();
+    expect(screen.getByText("Student: Mike Ssempebwa")).toBeInTheDocument();
   });
 });
