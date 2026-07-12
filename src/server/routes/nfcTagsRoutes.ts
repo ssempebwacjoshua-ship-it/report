@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { verifyToken } from "../services/authService";
 import {
@@ -25,6 +26,7 @@ import {
   confirmReaderCredentialLink,
   getReaderCredentialCapture,
   startReaderCredentialCapture,
+  transferReaderCredentialLink,
 } from "../services/readerCredentialLinkService";
 import { attachUsageWarning, recordPlatformUsage, requirePlatformModule } from "../platformIntegration";
 
@@ -89,6 +91,10 @@ const readerCredentialCaptureStartSchema = z.object({
   expiresInSeconds: z.coerce.number().int().min(15).max(180).optional().nullable(),
 });
 
+const readerCredentialTransferSchema = z.object({
+  reason: z.string().trim().min(1, "Transfer reason is required."),
+});
+
 function ctx(req: Express.Request): NfcTagsContext {
   return {
     schoolId: req.school?.id,
@@ -131,6 +137,12 @@ function getPublicAppUrl(req: Express.Request): string {
   const proto = (req.headers["x-forwarded-proto"] as string) ?? req.protocol ?? "https";
   const host = (req.headers["x-forwarded-host"] as string) ?? req.get("host") ?? "localhost";
   return cleanUrl(`${proto}://${host}`);
+}
+
+function requestIdFrom(req: Express.Request) {
+  return typeof req.headers["x-request-id"] === "string" && req.headers["x-request-id"].trim()
+    ? req.headers["x-request-id"].trim()
+    : randomUUID();
 }
 
 /** Public route — no school context, no auth required. Mount BEFORE resolveSchoolContext. */
@@ -289,6 +301,36 @@ export function nfcTagsRoutes() {
         return;
       }
       res.json(await confirmReaderCredentialLink(ctx(req), req.params.captureId));
+    } catch (error) {
+      if ((error as { code?: unknown })?.code === "READER_CREDENTIAL_CONFLICT") {
+        const requestId = requestIdFrom(req);
+        console.warn("[reader-credential-conflict]", {
+          requestId,
+          schoolId: req.school?.id ?? null,
+          actorId: req.user?.userId ?? null,
+          details: (error as { conflict?: unknown }).conflict ?? null,
+        });
+        res.status(409).json({
+          ok: false,
+          error: true,
+          code: "READER_CREDENTIAL_CONFLICT",
+          message: (error as Error).message,
+          requestId,
+          conflict: (error as { conflict?: unknown }).conflict ?? null,
+        });
+        return;
+      }
+      next(error);
+    }
+  });
+
+  router.post("/api/nfc/tags/reader-credential-captures/:captureId/transfer", async (req, res, next) => {
+    try {
+      if (!(await requirePlatformModule(req, res, "nfc.tags"))) {
+        return;
+      }
+      const { reason } = readerCredentialTransferSchema.parse(req.body);
+      res.json(await transferReaderCredentialLink(ctx(req), req.params.captureId, reason));
     } catch (error) {
       next(error);
     }

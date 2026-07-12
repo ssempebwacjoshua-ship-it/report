@@ -293,21 +293,23 @@ async function resolveAttendanceCredential(
   schoolId: string,
   normalized: ReturnType<typeof normalizeCredentialForLookup>,
 ) {
-  const credential = await prisma.studentCredential.findFirst({
-    where: {
-      schoolId,
-      type: CredentialType.NFC_WRISTBAND,
-      OR: [
-        ...(normalized.tokenValues.length ? [{ scanToken: { in: normalized.tokenValues } }] : []),
-        ...(normalized.lookupValues.length ? [{ credentialUID: { in: normalized.lookupValues } }] : []),
-      ],
-    },
-    include: {
-      student: {
-        select: { id: true, firstName: true, lastName: true, isActive: true },
-      },
-    },
-  });
+  const credential = normalized.strongAliases.length > 0
+    ? await prisma.studentCredential.findFirst({
+        where: {
+          schoolId,
+          type: CredentialType.NFC_WRISTBAND,
+          OR: [
+            ...(normalized.tokenValues.length ? [{ scanToken: { in: normalized.tokenValues } }] : []),
+            { credentialUID: { in: normalized.strongAliases } },
+          ],
+        },
+        include: {
+          student: {
+            select: { id: true, firstName: true, lastName: true, isActive: true },
+          },
+        },
+      })
+    : null;
 
   if (credential) {
     return {
@@ -322,33 +324,98 @@ async function resolveAttendanceCredential(
     };
   }
 
-  const tag = await prisma.nfcTag.findFirst({
-    where: {
-      schoolId,
-      OR: [
-        ...(normalized.tokenValues.length ? [{ publicCode: { in: normalized.tokenValues } }] : []),
-        ...(normalized.lookupValues.map((value) => ({ physicalUid: { equals: value, mode: "insensitive" as const } }))),
-      ],
-    },
-    include: {
-      student: {
-        select: { id: true, firstName: true, lastName: true, isActive: true },
-      },
-    },
-  });
+  const weakCredentialMatches = normalized.weakAliases.length > 0
+    ? await prisma.studentCredential.findMany({
+        where: {
+          schoolId,
+          type: CredentialType.NFC_WRISTBAND,
+          credentialUID: { in: normalized.weakAliases },
+        },
+        include: {
+          student: {
+            select: { id: true, firstName: true, lastName: true, isActive: true },
+          },
+        },
+      })
+    : [];
 
-  if (!tag?.studentId || !tag.student) return null;
+  const uniqueWeakCredentialStudentIds = [...new Set(weakCredentialMatches.map((item) => item.studentId))];
+  if (uniqueWeakCredentialStudentIds.length === 1 && weakCredentialMatches[0]) {
+    const weakCredential = weakCredentialMatches[0];
+    return {
+      studentId: weakCredential.studentId,
+      credentialId: weakCredential.id,
+      studentName: `${weakCredential.student.firstName} ${weakCredential.student.lastName}`.trim(),
+      blockedReason: weakCredential.status !== CredentialStatus.ACTIVE
+        ? "Wristband is disabled"
+        : !weakCredential.student.isActive
+          ? "Student is inactive"
+          : null,
+    };
+  }
 
-  return {
-    studentId: tag.studentId,
-    credentialId: null,
-    studentName: `${tag.student.firstName} ${tag.student.lastName}`.trim(),
-    blockedReason: tag.status === "DISABLED" || tag.status === "LOST"
-      ? "Wristband is disabled"
-      : !tag.student.isActive
-        ? "Student is inactive"
-        : null,
-  };
+  const strongTag = normalized.strongAliases.length > 0
+    ? await prisma.nfcTag.findFirst({
+        where: {
+          schoolId,
+          OR: [
+            ...(normalized.tokenValues.length ? [{ publicCode: { in: normalized.tokenValues } }] : []),
+            ...(normalized.strongAliases.map((value) => ({ physicalUid: { equals: value, mode: "insensitive" as const } }))),
+          ],
+        },
+        include: {
+          student: {
+            select: { id: true, firstName: true, lastName: true, isActive: true },
+          },
+        },
+      })
+    : null;
+
+  if (strongTag?.studentId && strongTag.student) {
+    return {
+      studentId: strongTag.studentId,
+      credentialId: null,
+      studentName: `${strongTag.student.firstName} ${strongTag.student.lastName}`.trim(),
+      blockedReason: strongTag.status === "DISABLED" || strongTag.status === "LOST"
+        ? "Wristband is disabled"
+        : !strongTag.student.isActive
+          ? "Student is inactive"
+          : null,
+    };
+  }
+
+  const weakTagMatches = normalized.weakAliases.length > 0
+    ? await prisma.nfcTag.findMany({
+        where: {
+          schoolId,
+          OR: normalized.weakAliases.map((value) => ({ physicalUid: { equals: value, mode: "insensitive" as const } })),
+        },
+        include: {
+          student: {
+            select: { id: true, firstName: true, lastName: true, isActive: true },
+          },
+        },
+      })
+    : [];
+
+  const uniqueWeakTagStudentIds = [...new Set(weakTagMatches.map((item) => item.studentId).filter(Boolean))];
+  if (uniqueWeakTagStudentIds.length === 1) {
+    const tag = weakTagMatches.find((item) => item.studentId && item.student);
+    if (tag?.studentId && tag.student) {
+      return {
+        studentId: tag.studentId,
+        credentialId: null,
+        studentName: `${tag.student.firstName} ${tag.student.lastName}`.trim(),
+        blockedReason: tag.status === "DISABLED" || tag.status === "LOST"
+          ? "Wristband is disabled"
+          : !tag.student.isActive
+            ? "Student is inactive"
+            : null,
+      };
+    }
+  }
+
+  return null;
 }
 
 async function recordLastScan(device: ReaderGatewayDevice, status: string, message: string, scannedAt: Date) {

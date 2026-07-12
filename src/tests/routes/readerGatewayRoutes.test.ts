@@ -9,7 +9,9 @@ const prismaMocks = vi.hoisted(() => ({
   auditLogFindFirst: vi.fn(),
   auditLogCreate: vi.fn(),
   studentCredentialFindFirst: vi.fn(),
+  studentCredentialFindMany: vi.fn(),
   nfcTagFindFirst: vi.fn(),
+  nfcTagFindMany: vi.fn(),
   studentFeeHoldFindFirst: vi.fn(),
   studentGateHoldFindFirst: vi.fn(),
   studentGateHoldUpdateMany: vi.fn(),
@@ -39,9 +41,11 @@ vi.mock("../../server/db/prisma", () => ({
     },
     studentCredential: {
       findFirst: prismaMocks.studentCredentialFindFirst,
+      findMany: prismaMocks.studentCredentialFindMany,
     },
     nfcTag: {
       findFirst: prismaMocks.nfcTagFindFirst,
+      findMany: prismaMocks.nfcTagFindMany,
     },
     studentFeeHold: {
       findFirst: prismaMocks.studentFeeHoldFindFirst,
@@ -105,6 +109,7 @@ function credential(overrides: Record<string, unknown> = {}) {
   return {
     id: "cred-1",
     studentId: "stu-1",
+    credentialUID: "WB-123456",
     status: "ACTIVE",
     student: {
       id: "stu-1",
@@ -480,8 +485,10 @@ describe("readerGatewayRoutes", () => {
     });
     prismaMocks.auditLogFindFirst.mockResolvedValue(null);
     prismaMocks.auditLogCreate.mockResolvedValue({});
-    prismaMocks.studentCredentialFindFirst.mockResolvedValue(credential());
+    prismaMocks.studentCredentialFindFirst.mockResolvedValue(null);
+    prismaMocks.studentCredentialFindMany.mockResolvedValue([credential()]);
     prismaMocks.nfcTagFindFirst.mockResolvedValue(null);
+    prismaMocks.nfcTagFindMany.mockResolvedValue([]);
     prismaMocks.studentFeeHoldFindFirst.mockResolvedValue(null);
     prismaMocks.studentGateHoldFindFirst.mockResolvedValue(null);
     prismaMocks.studentGateHoldUpdateMany.mockResolvedValue({ count: 0 });
@@ -565,6 +572,11 @@ describe("readerGatewayRoutes", () => {
   });
 
   it("matches a Wiegand card number variant when the raw payload credential differs", async () => {
+    prismaMocks.studentCredentialFindFirst.mockResolvedValue(null);
+    prismaMocks.studentCredentialFindMany.mockResolvedValue([credential({
+      credentialUID: "1",
+    })]);
+
     const res = await request(buildApp())
       .post("/api/readers/events")
       .set("Authorization", "Bearer device-token-123")
@@ -584,11 +596,23 @@ describe("readerGatewayRoutes", () => {
         schoolId: "school-1",
         OR: expect.arrayContaining([
           expect.objectContaining({
+            scanToken: expect.objectContaining({
+              in: expect.arrayContaining(["786777"]),
+            }),
+          }),
+          expect.objectContaining({
             credentialUID: expect.objectContaining({
-              in: expect.arrayContaining(["1", "001", "786777", "12-1"]),
+              in: expect.arrayContaining(["35128677", "2180565"]),
             }),
           }),
         ]),
+      }),
+    }));
+    expect(prismaMocks.studentCredentialFindMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({
+        credentialUID: expect.objectContaining({
+          in: expect.arrayContaining(["1", "12-1", "12:1"]),
+        }),
       }),
     }));
     expect(prismaMocks.auditLogCreate).toHaveBeenCalledWith(expect.objectContaining({
@@ -624,7 +648,9 @@ describe("readerGatewayRoutes", () => {
 
   it("rejects an unknown credential safely", async () => {
     prismaMocks.studentCredentialFindFirst.mockResolvedValue(null);
+    prismaMocks.studentCredentialFindMany.mockResolvedValue([]);
     prismaMocks.nfcTagFindFirst.mockResolvedValue(null);
+    prismaMocks.nfcTagFindMany.mockResolvedValue([]);
 
     const res = await request(buildApp())
       .post("/api/readers/events")
@@ -655,7 +681,9 @@ describe("readerGatewayRoutes", () => {
 
   it("rejects a wrong-school credential by searching only inside the reader school", async () => {
     prismaMocks.studentCredentialFindFirst.mockResolvedValue(null);
+    prismaMocks.studentCredentialFindMany.mockResolvedValue([]);
     prismaMocks.nfcTagFindFirst.mockResolvedValue(null);
+    prismaMocks.nfcTagFindMany.mockResolvedValue([]);
 
     const res = await request(buildApp())
       .post("/api/readers/events")
@@ -664,7 +692,7 @@ describe("readerGatewayRoutes", () => {
 
     expect(res.status).toBe(404);
     expect(res.body.status).toBe("UNKNOWN_CREDENTIAL");
-    expect(prismaMocks.studentCredentialFindFirst).toHaveBeenCalledWith(expect.objectContaining({
+    expect(prismaMocks.studentCredentialFindMany).toHaveBeenCalledWith(expect.objectContaining({
       where: expect.objectContaining({ schoolId: "school-1" }),
     }));
   });
@@ -828,6 +856,39 @@ describe("readerGatewayRoutes", () => {
         lastScanMessage: "Reader credential captured for linking",
       }),
     }));
+  });
+
+  it("does not let a weak padded card-number alias override a distinct strong raw Wiegand identity", async () => {
+    prismaMocks.studentCredentialFindFirst.mockResolvedValue(null);
+    prismaMocks.studentCredentialFindMany.mockImplementation(async ({ where }: { where: { credentialUID?: { in?: string[] } } }) => {
+      const weakMatch = credential({
+        studentId: "stu-weak",
+        student: {
+          id: "stu-weak",
+          firstName: "Weak",
+          lastName: "Alias",
+          isActive: true,
+        },
+        credentialUID: "001",
+      });
+      return where.credentialUID?.in?.includes("001") ? [weakMatch] : [];
+    });
+    prismaMocks.studentAttendanceEventFindFirst.mockResolvedValue(null);
+
+    const res = await request(buildApp())
+      .post("/api/readers/events")
+      .set("Authorization", "Bearer device-token-123")
+      .send(eventBody({
+        credential: "786777",
+        rawWiegandDecimal: "35128677",
+        rawWiegandHex: "02180565",
+        facilityCode: "12",
+        cardNumber: "1",
+      }));
+
+    expect(res.status).toBe(404);
+    expect(res.body.status).toBe("UNKNOWN_CREDENTIAL");
+    expect(prismaMocks.studentAttendanceEventCreate).not.toHaveBeenCalled();
   });
 });
 

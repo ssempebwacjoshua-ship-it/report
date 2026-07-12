@@ -179,3 +179,54 @@ export interface ReaderCredentialLinkConfirmResponse {
     } | null;
   };
 }
+
+export interface ReaderCredentialConflictResponse {
+  ok: false;
+  error: true;
+  code: "READER_CREDENTIAL_CONFLICT";
+  message: string;
+  requestId: string;
+  conflict: {
+    code: "READER_CREDENTIAL_CONFLICT";
+    message: string;
+    previousStudent: {
+      name: string;
+      admissionNumber: string;
+    };
+    previousCredential: {
+      status: string;
+      maskedCredential: string | null;
+    };
+    previousTag: {
+      label: string | null;
+      publicCodePrefix: string | null;
+      physicalUidMatched: boolean;
+    } | null;
+    matchedAliasMasked: string | null;
+    matchedAliasSource: string | null;
+    matchedAliasStrength: "STRONG" | "WEAK";
+    canTransfer: boolean;
+  };
+}
+
+export interface ReaderCredentialTransferResponse {
+  ok: true;
+  transfer: true;
+  captureId: string;
+  reason: string;
+  previousStudent: {
+    name: string;
+    admissionNumber: string;
+  };
+  tag: {
+    id: string;
+    publicCode: string;
+    physicalUid: string | null;
+    studentId: string | null;
+    student: {
+      name: string;
+      admissionNumber: string;
+    } | null;
+  };
+  credentialId: string;
+}

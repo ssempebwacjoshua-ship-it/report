@@ -6,6 +6,7 @@ import { hasPermission } from "../../shared/permissions";
 import {
   buildReaderCredentialAliases,
   maskCredentialValue,
+  type ReaderCredentialAliasSource,
   type CredentialNormalizationInput,
 } from "../../shared/utils/credentialNormalization";
 import { generateCredentialScanToken } from "./studentCredentialService";
@@ -38,6 +39,9 @@ type CaptureReaderDevice = {
 type CapturedReaderCredential = {
   canonical: string;
   aliases: string[];
+  strongAliases: string[];
+  weakAliases: string[];
+  aliasSource: Record<string, ReaderCredentialAliasSource>;
   credential: string | null;
   rawWiegandDecimal: string | null;
   rawWiegandHex: string | null;
@@ -46,6 +50,28 @@ type CapturedReaderCredential = {
   capturedAt: string;
   readerId: string;
   readerName: string;
+};
+
+export type ReaderCredentialConflictPayload = {
+  code: "READER_CREDENTIAL_CONFLICT";
+  message: string;
+  previousStudent: {
+    name: string;
+    admissionNumber: string;
+  };
+  previousCredential: {
+    status: string;
+    maskedCredential: string | null;
+  };
+  previousTag: {
+    label: string | null;
+    publicCodePrefix: string | null;
+    physicalUidMatched: boolean;
+  } | null;
+  matchedAliasMasked: string | null;
+  matchedAliasSource: ReaderCredentialAliasSource | null;
+  matchedAliasStrength: "STRONG" | "WEAK";
+  canTransfer: boolean;
 };
 
 type ReaderCredentialCaptureSession = {
@@ -143,6 +169,22 @@ function buildCaptureInput(body: {
     rawWiegandDecimal: body.rawWiegandDecimal ?? null,
     rawWiegandHex: body.rawWiegandHex ?? null,
   };
+}
+
+function namedStudent(student: { firstName: string; lastName: string; admissionNumber: string; id: string }) {
+  return {
+    name: `${student.firstName} ${student.lastName}`.trim(),
+    admissionNumber: student.admissionNumber,
+  };
+}
+
+function readerCredentialConflict(payload: ReaderCredentialConflictPayload) {
+  return Object.assign(new Error(payload.message), {
+    status: 409,
+    code: payload.code,
+    expose: true,
+    conflict: payload,
+  });
 }
 
 async function loadAssignedTag(
@@ -331,6 +373,9 @@ export async function captureReaderCredentialFromReader(
   activeSession.captured = {
     canonical: aliases.canonical,
     aliases: aliases.aliases,
+    strongAliases: aliases.strongAliases,
+    weakAliases: aliases.weakAliases,
+    aliasSource: aliases.aliasSource,
     credential: body.credentialUID ?? body.credential ?? null,
     rawWiegandDecimal: body.rawWiegandDecimal ?? null,
     rawWiegandHex: body.rawWiegandHex ?? null,
@@ -342,6 +387,139 @@ export async function captureReaderCredentialFromReader(
   };
 
   return serializeCaptureSession(activeSession);
+}
+
+async function findCredentialConflict(
+  db: ReaderCredentialLinkDb,
+  schoolId: string,
+  captured: CapturedReaderCredential,
+  targetStudentId: string,
+) {
+  const candidateAliases = captured.strongAliases.length > 0 ? captured.strongAliases : captured.weakAliases;
+  const candidateStrength = captured.strongAliases.length > 0 ? "STRONG" as const : "WEAK" as const;
+  if (candidateAliases.length === 0) return null;
+
+  const matches = await db.studentCredential.findMany({
+    where: {
+      schoolId,
+      type: CredentialType.NFC_WRISTBAND,
+      status: CredentialStatus.ACTIVE,
+      credentialUID: { in: candidateAliases },
+      studentId: { not: targetStudentId },
+    },
+    include: {
+      student: {
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          admissionNumber: true,
+        },
+      },
+    },
+  });
+
+  const uniqueStudentIds = [...new Set(matches.map((item) => item.studentId))];
+  if (candidateStrength === "WEAK" && uniqueStudentIds.length !== 1) {
+    return null;
+  }
+
+  const conflictingCredential = matches[0];
+  if (!conflictingCredential) return null;
+
+  const previousTag = await db.nfcTag.findFirst({
+    where: {
+      schoolId,
+      studentId: conflictingCredential.studentId,
+    },
+    select: {
+      id: true,
+      label: true,
+      publicCode: true,
+      physicalUid: true,
+    },
+  });
+
+  const matchedAlias = candidateAliases.find((alias) => alias === conflictingCredential.credentialUID) ?? conflictingCredential.credentialUID;
+  return {
+    credential: conflictingCredential,
+    payload: {
+      code: "READER_CREDENTIAL_CONFLICT" as const,
+      message: "Reader credential is already linked to another active student. Review the existing assignment or transfer it if this wristband was intentionally reassigned.",
+      previousStudent: namedStudent(conflictingCredential.student),
+      previousCredential: {
+        status: conflictingCredential.status,
+        maskedCredential: maskCredentialValue(conflictingCredential.credentialUID),
+      },
+      previousTag: previousTag ? {
+        label: previousTag.label,
+        publicCodePrefix: previousTag.publicCode.slice(0, 8),
+        physicalUidMatched: previousTag.physicalUid === conflictingCredential.credentialUID,
+      } : null,
+      matchedAliasMasked: maskCredentialValue(matchedAlias),
+      matchedAliasSource: captured.aliasSource[matchedAlias] ?? null,
+      matchedAliasStrength: candidateStrength,
+      canTransfer: true,
+    },
+  };
+}
+
+async function upsertLinkedCredentialForTarget(
+  tx: ReaderCredentialLinkDb,
+  ctx: ReaderCredentialLinkContext,
+  schoolId: string,
+  studentId: string,
+  canonicalCredential: string,
+) {
+  const activeCredential = await tx.studentCredential.findFirst({
+    where: {
+      schoolId,
+      studentId,
+      type: CredentialType.NFC_WRISTBAND,
+      status: CredentialStatus.ACTIVE,
+    },
+  });
+
+  const recycledCredential = activeCredential
+    ? null
+    : await tx.studentCredential.findFirst({
+        where: {
+          schoolId,
+          studentId,
+          type: CredentialType.NFC_WRISTBAND,
+          credentialUID: canonicalCredential,
+          status: CredentialStatus.DEACTIVATED,
+        },
+      });
+
+  return activeCredential
+    ? tx.studentCredential.update({
+        where: { id: activeCredential.id },
+        data: { credentialUID: canonicalCredential },
+      })
+    : recycledCredential
+      ? tx.studentCredential.update({
+          where: { id: recycledCredential.id },
+          data: {
+            credentialUID: canonicalCredential,
+            status: CredentialStatus.ACTIVE,
+            issuedAt: new Date(),
+            deactivatedAt: null,
+            deactivatedReason: null,
+            scanToken: recycledCredential.scanToken ?? generateCredentialScanToken(),
+            issuedById: ctx.actorId ?? null,
+          },
+        })
+      : tx.studentCredential.create({
+          data: {
+            schoolId,
+            studentId,
+            type: CredentialType.NFC_WRISTBAND,
+            credentialUID: canonicalCredential,
+            scanToken: generateCredentialScanToken(),
+            issuedById: ctx.actorId ?? null,
+          },
+        });
 }
 
 export async function confirmReaderCredentialLink(
@@ -372,79 +550,23 @@ export async function confirmReaderCredentialLink(
       throw Object.assign(new Error("This wristband assignment changed while capture was in progress."), { status: 409 });
     }
 
-    const conflictingCredential = await tx.studentCredential.findFirst({
-      where: {
-        schoolId,
-        type: CredentialType.NFC_WRISTBAND,
-        status: CredentialStatus.ACTIVE,
-        credentialUID: { in: captured.aliases },
-        studentId: { not: tag.studentId! },
-      },
-    });
+    const conflictingCredential = await findCredentialConflict(tx, schoolId, captured, tag.studentId!);
     if (conflictingCredential) {
-      throw Object.assign(new Error("This reader credential is already active for another student."), { status: 409 });
+      throw readerCredentialConflict(conflictingCredential.payload);
     }
 
     const conflictingTag = await tx.nfcTag.findFirst({
       where: {
         schoolId,
         id: { not: tag.id },
-        physicalUid: { in: captured.aliases },
+        physicalUid: { in: captured.strongAliases.length > 0 ? captured.strongAliases : captured.weakAliases },
       },
     });
     if (conflictingTag) {
       throw Object.assign(new Error("This reader credential is already linked to another wristband."), { status: 409 });
     }
 
-    const activeCredential = await tx.studentCredential.findFirst({
-      where: {
-        schoolId,
-        studentId: tag.studentId!,
-        type: CredentialType.NFC_WRISTBAND,
-        status: CredentialStatus.ACTIVE,
-      },
-    });
-
-    const recycledCredential = activeCredential
-      ? null
-      : await tx.studentCredential.findFirst({
-          where: {
-            schoolId,
-            studentId: tag.studentId!,
-            type: CredentialType.NFC_WRISTBAND,
-            credentialUID: captured.canonical,
-            status: CredentialStatus.DEACTIVATED,
-          },
-        });
-
-    const linkedCredential = activeCredential
-      ? await tx.studentCredential.update({
-          where: { id: activeCredential.id },
-          data: { credentialUID: captured.canonical },
-        })
-      : recycledCredential
-        ? await tx.studentCredential.update({
-            where: { id: recycledCredential.id },
-            data: {
-              credentialUID: captured.canonical,
-              status: CredentialStatus.ACTIVE,
-              issuedAt: new Date(),
-              deactivatedAt: null,
-              deactivatedReason: null,
-              scanToken: recycledCredential.scanToken ?? generateCredentialScanToken(),
-              issuedById: ctx.actorId ?? null,
-            },
-          })
-        : await tx.studentCredential.create({
-            data: {
-              schoolId,
-              studentId: tag.studentId!,
-              type: CredentialType.NFC_WRISTBAND,
-              credentialUID: captured.canonical,
-              scanToken: generateCredentialScanToken(),
-              issuedById: ctx.actorId ?? null,
-            },
-          });
+    const linkedCredential = await upsertLinkedCredentialForTarget(tx, ctx, schoolId, tag.studentId!, captured.canonical);
 
     const updatedTag = await tx.nfcTag.update({
       where: { id: tag.id },
@@ -509,6 +631,128 @@ export async function confirmReaderCredentialLink(
           }
         : null,
     },
+  };
+}
+
+export async function transferReaderCredentialLink(
+  ctx: ReaderCredentialLinkContext,
+  captureId: string,
+  reason: string,
+  db: ReaderCredentialLinkDb = defaultPrisma,
+) {
+  const schoolId = requireSchoolId(ctx);
+  requireTagManager(ctx);
+  if (ctx.role !== "ADMIN_OPERATOR") {
+    throw Object.assign(new Error("Only administrators can transfer a reader credential."), { status: 403 });
+  }
+
+  const cleanReason = reason.trim();
+  if (!cleanReason) {
+    throw Object.assign(new Error("Transfer reason is required."), { status: 400 });
+  }
+
+  cleanExpiredSessions();
+  const session = captureSessions.get(captureId);
+  if (!session || session.schoolId !== schoolId) {
+    throw Object.assign(new Error("Capture session not found."), { status: 404 });
+  }
+  if (!session.captured) {
+    throw Object.assign(new Error("No reader credential has been captured yet."), { status: 409 });
+  }
+
+  const captured = session.captured;
+  const result = await runWrite(db, async (tx) => {
+    const tag = await loadAssignedTag(tx, schoolId, session.tagId);
+    const conflict = await findCredentialConflict(tx, schoolId, captured, tag.studentId!);
+    if (!conflict) {
+      throw Object.assign(new Error("No transferable reader credential conflict was found."), { status: 409 });
+    }
+
+    const previousTag = conflict.payload.previousTag?.physicalUidMatched
+      ? await tx.nfcTag.findFirst({
+          where: {
+            schoolId,
+            studentId: conflict.credential.studentId,
+            physicalUid: conflict.credential.credentialUID,
+          },
+        })
+      : null;
+
+    await tx.studentCredential.update({
+      where: { id: conflict.credential.id },
+      data: {
+        status: CredentialStatus.DEACTIVATED,
+        deactivatedAt: new Date(),
+        deactivatedReason: cleanReason,
+      },
+    });
+
+    if (previousTag?.physicalUid === conflict.credential.credentialUID) {
+      await tx.nfcTag.update({
+        where: { id: previousTag.id },
+        data: { physicalUid: null },
+      });
+    }
+
+    const linkedCredential = await upsertLinkedCredentialForTarget(tx, ctx, schoolId, tag.studentId!, captured.canonical);
+    const updatedTag = await tx.nfcTag.update({
+      where: { id: tag.id },
+      data: { physicalUid: captured.canonical },
+      include: {
+        student: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            admissionNumber: true,
+          },
+        },
+      },
+    });
+
+    await tx.auditLog.create({
+      data: {
+        schoolId,
+        action: "nfc_tag.reader_credential_transferred",
+        details: {
+          captureId: session.id,
+          reason: cleanReason,
+          previousStudentId: conflict.credential.studentId,
+          previousCredentialId: conflict.credential.id,
+          previousTagId: previousTag?.id ?? null,
+          newStudentId: updatedTag.studentId,
+          newTagId: updatedTag.id,
+          canonicalMasked: maskCredentialValue(captured.canonical),
+          matchedAliasMasked: conflict.payload.matchedAliasMasked,
+          matchedAliasSource: conflict.payload.matchedAliasSource,
+          matchedAliasStrength: conflict.payload.matchedAliasStrength,
+          actor: {
+            id: ctx.actorId ?? null,
+            role: ctx.role ?? null,
+          },
+        },
+      },
+    });
+
+    return { updatedTag, linkedCredential, previousStudent: conflict.payload.previousStudent };
+  });
+
+  session.confirmedAt = new Date().toISOString();
+
+  return {
+    ok: true,
+    transfer: true,
+    captureId: session.id,
+    reason: cleanReason,
+    previousStudent: result.previousStudent,
+    tag: {
+      id: result.updatedTag.id,
+      publicCode: result.updatedTag.publicCode,
+      physicalUid: result.updatedTag.physicalUid,
+      studentId: result.updatedTag.studentId,
+      student: result.updatedTag.student ? namedStudent(result.updatedTag.student) : null,
+    },
+    credentialId: result.linkedCredential.id,
   };
 }
 

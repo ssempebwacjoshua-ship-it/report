@@ -6,6 +6,7 @@ import {
   confirmReaderCredentialLink,
   getReaderCredentialCapture,
   startReaderCredentialCapture,
+  transferReaderCredentialLink,
 } from "../../server/services/readerCredentialLinkService";
 
 type MockTag = {
@@ -104,6 +105,19 @@ function createMockDb() {
           return true;
         }) ?? null;
       },
+      findMany: async ({ where }: { where: Record<string, unknown> }) => {
+        return tags.filter((tag) => {
+          if (where.schoolId && tag.schoolId !== where.schoolId) return false;
+          if (where.studentId && tag.studentId !== where.studentId) return false;
+          if (where.OR && Array.isArray(where.OR)) {
+            return where.OR.some((entry: Record<string, unknown>) =>
+              entry.physicalUid
+                ? !!tag.physicalUid && tag.physicalUid === (entry.physicalUid as { equals: string }).equals
+                : false);
+          }
+          return true;
+        });
+      },
       update: async ({ where, data, include }: { where: { id: string }; data: Partial<MockTag>; include?: Record<string, unknown> }) => {
         const tag = tags.find((entry) => entry.id === where.id);
         if (!tag) throw new Error("tag missing");
@@ -127,6 +141,24 @@ function createMockDb() {
           }
           return true;
         }) ?? null;
+      },
+      findMany: async ({ where }: { where: Record<string, unknown> }) => {
+        return credentials
+          .filter((credential) => {
+            if (where.schoolId && credential.schoolId !== where.schoolId) return false;
+            if (where.studentId && typeof where.studentId === "string" && credential.studentId !== where.studentId) return false;
+            if (where.studentId && typeof where.studentId === "object" && "not" in where.studentId && credential.studentId === (where.studentId as { not: string }).not) return false;
+            if (where.type && credential.type !== where.type) return false;
+            if (where.status && credential.status !== where.status) return false;
+            if (where.credentialUID && typeof where.credentialUID === "object" && "in" in where.credentialUID) {
+              if (!(where.credentialUID as { in: string[] }).in.includes(credential.credentialUID)) return false;
+            }
+            return true;
+          })
+          .map((credential) => ({
+            ...credential,
+            student: tags.find((tag) => tag.studentId === credential.studentId)?.student,
+          }));
       },
       create: async ({ data }: { data: Omit<MockCredential, "id" | "issuedAt" | "deactivatedAt" | "deactivatedReason" | "status"> }) => {
         const row: MockCredential = {
@@ -234,7 +266,7 @@ describe("readerCredentialLinkService", () => {
     expect(auditLogs.some((entry) => entry.action === "nfc_tag.reader_credential_linked")).toBe(true);
   });
 
-  it("rejects a reader credential that is already active for another student", async () => {
+  it("returns a genuine same-wristband conflict when the strong raw Wiegand identity is already active for another student", async () => {
     const { db, devices, credentials } = createMockDb();
     credentials.push({
       id: "cred-existing",
@@ -242,7 +274,7 @@ describe("readerCredentialLinkService", () => {
       studentId: "student-2",
       type: CredentialType.NFC_WRISTBAND,
       status: CredentialStatus.ACTIVE,
-      credentialUID: "12-1",
+      credentialUID: "35128677",
       scanToken: "tok-1",
       issuedAt: new Date("2026-07-12T08:00:00.000Z"),
       deactivatedAt: null,
@@ -270,8 +302,183 @@ describe("readerCredentialLinkService", () => {
       db,
     )).rejects.toMatchObject({
       status: 409,
-      message: "This reader credential is already active for another student.",
+      code: "READER_CREDENTIAL_CONFLICT",
+      conflict: expect.objectContaining({
+        previousStudent: expect.objectContaining({ name: "John Smith" }),
+        matchedAliasStrength: "STRONG",
+        matchedAliasSource: "rawWiegandDecimal",
+      }),
     });
+  });
+
+  it("does not block a distinct raw Wiegand UID on a weak credential alias collision", async () => {
+    const { db, devices, credentials } = createMockDb();
+    credentials.push({
+      id: "cred-existing",
+      schoolId: "school-1",
+      studentId: "student-2",
+      type: CredentialType.NFC_WRISTBAND,
+      status: CredentialStatus.ACTIVE,
+      credentialUID: "786777",
+      scanToken: "tok-1",
+      issuedAt: new Date("2026-07-12T08:00:00.000Z"),
+      deactivatedAt: null,
+      deactivatedReason: null,
+      issuedById: null,
+    });
+
+    const started = await startReaderCredentialCapture(
+      { schoolId: "school-1", actorId: "admin-1", role: "ADMIN_OPERATOR" },
+      { tagId: "tag-1", deviceId: "device-1" },
+      db,
+    );
+
+    await captureReaderCredentialFromReader(devices[0], {
+      credential: "786777",
+      rawWiegandDecimal: "35128677",
+      rawWiegandHex: "02180565",
+      facilityCode: "12",
+      cardNumber: "1",
+    });
+
+    const confirmed = await confirmReaderCredentialLink(
+      { schoolId: "school-1", actorId: "admin-1", role: "ADMIN_OPERATOR" },
+      started.captureId,
+      db,
+    );
+
+    expect(confirmed.ok).toBe(true);
+  });
+
+  it("requires admin role and reason to transfer a reader credential", async () => {
+    const { db, devices, credentials } = createMockDb();
+    credentials.push({
+      id: "cred-existing",
+      schoolId: "school-1",
+      studentId: "student-2",
+      type: CredentialType.NFC_WRISTBAND,
+      status: CredentialStatus.ACTIVE,
+      credentialUID: "35128677",
+      scanToken: "tok-1",
+      issuedAt: new Date("2026-07-12T08:00:00.000Z"),
+      deactivatedAt: null,
+      deactivatedReason: null,
+      issuedById: null,
+    });
+
+    const started = await startReaderCredentialCapture(
+      { schoolId: "school-1", actorId: "admin-1", role: "ADMIN_OPERATOR" },
+      { tagId: "tag-1", deviceId: "device-1" },
+      db,
+    );
+
+    await captureReaderCredentialFromReader(devices[0], {
+      credential: "786777",
+      rawWiegandDecimal: "35128677",
+      rawWiegandHex: "02180565",
+      facilityCode: "12",
+      cardNumber: "1",
+    });
+
+    await expect(transferReaderCredentialLink(
+      { schoolId: "school-1", actorId: "staff-1", role: "TEACHER" },
+      started.captureId,
+      "Reassigned by office",
+      db,
+    )).rejects.toMatchObject({ status: 403 });
+
+    await expect(transferReaderCredentialLink(
+      { schoolId: "school-1", actorId: "admin-1", role: "ADMIN_OPERATOR" },
+      started.captureId,
+      "   ",
+      db,
+    )).rejects.toMatchObject({ status: 400 });
+  });
+
+  it("transfers the credential atomically, deactivates the previous credential, and preserves unrelated history", async () => {
+    const { db, devices, credentials, tags, auditLogs } = createMockDb();
+    credentials.push({
+      id: "cred-existing",
+      schoolId: "school-1",
+      studentId: "student-2",
+      type: CredentialType.NFC_WRISTBAND,
+      status: CredentialStatus.ACTIVE,
+      credentialUID: "35128677",
+      scanToken: "tok-1",
+      issuedAt: new Date("2026-07-12T08:00:00.000Z"),
+      deactivatedAt: null,
+      deactivatedReason: null,
+      issuedById: null,
+    });
+    tags[1].physicalUid = "35128677";
+
+    const started = await startReaderCredentialCapture(
+      { schoolId: "school-1", actorId: "admin-1", role: "ADMIN_OPERATOR" },
+      { tagId: "tag-1", deviceId: "device-1" },
+      db,
+    );
+
+    await captureReaderCredentialFromReader(devices[0], {
+      credential: "786777",
+      rawWiegandDecimal: "35128677",
+      rawWiegandHex: "02180565",
+      facilityCode: "12",
+      cardNumber: "1",
+    });
+
+    const transferred = await transferReaderCredentialLink(
+      { schoolId: "school-1", actorId: "admin-1", role: "ADMIN_OPERATOR" },
+      started.captureId,
+      "Student received reassigned wristband",
+      db,
+    );
+
+    expect(transferred.ok).toBe(true);
+    expect(credentials.find((credential) => credential.id === "cred-existing")).toMatchObject({
+      status: CredentialStatus.DEACTIVATED,
+      deactivatedReason: "Student received reassigned wristband",
+    });
+    expect(tags[1].physicalUid).toBeNull();
+    expect(tags[0].physicalUid).toBe("35128677");
+    expect(auditLogs.some((entry) => entry.action === "nfc_tag.reader_credential_transferred")).toBe(true);
+  });
+
+  it("denies cross-school transfer access", async () => {
+    const { db, devices, credentials } = createMockDb();
+    credentials.push({
+      id: "cred-existing",
+      schoolId: "school-1",
+      studentId: "student-2",
+      type: CredentialType.NFC_WRISTBAND,
+      status: CredentialStatus.ACTIVE,
+      credentialUID: "35128677",
+      scanToken: "tok-1",
+      issuedAt: new Date("2026-07-12T08:00:00.000Z"),
+      deactivatedAt: null,
+      deactivatedReason: null,
+      issuedById: null,
+    });
+
+    const started = await startReaderCredentialCapture(
+      { schoolId: "school-1", actorId: "admin-1", role: "ADMIN_OPERATOR" },
+      { tagId: "tag-1", deviceId: "device-1" },
+      db,
+    );
+
+    await captureReaderCredentialFromReader(devices[0], {
+      credential: "786777",
+      rawWiegandDecimal: "35128677",
+      rawWiegandHex: "02180565",
+      facilityCode: "12",
+      cardNumber: "1",
+    });
+
+    await expect(transferReaderCredentialLink(
+      { schoolId: "school-2", actorId: "admin-1", role: "ADMIN_OPERATOR" },
+      started.captureId,
+      "Cross-school transfer attempt",
+      db,
+    )).rejects.toMatchObject({ status: 404 });
   });
 
   it("keeps capture sessions tenant-scoped when loading status", async () => {

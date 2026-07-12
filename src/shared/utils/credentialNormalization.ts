@@ -12,12 +12,29 @@ export type CredentialNormalizationResult = {
   canonical: string;
   lookupValues: string[];
   tokenValues: string[];
+  strongAliases: string[];
+  weakAliases: string[];
 };
 
 export type ReaderCredentialAliasResult = {
   canonical: string;
   aliases: string[];
+  strongAliases: string[];
+  weakAliases: string[];
+  aliasSource: Record<string, ReaderCredentialAliasSource>;
+  matchedStrongSource: ReaderCredentialAliasSource | null;
 };
+
+export type ReaderCredentialAliasSource =
+  | "rawWiegandDecimal"
+  | "rawWiegandHex"
+  | "credential"
+  | "credentialEquivalent"
+  | "cardNumber"
+  | "cardNumberZeroPadded"
+  | "facilityCodeCardNumber"
+  | "facilityCodeCardNumberVariant"
+  | "rawWiegandDecimalZeroPadded";
 
 function unique(values: string[]): string[] {
   return [...new Set(values.filter(Boolean))];
@@ -31,6 +48,12 @@ function clean(value: string | null | undefined): string {
 function stripNumericLeadingZeros(value: string): string {
   if (!/^\d+$/.test(value)) return value;
   return value.replace(/^0+(?=\d)/, "") || "0";
+}
+
+function stripHexLeadingZeros(value: string): string {
+  const upper = clean(value).toUpperCase();
+  if (!/^[0-9A-F]+$/.test(upper)) return upper;
+  return upper.replace(/^0+(?=[0-9A-F])/, "") || "0";
 }
 
 function addCredentialForms(values: Set<string>, value: string | null | undefined) {
@@ -56,23 +79,83 @@ export function normalizeCredentialUID(value: string): string {
 }
 
 export function buildReaderCredentialAliases(input: CredentialNormalizationInput): ReaderCredentialAliasResult {
-  const credentialValues = new Set<string>();
+  const strongAliases: string[] = [];
+  const weakAliases: string[] = [];
+  const aliasSource: Record<string, ReaderCredentialAliasSource> = {};
 
-  addCredentialForms(credentialValues, input.rawWiegandDecimal);
-  addCredentialForms(credentialValues, input.rawWiegandHex);
-
-  if (input.facilityCode && input.cardNumber) {
-    addCredentialForms(credentialValues, `${input.facilityCode}-${input.cardNumber}`);
-    addCredentialForms(credentialValues, `${input.facilityCode}:${input.cardNumber}`);
+  function pushStrong(value: string | null | undefined, source: ReaderCredentialAliasSource) {
+    const cleaned = clean(value);
+    if (!cleaned) return;
+    const normalized = source === "rawWiegandHex" ? stripHexLeadingZeros(cleaned) : normalizeCredentialUID(cleaned);
+    if (!normalized) return;
+    if (!(normalized in aliasSource)) {
+      aliasSource[normalized] = source;
+      strongAliases.push(normalized);
+    }
   }
 
-  addCredentialForms(credentialValues, input.cardNumber);
-  addCredentialForms(credentialValues, input.value);
+  function pushWeak(value: string | null | undefined, source: ReaderCredentialAliasSource, preserveCase = false) {
+    const cleaned = clean(value);
+    if (!cleaned) return;
+    const normalized = preserveCase ? cleaned : normalizeCredentialUID(cleaned);
+    if (!normalized) return;
+    if (!(normalized in aliasSource)) {
+      aliasSource[normalized] = source;
+      weakAliases.push(normalized);
+    }
+  }
 
-  const aliases = unique([...credentialValues]);
+  const rawWiegandDecimal = normalizeCredentialUID(input.rawWiegandDecimal ?? "");
+  const rawWiegandDecimalOriginal = clean(input.rawWiegandDecimal);
+  const rawWiegandHex = stripHexLeadingZeros(input.rawWiegandHex ?? "");
+  const credential = normalizeCredentialUID(input.value ?? "");
+  const cardNumber = normalizeCredentialUID(input.cardNumber ?? "");
+  const facilityCode = clean(input.facilityCode).toUpperCase();
+
+  if (rawWiegandDecimal) {
+    pushStrong(rawWiegandDecimal, "rawWiegandDecimal");
+    if (rawWiegandDecimalOriginal && normalizeCredentialUID(rawWiegandDecimalOriginal) !== rawWiegandDecimalOriginal) {
+      pushWeak(rawWiegandDecimalOriginal, "rawWiegandDecimalZeroPadded");
+    }
+  }
+
+  if (rawWiegandHex) {
+    pushStrong(rawWiegandHex, "rawWiegandHex");
+  }
+
+  if (credential) {
+    if (credential === rawWiegandDecimal || credential === rawWiegandHex) {
+      pushStrong(credential, "credentialEquivalent");
+    } else if (!rawWiegandDecimal && !rawWiegandHex) {
+      pushWeak(credential, "credential");
+    }
+  }
+
+  if (cardNumber) {
+    pushWeak(cardNumber, "cardNumber");
+    if (!rawWiegandDecimal && !rawWiegandHex && /^\d+$/.test(cardNumber)) {
+      for (const width of [3, 4, 5, 6, 8, 10]) {
+        const padded = cardNumber.padStart(width, "0");
+        if (padded !== cardNumber) {
+          pushWeak(padded, "cardNumberZeroPadded");
+        }
+      }
+    }
+  }
+
+  if (facilityCode && cardNumber) {
+    pushWeak(`${facilityCode}-${cardNumber}`, "facilityCodeCardNumber", true);
+    pushWeak(`${facilityCode}:${cardNumber}`, "facilityCodeCardNumberVariant", true);
+  }
+
+  const aliases = unique([...strongAliases, ...weakAliases]);
   return {
-    canonical: aliases[0] ?? "",
+    canonical: strongAliases[0] ?? weakAliases[0] ?? "",
     aliases,
+    strongAliases: unique(strongAliases),
+    weakAliases: unique(weakAliases),
+    aliasSource,
+    matchedStrongSource: strongAliases[0] ? aliasSource[strongAliases[0]] : null,
   };
 }
 
@@ -90,6 +173,8 @@ export function normalizeCredentialForLookup(input: CredentialNormalizationInput
     canonical: readerAliases.canonical,
     lookupValues,
     tokenValues: unique([...tokenValues]),
+    strongAliases: readerAliases.strongAliases,
+    weakAliases: readerAliases.weakAliases,
   };
 }
 

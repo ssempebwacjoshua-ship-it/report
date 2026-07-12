@@ -14,7 +14,9 @@ import type {
   NfcUrlBatchCreateResponse,
   ReaderCredentialCaptureSession,
   ReaderCredentialCaptureStartResponse,
+  ReaderCredentialConflictResponse,
   ReaderCredentialLinkConfirmResponse,
+  ReaderCredentialTransferResponse,
 } from "../shared/types/nfcTags";
 
 export async function listNfcTags(filters: { status?: string } = {}): Promise<NfcTagListResponse> {
@@ -209,6 +211,28 @@ export async function confirmReaderCredentialCapture(captureId: string): Promise
     headers: makeSchoolRequestHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify({}),
   });
-  if (!res.ok) throw new Error(await parseApiError(res, "Failed to confirm reader credential link."));
+  if (!res.ok) {
+    let body: ReaderCredentialConflictResponse | null = null;
+    try {
+      body = await res.json() as ReaderCredentialConflictResponse;
+    } catch {
+      body = null;
+    }
+    const error = new Error(body?.message ?? await parseApiError(res, "Failed to confirm reader credential link.")) as Error & { data?: unknown };
+    if (body) {
+      error.data = body;
+    }
+    throw error;
+  }
+  return res.json();
+}
+
+export async function transferReaderCredentialCapture(captureId: string, reason: string): Promise<ReaderCredentialTransferResponse> {
+  const res = await fetch(`${getApiBaseUrl()}/api/nfc/tags/reader-credential-captures/${encodeURIComponent(captureId)}/transfer`, {
+    method: "POST",
+    headers: makeSchoolRequestHeaders({ "Content-Type": "application/json" }),
+    body: JSON.stringify({ reason }),
+  });
+  if (!res.ok) throw new Error(await parseApiError(res, "Failed to transfer reader credential."));
   return res.json();
 }

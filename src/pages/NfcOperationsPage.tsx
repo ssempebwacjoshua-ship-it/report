@@ -10,6 +10,7 @@ import {
   getNfcTagEvents,
   listNfcTags,
   startReaderCredentialCapture,
+  transferReaderCredentialCapture,
   unassignNfcTag,
 } from "../client/nfcTagsClient";
 import { fetchOfflineSyncStatus } from "../client/nfcOfflineClient";
@@ -18,7 +19,11 @@ import { getStudentWalletPinStatus, setStudentWalletPin } from "../client/studen
 import type { StudentListItem } from "../shared/types/students";
 import type { WalletPinStatus } from "../shared/types/studentCredentials";
 import type { OfflineDeviceStatus } from "../client/nfcOfflineClient";
-import type { ReaderCredentialCaptureSession, ReaderCredentialCaptureStartResponse } from "../shared/types/nfcTags";
+import type {
+  ReaderCredentialCaptureSession,
+  ReaderCredentialCaptureStartResponse,
+  ReaderCredentialConflictResponse,
+} from "../shared/types/nfcTags";
 
 type StatusFilter = "" | "UNASSIGNED" | "ASSIGNED" | "DISABLED" | "LOST";
 
@@ -338,8 +343,11 @@ export function NfcOperationsPage() {
   const [linkReaderCapture, setLinkReaderCapture] = useState<ReaderCredentialCaptureStartResponse | ReaderCredentialCaptureSession | null>(null);
   const [linkReaderLoading, setLinkReaderLoading] = useState(false);
   const [linkReaderConfirming, setLinkReaderConfirming] = useState(false);
+  const [linkReaderTransferring, setLinkReaderTransferring] = useState(false);
   const [linkReaderError, setLinkReaderError] = useState<string | null>(null);
   const [linkReaderSuccess, setLinkReaderSuccess] = useState<string | null>(null);
+  const [linkReaderConflict, setLinkReaderConflict] = useState<ReaderCredentialConflictResponse["conflict"] | null>(null);
+  const [linkReaderTransferReason, setLinkReaderTransferReason] = useState("");
   const linkReaderPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Open dropdown tracking (one at a time)
@@ -367,6 +375,8 @@ export function NfcOperationsPage() {
       setLinkReaderCapture(null);
       setLinkReaderError(null);
       setLinkReaderSuccess(null);
+      setLinkReaderConflict(null);
+      setLinkReaderTransferReason("");
       if (linkReaderPollRef.current) {
         clearInterval(linkReaderPollRef.current);
         linkReaderPollRef.current = null;
@@ -600,6 +610,8 @@ export function NfcOperationsPage() {
     setLinkReaderCapture(null);
     setLinkReaderError(null);
     setLinkReaderSuccess(null);
+    setLinkReaderConflict(null);
+    setLinkReaderTransferReason("");
   }
 
   function closeLinkReaderModal() {
@@ -611,6 +623,7 @@ export function NfcOperationsPage() {
     setLinkReaderLoading(true);
     setLinkReaderError(null);
     setLinkReaderSuccess(null);
+    setLinkReaderConflict(null);
     try {
       const session = await startReaderCredentialCapture(linkReaderTarget.id, {
         deviceId: linkReaderDeviceId || undefined,
@@ -627,15 +640,43 @@ export function NfcOperationsPage() {
     if (!linkReaderTarget || !linkReaderCapture) return;
     setLinkReaderConfirming(true);
     setLinkReaderError(null);
+    setLinkReaderConflict(null);
     try {
       const result = await confirmReaderCredentialCapture(linkReaderCapture.captureId);
       setLinkReaderSuccess("Reader credential linked successfully.");
       setLinkReaderCapture((current) => current ? { ...current, status: "CONFIRMED", confirmedAt: new Date().toISOString() } : current);
       setTags((prev) => prev.map((tag) => (tag.id === result.tag.id ? { ...tag, physicalUid: result.tag.physicalUid } : tag)));
     } catch (confirmError) {
-      setLinkReaderError(confirmError instanceof Error ? confirmError.message : "Failed to confirm reader credential link.");
+      const maybeConflict = confirmError as Error & { data?: ReaderCredentialConflictResponse };
+      if (maybeConflict.data?.code === "READER_CREDENTIAL_CONFLICT") {
+        setLinkReaderConflict(maybeConflict.data.conflict);
+        setLinkReaderError(maybeConflict.data.message);
+      } else {
+        setLinkReaderError(confirmError instanceof Error ? confirmError.message : "Failed to confirm reader credential link.");
+      }
     } finally {
       setLinkReaderConfirming(false);
+    }
+  }
+
+  async function handleTransferReaderLink() {
+    if (!linkReaderCapture) return;
+    if (!linkReaderTransferReason.trim()) {
+      setLinkReaderError("Transfer reason is required.");
+      return;
+    }
+    setLinkReaderTransferring(true);
+    setLinkReaderError(null);
+    try {
+      const result = await transferReaderCredentialCapture(linkReaderCapture.captureId, linkReaderTransferReason.trim());
+      setLinkReaderSuccess("Reader credential transferred successfully.");
+      setLinkReaderConflict(null);
+      setLinkReaderCapture((current) => current ? { ...current, status: "CONFIRMED", confirmedAt: new Date().toISOString() } : current);
+      setTags((prev) => prev.map((tag) => (tag.id === result.tag.id ? { ...tag, physicalUid: result.tag.physicalUid } : tag)));
+    } catch (transferError) {
+      setLinkReaderError(transferError instanceof Error ? transferError.message : "Failed to transfer reader credential.");
+    } finally {
+      setLinkReaderTransferring(false);
     }
   }
 
@@ -1149,6 +1190,41 @@ export function NfcOperationsPage() {
             {linkReaderError && <p className="mt-4 text-sm text-red-600">{linkReaderError}</p>}
             {linkReaderSuccess && <p className="mt-4 text-sm font-semibold text-emerald-700">{linkReaderSuccess}</p>}
 
+            {linkReaderConflict && (
+              <div className="mt-4 space-y-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm">
+                <div>
+                  <p className="font-black text-amber-900">Existing active reader credential found</p>
+                  <p className="mt-1 text-amber-800">
+                    {linkReaderConflict.previousStudent.name} ({linkReaderConflict.previousStudent.admissionNumber}) already has the matching reader credential.
+                  </p>
+                </div>
+                <div className="grid gap-2 text-xs text-amber-900 sm:grid-cols-2">
+                  <p>Credential status: <span className="font-bold">{linkReaderConflict.previousCredential.status}</span></p>
+                  <p>Matched alias: <span className="font-mono font-bold">{linkReaderConflict.matchedAliasMasked ?? "-"}</span></p>
+                  <p>Alias source: <span className="font-bold">{linkReaderConflict.matchedAliasSource ?? "-"}</span></p>
+                  <p>Alias strength: <span className="font-bold">{linkReaderConflict.matchedAliasStrength}</span></p>
+                  <p>Existing tag: <span className="font-bold">{linkReaderConflict.previousTag?.label ?? "Unlabeled wristband"}</span></p>
+                  <p>Public-code prefix: <span className="font-mono font-bold">{linkReaderConflict.previousTag?.publicCodePrefix ?? "-"}</span></p>
+                </div>
+                {linkReaderConflict.canTransfer && (
+                  <>
+                    <label className="grid gap-1.5 text-xs font-bold uppercase tracking-wider text-amber-900">
+                      Transfer reason
+                      <textarea
+                        className="premium-control min-h-[80px] resize-none rounded-xl text-sm"
+                        value={linkReaderTransferReason}
+                        onChange={(e) => setLinkReaderTransferReason(e.target.value)}
+                        placeholder="Explain why this reader credential is being reassigned."
+                      />
+                    </label>
+                    <p className="text-xs text-amber-800">
+                      Transfer deactivates the previous student credential, clears the previous tag physical UID only when it matches, and links this captured reader credential to the current assigned wristband without changing historical attendance.
+                    </p>
+                  </>
+                )}
+              </div>
+            )}
+
             <div className="mt-6 flex flex-wrap gap-3">
               {linkReaderCapture?.status === "CAPTURED" && (
                 <button
@@ -1158,6 +1234,16 @@ export function NfcOperationsPage() {
                   className="btn btn-primary min-h-[44px] rounded-xl px-4 py-2.5 text-sm font-black"
                 >
                   {linkReaderConfirming ? "Saving link..." : "Confirm link"}
+                </button>
+              )}
+              {linkReaderConflict?.canTransfer && (
+                <button
+                  type="button"
+                  onClick={() => { void handleTransferReaderLink(); }}
+                  disabled={linkReaderTransferring}
+                  className="rounded-xl border border-amber-300 bg-amber-100 px-4 py-2.5 text-sm font-black text-amber-900 hover:bg-amber-200 disabled:opacity-60"
+                >
+                  {linkReaderTransferring ? "Transferring..." : "Transfer reader credential"}
                 </button>
               )}
               {linkReaderCapture?.status === "CONFIRMED" && (

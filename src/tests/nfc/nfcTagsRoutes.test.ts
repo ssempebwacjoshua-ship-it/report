@@ -78,6 +78,14 @@ describe("NFC Tags routes — route existence", () => {
     expect(res.status).not.toBe(404);
     expect([200, 401, 404, 500]).toContain(res.status);
   });
+
+  it("POST /api/nfc/tags/reader-credential-captures/:captureId/transfer route exists (not 404)", async () => {
+    const res = await request(createServer())
+      .post("/api/nfc/tags/reader-credential-captures/test-capture/transfer")
+      .send({ reason: "Reassigned" });
+    expect(res.status).not.toBe(404);
+    expect([200, 400, 401, 404, 500]).toContain(res.status);
+  });
 });
 
 // ─── Service unit tests — mock Prisma ────────────────────────────────────────
