@@ -63,6 +63,11 @@ bool WiegandReader::poll(ReaderScanEvent& event) {
 
   const WiegandDecodeResult decoded = decodeWiegandFrame(frameBits, bits);
   if (!decoded.valid) {
+    Serial.printf("Reader rejected frame: bitCount=%u rawBits=%s rawDecimal=%s rawHex=%s\n",
+      static_cast<unsigned int>(decoded.bitCount),
+      decoded.rawBinary.c_str(),
+      decoded.rawDecimal.c_str(),
+      decoded.rawHex.c_str());
     return false;
   }
 

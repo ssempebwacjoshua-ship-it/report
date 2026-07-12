@@ -34,16 +34,16 @@ GatewayFeedbackTone toneFromBeep(const String& beep) {
     return GatewayFeedbackTone::Success;
   }
   if (beep.equalsIgnoreCase("warning")) {
-    return GatewayFeedbackTone::Duplicate;
+    return GatewayFeedbackTone::Error;
   }
   if (beep.equalsIgnoreCase("duplicate")) {
-    return GatewayFeedbackTone::Duplicate;
+    return GatewayFeedbackTone::Error;
   }
   if (beep.equalsIgnoreCase("error")) {
     return GatewayFeedbackTone::Error;
   }
   if (beep.equalsIgnoreCase("offline") || beep.equalsIgnoreCase("offline_queued")) {
-    return GatewayFeedbackTone::Offline;
+    return GatewayFeedbackTone::NetworkFailure;
   }
   return GatewayFeedbackTone::None;
 }
@@ -337,11 +337,13 @@ void ReaderGatewayApp::processScan(const ReaderScanEvent& scan) {
     }
 
     Serial.println("Upload Failed");
+    Serial.printf("Queue status before offline enqueue: %u\n", static_cast<unsigned int>(offlineQueue_.size()));
   }
 
   if (offlineQueue_.enqueue(event)) {
     Serial.println("Queued Offline");
-    feedback_.play(GatewayFeedbackTone::Offline);
+    Serial.printf("Queue status after enqueue: %u\n", static_cast<unsigned int>(offlineQueue_.size()));
+    feedback_.play(GatewayFeedbackTone::NetworkFailure);
     return;
   }
   feedback_.play(GatewayFeedbackTone::Error);
@@ -358,6 +360,7 @@ void ReaderGatewayApp::processOfflineQueue() {
     if (!isValidScanEvent(event, invalidReason)) {
       Serial.printf("Dropped queued event: %s\n", invalidReason == nullptr ? "invalid event" : invalidReason);
       offlineQueue_.pop();
+      Serial.printf("Queue status after drop: %u\n", static_cast<unsigned int>(offlineQueue_.size()));
       yield();
       continue;
     }
@@ -375,12 +378,14 @@ void ReaderGatewayApp::processOfflineQueue() {
       event.syncStatus = "pending";
       offlineQueue_.updateFront(event);
       Serial.printf("Upload Failed; retryCount=%lu nextRetryMs=%lu\n", static_cast<unsigned long>(event.retryCount), retryDelayFor(event));
+      Serial.printf("Queue status pending retry: %u\n", static_cast<unsigned int>(offlineQueue_.size()));
       break;
     }
 
     offlineQueue_.pop();
     lastQueueAttemptMs_ = 0;
     markApiContact();
+    Serial.printf("Queue status after dequeue: %u\n", static_cast<unsigned int>(offlineQueue_.size()));
     if (response.success) {
       Serial.println("Upload Success");
     } else {
@@ -395,6 +400,7 @@ void ReaderGatewayApp::processOfflineQueue() {
 }
 
 void ReaderGatewayApp::loop() {
+  feedback_.loop();
   ArduinoOTA.handle();
   ensureWiFi();
 

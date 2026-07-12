@@ -5,23 +5,27 @@
 #include "FeedbackTone.h"
 
 struct FeedbackPattern {
-  uint8_t pulses;
-  uint16_t onMs;
-  uint16_t offMs;
+  uint8_t buzzerPulses;
+  uint16_t buzzerOnMs;
+  uint16_t buzzerOffMs;
+  bool ledEnabled;
+  uint16_t ledOnMs;
 };
 
 inline FeedbackPattern feedbackPatternForTone(GatewayFeedbackTone tone) {
   switch (tone) {
     case GatewayFeedbackTone::Success:
-      return {1, 100, 0};
+      return {1, 120, 0, true, 800};
     case GatewayFeedbackTone::Duplicate:
-      return {2, 100, 100};
+      return {3, 120, 120, false, 0};
     case GatewayFeedbackTone::Error:
-      return {1, 600, 0};
+      return {3, 120, 120, false, 0};
     case GatewayFeedbackTone::Offline:
-      return {3, 100, 100};
+      return {2, 250, 200, false, 0};
+    case GatewayFeedbackTone::NetworkFailure:
+      return {2, 250, 200, false, 0};
     case GatewayFeedbackTone::None:
     default:
-      return {0, 0, 0};
+      return {0, 0, 0, false, 0};
   }
 }
