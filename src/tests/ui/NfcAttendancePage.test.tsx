@@ -1,11 +1,12 @@
 import { MemoryRouter } from "react-router-dom";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NfcAttendancePage } from "../../pages/NfcAttendancePage";
 
 const mockFetchAttendanceClasses = vi.hoisted(() => vi.fn());
 const mockFetchNfcAttendanceRegister = vi.hoisted(() => vi.fn());
 const mockFetchGateAttendanceReport = vi.hoisted(() => vi.fn());
+const mockFetchClassroomAttendanceReport = vi.hoisted(() => vi.fn());
 const authState = vi.hoisted(() => ({
   role: "ADMIN_OPERATOR",
 }));
@@ -64,7 +65,7 @@ vi.mock("../../client/studentCredentialsClient", () => ({
   fetchAttendanceClasses: mockFetchAttendanceClasses,
   fetchNfcAttendanceRegister: mockFetchNfcAttendanceRegister,
   fetchGateAttendanceReport: mockFetchGateAttendanceReport,
-  fetchClassroomAttendanceReport: vi.fn(async () => ({ summary: { totalEvents: 0, morningPresent: 0, nightPrepPresent: 0, missingBoarders: 0, wrongClassAttempts: 0, sessionClosedScans: 0 }, rows: [] })),
+  fetchClassroomAttendanceReport: mockFetchClassroomAttendanceReport,
   scanNfcAttendance: vi.fn(),
   approveGateAttendanceOverride: vi.fn(),
 }));
@@ -172,6 +173,29 @@ beforeEach(() => {
     summary: { totalStudents: 3, present: 2, late: 1, absent: 1, onCampus: 1, offCampus: 2, departureMissing: 1, restrictedAttempts: 0, manualOverrides: 0 },
     rows: gateRows,
   });
+  mockFetchClassroomAttendanceReport.mockResolvedValue({
+    summary: { totalEvents: 1, morningPresent: 1, nightPrepPresent: 0, missingBoarders: 0, wrongClassAttempts: 0, sessionClosedScans: 0 },
+    rows: [
+      {
+        id: "classroom-row-1",
+        studentId: "student-3",
+        studentName: "Alan Turing",
+        admissionNumber: "A-003",
+        className: "Senior 1",
+        streamName: "B",
+        scholarType: "BOARDING",
+        eventType: "MORNING_CLASS",
+        eventStatus: "RECORDED",
+        morningAttendance: true,
+        nightPrepAttendance: false,
+        missingBoarder: false,
+        wrongClassAttempt: false,
+        sessionClosedScan: false,
+        readerUsed: "Classroom Reader A",
+        originalDeviceTime: "2026-07-12T07:15:00.000Z",
+      },
+    ],
+  });
 });
 
 describe("NfcAttendancePage", () => {
@@ -235,97 +259,178 @@ describe("NfcAttendancePage", () => {
     expect(screen.getByRole("button", { name: /gate view/i })).toHaveClass("bg-blue-600");
   });
 
-  it("prints the full register from a fresh canonical fetch and excludes private credential data", async () => {
-    const printSpy = vi.fn();
-    const closeSpy = vi.fn();
-    const openSpy = vi.spyOn(window, "open").mockReturnValue({
-      document: { open: vi.fn(), write: vi.fn(), close: vi.fn() },
-      focus: vi.fn(),
-      print: printSpy,
-      close: closeSpy,
-      onload: null,
-    } as unknown as Window);
+  it("disables generate until the required date is present", async () => {
+    renderPage();
 
+    await waitFor(() => expect(mockFetchNfcAttendanceRegister).toHaveBeenCalled());
+    const dateInput = screen.getByTestId("attendance-filter-grid").querySelector('input[type="date"]') as HTMLInputElement;
+    const generateButton = screen.getByTestId("attendance-generate-button");
+    expect(generateButton).toBeEnabled();
+
+    fireEvent.change(dateInput, { target: { value: "" } });
+    expect(generateButton).toBeDisabled();
+
+    fireEvent.change(dateInput, { target: { value: "2026-07-12" } });
+    expect(generateButton).toBeEnabled();
+  });
+
+  it("submits exactly one preview request per click burst and shows a loading state", async () => {
+    let resolvePreview: ((value: unknown) => void) | undefined;
+    mockFetchNfcAttendanceRegister.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolvePreview = resolve as (value: unknown) => void;
+        }),
+    );
+
+    renderPage();
+
+    await waitFor(() => expect(mockFetchNfcAttendanceRegister).toHaveBeenCalledTimes(2));
+    const initialCalls = mockFetchNfcAttendanceRegister.mock.calls.length;
+    const generateButton = screen.getByTestId("attendance-generate-button");
+
+    fireEvent.click(generateButton);
+    fireEvent.click(generateButton);
+
+    expect(mockFetchNfcAttendanceRegister).toHaveBeenCalledTimes(initialCalls + 1);
+    expect(screen.getAllByRole("button", { name: /generating/i }).length).toBeGreaterThan(0);
+
+    resolvePreview?.({
+      date: "2026-07-12",
+      summary: { totalStudents: 2, present: 1, out: 0, absent: 1, blockedScans: 0, duplicateScans: 0 },
+      rows: [
+        {
+          student: {
+            id: "student-1",
+            name: "Ada Lovelace",
+            admissionNumber: "A-001",
+            className: "Senior 1",
+            streamName: "A",
+            studentType: "DAY",
+            photoUrl: null,
+          },
+          tapIn: {
+            id: "scan-1",
+            direction: "TAP_IN",
+            scannedAt: "2026-07-12T05:00:00.000Z",
+            status: "VALID",
+            source: "Main Entrance",
+          },
+          tapOut: null,
+          lastScan: {
+            id: "scan-1",
+            direction: "TAP_IN",
+            scannedAt: "2026-07-12T05:00:00.000Z",
+            status: "VALID",
+            reason: null,
+          },
+          currentStatus: "PRESENT",
+        },
+      ],
+    });
+
+    await waitFor(() => expect(screen.getByTestId("attendance-preview-sheet")).toBeInTheDocument());
+  });
+
+  it("renders a same-page gate preview, keeps print controls outside the printable sheet, and uses browser print", async () => {
+    const printSpy = vi.spyOn(window, "print").mockImplementation(() => undefined);
+    const openSpy = vi.spyOn(window, "open");
     renderPage("/nfc/attendance?view=GATE");
 
     await waitFor(() => expect(mockFetchGateAttendanceReport).toHaveBeenCalledTimes(2));
-    fireEvent.click(screen.getByRole("button", { name: /full register/i }));
+    fireEvent.click(screen.getByTestId("attendance-generate-button"));
 
     await waitFor(() => expect(mockFetchGateAttendanceReport).toHaveBeenCalledTimes(3));
-    const popup = openSpy.mock.results[0]?.value as unknown as {
-      document: { write: (html: string) => void };
-      onload: (() => void) | null;
-    };
-    const writtenHtml = vi.mocked(popup.document.write).mock.calls[0]?.[0] as string;
+    const previewSection = await screen.findByTestId("attendance-preview-section");
+    const previewSheet = await screen.findByTestId("attendance-preview-sheet");
+    const previewTable = await screen.findByTestId("attendance-preview-table");
 
-    expect(writtenHtml).toContain("DAILY ATTENDANCE REGISTER");
-    expect(writtenHtml).toContain("Ada Lovelace");
-    expect(writtenHtml).toContain("Grace Hopper");
-    expect(writtenHtml).toContain("Alan Turing");
-    expect(writtenHtml).toContain("Not recorded");
-    expect(writtenHtml).toContain("thead { display: table-header-group; }");
-    expect(writtenHtml).not.toContain("credential");
-    expect(writtenHtml).not.toContain("token");
-    expect(writtenHtml).not.toContain("student-1");
+    expect(previewSection).toHaveClass("attendance-preview-section", "report-print-area");
+    expect(previewSheet).toHaveClass("attendance-preview-sheet", "report-print-page");
+    expect(within(previewSection).getByText(/attendance register/i)).toBeInTheDocument();
+    expect(within(previewTable).getByText("Ada Lovelace")).toBeInTheDocument();
+    expect(within(previewTable).getByText("Grace Hopper")).toBeInTheDocument();
+    expect(within(previewTable).getByText("Alan Turing")).toBeInTheDocument();
+    expect(within(previewSheet).getAllByText(/day scholar/i).length).toBeGreaterThan(0);
+    expect(previewSection.querySelector(".no-print")).not.toBeNull();
 
-    popup.onload?.();
+    fireEvent.click(screen.getByTestId("attendance-preview-print-button"));
     expect(printSpy).toHaveBeenCalledTimes(1);
-    expect(closeSpy).toHaveBeenCalledTimes(1);
-  });
-
-  it("prints present students with PRESENT and LATE rows only, and absent print excludes present rows", async () => {
-    const openSpy = vi.spyOn(window, "open").mockImplementation(() => ({
-      document: { open: vi.fn(), write: vi.fn(), close: vi.fn() },
-      focus: vi.fn(),
-      print: vi.fn(),
-      close: vi.fn(),
-      onload: null,
-    } as unknown as Window));
-
-    renderPage("/nfc/attendance?view=GATE");
-
-    await waitFor(() => expect(mockFetchGateAttendanceReport).toHaveBeenCalledTimes(2));
-
-    fireEvent.click(screen.getByRole("button", { name: /present students/i }));
-    await waitFor(() => expect(mockFetchGateAttendanceReport).toHaveBeenCalledTimes(3));
-    const presentHtml = vi.mocked((openSpy.mock.results[0]?.value as any).document.write).mock.calls[0]?.[0] as string;
-    expect(presentHtml).toContain("Ada Lovelace");
-    expect(presentHtml).toContain("Grace Hopper");
-    expect(presentHtml).not.toContain("Alan Turing");
-
-    fireEvent.click(screen.getByRole("button", { name: /absent students/i }));
-    await waitFor(() => expect(mockFetchGateAttendanceReport).toHaveBeenCalledTimes(4));
-    const absentHtml = vi.mocked((openSpy.mock.results[1]?.value as any).document.write).mock.calls[0]?.[0] as string;
-    expect(absentHtml).toContain("Alan Turing");
-    expect(absentHtml).not.toContain("Ada Lovelace");
-    expect(absentHtml).not.toContain("Grace Hopper");
-  });
-
-  it("does not print when the fresh fetch returns no matching students", async () => {
-    mockFetchGateAttendanceReport
-      .mockResolvedValueOnce({
-        date: "2026-07-12",
-        summary: { totalStudents: 3, present: 2, late: 1, absent: 1, onCampus: 1, offCampus: 2, departureMissing: 1, restrictedAttempts: 0, manualOverrides: 0 },
-        rows: gateRows,
-      })
-      .mockResolvedValueOnce({
-        date: "2026-07-12",
-        summary: { totalStudents: 3, present: 2, late: 1, absent: 1, onCampus: 1, offCampus: 2, departureMissing: 1, restrictedAttempts: 0, manualOverrides: 0 },
-        rows: gateRows,
-      })
-      .mockResolvedValueOnce({
-        date: "2026-07-12",
-        summary: { totalStudents: 0, present: 0, late: 0, absent: 0, onCampus: 0, offCampus: 0, departureMissing: 0, restrictedAttempts: 0, manualOverrides: 0 },
-        rows: [],
-      });
-    const openSpy = vi.spyOn(window, "open").mockImplementation(() => null);
-
-    renderPage("/nfc/attendance?view=GATE");
-
-    await waitFor(() => expect(mockFetchGateAttendanceReport).toHaveBeenCalledTimes(2));
-    fireEvent.click(screen.getByRole("button", { name: /full register/i }));
-
-    await waitFor(() => expect(screen.getByText(/no students match these filters/i)).toBeInTheDocument());
     expect(openSpy).not.toHaveBeenCalled();
+  });
+
+  it("shows a safe preview error and restores generate after a failed request", async () => {
+    renderPage("/nfc/attendance?view=GATE");
+
+    await waitFor(() => expect(mockFetchGateAttendanceReport).toHaveBeenCalledTimes(2));
+    mockFetchGateAttendanceReport.mockRejectedValueOnce(new Error("Server exploded"));
+    fireEvent.click(screen.getByTestId("attendance-generate-button"));
+
+    await waitFor(() =>
+      expect(screen.getByRole("alert")).toHaveTextContent(/could not generate the attendance preview/i),
+    );
+    await waitFor(() => expect(screen.getByTestId("attendance-generate-button")).toBeEnabled());
+  });
+
+  it("renders a professional empty preview instead of failing when no canonical records exist", async () => {
+    renderPage("/nfc/attendance?view=GATE");
+
+    await waitFor(() => expect(mockFetchGateAttendanceReport).toHaveBeenCalledTimes(2));
+    mockFetchGateAttendanceReport.mockResolvedValueOnce({
+      date: "2026-07-12",
+      summary: { totalStudents: 0, present: 0, late: 0, absent: 0, onCampus: 0, offCampus: 0, departureMissing: 0, restrictedAttempts: 0, manualOverrides: 0 },
+      rows: [],
+    });
+    fireEvent.click(screen.getByTestId("attendance-generate-button"));
+
+    await screen.findByTestId("attendance-preview-sheet");
+    const previewTable = await screen.findByTestId("attendance-preview-table");
+    expect(within(previewTable).getByText(/no attendance records matched the selected filters/i)).toBeInTheDocument();
+  });
+
+  it("preserves the selected Day Scholar or Boarder filter in the preview output", async () => {
+    renderPage("/nfc/attendance?view=GATE");
+
+    await waitFor(() => expect(mockFetchGateAttendanceReport).toHaveBeenCalledTimes(2));
+    fireEvent.click(screen.getByRole("button", { name: /boarders/i }));
+    fireEvent.click(screen.getByTestId("attendance-generate-button"));
+
+    await waitFor(() => expect(mockFetchGateAttendanceReport).toHaveBeenCalledTimes(3));
+    expect(mockFetchGateAttendanceReport.mock.calls.at(-1)?.[0]).toEqual(
+      expect.objectContaining({ studentType: "BOARDING" }),
+    );
+    const previewSheet = await screen.findByTestId("attendance-preview-sheet");
+    expect(within(previewSheet).getByText(/^boarders$/i)).toBeInTheDocument();
+  });
+
+  it("uses the classroom canonical source when classroom view is selected", async () => {
+    renderPage("/nfc/attendance?view=CLASSROOM");
+
+    await waitFor(() => expect(mockFetchClassroomAttendanceReport).toHaveBeenCalledTimes(2));
+    const initialClassroomCalls = mockFetchClassroomAttendanceReport.mock.calls.length;
+    const initialRegisterCalls = mockFetchNfcAttendanceRegister.mock.calls.length;
+    const initialGateCalls = mockFetchGateAttendanceReport.mock.calls.length;
+
+    fireEvent.click(screen.getByTestId("attendance-generate-button"));
+
+    await waitFor(() => expect(mockFetchClassroomAttendanceReport).toHaveBeenCalledTimes(initialClassroomCalls + 1));
+    expect(mockFetchNfcAttendanceRegister).toHaveBeenCalledTimes(initialRegisterCalls);
+    expect(mockFetchGateAttendanceReport).toHaveBeenCalledTimes(initialGateCalls);
+    const previewSheet = await screen.findByTestId("attendance-preview-sheet");
+    expect(within(previewSheet).getAllByText("Alan Turing").length).toBeGreaterThan(0);
+  });
+
+  it("allows closing the preview without disturbing the filter layout", async () => {
+    renderPage("/nfc/attendance?view=GATE");
+
+    await waitFor(() => expect(mockFetchGateAttendanceReport).toHaveBeenCalledTimes(2));
+    fireEvent.click(screen.getByTestId("attendance-generate-button"));
+
+    await waitFor(() => expect(screen.getByTestId("attendance-preview-sheet")).toBeInTheDocument());
+    fireEvent.click(screen.getByTestId("attendance-preview-close-button"));
+
+    await waitFor(() => expect(screen.queryByTestId("attendance-preview-sheet")).not.toBeInTheDocument());
+    expect(screen.getByTestId("attendance-filter-grid")).toBeInTheDocument();
+    expect(screen.getByTestId("attendance-print-actions")).toHaveClass("flex", "flex-wrap", "gap-2");
   });
 });

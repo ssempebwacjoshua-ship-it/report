@@ -16,12 +16,8 @@ import {
   fetchNfcAttendanceRegister,
   scanNfcAttendance,
   type AttendanceClassItem,
-  type AttendanceCurrentStatus,
   type AttendanceRegisterResponse,
   type AttendanceRegisterRow,
-  type ClassroomAttendanceReport,
-  type GateAttendanceReport,
-  type NfcAttendanceScanEvent,
 } from "../client/studentCredentialsClient";
 import { resolveOfflineNfcScan } from "../offline/offlineResolver";
 import { getNextAttendanceDirection, getSnapshotMeta, hasRecentAttendancePunch, queueAttendanceEvent } from "../offline/offlineStore";
@@ -30,13 +26,21 @@ import { getSnapshotValidity } from "../offline/offlineStatus";
 import { canOperateAttendance } from "../shared/permissions";
 import { ATTENDANCE_PROFILE_LABELS } from "../shared/attendanceProfiles";
 import { normalizeNfcScanValue } from "../shared/utils/nfcPayload";
-import type { AttendanceDirection } from "../shared/types/studentCredentials";
+import type {
+  AttendanceCurrentStatus,
+  AttendanceDirection,
+  ClassroomAttendanceReport,
+  GateAttendanceReport,
+  NfcAttendanceScanEvent,
+} from "../shared/types/studentCredentials";
 
 const inputClass =
   "premium-control h-10 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm text-slate-900 outline-none focus:border-blue-400 focus:bg-white";
 
 const selectClass =
   "premium-control h-10 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm text-slate-900 outline-none focus:border-blue-400 focus:bg-white";
+
+const EM_DASH = "\u2014";
 
 const STATUS_LABELS: Record<AttendanceCurrentStatus, string> = {
   ABSENT: "Absent",
@@ -66,29 +70,36 @@ const SCAN_STATUS_COLORS: Record<string, string> = {
 };
 
 function formatTime(iso: string | null | undefined) {
-  if (!iso) return "—";
+  if (!iso) return EM_DASH;
   return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
 function formatDateTime(iso: string | null | undefined) {
-  if (!iso) return "â€”";
+  if (!iso) return EM_DASH;
   return new Date(iso).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
 }
 
-type PrintMode = "FULL" | "PRESENT" | "ABSENT";
-
 type AttendancePrintDocument = {
-  html: string;
+  view: "REGISTER" | "GATE" | "CLASSROOM";
+  generatedAt: string;
+  title: string;
+  scopeLabel: string;
+  metadata: Array<{ label: string; value: string }>;
+  summary: Array<{ label: string; value: string }>;
+  rows: Array<{
+    id: string;
+    admissionNumber: string;
+    studentName: string;
+    studentType: string;
+    status: string;
+    firstSeen: string;
+    lastMovement: string;
+    source: string;
+    remarks: string;
+  }>;
+  emptyMessage: string;
+  showSource: boolean;
 };
-
-function escapeHtml(value: string | null | undefined) {
-  return (value ?? "")
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll("\"", "&quot;")
-    .replaceAll("'", "&#39;");
-}
 
 function formatPrintDate(value: string) {
   return new Date(`${value}T00:00:00`).toLocaleDateString("en-GB", {
@@ -123,12 +134,18 @@ function summarizePrintedRows(rows: GateAttendanceReport["rows"]) {
   };
 }
 
-function buildAttendancePrintDocument(input: {
-  schoolName: string;
-  schoolAddress: string;
-  schoolPhone: string;
-  schoolEmail: string;
-  schoolLogoUrl: string;
+function formatStudentTypeLabel(value: "DAY" | "BOARDING" | null | undefined) {
+  if (value === "DAY") return ATTENDANCE_PROFILE_LABELS.DAY_SCHOLAR;
+  if (value === "BOARDING") return ATTENDANCE_PROFILE_LABELS.BOARDER;
+  return EM_DASH;
+}
+
+function joinRemarks(parts: Array<string | false | null | undefined>) {
+  const values = parts.filter((part): part is string => Boolean(part && part.trim()));
+  return values.length > 0 ? values.join(" | ") : EM_DASH;
+}
+
+function buildGatePreviewDocument(input: {
   date: string;
   className: string;
   streamName: string;
@@ -136,141 +153,191 @@ function buildAttendancePrintDocument(input: {
   attendanceStatus: string;
   campusStatus: string;
   generatedAt: string;
-  rows: GateAttendanceReport["rows"];
+  report: GateAttendanceReport;
 }): AttendancePrintDocument {
-  const summary = summarizePrintedRows(input.rows);
-  const contactLine = [input.schoolAddress, input.schoolPhone, input.schoolEmail]
-    .filter((value) => value.trim().length > 0)
-    .join(" | ");
-  const rowsHtml = input.rows.map((row, index) => `
-    <tr>
-      <td>${index + 1}</td>
-      <td>${escapeHtml(row.studentName)}</td>
-      <td>${escapeHtml(row.admissionNumber)}</td>
-      <td>${escapeHtml(row.className ?? "—")}</td>
-      <td>${escapeHtml(row.streamName ?? "—")}</td>
-      <td>${escapeHtml(row.scholarType ?? "—")}</td>
-      <td>${escapeHtml(row.arrivalTime ? formatPrintDateTime(row.arrivalTime) : "Not recorded")}</td>
-      <td>${escapeHtml(row.departureTime ? formatPrintDateTime(row.departureTime) : "Not recorded")}</td>
-      <td>${escapeHtml(row.attendanceStatus)}</td>
-      <td>${escapeHtml(row.campusStatus)}</td>
-      <td>${escapeHtml(row.readerUsed ?? "—")}</td>
-    </tr>
-  `).join("");
-
-  const summaryItems = [
-    ["Total students", String(summary.totalStudents)],
-    ["Present", String(summary.present)],
-    ["Absent", String(summary.absent)],
-    ["Late", String(summary.late)],
-    ["Attendance rate", `${summary.attendanceRate}%`],
-    ["On campus", String(summary.onCampus)],
-    ["Off campus", String(summary.offCampus)],
-  ].map(([label, value]) => `
-    <div class="summary-card">
-      <div class="summary-label">${escapeHtml(label)}</div>
-      <div class="summary-value">${escapeHtml(value)}</div>
-    </div>
-  `).join("");
-
-  const filtersHtml = [
-    ["Selected date", formatPrintDate(input.date)],
-    ["Class", input.className],
-    ["Stream", input.streamName],
-    ["Student type", input.studentType],
-    ["Attendance status", input.attendanceStatus],
-    ["Campus status", input.campusStatus],
-    ["Generated", formatPrintDateTime(input.generatedAt)],
-  ].map(([label, value]) => `
-    <div class="filter-item">
-      <span class="filter-label">${escapeHtml(label)}</span>
-      <span class="filter-value">${escapeHtml(value)}</span>
-    </div>
-  `).join("");
-
-  const logoHtml = input.schoolLogoUrl
-    ? `<img class="school-logo" src="${escapeHtml(input.schoolLogoUrl)}" alt="${escapeHtml(input.schoolName)} logo" />`
-    : "";
+  const summary = summarizePrintedRows(input.report.rows);
+  const rows = input.report.rows.map((row) => ({
+    id: row.studentId,
+    admissionNumber: row.admissionNumber,
+    studentName: row.studentName,
+    studentType: formatStudentTypeLabel(row.scholarType),
+    status: row.attendanceStatus,
+    firstSeen: row.arrivalTime ? formatPrintDateTime(row.arrivalTime) : EM_DASH,
+    lastMovement: row.departureTime
+      ? formatPrintDateTime(row.departureTime)
+      : row.departureNotRecorded
+        ? "Departure not recorded"
+        : EM_DASH,
+    source: row.readerUsed ?? EM_DASH,
+    remarks: joinRemarks([
+      row.lateIndicator ? "Late arrival" : null,
+      row.campusStatus === "ON_CAMPUS" ? "On campus" : "Off campus",
+      row.feeHoldAttempt ? "Fee hold attempt" : null,
+      row.manualOverride ? "Manual override" : null,
+      row.offlineSynced ? "Offline synced" : null,
+    ]),
+  }));
 
   return {
-    html: `<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <title>Daily Attendance Register</title>
-    <style>
-      @page { size: A4 landscape; margin: 12mm; }
-      * { box-sizing: border-box; }
-      body { margin: 0; font-family: Inter, "Segoe UI", sans-serif; color: #0f172a; background: #ffffff; }
-      .page { width: 100%; }
-      .header { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; border-bottom: 2px solid #0f172a; padding-bottom: 12px; }
-      .brand { display: flex; gap: 14px; align-items: flex-start; }
-      .school-logo { width: 64px; height: 64px; object-fit: contain; }
-      .school-name { font-size: 22px; font-weight: 800; line-height: 1.1; }
-      .school-contact { margin-top: 4px; font-size: 12px; color: #475569; }
-      .title { margin-top: 8px; font-size: 17px; font-weight: 800; letter-spacing: 0.08em; }
-      .filters { margin-top: 14px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px 16px; }
-      .filter-item { border: 1px solid #cbd5e1; border-radius: 8px; padding: 8px 10px; }
-      .filter-label { display: block; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #64748b; }
-      .filter-value { display: block; margin-top: 3px; font-size: 13px; font-weight: 700; }
-      .summary-grid { margin-top: 14px; display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 8px; }
-      .summary-card { border: 1px solid #cbd5e1; border-radius: 8px; padding: 8px 10px; background: #f8fafc; }
-      .summary-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #64748b; }
-      .summary-value { margin-top: 4px; font-size: 18px; font-weight: 800; }
-      table { width: 100%; margin-top: 14px; border-collapse: collapse; font-size: 11px; }
-      thead { display: table-header-group; }
-      th, td { border: 1px solid #cbd5e1; padding: 7px 8px; vertical-align: top; text-align: left; }
-      th { background: #e2e8f0; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em; }
-      tr { break-inside: avoid; page-break-inside: avoid; }
-      .signatures { margin-top: 18px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
-      .signature-line { border-top: 1px solid #0f172a; padding-top: 6px; font-size: 12px; font-weight: 600; }
-      .footer { margin-top: 12px; font-size: 11px; color: #475569; }
-    </style>
-  </head>
-  <body>
-    <main class="page">
-      <section class="header">
-        <div class="brand">
-          ${logoHtml}
-          <div>
-            <div class="school-name">${escapeHtml(input.schoolName)}</div>
-            ${contactLine ? `<div class="school-contact">${escapeHtml(contactLine)}</div>` : ""}
-            <div class="title">DAILY ATTENDANCE REGISTER</div>
-          </div>
-        </div>
-      </section>
-      <section class="filters">${filtersHtml}</section>
-      <section class="summary-grid">${summaryItems}</section>
-      <table>
-        <thead>
-          <tr>
-            <th>Number</th>
-            <th>Student name</th>
-            <th>Admission number</th>
-            <th>Class</th>
-            <th>Stream</th>
-            <th>Student type</th>
-            <th>Arrival time</th>
-            <th>Departure time</th>
-            <th>Attendance status</th>
-            <th>Campus status</th>
-            <th>Reader used</th>
-          </tr>
-        </thead>
-        <tbody>${rowsHtml}</tbody>
-      </table>
-      <section class="signatures">
-        <div class="signature-line">Prepared by: ____________________</div>
-        <div class="signature-line">Verified by: ____________________</div>
-        <div class="signature-line">Headteacher: ____________________</div>
-      </section>
-      <div class="footer">Page generation timestamp: ${escapeHtml(formatPrintDateTime(input.generatedAt))}</div>
-    </main>
-  </body>
-</html>`,
+    view: "GATE",
+    generatedAt: input.generatedAt,
+    title: "Attendance Register",
+    scopeLabel: "Gate attendance preview",
+    metadata: [
+      { label: "Date", value: formatPrintDate(input.date) },
+      { label: "Class", value: input.className },
+      { label: "Stream", value: input.streamName },
+      { label: "Student type", value: input.studentType },
+      { label: "Status filter", value: input.attendanceStatus },
+      { label: "Campus filter", value: input.campusStatus },
+      { label: "Generated", value: formatPrintDateTime(input.generatedAt) },
+    ],
+    summary: [
+      { label: "Total students", value: String(summary.totalStudents) },
+      { label: "Present", value: String(summary.present) },
+      { label: "Absent", value: String(summary.absent) },
+      { label: "Late", value: String(summary.late) },
+      { label: "Attendance", value: `${summary.attendanceRate}%` },
+    ],
+    rows,
+    emptyMessage: "No attendance records matched the selected filters.",
+    showSource: rows.some((row) => row.source !== EM_DASH),
   };
 }
 
+function buildRegisterPreviewDocument(input: {
+  date: string;
+  className: string;
+  streamName: string;
+  studentType: string;
+  generatedAt: string;
+  register: AttendanceRegisterResponse;
+}): AttendancePrintDocument {
+  const rows = input.register.rows.map((row) => ({
+    id: row.student.id,
+    admissionNumber: row.student.admissionNumber,
+    studentName: row.student.name,
+    studentType: formatStudentTypeLabel(row.student.studentType),
+    status: STATUS_LABELS[row.currentStatus],
+    firstSeen: row.tapIn?.scannedAt ? formatPrintDateTime(row.tapIn.scannedAt) : EM_DASH,
+    lastMovement: row.tapOut?.scannedAt
+      ? formatPrintDateTime(row.tapOut.scannedAt)
+      : row.lastScan?.scannedAt
+        ? formatPrintDateTime(row.lastScan.scannedAt)
+        : EM_DASH,
+    source: row.tapIn?.source ?? row.tapOut?.source ?? EM_DASH,
+    remarks: joinRemarks([
+      row.student.className ?? null,
+      row.student.streamName ?? null,
+      row.lastScan?.reason,
+    ]),
+  }));
+
+  const late = rows.filter((row) => row.status === "Late").length;
+  const present = input.register.rows.filter((row) => ["PRESENT", "LATE", "OUT", "OUT_ONLY"].includes(row.currentStatus)).length;
+  const totalStudents = rows.length;
+  const absent = input.register.rows.filter((row) => row.currentStatus === "ABSENT").length;
+
+  return {
+    view: "REGISTER",
+    generatedAt: input.generatedAt,
+    title: "Attendance Register",
+    scopeLabel: "Daily register preview",
+    metadata: [
+      { label: "Date", value: formatPrintDate(input.date) },
+      { label: "Class", value: input.className },
+      { label: "Stream", value: input.streamName },
+      { label: "Student type", value: input.studentType },
+      { label: "Generated", value: formatPrintDateTime(input.generatedAt) },
+    ],
+    summary: [
+      { label: "Total students", value: String(totalStudents) },
+      { label: "Present", value: String(present) },
+      { label: "Absent", value: String(absent) },
+      { label: "Late", value: String(late) },
+      { label: "Attendance", value: `${totalStudents > 0 ? ((present / totalStudents) * 100).toFixed(1) : "0.0"}%` },
+    ],
+    rows,
+    emptyMessage: "No students matched the selected filters for this register.",
+    showSource: rows.some((row) => row.source !== EM_DASH),
+  };
+}
+
+function buildClassroomPreviewDocument(input: {
+  date: string;
+  className: string;
+  streamName: string;
+  studentType: string;
+  sessionType: string;
+  generatedAt: string;
+  report: ClassroomAttendanceReport;
+}): AttendancePrintDocument {
+  const rows = input.report.rows.map((row) => {
+    const status = row.morningAttendance
+      ? "Morning Present"
+      : row.nightPrepAttendance
+        ? "Night Prep"
+        : row.missingBoarder
+          ? "Missing Boarder"
+          : row.wrongClassAttempt
+            ? "Wrong Class Attempt"
+            : row.sessionClosedScan
+              ? "Session Closed"
+              : row.eventStatus?.replaceAll("_", " ") ?? "Recorded";
+
+    const eventTypeLabel =
+      typeof row.eventType === "string" && row.eventType.trim().length > 0
+        ? row.eventType.replaceAll("_", " ")
+        : null;
+
+    return {
+      id: row.id,
+      admissionNumber: row.admissionNumber,
+      studentName: row.studentName,
+      studentType: formatStudentTypeLabel(row.scholarType),
+      status,
+      firstSeen: formatPrintDateTime(row.originalDeviceTime),
+      lastMovement: EM_DASH,
+      source: row.readerUsed ?? EM_DASH,
+        remarks: joinRemarks([
+          row.className ?? null,
+          row.streamName ?? null,
+          eventTypeLabel,
+          row.wrongClassAttempt ? "Wrong class attempt" : null,
+          row.sessionClosedScan ? "Session closed" : null,
+        ]),
+    };
+  });
+
+  const totalStudents = rows.length;
+  const present = input.report.rows.filter((row) => row.morningAttendance || row.nightPrepAttendance).length;
+  const absent = input.report.rows.filter((row) => row.missingBoarder).length;
+
+  return {
+    view: "CLASSROOM",
+    generatedAt: input.generatedAt,
+    title: "Attendance Register",
+    scopeLabel: "Classroom attendance preview",
+    metadata: [
+      { label: "Date", value: formatPrintDate(input.date) },
+      { label: "Class", value: input.className },
+      { label: "Stream", value: input.streamName },
+      { label: "Student type", value: input.studentType },
+      { label: "Session", value: input.sessionType },
+      { label: "Generated", value: formatPrintDateTime(input.generatedAt) },
+    ],
+    summary: [
+      { label: "Total students", value: String(totalStudents) },
+      { label: "Present", value: String(present) },
+      { label: "Absent", value: String(absent) },
+      { label: "Late", value: "0" },
+      { label: "Attendance", value: `${totalStudents > 0 ? ((present / totalStudents) * 100).toFixed(1) : "0.0"}%` },
+    ],
+    rows,
+    emptyMessage: "No classroom attendance records matched the selected filters.",
+    showSource: rows.some((row) => row.source !== EM_DASH),
+  };
+}
 function SummaryCard({ label, value, color }: { label: string; value: number; color: string }) {
   return (
     <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
@@ -299,12 +366,12 @@ function ClickableSummaryCard({
     >
       <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">{label}</p>
       <p className={`mt-1 text-2xl font-bold leading-none ${color}`}>{value}</p>
-      <p className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-blue-500">View list →</p>
+      <p className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-blue-500">View list â†’</p>
     </button>
   );
 }
 
-// ── Drill-down modal ───────────────────────────────────────────────────────────
+// â”€â”€ Drill-down modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function DrillDownModal({
   title,
@@ -365,7 +432,7 @@ function DrillDownModal({
             className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 hover:text-slate-700"
             aria-label="Close"
           >
-            ✕
+            âœ•
           </button>
         </div>
 
@@ -390,7 +457,7 @@ function DrillDownModal({
         <div className="px-5 py-3 border-b border-slate-100">
           <input
             type="search"
-            placeholder="Search by name or admission number…"
+            placeholder="Search by name or admission number..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className={inputClass + " w-full"}
@@ -430,7 +497,7 @@ function DrillDownModal({
                     <td className="px-5 py-3 font-medium text-slate-900">{row.student.name}</td>
                     <td className="px-4 py-3 font-mono text-xs text-slate-600">{row.student.admissionNumber}</td>
                     <td className="px-4 py-3 text-slate-600">
-                      {row.student.className ?? "—"}
+                      {row.student.className ?? EM_DASH}
                       {row.student.streamName ? ` / ${row.student.streamName}` : ""}
                     </td>
                     <td className="px-4 py-3">
@@ -439,7 +506,7 @@ function DrillDownModal({
                           {ATTENDANCE_PROFILE_LABELS[row.student.studentType === "DAY" ? "DAY_SCHOLAR" : "BOARDER"]}
                         </span>
                       ) : (
-                        <span className="text-slate-400">—</span>
+                        <span className="text-slate-400">{EM_DASH}</span>
                       )}
                     </td>
                     {status === "PRESENT" && (
@@ -449,7 +516,7 @@ function DrillDownModal({
                     )}
                     {status === "ABSENT" && (
                       <td className="px-4 py-3 text-slate-500">
-                        {row.lastScan ? formatTime(row.lastScan.scannedAt) : "—"}
+                        {row.lastScan ? formatTime(row.lastScan.scannedAt) : EM_DASH}
                       </td>
                     )}
                   </tr>
@@ -474,7 +541,7 @@ function DrillDownModal({
   );
 }
 
-// ── Device ID helper ───────────────────────────────────────────────────────────
+// â”€â”€ Device ID helper â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function getDeviceId(): string {
   const key = "schoolconnect_nfc_device_id";
@@ -497,7 +564,7 @@ function offlineReasonMessage(reason?: string) {
   }
 }
 
-// ── Page ───────────────────────────────────────────────────────────────────────
+// â”€â”€ Page â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export function NfcAttendancePage() {
   const [params] = useSearchParams();
@@ -531,6 +598,7 @@ export function NfcAttendancePage() {
   const [direction, setDirection] = useState<AttendanceDirection>("TAP_IN");
   const directionRef = useRef<AttendanceDirection>("TAP_IN");
   directionRef.current = direction;
+  const previewRef = useRef<HTMLElement | null>(null);
 
   const [date, setDate] = useState(() => new Date().toISOString().split("T")[0]);
   const [classId, setClassId] = useState("");
@@ -557,7 +625,10 @@ export function NfcAttendancePage() {
 
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState("");
-  const [printing, setPrinting] = useState<PrintMode | null>(null);
+  const [previewError, setPreviewError] = useState("");
+  const [generatingPreview, setGeneratingPreview] = useState(false);
+  const [printPreview, setPrintPreview] = useState<AttendancePrintDocument | null>(null);
+  const generatingPreviewRef = useRef(false);
 
   const todayDate = new Date().toISOString().split("T")[0]!;
 
@@ -565,13 +636,18 @@ export function NfcAttendancePage() {
   useEffect(() => {
     fetchAttendanceClasses()
       .then((data) => setClasses(data.classes))
-      .catch(() => { /* silently ignore — filters still work with UUIDs */ });
+      .catch(() => { /* silently ignore; filters still work with UUIDs */ });
   }, []);
 
   // When classId changes, clear streamId if it doesn't belong to the new class
   const selectedClass = classes.find((c) => c.id === classId) ?? null;
   const availableStreams = selectedClass?.streams ?? [];
   const selectedStream = availableStreams.find((stream) => stream.id === streamId) ?? null;
+  const selectedStudentTypeLabel = studentType === "ALL" ? "All" : studentType === "DAY" ? "Day Scholars" : "Boarders";
+  const selectedAttendanceStatusLabel = gateStatusFilter === "ALL" ? "All statuses" : gateStatusFilter === "PRESENT" ? "Present" : gateStatusFilter === "LATE" ? "Late" : "Absent";
+  const selectedCampusStatusLabel = campusStatusFilter === "ALL" ? "All campus statuses" : campusStatusFilter === "ON_CAMPUS" ? "On Campus" : "Off Campus";
+  const selectedSessionLabel = classroomSessionFilter === "ALL" ? "All sessions" : classroomSessionFilter === "MORNING_CLASS" ? "Morning Class" : classroomSessionFilter === "NIGHT_PREP" ? "Night Prep" : "Unclassified";
+  const canGeneratePreview = /^\d{4}-\d{2}-\d{2}$/.test(date);
 
   function buildGateFilters(
     attendanceStatusOverride?: "ALL" | "PRESENT" | "LATE" | "ABSENT",
@@ -669,67 +745,95 @@ export function NfcAttendancePage() {
     setRegisterPage(1);
   }
 
-  async function handlePrint(mode: PrintMode) {
-    setPrinting(mode);
-    setLoadError("");
-    try {
-      const attendanceStatus = mode === "FULL"
-        ? gateStatusFilter
-        : mode === "PRESENT"
-          ? "PRESENT"
-          : "ABSENT";
-      const freshReport = await fetchGateAttendanceReport(buildGateFilters(attendanceStatus));
-      const printRows = mode === "FULL"
-        ? freshReport.rows
-        : mode === "PRESENT"
-          ? freshReport.rows.filter((row) => row.attendanceStatus === "PRESENT" || row.attendanceStatus === "LATE")
-          : freshReport.rows.filter((row) => row.attendanceStatus === "ABSENT");
+  async function generatePreviewDocument() {
+    const generatedAt = new Date().toISOString();
 
-      if (printRows.length === 0) {
-        setLoadError("No students match these filters.");
-        return;
-      }
-
-      const printWindow = window.open("", "attendance-register-print", "width=1280,height=900");
-      if (!printWindow) {
-        throw new Error("Print window was blocked. Please allow pop-ups and try again.");
-      }
-
-      const generatedAt = new Date().toISOString();
-      const documentPayload = buildAttendancePrintDocument({
-        schoolName: schoolBranding.schoolName,
-        schoolAddress: schoolBranding.address,
-        schoolPhone: schoolBranding.phone,
-        schoolEmail: schoolBranding.email,
-        schoolLogoUrl: schoolBranding.logoUrl,
+    if (view === "GATE") {
+      const freshReport = await fetchGateAttendanceReport({
+        ...buildGateFilters(),
+        search: search || undefined,
+      });
+      setGateReport(freshReport);
+      return buildGatePreviewDocument({
         date: freshReport.date,
         className: selectedClass?.name ?? "All classes",
         streamName: selectedStream?.name ?? "All streams",
-        studentType: studentType === "ALL" ? "All students" : studentType === "DAY" ? "Day Scholars" : "Boarders",
-        attendanceStatus: attendanceStatus === "ALL" ? "All statuses" : attendanceStatus,
-        campusStatus: campusStatusFilter === "ALL" ? "All campus statuses" : campusStatusFilter,
+        studentType: selectedStudentTypeLabel,
+        attendanceStatus: selectedAttendanceStatusLabel,
+        campusStatus: selectedCampusStatusLabel,
         generatedAt,
-        rows: printRows,
+        report: freshReport,
       });
-
-      let printed = false;
-      const finalizePrint = () => {
-        if (printed) return;
-        printed = true;
-        printWindow.print();
-        printWindow.close();
-      };
-      printWindow.onload = finalizePrint;
-      printWindow.document.open();
-      printWindow.document.write(documentPayload.html);
-      printWindow.document.close();
-      printWindow.focus();
-      window.setTimeout(finalizePrint, 250);
-    } catch (caught) {
-      setLoadError(caught instanceof Error ? caught.message : "Could not prepare attendance register printout");
-    } finally {
-      setPrinting(null);
     }
+
+    if (view === "CLASSROOM") {
+      const freshReport = await fetchClassroomAttendanceReport({
+        date,
+        classId: classId || undefined,
+        streamId: streamId || undefined,
+        search: search || undefined,
+        studentType,
+        sessionType: classroomSessionFilter,
+      });
+      setClassroomReport(freshReport);
+      return buildClassroomPreviewDocument({
+        date: freshReport.date,
+        className: selectedClass?.name ?? "All classes",
+        streamName: selectedStream?.name ?? "All streams",
+        studentType: selectedStudentTypeLabel,
+        sessionType: selectedSessionLabel,
+        generatedAt,
+        report: freshReport,
+      });
+    }
+
+    const freshRegister = await fetchNfcAttendanceRegister({
+      date,
+      classId: classId || undefined,
+      streamId: streamId || undefined,
+      search: search || undefined,
+      studentType: studentType !== "ALL" ? studentType : undefined,
+    });
+    setRegister(freshRegister);
+    return buildRegisterPreviewDocument({
+      date: freshRegister.date,
+      className: selectedClass?.name ?? "All classes",
+      streamName: selectedStream?.name ?? "All streams",
+      studentType: selectedStudentTypeLabel,
+      generatedAt,
+      register: freshRegister,
+    });
+  }
+
+  async function handleGeneratePreview() {
+    if (!canGeneratePreview || generatingPreviewRef.current) return;
+    generatingPreviewRef.current = true;
+    setGeneratingPreview(true);
+    setPreviewError("");
+    try {
+      const preview = await generatePreviewDocument();
+      setPrintPreview(preview);
+      window.requestAnimationFrame(() => {
+        if (typeof previewRef.current?.scrollIntoView === "function") {
+          previewRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+        }
+      });
+    } catch (caught) {
+      console.error("Attendance preview generation failed", caught);
+      setPreviewError("Could not generate the attendance preview. Check the selected filters and try again.");
+    } finally {
+      generatingPreviewRef.current = false;
+      setGeneratingPreview(false);
+    }
+  }
+
+  function handlePrintPreview() {
+    if (!printPreview) {
+      setPreviewError("Generate the attendance preview first.");
+      return;
+    }
+    setPreviewError("");
+    window.print();
   }
 
   useEffect(() => {
@@ -877,7 +981,7 @@ export function NfcAttendancePage() {
   };
 
   return (
-    <main className="grid gap-4 lg:gap-5">
+    <main className="attendance-page-root grid gap-4 lg:gap-5">
       <header className="page-header pb-0">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div className="min-w-0">
@@ -913,10 +1017,10 @@ export function NfcAttendancePage() {
             <button
               type="button"
               className="btn btn-secondary px-4"
-              onClick={() => void handlePrint("FULL")}
-              disabled={loading || printing !== null}
+              onClick={() => void handleGeneratePreview()}
+              disabled={!canGeneratePreview || generatingPreview}
             >
-              {printing === "FULL" ? "Preparing..." : "Export"}
+              {generatingPreview ? "Generating..." : "Generate"}
             </button>
           </div>
         </div>
@@ -946,7 +1050,7 @@ export function NfcAttendancePage() {
         <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-xs text-emerald-800">
           <p className="font-bold">Local Attendance Register is ready.</p>
           <p className="mt-1">
-            Students: {snapshotRefresh.validity.diagnostics.studentCount} · Tags: {snapshotRefresh.validity.diagnostics.tagCount} · Pending attendance sync: {pendingCount}
+            Students: {snapshotRefresh.validity.diagnostics.studentCount} | Tags: {snapshotRefresh.validity.diagnostics.tagCount} | Pending attendance sync: {pendingCount}
           </p>
         </div>
       )}
@@ -957,7 +1061,129 @@ export function NfcAttendancePage() {
         </div>
       ) : null}
 
-      {/* Summary cards — PRESENT and ABSENT are clickable */}
+      {previewError ? (
+        <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+          {previewError}
+        </div>
+      ) : null}
+
+      {printPreview ? (
+        <section
+          ref={previewRef}
+          data-testid="attendance-preview-section"
+          className="attendance-preview-section report-print-area"
+        >
+          <div className="no-print flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-blue-100 bg-blue-50/70 px-4 py-3">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.18em] text-blue-700">Attendance Preview</p>
+              <p className="mt-1 text-sm font-semibold text-slate-900">{printPreview.scopeLabel}</p>
+              <p className="text-xs text-slate-600">Generated {formatPrintDateTime(printPreview.generatedAt)}</p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button type="button" className="btn btn-secondary px-4" onClick={handlePrintPreview}>
+                Print
+              </button>
+              <button type="button" className="btn btn-secondary px-4" onClick={() => setPrintPreview(null)}>
+                Close Preview
+              </button>
+            </div>
+          </div>
+
+          <article data-testid="attendance-preview-sheet" className="attendance-preview-sheet report-print-page">
+            <header className="attendance-preview-header">
+              <div className="attendance-preview-brand">
+                {schoolBranding.logoUrl ? (
+                  <img
+                    className="attendance-preview-logo"
+                    src={schoolBranding.logoUrl}
+                    alt={`${schoolBranding.schoolName} logo`}
+                  />
+                ) : null}
+                <div className="min-w-0">
+                  <p className="attendance-preview-overline">School Connect</p>
+                  <h2 className="attendance-preview-school">{schoolBranding.schoolName}</h2>
+                  <p className="attendance-preview-contact">
+                    {[schoolBranding.address, schoolBranding.phone, schoolBranding.email].filter(Boolean).join(" | ")}
+                  </p>
+                </div>
+              </div>
+              <div className="attendance-preview-heading">
+                <p className="attendance-preview-title">{printPreview.title}</p>
+                <p className="attendance-preview-generated">Generated {formatPrintDateTime(printPreview.generatedAt)}</p>
+              </div>
+            </header>
+
+            <section className="attendance-preview-meta">
+              {printPreview.metadata.map((item) => (
+                <div key={item.label} className="attendance-preview-meta-card">
+                  <span className="attendance-preview-meta-label">{item.label}</span>
+                  <span className="attendance-preview-meta-value">{item.value || EM_DASH}</span>
+                </div>
+              ))}
+            </section>
+
+            <section className="attendance-preview-summary">
+              {printPreview.summary.map((item) => (
+                <div key={item.label} className="attendance-preview-summary-card">
+                  <span className="attendance-preview-summary-label">{item.label}</span>
+                  <span className="attendance-preview-summary-value">{item.value}</span>
+                </div>
+              ))}
+            </section>
+
+            <div className="attendance-preview-table-wrap">
+              <table data-testid="attendance-preview-table" className="attendance-preview-table">
+                <thead>
+                  <tr>
+                    <th className="attendance-preview-col-number">No.</th>
+                    <th className="attendance-preview-col-admission">Admission No.</th>
+                    <th className="attendance-preview-col-student">Student name</th>
+                    <th className="attendance-preview-col-type">Student type</th>
+                    <th className="attendance-preview-col-status">Status</th>
+                    <th className="attendance-preview-col-time">First seen</th>
+                    <th className="attendance-preview-col-time">Last movement / checkout</th>
+                    {printPreview.showSource ? <th className="attendance-preview-col-source">Reader / Source</th> : null}
+                    <th className="attendance-preview-col-remarks">Remarks</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {printPreview.rows.length > 0 ? (
+                    printPreview.rows.map((row, index) => (
+                      <tr key={row.id}>
+                        <td>{index + 1}</td>
+                        <td>{row.admissionNumber || EM_DASH}</td>
+                        <td>{row.studentName || EM_DASH}</td>
+                        <td>{row.studentType || EM_DASH}</td>
+                        <td>
+                          <span className="attendance-preview-status">{row.status || EM_DASH}</span>
+                        </td>
+                        <td>{row.firstSeen || EM_DASH}</td>
+                        <td>{row.lastMovement || EM_DASH}</td>
+                        {printPreview.showSource ? <td>{row.source || EM_DASH}</td> : null}
+                        <td>{row.remarks || EM_DASH}</td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan={printPreview.showSource ? 9 : 8} className="attendance-preview-empty">
+                        {printPreview.emptyMessage}
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            <footer className="attendance-preview-footer">
+              <span>{schoolBranding.schoolName}</span>
+              <span>{printPreview.scopeLabel}</span>
+              <span className="attendance-preview-page-number" />
+            </footer>
+          </article>
+        </section>
+      ) : null}
+
+      {/* Summary cards; PRESENT and ABSENT are clickable */}
       {view === "REGISTER" ? (
         <section className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
           <SummaryCard label="Total Students" value={summary?.totalStudents ?? 0} color="text-slate-900" />
@@ -1051,7 +1277,7 @@ export function NfcAttendancePage() {
                       <div key={i} className="flex items-center justify-between text-xs text-slate-700">
                         <span className="font-medium">{s.name}</span>
                         <span className={`rounded-full px-1.5 py-0.5 font-bold ${s.status === "VALID" ? "bg-emerald-100 text-emerald-700" : s.status === "LATE" ? "bg-amber-100 text-amber-700" : s.status === "DUPLICATE" ? "bg-yellow-100 text-yellow-700" : "bg-red-100 text-red-700"}`}>{s.status}</span>
-                        <span className="text-slate-400">{s.direction === "TAP_IN" ? "Punch IN" : "Punch OUT"} · {s.syncStatus}</span>
+                        <span className="text-slate-400">{s.direction === "TAP_IN" ? "Punch IN" : "Punch OUT"} | {s.syncStatus}</span>
                       </div>
                     ))}
                   </div>
@@ -1075,11 +1301,11 @@ export function NfcAttendancePage() {
                     </span>
                   </div>
                   <p className="text-xs text-slate-600">
-                    {lastScan.student.admissionNumber} · {lastScan.student.className ?? "No class"}
+                    {lastScan.student.admissionNumber} | {lastScan.student.className ?? "No class"}
                   </p>
                   <p className="mt-1 text-xs text-slate-500">
-                    {lastScan.direction} · {new Date(lastScan.scannedAt).toLocaleTimeString()}
-                    {lastScan.reason ? ` · ${lastScan.reason}` : ""}
+                    {lastScan.direction} | {new Date(lastScan.scannedAt).toLocaleTimeString()}
+                    {lastScan.reason ? ` | ${lastScan.reason}` : ""}
                   </p>
                 </section>
               ) : null}
@@ -1225,7 +1451,7 @@ export function NfcAttendancePage() {
                   onClick={() => void loadCurrentView()}
                   disabled={loading}
                 >
-                  {loading ? "Loading…" : "Apply Filters"}
+                  {loading ? "Loading..." : "Apply Filters"}
                 </button>
                 <button
                   className="btn btn-secondary px-4"
@@ -1243,33 +1469,36 @@ export function NfcAttendancePage() {
 
               <div className="flex flex-col gap-2 lg:items-end">
                 <div>
-                  <p className="text-[11px] font-bold uppercase tracking-wide text-slate-600">Print Register</p>
-                  <p className="mt-1 text-xs text-slate-500">One fresh fetch before printing</p>
+                  <p className="text-[11px] font-bold uppercase tracking-wide text-slate-600">Print Preview</p>
+                  <p className="mt-1 text-xs text-slate-500">Generate a fresh canonical preview before printing</p>
                 </div>
                 <div data-testid="attendance-print-actions" className="flex flex-wrap gap-2">
                   <button
                     type="button"
-                    className="btn btn-secondary justify-center px-4"
-                    onClick={() => void handlePrint("FULL")}
-                    disabled={loading || printing !== null}
+                    className="btn btn-primary justify-center px-4"
+                    data-testid="attendance-generate-button"
+                    onClick={() => void handleGeneratePreview()}
+                    disabled={!canGeneratePreview || generatingPreview}
                   >
-                    {printing === "FULL" ? "Preparing..." : "Full Register"}
+                    {generatingPreview ? "Generating..." : "Generate"}
                   </button>
                   <button
                     type="button"
                     className="btn btn-secondary justify-center px-4"
-                    onClick={() => void handlePrint("PRESENT")}
-                    disabled={loading || printing !== null}
+                    data-testid="attendance-preview-print-button"
+                    onClick={handlePrintPreview}
+                    disabled={!printPreview}
                   >
-                    {printing === "PRESENT" ? "Preparing..." : "Present Students"}
+                    Print
                   </button>
                   <button
                     type="button"
                     className="btn btn-secondary justify-center px-4"
-                    onClick={() => void handlePrint("ABSENT")}
-                    disabled={loading || printing !== null}
+                    data-testid="attendance-preview-close-button"
+                    onClick={() => setPrintPreview(null)}
+                    disabled={!printPreview}
                   >
-                    {printing === "ABSENT" ? "Preparing..." : "Absent Students"}
+                    Close Preview
                   </button>
                 </div>
               </div>
@@ -1277,8 +1506,8 @@ export function NfcAttendancePage() {
           </section>
         </div>
 
-	        {view === "REGISTER" ? (
-	        <section data-testid="attendance-register-card" className="premium-card overflow-hidden rounded-xl">
+      {view === "REGISTER" ? (
+        <section data-testid="attendance-register-card" className="premium-card overflow-hidden rounded-xl">
           <div className="border-b border-slate-100 px-4 py-3">
             <h2 className="text-base font-bold text-slate-950">Class Attendance Register</h2>
             <p className="text-xs text-slate-500">
@@ -1306,7 +1535,7 @@ export function NfcAttendancePage() {
                     <td className="px-4 py-2.5 font-medium text-slate-900">{row.student.name}</td>
                     <td className="px-4 py-2.5 font-mono text-xs text-slate-600">{row.student.admissionNumber}</td>
                     <td className="px-4 py-2.5 text-slate-600">
-                      {row.student.className ?? "—"}
+                      {row.student.className ?? EM_DASH}
                       {row.student.streamName ? ` / ${row.student.streamName}` : ""}
                     </td>
                     <td className="px-4 py-2.5">
@@ -1315,7 +1544,7 @@ export function NfcAttendancePage() {
                           {ATTENDANCE_PROFILE_LABELS[row.student.studentType === "DAY" ? "DAY_SCHOLAR" : "BOARDER"]}
                         </span>
                       ) : (
-                        <span className="text-slate-300">—</span>
+                        <span className="text-slate-300">{EM_DASH}</span>
                       )}
                     </td>
                     <td className="px-4 py-2.5 text-slate-700">{formatTime(row.tapIn?.scannedAt)}</td>
@@ -1329,10 +1558,10 @@ export function NfcAttendancePage() {
                       {row.lastScan ? (
                         <span>
                           {formatTime(row.lastScan.scannedAt)}
-                          {row.lastScan.reason ? ` · ${row.lastScan.reason}` : ""}
+                          {row.lastScan.reason ? ` | ${row.lastScan.reason}` : ""}
                         </span>
                       ) : (
-                        "—"
+                        EM_DASH
                       )}
                     </td>
                   </tr>
@@ -1349,7 +1578,7 @@ export function NfcAttendancePage() {
                 {!register && !loadError ? (
                   <tr>
                     <td colSpan={8} className="px-4 py-10 text-center text-slate-500">
-                      Loading…
+                      Loading...
                     </td>
                   </tr>
                 ) : null}
@@ -1411,8 +1640,8 @@ export function NfcAttendancePage() {
               </div>
             </div>
           ) : null}
-	        </section>
-          ) : null}
+        </section>
+      ) : null}
 
           {view === "GATE" ? (
             <section className="premium-card overflow-hidden rounded-xl">
@@ -1443,17 +1672,17 @@ export function NfcAttendancePage() {
                           <p className="font-medium text-slate-900">{row.studentName}</p>
                           <p className="font-mono text-xs text-slate-500">{row.admissionNumber}</p>
                         </td>
-                        <td className="px-4 py-3 text-slate-600">{row.className ?? "â€”"}{row.streamName ? ` / ${row.streamName}` : ""}</td>
-                        <td className="px-4 py-3 text-slate-600">{row.scholarType ?? "â€”"}</td>
+                        <td className="px-4 py-3 text-slate-600">{row.className ?? EM_DASH}{row.streamName ? ` / ${row.streamName}` : ""}</td>
+                        <td className="px-4 py-3 text-slate-600">{row.scholarType ?? EM_DASH}</td>
                         <td className="px-4 py-3">
                           <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-bold ${row.attendanceStatus === "PRESENT" ? "bg-green-100 text-green-700" : row.attendanceStatus === "LATE" ? "bg-amber-100 text-amber-700" : "bg-slate-100 text-slate-600"}`}>
                             {row.attendanceStatus}
                           </span>
                         </td>
-                        <td className="px-4 py-3 text-slate-700">{formatTime(row.arrivalTime)}{row.lateIndicator ? " Â· Late" : ""}</td>
+                        <td className="px-4 py-3 text-slate-700">{formatTime(row.arrivalTime)}{row.lateIndicator ? " | Late" : ""}</td>
                         <td className="px-4 py-3 text-slate-700">{row.departureNotRecorded ? "Departure not recorded" : formatTime(row.departureTime)}</td>
                         <td className="px-4 py-3 text-slate-700">{row.campusStatus}</td>
-                        <td className="px-4 py-3 text-slate-600">{row.readerUsed ?? "â€”"}</td>
+                        <td className="px-4 py-3 text-slate-600">{row.readerUsed ?? EM_DASH}</td>
                         <td className="px-4 py-3 text-xs text-slate-600">
                           <div>{row.feeHoldAttempt ? `Restricted attempt ${formatDateTime(row.lastRestrictedAttemptAt)}` : "No fee-hold attempt"}</div>
                           <div>{row.manualOverride ? "Manual override used" : row.offlineSynced ? "Offline-synced event" : "Live event"}</div>
@@ -1464,7 +1693,7 @@ export function NfcAttendancePage() {
                               Approve override
                             </button>
                           ) : (
-                            <span className="text-xs text-slate-400">â€”</span>
+                            <span className="text-xs text-slate-400">{EM_DASH}</span>
                           )}
                         </td>
                       </tr>
@@ -1504,13 +1733,13 @@ export function NfcAttendancePage() {
                           <p className="font-medium text-slate-900">{row.studentName}</p>
                           <p className="font-mono text-xs text-slate-500">{row.admissionNumber}</p>
                         </td>
-                        <td className="px-4 py-3 text-slate-600">{row.className ?? "â€”"}{row.streamName ? ` / ${row.streamName}` : ""}</td>
-                        <td className="px-4 py-3 text-slate-700">{row.morningAttendance ? "Present" : "â€”"}</td>
-                        <td className="px-4 py-3 text-slate-700">{row.nightPrepAttendance ? "Present" : row.missingBoarder ? "Missing boarder" : "â€”"}</td>
+                        <td className="px-4 py-3 text-slate-600">{row.className ?? EM_DASH}{row.streamName ? ` / ${row.streamName}` : ""}</td>
+                        <td className="px-4 py-3 text-slate-700">{row.morningAttendance ? "Present" : EM_DASH}</td>
+                        <td className="px-4 py-3 text-slate-700">{row.nightPrepAttendance ? "Present" : row.missingBoarder ? "Missing boarder" : EM_DASH}</td>
                         <td className="px-4 py-3 text-xs text-slate-600">
                           {row.wrongClassAttempt ? "Wrong class attempt" : row.sessionClosedScan ? "Session closed scan" : row.eventStatus}
                         </td>
-                        <td className="px-4 py-3 text-slate-600">{row.readerUsed ?? "â€”"}</td>
+                        <td className="px-4 py-3 text-slate-600">{row.readerUsed ?? EM_DASH}</td>
                         <td className="px-4 py-3 text-slate-600">{formatDateTime(row.originalDeviceTime)}</td>
                       </tr>
                     ))}
@@ -1537,3 +1766,4 @@ export function NfcAttendancePage() {
     </main>
   );
 }
+
