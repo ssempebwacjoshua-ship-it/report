@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import { useNavigate } from "react-router-dom";
 import { Link } from "react-router-dom";
 import { NfcSectionTabs } from "../components/nfc/NfcSectionTabs";
@@ -90,14 +90,24 @@ export function NfcWalletsPage() {
         <p className="mt-1 text-sm text-slate-500">View wallets, top up balances, view transactions and reconcile.</p>
       </header>
 
-      <NfcSectionTabs
-        tabs={[
-          { to: "/nfc/wallets", label: "Wallets" },
-          { to: "/nfc/wallets/top-up", label: "Top Up" },
-          { to: "/nfc/wallets/transactions", label: "Transactions" },
-          { to: "/nfc/wallets/reconcile", label: "Reconcile" },
-        ]}
-      />
+      <div
+        data-testid="wallet-tabs-sticky"
+        className="sticky top-0 z-30 -mx-1 bg-slate-50 px-1"
+        style={{
+          "--wallet-tabs-height": "44px",
+          "--wallet-detail-sticky-top": "calc(var(--wallet-tabs-height) + var(--app-section-gap))",
+          "--wallet-detail-max-height": "calc(100dvh - var(--app-topbar-height) - var(--wallet-tabs-height) - var(--app-section-gap) - var(--app-page-padding))",
+        } as CSSProperties}
+      >
+        <NfcSectionTabs
+          tabs={[
+            { to: "/nfc/wallets", label: "Wallets" },
+            { to: "/nfc/wallets/top-up", label: "Top Up" },
+            { to: "/nfc/wallets/transactions", label: "Transactions" },
+            { to: "/nfc/wallets/reconcile", label: "Reconcile" },
+          ]}
+        />
+      </div>
 
       {error ? <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div> : null}
       <section className="grid gap-3 sm:grid-cols-4">
@@ -106,7 +116,7 @@ export function NfcWalletsPage() {
         <Metric label="Frozen wallets" value={dashboard?.summary.frozenWallets ?? 0} />
         <Metric label="Today spend" value={money(dashboard?.summary.todayCanteenSpendCents ?? 0)} />
       </section>
-      <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
+      <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(320px,420px)]">
         <div className="premium-card rounded-xl p-4">
           <div className="mb-3 grid gap-2 md:grid-cols-4">
             <input className={inputClass} value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search student" />
@@ -155,10 +165,21 @@ export function NfcWalletsPage() {
             ))}
           </div>
         </div>
-        <aside className="premium-card rounded-xl p-4">
-          <h2 className="text-base font-bold text-slate-950">Wallet detail</h2>
-          {selected ? (
-            <div className="mt-3 grid gap-3 text-sm">
+        <aside
+          data-testid="wallet-detail-panel"
+          className="self-start xl:sticky"
+          style={{
+            top: "var(--wallet-detail-sticky-top)",
+            maxHeight: "var(--wallet-detail-max-height)",
+          }}
+        >
+          <div
+            data-testid="wallet-detail-card"
+            className="premium-card rounded-xl p-4 xl:max-h-[var(--wallet-detail-max-height)] xl:overflow-y-auto"
+          >
+            <h2 className="text-base font-bold text-slate-950">Wallet detail</h2>
+            {selected ? (
+              <div className="mt-3 grid gap-3 text-sm">
               <p className="font-bold text-slate-950">{selected.student.name}</p>
               <p className="text-slate-600">{selected.student.admissionNumber}</p>
               <p className="text-2xl font-bold text-slate-950">{money(selected.wallet.balanceCents)}</p>
@@ -194,8 +215,9 @@ export function NfcWalletsPage() {
                   <p>{selected.lastTransaction.type} · {money(selected.lastTransaction.amountCents)} · {new Date(selected.lastTransaction.createdAt).toLocaleString()}</p>
                 </div>
               ) : <p className="text-slate-500">No transactions yet.</p>}
-            </div>
-          ) : <p className="mt-3 text-sm text-slate-500">Select a wallet to view details.</p>}
+              </div>
+            ) : <p className="mt-3 text-sm text-slate-500">Select a wallet to view details.</p>}
+          </div>
         </aside>
       </section>
 
