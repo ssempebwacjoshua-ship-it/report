@@ -1,4 +1,6 @@
-﻿export type EnrollmentStatus = "ACTIVE" | "TRANSFERRED" | "COMPLETED" | "INACTIVE";
+import type { AttendanceProfile, AttendanceProfileFilter, LegacyStudentType } from "../attendanceProfiles";
+
+export type EnrollmentStatus = "ACTIVE" | "TRANSFERRED" | "COMPLETED" | "INACTIVE";
 export type PreferredContactMethod = "PHONE" | "SMS" | "EMAIL" | "WHATSAPP";
 export type ContactReadiness = "READY" | "NO_RECIPIENT" | "MISSING_PHONE_EMAIL";
 
@@ -18,6 +20,8 @@ export type StudentListItem = {
   id: string;
   admissionNumber: string;
   studentName: string;
+  attendanceProfile: AttendanceProfile;
+  studentType: LegacyStudentType;
   passportPhotoUrl?: string | null;
   passportPhotoUpdatedAt?: string | null;
   isActive: boolean;
@@ -60,6 +64,7 @@ export type StudentImportMode = "CREATE_ONLY" | "CREATE_AND_UPDATE_EXISTING";
 export type StudentCreateInput = {
   fullName: string;
   admissionNumber?: string;
+  attendanceProfile: AttendanceProfile;
   gender?: string;
   classId: string;
   streamId: string;
@@ -79,6 +84,7 @@ export type StudentPassportPhoto = {
 export type StudentImportRowInput = {
   admissionNumber?: string;
   fullName: string;
+  attendanceProfile?: AttendanceProfile | null;
   gender?: string;
   className: string;
   streamName: string;
@@ -144,5 +150,5 @@ export type StudentListFilters = {
   streamId?: string;
   search?: string;
   isActive?: string;
+  attendanceProfile?: AttendanceProfileFilter;
 };
-

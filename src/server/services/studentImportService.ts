@@ -1,4 +1,4 @@
-﻿import { parse as parseCsv } from "csv-parse/sync";
+import { parse as parseCsv } from "csv-parse/sync";
 import type { PrismaClient } from "@prisma/client";
 import { read, utils } from "xlsx";
 import type {
@@ -7,6 +7,10 @@ import type {
   StudentImportPreviewRow,
   StudentImportRowInput,
 } from "../../shared/types/students";
+import {
+  attendanceProfileToLegacyStudentType,
+  parseAttendanceProfile,
+} from "../../shared/attendanceProfiles";
 import { ensureAcademicSettingsBackedByDatabase } from "../repositories/settingsRepository";
 import { generateAdmissionNumber } from "./studentAdmissionNumberService";
 import { resolveCanonicalClassAndStreamInput } from "../../shared/utils/classStreamNormalization";
@@ -162,6 +166,7 @@ export function parseStudentsCsv(csvText: string): StudentImportRowInput[] {
     return {
       admissionNumber: text(pick(lk, "admissionNumber", "admission number", "adm no", "adm", "admission_number", "admno", "admnumber")),
       fullName: text(pick(lk, "fullName", "full name", "name", "student name", "studentname", "student_name")),
+      attendanceProfile: parseAttendanceProfile(text(pick(lk, "attendanceProfile", "attendance profile", "studentType", "student type", "scholarType", "scholar type"))),
       gender: text(pick(lk, "gender", "sex")),
       className: text(pick(lk, "class", "className", "class name", "classname", "class_name")),
       streamName: text(pick(lk, "stream", "streamName", "stream name", "streamname", "stream_name")),
@@ -183,6 +188,7 @@ export function parseStudentsXlsx(buffer: Buffer): StudentImportRowInput[] {
     return {
       admissionNumber: text(pick(lk, "admissionNumber", "admission number", "adm no", "adm", "admission_number", "admno", "admnumber")),
       fullName: text(pick(lk, "fullName", "full name", "name", "student name", "studentname", "student_name")),
+      attendanceProfile: parseAttendanceProfile(text(pick(lk, "attendanceProfile", "attendance profile", "studentType", "student type", "scholarType", "scholar type"))),
       gender: text(pick(lk, "gender", "sex")),
       className: text(pick(lk, "class", "className", "class name", "classname", "class_name")),
       streamName: text(pick(lk, "stream", "streamName", "stream name", "streamname", "stream_name")),
@@ -338,6 +344,7 @@ async function buildPreviewRows(prisma: PrismaClient, schoolCode: string, rows: 
     const admissionNumber = raw.admissionNumber?.trim() || "";
 
     if (!raw.fullName.trim()) errors.push("Full name is required.");
+    if (!raw.attendanceProfile) errors.push("Student type is required. Use Day Scholar or Boarder.");
     if (!raw.gender.trim()) errors.push("Gender is required.");
     if (!raw.className.trim()) errors.push("Class is required.");
     else if (!klass) errors.push(`Class "${raw.className}" does not match an existing class. Use names such as "Senior 1" or "S1".`);
@@ -474,7 +481,7 @@ async function processBatch(
       const name = splitName(row.raw.fullName);
       await prisma.student.update({
         where: { id: existingId },
-        data: { firstName: name.firstName, lastName: name.lastName, isActive: row.raw.status?.toLowerCase() !== "inactive" },
+        data: { firstName: name.firstName, lastName: name.lastName, attendanceProfile: row.raw.attendanceProfile!, studentType: attendanceProfileToLegacyStudentType(row.raw.attendanceProfile!), isActive: row.raw.status?.toLowerCase() !== "inactive" },
       });
       successCount += 1;
       updatedCount += 1;
@@ -491,7 +498,7 @@ async function processBatch(
         ? await prisma.$transaction(async (tx) => {
           const student = await tx.student.upsert({
             where: { schoolId_admissionNumber: { schoolId, admissionNumber: c.adm } },
-            create: { schoolId, admissionNumber: c.adm, firstName: name.firstName, lastName: name.lastName, isActive: c.isActive },
+            create: { schoolId, admissionNumber: c.adm, firstName: name.firstName, lastName: name.lastName, attendanceProfile: c.row.raw.attendanceProfile!, studentType: attendanceProfileToLegacyStudentType(c.row.raw.attendanceProfile!), isActive: c.isActive },
             update: {},
           });
           await tx.classEnrollment.upsert({
@@ -518,7 +525,7 @@ async function processBatch(
         })
         : await prisma.student.upsert({
           where: { schoolId_admissionNumber: { schoolId, admissionNumber: c.adm } },
-          create: { schoolId, admissionNumber: c.adm, firstName: name.firstName, lastName: name.lastName, isActive: c.isActive },
+          create: { schoolId, admissionNumber: c.adm, firstName: name.firstName, lastName: name.lastName, attendanceProfile: c.row.raw.attendanceProfile!, studentType: attendanceProfileToLegacyStudentType(c.row.raw.attendanceProfile!), isActive: c.isActive },
           update: {},
         }).then((student) => student.id);
       existingByAdm.set(norm(c.adm), studentId);
@@ -825,4 +832,6 @@ export async function commitStudentImport(prisma: PrismaClient, schoolCode: stri
   const queued = await createStudentImportJob(prisma, schoolCode, rows, mode);
   return { ...preview, ...queued };
 }
+
+
 

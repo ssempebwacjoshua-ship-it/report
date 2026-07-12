@@ -129,6 +129,7 @@ model Student {
   admissionNumber    String
   firstName          String
   lastName           String
+  attendanceProfile  AttendanceProfile         @default(DAY_SCHOLAR)
   studentType        StudentType?
   passportPhotoUrl   String?
   passportPhotoUpdatedAt DateTime?
@@ -1273,6 +1274,11 @@ enum StudentFeeHoldStatus {
 enum StudentType {
   DAY
   BOARDING
+}
+
+enum AttendanceProfile {
+  DAY_SCHOLAR
+  BOARDER
 }
 
 enum GateScanResult {

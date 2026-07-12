@@ -431,4 +431,37 @@ describe("readerAttendanceService", () => {
     expect(db.stores.classroomAttendanceEvents).toHaveLength(1);
     expect(db.stores.campusMovementEvents).toHaveLength(0);
   });
+
+  it("records only campus movement for a boarder gate scan", async () => {
+    const db = createDb({ studentType: "BOARDING" });
+    const result = await processLocationAwareReaderEvent(gateReader({ studentScope: "ALL_STUDENTS" }), {
+      eventId: "event-boarder-gate",
+      credential: "WB-1",
+      deviceTime: "2026-07-11T04:45:00.000Z",
+    }, db as never);
+
+    expect(result.statusCode).toBe(200);
+    expect(result.response).toMatchObject({
+      success: true,
+      action: "GATE_ENTRY",
+      status: "MOVEMENT_RECORDED",
+      message: "Campus entry recorded",
+    });
+    expect(db.stores.dailyAttendances).toHaveLength(0);
+    expect(db.stores.campusMovementEvents.map((item) => item.type)).toEqual(["GATE_ENTRY"]);
+  });
+
+  it("does not let a day scholar classroom scan establish school-day attendance", async () => {
+    const db = createDb({ studentType: "DAY" });
+    const result = await processLocationAwareReaderEvent(classroomReader(), {
+      eventId: "event-day-classroom",
+      credential: "WB-1",
+      deviceTime: "2026-07-11T05:00:00.000Z",
+    }, db as never);
+
+    expect(result.statusCode).toBe(200);
+    expect(result.response.status).toBe("MORNING_CLASS_PRESENT");
+    expect(db.stores.classroomAttendanceEvents).toHaveLength(1);
+    expect(db.stores.dailyAttendances).toHaveLength(0);
+  });
 });

@@ -4,19 +4,19 @@
   StudentCreateInput,
   StudentImportJob,
   StudentImportPreview,
-  StudentListItem,
   StudentsResponse,
 } from "../shared/types/students";
 import { getApiBaseUrl, makeSchoolRequestHeaders, parseApiError, TOKEN_KEY } from "./apiBase";
 
 const API_BASE = getApiBaseUrl();
 
-export async function fetchStudents(filters: { classId?: string; streamId?: string; search?: string; isActive?: string } = {}): Promise<StudentsResponse> {
+export async function fetchStudents(filters: { classId?: string; streamId?: string; search?: string; isActive?: string; attendanceProfile?: string } = {}): Promise<StudentsResponse> {
   const params = new URLSearchParams();
   if (filters.classId) params.set("classId", filters.classId);
   if (filters.streamId) params.set("streamId", filters.streamId);
   if (filters.search) params.set("search", filters.search);
   if (filters.isActive) params.set("isActive", filters.isActive);
+  if (filters.attendanceProfile) params.set("attendanceProfile", filters.attendanceProfile);
   const response = await fetch(`${API_BASE}/api/students?${params.toString()}`, {
     headers: makeSchoolRequestHeaders(),
   });
@@ -147,4 +147,6 @@ export const EMPTY_CONTACT_INPUT: GuardianContactInput = {
   canReceiveReports: true,
   notes: "",
 };
+
+
 

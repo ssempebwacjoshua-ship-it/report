@@ -209,6 +209,10 @@ describe("locationAttendanceService", () => {
     expect(summary.late).toBe(1);
     expect(summary.absent).toBe(1);
     expect(summary.attendanceRate).toBe(66.7);
+    expect(summary.dayScholarsPresent).toBe(2);
+    expect(summary.dayScholarsAbsent).toBe(0);
+    expect(summary.boardersPresent).toBe(0);
+    expect(summary.boardersNotSeenToday).toBe(1);
     expect(summary.onCampus).toBe(1);
     expect(summary.offCampus).toBe(2);
 
@@ -229,6 +233,10 @@ describe("locationAttendanceService", () => {
     expect(summary.present).toBe(0);
     expect(summary.absent).toBe(0);
     expect(summary.attendanceRate).toBe(0);
+    expect(summary.dayScholarsPresent).toBe(0);
+    expect(summary.dayScholarsAbsent).toBe(0);
+    expect(summary.boardersPresent).toBe(0);
+    expect(summary.boardersNotSeenToday).toBe(0);
   });
 
   it("uses only canonical physical-reader attendance in the register", async () => {

@@ -1,7 +1,14 @@
-﻿import type { GuardianContactInput } from "../../shared/types/students";
 import type { PrismaClient } from "@prisma/client";
-import type { ContactReadiness, StudentListItem } from "../../shared/types/students";
-import type { StudentCreateInput } from "../../shared/types/students";
+import {
+  attendanceProfileToLegacyStudentType,
+  resolveAttendanceProfile,
+} from "../../shared/attendanceProfiles";
+import type {
+  ContactReadiness,
+  GuardianContactInput,
+  StudentCreateInput,
+  StudentListItem,
+} from "../../shared/types/students";
 
 export async function countActiveStudentsForClass(prisma: PrismaClient, classId: string, termId: string): Promise<number> {
   return prisma.classEnrollment.count({ where: { classId, termId, isActive: true, status: "ACTIVE", student: { isActive: true } } });
@@ -29,10 +36,13 @@ function toStudentListItem(
   streamRecord: StreamRecord | null,
 ): StudentListItem {
   const contacts = enrollment.student.guardianContacts;
+  const attendanceProfile = resolveAttendanceProfile(enrollment.student);
   return {
     id: enrollment.student.id,
     admissionNumber: enrollment.student.admissionNumber,
     studentName: `${enrollment.student.firstName} ${enrollment.student.lastName}`,
+    attendanceProfile,
+    studentType: attendanceProfileToLegacyStudentType(attendanceProfile),
     isActive: enrollment.student.isActive,
     enrollmentStatus: enrollment.status,
     className: classRecord?.name ?? "Unknown class",
@@ -62,7 +72,14 @@ function toStudentListItem(
 async function loadStudentEnrollmentRows(
   prisma: PrismaClient,
   schoolCode: string,
-  filters?: { classId?: string; streamId?: string; search?: string; studentId?: string; isActive?: string },
+  filters?: {
+    classId?: string;
+    streamId?: string;
+    search?: string;
+    studentId?: string;
+    isActive?: string;
+    attendanceProfile?: "ALL" | "DAY_SCHOLAR" | "BOARDER";
+  },
 ) {
   const school = await prisma.school.findUnique({
     where: { code: schoolCode },
@@ -75,9 +92,6 @@ async function loadStudentEnrollmentRows(
   if (!school || !academicYear || !term) return [];
 
   const search = filters?.search?.trim();
-  // Do NOT include class/stream relations here ? Prisma throws "Inconsistent query
-  // result" when classId/streamId FKs point to deleted records (orphaned rows in
-  // the live DB).  Classes and streams are fetched separately below.
   return prisma.classEnrollment.findMany({
     where: {
       schoolId: school.id,
@@ -86,24 +100,31 @@ async function loadStudentEnrollmentRows(
       classId: filters?.classId || undefined,
       streamId: filters?.streamId || undefined,
       studentId: filters?.studentId || undefined,
-      ...(filters?.isActive ? { student: { isActive: filters.isActive === "true" } } : { isActive: true, status: "ACTIVE" }),
-      ...(search
-        ? {
-            student: {
+      ...(filters?.isActive ? {} : { isActive: true, status: "ACTIVE" }),
+      student: {
+        ...(filters?.isActive ? { isActive: filters.isActive === "true" } : {}),
+        ...(filters?.attendanceProfile && filters.attendanceProfile !== "ALL"
+          ? { attendanceProfile: filters.attendanceProfile }
+          : {}),
+        ...(search
+          ? {
               OR: [
                 { firstName: { contains: search, mode: "insensitive" } },
                 { lastName: { contains: search, mode: "insensitive" } },
                 { admissionNumber: { contains: search, mode: "insensitive" } },
                 { guardianContacts: { some: { phone: { contains: search, mode: "insensitive" } } } },
               ],
-            },
-          }
-        : {}),
+            }
+          : {}),
+      },
     },
     include: {
-      student: { include: { guardianContacts: { orderBy: [{ isPrimary: "desc" }, { guardianName: "asc" }] } } },
+      student: {
+        include: {
+          guardianContacts: { orderBy: [{ isPrimary: "desc" }, { guardianName: "asc" }] },
+        },
+      },
     },
-    // No orderBy on relation fields ? sorted in JS after class/stream maps are built
   });
 }
 
@@ -127,7 +148,7 @@ async function lookupClassesAndStreams(
 export async function listEnrolledStudents(
   prisma: PrismaClient,
   schoolCode: string,
-  filters?: { classId?: string; streamId?: string; search?: string },
+  filters?: { classId?: string; streamId?: string; search?: string; attendanceProfile?: "ALL" | "DAY_SCHOLAR" | "BOARDER" },
 ): Promise<StudentListItem[]> {
   const rows = await loadStudentEnrollmentRows(prisma, schoolCode, filters);
   const school = await prisma.school.findUnique({ where: { code: schoolCode }, select: { id: true } });
@@ -185,7 +206,11 @@ export async function getStudentByAdmissionNumber(prisma: PrismaClient, schoolCo
   });
 }
 
-export async function listStudentsForSchool(prisma: PrismaClient, schoolCode: string, filters?: { classId?: string; streamId?: string; search?: string; isActive?: string }) {
+export async function listStudentsForSchool(
+  prisma: PrismaClient,
+  schoolCode: string,
+  filters?: { classId?: string; streamId?: string; search?: string; isActive?: string; attendanceProfile?: "ALL" | "DAY_SCHOLAR" | "BOARDER" },
+) {
   return loadStudentEnrollmentRows(prisma, schoolCode, filters);
 }
 
@@ -207,6 +232,8 @@ export async function createStudentRecord(
         admissionNumber: input.admissionNumber,
         firstName: input.fullName.trim(),
         lastName: "",
+        attendanceProfile: input.attendanceProfile,
+        studentType: attendanceProfileToLegacyStudentType(input.attendanceProfile),
         passportPhotoUrl: null,
         passportPhotoUpdatedAt: null,
         isActive: input.isActive,
@@ -310,4 +337,3 @@ export async function deleteGuardianContact(prisma: PrismaClient, schoolCode: st
   const deleted = await prisma.guardianContact.deleteMany({ where: { id: contactId, studentId, schoolId: school.id } });
   if (!deleted.count) throw new Error("Reports can only be issued for enrolled students.");
 }
-

@@ -17,6 +17,8 @@ import {
 import { Icon } from "../components/layout/Icon";
 import { PassportPhotoAvatar } from "../components/students/PassportPhotoAvatar";
 import { getApiBaseUrl } from "../client/apiBase";
+import type { AttendanceProfile } from "../shared/attendanceProfiles";
+import { ATTENDANCE_PROFILE_LABELS } from "../shared/attendanceProfiles";
 
 const API_BASE = getApiBaseUrl();
 import type { ReportContext, ReportFilters } from "../shared/types/reports";
@@ -42,10 +44,11 @@ function displayContactValue(value: string | null | undefined): string {
 export function StudentsPage() {
   const [context, setContext] = useState<ReportContext | null>(null);
   const [students, setStudents] = useState<StudentListItem[]>([]);
-  const [filters, setFilters] = useState<Pick<ReportFilters, "classId" | "streamId" | "search">>({
+  const [filters, setFilters] = useState<Pick<ReportFilters, "classId" | "streamId" | "search"> & { attendanceProfile: "ALL" | "DAY_SCHOLAR" | "BOARDER" }>({
     classId: "",
     streamId: "",
     search: "",
+    attendanceProfile: "ALL",
   });
   const [selectedId, setSelectedId] = useState("");
   const [editingContactId, setEditingContactId] = useState<string | null>(null);
@@ -57,6 +60,7 @@ export function StudentsPage() {
   const [studentForm, setStudentForm] = useState({
     fullName: "",
     admissionNumber: "",
+    attendanceProfile: "DAY_SCHOLAR" as AttendanceProfile,
     gender: "",
     classId: "",
     streamId: "",
@@ -141,6 +145,7 @@ export function StudentsPage() {
       setStudentForm({
         fullName: "",
         admissionNumber: "",
+        attendanceProfile: "DAY_SCHOLAR",
         gender: "",
         classId: context?.classes[0]?.id ?? "",
         streamId: context?.streams.find((stream) => stream.classId === context?.classes[0]?.id)?.id ?? "",
@@ -318,6 +323,10 @@ export function StudentsPage() {
             <div className="grid grid-cols-2 gap-2">
               <input className="premium-control h-9 rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm outline-none" placeholder="Full name" value={studentForm.fullName} onChange={(e) => setStudentForm({ ...studentForm, fullName: e.target.value })} />
               <input className="premium-control h-9 rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm outline-none" placeholder="Admission number" value={studentForm.admissionNumber} onChange={(e) => setStudentForm({ ...studentForm, admissionNumber: e.target.value })} />
+              <select className="premium-control h-9 rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm outline-none" value={studentForm.attendanceProfile} onChange={(e) => setStudentForm({ ...studentForm, attendanceProfile: e.target.value as "DAY_SCHOLAR" | "BOARDER" })}>
+                <option value="DAY_SCHOLAR">Day Scholar</option>
+                <option value="BOARDER">Boarder</option>
+              </select>
               <select className="premium-control h-9 rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm outline-none" value={studentForm.classId} onChange={(e) => setStudentForm({ ...studentForm, classId: e.target.value })}>
                 <option value="">Class</option>
                 {context?.classes.map((klass) => (
@@ -493,6 +502,14 @@ export function StudentsPage() {
               ))}
             </select>
           </label>
+          <label className="grid gap-1 text-xs font-bold uppercase text-slate-500">
+            Student Type
+            <select className="premium-control h-10 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-semibold text-slate-900 outline-none" value={filters.attendanceProfile} onChange={(event) => setFilters({ ...filters, attendanceProfile: event.target.value as "ALL" | "DAY_SCHOLAR" | "BOARDER" })}>
+              <option value="ALL">All students</option>
+              <option value="DAY_SCHOLAR">Day Scholars</option>
+              <option value="BOARDER">Boarders</option>
+            </select>
+          </label>
           <label className="col-span-2 grid gap-1 text-xs font-bold uppercase text-slate-500 md:col-span-1 xl:col-span-2">
             Search
             <input className="premium-control h-10 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-semibold text-slate-900 outline-none" value={filters.search ?? ""} onChange={(event) => setFilters({ ...filters, search: event.target.value })} placeholder="Name, admission number, guardian phone" />
@@ -524,6 +541,8 @@ export function StudentsPage() {
                     <p className="truncate text-sm font-bold text-slate-950">{student.studentName}</p>
                     <div className="mt-0.5 flex flex-wrap items-center gap-2 text-xs text-slate-500">
                       <span className="font-semibold">{student.admissionNumber}</span>
+                      <span className="text-slate-400">•</span>
+                      <span className="text-slate-600">{ATTENDANCE_PROFILE_LABELS[student.attendanceProfile]}</span>
                       <span className="text-slate-400">•</span>
                       <span className="text-slate-600">
                         {student.className} / {student.streamName}
@@ -598,6 +617,11 @@ export function StudentsPage() {
                 <div className="flex items-center gap-2">
                   <span className="font-semibold text-slate-600">Class:</span>
                   <span className="font-bold text-slate-950">{selected.className}</span>
+                </div>
+                <span className="text-slate-400">•</span>
+                <div className="flex items-center gap-2">
+                  <span className="font-semibold text-slate-600">Student Type:</span>
+                  <span className="font-bold text-slate-950">{ATTENDANCE_PROFILE_LABELS[selected.attendanceProfile]}</span>
                 </div>
                 <span className="text-slate-400">•</span>
                 <div className="flex items-center gap-2">
@@ -744,4 +768,6 @@ export function StudentsPage() {
     </main>
   );
 }
+
+
 

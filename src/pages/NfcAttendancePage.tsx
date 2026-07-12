@@ -28,6 +28,7 @@ import { getNextAttendanceDirection, getSnapshotMeta, hasRecentAttendancePunch, 
 import { hashNfcLookupValue } from "../offline/offlineHash";
 import { getSnapshotValidity } from "../offline/offlineStatus";
 import { canOperateAttendance } from "../shared/permissions";
+import { ATTENDANCE_PROFILE_LABELS } from "../shared/attendanceProfiles";
 import { normalizeNfcScanValue } from "../shared/utils/nfcPayload";
 import type { AttendanceDirection } from "../shared/types/studentCredentials";
 
@@ -341,7 +342,7 @@ function DrillDownModal({
 
   const activeFilters: string[] = [filters.date];
   if (filters.className) activeFilters.push(filters.className);
-  if (filters.studentType !== "ALL") activeFilters.push(filters.studentType === "DAY" ? "Day Students" : "Boarding Students");
+  if (filters.studentType !== "ALL") activeFilters.push(filters.studentType === "DAY" ? "Day Scholars" : "Boarders");
 
   return (
     <div
@@ -435,7 +436,7 @@ function DrillDownModal({
                     <td className="px-4 py-3">
                       {row.student.studentType ? (
                         <span className={`inline-block rounded-full px-2 py-0.5 text-[10px] font-bold ${row.student.studentType === "DAY" ? "bg-sky-100 text-sky-700" : "bg-violet-100 text-violet-700"}`}>
-                          {row.student.studentType}
+                          {ATTENDANCE_PROFILE_LABELS[row.student.studentType === "DAY" ? "DAY_SCHOLAR" : "BOARDER"]}
                         </span>
                       ) : (
                         <span className="text-slate-400">—</span>
@@ -704,7 +705,7 @@ export function NfcAttendancePage() {
         date: freshReport.date,
         className: selectedClass?.name ?? "All classes",
         streamName: selectedStream?.name ?? "All streams",
-        studentType: studentType === "ALL" ? "All students" : studentType === "DAY" ? "Day students" : "Boarding students",
+        studentType: studentType === "ALL" ? "All students" : studentType === "DAY" ? "Day Scholars" : "Boarders",
         attendanceStatus: attendanceStatus === "ALL" ? "All statuses" : attendanceStatus,
         campusStatus: campusStatusFilter === "ALL" ? "All campus statuses" : campusStatusFilter,
         generatedAt,
@@ -1111,7 +1112,7 @@ export function NfcAttendancePage() {
                         studentType === t ? "bg-blue-600 text-white" : "text-slate-600 hover:bg-slate-50"
                       }`}
                     >
-                      {t === "ALL" ? "All" : t === "DAY" ? "Day" : "Boarding"}
+                      {t === "ALL" ? "All" : t === "DAY" ? "Day Scholars" : "Boarders"}
                     </button>
                   ))}
                 </div>
@@ -1311,7 +1312,7 @@ export function NfcAttendancePage() {
                     <td className="px-4 py-2.5">
                       {row.student.studentType ? (
                         <span className={`inline-block rounded-full px-2 py-0.5 text-[10px] font-bold ${row.student.studentType === "DAY" ? "bg-sky-100 text-sky-700" : "bg-violet-100 text-violet-700"}`}>
-                          {row.student.studentType}
+                          {ATTENDANCE_PROFILE_LABELS[row.student.studentType === "DAY" ? "DAY_SCHOLAR" : "BOARDER"]}
                         </span>
                       ) : (
                         <span className="text-slate-300">—</span>

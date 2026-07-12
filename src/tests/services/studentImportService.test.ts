@@ -234,6 +234,7 @@ function makeRows(count: number, opts: { prefix?: string; className?: string; st
   return Array.from({ length: count }, (_, i) => ({
     admissionNumber: `${opts.prefix ?? "NEW"}-${String(i + 1).padStart(4, "0")}`,
     fullName: `Test Student ${i + 1}`,
+    attendanceProfile: "DAY_SCHOLAR",
     gender: i % 2 ? "Male" : "Female",
     className: opts.className ?? "Senior 1 A",
     streamName: opts.streamName ?? "A",
@@ -316,7 +317,9 @@ describe("student import data safety (append-only default)", () => {
 
   it("update mode only changes names with explicit CREATE_AND_UPDATE_EXISTING", async () => {
     const { db, state } = makeFakeDb(2);
-    const rows = [{ admissionNumber: "S1A-001", fullName: "Updated Name", gender: "Male", className: "Senior 1 A", streamName: "A", status: "ACTIVE" }];
+    const rows = [{ admissionNumber: "S1A-001", fullName: "Updated Name",
+      attendanceProfile: "DAY_SCHOLAR",
+      gender: "Male", className: "Senior 1 A", streamName: "A", status: "ACTIVE" }];
     const job = await createStudentImportJob(db, "SCU-PREVIEW", rows as StudentImportRowInput[], "CREATE_AND_UPDATE_EXISTING");
     const batch = await waitForJob(state, job.jobId);
     const summary = JSON.parse(batch.summary!);
@@ -472,9 +475,15 @@ describe("student import enrollment correctness", () => {
   it("accepts S1 and Senior One aliases for class matching", async () => {
     const { db } = makeFakeDb(0);
     const rows: StudentImportRowInput[] = [
-      { admissionNumber: "ALIAS-001", fullName: "Alias One", gender: "Female", className: "S1", streamName: "A", status: "ACTIVE", guardianName: "", guardianPhone: "", guardianEmail: "" },
-      { admissionNumber: "ALIAS-002", fullName: "Alias Two", gender: "Male", className: "Senior One", streamName: "Stream A", status: "ACTIVE", guardianName: "", guardianPhone: "", guardianEmail: "" },
-      { admissionNumber: "ALIAS-003", fullName: "Alias Three", gender: "Female", className: "Primary 5 Blue", streamName: "", status: "ACTIVE", guardianName: "", guardianPhone: "", guardianEmail: "" },
+      { admissionNumber: "ALIAS-001", fullName: "Alias One",
+      attendanceProfile: "DAY_SCHOLAR",
+      gender: "Female", className: "S1", streamName: "A", status: "ACTIVE", guardianName: "", guardianPhone: "", guardianEmail: "" },
+      { admissionNumber: "ALIAS-002", fullName: "Alias Two",
+      attendanceProfile: "DAY_SCHOLAR",
+      gender: "Male", className: "Senior One", streamName: "Stream A", status: "ACTIVE", guardianName: "", guardianPhone: "", guardianEmail: "" },
+      { admissionNumber: "ALIAS-003", fullName: "Alias Three",
+      attendanceProfile: "DAY_SCHOLAR",
+      gender: "Female", className: "Primary 5 Blue", streamName: "", status: "ACTIVE", guardianName: "", guardianPhone: "", guardianEmail: "" },
     ];
     const preview = await previewStudentImport(db, "SCU-PREVIEW", rows);
     expect(preview.validRows).toBe(3);
@@ -506,7 +515,9 @@ describe("student import enrollment correctness", () => {
     state.enrollments.push({ studentId: "st-misplaced", academicYearId: "year-1", termId: "term-1", classId: "class-s1b", streamId: "stream-b", isActive: true, status: "ACTIVE" });
 
     // Re-import in UPDATE mode to move to correct class
-    const rows: StudentImportRowInput[] = [{ admissionNumber: "NEW-WRONG", fullName: "Wrong Class", gender: "Female", className: "Senior 1 A", streamName: "A", status: "ACTIVE", guardianName: "", guardianPhone: "", guardianEmail: "" }];
+    const rows: StudentImportRowInput[] = [{ admissionNumber: "NEW-WRONG", fullName: "Wrong Class",
+      attendanceProfile: "DAY_SCHOLAR",
+      gender: "Female", className: "Senior 1 A", streamName: "A", status: "ACTIVE", guardianName: "", guardianPhone: "", guardianEmail: "" }];
     const job = await createStudentImportJob(db, "SCU-PREVIEW", rows, "CREATE_AND_UPDATE_EXISTING");
     const batch = await waitForJob(state, job.jobId);
     const summary = JSON.parse(batch.summary!);
@@ -626,8 +637,9 @@ describe("fuzzy header parsing", () => {
     const csv = "Adm No,Student Name,Sex,Class Name,Stream Name,Unexpected Column\nADM-004,Readable Student,Female,Senior 1,A,ignored\n";
     const rows = parseStudentsCsv(csv);
     const preview = await previewStudentImport(db, "SCU-PREVIEW", rows);
-    expect(preview.invalidRows).toBe(0);
-    expect(preview.validRows).toBe(1);
+    expect(preview.invalidRows).toBe(1);
+    expect(preview.validRows).toBe(0);
+    expect(preview.rows[0]!.errors.join(" ")).toContain("Student type is required");
 
     const badCsv = "Only Header,Another Header\nvalue,other\n";
     const badRows = parseStudentsCsv(badCsv);
@@ -639,9 +651,10 @@ describe("fuzzy header parsing", () => {
 
 describe("auto-generated admission numbers", () => {
   function makeRowsNoAdm(count: number, opts: { className?: string; streamName?: string } = {}): StudentImportRowInput[] {
-    return Array.from({ length: count }, (_, i) => ({
+  return Array.from({ length: count }, (_, i) => ({
       admissionNumber: "",
       fullName: `Auto Student ${i + 1}`,
+      attendanceProfile: "DAY_SCHOLAR",
       gender: i % 2 ? "Male" : "Female",
       className: opts.className ?? "Senior 1 A",
       streamName: opts.streamName ?? "A",
@@ -722,7 +735,9 @@ describe("missing required field validation", () => {
 
   it("row with missing gender is marked invalid", async () => {
     const { db } = makeFakeDb(0);
-    const rows = [{ admissionNumber: "ADM-002", fullName: "Jane Doe", gender: "", className: "Senior 1 A", streamName: "A", status: "ACTIVE", guardianName: "", guardianPhone: "", guardianEmail: "" }];
+    const rows: StudentImportRowInput[] = [{ admissionNumber: "ADM-002", fullName: "Jane Doe",
+      attendanceProfile: "DAY_SCHOLAR",
+      gender: "", className: "Senior 1 A", streamName: "A", status: "ACTIVE", guardianName: "", guardianPhone: "", guardianEmail: "" }];
     const preview = await previewStudentImport(db, "SCU-PREVIEW", rows);
     expect(preview.invalidRows).toBe(1);
     expect(preview.rows[0]!.errors.join(" ")).toContain("Gender is required");
@@ -730,7 +745,9 @@ describe("missing required field validation", () => {
 
   it("row with missing class is marked invalid", async () => {
     const { db } = makeFakeDb(0);
-    const rows = [{ admissionNumber: "ADM-003", fullName: "Jane Doe", gender: "Female", className: "", streamName: "A", status: "ACTIVE", guardianName: "", guardianPhone: "", guardianEmail: "" }];
+    const rows: StudentImportRowInput[] = [{ admissionNumber: "ADM-003", fullName: "Jane Doe",
+      attendanceProfile: "DAY_SCHOLAR",
+      gender: "Female", className: "", streamName: "A", status: "ACTIVE", guardianName: "", guardianPhone: "", guardianEmail: "" }];
     const preview = await previewStudentImport(db, "SCU-PREVIEW", rows);
     expect(preview.invalidRows).toBe(1);
     expect(preview.rows[0]!.errors.join(" ")).toContain("Class is required");
@@ -738,7 +755,9 @@ describe("missing required field validation", () => {
 
   it("row with combined class name and blank stream is accepted", async () => {
     const { db } = makeFakeDb(0);
-    const rows = [{ admissionNumber: "ADM-004", fullName: "Jane Doe", gender: "Female", className: "Senior 1 A", streamName: "", status: "ACTIVE", guardianName: "", guardianPhone: "", guardianEmail: "" }];
+    const rows: StudentImportRowInput[] = [{ admissionNumber: "ADM-004", fullName: "Jane Doe",
+      attendanceProfile: "DAY_SCHOLAR",
+      gender: "Female", className: "Senior 1 A", streamName: "", status: "ACTIVE", guardianName: "", guardianPhone: "", guardianEmail: "" }];
     const preview = await previewStudentImport(db, "SCU-PREVIEW", rows);
     expect(preview.invalidRows).toBe(0);
     expect(preview.validRows).toBe(1);
@@ -750,7 +769,9 @@ describe("missing required field validation", () => {
     const { db } = makeFakeDb(0);
     // No admission number + bad class = invalid row; generator must NOT be called.
     // The placeholder starts with __INVALID_ to signal "not a real generated number".
-    const rows = [{ admissionNumber: "", fullName: "Ghost", gender: "Male", className: "Nonexistent Class", streamName: "Z", status: "ACTIVE", guardianName: "", guardianPhone: "", guardianEmail: "" }];
+    const rows: StudentImportRowInput[] = [{ admissionNumber: "", fullName: "Ghost",
+      attendanceProfile: "DAY_SCHOLAR",
+      gender: "Male", className: "Nonexistent Class", streamName: "Z", status: "ACTIVE", guardianName: "", guardianPhone: "", guardianEmail: "" }];
     const preview = await previewStudentImport(db, "SCU-PREVIEW", rows);
     expect(preview.invalidRows).toBe(1);
     expect(preview.rows[0]!.generatedAdmissionNumber).toMatch(/^__INVALID_/);
@@ -761,8 +782,12 @@ describe("missing required field validation", () => {
     const good = makeRows(20);
     const bad: StudentImportRowInput[] = [
       { admissionNumber: "BAD-001", fullName: "", gender: "Male", className: "Senior 1 A", streamName: "A", status: "ACTIVE", guardianName: "", guardianPhone: "", guardianEmail: "" },
-      { admissionNumber: "BAD-002", fullName: "No Gender", gender: "", className: "Senior 1 A", streamName: "A", status: "ACTIVE", guardianName: "", guardianPhone: "", guardianEmail: "" },
-      { admissionNumber: "BAD-003", fullName: "No Class", gender: "Female", className: "Made Up", streamName: "A", status: "ACTIVE", guardianName: "", guardianPhone: "", guardianEmail: "" },
+      { admissionNumber: "BAD-002", fullName: "No Gender",
+      attendanceProfile: "DAY_SCHOLAR",
+      gender: "", className: "Senior 1 A", streamName: "A", status: "ACTIVE", guardianName: "", guardianPhone: "", guardianEmail: "" },
+      { admissionNumber: "BAD-003", fullName: "No Class",
+      attendanceProfile: "DAY_SCHOLAR",
+      gender: "Female", className: "Made Up", streamName: "A", status: "ACTIVE", guardianName: "", guardianPhone: "", guardianEmail: "" },
     ];
     const job = await createStudentImportJob(db, "SCU-PREVIEW", [...good, ...bad]);
     const batch = await waitForJob(state, job.jobId);
@@ -772,4 +797,8 @@ describe("missing required field validation", () => {
     expect(state.students.length).toBe(20);
   });
 });
+
+
+
+
 

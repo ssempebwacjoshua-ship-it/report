@@ -1,6 +1,7 @@
-﻿import { Router } from "express";
+import { Router } from "express";
 import multer from "multer";
 import { z } from "zod";
+import { ATTENDANCE_PROFILE_OPTIONS, attendanceProfileToLegacyStudentType } from "../../shared/attendanceProfiles";
 import { prisma } from "../db/prisma";
 import { requireSubscriptionEntitlement } from "../services/subscriptionEntitlementService";
 import {
@@ -28,6 +29,7 @@ const studentPhotoUpload = multer({
 const studentCreateSchema = z.object({
   fullName: z.string().trim().min(1, "Full name is required."),
   admissionNumber: z.string().trim().optional().or(z.literal("")),
+  attendanceProfile: z.enum(ATTENDANCE_PROFILE_OPTIONS),
   gender: z.string().trim().optional().or(z.literal("")),
   classId: z.string().min(1),
   streamId: z.string().min(1),
@@ -128,7 +130,7 @@ export function studentsRoutes() {
     }
   });
 
-  // ── Student list ──────────────────────────────────────────────────────────────
+  // -- Student list --------------------------------------------------------------
 
   router.get("/api/students", async (req, res, next) => {
     try {
@@ -141,6 +143,7 @@ export function studentsRoutes() {
         streamId: z.string().optional(),
         search: z.string().optional(),
         isActive: z.string().optional(),
+        attendanceProfile: z.enum(["ALL", ...ATTENDANCE_PROFILE_OPTIONS]).optional(),
       }).parse(req.query);
       const students = await listEnrolledStudents(prisma, req.school.code, query);
       res.json({ students });
@@ -156,7 +159,7 @@ export function studentsRoutes() {
         res.status(401).json({ error: "School context required." });
         return;
       }
-      const query = z.object({ classId: z.string().optional(), streamId: z.string().optional(), search: z.string().optional(), isActive: z.string().optional() }).parse(req.query);
+      const query = z.object({ classId: z.string().optional(), streamId: z.string().optional(), search: z.string().optional(), isActive: z.string().optional(), attendanceProfile: z.enum(["ALL", ...ATTENDANCE_PROFILE_OPTIONS]).optional() }).parse(req.query);
       const rows = await listEnrolledStudents(prisma, req.school.code, query);
       res.json({ students: rows });
     } catch (error) {
@@ -164,7 +167,7 @@ export function studentsRoutes() {
     }
   });
 
-  // ── Student create / update ───────────────────────────────────────────────────
+  // -- Student create / update ---------------------------------------------------
 
   router.post("/api/students", async (req, res, next) => {
     try {
@@ -225,6 +228,8 @@ export function studentsRoutes() {
           admissionNumber: input.admissionNumber?.trim() || current.admissionNumber,
           firstName: name.firstName,
           lastName: name.lastName,
+          attendanceProfile: input.attendanceProfile ?? undefined,
+          studentType: input.attendanceProfile ? attendanceProfileToLegacyStudentType(input.attendanceProfile) : undefined,
           isActive: input.isActive ?? current.isActive,
         },
       });
@@ -341,7 +346,7 @@ export function studentsRoutes() {
 
   // Import templates are public ? see studentsPublicRoutes() below
 
-  // ── Import preview/commit ─────────────────────────────────────────────────────
+  // -- Import preview/commit -----------------------------------------------------
 
   router.post("/api/students/import/preview", upload.single("file"), async (req, res, next) => {
     try {
@@ -350,7 +355,7 @@ export function studentsRoutes() {
         return;
       }
       const schoolCode = req.school.code;
-      const mode = admissionModeFromQuery(req.body.mode);
+      const mode = admissionModeFromQuery(req.body?.mode);
       const file = req.file;
       if (!file) {
         res.status(400).json({ error: "Upload a CSV or XLSX file." });
@@ -377,7 +382,7 @@ export function studentsRoutes() {
         return;
       }
       const schoolCode = req.school.code;
-      const mode = admissionModeFromQuery(req.body.mode);
+      const mode = admissionModeFromQuery(req.body?.mode);
       const file = req.file;
       if (!file) {
         res.status(400).json({ error: "Upload a CSV or XLSX file." });
@@ -403,7 +408,7 @@ export function studentsRoutes() {
     }
   });
 
-  // ── Import jobs (browser-facing) ──────────────────────────────────────────────
+  // -- Import jobs (browser-facing) ----------------------------------------------
 
   router.post("/api/students/import-jobs/upload", requireSubscriptionEntitlement("student.import.commit"), upload.single("file"), async (req, res, next) => {
     try {
@@ -412,7 +417,7 @@ export function studentsRoutes() {
         return;
       }
       const schoolCode = req.school.code;
-      const mode = admissionModeFromQuery(req.body.mode);
+      const mode = admissionModeFromQuery(req.body?.mode);
       const file = req.file;
       if (!file) {
         res.status(400).json({ error: "Upload a CSV or XLSX file." });
@@ -457,7 +462,7 @@ export function studentsRoutes() {
         return;
       }
       const schoolCode = req.school.code;
-      const mode = admissionModeFromQuery(req.body.mode);
+      const mode = admissionModeFromQuery(req.body?.mode);
       const file = req.file;
       if (!file) {
         res.status(400).json({ error: "Upload a CSV or XLSX file." });
@@ -494,7 +499,7 @@ export function studentsRoutes() {
     }
   });
 
-  // ── Import history ────────────────────────────────────────────────────────────
+  // -- Import history ------------------------------------------------------------
 
   router.get("/api/students/import/history", async (req, res, next) => {
     try {
@@ -548,7 +553,7 @@ export function studentsRoutes() {
     }
   });
 
-  // ── Contact summary (browser-facing) ─────────────────────────────────────────
+  // -- Contact summary (browser-facing) -----------------------------------------
 
   router.get("/api/students/contact-summary", async (req, res, next) => {
     try {
@@ -575,7 +580,7 @@ export function studentsRoutes() {
     }
   });
 
-  // ── Single student (internal use) ─────────────────────────────────────────────
+  // -- Single student (internal use) ---------------------------------------------
 
   router.get("/internal/students/:id", async (req, res, next) => {
     try {
@@ -594,7 +599,7 @@ export function studentsRoutes() {
     }
   });
 
-  // ── Guardian contacts (browser-facing) ───────────────────────────────────────
+  // -- Guardian contacts (browser-facing) ---------------------------------------
 
   router.post("/api/students/:id/contacts", async (req, res, next) => {
     try {
@@ -683,18 +688,18 @@ export function studentsPublicRoutes() {
   const r = Router();
 
   r.get("/api/students/import/template.csv", (_req, res) => {
-    res.type("text/csv").send("admissionNumber,fullName,gender,class,stream,guardianName,guardianPhone,guardianEmail,status\nSCU-001,Ada Lovelace,Female,Senior 1,A,Grace Hopper,+256 700 000000,grace@example.test,ACTIVE\n");
+    res.type("text/csv").send("admissionNumber,fullName,studentType,gender,class,stream,guardianName,guardianPhone,guardianEmail,status\nSCU-001,Ada Lovelace,DAY_SCHOLAR,Female,Senior 1,A,Grace Hopper,+256 700 000000,grace@example.test,ACTIVE\n");
   });
 
   r.get("/api/students/import/template", (_req, res) => {
-    res.type("text/csv").send("admissionNumber,fullName,gender,class,stream,guardianName,guardianPhone,guardianEmail,status\n");
+    res.type("text/csv").send("admissionNumber,fullName,studentType,gender,class,stream,guardianName,guardianPhone,guardianEmail,status\n");
   });
 
   r.get("/api/students/import/template.xlsx", async (_req, res) => {
     const xlsx = await import("xlsx");
     const wb = xlsx.utils.book_new();
     const ws = xlsx.utils.aoa_to_sheet([
-      escapeSpreadsheetRow(["admissionNumber", "fullName", "gender", "class", "stream", "guardianName", "guardianPhone", "guardianEmail", "status"]),
+      escapeSpreadsheetRow(["admissionNumber", "fullName", "studentType", "gender", "class", "stream", "guardianName", "guardianPhone", "guardianEmail", "status"]),
     ]);
     xlsx.utils.book_append_sheet(wb, ws, "Students");
     const buf = xlsx.write(wb, { type: "buffer", bookType: "xlsx" });
@@ -704,4 +709,6 @@ export function studentsPublicRoutes() {
 
   return r;
 }
+
+
 

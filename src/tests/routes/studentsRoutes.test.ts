@@ -13,14 +13,14 @@ describe("students import routes", () => {
     const res = await request(createServer()).get("/templates/student-import-template.csv");
     expect(res.status).toBe(200);
     expect(res.headers["content-type"]).toContain("text/csv");
-    expect(res.text).toContain("admissionNumber,fullName,gender,class,stream,guardianName,guardianPhone,guardianEmail,status");
+    expect(res.text).toContain("admissionNumber,fullName,studentType,gender,class,stream,guardianName,guardianPhone,guardianEmail,status");
     expect(res.text).not.toContain("Authentication required");
   });
 
   it("accepts a valid student import CSV preview", async () => {
     const csv = [
-      "admissionNumber,fullName,gender,class,stream,guardianName,guardianPhone,guardianEmail,status",
-      "SCU-001,Ada Lovelace,Female,Senior 1,A,Grace Hopper,+256 700 000000,grace@example.test,ACTIVE",
+      "admissionNumber,fullName,studentType,gender,class,stream,guardianName,guardianPhone,guardianEmail,status",
+      "SCU-001,Ada Lovelace,DAY_SCHOLAR,Female,Senior 1,A,Grace Hopper,+256 700 000000,grace@example.test,ACTIVE",
     ].join("\n");
     const res = await request(createServer())
       .post("/api/students/import/preview")
@@ -31,8 +31,8 @@ describe("students import routes", () => {
 
   it("escapes formula-like values in student import preview responses", async () => {
     const csv = [
-      "admissionNumber,fullName,gender,class,stream,guardianName,guardianPhone,guardianEmail,status",
-      "=1+1,+Ada,-Female,@Senior 1,A,Guard,+256 700 000000,grace@example.test,ACTIVE",
+      "admissionNumber,fullName,studentType,gender,class,stream,guardianName,guardianPhone,guardianEmail,status",
+      "=1+1,+Ada,DAY_SCHOLAR,-Female,@Senior 1,A,Guard,+256 700 000000,grace@example.test,ACTIVE",
     ].join("\n");
     const res = await request(createServer())
       .post("/api/students/import/preview")

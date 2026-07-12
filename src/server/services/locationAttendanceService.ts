@@ -1,6 +1,11 @@
 import type { PrismaClient } from "@prisma/client";
 import { prisma as defaultPrisma } from "../db/prisma";
 import { hasPermission } from "../../shared/permissions";
+import {
+  attendanceProfileToLegacyStudentType,
+  resolveAttendanceProfile,
+  type AttendanceProfile,
+} from "../../shared/attendanceProfiles";
 import { getSchoolNfcPolicy, getZonedDateKey, getZonedDayRangeByKey } from "./nfcPolicyService";
 
 type AttendanceContext = {
@@ -27,7 +32,7 @@ export type LocationAttendanceFilters = {
   classId?: string;
   streamId?: string;
   search?: string;
-  studentType?: "ALL" | "DAY" | "BOARDING";
+  studentType?: "ALL" | "DAY" | "BOARDING" | "DAY_SCHOLAR" | "BOARDER";
 };
 
 export type GateAttendanceFilters = LocationAttendanceFilters & {
@@ -177,6 +182,7 @@ type PopulationStudent = {
   admissionNumber: string;
   firstName: string;
   lastName: string;
+  attendanceProfile?: AttendanceProfile | null;
   studentType: "DAY" | "BOARDING" | null;
   enrollments: Array<{
     class: { name: string } | null;
@@ -254,13 +260,20 @@ function validateDate(date?: string) {
   return date;
 }
 
+function toAttendanceProfileFilter(value: LocationAttendanceFilters["studentType"]) {
+  if (value === "DAY" || value === "DAY_SCHOLAR") return "DAY_SCHOLAR" as const;
+  if (value === "BOARDING" || value === "BOARDER") return "BOARDER" as const;
+  return undefined;
+}
+
 function buildStudentWhere(schoolId: string, filters: LocationAttendanceFilters) {
   const search = filters.search?.trim();
+  const attendanceProfile = toAttendanceProfileFilter(filters.studentType);
   return {
     schoolId,
     isActive: true,
-    ...(filters.studentType && filters.studentType !== "ALL"
-      ? { studentType: filters.studentType }
+    ...(attendanceProfile
+      ? { attendanceProfile }
       : {}),
     ...(search
       ? {
@@ -363,6 +376,7 @@ async function buildCanonicalAttendanceSnapshot(
       admissionNumber: true,
       firstName: true,
       lastName: true,
+      attendanceProfile: true,
       studentType: true,
       enrollments: {
         where: { isActive: true, status: "ACTIVE" as const },
@@ -393,6 +407,10 @@ async function buildCanonicalAttendanceSnapshot(
         attendanceRate: 0,
         onCampus: 0,
         offCampus: 0,
+        dayScholarsPresent: 0,
+        dayScholarsAbsent: 0,
+        boardersPresent: 0,
+        boardersNotSeenToday: 0,
         lastUpdatedAt: new Date().toISOString(),
         latestScans: [],
         classSummaries: [],
@@ -431,6 +449,7 @@ async function buildCanonicalAttendanceSnapshot(
 
   const rows = students.map((student) => {
     const enrollment = student.enrollments[0];
+    const attendanceProfile = resolveAttendanceProfile(student);
     const daily = dailyByStudent.get(student.id);
     const events = movementByStudent.get(student.id) ?? [];
 
@@ -460,7 +479,7 @@ async function buildCanonicalAttendanceSnapshot(
       admissionNumber: student.admissionNumber,
       className: enrollment?.class?.name ?? null,
       streamName: enrollment?.stream?.name ?? null,
-      scholarType: student.studentType,
+      scholarType: attendanceProfileToLegacyStudentType(attendanceProfile),
       attendanceStatus,
       arrivalTime: entries[0]?.occurredAt.toISOString() ?? null,
       lateIndicator: attendanceStatus === "LATE",
@@ -526,6 +545,8 @@ async function buildCanonicalAttendanceSnapshot(
   }
   const classSummaries = [...classSummaryMap.values()]
     .sort((left, right) => left.className.localeCompare(right.className) || (left.streamName ?? "").localeCompare(right.streamName ?? ""));
+  const dayScholarRows = rows.filter((row) => row.scholarType === "DAY");
+  const boarderRows = rows.filter((row) => row.scholarType === "BOARDING");
 
   return {
     date: dateKey,
@@ -543,6 +564,10 @@ async function buildCanonicalAttendanceSnapshot(
         : 0,
       onCampus: gateSummary.onCampus,
       offCampus: gateSummary.offCampus,
+      dayScholarsPresent: dayScholarRows.filter((row) => row.attendanceStatus === "PRESENT" || row.attendanceStatus === "LATE").length,
+      dayScholarsAbsent: dayScholarRows.filter((row) => row.attendanceStatus === "ABSENT").length,
+      boardersPresent: boarderRows.filter((row) => row.attendanceStatus === "PRESENT" || row.attendanceStatus === "LATE").length,
+      boardersNotSeenToday: boarderRows.filter((row) => row.attendanceStatus === "ABSENT").length,
       lastUpdatedAt: new Date().toISOString(),
       latestScans,
       classSummaries,
@@ -608,6 +633,7 @@ export async function getCanonicalAttendanceRegister(
       admissionNumber: true,
       firstName: true,
       lastName: true,
+      attendanceProfile: true,
       studentType: true,
       enrollments: {
         where: { isActive: true, status: "ACTIVE" as const },
@@ -647,6 +673,7 @@ export async function getCanonicalAttendanceRegister(
 
   const rows = students.map((student) => {
     const enrollment = student.enrollments[0];
+    const attendanceProfile = resolveAttendanceProfile(student);
     const gateRow = gateRowsByStudent.get(student.id);
     const canonicalEvents = movementByStudent.get(student.id) ?? [];
     const latestCanonicalEvent = canonicalEvents.length > 0 ? canonicalEvents[canonicalEvents.length - 1] : null;
@@ -675,7 +702,7 @@ export async function getCanonicalAttendanceRegister(
         admissionNumber: student.admissionNumber,
         className: enrollment?.class?.name ?? null,
         streamName: enrollment?.stream?.name ?? null,
-        studentType: student.studentType,
+        studentType: attendanceProfileToLegacyStudentType(attendanceProfile),
         photoUrl: null,
       },
       tapIn: gateRow?.arrivalTime
@@ -735,6 +762,7 @@ export async function listClassroomAttendanceReport(
       admissionNumber: true,
       firstName: true,
       lastName: true,
+      attendanceProfile: true,
       studentType: true,
       enrollments: {
         where: { isActive: true, status: "ACTIVE" as const },
@@ -777,6 +805,7 @@ export async function listClassroomAttendanceReport(
   const studentMap = new Map(students.map((student) => [student.id, student]));
   const eventRows = events.map((event) => {
     const student = studentMap.get(event.studentId);
+    const attendanceProfile = student ? resolveAttendanceProfile(student) : null;
     const enrollment = student?.enrollments[0];
     const reader = readersById.get(event.readerId);
     return {
@@ -786,7 +815,7 @@ export async function listClassroomAttendanceReport(
       admissionNumber: student?.admissionNumber ?? "-",
       className: enrollment?.class?.name ?? null,
       streamName: enrollment?.stream?.name ?? null,
-      scholarType: student?.studentType ?? null,
+      scholarType: attendanceProfile ? attendanceProfileToLegacyStudentType(attendanceProfile) : null,
       morningAttendance: event.sessionType === "MORNING_CLASS" && event.status === "PRESENT",
       nightPrepAttendance: event.sessionType === "NIGHT_PREP" && event.status === "PRESENT",
       missingBoarder: false,
@@ -800,7 +829,7 @@ export async function listClassroomAttendanceReport(
   });
 
   const missingBoarders = students.filter((student) => {
-    if (student.studentType !== "BOARDING") return false;
+    if (resolveAttendanceProfile(student) !== "BOARDER") return false;
     return !events.some((event) => event.studentId === student.id && event.sessionType === "NIGHT_PREP" && event.status === "PRESENT");
   });
 
@@ -813,7 +842,7 @@ export async function listClassroomAttendanceReport(
       admissionNumber: student.admissionNumber,
       className: enrollment?.class?.name ?? null,
       streamName: enrollment?.stream?.name ?? null,
-      scholarType: student.studentType,
+      scholarType: attendanceProfileToLegacyStudentType(resolveAttendanceProfile(student)),
       morningAttendance: false,
       nightPrepAttendance: false,
       missingBoarder: true,
@@ -861,12 +890,12 @@ export async function approveGateOverride(
   const policy = await getSchoolNfcPolicy(ctx, db as never);
   const student = await db.student.findFirst({
     where: { id: input.studentId, schoolId, isActive: true },
-    select: { id: true, studentType: true, firstName: true, lastName: true },
+    select: { id: true, attendanceProfile: true, studentType: true, firstName: true, lastName: true },
   });
   if (!student) {
     throw Object.assign(new Error("Student not found."), { status: 404 });
   }
-  if (!policy.policy.feeGatePolicyEnabled || student.studentType === "BOARDING") {
+  if (!policy.policy.feeGatePolicyEnabled || resolveAttendanceProfile(student) === "BOARDER") {
     throw Object.assign(new Error("Manual gate overrides only apply to fee-restricted day scholars."), { status: 409 });
   }
 

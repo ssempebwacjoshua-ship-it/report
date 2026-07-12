@@ -1,6 +1,11 @@
 import type { Prisma } from "@prisma/client";
 import { CredentialStatus, CredentialType } from "@prisma/client";
 import { prisma as defaultPrisma } from "../db/prisma";
+import {
+  attendanceProfileToLegacyStudentType,
+  resolveAttendanceProfile,
+  type AttendanceProfile,
+} from "../../shared/attendanceProfiles";
 import { maskCredentialValue, normalizeCredentialForLookup } from "../../shared/utils/credentialNormalization";
 import { getTimeParts, getZonedDateKey, zonedDateToUtc } from "./nfcPolicyService";
 
@@ -57,6 +62,7 @@ type ReaderAttendanceDb = Pick<
 type ResolvedStudent = {
   studentId: string;
   studentName: string;
+  attendanceProfile: AttendanceProfile;
   studentType: "DAY" | "BOARDING" | null;
   classId: string | null;
   streamId: string | null;
@@ -144,9 +150,9 @@ function attendanceDate(dateKey: string, timeZone: string) {
 function studentMatchesScope(device: LocationAwareReaderDevice, student: ResolvedStudent) {
   switch (device.studentScope) {
     case "DAY_SCHOLARS":
-      return student.studentType !== "BOARDING";
+      return student.attendanceProfile !== "BOARDER";
     case "BOARDING_STUDENTS":
-      return student.studentType === "BOARDING";
+      return student.attendanceProfile === "BOARDER";
     case "ASSIGNED_CLASS":
       return (!device.classId || device.classId === student.classId)
         && (!device.streamId || device.streamId === student.streamId);
@@ -210,6 +216,7 @@ async function resolveStudentForReader(
           id: true,
           firstName: true,
           lastName: true,
+          attendanceProfile: true,
           studentType: true,
           isActive: true,
           enrollments: {
@@ -226,7 +233,8 @@ async function resolveStudentForReader(
     return {
       studentId: credential.studentId,
       studentName: `${credential.student.firstName} ${credential.student.lastName}`.trim(),
-      studentType: credential.student.studentType,
+      attendanceProfile: resolveAttendanceProfile(credential.student),
+      studentType: attendanceProfileToLegacyStudentType(resolveAttendanceProfile(credential.student)),
       classId: credential.student.enrollments[0]?.classId ?? null,
       streamId: credential.student.enrollments[0]?.streamId ?? null,
       credentialId: credential.id,
@@ -252,6 +260,7 @@ async function resolveStudentForReader(
           id: true,
           firstName: true,
           lastName: true,
+          attendanceProfile: true,
           studentType: true,
           isActive: true,
           enrollments: {
@@ -268,7 +277,8 @@ async function resolveStudentForReader(
   return {
     studentId: tag.studentId,
     studentName: `${tag.student.firstName} ${tag.student.lastName}`.trim(),
-    studentType: tag.student.studentType,
+    attendanceProfile: resolveAttendanceProfile(tag.student),
+    studentType: attendanceProfileToLegacyStudentType(resolveAttendanceProfile(tag.student)),
     classId: tag.student.enrollments[0]?.classId ?? null,
     streamId: tag.student.enrollments[0]?.streamId ?? null,
     credentialId: null,
@@ -339,6 +349,18 @@ async function consumeApprovedGateOverride(
   return claimed.count === 1;
 }
 
+function isBoarder(student: ResolvedStudent) {
+  return student.attendanceProfile === "BOARDER";
+}
+
+function shouldCreateDailyAttendanceFromGate(student: ResolvedStudent) {
+  return !isBoarder(student);
+}
+
+function shouldCreateDailyAttendanceFromClassroom(student: ResolvedStudent, sessionType: "MORNING_CLASS" | "NIGHT_PREP") {
+  return sessionType === "MORNING_CLASS" && isBoarder(student);
+}
+
 async function upsertDailyAttendance(
   schoolId: string,
   studentId: string,
@@ -406,7 +428,7 @@ async function processGateAttendance(
         statusCode: 200,
       };
     }
-    let feeHold = policy.feeGatePolicyEnabled && student.studentType !== "BOARDING"
+    let feeHold = policy.feeGatePolicyEnabled && shouldCreateDailyAttendanceFromGate(student)
       ? await hasActiveFeeHold(device.schoolId, student.studentId, db)
       : null;
     let approvedOverride = feeHold
@@ -421,7 +443,7 @@ async function processGateAttendance(
       }, scannedAt, db);
       if (!claimed) {
         approvedOverride = null;
-        feeHold = policy.feeGatePolicyEnabled && student.studentType !== "BOARDING"
+        feeHold = policy.feeGatePolicyEnabled && shouldCreateDailyAttendanceFromGate(student)
           ? await hasActiveFeeHold(device.schoolId, student.studentId, db)
           : null;
       }
@@ -471,7 +493,9 @@ async function processGateAttendance(
 
     const timeString = `${String(getTimeParts(scannedAt, policy.timezone).hour).padStart(2, "0")}:${String(getTimeParts(scannedAt, policy.timezone).minute).padStart(2, "0")}`;
     const dailyStatus = timeString >= policy.gateArrivalLateAfter ? "LATE" : "PRESENT";
-    await upsertDailyAttendance(device.schoolId, student.studentId, dailyDate, dailyStatus, "GATE_READER", scannedAt, db);
+    if (shouldCreateDailyAttendanceFromGate(student)) {
+      await upsertDailyAttendance(device.schoolId, student.studentId, dailyDate, dailyStatus, "GATE_READER", scannedAt, db);
+    }
     await db.campusMovementEvent.create({
       data: {
         eventId: body.eventId,
@@ -485,13 +509,15 @@ async function processGateAttendance(
         metadata: {
           locationType: device.locationType,
           locationName: device.locationName ?? device.location ?? null,
-          attendanceStatus: dailyStatus,
+          attendanceStatus: shouldCreateDailyAttendanceFromGate(student) ? dailyStatus : "MOVEMENT_ONLY",
           manualOverride: Boolean(approvedOverride),
         },
       },
     });
     return {
-      response: respond("GATE_ENTRY", dailyStatus, dailyStatus === "LATE" ? "Late arrival recorded" : "Arrival recorded", "success", true, student.studentName),
+      response: shouldCreateDailyAttendanceFromGate(student)
+        ? respond("GATE_ENTRY", dailyStatus, dailyStatus === "LATE" ? "Late arrival recorded" : "Arrival recorded", "success", true, student.studentName)
+        : respond("GATE_ENTRY", "MOVEMENT_RECORDED", "Campus entry recorded", "success", true, student.studentName),
       scannedAt,
       statusCode: 200,
     };
@@ -623,7 +649,7 @@ async function processClassroomAttendance(
     };
   }
 
-  if (sessionType === "NIGHT_PREP" && policy.nightPrepBoardingOnly && student.studentType !== "BOARDING") {
+  if (sessionType === "NIGHT_PREP" && policy.nightPrepBoardingOnly && !isBoarder(student)) {
     await db.classroomAttendanceEvent.create({
       data: {
         eventId: body.eventId,
@@ -648,7 +674,7 @@ async function processClassroomAttendance(
   }
 
   if (!studentMatchesScope(device, student)) {
-    const status = sessionType === "NIGHT_PREP" && student.studentType !== "BOARDING" ? "DAY_SCHOLAR_NOT_ELIGIBLE" : "WRONG_CLASS";
+    const status = sessionType === "NIGHT_PREP" && !isBoarder(student) ? "DAY_SCHOLAR_NOT_ELIGIBLE" : "WRONG_CLASS";
     const message = status === "WRONG_CLASS" ? "Student is not assigned to this classroom" : "Day scholars are not eligible for night prep";
     await db.classroomAttendanceEvent.create({
       data: {
@@ -709,7 +735,7 @@ async function processClassroomAttendance(
       metadata: { locationName: device.locationName ?? device.location ?? null },
     },
   });
-  if (sessionType === "MORNING_CLASS") {
+  if (shouldCreateDailyAttendanceFromClassroom(student, sessionType)) {
     await upsertDailyAttendance(device.schoolId, student.studentId, attendanceDate(sessionDateKey, policy.timezone), "PRESENT", "CLASSROOM_READER", scannedAt, db);
   }
   return {

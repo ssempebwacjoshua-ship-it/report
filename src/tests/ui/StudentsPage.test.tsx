@@ -3,6 +3,8 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { StudentsPage } from "../../pages/StudentsPage";
+import type { ReportContext } from "../../shared/types/reports";
+import type { StudentsResponse } from "../../shared/types/students";
 
 vi.mock("../../client/reportsClient", () => ({
   fetchReportContext: vi.fn(),
@@ -34,8 +36,8 @@ vi.mock("../../client/studentsClient", () => ({
 import { fetchReportContext } from "../../client/reportsClient";
 import { commitStudentImport, createStudent, fetchStudents, previewStudentImport, uploadStudentPassportPhoto } from "../../client/studentsClient";
 
-const defaultContext = {
-  school: { code: "SCU-PREVIEW" },
+const defaultContext: ReportContext = {
+  school: { id: "school-1", code: "SCU-PREVIEW", name: "SCU Preview" },
   academicYears: [{ id: "ay-1", name: "2025/2026", isActive: true }],
   terms: [{ id: "term-1", name: "Term 1", isActive: true }],
   classes: [{ id: "class-1", name: "S1" }],
@@ -43,12 +45,14 @@ const defaultContext = {
   subjects: [],
 };
 
-const defaultStudents = {
+const defaultStudents: StudentsResponse = {
   students: [
     {
       id: "student-1",
       admissionNumber: "ADM-001",
       studentName: "Ada Lovelace",
+      attendanceProfile: "DAY_SCHOLAR",
+      studentType: "DAY",
       isActive: true,
       enrollmentStatus: "ACTIVE",
       className: "S1",
@@ -157,7 +161,7 @@ describe("StudentsPage", () => {
     );
 
     await user.click(screen.getAllByRole("button", { name: "Import Batch" })[0]);
-    const file = new File(["admissionNumber,fullName,gender,class,stream\nADM-010,Good Student,Female,Senior 1,A"], "students.csv", { type: "text/csv" });
+    const file = new File(["admissionNumber,fullName,studentType,gender,class,stream\nADM-010,Good Student,DAY_SCHOLAR,Female,Senior 1,A"], "students.csv", { type: "text/csv" });
     const input = container.querySelector('input[type="file"]');
     expect(input).toBeInstanceOf(HTMLInputElement);
     await user.upload(input as HTMLInputElement, file);
@@ -191,7 +195,7 @@ describe("StudentsPage", () => {
       rows: [
         {
           rowNumber: 2,
-          raw: { admissionNumber: "ADM-020", fullName: "Fallback Student", gender: "Female", className: "Senior 1", streamName: "A" },
+          raw: { admissionNumber: "ADM-020", fullName: "Fallback Student", attendanceProfile: "DAY_SCHOLAR", gender: "Female", className: "Senior 1", streamName: "A" },
           isValid: true,
           errors: [],
           action: "create",
@@ -210,7 +214,7 @@ describe("StudentsPage", () => {
     );
 
     await user.click(screen.getAllByRole("button", { name: "Import Batch" })[0]);
-    const file = new File(["admissionNumber,fullName,gender,class,stream\nADM-020,Fallback Student,Female,Senior 1,A"], "students.csv", { type: "text/csv" });
+    const file = new File(["admissionNumber,fullName,studentType,gender,class,stream\nADM-020,Fallback Student,DAY_SCHOLAR,Female,Senior 1,A"], "students.csv", { type: "text/csv" });
     const input = container.querySelector('input[type="file"]');
     expect(input).toBeInstanceOf(HTMLInputElement);
     await user.upload(input as HTMLInputElement, file);
@@ -329,4 +333,6 @@ describe("StudentsPage", () => {
     expect(fetchStudents).toHaveBeenCalledTimes(2);
   });
 });
+
+
 

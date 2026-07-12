@@ -472,6 +472,27 @@ export function DashboardPage() {
           />
         </div>
 
+        {attendanceSummary ? (
+          <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+              <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Day Scholars Present</p>
+              <p className="mt-1 text-lg font-bold text-slate-950">{fmt(attendanceSummary.dayScholarsPresent ?? 0)}</p>
+            </div>
+            <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+              <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Day Scholars Absent</p>
+              <p className="mt-1 text-lg font-bold text-slate-950">{fmt(attendanceSummary.dayScholarsAbsent ?? 0)}</p>
+            </div>
+            <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+              <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Boarders Present</p>
+              <p className="mt-1 text-lg font-bold text-slate-950">{fmt(attendanceSummary.boardersPresent ?? 0)}</p>
+            </div>
+            <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+              <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Boarders Not Seen</p>
+              <p className="mt-1 text-lg font-bold text-slate-950">{fmt(attendanceSummary.boardersNotSeenToday ?? 0)}</p>
+            </div>
+          </div>
+        ) : null}
+
         {attendanceSummary?.totalStudents === 0 ? (
           <p className="mt-3 text-xs font-semibold text-slate-500">No active students.</p>
         ) : null}

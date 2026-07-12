@@ -50,6 +50,10 @@ export type DashboardAttendanceSummary = {
   attendanceRate: number;
   onCampus: number;
   offCampus: number;
+  dayScholarsPresent?: number;
+  dayScholarsAbsent?: number;
+  boardersPresent?: number;
+  boardersNotSeenToday?: number;
   lastUpdatedAt: string;
   latestScans?: Array<{
     studentId: string;
