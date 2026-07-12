@@ -161,18 +161,16 @@ describe("NfcOperationsPage compact table layout", () => {
 
     await waitFor(() => expect(screen.getByRole("heading", { name: "NFC Tags" })).toBeInTheDocument());
 
-    expect(screen.getByText("Generate new tags")).toBeInTheDocument();
-    expect(screen.getByText("Filter:")).toBeInTheDocument();
+    expect(screen.queryByText("Filter:")).not.toBeInTheDocument();
 
-    const table = document.querySelector("table.table-fixed");
-    expect(table).not.toBeNull();
+    const cards = document.querySelectorAll(".rounded-2xl.border.border-slate-200.bg-white.p-4.shadow-sm");
+    expect(cards.length).toBeGreaterThanOrEqual(2);
 
-    expect(screen.getAllByRole("button", { name: "More" }).length).toBeGreaterThan(0);
-    expect(screen.getAllByRole("button", { name: "Unassign" }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole("button", { name: "Open actions" }).length).toBeGreaterThan(0);
     expect(screen.getAllByRole("button", { name: "Assign" }).length).toBeGreaterThan(0);
     expect(screen.getAllByRole("button", { name: /Link reader/i }).length).toBeGreaterThan(0);
 
-    fireEvent.click(screen.getAllByRole("button", { name: "More" })[0]);
+    fireEvent.click(screen.getAllByRole("button", { name: "Open actions" })[0]);
     expect(screen.getAllByRole("button", { name: /Copy Payload/i }).length).toBeGreaterThan(0);
     expect(screen.getAllByRole("button", { name: /Copy URL/i }).length).toBeGreaterThan(0);
     expect(screen.getAllByRole("button", { name: /Wallet PIN/i }).length).toBeGreaterThan(0);
@@ -181,5 +179,6 @@ describe("NfcOperationsPage compact table layout", () => {
 
     expect(screen.getAllByText("Claire Nakibuuka With A Very Long Display Name For Layout").length).toBeGreaterThan(0);
     expect(screen.getAllByText("SCNFC:PUBLICCODE-ASSIGNED-001-WITH-A-LONG-PAYLOAD-VALUE").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("No student assigned").length).toBeGreaterThan(0);
   });
 });

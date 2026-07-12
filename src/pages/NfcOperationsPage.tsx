@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+﻿import { useCallback, useEffect, useRef, useState } from "react";
 import type { NfcTag } from "../shared/types/nfcTags";
 import {
   assignNfcTag,
@@ -96,16 +96,16 @@ function ActionsDropdown({ tag, actions, isOpen, onToggle, onClose }: {
       <button
         type="button"
         onClick={onToggle}
-        className="flex min-h-[44px] items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"
+        aria-label="Open actions"
+        className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
       >
-        Actions
-        <svg className="h-4 w-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+        <svg className="h-4 w-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M12 5v.01M12 12v.01M12 19v.01" />
         </svg>
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 z-30 mt-1.5 w-52 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg">
+        <div className="absolute bottom-full right-0 z-40 mb-1.5 w-52 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg">
           <button
             type="button"
             onClick={() => { actions.onCopyPayload(); onClose(); }}
@@ -339,6 +339,70 @@ function MobileTagCard({ tag, actions, isDropdownOpen, onToggleDropdown, onClose
   );
 }
 
+function CompactTagCard({ tag, actions, isDropdownOpen, onToggleDropdown, onCloseDropdown }: {
+  tag: NfcTag;
+  actions: TagActions;
+  isDropdownOpen: boolean;
+  onToggleDropdown: () => void;
+  onCloseDropdown: () => void;
+}) {
+  const payload = tag.writtenPayload ?? `SCNFC:${tag.publicCode}`;
+
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <StatusBadge status={tag.status} />
+            <p className="min-w-0 truncate font-bold text-slate-950">{tag.label ?? `Tag ${tag.publicCode.slice(0, 8)}…`}</p>
+          </div>
+          <p className="mt-1 truncate font-mono text-[11px] text-slate-400" title={payload}>
+            {payload}
+          </p>
+          {tag.student ? (
+            <div className="mt-2 grid gap-0.5 text-sm">
+              <p className="truncate font-semibold text-slate-900">{tag.student.name}</p>
+              <p className="truncate text-xs text-slate-500">
+                {tag.student.admissionNumber}
+                {tag.student.className ? ` · ${tag.student.className}` : ""}
+              </p>
+            </div>
+          ) : (
+            <p className="mt-2 text-sm text-slate-400">No student assigned</p>
+          )}
+        </div>
+        <ActionsDropdown
+          tag={tag}
+          actions={actions}
+          isOpen={isDropdownOpen}
+          onToggle={onToggleDropdown}
+          onClose={onCloseDropdown}
+        />
+      </div>
+
+      <div className="mt-3 flex items-center gap-2">
+        {tag.status === "ASSIGNED" && tag.student ? (
+          <button
+            type="button"
+            onClick={actions.onLinkReaderCredential}
+            className="inline-flex min-h-[34px] items-center rounded-lg border border-amber-200 bg-white px-2.5 py-1 text-[11px] font-black leading-none text-amber-700 hover:bg-amber-50"
+          >
+            Link reader
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={actions.onAssign}
+            className="inline-flex min-h-[34px] items-center rounded-lg border border-blue-200 bg-blue-600 px-2.5 py-1 text-[11px] font-black leading-none text-white hover:bg-blue-700"
+          >
+            Assign
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function NfcOperationsPage() {
   type LinkReaderTarget = {
     id: string;
@@ -508,244 +572,6 @@ export function NfcOperationsPage() {
     };
   }, [linkReaderCapture, linkReaderTarget]);
 
-  async function handleGenerate() {
-    setGenerating(true);
-    setGenerateError(null);
-    try {
-      const data = await generateNfcTags(generateCount);
-      setTags((prev) => [...data.tags, ...prev]);
-    } catch (e) {
-      setGenerateError(e instanceof Error ? e.message : "Failed to generate tags.");
-    } finally {
-      setGenerating(false);
-    }
-  }
-
-  function handleSearchInput(value: string) {
-    setAssignSearch(value);
-    setAssignSelected(null);
-    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
-    if (!value.trim()) { setAssignResults([]); return; }
-    searchDebounceRef.current = setTimeout(() => {
-      setAssignSearching(true);
-      fetchStudents({ search: value.trim(), isActive: "true" })
-        .then((r) => setAssignResults(r.students.slice(0, 8)))
-        .catch(() => setAssignResults([]))
-        .finally(() => setAssignSearching(false));
-    }, 280);
-  }
-
-  function selectStudent(student: StudentListItem) {
-    setAssignSelected(student);
-    setAssignSearch(`${student.studentName} — ${student.admissionNumber}`);
-    setAssignResults([]);
-  }
-
-  async function handleAssign() {
-    if (!assignTagId || !assignSelected) return;
-    setAssignLoading(true);
-    setAssignError(null);
-    try {
-      const updated = await assignNfcTag(assignTagId, assignSelected.id);
-      setTags((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
-      setAssignSuccess({ studentName: assignSelected.studentName, admissionNumber: assignSelected.admissionNumber, studentId: assignSelected.id });
-      setAssignSearch("");
-      setAssignSelected(null);
-      setAssignResults([]);
-    } catch (e) {
-      setAssignError(e instanceof Error ? e.message : "Failed to assign tag.");
-    } finally {
-      setAssignLoading(false);
-    }
-  }
-
-  async function handleUnassign(tagId: string) {
-    try {
-      const res = await unassignNfcTag(tagId);
-      setTags((prev) => prev.map((t) => (t.id === tagId ? { ...t, status: res.status as "UNASSIGNED", studentId: null, student: null } : t)));
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to unassign tag.");
-    }
-  }
-
-  async function handleDisable(tagId: string) {
-    try {
-      const res = await disableNfcTag(tagId);
-      setTags((prev) => prev.map((t) => (t.id === tagId ? { ...t, status: res.status as "DISABLED" } : t)));
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to disable tag.");
-    }
-  }
-
-  function openWalletPinModal(target: WalletPinTarget) {
-    setWalletPinTarget(target);
-    setWalletPinStatus(null);
-    setWalletPinStatusLoading(true);
-    setWalletPinNewPin("");
-    setWalletPinConfirmPin("");
-    setWalletPinReason("");
-    setWalletPinError(null);
-    setWalletPinSuccess(false);
-    getStudentWalletPinStatus(target.studentId)
-      .then(setWalletPinStatus)
-      .catch(() => setWalletPinStatus({ pinSet: false, locked: false, pinLockedUntil: null, pinFailedAttempts: 0 }))
-      .finally(() => setWalletPinStatusLoading(false));
-  }
-
-  function closeWalletPinModal() {
-    setWalletPinTarget(null);
-    setWalletPinStatus(null);
-    setWalletPinNewPin("");
-    setWalletPinConfirmPin("");
-    setWalletPinReason("");
-    setWalletPinError(null);
-    setWalletPinSuccess(false);
-  }
-
-  async function handleSetWalletPin() {
-    if (!walletPinTarget) return;
-    if (!/^\d{4,6}$/.test(walletPinNewPin)) { setWalletPinError("PIN must be 4 to 6 digits."); return; }
-    if (walletPinNewPin !== walletPinConfirmPin) { setWalletPinError("PINs do not match."); return; }
-    if (!walletPinReason.trim()) { setWalletPinError("Reason is required."); return; }
-    setWalletPinLoading(true);
-    setWalletPinError(null);
-    try {
-      await setStudentWalletPin(walletPinTarget.studentId, { pin: walletPinNewPin, reason: walletPinReason.trim() });
-      setWalletPinSuccess(true);
-    } catch (e) {
-      setWalletPinError(e instanceof Error ? e.message : "Could not set PIN.");
-    } finally {
-      setWalletPinNewPin("");
-      setWalletPinConfirmPin("");
-      setWalletPinLoading(false);
-    }
-  }
-
-  async function handleEnable() {
-    if (!enableTarget || !enableReason.trim()) return;
-    setEnableLoading(true);
-    setEnableError(null);
-    try {
-      const res = await enableNfcTag(enableTarget.id, enableReason.trim());
-      setTags((prev) => prev.map((t) => (t.id === enableTarget.id ? { ...t, status: res.status as NfcTag["status"] } : t)));
-      setEnableTarget(null);
-      setEnableReason("");
-    } catch (e) {
-      setEnableError(e instanceof Error ? e.message : "Failed to re-enable tag.");
-    } finally {
-      setEnableLoading(false);
-    }
-  }
-
-  async function handleViewEvents(tagId: string) {
-    setEventsTagId(tagId);
-    setEventsLoading(true);
-    try {
-      const data = await getNfcTagEvents(tagId);
-      setEvents(data.events);
-    } catch {
-      setEvents([]);
-    } finally {
-      setEventsLoading(false);
-    }
-  }
-
-  function handleCopy(tag: NfcTag) {
-    const url = tag.writtenUrl ?? `${window.location.origin}/t/${tag.publicCode}`;
-    copyToClipboard(url);
-    setCopiedId(tag.id);
-    setTimeout(() => setCopiedId((id) => (id === tag.id ? null : id)), 2000);
-  }
-
-  function handleCopyPayload(tag: NfcTag) {
-    const payload = tag.writtenPayload ?? `SCNFC:${tag.publicCode}`;
-    copyToClipboard(payload);
-    setCopiedPayloadId(tag.id);
-    setTimeout(() => setCopiedPayloadId((id) => (id === tag.id ? null : id)), 2000);
-  }
-
-  function openLinkReaderModal(tag: NfcTag) {
-    if (!tag.student) return;
-    setLinkReaderTarget({
-      id: tag.id,
-      publicCode: tag.publicCode,
-      label: tag.label,
-      physicalUid: tag.physicalUid,
-      student: tag.student,
-    });
-    setLinkReaderCapture(null);
-    setLinkReaderError(null);
-    setLinkReaderSuccess(null);
-    setLinkReaderConflict(null);
-    setLinkReaderTransferReason("");
-  }
-
-  function closeLinkReaderModal() {
-    setLinkReaderTarget(null);
-  }
-
-  async function handleStartReaderLinkCapture() {
-    if (!linkReaderTarget) return;
-    setLinkReaderLoading(true);
-    setLinkReaderError(null);
-    setLinkReaderSuccess(null);
-    setLinkReaderConflict(null);
-    try {
-      const session = await startReaderCredentialCapture(linkReaderTarget.id, {
-        deviceId: linkReaderDeviceId || undefined,
-      });
-      setLinkReaderCapture(session);
-    } catch (startError) {
-      setLinkReaderError(startError instanceof Error ? startError.message : "Failed to start reader credential capture.");
-    } finally {
-      setLinkReaderLoading(false);
-    }
-  }
-
-  async function handleConfirmReaderLink() {
-    if (!linkReaderTarget || !linkReaderCapture) return;
-    setLinkReaderConfirming(true);
-    setLinkReaderError(null);
-    setLinkReaderConflict(null);
-    try {
-      const result = await confirmReaderCredentialCapture(linkReaderCapture.captureId);
-      setLinkReaderSuccess("Reader credential linked successfully.");
-      setLinkReaderCapture((current) => current ? { ...current, status: "CONFIRMED", confirmedAt: new Date().toISOString() } : current);
-      setTags((prev) => prev.map((tag) => (tag.id === result.tag.id ? { ...tag, physicalUid: result.tag.physicalUid } : tag)));
-    } catch (confirmError) {
-      const maybeConflict = confirmError as Error & { data?: ReaderCredentialConflictResponse };
-      if (maybeConflict.data?.code === "READER_CREDENTIAL_CONFLICT") {
-        setLinkReaderConflict(maybeConflict.data.conflict);
-        setLinkReaderError(maybeConflict.data.message);
-      } else {
-        setLinkReaderError(confirmError instanceof Error ? confirmError.message : "Failed to confirm reader credential link.");
-      }
-    } finally {
-      setLinkReaderConfirming(false);
-    }
-  }
-
-  async function handleTransferReaderLink() {
-    if (!linkReaderCapture) return;
-    if (!linkReaderTransferReason.trim()) {
-      setLinkReaderError("Transfer reason is required.");
-      return;
-    }
-    setLinkReaderTransferring(true);
-    setLinkReaderError(null);
-    try {
-      const result = await transferReaderCredentialCapture(linkReaderCapture.captureId, linkReaderTransferReason.trim());
-      setLinkReaderSuccess("Reader credential transferred successfully.");
-      setLinkReaderConflict(null);
-      setLinkReaderCapture((current) => current ? { ...current, status: "CONFIRMED", confirmedAt: new Date().toISOString() } : current);
-      setTags((prev) => prev.map((tag) => (tag.id === result.tag.id ? { ...tag, physicalUid: result.tag.physicalUid } : tag)));
-    } catch (transferError) {
-      setLinkReaderError(transferError instanceof Error ? transferError.message : "Failed to transfer reader credential.");
-    } finally {
-      setLinkReaderTransferring(false);
-    }
-  }
-
   function makeActions(tag: NfcTag): TagActions {
     return {
       onCopyPayload: () => handleCopyPayload(tag),
@@ -767,64 +593,59 @@ export function NfcOperationsPage() {
   }
 
   return (
-    <div className="space-y-3 px-4 pb-24 pt-6 sm:px-5 sm:pb-24 sm:pt-6 xl:px-6 xl:pb-28 xl:pt-7">
-      <div className="space-y-1">
-        <h1 className="text-2xl font-black tracking-tight text-slate-950">NFC Tags</h1>
-        <p className="text-sm text-slate-500">Manage physical NFC tags — generate, assign to students, and monitor taps.</p>
-      </div>
-
-      {/* Generate strip — stacks on mobile */}
-      <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
-        <div className="flex flex-wrap items-center gap-3">
-          <p className="text-sm font-black text-slate-950">Generate new tags</p>
-          <input
-            type="number"
-            min={1}
-            max={100}
-            value={generateCount}
-            onChange={(e) => setGenerateCount(Math.max(1, Math.min(100, Number(e.target.value))))}
-            className="premium-control w-full sm:w-[104px]"
-          />
+    <div className="space-y-3 px-4 pb-28 pt-6 sm:px-5 sm:pb-28 sm:pt-6 xl:px-6 xl:pb-32 xl:pt-7">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div className="min-w-0">
+          <h1 className="text-2xl font-black tracking-tight text-slate-950">NFC Tags</h1>
+          <p className="mt-1 text-sm text-slate-500">Manage physical NFC tags — generate, assign to students, and monitor taps.</p>
+        </div>
+        <div className="flex flex-wrap items-end justify-end gap-2">
+          <label className="grid gap-1 text-xs font-bold uppercase tracking-wide text-slate-500">
+            Quantity
+            <input
+              type="number"
+              min={1}
+              max={100}
+              value={generateCount}
+              onChange={(e) => setGenerateCount(Math.max(1, Math.min(100, Number(e.target.value))))}
+              className="premium-control w-[80px]"
+            />
+          </label>
           <button
             type="button"
             onClick={() => { void handleGenerate(); }}
             disabled={generating}
-            className="btn btn-primary min-h-[38px] w-full rounded-xl px-4 py-2 text-sm font-black sm:w-auto"
+            className="btn btn-primary min-h-[38px] rounded-xl px-4 py-2 text-sm font-black"
           >
             {generating ? "Generating…" : `Generate ${generateCount} tag${generateCount > 1 ? "s" : ""}`}
           </button>
         </div>
-        {generateError && <p className="mt-2 text-xs text-red-600">{generateError}</p>}
       </div>
 
-      {/* Filter row — wraps cleanly on mobile */}
+      {generateError && <div className="rounded-2xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{generateError}</div>}
+      {error && <div className="rounded-2xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
+
       <div className="flex flex-wrap items-center gap-1.5">
-        <p className="text-sm font-semibold text-slate-600">Filter:</p>
         {(["", "UNASSIGNED", "ASSIGNED", "DISABLED", "LOST"] as StatusFilter[]).map((s) => (
           <button
             key={s}
             type="button"
             onClick={() => setStatusFilter(s)}
-            className={`min-h-[34px] rounded-full border px-3 py-1 text-xs font-black transition ${statusFilter === s ? "border-blue-600 bg-blue-600 text-white" : "border-slate-200 bg-white text-slate-600 hover:border-blue-200"}`}
+            className={`min-h-[30px] rounded-full border px-2.5 py-1 text-[11px] font-black transition ${statusFilter === s ? "border-blue-600 bg-blue-600 text-white" : "border-slate-200 bg-white text-slate-600 hover:border-blue-200"}`}
           >
             {s || "All"}
           </button>
         ))}
       </div>
 
-      {error && (
-        <div className="rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</div>
-      )}
-
-      {/* Mobile cards — hidden on md+ */}
-      <div className="grid gap-3 md:hidden">
+      <div className="grid gap-3 md:grid-cols-2">
         {loading ? (
-          <p className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-500">Loading tags…</p>
+          <p className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-500 md:col-span-2">Loading tags…</p>
         ) : tags.length === 0 ? (
-          <p className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-500">No tags found. Generate some above to get started.</p>
+          <p className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-500 md:col-span-2">No tags found. Generate some above to get started.</p>
         ) : (
           tags.map((tag) => (
-            <MobileTagCard
+            <CompactTagCard
               key={tag.id}
               tag={tag}
               actions={makeActions(tag)}
@@ -833,109 +654,6 @@ export function NfcOperationsPage() {
               onCloseDropdown={() => setOpenDropdownId(null)}
             />
           ))
-        )}
-      </div>
-
-      {/* Desktop table — hidden below md */}
-      <div className="hidden overflow-visible rounded-2xl border border-slate-200 bg-white shadow-sm md:block">
-        {loading ? (
-          <p className="p-6 text-sm text-slate-500">Loading tags…</p>
-        ) : tags.length === 0 ? (
-          <p className="p-6 text-sm text-slate-500">No tags found. Generate some above to get started.</p>
-        ) : (
-          <table className="w-full table-fixed text-sm">
-            <colgroup>
-              <col className="w-[10%]" />
-              <col className="w-[22%]" />
-              <col className="w-[8%]" />
-              <col className="w-[22%]" />
-              <col className="w-[14%]" />
-              <col className="w-[6%]" />
-              <col className="w-[18%]" />
-            </colgroup>
-            <thead className="border-b border-slate-100 bg-slate-50 text-left text-[11px] font-black uppercase tracking-wider text-slate-500">
-              <tr>
-                <th className="px-3 py-2.5">Status</th>
-                <th className="px-3 py-2.5">Label / Payload</th>
-                <th className="px-3 py-2.5">Mode</th>
-                <th className="px-3 py-2.5">Student</th>
-                <th className="px-3 py-2.5">Last Seen</th>
-                <th className="px-3 py-2.5 text-center">Taps</th>
-                <th className="px-3 py-2.5">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {tags.map((tag) => (
-                <tr key={tag.id} className="hover:bg-slate-50">
-                  <td className="px-3 py-2.5 align-middle">
-                    <StatusBadge status={tag.status} />
-                  </td>
-                  <td className="min-w-0 px-3 py-2.5 align-middle">
-                    <p className="truncate font-bold text-slate-950">{tag.label ?? `Tag ${tag.publicCode.slice(0, 8)}…`}</p>
-                    <p className="truncate font-mono text-[11px] text-slate-400">
-                      {tag.writtenPayload ?? `SCNFC:${tag.publicCode}`}
-                    </p>
-                  </td>
-                  <td className="px-3 py-2.5 align-middle">
-                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-slate-500">
-                      {tag.tagMode}
-                    </span>
-                  </td>
-                  <td className="min-w-0 px-3 py-2.5 align-middle">
-                    {tag.student ? (
-                      <div className="min-w-0">
-                        <p className="truncate font-semibold text-slate-950">{tag.student.name}</p>
-                        <p className="truncate text-[11px] text-slate-400">{tag.student.admissionNumber}{tag.student.className ? ` · ${tag.student.className}` : ""}</p>
-                      </div>
-                    ) : (
-                      <span className="text-slate-400">—</span>
-                    )}
-                  </td>
-                  <td className="px-3 py-2.5 align-middle text-slate-500">
-                    {tag.lastSeenAt ? new Date(tag.lastSeenAt).toLocaleString() : "—"}
-                  </td>
-                  <td className="px-3 py-2.5 align-middle text-center font-semibold text-slate-700">{tag.tapCount ?? 0}</td>
-                  <td className="px-3 py-2.5 align-middle">
-                    <div className="flex max-w-full flex-wrap items-center gap-1.5">
-                      {tag.status !== "DISABLED" && tag.status !== "ASSIGNED" ? (
-                        <button
-                          type="button"
-                          onClick={() => { setAssignTagId(tag.id); setAssignSearch(""); setAssignSelected(null); setAssignResults([]); setAssignError(null); }}
-                          className={`${compactActionButtonClass} border-blue-200 bg-blue-600 text-white hover:bg-blue-700`}
-                        >
-                          Assign
-                        </button>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => { void handleUnassign(tag.id); }}
-                          className={`${compactActionButtonClass} border-slate-200 bg-white text-slate-700 hover:bg-slate-50`}
-                        >
-                          Unassign
-                        </button>
-                      )}
-                      {tag.status === "ASSIGNED" && tag.student ? (
-                        <button
-                          type="button"
-                          onClick={() => openLinkReaderModal(tag)}
-                          className={`${compactActionButtonClass} border-amber-200 text-amber-700 hover:bg-amber-50`}
-                        >
-                          Link reader
-                        </button>
-                      ) : null}
-                      <RowMoreMenu
-                        tag={tag}
-                        actions={makeActions(tag)}
-                        isOpen={openDropdownId === tag.id}
-                        onToggle={() => setOpenDropdownId((id) => (id === tag.id ? null : tag.id))}
-                        onClose={() => setOpenDropdownId(null)}
-                      />
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
         )}
       </div>
 
@@ -1412,3 +1130,4 @@ export function NfcOperationsPage() {
     </div>
   );
 }
+
