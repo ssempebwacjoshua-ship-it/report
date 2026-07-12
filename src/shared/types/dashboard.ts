@@ -51,5 +51,27 @@ export type DashboardAttendanceSummary = {
   onCampus: number;
   offCampus: number;
   lastUpdatedAt: string;
+  latestScans?: Array<{
+    studentId: string;
+    studentName: string;
+    admissionNumber: string;
+    className: string | null;
+    streamName: string | null;
+    eventType: string;
+    status: "PRESENT" | "LATE" | "DEPARTED" | "BLOCKED";
+    occurredAt: string;
+    readerUsed: string | null;
+    offlineSynced: boolean;
+  }>;
+  classSummaries?: Array<{
+    className: string;
+    streamName: string | null;
+    totalStudents: number;
+    present: number;
+    late: number;
+    absent: number;
+    onCampus: number;
+    offCampus: number;
+  }>;
 };
 

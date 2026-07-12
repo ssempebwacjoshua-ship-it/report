@@ -231,7 +231,7 @@ describe("locationAttendanceService", () => {
     expect(summary.attendanceRate).toBe(0);
   });
 
-  it("prefers physical reader attendance in the register and only falls back to legacy browser events when no canonical record exists", async () => {
+  it("uses only canonical physical-reader attendance in the register", async () => {
     const db = createDb({
       students: [
         { id: "student-1", schoolId: "school-1", admissionNumber: "A-001", firstName: "Ada", lastName: "Lovelace", studentType: "DAY", isActive: true, className: "Senior 1", streamName: "A" },
@@ -259,8 +259,8 @@ describe("locationAttendanceService", () => {
       tapIn: { source: "PHYSICAL_READER" },
     });
     expect(register.rows.find((row) => row.student.id === "student-2")).toMatchObject({
-      currentStatus: "PRESENT",
-      tapIn: { source: "BROWSER" },
+      currentStatus: "ABSENT",
+      tapIn: null,
     });
   });
 

@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import {
   fetchDashboardAttendanceSummary,
   fetchDashboardStats,
+  streamDashboardAttendanceSummary,
 } from "../client/dashboardClient";
 import { StatCard } from "../components/dashboard/StatCard";
 import { Icon } from "../components/layout/Icon";
@@ -134,6 +135,7 @@ export function DashboardPage() {
   const [attendanceLoading, setAttendanceLoading] = useState(true);
   const [attendancePaused, setAttendancePaused] = useState(false);
   const [attendanceError, setAttendanceError] = useState("");
+  const [attendanceStreamError, setAttendanceStreamError] = useState("");
 
   const refreshTimerRef = useRef<number | null>(null);
   const attendanceAbortRef = useRef<AbortController | null>(null);
@@ -154,6 +156,29 @@ export function DashboardPage() {
         }
       });
 
+    return () => controller.abort();
+  }, []);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    void streamDashboardAttendanceSummary({
+      signal: controller.signal,
+      onSummary: (summary) => {
+        setAttendanceSummary(summary);
+        setAttendanceLoading(false);
+        setAttendancePaused(false);
+        setAttendanceError("");
+        setAttendanceStreamError("");
+        attendanceFailureCountRef.current = 0;
+      },
+      onError: (error) => {
+        setAttendanceStreamError(error.message);
+      },
+    }).catch((error) => {
+      if (!controller.signal.aborted) {
+        setAttendanceStreamError(error instanceof Error ? error.message : "Attendance stream unavailable");
+      }
+    });
     return () => controller.abort();
   }, []);
 
@@ -403,6 +428,11 @@ export function DashboardPage() {
             {attendanceError}
           </div>
         ) : null}
+        {attendanceStreamError && attendanceSummary ? (
+          <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+            Live stream unavailable. Automatic refresh is still active.
+          </div>
+        ) : null}
 
         <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-2 md:gap-4 xl:grid-cols-5">
           <AttendanceCard
@@ -444,6 +474,60 @@ export function DashboardPage() {
 
         {attendanceSummary?.totalStudents === 0 ? (
           <p className="mt-3 text-xs font-semibold text-slate-500">No active students.</p>
+        ) : null}
+
+        {(attendanceSummary?.latestScans?.length ?? 0) > 0 || (attendanceSummary?.classSummaries?.length ?? 0) > 0 ? (
+          <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
+            <section className="rounded-xl border border-slate-200 bg-white p-3">
+              <div className="flex items-center justify-between gap-2">
+                <h3 className="text-sm font-bold text-slate-950">Latest Scans</h3>
+                <Link to="/nfc/attendance?view=GATE" className="text-xs font-bold text-[color:var(--sc-primary)]">
+                  Open gate view
+                </Link>
+              </div>
+              <div className="mt-3 space-y-2">
+                {(attendanceSummary?.latestScans ?? []).map((scan) => (
+                  <div key={`${scan.studentId}:${scan.occurredAt}:${scan.eventType}`} className="flex items-start justify-between gap-3 rounded-xl border border-slate-100 bg-slate-50 px-3 py-2">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-bold text-slate-900">{scan.studentName}</p>
+                      <p className="text-xs text-slate-500">
+                        {scan.admissionNumber}
+                        {scan.className ? ` • ${scan.className}` : ""}
+                        {scan.streamName ? ` / ${scan.streamName}` : ""}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-xs font-bold text-slate-700">{scan.eventType.replaceAll("_", " ")}</p>
+                      <p className="text-xs text-slate-500">{fmtTime(scan.occurredAt)}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+
+            <section className="rounded-xl border border-slate-200 bg-white p-3">
+              <div className="flex items-center justify-between gap-2">
+                <h3 className="text-sm font-bold text-slate-950">Class Summaries</h3>
+                <span className="text-xs font-semibold text-slate-500">Canonical reader attendance</span>
+              </div>
+              <div className="mt-3 space-y-2">
+                {(attendanceSummary?.classSummaries ?? []).slice(0, 6).map((row) => (
+                  <div key={`${row.className}:${row.streamName ?? ""}`} className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-sm font-bold text-slate-900">
+                        {row.className}
+                        {row.streamName ? ` / ${row.streamName}` : ""}
+                      </p>
+                      <p className="text-xs font-semibold text-slate-500">{fmtPercent(row.totalStudents > 0 ? (row.present / row.totalStudents) * 100 : 0)}</p>
+                    </div>
+                    <p className="mt-1 text-xs text-slate-500">
+                      Present {row.present} • Late {row.late} • Absent {row.absent}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </section>
+          </div>
         ) : null}
       </section>
 

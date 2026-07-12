@@ -5,7 +5,10 @@ import type {
   DashboardStats,
   RecentBatch,
 } from "../../shared/types/dashboard";
-import { getDashboardAttendanceSummary as getCanonicalDashboardAttendanceSummary } from "./locationAttendanceService";
+import {
+  getDashboardAttendanceSummary as getCanonicalDashboardAttendanceSummary,
+  getDashboardAttendanceSummaryForSchool as getCanonicalDashboardAttendanceSummaryForSchool,
+} from "./locationAttendanceService";
 
 function extractRowCount(summary: string | null): number {
   if (!summary) return 0;
@@ -175,5 +178,12 @@ export async function getDashboardAttendanceSummary(
   ctx: { schoolId?: string | null; actorId?: string | null; role?: string | null },
 ): Promise<DashboardAttendanceSummary> {
   return getCanonicalDashboardAttendanceSummary(ctx, prisma as never);
+}
+
+export async function getDashboardAttendanceSummaryForSchool(
+  prisma: PrismaClient,
+  schoolId: string,
+): Promise<DashboardAttendanceSummary> {
+  return getCanonicalDashboardAttendanceSummaryForSchool(schoolId, prisma as never);
 }
 

@@ -15,7 +15,6 @@ type AttendanceDb = Pick<
   | "student"
   | "studentFeeHold"
   | "studentGateHold"
-  | "studentAttendanceEvent"
   | "dailyAttendance"
   | "campusMovementEvent"
   | "classroomAttendanceEvent"
@@ -88,6 +87,28 @@ export type DashboardAttendanceSummary = {
   onCampus: number;
   offCampus: number;
   lastUpdatedAt: string;
+  latestScans?: Array<{
+    studentId: string;
+    studentName: string;
+    admissionNumber: string;
+    className: string | null;
+    streamName: string | null;
+    eventType: string;
+    status: "PRESENT" | "LATE" | "DEPARTED" | "BLOCKED";
+    occurredAt: string;
+    readerUsed: string | null;
+    offlineSynced: boolean;
+  }>;
+  classSummaries?: Array<{
+    className: string;
+    streamName: string | null;
+    totalStudents: number;
+    present: number;
+    late: number;
+    absent: number;
+    onCampus: number;
+    offCampus: number;
+  }>;
 };
 
 export type AttendanceRegisterRow = {
@@ -178,16 +199,6 @@ type MovementEvent = {
   offlineSynced: boolean;
 };
 
-type LegacyAttendanceEvent = {
-  id: string;
-  studentId: string;
-  direction: string;
-  scannedAt: Date;
-  source: string;
-  status: string;
-  reason: string | null;
-};
-
 type ReaderRow = {
   id: string;
   name: string;
@@ -200,6 +211,10 @@ type CanonicalAttendanceSnapshot = {
   timezone: string;
   rows: GateAttendanceRow[];
   summary: DashboardAttendanceSummary;
+};
+
+type SnapshotBuildOptions = {
+  skipPermissionCheck?: boolean;
 };
 
 function requireSchoolId(ctx: AttendanceContext) {
@@ -303,6 +318,12 @@ function mapEventsByStudent<T extends { studentId: string }>(rows: T[]) {
   return byStudent;
 }
 
+function buildLatestScanStatus(eventType: string): "PRESENT" | "LATE" | "DEPARTED" | "BLOCKED" {
+  if (eventType === "GATE_EXIT") return "DEPARTED";
+  if (eventType === "RESTRICTED_ENTRY_ATTEMPT") return "BLOCKED";
+  return "PRESENT";
+}
+
 function buildGateSummary(rows: GateAttendanceRow[]) {
   const late = rows.filter((row) => row.attendanceStatus === "LATE").length;
   const presentOnly = rows.filter((row) => row.attendanceStatus === "PRESENT").length;
@@ -325,9 +346,12 @@ async function buildCanonicalAttendanceSnapshot(
   ctx: AttendanceContext,
   filters: LocationAttendanceFilters = {},
   db: AttendanceDb = defaultPrisma,
+  options: SnapshotBuildOptions = {},
 ): Promise<CanonicalAttendanceSnapshot> {
   const schoolId = requireSchoolId(ctx);
-  requireReadPermission(ctx);
+  if (!options.skipPermissionCheck) {
+    requireReadPermission(ctx);
+  }
   const policy = await getSchoolNfcPolicy(ctx, db as never);
   const dateKey = validateDate(filters.date) ?? getZonedDateKey(new Date(), policy.policy.timezone);
   const { start, end } = getZonedDayRangeByKey(dateKey, policy.policy.timezone);
@@ -370,6 +394,8 @@ async function buildCanonicalAttendanceSnapshot(
         onCampus: 0,
         offCampus: 0,
         lastUpdatedAt: new Date().toISOString(),
+        latestScans: [],
+        classSummaries: [],
       },
     };
   }
@@ -401,6 +427,7 @@ async function buildCanonicalAttendanceSnapshot(
   const dailyByStudent = new Map(dailyAttendances.map((row: DailyAttendanceRow) => [row.studentId, row]));
   const readersById = new Map(readers.map((reader: ReaderRow) => [reader.id, reader]));
   const movementByStudent = mapEventsByStudent(movementEvents as MovementEvent[]);
+  const studentsById = new Map(students.map((student) => [student.id, student]));
 
   const rows = students.map((student) => {
     const enrollment = student.enrollments[0];
@@ -450,6 +477,55 @@ async function buildCanonicalAttendanceSnapshot(
 
   sortByName(rows);
   const gateSummary = buildGateSummary(rows);
+  const latestScans = [...movementEvents]
+    .sort((left, right) => right.occurredAt.getTime() - left.occurredAt.getTime())
+    .map((event) => {
+      const student = studentsById.get(event.studentId);
+      if (!student) return null;
+      const enrollment = student.enrollments[0];
+      return {
+        studentId: student.id,
+        studentName: getStudentName(student),
+        admissionNumber: student.admissionNumber,
+        className: enrollment?.class?.name ?? null,
+        streamName: enrollment?.stream?.name ?? null,
+        eventType: event.type,
+        status: buildLatestScanStatus(event.type),
+        occurredAt: event.occurredAt.toISOString(),
+        readerUsed: getReaderLabel(readersById, event.readerId),
+        offlineSynced: Boolean(event.offlineSynced),
+      };
+    })
+    .filter((row): row is NonNullable<typeof row> => Boolean(row))
+    .slice(0, 8);
+  const classSummaryMap = new Map<string, NonNullable<DashboardAttendanceSummary["classSummaries"]>[number]>();
+  for (const row of rows) {
+    const key = `${row.className ?? "Unassigned"}::${row.streamName ?? ""}`;
+    const current = classSummaryMap.get(key) ?? {
+      className: row.className ?? "Unassigned",
+      streamName: row.streamName ?? null,
+      totalStudents: 0,
+      present: 0,
+      late: 0,
+      absent: 0,
+      onCampus: 0,
+      offCampus: 0,
+    };
+    current.totalStudents += 1;
+    if (row.attendanceStatus === "LATE") {
+      current.present += 1;
+      current.late += 1;
+    } else if (row.attendanceStatus === "PRESENT") {
+      current.present += 1;
+    } else {
+      current.absent += 1;
+    }
+    if (row.campusStatus === "ON_CAMPUS") current.onCampus += 1;
+    else current.offCampus += 1;
+    classSummaryMap.set(key, current);
+  }
+  const classSummaries = [...classSummaryMap.values()]
+    .sort((left, right) => left.className.localeCompare(right.className) || (left.streamName ?? "").localeCompare(right.streamName ?? ""));
 
   return {
     date: dateKey,
@@ -468,6 +544,8 @@ async function buildCanonicalAttendanceSnapshot(
       onCampus: gateSummary.onCampus,
       offCampus: gateSummary.offCampus,
       lastUpdatedAt: new Date().toISOString(),
+      latestScans,
+      classSummaries,
     },
   };
 }
@@ -477,6 +555,16 @@ export async function getDashboardAttendanceSummary(
   db: AttendanceDb = defaultPrisma,
 ): Promise<DashboardAttendanceSummary> {
   const snapshot = await buildCanonicalAttendanceSnapshot(ctx, {}, db);
+  return snapshot.summary;
+}
+
+export async function getDashboardAttendanceSummaryForSchool(
+  schoolId: string,
+  db: AttendanceDb = defaultPrisma,
+): Promise<DashboardAttendanceSummary> {
+  const snapshot = await buildCanonicalAttendanceSnapshot({ schoolId, actorId: null, role: null }, {}, db, {
+    skipPermissionCheck: true,
+  });
   return snapshot.summary;
 }
 
@@ -535,130 +623,47 @@ export async function getCanonicalAttendanceRegister(
   });
 
   const studentIds = students.map((student) => student.id);
-  const [movementEvents, legacyEvents] = studentIds.length === 0
-    ? [[], []] as const
-    : await Promise.all([
-        db.campusMovementEvent.findMany({
-          where: { schoolId, studentId: { in: studentIds }, occurredAt: { gte: start, lt: end } },
-          orderBy: [{ occurredAt: "asc" }, { receivedAt: "asc" }],
-          select: {
-            id: true,
-            studentId: true,
-            readerId: true,
-            type: true,
-            occurredAt: true,
-            receivedAt: true,
-            offlineSynced: true,
-          },
-        }),
-        db.studentAttendanceEvent.findMany({
-          where: { schoolId, studentId: { in: studentIds }, scannedAt: { gte: start, lt: end } },
-          orderBy: { scannedAt: "asc" },
-          select: {
-            id: true,
-            studentId: true,
-            direction: true,
-            scannedAt: true,
-            source: true,
-            status: true,
-            reason: true,
-          },
-        }),
-      ]);
+  const movementEvents = studentIds.length === 0
+    ? []
+    : await db.campusMovementEvent.findMany({
+        where: { schoolId, studentId: { in: studentIds }, occurredAt: { gte: start, lt: end } },
+        orderBy: [{ occurredAt: "asc" }, { receivedAt: "asc" }],
+        select: {
+          id: true,
+          studentId: true,
+          readerId: true,
+          type: true,
+          occurredAt: true,
+          receivedAt: true,
+          offlineSynced: true,
+        },
+      });
 
   const gateRowsByStudent = new Map(snapshot.rows.map((row) => [row.studentId, row]));
   const movementByStudent = mapEventsByStudent(movementEvents as MovementEvent[]);
-  const legacyByStudent = mapEventsByStudent(legacyEvents as LegacyAttendanceEvent[]);
 
   let blockedScans = 0;
-  let duplicateScans = 0;
+  const duplicateScans = 0;
 
   const rows = students.map((student) => {
     const enrollment = student.enrollments[0];
     const gateRow = gateRowsByStudent.get(student.id);
     const canonicalEvents = movementByStudent.get(student.id) ?? [];
-    const legacy = legacyByStudent.get(student.id) ?? [];
-
-    const hasCanonicalRecord = Boolean(
-      gateRow
-      && (
-        gateRow.attendanceStatus !== "ABSENT"
-        || gateRow.arrivalTime
-        || gateRow.departureTime
-        || gateRow.feeHoldAttempt
-        || gateRow.manualOverride
-      ),
-    );
-
-    if (hasCanonicalRecord && gateRow) {
-      const latestCanonicalEvent = canonicalEvents.length > 0 ? canonicalEvents[canonicalEvents.length - 1] : null;
-      const latestRestrictedAttempt = [...canonicalEvents].reverse().find((event) => event.type === "RESTRICTED_ENTRY_ATTEMPT") ?? null;
-      if (latestRestrictedAttempt) blockedScans += 1;
-
-      let currentStatus: AttendanceRegisterRow["currentStatus"];
-      if (gateRow.arrivalTime && gateRow.departureTime && gateRow.campusStatus === "OFF_CAMPUS") {
-        currentStatus = "OUT";
-      } else if (gateRow.attendanceStatus === "LATE") {
-        currentStatus = "LATE";
-      } else if (gateRow.attendanceStatus === "PRESENT") {
-        currentStatus = "PRESENT";
-      } else if (gateRow.departureTime) {
-        currentStatus = "OUT_ONLY";
-      } else if (latestRestrictedAttempt) {
-        currentStatus = "BLOCKED";
-      } else {
-        currentStatus = "ABSENT";
-      }
-
-      return {
-        student: {
-          id: student.id,
-          name: getStudentName(student),
-          admissionNumber: student.admissionNumber,
-          className: enrollment?.class?.name ?? null,
-          streamName: enrollment?.stream?.name ?? null,
-          studentType: student.studentType,
-          photoUrl: null,
-        },
-        tapIn: gateRow.arrivalTime
-          ? { id: `${student.id}:tap-in`, scannedAt: gateRow.arrivalTime, source: "PHYSICAL_READER" }
-          : null,
-        tapOut: gateRow.departureTime
-          ? { id: `${student.id}:tap-out`, scannedAt: gateRow.departureTime, source: "PHYSICAL_READER" }
-          : null,
-        // Canonical physical-reader rows always win. Legacy browser events are used only
-        // when no DailyAttendance or CampusMovementEvent record exists for that student/date.
-        lastScan: latestCanonicalEvent
-          ? {
-              id: latestCanonicalEvent.id,
-              direction: latestCanonicalEvent.type,
-              scannedAt: latestCanonicalEvent.occurredAt.toISOString(),
-              status: latestCanonicalEvent.type === "RESTRICTED_ENTRY_ATTEMPT" ? "BLOCKED" : latestCanonicalEvent.type,
-              reason: latestCanonicalEvent.type === "RESTRICTED_ENTRY_ATTEMPT" ? "Restricted entry attempt" : null,
-            }
-          : null,
-        currentStatus,
-      } satisfies AttendanceRegisterRow;
-    }
-
-    const tapIn = legacy.find((event) => event.direction === "TAP_IN" && (event.status === "VALID" || event.status === "LATE")) ?? null;
-    const validOuts = legacy.filter((event) => event.direction === "TAP_OUT" && event.status === "VALID");
-    const tapOut = validOuts.length > 0 ? validOuts[validOuts.length - 1] : null;
-    const lastScan = legacy.length > 0 ? legacy[legacy.length - 1] : null;
-    blockedScans += legacy.filter((event) => event.status === "BLOCKED").length;
-    duplicateScans += legacy.filter((event) => event.status === "DUPLICATE").length;
+    const latestCanonicalEvent = canonicalEvents.length > 0 ? canonicalEvents[canonicalEvents.length - 1] : null;
+    const latestRestrictedAttempt = [...canonicalEvents].reverse().find((event) => event.type === "RESTRICTED_ENTRY_ATTEMPT") ?? null;
+    if (latestRestrictedAttempt) blockedScans += 1;
 
     let currentStatus: AttendanceRegisterRow["currentStatus"];
-    if (tapIn && tapOut) {
+    if (gateRow?.arrivalTime && gateRow.departureTime && gateRow.campusStatus === "OFF_CAMPUS") {
       currentStatus = "OUT";
-    } else if (tapIn) {
-      currentStatus = tapIn.status === "LATE" ? "LATE" : "PRESENT";
-    } else if (tapOut) {
+    } else if (gateRow?.attendanceStatus === "LATE") {
+      currentStatus = "LATE";
+    } else if (gateRow?.attendanceStatus === "PRESENT") {
+      currentStatus = "PRESENT";
+    } else if (gateRow?.departureTime) {
       currentStatus = "OUT_ONLY";
-    } else if (lastScan?.status === "BLOCKED") {
-      currentStatus = lastScan.reason === "attendance cut-off passed" ? "ABSENT" : "BLOCKED";
-    } else if (lastScan?.status === "DUPLICATE") {
-      currentStatus = "DUPLICATE";
+    } else if (latestRestrictedAttempt) {
+      currentStatus = "BLOCKED";
     } else {
       currentStatus = "ABSENT";
     }
@@ -673,15 +678,19 @@ export async function getCanonicalAttendanceRegister(
         studentType: student.studentType,
         photoUrl: null,
       },
-      tapIn: tapIn ? { id: tapIn.id, scannedAt: tapIn.scannedAt.toISOString(), source: tapIn.source } : null,
-      tapOut: tapOut ? { id: tapOut.id, scannedAt: tapOut.scannedAt.toISOString(), source: tapOut.source } : null,
-      lastScan: lastScan
+      tapIn: gateRow?.arrivalTime
+        ? { id: `${student.id}:tap-in`, scannedAt: gateRow.arrivalTime, source: "PHYSICAL_READER" }
+        : null,
+      tapOut: gateRow?.departureTime
+        ? { id: `${student.id}:tap-out`, scannedAt: gateRow.departureTime, source: "PHYSICAL_READER" }
+        : null,
+      lastScan: latestCanonicalEvent
         ? {
-            id: lastScan.id,
-            direction: lastScan.direction,
-            scannedAt: lastScan.scannedAt.toISOString(),
-            status: lastScan.status,
-            reason: lastScan.reason,
+            id: latestCanonicalEvent.id,
+            direction: latestCanonicalEvent.type,
+            scannedAt: latestCanonicalEvent.occurredAt.toISOString(),
+            status: latestCanonicalEvent.type === "RESTRICTED_ENTRY_ATTEMPT" ? "BLOCKED" : latestCanonicalEvent.type,
+            reason: latestCanonicalEvent.type === "RESTRICTED_ENTRY_ATTEMPT" ? "Restricted entry attempt" : null,
           }
         : null,
       currentStatus,

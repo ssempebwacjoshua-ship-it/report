@@ -1,10 +1,8 @@
 import { createHash } from "node:crypto";
 import { Router } from "express";
 import { z } from "zod";
-import { AttendanceDirection, AttendanceScanSource, AttendanceScanStatus, CredentialStatus, CredentialType } from "@prisma/client";
 import { prisma } from "../db/prisma";
 import { findReaderGatewayOtaRelease, getReaderGatewayOtaReleaseById } from "../config/readerGatewayOtaCatalog";
-import { maskCredentialValue, normalizeCredentialForLookup } from "../../shared/utils/credentialNormalization";
 import {
   buildReaderCredentialDiagnostics,
   isLocationAwareReader,
@@ -12,6 +10,8 @@ import {
   type ReaderGatewayResponse,
 } from "../services/readerAttendanceService";
 import { captureReaderCredentialFromReader } from "../services/readerCredentialLinkService";
+import { getDashboardAttendanceSummaryForSchool } from "../services/dashboardService";
+import { publishAttendanceRealtime } from "../services/attendanceRealtime";
 
 type ReaderGatewayDevice = {
   id: string;
@@ -272,184 +272,6 @@ function parseOptionalDate(value: string | null | undefined) {
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
-function dayRange(date: Date) {
-  const start = new Date(date);
-  start.setHours(0, 0, 0, 0);
-  const end = new Date(start);
-  end.setDate(end.getDate() + 1);
-  return { start, end };
-}
-
-type ReaderCredentialDiagnostics = {
-  receivedMasked: string | null;
-  normalizedMasked: string | null;
-  lookupCount: number;
-  format: string | null;
-  rawWiegandBitCount: number | null;
-  rawWiegandHexMasked: string | null;
-  facilityCodeMasked: string | null;
-  cardNumberMasked: string | null;
-};
-
-function buildCredentialDiagnostics(
-  rawValue: string,
-  normalized: ReturnType<typeof normalizeCredentialForLookup>,
-  body: z.infer<typeof eventSchema>,
-): ReaderCredentialDiagnostics {
-  return {
-    receivedMasked: maskCredentialValue(rawValue),
-    normalizedMasked: maskCredentialValue(normalized.canonical),
-    lookupCount: normalized.lookupValues.length,
-    format: body.format ?? null,
-    rawWiegandBitCount: body.rawWiegandBitCount ?? null,
-    rawWiegandHexMasked: maskCredentialValue(body.rawWiegandHex),
-    facilityCodeMasked: maskCredentialValue(body.facilityCode),
-    cardNumberMasked: maskCredentialValue(body.cardNumber),
-  };
-}
-
-async function resolveAttendanceCredential(
-  schoolId: string,
-  normalized: ReturnType<typeof normalizeCredentialForLookup>,
-) {
-  const credential = normalized.strongAliases.length > 0
-    ? await prisma.studentCredential.findFirst({
-        where: {
-          schoolId,
-          type: CredentialType.NFC_WRISTBAND,
-          OR: [
-            ...(normalized.tokenValues.length ? [{ scanToken: { in: normalized.tokenValues } }] : []),
-            { credentialUID: { in: normalized.strongAliases } },
-          ],
-        },
-        include: {
-          student: {
-            select: { id: true, firstName: true, lastName: true, isActive: true },
-          },
-        },
-      })
-    : null;
-
-  if (credential) {
-    return {
-      studentId: credential.studentId,
-      credentialId: credential.id,
-      studentName: `${credential.student.firstName} ${credential.student.lastName}`.trim(),
-      blockedReason: credential.status !== CredentialStatus.ACTIVE
-        ? "Wristband is disabled"
-        : !credential.student.isActive
-          ? "Student is inactive"
-          : null,
-    };
-  }
-
-  const weakCredentialMatches = normalized.weakAliases.length > 0
-    ? await prisma.studentCredential.findMany({
-        where: {
-          schoolId,
-          type: CredentialType.NFC_WRISTBAND,
-          credentialUID: { in: normalized.weakAliases },
-        },
-        include: {
-          student: {
-            select: { id: true, firstName: true, lastName: true, isActive: true },
-          },
-        },
-      })
-    : [];
-
-  const uniqueWeakCredentialStudentIds = [...new Set(weakCredentialMatches.map((item) => item.studentId))];
-  if (uniqueWeakCredentialStudentIds.length === 1 && weakCredentialMatches[0]) {
-    const weakCredential = weakCredentialMatches[0];
-    return {
-      studentId: weakCredential.studentId,
-      credentialId: weakCredential.id,
-      studentName: `${weakCredential.student.firstName} ${weakCredential.student.lastName}`.trim(),
-      blockedReason: weakCredential.status !== CredentialStatus.ACTIVE
-        ? "Wristband is disabled"
-        : !weakCredential.student.isActive
-          ? "Student is inactive"
-          : null,
-    };
-  }
-
-  const strongTag = normalized.strongAliases.length > 0
-    ? await prisma.nfcTag.findFirst({
-        where: {
-          schoolId,
-          OR: [
-            ...(normalized.tokenValues.length ? [{ publicCode: { in: normalized.tokenValues } }] : []),
-            ...(normalized.strongAliases.map((value) => ({ physicalUid: { equals: value, mode: "insensitive" as const } }))),
-          ],
-        },
-        include: {
-          student: {
-            select: { id: true, firstName: true, lastName: true, isActive: true },
-          },
-        },
-      })
-    : null;
-
-  if (strongTag?.studentId && strongTag.student) {
-    return {
-      studentId: strongTag.studentId,
-      credentialId: null,
-      studentName: `${strongTag.student.firstName} ${strongTag.student.lastName}`.trim(),
-      blockedReason: strongTag.status === "DISABLED" || strongTag.status === "LOST"
-        ? "Wristband is disabled"
-        : !strongTag.student.isActive
-          ? "Student is inactive"
-          : null,
-    };
-  }
-
-  const weakTagMatches = normalized.weakAliases.length > 0
-    ? await prisma.nfcTag.findMany({
-        where: {
-          schoolId,
-          OR: normalized.weakAliases.map((value) => ({ physicalUid: { equals: value, mode: "insensitive" as const } })),
-        },
-        include: {
-          student: {
-            select: { id: true, firstName: true, lastName: true, isActive: true },
-          },
-        },
-      })
-    : [];
-
-  const uniqueWeakTagStudentIds = [...new Set(weakTagMatches.map((item) => item.studentId).filter(Boolean))];
-  if (uniqueWeakTagStudentIds.length === 1) {
-    const tag = weakTagMatches.find((item) => item.studentId && item.student);
-    if (tag?.studentId && tag.student) {
-      return {
-        studentId: tag.studentId,
-        credentialId: null,
-        studentName: `${tag.student.firstName} ${tag.student.lastName}`.trim(),
-        blockedReason: tag.status === "DISABLED" || tag.status === "LOST"
-          ? "Wristband is disabled"
-          : !tag.student.isActive
-            ? "Student is inactive"
-            : null,
-      };
-    }
-  }
-
-  return null;
-}
-
-async function recordLastScan(device: ReaderGatewayDevice, status: string, message: string, scannedAt: Date) {
-  await prisma.nfcOfflineDevice.update({
-    where: { id: device.id },
-    data: {
-      lastSeenAt: new Date(),
-      lastScanAt: scannedAt,
-      lastScanStatus: status,
-      lastScanMessage: message,
-      onlineStatus: "ONLINE",
-    },
-  }).catch(() => null);
-}
-
 export function readerGatewayRoutes() {
   const router = Router();
 
@@ -606,6 +428,13 @@ export function readerGatewayRoutes() {
             });
             return committed;
           });
+          if (processed.response.success && processed.statusCode === 200) {
+            void getDashboardAttendanceSummaryForSchool(prisma as never, device.schoolId)
+              .then((summary) => {
+                publishAttendanceRealtime(device.schoolId, summary);
+              })
+              .catch(() => null);
+          }
           res.status(processed.statusCode).json(processed.response);
           return;
         } catch (error) {
@@ -630,153 +459,15 @@ export function readerGatewayRoutes() {
           return;
         }
       }
-      const normalizedCredential = normalizeCredentialForLookup({
-        value: tokenOrUid,
-        cardNumber: body.cardNumber,
-        facilityCode: body.facilityCode,
-        rawWiegandDecimal: body.rawWiegandDecimal,
-        rawWiegandHex: body.rawWiegandHex,
-      });
-      const legacyCredentialDiagnostics = buildCredentialDiagnostics(tokenOrUid, normalizedCredential, body);
-      const credential = await resolveAttendanceCredential(device.schoolId, normalizedCredential);
-      if (!credential) {
-        const response: ReaderGatewayResponse = {
-          success: false,
-          action: "ATTENDANCE",
-          status: "UNKNOWN_CREDENTIAL",
-          message: "Wristband not registered",
-          beep: "error",
-          feedback: { beep: "error" },
-        };
-        await prisma.$transaction(async (tx) => {
-          await tx.auditLog.create({
-            data: {
-              schoolId: device.schoolId,
-              action: "reader_event.attendance",
-              correlationId: eventToken,
-              details: {
-                deviceId: body.deviceId,
-                readerId: body.readerId,
-                credentialDiagnostics: legacyCredentialDiagnostics,
-                deviceTime: body.deviceTime ?? null,
-                firmwareVersion: body.firmwareVersion ?? null,
-                retryCount: body.retryCount ?? 0,
-                syncStatus: body.syncStatus ?? null,
-                responseStatusCode: 404,
-                response,
-              },
-            },
-          });
-          await tx.nfcOfflineDevice.update({
-            where: { id: device.id },
-            data: {
-              lastSeenAt: new Date(),
-              lastScanAt: scannedAt,
-              lastScanStatus: "UNKNOWN_CREDENTIAL",
-              lastScanMessage: response.message,
-              onlineStatus: "ONLINE",
-            },
-          });
-        });
-        res.status(404).json(response);
-        return;
-      }
-
-      if (credential.blockedReason) {
-        const response: ReaderGatewayResponse = {
-          success: false,
-          action: "ATTENDANCE",
-          status: "BLOCKED",
-          message: credential.blockedReason,
-          beep: "error",
-          feedback: { beep: "error" },
-        };
-        await recordLastScan(device, "BLOCKED", response.message, scannedAt);
-        res.status(403).json(response);
-        return;
-      }
-
-      const { start, end } = dayRange(scannedAt);
-      const duplicate = await prisma.studentAttendanceEvent.findFirst({
-        where: {
-          schoolId: device.schoolId,
-          studentId: credential.studentId,
-          direction: AttendanceDirection.TAP_IN,
-          status: { in: [AttendanceScanStatus.VALID, AttendanceScanStatus.LATE] },
-          scannedAt: { gte: start, lt: end },
-        },
-        orderBy: { scannedAt: "desc" },
-      });
-
-      if (duplicate) {
-        const response: ReaderGatewayResponse = {
-          success: true,
-          action: "ATTENDANCE",
-          status: "DUPLICATE",
-          message: "Attendance already recorded",
-          beep: "duplicate",
-          studentName: credential.studentName,
-          feedback: { beep: "duplicate" },
-        };
-        await prisma.$transaction(async (tx) => {
-          await tx.auditLog.create({
-            data: {
-              schoolId: device.schoolId,
-              action: "reader_event.attendance",
-              correlationId: eventToken,
-              details: {
-                deviceId: body.deviceId,
-                readerId: body.readerId,
-                credentialDiagnostics: legacyCredentialDiagnostics,
-                deviceTime: body.deviceTime ?? null,
-                firmwareVersion: body.firmwareVersion ?? null,
-                retryCount: body.retryCount ?? 0,
-                syncStatus: body.syncStatus ?? null,
-                duplicateOf: duplicate.id,
-                responseStatusCode: 200,
-                response,
-              },
-            },
-          });
-          await tx.nfcOfflineDevice.update({
-            where: { id: device.id },
-            data: {
-              lastSeenAt: new Date(),
-              lastSyncAt: new Date(),
-              lastScanAt: scannedAt,
-              lastScanStatus: "DUPLICATE",
-              lastScanMessage: response.message,
-              onlineStatus: "ONLINE",
-            },
-          });
-        });
-        res.json(response);
-        return;
-      }
-
-      const result = await prisma.$transaction(async (tx) => {
-        await tx.studentAttendanceEvent.create({
-          data: {
-            schoolId: device.schoolId,
-            studentId: credential.studentId,
-            credentialId: credential.credentialId,
-            direction: AttendanceDirection.TAP_IN,
-            source: AttendanceScanSource.NFC_WRISTBAND,
-            status: AttendanceScanStatus.VALID,
-            reason: null,
-            scannedAt,
-          },
-        });
-        const response: ReaderGatewayResponse = {
-          success: true,
-          action: "ATTENDANCE",
-          status: "PRESENT",
-          message: "Attendance recorded",
-          beep: "success",
-          studentName: credential.studentName,
-          feedback: { beep: "success" },
-        };
-
+      const response: ReaderGatewayResponse = {
+        success: false,
+        action: "ATTENDANCE",
+        status: "MISCONFIGURED",
+        message: "Reader attendance configuration is incomplete. Configure location-aware attendance before scanning.",
+        beep: "error",
+        feedback: { beep: "error" },
+      };
+      await prisma.$transaction(async (tx) => {
         await tx.auditLog.create({
           data: {
             schoolId: device.schoolId,
@@ -785,33 +476,27 @@ export function readerGatewayRoutes() {
             details: {
               deviceId: body.deviceId,
               readerId: body.readerId,
-              credentialDiagnostics: legacyCredentialDiagnostics,
               deviceTime: body.deviceTime ?? null,
               firmwareVersion: body.firmwareVersion ?? null,
               retryCount: body.retryCount ?? 0,
               syncStatus: body.syncStatus ?? null,
-              responseStatusCode: 200,
+              responseStatusCode: 409,
               response,
             },
           },
         });
-
         await tx.nfcOfflineDevice.update({
           where: { id: device.id },
           data: {
             lastSeenAt: new Date(),
-            lastSyncAt: new Date(),
             lastScanAt: scannedAt,
-            lastScanStatus: "PRESENT",
+            lastScanStatus: "MISCONFIGURED",
             lastScanMessage: response.message,
             onlineStatus: "ONLINE",
           },
         });
-
-        return response;
       });
-
-      res.json(result);
+      res.status(409).json(response);
     } catch (error) {
       next(error);
     }

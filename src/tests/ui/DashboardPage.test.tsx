@@ -5,6 +5,7 @@ import { DashboardPage } from "../../pages/DashboardPage";
 import {
   fetchDashboardAttendanceSummary,
   fetchDashboardStats,
+  streamDashboardAttendanceSummary,
 } from "../../client/dashboardClient";
 import type {
   DashboardAttendanceSummary,
@@ -14,6 +15,7 @@ import type {
 vi.mock("../../client/dashboardClient", () => ({
   fetchDashboardStats: vi.fn(),
   fetchDashboardAttendanceSummary: vi.fn(),
+  streamDashboardAttendanceSummary: vi.fn(async () => {}),
 }));
 
 vi.mock("../../components/layout/SettingsContext", () => ({
@@ -24,6 +26,7 @@ vi.mock("../../components/layout/SettingsContext", () => ({
 
 const mockFetchStats = vi.mocked(fetchDashboardStats);
 const mockFetchAttendanceSummary = vi.mocked(fetchDashboardAttendanceSummary);
+const mockStreamDashboardAttendanceSummary = vi.mocked(streamDashboardAttendanceSummary);
 
 const statsPayload: DashboardStats = {
   schoolName: "Test School",
@@ -75,10 +78,12 @@ function setVisibility(value: DocumentVisibilityState) {
 beforeEach(() => {
   mockFetchStats.mockReset();
   mockFetchAttendanceSummary.mockReset();
+  mockStreamDashboardAttendanceSummary.mockReset();
   setNavigatorOnline(true);
   setVisibility("visible");
   mockFetchStats.mockResolvedValue(statsPayload);
   mockFetchAttendanceSummary.mockResolvedValue(attendancePayload);
+  mockStreamDashboardAttendanceSummary.mockResolvedValue();
 });
 
 describe("DashboardPage", () => {

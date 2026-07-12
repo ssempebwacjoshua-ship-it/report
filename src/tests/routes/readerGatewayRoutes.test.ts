@@ -544,30 +544,21 @@ describe("readerGatewayRoutes", () => {
     }));
   });
 
-  it("records a valid attendance scan and preserves the device timestamp", async () => {
+  it("rejects legacy attendance readers until location-aware attendance is configured", async () => {
     const res = await request(buildApp())
       .post("/api/readers/events")
       .set("Authorization", "Bearer device-token-123")
       .send(eventBody());
 
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(409);
     expect(res.body).toMatchObject({
-      success: true,
+      success: false,
       action: "ATTENDANCE",
-      status: "PRESENT",
-      message: "Attendance recorded",
-      studentName: "Jane Doe",
-      beep: "success",
-      feedback: { beep: "success" },
+      status: "MISCONFIGURED",
+      message: expect.stringMatching(/configure location-aware attendance/i),
+      beep: "error",
+      feedback: { beep: "error" },
     });
-    expect(prismaMocks.studentAttendanceEventCreate).toHaveBeenCalledWith(expect.objectContaining({
-      data: expect.objectContaining({
-        schoolId: "school-1",
-        studentId: "stu-1",
-        credentialId: "cred-1",
-        scannedAt: new Date("2026-07-10T08:00:00Z"),
-      }),
-    }));
     expect(prismaMocks.auditLogCreate).toHaveBeenCalledWith(expect.objectContaining({
       data: expect.objectContaining({
         action: "reader_event.attendance",
@@ -576,7 +567,7 @@ describe("readerGatewayRoutes", () => {
     }));
   });
 
-  it("matches a Wiegand card number variant when the raw payload credential differs", async () => {
+  it("fails safely for legacy readers even when alternate Wiegand aliases are present", async () => {
     prismaMocks.studentCredentialFindFirst.mockResolvedValue(null);
     prismaMocks.studentCredentialFindMany.mockResolvedValue([credential({
       credentialUID: "1",
@@ -595,44 +586,11 @@ describe("readerGatewayRoutes", () => {
         cardNumber: "1",
       }));
 
-    expect(res.status).toBe(200);
-    expect(prismaMocks.studentCredentialFindFirst).toHaveBeenCalledWith(expect.objectContaining({
-      where: expect.objectContaining({
-        schoolId: "school-1",
-        OR: expect.arrayContaining([
-          expect.objectContaining({
-            scanToken: expect.objectContaining({
-              in: expect.arrayContaining(["786777"]),
-            }),
-          }),
-          expect.objectContaining({
-            credentialUID: expect.objectContaining({
-              in: expect.arrayContaining(["35128677", "2180565"]),
-            }),
-          }),
-        ]),
-      }),
-    }));
-    expect(prismaMocks.studentCredentialFindMany).toHaveBeenCalledWith(expect.objectContaining({
-      where: expect.objectContaining({
-        credentialUID: expect.objectContaining({
-          in: expect.arrayContaining(["1", "12-1", "12:1"]),
-        }),
-      }),
-    }));
-    expect(prismaMocks.auditLogCreate).toHaveBeenCalledWith(expect.objectContaining({
-      data: expect.objectContaining({
-        details: expect.objectContaining({
-          credentialDiagnostics: expect.objectContaining({
-            receivedMasked: expect.any(String),
-            rawWiegandBitCount: 26,
-          }),
-        }),
-      }),
-    }));
+    expect(res.status).toBe(409);
+    expect(res.body.status).toBe("MISCONFIGURED");
   });
 
-  it("returns a duplicate response without creating another attendance row", async () => {
+  it("does not attempt duplicate resolution through the legacy attendance table", async () => {
     prismaMocks.studentAttendanceEventFindFirst.mockResolvedValue({ id: "att-existing" });
 
     const res = await request(buildApp())
@@ -640,18 +598,16 @@ describe("readerGatewayRoutes", () => {
       .set("Authorization", "Bearer device-token-123")
       .send(eventBody());
 
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(409);
     expect(res.body).toMatchObject({
-      success: true,
+      success: false,
       action: "ATTENDANCE",
-      status: "DUPLICATE",
-      message: "Attendance already recorded",
-      beep: "duplicate",
+      status: "MISCONFIGURED",
     });
     expect(prismaMocks.studentAttendanceEventCreate).not.toHaveBeenCalled();
   });
 
-  it("rejects an unknown credential safely", async () => {
+  it("returns a safe misconfigured response before legacy credential lookup", async () => {
     prismaMocks.studentCredentialFindFirst.mockResolvedValue(null);
     prismaMocks.studentCredentialFindMany.mockResolvedValue([]);
     prismaMocks.nfcTagFindFirst.mockResolvedValue(null);
@@ -662,29 +618,17 @@ describe("readerGatewayRoutes", () => {
       .set("Authorization", "Bearer device-token-123")
       .send(eventBody());
 
-    expect(res.status).toBe(404);
+    expect(res.status).toBe(409);
     expect(res.body).toMatchObject({
       success: false,
       action: "ATTENDANCE",
-      status: "UNKNOWN_CREDENTIAL",
-      message: "Wristband not registered",
+      status: "MISCONFIGURED",
       beep: "error",
     });
     expect(prismaMocks.studentAttendanceEventCreate).not.toHaveBeenCalled();
-    expect(prismaMocks.auditLogCreate).toHaveBeenCalledWith(expect.objectContaining({
-      data: expect.objectContaining({
-        action: "reader_event.attendance",
-        details: expect.objectContaining({
-          credentialDiagnostics: expect.objectContaining({
-            receivedMasked: expect.any(String),
-            normalizedMasked: expect.any(String),
-          }),
-        }),
-      }),
-    }));
   });
 
-  it("rejects a wrong-school credential by searching only inside the reader school", async () => {
+  it("rejects a legacy reader scan safely without cross-school lookup attempts", async () => {
     prismaMocks.studentCredentialFindFirst.mockResolvedValue(null);
     prismaMocks.studentCredentialFindMany.mockResolvedValue([]);
     prismaMocks.nfcTagFindFirst.mockResolvedValue(null);
@@ -695,11 +639,8 @@ describe("readerGatewayRoutes", () => {
       .set("Authorization", "Bearer device-token-123")
       .send(eventBody({ credential: "OTHER-SCHOOL-WRISTBAND" }));
 
-    expect(res.status).toBe(404);
-    expect(res.body.status).toBe("UNKNOWN_CREDENTIAL");
-    expect(prismaMocks.studentCredentialFindMany).toHaveBeenCalledWith(expect.objectContaining({
-      where: expect.objectContaining({ schoolId: "school-1" }),
-    }));
+    expect(res.status).toBe(409);
+    expect(res.body.status).toBe("MISCONFIGURED");
   });
 
   it("rejects a disabled reader", async () => {
@@ -977,7 +918,7 @@ describe("readerGatewayRoutes", () => {
     }));
   });
 
-  it("does not let a weak padded card-number alias override a distinct strong raw Wiegand identity", async () => {
+  it("does not process weak alias lookups through the retired legacy reader path", async () => {
     prismaMocks.studentCredentialFindFirst.mockResolvedValue(null);
     prismaMocks.studentCredentialFindMany.mockImplementation(async ({ where }: { where: { credentialUID?: { in?: string[] } } }) => {
       const weakMatch = credential({
@@ -1005,8 +946,8 @@ describe("readerGatewayRoutes", () => {
         cardNumber: "1",
       }));
 
-    expect(res.status).toBe(404);
-    expect(res.body.status).toBe("UNKNOWN_CREDENTIAL");
+    expect(res.status).toBe(409);
+    expect(res.body.status).toBe("MISCONFIGURED");
     expect(prismaMocks.studentAttendanceEventCreate).not.toHaveBeenCalled();
   });
 });

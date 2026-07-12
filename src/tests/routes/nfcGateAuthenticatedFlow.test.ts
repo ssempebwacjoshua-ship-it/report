@@ -6,6 +6,9 @@ const authMocks = vi.hoisted(() => ({
   signToken: vi.fn(() => "gate-session-token"),
   verifyToken: vi.fn(),
   verifyPassword: vi.fn(),
+  isSupportedPasswordHash: vi.fn(() => true),
+  normalizeLoginEmail: vi.fn((value: string) => value.trim().toLowerCase()),
+  normalizeSchoolCode: vi.fn((value: string) => value.trim().toUpperCase()),
   validateSchoolSession: vi.fn(),
 }));
 
@@ -39,6 +42,9 @@ vi.mock("../../server/services/authService", () => ({
   signToken: authMocks.signToken,
   verifyToken: authMocks.verifyToken,
   verifyPassword: authMocks.verifyPassword,
+  isSupportedPasswordHash: authMocks.isSupportedPasswordHash,
+  normalizeLoginEmail: authMocks.normalizeLoginEmail,
+  normalizeSchoolCode: authMocks.normalizeSchoolCode,
 }));
 
 vi.mock("../../server/services/sessionValidationService", () => ({
@@ -87,7 +93,7 @@ describe("authenticated NFC gate flow", () => {
       name: "Gate Keeper",
       email: "gate@schoolconnect.test",
       role: "GATE_SECURITY",
-      passwordHash: "hashed-password",
+      passwordHash: "$2b$12$abcdefghijklmnopqrstuu0W4Q7vP0Jkg8i0s5momkGumZ5qX6ChK",
       isActive: true,
       isPlatformOwner: false,
       tokenVersion: 4,
