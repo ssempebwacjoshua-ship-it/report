@@ -16,6 +16,7 @@ type StudentFixture = {
   lastName: string;
   studentType: "DAY" | "BOARDING";
   isActive: boolean;
+  enrolledCurrentTerm?: boolean;
   className?: string;
   streamName?: string;
 };
@@ -55,6 +56,21 @@ function createDb(fixtures?: {
   const legacy = fixtures?.legacy ?? [];
 
   return {
+    school: {
+      findUnique: async ({ where }: { where: { id: string } }) => {
+        if (where.id !== "school-1") {
+          return null;
+        }
+        return {
+          id: "school-1",
+          academicYears: [{
+            id: "year-1",
+            name: "2026",
+            terms: [{ id: "term-1", name: "Term 2" }],
+          }],
+        };
+      },
+    },
     schoolNfcPolicy: {
       upsert: async () => ({
         id: "policy-1",
@@ -96,14 +112,41 @@ function createDb(fixtures?: {
       }),
     },
     student: {
+      count: async ({ where }: { where?: Record<string, any> }) =>
+        students
+          .filter((student) => student.schoolId === where?.schoolId && student.isActive === where?.isActive)
+          .filter((student) => {
+            const enrollmentWhere = where?.enrollments?.some;
+            if (!enrollmentWhere) return true;
+            return (student.enrolledCurrentTerm ?? true)
+              && enrollmentWhere.isActive === true
+              && enrollmentWhere.status === "ACTIVE";
+          })
+          .filter((student) => {
+            if (!where?.attendanceProfile) return true;
+            return (student.studentType === "BOARDING" ? "BOARDER" : "DAY_SCHOLAR") === where.attendanceProfile;
+          })
+          .length,
       findMany: async ({ where }: { where?: Record<string, any> }) =>
         students
           .filter((student) => student.schoolId === where?.schoolId && student.isActive === where?.isActive)
+          .filter((student) => {
+            const enrollmentWhere = where?.enrollments?.some;
+            if (!enrollmentWhere) return true;
+            return (student.enrolledCurrentTerm ?? true)
+              && enrollmentWhere.isActive === true
+              && enrollmentWhere.status === "ACTIVE";
+          })
+          .filter((student) => {
+            if (!where?.attendanceProfile) return true;
+            return (student.studentType === "BOARDING" ? "BOARDER" : "DAY_SCHOLAR") === where.attendanceProfile;
+          })
           .map((student) => ({
             id: student.id,
             admissionNumber: student.admissionNumber,
             firstName: student.firstName,
             lastName: student.lastName,
+            attendanceProfile: student.studentType === "BOARDING" ? "BOARDER" : "DAY_SCHOLAR",
             studentType: student.studentType,
             enrollments: [{
               class: student.className ? { name: student.className } : null,
@@ -185,6 +228,7 @@ describe("locationAttendanceService", () => {
         { id: "student-2", schoolId: "school-1", admissionNumber: "A-002", firstName: "Grace", lastName: "Hopper", studentType: "DAY", isActive: true, className: "Senior 1", streamName: "A" },
         { id: "student-3", schoolId: "school-1", admissionNumber: "A-003", firstName: "Alan", lastName: "Turing", studentType: "BOARDING", isActive: true, className: "Senior 1", streamName: "B" },
         { id: "student-4", schoolId: "school-1", admissionNumber: "A-004", firstName: "Mary", lastName: "Jackson", studentType: "DAY", isActive: false, className: "Senior 2", streamName: "A" },
+        { id: "student-5", schoolId: "school-1", admissionNumber: "A-005", firstName: "Noah", lastName: "Left", studentType: "DAY", isActive: true, enrolledCurrentTerm: false, className: "Senior 2", streamName: "A" },
         { id: "student-9", schoolId: "school-2", admissionNumber: "B-001", firstName: "Other", lastName: "School", studentType: "DAY", isActive: true },
       ],
       daily: [

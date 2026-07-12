@@ -6,6 +6,10 @@ import {
   resolveAttendanceProfile,
   type AttendanceProfile,
 } from "../../shared/attendanceProfiles";
+import {
+  listCurrentEnrolledStudents,
+  type CurrentEnrollmentFilters,
+} from "./currentEnrollmentService";
 import { getSchoolNfcPolicy, getZonedDateKey, getZonedDayRangeByKey } from "./nfcPolicyService";
 
 type AttendanceContext = {
@@ -17,6 +21,7 @@ type AttendanceContext = {
 type AttendanceDb = Pick<
   PrismaClient,
   | "schoolNfcPolicy"
+  | "school"
   | "student"
   | "studentFeeHold"
   | "studentGateHold"
@@ -266,36 +271,12 @@ function toAttendanceProfileFilter(value: LocationAttendanceFilters["studentType
   return undefined;
 }
 
-function buildStudentWhere(schoolId: string, filters: LocationAttendanceFilters) {
-  const search = filters.search?.trim();
-  const attendanceProfile = toAttendanceProfileFilter(filters.studentType);
+function toCurrentEnrollmentFilters(filters: LocationAttendanceFilters): CurrentEnrollmentFilters {
   return {
-    schoolId,
-    isActive: true,
-    ...(attendanceProfile
-      ? { attendanceProfile }
-      : {}),
-    ...(search
-      ? {
-          OR: [
-            { firstName: { contains: search, mode: "insensitive" as const } },
-            { lastName: { contains: search, mode: "insensitive" as const } },
-            { admissionNumber: { contains: search, mode: "insensitive" as const } },
-          ],
-        }
-      : {}),
-    ...(filters.classId || filters.streamId
-      ? {
-          enrollments: {
-            some: {
-              isActive: true,
-              status: "ACTIVE" as const,
-              classId: filters.classId || undefined,
-              streamId: filters.streamId || undefined,
-            },
-          },
-        }
-      : {}),
+    classId: filters.classId,
+    streamId: filters.streamId,
+    search: filters.search,
+    studentType: filters.studentType,
   };
 }
 
@@ -369,27 +350,7 @@ async function buildCanonicalAttendanceSnapshot(
   const dateKey = validateDate(filters.date) ?? getZonedDateKey(new Date(), policy.policy.timezone);
   const { start, end } = getZonedDayRangeByKey(dateKey, policy.policy.timezone);
 
-  const students = await db.student.findMany({
-    where: buildStudentWhere(schoolId, filters),
-    select: {
-      id: true,
-      admissionNumber: true,
-      firstName: true,
-      lastName: true,
-      attendanceProfile: true,
-      studentType: true,
-      enrollments: {
-        where: { isActive: true, status: "ACTIVE" as const },
-        orderBy: { createdAt: "desc" as const },
-        take: 1,
-        include: {
-          class: { select: { name: true } },
-          stream: { select: { name: true } },
-        },
-      },
-    },
-    orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
-  });
+  const students = await listCurrentEnrolledStudents(db as never, schoolId, toCurrentEnrollmentFilters(filters));
 
   const studentIds = students.map((student) => student.id);
   if (studentIds.length === 0) {
@@ -626,27 +587,7 @@ export async function getCanonicalAttendanceRegister(
   const schoolId = requireSchoolId(ctx);
   const { start, end } = getZonedDayRangeByKey(snapshot.date, snapshot.timezone);
 
-  const students = await db.student.findMany({
-    where: buildStudentWhere(schoolId, filters),
-    select: {
-      id: true,
-      admissionNumber: true,
-      firstName: true,
-      lastName: true,
-      attendanceProfile: true,
-      studentType: true,
-      enrollments: {
-        where: { isActive: true, status: "ACTIVE" as const },
-        orderBy: { createdAt: "desc" as const },
-        take: 1,
-        include: {
-          class: { select: { name: true } },
-          stream: { select: { name: true } },
-        },
-      },
-    },
-    orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
-  });
+  const students = await listCurrentEnrolledStudents(db as never, schoolId, toCurrentEnrollmentFilters(filters));
 
   const studentIds = students.map((student) => student.id);
   const movementEvents = studentIds.length === 0
@@ -756,7 +697,34 @@ export async function listClassroomAttendanceReport(
   const { start } = getZonedDayRangeByKey(dateKey, policy.policy.timezone);
 
   const students = await db.student.findMany({
-    where: buildStudentWhere(schoolId, filters),
+    where: {
+      schoolId,
+      isActive: true,
+      ...(toAttendanceProfileFilter(filters.studentType)
+        ? { attendanceProfile: toAttendanceProfileFilter(filters.studentType) }
+        : {}),
+      ...(filters.search?.trim()
+        ? {
+            OR: [
+              { firstName: { contains: filters.search.trim(), mode: "insensitive" as const } },
+              { lastName: { contains: filters.search.trim(), mode: "insensitive" as const } },
+              { admissionNumber: { contains: filters.search.trim(), mode: "insensitive" as const } },
+            ],
+          }
+        : {}),
+      ...(filters.classId || filters.streamId
+        ? {
+            enrollments: {
+              some: {
+                isActive: true,
+                status: "ACTIVE" as const,
+                classId: filters.classId || undefined,
+                streamId: filters.streamId || undefined,
+              },
+            },
+          }
+        : {}),
+    },
     select: {
       id: true,
       admissionNumber: true,

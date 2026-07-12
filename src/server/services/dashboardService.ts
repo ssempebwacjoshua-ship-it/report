@@ -5,6 +5,7 @@ import type {
   DashboardStats,
   RecentBatch,
 } from "../../shared/types/dashboard";
+import { countCurrentEnrolledStudents } from "./currentEnrollmentService";
 import {
   getDashboardAttendanceSummary as getCanonicalDashboardAttendanceSummary,
   getDashboardAttendanceSummaryForSchool as getCanonicalDashboardAttendanceSummaryForSchool,
@@ -78,16 +79,8 @@ export async function getDashboardStats(
     rawBatches,
     rawActivity,
   ] = await Promise.all([
-    // Enrolled students in active term
     activeTerm
-      ? prisma.classEnrollment.count({
-          where: {
-            academicYearId: activeYear.id,
-            termId: activeTerm.id,
-            isActive: true,
-            status: "ACTIVE",
-          },
-        })
+      ? countCurrentEnrolledStudents(prisma, school.id)
       : Promise.resolve(0),
 
     // Total committed import batches
