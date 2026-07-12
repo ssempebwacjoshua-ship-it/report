@@ -215,7 +215,7 @@ function MobileTagCard({ tag, actions, isDropdownOpen, onToggleDropdown, onClose
           <p className="mt-2 min-w-0 truncate font-bold text-slate-950">
             {tag.label ?? `Tag ${tag.publicCode.slice(0, 8)}…`}
           </p>
-          <p className="mt-0.5 min-w-0 break-all font-mono text-[11px] text-slate-400">
+          <p className="mt-0.5 min-w-0 truncate font-mono text-[11px] text-slate-400">
             {payload}
           </p>
         </div>
@@ -318,6 +318,8 @@ export function NfcOperationsPage() {
   const [enableReason, setEnableReason] = useState("");
   const [enableLoading, setEnableLoading] = useState(false);
   const [enableError, setEnableError] = useState<string | null>(null);
+  const compactActionButtonClass =
+    "inline-flex min-h-[32px] max-w-full items-center justify-center rounded-lg border px-2.5 py-1 text-[11px] font-black leading-none transition-colors";
 
   // Assignment success panel
   type AssignSuccess = { studentName: string; admissionNumber: string; studentId: string };
@@ -701,16 +703,16 @@ export function NfcOperationsPage() {
   }
 
   return (
-    <div className="space-y-6 p-4 sm:p-6">
-      <div>
+    <div className="space-y-4 p-4 sm:p-5 xl:p-6">
+      <div className="space-y-1">
         <h1 className="text-2xl font-black tracking-tight text-slate-950">NFC Tags</h1>
-        <p className="mt-1 text-sm text-slate-500">Manage physical NFC tags — generate, assign to students, and monitor taps.</p>
+        <p className="text-sm text-slate-500">Manage physical NFC tags — generate, assign to students, and monitor taps.</p>
       </div>
 
       {/* Generate strip — stacks on mobile */}
-      <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="rounded-2xl border border-slate-200 bg-white p-3.5 shadow-sm">
         <p className="text-sm font-black text-slate-950">Generate new tags</p>
-        <div className="mt-3 grid gap-3 sm:flex sm:flex-wrap sm:items-center">
+        <div className="mt-2.5 grid gap-2.5 sm:flex sm:flex-wrap sm:items-center">
           <input
             type="number"
             min={1}
@@ -723,7 +725,7 @@ export function NfcOperationsPage() {
             type="button"
             onClick={() => { void handleGenerate(); }}
             disabled={generating}
-            className="btn btn-primary min-h-[44px] w-full rounded-xl px-4 py-2 text-sm font-black sm:w-auto"
+            className="btn btn-primary min-h-[40px] w-full rounded-xl px-4 py-2 text-sm font-black sm:w-auto"
           >
             {generating ? "Generating…" : `Generate ${generateCount} tag${generateCount > 1 ? "s" : ""}`}
           </button>
@@ -732,14 +734,14 @@ export function NfcOperationsPage() {
       </div>
 
       {/* Filter row — wraps cleanly on mobile */}
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex flex-wrap items-center gap-1.5">
         <p className="text-sm font-semibold text-slate-600">Filter:</p>
         {(["", "UNASSIGNED", "ASSIGNED", "DISABLED", "LOST"] as StatusFilter[]).map((s) => (
           <button
             key={s}
             type="button"
             onClick={() => setStatusFilter(s)}
-            className={`min-h-[36px] rounded-full border px-3 py-1 text-xs font-black transition ${statusFilter === s ? "border-blue-600 bg-blue-600 text-white" : "border-slate-200 bg-white text-slate-600 hover:border-blue-200"}`}
+            className={`min-h-[34px] rounded-full border px-3 py-1 text-xs font-black transition ${statusFilter === s ? "border-blue-600 bg-blue-600 text-white" : "border-slate-200 bg-white text-slate-600 hover:border-blue-200"}`}
           >
             {s || "All"}
           </button>
@@ -777,55 +779,64 @@ export function NfcOperationsPage() {
         ) : tags.length === 0 ? (
           <p className="p-6 text-sm text-slate-500">No tags found. Generate some above to get started.</p>
         ) : (
-          <table className="w-full text-sm">
+          <table className="w-full table-fixed text-sm">
+            <colgroup>
+              <col className="w-[10%]" />
+              <col className="w-[22%]" />
+              <col className="w-[8%]" />
+              <col className="w-[22%]" />
+              <col className="w-[14%]" />
+              <col className="w-[6%]" />
+              <col className="w-[18%]" />
+            </colgroup>
             <thead className="border-b border-slate-100 bg-slate-50 text-left text-[11px] font-black uppercase tracking-wider text-slate-500">
               <tr>
-                <th className="px-4 py-3">Status</th>
-                <th className="px-4 py-3">Label / Payload</th>
-                <th className="px-4 py-3">Mode</th>
-                <th className="px-4 py-3">Student</th>
-                <th className="px-4 py-3">Last Seen</th>
-                <th className="px-4 py-3">Taps</th>
-                <th className="px-4 py-3">Actions</th>
+                <th className="px-3 py-2.5">Status</th>
+                <th className="px-3 py-2.5">Label / Payload</th>
+                <th className="px-3 py-2.5">Mode</th>
+                <th className="px-3 py-2.5">Student</th>
+                <th className="px-3 py-2.5">Last Seen</th>
+                <th className="px-3 py-2.5 text-center">Taps</th>
+                <th className="px-3 py-2.5">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {tags.map((tag) => (
                 <tr key={tag.id} className="hover:bg-slate-50">
-                  <td className="px-4 py-3">
+                  <td className="px-3 py-2.5 align-middle">
                     <StatusBadge status={tag.status} />
                   </td>
-                  <td className="max-w-[200px] px-4 py-3">
+                  <td className="min-w-0 px-3 py-2.5 align-middle">
                     <p className="truncate font-bold text-slate-950">{tag.label ?? `Tag ${tag.publicCode.slice(0, 8)}…`}</p>
                     <p className="truncate font-mono text-[11px] text-slate-400">
-                      {(tag.writtenPayload ?? `SCNFC:${tag.publicCode}`).slice(0, 24)}…
+                      {tag.writtenPayload ?? `SCNFC:${tag.publicCode}`}
                     </p>
                   </td>
-                  <td className="px-4 py-3">
+                  <td className="px-3 py-2.5 align-middle">
                     <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-slate-500">
                       {tag.tagMode}
                     </span>
                   </td>
-                  <td className="px-4 py-3">
+                  <td className="min-w-0 px-3 py-2.5 align-middle">
                     {tag.student ? (
-                      <div>
-                        <p className="font-semibold text-slate-950">{tag.student.name}</p>
-                        <p className="text-[11px] text-slate-400">{tag.student.admissionNumber}{tag.student.className ? ` · ${tag.student.className}` : ""}</p>
+                      <div className="min-w-0">
+                        <p className="truncate font-semibold text-slate-950">{tag.student.name}</p>
+                        <p className="truncate text-[11px] text-slate-400">{tag.student.admissionNumber}{tag.student.className ? ` · ${tag.student.className}` : ""}</p>
                       </div>
                     ) : (
                       <span className="text-slate-400">—</span>
                     )}
                   </td>
-                  <td className="px-4 py-3 text-slate-500">
+                  <td className="px-3 py-2.5 align-middle text-slate-500">
                     {tag.lastSeenAt ? new Date(tag.lastSeenAt).toLocaleString() : "—"}
                   </td>
-                  <td className="px-4 py-3 text-center font-semibold text-slate-700">{tag.tapCount ?? 0}</td>
-                  <td className="px-4 py-3">
-                    <div className="flex flex-wrap gap-1.5">
+                  <td className="px-3 py-2.5 align-middle text-center font-semibold text-slate-700">{tag.tapCount ?? 0}</td>
+                  <td className="px-3 py-2.5 align-middle">
+                    <div className="flex max-w-full flex-wrap gap-1.5">
                       <button
                         type="button"
                         onClick={() => handleCopyPayload(tag)}
-                        className={`rounded-lg border px-2.5 py-1 text-[11px] font-black transition-colors ${
+                        className={`${compactActionButtonClass} ${
                           copiedPayloadId === tag.id
                             ? "border-green-200 bg-green-50 text-green-700"
                             : "border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100"
@@ -836,7 +847,7 @@ export function NfcOperationsPage() {
                       <button
                         type="button"
                         onClick={() => handleCopy(tag)}
-                        className="btn btn-secondary rounded-lg px-2.5 py-1 text-[11px] font-black"
+                        className={`${compactActionButtonClass} border-slate-200 bg-white text-slate-700 hover:bg-slate-50`}
                       >
                         {copiedId === tag.id ? "Copied!" : "Copy URL"}
                       </button>
@@ -844,7 +855,7 @@ export function NfcOperationsPage() {
                         <button
                           type="button"
                           onClick={() => { setAssignTagId(tag.id); setAssignSearch(""); setAssignSelected(null); setAssignResults([]); setAssignError(null); }}
-                          className="btn btn-primary rounded-lg px-2.5 py-1 text-[11px] font-black"
+                          className={`${compactActionButtonClass} border-blue-200 bg-blue-600 text-white hover:bg-blue-700`}
                         >
                           Assign
                         </button>
@@ -853,7 +864,7 @@ export function NfcOperationsPage() {
                         <button
                           type="button"
                           onClick={() => { void handleUnassign(tag.id); }}
-                          className="btn btn-secondary rounded-lg px-2.5 py-1 text-[11px] font-black"
+                          className={`${compactActionButtonClass} border-slate-200 bg-white text-slate-700 hover:bg-slate-50`}
                         >
                           Unassign
                         </button>
@@ -862,7 +873,7 @@ export function NfcOperationsPage() {
                         <button
                           type="button"
                           onClick={() => openWalletPinModal({ studentId: tag.student!.id, studentName: tag.student!.name, admissionNumber: tag.student!.admissionNumber })}
-                          className="rounded-lg border border-violet-200 px-2.5 py-1 text-[11px] font-black text-violet-700 hover:bg-violet-50"
+                          className={`${compactActionButtonClass} border-violet-200 text-violet-700 hover:bg-violet-50`}
                         >
                           Wallet PIN
                         </button>
@@ -871,7 +882,7 @@ export function NfcOperationsPage() {
                         <button
                           type="button"
                           onClick={() => openLinkReaderModal(tag)}
-                          className="rounded-lg border border-amber-200 px-2.5 py-1 text-[11px] font-black text-amber-700 hover:bg-amber-50"
+                          className={`${compactActionButtonClass} border-amber-200 text-amber-700 hover:bg-amber-50`}
                         >
                           Link reader credential
                         </button>
@@ -880,7 +891,7 @@ export function NfcOperationsPage() {
                         <button
                           type="button"
                           onClick={() => { if (confirm("Disable this tag? It will no longer resolve.")) void handleDisable(tag.id); }}
-                          className="rounded-lg border border-red-200 px-2.5 py-1 text-[11px] font-black text-red-600 hover:bg-red-50"
+                          className={`${compactActionButtonClass} border-red-200 text-red-600 hover:bg-red-50`}
                         >
                           Disable
                         </button>
@@ -889,7 +900,7 @@ export function NfcOperationsPage() {
                         <button
                           type="button"
                           onClick={() => { setEnableTarget(tag); setEnableReason(""); setEnableError(null); }}
-                          className="rounded-lg border border-emerald-300 px-2.5 py-1 text-[11px] font-black text-emerald-700 hover:bg-emerald-50"
+                          className={`${compactActionButtonClass} border-emerald-300 text-emerald-700 hover:bg-emerald-50`}
                         >
                           Re-enable
                         </button>
@@ -897,7 +908,7 @@ export function NfcOperationsPage() {
                       <button
                         type="button"
                         onClick={() => { void handleViewEvents(tag.id); }}
-                        className="btn btn-secondary rounded-lg px-2.5 py-1 text-[11px] font-black"
+                        className={`${compactActionButtonClass} border-slate-200 bg-white text-slate-700 hover:bg-slate-50`}
                       >
                         Events
                       </button>
