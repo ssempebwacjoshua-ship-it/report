@@ -1,7 +1,8 @@
 import "dotenv/config";
 import { pathToFileURL } from "node:url";
 import { prisma } from "../src/server/db/prisma";
-import { assertNonProductionDestructiveOperation } from "../src/server/utils/productionSafety";
+import { describeWriteMode } from "../src/server/services/authScriptSafety";
+import { assertNonProductionOperation, classifyRuntimeEnvironment } from "../src/server/security/environmentSafety";
 import { O_LEVEL_SUBJECTS } from "../src/shared/constants/subjects";
 import { getPlanByCode } from "../src/shared/constants/subscriptionPlans";
 
@@ -244,10 +245,20 @@ export async function seedPreviewData() {
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  assertNonProductionDestructiveOperation({ operation: "seed-preview" });
-  seedPreviewData()
-    .then((result) => {
-      console.log(`Seeded ${result.school.code}: ${result.students} students, ${O_LEVEL_SUBJECTS.length} subjects.`);
-    })
-    .finally(async () => prisma.$disconnect());
+  const args = process.argv.slice(2);
+  const { mode } = describeWriteMode(args);
+  const classification = classifyRuntimeEnvironment(process.env);
+  console.log(`[seed-preview] mode=${mode} environment=${classification.environment}`);
+
+  if (mode === "dry-run") {
+    console.log(`[seed-preview] Would seed preview data for ${PREVIEW_SCHOOL_CODE}.`);
+    await prisma.$disconnect();
+  } else {
+    assertNonProductionOperation("seed-preview", process.env);
+    seedPreviewData()
+      .then((result) => {
+        console.log(`Seeded ${result.school.code}: ${result.students} students, ${O_LEVEL_SUBJECTS.length} subjects.`);
+      })
+      .finally(async () => prisma.$disconnect());
+  }
 }

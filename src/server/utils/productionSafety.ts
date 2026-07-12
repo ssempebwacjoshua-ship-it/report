@@ -1,90 +1,36 @@
+import {
+  assertNonProductionOperation,
+  classifyRuntimeEnvironment as classifyEnvironment,
+  type RuntimeClassification as BaseRuntimeClassification,
+  type RuntimeEnvironment,
+} from "../security/environmentSafety";
+
 export const DESTRUCTIVE_CONFIRMATION_TOKEN = "I_UNDERSTAND_THIS_MUTATES_SCHOOL_DATA";
 
-export type RuntimeEnvironment =
-  | "development"
-  | "test"
-  | "preview"
-  | "staging"
-  | "production"
-  | "ambiguous";
+export type { RuntimeEnvironment };
 
-export type RuntimeClassification = {
-  environment: RuntimeEnvironment;
+export type RuntimeClassification = BaseRuntimeClassification & {
   isProduction: boolean;
   isAmbiguous: boolean;
-  signals: Record<string, string>;
-  reasons: string[];
 };
-
-const SIGNAL_KEYS = [
-  "APP_ENV",
-  "NODE_ENV",
-  "RAILWAY_ENVIRONMENT",
-  "RAILWAY_ENVIRONMENT_NAME",
-  "VERCEL_ENV",
-  "RENDER_SERVICE_TYPE",
-  "FLY_APP_NAME",
-] as const;
-
-function normalizeSignal(value: string | undefined): string | null {
-  const normalized = value?.trim().toLowerCase();
-  return normalized || null;
-}
-
-function environmentFromValue(value: string): Exclude<RuntimeEnvironment, "ambiguous"> | null {
-  if (["prod", "production"].includes(value)) return "production";
-  if (["stage", "staging"].includes(value)) return "staging";
-  if (["preview", "pr", "pull-request"].includes(value)) return "preview";
-  if (["test", "testing", "ci"].includes(value)) return "test";
-  if (["dev", "development", "local"].includes(value)) return "development";
-  return null;
-}
 
 export function classifyRuntimeEnvironment(
   env: Record<string, string | undefined> = process.env,
 ): RuntimeClassification {
-  const signals: Record<string, string> = {};
-  const resolved = new Map<string, RuntimeEnvironment>();
-  const reasons: string[] = [];
-
-  for (const key of SIGNAL_KEYS) {
-    const value = normalizeSignal(env[key]);
-    if (!value) continue;
-    signals[key] = value;
-    const mapped = environmentFromValue(value);
-    if (mapped) resolved.set(key, mapped);
-  }
-
-  if (env.VITEST || env.JEST_WORKER_ID) {
-    signals.TEST_RUNNER = env.VITEST ? "vitest" : "jest";
-    resolved.set("TEST_RUNNER", "test");
-  }
-
-  const unique = new Set(resolved.values());
-  if (unique.has("production")) {
-    const conflicting = [...unique].filter((value) => value !== "production");
-    if (conflicting.length > 0) {
-      reasons.push(`Conflicting production/non-production runtime signals: ${[...unique].join(", ")}.`);
-      return { environment: "ambiguous", isProduction: false, isAmbiguous: true, signals, reasons };
-    }
-    return { environment: "production", isProduction: true, isAmbiguous: false, signals, reasons };
-  }
-
-  if (unique.size > 1) {
-    reasons.push(`Conflicting non-production runtime signals: ${[...unique].join(", ")}.`);
-    return { environment: "ambiguous", isProduction: false, isAmbiguous: true, signals, reasons };
-  }
-
-  const environment = [...unique][0] ?? "development";
-  return { environment, isProduction: false, isAmbiguous: false, signals, reasons };
+  const classification = classifyEnvironment(env);
+  return {
+    ...classification,
+    isProduction: classification.environment === "production",
+    isAmbiguous: classification.environment === "unknown",
+  };
 }
 
 export function isProductionEnvironment(env: Record<string, string | undefined> = process.env): boolean {
-  const classification = classifyRuntimeEnvironment(env);
-  if (classification.isAmbiguous) {
+  const classification = classifyEnvironment(env);
+  if (classification.environment === "unknown") {
     throw new Error(`Runtime environment is ambiguous: ${classification.reasons.join(" ")}`);
   }
-  return classification.isProduction;
+  return classification.environment === "production";
 }
 
 export function assertNonProductionDestructiveOperation(input: {
@@ -106,11 +52,7 @@ export function assertNonProductionDestructiveOperation(input: {
     );
   }
 
-  if (classification.isProduction) {
-    throw new Error(
-      `Refusing destructive operation "${input.operation}" in production. ALLOW_DESTRUCTIVE_OPERATIONS cannot override production safety.`,
-    );
-  }
+  assertNonProductionOperation(input.operation, env);
 
   if (allowFlag !== "true") {
     throw new Error(

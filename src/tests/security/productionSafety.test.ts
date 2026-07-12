@@ -12,7 +12,7 @@ describe("productionSafety", () => {
       RAILWAY_ENVIRONMENT_NAME: "production",
     });
 
-    expect(runtime.environment).toBe("ambiguous");
+    expect(runtime.environment).toBe("unknown");
     expect(() => assertNonProductionDestructiveOperation({
       operation: "seed-preview",
       env: {

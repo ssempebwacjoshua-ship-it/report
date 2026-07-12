@@ -54,4 +54,29 @@ describe("LoginPage", () => {
     expect(loginMock).toHaveBeenCalledWith("gate@test.com", "password123", "SCU-PREVIEW");
     await waitFor(() => expect(navigateMock).toHaveBeenCalledWith(expectedPath, { replace: true }));
   });
+
+  it("submits school code as uppercase trimmed code", async () => {
+    loginMock.mockResolvedValueOnce({
+      id: "user-1",
+      schoolId: "school-1",
+      name: "Admin",
+      email: "admin@test.com",
+      role: "ADMIN_OPERATOR",
+      isPlatformOwner: false,
+    });
+
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter>
+        <LoginPage />
+      </MemoryRouter>,
+    );
+
+    await user.type(screen.getByLabelText(/school code/i), "scu-preview");
+    await user.type(screen.getByLabelText(/email address/i), "admin@test.com");
+    await user.type(screen.getByLabelText(/password/i), "password123");
+    await user.click(screen.getByRole("button", { name: /sign in/i }));
+
+    expect(loginMock).toHaveBeenCalledWith("admin@test.com", "password123", "SCU-PREVIEW");
+  });
 });

@@ -1,7 +1,8 @@
 import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../db/prisma";
-import { signToken, verifyPassword, verifyToken, type SchoolUserRole } from "../services/authService";
+import { isSupportedPasswordHash, normalizeLoginEmail, normalizeSchoolCode, signToken, verifyPassword, verifyToken, type SchoolUserRole } from "../services/authService";
+import { classifyRuntimeEnvironment } from "../security/environmentSafety";
 import { validateSchoolSession } from "../services/sessionValidationService";
 
 const loginSchema = z.object({
@@ -10,7 +11,21 @@ const loginSchema = z.object({
   schoolCode: z.string().min(1, "School code is required."),
 });
 
-async function writeLoginAudit(schoolId: string, action: "auth.login_success" | "auth.login_failed", details: Record<string, unknown>) {
+type LoginFailureCategory =
+  | "SCHOOL_NOT_FOUND"
+  | "USER_NOT_FOUND"
+  | "SCHOOL_DISABLED"
+  | "USER_DISABLED"
+  | "PASSWORD_MISMATCH"
+  | "MALFORMED_PASSWORD_HASH"
+  | "SCHOOL_CODE_NORMALIZATION_ERROR";
+
+function requestIdFrom(req: { headers: Record<string, unknown> }) {
+  const header = req.headers["x-request-id"];
+  return typeof header === "string" && header.trim() ? header.trim() : undefined;
+}
+
+async function writeLoginAudit(schoolId: string, action: "LOGIN_SUCCEEDED" | "LOGIN_FAILED", details: Record<string, unknown>) {
   await prisma.auditLog.create({
     data: {
       schoolId,
@@ -26,79 +41,135 @@ export function authRoutes() {
   router.post("/api/auth/login", async (req, res, next) => {
     try {
       const { email, password, schoolCode } = loginSchema.parse(req.body);
-      const normalizedEmail = email.toLowerCase();
+      const requestId = requestIdFrom(req);
+      const normalizedEmail = normalizeLoginEmail(email);
+      const normalizedSchoolCode = normalizeSchoolCode(schoolCode);
+      const runtime = classifyRuntimeEnvironment(process.env);
       let auditSchoolId: string | null = null;
+      let failureCategory: LoginFailureCategory | null = null;
+      let schoolFound = false;
+      let schoolActive = false;
+      let userFound = false;
+      let userActive = false;
+      let passwordHashPresent = false;
+      let passwordHashFormatValid = false;
+      let passwordMatched = false;
 
       let user: { id: string; schoolId: string; name: string; email: string; role: SchoolUserRole; passwordHash: string; isActive: boolean; isPlatformOwner: boolean; tokenVersion: number } | null = null;
 
-      if (schoolCode === "PLATFORM") {
+      if (!normalizedSchoolCode) {
+        failureCategory = "SCHOOL_CODE_NORMALIZATION_ERROR";
+      } else if (normalizedSchoolCode === "PLATFORM") {
         user = await prisma.user.findFirst({
-          where: { email: normalizedEmail, isPlatformOwner: true, isActive: true },
+          where: { email: normalizedEmail, isPlatformOwner: true },
         });
         auditSchoolId = user?.schoolId ?? null;
       } else {
-        const school = await prisma.school.findUnique({ where: { code: schoolCode } });
+        const school = await prisma.school.findUnique({ where: { code: normalizedSchoolCode } });
         if (!school) {
-          res.status(401).json({ error: "Invalid credentials." });
-          return;
+          failureCategory = "SCHOOL_NOT_FOUND";
+        } else {
+          schoolFound = true;
+          schoolActive = school.isActive;
+          auditSchoolId = school.id;
+          if (!school.isActive) {
+            failureCategory = "SCHOOL_DISABLED";
+          } else {
+            user = await prisma.user.findFirst({
+              where: { schoolId: school.id, email: normalizedEmail },
+            });
+          }
         }
-        auditSchoolId = school.id;
-        if (!school.isActive) {
-          await writeLoginAudit(school.id, "auth.login_failed", {
-            email: normalizedEmail,
-            schoolCode,
-            reason: "SCHOOL_SUSPENDED",
-          });
-          res.status(403).json({ error: "This school account has been suspended. Please contact support." });
-          return;
-        }
-        user = await prisma.user.findFirst({
-          where: { schoolId: school.id, email: normalizedEmail, isActive: true },
-        });
       }
 
-      const passwordMatch = user ? await verifyPassword(password, user.passwordHash) : false;
+      if (user) {
+        userFound = true;
+        userActive = user.isActive;
+        passwordHashPresent = Boolean(user.passwordHash);
+        passwordHashFormatValid = passwordHashPresent && isSupportedPasswordHash(user.passwordHash);
+      }
 
-      if (!user || !passwordMatch) {
+      if (!failureCategory) {
+        if (!user) {
+          failureCategory = "USER_NOT_FOUND";
+        } else if (!user.isActive) {
+          failureCategory = "USER_DISABLED";
+        } else if (!passwordHashFormatValid) {
+          failureCategory = "MALFORMED_PASSWORD_HASH";
+        } else {
+          passwordMatched = await verifyPassword(password, user.passwordHash);
+          if (!passwordMatched) failureCategory = "PASSWORD_MISMATCH";
+        }
+      }
+
+      if (failureCategory) {
+        console.warn("[auth-login-failed]", {
+          requestId,
+          environment: runtime.environment,
+          normalizedSchoolCode,
+          schoolFound,
+          userFound,
+          schoolActive,
+          userActive,
+          passwordHashPresent,
+          passwordHashFormatValid,
+          passwordMatched,
+          finalFailureCategory: failureCategory,
+        });
         if (auditSchoolId) {
-          await writeLoginAudit(auditSchoolId, "auth.login_failed", {
+          await writeLoginAudit(auditSchoolId, "LOGIN_FAILED", {
+            requestId,
+            environment: runtime.environment,
+            normalizedSchoolCode,
             email: normalizedEmail,
-            schoolCode,
-            reason: "INVALID_CREDENTIALS",
+            userId: user?.id ?? null,
+            result: "DENIED",
+            safeReasonCategory: failureCategory,
           });
         }
         res.status(401).json({ error: "Invalid credentials." });
         return;
       }
+      const authenticatedUser = user;
 
-      void prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } }).catch(() => {});
-      await writeLoginAudit(user.schoolId, "auth.login_success", {
-        email: user.email,
-        schoolCode,
-        userId: user.id,
-        role: user.role,
-        isPlatformOwner: user.isPlatformOwner,
+      console.warn("[auth-login-succeeded]", {
+        requestId,
+        environment: runtime.environment,
+        normalizedSchoolCode,
+        schoolFound: schoolFound || normalizedSchoolCode === "PLATFORM",
+        userFound,
+        schoolActive: schoolActive || normalizedSchoolCode === "PLATFORM",
+        userActive,
+      });
+      await writeLoginAudit(authenticatedUser.schoolId, "LOGIN_SUCCEEDED", {
+        requestId,
+        environment: runtime.environment,
+        normalizedSchoolCode,
+        email: authenticatedUser.email,
+        userId: authenticatedUser.id,
+        action: "LOGIN_SUCCEEDED",
+        result: "ALLOWED",
       });
 
       const token = signToken({
-        userId: user.id,
-        schoolId: user.schoolId,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-        tokenVersion: user.tokenVersion,
-        ...(user.isPlatformOwner ? { isPlatformOwner: true } : {}),
+        userId: authenticatedUser.id,
+        schoolId: authenticatedUser.schoolId,
+        name: authenticatedUser.name,
+        email: authenticatedUser.email,
+        role: authenticatedUser.role,
+        tokenVersion: authenticatedUser.tokenVersion,
+        ...(authenticatedUser.isPlatformOwner ? { isPlatformOwner: true } : {}),
       });
 
       res.json({
         token,
         user: {
-          id: user.id,
-          schoolId: user.schoolId,
-          name: user.name,
-          email: user.email,
-          role: user.role,
-          ...(user.isPlatformOwner ? { isPlatformOwner: true } : {}),
+          id: authenticatedUser.id,
+          schoolId: authenticatedUser.schoolId,
+          name: authenticatedUser.name,
+          email: authenticatedUser.email,
+          role: authenticatedUser.role,
+          ...(authenticatedUser.isPlatformOwner ? { isPlatformOwner: true } : {}),
         },
       });
     } catch (error) {

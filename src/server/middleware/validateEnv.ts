@@ -36,6 +36,12 @@ export function validateEnv(env: Record<string, string | undefined> = process.en
     if (env.ALLOW_DESTRUCTIVE_OPERATIONS === "true") {
       errors.push("ALLOW_DESTRUCTIVE_OPERATIONS must never be enabled in production.");
     }
+    if (env.ALLOW_PRODUCTION_DATA_REPAIR === "true") {
+      errors.push("ALLOW_PRODUCTION_DATA_REPAIR must never be enabled by default in production.");
+    }
+    if (env.ALLOW_PRODUCTION_CREDENTIAL_REPAIR === "true") {
+      errors.push("ALLOW_PRODUCTION_CREDENTIAL_REPAIR must never be enabled by default in production.");
+    }
 
     if (!env.JWT_SECRET) {
       errors.push("JWT_SECRET is not set. The server cannot sign authentication tokens safely.");

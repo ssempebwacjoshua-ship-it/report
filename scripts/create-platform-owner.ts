@@ -1,86 +1,79 @@
 /**
- * Bootstrap script: create or update a platform owner user.
+ * Controlled local-only provisioning script for a platform owner user.
  *
  * Usage:
- *   npx tsx scripts/create-platform-owner.ts --email "owner@schoolconnect.local" --password "CHANGE_ME"
- *
- * The user is attached to the SCU-PREVIEW school (or the first school found).
- * If a user with this email already exists (in any school), isPlatformOwner is set to true.
- * The password is hashed; the plaintext is never stored or logged.
+ *   npx tsx scripts/create-platform-owner.ts --email=<email> --password=<password> [-Apply]
  */
 
 import "dotenv/config";
 import { pathToFileURL } from "node:url";
 import { prisma } from "../src/server/db/prisma";
-import { hashPassword } from "../src/server/services/authService";
+import { hashPassword, normalizeLoginEmail } from "../src/server/services/authService";
+import { assertScriptWriteAllowed } from "../src/server/services/authScriptSafety";
 
-const args = process.argv.slice(2);
-
-function getArg(name: string): string | undefined {
+function getArg(args: string[], name: string): string | undefined {
   const flag = `--${name}=`;
   const entry = args.find((a) => a.startsWith(flag));
   return entry?.slice(flag.length);
 }
 
-async function main() {
-  const email = getArg("email");
-  const password = getArg("password");
+export async function runCreatePlatformOwner(inputArgs: string[], db = prisma, env: Record<string, string | undefined> = process.env) {
+  const { mode, classification } = assertScriptWriteAllowed("create-platform-owner", inputArgs, env);
+  const email = normalizeLoginEmail(getArg(inputArgs, "email") ?? "");
+  const password = getArg(inputArgs, "password") ?? "";
+
+  console.log(`[create-platform-owner] mode=${mode} environment=${classification.environment}`);
 
   if (!email || !password) {
-    console.error("Usage: npx tsx scripts/create-platform-owner.ts --email=<email> --password=<password>");
-    process.exit(1);
+    throw new Error("Usage: npx tsx scripts/create-platform-owner.ts --email=<email> --password=<password> [-Apply]");
   }
 
   if (password.length < 8) {
-    console.error("Password must be at least 8 characters.");
-    process.exit(1);
+    throw new Error("Password must be at least 8 characters.");
   }
 
-  // Find the anchor school: SCU-PREVIEW first, then any school
-  let school = await prisma.school.findUnique({ where: { code: "SCU-PREVIEW" } });
+  let school = await db.school.findUnique({ where: { code: "SCU-PREVIEW" } });
   if (!school) {
-    school = await prisma.school.findFirst({ orderBy: { createdAt: "asc" } });
+    school = await db.school.findFirst({ orderBy: { createdAt: "asc" } });
   }
   if (!school) {
-    console.error("No school found. Run the seed script first or create a school.");
-    process.exit(1);
+    throw new Error("No school found. Provision a school intentionally before creating a platform owner.");
+  }
+
+  const existing = await db.user.findFirst({ where: { email } });
+  if (existing) {
+    console.log(`[create-platform-owner] Existing user preserved for ${email}. Controlled repair or admin action is required.`);
+    return;
+  }
+
+  if (mode === "dry-run") {
+    console.log(`[create-platform-owner] Would create platform owner ${email} in school ${school.code}.`);
+    return;
   }
 
   const passwordHash = await hashPassword(password);
-
-  // Check if user already exists (any school)
-  const existing = await prisma.user.findFirst({ where: { email: email.toLowerCase() } });
-
-  if (existing) {
-    await prisma.user.update({
-      where: { id: existing.id },
-      data: { passwordHash, isPlatformOwner: true, isActive: true, mustChangePassword: false },
-    });
-    console.log(`[ok] Updated existing user ${email} → isPlatformOwner=true (school: ${existing.schoolId})`);
-  } else {
-    const user = await prisma.user.create({
-      data: {
-        schoolId: school.id,
-        name: "Platform Owner",
-        email: email.toLowerCase(),
-        passwordHash,
-        role: "ADMIN_OPERATOR",
-        isPlatformOwner: true,
-        isActive: true,
-        mustChangePassword: false,
-      },
-    });
-    console.log(`[ok] Created platform owner user: ${user.email} (school: ${school.code}, id: ${user.id})`);
-  }
-
-  console.log(`[ok] Login: schoolCode=PLATFORM, email=${email}`);
+  const user = await db.user.create({
+    data: {
+      schoolId: school.id,
+      name: "Platform Owner",
+      email,
+      passwordHash,
+      role: "ADMIN_OPERATOR",
+      isPlatformOwner: true,
+      isActive: true,
+      mustChangePassword: false,
+    },
+  });
+  console.log(`[create-platform-owner] Created platform owner ${user.email} in school ${school.code}.`);
 }
 
-main()
-  .catch((e) => {
-    console.error(e);
-    process.exit(1);
-  })
-  .finally(async () => prisma.$disconnect());
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  runCreatePlatformOwner(process.argv.slice(2))
+    .catch((e) => {
+      console.error(e instanceof Error ? e.message : e);
+      process.exit(1);
+    })
+    .finally(async () => prisma.$disconnect());
+}
 
 export {};

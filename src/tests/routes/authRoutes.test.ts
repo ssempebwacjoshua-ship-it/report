@@ -11,6 +11,9 @@ const mockState = vi.hoisted(() => ({
   signToken: vi.fn(() => "signed-token"),
   verifyPassword: vi.fn(),
   verifyToken: vi.fn(),
+  normalizeLoginEmail: vi.fn((value: string) => value.trim().toLowerCase()),
+  normalizeSchoolCode: vi.fn((value: string) => value.trim().toUpperCase()),
+  isSupportedPasswordHash: vi.fn((value: string) => value.startsWith("$2b$")),
   validateSchoolSession: vi.fn(),
 }));
 
@@ -31,6 +34,9 @@ vi.mock("../../server/services/authService", () => ({
   signToken: mockState.signToken,
   verifyPassword: mockState.verifyPassword,
   verifyToken: mockState.verifyToken,
+  normalizeLoginEmail: mockState.normalizeLoginEmail,
+  normalizeSchoolCode: mockState.normalizeSchoolCode,
+  isSupportedPasswordHash: mockState.isSupportedPasswordHash,
 }));
 
 vi.mock("../../server/services/sessionValidationService", () => ({
@@ -68,7 +74,7 @@ describe("authRoutes /api/auth/login", () => {
       name: "Test Admin",
       email: "admin@schoolconnect.test",
       role: "ADMIN_OPERATOR",
-      passwordHash: "hash",
+      passwordHash: "$2b$12$abcdefghijklmnopqrstuuuuuuuuuuuuuuuuuuuuuuuuuu",
       isActive: true,
       isPlatformOwner: false,
       tokenVersion: 2,
@@ -95,13 +101,14 @@ describe("authRoutes /api/auth/login", () => {
       userId: "user-1",
       tokenVersion: 2,
     }));
+    expect(mockState.userUpdate).not.toHaveBeenCalled();
     expect(mockState.auditLogCreate).toHaveBeenCalledWith(expect.objectContaining({
       data: expect.objectContaining({
         schoolId: "school-1",
-        action: "auth.login_success",
+        action: "LOGIN_SUCCEEDED",
         details: expect.objectContaining({
           email: "admin@schoolconnect.test",
-          schoolCode: "SCU-PREVIEW",
+          normalizedSchoolCode: "SCU-PREVIEW",
         }),
       }),
     }));
@@ -119,7 +126,7 @@ describe("authRoutes /api/auth/login", () => {
       name: `${role} User`,
       email,
       role,
-      passwordHash: "hash",
+      passwordHash: "$2b$12$abcdefghijklmnopqrstuuuuuuuuuuuuuuuuuuuuuuuuuu",
       isActive: true,
       isPlatformOwner: false,
       tokenVersion: 1,
@@ -146,12 +153,23 @@ describe("authRoutes /api/auth/login", () => {
     expect(mockState.auditLogCreate).toHaveBeenCalledWith(expect.objectContaining({
       data: expect.objectContaining({
         schoolId: "school-1",
-        action: "auth.login_failed",
+        action: "LOGIN_FAILED",
         details: expect.objectContaining({
           email: "nobody@unknown.test",
-          reason: "INVALID_CREDENTIALS",
+          safeReasonCategory: "USER_NOT_FOUND",
         }),
       }),
+    }));
+  });
+
+  it("normalizes school code and email before lookup", async () => {
+    await request(buildApp())
+      .post("/api/auth/login")
+      .send({ email: "ADMIN@SCHOOLCONNECT.TEST", password: "password123", schoolCode: " scu-preview " });
+
+    expect(mockState.schoolFindUnique).toHaveBeenCalledWith({ where: { code: "SCU-PREVIEW" } });
+    expect(mockState.userFindFirst).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ email: "admin@schoolconnect.test" }),
     }));
   });
 
@@ -163,23 +181,25 @@ describe("authRoutes /api/auth/login", () => {
   });
 
   it("returns 403 for suspended school", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
     mockState.schoolFindUnique.mockResolvedValue({ id: "school-1", code: "SCU-PREVIEW", isActive: false });
 
     const res = await request(buildApp())
       .post("/api/auth/login")
       .send({ email: "admin@schoolconnect.test", password: "password123", schoolCode: "SCU-PREVIEW" });
 
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(401);
     expect(mockState.auditLogCreate).toHaveBeenCalledWith(expect.objectContaining({
       data: expect.objectContaining({
         schoolId: "school-1",
-        action: "auth.login_failed",
+        action: "LOGIN_FAILED",
         details: expect.objectContaining({
           email: "admin@schoolconnect.test",
-          reason: "SCHOOL_SUSPENDED",
+          safeReasonCategory: "SCHOOL_DISABLED",
         }),
       }),
     }));
+    warn.mockRestore();
   });
 });
 
