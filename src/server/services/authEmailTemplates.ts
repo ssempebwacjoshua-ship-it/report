@@ -16,7 +16,7 @@ function layout(title: string, body: string, ctaLabel?: string, ctaUrl?: string)
 }
 
 export function accountSetupTemplate(input: { recipientName: string; schoolName: string; inviterName: string; setupUrl: string; expiresHours: number }) {
-  const subject = "Set up your SSAMENJ account";
+  const subject = "Set up your SSAMENJ Report Lab account";
   const body = `<p>Hello ${escapeHtml(input.recipientName)},</p><p>${escapeHtml(input.inviterName)} invited you to ${escapeHtml(input.schoolName)} on SSAMENJ.</p><p>This setup link expires in ${input.expiresHours} hours.</p><p>If the button does not work, paste this URL into your browser:</p><p style="word-break:break-all;color:#334155">${escapeHtml(input.setupUrl)}</p>`;
   return {
     subject,
@@ -25,13 +25,13 @@ export function accountSetupTemplate(input: { recipientName: string; schoolName:
   };
 }
 
-export function passwordResetTemplate(input: { recipientName: string; resetUrl: string; expiresMinutes: number }) {
-  const subject = "Reset your SSAMENJ password";
-  const body = `<p>Hello ${escapeHtml(input.recipientName)},</p><p>We received a request to reset your SSAMENJ password.</p><p>This reset link expires in ${input.expiresMinutes} minutes.</p><p>If you did not request this, you can ignore this email.</p><p style="word-break:break-all;color:#334155">${escapeHtml(input.resetUrl)}</p>`;
+export function passwordResetOtpTemplate(input: { recipientName: string; otp: string; expiresMinutes: number }) {
+  const subject = "Your SSAMENJ Report Lab password reset code";
+  const body = `<p>Hello ${escapeHtml(input.recipientName)},</p><p>We received a request to reset your SSAMENJ Report Lab password.</p><p>Your reset code is:</p><p style="font-size:28px;letter-spacing:6px;font-weight:800;color:#0f172a">${escapeHtml(input.otp)}</p><p>This code expires in ${input.expiresMinutes} minutes.</p><p>If you did not request this, you can ignore this email.</p>`;
   return {
     subject,
-    html: layout(subject, body, "Reset password", input.resetUrl),
-    text: `Hello ${input.recipientName},\n\nReset your SSAMENJ password: ${input.resetUrl}\n\nThis reset link expires in ${input.expiresMinutes} minutes.\n\nIf you did not request this, you can ignore this email.`,
+    html: layout(subject, body),
+    text: `Hello ${input.recipientName},\n\nYour SSAMENJ Report Lab password reset code is: ${input.otp}\n\nThis code expires in ${input.expiresMinutes} minutes.\n\nIf you did not request this, you can ignore this email.`,
   };
 }
 
@@ -45,4 +45,3 @@ export function passwordChangedTemplate(input: { recipientName: string; changedA
     text: `Hello ${input.recipientName},\n\nYour SSAMENJ password was changed at ${changedAt}.\n\nIf this was not you, contact your school administrator or SSAMENJ support immediately.`,
   };
 }
-

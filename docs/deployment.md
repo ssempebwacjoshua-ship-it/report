@@ -50,10 +50,10 @@ npx prisma migrate deploy && node dist/server/index.js
 | `JWT_SECRET` | A long random string |
 | `CLIENT_ORIGIN` | `https://YOUR-VERCEL-APP.vercel.app` |
 | `APP_BASE_URL` | Branded parent report URL, for example `https://reports.schoolconnect.example` |
-| `APP_PUBLIC_URL` | Branded app URL used in account setup and password reset links |
+| `APP_PUBLIC_URL` | `https://ssamenj.online/report-lab` |
 | `RESEND_API_KEY` | Server-only Resend API key for authentication emails |
-| `AUTH_EMAIL_FROM` | Verified Resend sender, for example `SSAMENJ Technologies <accounts@your-verified-domain.com>` |
-| `AUTH_EMAIL_REPLY_TO` | Optional reply-to support address |
+| `AUTH_EMAIL_FROM` | `SSAMENJ Team <no-reply@notify.ssamenj.online>` |
+| `AUTH_EMAIL_REPLY_TO` | `support@ssamenj.online` |
 | `NODE_ENV` | `production` |
 | `OCR_ENABLED` | `true` |
 | `OCR_PROVIDER` | `azure` |

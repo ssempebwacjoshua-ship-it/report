@@ -5,7 +5,7 @@ import { prisma } from "../db/prisma";
 import { isSupportedPasswordHash, normalizeLoginEmail, normalizeSchoolCode, signToken, verifyPassword, verifyToken, type SchoolUserRole } from "../services/authService";
 import { classifyRuntimeEnvironment } from "../security/environmentSafety";
 import { validateSchoolSession } from "../services/sessionValidationService";
-import { consumeAccountSetup, requestPasswordReset, resetPasswordWithToken } from "../services/authTokenService";
+import { consumeAccountSetup, requestPasswordReset, resetPasswordWithOtp } from "../services/authTokenService";
 
 const loginSchema = z.object({
   email: z.string().email("Enter a valid email address."),
@@ -14,11 +14,19 @@ const loginSchema = z.object({
 });
 
 const forgotPasswordSchema = z.object({
+  schoolCode: z.string().min(1, "School code is required."),
   email: z.string().email("Enter a valid email address."),
 });
 
 const tokenPasswordSchema = z.object({
   token: z.string().min(32, "Token is required."),
+  password: z.string().min(10, "Password must be at least 10 characters."),
+});
+
+const otpResetSchema = z.object({
+  schoolCode: z.string().min(1, "School code is required."),
+  email: z.string().email("Enter a valid email address."),
+  otp: z.string().regex(/^\d{6,8}$/, "Enter a valid reset code."),
   password: z.string().min(10, "Password must be at least 10 characters."),
 });
 
@@ -190,13 +198,14 @@ export function authRoutes() {
 
   router.post("/api/auth/forgot-password", async (req, res, next) => {
     try {
-      const { email } = forgotPasswordSchema.parse(req.body);
+      const { schoolCode, email } = forgotPasswordSchema.parse(req.body);
       await requestPasswordReset({
+        schoolCode,
         email,
         requestedIp: req.ip,
         requestedUserAgent: req.headers["user-agent"],
       });
-      res.json({ ok: true, message: "If an account exists for that email, a password reset link will be sent." });
+      res.json({ ok: true, message: "If an account exists, we sent a reset code." });
     } catch (error) {
       next(error);
     }
@@ -204,8 +213,8 @@ export function authRoutes() {
 
   router.post("/api/auth/reset-password", async (req, res, next) => {
     try {
-      const { token, password } = tokenPasswordSchema.parse(req.body);
-      await resetPasswordWithToken(token, password);
+      const payload = otpResetSchema.parse(req.body);
+      await resetPasswordWithOtp(payload);
       res.json({ ok: true });
     } catch (error) {
       next(error);

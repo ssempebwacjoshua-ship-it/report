@@ -15,6 +15,9 @@ const mockState = vi.hoisted(() => ({
   normalizeSchoolCode: vi.fn((value: string) => value.trim().toUpperCase()),
   isSupportedPasswordHash: vi.fn((value: string) => value.startsWith("$2b$")),
   validateSchoolSession: vi.fn(),
+  requestPasswordReset: vi.fn(),
+  resetPasswordWithOtp: vi.fn(),
+  consumeAccountSetup: vi.fn(),
 }));
 
 vi.mock("../../server/db/prisma", () => ({
@@ -41,6 +44,12 @@ vi.mock("../../server/services/authService", () => ({
 
 vi.mock("../../server/services/sessionValidationService", () => ({
   validateSchoolSession: mockState.validateSchoolSession,
+}));
+
+vi.mock("../../server/services/authTokenService", () => ({
+  requestPasswordReset: mockState.requestPasswordReset,
+  resetPasswordWithOtp: mockState.resetPasswordWithOtp,
+  consumeAccountSetup: mockState.consumeAccountSetup,
 }));
 
 import { authRoutes } from "../../server/routes/authRoutes";
@@ -221,6 +230,49 @@ describe("authRoutes /api/auth/login", () => {
       }),
     }));
     warn.mockRestore();
+  });
+});
+
+describe("authRoutes password recovery endpoints", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockState.requestPasswordReset.mockResolvedValue({ ok: true });
+    mockState.resetPasswordWithOtp.mockResolvedValue({ ok: true });
+    mockState.consumeAccountSetup.mockResolvedValue({ ok: true });
+  });
+
+  it("returns a generic forgot-password message", async () => {
+    const res = await request(buildApp())
+      .post("/api/auth/forgot-password")
+      .send({ schoolCode: "SCU-PREVIEW", email: "admin@schoolconnect.test" });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ ok: true, message: "If an account exists, we sent a reset code." });
+    expect(mockState.requestPasswordReset).toHaveBeenCalledWith(expect.objectContaining({
+      schoolCode: "SCU-PREVIEW",
+      email: "admin@schoolconnect.test",
+    }));
+    expect(JSON.stringify(res.body)).not.toContain("token");
+    expect(JSON.stringify(res.body)).not.toContain("otp");
+  });
+
+  it("accepts OTP-based password resets", async () => {
+    const res = await request(buildApp())
+      .post("/api/auth/reset-password")
+      .send({
+        schoolCode: "SCU-PREVIEW",
+        email: "admin@schoolconnect.test",
+        otp: "123456",
+        password: "NewPassword9",
+      });
+
+    expect(res.status).toBe(200);
+    expect(mockState.resetPasswordWithOtp).toHaveBeenCalledWith({
+      schoolCode: "SCU-PREVIEW",
+      email: "admin@schoolconnect.test",
+      otp: "123456",
+      password: "NewPassword9",
+    });
   });
 });
 
