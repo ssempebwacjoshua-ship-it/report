@@ -62,7 +62,7 @@ describe("emailService", () => {
   it("fails safely when the Resend API key is missing", async () => {
     process.env.AUTH_EMAIL_PROVIDER = "RESEND";
     delete process.env.RESEND_API_KEY;
-    process.env.AUTH_EMAIL_FROM = "SSAMENJ Team <no-reply@notify.ssamenj.online>";
+    process.env.AUTH_EMAIL_FROM = "SSAMENJ Report Lab <support@ssamenj.online>";
     process.env.APP_PUBLIC_URL = "https://ssamenj.online/report-lab";
 
     expect(configuredAuthEmailProvider()).toBe("RESEND");
@@ -109,7 +109,7 @@ describe("emailService", () => {
   it("logs safe Resend validation details and returns a sender/domain error when the sender is unverified", async () => {
     process.env.AUTH_EMAIL_PROVIDER = "RESEND";
     process.env.RESEND_API_KEY = "resend-key";
-    process.env.AUTH_EMAIL_FROM = "SSAMENJ Team <no-reply@notify.ssamenj.online>";
+    process.env.AUTH_EMAIL_FROM = "SSAMENJ Report Lab <support@ssamenj.online>";
     process.env.APP_PUBLIC_URL = "https://ssamenj.online/report-lab";
     process.env.AUTH_EMAIL_REPLY_TO = "support@ssamenj.online";
     resendSendResult = {
@@ -140,7 +140,7 @@ describe("emailService", () => {
     const instance = resendInstances[0];
     expect(instance).toBeTruthy();
     expect(instance.emails.send).toHaveBeenCalledWith(expect.objectContaining({
-      from: "SSAMENJ Team <no-reply@notify.ssamenj.online>",
+      from: "SSAMENJ Report Lab <support@ssamenj.online>",
       to: "recipient@gmail.com",
       subject: "Test",
       html: "<p>Test</p>",
@@ -174,7 +174,7 @@ describe("emailService", () => {
   it("normalizes quoted sender values before sending", async () => {
     process.env.AUTH_EMAIL_PROVIDER = "RESEND";
     process.env.RESEND_API_KEY = "resend-key";
-    process.env.AUTH_EMAIL_FROM = '"SSAMENJ Team <support@ssamenj.online>"';
+    process.env.AUTH_EMAIL_FROM = '"SSAMENJ Report Lab <support@ssamenj.online>"';
     process.env.APP_PUBLIC_URL = "https://ssamenj.online/report-lab";
 
     await expect(sendAuthEmail({
@@ -190,14 +190,14 @@ describe("emailService", () => {
 
     const instance = resendInstances[0];
     expect(instance.emails.send).toHaveBeenCalledWith(expect.objectContaining({
-      from: "SSAMENJ Team <support@ssamenj.online>",
+      from: "SSAMENJ Report Lab <support@ssamenj.online>",
     }));
   });
 
   it("fails safely when AUTH_EMAIL_FROM is malformed", async () => {
     process.env.AUTH_EMAIL_PROVIDER = "RESEND";
     process.env.RESEND_API_KEY = "resend-key";
-    process.env.AUTH_EMAIL_FROM = "SSAMENJ Team support@ssamenj.online";
+    process.env.AUTH_EMAIL_FROM = "SSAMENJ Report Lab support@ssamenj.online";
     process.env.APP_PUBLIC_URL = "https://ssamenj.online/report-lab";
 
     await expect(sendAuthEmail({

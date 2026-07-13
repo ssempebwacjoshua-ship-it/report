@@ -124,7 +124,7 @@ export function validateEnv(env: Record<string, string | undefined> = process.en
     }
     if (!authEmailFrom) {
       errors.push(
-        "AUTH_EMAIL_FROM is not set. Use the verified Resend sender address for auth emails (for example, SSAMENJ Report Lab <no-reply@notify.ssamenj.online>).",
+        "AUTH_EMAIL_FROM is not set. Use the verified Resend sender address for auth emails (for example, SSAMENJ Report Lab <support@ssamenj.online>).",
       );
     } else if (!isValidAuthEmailFrom(authEmailFrom)) {
       errors.push(

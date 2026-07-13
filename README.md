@@ -49,9 +49,11 @@ Authentication emails use Resend when configured:
 
 ```env
 RESEND_API_KEY=""
-AUTH_EMAIL_FROM="SSAMENJ Technologies <accounts@your-verified-domain.com>"
+AUTH_EMAIL_FROM="SSAMENJ Report Lab <support@ssamenj.online>"
 AUTH_EMAIL_REPLY_TO=""
 APP_PUBLIC_URL="http://localhost:5173"
+PUBLIC_SITE_URL="https://ssamenj.online"
+PUBLIC_COMPANY_LOGO_URL="https://ssamenj.online/ssamenj-logo.png"
 ```
 
 Production senders must use a verified Resend domain. Do not use a Gmail address as the production sender.

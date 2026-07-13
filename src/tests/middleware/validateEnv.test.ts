@@ -37,7 +37,7 @@ describe("validateEnv ? production JWT_SECRET checks", () => {
     CLIENT_ORIGIN: "https://app.example.com",
     AUTH_EMAIL_PROVIDER: "RESEND",
     RESEND_API_KEY: "resend-key",
-    AUTH_EMAIL_FROM: "SSAMENJ Team <no-reply@notify.ssamenj.online>",
+    AUTH_EMAIL_FROM: "SSAMENJ Report Lab <support@ssamenj.online>",
     APP_PUBLIC_URL: "https://ssamenj.online/report-lab",
   };
 
@@ -79,7 +79,7 @@ describe("validateEnv ? production required vars", () => {
     JWT_SECRET: "a".repeat(32),
     AUTH_EMAIL_PROVIDER: "RESEND",
     RESEND_API_KEY: "resend-key",
-    AUTH_EMAIL_FROM: "SSAMENJ Team <no-reply@notify.ssamenj.online>",
+    AUTH_EMAIL_FROM: "SSAMENJ Report Lab <support@ssamenj.online>",
     APP_PUBLIC_URL: "https://ssamenj.online/report-lab",
   };
 
@@ -115,7 +115,7 @@ describe("validateEnv ? production required vars", () => {
       CLIENT_ORIGIN: "https://app.example.com",
       AUTH_EMAIL_PROVIDER: "RESEND",
       RESEND_API_KEY: "resend-key",
-      AUTH_EMAIL_FROM: "SSAMENJ Team <no-reply@notify.ssamenj.online>",
+      AUTH_EMAIL_FROM: "SSAMENJ Report Lab <support@ssamenj.online>",
       APP_PUBLIC_URL: "https://ssamenj.online/report-lab",
       APP_BASE_URL: "https://reports.example.com",
       PLATFORM_ADMIN_KEY: "strong-platform-key",
@@ -134,7 +134,7 @@ describe("validateEnv ? production required vars", () => {
       CLIENT_ORIGIN: "https://app.example.com",
       AUTH_EMAIL_PROVIDER: "RESEND",
       RESEND_API_KEY: "resend-key",
-      AUTH_EMAIL_FROM: "SSAMENJ Team <no-reply@notify.ssamenj.online>",
+      AUTH_EMAIL_FROM: "SSAMENJ Report Lab <support@ssamenj.online>",
       APP_PUBLIC_URL: "https://ssamenj.online/report-lab",
     });
     expect(result.valid).toBe(false);
@@ -149,7 +149,7 @@ describe("validateEnv ? production required vars", () => {
       CLIENT_ORIGIN: "http://localhost:5173",
       AUTH_EMAIL_PROVIDER: "RESEND",
       RESEND_API_KEY: "resend-key",
-      AUTH_EMAIL_FROM: "SSAMENJ Team <no-reply@notify.ssamenj.online>",
+      AUTH_EMAIL_FROM: "SSAMENJ Report Lab <support@ssamenj.online>",
       APP_PUBLIC_URL: "https://ssamenj.online/report-lab",
     });
     expect(result.valid).toBe(false);
@@ -164,7 +164,7 @@ describe("validateEnv ? production required vars", () => {
       CLIENT_ORIGIN: "https://app.example.com",
       AUTH_EMAIL_PROVIDER: "RESEND",
       RESEND_API_KEY: "resend-key",
-      AUTH_EMAIL_FROM: "SSAMENJ Team <no-reply@notify.ssamenj.online>",
+      AUTH_EMAIL_FROM: "SSAMENJ Report Lab <support@ssamenj.online>",
       APP_PUBLIC_URL: "https://ssamenj.online/report-lab",
       PLATFORM_ADMIN_KEY: "strong-platform-key",
       INTERNAL_TEST_KEY: "strong-internal-test-key",
@@ -181,7 +181,7 @@ describe("validateEnv ? production required vars", () => {
       CLIENT_ORIGIN: "https://app.example.com",
       AUTH_EMAIL_PROVIDER: "RESEND",
       RESEND_API_KEY: "resend-key",
-      AUTH_EMAIL_FROM: "SSAMENJ Team <no-reply@notify.ssamenj.online>",
+      AUTH_EMAIL_FROM: "SSAMENJ Report Lab <support@ssamenj.online>",
       APP_PUBLIC_URL: "https://ssamenj.online/report-lab",
       APP_BASE_URL: "https://reports.example.com",
       PLATFORM_ADMIN_KEY: "strong-platform-key",
@@ -198,7 +198,7 @@ describe("validateEnv ? production required vars", () => {
       CLIENT_ORIGIN: "https://app.example.com",
       AUTH_EMAIL_PROVIDER: "SENDGRID",
       RESEND_API_KEY: "resend-key",
-      AUTH_EMAIL_FROM: "SSAMENJ Team <no-reply@notify.ssamenj.online>",
+      AUTH_EMAIL_FROM: "SSAMENJ Report Lab <support@ssamenj.online>",
       APP_PUBLIC_URL: "https://ssamenj.online/report-lab",
     });
     expect(result.valid).toBe(false);
@@ -227,7 +227,7 @@ describe("validateEnv ? production required vars", () => {
       CLIENT_ORIGIN: "https://app.example.com",
       AUTH_EMAIL_PROVIDER: "RESEND",
       RESEND_API_KEY: "resend-key",
-      AUTH_EMAIL_FROM: "SSAMENJ Team support@ssamenj.online",
+      AUTH_EMAIL_FROM: "SSAMENJ Report Lab support@ssamenj.online",
       APP_PUBLIC_URL: "https://ssamenj.online/report-lab",
     });
     expect(result.valid).toBe(false);

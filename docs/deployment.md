@@ -55,10 +55,13 @@ npx prisma migrate deploy && node dist/server/index.js
 | `APP_URL` | Alias for `APP_PUBLIC_URL` used by auth link helpers |
 | `AUTH_EMAIL_PROVIDER` | `RESEND` |
 | `RESEND_API_KEY` | Server-only Resend API key for authentication emails |
-| `AUTH_EMAIL_FROM` | `SSAMENJ Team <no-reply@notify.ssamenj.online>` |
+| `AUTH_EMAIL_FROM` | `SSAMENJ Report Lab <support@ssamenj.online>` |
 | `EMAIL_FROM` | Alias for `AUTH_EMAIL_FROM` |
 | `RESEND_FROM_EMAIL` | Alias for `AUTH_EMAIL_FROM` |
+| `OUTREACH_EMAIL_FROM` | `Joshua from SSAMENJ Technologies <support@ssamenj.online>` |
 | `AUTH_EMAIL_REPLY_TO` | `support@ssamenj.online` |
+| `PUBLIC_SITE_URL` | `https://ssamenj.online` |
+| `PUBLIC_COMPANY_LOGO_URL` | `https://ssamenj.online/ssamenj-logo.png` |
 | `NODE_ENV` | `production` |
 | `OCR_ENABLED` | `true` |
 | `OCR_PROVIDER` | `azure` |
@@ -77,7 +80,7 @@ npx prisma migrate deploy && node dist/server/index.js
 
 `CLIENT_ORIGIN` controls CORS. Parent report links use `APP_BASE_URL` when set, then fall back to `PUBLIC_APP_URL` or `CLIENT_ORIGIN`. Replace any Vercel preview URL with the production branded report domain before releasing reports to parents.
 
-Account setup and password reset links use `APP_PUBLIC_URL` first, then `PUBLIC_APP_URL`, then `APP_URL`, then `APP_BASE_URL`. In production it must be HTTPS. Do not send production auth emails until `AUTH_EMAIL_PROVIDER=RESEND`, the sender domain is verified in Resend, and the sender address plus public app URL are configured.
+Account setup and password reset links use `APP_PUBLIC_URL` first, then `PUBLIC_APP_URL`, then `APP_URL`, then `APP_BASE_URL`. In production it must be HTTPS. Do not send production auth emails until `AUTH_EMAIL_PROVIDER=RESEND`, the sender domain is verified in Resend, and the sender address plus public app URL are configured. Set `PUBLIC_SITE_URL` and `PUBLIC_COMPANY_LOGO_URL` so branded HTML email can point at a public logo.
 
 The server binds to `0.0.0.0` and the port from `process.env.PORT`, which Railway injects automatically.
 
