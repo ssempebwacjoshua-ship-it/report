@@ -248,29 +248,44 @@ function unavailableError(): Error & { status: number } {
 }
 
 async function ensureBulkGenerationAvailable(): Promise<void> {
-  if (_workerDisabledReason) throw unavailableError();
   const ready = await bulkGenerationTablesReady();
   if (!ready) {
-    _workerDisabledReason = "BulkGenerationJob table is missing. Run `npx prisma migrate deploy` against this database.";
     throw unavailableError();
+  }
+  _workerDisabledReason = null;
+}
+
+async function refreshBulkGenerationWorkerState(): Promise<boolean> {
+  try {
+    const ready = await bulkGenerationTablesReady();
+    if (ready) {
+      if (_workerDisabledReason) {
+        _workerDisabledReason = null;
+        console.info("[bulk-worker] re-enabled: BulkGenerationJob table is available.");
+      }
+      return true;
+    }
+    const reason = "BulkGenerationJob table is missing. Run `npx prisma migrate deploy` against this database.";
+    if (_workerDisabledReason !== reason) {
+      _workerDisabledReason = reason;
+      console.warn(`[bulk-worker] disabled: ${_workerDisabledReason}`);
+    }
+    return false;
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error);
+    if (_workerDisabledReason !== reason) {
+      _workerDisabledReason = reason;
+      console.warn("[bulk-worker] disabled: could not verify database schema:", _workerDisabledReason);
+    }
+    return false;
   }
 }
 
 export function startBulkGenerationWorker(): void {
-  void bulkGenerationTablesReady()
-    .then((ready) => {
-      if (!ready) {
-        _workerDisabledReason = "BulkGenerationJob table is missing. Run `npx prisma migrate deploy` against this database.";
-        console.warn(`[bulk-worker] disabled: ${_workerDisabledReason}`);
-      }
-    })
-    .catch((error) => {
-      _workerDisabledReason = error instanceof Error ? error.message : String(error);
-      console.warn("[bulk-worker] disabled: could not verify database schema:", _workerDisabledReason);
-    });
+  void refreshBulkGenerationWorkerState();
 
   setInterval(async () => {
-    if (_workerDisabledReason) return;
+    if (!(await refreshBulkGenerationWorkerState())) return;
     if (_workerRunning) return;
     try {
       const job = await db.bulkGenerationJob.findFirst({
