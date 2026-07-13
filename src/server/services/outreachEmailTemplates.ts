@@ -52,30 +52,30 @@ export function outreachEmailTemplate(input: {
 
     <p style="margin:0 0 16px;color:#475569;line-height:1.75">I wanted to introduce our School Connect Student NFC Wristband.</p>
 
-    <table role="presentation" cellspacing="0" cellpadding="0" style="width:100%;border-collapse:collapse;margin:0 0 18px">
-      <tr>
-        <td style="padding:0 6px 12px 0;width:50%">
-          <div style="border:1px solid #dbe4f0;border-radius:16px;padding:16px;background:#ffffff">
+    <table role="presentation" cellspacing="0" cellpadding="0" class="outreach-feature-table" style="width:100%;border-collapse:collapse;margin:0 0 18px">
+      <tr class="outreach-feature-row">
+        <td class="outreach-feature-cell" style="padding:0 6px 12px 0;width:50%;vertical-align:top">
+          <div class="outreach-feature-card" style="border:1px solid #dbe4f0;border-radius:16px;padding:16px;background:#ffffff;min-height:100%">
             <div style="font-size:14px;font-weight:900;color:${branding.primaryColor};margin-bottom:4px">Attendance</div>
             <div style="font-size:13px;line-height:1.6;color:#475569">Faster attendance tracking without manual books or paper slips.</div>
           </div>
         </td>
-        <td style="padding:0 0 12px 6px;width:50%">
-          <div style="border:1px solid #dbe4f0;border-radius:16px;padding:16px;background:#ffffff">
+        <td class="outreach-feature-cell" style="padding:0 0 12px 6px;width:50%;vertical-align:top">
+          <div class="outreach-feature-card" style="border:1px solid #dbe4f0;border-radius:16px;padding:16px;background:#ffffff;min-height:100%">
             <div style="font-size:14px;font-weight:900;color:${branding.primaryColor};margin-bottom:4px">Gate Access</div>
             <div style="font-size:13px;line-height:1.6;color:#475569">Safer student identification and easier entry verification.</div>
           </div>
         </td>
       </tr>
-      <tr>
-        <td style="padding:0 6px 12px 0;width:50%">
-          <div style="border:1px solid #dbe4f0;border-radius:16px;padding:16px;background:#ffffff">
+      <tr class="outreach-feature-row">
+        <td class="outreach-feature-cell" style="padding:0 6px 12px 0;width:50%;vertical-align:top">
+          <div class="outreach-feature-card" style="border:1px solid #dbe4f0;border-radius:16px;padding:16px;background:#ffffff;min-height:100%">
             <div style="font-size:14px;font-weight:900;color:${branding.primaryColor};margin-bottom:4px">Canteen Payments</div>
             <div style="font-size:13px;line-height:1.6;color:#475569">Cashless canteen payments with cleaner records.</div>
           </div>
         </td>
-        <td style="padding:0 0 12px 6px;width:50%">
-          <div style="border:1px solid #dbe4f0;border-radius:16px;padding:16px;background:#ffffff">
+        <td class="outreach-feature-cell" style="padding:0 0 12px 6px;width:50%;vertical-align:top">
+          <div class="outreach-feature-card" style="border:1px solid #dbe4f0;border-radius:16px;padding:16px;background:#ffffff;min-height:100%">
             <div style="font-size:14px;font-weight:900;color:${branding.primaryColor};margin-bottom:4px">Student ID &amp; Library</div>
             <div style="font-size:13px;line-height:1.6;color:#475569">Tap for student services, borrowing, and authorization checks.</div>
           </div>

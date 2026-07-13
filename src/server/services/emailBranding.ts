@@ -126,6 +126,9 @@ export function renderBrandedEmail(input: {
         .outreach-hero-copy-cell { padding:0 !important; }
         .outreach-hero-copy { font-size: 22px !important; }
         .outreach-hero-subcopy { font-size: 13px !important; }
+        .outreach-feature-table, .outreach-feature-row, .outreach-feature-cell { display:block !important; width:100% !important; }
+        .outreach-feature-cell { padding:0 0 12px 0 !important; }
+        .outreach-feature-card { min-height:0 !important; }
       }
     </style>
   </head>
