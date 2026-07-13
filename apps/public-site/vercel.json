@@ -8,6 +8,22 @@
   ],
   "rewrites": [
     {
+      "source": "/report-lab/:path*",
+      "destination": "https://report-sigma-one.vercel.app/:path*"
+    },
+    {
+      "source": "/stayos/api/:path*",
+      "destination": "https://rentals-production-3c85.up.railway.app/api/:path*"
+    },
+    {
+      "source": "/api/stayos/:path*",
+      "destination": "https://rentals-production-3c85.up.railway.app/api/stayos/:path*"
+    },
+    {
+      "source": "/stayos/:path*",
+      "destination": "https://rentals-production-3c85.up.railway.app/stayos/:path*"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
     }

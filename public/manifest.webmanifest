@@ -2,33 +2,33 @@
   "name": "SSAMENJ Technologies",
   "short_name": "SSAMENJ",
   "description": "School Connect — Report Lab and Smart Pages for schools",
-  "start_url": "/",
-  "scope": "/",
+  "start_url": "/report-lab/",
+  "scope": "/report-lab/",
   "display": "standalone",
   "orientation": "portrait-primary",
   "theme_color": "#0B5CFF",
   "background_color": "#ffffff",
   "icons": [
     {
-      "src": "/icons/icon-192.png",
+      "src": "/report-lab/icons/icon-192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/icons/icon-512.png",
+      "src": "/report-lab/icons/icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/icons/icon-maskable-192.png",
+      "src": "/report-lab/icons/icon-maskable-192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "maskable"
     },
     {
-      "src": "/icons/icon-maskable-512.png",
+      "src": "/report-lab/icons/icon-maskable-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"

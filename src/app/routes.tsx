@@ -190,5 +190,7 @@ export const router = createBrowserRouter([
       { path: "search", element: <PermissionGuard permission="app.admin"><SearchPage /></PermissionGuard> },
     ],
   },
-]);
+], {
+  basename: "/report-lab",
+});
 

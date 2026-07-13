@@ -7,7 +7,7 @@ export function registerServiceWorker() {
 
   window.addEventListener("load", () => {
     navigator.serviceWorker
-      .register("/sw.js")
+      .register("/report-lab/sw.js", { scope: "/report-lab/" })
       .then((registration) => {
         // Re-check for a new SW (i.e. new deploy) when the tab regains focus.
         document.addEventListener("visibilitychange", () => {

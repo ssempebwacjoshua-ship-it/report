@@ -17,8 +17,8 @@ describe("PWA manifest", () => {
     expect(manifest.name).toBe("SSAMENJ Technologies");
     expect(manifest.short_name).toBe("SSAMENJ");
     expect(manifest.display).toBe("standalone");
-    expect(manifest.start_url).toBe("/");
-    expect(manifest.scope).toBe("/");
+    expect(manifest.start_url).toBe("/report-lab/");
+    expect(manifest.scope).toBe("/report-lab/");
     expect(manifest.theme_color).toBeTruthy();
     expect(manifest.background_color).toBeTruthy();
   });
@@ -30,7 +30,7 @@ describe("PWA manifest", () => {
     expect(sizes).toContain("512x512");
     expect(manifest.icons.some((i: { purpose?: string }) => i.purpose === "maskable")).toBe(true);
     for (const icon of manifest.icons) {
-      expect(existsSync(resolve(root, "public", icon.src.replace(/^\//, "")))).toBe(true);
+      expect(existsSync(resolve(root, "public", icon.src.replace(/^\/report-lab\//, "")))).toBe(true);
     }
     expect(existsSync(resolve(root, "public/icons/apple-touch-icon.png"))).toBe(true);
   });
@@ -54,7 +54,8 @@ describe("service worker safety", () => {
   it("exists and never intercepts API or cross-origin requests", () => {
     // Bails out for cross-origin and /api/ paths before any caching logic.
     expect(sw).toContain("url.origin !== self.location.origin");
-    expect(sw).toContain('url.pathname.startsWith("/api/")');
+    expect(sw).toContain('!url.pathname.startsWith(`${BASE_PATH}/`)');
+    expect(sw).toContain('url.pathname.startsWith(`${BASE_PATH}/api/`)');
     expect(sw).toContain('req.method !== "GET"');
   });
 

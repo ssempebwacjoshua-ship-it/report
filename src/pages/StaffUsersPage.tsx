@@ -308,7 +308,7 @@ function ChangeRoleModal({ user, onDone, onClose }: { user: StaffUser; onDone: (
     try {
       const result = await changeStaffRole(user.id, { role, reason });
       if (result.requiresRelogin) {
-        window.location.href = "/logout";
+        window.location.href = "/report-lab/logout";
         return;
       }
       onDone();
