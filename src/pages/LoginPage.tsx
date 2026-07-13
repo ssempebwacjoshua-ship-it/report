@@ -1,10 +1,10 @@
-﻿import { type FormEvent, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { type ComponentType, type FormEvent, useEffect, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { getApiBaseUrl } from "../client/apiBase";
 import { getDefaultRouteForRole } from "../shared/permissions";
+import { isDemoRuntime } from "../shared/runtimeMode";
 
-const IS_DEV = import.meta.env.DEV;
 const API_BASE = getApiBaseUrl();
 
 export function LoginPage() {
@@ -15,6 +15,19 @@ export function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [DemoCredentials, setDemoCredentials] = useState<ComponentType<{ onFill: () => void }> | null>(null);
+
+  useEffect(() => {
+    if (!isDemoRuntime()) return;
+    let mounted = true;
+    void import("./LoginDemoCredentials").then((module) => {
+      if (mounted) setDemoCredentials(() => module.LoginDemoCredentials);
+    });
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError("");
@@ -23,7 +36,12 @@ export function LoginPage() {
       const result = await login(email.trim(), password, schoolCode.trim());
       navigate(result?.isPlatformOwner ? "/owner" : getDefaultRouteForRole(result.role), { replace: true });
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Login failed.");
+      const safeNetworkMessage = "Unable to connect to the Report Lab service. Please try again.";
+      if (caught instanceof TypeError && /fetch/i.test(caught.message)) {
+        setError(safeNetworkMessage);
+      } else {
+        setError(caught instanceof Error ? caught.message : "Login failed.");
+      }
     } finally {
       setLoading(false);
     }
@@ -38,8 +56,6 @@ export function LoginPage() {
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-gradient-to-br from-slate-100 to-blue-50 px-4 py-12">
       <div className="w-full max-w-[400px]">
-
-        {/* Branding header */}
         <div className="mb-8 text-center">
           <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-600 shadow-lg shadow-blue-200">
             <svg viewBox="0 0 24 24" fill="none" className="h-7 w-7 text-white" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -55,11 +71,10 @@ export function LoginPage() {
           </p>
         </div>
 
-        {/* Card */}
         <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl shadow-slate-200/60">
           <div className="border-b border-slate-100 bg-slate-50/60 px-6 py-4">
             <h2 className="text-base font-bold text-slate-800">Sign in to your account</h2>
-            <p className="text-xs text-slate-500 mt-0.5">School staff access</p>
+            <p className="mt-0.5 text-xs text-slate-500">School staff access</p>
           </div>
 
           <form onSubmit={(e) => void handleSubmit(e)} className="px-6 py-5">
@@ -141,30 +156,14 @@ export function LoginPage() {
                   </span>
                 ) : "Sign in"}
               </button>
-              <a href="/forgot-password" className="text-center text-sm font-semibold text-blue-600 hover:text-blue-800">
+              <Link to="/forgot-password" className="text-center text-sm font-semibold text-blue-600 hover:text-blue-800">
                 Forgot password?
-              </a>
+              </Link>
             </div>
           </form>
         </div>
 
-        {/* Dev-only credential hint */}
-        {IS_DEV ? (
-          <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
-            <p className="mb-1.5 text-xs font-bold uppercase tracking-wide text-amber-700">
-              Local demo credentials
-            </p>
-            <p className="font-mono text-xs text-amber-800">admin@schoolconnect.test</p>
-            <p className="font-mono text-xs text-amber-800">password123</p>
-            <button
-              type="button"
-              onClick={fillDemo}
-              className="mt-2 text-xs font-semibold text-amber-700 underline underline-offset-2 hover:text-amber-900"
-            >
-              Fill in
-            </button>
-          </div>
-        ) : null}
+        {DemoCredentials ? <DemoCredentials onFill={fillDemo} /> : null}
 
         <p className="mt-6 text-center text-xs text-slate-400">
           School Connect Reports ? Powered by {API_BASE.includes("localhost") ? "local server" : "cloud"}
@@ -173,4 +172,3 @@ export function LoginPage() {
     </div>
   );
 }
-

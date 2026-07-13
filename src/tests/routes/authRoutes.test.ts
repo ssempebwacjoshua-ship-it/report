@@ -162,6 +162,27 @@ describe("authRoutes /api/auth/login", () => {
     }));
   });
 
+  it("returns 401 for wrong password", async () => {
+    mockState.verifyPassword.mockResolvedValueOnce(false);
+
+    const res = await request(buildApp())
+      .post("/api/auth/login")
+      .send({ email: "admin@schoolconnect.test", password: "wrong-password", schoolCode: "SCU-PREVIEW" });
+
+    expect(res.status).toBe(401);
+    expect(res.body.error).toBe("Invalid credentials.");
+    expect(mockState.auditLogCreate).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        schoolId: "school-1",
+        action: "LOGIN_FAILED",
+        details: expect.objectContaining({
+          email: "admin@schoolconnect.test",
+          safeReasonCategory: "PASSWORD_MISMATCH",
+        }),
+      }),
+    }));
+  });
+
   it("normalizes school code and email before lookup", async () => {
     await request(buildApp())
       .post("/api/auth/login")

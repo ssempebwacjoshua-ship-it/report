@@ -61,6 +61,44 @@ import { checkNfcWristbandSchema } from "./utils/nfcSchemaCheck";
 import { assertPlatformIntegrationConfigured } from "./platformClient";
 
 const LOCALHOST_ORIGIN = /^https?:\/\/(?:localhost|127\.0\.0\.1)(:\d+)?$/;
+const CANONICAL_PRODUCTION_ORIGINS = new Set([
+  "https://ssamenj.online",
+  "https://www.ssamenj.online",
+]);
+
+function normalizeOrigin(value: string): string {
+  return value.trim().replace(/\/+$/, "");
+}
+
+function getAllowedBrowserOrigins() {
+  const allowed = process.env.CLIENT_ORIGIN?.trim();
+  const origins = new Set<string>();
+  if (allowed) {
+    const normalized = normalizeOrigin(allowed);
+    origins.add(normalized);
+    try {
+      const parsed = new URL(normalized);
+      if (parsed.hostname === "ssamenj.online") origins.add("https://www.ssamenj.online");
+      if (parsed.hostname === "www.ssamenj.online") origins.add("https://ssamenj.online");
+    } catch {
+      // Leave the configured origin as-is; validateEnv will fail closed for bad production config.
+    }
+  } else if (process.env.NODE_ENV !== "production") {
+    return null;
+  } else {
+    for (const origin of CANONICAL_PRODUCTION_ORIGINS) origins.add(origin);
+  }
+  return origins;
+}
+
+function isAllowedBrowserOrigin(origin: string, allowedOrigins: Set<string> | null): boolean {
+  const normalized = normalizeOrigin(origin);
+  if (allowedOrigins) {
+    if (allowedOrigins.has(normalized)) return true;
+    return process.env.NODE_ENV !== "production" && LOCALHOST_ORIGIN.test(normalized);
+  }
+  return process.env.NODE_ENV !== "production" && LOCALHOST_ORIGIN.test(normalized);
+}
 
 function isAuthAttemptPath(pathname: string) {
   return pathname === "/api/auth/login"
@@ -168,13 +206,9 @@ export function createServer() {
   app.use(securityHeaders);
   app.use(cors({
     origin: (origin, callback) => {
-      const allowed = process.env.CLIENT_ORIGIN?.trim();
-      const isProduction = process.env.NODE_ENV === "production";
       if (!origin) return callback(null, true); // non-browser (curl, server-to-server)
-      if (allowed) {
-        return callback(null, origin === allowed || (!isProduction && LOCALHOST_ORIGIN.test(origin)));
-      }
-      return callback(null, !isProduction); // production requires an explicit CLIENT_ORIGIN
+      const allowedOrigins = getAllowedBrowserOrigins();
+      return callback(null, isAllowedBrowserOrigin(origin, allowedOrigins));
     },
     credentials: true,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],

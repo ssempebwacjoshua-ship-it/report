@@ -79,4 +79,35 @@ describe("LoginPage", () => {
 
     expect(loginMock).toHaveBeenCalledWith("admin@test.com", "password123", "SCU-PREVIEW");
   });
+
+  it("shows local demo credentials in demo mode", async () => {
+    render(
+      <MemoryRouter>
+        <LoginPage />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText(/local demo credentials/i)).toBeInTheDocument();
+    expect(screen.getByText("admin@schoolconnect.test")).toBeInTheDocument();
+  });
+
+  it("shows a safe service message for fetch/network failures", async () => {
+    loginMock.mockRejectedValueOnce(new TypeError("Failed to fetch"));
+
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter>
+        <LoginPage />
+      </MemoryRouter>,
+    );
+
+    await user.type(screen.getByLabelText(/school code/i), "SCU-PREVIEW");
+    await user.type(screen.getByLabelText(/email address/i), "admin@test.com");
+    await user.type(screen.getByLabelText(/password/i), "password123");
+    await user.click(screen.getByRole("button", { name: /sign in/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/unable to connect to the report lab service/i)).toBeInTheDocument();
+    });
+  });
 });

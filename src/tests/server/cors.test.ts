@@ -17,38 +17,52 @@ describe("CORS origin control", () => {
 
   it("allows the configured CLIENT_ORIGIN", async () => {
     vi.stubEnv("NODE_ENV", "test");
-    vi.stubEnv("CLIENT_ORIGIN", "https://report-sigma-one.vercel.app");
+    vi.stubEnv("CLIENT_ORIGIN", "https://ssamenj.online");
     const res = await request(createServer())
       .get("/api/health")
-      .set("Origin", "https://report-sigma-one.vercel.app");
-    expect(res.headers["access-control-allow-origin"]).toBe("https://report-sigma-one.vercel.app");
+      .set("Origin", "https://ssamenj.online");
+    expect(res.headers["access-control-allow-origin"]).toBe("https://ssamenj.online");
   });
 
-  it("allows localhost when CLIENT_ORIGIN is set", async () => {
+  it("allows the www origin during transition", async () => {
     vi.stubEnv("NODE_ENV", "test");
-    vi.stubEnv("CLIENT_ORIGIN", "https://report-sigma-one.vercel.app");
+    vi.stubEnv("CLIENT_ORIGIN", "https://ssamenj.online");
     const res = await request(createServer())
       .get("/api/health")
-      .set("Origin", "http://localhost:5173");
-    expect(res.headers["access-control-allow-origin"]).toBe("http://localhost:5173");
+      .set("Origin", "https://www.ssamenj.online");
+    expect(res.headers["access-control-allow-origin"]).toBe("https://www.ssamenj.online");
   });
 
   it("rejects unknown origins when CLIENT_ORIGIN is configured", async () => {
     vi.stubEnv("NODE_ENV", "test");
-    vi.stubEnv("CLIENT_ORIGIN", "https://report-sigma-one.vercel.app");
+    vi.stubEnv("CLIENT_ORIGIN", "https://ssamenj.online");
     const res = await request(createServer())
       .get("/api/health")
       .set("Origin", "https://evil.example.com");
     expect(res.headers["access-control-allow-origin"]).toBeUndefined();
   });
 
-  it("allows any origin when CLIENT_ORIGIN is not configured (local dev)", async () => {
+  it("succeeds for OPTIONS preflight on auth login", async () => {
+    vi.stubEnv("NODE_ENV", "test");
+    vi.stubEnv("CLIENT_ORIGIN", "https://ssamenj.online");
+    const res = await request(createServer())
+      .options("/api/auth/login")
+      .set("Origin", "https://www.ssamenj.online")
+      .set("Access-Control-Request-Method", "POST")
+      .set("Access-Control-Request-Headers", "content-type,authorization");
+
+    expect(res.status).toBe(204);
+    expect(res.headers["access-control-allow-origin"]).toBe("https://www.ssamenj.online");
+    expect(res.headers["access-control-allow-credentials"]).toBe("true");
+  });
+
+  it("allows localhost when CLIENT_ORIGIN is not configured (local dev)", async () => {
     vi.stubEnv("NODE_ENV", "development");
     vi.stubEnv("CLIENT_ORIGIN", ""); // explicit empty = not configured
     const res = await request(createServer())
       .get("/api/health")
-      .set("Origin", "https://any-origin.example.com");
-    expect(res.headers["access-control-allow-origin"]).toBe("https://any-origin.example.com");
+      .set("Origin", "http://localhost:5173");
+    expect(res.headers["access-control-allow-origin"]).toBe("http://localhost:5173");
   });
 
   it("rejects browser origins in production when CLIENT_ORIGIN is not configured", async () => {

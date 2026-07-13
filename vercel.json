@@ -3,6 +3,17 @@
   "outputDirectory": "dist",
   "redirects": [
     {
+      "source": "/:path*",
+      "has": [
+        {
+          "type": "host",
+          "value": "www.ssamenj.online"
+        }
+      ],
+      "destination": "https://ssamenj.online/:path*",
+      "permanent": true
+    },
+    {
       "source": "/demo",
       "destination": "https://ssamenj.vercel.app/demos",
       "permanent": true
