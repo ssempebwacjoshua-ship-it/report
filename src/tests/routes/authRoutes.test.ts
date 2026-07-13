@@ -18,6 +18,7 @@ const mockState = vi.hoisted(() => ({
   requestPasswordReset: vi.fn(),
   resetPasswordWithOtp: vi.fn(),
   consumeAccountSetup: vi.fn(),
+  consumeAccountSetupWithOtp: vi.fn(),
 }));
 
 vi.mock("../../server/db/prisma", () => ({
@@ -50,6 +51,7 @@ vi.mock("../../server/services/authTokenService", () => ({
   requestPasswordReset: mockState.requestPasswordReset,
   resetPasswordWithOtp: mockState.resetPasswordWithOtp,
   consumeAccountSetup: mockState.consumeAccountSetup,
+  consumeAccountSetupWithOtp: mockState.consumeAccountSetupWithOtp,
 }));
 
 import { authRoutes } from "../../server/routes/authRoutes";
@@ -239,6 +241,7 @@ describe("authRoutes password recovery endpoints", () => {
     mockState.requestPasswordReset.mockResolvedValue({ ok: true });
     mockState.resetPasswordWithOtp.mockResolvedValue({ ok: true });
     mockState.consumeAccountSetup.mockResolvedValue({ ok: true });
+    mockState.consumeAccountSetupWithOtp.mockResolvedValue({ ok: true });
   });
 
   it("returns a generic forgot-password message", async () => {
@@ -268,6 +271,25 @@ describe("authRoutes password recovery endpoints", () => {
 
     expect(res.status).toBe(200);
     expect(mockState.resetPasswordWithOtp).toHaveBeenCalledWith({
+      schoolCode: "SCU-PREVIEW",
+      email: "admin@schoolconnect.test",
+      otp: "123456",
+      password: "NewPassword9",
+    });
+  });
+
+  it("accepts OTP-based account setup without the link token", async () => {
+    const res = await request(buildApp())
+      .post("/api/auth/account-setup-code")
+      .send({
+        schoolCode: "SCU-PREVIEW",
+        email: "admin@schoolconnect.test",
+        otp: "123456",
+        password: "NewPassword9",
+      });
+
+    expect(res.status).toBe(200);
+    expect(mockState.consumeAccountSetupWithOtp).toHaveBeenCalledWith({
       schoolCode: "SCU-PREVIEW",
       email: "admin@schoolconnect.test",
       otp: "123456",

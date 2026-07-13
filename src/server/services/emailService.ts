@@ -13,7 +13,18 @@ export type EmailSendResult =
   | { ok: false; provider: "RESEND" | "NONE"; reason: "NOT_CONFIGURED" | "SEND_FAILED"; safeErrorCode?: string };
 
 function configuredFrom() {
-  return process.env.AUTH_EMAIL_FROM?.trim() || "";
+  return process.env.AUTH_EMAIL_FROM?.trim()
+    || process.env.EMAIL_FROM?.trim()
+    || process.env.RESEND_FROM_EMAIL?.trim()
+    || "";
+}
+
+function configuredAppUrl() {
+  return process.env.APP_PUBLIC_URL?.trim()
+    || process.env.PUBLIC_APP_URL?.trim()
+    || process.env.APP_URL?.trim()
+    || process.env.APP_BASE_URL?.trim()
+    || "";
 }
 
 function configuredReplyTo() {
@@ -21,13 +32,16 @@ function configuredReplyTo() {
 }
 
 export function isAuthEmailConfigured(env: NodeJS.ProcessEnv = process.env) {
-  return Boolean(env.RESEND_API_KEY?.trim() && env.AUTH_EMAIL_FROM?.trim() && env.APP_PUBLIC_URL?.trim());
+  const from = env.AUTH_EMAIL_FROM?.trim() || env.EMAIL_FROM?.trim() || env.RESEND_FROM_EMAIL?.trim() || "";
+  const publicUrl = env.APP_PUBLIC_URL?.trim() || env.PUBLIC_APP_URL?.trim() || env.APP_URL?.trim() || env.APP_BASE_URL?.trim() || "";
+  return Boolean(env.RESEND_API_KEY?.trim() && from && publicUrl);
 }
 
 export async function sendAuthEmail(input: EmailSendInput): Promise<EmailSendResult> {
   const apiKey = process.env.RESEND_API_KEY?.trim();
   const from = configuredFrom();
-  if (!apiKey || !from || !process.env.APP_PUBLIC_URL?.trim()) {
+  const publicUrl = configuredAppUrl();
+  if (!apiKey || !from || !publicUrl) {
     return { ok: false, provider: "NONE", reason: "NOT_CONFIGURED" };
   }
 
@@ -64,4 +78,3 @@ export async function sendAuthEmail(input: EmailSendInput): Promise<EmailSendRes
     };
   }
 }
-

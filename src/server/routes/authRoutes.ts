@@ -5,7 +5,7 @@ import { prisma } from "../db/prisma";
 import { isSupportedPasswordHash, normalizeLoginEmail, normalizeSchoolCode, signToken, verifyPassword, verifyToken, type SchoolUserRole } from "../services/authService";
 import { classifyRuntimeEnvironment } from "../security/environmentSafety";
 import { validateSchoolSession } from "../services/sessionValidationService";
-import { consumeAccountSetup, requestPasswordReset, resetPasswordWithOtp } from "../services/authTokenService";
+import { consumeAccountSetup, consumeAccountSetupWithOtp, requestPasswordReset, resetPasswordWithOtp } from "../services/authTokenService";
 
 const loginSchema = z.object({
   email: z.string().email("Enter a valid email address."),
@@ -20,6 +20,13 @@ const forgotPasswordSchema = z.object({
 
 const tokenPasswordSchema = z.object({
   token: z.string().min(32, "Token is required."),
+  password: z.string().min(10, "Password must be at least 10 characters."),
+});
+
+const otpSetupSchema = z.object({
+  schoolCode: z.string().min(1, "School code is required."),
+  email: z.string().email("Enter a valid email address."),
+  otp: z.string().regex(/^\d{6,8}$/, "Enter a valid setup code."),
   password: z.string().min(10, "Password must be at least 10 characters."),
 });
 
@@ -225,6 +232,16 @@ export function authRoutes() {
     try {
       const { token, password } = tokenPasswordSchema.parse(req.body);
       await consumeAccountSetup(token, password);
+      res.json({ ok: true });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/api/auth/account-setup-code", async (req, res, next) => {
+    try {
+      const payload = otpSetupSchema.parse(req.body);
+      await consumeAccountSetupWithOtp(payload);
       res.json({ ok: true });
     } catch (error) {
       next(error);

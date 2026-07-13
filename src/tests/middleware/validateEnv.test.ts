@@ -161,5 +161,18 @@ describe("validateEnv ? production required vars", () => {
     expect(result.valid).toBe(true);
     expect(result.warnings.some((w) => w.includes("INTERNAL_TEST_KEY"))).toBe(true);
   });
+
+  it("errors when Resend auth email is only partially configured", () => {
+    const result = validateEnv({
+      NODE_ENV: "production",
+      JWT_SECRET: "a".repeat(32),
+      DATABASE_URL: "postgresql://prod-user:prod-pass@db.railway.internal:5432/school_connect_reports_lab",
+      CLIENT_ORIGIN: "https://app.example.com",
+      RESEND_API_KEY: "resend-key",
+      EMAIL_FROM: "SSAMENJ <no-reply@example.com>",
+    });
+    expect(result.valid).toBe(false);
+    expect(result.errors.some((e) => e.includes("Resend auth email is partially configured"))).toBe(true);
+  });
 });
 

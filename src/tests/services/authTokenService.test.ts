@@ -11,7 +11,8 @@ vi.mock("../../server/services/emailService", () => ({
   sendAuthEmail: vi.fn(async () => ({ ok: true, provider: "RESEND", messageId: "msg-1" })),
 }));
 
-import { createAndSendAccountSetup, requestPasswordReset, resetPasswordWithOtp } from "../../server/services/authTokenService";
+import { createAndSendAccountSetup, consumeAccountSetupWithOtp, requestPasswordReset, resetPasswordWithOtp } from "../../server/services/authTokenService";
+import { sendAuthEmail } from "../../server/services/emailService";
 
 function createDb() {
   return {
@@ -81,6 +82,10 @@ describe("authTokenService", () => {
         tokenHash: expect.stringMatching(/^hashed:\d{6}$/),
       }),
     }));
+    expect(vi.mocked(sendAuthEmail)).toHaveBeenCalledWith(expect.objectContaining({
+      subject: "Your SSAMENJ Report Lab password reset code",
+      html: expect.stringContaining("/reset-password?schoolCode=SSAMENJ"),
+    }));
     expect(JSON.stringify(result)).not.toContain("token");
     expect(JSON.stringify(result)).not.toContain("otp");
   });
@@ -116,6 +121,70 @@ describe("authTokenService", () => {
       otp: "123456",
       password: "NewPassword9",
     }, db as any)).resolves.toEqual({ ok: true });
+  });
+
+  it("rejects expired OTPs safely", async () => {
+    const db = createDb();
+    db.school.findUnique.mockResolvedValue({ id: "school-1", code: "SSAMENJ", isActive: true });
+    db.user.findFirst.mockResolvedValue({ id: "user-1", schoolId: "school-1", name: "Amina", email: "amina@example.com", isActive: true });
+    const tokenUpdate = vi.fn(async () => ({}));
+    db.$transaction = vi.fn(async (callback: (tx: any) => Promise<unknown>) => callback({
+      authToken: {
+        findFirst: vi.fn(async () => ({
+          id: "token-1",
+          schoolId: "school-1",
+          userId: "user-1",
+          tokenHash: "hashed:123456",
+          attemptCount: 0,
+          expiresAt: new Date(Date.now() - 1_000),
+        })),
+        update: tokenUpdate,
+        updateMany: vi.fn(async () => ({ count: 0 })),
+      },
+      user: {
+        update: vi.fn(),
+      },
+      auditLog: {
+        create: vi.fn(),
+      },
+    }));
+
+    await expect(resetPasswordWithOtp({
+      schoolCode: "SSAMENJ",
+      email: "amina@example.com",
+      otp: "123456",
+      password: "NewPassword9",
+    }, db as any)).rejects.toMatchObject({ code: "EXPIRED_OTP" });
+    expect(tokenUpdate).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: "token-1" },
+      data: expect.objectContaining({ revokedAt: expect.any(Date) }),
+    }));
+  });
+
+  it("rejects reused OTPs safely", async () => {
+    const db = createDb();
+    db.school.findUnique.mockResolvedValue({ id: "school-1", code: "SSAMENJ", isActive: true });
+    db.user.findFirst.mockResolvedValue({ id: "user-1", schoolId: "school-1", name: "Amina", email: "amina@example.com", isActive: true });
+    db.$transaction = vi.fn(async (callback: (tx: any) => Promise<unknown>) => callback({
+      authToken: {
+        findFirst: vi.fn(async () => null),
+        update: vi.fn(),
+        updateMany: vi.fn(async () => ({ count: 0 })),
+      },
+      user: {
+        update: vi.fn(),
+      },
+      auditLog: {
+        create: vi.fn(),
+      },
+    }));
+
+    await expect(resetPasswordWithOtp({
+      schoolCode: "SSAMENJ",
+      email: "amina@example.com",
+      otp: "123456",
+      password: "NewPassword9",
+    }, db as any)).rejects.toMatchObject({ code: "INVALID_OTP" });
   });
 
   it("increments attempts for wrong OTPs and locks after five", async () => {
@@ -160,7 +229,7 @@ describe("authTokenService", () => {
   it("uses the branded report-lab setup path in invitation emails", async () => {
     const db = createDb();
     db.user.findFirst.mockResolvedValue({ id: "user-1", schoolId: "school-1", name: "Amina", email: "amina@example.com" });
-    db.school.findUnique.mockResolvedValue({ id: "school-1", name: "SSAMENJ School" });
+    db.school.findUnique.mockResolvedValue({ id: "school-1", code: "SSAMENJ", name: "SSAMENJ School" });
     db.authToken.create.mockResolvedValue({ id: "token-1" });
     db.authToken.update.mockResolvedValue({});
 
@@ -173,7 +242,41 @@ describe("authTokenService", () => {
     expect(db.authToken.create).toHaveBeenCalledWith(expect.objectContaining({
       data: expect.objectContaining({
         tokenHash: expect.any(String),
+        setupCodeHash: expect.stringMatching(/^hashed:\d{6}$/),
       }),
     }));
+  });
+
+  it("accepts a valid account setup code and activates the user", async () => {
+    const db = createDb();
+    db.school.findUnique.mockResolvedValue({ id: "school-1", code: "SSAMENJ", isActive: true });
+    db.user.findFirst.mockResolvedValue({ id: "user-1", schoolId: "school-1", name: "Amina", email: "amina@example.com", isActive: false, mustChangePassword: true });
+    db.$transaction = vi.fn(async (callback: (tx: any) => Promise<unknown>) => callback({
+      authToken: {
+        findFirst: vi.fn(async () => ({
+          id: "token-setup-1",
+          schoolId: "school-1",
+          userId: "user-1",
+          setupCodeHash: "hashed:654321",
+          attemptCount: 0,
+          expiresAt: new Date(Date.now() + 5 * 60_000),
+        })),
+        update: vi.fn(async () => ({})),
+        updateMany: vi.fn(async () => ({ count: 1 })),
+      },
+      user: {
+        update: vi.fn(async () => ({ id: "user-1", name: "Amina", email: "amina@example.com" })),
+      },
+      auditLog: {
+        create: vi.fn(async () => ({})),
+      },
+    }));
+
+    await expect(consumeAccountSetupWithOtp({
+      schoolCode: "SSAMENJ",
+      email: "amina@example.com",
+      otp: "654321",
+      password: "NewPassword9",
+    }, db as any)).resolves.toEqual({ ok: true });
   });
 });

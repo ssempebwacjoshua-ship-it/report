@@ -1,4 +1,5 @@
 import { classifyRuntimeEnvironment } from "../utils/productionSafety";
+import { isAuthEmailConfigured } from "../services/emailService";
 
 const DEV_JWT_SECRET = "dev-secret-change-in-production";
 const MIN_JWT_SECRET_LENGTH = 32;
@@ -80,6 +81,18 @@ export function validateEnv(env: Record<string, string | undefined> = process.en
     if (!env.APP_BASE_URL && !env.PUBLIC_APP_URL) {
       warnings.push(
         "APP_BASE_URL / PUBLIC_APP_URL is not set. Parent links will fall back to CLIENT_ORIGIN; set a branded report domain before releasing reports to parents.",
+      );
+    }
+
+    const authEmailEnabled = Boolean(
+      env.RESEND_API_KEY?.trim()
+      || env.AUTH_EMAIL_FROM?.trim()
+      || env.EMAIL_FROM?.trim()
+      || env.RESEND_FROM_EMAIL?.trim(),
+    );
+    if (authEmailEnabled && !isAuthEmailConfigured(env)) {
+      errors.push(
+        "Resend auth email is partially configured. Set RESEND_API_KEY together with AUTH_EMAIL_FROM / EMAIL_FROM / RESEND_FROM_EMAIL and APP_PUBLIC_URL / PUBLIC_APP_URL / APP_URL before enabling auth emails.",
       );
     }
 

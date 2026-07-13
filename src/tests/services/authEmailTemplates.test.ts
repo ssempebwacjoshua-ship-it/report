@@ -8,12 +8,15 @@ describe("authEmailTemplates", () => {
       schoolName: "Nalya School",
       inviterName: "your school administrator",
       setupUrl: "https://app.example.com/account/setup?token=raw-token",
+      setupCode: "123456",
       expiresHours: 24,
     });
 
     expect(rendered.subject).toBe("Set up your SSAMENJ Report Lab account");
     expect(rendered.html).toContain("Set up account");
+    expect(rendered.html).toContain("123456");
     expect(rendered.text).toContain("https://app.example.com/account/setup?token=raw-token");
+    expect(rendered.text).toContain("123456");
     expect(rendered.html).not.toContain("user-");
   });
 
@@ -21,11 +24,13 @@ describe("authEmailTemplates", () => {
     const rendered = passwordResetOtpTemplate({
       recipientName: "Amina",
       otp: "123456",
+      resetUrl: "https://app.example.com/reset-password?schoolCode=SCU-PREVIEW&email=amina%40example.com",
       expiresMinutes: 15,
     });
 
     expect(rendered.subject).toBe("Your SSAMENJ Report Lab password reset code");
     expect(rendered.html).toContain("123456");
+    expect(rendered.html).toContain("reset-password");
     expect(rendered.html).toContain("If you did not request this, you can ignore this email.");
     expect(rendered.text).toContain("If you did not request this, you can ignore this email.");
   });

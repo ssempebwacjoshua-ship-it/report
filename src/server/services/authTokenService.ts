@@ -23,15 +23,25 @@ export function hashAuthToken(rawToken: string) {
 }
 
 export function authAppBaseUrl() {
-  const value = process.env.APP_PUBLIC_URL?.trim() || process.env.APP_BASE_URL?.trim() || "http://localhost:5173";
+  const value = process.env.APP_PUBLIC_URL?.trim()
+    || process.env.PUBLIC_APP_URL?.trim()
+    || process.env.APP_URL?.trim()
+    || process.env.APP_BASE_URL?.trim()
+    || "http://localhost:5173";
   if (process.env.NODE_ENV === "production" && !value.startsWith("https://")) {
-    throw Object.assign(new Error("APP_PUBLIC_URL must use HTTPS in production."), { status: 500 });
+    throw Object.assign(new Error("Public auth app URL must use HTTPS in production."), { status: 500 });
   }
   return value.replace(/\/+$/, "");
 }
 
-function tokenUrl(path: string, rawToken: string) {
-  return `${authAppBaseUrl()}${path}?token=${encodeURIComponent(rawToken)}`;
+function buildAuthUrl(path: string, query?: Record<string, string | undefined | null>) {
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(query ?? {})) {
+    if (value) params.set(key, value);
+  }
+  const search = params.toString();
+  return `${authAppBaseUrl()}${normalizedPath}${search ? `?${search}` : ""}`;
 }
 
 function safeIp(ip?: string | null) {
@@ -79,6 +89,23 @@ async function findPasswordResetUser(db: AuthTokenDb, schoolCode: string, email:
   return { school, user, normalizedSchoolCode, normalizedEmail };
 }
 
+async function findAccountSetupUser(db: AuthTokenDb, schoolCode: string, email: string) {
+  const normalizedSchoolCode = normalizeSchoolCode(schoolCode);
+  const normalizedEmail = normalizeLoginEmail(email);
+  if (!normalizedSchoolCode) return null;
+  const school = await db.school.findUnique({ where: { code: normalizedSchoolCode } });
+  if (!school || !school.isActive) return null;
+  const user = await db.user.findFirst({
+    where: {
+      schoolId: school.id,
+      email: normalizedEmail,
+    },
+  });
+  if (!user) return null;
+  if (user.isActive && !user.mustChangePassword) return null;
+  return { school, user, normalizedSchoolCode, normalizedEmail };
+}
+
 export async function createAndSendAccountSetup(input: {
   userId: string;
   schoolId: string;
@@ -89,6 +116,7 @@ export async function createAndSendAccountSetup(input: {
   const rawToken = createRawToken();
   const tokenHash = hashAuthToken(rawToken);
   const expiresAt = new Date(Date.now() + ACCOUNT_SETUP_HOURS * 60 * 60 * 1000);
+  const setupCode = createNumericOtp(PASSWORD_RESET_OTP_LENGTH);
 
   const [user, school] = await Promise.all([
     db.user.findFirst({ where: { id: input.userId, schoolId: input.schoolId } }),
@@ -102,18 +130,24 @@ export async function createAndSendAccountSetup(input: {
       userId: input.userId,
       type: AuthTokenType.ACCOUNT_SETUP,
       tokenHash,
+      setupCodeHash: await hashOtp(setupCode),
       expiresAt,
       requestedIp: safeIp(input.requestedIp),
       requestedUserAgent: safeUa(input.requestedUserAgent),
     },
   });
 
-  const setupUrl = tokenUrl("/account/setup", rawToken);
+  const setupUrl = buildAuthUrl("/account/setup", {
+    token: rawToken,
+    schoolCode: school.code,
+    email: user.email,
+  });
   const template = accountSetupTemplate({
     recipientName: user.name,
     schoolName: school.name,
     inviterName: input.inviterName,
     setupUrl,
+    setupCode,
     expiresHours: ACCOUNT_SETUP_HOURS,
   });
   const result = await sendAuthEmail({ to: user.email, ...template });
@@ -173,7 +207,15 @@ export async function requestPasswordReset(input: {
       requestedUserAgent: safeUa(input.requestedUserAgent),
     },
   });
-  const template = passwordResetOtpTemplate({ recipientName: match.user.name, otp, expiresMinutes: PASSWORD_RESET_MINUTES });
+  const template = passwordResetOtpTemplate({
+    recipientName: match.user.name,
+    otp,
+    resetUrl: buildAuthUrl("/reset-password", {
+      schoolCode: match.normalizedSchoolCode,
+      email: match.normalizedEmail,
+    }),
+    expiresMinutes: PASSWORD_RESET_MINUTES,
+  });
   const result = await sendAuthEmail({ to: match.user.email, ...template });
   await db.authToken.update({
     where: { id: token.id },
@@ -257,6 +299,65 @@ export async function resetPasswordWithOtp(input: { schoolCode: string; email: s
       data: { revokedAt: changedAt },
     });
     await tx.auditLog.create({ data: { schoolId: token.schoolId, action: "AUTH_PASSWORD_RESET_COMPLETED", details: { targetUserId: token.userId } } });
+    return user;
+  });
+
+  const template = passwordChangedTemplate({ recipientName: result.name, changedAt });
+  void sendAuthEmail({ to: result.email, ...template });
+  return { ok: true };
+}
+
+export async function consumeAccountSetupWithOtp(input: { schoolCode: string; email: string; otp: string; password: string }, db: AuthTokenDb = defaultPrisma) {
+  enforcePasswordPolicy(input.password);
+  const match = await findAccountSetupUser(db, input.schoolCode, input.email);
+  if (!match) throw Object.assign(new Error("Invalid or expired setup code."), { status: 400, code: "INVALID_OTP" });
+  const changedAt = new Date();
+  const result = await db.$transaction(async (tx) => {
+    const token = await tx.authToken.findFirst({
+      where: {
+        schoolId: match.school.id,
+        userId: match.user.id,
+        type: AuthTokenType.ACCOUNT_SETUP,
+        usedAt: null,
+        revokedAt: null,
+      },
+      orderBy: { createdAt: "desc" },
+    });
+    if (!token) throw Object.assign(new Error("Invalid or expired setup code."), { status: 400, code: "INVALID_OTP" });
+    if (token.expiresAt <= changedAt) {
+      await tx.authToken.update({ where: { id: token.id }, data: { revokedAt: changedAt } });
+      throw Object.assign(new Error("Invalid or expired setup code."), { status: 400, code: "EXPIRED_OTP" });
+    }
+    if (!token.setupCodeHash) {
+      throw Object.assign(new Error("Invalid or expired setup code."), { status: 400, code: "INVALID_OTP" });
+    }
+    const matched = await verifyPassword(input.otp, token.setupCodeHash);
+    if (!matched) {
+      const nextAttempts = token.attemptCount + 1;
+      await tx.authToken.update({
+        where: { id: token.id },
+        data: {
+          attemptCount: nextAttempts,
+          ...(nextAttempts >= PASSWORD_RESET_MAX_ATTEMPTS ? { revokedAt: changedAt } : {}),
+        },
+      });
+      throw Object.assign(new Error(nextAttempts >= PASSWORD_RESET_MAX_ATTEMPTS ? "Setup code locked due to too many attempts." : "Invalid or expired setup code."), {
+        status: 400,
+        code: nextAttempts >= PASSWORD_RESET_MAX_ATTEMPTS ? "OTP_LOCKED" : "INVALID_OTP",
+      });
+    }
+
+    const passwordHash = await hashPassword(input.password);
+    const user = await tx.user.update({
+      where: { id: token.userId },
+      data: { passwordHash, isActive: true, mustChangePassword: false, tokenVersion: { increment: 1 } },
+    });
+    await tx.authToken.update({ where: { id: token.id }, data: { usedAt: changedAt } });
+    await tx.authToken.updateMany({
+      where: { userId: token.userId, type: AuthTokenType.ACCOUNT_SETUP, usedAt: null, revokedAt: null, id: { not: token.id } },
+      data: { revokedAt: changedAt },
+    });
+    await tx.auditLog.create({ data: { schoolId: token.schoolId, action: "AUTH_ACCOUNT_SETUP_COMPLETED", details: { targetUserId: token.userId } } });
     return user;
   });
 

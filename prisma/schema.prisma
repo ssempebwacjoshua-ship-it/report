@@ -422,6 +422,7 @@ model AuthToken {
   userId             String        @db.Uuid
   type               AuthTokenType
   tokenHash          String        @unique
+  setupCodeHash      String?
   attemptCount       Int           @default(0)
   expiresAt          DateTime
   usedAt             DateTime?

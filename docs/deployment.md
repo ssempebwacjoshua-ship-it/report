@@ -51,8 +51,12 @@ npx prisma migrate deploy && node dist/server/index.js
 | `CLIENT_ORIGIN` | `https://YOUR-VERCEL-APP.vercel.app` |
 | `APP_BASE_URL` | Branded parent report URL, for example `https://reports.schoolconnect.example` |
 | `APP_PUBLIC_URL` | `https://ssamenj.online/report-lab` |
+| `PUBLIC_APP_URL` | Alias for `APP_PUBLIC_URL` if you prefer the public-facing name |
+| `APP_URL` | Alias for `APP_PUBLIC_URL` used by auth link helpers |
 | `RESEND_API_KEY` | Server-only Resend API key for authentication emails |
 | `AUTH_EMAIL_FROM` | `SSAMENJ Team <no-reply@notify.ssamenj.online>` |
+| `EMAIL_FROM` | Alias for `AUTH_EMAIL_FROM` |
+| `RESEND_FROM_EMAIL` | Alias for `AUTH_EMAIL_FROM` |
 | `AUTH_EMAIL_REPLY_TO` | `support@ssamenj.online` |
 | `NODE_ENV` | `production` |
 | `OCR_ENABLED` | `true` |
@@ -62,7 +66,7 @@ npx prisma migrate deploy && node dist/server/index.js
 
 `CLIENT_ORIGIN` controls CORS. Parent report links use `APP_BASE_URL` when set, then fall back to `PUBLIC_APP_URL` or `CLIENT_ORIGIN`. Replace any Vercel preview URL with the production branded report domain before releasing reports to parents.
 
-Account setup and password reset links use `APP_PUBLIC_URL`. In production it must be HTTPS. Do not send production auth emails until the sender domain is verified in Resend.
+Account setup and password reset links use `APP_PUBLIC_URL` first, then `PUBLIC_APP_URL`, then `APP_URL`, then `APP_BASE_URL`. In production it must be HTTPS. Do not send production auth emails until the sender domain is verified in Resend and the sender address plus public app URL are configured.
 
 The server binds to `0.0.0.0` and the port from `process.env.PORT`, which Railway injects automatically.
 
