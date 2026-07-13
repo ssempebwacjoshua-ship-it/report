@@ -120,6 +120,12 @@ export function renderBrandedEmail(input: {
         .email-brand-row { width: 100% !important; }
         .email-brand-cell-logo { padding-right: 12px !important; }
         .email-footer { font-size: 12px !important; }
+        .outreach-hero-table, .outreach-hero-row, .outreach-hero-cell { display:block !important; width:100% !important; }
+        .outreach-hero-cell { padding:0 !important; }
+        .outreach-hero-image-cell { padding:0 0 16px 0 !important; }
+        .outreach-hero-copy-cell { padding:0 !important; }
+        .outreach-hero-copy { font-size: 22px !important; }
+        .outreach-hero-subcopy { font-size: 13px !important; }
       }
     </style>
   </head>

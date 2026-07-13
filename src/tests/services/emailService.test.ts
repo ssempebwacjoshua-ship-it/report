@@ -20,7 +20,7 @@ vi.mock("resend", () => ({
   },
 }));
 
-import { configuredAuthEmailProvider, isAuthEmailConfigured, sendAuthEmail } from "../../server/services/emailService";
+import { configuredAuthEmailProvider, configuredCompanySender, isAuthEmailConfigured, sendAuthEmail } from "../../server/services/emailService";
 
 describe("emailService", () => {
   const previousEnv = {
@@ -29,6 +29,7 @@ describe("emailService", () => {
     AUTH_EMAIL_FROM: process.env.AUTH_EMAIL_FROM,
     EMAIL_FROM: process.env.EMAIL_FROM,
     RESEND_FROM_EMAIL: process.env.RESEND_FROM_EMAIL,
+    OUTREACH_EMAIL_FROM: process.env.OUTREACH_EMAIL_FROM,
     AUTH_EMAIL_REPLY_TO: process.env.AUTH_EMAIL_REPLY_TO,
     APP_PUBLIC_URL: process.env.APP_PUBLIC_URL,
     PUBLIC_APP_URL: process.env.PUBLIC_APP_URL,
@@ -52,6 +53,7 @@ describe("emailService", () => {
     process.env.AUTH_EMAIL_FROM = previousEnv.AUTH_EMAIL_FROM;
     process.env.EMAIL_FROM = previousEnv.EMAIL_FROM;
     process.env.RESEND_FROM_EMAIL = previousEnv.RESEND_FROM_EMAIL;
+    process.env.OUTREACH_EMAIL_FROM = previousEnv.OUTREACH_EMAIL_FROM;
     process.env.AUTH_EMAIL_REPLY_TO = previousEnv.AUTH_EMAIL_REPLY_TO;
     process.env.APP_PUBLIC_URL = previousEnv.APP_PUBLIC_URL;
     process.env.PUBLIC_APP_URL = previousEnv.PUBLIC_APP_URL;
@@ -63,6 +65,7 @@ describe("emailService", () => {
     process.env.AUTH_EMAIL_PROVIDER = "RESEND";
     delete process.env.RESEND_API_KEY;
     process.env.AUTH_EMAIL_FROM = "SSAMENJ Report Lab <support@ssamenj.online>";
+    delete process.env.OUTREACH_EMAIL_FROM;
     process.env.APP_PUBLIC_URL = "https://ssamenj.online/report-lab";
 
     expect(configuredAuthEmailProvider()).toBe("RESEND");
@@ -88,6 +91,7 @@ describe("emailService", () => {
     delete process.env.AUTH_EMAIL_FROM;
     delete process.env.EMAIL_FROM;
     delete process.env.RESEND_FROM_EMAIL;
+    delete process.env.OUTREACH_EMAIL_FROM;
     process.env.APP_PUBLIC_URL = "https://ssamenj.online/report-lab";
 
     expect(isAuthEmailConfigured()).toBe(false);
@@ -110,6 +114,7 @@ describe("emailService", () => {
     process.env.AUTH_EMAIL_PROVIDER = "RESEND";
     process.env.RESEND_API_KEY = "resend-key";
     process.env.AUTH_EMAIL_FROM = "SSAMENJ Report Lab <support@ssamenj.online>";
+    delete process.env.OUTREACH_EMAIL_FROM;
     process.env.APP_PUBLIC_URL = "https://ssamenj.online/report-lab";
     process.env.AUTH_EMAIL_REPLY_TO = "support@ssamenj.online";
     resendSendResult = {
@@ -171,10 +176,18 @@ describe("emailService", () => {
     })).toBe(true);
   });
 
+  it("prefers the company outreach sender when available", () => {
+    process.env.OUTREACH_EMAIL_FROM = "Joshua from SSAMENJ Technologies <support@ssamenj.online>";
+    process.env.AUTH_EMAIL_FROM = "SSAMENJ Report Lab <support@ssamenj.online>";
+
+    expect(configuredCompanySender()).toBe("Joshua from SSAMENJ Technologies <support@ssamenj.online>");
+  });
+
   it("normalizes quoted sender values before sending", async () => {
     process.env.AUTH_EMAIL_PROVIDER = "RESEND";
     process.env.RESEND_API_KEY = "resend-key";
     process.env.AUTH_EMAIL_FROM = '"SSAMENJ Report Lab <support@ssamenj.online>"';
+    delete process.env.OUTREACH_EMAIL_FROM;
     process.env.APP_PUBLIC_URL = "https://ssamenj.online/report-lab";
 
     await expect(sendAuthEmail({
@@ -198,6 +211,7 @@ describe("emailService", () => {
     process.env.AUTH_EMAIL_PROVIDER = "RESEND";
     process.env.RESEND_API_KEY = "resend-key";
     process.env.AUTH_EMAIL_FROM = "SSAMENJ Report Lab support@ssamenj.online";
+    delete process.env.OUTREACH_EMAIL_FROM;
     process.env.APP_PUBLIC_URL = "https://ssamenj.online/report-lab";
 
     await expect(sendAuthEmail({

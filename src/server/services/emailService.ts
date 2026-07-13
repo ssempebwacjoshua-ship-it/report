@@ -35,6 +35,11 @@ function configuredFrom(env: NodeJS.ProcessEnv = process.env) {
     || readEnv(env, "RESEND_FROM_EMAIL");
 }
 
+function configuredOutreachFrom(env: NodeJS.ProcessEnv = process.env) {
+  return readEnv(env, "OUTREACH_EMAIL_FROM")
+    || configuredFrom(env);
+}
+
 function configuredAppUrl(env: NodeJS.ProcessEnv = process.env) {
   return readEnv(env, "APP_PUBLIC_URL")
     || readEnv(env, "PUBLIC_APP_URL")
@@ -79,6 +84,10 @@ function normalizeAuthEmailFromValue(value: string) {
 
 export function configuredAuthEmailProvider(env: NodeJS.ProcessEnv = process.env) {
   return readEnv(env, "AUTH_EMAIL_PROVIDER") || "RESEND";
+}
+
+export function configuredCompanySender(env: NodeJS.ProcessEnv = process.env) {
+  return configuredOutreachFrom(env);
 }
 
 function isVerifiedSenderError(error: ResendErrorLike) {
@@ -133,7 +142,7 @@ function missingConfigCode(missing: string[]) {
 function resolveAuthEmailConfig(env: NodeJS.ProcessEnv = process.env) {
   const provider = configuredAuthEmailProvider(env);
   const apiKey = readEnv(env, "RESEND_API_KEY");
-  const rawFrom = configuredFrom(env);
+  const rawFrom = configuredOutreachFrom(env);
   const from = rawFrom ? normalizeAuthEmailFromValue(rawFrom) : "";
   const publicUrl = configuredAppUrl(env);
   const replyTo = configuredReplyTo(env);
