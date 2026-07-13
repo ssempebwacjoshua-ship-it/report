@@ -109,24 +109,40 @@ export function renderBrandedEmail(input: {
 
   return `<!doctype html>
 <html>
+  <head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <style>
+      @media only screen and (max-width: 600px) {
+        .email-shell { padding: 0 !important; }
+        .email-card { border-radius: 0 !important; border-left: 0 !important; border-right: 0 !important; }
+        .email-body { padding: 22px 18px 20px !important; }
+        .email-title { font-size: 22px !important; }
+        .email-brand-row { width: 100% !important; }
+        .email-brand-cell-logo { padding-right: 12px !important; }
+        .email-footer { font-size: 12px !important; }
+      }
+    </style>
+  </head>
   <body style="margin:0;background:#f6f8fc;color:#0f172a;font-family:Arial,Helvetica,sans-serif">
-    <div style="max-width:600px;margin:0 auto;padding:24px 16px">
-      <div style="background:#ffffff;border:1px solid #dbe4f0;border-radius:20px;overflow:hidden;box-shadow:0 12px 32px rgba(15,23,42,0.06)">
+    <div class="email-shell" style="max-width:600px;margin:0 auto;padding:24px 16px">
+      <div class="email-card" style="background:#ffffff;border:1px solid #dbe4f0;border-radius:20px;overflow:hidden;box-shadow:0 12px 32px rgba(15,23,42,0.06)">
         <div style="height:6px;background:${branding.accentColor}"></div>
-        <div style="padding:28px 28px 24px">
-          <table role="presentation" cellspacing="0" cellpadding="0" style="border-collapse:collapse;margin:0 0 22px">
+        <div class="email-body" style="padding:28px 28px 24px">
+          <table class="email-brand-row" role="presentation" cellspacing="0" cellpadding="0" style="border-collapse:collapse;margin:0 0 22px;width:100%">
             <tr>
-              <td style="vertical-align:middle;padding:0 14px 0 0">${logoHtml}</td>
+              <td class="email-brand-cell-logo" style="vertical-align:middle;padding:0 14px 0 0">${logoHtml}</td>
               <td style="vertical-align:middle">
                 <div style="font-size:20px;line-height:1.2;font-weight:900;color:${branding.primaryColor}">${escapeHtml(branding.displayName)}</div>
                 <div style="margin-top:4px;font-size:12px;line-height:1.4;color:#64748b">${escapeHtml(branding.tagline)}</div>
               </td>
             </tr>
           </table>
-          <h1 style="margin:0 0 16px;font-size:24px;line-height:1.25;color:${branding.primaryColor}">${escapeHtml(input.title)}</h1>
+          <h1 class="email-title" style="margin:0 0 16px;font-size:24px;line-height:1.25;color:${branding.primaryColor}">${escapeHtml(input.title)}</h1>
           <div style="font-size:15px;line-height:1.8;color:#1e293b">${input.bodyHtml}</div>
           ${ctaHtml}
-          ${renderFooterHtml(branding)}
+          <div class="email-footer">
+            ${renderFooterHtml(branding)}
+          </div>
         </div>
       </div>
     </div>
