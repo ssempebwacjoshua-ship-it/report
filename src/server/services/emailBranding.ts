@@ -113,11 +113,11 @@ export function renderBrandedEmail(input: {
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <style>
       @media only screen and (max-width: 600px) {
-        .email-shell { padding: 0 !important; }
+        .email-shell { padding: 0 !important; width:100% !important; max-width:none !important; }
         .email-card { border-radius: 0 !important; border-left: 0 !important; border-right: 0 !important; }
-        .email-body { padding: 22px 18px 20px !important; }
+        .email-body { padding: 18px 0 20px !important; }
         .email-title { font-size: 22px !important; }
-        .email-brand-row { width: 100% !important; }
+        .email-brand-row { width: 100% !important; padding:0 18px !important; box-sizing:border-box !important; }
         .email-brand-cell-logo { padding-right: 12px !important; }
         .email-footer { font-size: 12px !important; }
         .outreach-hero-table, .outreach-hero-row, .outreach-hero-cell { display:block !important; width:100% !important; }
@@ -126,6 +126,9 @@ export function renderBrandedEmail(input: {
         .outreach-hero-copy-cell { padding:0 !important; }
         .outreach-hero-copy { font-size: 22px !important; }
         .outreach-hero-subcopy { font-size: 13px !important; }
+        .email-copy-wrap { padding:0 18px !important; box-sizing:border-box !important; }
+        .email-footer-wrap { padding:18px 18px 0 !important; box-sizing:border-box !important; }
+        .email-hero-card { margin:18px 0 18px !important; border-radius:0 !important; }
         .outreach-feature-table, .outreach-feature-row, .outreach-feature-cell { display:block !important; width:100% !important; }
         .outreach-feature-cell { padding:0 0 12px 0 !important; }
         .outreach-feature-card { min-height:0 !important; }

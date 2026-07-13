@@ -36,8 +36,13 @@ function configuredFrom(env: NodeJS.ProcessEnv = process.env) {
 }
 
 function configuredOutreachFrom(env: NodeJS.ProcessEnv = process.env) {
-  return readEnv(env, "OUTREACH_EMAIL_FROM")
-    || configuredFrom(env);
+  return readEnv(env, "OUTREACH_EMAIL_FROM");
+}
+
+function configuredOutreachReplyTo(env: NodeJS.ProcessEnv = process.env) {
+  return readEnv(env, "OUTREACH_REPLY_TO")
+    || readEnv(env, "AUTH_EMAIL_REPLY_TO")
+    || undefined;
 }
 
 function configuredAppUrl(env: NodeJS.ProcessEnv = process.env) {
@@ -90,6 +95,10 @@ export function configuredCompanySender(env: NodeJS.ProcessEnv = process.env) {
   return configuredOutreachFrom(env);
 }
 
+export function configuredCompanyReplyTo(env: NodeJS.ProcessEnv = process.env) {
+  return configuredOutreachReplyTo(env);
+}
+
 function isVerifiedSenderError(error: ResendErrorLike) {
   if (error.name === "invalid_from_address") return true;
   const message = error.message?.toLowerCase() || "";
@@ -128,6 +137,16 @@ function missingConfigMessage(missing: string[]) {
   return `Auth email is not configured. Missing: ${missing.join(", ")}.`;
 }
 
+function outreachMissingConfigMessage(missing: string[]) {
+  if (missing.length === 1) {
+    if (missing[0] === "OUTREACH_EMAIL_FROM_INVALID_FORMAT") {
+      return "OUTREACH_EMAIL_FROM is invalid. Use email@example.com or Name <email@example.com>.";
+    }
+    return `${missing[0]} is missing.`;
+  }
+  return `Outreach email is not configured. Missing: ${missing.join(", ")}.`;
+}
+
 function missingConfigCode(missing: string[]) {
   const first = missing[0] || "";
   if (first === "RESEND_API_KEY") return "missing_api_key";
@@ -139,10 +158,22 @@ function missingConfigCode(missing: string[]) {
   return "missing_auth_email_config";
 }
 
+function outreachMissingConfigCode(missing: string[]) {
+  const first = missing[0] || "";
+  if (first === "RESEND_API_KEY") return "missing_api_key";
+  if (first === "OUTREACH_EMAIL_FROM") return "missing_outreach_email_from";
+  if (first === "OUTREACH_EMAIL_FROM_INVALID_FORMAT") return "invalid_outreach_email_from";
+  if (first === "OUTREACH_EMAIL_FROM (valid email or Name <email> format)") return "invalid_outreach_email_from";
+  if (first === "OUTREACH_REPLY_TO") return "missing_outreach_reply_to";
+  if (first.startsWith("APP_PUBLIC_URL")) return "missing_public_app_url";
+  if (first === "AUTH_EMAIL_PROVIDER=RESEND") return "missing_auth_email_provider";
+  return "missing_outreach_email_config";
+}
+
 function resolveAuthEmailConfig(env: NodeJS.ProcessEnv = process.env) {
   const provider = configuredAuthEmailProvider(env);
   const apiKey = readEnv(env, "RESEND_API_KEY");
-  const rawFrom = configuredOutreachFrom(env);
+  const rawFrom = configuredFrom(env);
   const from = rawFrom ? normalizeAuthEmailFromValue(rawFrom) : "";
   const publicUrl = configuredAppUrl(env);
   const replyTo = configuredReplyTo(env);
@@ -158,6 +189,54 @@ function resolveAuthEmailConfig(env: NodeJS.ProcessEnv = process.env) {
     missing.push("AUTH_EMAIL_FROM");
   } else if (!from) {
     missing.push("AUTH_EMAIL_FROM_INVALID_FORMAT");
+  }
+  if (!publicUrl) {
+    missing.push("APP_PUBLIC_URL / PUBLIC_APP_URL / APP_URL / APP_BASE_URL");
+  }
+
+  return { provider, apiKey, from, publicUrl, replyTo, missing };
+}
+
+function isUnsafeSenderIdentity(value: string) {
+  const lower = value.toLowerCase();
+  return lower.includes("@gmail.com")
+    || lower.includes("localhost")
+    || lower.includes("test")
+    || lower.includes("pearlmart");
+}
+
+function normalizeVerifiedSender(value: string) {
+  const normalized = normalizeAuthEmailFromValue(value);
+  if (!normalized) return "";
+  if (isUnsafeSenderIdentity(normalized)) return "";
+  return normalized;
+}
+
+function resolveOutreachEmailConfig(env: NodeJS.ProcessEnv = process.env) {
+  const provider = configuredAuthEmailProvider(env);
+  const apiKey = readEnv(env, "RESEND_API_KEY");
+  const rawFrom = configuredOutreachFrom(env);
+  const from = rawFrom ? normalizeVerifiedSender(rawFrom) : "";
+  const replyTo = configuredOutreachReplyTo(env);
+  const publicUrl = configuredAppUrl(env);
+  const missing: string[] = [];
+
+  if (provider !== "RESEND") {
+    missing.push("AUTH_EMAIL_PROVIDER=RESEND");
+  }
+  if (!apiKey) {
+    missing.push("RESEND_API_KEY");
+  }
+  if (!rawFrom) {
+    missing.push("OUTREACH_EMAIL_FROM");
+  } else if (!from) {
+    missing.push("OUTREACH_EMAIL_FROM_INVALID_FORMAT");
+  }
+  if (from && /@gmail\.com/i.test(from)) {
+    missing.push("OUTREACH_EMAIL_FROM_UNSAFE");
+  }
+  if (!replyTo) {
+    missing.push("OUTREACH_REPLY_TO");
   }
   if (!publicUrl) {
     missing.push("APP_PUBLIC_URL / PUBLIC_APP_URL / APP_URL / APP_BASE_URL");
@@ -189,6 +268,70 @@ export async function sendAuthEmail(input: EmailSendInput): Promise<EmailSendRes
       reason: "NOT_CONFIGURED",
       safeErrorCode: missingConfigCode(config.missing),
       safeErrorMessage: missingConfigMessage(config.missing),
+    };
+  }
+
+  try {
+    const resend = new Resend(config.apiKey);
+    const result = await resend.emails.send({
+      from: config.from,
+      to: input.to,
+      subject: input.subject,
+      html: input.html,
+      text: input.text,
+      replyTo: input.replyTo ?? config.replyTo,
+    });
+    if (result.error) {
+      const error = result.error as ResendErrorLike;
+      logResendFailure(error, input.to.split("@")[1] ?? "unknown");
+      return {
+        ok: false,
+        provider: "RESEND",
+        reason: "SEND_FAILED",
+        safeErrorCode: safeResendErrorCode(error),
+        safeErrorMessage: safeResendErrorMessage(error),
+        safeStatusCode: error.statusCode ?? null,
+      };
+    }
+    return { ok: true, provider: "RESEND", messageId: result.data?.id ?? null };
+  } catch (error) {
+    const resendError = {
+      name: error instanceof Error ? error.name : "UNKNOWN",
+      message: error instanceof Error ? error.message : "Resend request failed.",
+      statusCode: typeof error === "object" && error !== null && "statusCode" in error && typeof (error as { statusCode?: unknown }).statusCode === "number"
+        ? (error as { statusCode: number }).statusCode
+        : null,
+    } satisfies ResendErrorLike;
+    logResendFailure(resendError, input.to.split("@")[1] ?? "unknown");
+    return {
+      ok: false,
+      provider: "RESEND",
+      reason: "SEND_FAILED",
+      safeErrorCode: safeResendErrorCode(resendError),
+      safeErrorMessage: safeResendErrorMessage(resendError),
+      safeStatusCode: resendError.statusCode ?? null,
+    };
+  }
+}
+
+export async function sendOutreachEmail(input: EmailSendInput): Promise<EmailSendResult> {
+  const config = resolveOutreachEmailConfig();
+  if (config.provider !== "RESEND") {
+    return {
+      ok: false,
+      provider: "NONE",
+      reason: "NOT_CONFIGURED",
+      safeErrorCode: "unsupported_provider",
+      safeErrorMessage: `AUTH_EMAIL_PROVIDER=${config.provider} is not supported. Set AUTH_EMAIL_PROVIDER=RESEND.`,
+    };
+  }
+  if (config.missing.length > 0) {
+    return {
+      ok: false,
+      provider: "NONE",
+      reason: "NOT_CONFIGURED",
+      safeErrorCode: outreachMissingConfigCode(config.missing),
+      safeErrorMessage: outreachMissingConfigMessage(config.missing),
     };
   }
 

@@ -31,7 +31,7 @@ export function outreachEmailTemplate(input: {
     <p style="margin:0 0 12px;color:#475569;line-height:1.75">I hope you are doing well.</p>
     <p style="margin:0 0 12px;color:#475569;line-height:1.75">My name is Joshua from SSAMENJ Technologies Ltd. We build practical software and automation systems for schools that want to reduce paperwork, improve student safety, and make daily operations easier.</p>
 
-    <table role="presentation" cellspacing="0" cellpadding="0" class="outreach-hero-table" style="width:100%;border-collapse:separate;border-spacing:0;margin:24px 0 26px;background:linear-gradient(135deg,#173a72 0%,#214f98 58%,#f4c542 180%);border-radius:22px;overflow:hidden">
+    <table role="presentation" cellspacing="0" cellpadding="0" class="outreach-hero-table email-hero-card" style="width:100%;border-collapse:separate;border-spacing:0;margin:24px 0 26px;background:linear-gradient(135deg,#173a72 0%,#214f98 58%,#f4c542 180%);border-radius:22px;overflow:hidden">
       <tr>
         <td class="outreach-hero-cell" style="padding:18px">
           <table role="presentation" cellspacing="0" cellpadding="0" style="width:100%;border-collapse:collapse">
@@ -50,6 +50,7 @@ export function outreachEmailTemplate(input: {
       </tr>
     </table>
 
+    <div class="email-copy-wrap">
     <p style="margin:0 0 16px;color:#475569;line-height:1.75">I wanted to introduce our School Connect Student NFC Wristband.</p>
 
     <table role="presentation" cellspacing="0" cellpadding="0" class="outreach-feature-table" style="width:100%;border-collapse:collapse;margin:0 0 18px">
@@ -86,6 +87,7 @@ export function outreachEmailTemplate(input: {
     <p style="margin:0 0 14px;color:#475569;line-height:1.75">The wristband is durable, waterproof, unique to each student, and built for daily school use. It helps reduce paperwork, improves visibility, and makes routine checks faster for staff.</p>
     <p style="margin:0 0 14px;color:#475569;line-height:1.75">For example, a student can tap at the gate for attendance, tap at the canteen for payment, or tap at the library when borrowing a book. The school gets a cleaner record, and parents can receive better visibility where needed.</p>
     <p style="margin:0 0 14px;color:#475569;line-height:1.75">Would ${escapeHtml(schoolName)} be open to a short demo so we can show how this can work in your school?</p>
+    </div>
   `;
 
   const bodyText = `Hello ${input.recipientName},\n\nI hope you are doing well.\n\nMy name is Joshua from SSAMENJ Technologies Ltd. We build practical software and automation systems for schools that want to reduce paperwork, improve student safety, and make daily operations easier.\n\nI wanted to introduce our School Connect Student NFC Wristband.\n\nWith one wristband, a school can support:\n\n- Attendance tracking\n- Gate access verification\n- Student identification\n- Library authorization\n- Cashless canteen payments\n\nThe wristband is designed for daily school use. It is durable, waterproof, unique to each student, and helps staff confirm student activity faster without relying on manual books or paper slips.\n\nFor example, a student can tap at the gate for attendance, tap at the canteen for payment, or tap at the library when borrowing a book. The school gets a cleaner record, and parents can receive better visibility where needed.\n\nWould ${schoolName} be open to a short demo so we can show how this can work in your school?`;

@@ -20,7 +20,7 @@ vi.mock("resend", () => ({
   },
 }));
 
-import { configuredAuthEmailProvider, configuredCompanySender, isAuthEmailConfigured, sendAuthEmail } from "../../server/services/emailService";
+import { configuredAuthEmailProvider, configuredCompanyReplyTo, configuredCompanySender, isAuthEmailConfigured, sendAuthEmail, sendOutreachEmail } from "../../server/services/emailService";
 
 describe("emailService", () => {
   const previousEnv = {
@@ -30,6 +30,7 @@ describe("emailService", () => {
     EMAIL_FROM: process.env.EMAIL_FROM,
     RESEND_FROM_EMAIL: process.env.RESEND_FROM_EMAIL,
     OUTREACH_EMAIL_FROM: process.env.OUTREACH_EMAIL_FROM,
+    OUTREACH_REPLY_TO: process.env.OUTREACH_REPLY_TO,
     AUTH_EMAIL_REPLY_TO: process.env.AUTH_EMAIL_REPLY_TO,
     APP_PUBLIC_URL: process.env.APP_PUBLIC_URL,
     PUBLIC_APP_URL: process.env.PUBLIC_APP_URL,
@@ -54,6 +55,7 @@ describe("emailService", () => {
     process.env.EMAIL_FROM = previousEnv.EMAIL_FROM;
     process.env.RESEND_FROM_EMAIL = previousEnv.RESEND_FROM_EMAIL;
     process.env.OUTREACH_EMAIL_FROM = previousEnv.OUTREACH_EMAIL_FROM;
+    process.env.OUTREACH_REPLY_TO = previousEnv.OUTREACH_REPLY_TO;
     process.env.AUTH_EMAIL_REPLY_TO = previousEnv.AUTH_EMAIL_REPLY_TO;
     process.env.APP_PUBLIC_URL = previousEnv.APP_PUBLIC_URL;
     process.env.PUBLIC_APP_URL = previousEnv.PUBLIC_APP_URL;
@@ -181,6 +183,55 @@ describe("emailService", () => {
     process.env.AUTH_EMAIL_FROM = "SSAMENJ Report Lab <support@ssamenj.online>";
 
     expect(configuredCompanySender()).toBe("Joshua from SSAMENJ Technologies <support@ssamenj.online>");
+  });
+
+  it("prefers the company outreach reply-to when available", () => {
+    process.env.OUTREACH_REPLY_TO = "support@ssamenj.online";
+    process.env.AUTH_EMAIL_REPLY_TO = "reply@fallback.example.com";
+
+    expect(configuredCompanyReplyTo()).toBe("support@ssamenj.online");
+  });
+
+  it("fails safely when outreach sender is missing", async () => {
+    process.env.AUTH_EMAIL_PROVIDER = "RESEND";
+    process.env.RESEND_API_KEY = "resend-key";
+    delete process.env.OUTREACH_EMAIL_FROM;
+    delete process.env.OUTREACH_REPLY_TO;
+    process.env.APP_PUBLIC_URL = "https://ssamenj.online/report-lab";
+
+    await expect(sendOutreachEmail({
+      to: "admin@example.com",
+      subject: "Outreach",
+      html: "<p>Outreach</p>",
+      text: "Outreach",
+    })).resolves.toEqual({
+      ok: false,
+      provider: "NONE",
+      reason: "NOT_CONFIGURED",
+      safeErrorCode: "missing_outreach_email_from",
+      safeErrorMessage: "OUTREACH_EMAIL_FROM is missing.",
+    });
+  });
+
+  it("fails safely when outreach sender is unsafe", async () => {
+    process.env.AUTH_EMAIL_PROVIDER = "RESEND";
+    process.env.RESEND_API_KEY = "resend-key";
+    process.env.OUTREACH_EMAIL_FROM = "Joshua <ssempebwacjoshua@gmail.com>";
+    process.env.OUTREACH_REPLY_TO = "support@ssamenj.online";
+    process.env.APP_PUBLIC_URL = "https://ssamenj.online/report-lab";
+
+    await expect(sendOutreachEmail({
+      to: "admin@example.com",
+      subject: "Outreach",
+      html: "<p>Outreach</p>",
+      text: "Outreach",
+    })).resolves.toEqual({
+      ok: false,
+      provider: "NONE",
+      reason: "NOT_CONFIGURED",
+      safeErrorCode: "invalid_outreach_email_from",
+      safeErrorMessage: "OUTREACH_EMAIL_FROM is invalid. Use email@example.com or Name <email@example.com>.",
+    });
   });
 
   it("normalizes quoted sender values before sending", async () => {
