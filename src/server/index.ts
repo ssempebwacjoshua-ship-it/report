@@ -28,6 +28,7 @@ import { reportAssistantRoutes } from "./routes/reportAssistantRoutes";
 import { promotionRoutes } from "./routes/promotionRoutes";
 import { releaseCenterRoutes } from "./routes/releaseCenterRoutes";
 import { communicationRoutes } from "./routes/communicationRoutes";
+import { whatsappIntegrationRoutes } from "./routes/whatsappIntegrationRoutes";
 import { parentRoutes } from "./routes/parentRoutes";
 import { verifyRoutes } from "./routes/verifyRoutes";
 import { ocrRoutes } from "./routes/ocrRoutes";
@@ -123,6 +124,7 @@ function isUploadOrImportPath(pathname: string) {
 
 function isPublicTokenPath(pathname: string) {
   return pathname.startsWith("/api/verify/")
+    || pathname.startsWith("/api/integrations/whatsapp/webhook")
     || pathname.startsWith("/api/p/")
     || pathname.startsWith("/api/nfc/t/")
     || pathname.startsWith("/api/nfc/resolve/")
@@ -214,16 +216,23 @@ export function createServer() {
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization", "x-request-id", "x-internal-test-key"],
   }));
-  app.use(express.json({ limit: "2mb" }));
+  app.use(express.json({
+    limit: "2mb",
+    verify: (req, _res, buf) => {
+      (req as express.Request).rawBody = Buffer.from(buf);
+    },
+  }));
 
   const authLimiter = createRateLimiter({ name: "auth", windowMs: 60_000, max: 20 });
   const uploadImportLimiter = createRateLimiter({ name: "upload-import", windowMs: 10 * 60_000, max: 120 });
   const publicTokenLimiter = createRateLimiter({ name: "public-token", windowMs: 60_000, max: 120 });
+  const webhookLimiter = createRateLimiter({ name: "webhook", windowMs: 60_000, max: 240 });
   const ocrScanLimiter = createRateLimiter({ name: "ocr-scan", windowMs: 10 * 60_000, max: 180 });
   app.use(rateLimitWhen((req) => isAuthAttemptPath(req.path), authLimiter));
   app.use(rateLimitWhen((req) => req.method !== "GET" && isUploadOrImportPath(req.path), uploadImportLimiter));
   app.use(rateLimitWhen((req) => isPublicTokenPath(req.path), publicTokenLimiter));
   app.use(rateLimitWhen((req) => req.method !== "GET" && isOcrOrScanPath(req.path), ocrScanLimiter));
+  app.use(rateLimitWhen((req) => req.path.startsWith("/api/integrations/whatsapp/webhook"), webhookLimiter));
 
   app.use(
     "/templates",
@@ -246,6 +255,7 @@ export function createServer() {
   app.use(nfcPublicRoutes());
   app.use(nfcTagsPublicRoutes());
   app.use(readerGatewayRoutes());
+  app.use(whatsappIntegrationRoutes());
 
   // Document Intelligence Engine ? creator auth accepts both school JWTs and external creator JWTs
   app.use("/api/creator", creatorAuthRoutes());

@@ -17,6 +17,18 @@ export const communicationChannels = ["WHATSAPP", "SMS", "PARENT_PORTAL", "EMAIL
 
 export type CommunicationType = typeof communicationTypes[number];
 export type CommunicationChannel = typeof communicationChannels[number];
+export type CommunicationDeliveryStatus =
+  | "PENDING"
+  | "QUEUED"
+  | "SUBMITTING"
+  | "SUBMITTED"
+  | "ACCEPTED"
+  | "DELIVERED"
+  | "READ"
+  | "FAILED"
+  | "RETRY_SCHEDULED"
+  | "CANCELLED"
+  | "SKIPPED";
 export type CommunicationCampaignStatus =
   | "DRAFT"
   | "VALIDATING"
@@ -87,6 +99,10 @@ export function buildDeliveryIdempotencyKey(input: {
 
 export function hashRenderedContent(content: string) {
   return createHash("sha256").update(content).digest("hex");
+}
+
+export function hashPayload(value: string | Buffer) {
+  return createHash("sha256").update(value).digest("hex");
 }
 
 export function normalizePhoneToE164(value: string | null | undefined, defaultCountryCode = "256") {
