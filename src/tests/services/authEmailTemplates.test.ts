@@ -76,18 +76,22 @@ describe("authEmailTemplates", () => {
   it("renders outreach branding with a demo CTA and footer contacts", () => {
     const rendered = outreachEmailTemplate({
       recipientName: "School Admin",
+      schoolName: "Nalya School",
       subject: "Request a demo",
       message: "We would love to show you how SSAMENJ works for your school.",
       ctaLabel: "Request Demo",
       ctaUrl: "https://ssamenj.online/contact",
     });
 
+    expect(rendered.html).toContain("One Wristband. Many School Uses.");
+    expect(rendered.html).toContain("Attendance, gate access, student ID, library, and canteen payments in one practical school system.");
     expect(rendered.html).toContain("Request Demo");
     expect(rendered.html).toContain("SSAMENJ Technologies Ltd");
-    expect(rendered.html).toContain("School Connect wristband");
-    expect(rendered.html).toContain("Tracks attendance fast, does not need a battery");
+    expect(rendered.html).toContain("Attendance");
+    expect(rendered.html).toContain("Gate Access");
+    expect(rendered.text).toContain("School Connect Student NFC Wristband");
+    expect(rendered.text).toContain("For example, a student can tap at the gate for attendance");
     expect(rendered.text).toContain("Request Demo: https://ssamenj.online/contact");
     expect(rendered.text).toContain("School Connect | Report Lab | Kids Wallet | Smart Pages");
-    expect(rendered.text).toContain("Tracks attendance fast, does not need a battery");
   });
 });

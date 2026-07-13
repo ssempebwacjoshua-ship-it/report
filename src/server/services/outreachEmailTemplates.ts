@@ -1,36 +1,74 @@
 import type { EmailBranding } from "./emailBranding";
-import { renderBrandedEmail, renderBrandedPlainText } from "./emailBranding";
+import { renderBrandedEmail, renderBrandedPlainText, resolveEmailBranding } from "./emailBranding";
 
 export function outreachEmailTemplate(input: {
   recipientName: string;
+  schoolName?: string;
   subject: string;
   message: string;
   ctaLabel: string;
   ctaUrl: string;
+  heroImageUrl?: string;
 }, options: { branding?: Partial<EmailBranding>; env?: NodeJS.ProcessEnv } = {}) {
   const title = input.subject;
-  const bodyHtml = `
-    <p>Hello ${escapeHtml(input.recipientName)},</p>
-    <p>${escapeHtml(input.message)}</p>
-    <div style="margin:24px 0;padding:18px;border:1px solid #dbe4f0;border-radius:16px;background:#f8fbff">
-      <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap">
-        <div style="width:132px;min-width:132px;height:84px;border-radius:18px;background:linear-gradient(135deg,#173a72 0%,#2f5eb6 100%);padding:10px;box-sizing:border-box">
-          <div style="height:100%;border:3px solid rgba(255,255,255,0.86);border-radius:14px;padding:10px;box-sizing:border-box">
-            <div style="height:18px;width:72px;border-radius:999px;background:#ffffff;margin:4px auto 0"></div>
-            <div style="height:14px;width:58px;border-radius:999px;background:#f4c542;margin:9px auto 0"></div>
-            <div style="height:14px;width:42px;border-radius:999px;background:#ffffff;margin:9px auto 0"></div>
+  const branding = resolveEmailBranding(options.env, options.branding);
+  const schoolName = input.schoolName?.trim() || "your school";
+  const heroImageUrl = input.heroImageUrl?.trim() || "";
+  const heroImageHtml = heroImageUrl
+    ? `<img src="${escapeHtml(heroImageUrl)}" alt="School Connect Student NFC Wristband" style="display:block;width:100%;max-width:100%;height:auto;border:0;border-radius:18px" />`
+    : `<div style="width:100%;aspect-ratio:16/10;border-radius:18px;background:linear-gradient(135deg,#173a72 0%,#2f5eb6 58%,#f4c542 100%);padding:18px;box-sizing:border-box">
+        <div style="height:100%;border:3px solid rgba(255,255,255,0.28);border-radius:16px;padding:18px;box-sizing:border-box;display:flex;flex-direction:column;justify-content:flex-end">
+          <div style="max-width:270px;color:#fff">
+            <div style="font-size:28px;line-height:1.06;font-weight:900;letter-spacing:0.02em">STUDENT NFC WRISTBAND</div>
+            <div style="margin-top:10px;font-size:14px;line-height:1.5;font-weight:700;opacity:0.96">Tap • Identify • Authorize</div>
           </div>
         </div>
-        <div style="flex:1;min-width:220px">
-          <p style="margin:0 0 6px;font-weight:900;color:#173a72;font-size:16px">School Connect wristband</p>
-          <p style="margin:0;color:#334155;line-height:1.7">
-            Tracks attendance fast, does not need a battery, and stays affordable for schools that want a practical student identity flow.
-          </p>
-        </div>
-      </div>
+      </div>`;
+
+  const bodyHtml = `
+    <p>Hello ${escapeHtml(input.recipientName)},</p>
+    <p>I hope you are doing well.</p>
+    <p>My name is Joshua from SSAMENJ Technologies Ltd. We build practical software and automation systems for schools that want to reduce paperwork, improve student safety, and make daily operations easier.</p>
+    <div style="margin:24px 0 26px">
+      ${heroImageHtml}
     </div>
+    <h2 style="margin:0 0 10px;font-size:22px;line-height:1.25;color:${branding.primaryColor};font-weight:900">One Wristband. Many School Uses.</h2>
+    <p style="margin:0 0 20px;color:#475569;line-height:1.75">Attendance, gate access, student ID, library, and canteen payments in one practical school system.</p>
+    <table role="presentation" cellspacing="0" cellpadding="0" style="width:100%;border-collapse:collapse;margin:0 0 18px">
+      <tr>
+        <td style="padding:0 6px 12px 0;width:50%">
+          <div style="border:1px solid #dbe4f0;border-radius:16px;padding:16px;background:#ffffff">
+            <div style="font-size:14px;font-weight:900;color:${branding.primaryColor};margin-bottom:4px">Attendance</div>
+            <div style="font-size:13px;line-height:1.6;color:#475569">Faster attendance tracking without manual books or paper slips.</div>
+          </div>
+        </td>
+        <td style="padding:0 0 12px 6px;width:50%">
+          <div style="border:1px solid #dbe4f0;border-radius:16px;padding:16px;background:#ffffff">
+            <div style="font-size:14px;font-weight:900;color:${branding.primaryColor};margin-bottom:4px">Gate Access</div>
+            <div style="font-size:13px;line-height:1.6;color:#475569">Safer student identification and easier entry verification.</div>
+          </div>
+        </td>
+      </tr>
+      <tr>
+        <td style="padding:0 6px 12px 0;width:50%">
+          <div style="border:1px solid #dbe4f0;border-radius:16px;padding:16px;background:#ffffff">
+            <div style="font-size:14px;font-weight:900;color:${branding.primaryColor};margin-bottom:4px">Canteen Payments</div>
+            <div style="font-size:13px;line-height:1.6;color:#475569">Cashless canteen payments with cleaner records.</div>
+          </div>
+        </td>
+        <td style="padding:0 0 12px 6px;width:50%">
+          <div style="border:1px solid #dbe4f0;border-radius:16px;padding:16px;background:#ffffff">
+            <div style="font-size:14px;font-weight:900;color:${branding.primaryColor};margin-bottom:4px">Student ID &amp; Library</div>
+            <div style="font-size:13px;line-height:1.6;color:#475569">Tap for student services, borrowing, and authorization checks.</div>
+          </div>
+        </td>
+      </tr>
+    </table>
+    <p style="margin:0 0 14px;color:#475569;line-height:1.75">The wristband is durable, waterproof, unique to each student, and built for daily school use. It helps reduce paperwork, improves visibility, and makes routine checks faster for staff.</p>
+    <p style="margin:0 0 14px;color:#475569;line-height:1.75">For example, a student can tap at the gate for attendance, tap at the canteen for payment, or tap at the library when borrowing a book. The school gets a cleaner record, and parents can receive better visibility where needed.</p>
+    <p style="margin:0 0 14px;color:#475569;line-height:1.75">Would ${escapeHtml(schoolName)} be open to a short demo so we can show how this can work in your school?</p>
   `;
-  const bodyText = `Hello ${input.recipientName},\n\n${input.message}\n\nSchool Connect wristband\nTracks attendance fast, does not need a battery, and stays affordable for schools that want a practical student identity flow.`;
+  const bodyText = `Hello ${input.recipientName},\n\nI hope you are doing well.\n\nMy name is Joshua from SSAMENJ Technologies Ltd. We build practical software and automation systems for schools that want to reduce paperwork, improve student safety, and make daily operations easier.\n\nI wanted to introduce our School Connect Student NFC Wristband.\n\nWith one wristband, a school can support:\n\n- Attendance tracking\n- Gate access verification\n- Student identification\n- Library authorization\n- Cashless canteen payments\n\nThe wristband is designed for daily school use. It is durable, waterproof, unique to each student, and helps staff confirm student activity faster without relying on manual books or paper slips.\n\nFor example, a student can tap at the gate for attendance, tap at the canteen for payment, or tap at the library when borrowing a book. The school gets a cleaner record, and parents can receive better visibility where needed.\n\nWould ${schoolName} be open to a short demo so we can show how this can work in your school?`;
 
   return {
     subject: input.subject,
