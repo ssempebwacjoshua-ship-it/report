@@ -12,6 +12,31 @@ function isLocalDatabaseUrl(value: string) {
     || /school_connect_reports_lab_test/i.test(value);
 }
 
+function isValidEmailAddress(value: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+}
+
+function normalizeAuthEmailFrom(value: string) {
+  const trimmed = value.trim();
+  if (trimmed.length >= 2) {
+    const first = trimmed[0];
+    const last = trimmed[trimmed.length - 1];
+    if ((first === '"' && last === '"') || (first === "'" && last === "'")) {
+      return trimmed.slice(1, -1).trim();
+    }
+  }
+  return trimmed;
+}
+
+function isValidAuthEmailFrom(value: string) {
+  const normalized = normalizeAuthEmailFrom(value);
+  if (isValidEmailAddress(normalized)) return true;
+  const match = normalized.match(/^(.*)<([^<>]+)>$/);
+  if (!match) return false;
+  const email = match[2].trim();
+  return isValidEmailAddress(email);
+}
+
 export type EnvValidationResult = {
   valid: boolean;
   errors: string[];
@@ -100,6 +125,10 @@ export function validateEnv(env: Record<string, string | undefined> = process.en
     if (!authEmailFrom) {
       errors.push(
         "AUTH_EMAIL_FROM is not set. Use the verified Resend sender address for auth emails (for example, SSAMENJ Report Lab <no-reply@notify.ssamenj.online>).",
+      );
+    } else if (!isValidAuthEmailFrom(authEmailFrom)) {
+      errors.push(
+        "AUTH_EMAIL_FROM is invalid. Use email@example.com or Name <email@example.com>.",
       );
     }
     if (!authEmailAppUrl) {

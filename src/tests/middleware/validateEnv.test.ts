@@ -218,4 +218,19 @@ describe("validateEnv ? production required vars", () => {
     expect(result.errors.some((e) => e.includes("RESEND_API_KEY is not set"))).toBe(true);
     expect(result.errors.some((e) => e.includes("AUTH_EMAIL_FROM is not set"))).toBe(true);
   });
+
+  it("errors when auth email sender format is invalid in production", () => {
+    const result = validateEnv({
+      NODE_ENV: "production",
+      JWT_SECRET: "a".repeat(32),
+      DATABASE_URL: "postgresql://prod-user:prod-pass@db.railway.internal:5432/school_connect_reports_lab",
+      CLIENT_ORIGIN: "https://app.example.com",
+      AUTH_EMAIL_PROVIDER: "RESEND",
+      RESEND_API_KEY: "resend-key",
+      AUTH_EMAIL_FROM: "SSAMENJ Team support@ssamenj.online",
+      APP_PUBLIC_URL: "https://ssamenj.online/report-lab",
+    });
+    expect(result.valid).toBe(false);
+    expect(result.errors.some((e) => e.includes("AUTH_EMAIL_FROM is invalid"))).toBe(true);
+  });
 });

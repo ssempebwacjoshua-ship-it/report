@@ -170,4 +170,47 @@ describe("emailService", () => {
       APP_URL: "https://ssamenj.online/report-lab",
     })).toBe(true);
   });
+
+  it("normalizes quoted sender values before sending", async () => {
+    process.env.AUTH_EMAIL_PROVIDER = "RESEND";
+    process.env.RESEND_API_KEY = "resend-key";
+    process.env.AUTH_EMAIL_FROM = '"SSAMENJ Team <support@ssamenj.online>"';
+    process.env.APP_PUBLIC_URL = "https://ssamenj.online/report-lab";
+
+    await expect(sendAuthEmail({
+      to: "recipient@gmail.com",
+      subject: "Test",
+      html: "<p>Test</p>",
+      text: "Test",
+    })).resolves.toEqual({
+      ok: true,
+      provider: "RESEND",
+      messageId: "msg-1",
+    });
+
+    const instance = resendInstances[0];
+    expect(instance.emails.send).toHaveBeenCalledWith(expect.objectContaining({
+      from: "SSAMENJ Team <support@ssamenj.online>",
+    }));
+  });
+
+  it("fails safely when AUTH_EMAIL_FROM is malformed", async () => {
+    process.env.AUTH_EMAIL_PROVIDER = "RESEND";
+    process.env.RESEND_API_KEY = "resend-key";
+    process.env.AUTH_EMAIL_FROM = "SSAMENJ Team support@ssamenj.online";
+    process.env.APP_PUBLIC_URL = "https://ssamenj.online/report-lab";
+
+    await expect(sendAuthEmail({
+      to: "recipient@gmail.com",
+      subject: "Test",
+      html: "<p>Test</p>",
+      text: "Test",
+    })).resolves.toEqual({
+      ok: false,
+      provider: "NONE",
+      reason: "NOT_CONFIGURED",
+      safeErrorCode: "invalid_auth_email_from",
+      safeErrorMessage: "AUTH_EMAIL_FROM is invalid. Use email@example.com or Name <email@example.com>.",
+    });
+  });
 });
