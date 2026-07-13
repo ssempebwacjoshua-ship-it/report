@@ -69,6 +69,41 @@ export interface OutboundMessageProvider {
   normalizeWebhook(input: ProviderWebhookInput): Promise<NormalizedWebhookEvent[]>;
 }
 
+export class DryRunMessageProvider implements OutboundMessageProvider {
+  readonly providerKey = "DRY_RUN";
+  readonly channel: CommunicationChannel;
+
+  constructor(channel: CommunicationChannel) {
+    this.channel = channel;
+  }
+
+  async validateConfiguration(): Promise<ProviderConfigurationResult> {
+    return { configured: true, sendingEnabled: true, issues: [] };
+  }
+
+  async render(input: RenderMessageInput): Promise<RenderedMessage> {
+    return {
+      channel: this.channel,
+      kind: input.templateName ? "TEMPLATE" : "TEXT",
+      bodyPreview: input.text,
+      providerPayload: { dryRun: true, text: input.text, templateName: input.templateName ?? null },
+    };
+  }
+
+  async submit(input: SubmitMessageInput): Promise<SubmitMessageResult> {
+    return {
+      accepted: true,
+      providerStatus: "DRY_RUN_ACCEPTED",
+      providerMessageId: `dry-run-${input.idempotencyKey.slice(0, 16)}`,
+      billableUnits: 0,
+    };
+  }
+
+  async normalizeWebhook(): Promise<NormalizedWebhookEvent[]> {
+    return [];
+  }
+}
+
 export class MetaCloudWhatsAppProvider implements OutboundMessageProvider {
   readonly providerKey = "META_CLOUD_WHATSAPP";
   readonly channel = "WHATSAPP" as const;

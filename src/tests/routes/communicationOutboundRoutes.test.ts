@@ -94,6 +94,8 @@ describe("communication outbound routes", () => {
 
   it("fails closed when SMS provider is disabled", async () => {
     const campaignId = await createCampaign();
+    await prisma.communicationCampaign.update({ where: { id: campaignId }, data: { status: "APPROVED" } });
+    vi.stubEnv("COMMUNICATION_DRY_RUN", "false");
     const res = await request(createServer())
       .post(`/api/communications/campaigns/${campaignId}/send`)
       .set("Authorization", auth(adminToken))
@@ -102,10 +104,18 @@ describe("communication outbound routes", () => {
     expect(res.body.message).toMatch(/SMS is not configured yet/i);
   });
 
-  it("creates delivery rows and prevents duplicate sends with mock SMS", async () => {
-    vi.stubEnv("SMS_PROVIDER", "mock");
-    vi.stubEnv("SMS_PROVIDER_ENABLED", "true");
+  it("blocks draft campaigns from direct send", async () => {
     const campaignId = await createCampaign();
+    const body = { channel: "SMS", confirm: true, audience: { studentIds: [studentId], mode: "GENERAL" } };
+    const res = await request(createServer()).post(`/api/communications/campaigns/${campaignId}/send`).set("Authorization", auth(adminToken)).send(body);
+
+    expect(res.status).toBe(400);
+    expect(res.body.message).toMatch(/Only approved campaigns can be sent/i);
+  });
+
+  it("creates dry-run delivery rows and prevents duplicate sends without live provider credentials", async () => {
+    const campaignId = await createCampaign();
+    await prisma.communicationCampaign.update({ where: { id: campaignId }, data: { status: "APPROVED" } });
     const body = { channel: "SMS", confirm: true, audience: { studentIds: [studentId], mode: "GENERAL" } };
 
     const first = await request(createServer()).post(`/api/communications/campaigns/${campaignId}/send`).set("Authorization", auth(adminToken)).send(body);
@@ -113,7 +123,8 @@ describe("communication outbound routes", () => {
     expect(first.body.result.submitted).toBe(1);
     const deliveriesAfterFirst = await prisma.communicationDelivery.findMany({ where: { schoolId, campaignId } });
     expect(deliveriesAfterFirst).toHaveLength(1);
-    expect(deliveriesAfterFirst[0]?.providerMessageId).toMatch(/^mock-sms-/);
+    expect(deliveriesAfterFirst[0]?.provider).toBe("DRY_RUN");
+    expect(deliveriesAfterFirst[0]?.providerMessageId).toMatch(/^dry-run-/);
 
     const second = await request(createServer()).post(`/api/communications/campaigns/${campaignId}/send`).set("Authorization", auth(adminToken)).send(body);
     expect(second.status).toBe(200);

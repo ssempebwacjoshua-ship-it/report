@@ -13,7 +13,7 @@ import {
 import { collectCommunicationAudienceRows, resolveCommunicationAudience } from "./communicationAudienceService";
 
 export { resolveCommunicationAudience } from "./communicationAudienceService";
-import { createProviderForChannel } from "./communicationProviders";
+import { createProviderForChannel, DryRunMessageProvider } from "./communicationProviders";
 
 type Db = PrismaClient;
 
@@ -287,6 +287,9 @@ export async function sendCampaign(db: Db, ctx: CommunicationContext, campaignId
   if (!input.confirm) throw httpError(400, "Sending requires explicit confirmation.");
   const campaign = await getCampaignOrThrow(db, ctx, campaignId);
   if (["CANCELLED", "DELIVERED"].includes(campaign.status)) throw httpError(400, "This campaign cannot be sent.");
+  if (!["APPROVED", "QUEUED", "SENDING"].includes(campaign.status)) {
+    throw httpError(400, "Only approved campaigns can be sent.");
+  }
   if (!campaign.audienceSnapshots[0]) {
     await createAudienceSnapshot(db, ctx, campaignId, input.audience ?? ((campaign.audience?.definitionJson ?? {}) as AudienceDefinition));
   }
@@ -294,7 +297,9 @@ export async function sendCampaign(db: Db, ctx: CommunicationContext, campaignId
   const content = refreshed.contents.find((c) => c.version === refreshed.contentVersion) ?? refreshed.contents[0];
   if (!content?.body?.trim()) throw httpError(400, "Message body is required before sending.");
 
-  const provider = createProviderForChannel(input.channel);
+  const provider = isCommunicationDryRun()
+    ? new DryRunMessageProvider(input.channel)
+    : createProviderForChannel(input.channel);
   const channelSetting = await db.communicationChannelSetting.findFirst({
     where: { schoolId: ctx.schoolId, channel: input.channel as never, provider: provider.providerKey },
   });
@@ -462,8 +467,5 @@ function httpError(status: number, message: string) {
 async function transitionCampaignIfAllowed(db: Db, ctx: CommunicationContext, campaignId: string, to: CommunicationCampaignStatus) {
   const campaign = await getCampaignOrThrow(db, ctx, campaignId);
   if (campaign.status === to) return campaign;
-  if (campaign.status === "DRAFT" && to === "QUEUED") {
-    return db.communicationCampaign.update({ where: { id: campaignId }, data: { status: to as never } });
-  }
   return transitionCampaign(db, ctx, campaignId, to);
 }
