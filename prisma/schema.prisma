@@ -1451,13 +1451,19 @@ model NfcOfflineDevice {
   direction        String?   @default("ENTRY")
   lastSyncAt       DateTime?
   lastSeenAt       DateTime?
+  lastHeartbeatAt  DateTime?
   lastSnapshotAt   DateTime?
   lastIp           String?
   lastRssi         Int?
   firmwareVersion  String?
+  uptimeMs         Int?
+  freeHeap         Int?
+  rebootReason     String?
   queueDepth       Int       @default(0)
   onlineStatus     String    @default("OFFLINE")
   lastApiContactAt DateTime?
+  otaStatus        String?
+  otaMessage       String?
   lastScanAt       DateTime?
   lastScanStatus   String?
   lastScanMessage  String?

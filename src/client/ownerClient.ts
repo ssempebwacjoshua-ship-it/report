@@ -78,6 +78,8 @@ export type OwnerUser = {
 
 export type OwnerReader = {
   id: string;
+  schoolId?: string;
+  school?: { id: string; code: string; name: string } | null;
   name: string;
   deviceKey: string;
   location: string | null;
@@ -91,6 +93,7 @@ export type OwnerReader = {
   status: string;
   isActive: boolean;
   firmwareVersion: string | null;
+  lastHeartbeatAt?: string | null;
   lastIp: string | null;
   lastRssi: number | null;
   lastSeenAt: string | null;
@@ -99,8 +102,46 @@ export type OwnerReader = {
   lastScanMessage: string | null;
   queueDepth: number;
   onlineStatus: string;
+  rawOnlineStatus?: string;
+  uptimeMs?: number | null;
+  freeHeap?: number | null;
+  rebootReason?: string | null;
+  otaStatus?: string | null;
+  otaMessage?: string | null;
+  heartbeatStale?: boolean;
   hasToken: boolean;
   tokenHashPrefix: string | null;
+};
+
+export type OwnerReaderInventoryFilter = {
+  search?: string;
+  schoolId?: string;
+  status?: "ALL" | "ONLINE" | "OFFLINE" | "DISABLED" | "ERRORS" | "OTA_PENDING";
+  otaStatus?: "ALL" | "PENDING" | "FAILED" | "INSTALLED" | "NO_UPDATE";
+  firmwareVersion?: string;
+};
+
+export type OwnerReaderDiagnostics = {
+  health: {
+    status: string;
+    heartbeatAgeMinutes: number | null;
+    queueDepth: number;
+    firmwareVersion: string | null;
+    wifiRssi: number | null;
+    freeHeap: number | null;
+    uptimeMs: number | null;
+    rebootReason: string | null;
+    otaStatus: string | null;
+  };
+  recentScans: Array<{ id: string; action: string; correlationId: string | null; details: unknown; createdAt: string }>;
+  recentErrors: Array<{ id: string; action: string; correlationId: string | null; details: unknown; createdAt: string }>;
+  otaHistory: Array<{ id: string; action: string; correlationId: string | null; details: unknown; createdAt: string }>;
+  heartbeats: Array<{ id: string; action: string; correlationId: string | null; details: unknown; createdAt: string }>;
+};
+
+export type OwnerReaderDetail = {
+  reader: OwnerReader;
+  diagnostics: OwnerReaderDiagnostics;
 };
 
 export type OwnerAuditLog = {
@@ -342,6 +383,29 @@ export async function rotateOwnerReaderToken(schoolId: string, deviceId: string)
     headers: makeRequestHeaders(),
   });
   if (!res.ok) throw new Error(await parseApiError(res, "Could not rotate reader token"));
+  return res.json();
+}
+
+export async function fetchOwnerReaders(filters: OwnerReaderInventoryFilter = {}): Promise<{ readers: OwnerReader[] }> {
+  const params = new URLSearchParams();
+  if (filters.search) params.set("search", filters.search);
+  if (filters.schoolId) params.set("schoolId", filters.schoolId);
+  if (filters.status) params.set("status", filters.status);
+  if (filters.otaStatus) params.set("otaStatus", filters.otaStatus);
+  if (filters.firmwareVersion) params.set("firmwareVersion", filters.firmwareVersion);
+  const query = params.toString();
+  const res = await fetch(`${API_BASE}/api/owner/readers${query ? `?${query}` : ""}`, {
+    headers: makeRequestHeaders(),
+  });
+  if (!res.ok) throw new Error(await parseApiError(res, "Could not load reader inventory"));
+  return res.json();
+}
+
+export async function fetchOwnerReader(readerId: string): Promise<OwnerReaderDetail> {
+  const res = await fetch(`${API_BASE}/api/owner/readers/${encodeURIComponent(readerId)}`, {
+    headers: makeRequestHeaders(),
+  });
+  if (!res.ok) throw new Error(await parseApiError(res, "Could not load reader details"));
   return res.json();
 }
 

@@ -60,6 +60,14 @@ export function OwnerShell() {
               Schools
             </NavLink>
             <NavLink
+              to="/owner/readers"
+              className={({ isActive }) =>
+                `border-b-2 px-3 py-2.5 text-xs font-bold transition-colors ${isActive ? "border-blue-600 text-blue-700" : "border-transparent text-slate-500 hover:text-slate-800"}`
+              }
+            >
+              Reader Management
+            </NavLink>
+            <NavLink
               to="/owner/users"
               className={({ isActive }) =>
                 `border-b-2 px-3 py-2.5 text-xs font-bold transition-colors ${isActive ? "border-blue-600 text-blue-700" : "border-transparent text-slate-500 hover:text-slate-800"}`

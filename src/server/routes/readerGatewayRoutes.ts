@@ -29,6 +29,12 @@ type ReaderGatewayDevice = {
   direction: string | null;
   roleScope: string;
   firmwareVersion: string | null;
+  lastHeartbeatAt: Date | null;
+  uptimeMs: number | null;
+  freeHeap: number | null;
+  rebootReason: string | null;
+  otaStatus: string | null;
+  otaMessage: string | null;
   isActive: boolean;
   status: string;
 };
@@ -284,7 +290,7 @@ export function readerGatewayRoutes() {
       await prisma.$transaction(async (tx) => {
         await tx.nfcOfflineDevice.update({
           where: { id: device.id },
-          data: { lastSeenAt: now },
+          data: { lastSeenAt: now, lastHeartbeatAt: now },
         });
         await tx.auditLog.create({
           data: {
@@ -512,14 +518,35 @@ export function readerGatewayRoutes() {
         where: { id: device.id },
         data: {
           lastSeenAt: now,
+          lastHeartbeatAt: now,
           lastIp: body.localIp ?? null,
           lastRssi: body.wifiRssi ?? null,
           firmwareVersion: body.firmwareVersion ?? null,
+          uptimeMs: body.uptimeMs ?? null,
+          freeHeap: body.freeHeap ?? null,
           queueDepth: body.queueDepth ?? 0,
           onlineStatus: "ONLINE",
           lastApiContactAt: parseOptionalDate(body.lastSuccessfulApiContactAt) ?? now,
         },
       });
+      await prisma.auditLog.create({
+        data: {
+          schoolId: device.schoolId,
+          action: "reader_device.heartbeat",
+          correlationId: device.deviceKey,
+          details: {
+            deviceId: body.deviceId,
+            readerId: body.readerId,
+            firmwareVersion: body.firmwareVersion ?? null,
+            wifiRssi: body.wifiRssi ?? null,
+            localIp: body.localIp ?? null,
+            uptimeMs: body.uptimeMs ?? null,
+            freeHeap: body.freeHeap ?? null,
+            queueDepth: body.queueDepth ?? 0,
+            lastSuccessfulApiContactAt: body.lastSuccessfulApiContactAt ?? null,
+          },
+        },
+      }).catch(() => null);
 
       res.json({
         success: true,
@@ -549,6 +576,8 @@ export function readerGatewayRoutes() {
         where: { id: device.id },
         data: {
           lastSeenAt: new Date(),
+          otaStatus: release ? "UPDATE_AVAILABLE" : "NO_UPDATE",
+          otaMessage: release ? "Firmware update available." : "No firmware update available.",
           queueDepth: body.queueDepth,
           onlineStatus: "ONLINE",
         },
@@ -640,6 +669,8 @@ export function readerGatewayRoutes() {
           data: {
             lastSeenAt: now,
             onlineStatus: "ONLINE",
+            otaStatus: body.status,
+            otaMessage: body.message,
             ...(body.status === "CONFIRMED" ? { firmwareVersion: body.toVersion, lastSyncAt: now } : {}),
           },
         });

@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import { useEffect, useMemo, useState } from "react";
 import {
   createOwnerSchool,
@@ -714,26 +715,30 @@ function OwnerSchoolConsoleDrawer({
                   {data.readers.length === 0 ? <p className="text-sm text-slate-500">No readers registered.</p> : data.readers.map((reader) => (
                     <div key={reader.id} className="rounded-2xl border border-slate-100 p-3">
                       <div className="flex flex-wrap justify-between gap-2">
-                        <div><b>{reader.name}</b><p className="font-mono text-xs text-slate-400">{reader.deviceKey}</p></div>
-                        <SchoolBadge active={reader.isActive && reader.status === "ACTIVE"} />
+                        <div>
+                          <b>{reader.name}</b>
+                          <p className="font-mono text-xs text-slate-400">{reader.deviceKey}</p>
+                          <p className="mt-1 text-xs text-slate-500">{reader.school?.name ?? school.name}</p>
+                        </div>
+                        <span className={`inline-flex rounded-full border px-2.5 py-1 text-[11px] font-bold ${reader.onlineStatus === "ONLINE" ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-red-200 bg-red-50 text-red-600"}`}>
+                          {reader.onlineStatus === "ONLINE" ? "Online" : "Offline"}
+                        </span>
                       </div>
-                      <div className="mt-2 grid gap-2 text-sm sm:grid-cols-4">
+                      <div className="mt-2 grid gap-2 text-sm sm:grid-cols-3 lg:grid-cols-4">
+                        <DetailMini label="Heartbeat" value={reader.lastHeartbeatAt ?? reader.lastSeenAt ?? "-"} />
+                        <DetailMini label="Seen" value={reader.lastSeenAt ?? "-"} />
                         <DetailMini label="Location" value={reader.locationName ?? reader.location ?? "-"} />
                         <DetailMini label="Type" value={reader.locationType ?? reader.mode} />
-                        <DetailMini label="Attendance mode" value={reader.attendanceMode ?? "-"} />
-                        <DetailMini label="Scope" value={reader.studentScope ?? "-"} />
                         <DetailMini label="Firmware" value={reader.firmwareVersion ?? "-"} />
-                        <DetailMini label="IP" value={reader.lastIp ?? "-"} />
+                        <DetailMini label="OTA" value={reader.otaStatus ?? "UNKNOWN"} />
                         <DetailMini label="RSSI" value={reader.lastRssi != null ? `${reader.lastRssi} dBm` : "-"} />
                         <DetailMini label="Queue" value={`${reader.queueDepth}`} />
+                        <DetailMini label="Memory" value={reader.freeHeap != null ? `${reader.freeHeap.toLocaleString("en-UG")} B` : "-"} />
                       </div>
-                      {(reader.classId || reader.streamId) ? (
-                        <div className="mt-2 grid gap-2 text-sm sm:grid-cols-2">
-                          <DetailMini label="Class ID" value={reader.classId ?? "-"} />
-                          <DetailMini label="Stream ID" value={reader.streamId ?? "-"} />
-                        </div>
-                      ) : null}
-                      <div className="mt-3 flex flex-wrap gap-2">
+                      <div className="mt-2 flex flex-wrap items-center gap-2">
+                        <Link to={`/owner/readers/${encodeURIComponent(reader.id)}`} className="rounded-xl bg-blue-50 px-3 py-2 text-xs font-bold text-blue-700">
+                          Open detail
+                        </Link>
                         {(["RESTART", "SYNC", "UPDATE_FIRMWARE", "RE_REGISTER"] as const).map((action) => (
                           <button key={action} type="button" className="rounded-xl bg-slate-100 px-3 py-2 text-xs font-bold text-slate-700" onClick={() => { void run(`Reader ${action.toLowerCase().replace(/_/g, " ")} requested.`, () => requestOwnerReaderAction(school.id, reader.id, action)); }}>
                             {action.replace(/_/g, " ")}

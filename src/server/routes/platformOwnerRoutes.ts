@@ -13,6 +13,13 @@ const validPlanCodes = REPORT_LAB_PLANS.map((p) => p.code) as [string, ...string
 const FEATURE_FLAGS = ["REPORT_LAB", "SMART_PAGES", "ATTENDANCE", "WALLET", "GATE", "NFC", "OCR", "AI"] as const;
 const MAINTENANCE_ACTIONS = ["FORCE_SYNC", "REBUILD_SEARCH", "REPAIR_DOCUMENTS", "REGENERATE_QR_CODES", "RESEND_PENDING_EMAILS"] as const;
 const READER_ACTIONS = ["RESTART", "SYNC", "UPDATE_FIRMWARE", "RE_REGISTER"] as const;
+const READER_STALE_WINDOW_MS = 5 * 60 * 1000;
+const READER_AUDIT_ACTIONS = [
+  "reader_device.registered",
+  "reader_device.heartbeat",
+  "reader_event.attendance",
+  "reader_device.ota_status",
+] as const;
 
 function ownerAudit(actorId: string, schoolId: string, action: string, details?: Record<string, unknown>) {
   return prisma.auditLog.create({ data: { schoolId, action, details: { actorUserId: actorId, ...details } } });
@@ -52,8 +59,20 @@ function mapAuditLog(row: { id: string; action: string; correlationId: string | 
 }
 
 function mapReader(row: any) {
+  const lastHeartbeatAt = row.lastHeartbeatAt ?? row.lastSeenAt ?? null;
+  const heartbeatAgeMs = lastHeartbeatAt ? Date.now() - new Date(lastHeartbeatAt).getTime() : Number.POSITIVE_INFINITY;
+  const isOnline = row.isActive && row.status === "ACTIVE" && heartbeatAgeMs <= READER_STALE_WINDOW_MS;
+  const derivedOnlineStatus = row.isActive && row.status === "ACTIVE"
+    ? (isOnline ? "ONLINE" : "OFFLINE")
+    : "DISABLED";
   return {
     id: row.id,
+    schoolId: row.schoolId,
+    school: row.school ? {
+      id: row.school.id as string,
+      code: row.school.code as string,
+      name: row.school.name as string,
+    } : null,
     name: row.name,
     deviceKey: row.deviceKey,
     location: row.location,
@@ -67,6 +86,10 @@ function mapReader(row: any) {
     status: row.status,
     isActive: row.isActive,
     firmwareVersion: row.firmwareVersion ?? null,
+    lastHeartbeatAt: lastHeartbeatAt ? new Date(lastHeartbeatAt).toISOString() : null,
+    uptimeMs: row.uptimeMs ?? null,
+    freeHeap: row.freeHeap ?? null,
+    rebootReason: row.rebootReason ?? null,
     lastIp: row.lastIp ?? null,
     lastRssi: row.lastRssi ?? null,
     lastSeenAt: row.lastSeenAt ? row.lastSeenAt.toISOString() : null,
@@ -74,10 +97,32 @@ function mapReader(row: any) {
     lastScanStatus: row.lastScanStatus ?? null,
     lastScanMessage: row.lastScanMessage ?? null,
     queueDepth: row.queueDepth ?? 0,
-    onlineStatus: row.onlineStatus ?? "OFFLINE",
+    onlineStatus: derivedOnlineStatus,
+    rawOnlineStatus: row.onlineStatus ?? "OFFLINE",
+    otaStatus: row.otaStatus ?? null,
+    otaMessage: row.otaMessage ?? null,
+    heartbeatStale: row.isActive && row.status === "ACTIVE" && !isOnline,
     hasToken: Boolean(row.deviceTokenHash),
     tokenHashPrefix: row.deviceTokenHash ? `${String(row.deviceTokenHash).slice(0, 10)}...` : null,
   };
+}
+
+function extractReaderIdentity(details: unknown) {
+  if (!details || typeof details !== "object") return null;
+  const payload = details as Record<string, unknown>;
+  const identifiers = [
+    payload.deviceId,
+    payload.readerId,
+    payload.deviceKey,
+    payload.targetDeviceId,
+  ].filter((value) => typeof value === "string" && value.trim());
+  return identifiers.map((value) => String(value).trim());
+}
+
+function readerEventMatchesDevice(details: unknown, device: { id: string; deviceKey: string }) {
+  const identifiers = extractReaderIdentity(details);
+  if (!identifiers) return false;
+  return identifiers.includes(device.id) || identifiers.includes(device.deviceKey);
 }
 
 function smartPagesPaymentToDto(row: any): SmartPagesPaymentRequest {
@@ -732,6 +777,126 @@ export function platformOwnerRoutes() {
           ocrUsage: smartLedgerCount,
           gatewayStatus: readers.some((reader) => reader.lastSeenAt && now - reader.lastSeenAt.getTime() < 2 * 60 * 1000) ? "ONLINE" : "OFFLINE",
           smartPagesStatus: smartPlan?.status ?? "NOT_CONFIGURED",
+        },
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.get("/api/owner/readers", requirePlatformOwner, async (req, res, next) => {
+    try {
+      const search = typeof req.query.search === "string" ? req.query.search.trim().toLowerCase() : "";
+      const schoolId = typeof req.query.schoolId === "string" ? req.query.schoolId.trim() : "";
+      const statusFilter = typeof req.query.status === "string" ? req.query.status.trim().toUpperCase() : "";
+      const otaFilter = typeof req.query.otaStatus === "string" ? req.query.otaStatus.trim().toUpperCase() : "";
+      const firmwareVersion = typeof req.query.firmwareVersion === "string" ? req.query.firmwareVersion.trim().toLowerCase() : "";
+
+      const readers = await prisma.nfcOfflineDevice.findMany({
+        orderBy: { createdAt: "desc" },
+        include: {
+          school: { select: { id: true, code: true, name: true } },
+        },
+      });
+
+      const mapped = readers
+        .map(mapReader)
+        .filter((reader) => {
+          const matchesSchool = !schoolId || reader.schoolId === schoolId;
+          const matchesSearch = !search || [
+            reader.name,
+            reader.deviceKey,
+            reader.location,
+            reader.locationName,
+            reader.school?.name,
+            reader.school?.code,
+            reader.firmwareVersion,
+          ].filter(Boolean).some((value) => String(value).toLowerCase().includes(search));
+          const matchesStatus = !statusFilter
+            || statusFilter === "ALL"
+            || (statusFilter === "ONLINE" ? reader.onlineStatus === "ONLINE" : false)
+            || (statusFilter === "OFFLINE" ? reader.onlineStatus === "OFFLINE" : false)
+            || (statusFilter === "DISABLED" ? reader.onlineStatus === "DISABLED" : false)
+            || (statusFilter === "ERRORS" ? Boolean(
+              (reader.lastScanStatus && reader.lastScanStatus !== "SUCCESS" && reader.lastScanStatus !== "PRESENT")
+              || reader.otaStatus === "FAILED",
+            ) : false)
+            || (statusFilter === "OTA_PENDING" ? Boolean(reader.otaStatus && ["UPDATE_AVAILABLE", "DEFERRED", "PENDING"].includes(String(reader.otaStatus))) : false);
+          const matchesOta = !otaFilter
+            || otaFilter === "ALL"
+            || (otaFilter === "PENDING" ? Boolean(reader.otaStatus && ["UPDATE_AVAILABLE", "DEFERRED", "PENDING"].includes(String(reader.otaStatus))) : false)
+            || (otaFilter === "FAILED" ? reader.otaStatus === "FAILED" : false)
+            || (otaFilter === "INSTALLED" ? reader.otaStatus === "CONFIRMED" || reader.otaStatus === "INSTALLED" : false)
+            || (otaFilter === "NO_UPDATE" ? reader.otaStatus === "NO_UPDATE" : false);
+          const matchesFirmware = !firmwareVersion || (reader.firmwareVersion ? reader.firmwareVersion.toLowerCase().includes(firmwareVersion) : false);
+          return matchesSchool && matchesSearch && matchesStatus && matchesOta && matchesFirmware;
+        });
+
+      res.json({ readers: mapped });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.get("/api/owner/readers/:readerId", requirePlatformOwner, async (req, res, next) => {
+    try {
+      const readerId = z.string().trim().min(1).parse(req.params.readerId);
+      const reader = await prisma.nfcOfflineDevice.findFirst({
+        where: {
+          OR: [{ id: readerId }, { deviceKey: readerId }],
+        },
+        include: {
+          school: { select: { id: true, code: true, name: true } },
+        },
+      });
+      if (!reader) {
+        res.status(404).json({ error: "Reader not found." });
+        return;
+      }
+
+      const auditLogs = await prisma.auditLog.findMany({
+        where: {
+          schoolId: reader.schoolId,
+          action: { in: [...READER_AUDIT_ACTIONS] },
+        },
+        orderBy: { createdAt: "desc" },
+        take: 200,
+      });
+
+      const readerLogs = auditLogs.filter((log) => readerEventMatchesDevice(log.details, reader));
+      const recentScans = readerLogs.filter((log) => log.action === "reader_event.attendance").slice(0, 12);
+      const recentErrors = readerLogs.filter((log) => {
+        if (log.action === "reader_device.ota_status") {
+          const details = log.details as Record<string, unknown> | null;
+          return details?.status === "FAILED";
+        }
+        if (log.action === "reader_event.attendance") {
+          const response = (log.details as Record<string, unknown> | null)?.response as { success?: unknown } | undefined;
+          return response?.success === false;
+        }
+        return false;
+      }).slice(0, 12);
+      const otaHistory = readerLogs.filter((log) => log.action === "reader_device.ota_status").slice(0, 12);
+      const heartbeats = readerLogs.filter((log) => log.action === "reader_device.heartbeat").slice(0, 12);
+
+      res.json({
+        reader: mapReader(reader),
+        diagnostics: {
+          health: {
+            status: mapReader(reader).onlineStatus,
+            heartbeatAgeMinutes: reader.lastHeartbeatAt ? Math.max(0, Math.round((Date.now() - reader.lastHeartbeatAt.getTime()) / 60_000)) : null,
+            queueDepth: reader.queueDepth ?? 0,
+            firmwareVersion: reader.firmwareVersion ?? null,
+            wifiRssi: reader.lastRssi ?? null,
+            freeHeap: reader.freeHeap ?? null,
+            uptimeMs: reader.uptimeMs ?? null,
+            rebootReason: reader.rebootReason ?? null,
+            otaStatus: reader.otaStatus ?? null,
+          },
+          recentScans: recentScans.map(mapAuditLog),
+          recentErrors: recentErrors.map(mapAuditLog),
+          otaHistory: otaHistory.map(mapAuditLog),
+          heartbeats: heartbeats.map(mapAuditLog),
         },
       });
     } catch (error) {

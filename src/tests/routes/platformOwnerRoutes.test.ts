@@ -415,3 +415,93 @@ describe("platformOwnerRoutes ? school management console", () => {
   });
 });
 
+describe("platformOwnerRoutes ? reader management inventory", () => {
+  async function firstSchoolIdForReaders() {
+    const schoolsRes = await request(createServer())
+      .get("/api/owner/schools")
+      .set("Authorization", `Bearer ${ownerToken}`);
+    const schools = schoolsRes.body.schools as Array<{ id: string }>;
+    return schools[0]?.id ?? null;
+  }
+
+  async function createReaderFixture() {
+    const schoolId = await firstSchoolIdForReaders();
+    if (!schoolId) return null;
+
+    const deviceKey = `inventory-reader-${Date.now()}`;
+    const reader = await prisma.nfcOfflineDevice.create({
+      data: {
+        schoolId,
+        name: "NFC Reader Gate 01",
+        deviceKey,
+        deviceTokenHash: "inventory-hash",
+        mode: "ATTENDANCE",
+        location: "Main Gate",
+        locationName: "Main Gate",
+        firmwareVersion: "1.0.2",
+        lastHeartbeatAt: new Date(),
+        lastSeenAt: new Date(),
+        lastIp: "192.168.1.51",
+        lastRssi: -52,
+        uptimeMs: 12345,
+        freeHeap: 204800,
+        rebootReason: "POWERON_RESET",
+        queueDepth: 0,
+        onlineStatus: "ONLINE",
+        otaStatus: "NO_UPDATE",
+        otaMessage: "No firmware update available.",
+        status: "ACTIVE",
+        roleScope: "ADMIN_OPERATOR",
+        isActive: true,
+      },
+    });
+
+    await prisma.auditLog.create({
+      data: {
+        schoolId,
+        action: "reader_device.heartbeat",
+        details: {
+          deviceId: reader.id,
+          readerId: reader.deviceKey,
+          firmwareVersion: "1.0.2",
+          wifiRssi: -52,
+          localIp: "192.168.1.51",
+          uptimeMs: 12345,
+          freeHeap: 204800,
+          queueDepth: 0,
+        },
+      },
+    });
+
+    return { schoolId, reader };
+  }
+
+  it("lists deployed readers and applies inventory filters", async () => {
+    const fixture = await createReaderFixture();
+    if (!fixture) return;
+
+    const res = await request(createServer())
+      .get("/api/owner/readers")
+      .set("Authorization", `Bearer ${ownerToken}`)
+      .query({ search: fixture.reader.deviceKey, status: "ONLINE" });
+
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body.readers)).toBe(true);
+    expect(res.body.readers.some((reader: { id: string }) => reader.id === fixture.reader.id)).toBe(true);
+  });
+
+  it("returns a reader detail payload with diagnostics history", async () => {
+    const fixture = await createReaderFixture();
+    if (!fixture) return;
+
+    const res = await request(createServer())
+      .get(`/api/owner/readers/${fixture.reader.id}`)
+      .set("Authorization", `Bearer ${ownerToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.reader.id).toBe(fixture.reader.id);
+    expect(Array.isArray(res.body.diagnostics.heartbeats)).toBe(true);
+    expect(Array.isArray(res.body.diagnostics.recentScans)).toBe(true);
+  });
+});
+

@@ -42,6 +42,7 @@ import { NfcBulkAllocationPage } from "../pages/NfcBulkAllocationPage";
 import { StaffUsersPage } from "../pages/StaffUsersPage";
 import { NfcTapPage } from "../pages/NfcTapPage";
 import { OwnerDashboardPage } from "../pages/owner/OwnerDashboardPage";
+import { OwnerReaderDetailPage, OwnerReaderManagementPage } from "../pages/owner/OwnerReaderManagementPage";
 import { OwnerSchoolsPage } from "../pages/owner/OwnerSchoolsPage";
 import { OwnerUsersPage } from "../pages/owner/OwnerUsersPage";
 import { SmartPagesPage } from "../pages/smart-pages/SmartPagesPage";
@@ -122,6 +123,8 @@ export const router = createBrowserRouter([
     children: [
       { index: true, element: <OwnerDashboardPage /> },
       { path: "schools", element: <OwnerSchoolsPage /> },
+      { path: "readers", element: <OwnerReaderManagementPage /> },
+      { path: "readers/:readerId", element: <OwnerReaderDetailPage /> },
       { path: "users", element: <OwnerUsersPage /> },
     ],
   },

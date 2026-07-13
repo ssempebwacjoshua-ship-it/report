@@ -1,8 +1,9 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, Route, Routes } from "react-router-dom";
 import type { ReactElement } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { OwnerDashboardPage } from "../../pages/owner/OwnerDashboardPage";
+import { OwnerReaderDetailPage, OwnerReaderManagementPage } from "../../pages/owner/OwnerReaderManagementPage";
 import { OwnerSchoolsPage } from "../../pages/owner/OwnerSchoolsPage";
 import { OwnerUsersPage } from "../../pages/owner/OwnerUsersPage";
 
@@ -13,6 +14,8 @@ const ownerClientMocks = vi.hoisted(() => ({
   confirmOwnerSmartPagesPayment: vi.fn(),
   rejectOwnerSmartPagesPayment: vi.fn(),
   fetchOwnerSchools: vi.fn(),
+  fetchOwnerReaders: vi.fn(),
+  fetchOwnerReader: vi.fn(),
   createOwnerSchool: vi.fn(),
   patchOwnerSchool: vi.fn(),
   fetchOwnerUsers: vi.fn(),
@@ -20,12 +23,20 @@ const ownerClientMocks = vi.hoisted(() => ({
   ownerResetPassword: vi.fn(),
   ownerDisableUser: vi.fn(),
   ownerEnableUser: vi.fn(),
+  requestOwnerReaderAction: vi.fn(),
+  rotateOwnerReaderToken: vi.fn(),
 }));
 
 vi.mock("../../client/ownerClient", () => ownerClientMocks);
 
-function renderInRouter(element: ReactElement) {
-  return render(<MemoryRouter>{element}</MemoryRouter>);
+function renderInRouter(element: ReactElement, initialEntries: string[] = ["/owner"], routePath = "*") {
+  return render(
+    <MemoryRouter initialEntries={initialEntries}>
+      <Routes>
+        <Route path={routePath} element={element} />
+      </Routes>
+    </MemoryRouter>,
+  );
 }
 
 describe("Owner console responsive layouts", () => {
@@ -225,5 +236,175 @@ describe("Owner console responsive layouts", () => {
     expect(screen.getByPlaceholderText(/search by name or email/i)).toBeInTheDocument();
     expect(screen.getByRole("table")).toBeInTheDocument();
     expect(screen.getByText(/create user/i)).toBeInTheDocument();
+  });
+
+  it("renders the reader management inventory and detail view", async () => {
+    ownerClientMocks.fetchOwnerReaders.mockResolvedValue({
+      readers: [
+        {
+          id: "reader-1",
+          schoolId: "school-1",
+          school: { id: "school-1", code: "BULO", name: "Buloba High School" },
+          name: "NFC Reader Gate 01",
+          deviceKey: "attendance-gate-01",
+          location: "Main Gate",
+          locationType: "GATE",
+          locationName: "Main Gate",
+          mode: "ATTENDANCE",
+          attendanceMode: "GATE_ATTENDANCE",
+          studentScope: "ALL_STUDENTS",
+          classId: null,
+          streamId: null,
+          status: "ACTIVE",
+          isActive: true,
+          firmwareVersion: "1.0.2",
+          lastHeartbeatAt: new Date().toISOString(),
+          lastIp: "192.168.1.51",
+          lastRssi: -52,
+          lastSeenAt: new Date().toISOString(),
+          lastScanAt: new Date().toISOString(),
+          lastScanStatus: "SUCCESS",
+          lastScanMessage: "Scan accepted",
+          queueDepth: 0,
+          onlineStatus: "ONLINE",
+          rawOnlineStatus: "ONLINE",
+          uptimeMs: 12345,
+          freeHeap: 204800,
+          rebootReason: "POWERON_RESET",
+          otaStatus: "NO_UPDATE",
+          otaMessage: "No firmware update available.",
+          heartbeatStale: false,
+          hasToken: true,
+          tokenHashPrefix: "abc123...",
+        },
+      ],
+    });
+    ownerClientMocks.fetchOwnerReader.mockResolvedValue({
+      reader: {
+        id: "reader-1",
+        schoolId: "school-1",
+        school: { id: "school-1", code: "BULO", name: "Buloba High School" },
+        name: "NFC Reader Gate 01",
+        deviceKey: "attendance-gate-01",
+        location: "Main Gate",
+        locationType: "GATE",
+        locationName: "Main Gate",
+        mode: "ATTENDANCE",
+        attendanceMode: "GATE_ATTENDANCE",
+        studentScope: "ALL_STUDENTS",
+        classId: null,
+        streamId: null,
+        status: "ACTIVE",
+        isActive: true,
+        firmwareVersion: "1.0.2",
+        lastHeartbeatAt: new Date().toISOString(),
+        lastIp: "192.168.1.51",
+        lastRssi: -52,
+        lastSeenAt: new Date().toISOString(),
+        lastScanAt: new Date().toISOString(),
+        lastScanStatus: "SUCCESS",
+        lastScanMessage: "Scan accepted",
+        queueDepth: 0,
+        onlineStatus: "ONLINE",
+        rawOnlineStatus: "ONLINE",
+        uptimeMs: 12345,
+        freeHeap: 204800,
+        rebootReason: "POWERON_RESET",
+        otaStatus: "NO_UPDATE",
+        otaMessage: "No firmware update available.",
+        heartbeatStale: false,
+        hasToken: true,
+        tokenHashPrefix: "abc123...",
+      },
+      diagnostics: {
+        health: {
+          status: "ONLINE",
+          heartbeatAgeMinutes: 1,
+          queueDepth: 0,
+          firmwareVersion: "1.0.2",
+          wifiRssi: -52,
+          freeHeap: 204800,
+          uptimeMs: 12345,
+          rebootReason: "POWERON_RESET",
+          otaStatus: "NO_UPDATE",
+        },
+        recentScans: [],
+        recentErrors: [],
+        otaHistory: [],
+        heartbeats: [],
+      },
+    });
+
+    renderInRouter(<OwnerReaderManagementPage />);
+
+    await waitFor(() => expect(screen.getByRole("heading", { name: /reader management/i, level: 2 })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getAllByText(/Buloba High School/i).length).toBeGreaterThan(0));
+    expect(screen.getAllByText(/NFC Reader Gate 01/i).length).toBeGreaterThan(0);
+    expect(screen.getByRole("button", { name: /refresh/i })).toBeInTheDocument();
+  });
+
+  it("renders reader detail diagnostics and actions", async () => {
+    ownerClientMocks.fetchOwnerReader.mockResolvedValue({
+      reader: {
+        id: "reader-1",
+        schoolId: "school-1",
+        school: { id: "school-1", code: "BULO", name: "Buloba High School" },
+        name: "NFC Reader Gate 01",
+        deviceKey: "attendance-gate-01",
+        location: "Main Gate",
+        locationType: "GATE",
+        locationName: "Main Gate",
+        mode: "ATTENDANCE",
+        attendanceMode: "GATE_ATTENDANCE",
+        studentScope: "ALL_STUDENTS",
+        classId: null,
+        streamId: null,
+        status: "ACTIVE",
+        isActive: true,
+        firmwareVersion: "1.0.2",
+        lastHeartbeatAt: new Date().toISOString(),
+        lastIp: "192.168.1.51",
+        lastRssi: -52,
+        lastSeenAt: new Date().toISOString(),
+        lastScanAt: new Date().toISOString(),
+        lastScanStatus: "SUCCESS",
+        lastScanMessage: "Scan accepted",
+        queueDepth: 0,
+        onlineStatus: "ONLINE",
+        rawOnlineStatus: "ONLINE",
+        uptimeMs: 12345,
+        freeHeap: 204800,
+        rebootReason: "POWERON_RESET",
+        otaStatus: "NO_UPDATE",
+        otaMessage: "No firmware update available.",
+        heartbeatStale: false,
+        hasToken: true,
+        tokenHashPrefix: "abc123...",
+      },
+      diagnostics: {
+        health: {
+          status: "ONLINE",
+          heartbeatAgeMinutes: 1,
+          queueDepth: 0,
+          firmwareVersion: "1.0.2",
+          wifiRssi: -52,
+          freeHeap: 204800,
+          uptimeMs: 12345,
+          rebootReason: "POWERON_RESET",
+          otaStatus: "NO_UPDATE",
+        },
+        recentScans: [],
+        recentErrors: [],
+        otaHistory: [],
+        heartbeats: [],
+      },
+    });
+
+    renderInRouter(<OwnerReaderDetailPage />, ["/owner/readers/reader-1"], "/owner/readers/:readerId");
+
+    await waitFor(() => expect(screen.getByRole("heading", { name: /nfc reader gate 01/i })).toBeInTheDocument());
+    expect(await screen.findAllByText(/Buloba High School/i)).toHaveLength(2);
+    expect(screen.getByRole("button", { name: /rotate token/i })).toBeInTheDocument();
+    expect(screen.getByText(/recent scans/i)).toBeInTheDocument();
   });
 });

@@ -720,12 +720,26 @@ describe("readerGatewayRoutes", () => {
     expect(prismaMocks.nfcOfflineDeviceUpdate).toHaveBeenCalledWith(expect.objectContaining({
       where: { id: "dev-1" },
       data: expect.objectContaining({
+        lastHeartbeatAt: expect.any(Date),
         lastIp: "192.168.1.51",
         lastRssi: -54,
         firmwareVersion: "1.0.0",
+        uptimeMs: 60000,
+        freeHeap: 204800,
         queueDepth: 0,
         onlineStatus: "ONLINE",
         lastApiContactAt: new Date("2026-07-10T08:00:00Z"),
+      }),
+    }));
+    expect(prismaMocks.auditLogCreate).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        action: "reader_device.heartbeat",
+        details: expect.objectContaining({
+          deviceId: "attendance-gate-01",
+          wifiRssi: -54,
+          uptimeMs: 60000,
+          freeHeap: 204800,
+        }),
       }),
     }));
   });
@@ -831,6 +845,11 @@ describe("readerGatewayRoutes", () => {
     expect(prismaMocks.nfcOfflineDeviceUpdate).toHaveBeenCalledWith(expect.objectContaining({
       data: expect.objectContaining({
         firmwareVersion: "1.0.1",
+        lastSeenAt: expect.any(Date),
+        lastSyncAt: expect.any(Date),
+        otaStatus: "CONFIRMED",
+        otaMessage: "OTA reboot confirmed after successful backend contact.",
+        onlineStatus: "ONLINE",
       }),
     }));
     expect(prismaMocks.auditLogCreate).toHaveBeenCalledWith(expect.objectContaining({
