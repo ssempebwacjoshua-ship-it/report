@@ -258,11 +258,11 @@ export function CommunicationsPage() {
   }
 
   return (
-    <main className="mx-auto flex w-full max-w-7xl flex-col gap-4 px-4 py-5 md:px-6">
-      <header className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+    <main className="grid gap-4 pb-2">
+      <header className="page-header flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">Communication Center</p>
-          <h1 className="text-2xl font-black text-slate-950">Communication</h1>
+          <p className="text-xs font-bold uppercase tracking-wide text-blue-600">Communication Center</p>
+          <h1 className="text-xl font-bold tracking-tight text-slate-950 sm:text-2xl">Communication</h1>
           <p className="mt-1 max-w-2xl text-sm text-slate-600">
             Campaigns, real school audiences, approvals and delivery operations for SMS and WhatsApp. Provider sending remains dry-run by default.
           </p>
@@ -284,12 +284,12 @@ export function CommunicationsPage() {
         <Metric label="Failed" value={counts.failed} />
       </section>
 
-      <div className="flex gap-2 border-b border-slate-200">
+      <div className="tab-tray w-fit">
         {(["Campaigns", "Delivery"] as const).map((item) => (
           <button
             key={item}
             type="button"
-            className={`border-b-2 px-3 py-2 text-sm font-bold ${tab === item ? "border-blue-500 text-blue-700" : "border-transparent text-slate-500"}`}
+            className={`tab-button ${tab === item ? "tab-button-active" : ""}`}
             onClick={() => setTab(item)}
           >
             {item}
@@ -298,9 +298,9 @@ export function CommunicationsPage() {
       </div>
 
       {tab === "Campaigns" ? (
-        <div className="grid gap-4 xl:grid-cols-[1.08fr_0.92fr]">
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,1.06fr)_minmax(0,0.94fr)]">
           <form onSubmit={submitCampaign} className="grid gap-4">
-            <section className="premium-card grid gap-3 rounded-2xl p-4">
+            <section className="premium-card grid gap-3 rounded-xl p-4">
               <div className="flex items-center justify-between gap-3">
                 <h2 className="text-sm font-black text-slate-900">Audience</h2>
                 <button
@@ -519,7 +519,7 @@ export function CommunicationsPage() {
               ) : null}
             </section>
 
-            <section className="premium-card grid gap-3 rounded-2xl p-4">
+            <section className="premium-card grid gap-3 rounded-xl p-4">
               <h2 className="text-sm font-black text-slate-900">Create Communication</h2>
               <label className="grid gap-1 text-xs font-bold uppercase text-slate-500">
                 Type
@@ -628,7 +628,7 @@ function contextClassMatches(student: StudentListItem, classId: string) {
 
 function Metric({ label, value }: { label: string; value: number }) {
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+    <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
       <p className="text-xs font-bold uppercase text-slate-500">{label}</p>
       <p className="mt-1 text-2xl font-black text-slate-950">{value}</p>
     </div>
@@ -647,7 +647,7 @@ function SelectionPanel({
   children: ReactNode;
 }) {
   return (
-    <section className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+    <section className="rounded-xl border border-slate-200 bg-slate-50 p-3">
       <div className="mb-3 flex items-center justify-between gap-3">
         <div>
           <h3 className="text-sm font-black text-slate-900">{title}</h3>
@@ -684,7 +684,7 @@ function AudiencePreviewPanel({
   channel: CommunicationChannel;
 }) {
   return (
-    <section className="premium-card rounded-2xl p-4">
+    <section className="premium-card rounded-xl p-4">
       <div className="flex items-center justify-between gap-3">
         <div>
           <h2 className="text-sm font-black text-slate-900">Preview recipients</h2>
@@ -705,7 +705,7 @@ function AudiencePreviewPanel({
       {!preview ? (
         <p className="mt-4 text-sm text-slate-500">Preview an audience to see counts, eligibility, and recipient rows.</p>
       ) : (
-        <div className="mt-4 grid gap-4">
+        <div className="mt-3 grid gap-3">
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             <PreviewMetric label="Matched students" value={preview.matchedStudentsCount} />
             <PreviewMetric label="Raw contacts" value={preview.rawContactsCount} />
@@ -733,7 +733,7 @@ function AudiencePreviewPanel({
             </div>
           </div>
 
-          <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+          <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
             <div className="max-h-[680px] overflow-auto">
               <table className="w-full table-fixed border-separate border-spacing-0">
                 <thead className="sticky top-0 bg-slate-50 text-left text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">
@@ -790,9 +790,9 @@ function AudiencePreviewPanel({
 
 function PreviewMetric({ label, value }: { label: string; value: number }) {
   return (
-    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+    <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
       <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500">{label}</p>
-      <p className="mt-1 text-2xl font-black text-slate-950">{value}</p>
+      <p className="mt-1 text-xl font-black text-slate-950 sm:text-2xl">{value}</p>
     </div>
   );
 }
@@ -832,12 +832,12 @@ function CampaignList({
   onPreview: (campaignId: string) => void;
   onSend: (campaignId: string) => void;
 }) {
-  if (loading) return <div className="rounded-2xl border border-slate-200 bg-white p-5 text-sm text-slate-500">Loading...</div>;
-  if (campaigns.length === 0) return <div className="rounded-2xl border border-slate-200 bg-white p-5 text-sm text-slate-500">No communication campaigns yet.</div>;
+  if (loading) return <div className="rounded-xl border border-slate-200 bg-white p-5 text-sm text-slate-500">Loading...</div>;
+  if (campaigns.length === 0) return <div className="rounded-xl border border-slate-200 bg-white p-5 text-sm text-slate-500">No communication campaigns yet.</div>;
   return (
-    <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+    <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
       {campaigns.map((campaign) => (
-        <article key={campaign.id} className="flex flex-col gap-2 border-b border-slate-100 p-4 last:border-0 md:flex-row md:items-center md:justify-between">
+        <article key={campaign.id} className="flex flex-col gap-2 border-b border-slate-100 p-3.5 last:border-0 md:flex-row md:items-center md:justify-between">
           <div className="min-w-0">
             <h2 className="truncate font-black text-slate-900">{campaign.title}</h2>
             <p className="text-sm text-slate-600">
@@ -875,7 +875,7 @@ function CampaignList({
 function DeliverySummary({ campaigns }: { campaigns: CommunicationCampaign[] }) {
   const totals = campaigns.reduce((sum, campaign) => sum + (campaign._count?.deliveries ?? 0), 0);
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-5 text-sm text-slate-600">
+    <section className="rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-600">
       <p className="font-bold text-slate-900">Delivery status</p>
       <p className="mt-1">{totals} delivery records created across current campaigns. Open a campaign row to preview and send SMS or WhatsApp.</p>
     </section>
