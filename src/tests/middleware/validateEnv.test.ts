@@ -1,4 +1,4 @@
-﻿import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { validateEnv } from "../../server/middleware/validateEnv";
 
 // ── Non-production: only VITE_ key leaks are checked ─────────────────────────
@@ -35,6 +35,10 @@ describe("validateEnv ? production JWT_SECRET checks", () => {
     NODE_ENV: "production",
     DATABASE_URL: "postgresql://...",
     CLIENT_ORIGIN: "https://app.example.com",
+    AUTH_EMAIL_PROVIDER: "RESEND",
+    RESEND_API_KEY: "resend-key",
+    AUTH_EMAIL_FROM: "SSAMENJ Team <no-reply@notify.ssamenj.online>",
+    APP_PUBLIC_URL: "https://ssamenj.online/report-lab",
   };
 
   it("errors when JWT_SECRET is missing in production", () => {
@@ -73,6 +77,10 @@ describe("validateEnv ? production required vars", () => {
   const prodWithJwt = {
     NODE_ENV: "production",
     JWT_SECRET: "a".repeat(32),
+    AUTH_EMAIL_PROVIDER: "RESEND",
+    RESEND_API_KEY: "resend-key",
+    AUTH_EMAIL_FROM: "SSAMENJ Team <no-reply@notify.ssamenj.online>",
+    APP_PUBLIC_URL: "https://ssamenj.online/report-lab",
   };
 
   it("errors when DATABASE_URL is missing in production", () => {
@@ -105,6 +113,10 @@ describe("validateEnv ? production required vars", () => {
       JWT_SECRET: "a".repeat(32),
       DATABASE_URL: "postgresql://prod-user:prod-pass@db.railway.internal:5432/school_connect_reports_lab",
       CLIENT_ORIGIN: "https://app.example.com",
+      AUTH_EMAIL_PROVIDER: "RESEND",
+      RESEND_API_KEY: "resend-key",
+      AUTH_EMAIL_FROM: "SSAMENJ Team <no-reply@notify.ssamenj.online>",
+      APP_PUBLIC_URL: "https://ssamenj.online/report-lab",
       APP_BASE_URL: "https://reports.example.com",
       PLATFORM_ADMIN_KEY: "strong-platform-key",
       INTERNAL_TEST_KEY: "strong-internal-test-key",
@@ -120,6 +132,10 @@ describe("validateEnv ? production required vars", () => {
       JWT_SECRET: "a".repeat(32),
       DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/school_connect_reports_lab_test",
       CLIENT_ORIGIN: "https://app.example.com",
+      AUTH_EMAIL_PROVIDER: "RESEND",
+      RESEND_API_KEY: "resend-key",
+      AUTH_EMAIL_FROM: "SSAMENJ Team <no-reply@notify.ssamenj.online>",
+      APP_PUBLIC_URL: "https://ssamenj.online/report-lab",
     });
     expect(result.valid).toBe(false);
     expect(result.errors.some((e) => e.includes("local test database"))).toBe(true);
@@ -131,6 +147,10 @@ describe("validateEnv ? production required vars", () => {
       JWT_SECRET: "a".repeat(32),
       DATABASE_URL: "postgresql://prod-user:prod-pass@db.railway.internal:5432/school_connect_reports_lab",
       CLIENT_ORIGIN: "http://localhost:5173",
+      AUTH_EMAIL_PROVIDER: "RESEND",
+      RESEND_API_KEY: "resend-key",
+      AUTH_EMAIL_FROM: "SSAMENJ Team <no-reply@notify.ssamenj.online>",
+      APP_PUBLIC_URL: "https://ssamenj.online/report-lab",
     });
     expect(result.valid).toBe(false);
     expect(result.errors.some((e) => e.includes("CLIENT_ORIGIN points at localhost"))).toBe(true);
@@ -142,6 +162,10 @@ describe("validateEnv ? production required vars", () => {
       JWT_SECRET: "a".repeat(32),
       DATABASE_URL: "postgresql://prod-user:prod-pass@db.railway.internal:5432/school_connect_reports_lab",
       CLIENT_ORIGIN: "https://app.example.com",
+      AUTH_EMAIL_PROVIDER: "RESEND",
+      RESEND_API_KEY: "resend-key",
+      AUTH_EMAIL_FROM: "SSAMENJ Team <no-reply@notify.ssamenj.online>",
+      APP_PUBLIC_URL: "https://ssamenj.online/report-lab",
       PLATFORM_ADMIN_KEY: "strong-platform-key",
       INTERNAL_TEST_KEY: "strong-internal-test-key",
     });
@@ -155,6 +179,10 @@ describe("validateEnv ? production required vars", () => {
       JWT_SECRET: "a".repeat(32),
       DATABASE_URL: "postgresql://prod-user:prod-pass@db.railway.internal:5432/school_connect_reports_lab",
       CLIENT_ORIGIN: "https://app.example.com",
+      AUTH_EMAIL_PROVIDER: "RESEND",
+      RESEND_API_KEY: "resend-key",
+      AUTH_EMAIL_FROM: "SSAMENJ Team <no-reply@notify.ssamenj.online>",
+      APP_PUBLIC_URL: "https://ssamenj.online/report-lab",
       APP_BASE_URL: "https://reports.example.com",
       PLATFORM_ADMIN_KEY: "strong-platform-key",
     });
@@ -162,17 +190,32 @@ describe("validateEnv ? production required vars", () => {
     expect(result.warnings.some((w) => w.includes("INTERNAL_TEST_KEY"))).toBe(true);
   });
 
-  it("errors when Resend auth email is only partially configured", () => {
+  it("errors when auth email provider is misconfigured in production", () => {
     const result = validateEnv({
       NODE_ENV: "production",
       JWT_SECRET: "a".repeat(32),
       DATABASE_URL: "postgresql://prod-user:prod-pass@db.railway.internal:5432/school_connect_reports_lab",
       CLIENT_ORIGIN: "https://app.example.com",
+      AUTH_EMAIL_PROVIDER: "SENDGRID",
       RESEND_API_KEY: "resend-key",
+      AUTH_EMAIL_FROM: "SSAMENJ Team <no-reply@notify.ssamenj.online>",
+      APP_PUBLIC_URL: "https://ssamenj.online/report-lab",
+    });
+    expect(result.valid).toBe(false);
+    expect(result.errors.some((e) => e.includes("AUTH_EMAIL_PROVIDER must be set to RESEND"))).toBe(true);
+  });
+
+  it("errors when auth email configuration is incomplete in production", () => {
+    const result = validateEnv({
+      NODE_ENV: "production",
+      JWT_SECRET: "a".repeat(32),
+      DATABASE_URL: "postgresql://prod-user:prod-pass@db.railway.internal:5432/school_connect_reports_lab",
+      CLIENT_ORIGIN: "https://app.example.com",
+      AUTH_EMAIL_PROVIDER: "RESEND",
       EMAIL_FROM: "SSAMENJ <no-reply@example.com>",
     });
     expect(result.valid).toBe(false);
-    expect(result.errors.some((e) => e.includes("Resend auth email is partially configured"))).toBe(true);
+    expect(result.errors.some((e) => e.includes("RESEND_API_KEY is not set"))).toBe(true);
+    expect(result.errors.some((e) => e.includes("AUTH_EMAIL_FROM is not set"))).toBe(true);
   });
 });
-

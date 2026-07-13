@@ -8,73 +8,181 @@ type EmailSendInput = {
   replyTo?: string;
 };
 
+type ResendErrorLike = {
+  name?: string;
+  message?: string;
+  statusCode?: number | null;
+};
+
 export type EmailSendResult =
   | { ok: true; provider: "RESEND"; messageId: string | null }
-  | { ok: false; provider: "RESEND" | "NONE"; reason: "NOT_CONFIGURED" | "SEND_FAILED"; safeErrorCode?: string };
+  | {
+      ok: false;
+      provider: "RESEND" | "NONE";
+      reason: "NOT_CONFIGURED" | "SEND_FAILED";
+      safeErrorCode?: string;
+      safeErrorMessage?: string;
+      safeStatusCode?: number | null;
+    };
 
-function configuredFrom() {
-  return process.env.AUTH_EMAIL_FROM?.trim()
-    || process.env.EMAIL_FROM?.trim()
-    || process.env.RESEND_FROM_EMAIL?.trim()
-    || "";
+function readEnv(env: NodeJS.ProcessEnv, key: string) {
+  return env[key]?.trim() || "";
 }
 
-function configuredAppUrl() {
-  return process.env.APP_PUBLIC_URL?.trim()
-    || process.env.PUBLIC_APP_URL?.trim()
-    || process.env.APP_URL?.trim()
-    || process.env.APP_BASE_URL?.trim()
-    || "";
+function configuredFrom(env: NodeJS.ProcessEnv = process.env) {
+  return readEnv(env, "AUTH_EMAIL_FROM")
+    || readEnv(env, "EMAIL_FROM")
+    || readEnv(env, "RESEND_FROM_EMAIL");
 }
 
-function configuredReplyTo() {
-  return process.env.AUTH_EMAIL_REPLY_TO?.trim() || undefined;
+function configuredAppUrl(env: NodeJS.ProcessEnv = process.env) {
+  return readEnv(env, "APP_PUBLIC_URL")
+    || readEnv(env, "PUBLIC_APP_URL")
+    || readEnv(env, "APP_URL")
+    || readEnv(env, "APP_BASE_URL");
+}
+
+function configuredReplyTo(env: NodeJS.ProcessEnv = process.env) {
+  return readEnv(env, "AUTH_EMAIL_REPLY_TO") || undefined;
+}
+
+export function configuredAuthEmailProvider(env: NodeJS.ProcessEnv = process.env) {
+  return readEnv(env, "AUTH_EMAIL_PROVIDER") || "RESEND";
+}
+
+function isVerifiedSenderError(error: ResendErrorLike) {
+  if (error.name === "invalid_from_address") return true;
+  const message = error.message?.toLowerCase() || "";
+  return /sender|from address|from domain|verified sender|verified domain|domain.*verified|verified.*domain/.test(message);
+}
+
+function safeResendErrorMessage(error: ResendErrorLike) {
+  if (isVerifiedSenderError(error)) {
+    return "Email provider sender/domain is not verified.";
+  }
+  return error.message?.trim() || "Resend rejected the email send request.";
+}
+
+function safeResendErrorCode(error: ResendErrorLike) {
+  if (isVerifiedSenderError(error)) return "sender_domain_not_verified";
+  return error.name?.trim() || "UNKNOWN";
+}
+
+function logResendFailure(error: ResendErrorLike, recipientDomain: string) {
+  console.warn("[auth-email-send-failed]", {
+    provider: "RESEND",
+    code: error.name || "UNKNOWN",
+    message: error.message || "Resend rejected the email send request.",
+    statusCode: error.statusCode ?? null,
+    recipientDomain,
+  });
+}
+
+function missingConfigMessage(missing: string[]) {
+  if (missing.length === 1) {
+    return `${missing[0]} is missing.`;
+  }
+  return `Auth email is not configured. Missing: ${missing.join(", ")}.`;
+}
+
+function missingConfigCode(missing: string[]) {
+  const first = missing[0] || "";
+  if (first === "RESEND_API_KEY") return "missing_api_key";
+  if (first === "AUTH_EMAIL_FROM") return "missing_auth_email_from";
+  if (first.startsWith("APP_PUBLIC_URL")) return "missing_public_app_url";
+  if (first === "AUTH_EMAIL_PROVIDER=RESEND") return "missing_auth_email_provider";
+  return "missing_auth_email_config";
+}
+
+function resolveAuthEmailConfig(env: NodeJS.ProcessEnv = process.env) {
+  const provider = configuredAuthEmailProvider(env);
+  const apiKey = readEnv(env, "RESEND_API_KEY");
+  const from = configuredFrom(env);
+  const publicUrl = configuredAppUrl(env);
+  const replyTo = configuredReplyTo(env);
+  const missing: string[] = [];
+
+  if (provider !== "RESEND") {
+    missing.push("AUTH_EMAIL_PROVIDER=RESEND");
+  }
+  if (!apiKey) {
+    missing.push("RESEND_API_KEY");
+  }
+  if (!from) {
+    missing.push("AUTH_EMAIL_FROM");
+  }
+  if (!publicUrl) {
+    missing.push("APP_PUBLIC_URL / PUBLIC_APP_URL / APP_URL / APP_BASE_URL");
+  }
+
+  return { provider, apiKey, from, publicUrl, replyTo, missing };
 }
 
 export function isAuthEmailConfigured(env: NodeJS.ProcessEnv = process.env) {
-  const from = env.AUTH_EMAIL_FROM?.trim() || env.EMAIL_FROM?.trim() || env.RESEND_FROM_EMAIL?.trim() || "";
-  const publicUrl = env.APP_PUBLIC_URL?.trim() || env.PUBLIC_APP_URL?.trim() || env.APP_URL?.trim() || env.APP_BASE_URL?.trim() || "";
-  return Boolean(env.RESEND_API_KEY?.trim() && from && publicUrl);
+  const config = resolveAuthEmailConfig(env);
+  return config.provider === "RESEND" && config.missing.length === 0;
 }
 
 export async function sendAuthEmail(input: EmailSendInput): Promise<EmailSendResult> {
-  const apiKey = process.env.RESEND_API_KEY?.trim();
-  const from = configuredFrom();
-  const publicUrl = configuredAppUrl();
-  if (!apiKey || !from || !publicUrl) {
-    return { ok: false, provider: "NONE", reason: "NOT_CONFIGURED" };
+  const config = resolveAuthEmailConfig();
+  if (config.provider !== "RESEND") {
+    return {
+      ok: false,
+      provider: "NONE",
+      reason: "NOT_CONFIGURED",
+      safeErrorCode: "unsupported_provider",
+      safeErrorMessage: `AUTH_EMAIL_PROVIDER=${config.provider} is not supported. Set AUTH_EMAIL_PROVIDER=RESEND.`,
+    };
+  }
+  if (config.missing.length > 0) {
+    return {
+      ok: false,
+      provider: "NONE",
+      reason: "NOT_CONFIGURED",
+      safeErrorCode: missingConfigCode(config.missing),
+      safeErrorMessage: missingConfigMessage(config.missing),
+    };
   }
 
   try {
-    const resend = new Resend(apiKey);
+    const resend = new Resend(config.apiKey);
     const result = await resend.emails.send({
-      from,
+      from: config.from,
       to: input.to,
       subject: input.subject,
       html: input.html,
       text: input.text,
-      replyTo: input.replyTo ?? configuredReplyTo(),
+      replyTo: input.replyTo ?? config.replyTo,
     });
     if (result.error) {
-      console.warn("[auth-email-send-failed]", {
+      const error = result.error as ResendErrorLike;
+      logResendFailure(error, input.to.split("@")[1] ?? "unknown");
+      return {
+        ok: false,
         provider: "RESEND",
-        code: result.error.name,
-        recipientDomain: input.to.split("@")[1] ?? "unknown",
-      });
-      return { ok: false, provider: "RESEND", reason: "SEND_FAILED", safeErrorCode: result.error.name };
+        reason: "SEND_FAILED",
+        safeErrorCode: safeResendErrorCode(error),
+        safeErrorMessage: safeResendErrorMessage(error),
+        safeStatusCode: error.statusCode ?? null,
+      };
     }
     return { ok: true, provider: "RESEND", messageId: result.data?.id ?? null };
   } catch (error) {
-    console.warn("[auth-email-send-failed]", {
-      provider: "RESEND",
-      code: error instanceof Error ? error.name : "UNKNOWN",
-      recipientDomain: input.to.split("@")[1] ?? "unknown",
-    });
+    const resendError = {
+      name: error instanceof Error ? error.name : "UNKNOWN",
+      message: error instanceof Error ? error.message : "Resend request failed.",
+      statusCode: typeof error === "object" && error !== null && "statusCode" in error && typeof (error as { statusCode?: unknown }).statusCode === "number"
+        ? (error as { statusCode: number }).statusCode
+        : null,
+    } satisfies ResendErrorLike;
+    logResendFailure(resendError, input.to.split("@")[1] ?? "unknown");
     return {
       ok: false,
       provider: "RESEND",
       reason: "SEND_FAILED",
-      safeErrorCode: error instanceof Error ? error.name : "UNKNOWN",
+      safeErrorCode: safeResendErrorCode(resendError),
+      safeErrorMessage: safeResendErrorMessage(resendError),
+      safeStatusCode: resendError.statusCode ?? null,
     };
   }
 }

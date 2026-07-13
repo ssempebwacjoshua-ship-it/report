@@ -1,5 +1,4 @@
 import { classifyRuntimeEnvironment } from "../utils/productionSafety";
-import { isAuthEmailConfigured } from "../services/emailService";
 
 const DEV_JWT_SECRET = "dev-secret-change-in-production";
 const MIN_JWT_SECRET_LENGTH = 32;
@@ -84,15 +83,28 @@ export function validateEnv(env: Record<string, string | undefined> = process.en
       );
     }
 
-    const authEmailEnabled = Boolean(
-      env.RESEND_API_KEY?.trim()
-      || env.AUTH_EMAIL_FROM?.trim()
-      || env.EMAIL_FROM?.trim()
-      || env.RESEND_FROM_EMAIL?.trim(),
-    );
-    if (authEmailEnabled && !isAuthEmailConfigured(env)) {
+    const authEmailProvider = env.AUTH_EMAIL_PROVIDER?.trim().toUpperCase() || "";
+    const authEmailFrom = env.AUTH_EMAIL_FROM?.trim();
+    const authEmailAppUrl = env.APP_PUBLIC_URL?.trim()
+      || env.PUBLIC_APP_URL?.trim()
+      || env.APP_URL?.trim()
+      || env.APP_BASE_URL?.trim()
+      || "";
+
+    if (authEmailProvider !== "RESEND") {
+      errors.push("AUTH_EMAIL_PROVIDER must be set to RESEND in production for auth email delivery.");
+    }
+    if (!env.RESEND_API_KEY?.trim()) {
+      errors.push("RESEND_API_KEY is not set. Production auth emails cannot be sent without the Resend API key.");
+    }
+    if (!authEmailFrom) {
       errors.push(
-        "Resend auth email is partially configured. Set RESEND_API_KEY together with AUTH_EMAIL_FROM / EMAIL_FROM / RESEND_FROM_EMAIL and APP_PUBLIC_URL / PUBLIC_APP_URL / APP_URL before enabling auth emails.",
+        "AUTH_EMAIL_FROM is not set. Use the verified Resend sender address for auth emails (for example, SSAMENJ Report Lab <no-reply@notify.ssamenj.online>).",
+      );
+    }
+    if (!authEmailAppUrl) {
+      errors.push(
+        "APP_PUBLIC_URL / PUBLIC_APP_URL / APP_URL / APP_BASE_URL is not set. Production auth emails need the app URL for setup and reset links.",
       );
     }
 
