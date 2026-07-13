@@ -1,37 +1,120 @@
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import {
   createCommunicationCampaign,
   fetchCommunicationCampaigns,
   previewCommunicationRecipients,
   sendCommunication,
   type CommunicationCampaign,
-  type CommunicationPreview,
 } from "../client/communicationsClient";
+import { fetchReportContext } from "../client/reportsClient";
+import { fetchStaffUsers, type StaffUser } from "../client/staffUsersClient";
+import { fetchStudents } from "../client/studentsClient";
+import {
+  communicationAudienceTypes,
+  communicationContactRoles,
+  type AudienceDefinition,
+  type AudienceResolution,
+  type CommunicationAudienceType,
+  type CommunicationChannel,
+  type CommunicationContactRole,
+} from "../shared/communications";
+import type { ReportContext, ReportContextOption } from "../shared/types/reports";
+import type { StudentListItem } from "../shared/types/students";
 
-const campaignTypes = ["ANNOUNCEMENT", "CIRCULAR", "REPORT_RELEASE", "EVENT", "EMERGENCY_ALERT", "FEE_NOTICE", "ATTENDANCE_ALERT", "RECEIPT", "VIDEO_MESSAGE", "CUSTOM"];
+type AudienceFormState = AudienceDefinition & {
+  audienceType: CommunicationAudienceType;
+  channel: CommunicationChannel;
+  classId: string;
+  streamId: string;
+  studentIds: string[];
+  guardianContactIds: string[];
+  staffUserIds: string[];
+  contactRoles: CommunicationContactRole[];
+  includeInactive: boolean;
+  search: string;
+  page: number;
+  pageSize: number;
+  mode: "GENERAL" | "PER_STUDENT";
+};
+
+const campaignTypes = [
+  "ANNOUNCEMENT",
+  "CIRCULAR",
+  "REPORT_RELEASE",
+  "EVENT",
+  "EMERGENCY_ALERT",
+  "FEE_NOTICE",
+  "ATTENDANCE_ALERT",
+  "RECEIPT",
+  "VIDEO_MESSAGE",
+  "CUSTOM",
+];
+
+const defaultAudience: AudienceFormState = {
+  audienceType: "ALL_PARENTS_GUARDIANS",
+  channel: "WHATSAPP",
+  classId: "",
+  streamId: "",
+  studentIds: [],
+  guardianContactIds: [],
+  staffUserIds: [],
+  contactRoles: [],
+  includeInactive: false,
+  search: "",
+  page: 1,
+  pageSize: 10,
+  mode: "GENERAL",
+};
 
 export function CommunicationsPage() {
   const [campaigns, setCampaigns] = useState<CommunicationCampaign[]>([]);
+  const [reportContext, setReportContext] = useState<ReportContext | null>(null);
+  const [students, setStudents] = useState<StudentListItem[]>([]);
+  const [staffUsers, setStaffUsers] = useState<StaffUser[]>([]);
+  const [staffError, setStaffError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<"Campaigns" | "Delivery">("Campaigns");
   const [creating, setCreating] = useState(false);
   const [sendingId, setSendingId] = useState<string | null>(null);
-  const [selectedChannel, setSelectedChannel] = useState<"WHATSAPP" | "SMS">("WHATSAPP");
   const [selectedCampaignId, setSelectedCampaignId] = useState<string>("");
-  const [preview, setPreview] = useState<CommunicationPreview | null>(null);
+  const [preview, setPreview] = useState<AudienceResolution | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
   const [sendResult, setSendResult] = useState<string | null>(null);
   const [form, setForm] = useState({ type: "ANNOUNCEMENT", title: "", subject: "", body: "" });
+  const [audience, setAudience] = useState<AudienceFormState>(defaultAudience);
 
   async function load() {
     setLoading(true);
     setError(null);
+    setStaffError(null);
     try {
-      const data = await fetchCommunicationCampaigns();
-      setCampaigns(data.campaigns);
-      setSelectedCampaignId((current) => current || data.campaigns[0]?.id || "");
+      const [campaignData, contextData, studentData, staffData] = await Promise.allSettled([
+        fetchCommunicationCampaigns(),
+        fetchReportContext(),
+        fetchStudents({ isActive: "true" }),
+        fetchStaffUsers(),
+      ]);
+      if (campaignData.status === "fulfilled") {
+        setCampaigns(campaignData.value.campaigns);
+        setSelectedCampaignId((current) => current || campaignData.value.campaigns[0]?.id || "");
+      } else {
+        throw campaignData.reason;
+      }
+      if (contextData.status === "fulfilled") {
+        setReportContext(contextData.value);
+      }
+      if (studentData.status === "fulfilled") {
+        setStudents(studentData.value.students);
+      }
+      if (staffData.status === "fulfilled") {
+        setStaffUsers(staffData.value.users);
+      } else {
+        setStaffUsers([]);
+        setStaffError("Staff list unavailable for this account. The resolver still supports staff audiences if you have access.");
+      }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not load communication campaigns");
+      setError(err instanceof Error ? err.message : "Could not load communication data");
     } finally {
       setLoading(false);
     }
@@ -41,24 +124,64 @@ export function CommunicationsPage() {
     void load();
   }, []);
 
-  const counts = useMemo(() => ({
-    drafts: campaigns.filter((c) => c.status === "DRAFT").length,
-    approval: campaigns.filter((c) => c.status.includes("APPROVAL") || c.status === "READY_FOR_APPROVAL").length,
-    scheduled: campaigns.filter((c) => c.status === "SCHEDULED").length,
-    sending: campaigns.filter((c) => c.status === "QUEUED" || c.status === "SENDING").length,
-    failed: campaigns.filter((c) => c.status === "FAILED" || c.status === "VALIDATION_FAILED").length,
-  }), [campaigns]);
+  useEffect(() => {
+    if (!selectedCampaignId) return;
+    const timer = window.setTimeout(() => {
+      void handlePreview(selectedCampaignId, audience);
+    }, 250);
+    return () => window.clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedCampaignId, audience]);
+
+  const counts = useMemo(
+    () => ({
+      drafts: campaigns.filter((c) => c.status === "DRAFT").length,
+      approval: campaigns.filter((c) => c.status.includes("APPROVAL") || c.status === "READY_FOR_APPROVAL").length,
+      scheduled: campaigns.filter((c) => c.status === "SCHEDULED").length,
+      sending: campaigns.filter((c) => c.status === "QUEUED" || c.status === "SENDING").length,
+      failed: campaigns.filter((c) => c.status === "FAILED" || c.status === "VALIDATION_FAILED").length,
+    }),
+    [campaigns],
+  );
+
+  const selectedCampaign = useMemo(
+    () => campaigns.find((campaign) => campaign.id === selectedCampaignId) ?? null,
+    [campaigns, selectedCampaignId],
+  );
+
+  const activeStudents = useMemo(() => {
+    const query = audience.search.trim().toLowerCase();
+    return students.filter((student) => {
+      const matchesQuery = !query || [
+        student.studentName,
+        student.admissionNumber,
+        student.className,
+        student.streamName,
+      ].filter(Boolean).join(" ").toLowerCase().includes(query);
+      const matchesClass = !audience.classId || contextClassMatches(student, audience.classId);
+      const matchesInactive = audience.includeInactive || student.isActive;
+      return matchesQuery && matchesClass && matchesInactive;
+    });
+  }, [audience.classId, audience.includeInactive, audience.search, students]);
+
+  const streamOptions = useMemo<ReportContextOption[]>(() => {
+    if (!reportContext) return [];
+    return reportContext.streams.filter((stream) => !audience.classId || stream.classId === audience.classId);
+  }, [audience.classId, reportContext]);
 
   async function submitCampaign(event: FormEvent) {
     event.preventDefault();
     setCreating(true);
     setError(null);
     try {
-      await createCommunicationCampaign(form);
+      const created = await createCommunicationCampaign({
+        ...form,
+        audience: audienceToDefinition(audience),
+      });
       setForm({ type: "ANNOUNCEMENT", title: "", subject: "", body: "" });
       const data = await fetchCommunicationCampaigns();
       setCampaigns(data.campaigns);
-      setSelectedCampaignId(data.campaigns[0]?.id ?? "");
+      setSelectedCampaignId(created.campaign.id);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not create communication campaign");
     } finally {
@@ -66,42 +189,72 @@ export function CommunicationsPage() {
     }
   }
 
-  async function handlePreview(campaignId: string) {
-    setSelectedCampaignId(campaignId);
-    setPreview(null);
-    setSendResult(null);
+  async function handlePreview(campaignId: string, requestAudience: AudienceFormState) {
+    if (!campaignId) return;
+    setPreviewLoading(true);
     setError(null);
     try {
-      const data = await previewCommunicationRecipients(campaignId, { mode: "GENERAL" });
+      const data = await previewCommunicationRecipients(campaignId, audienceToDefinition(requestAudience));
       setPreview(data.preview);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not preview recipients");
+    } finally {
+      setPreviewLoading(false);
     }
   }
 
   async function handleSend(campaignId: string) {
-    if (!preview || preview.ready === 0) {
-      setError("Preview recipients before sending.");
+    if (!preview || preview.eligibleRecipientsCount === 0) {
+      setError("Preview an audience with at least one eligible recipient before sending.");
       return;
     }
-    const confirmed = window.confirm(`Send ${selectedChannel} message to ${preview.ready} recipients?`);
+    const confirmed = window.confirm(`Send ${audience.channel} message to ${preview.eligibleRecipientsCount} eligible recipients?`);
     if (!confirmed) return;
     setSendingId(campaignId);
     setError(null);
     setSendResult(null);
     try {
+      const deliveryChannel = audience.channel === "SMS" ? "SMS" : "WHATSAPP";
       const result = await sendCommunication(campaignId, {
-        channel: selectedChannel,
+        channel: deliveryChannel,
         confirm: true,
-        audience: { mode: "GENERAL" },
+        audience: audienceToDefinition(audience),
       });
       setSendResult(`Submitted ${result.result.submitted}; failed ${result.result.failed}; duplicates skipped ${result.result.skippedDuplicate}.`);
       await load();
     } catch (err) {
-      setError(err instanceof Error ? err.message : `${selectedChannel === "WHATSAPP" ? "WhatsApp" : "SMS"} is not configured yet. Contact platform owner.`);
+      setError(err instanceof Error ? err.message : `${audience.channel === "WHATSAPP" ? "WhatsApp" : "SMS"} is not configured yet. Contact platform owner.`);
     } finally {
       setSendingId(null);
     }
+  }
+
+  function toggleStudent(studentId: string) {
+    setAudience((current) => ({
+      ...current,
+      studentIds: toggleValue(current.studentIds, studentId),
+    }));
+  }
+
+  function toggleGuardian(contactId: string) {
+    setAudience((current) => ({
+      ...current,
+      guardianContactIds: toggleValue(current.guardianContactIds, contactId),
+    }));
+  }
+
+  function toggleStaff(staffId: string) {
+    setAudience((current) => ({
+      ...current,
+      staffUserIds: toggleValue(current.staffUserIds, staffId),
+    }));
+  }
+
+  function toggleContactRole(role: CommunicationContactRole) {
+    setAudience((current) => ({
+      ...current,
+      contactRoles: toggleValue(current.contactRoles, role),
+    }));
   }
 
   return (
@@ -111,7 +264,7 @@ export function CommunicationsPage() {
           <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">Communication Center</p>
           <h1 className="text-2xl font-black text-slate-950">Communication</h1>
           <p className="mt-1 max-w-2xl text-sm text-slate-600">
-            Campaigns, audiences, approvals and delivery operations for SMS and WhatsApp. Provider sending is dry-run by default.
+            Campaigns, real school audiences, approvals and delivery operations for SMS and WhatsApp. Provider sending remains dry-run by default.
           </p>
         </div>
         <span className="inline-flex w-fit rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-black uppercase text-amber-800">
@@ -121,6 +274,7 @@ export function CommunicationsPage() {
 
       {error ? <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div> : null}
       {sendResult ? <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700">{sendResult}</div> : null}
+      {staffError ? <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">{staffError}</div> : null}
 
       <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
         <Metric label="Drafts" value={counts.drafts} />
@@ -144,49 +298,332 @@ export function CommunicationsPage() {
       </div>
 
       {tab === "Campaigns" ? (
-        <div className="grid gap-4 xl:grid-cols-[360px_1fr]">
-          <form onSubmit={submitCampaign} className="premium-card grid gap-3 rounded-2xl p-4">
-            <h2 className="text-sm font-black text-slate-900">Create Communication</h2>
-            <label className="grid gap-1 text-xs font-bold uppercase text-slate-500">
-              Type
-              <select className="premium-control rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900" value={form.type} onChange={(event) => setForm((f) => ({ ...f, type: event.target.value }))}>
-                {campaignTypes.map((type) => <option key={type} value={type}>{type.replaceAll("_", " ")}</option>)}
-              </select>
-            </label>
-            <label className="grid gap-1 text-xs font-bold uppercase text-slate-500">
-              Title
-              <input className="premium-control rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900" value={form.title} onChange={(event) => setForm((f) => ({ ...f, title: event.target.value }))} />
-            </label>
-            <label className="grid gap-1 text-xs font-bold uppercase text-slate-500">
-              Subject
-              <input className="premium-control rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900" value={form.subject} onChange={(event) => setForm((f) => ({ ...f, subject: event.target.value }))} />
-            </label>
-            <label className="grid gap-1 text-xs font-bold uppercase text-slate-500">
-              Body
-              <textarea className="premium-control min-h-28 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900" value={form.body} onChange={(event) => setForm((f) => ({ ...f, body: event.target.value }))} />
-            </label>
-            <button type="submit" className="btn btn-primary" disabled={creating || !form.title.trim() || !form.body.trim()}>
-              {creating ? "Creating..." : "Create draft"}
-            </button>
+        <div className="grid gap-4 xl:grid-cols-[1.08fr_0.92fr]">
+          <form onSubmit={submitCampaign} className="grid gap-4">
+            <section className="premium-card grid gap-3 rounded-2xl p-4">
+              <div className="flex items-center justify-between gap-3">
+                <h2 className="text-sm font-black text-slate-900">Audience</h2>
+                <button
+                  type="button"
+                  className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-700"
+                  onClick={() => {
+                    if (selectedCampaignId) {
+                      void handlePreview(selectedCampaignId, audience);
+                    }
+                  }}
+                >
+                  Refresh preview
+                </button>
+              </div>
+
+              <div className="grid gap-3 md:grid-cols-2">
+                <label className="grid gap-1 text-xs font-bold uppercase text-slate-500">
+                  Audience type
+                  <select
+                    className="premium-control rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900"
+                    value={audience.audienceType}
+                    onChange={(event) => setAudience((current) => ({ ...current, audienceType: event.target.value as CommunicationAudienceType }))}
+                  >
+                    {communicationAudienceTypes.map((type) => (
+                      <option key={type} value={type}>{audienceLabel(type)}</option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className="grid gap-1 text-xs font-bold uppercase text-slate-500">
+                  Channel
+                  <select
+                    className="premium-control rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900"
+                    value={audience.channel}
+                    onChange={(event) => setAudience((current) => ({ ...current, channel: event.target.value as CommunicationChannel }))}
+                  >
+                    <option value="WHATSAPP">WhatsApp</option>
+                    <option value="SMS">SMS</option>
+                  </select>
+                </label>
+              </div>
+
+              <div className="grid gap-3 md:grid-cols-2">
+                <label className="grid gap-1 text-xs font-bold uppercase text-slate-500">
+                  Class
+                  <select
+                    className="premium-control rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900"
+                    value={audience.classId}
+                    onChange={(event) => setAudience((current) => ({ ...current, classId: event.target.value, streamId: "" }))}
+                  >
+                    <option value="">All classes</option>
+                    {reportContext?.classes.map((klass) => (
+                      <option key={klass.id} value={klass.id}>{klass.name}</option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className="grid gap-1 text-xs font-bold uppercase text-slate-500">
+                  Stream
+                  <select
+                    className="premium-control rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900"
+                    value={audience.streamId}
+                    onChange={(event) => setAudience((current) => ({ ...current, streamId: event.target.value }))}
+                  >
+                    <option value="">All streams</option>
+                    {streamOptions.map((stream) => (
+                      <option key={stream.id} value={stream.id}>{stream.name}</option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+
+              <div className="grid gap-3 md:grid-cols-2">
+                <label className="grid gap-1 text-xs font-bold uppercase text-slate-500">
+                  Search
+                  <input
+                    className="premium-control rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900"
+                    value={audience.search}
+                    onChange={(event) => setAudience((current) => ({ ...current, search: event.target.value, page: 1 }))}
+                    placeholder="Search students or contacts"
+                  />
+                </label>
+
+                <label className="grid gap-1 text-xs font-bold uppercase text-slate-500">
+                  Page size
+                  <select
+                    className="premium-control rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900"
+                    value={audience.pageSize}
+                    onChange={(event) => setAudience((current) => ({ ...current, pageSize: Number(event.target.value), page: 1 }))}
+                  >
+                    {[5, 10, 20, 50].map((value) => (
+                      <option key={value} value={value}>{value} rows</option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+
+              <div className="grid gap-3 md:grid-cols-2">
+                <label className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-700">
+                  <input
+                    type="checkbox"
+                    checked={audience.includeInactive}
+                    onChange={(event) => setAudience((current) => ({ ...current, includeInactive: event.target.checked }))}
+                  />
+                  Include inactive students
+                </label>
+
+                <label className="grid gap-1 text-xs font-bold uppercase text-slate-500">
+                  Mode
+                  <select
+                    className="premium-control rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900"
+                    value={audience.mode}
+                    onChange={(event) => setAudience((current) => ({ ...current, mode: event.target.value as "GENERAL" | "PER_STUDENT" }))}
+                  >
+                    <option value="GENERAL">General audience</option>
+                    <option value="PER_STUDENT">Per student</option>
+                  </select>
+                </label>
+              </div>
+
+              <div className="grid gap-2">
+                <p className="text-xs font-bold uppercase text-slate-500">Contact roles</p>
+                <div className="flex flex-wrap gap-2">
+                  {communicationContactRoles.map((role) => (
+                    <button
+                      key={role}
+                      type="button"
+                      className={`rounded-full border px-3 py-1.5 text-xs font-bold ${audience.contactRoles.includes(role) ? "border-blue-500 bg-blue-50 text-blue-700" : "border-slate-200 bg-white text-slate-600"}`}
+                      onClick={() => toggleContactRole(role)}
+                    >
+                      {roleLabel(role)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {audience.audienceType === "PARENTS_OF_SELECTED_STUDENTS" ? (
+                <SelectionPanel title="Selected students" hint="Choose the students whose parents or guardians should be included." count={audience.studentIds.length}>
+                  <div className="max-h-72 overflow-auto pr-1">
+                    {activeStudents.length === 0 ? (
+                      <p className="px-2 py-4 text-sm text-slate-500">No matching students found.</p>
+                    ) : activeStudents.map((student) => (
+                      <label key={student.id} className="flex items-start gap-3 rounded-xl border border-slate-100 px-3 py-2 hover:bg-slate-50">
+                        <input
+                          type="checkbox"
+                          className="mt-1"
+                          checked={audience.studentIds.includes(student.id)}
+                          onChange={() => toggleStudent(student.id)}
+                        />
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-bold text-slate-900">{student.studentName}</p>
+                          <p className="truncate text-xs text-slate-500">{student.admissionNumber} - {student.className ?? "No class"}{student.streamName ? ` / ${student.streamName}` : ""}</p>
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+                </SelectionPanel>
+              ) : null}
+
+              {audience.audienceType === "CUSTOM_SELECTED_CONTACTS" ? (
+                <SelectionPanel title="Selected contacts" hint="Pick specific parent or guardian contacts from student profiles." count={audience.guardianContactIds.length}>
+                  <div className="max-h-72 space-y-3 overflow-auto pr-1">
+                    {activeStudents.length === 0 ? (
+                      <p className="px-2 py-4 text-sm text-slate-500">No matching students found.</p>
+                    ) : activeStudents.map((student) => (
+                      <div key={student.id} className="rounded-xl border border-slate-100 p-3">
+                        <div className="mb-2">
+                          <p className="text-sm font-bold text-slate-900">{student.studentName}</p>
+                          <p className="text-xs text-slate-500">{student.admissionNumber} - {student.className ?? "No class"}{student.streamName ? ` / ${student.streamName}` : ""}</p>
+                        </div>
+                        <div className="space-y-2">
+                          {student.guardianContacts.length === 0 ? (
+                            <p className="text-xs text-slate-500">No guardian contacts on this student.</p>
+                          ) : student.guardianContacts.map((contact) => (
+                            <label key={contact.id} className="flex items-start gap-3 rounded-lg bg-slate-50 px-3 py-2">
+                              <input
+                                type="checkbox"
+                                className="mt-1"
+                                checked={audience.guardianContactIds.includes(contact.id)}
+                                onChange={() => toggleGuardian(contact.id)}
+                              />
+                              <div className="min-w-0">
+                                <p className="truncate text-sm font-semibold text-slate-900">{contact.guardianName}</p>
+                                <p className="truncate text-xs text-slate-500">{contact.relationship} - {contact.phone || contact.email || "No contact details"}</p>
+                              </div>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </SelectionPanel>
+              ) : null}
+
+              {audience.audienceType === "STAFF_TEACHERS" ? (
+                <SelectionPanel title="Staff / teachers" hint="Pick staff members with school contact details." count={audience.staffUserIds.length}>
+                  <div className="max-h-72 overflow-auto pr-1">
+                    {staffUsers.length === 0 ? (
+                      <p className="px-2 py-4 text-sm text-slate-500">No staff users loaded.</p>
+                    ) : staffUsers.map((user) => (
+                      <label key={user.id} className="flex items-start gap-3 rounded-xl border border-slate-100 px-3 py-2 hover:bg-slate-50">
+                        <input
+                          type="checkbox"
+                          className="mt-1"
+                          checked={audience.staffUserIds.includes(user.id)}
+                          onChange={() => toggleStaff(user.id)}
+                        />
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-bold text-slate-900">{user.name}</p>
+                          <p className="truncate text-xs text-slate-500">{user.email} - {user.role}</p>
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+                </SelectionPanel>
+              ) : null}
+            </section>
+
+            <section className="premium-card grid gap-3 rounded-2xl p-4">
+              <h2 className="text-sm font-black text-slate-900">Create Communication</h2>
+              <label className="grid gap-1 text-xs font-bold uppercase text-slate-500">
+                Type
+                <select className="premium-control rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900" value={form.type} onChange={(event) => setForm((current) => ({ ...current, type: event.target.value }))}>
+                  {campaignTypes.map((type) => (
+                    <option key={type} value={type}>{type.replaceAll("_", " ")}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="grid gap-1 text-xs font-bold uppercase text-slate-500">
+                Title
+                <input className="premium-control rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900" value={form.title} onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))} />
+              </label>
+              <label className="grid gap-1 text-xs font-bold uppercase text-slate-500">
+                Subject
+                <input className="premium-control rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900" value={form.subject} onChange={(event) => setForm((current) => ({ ...current, subject: event.target.value }))} />
+              </label>
+              <label className="grid gap-1 text-xs font-bold uppercase text-slate-500">
+                Body
+                <textarea className="premium-control min-h-32 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900" value={form.body} onChange={(event) => setForm((current) => ({ ...current, body: event.target.value }))} />
+              </label>
+              <button type="submit" className="btn btn-primary" disabled={creating || !form.title.trim() || !form.body.trim()}>
+                {creating ? "Creating..." : "Create draft"}
+              </button>
+            </section>
           </form>
 
-          <CampaignList
-            loading={loading}
-            campaigns={campaigns}
-            selectedChannel={selectedChannel}
-            selectedCampaignId={selectedCampaignId}
-            preview={preview}
-            sendingId={sendingId}
-            onChannelChange={setSelectedChannel}
-            onPreview={handlePreview}
-            onSend={handleSend}
-          />
+          <section className="grid gap-4">
+            <AudiencePreviewPanel
+              preview={preview}
+              selectedCampaignId={selectedCampaignId}
+              selectedCampaign={selectedCampaign}
+              previewLoading={previewLoading}
+              onPreviousPage={() => setAudience((current) => ({ ...current, page: Math.max(1, current.page - 1) }))}
+              onNextPage={() => setAudience((current) => ({ ...current, page: current.page + 1 }))}
+              onSend={() => {
+                if (selectedCampaignId) {
+                  void handleSend(selectedCampaignId);
+                }
+              }}
+              sending={sendingId === selectedCampaignId}
+              canSend={Boolean(preview && preview.eligibleRecipientsCount > 0 && selectedCampaignId)}
+              channel={audience.channel}
+            />
+
+            <CampaignList
+              loading={loading}
+              campaigns={campaigns}
+              selectedCampaignId={selectedCampaignId}
+              preview={preview}
+              sendingId={sendingId}
+              onPreview={(campaignId) => {
+                setSelectedCampaignId(campaignId);
+                void handlePreview(campaignId, audience);
+              }}
+              onSend={(campaignId) => {
+                void handleSend(campaignId);
+              }}
+            />
+          </section>
         </div>
       ) : (
         <DeliverySummary campaigns={campaigns} />
       )}
     </main>
   );
+}
+
+function audienceToDefinition(audience: AudienceFormState): AudienceDefinition {
+  return {
+    audienceType: audience.audienceType,
+    channel: audience.channel,
+    classId: audience.classId || undefined,
+    streamId: audience.streamId || undefined,
+    studentIds: audience.studentIds,
+    guardianContactIds: audience.guardianContactIds,
+    staffUserIds: audience.staffUserIds,
+    contactRoles: audience.contactRoles,
+    includeInactive: audience.includeInactive,
+    search: audience.search || undefined,
+    page: audience.page,
+    pageSize: audience.pageSize,
+    mode: audience.mode,
+  };
+}
+
+function toggleValue<T>(values: T[], value: T) {
+  return values.includes(value) ? values.filter((item) => item !== value) : [...values, value];
+}
+
+function audienceLabel(value: CommunicationAudienceType) {
+  return value
+    .replaceAll("_", " ")
+    .toLowerCase()
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function roleLabel(value: CommunicationContactRole) {
+  return value.replaceAll("_", " ").toLowerCase().replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function contextClassMatches(student: StudentListItem, classId: string) {
+  if (!classId) return true;
+  return student.classId === classId;
 }
 
 function Metric({ label, value }: { label: string; value: number }) {
@@ -198,26 +635,202 @@ function Metric({ label, value }: { label: string; value: number }) {
   );
 }
 
+function SelectionPanel({
+  title,
+  hint,
+  count,
+  children,
+}: {
+  title: string;
+  hint: string;
+  count: number;
+  children: ReactNode;
+}) {
+  return (
+    <section className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <div>
+          <h3 className="text-sm font-black text-slate-900">{title}</h3>
+          <p className="text-xs text-slate-500">{hint}</p>
+        </div>
+        <span className="rounded-full border border-slate-200 bg-white px-2 py-1 text-xs font-black text-slate-700">{count}</span>
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function AudiencePreviewPanel({
+  preview,
+  selectedCampaignId,
+  selectedCampaign,
+  previewLoading,
+  onPreviousPage,
+  onNextPage,
+  onSend,
+  sending,
+  canSend,
+  channel,
+}: {
+  preview: AudienceResolution | null;
+  selectedCampaignId: string;
+  selectedCampaign: CommunicationCampaign | null;
+  previewLoading: boolean;
+  onPreviousPage: () => void;
+  onNextPage: () => void;
+  onSend: () => void;
+  sending: boolean;
+  canSend: boolean;
+  channel: CommunicationChannel;
+}) {
+  return (
+    <section className="premium-card rounded-2xl p-4">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <h2 className="text-sm font-black text-slate-900">Preview recipients</h2>
+          <p className="text-xs text-slate-500">
+            {selectedCampaign ? selectedCampaign.title : "Select a campaign"} - {channel}
+          </p>
+        </div>
+        <button
+          type="button"
+          className="btn btn-primary"
+          onClick={onSend}
+          disabled={!selectedCampaignId || !canSend || sending}
+        >
+          {sending ? "Sending..." : "Confirm send"}
+        </button>
+      </div>
+
+      {!preview ? (
+        <p className="mt-4 text-sm text-slate-500">Preview an audience to see counts, eligibility, and recipient rows.</p>
+      ) : (
+        <div className="mt-4 grid gap-4">
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <PreviewMetric label="Matched students" value={preview.matchedStudentsCount} />
+            <PreviewMetric label="Raw contacts" value={preview.rawContactsCount} />
+            <PreviewMetric label="Eligible" value={preview.eligibleRecipientsCount} />
+            <PreviewMetric label="Excluded" value={preview.excludedRecipientsCount} />
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-3">
+            <PreviewMetric label="Missing contact" value={preview.missingContactsCount} />
+            <PreviewMetric label="Duplicates removed" value={preview.duplicateContactsRemovedCount} />
+            <PreviewMetric label="Opted out / invalid" value={preview.optedOutRecipientsCount + preview.invalidRecipientsCount + preview.bouncedRecipientsCount} />
+          </div>
+
+          <div className="flex items-center justify-between gap-3 text-xs text-slate-500">
+            <span>
+              Page {preview.page} of {preview.totalPages} - {preview.totalRecipients} total rows
+            </span>
+            <div className="flex gap-2">
+              <button type="button" className="rounded-lg border border-slate-200 px-3 py-1.5 font-bold text-slate-700 disabled:opacity-50" onClick={onPreviousPage} disabled={preview.page <= 1 || previewLoading}>
+                Previous
+              </button>
+              <button type="button" className="rounded-lg border border-slate-200 px-3 py-1.5 font-bold text-slate-700 disabled:opacity-50" onClick={onNextPage} disabled={preview.page >= preview.totalPages || previewLoading}>
+                Next
+              </button>
+            </div>
+          </div>
+
+          <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+            <div className="max-h-[680px] overflow-auto">
+              <table className="w-full table-fixed border-separate border-spacing-0">
+                <thead className="sticky top-0 bg-slate-50 text-left text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">
+                  <tr>
+                    <th className="w-[18%] px-3 py-3">Student</th>
+                    <th className="w-[20%] px-3 py-3">Contact</th>
+                    <th className="w-[18%] px-3 py-3">Role</th>
+                    <th className="w-[28%] px-3 py-3">Availability</th>
+                    <th className="w-[16%] px-3 py-3">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {preview.recipients.map((row) => (
+                    <tr key={row.id} className="border-t border-slate-100 align-top">
+                      <td className="px-3 py-3">
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-bold text-slate-900">{row.studentName || "No student assigned"}</p>
+                          <p className="truncate text-xs text-slate-500">{row.className ?? "No class"}{row.streamName ? ` / ${row.streamName}` : ""}</p>
+                        </div>
+                      </td>
+                      <td className="px-3 py-3">
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-semibold text-slate-900">{row.contactName}</p>
+                          <p className="truncate text-xs text-slate-500">{row.phone ?? row.email ?? "No contact details"}</p>
+                        </div>
+                      </td>
+                      <td className="px-3 py-3 text-sm text-slate-600">
+                        {row.relationship ?? "-"}
+                      </td>
+                      <td className="px-3 py-3">
+                        <div className="flex flex-wrap gap-1.5">
+                          <Badge active={row.channelAvailability.whatsapp}>WhatsApp</Badge>
+                          <Badge active={row.channelAvailability.sms}>SMS</Badge>
+                          <Badge active={row.channelAvailability.email}>Email</Badge>
+                        </div>
+                      </td>
+                      <td className="px-3 py-3">
+                        <div className="grid gap-1">
+                          <StatusPill status={row.eligibilityStatus} />
+                          {row.exclusionReason ? <p className="text-xs leading-5 text-slate-500">{row.exclusionReason}</p> : null}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function PreviewMetric({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+      <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500">{label}</p>
+      <p className="mt-1 text-2xl font-black text-slate-950">{value}</p>
+    </div>
+  );
+}
+
+function Badge({ active, children }: { active: boolean; children: ReactNode }) {
+  return (
+    <span className={`rounded-full border px-2.5 py-1 text-[11px] font-black ${active ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-slate-200 bg-slate-100 text-slate-500"}`}>
+      {children}
+    </span>
+  );
+}
+
+function StatusPill({ status }: { status: string }) {
+  const classes =
+    status === "ELIGIBLE" || status === "READY"
+      ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+      : status === "DUPLICATE_CONTACT" || status === "EXCLUDED"
+        ? "border-slate-200 bg-slate-100 text-slate-600"
+        : "border-rose-200 bg-rose-50 text-rose-700";
+  return <span className={`w-fit rounded-full border px-2.5 py-1 text-[11px] font-black ${classes}`}>{status.replaceAll("_", " ")}</span>;
+}
+
 function CampaignList({
   loading,
   campaigns,
-  selectedChannel,
   selectedCampaignId,
   preview,
   sendingId,
-  onChannelChange,
   onPreview,
   onSend,
 }: {
   loading: boolean;
   campaigns: CommunicationCampaign[];
-  selectedChannel: "WHATSAPP" | "SMS";
   selectedCampaignId: string;
-  preview: CommunicationPreview | null;
+  preview: AudienceResolution | null;
   sendingId: string | null;
-  onChannelChange: (channel: "WHATSAPP" | "SMS") => void;
-  onPreview: (campaignId: string) => Promise<void>;
-  onSend: (campaignId: string) => Promise<void>;
+  onPreview: (campaignId: string) => void;
+  onSend: (campaignId: string) => void;
 }) {
   if (loading) return <div className="rounded-2xl border border-slate-200 bg-white p-5 text-sm text-slate-500">Loading...</div>;
   if (campaigns.length === 0) return <div className="rounded-2xl border border-slate-200 bg-white p-5 text-sm text-slate-500">No communication campaigns yet.</div>;
@@ -225,37 +838,33 @@ function CampaignList({
     <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
       {campaigns.map((campaign) => (
         <article key={campaign.id} className="flex flex-col gap-2 border-b border-slate-100 p-4 last:border-0 md:flex-row md:items-center md:justify-between">
-          <div>
-            <h2 className="font-black text-slate-900">{campaign.title}</h2>
-            <p className="text-sm text-slate-600">{campaign.type.replaceAll("_", " ")} · {campaign._count?.recipients ?? 0} recipients · {campaign._count?.deliveries ?? 0} deliveries</p>
+          <div className="min-w-0">
+            <h2 className="truncate font-black text-slate-900">{campaign.title}</h2>
+            <p className="text-sm text-slate-600">
+              {campaign.type.replaceAll("_", " ")} - {campaign._count?.recipients ?? 0} recipients - {campaign._count?.deliveries ?? 0} deliveries
+            </p>
             <p className="mt-1 line-clamp-1 text-xs text-slate-500">{campaign.contents?.[0]?.body}</p>
             {selectedCampaignId === campaign.id && preview ? (
               <p className="mt-2 text-xs font-semibold text-slate-700">
-                Preview: {preview.ready} ready · {preview.blocked} blocked
+                Preview: {preview.eligibleRecipientsCount} eligible - {preview.excludedRecipientsCount} excluded
               </p>
             ) : null}
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <select
-              className="premium-control h-9 rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold text-slate-700"
-              value={selectedChannel}
-              onChange={(event) => onChannelChange(event.target.value as "WHATSAPP" | "SMS")}
-            >
-              <option value="WHATSAPP">WhatsApp</option>
-              <option value="SMS">SMS</option>
-            </select>
-            <button type="button" className="btn btn-secondary" onClick={() => void onPreview(campaign.id)}>
+            <button type="button" className="btn btn-secondary" onClick={() => onPreview(campaign.id)}>
               Preview
             </button>
             <button
               type="button"
               className="btn btn-primary"
-              onClick={() => void onSend(campaign.id)}
-              disabled={sendingId === campaign.id || selectedCampaignId !== campaign.id || !preview || preview.ready === 0}
+              onClick={() => onSend(campaign.id)}
+              disabled={sendingId === campaign.id || selectedCampaignId !== campaign.id || !preview || preview.eligibleRecipientsCount === 0}
             >
               {sendingId === campaign.id ? "Sending..." : "Confirm send"}
             </button>
-            <span className="w-fit rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-black uppercase text-slate-700">{campaign.status.replaceAll("_", " ")}</span>
+            <span className="w-fit rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-black uppercase text-slate-700">
+              {campaign.status.replaceAll("_", " ")}
+            </span>
           </div>
         </article>
       ))}

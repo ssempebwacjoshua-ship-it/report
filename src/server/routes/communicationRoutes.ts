@@ -12,16 +12,26 @@ import {
   queueCampaign,
   previewAudience,
   requestApproval,
+  resolveCommunicationAudience,
   sendCampaign,
   updateCampaignDraft,
   validateCampaign,
 } from "../services/communicationEngine";
-import { communicationChannels, communicationTypes } from "../../shared/communications";
+import { communicationAudienceTypes, communicationChannels, communicationContactRoles, communicationTypes } from "../../shared/communications";
 
 const audienceSchema = z.object({
+  audienceType: z.enum(communicationAudienceTypes).optional(),
   classId: z.string().uuid().optional(),
   streamId: z.string().uuid().optional(),
   studentIds: z.array(z.string().uuid()).optional(),
+  guardianContactIds: z.array(z.string().uuid()).optional(),
+  staffUserIds: z.array(z.string().uuid()).optional(),
+  contactRoles: z.array(z.enum(communicationContactRoles)).optional(),
+  includeInactive: z.boolean().optional(),
+  channel: z.enum(communicationChannels).optional(),
+  search: z.string().trim().optional(),
+  page: z.number().int().min(1).optional(),
+  pageSize: z.number().int().min(1).max(100).optional(),
   mode: z.enum(["GENERAL", "PER_STUDENT"]).optional(),
 });
 
@@ -94,8 +104,7 @@ export function communicationRoutes() {
   router.post("/api/communications/campaigns/:id/audience/estimate", requireSchoolPermission("communications.validate"), async (req, res, next) => {
     try {
       const definition = audienceSchema.parse(req.body);
-      const result = await createAudienceSnapshot(prisma, ctx(req), routeId(req), definition);
-      res.json({ estimate: { total: result.total, ready: result.ready, warnings: result.warnings, blocked: result.blocked } });
+      res.json({ estimate: await resolveCommunicationAudience(prisma, ctx(req), definition) });
     } catch (error) {
       next(error);
     }

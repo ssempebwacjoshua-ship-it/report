@@ -14,9 +14,22 @@ export const communicationTypes = [
 ] as const;
 
 export const communicationChannels = ["WHATSAPP", "SMS", "PARENT_PORTAL", "EMAIL", "PRINT"] as const;
+export const communicationAudienceTypes = [
+  "ALL_PARENTS_GUARDIANS",
+  "PARENTS_BY_CLASS",
+  "PARENTS_BY_STREAM",
+  "PARENTS_OF_SELECTED_STUDENTS",
+  "PARENTS_WITH_UNPAID_BALANCES",
+  "PARENTS_OF_ABSENT_STUDENTS",
+  "STAFF_TEACHERS",
+  "CUSTOM_SELECTED_CONTACTS",
+] as const;
+export const communicationContactRoles = ["MOTHER", "FATHER", "GUARDIAN", "PARENT", "EMERGENCY_CONTACT"] as const;
 
 export type CommunicationType = typeof communicationTypes[number];
 export type CommunicationChannel = typeof communicationChannels[number];
+export type CommunicationAudienceType = typeof communicationAudienceTypes[number];
+export type CommunicationContactRole = typeof communicationContactRoles[number];
 export type CommunicationDeliveryStatus =
   | "PENDING"
   | "QUEUED"
@@ -54,10 +67,77 @@ export type ValidationIssue = {
 };
 
 export type AudienceDefinition = {
+  audienceType?: CommunicationAudienceType;
   classId?: string;
   streamId?: string;
   studentIds?: string[];
+  guardianContactIds?: string[];
+  staffUserIds?: string[];
+  contactRoles?: CommunicationContactRole[];
+  includeInactive?: boolean;
+  channel?: CommunicationChannel;
+  search?: string;
+  page?: number;
+  pageSize?: number;
   mode?: "GENERAL" | "PER_STUDENT";
+};
+
+export type AudienceEligibilityStatus =
+  | "ELIGIBLE"
+  | "MISSING_PHONE"
+  | "MISSING_EMAIL"
+  | "INVALID_PHONE"
+  | "INVALID_EMAIL"
+  | "OPTED_OUT"
+  | "BOUNCED"
+  | "DUPLICATE_CONTACT"
+  | "INACTIVE_STUDENT"
+  | "NO_CONTACT"
+  | "NOT_IN_SCOPE";
+
+export type AudienceRecipientPreview = {
+  id: string;
+  source: "guardian" | "staff";
+  studentId: string | null;
+  studentName: string;
+  className: string | null;
+  streamName: string | null;
+  contactName: string;
+  relationship: string | null;
+  phone: string | null;
+  email: string | null;
+  channelAvailability: {
+    whatsapp: boolean;
+    sms: boolean;
+    email: boolean;
+  };
+  selectedChannel: CommunicationChannel;
+  eligibilityStatus: AudienceEligibilityStatus;
+  exclusionReason: string | null;
+  dedupeKey: string;
+  contactRole: CommunicationContactRole | null;
+};
+
+export type AudienceResolutionSummary = {
+  audienceType: CommunicationAudienceType;
+  matchedStudentsCount: number;
+  rawContactsCount: number;
+  eligibleRecipientsCount: number;
+  missingContactsCount: number;
+  duplicateContactsRemovedCount: number;
+  excludedRecipientsCount: number;
+  optedOutRecipientsCount: number;
+  bouncedRecipientsCount: number;
+  invalidRecipientsCount: number;
+  channel: CommunicationChannel;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+  totalRecipients: number;
+};
+
+export type AudienceResolution = AudienceResolutionSummary & {
+  recipients: AudienceRecipientPreview[];
 };
 
 export const validCampaignTransitions: Record<CommunicationCampaignStatus, CommunicationCampaignStatus[]> = {

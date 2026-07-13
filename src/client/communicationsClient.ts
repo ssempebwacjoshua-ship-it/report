@@ -1,4 +1,5 @@
 import { getApiBaseUrl, makeRequestHeaders, parseApiError } from "./apiBase";
+import type { AudienceDefinition, AudienceResolution } from "../shared/communications";
 
 const API_BASE = getApiBaseUrl();
 
@@ -27,6 +28,7 @@ export async function createCommunicationCampaign(body: {
   subject?: string;
   body: string;
   shortBody?: string;
+  audience?: AudienceDefinition;
 }): Promise<{ campaign: CommunicationCampaign }> {
   const res = await fetch(`${API_BASE}/api/communications/campaigns`, {
     method: "POST",
@@ -37,28 +39,7 @@ export async function createCommunicationCampaign(body: {
   return res.json();
 }
 
-export type AudienceDefinition = {
-  classId?: string;
-  streamId?: string;
-  studentIds?: string[];
-  mode?: "GENERAL" | "PER_STUDENT";
-};
-
-export type CommunicationPreview = {
-  total: number;
-  ready: number;
-  blocked: number;
-  recipients: Array<{
-    displayName: string;
-    studentName: string;
-    admissionNumber: string;
-    phoneMasked: string;
-    status: string;
-    blockedReasonCode: string | null;
-  }>;
-};
-
-export async function previewCommunicationRecipients(campaignId: string, audience: AudienceDefinition): Promise<{ preview: CommunicationPreview }> {
+export async function previewCommunicationRecipients(campaignId: string, audience: AudienceDefinition): Promise<{ preview: AudienceResolution }> {
   const res = await fetch(`${API_BASE}/api/communications/campaigns/${campaignId}/preview`, {
     method: "POST",
     headers: makeRequestHeaders({ "Content-Type": "application/json" }),

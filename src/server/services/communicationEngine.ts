@@ -5,12 +5,14 @@ import {
   communicationChannels,
   estimateSmsSegments,
   hashRenderedContent,
-  normalizePhoneToE164,
   type AudienceDefinition,
   type CommunicationChannel,
   type CommunicationCampaignStatus,
   type ValidationIssue,
 } from "../../shared/communications";
+import { collectCommunicationAudienceRows, resolveCommunicationAudience } from "./communicationAudienceService";
+
+export { resolveCommunicationAudience } from "./communicationAudienceService";
 import { createProviderForChannel } from "./communicationProviders";
 
 type Db = PrismaClient;
@@ -138,92 +140,55 @@ export async function updateCampaignDraft(db: Db, ctx: CommunicationContext, id:
 
 export async function createAudienceSnapshot(db: Db, ctx: CommunicationContext, campaignId: string, definition: AudienceDefinition) {
   const campaign = await getCampaignOrThrow(db, ctx, campaignId);
-  const students = await resolveStudents(db, ctx.schoolId, definition);
-  const contacts = await db.guardianContact.findMany({
-    where: { schoolId: ctx.schoolId, studentId: { in: students.map((s) => s.id) }, canReceiveReports: true },
-    orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }],
-  });
+  const collection = await collectCommunicationAudienceRows(db, ctx, definition);
   const latest = campaign.audienceSnapshots[0]?.snapshotVersion ?? 0;
-  const seenGeneral = new Set<string>();
-  let ready = 0;
-  let warnings = 0;
-  let blocked = 0;
   const snapshot = await db.$transaction(async (tx) => {
     const row = await tx.communicationAudienceSnapshot.create({
       data: { campaignId, snapshotVersion: latest + 1, createdByUserId: ctx.actorId },
     });
-    const recipients = [];
-    for (const student of students) {
-      for (const contact of contacts.filter((c) => c.studentId === student.id)) {
-        if ((definition.mode ?? "GENERAL") === "GENERAL") {
-          const key = `${contact.guardianName}:${contact.phone ?? ""}:${contact.email ?? ""}`;
-          if (seenGeneral.has(key)) continue;
-          seenGeneral.add(key);
-        }
-        const phoneE164 = normalizePhoneToE164(contact.phone);
-        const status = phoneE164 ? "READY" : "BLOCKED";
-        if (status === "READY") ready += 1; else blocked += 1;
-        if (contact.preferredContactMethod === "EMAIL") warnings += 1;
-        recipients.push({
-          schoolId: ctx.schoolId,
-          campaignId,
-          audienceSnapshotId: row.id,
-          guardianId: contact.id,
-          studentId: student.id,
-          displayName: contact.guardianName,
-          relationship: contact.relationship,
-          phoneE164,
-          email: contact.email,
-          preferredChannel: contact.preferredContactMethod === "SMS" ? "SMS" : "WHATSAPP",
-          status,
-          warningCodesJson: contact.preferredContactMethod === "EMAIL" ? ["PREFERRED_EMAIL_UNSUPPORTED"] : [],
-          blockedReasonCode: phoneE164 ? null : "MISSING_PHONE",
-          personalisationJson: {
-            guardianName: contact.guardianName,
-            studentName: `${student.firstName} ${student.lastName}`,
-            admissionNumber: student.admissionNumber,
-            schoolName: ctx.schoolName,
-            communicationTitle: campaign.title,
-          },
-        });
-      }
-    }
+    const recipients = collection.rows.map((recipient) => {
+      const eligible = recipient.eligibilityStatus === "ELIGIBLE";
+      const status = eligible ? "READY" : recipient.eligibilityStatus === "DUPLICATE_CONTACT" ? "EXCLUDED" : "BLOCKED";
+      const guardianId = recipient.source === "guardian" ? recipient.id.replace(/^guardian:/, "") : null;
+      const staffUserId = recipient.source === "staff" ? recipient.id.replace(/^staff:/, "") : null;
+      return {
+        schoolId: ctx.schoolId,
+        campaignId,
+        audienceSnapshotId: row.id,
+        guardianId,
+        studentId: recipient.studentId,
+        staffUserId,
+        displayName: recipient.contactName || recipient.studentName,
+        relationship: recipient.relationship,
+        phoneE164: eligible && recipient.channelAvailability.sms ? recipient.phone : null,
+        email: recipient.email,
+        preferredChannel: recipient.selectedChannel,
+        status,
+        warningCodesJson: eligible ? [] : null,
+        blockedReasonCode: eligible ? null : recipient.eligibilityStatus,
+        personalisationJson: {
+          guardianName: recipient.contactName || recipient.studentName,
+          studentName: recipient.studentName,
+          className: recipient.className,
+          streamName: recipient.streamName,
+          schoolName: ctx.schoolName,
+          communicationTitle: campaign.title,
+          contactRole: recipient.contactRole,
+        },
+      };
+    });
     if (recipients.length) await tx.communicationRecipient.createMany({ data: recipients as never[] });
     return tx.communicationAudienceSnapshot.update({ where: { id: row.id }, data: { recipientCount: recipients.length } });
   });
+  const ready = collection.rows.filter((row) => row.eligibilityStatus === "ELIGIBLE").length;
+  const warnings = 0;
+  const blocked = collection.rows.filter((row) => row.eligibilityStatus !== "ELIGIBLE").length;
   await audit(db, ctx, "communication.audience_snapshot_created", campaignId, { snapshotId: snapshot.id, ready, warnings, blocked });
-  return { snapshot, total: ready + blocked, ready, warnings, blocked };
+  return { snapshot, total: collection.rows.length, ready, warnings, blocked };
 }
 
 export async function previewAudience(db: Db, ctx: CommunicationContext, definition: AudienceDefinition) {
-  const students = await resolveStudents(db, ctx.schoolId, definition);
-  const contacts = await db.guardianContact.findMany({
-    where: { schoolId: ctx.schoolId, studentId: { in: students.map((s) => s.id) }, canReceiveReports: true },
-    orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }],
-    include: { student: { select: { firstName: true, lastName: true, admissionNumber: true } } },
-  });
-  const seenGeneral = new Set<string>();
-  let ready = 0;
-  let blocked = 0;
-  const recipients = [];
-  for (const contact of contacts) {
-    if ((definition.mode ?? "GENERAL") === "GENERAL") {
-      const key = `${contact.guardianName}:${contact.phone ?? ""}:${contact.email ?? ""}`;
-      if (seenGeneral.has(key)) continue;
-      seenGeneral.add(key);
-    }
-    const phoneE164 = normalizePhoneToE164(contact.phone);
-    if (phoneE164) ready += 1; else blocked += 1;
-    recipients.push({
-      displayName: contact.guardianName,
-      studentName: `${contact.student.firstName} ${contact.student.lastName}`,
-      admissionNumber: contact.student.admissionNumber,
-      phoneMasked: maskPhone(phoneE164 ?? contact.phone),
-      status: phoneE164 ? "READY" : "BLOCKED",
-      blockedReasonCode: phoneE164 ? null : "MISSING_PHONE",
-    });
-  }
-  return { total: recipients.length, ready, blocked, recipients: recipients.slice(0, 50) };
+  return resolveCommunicationAudience(db, ctx, definition);
 }
 
 export async function validateCampaign(db: Db, ctx: CommunicationContext, campaignId: string) {
@@ -477,20 +442,6 @@ export function renderContent(template: string, values: Record<string, unknown>)
   return template.replace(/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g, (_match, key) => String(values[key] ?? ""));
 }
 
-async function resolveStudents(db: Db, schoolId: string, definition: AudienceDefinition) {
-  if (definition.studentIds?.length) {
-    return db.student.findMany({ where: { schoolId, id: { in: definition.studentIds }, isActive: true } });
-  }
-  if (definition.classId) {
-    const enrollments = await db.classEnrollment.findMany({
-      where: { schoolId, classId: definition.classId, streamId: definition.streamId, isActive: true, status: "ACTIVE" },
-      include: { student: true },
-    });
-    return enrollments.map((e) => e.student).filter((s) => s.isActive);
-  }
-  return db.student.findMany({ where: { schoolId, isActive: true }, take: 500 });
-}
-
 async function audit(db: Db, ctx: CommunicationContext, action: string, correlationId: string, details: Record<string, unknown>) {
   await db.auditLog.create({
     data: {
@@ -515,11 +466,4 @@ async function transitionCampaignIfAllowed(db: Db, ctx: CommunicationContext, ca
     return db.communicationCampaign.update({ where: { id: campaignId }, data: { status: to as never } });
   }
   return transitionCampaign(db, ctx, campaignId, to);
-}
-
-function maskPhone(value: string | null | undefined) {
-  if (!value) return "";
-  const normalized = value.replace(/\s+/g, "");
-  if (normalized.length <= 5) return "***";
-  return `${normalized.slice(0, 4)}***${normalized.slice(-3)}`;
 }
