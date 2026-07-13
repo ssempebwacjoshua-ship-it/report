@@ -84,7 +84,10 @@ describe("authEmailTemplates", () => {
 
     expect(rendered.html).toContain("Request Demo");
     expect(rendered.html).toContain("SSAMENJ Technologies Ltd");
+    expect(rendered.html).toContain("School Connect wristband");
+    expect(rendered.html).toContain("Tracks attendance fast, does not need a battery");
     expect(rendered.text).toContain("Request Demo: https://ssamenj.online/contact");
     expect(rendered.text).toContain("School Connect | Report Lab | Kids Wallet | Smart Pages");
+    expect(rendered.text).toContain("Tracks attendance fast, does not need a battery");
   });
 });
