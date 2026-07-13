@@ -523,7 +523,19 @@ export async function scanAttendance(
   }
   const policy = await getSchoolNfcPolicy(ctx, db);
   const target = await resolveNfcScanTarget(db, schoolId, input.tokenOrUid, { applyFeeHoldBlocking: true });
-  if (!target) throw Object.assign(new Error("NFC token not recognized."), { status: 404 });
+  if (!target) {
+    await db.nfcGateScan.create({
+      data: {
+        schoolId,
+        studentId: null,
+        credentialId: null,
+        scannedByUserId: ctx.actorId ?? null,
+        result: GateScanResult.BLOCKED,
+        reason: "Unassigned NFC card",
+      },
+    });
+    throw Object.assign(new Error("NFC token not recognized."), { status: 404 });
+  }
 
   const direction = input.direction ?? AttendanceDirection.TAP_IN;
   const { start, end } = getZonedDayRange(new Date(), policy.policy.timezone);

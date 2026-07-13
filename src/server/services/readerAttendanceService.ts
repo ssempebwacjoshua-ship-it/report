@@ -1,5 +1,5 @@
 import type { Prisma } from "@prisma/client";
-import { CredentialStatus, CredentialType } from "@prisma/client";
+import { CredentialStatus, CredentialType, GateScanResult } from "@prisma/client";
 import { prisma as defaultPrisma } from "../db/prisma";
 import {
   attendanceProfileToLegacyStudentType,
@@ -56,7 +56,7 @@ type EventBody = {
 
 type ReaderAttendanceDb = Pick<
   Prisma.TransactionClient,
-  "schoolNfcPolicy" | "studentCredential" | "nfcTag" | "studentFeeHold" | "studentGateHold" | "dailyAttendance" | "campusMovementEvent" | "classroomAttendanceEvent"
+  "schoolNfcPolicy" | "studentCredential" | "nfcTag" | "studentFeeHold" | "studentGateHold" | "dailyAttendance" | "campusMovementEvent" | "classroomAttendanceEvent" | "nfcGateScan"
 >;
 
 type ResolvedStudent = {
@@ -761,6 +761,16 @@ export async function processLocationAwareReaderEvent(
   const policy = await loadPolicy(device.schoolId, db);
   const student = await resolveStudentForReader(device.schoolId, body, db);
   if (!student) {
+    await db.nfcGateScan.create({
+      data: {
+        schoolId: device.schoolId,
+        studentId: null,
+        credentialId: null,
+        scannedByUserId: null,
+        result: GateScanResult.BLOCKED,
+        reason: "Unassigned NFC card",
+      },
+    });
     return {
       response: respond("ATTENDANCE", "UNKNOWN_CREDENTIAL", "Wristband not registered", "error", false),
       scannedAt,

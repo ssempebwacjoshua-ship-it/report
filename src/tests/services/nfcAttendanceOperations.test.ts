@@ -71,6 +71,7 @@ function createDb(options: {
     scannedAt: Date;
     student: (typeof students)[number];
   }> = [];
+  const gateScans: Array<Record<string, unknown>> = [];
   const feeHolds: Array<{
     id: string;
     schoolId: string;
@@ -187,19 +188,32 @@ function createDb(options: {
     nfcTag: {
       findFirst: async () => null,
     },
-    nfcGateScan: {
-      create: async ({ data }: { data: Record<string, unknown> }) => ({
-        ...data,
-        id: `gate-${events.length + 1}`,
-        scannedAt: new Date("2026-06-21T09:00:00.000Z"),
+    school: {
+      findUnique: async () => ({
+        academicYears: [{
+          id: "year-a",
+          name: "2025/2026",
+          terms: [{ id: "term-a", name: "Term 1" }],
+        }],
       }),
+    },
+    nfcGateScan: {
+      create: async ({ data }: { data: Record<string, unknown> }) => {
+        const row = {
+          ...data,
+          id: `gate-${gateScans.length + 1}`,
+          scannedAt: new Date("2026-06-21T09:00:00.000Z"),
+        };
+        gateScans.push(row);
+        return row;
+      },
     },
     auditLog: {
       create: vi.fn(async () => ({})),
     },
   };
 
-  return { db: db as never, events, feeHolds, policy, students };
+  return { db: db as never, events, gateScans, feeHolds, policy, students };
 }
 
 describe("NFC attendance operations", () => {
@@ -318,5 +332,27 @@ describe("NFC attendance operations", () => {
         db,
       ),
     ).rejects.toMatchObject({ status: 403 });
+  });
+
+  it("logs unknown attendance scans as blocked gate scans before returning 404", async () => {
+    const { db, gateScans } = createDb();
+    db.studentCredential.findFirst = async () => null;
+
+    await expect(
+      scanAttendance(
+        { schoolId: "school-a", actorId: "device-a", role: "GATE_SECURITY" },
+        { tokenOrUid: "unknown-credential", direction: AttendanceDirection.TAP_IN },
+        db,
+      ),
+    ).rejects.toMatchObject({ status: 404 });
+
+    expect(gateScans).toHaveLength(1);
+    expect(gateScans[0]).toMatchObject({
+      schoolId: "school-a",
+      studentId: null,
+      credentialId: null,
+      result: GateScanResult.BLOCKED,
+      reason: "Unassigned NFC card",
+    });
   });
 });

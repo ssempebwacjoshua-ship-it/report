@@ -155,6 +155,7 @@ type LocationAwareState = {
   dailyAttendances: Array<Record<string, any>>;
   campusMovementEvents: Array<Record<string, any>>;
   classroomAttendanceEvents: Array<Record<string, any>>;
+  nfcGateScans: Array<Record<string, any>>;
   auditLogs: Array<Record<string, any>>;
 };
 
@@ -242,6 +243,7 @@ function locationAwareState(overrides: {
     dailyAttendances: [],
     campusMovementEvents: [],
     classroomAttendanceEvents: [],
+    nfcGateScans: [],
     auditLogs: [],
   };
 }
@@ -381,6 +383,13 @@ function buildLocationAwareTransactionMocks(
         return row;
       },
     },
+    nfcGateScan: {
+      create: async ({ data }: { data: Record<string, any> }) => {
+        const row = { id: `gate-${working.nfcGateScans.length + 1}`, scannedAt: new Date("2026-07-11T10:00:00.000Z"), ...data };
+        working.nfcGateScans.push(row);
+        return row;
+      },
+    },
     auditLog: {
       create: async ({ data }: { data: Record<string, any> }) => {
         if (options.failAuditCreate) {
@@ -452,6 +461,7 @@ function buildLocationAwareTransactionMocks(
     state.dailyAttendances = working.dailyAttendances;
     state.campusMovementEvents = working.campusMovementEvents;
     state.classroomAttendanceEvents = working.classroomAttendanceEvents;
+    state.nfcGateScans = working.nfcGateScans;
     state.auditLogs = working.auditLogs;
 
     if (currentCall === 1 && options.firstCommitted) {
@@ -1048,6 +1058,30 @@ describe("readerGatewayRoutes location-aware atomicity", () => {
     expect(state.campusMovementEvents).toHaveLength(1);
     expect(state.dailyAttendances).toHaveLength(1);
     expect(state.auditLogs).toHaveLength(1);
+  });
+
+  it("logs an unknown credential as a blocked scan and still updates the device", async () => {
+    const state = locationAwareState();
+    state.credential = null as any;
+    buildLocationAwareTransactionMocks(state);
+
+    const res = await request(buildApp())
+      .post("/api/readers/events")
+      .set("Authorization", "Bearer device-token-123")
+      .send(eventBody({ eventId: "unknown-event-1", credential: "UNKNOWN-WRISTBAND", deviceTime: "2026-07-11T08:30:00Z" }));
+
+    expect(res.status).toBe(404);
+    expect(res.body.status).toBe("UNKNOWN_CREDENTIAL");
+    expect(state.nfcGateScans).toHaveLength(1);
+    expect(state.nfcGateScans[0]).toMatchObject({
+      schoolId: "school-1",
+      studentId: null,
+      credentialId: null,
+      result: "BLOCKED",
+      reason: "Unassigned NFC card",
+    });
+    expect(state.device.lastScanStatus).toBe("UNKNOWN_CREDENTIAL");
+    expect(state.device.lastScanMessage).toBe("Wristband not registered");
   });
 
   it("returns a stored replay instead of 500 during a same-event race", async () => {

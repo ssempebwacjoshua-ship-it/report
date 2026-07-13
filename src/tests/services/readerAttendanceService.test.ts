@@ -32,6 +32,7 @@ function createDb(options: {
   const dailyAttendances: Array<Record<string, any>> = [];
   const campusMovementEvents: Array<Record<string, any>> = [];
   const classroomAttendanceEvents: Array<Record<string, any>> = [];
+  const nfcGateScans: Array<Record<string, any>> = [];
   const feeHolds = options.activeFeeHold ? [{
     id: "fee-hold-1",
     schoolId: "school-1",
@@ -172,10 +173,18 @@ function createDb(options: {
         return row;
       },
     },
+    nfcGateScan: {
+      create: async ({ data }: { data: Record<string, any> }) => {
+        const row = { id: `gate-${nfcGateScans.length + 1}`, scannedAt: new Date("2026-07-11T10:00:00.000Z"), ...data };
+        nfcGateScans.push(row);
+        return row;
+      },
+    },
     stores: {
       dailyAttendances,
       campusMovementEvents,
       classroomAttendanceEvents,
+      nfcGateScans,
       gateHolds,
     },
   };
@@ -313,6 +322,29 @@ describe("readerAttendanceService", () => {
     expect(result.response.status).toBe("UNCLASSIFIED");
     expect(db.stores.dailyAttendances).toHaveLength(1);
     expect(db.stores.campusMovementEvents[0]?.type).toBe("UNCLASSIFIED_GATE_SCAN");
+  });
+
+  it("logs an unknown credential as a blocked gate scan instead of dropping it", async () => {
+    const db = createDb();
+    db.studentCredential.findFirst = async () => null;
+    db.nfcTag.findFirst = async () => null;
+
+    const result = await processLocationAwareReaderEvent(gateReader(), {
+      eventId: "event-unknown",
+      credential: "UNKNOWN-WRISTBAND",
+      deviceTime: "2026-07-11T08:30:00.000Z",
+    }, db as never);
+
+    expect(result.response.status).toBe("UNKNOWN_CREDENTIAL");
+    expect(result.statusCode).toBe(404);
+    expect(db.stores.nfcGateScans).toHaveLength(1);
+    expect(db.stores.nfcGateScans[0]).toMatchObject({
+      schoolId: "school-1",
+      studentId: null,
+      credentialId: null,
+      result: "BLOCKED",
+      reason: "Unassigned NFC card",
+    });
   });
 
   it("does not fabricate a departure outside the dismissal window", async () => {

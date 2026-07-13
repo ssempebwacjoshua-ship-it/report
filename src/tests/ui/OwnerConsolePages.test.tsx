@@ -340,6 +340,7 @@ describe("Owner console responsive layouts", () => {
     await waitFor(() => expect(screen.getByRole("heading", { name: /reader management/i, level: 2 })).toBeInTheDocument());
     await waitFor(() => expect(screen.getAllByText(/Buloba High School/i).length).toBeGreaterThan(0));
     expect(screen.getAllByText(/NFC Reader Gate 01/i).length).toBeGreaterThan(0);
+    expect(screen.getByText(/unknown taps are retained as blocked/i)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /refresh/i })).toBeInTheDocument();
   });
 

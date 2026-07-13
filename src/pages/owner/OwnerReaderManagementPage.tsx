@@ -177,6 +177,10 @@ export function OwnerReaderManagementPage() {
         </button>
       </div>
 
+      <div className="rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
+        Unknown taps are retained as blocked <span className="font-semibold">Unassigned NFC card</span> scan records so operators can review them in recent scans.
+      </div>
+
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
         <MetricCard label="Controllers" value={stats.total} />
         <MetricCard label="Online" value={stats.online} />
