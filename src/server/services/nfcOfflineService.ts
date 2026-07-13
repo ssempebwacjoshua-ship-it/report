@@ -38,6 +38,15 @@ export type OfflineDeviceConfigurationInput = {
   direction?: string | null;
 };
 
+type AttendanceReaderConfiguration = {
+  mode?: "GATE" | "CANTEEN" | "ATTENDANCE" | string | null;
+  locationType?: string | null;
+  attendanceMode?: string | null;
+  studentScope?: string | null;
+  classId?: string | null;
+  streamId?: string | null;
+};
+
 function requireSchoolId(ctx: OfflineContext): string {
   if (!ctx.schoolId) throw Object.assign(new Error("School context required."), { status: 401 });
   return ctx.schoolId;
@@ -66,9 +75,14 @@ function requireBootstrapPermission(ctx: OfflineContext, mode: "GATE" | "CANTEEN
   }
 }
 
-function validateAttendanceReaderConfiguration(input: OfflineDeviceConfigurationInput) {
-  if (!input.locationType && !input.attendanceMode && !input.studentScope && !input.classId && !input.streamId) {
+function validateAttendanceReaderConfiguration(input: AttendanceReaderConfiguration) {
+  const requiresAttendanceFields = input.mode === "ATTENDANCE" || Boolean(input.locationType || input.attendanceMode || input.studentScope || input.classId || input.streamId);
+  if (!requiresAttendanceFields) {
     return;
+  }
+
+  if (!input.locationType || !input.attendanceMode) {
+    throw Object.assign(new Error("Attendance readers require both a location type and attendance mode."), { status: 400 });
   }
 
   if (input.locationType === "GATE") {
@@ -618,7 +632,14 @@ export async function registerOfflineDevice(
 ) {
   const schoolId = requireSchoolId(ctx);
   requirePermission(ctx, "nfc.devices.manage");
-  validateAttendanceReaderConfiguration(input);
+  validateAttendanceReaderConfiguration({
+    mode: input.mode ?? "GATE",
+    locationType: input.locationType ?? null,
+    attendanceMode: input.attendanceMode ?? null,
+    studentScope: input.studentScope ?? null,
+    classId: input.classId ?? null,
+    streamId: input.streamId ?? null,
+  });
   const token = input.deviceToken ?? input.deviceKey ?? randomUUID();
   const tokenHash = createHash("sha256").update(token).digest("hex");
 
@@ -653,7 +674,6 @@ export async function updateOfflineDeviceConfiguration(
 ) {
   const schoolId = requireSchoolId(ctx);
   requirePermission(ctx, "nfc.devices.manage");
-  validateAttendanceReaderConfiguration(input);
 
   const existing = await db.nfcOfflineDevice.findFirst({
     where: {
@@ -664,6 +684,15 @@ export async function updateOfflineDeviceConfiguration(
   if (!existing) {
     throw Object.assign(new Error("Offline device not found."), { status: 404 });
   }
+
+  validateAttendanceReaderConfiguration({
+    mode: existing.mode,
+    locationType: input.locationType ?? existing.locationType ?? null,
+    attendanceMode: input.attendanceMode ?? existing.attendanceMode ?? null,
+    studentScope: input.studentScope ?? existing.studentScope ?? null,
+    classId: input.classId ?? existing.classId ?? null,
+    streamId: input.streamId ?? existing.streamId ?? null,
+  });
 
   const updated = await db.nfcOfflineDevice.update({
     where: { id: existing.id },

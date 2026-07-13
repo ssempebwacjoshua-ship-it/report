@@ -208,6 +208,9 @@ export function NfcOfflinePage() {
   const attendanceDevices = syncStatus?.devices.filter((device) => device.mode === "ATTENDANCE") ?? [];
   const selectedDevice = attendanceDevices.find((device) => device.id === selectedDeviceId) ?? null;
   const selectedClass = classes.find((item) => item.id === readerConfig.classId) ?? null;
+  const incompleteAttendanceSetup = selectedDevice
+    ? !readerConfig.locationType || !readerConfig.attendanceMode
+    : false;
 
   useEffect(() => {
     if (!selectedDevice && attendanceDevices.length > 0) {
@@ -231,6 +234,10 @@ export function NfcOfflinePage() {
 
   async function handleSaveReaderConfig() {
     if (!selectedDevice) return;
+    if (selectedDevice.mode === "ATTENDANCE" && (!readerConfig.locationType || !readerConfig.attendanceMode)) {
+      setStatusMsg("Incomplete setup: attendance readers require a location type and attendance mode.");
+      return;
+    }
     if (!readerConfig.locationType && !window.confirm("This will keep the reader in legacy mode until it is explicitly configured. Continue?")) {
       return;
     }
@@ -443,9 +450,11 @@ export function NfcOfflinePage() {
                         <div className="font-semibold text-slate-900">{device.name}</div>
                         <div className="font-mono text-xs text-slate-500">{device.deviceKey}</div>
                       </td>
-                      <td className="px-4 py-3">
+              <td className="px-4 py-3">
                         <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${device.isActive && device.status === "ACTIVE" ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"}`}>
-                          {device.isActive && device.status === "ACTIVE" ? "Active" : "Disabled"}
+                          {device.isActive && device.status === "ACTIVE"
+                            ? (device.mode === "ATTENDANCE" && (!device.locationType || !device.attendanceMode) ? "Incomplete setup" : "Active")
+                            : "Disabled"}
                         </span>
                       </td>
                       <td className="px-4 py-3">
@@ -546,6 +555,11 @@ export function NfcOfflinePage() {
           <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
             Gate readers should not be scoped to a class or stream. Classroom readers should be assigned to a class and, when used for assigned-class checks, a stream.
           </div>
+          {selectedDevice.mode === "ATTENDANCE" && incompleteAttendanceSetup ? (
+            <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+              Incomplete setup: attendance readers require both a location type and attendance mode before they can process taps.
+            </div>
+          ) : null}
           <button type="button" className="mt-4 rounded-xl bg-blue-600 px-4 py-3 text-sm font-bold text-white hover:bg-blue-700 disabled:opacity-60" onClick={() => { void handleSaveReaderConfig(); }} disabled={configSaving}>
             {configSaving ? "Saving..." : "Save Reader Configuration"}
           </button>

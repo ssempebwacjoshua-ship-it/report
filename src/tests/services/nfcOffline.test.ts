@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import {
   bootstrapOfflineSnapshot,
+  updateOfflineDeviceConfiguration,
   syncOfflineEvents,
   getOfflineSyncStatus,
   registerOfflineDevice,
@@ -145,9 +146,21 @@ function makeMockDb() {
     },
     nfcOfflineDevice: {
       create: async ({ data }: { data: unknown }) => { offlineDeviceStore.push(data); return data; },
-      findFirst: async ({ where }: { where: { schoolId: string } }) =>
-        offlineDeviceStore.find((device) => (device as { schoolId?: string }).schoolId === where.schoolId) ?? null,
+      findFirst: async ({ where }: { where: { schoolId: string; id?: string; deviceKey?: string; OR?: Array<{ id?: string; deviceKey?: string }> } }) =>
+        offlineDeviceStore.find((device) => {
+          const row = device as { schoolId?: string; id?: string; deviceKey?: string };
+          if (row.schoolId !== where.schoolId) return false;
+          const matchesDirect = (!where.id || row.id === where.id) && (!where.deviceKey || row.deviceKey === where.deviceKey);
+          const matchesOr = !where.OR || where.OR.some((cond) => (!cond.id || row.id === cond.id) || (!cond.deviceKey || row.deviceKey === cond.deviceKey));
+          return matchesDirect && matchesOr;
+        }) ?? null,
       findMany: async () => offlineDeviceStore,
+      update: async ({ where, data }: { where: { id: string }; data: Record<string, unknown> }) => {
+        const device = offlineDeviceStore.find((row) => (row as { id?: string }).id === where.id);
+        if (!device) return null;
+        Object.assign(device as Record<string, unknown>, data);
+        return device;
+      },
       updateMany: async () => null,
     },
     nfcOfflineSyncBatch: {
@@ -611,5 +624,45 @@ describe("registerOfflineDevice", () => {
     // offlineDeviceStore has all devices, but service filters by schoolId
     // Our mock doesn't filter by schoolId in findMany — skip this assertion as mock limitation
     expect(status.devices).toBeDefined();
+  });
+
+  it("rejects attendance reader registration without required setup fields", async () => {
+    const db = makeMockDb();
+    await expect(registerOfflineDevice(
+      ADMIN_CTX,
+      {
+        name: "Attendance Gate",
+        deviceKey: "att-1",
+        roleScope: "ATTENDANCE",
+        mode: "ATTENDANCE",
+        locationType: null,
+        attendanceMode: null,
+      },
+      db,
+    )).rejects.toMatchObject({ status: 400 });
+  });
+
+  it("rejects incomplete attendance device updates", async () => {
+    const db = makeMockDb();
+    offlineDeviceStore.push({
+      id: "dev-att-1",
+      schoolId: "school-a",
+      name: "Attendance Gate",
+      deviceKey: "attendance-gate-01",
+      mode: "ATTENDANCE",
+      locationType: null,
+      locationName: null,
+      attendanceMode: null,
+      studentScope: null,
+      classId: null,
+      streamId: null,
+    });
+
+    await expect(updateOfflineDeviceConfiguration(
+      ADMIN_CTX,
+      "dev-att-1",
+      { locationType: "GATE" },
+      db,
+    )).rejects.toMatchObject({ status: 400 });
   });
 });

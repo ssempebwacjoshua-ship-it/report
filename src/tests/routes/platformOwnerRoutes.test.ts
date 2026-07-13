@@ -488,6 +488,7 @@ describe("platformOwnerRoutes ? reader management inventory", () => {
     expect(res.status).toBe(200);
     expect(Array.isArray(res.body.readers)).toBe(true);
     expect(res.body.readers.some((reader: { id: string }) => reader.id === fixture.reader.id)).toBe(true);
+    expect(res.body.readers.find((reader: { id: string }) => reader.id === fixture.reader.id)?.setupStatus).toBe("INCOMPLETE_SETUP");
   });
 
   it("returns a reader detail payload with diagnostics history", async () => {

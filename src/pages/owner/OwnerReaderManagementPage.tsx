@@ -50,6 +50,12 @@ function ReaderBadge({ label, tone }: { label: string; tone: string }) {
   return <span className={`inline-flex rounded-full border px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.16em] ${tone}`}>{label}</span>;
 }
 
+function setupTone(status: string) {
+  return status === "INCOMPLETE_SETUP"
+    ? "border-amber-200 bg-amber-50 text-amber-700"
+    : "border-emerald-200 bg-emerald-50 text-emerald-700";
+}
+
 function Metric({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-xl bg-slate-50 px-3 py-2">
@@ -71,6 +77,7 @@ function ReaderCard({
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <ReaderBadge label={reader.onlineStatus} tone={badgeClass(reader.onlineStatus)} />
+            {reader.setupStatus === "INCOMPLETE_SETUP" ? <ReaderBadge label="Incomplete setup" tone={setupTone(reader.setupStatus)} /> : null}
             <p className="truncate text-base font-black text-slate-950">{reader.name}</p>
           </div>
           <p className="mt-1 font-mono text-xs text-slate-400">{reader.deviceKey}</p>
@@ -401,6 +408,11 @@ export function OwnerReaderDetailPage() {
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div className="min-w-0">
                 <ReaderBadge label={reader.onlineStatus} tone={badgeClass(reader.onlineStatus)} />
+                {reader.setupStatus === "INCOMPLETE_SETUP" ? (
+                  <div className="mt-2">
+                    <ReaderBadge label="Incomplete setup" tone={setupTone(reader.setupStatus)} />
+                  </div>
+                ) : null}
                 <p className="mt-2 font-mono text-xs text-slate-400">{reader.deviceKey}</p>
               </div>
               <div className="flex flex-wrap gap-2">
@@ -426,6 +438,11 @@ export function OwnerReaderDetailPage() {
               <Metric label="Location" value={reader.locationName ?? reader.location ?? "-"} />
               <Metric label="Last IP" value={reader.lastIp ?? "-"} />
             </div>
+            {reader.setupStatus === "INCOMPLETE_SETUP" ? (
+              <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                Incomplete setup: attendance readers must have both a location type and attendance mode before they can process taps.
+              </div>
+            ) : null}
           </section>
 
           <section className="grid gap-4 lg:grid-cols-2">

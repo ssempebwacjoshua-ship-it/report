@@ -87,6 +87,7 @@ export type OwnerReader = {
   locationName: string | null;
   mode: string;
   attendanceMode: string | null;
+  setupStatus?: string;
   studentScope: string | null;
   classId: string | null;
   streamId: string | null;

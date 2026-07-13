@@ -62,6 +62,10 @@ function mapReader(row: any) {
   const lastHeartbeatAt = row.lastHeartbeatAt ?? row.lastSeenAt ?? null;
   const heartbeatAgeMs = lastHeartbeatAt ? Date.now() - new Date(lastHeartbeatAt).getTime() : Number.POSITIVE_INFINITY;
   const isOnline = row.isActive && row.status === "ACTIVE" && heartbeatAgeMs <= READER_STALE_WINDOW_MS;
+  const isAttendanceReader = row.mode === "ATTENDANCE";
+  const setupStatus = isAttendanceReader && (!row.locationType || !row.attendanceMode)
+    ? "INCOMPLETE_SETUP"
+    : "READY";
   const derivedOnlineStatus = row.isActive && row.status === "ACTIVE"
     ? (isOnline ? "ONLINE" : "OFFLINE")
     : "DISABLED";
@@ -80,6 +84,7 @@ function mapReader(row: any) {
     locationName: row.locationName ?? row.location ?? null,
     mode: row.mode,
     attendanceMode: row.attendanceMode ?? null,
+    setupStatus,
     studentScope: row.studentScope ?? null,
     classId: row.classId ?? null,
     streamId: row.streamId ?? null,

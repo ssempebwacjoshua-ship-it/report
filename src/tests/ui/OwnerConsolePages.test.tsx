@@ -252,6 +252,7 @@ describe("Owner console responsive layouts", () => {
           locationName: "Main Gate",
           mode: "ATTENDANCE",
           attendanceMode: "GATE_ATTENDANCE",
+          setupStatus: "READY",
           studentScope: "ALL_STUDENTS",
           classId: null,
           streamId: null,
@@ -291,6 +292,7 @@ describe("Owner console responsive layouts", () => {
         locationName: "Main Gate",
         mode: "ATTENDANCE",
         attendanceMode: "GATE_ATTENDANCE",
+        setupStatus: "READY",
         studentScope: "ALL_STUDENTS",
         classId: null,
         streamId: null,
@@ -342,6 +344,110 @@ describe("Owner console responsive layouts", () => {
     expect(screen.getAllByText(/NFC Reader Gate 01/i).length).toBeGreaterThan(0);
     expect(screen.getByText(/unknown taps are retained as blocked/i)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /refresh/i })).toBeInTheDocument();
+  });
+
+  it("surfaces incomplete attendance setup in the reader inventory", async () => {
+    ownerClientMocks.fetchOwnerReaders.mockResolvedValue({
+      readers: [
+        {
+          id: "reader-1",
+          schoolId: "school-1",
+          school: { id: "school-1", code: "BULO", name: "Buloba High School" },
+          name: "NFC Reader Gate 01",
+          deviceKey: "attendance-gate-01",
+          location: "Main Gate",
+          locationType: null,
+          locationName: null,
+          mode: "ATTENDANCE",
+          attendanceMode: null,
+          setupStatus: "INCOMPLETE_SETUP",
+          studentScope: "ALL_STUDENTS",
+          classId: null,
+          streamId: null,
+          status: "ACTIVE",
+          isActive: true,
+          firmwareVersion: "1.0.2",
+          lastHeartbeatAt: new Date().toISOString(),
+          lastIp: "192.168.1.51",
+          lastRssi: -52,
+          lastSeenAt: new Date().toISOString(),
+          lastScanAt: new Date().toISOString(),
+          lastScanStatus: "SUCCESS",
+          lastScanMessage: "Scan accepted",
+          queueDepth: 0,
+          onlineStatus: "ONLINE",
+          rawOnlineStatus: "ONLINE",
+          uptimeMs: 12345,
+          freeHeap: 204800,
+          rebootReason: "POWERON_RESET",
+          otaStatus: "NO_UPDATE",
+          otaMessage: "No firmware update available.",
+          heartbeatStale: false,
+          hasToken: true,
+          tokenHashPrefix: "abc123...",
+        },
+      ],
+    });
+    ownerClientMocks.fetchOwnerReader.mockResolvedValue({
+      reader: {
+        id: "reader-1",
+        schoolId: "school-1",
+        school: { id: "school-1", code: "BULO", name: "Buloba High School" },
+        name: "NFC Reader Gate 01",
+        deviceKey: "attendance-gate-01",
+        location: "Main Gate",
+        locationType: null,
+        locationName: null,
+        mode: "ATTENDANCE",
+        attendanceMode: null,
+        setupStatus: "INCOMPLETE_SETUP",
+        studentScope: "ALL_STUDENTS",
+        classId: null,
+        streamId: null,
+        status: "ACTIVE",
+        isActive: true,
+        firmwareVersion: "1.0.2",
+        lastHeartbeatAt: new Date().toISOString(),
+        lastIp: "192.168.1.51",
+        lastRssi: -52,
+        lastSeenAt: new Date().toISOString(),
+        lastScanAt: new Date().toISOString(),
+        lastScanStatus: "SUCCESS",
+        lastScanMessage: "Scan accepted",
+        queueDepth: 0,
+        onlineStatus: "ONLINE",
+        rawOnlineStatus: "ONLINE",
+        uptimeMs: 12345,
+        freeHeap: 204800,
+        rebootReason: "POWERON_RESET",
+        otaStatus: "NO_UPDATE",
+        otaMessage: "No firmware update available.",
+        heartbeatStale: false,
+        hasToken: true,
+        tokenHashPrefix: "abc123...",
+      },
+      diagnostics: {
+        health: {
+          status: "ONLINE",
+          heartbeatAgeMinutes: 1,
+          queueDepth: 0,
+          firmwareVersion: "1.0.2",
+          wifiRssi: -52,
+          freeHeap: 204800,
+          uptimeMs: 12345,
+          rebootReason: "POWERON_RESET",
+          otaStatus: "NO_UPDATE",
+        },
+        recentScans: [],
+        recentErrors: [],
+        otaHistory: [],
+        heartbeats: [],
+      },
+    });
+
+    renderInRouter(<OwnerReaderManagementPage />);
+
+    await waitFor(() => expect(screen.getByText(/incomplete setup/i)).toBeInTheDocument());
   });
 
   it("renders reader detail diagnostics and actions", async () => {
