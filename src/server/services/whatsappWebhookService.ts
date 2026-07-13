@@ -9,7 +9,7 @@ export function verifyMetaWebhookChallenge(query: Record<string, unknown>, env: 
   const mode = query["hub.mode"];
   const token = query["hub.verify_token"];
   const challenge = query["hub.challenge"];
-  const expected = env.META_WHATSAPP_WEBHOOK_VERIFY_TOKEN;
+  const expected = env.WHATSAPP_META_VERIFY_TOKEN || env.META_WHATSAPP_WEBHOOK_VERIFY_TOKEN;
   if (mode !== "subscribe" || typeof token !== "string" || typeof challenge !== "string" || !expected || token !== expected) {
     return null;
   }
@@ -17,7 +17,7 @@ export function verifyMetaWebhookChallenge(query: Record<string, unknown>, env: 
 }
 
 export function verifyMetaSignature(rawBody: Buffer | undefined, signatureHeader: string | undefined, env: NodeJS.ProcessEnv = process.env) {
-  const secret = env.META_WHATSAPP_APP_SECRET;
+  const secret = env.WHATSAPP_META_APP_SECRET || env.META_WHATSAPP_APP_SECRET;
   if (!rawBody || !signatureHeader || !secret) return false;
   const expected = `sha256=${crypto.createHmac("sha256", secret).update(rawBody).digest("hex")}`;
   const actual = signatureHeader.trim();

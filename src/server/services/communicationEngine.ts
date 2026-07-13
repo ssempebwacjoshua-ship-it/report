@@ -2,6 +2,7 @@ import type { PrismaClient } from "@prisma/client";
 import {
   assertCampaignTransition,
   buildDeliveryIdempotencyKey,
+  communicationChannels,
   estimateSmsSegments,
   hashRenderedContent,
   normalizePhoneToE164,
@@ -10,6 +11,7 @@ import {
   type CommunicationCampaignStatus,
   type ValidationIssue,
 } from "../../shared/communications";
+import { createProviderForChannel } from "./communicationProviders";
 
 type Db = PrismaClient;
 
@@ -193,6 +195,37 @@ export async function createAudienceSnapshot(db: Db, ctx: CommunicationContext, 
   return { snapshot, total: ready + blocked, ready, warnings, blocked };
 }
 
+export async function previewAudience(db: Db, ctx: CommunicationContext, definition: AudienceDefinition) {
+  const students = await resolveStudents(db, ctx.schoolId, definition);
+  const contacts = await db.guardianContact.findMany({
+    where: { schoolId: ctx.schoolId, studentId: { in: students.map((s) => s.id) }, canReceiveReports: true },
+    orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }],
+    include: { student: { select: { firstName: true, lastName: true, admissionNumber: true } } },
+  });
+  const seenGeneral = new Set<string>();
+  let ready = 0;
+  let blocked = 0;
+  const recipients = [];
+  for (const contact of contacts) {
+    if ((definition.mode ?? "GENERAL") === "GENERAL") {
+      const key = `${contact.guardianName}:${contact.phone ?? ""}:${contact.email ?? ""}`;
+      if (seenGeneral.has(key)) continue;
+      seenGeneral.add(key);
+    }
+    const phoneE164 = normalizePhoneToE164(contact.phone);
+    if (phoneE164) ready += 1; else blocked += 1;
+    recipients.push({
+      displayName: contact.guardianName,
+      studentName: `${contact.student.firstName} ${contact.student.lastName}`,
+      admissionNumber: contact.student.admissionNumber,
+      phoneMasked: maskPhone(phoneE164 ?? contact.phone),
+      status: phoneE164 ? "READY" : "BLOCKED",
+      blockedReasonCode: phoneE164 ? null : "MISSING_PHONE",
+    });
+  }
+  return { total: recipients.length, ready, blocked, recipients: recipients.slice(0, 50) };
+}
+
 export async function validateCampaign(db: Db, ctx: CommunicationContext, campaignId: string) {
   const campaign = await getCampaignOrThrow(db, ctx, campaignId);
   if (campaign.status === "DRAFT" || campaign.status === "VALIDATION_FAILED") {
@@ -279,6 +312,161 @@ export async function queueCampaign(db: Db, ctx: CommunicationContext, campaignI
   await audit(db, ctx, "communication.campaign_queued", campaignId, { dryRun: isCommunicationDryRun(), channels });
 }
 
+export async function sendCampaign(db: Db, ctx: CommunicationContext, campaignId: string, input: {
+  channel: CommunicationChannel;
+  confirm: boolean;
+  audience?: AudienceDefinition;
+}) {
+  if (!communicationChannels.includes(input.channel)) throw httpError(400, "Unsupported communication channel.");
+  if (input.channel !== "WHATSAPP" && input.channel !== "SMS") throw httpError(400, "Only SMS and WhatsApp sending are supported.");
+  if (!input.confirm) throw httpError(400, "Sending requires explicit confirmation.");
+  const campaign = await getCampaignOrThrow(db, ctx, campaignId);
+  if (["CANCELLED", "DELIVERED"].includes(campaign.status)) throw httpError(400, "This campaign cannot be sent.");
+  if (!campaign.audienceSnapshots[0]) {
+    await createAudienceSnapshot(db, ctx, campaignId, input.audience ?? ((campaign.audience?.definitionJson ?? {}) as AudienceDefinition));
+  }
+  const refreshed = await getCampaignOrThrow(db, ctx, campaignId);
+  const content = refreshed.contents.find((c) => c.version === refreshed.contentVersion) ?? refreshed.contents[0];
+  if (!content?.body?.trim()) throw httpError(400, "Message body is required before sending.");
+
+  const provider = createProviderForChannel(input.channel);
+  const channelSetting = await db.communicationChannelSetting.findFirst({
+    where: { schoolId: ctx.schoolId, channel: input.channel as never, provider: provider.providerKey },
+  });
+  const config = await provider.validateConfiguration({
+    schoolId: ctx.schoolId,
+    sendingEnabled: channelSetting?.sendingEnabled ?? true,
+    providerMetadata: (channelSetting?.providerMetadataJson ?? null) as Record<string, unknown> | null,
+  });
+  if (!config.sendingEnabled) {
+    throw Object.assign(new Error(`${input.channel === "WHATSAPP" ? "WhatsApp" : "SMS"} is not configured yet. Contact platform owner.`), {
+      status: 503,
+      expose: true,
+      details: config.issues,
+    });
+  }
+
+  const recipients = await db.communicationRecipient.findMany({
+    where: { schoolId: ctx.schoolId, campaignId, status: { in: ["READY", "WARNING", "QUEUED"] }, phoneE164: { not: null } },
+    orderBy: { createdAt: "asc" },
+    take: Number(process.env.COMMUNICATION_BATCH_SIZE ?? 25),
+  });
+  if (recipients.length === 0) throw httpError(400, "No valid recipients are available for sending.");
+
+  if (refreshed.status !== "SENDING") {
+    await transitionCampaignIfAllowed(db, ctx, campaignId, "QUEUED");
+  }
+  let submitted = 0;
+  let failed = 0;
+  let skippedDuplicate = 0;
+  const results = [];
+
+  for (const recipient of recipients) {
+    const values = (recipient.personalisationJson ?? {}) as Record<string, string>;
+    const text = renderContent(content.shortBody || content.body, values);
+    const rendered = await provider.render({ text });
+    const idempotencyKey = buildDeliveryIdempotencyKey({
+      schoolId: ctx.schoolId,
+      campaignId,
+      recipientId: recipient.id,
+      channel: input.channel,
+      contentVersion: refreshed.contentVersion,
+    });
+    const existing = await db.communicationDelivery.findUnique({ where: { idempotencyKey } });
+    if (existing?.providerMessageId || (existing && ["SUBMITTED", "ACCEPTED", "DELIVERED", "READ"].includes(existing.status))) {
+      skippedDuplicate += 1;
+      results.push({ recipientId: recipient.id, status: "SKIPPED_DUPLICATE" });
+      continue;
+    }
+    const delivery = await db.communicationDelivery.upsert({
+      where: { idempotencyKey },
+      update: {
+        provider: provider.providerKey,
+        status: "SUBMITTING",
+        renderedContentHash: hashRenderedContent(text),
+      },
+      create: {
+        schoolId: ctx.schoolId,
+        campaignId,
+        recipientId: recipient.id,
+        channel: input.channel as never,
+        provider: provider.providerKey,
+        status: "SUBMITTING",
+        contentVersion: refreshed.contentVersion,
+        idempotencyKey,
+        renderedContentHash: hashRenderedContent(text),
+        queuedAt: new Date(),
+      },
+    });
+    const attempt = await db.communicationDeliveryAttempt.create({
+      data: {
+        deliveryId: delivery.id,
+        attemptNumber: delivery.attemptCount + 1,
+        provider: provider.providerKey,
+        status: "STARTED",
+        requestId: idempotencyKey,
+      },
+    });
+    const response = await provider.submit({
+      toE164: recipient.phoneE164!,
+      rendered,
+      idempotencyKey,
+    });
+    const now = new Date();
+    if (response.accepted) {
+      submitted += 1;
+      await db.communicationDelivery.update({
+        where: { id: delivery.id },
+        data: {
+          status: "SUBMITTED",
+          providerMessageId: response.providerMessageId,
+          submittedAt: now,
+          acceptedAt: now,
+          attemptCount: { increment: 1 },
+        },
+      });
+      await db.communicationDeliveryAttempt.update({
+        where: { id: attempt.id },
+        data: {
+          status: "PROVIDER_ACCEPTED",
+          providerMessageId: response.providerMessageId,
+          providerResponseCode: response.providerStatus,
+          completedAt: now,
+        },
+      });
+      results.push({ recipientId: recipient.id, status: "SUBMITTED", providerMessageId: response.providerMessageId });
+    } else {
+      failed += 1;
+      await db.communicationDelivery.update({
+        where: { id: delivery.id },
+        data: {
+          status: "FAILED",
+          failedAt: now,
+          lastErrorCode: response.errorCode,
+          lastErrorMessageSafe: response.safeErrorMessage,
+          attemptCount: { increment: 1 },
+        },
+      });
+      await db.communicationDeliveryAttempt.update({
+        where: { id: attempt.id },
+        data: {
+          status: "PROVIDER_REJECTED",
+          errorCode: response.errorCode,
+          errorMessageSafe: response.safeErrorMessage,
+          completedAt: now,
+        },
+      });
+      results.push({ recipientId: recipient.id, status: "FAILED", errorCode: response.errorCode });
+    }
+  }
+  await db.communicationCampaign.update({
+    where: { id: campaignId },
+    data: { status: failed > 0 && submitted > 0 ? "PARTIALLY_DELIVERED" : failed > 0 && submitted === 0 ? "FAILED" : "SENDING", sendingStartedAt: new Date() },
+  });
+  await audit(db, ctx, "communication.delivery_submitted", campaignId, { channel: input.channel, provider: provider.providerKey, submitted, failed, skippedDuplicate });
+  return { submitted, failed, skippedDuplicate, results };
+}
+
 export async function transitionCampaign(db: Db, ctx: CommunicationContext, campaignId: string, to: CommunicationCampaignStatus, extra: Record<string, unknown> = {}) {
   const campaign = await getCampaignOrThrow(db, ctx, campaignId);
   if (campaign.status !== to) assertCampaignTransition(campaign.status as CommunicationCampaignStatus, to);
@@ -318,4 +506,20 @@ function httpError(status: number, message: string) {
   const error = new Error(message);
   Object.assign(error, { status, expose: true });
   return error;
+}
+
+async function transitionCampaignIfAllowed(db: Db, ctx: CommunicationContext, campaignId: string, to: CommunicationCampaignStatus) {
+  const campaign = await getCampaignOrThrow(db, ctx, campaignId);
+  if (campaign.status === to) return campaign;
+  if (campaign.status === "DRAFT" && to === "QUEUED") {
+    return db.communicationCampaign.update({ where: { id: campaignId }, data: { status: to as never } });
+  }
+  return transitionCampaign(db, ctx, campaignId, to);
+}
+
+function maskPhone(value: string | null | undefined) {
+  if (!value) return "";
+  const normalized = value.replace(/\s+/g, "");
+  if (normalized.length <= 5) return "***";
+  return `${normalized.slice(0, 4)}***${normalized.slice(-3)}`;
 }

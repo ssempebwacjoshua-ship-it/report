@@ -62,6 +62,16 @@ npx prisma migrate deploy && node dist/server/index.js
 | `OCR_ENABLED` | `true` |
 | `OCR_PROVIDER` | `azure` |
 | `AZURE_OCR_FUNCTION_URL` | Private Azure Function URL stored only in Railway |
+| `WHATSAPP_PROVIDER_ENABLED` | `false` until Meta Cloud WhatsApp sending is approved |
+| `WHATSAPP_META_VERIFY_TOKEN` | Server-only Meta webhook verify token |
+| `WHATSAPP_META_APP_SECRET` | Server-only Meta app secret used for webhook signatures |
+| `WHATSAPP_META_ACCESS_TOKEN` | Server-only Meta Cloud API token |
+| `WHATSAPP_META_PHONE_NUMBER_ID` | Meta WhatsApp phone number ID used for outbound sends |
+| `SMS_PROVIDER` | `mock` or `twilio` |
+| `SMS_PROVIDER_ENABLED` | `false` until SMS sending is approved |
+| `SMS_API_KEY` | Server-only SMS provider key or Twilio Account SID |
+| `SMS_AUTH_TOKEN` | Server-only SMS provider token |
+| `SMS_SENDER_ID` | Approved SMS sender ID or Twilio number |
 | `PORT` | Set automatically by Railway — do not override |
 
 `CLIENT_ORIGIN` controls CORS. Parent report links use `APP_BASE_URL` when set, then fall back to `PUBLIC_APP_URL` or `CLIENT_ORIGIN`. Replace any Vercel preview URL with the production branded report domain before releasing reports to parents.
@@ -73,6 +83,8 @@ The server binds to `0.0.0.0` and the port from `process.env.PORT`, which Railwa
 The health endpoint is `GET /health` (no `/api` prefix). It returns a minimal payload such as `{"ok":true,"service":"school-connect-reports-lab"}`.
 
 Internal env-status diagnostics are exposed at `GET /api/health/env` and require the `x-internal-test-key` header. The route reports only `SET` / `MISSING` status, never actual secret values.
+
+Communication sending is disabled by default. Do not set `WHATSAPP_PROVIDER_ENABLED=true` or `SMS_PROVIDER_ENABLED=true` until the provider credentials, approved sender/phone number, school permissions, and operator confirmation workflow have been reviewed. These variables belong only on Railway/backend, never Vercel/frontend.
 
 ## Seed admin
 

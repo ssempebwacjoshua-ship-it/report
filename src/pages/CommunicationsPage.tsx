@@ -1,5 +1,12 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
-import { createCommunicationCampaign, fetchCommunicationCampaigns, type CommunicationCampaign } from "../client/communicationsClient";
+import {
+  createCommunicationCampaign,
+  fetchCommunicationCampaigns,
+  previewCommunicationRecipients,
+  sendCommunication,
+  type CommunicationCampaign,
+  type CommunicationPreview,
+} from "../client/communicationsClient";
 
 const campaignTypes = ["ANNOUNCEMENT", "CIRCULAR", "REPORT_RELEASE", "EVENT", "EMERGENCY_ALERT", "FEE_NOTICE", "ATTENDANCE_ALERT", "RECEIPT", "VIDEO_MESSAGE", "CUSTOM"];
 
@@ -9,6 +16,11 @@ export function CommunicationsPage() {
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<"Campaigns" | "Delivery">("Campaigns");
   const [creating, setCreating] = useState(false);
+  const [sendingId, setSendingId] = useState<string | null>(null);
+  const [selectedChannel, setSelectedChannel] = useState<"WHATSAPP" | "SMS">("WHATSAPP");
+  const [selectedCampaignId, setSelectedCampaignId] = useState<string>("");
+  const [preview, setPreview] = useState<CommunicationPreview | null>(null);
+  const [sendResult, setSendResult] = useState<string | null>(null);
   const [form, setForm] = useState({ type: "ANNOUNCEMENT", title: "", subject: "", body: "" });
 
   async function load() {
@@ -17,6 +29,7 @@ export function CommunicationsPage() {
     try {
       const data = await fetchCommunicationCampaigns();
       setCampaigns(data.campaigns);
+      setSelectedCampaignId((current) => current || data.campaigns[0]?.id || "");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not load communication campaigns");
     } finally {
@@ -43,11 +56,51 @@ export function CommunicationsPage() {
     try {
       await createCommunicationCampaign(form);
       setForm({ type: "ANNOUNCEMENT", title: "", subject: "", body: "" });
-      await load();
+      const data = await fetchCommunicationCampaigns();
+      setCampaigns(data.campaigns);
+      setSelectedCampaignId(data.campaigns[0]?.id ?? "");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not create communication campaign");
     } finally {
       setCreating(false);
+    }
+  }
+
+  async function handlePreview(campaignId: string) {
+    setSelectedCampaignId(campaignId);
+    setPreview(null);
+    setSendResult(null);
+    setError(null);
+    try {
+      const data = await previewCommunicationRecipients(campaignId, { mode: "GENERAL" });
+      setPreview(data.preview);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not preview recipients");
+    }
+  }
+
+  async function handleSend(campaignId: string) {
+    if (!preview || preview.ready === 0) {
+      setError("Preview recipients before sending.");
+      return;
+    }
+    const confirmed = window.confirm(`Send ${selectedChannel} message to ${preview.ready} recipients?`);
+    if (!confirmed) return;
+    setSendingId(campaignId);
+    setError(null);
+    setSendResult(null);
+    try {
+      const result = await sendCommunication(campaignId, {
+        channel: selectedChannel,
+        confirm: true,
+        audience: { mode: "GENERAL" },
+      });
+      setSendResult(`Submitted ${result.result.submitted}; failed ${result.result.failed}; duplicates skipped ${result.result.skippedDuplicate}.`);
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : `${selectedChannel === "WHATSAPP" ? "WhatsApp" : "SMS"} is not configured yet. Contact platform owner.`);
+    } finally {
+      setSendingId(null);
     }
   }
 
@@ -67,6 +120,7 @@ export function CommunicationsPage() {
       </header>
 
       {error ? <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div> : null}
+      {sendResult ? <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700">{sendResult}</div> : null}
 
       <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
         <Metric label="Drafts" value={counts.drafts} />
@@ -116,12 +170,20 @@ export function CommunicationsPage() {
             </button>
           </form>
 
-          <CampaignList loading={loading} campaigns={campaigns} />
+          <CampaignList
+            loading={loading}
+            campaigns={campaigns}
+            selectedChannel={selectedChannel}
+            selectedCampaignId={selectedCampaignId}
+            preview={preview}
+            sendingId={sendingId}
+            onChannelChange={setSelectedChannel}
+            onPreview={handlePreview}
+            onSend={handleSend}
+          />
         </div>
       ) : (
-        <section className="rounded-2xl border border-slate-200 bg-white p-5 text-sm text-slate-600">
-          Delivery operations will show queued dry-run deliveries, provider attempts, fallback status and acknowledgements as campaigns are validated and queued.
-        </section>
+        <DeliverySummary campaigns={campaigns} />
       )}
     </main>
   );
@@ -136,7 +198,27 @@ function Metric({ label, value }: { label: string; value: number }) {
   );
 }
 
-function CampaignList({ loading, campaigns }: { loading: boolean; campaigns: CommunicationCampaign[] }) {
+function CampaignList({
+  loading,
+  campaigns,
+  selectedChannel,
+  selectedCampaignId,
+  preview,
+  sendingId,
+  onChannelChange,
+  onPreview,
+  onSend,
+}: {
+  loading: boolean;
+  campaigns: CommunicationCampaign[];
+  selectedChannel: "WHATSAPP" | "SMS";
+  selectedCampaignId: string;
+  preview: CommunicationPreview | null;
+  sendingId: string | null;
+  onChannelChange: (channel: "WHATSAPP" | "SMS") => void;
+  onPreview: (campaignId: string) => Promise<void>;
+  onSend: (campaignId: string) => Promise<void>;
+}) {
   if (loading) return <div className="rounded-2xl border border-slate-200 bg-white p-5 text-sm text-slate-500">Loading...</div>;
   if (campaigns.length === 0) return <div className="rounded-2xl border border-slate-200 bg-white p-5 text-sm text-slate-500">No communication campaigns yet.</div>;
   return (
@@ -147,10 +229,46 @@ function CampaignList({ loading, campaigns }: { loading: boolean; campaigns: Com
             <h2 className="font-black text-slate-900">{campaign.title}</h2>
             <p className="text-sm text-slate-600">{campaign.type.replaceAll("_", " ")} · {campaign._count?.recipients ?? 0} recipients · {campaign._count?.deliveries ?? 0} deliveries</p>
             <p className="mt-1 line-clamp-1 text-xs text-slate-500">{campaign.contents?.[0]?.body}</p>
+            {selectedCampaignId === campaign.id && preview ? (
+              <p className="mt-2 text-xs font-semibold text-slate-700">
+                Preview: {preview.ready} ready · {preview.blocked} blocked
+              </p>
+            ) : null}
           </div>
-          <span className="w-fit rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-black uppercase text-slate-700">{campaign.status.replaceAll("_", " ")}</span>
+          <div className="flex flex-wrap items-center gap-2">
+            <select
+              className="premium-control h-9 rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold text-slate-700"
+              value={selectedChannel}
+              onChange={(event) => onChannelChange(event.target.value as "WHATSAPP" | "SMS")}
+            >
+              <option value="WHATSAPP">WhatsApp</option>
+              <option value="SMS">SMS</option>
+            </select>
+            <button type="button" className="btn btn-secondary" onClick={() => void onPreview(campaign.id)}>
+              Preview
+            </button>
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={() => void onSend(campaign.id)}
+              disabled={sendingId === campaign.id || selectedCampaignId !== campaign.id || !preview || preview.ready === 0}
+            >
+              {sendingId === campaign.id ? "Sending..." : "Confirm send"}
+            </button>
+            <span className="w-fit rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-black uppercase text-slate-700">{campaign.status.replaceAll("_", " ")}</span>
+          </div>
         </article>
       ))}
+    </section>
+  );
+}
+
+function DeliverySummary({ campaigns }: { campaigns: CommunicationCampaign[] }) {
+  const totals = campaigns.reduce((sum, campaign) => sum + (campaign._count?.deliveries ?? 0), 0);
+  return (
+    <section className="rounded-2xl border border-slate-200 bg-white p-5 text-sm text-slate-600">
+      <p className="font-bold text-slate-900">Delivery status</p>
+      <p className="mt-1">{totals} delivery records created across current campaigns. Open a campaign row to preview and send SMS or WhatsApp.</p>
     </section>
   );
 }

@@ -10,7 +10,9 @@ import {
   getCampaignOrThrow,
   listCampaigns,
   queueCampaign,
+  previewAudience,
   requestApproval,
+  sendCampaign,
   updateCampaignDraft,
   validateCampaign,
 } from "../services/communicationEngine";
@@ -42,6 +44,12 @@ const updateCampaignSchema = z.object({
 
 const channelListSchema = z.object({
   channels: z.array(z.enum(communicationChannels)).min(1).default(["WHATSAPP"]),
+});
+
+const sendCommunicationSchema = z.object({
+  channel: z.enum(["WHATSAPP", "SMS"]),
+  confirm: z.boolean(),
+  audience: audienceSchema.optional(),
 });
 
 export function communicationRoutes() {
@@ -93,6 +101,16 @@ export function communicationRoutes() {
     }
   });
 
+  router.post("/api/communications/campaigns/:id/preview", requireSchoolPermission("communications.validate"), async (req, res, next) => {
+    try {
+      const definition = audienceSchema.parse(req.body);
+      await getCampaignOrThrow(prisma, ctx(req), routeId(req));
+      res.json({ preview: await previewAudience(prisma, ctx(req), definition) });
+    } catch (error) {
+      next(error);
+    }
+  });
+
   router.post("/api/communications/campaigns/:id/audience/snapshot", requireSchoolPermission("communications.audiences.manage"), async (req, res, next) => {
     try {
       const definition = audienceSchema.parse(req.body);
@@ -133,6 +151,52 @@ export function communicationRoutes() {
       const body = channelListSchema.parse(req.body ?? {});
       await queueCampaign(prisma, ctx(req), routeId(req), body.channels);
       res.json({ ok: true, dryRun: process.env.COMMUNICATION_DRY_RUN !== "false" });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/api/communications/campaigns/:id/send", requireSchoolPermission("communications.send"), async (req, res, next) => {
+    try {
+      const body = sendCommunicationSchema.parse(req.body);
+      const result = await sendCampaign(prisma, ctx(req), routeId(req), body);
+      res.json({ ok: true, result });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.get("/api/communications/campaigns/:id/status", requireSchoolPermission("communications.view"), async (req, res, next) => {
+    try {
+      const id = routeId(req);
+      const campaign = await getCampaignOrThrow(prisma, ctx(req), id);
+      const deliveries = await prisma.communicationDelivery.groupBy({
+        by: ["status"],
+        where: { schoolId: req.school!.id, campaignId: id },
+        _count: { status: true },
+      });
+      res.json({ campaign: { id: campaign.id, status: campaign.status, title: campaign.title }, deliveries });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.get("/api/communications/campaigns/:id/history", requireSchoolPermission("communications.view"), async (req, res, next) => {
+    try {
+      const id = routeId(req);
+      await getCampaignOrThrow(prisma, ctx(req), id);
+      const audit = await prisma.auditLog.findMany({
+        where: { schoolId: req.school!.id, correlationId: id },
+        orderBy: { createdAt: "desc" },
+        take: 100,
+      });
+      const attempts = await prisma.communicationDeliveryAttempt.findMany({
+        where: { delivery: { schoolId: req.school!.id, campaignId: id } },
+        orderBy: { createdAt: "desc" },
+        take: 100,
+        include: { delivery: { select: { id: true, channel: true, status: true, providerMessageId: true } } },
+      });
+      res.json({ audit, attempts });
     } catch (error) {
       next(error);
     }
