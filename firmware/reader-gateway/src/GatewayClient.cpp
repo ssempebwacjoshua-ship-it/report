@@ -109,6 +109,9 @@ String GatewayClient::buildHeartbeatPayload(const ReaderGatewayConfig& config, c
   doc["localIp"] = metrics.localIp;
   doc["uptimeMs"] = metrics.uptimeMs;
   doc["freeHeap"] = metrics.freeHeap;
+  if (!metrics.rebootReason.isEmpty()) {
+    doc["rebootReason"] = metrics.rebootReason;
+  }
   doc["queueDepth"] = static_cast<uint32_t>(metrics.queueDepth);
   if (!metrics.lastSuccessfulApiContactAt.isEmpty()) {
     doc["lastSuccessfulApiContactAt"] = metrics.lastSuccessfulApiContactAt;

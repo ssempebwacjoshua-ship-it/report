@@ -110,6 +110,7 @@ struct ReaderHeartbeatMetrics {
   String localIp;
   uint32_t uptimeMs = 0;
   uint32_t freeHeap = 0;
+  String rebootReason;
   size_t queueDepth = 0;
   String lastSuccessfulApiContactAt;
 };

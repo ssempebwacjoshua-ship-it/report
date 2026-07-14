@@ -134,6 +134,10 @@ function resolveLocationType(readerType: "GATE" | "CLASSROOM") {
   return readerType;
 }
 
+function resolveAttendanceMode(readerType: "GATE" | "CLASSROOM") {
+  return readerType === "CLASSROOM" ? "CLASSROOM_ATTENDANCE" : "GATE_ATTENDANCE";
+}
+
 export async function resolveReaderGatewayRegistration(
   db: RegistrationDb,
   auth: RegistrationAuth,
@@ -167,6 +171,7 @@ export async function resolveReaderGatewayRegistration(
           location: location || auth.device.location,
           locationName: location || auth.device.location,
           locationType: resolveLocationType(readerType),
+          attendanceMode: resolveAttendanceMode(readerType),
           firmwareVersion: input.firmwareVersion?.trim() || null,
           lastSeenAt: new Date(),
           lastHeartbeatAt: new Date(),
@@ -264,6 +269,7 @@ export async function resolveReaderGatewayRegistration(
             location,
             locationName: location,
             locationType: resolveLocationType(readerType),
+            attendanceMode: resolveAttendanceMode(readerType),
             deviceKey: input.deviceId,
             deviceTokenHash: existing.deviceTokenHash ?? oneTimeTokenHash,
             mode: "ATTENDANCE",
@@ -282,6 +288,7 @@ export async function resolveReaderGatewayRegistration(
             location,
             locationName: location,
             locationType: resolveLocationType(readerType),
+            attendanceMode: resolveAttendanceMode(readerType),
             deviceKey: input.deviceId,
             deviceTokenHash: oneTimeTokenHash,
             mode: "ATTENDANCE",
@@ -470,6 +477,7 @@ export async function activateReaderGatewayDevice(
         activationLastError: null,
         status: "ACTIVE",
         isActive: true,
+        attendanceMode: resolveAttendanceMode(pending.locationType === "CLASSROOM" ? "CLASSROOM" : "GATE"),
         firmwareVersion: input.firmwareVersion?.trim() || null,
         lastSeenAt: now,
         lastHeartbeatAt: now,

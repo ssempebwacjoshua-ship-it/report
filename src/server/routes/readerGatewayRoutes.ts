@@ -102,6 +102,7 @@ const heartbeatSchema = readerIdentitySchema.extend({
   localIp: z.string().trim().optional(),
   uptimeMs: z.coerce.number().int().min(0).optional(),
   freeHeap: z.coerce.number().int().min(0).optional(),
+  rebootReason: z.string().trim().max(120).optional(),
   queueDepth: z.coerce.number().int().min(0).optional(),
   lastSuccessfulApiContactAt: z.string().trim().optional().nullable(),
 });
@@ -579,6 +580,7 @@ export function readerGatewayRoutes() {
           firmwareVersion: body.firmwareVersion ?? null,
           uptimeMs: body.uptimeMs ?? null,
           freeHeap: body.freeHeap ?? null,
+          rebootReason: body.rebootReason ?? null,
           queueDepth: body.queueDepth ?? 0,
           onlineStatus: "ONLINE",
           lastApiContactAt: parseOptionalDate(body.lastSuccessfulApiContactAt) ?? now,
@@ -597,6 +599,7 @@ export function readerGatewayRoutes() {
             localIp: body.localIp ?? null,
             uptimeMs: body.uptimeMs ?? null,
             freeHeap: body.freeHeap ?? null,
+            rebootReason: body.rebootReason ?? null,
             queueDepth: body.queueDepth ?? 0,
             lastSuccessfulApiContactAt: body.lastSuccessfulApiContactAt ?? null,
           },

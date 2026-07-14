@@ -136,6 +136,33 @@ bool isTimeValid() {
   return time(nullptr) > 1700000000;
 }
 
+String resetReasonToString(esp_reset_reason_t reason) {
+  switch (reason) {
+    case ESP_RST_POWERON:
+      return "POWER_ON";
+    case ESP_RST_EXT:
+      return "EXTERNAL";
+    case ESP_RST_SW:
+      return "SOFTWARE";
+    case ESP_RST_PANIC:
+      return "PANIC";
+    case ESP_RST_INT_WDT:
+      return "INT_WDT";
+    case ESP_RST_TASK_WDT:
+      return "TASK_WDT";
+    case ESP_RST_WDT:
+      return "WDT";
+    case ESP_RST_DEEPSLEEP:
+      return "DEEPSLEEP";
+    case ESP_RST_BROWNOUT:
+      return "BROWNOUT";
+    case ESP_RST_SDIO:
+      return "SDIO";
+    default:
+      return "UNKNOWN";
+  }
+}
+
 bool isTerminalApiResponse(const ReaderApiResponse& response) {
   return response.statusCode >= 200 && response.statusCode < 500 &&
          response.statusCode != 408 && response.statusCode != 429;
@@ -1045,6 +1072,7 @@ void ReaderGatewayApp::sendHeartbeat() {
   metrics.localIp = WiFi.localIP().toString();
   metrics.uptimeMs = now;
   metrics.freeHeap = ESP.getFreeHeap();
+  metrics.rebootReason = resetReasonToString(esp_reset_reason());
   metrics.queueDepth = offlineQueueDepth_;
   metrics.lastSuccessfulApiContactAt = lastSuccessfulApiContactAt_;
 

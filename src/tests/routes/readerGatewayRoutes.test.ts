@@ -764,6 +764,7 @@ describe("readerGatewayRoutes", () => {
         localIp: "192.168.1.51",
         uptimeMs: 60000,
         freeHeap: 204800,
+        rebootReason: "POWER_ON",
         queueDepth: 0,
         lastSuccessfulApiContactAt: "2026-07-10T08:00:00Z",
       });
@@ -785,6 +786,7 @@ describe("readerGatewayRoutes", () => {
         firmwareVersion: "1.0.0",
         uptimeMs: 60000,
         freeHeap: 204800,
+        rebootReason: "POWER_ON",
         queueDepth: 0,
         onlineStatus: "ONLINE",
         lastApiContactAt: new Date("2026-07-10T08:00:00Z"),
@@ -798,6 +800,7 @@ describe("readerGatewayRoutes", () => {
           wifiRssi: -54,
           uptimeMs: 60000,
           freeHeap: 204800,
+          rebootReason: "POWER_ON",
         }),
       }),
     }));
@@ -1138,6 +1141,7 @@ describe("readerGatewayRoutes", () => {
         deviceKey: "reader-gateway-74372C",
         provisioningStatus: "ACTIVE",
         activationBoundHardwareId: "reader-gateway-74372C",
+        attendanceMode: "GATE_ATTENDANCE",
       }),
     }));
   });
