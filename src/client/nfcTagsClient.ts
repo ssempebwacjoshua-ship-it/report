@@ -205,6 +205,15 @@ export async function getReaderCredentialCapture(captureId: string): Promise<Rea
   return res.json();
 }
 
+export async function cancelReaderCredentialCapture(captureId: string): Promise<{ ok: true; captureId: string; status: "CANCELLED" }> {
+  const res = await fetch(`${getApiBaseUrl()}/api/nfc/tags/reader-credential-captures/${encodeURIComponent(captureId)}`, {
+    method: "DELETE",
+    headers: makeSchoolRequestHeaders(),
+  });
+  if (!res.ok) throw new Error(await parseApiError(res, "Failed to cancel reader credential capture."));
+  return res.json();
+}
+
 export async function confirmReaderCredentialCapture(captureId: string): Promise<ReaderCredentialLinkConfirmResponse> {
   const res = await fetch(`${getApiBaseUrl()}/api/nfc/tags/reader-credential-captures/${encodeURIComponent(captureId)}/confirm`, {
     method: "POST",

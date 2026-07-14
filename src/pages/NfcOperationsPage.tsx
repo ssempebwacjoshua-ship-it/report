@@ -8,6 +8,7 @@ import {
   enableNfcTag,
   generateNfcTags,
   getReaderCredentialCapture,
+  cancelReaderCredentialCapture,
   getNfcTagEvents,
   listNfcTags,
   startReaderCredentialCapture,
@@ -789,7 +790,14 @@ export function NfcOperationsPage() {
     setLinkReaderTransferReason("");
   }
 
-  function closeLinkReaderModal() {
+  async function closeLinkReaderModal() {
+    if (linkReaderCapture?.status === "PENDING") {
+      try {
+        await cancelReaderCredentialCapture(linkReaderCapture.captureId);
+      } catch {
+        // The session may already have expired or been cleared by the server.
+      }
+    }
     setLinkReaderTarget(null);
     setLinkReaderCapture(null);
     setLinkReaderLoading(false);

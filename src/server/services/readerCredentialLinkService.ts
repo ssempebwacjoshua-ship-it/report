@@ -345,6 +345,27 @@ export async function getReaderCredentialCapture(
   return serializeCaptureSession(session);
 }
 
+export async function cancelReaderCredentialCapture(
+  ctx: ReaderCredentialLinkContext,
+  captureId: string,
+  db: ReaderCredentialLinkDb = defaultPrisma,
+) {
+  const schoolId = requireSchoolId(ctx);
+  requireTagManager(ctx);
+  const session = captureSessions.get(captureId);
+  if (!session || session.schoolId !== schoolId) {
+    throw Object.assign(new Error("Capture session not found."), { status: 404 });
+  }
+  captureSessions.delete(captureId);
+  await auditAction(db, ctx, "nfc_tag.reader_capture_cancelled", {
+    captureId,
+    tagId: session.tagId,
+    studentId: session.studentId,
+    deviceId: session.deviceId,
+  });
+  return { ok: true, captureId, status: "CANCELLED" as const };
+}
+
 export async function captureReaderCredentialFromReader(
   device: CaptureReaderDevice,
   body: {

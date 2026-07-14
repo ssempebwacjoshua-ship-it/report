@@ -24,6 +24,7 @@ import {
 } from "../services/nfcTagBatchService";
 import {
   confirmReaderCredentialLink,
+  cancelReaderCredentialCapture,
   getReaderCredentialCapture,
   startReaderCredentialCapture,
   transferReaderCredentialLink,
@@ -290,6 +291,15 @@ export function nfcTagsRoutes() {
         return;
       }
       res.json(await getReaderCredentialCapture(ctx(req), req.params.captureId));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.delete("/api/nfc/tags/reader-credential-captures/:captureId", async (req, res, next) => {
+    try {
+      if (!(await requirePlatformModule(req, res, "nfc.tags"))) return;
+      res.json(await cancelReaderCredentialCapture(ctx(req), req.params.captureId));
     } catch (error) {
       next(error);
     }
