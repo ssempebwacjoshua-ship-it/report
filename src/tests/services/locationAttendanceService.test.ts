@@ -31,6 +31,18 @@ type MovementFixture = {
   occurredAt: Date;
   offlineSynced?: boolean;
 };
+type ClassroomFixture = {
+  id: string;
+  schoolId: string;
+  studentId: string;
+  readerId: string;
+  sessionType: string;
+  status: string;
+  sessionDate: Date;
+  deviceTime: Date;
+  occurredAt?: Date;
+  receivedAt?: Date;
+};
 type LegacyFixture = {
   id: string;
   schoolId: string;
@@ -46,6 +58,7 @@ function createDb(fixtures?: {
   students?: StudentFixture[];
   daily?: DailyFixture[];
   movements?: MovementFixture[];
+  classroom?: ClassroomFixture[];
   legacy?: LegacyFixture[];
 }) {
   const gateOverrides: Array<Record<string, any>> = [];
@@ -53,6 +66,7 @@ function createDb(fixtures?: {
   const students = fixtures?.students ?? [];
   const daily = fixtures?.daily ?? [];
   const movements = fixtures?.movements ?? [];
+  const classroom = fixtures?.classroom ?? [];
   const legacy = fixtures?.legacy ?? [];
 
   return {
@@ -205,7 +219,20 @@ function createDb(fixtures?: {
           .map((row) => ({ ...row })),
     },
     classroomAttendanceEvent: {
-      findMany: async () => ([]),
+      findMany: async ({ where }: { where?: { schoolId?: string; studentId?: { in: string[] } } }) =>
+        classroom
+          .filter((row) => !where?.schoolId || row.schoolId === where.schoolId)
+          .filter((row) => !where?.studentId?.in || where.studentId.in.includes(row.studentId))
+          .map((row) => ({
+            id: row.id,
+            studentId: row.studentId,
+            readerId: row.readerId,
+            sessionType: row.sessionType,
+            status: row.status,
+            deviceTime: row.deviceTime,
+            occurredAt: row.occurredAt ?? row.deviceTime,
+            receivedAt: row.receivedAt ?? row.deviceTime,
+          })),
     },
     nfcOfflineDevice: {
       findMany: async () => ([{ id: "reader-1", name: "Attendance Gate 01", locationName: "Main Entrance", location: "Main Entrance" }]),
@@ -313,6 +340,84 @@ describe("locationAttendanceService", () => {
     expect(register.rows.find((row) => row.student.id === "student-2")).toMatchObject({
       currentStatus: "ABSENT",
       tapIn: null,
+    });
+  });
+
+  it("promotes classroom attendance into the canonical register and dashboard summary", async () => {
+    const db = createDb({
+      students: [
+        { id: "student-1", schoolId: "school-1", admissionNumber: "A-001", firstName: "Ada", lastName: "Lovelace", studentType: "DAY", isActive: true, className: "Senior 1", streamName: "A" },
+        { id: "student-2", schoolId: "school-1", admissionNumber: "A-002", firstName: "Grace", lastName: "Hopper", studentType: "DAY", isActive: true, className: "Senior 1", streamName: "A" },
+      ],
+      classroom: [
+        {
+          id: "class-1",
+          schoolId: "school-1",
+          studentId: "student-2",
+          readerId: "reader-1",
+          sessionType: "MORNING_CLASS",
+          status: "PRESENT",
+          sessionDate: new Date("2026-07-11T00:00:00.000Z"),
+          deviceTime: new Date("2026-07-11T06:30:00.000Z"),
+        },
+      ],
+    });
+
+    const summary = await getDashboardAttendanceSummary(ADMIN_CTX, db as never);
+    const register = await getCanonicalAttendanceRegister(ADMIN_CTX, { date: "2026-07-11" }, db as never);
+
+    expect(summary.present).toBe(1);
+    expect(summary.absent).toBe(1);
+    expect(summary.latestScans?.[0]).toMatchObject({
+      studentId: "student-2",
+      eventType: "MORNING_CLASS",
+      status: "PRESENT",
+    });
+    expect(summary.classSummaries?.[0]).toMatchObject({
+      className: "Senior 1",
+      streamName: "A",
+      present: 1,
+      absent: 1,
+    });
+    expect(register.rows.find((row) => row.student.id === "student-2")).toMatchObject({
+      currentStatus: "PRESENT",
+      tapIn: null,
+      lastScan: {
+        direction: "MORNING_CLASS",
+        status: "PRESENT",
+        reason: "Morning classroom attendance",
+      },
+    });
+  });
+
+  it("does not treat night prep alone as daytime presence in the canonical register", async () => {
+    const db = createDb({
+      students: [
+        { id: "student-1", schoolId: "school-1", admissionNumber: "A-001", firstName: "Alan", lastName: "Turing", studentType: "BOARDING", isActive: true, className: "Senior 1", streamName: "B" },
+      ],
+      classroom: [
+        {
+          id: "class-1",
+          schoolId: "school-1",
+          studentId: "student-1",
+          readerId: "reader-1",
+          sessionType: "NIGHT_PREP",
+          status: "PRESENT",
+          sessionDate: new Date("2026-07-11T00:00:00.000Z"),
+          deviceTime: new Date("2026-07-11T18:45:00.000Z"),
+        },
+      ],
+    });
+
+    const register = await getCanonicalAttendanceRegister(ADMIN_CTX, { date: "2026-07-11" }, db as never);
+
+    expect(register.rows[0]).toMatchObject({
+      currentStatus: "ABSENT",
+      lastScan: {
+        direction: "NIGHT_PREP",
+        status: "PRESENT",
+        reason: "Night prep attendance",
+      },
     });
   });
 

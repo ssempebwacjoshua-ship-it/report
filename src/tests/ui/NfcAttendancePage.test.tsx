@@ -214,7 +214,7 @@ describe("NfcAttendancePage", () => {
     renderPage();
 
     await waitFor(() => expect(mockFetchNfcAttendanceRegister).toHaveBeenCalled());
-    expect(screen.getByText(/class attendance register/i)).toBeInTheDocument();
+    expect(screen.getByText(/daily attendance register/i)).toBeInTheDocument();
     expect(screen.getAllByText(/^present$/i).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/^absent$/i).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/^filters$/i).length).toBeGreaterThan(0);
@@ -358,7 +358,7 @@ describe("NfcAttendancePage", () => {
 
     expect(previewSection).toHaveClass("attendance-preview-section", "report-print-area");
     expect(previewSheet).toHaveClass("attendance-preview-sheet", "report-print-page");
-    expect(within(previewSection).getByText(/attendance register/i)).toBeInTheDocument();
+    expect(within(previewSection).getByText(/gate attendance report/i)).toBeInTheDocument();
     expect(within(previewTable).getByText("Ada Lovelace")).toBeInTheDocument();
     expect(within(previewTable).getByText("Grace Hopper")).toBeInTheDocument();
     expect(within(previewTable).getByText("Alan Turing")).toBeInTheDocument();

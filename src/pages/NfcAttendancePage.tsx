@@ -181,8 +181,8 @@ function buildGatePreviewDocument(input: {
   return {
     view: "GATE",
     generatedAt: input.generatedAt,
-    title: "Attendance Register",
-    scopeLabel: "Gate attendance preview",
+    title: "Gate Attendance Report",
+    scopeLabel: "Arrival, departure, and campus movement",
     metadata: [
       { label: "Date", value: formatPrintDate(input.date) },
       { label: "Class", value: input.className },
@@ -241,8 +241,8 @@ function buildRegisterPreviewDocument(input: {
   return {
     view: "REGISTER",
     generatedAt: input.generatedAt,
-    title: "Attendance Register",
-    scopeLabel: "Daily register preview",
+    title: "Daily Attendance Register",
+    scopeLabel: "Canonical gate and classroom attendance",
     metadata: [
       { label: "Date", value: formatPrintDate(input.date) },
       { label: "Class", value: input.className },
@@ -316,8 +316,8 @@ function buildClassroomPreviewDocument(input: {
   return {
     view: "CLASSROOM",
     generatedAt: input.generatedAt,
-    title: "Attendance Register",
-    scopeLabel: "Classroom attendance preview",
+    title: "Classroom Attendance Report",
+    scopeLabel: "Session-based classroom attendance activity",
     metadata: [
       { label: "Date", value: formatPrintDate(input.date) },
       { label: "Class", value: input.className },
@@ -1477,7 +1477,7 @@ export function NfcAttendancePage() {
               <div className="flex flex-col gap-2 lg:items-end">
                 <div>
                   <p className="text-[11px] font-bold uppercase tracking-wide text-slate-600">Print Preview</p>
-                  <p className="mt-1 text-xs text-slate-500">Generate a fresh canonical preview before printing</p>
+                  <p className="mt-1 text-xs text-slate-500">Generate a compact signed-off view before printing or exporting to PDF</p>
                 </div>
                 <div data-testid="attendance-print-actions" className="flex flex-wrap gap-2">
                   <button
@@ -1516,9 +1516,9 @@ export function NfcAttendancePage() {
       {view === "REGISTER" ? (
         <section data-testid="attendance-register-card" className="premium-card overflow-hidden rounded-xl">
           <div className="border-b border-slate-100 px-4 py-3">
-            <h2 className="text-base font-bold text-slate-950">Class Attendance Register</h2>
+            <h2 className="text-base font-bold text-slate-950">Daily Attendance Register</h2>
             <p className="text-xs text-slate-500">
-              Shows all students for the selected date and filters. Click <strong>Present</strong> or <strong>Absent</strong> cards to drill down.
+              Shows canonical gate and classroom attendance for the selected date and filters. Click <strong>Present</strong> or <strong>Absent</strong> cards to drill down.
             </p>
           </div>
 

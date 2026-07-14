@@ -210,6 +210,17 @@ type MovementEvent = {
   offlineSynced: boolean;
 };
 
+type ClassroomEvent = {
+  id: string;
+  studentId: string;
+  readerId: string;
+  sessionType: string;
+  status: string;
+  deviceTime: Date;
+  occurredAt?: Date;
+  receivedAt?: Date;
+};
+
 type ReaderRow = {
   id: string;
   name: string;
@@ -318,6 +329,30 @@ function buildLatestScanStatus(eventType: string): "PRESENT" | "LATE" | "DEPARTE
   return "PRESENT";
 }
 
+function isCanonicalClassroomPresence(event: ClassroomEvent) {
+  return event.status === "PRESENT" && event.sessionType !== "NIGHT_PREP";
+}
+
+function getClassroomEventTimestamp(event: ClassroomEvent) {
+  return event.deviceTime ?? event.occurredAt ?? event.receivedAt ?? new Date(0);
+}
+
+function buildClassroomLatestScanStatus(event: ClassroomEvent): "PRESENT" | "LATE" | "DEPARTED" | "BLOCKED" {
+  if (event.status === "WRONG_CLASS" || event.status === "SESSION_CLOSED") {
+    return "BLOCKED";
+  }
+  return "PRESENT";
+}
+
+function buildClassroomLastScanReason(event: ClassroomEvent) {
+  if (event.status === "WRONG_CLASS") return "Wrong classroom attempt";
+  if (event.status === "SESSION_CLOSED") return "Classroom session closed";
+  if (event.sessionType === "MORNING_CLASS" && event.status === "PRESENT") return "Morning classroom attendance";
+  if (event.sessionType === "NIGHT_PREP" && event.status === "PRESENT") return "Night prep attendance";
+  if (event.status === "PRESENT") return "Classroom attendance";
+  return event.status.replaceAll("_", " ").toLowerCase();
+}
+
 function buildGateSummary(rows: GateAttendanceRow[]) {
   const late = rows.filter((row) => row.attendanceStatus === "LATE").length;
   const presentOnly = rows.filter((row) => row.attendanceStatus === "PRESENT").length;
@@ -379,7 +414,7 @@ async function buildCanonicalAttendanceSnapshot(
     };
   }
 
-  const [dailyAttendances, movementEvents, readers] = await Promise.all([
+  const [dailyAttendances, movementEvents, classroomEvents, readers] = await Promise.all([
     db.dailyAttendance.findMany({
       where: { schoolId, studentId: { in: studentIds }, attendanceDate: start },
       select: { studentId: true, status: true },
@@ -397,6 +432,24 @@ async function buildCanonicalAttendanceSnapshot(
         offlineSynced: true,
       },
     }),
+    db.classroomAttendanceEvent.findMany({
+      where: {
+        schoolId,
+        studentId: { in: studentIds },
+        sessionDate: start,
+      },
+      orderBy: [{ deviceTime: "asc" }, { occurredAt: "asc" }, { receivedAt: "asc" }],
+      select: {
+        id: true,
+        studentId: true,
+        readerId: true,
+        sessionType: true,
+        status: true,
+        deviceTime: true,
+        occurredAt: true,
+        receivedAt: true,
+      },
+    }),
     db.nfcOfflineDevice.findMany({
       where: { schoolId },
       select: { id: true, name: true, locationName: true, location: true },
@@ -406,6 +459,7 @@ async function buildCanonicalAttendanceSnapshot(
   const dailyByStudent = new Map(dailyAttendances.map((row: DailyAttendanceRow) => [row.studentId, row]));
   const readersById = new Map(readers.map((reader: ReaderRow) => [reader.id, reader]));
   const movementByStudent = mapEventsByStudent(movementEvents as MovementEvent[]);
+  const classroomByStudent = mapEventsByStudent(classroomEvents as ClassroomEvent[]);
   const studentsById = new Map(students.map((student) => [student.id, student]));
 
   const rows = students.map((student) => {
@@ -413,6 +467,7 @@ async function buildCanonicalAttendanceSnapshot(
     const attendanceProfile = resolveAttendanceProfile(student);
     const daily = dailyByStudent.get(student.id);
     const events = movementByStudent.get(student.id) ?? [];
+    const classroomEventsForStudent = classroomByStudent.get(student.id) ?? [];
 
     const validMovements = events.filter((event) => event.type === "GATE_ENTRY" || event.type === "GATE_EXIT");
     const entries = validMovements.filter((event) => event.type === "GATE_ENTRY");
@@ -420,11 +475,14 @@ async function buildCanonicalAttendanceSnapshot(
     const latestValidMovement = validMovements.length > 0 ? validMovements[validMovements.length - 1] : null;
     const latestRestrictedAttempt = [...events].reverse().find((event) => event.type === "RESTRICTED_ENTRY_ATTEMPT") ?? null;
     const manualOverride = events.some((event) => event.type === "MANUAL_GATE_OVERRIDE");
+    const classroomPresent = classroomEventsForStudent.some(isCanonicalClassroomPresence);
 
     const attendanceStatus = daily?.status === "LATE"
       ? "LATE"
       : daily?.status === "PRESENT"
         ? "PRESENT"
+        : classroomPresent
+          ? "PRESENT"
         : "ABSENT";
     const campusStatus = latestValidMovement?.type === "GATE_ENTRY" ? "ON_CAMPUS" : "OFF_CAMPUS";
 
@@ -457,7 +515,7 @@ async function buildCanonicalAttendanceSnapshot(
 
   sortByName(rows);
   const gateSummary = buildGateSummary(rows);
-  const latestScans = [...movementEvents]
+  const latestGateScans = [...movementEvents]
     .sort((left, right) => right.occurredAt.getTime() - left.occurredAt.getTime())
     .map((event) => {
       const student = studentsById.get(event.studentId);
@@ -475,8 +533,29 @@ async function buildCanonicalAttendanceSnapshot(
         readerUsed: getReaderLabel(readersById, event.readerId),
         offlineSynced: Boolean(event.offlineSynced),
       };
-    })
+    });
+  const latestClassroomScans = [...(classroomEvents as ClassroomEvent[])]
+    .sort((left, right) => getClassroomEventTimestamp(right).getTime() - getClassroomEventTimestamp(left).getTime())
+    .map((event) => {
+      const student = studentsById.get(event.studentId);
+      if (!student) return null;
+      const enrollment = student.enrollments[0];
+      return {
+        studentId: student.id,
+        studentName: getStudentName(student),
+        admissionNumber: student.admissionNumber,
+        className: enrollment?.class?.name ?? null,
+        streamName: enrollment?.stream?.name ?? null,
+        eventType: event.sessionType,
+        status: buildClassroomLatestScanStatus(event),
+        occurredAt: getClassroomEventTimestamp(event).toISOString(),
+        readerUsed: getReaderLabel(readersById, event.readerId),
+        offlineSynced: false,
+      };
+    });
+  const latestScans = [...latestGateScans, ...latestClassroomScans]
     .filter((row): row is NonNullable<typeof row> => Boolean(row))
+    .sort((left, right) => new Date(right.occurredAt).getTime() - new Date(left.occurredAt).getTime())
     .slice(0, 8);
   const classSummaryMap = new Map<string, NonNullable<DashboardAttendanceSummary["classSummaries"]>[number]>();
   for (const row of rows) {
@@ -590,24 +669,45 @@ export async function getCanonicalAttendanceRegister(
   const students = await listCurrentEnrolledStudents(db as never, schoolId, toCurrentEnrollmentFilters(filters));
 
   const studentIds = students.map((student) => student.id);
-  const movementEvents = studentIds.length === 0
-    ? []
-    : await db.campusMovementEvent.findMany({
-        where: { schoolId, studentId: { in: studentIds }, occurredAt: { gte: start, lt: end } },
-        orderBy: [{ occurredAt: "asc" }, { receivedAt: "asc" }],
-        select: {
-          id: true,
-          studentId: true,
-          readerId: true,
-          type: true,
-          occurredAt: true,
-          receivedAt: true,
-          offlineSynced: true,
-        },
-      });
+  const [movementEvents, classroomEvents] = studentIds.length === 0
+    ? [[], []]
+    : await Promise.all([
+        db.campusMovementEvent.findMany({
+          where: { schoolId, studentId: { in: studentIds }, occurredAt: { gte: start, lt: end } },
+          orderBy: [{ occurredAt: "asc" }, { receivedAt: "asc" }],
+          select: {
+            id: true,
+            studentId: true,
+            readerId: true,
+            type: true,
+            occurredAt: true,
+            receivedAt: true,
+            offlineSynced: true,
+          },
+        }),
+        db.classroomAttendanceEvent.findMany({
+          where: {
+            schoolId,
+            studentId: { in: studentIds },
+            sessionDate: start,
+          },
+          orderBy: [{ deviceTime: "asc" }, { occurredAt: "asc" }, { receivedAt: "asc" }],
+          select: {
+            id: true,
+            studentId: true,
+            readerId: true,
+            sessionType: true,
+            status: true,
+            deviceTime: true,
+            occurredAt: true,
+            receivedAt: true,
+          },
+        }),
+      ]);
 
   const gateRowsByStudent = new Map(snapshot.rows.map((row) => [row.studentId, row]));
   const movementByStudent = mapEventsByStudent(movementEvents as MovementEvent[]);
+  const classroomByStudent = mapEventsByStudent(classroomEvents as ClassroomEvent[]);
 
   let blockedScans = 0;
   const duplicateScans = 0;
@@ -617,7 +717,20 @@ export async function getCanonicalAttendanceRegister(
     const attendanceProfile = resolveAttendanceProfile(student);
     const gateRow = gateRowsByStudent.get(student.id);
     const canonicalEvents = movementByStudent.get(student.id) ?? [];
+    const classroomEventsForStudent = classroomByStudent.get(student.id) ?? [];
     const latestCanonicalEvent = canonicalEvents.length > 0 ? canonicalEvents[canonicalEvents.length - 1] : null;
+    const latestClassroomEvent = classroomEventsForStudent.length > 0
+      ? classroomEventsForStudent[classroomEventsForStudent.length - 1]
+      : null;
+    const latestStudentEvent = latestCanonicalEvent && latestClassroomEvent
+      ? latestCanonicalEvent.occurredAt.getTime() >= getClassroomEventTimestamp(latestClassroomEvent).getTime()
+        ? { kind: "gate" as const, event: latestCanonicalEvent }
+        : { kind: "classroom" as const, event: latestClassroomEvent }
+      : latestCanonicalEvent
+        ? { kind: "gate" as const, event: latestCanonicalEvent }
+        : latestClassroomEvent
+          ? { kind: "classroom" as const, event: latestClassroomEvent }
+          : null;
     const latestRestrictedAttempt = [...canonicalEvents].reverse().find((event) => event.type === "RESTRICTED_ENTRY_ATTEMPT") ?? null;
     if (latestRestrictedAttempt) blockedScans += 1;
 
@@ -652,14 +765,22 @@ export async function getCanonicalAttendanceRegister(
       tapOut: gateRow?.departureTime
         ? { id: `${student.id}:tap-out`, scannedAt: gateRow.departureTime, source: "PHYSICAL_READER" }
         : null,
-      lastScan: latestCanonicalEvent
-        ? {
-            id: latestCanonicalEvent.id,
-            direction: latestCanonicalEvent.type,
-            scannedAt: latestCanonicalEvent.occurredAt.toISOString(),
-            status: latestCanonicalEvent.type === "RESTRICTED_ENTRY_ATTEMPT" ? "BLOCKED" : latestCanonicalEvent.type,
-            reason: latestCanonicalEvent.type === "RESTRICTED_ENTRY_ATTEMPT" ? "Restricted entry attempt" : null,
-          }
+      lastScan: latestStudentEvent
+        ? latestStudentEvent.kind === "gate"
+          ? {
+              id: latestStudentEvent.event.id,
+              direction: latestStudentEvent.event.type,
+              scannedAt: latestStudentEvent.event.occurredAt.toISOString(),
+              status: latestStudentEvent.event.type === "RESTRICTED_ENTRY_ATTEMPT" ? "BLOCKED" : latestStudentEvent.event.type,
+              reason: latestStudentEvent.event.type === "RESTRICTED_ENTRY_ATTEMPT" ? "Restricted entry attempt" : null,
+            }
+          : {
+              id: latestStudentEvent.event.id,
+              direction: latestStudentEvent.event.sessionType,
+              scannedAt: getClassroomEventTimestamp(latestStudentEvent.event).toISOString(),
+              status: latestStudentEvent.event.status,
+              reason: buildClassroomLastScanReason(latestStudentEvent.event),
+            }
         : null,
       currentStatus,
     } satisfies AttendanceRegisterRow;

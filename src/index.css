@@ -1578,7 +1578,7 @@ body {
   background:
     linear-gradient(180deg, rgba(239, 246, 255, 0.92), rgba(255, 255, 255, 0.98)),
     #ffffff;
-  padding: 1rem;
+  padding: 0.85rem;
   box-shadow: 0 18px 44px rgba(15, 23, 42, 0.08);
 }
 
@@ -1587,7 +1587,7 @@ body {
   width: 100%;
   max-width: 210mm;
   border: 1px solid rgba(226, 232, 240, 0.95);
-  border-radius: 1.25rem;
+  border-radius: 1rem;
   background: #ffffff;
   color: #0f172a;
   box-shadow: 0 16px 36px rgba(15, 23, 42, 0.08);
@@ -1598,8 +1598,8 @@ body {
   display: flex;
   flex-wrap: wrap;
   justify-content: space-between;
-  gap: 1rem;
-  padding: 1.5rem 1.5rem 1rem;
+  gap: 0.85rem;
+  padding: 1.1rem 1.2rem 0.75rem;
   border-bottom: 1px solid #dbeafe;
   background: linear-gradient(180deg, rgba(239, 246, 255, 0.9), rgba(255, 255, 255, 0.98));
 }
@@ -1612,8 +1612,8 @@ body {
 }
 
 .attendance-preview-logo {
-  width: 3.25rem;
-  height: 3.25rem;
+  width: 2.8rem;
+  height: 2.8rem;
   border-radius: 9999px;
   object-fit: cover;
   border: 1px solid rgba(191, 219, 254, 0.95);
@@ -1631,31 +1631,31 @@ body {
 
 .attendance-preview-school {
   margin: 0.2rem 0 0;
-  font-size: 1.55rem;
+  font-size: 1.32rem;
   line-height: 1.15;
   font-weight: 800;
   color: #0f172a;
 }
 
 .attendance-preview-contact {
-  margin: 0.3rem 0 0;
+  margin: 0.2rem 0 0;
   max-width: 32rem;
-  font-size: 0.9rem;
-  line-height: 1.5;
+  font-size: 0.82rem;
+  line-height: 1.4;
   color: #475569;
 }
 
 .attendance-preview-heading {
   display: grid;
   align-content: start;
-  gap: 0.35rem;
+  gap: 0.2rem;
   justify-items: end;
   text-align: right;
 }
 
 .attendance-preview-title {
   margin: 0;
-  font-size: 1.4rem;
+  font-size: 1.2rem;
   line-height: 1.2;
   font-weight: 800;
   color: #0f172a;
@@ -1663,17 +1663,17 @@ body {
 
 .attendance-preview-generated {
   margin: 0;
-  font-size: 0.82rem;
-  line-height: 1.4;
+  font-size: 0.76rem;
+  line-height: 1.35;
   color: #64748b;
 }
 
 .attendance-preview-meta,
 .attendance-preview-summary {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
-  gap: 0.75rem;
-  padding: 1rem 1.5rem 0;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  gap: 0.55rem;
+  padding: 0.8rem 1.2rem 0;
 }
 
 .attendance-preview-meta-card,
@@ -1681,9 +1681,9 @@ body {
   display: grid;
   gap: 0.2rem;
   border: 1px solid rgba(226, 232, 240, 0.95);
-  border-radius: 0.95rem;
+  border-radius: 0.85rem;
   background: #ffffff;
-  padding: 0.8rem 0.95rem;
+  padding: 0.62rem 0.75rem;
 }
 
 .attendance-preview-meta-label,
@@ -1696,21 +1696,21 @@ body {
 }
 
 .attendance-preview-meta-value {
-  font-size: 0.95rem;
-  line-height: 1.45;
+  font-size: 0.86rem;
+  line-height: 1.35;
   font-weight: 600;
   color: #0f172a;
 }
 
 .attendance-preview-summary-value {
-  font-size: 1.15rem;
+  font-size: 1rem;
   line-height: 1.2;
   font-weight: 800;
   color: #0f172a;
 }
 
 .attendance-preview-table-wrap {
-  padding: 1rem 1.5rem 1.25rem;
+  padding: 0.85rem 1.2rem 1rem;
   overflow-x: auto;
 }
 
@@ -1723,11 +1723,11 @@ body {
 
 .attendance-preview-table th,
 .attendance-preview-table td {
-  padding: 0.7rem 0.65rem;
+  padding: 0.48rem 0.5rem;
   border-bottom: 1px solid rgba(226, 232, 240, 0.9);
   vertical-align: top;
-  font-size: 0.86rem;
-  line-height: 1.4;
+  font-size: 0.79rem;
+  line-height: 1.32;
   color: #0f172a;
   text-align: left;
   word-break: break-word;
@@ -1735,7 +1735,7 @@ body {
 
 .attendance-preview-table th {
   background: #eff6ff;
-  font-size: 0.72rem;
+  font-size: 0.67rem;
   font-weight: 800;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -1778,13 +1778,13 @@ body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 1.8rem;
-  min-width: 5.2rem;
+  min-height: 1.55rem;
+  min-width: 4.6rem;
   border: 1px solid rgba(148, 163, 184, 0.8);
   border-radius: 9999px;
-  padding: 0.2rem 0.7rem;
+  padding: 0.15rem 0.55rem;
   background: #ffffff;
-  font-size: 0.72rem;
+  font-size: 0.66rem;
   font-weight: 800;
   letter-spacing: 0.05em;
   text-transform: uppercase;
@@ -1804,8 +1804,8 @@ body {
   justify-content: space-between;
   gap: 0.6rem;
   border-top: 1px solid rgba(226, 232, 240, 0.95);
-  padding: 0.9rem 1.5rem 1.15rem;
-  font-size: 0.78rem;
+  padding: 0.75rem 1.2rem 0.9rem;
+  font-size: 0.72rem;
   color: #64748b;
 }
 
@@ -1832,8 +1832,8 @@ body {
 
   .attendance-preview-table th,
   .attendance-preview-table td {
-    padding: 0.58rem 0.5rem;
-    font-size: 0.8rem;
+    padding: 0.46rem 0.42rem;
+    font-size: 0.76rem;
   }
 }
 

@@ -438,30 +438,30 @@ export function DashboardPage() {
           <AttendanceCard
             label="Present"
             value={attendanceValues ? fmt(attendanceValues.present) : "-"}
-            note="Present includes late students"
+            note="Gate and classroom attendance, including late students"
             tone="green"
-            href="/nfc/attendance?view=GATE&attendanceStatus=PRESENT"
+            href="/nfc/attendance?view=REGISTER"
           />
           <AttendanceCard
             label="Absent"
             value={attendanceValues ? fmt(attendanceValues.absent) : "-"}
-            note={attendanceValues?.totalStudents === 0 ? "No active students" : "No qualifying attendance today"}
+            note={attendanceValues?.totalStudents === 0 ? "No active students" : "No gate or classroom attendance yet"}
             tone="red"
-            href="/nfc/attendance?view=GATE&attendanceStatus=ABSENT"
+            href="/nfc/attendance?view=REGISTER"
           />
           <AttendanceCard
             label="Late"
             value={attendanceValues ? fmt(attendanceValues.late) : "-"}
-            note="Late students remain counted as present"
+            note="Late arrivals from the canonical daily register"
             tone="amber"
-            href="/nfc/attendance?view=GATE&attendanceStatus=LATE"
+            href="/nfc/attendance?view=REGISTER"
           />
           <AttendanceCard
             label="Attendance Rate"
             value={attendanceValues ? fmtPercent(attendanceValues.attendanceRate) : "-"}
-            note={attendanceValues?.totalStudents === 0 ? "No active students" : "Present divided by active students"}
+            note={attendanceValues?.totalStudents === 0 ? "No active students" : "Daily register presence across active students"}
             tone="blue"
-            href="/nfc/attendance?view=GATE"
+            href="/nfc/attendance?view=REGISTER"
           />
           <AttendanceCard
             label="On Campus"
@@ -502,8 +502,8 @@ export function DashboardPage() {
             <section className="rounded-xl border border-slate-200 bg-white p-3">
               <div className="flex items-center justify-between gap-2">
                 <h3 className="text-sm font-bold text-slate-950">Latest Scans</h3>
-                <Link to="/nfc/attendance?view=GATE" className="text-xs font-bold text-[color:var(--sc-primary)]">
-                  Open gate view
+                <Link to="/nfc/attendance?view=REGISTER" className="text-xs font-bold text-[color:var(--sc-primary)]">
+                  Open register
                 </Link>
               </div>
               <div className="mt-3 space-y-2">
@@ -529,7 +529,7 @@ export function DashboardPage() {
             <section className="rounded-xl border border-slate-200 bg-white p-3">
               <div className="flex items-center justify-between gap-2">
                 <h3 className="text-sm font-bold text-slate-950">Class Summaries</h3>
-                <span className="text-xs font-semibold text-slate-500">Canonical reader attendance</span>
+                <span className="text-xs font-semibold text-slate-500">Canonical gate and classroom attendance</span>
               </div>
               <div className="mt-3 space-y-2">
                 {(attendanceSummary?.classSummaries ?? []).slice(0, 6).map((row) => (

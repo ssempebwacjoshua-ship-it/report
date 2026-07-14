@@ -97,17 +97,17 @@ describe("DashboardPage", () => {
     expect(screen.getAllByText("3").length).toBeGreaterThan(0);
     expect(screen.getAllByText("2").length).toBeGreaterThan(0);
     expect(screen.getAllByText("5").length).toBeGreaterThan(0);
-    expect(screen.getByRole("link", { name: /present includes late students/i })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: /gate and classroom attendance, including late students/i })).toHaveAttribute(
       "href",
-      "/nfc/attendance?view=GATE&attendanceStatus=PRESENT",
+      "/nfc/attendance?view=REGISTER",
     );
-    expect(screen.getByRole("link", { name: /no qualifying attendance today/i })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: /no gate or classroom attendance yet/i })).toHaveAttribute(
       "href",
-      "/nfc/attendance?view=GATE&attendanceStatus=ABSENT",
+      "/nfc/attendance?view=REGISTER",
     );
-    expect(screen.getByRole("link", { name: /late students remain counted as present/i })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: /late arrivals from the canonical daily register/i })).toHaveAttribute(
       "href",
-      "/nfc/attendance?view=GATE&attendanceStatus=LATE",
+      "/nfc/attendance?view=REGISTER",
     );
   });
 
