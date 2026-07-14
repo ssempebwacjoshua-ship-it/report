@@ -128,8 +128,9 @@ First-time provisioning workflow:
    - enter the school code;
    - set the reader location;
    - choose the reader type (`GATE` or `CLASSROOM`);
-   - set the device name (default: `attendance-gate-01`);
-   - optionally override the firmware channel (`stable` by default).
+   - set the device name (default: `attendance-gate-01`).
+
+   Optional advanced setup may expose the firmware channel, but normal installers should not need it.
 
 4. On save, the firmware stores Wi-Fi and local setup metadata in ESP32 NVS/Preferences, connects to Wi-Fi, stops AP mode, and resumes the normal School Connect registration, heartbeat, offline queue replay, and attendance loop.
 
@@ -139,8 +140,8 @@ First-time provisioning workflow:
 
 Important:
 
-- The secure attendance token and school-bound runtime API configuration still remain part of the deployed reader configuration; this change removes manual Wi-Fi editing, but it does not create a new unauthenticated backend token bootstrap path.
-- First-time assignment may use a server-side provisioning token, but installers must never be asked for raw school UUIDs or backend secrets.
+- The bootstrap provisioning credential is preloaded during USB flashing from a protected build-time header generated from server-side env values.
+- Installers must never be asked for bearer tokens, provisioning tokens, raw school UUIDs, API URLs, OTA keys, or backend secrets.
 - Existing LittleFS `wifiSsid` and `wifiPassword` values remain as a fallback for previously provisioned devices until NVS credentials are saved.
 
 Example configuration:
@@ -155,8 +156,6 @@ Example configuration:
   "readerType": "GATE",
   "wifiSsid": "YOUR_WIFI_NAME",
   "wifiPassword": "YOUR_WIFI_PASSWORD",
-  "apiBaseUrl": "https://YOUR_API_DOMAIN",
-  "bearerToken": "YOUR_DEVICE_OR_PROVISIONING_TOKEN",
   "tlsInsecure": true,
   "retryIntervalMs": 30000,
   "eventsPath": "/api/readers/events",
@@ -173,6 +172,13 @@ Registration contract:
 
 - The device posts `deviceId`, `readerId`, `schoolCode`, `location`, `readerType`, `deviceName`, `firmwareVersion`, `firmwareChannel`, and transport metadata to `/api/readers/register`.
 - The backend resolves the canonical `schoolId`, creates or updates the device idempotently, and returns the assigned `schoolId`, school display name, assignment status, and a canonical device token when first-time provisioning used a provisioning token.
+
+Hidden bootstrap mechanism:
+
+- `READER_GATEWAY_PROVISIONING_TOKEN` remains server-only in Report Lab `.env`.
+- A prebuild script generates `secrets/device_bootstrap.auto.h` locally and PlatformIO force-includes it during USB flashing.
+- The generated header is ignored by git and never shown in the captive portal.
+- Production should evolve this into unique per-device bootstrap credentials or one-time claim codes instead of a shared fleet secret.
 
 ## Build
 

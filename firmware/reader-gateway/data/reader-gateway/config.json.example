@@ -5,11 +5,8 @@
   "deviceName": "Attendance Gate 01",
   "readerLocation": "Main Gate",
   "readerType": "GATE",
-  "firmwareChannel": "stable",
   "wifiSsid": "YOUR_WIFI_NAME",
   "wifiPassword": "YOUR_WIFI_PASSWORD",
-  "apiBaseUrl": "https://YOUR_API_DOMAIN",
-  "bearerToken": "YOUR_DEVICE_OR_PROVISIONING_TOKEN",
   "tlsInsecure": true,
   "retryIntervalMs": 30000,
   "eventsPath": "/api/readers/events",
@@ -27,6 +24,7 @@
   "feedbackDriverActiveHigh": true,
   "ntpServer": "pool.ntp.org",
   "autoRegister": true,
+  "firmwareChannel": "stable",
   "otaPublicKeyId": "reader-gateway-2026",
   "otaPublicKeyPem": "-----BEGIN PUBLIC KEY-----\\nREPLACE_WITH_REAL_ECDSA_P256_KEY\\n-----END PUBLIC KEY-----\\n"
 }
