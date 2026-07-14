@@ -12,8 +12,10 @@ const state = vi.hoisted(() => ({
 
 vi.mock("../../client/studentCredentialsClient", () => ({
   fetchStudentCredentials: vi.fn(async () => ({ credentials: state.credentials })),
+  amendStudentCredential: vi.fn(),
   issueStudentCredential: vi.fn(),
   deactivateStudentCredential: vi.fn(),
+  reactivateStudentCredential: vi.fn(),
   scanStudentCredential: vi.fn(),
 }));
 
@@ -82,7 +84,33 @@ describe("StudentCredentialsPage", () => {
     fireEvent.change(screen.getByPlaceholderText("Tap wristband"), { target: { value: "CD34" } });
 
     expect(screen.getByText(/deactivate \/ mark lost first/i)).toBeInTheDocument();
-    expect(screen.getByText("AB12")).toBeInTheDocument();
+    expect(screen.getAllByText("AB12").length).toBeGreaterThan(0);
     expect(screen.getByRole("button", { name: /issue wristband/i })).toBeDisabled();
+  });
+
+  it("renders deactivated wristbands with mobile-safe detail content and a re-enable action", async () => {
+    state.credentials = [
+      credential({
+        id: "credential-b",
+        credentialUID: "ZX-998877665544332211",
+        status: "DEACTIVATED",
+        deactivatedReason: "Lost during transport",
+        nfcUrl: "https://example.com/tags/ZX-998877665544332211",
+      }),
+    ];
+
+    render(
+      <MemoryRouter>
+        <StudentCredentialsPage />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getAllByText(/lost during transport/i).length).toBeGreaterThan(0);
+    });
+
+    expect(screen.getAllByText(/tag url/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole("button", { name: /re-enable/i }).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/a-001 - senior 1 \/ a/i).length).toBeGreaterThan(0);
   });
 });

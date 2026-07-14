@@ -20,6 +20,14 @@ function statusTone(status: string) {
   return "bg-slate-100 text-slate-700";
 }
 
+function modeTone(tagMode: NfcTagBatchSummary["tagMode"]) {
+  return tagMode === "URL" ? "bg-purple-100 text-purple-700" : "bg-blue-100 text-blue-700";
+}
+
+function formatAssignedStudent(tag: NfcTag) {
+  return tag.student ? `${tag.student.name} (${tag.student.admissionNumber})` : "—";
+}
+
 function exportCsv(batch: NfcTagBatchSummary, tags: NfcTag[]) {
   const rows = [["Label", "Public Code", "Written Payload", "Written URL", "Physical UID", "Status"]];
   for (const t of tags) {
@@ -275,7 +283,7 @@ export function NfcBulkIssuingPage() {
           <div className="mt-4">
             <button
               type="button"
-              className="btn btn-primary"
+              className="btn btn-primary w-full justify-center sm:w-auto"
               disabled={urlBatchLoading}
               onClick={() => void handleCreateUrlBatch()}
             >
@@ -357,16 +365,16 @@ export function NfcBulkIssuingPage() {
               </div>
             </div>
           </div>
-          <div className="mt-4 flex gap-2">
+          <div className="mt-4 grid gap-2 sm:flex">
             <button
               type="button"
-              className="btn btn-primary"
+              className="btn btn-primary w-full justify-center sm:w-auto"
               disabled={uidLoading || !parsedUids.length || uidDuplicates.size > 0}
               onClick={() => void handleUidImport()}
             >
               {uidLoading ? "Registering…" : `Register ${parsedUids.length} Wristband(s)`}
             </button>
-            <button type="button" className="btn btn-secondary" onClick={() => setUidPasteText("")}>
+            <button type="button" className="btn btn-secondary w-full justify-center sm:w-auto" onClick={() => setUidPasteText("")}>
               Clear
             </button>
           </div>
@@ -382,7 +390,64 @@ export function NfcBulkIssuingPage() {
               {batchesLoading ? "Loading…" : `${batches.length} batch${batches.length !== 1 ? "es" : ""}`}
             </p>
           </div>
-          <div className="overflow-x-auto">
+          <div className="grid gap-3 md:hidden">
+            {batches.map((batch) => (
+              <article key={batch.id} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="font-bold text-slate-950">{batch.name}</p>
+                    <p className="mt-1 text-xs text-slate-500">{new Date(batch.createdAt).toLocaleDateString()}</p>
+                  </div>
+                  <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-bold ${modeTone(batch.tagMode)}`}>
+                    {batch.tagMode}
+                  </span>
+                </div>
+                <dl className="mt-4 grid grid-cols-2 gap-3 text-sm">
+                  <div>
+                    <dt className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Total</dt>
+                    <dd className="mt-1 font-bold text-slate-900">{batch.totalTags}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Written / Verified</dt>
+                    <dd className="mt-1 text-slate-700">
+                      {batch.written} / {batch.verified}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Unallocated</dt>
+                    <dd className="mt-1 text-slate-700">{batch.unallocated}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Assigned</dt>
+                    <dd className="mt-1 font-bold text-emerald-700">{batch.assigned}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Disabled / Lost</dt>
+                    <dd className="mt-1 text-red-700">{batch.disabled + batch.lost}</dd>
+                  </div>
+                </dl>
+                <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                  <button type="button" className="btn btn-secondary w-full justify-center text-xs" onClick={() => void openDrill(batch)}>
+                    View Batch
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-secondary w-full justify-center text-xs"
+                    onClick={() => void listTagInventory({ batchId: batch.id }).then((r) => exportCsv(batch, r.tags))}
+                  >
+                    Export CSV
+                  </button>
+                </div>
+              </article>
+            ))}
+            {batches.length === 0 && !batchesLoading ? (
+              <div className="rounded-xl border border-slate-200 bg-white px-3 py-8 text-center text-sm text-slate-500">
+                No batches yet. Use the buttons above to create or import.
+              </div>
+            ) : null}
+          </div>
+
+          <div className="hidden overflow-x-auto md:block">
             <table className="w-full min-w-[900px] border-separate border-spacing-y-2 text-left text-sm">
               <thead className="text-xs font-bold uppercase text-slate-500">
                 <tr>
@@ -404,11 +469,7 @@ export function NfcBulkIssuingPage() {
                       {b.name}
                     </td>
                     <td className="border-y border-slate-200 px-3 py-3">
-                      <span
-                        className={`inline-flex rounded-full px-2 py-0.5 text-xs font-bold ${
-                          b.tagMode === "URL" ? "bg-purple-100 text-purple-700" : "bg-blue-100 text-blue-700"
-                        }`}
-                      >
+                      <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-bold ${modeTone(b.tagMode)}`}>
                         {b.tagMode}
                       </span>
                     </td>
@@ -423,7 +484,7 @@ export function NfcBulkIssuingPage() {
                       {new Date(b.createdAt).toLocaleDateString()}
                     </td>
                     <td className="rounded-r-xl border-y border-r border-slate-200 px-3 py-3">
-                      <div className="flex gap-2">
+                      <div className="flex flex-wrap gap-2">
                         <button
                           type="button"
                           className="btn btn-secondary text-xs"
@@ -466,9 +527,9 @@ export function NfcBulkIssuingPage() {
               <p className="text-xs font-bold uppercase text-blue-600">{drillBatch.tagMode} batch</p>
               <h2 className="text-base font-bold text-slate-950">{drillBatch.name}</h2>
             </div>
-            <div className="flex flex-wrap gap-2">
+            <div className="grid w-full gap-2 sm:w-auto sm:grid-cols-2 xl:flex">
               <input
-                className={`${inputClass} min-w-[180px]`}
+                className={`${inputClass} min-w-0 sm:min-w-[180px]`}
                 value={inventorySearch}
                 onChange={(e) => setInventorySearch(e.target.value)}
                 placeholder="Search UID, label, student…"
@@ -486,12 +547,12 @@ export function NfcBulkIssuingPage() {
               </select>
               <button
                 type="button"
-                className="btn btn-secondary text-xs"
+                className="btn btn-secondary w-full justify-center text-xs sm:w-auto"
                 onClick={() => exportCsv(drillBatch, inventoryTags)}
               >
                 Export CSV
               </button>
-              <button type="button" className="btn btn-secondary text-xs" onClick={() => setDrillBatch(null)}>
+              <button type="button" className="btn btn-secondary w-full justify-center text-xs sm:w-auto" onClick={() => setDrillBatch(null)}>
                 Close
               </button>
             </div>
@@ -499,7 +560,53 @@ export function NfcBulkIssuingPage() {
           {inventoryLoading ? (
             <p className="py-6 text-center text-sm text-slate-500">Loading inventory…</p>
           ) : (
-            <div className="overflow-x-auto">
+            <>
+              <div className="grid gap-3 md:hidden">
+                {filteredInventory.map((tag) => (
+                  <article key={tag.id} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">
+                          {drillBatch.tagMode === "UID" ? "Physical UID" : "Public Code"}
+                        </p>
+                        <p className="mt-1 break-all font-mono font-bold text-slate-900">
+                          {drillBatch.tagMode === "UID" ? tag.physicalUid ?? "—" : tag.publicCode}
+                        </p>
+                      </div>
+                      <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-bold ${statusTone(tag.status)}`}>
+                        {tag.status}
+                      </span>
+                    </div>
+                    <dl className="mt-4 space-y-3 text-sm">
+                      <div>
+                        <dt className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Label</dt>
+                        <dd className="mt-1 text-slate-700">{tag.label ?? "—"}</dd>
+                      </div>
+                      {drillBatch.tagMode !== "UID" ? (
+                        <div>
+                          <dt className="text-[11px] font-bold uppercase tracking-wide text-slate-500">NFC payload</dt>
+                          <dd className="mt-1 break-all font-mono text-xs text-slate-600">{tag.writtenPayload ?? "—"}</dd>
+                        </div>
+                      ) : null}
+                      <div>
+                        <dt className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Assigned to</dt>
+                        <dd className="mt-1 text-slate-700">{formatAssignedStudent(tag)}</dd>
+                      </div>
+                      <div>
+                        <dt className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Assigned at</dt>
+                        <dd className="mt-1 text-slate-700">{tag.assignedAt ? new Date(tag.assignedAt).toLocaleDateString() : "—"}</dd>
+                      </div>
+                    </dl>
+                  </article>
+                ))}
+                {filteredInventory.length === 0 ? (
+                  <div className="rounded-xl border border-slate-200 bg-white px-3 py-6 text-center text-sm text-slate-500">
+                    No tags match this filter.
+                  </div>
+                ) : null}
+              </div>
+
+              <div className="hidden overflow-x-auto md:block">
               <table className="w-full min-w-[700px] border-separate border-spacing-y-1 text-left text-sm">
                 <thead className="text-xs font-bold uppercase text-slate-500">
                   <tr>
@@ -531,7 +638,7 @@ export function NfcBulkIssuingPage() {
                         </span>
                       </td>
                       <td className="border-y border-slate-200 px-3 py-2 text-slate-600">
-                        {t.student ? `${t.student.name} (${t.student.admissionNumber})` : "—"}
+                        {formatAssignedStudent(t)}
                       </td>
                       <td className="rounded-r-xl border-y border-r border-slate-200 px-3 py-2 text-xs text-slate-500">
                         {t.assignedAt ? new Date(t.assignedAt).toLocaleDateString() : "—"}
@@ -550,7 +657,8 @@ export function NfcBulkIssuingPage() {
                   ) : null}
                 </tbody>
               </table>
-            </div>
+              </div>
+            </>
           )}
         </section>
       ) : null}
