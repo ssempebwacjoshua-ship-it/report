@@ -344,6 +344,10 @@ describe("Owner console responsive layouts", () => {
     expect(screen.getAllByText(/NFC Reader Gate 01/i).length).toBeGreaterThan(0);
     expect(screen.getByText(/unknown taps are retained as blocked/i)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /refresh/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /show filters/i })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /show filters/i }));
+    expect(screen.getAllByText(/^school$/i).length).toBeGreaterThan(0);
+    expect(screen.getByText(/more reader details/i)).toBeInTheDocument();
   });
 
   it("surfaces incomplete attendance setup in the reader inventory", async () => {
@@ -513,5 +517,7 @@ describe("Owner console responsive layouts", () => {
     expect(await screen.findAllByText(/Buloba High School/i)).toHaveLength(2);
     expect(screen.getByRole("button", { name: /rotate token/i })).toBeInTheDocument();
     expect(screen.getByText(/recent scans/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /update firmware/i })).toBeInTheDocument();
   });
+
 });

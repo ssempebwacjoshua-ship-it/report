@@ -87,9 +87,9 @@ function ReaderCard({
           <div className="flex flex-wrap items-center gap-2">
             <ReaderBadge label={reader.onlineStatus} tone={badgeClass(reader.onlineStatus)} />
             {reader.setupStatus === "INCOMPLETE_SETUP" ? <ReaderBadge label="Incomplete setup" tone={setupTone(reader.setupStatus)} /> : null}
-            <p className="truncate text-base font-black text-slate-950">{reader.name}</p>
+            <p className="min-w-0 break-words text-base font-black text-slate-950">{reader.name}</p>
           </div>
-          <p className="mt-1 font-mono text-xs text-slate-400">{reader.deviceKey}</p>
+          <p className="mt-1 break-all font-mono text-xs text-slate-400">{reader.deviceKey}</p>
           <p className="mt-1 line-clamp-2 text-sm text-slate-600">{reader.school?.name ?? reader.schoolId ?? "Unknown school"}</p>
         </div>
         <Link
@@ -100,16 +100,28 @@ function ReaderCard({
         </Link>
       </div>
 
-      <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
+      <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
         <Metric label="Last heartbeat" value={formatDateTime(reader.lastHeartbeatAt ?? reader.lastSeenAt)} />
-        <Metric label="Last seen" value={formatDateTime(reader.lastSeenAt)} />
-        <Metric label="Firmware" value={reader.firmwareVersion ?? "-"} />
+        <Metric label="School" value={reader.school?.name ?? reader.schoolId ?? "Unknown school"} />
+        <Metric label="Location" value={reader.locationName ?? reader.location ?? "No location"} />
         <Metric label="Reader type" value={reader.locationType ?? "-"} />
         <Metric label="Assignment" value={reader.assignmentStatus ?? "UNKNOWN"} />
-        <Metric label="OTA status" value={reader.otaStatus ?? "UNKNOWN"} />
-        <Metric label="Queue" value={`${reader.queueDepth}`} />
-        <Metric label="Wi-Fi RSSI" value={formatRssi(reader.lastRssi)} />
       </div>
+
+      <details className="mt-3 rounded-xl border border-slate-200 bg-slate-50/70">
+        <summary className="cursor-pointer list-none px-3 py-2 text-sm font-bold text-slate-700 marker:hidden">
+          More reader details
+        </summary>
+        <div className="grid gap-2 border-t border-slate-200 px-3 py-3 sm:grid-cols-2">
+          <Metric label="Device ID" value={reader.deviceKey} />
+          <Metric label="Last seen" value={formatDateTime(reader.lastSeenAt)} />
+          <Metric label="Firmware" value={reader.firmwareVersion ?? "-"} />
+          <Metric label="OTA status" value={reader.otaStatus ?? "UNKNOWN"} />
+          <Metric label="Queue" value={`${reader.queueDepth}`} />
+          <Metric label="Wi-Fi RSSI" value={formatRssi(reader.lastRssi)} />
+          <Metric label="Provisioning" value={reader.pendingSetup ? "Pending setup" : "Active"} />
+        </div>
+      </details>
 
       <div className="mt-3 flex flex-wrap gap-2 text-xs text-slate-500">
         <span>{reader.locationName ?? reader.location ?? "No location"}</span>
@@ -137,6 +149,7 @@ export function OwnerReaderManagementPage() {
   const [newDeviceName, setNewDeviceName] = useState("");
   const [newLocation, setNewLocation] = useState("");
   const [newReaderType, setNewReaderType] = useState<"GATE" | "CLASSROOM">("GATE");
+  const [showMobileFilters, setShowMobileFilters] = useState(false);
 
   async function loadReaders() {
     setLoading(true);
@@ -234,40 +247,52 @@ export function OwnerReaderManagementPage() {
           <p className="text-sm text-slate-500">Create the reader first, then give the installer only the one-time activation code.</p>
         </div>
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-          <select
-            value={newSchoolId}
-            onChange={(event) => setNewSchoolId(event.target.value)}
-            className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-blue-400"
-          >
-            <option value="">Select school</option>
-            {allSchools.map((school) => (
-              <option key={school.id} value={school.id}>{school.name}</option>
-            ))}
-          </select>
-          <input
-            type="text"
-            value={newDeviceName}
-            onChange={(event) => setNewDeviceName(event.target.value)}
-            placeholder="Device name"
-            className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-blue-400"
-          />
-          <input
-            type="text"
-            value={newLocation}
-            onChange={(event) => setNewLocation(event.target.value)}
-            placeholder="Reader location"
-            className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-blue-400"
-          />
-          <select
-            value={newReaderType}
-            onChange={(event) => setNewReaderType(event.target.value as "GATE" | "CLASSROOM")}
-            className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-blue-400"
-          >
-            <option value="GATE">GATE</option>
-            <option value="CLASSROOM">CLASSROOM</option>
-          </select>
+          <label className="grid gap-1 text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
+            School
+            <select
+              value={newSchoolId}
+              onChange={(event) => setNewSchoolId(event.target.value)}
+              className="rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm font-semibold normal-case tracking-normal text-slate-900 outline-none focus:border-blue-400 md:py-2"
+            >
+              <option value="">Select school</option>
+              {allSchools.map((school) => (
+                <option key={school.id} value={school.id}>{school.name}</option>
+              ))}
+            </select>
+          </label>
+          <label className="grid gap-1 text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
+            Device name
+            <input
+              type="text"
+              value={newDeviceName}
+              onChange={(event) => setNewDeviceName(event.target.value)}
+              placeholder="Attendance Gate 01"
+              className="rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm font-semibold normal-case tracking-normal text-slate-900 outline-none focus:border-blue-400 md:py-2"
+            />
+          </label>
+          <label className="grid gap-1 text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
+            Reader location
+            <input
+              type="text"
+              value={newLocation}
+              onChange={(event) => setNewLocation(event.target.value)}
+              placeholder="Main Gate"
+              className="rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm font-semibold normal-case tracking-normal text-slate-900 outline-none focus:border-blue-400 md:py-2"
+            />
+          </label>
+          <label className="grid gap-1 text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
+            Reader type
+            <select
+              value={newReaderType}
+              onChange={(event) => setNewReaderType(event.target.value as "GATE" | "CLASSROOM")}
+              className="rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm font-semibold normal-case tracking-normal text-slate-900 outline-none focus:border-blue-400 md:py-2"
+            >
+              <option value="GATE">GATE</option>
+              <option value="CLASSROOM">CLASSROOM</option>
+            </select>
+          </label>
         </div>
-        <div className="mt-3 flex flex-wrap gap-2">
+        <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
           <button
             type="button"
             disabled={creating}
@@ -290,7 +315,7 @@ export function OwnerReaderManagementPage() {
                 setCreating(false);
               }
             }}
-            className="rounded-full border border-blue-200 bg-blue-600 px-4 py-2 text-sm font-bold text-white shadow-sm hover:bg-blue-700 disabled:opacity-60"
+            className="w-full rounded-full border border-blue-200 bg-blue-600 px-4 py-3 text-sm font-bold text-white shadow-sm hover:bg-blue-700 disabled:opacity-60 sm:w-auto sm:py-2"
           >
             {creating ? "Creating..." : "Add reader"}
           </button>
@@ -299,49 +324,136 @@ export function OwnerReaderManagementPage() {
       </section>
 
       <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-        <div className="grid gap-3 lg:grid-cols-[1.4fr_0.9fr_0.9fr_0.9fr_0.9fr]">
-          <input
-            type="search"
-            placeholder="Search reader, school, or device key"
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-blue-400"
-          />
-          <select
-            value={schoolId}
-            onChange={(event) => setSchoolId(event.target.value)}
-            className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-blue-400"
+        <div className="flex flex-col gap-3 lg:hidden">
+          <label className="grid gap-1 text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
+            Search
+            <input
+              type="search"
+              placeholder="Search reader, school, or device key"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              className="w-full rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm font-semibold normal-case tracking-normal text-slate-900 outline-none focus:border-blue-400"
+            />
+          </label>
+          <button
+            type="button"
+            onClick={() => setShowMobileFilters((current) => !current)}
+            aria-expanded={showMobileFilters}
+            className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold text-slate-700"
           >
-            <option value="">All schools</option>
-            {schools.map((school) => (
-              <option key={school.id} value={school.id}>{school.name}</option>
-            ))}
-          </select>
-          <select
-            value={status}
-            onChange={(event) => setStatus(event.target.value as (typeof STATUS_OPTIONS)[number])}
-            className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-blue-400"
-          >
-            {STATUS_OPTIONS.map((item) => (
-              <option key={item} value={item}>{item.replace(/_/g, " ")}</option>
-            ))}
-          </select>
-          <select
-            value={otaStatus}
-            onChange={(event) => setOtaStatus(event.target.value as (typeof OTA_OPTIONS)[number])}
-            className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-blue-400"
-          >
-            {OTA_OPTIONS.map((item) => (
-              <option key={item} value={item}>{item.replace(/_/g, " ")}</option>
-            ))}
-          </select>
-          <input
-            type="search"
-            placeholder="Firmware version"
-            value={firmwareVersion}
-            onChange={(event) => setFirmwareVersion(event.target.value)}
-            className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-blue-400"
-          />
+            {showMobileFilters ? "Hide filters" : "Show filters"}
+          </button>
+          {showMobileFilters ? (
+            <div className="grid gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
+              <label className="grid gap-1 text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
+                School
+                <select
+                  value={schoolId}
+                  onChange={(event) => setSchoolId(event.target.value)}
+                  className="rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm font-semibold normal-case tracking-normal text-slate-900 outline-none focus:border-blue-400"
+                >
+                  <option value="">All schools</option>
+                  {schools.map((school) => (
+                    <option key={school.id} value={school.id}>{school.name}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="grid gap-1 text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
+                Reader status
+                <select
+                  value={status}
+                  onChange={(event) => setStatus(event.target.value as (typeof STATUS_OPTIONS)[number])}
+                  className="rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm font-semibold normal-case tracking-normal text-slate-900 outline-none focus:border-blue-400"
+                >
+                  {STATUS_OPTIONS.map((item) => (
+                    <option key={item} value={item}>{item.replace(/_/g, " ")}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="grid gap-1 text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
+                OTA status
+                <select
+                  value={otaStatus}
+                  onChange={(event) => setOtaStatus(event.target.value as (typeof OTA_OPTIONS)[number])}
+                  className="rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm font-semibold normal-case tracking-normal text-slate-900 outline-none focus:border-blue-400"
+                >
+                  {OTA_OPTIONS.map((item) => (
+                    <option key={item} value={item}>{item.replace(/_/g, " ")}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="grid gap-1 text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
+                Firmware
+                <input
+                  type="search"
+                  placeholder="1.0.7"
+                  value={firmwareVersion}
+                  onChange={(event) => setFirmwareVersion(event.target.value)}
+                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm font-semibold normal-case tracking-normal text-slate-900 outline-none focus:border-blue-400"
+                />
+              </label>
+            </div>
+          ) : null}
+        </div>
+
+        <div className="hidden gap-3 lg:grid lg:grid-cols-[1.4fr_0.9fr_0.9fr_0.9fr_0.9fr]">
+          <label className="grid gap-1 text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
+            Search
+            <input
+              type="search"
+              placeholder="Search reader, school, or device key"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold normal-case tracking-normal text-slate-900 outline-none focus:border-blue-400"
+            />
+          </label>
+          <label className="grid gap-1 text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
+            School
+            <select
+              value={schoolId}
+              onChange={(event) => setSchoolId(event.target.value)}
+              className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold normal-case tracking-normal text-slate-900 outline-none focus:border-blue-400"
+            >
+              <option value="">All schools</option>
+              {schools.map((school) => (
+                <option key={school.id} value={school.id}>{school.name}</option>
+              ))}
+            </select>
+          </label>
+          <label className="grid gap-1 text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
+            Reader status
+            <select
+              value={status}
+              onChange={(event) => setStatus(event.target.value as (typeof STATUS_OPTIONS)[number])}
+              className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold normal-case tracking-normal text-slate-900 outline-none focus:border-blue-400"
+            >
+              {STATUS_OPTIONS.map((item) => (
+                <option key={item} value={item}>{item.replace(/_/g, " ")}</option>
+              ))}
+            </select>
+          </label>
+          <label className="grid gap-1 text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
+            OTA status
+            <select
+              value={otaStatus}
+              onChange={(event) => setOtaStatus(event.target.value as (typeof OTA_OPTIONS)[number])}
+              className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold normal-case tracking-normal text-slate-900 outline-none focus:border-blue-400"
+            >
+              {OTA_OPTIONS.map((item) => (
+                <option key={item} value={item}>{item.replace(/_/g, " ")}</option>
+              ))}
+            </select>
+          </label>
+          <label className="grid gap-1 text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
+            Firmware
+            <input
+              type="search"
+              placeholder="Firmware version"
+              value={firmwareVersion}
+              onChange={(event) => setFirmwareVersion(event.target.value)}
+              className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold normal-case tracking-normal text-slate-900 outline-none focus:border-blue-400"
+            />
+          </label>
         </div>
       </section>
 
@@ -526,11 +638,11 @@ export function OwnerReaderDetailPage() {
           <h2 className="mt-2 text-2xl font-black tracking-tight text-slate-950">{reader?.name ?? "Reader details"}</h2>
           <p className="mt-1 text-sm text-slate-500">{reader?.school?.name ?? "Loading school..."}</p>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <button type="button" onClick={() => void loadReader()} className="rounded-full border border-blue-200 bg-white px-4 py-2 text-sm font-bold text-blue-700 shadow-sm hover:bg-blue-50">
+        <div className="grid w-full gap-2 sm:w-auto sm:grid-cols-2">
+          <button type="button" onClick={() => void loadReader()} className="w-full rounded-full border border-blue-200 bg-white px-4 py-3 text-sm font-bold text-blue-700 shadow-sm hover:bg-blue-50 sm:py-2">
             Refresh
           </button>
-          <button type="button" onClick={() => void rotate()} className="rounded-full bg-blue-600 px-4 py-2 text-sm font-bold text-white shadow-sm hover:bg-blue-700">
+          <button type="button" onClick={() => void rotate()} className="w-full rounded-full bg-blue-600 px-4 py-3 text-sm font-bold text-white shadow-sm hover:bg-blue-700 sm:py-2">
             Rotate token
           </button>
         </div>
@@ -552,13 +664,13 @@ export function OwnerReaderDetailPage() {
                     <ReaderBadge label="Incomplete setup" tone={setupTone(reader.setupStatus)} />
                   </div>
                 ) : null}
-                <p className="mt-2 font-mono text-xs text-slate-400">{reader.deviceKey}</p>
+                <p className="mt-2 break-all font-mono text-xs text-slate-400">{reader.deviceKey}</p>
               </div>
-              <div className="flex flex-wrap gap-2">
-                <button type="button" onClick={() => void run("RESTART")} className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold text-slate-700">Restart</button>
-                <button type="button" onClick={() => void run("SYNC")} className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold text-slate-700">Sync</button>
-                <button type="button" onClick={() => void run("UPDATE_FIRMWARE")} className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold text-slate-700">Update firmware</button>
-                <button type="button" onClick={() => void run("RE_REGISTER")} className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold text-slate-700">Re-register</button>
+              <div className="grid w-full gap-2 sm:w-auto sm:grid-cols-2">
+                <button type="button" onClick={() => void run("RESTART")} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-xs font-bold text-slate-700 sm:py-2">Restart</button>
+                <button type="button" onClick={() => void run("SYNC")} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-xs font-bold text-slate-700 sm:py-2">Sync</button>
+                <button type="button" onClick={() => void run("UPDATE_FIRMWARE")} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-xs font-bold text-slate-700 sm:py-2">Update firmware</button>
+                <button type="button" onClick={() => void run("RE_REGISTER")} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-xs font-bold text-slate-700 sm:py-2">Re-register</button>
               </div>
             </div>
 
@@ -617,7 +729,7 @@ function TimelineSection({
                 <p className="text-sm font-bold text-slate-900">{item.action.replace(/_/g, " ")}</p>
                 <p className="text-xs text-slate-500">{formatDateTime(item.createdAt)}</p>
               </div>
-              <pre className="mt-2 whitespace-pre-wrap break-words text-xs text-slate-600">{JSON.stringify(item.details, null, 2)}</pre>
+              <pre className="mt-2 max-h-72 overflow-auto whitespace-pre-wrap break-words rounded-lg bg-white/80 p-2 text-xs text-slate-600">{JSON.stringify(item.details, null, 2)}</pre>
             </div>
           ))
         )}
