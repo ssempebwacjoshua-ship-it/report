@@ -21,6 +21,14 @@
   ],
   "rewrites": [
     {
+      "source": "/report-lab/api/readers/:path*",
+      "destination": "https://report-production-b00d.up.railway.app/api/readers/:path*"
+    },
+    {
+      "source": "/report-lab/health",
+      "destination": "https://report-production-b00d.up.railway.app/health"
+    },
+    {
       "source": "/report-lab/:path*",
       "destination": "/:path*"
     },

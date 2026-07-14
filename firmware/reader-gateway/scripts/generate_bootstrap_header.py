@@ -35,13 +35,13 @@ merged.update(load_dotenv(repo_root / ".env"))
 merged.update(os.environ)
 
 api_base_url = (
-    merged.get("READER_GATEWAY_API_BASE_URL")
-    or merged.get("READER_GATEWAY_PRODUCTION_API_BASE_URL")
+    merged.get("READER_GATEWAY_PRODUCTION_API_BASE_URL")
+    or merged.get("READER_GATEWAY_API_BASE_URL")
     or merged.get("APP_PUBLIC_URL")
     or merged.get("PUBLIC_APP_URL")
     or merged.get("APP_URL")
     or merged.get("VITE_API_BASE_URL")
-    or "https://ssamenj.online/report-lab"
+    or "https://report-production-b00d.up.railway.app"
 )
 provisioning_token = merged.get("READER_GATEWAY_PROVISIONING_TOKEN", "")
 default_firmware_channel = merged.get("READER_GATEWAY_DEFAULT_FIRMWARE_CHANNEL", "stable")

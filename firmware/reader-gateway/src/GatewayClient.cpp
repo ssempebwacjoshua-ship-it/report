@@ -175,6 +175,15 @@ bool GatewayClient::parseResponse(const String& body, int statusCode, ReaderApiR
   return response.success;
 }
 
+bool isValidActivationPayload(const ReaderRegistrationResult& result) {
+  return !result.schoolId.isEmpty()
+    && !result.deviceId.isEmpty()
+    && !result.readerId.isEmpty()
+    && !result.bearerToken.isEmpty()
+    && !result.apiBaseUrl.isEmpty()
+    && !result.assignmentStatus.isEmpty();
+}
+
 bool GatewayClient::sendJson(const ReaderGatewayConfig& config, const String& path, const String& body, ReaderApiResponse& response) {
   int statusCode = 0;
   String responseBody;
@@ -257,7 +266,20 @@ bool GatewayClient::registerDevice(const ReaderGatewayConfig& config, ReaderApiR
     result.message = doc["message"] | "";
   }
 
-  return ok;
+  if (config.registrationPath.endsWith("/activate")) {
+    bool activationPayloadValid = isValidActivationPayload(result);
+    if (!activationPayloadValid) {
+      response.success = false;
+      response.statusCode = statusCode >= 400 ? statusCode : 502;
+      response.action = "REGISTER";
+      response.message = "Activation response was invalid.";
+      response.beep = "error";
+      result.success = false;
+      return false;
+    }
+  }
+
+  return ok && result.success;
 }
 
 bool GatewayClient::postHeartbeat(const ReaderGatewayConfig& config, const ReaderHeartbeatMetrics& metrics, ReaderApiResponse& response) {

@@ -1,3 +1,4 @@
+import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -27,6 +28,7 @@ export type ReaderGatewayResolvedRelease = ReaderGatewayOtaRelease & {
 };
 
 const catalogRepoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
+const releaseManifestsDir = path.resolve(catalogRepoRoot, "firmware/reader-gateway/releases");
 
 function parseVersion(value: string) {
   return value.split(".").map((part) => Number.parseInt(part, 10)).filter((part) => Number.isFinite(part));
@@ -46,7 +48,16 @@ function compareVersions(left: string, right: string) {
   return 0;
 }
 
-function loadReaderGatewayOtaCatalog(): ReaderGatewayResolvedRelease[] {
+function normalizeRelease(item: ReaderGatewayOtaRelease): ReaderGatewayResolvedRelease {
+  return {
+    ...item,
+    artifactPath: path.isAbsolute(item.artifactPath)
+      ? item.artifactPath
+      : path.resolve(catalogRepoRoot, item.artifactPath),
+  };
+}
+
+function loadReaderGatewayOtaCatalogFromEnv(): ReaderGatewayResolvedRelease[] {
   const raw = process.env.READER_GATEWAY_OTA_RELEASES_JSON?.trim();
   if (!raw) {
     return [];
@@ -59,15 +70,39 @@ function loadReaderGatewayOtaCatalog(): ReaderGatewayResolvedRelease[] {
     }
     return parsed
       .filter((item) => item && typeof item === "object" && item.enabled !== false)
-      .map((item) => ({
-        ...item,
-        artifactPath: path.isAbsolute(item.artifactPath)
-          ? item.artifactPath
-          : path.resolve(catalogRepoRoot, item.artifactPath),
-      }));
+      .map((item) => normalizeRelease(item));
   } catch {
     return [];
   }
+}
+
+function loadReaderGatewayOtaCatalogFromRepo(): ReaderGatewayResolvedRelease[] {
+  if (!fs.existsSync(releaseManifestsDir)) {
+    return [];
+  }
+
+  return fs.readdirSync(releaseManifestsDir)
+    .filter((entry) => entry.endsWith(".release.json"))
+    .flatMap((entry) => {
+      try {
+        const raw = fs.readFileSync(path.resolve(releaseManifestsDir, entry), "utf8");
+        const parsed = JSON.parse(raw) as { railwayRelease?: ReaderGatewayOtaRelease };
+        if (!parsed.railwayRelease || parsed.railwayRelease.enabled === false) {
+          return [];
+        }
+        return [normalizeRelease(parsed.railwayRelease)];
+      } catch {
+        return [];
+      }
+    });
+}
+
+function loadReaderGatewayOtaCatalog(): ReaderGatewayResolvedRelease[] {
+  const fromRepo = loadReaderGatewayOtaCatalogFromRepo();
+  if (fromRepo.length > 0) {
+    return fromRepo;
+  }
+  return loadReaderGatewayOtaCatalogFromEnv();
 }
 
 export function findReaderGatewayOtaRelease(context: ReaderGatewayOtaDeviceContext) {
