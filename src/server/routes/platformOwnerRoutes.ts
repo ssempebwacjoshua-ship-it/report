@@ -73,7 +73,9 @@ function mapReader(row: any) {
   const isPendingSetup = effectiveProvisioningStatus === "PENDING_SETUP";
   const isOnline = row.isActive && row.status === "ACTIVE" && effectiveProvisioningStatus === "ACTIVE" && heartbeatAgeMs <= READER_STALE_WINDOW_MS;
   const isAttendanceReader = row.mode === "ATTENDANCE";
-  const setupStatus = isAttendanceReader && (!row.locationType || !row.attendanceMode)
+  const effectiveAttendanceMode = row.attendanceMode
+    ?? (row.locationType === "GATE" ? "GATE_ATTENDANCE" : row.locationType === "CLASSROOM" ? "CLASSROOM_ATTENDANCE" : null);
+  const setupStatus = isAttendanceReader && (!row.locationType || !effectiveAttendanceMode)
     ? "INCOMPLETE_SETUP"
     : "READY";
   const derivedOnlineStatus = effectiveProvisioningStatus === "PENDING_SETUP"
@@ -99,7 +101,7 @@ function mapReader(row: any) {
     locationType: row.locationType ?? null,
     locationName: row.locationName ?? row.location ?? null,
     mode: row.mode,
-    attendanceMode: row.attendanceMode ?? null,
+    attendanceMode: effectiveAttendanceMode,
     setupStatus,
     studentScope: row.studentScope ?? null,
     classId: row.classId ?? null,
@@ -909,6 +911,7 @@ export function platformOwnerRoutes() {
           location: body.location,
           locationName: body.location,
           locationType: body.readerType,
+          attendanceMode: body.readerType === "GATE" ? "GATE_ATTENDANCE" : "CLASSROOM_ATTENDANCE",
           deviceKey: `pending-${randomUUID()}`,
           mode: "ATTENDANCE",
           roleScope: "ADMIN_OPERATOR",

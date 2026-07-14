@@ -385,17 +385,19 @@ bool ReaderGatewayApp::openSetupPortal(const char* reason) {
   WiFi.mode(WIFI_AP_STA);
   WiFi.setAutoReconnect(true);
 
+  WiFiManager manager;
+  const bool preconfiguredDeployment = !config_.schoolId.isEmpty() && !config_.bearerToken.isEmpty() && config_.registrationPath.endsWith("/register");
   String activationCodeValue = provisionedActivationCode_.isEmpty() ? config_.activationCode : provisionedActivationCode_;
   char activationCodeBuffer[65];
   activationCodeValue.toCharArray(activationCodeBuffer, sizeof(activationCodeBuffer));
-
-  WiFiManager manager;
   WiFiManagerParameter activationCodeParam("activationCode", "Activation Code", activationCodeBuffer, sizeof(activationCodeBuffer));
 
   manager.setTitle("SSAMENJ Attendance Controller");
   manager.setCaptivePortalEnable(true);
   manager.setConnectTimeout(30);
-  manager.addParameter(&activationCodeParam);
+  if (!preconfiguredDeployment) {
+    manager.addParameter(&activationCodeParam);
+  }
 
   const String apSsid = setupAccessPointSsid();
   Serial.printf("Opening setup portal: %s\n", reason == nullptr ? "manual" : reason);
@@ -406,10 +408,12 @@ bool ReaderGatewayApp::openSetupPortal(const char* reason) {
   const bool connected = manager.startConfigPortal(apSsid.c_str(), SETUP_PORTAL_PASSWORD);
   stopSetupLedBlink();
 
-  provisionedActivationCode_ = String(activationCodeParam.getValue());
-  provisionedActivationCode_.trim();
+  if (!preconfiguredDeployment) {
+    provisionedActivationCode_ = String(activationCodeParam.getValue());
+    provisionedActivationCode_.trim();
+  }
 
-  if (provisionedActivationCode_.isEmpty()) {
+  if (!preconfiguredDeployment && provisionedActivationCode_.isEmpty()) {
     setupRequired_ = true;
     provisioningPreferences_.putBool(PROVISIONING_SETUP_REQUIRED_KEY, true);
     Serial.println("Provisioning validation failed; activation code is required");
@@ -426,7 +430,9 @@ bool ReaderGatewayApp::openSetupPortal(const char* reason) {
   }
   setupRequired_ = false;
   provisioningPreferences_.putBool(PROVISIONING_SETUP_REQUIRED_KEY, false);
-  provisioningPreferences_.putString(PROVISIONING_ACTIVATION_CODE_KEY, provisionedActivationCode_);
+  if (!preconfiguredDeployment) {
+    provisioningPreferences_.putString(PROVISIONING_ACTIVATION_CODE_KEY, provisionedActivationCode_);
+  }
 
   applyProvisioningOverrides();
   wifiDisconnectedSinceMs_ = 0;
@@ -480,7 +486,9 @@ void ReaderGatewayApp::updateOfflinePortalFallback() {
     return;
   }
 
-  openSetupPortal("Wi-Fi unavailable for 2 minutes; reopening setup portal");
+  // Keep retrying with the stored credentials. Reopening the portal can interrupt
+  // an otherwise recoverable deployment and is reserved for an explicit reset.
+  wifiDisconnectedSinceMs_ = millis();
 }
 
 void ReaderGatewayApp::handleFactoryResetButton() {

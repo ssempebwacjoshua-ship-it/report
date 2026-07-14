@@ -114,7 +114,12 @@ function respond(
 }
 
 export function isLocationAwareReader(device: LocationAwareReaderDevice) {
-  return Boolean(device.locationType && device.attendanceMode);
+  return Boolean(device.locationType && (device.attendanceMode || device.locationType));
+}
+
+function effectiveAttendanceMode(device: LocationAwareReaderDevice) {
+  return device.attendanceMode
+    || (device.locationType === "GATE" ? "GATE_ATTENDANCE" : device.locationType === "CLASSROOM" ? "CLASSROOM_ATTENDANCE" : null);
 }
 
 function parseDeviceTime(value: string | undefined) {
@@ -784,10 +789,11 @@ export async function processLocationAwareReaderEvent(
       statusCode: 403,
     };
   }
-  if (device.locationType === "GATE" && device.attendanceMode === "GATE_ATTENDANCE") {
+  const attendanceMode = effectiveAttendanceMode(device);
+  if (device.locationType === "GATE" && attendanceMode === "GATE_ATTENDANCE") {
     return processGateAttendance(device, student, body, scannedAt, policy, db);
   }
-  if (device.locationType === "CLASSROOM" && device.attendanceMode === "CLASSROOM_ATTENDANCE") {
+  if (device.locationType === "CLASSROOM" && attendanceMode === "CLASSROOM_ATTENDANCE") {
     return processClassroomAttendance(device, student, body, scannedAt, policy, db);
   }
   return {

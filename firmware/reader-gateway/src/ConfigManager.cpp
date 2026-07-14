@@ -26,21 +26,21 @@ bool ConfigManager::begin() {
 
 ReaderGatewayConfig ConfigManager::defaults() {
   ReaderGatewayConfig config;
-  config.deviceId = defaultDeviceId();
-  config.schoolId = "";
-  config.readerId = config.deviceId;
-  config.deviceName = config.deviceId;
-  config.readerLocation = "";
-  config.readerType = "";
+  config.deviceId = String(SSAMENJ_GATEWAY_DEFAULT_DEVICE_ID).isEmpty() ? defaultDeviceId() : SSAMENJ_GATEWAY_DEFAULT_DEVICE_ID;
+  config.schoolId = SSAMENJ_GATEWAY_DEFAULT_SCHOOL_ID;
+  config.readerId = String(SSAMENJ_GATEWAY_DEFAULT_READER_ID).isEmpty() ? config.deviceId : SSAMENJ_GATEWAY_DEFAULT_READER_ID;
+  config.deviceName = String(SSAMENJ_GATEWAY_DEFAULT_DEVICE_NAME).isEmpty() ? config.deviceId : SSAMENJ_GATEWAY_DEFAULT_DEVICE_NAME;
+  config.readerLocation = SSAMENJ_GATEWAY_DEFAULT_READER_LOCATION;
+  config.readerType = SSAMENJ_GATEWAY_DEFAULT_READER_TYPE;
   config.activationCode = "";
   config.firmwareChannel = SSAMENJ_GATEWAY_DEFAULT_FIRMWARE_CHANNEL;
   config.apiBaseUrl = SSAMENJ_GATEWAY_DEFAULT_API_BASE_URL;
   config.eventsPath = "/api/readers/events";
-  config.registrationPath = "/api/readers/activate";
+  config.registrationPath = String(SSAMENJ_GATEWAY_DEFAULT_DEVICE_TOKEN).isEmpty() ? "/api/readers/activate" : "/api/readers/register";
   config.heartbeatPath = "/api/readers/heartbeat";
   config.otaCheckPath = "/api/readers/ota/check";
   config.otaStatusPath = "/api/readers/ota/status";
-  config.bearerToken = SSAMENJ_GATEWAY_DEFAULT_PROVISIONING_TOKEN;
+  config.bearerToken = String(SSAMENJ_GATEWAY_DEFAULT_DEVICE_TOKEN).isEmpty() ? SSAMENJ_GATEWAY_DEFAULT_PROVISIONING_TOKEN : SSAMENJ_GATEWAY_DEFAULT_DEVICE_TOKEN;
   config.firmwareVersion = SSAMENJ_GATEWAY_VERSION;
   config.ntpServer = "pool.ntp.org";
   config.otaPublicKeyPem = "";

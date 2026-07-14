@@ -45,6 +45,16 @@ api_base_url = (
 )
 provisioning_token = merged.get("READER_GATEWAY_PROVISIONING_TOKEN", "")
 default_firmware_channel = merged.get("READER_GATEWAY_DEFAULT_FIRMWARE_CHANNEL", "stable")
+bootstrap_keys = {
+    "device_id": "READER_GATEWAY_DEFAULT_DEVICE_ID",
+    "reader_id": "READER_GATEWAY_DEFAULT_READER_ID",
+    "school_id": "READER_GATEWAY_DEFAULT_SCHOOL_ID",
+    "device_name": "READER_GATEWAY_DEFAULT_DEVICE_NAME",
+    "reader_location": "READER_GATEWAY_DEFAULT_READER_LOCATION",
+    "reader_type": "READER_GATEWAY_DEFAULT_READER_TYPE",
+    "device_token": "READER_GATEWAY_DEFAULT_DEVICE_TOKEN",
+}
+bootstrap_values = {name: merged.get(key, "") for name, key in bootstrap_keys.items()}
 allow_local_bootstrap = merged.get("READER_GATEWAY_ALLOW_LOCAL_API_BOOTSTRAP", "").strip().lower() in {"1", "true", "yes"}
 
 if is_local_url(api_base_url) and not allow_local_bootstrap:
@@ -58,6 +68,13 @@ header = f"""#pragma once
 #define SSAMENJ_GATEWAY_DEFAULT_API_BASE_URL "{c_string(api_base_url)}"
 #define SSAMENJ_GATEWAY_DEFAULT_PROVISIONING_TOKEN "{c_string(provisioning_token)}"
 #define SSAMENJ_GATEWAY_DEFAULT_FIRMWARE_CHANNEL "{c_string(default_firmware_channel)}"
+#define SSAMENJ_GATEWAY_DEFAULT_DEVICE_ID "{c_string(bootstrap_values['device_id'])}"
+#define SSAMENJ_GATEWAY_DEFAULT_READER_ID "{c_string(bootstrap_values['reader_id'])}"
+#define SSAMENJ_GATEWAY_DEFAULT_SCHOOL_ID "{c_string(bootstrap_values['school_id'])}"
+#define SSAMENJ_GATEWAY_DEFAULT_DEVICE_NAME "{c_string(bootstrap_values['device_name'])}"
+#define SSAMENJ_GATEWAY_DEFAULT_READER_LOCATION "{c_string(bootstrap_values['reader_location'])}"
+#define SSAMENJ_GATEWAY_DEFAULT_READER_TYPE "{c_string(bootstrap_values['reader_type'])}"
+#define SSAMENJ_GATEWAY_DEFAULT_DEVICE_TOKEN "{c_string(bootstrap_values['device_token'])}"
 """
 
 output_path = project_dir / "secrets" / "device_bootstrap.auto.h"
