@@ -9,6 +9,7 @@ const prismaMocks = vi.hoisted(() => ({
   nfcOfflineDeviceFindFirst: vi.fn(),
   nfcOfflineDeviceCreate: vi.fn(),
   nfcOfflineDeviceUpdate: vi.fn(),
+  nfcOfflineDeviceUpdateMany: vi.fn(),
   schoolFindUnique: vi.fn(),
   schoolNfcPolicyFindUnique: vi.fn(),
   auditLogFindFirst: vi.fn(),
@@ -37,6 +38,7 @@ vi.mock("../../server/db/prisma", () => ({
       findFirst: prismaMocks.nfcOfflineDeviceFindFirst,
       create: prismaMocks.nfcOfflineDeviceCreate,
       update: prismaMocks.nfcOfflineDeviceUpdate,
+      updateMany: prismaMocks.nfcOfflineDeviceUpdateMany,
     },
     school: {
       findUnique: prismaMocks.schoolFindUnique,
@@ -263,6 +265,21 @@ function registerBody(overrides: Record<string, unknown> = {}) {
     location: "Main Gate",
     readerType: "GATE",
     deviceName: "Attendance Gate 01",
+    firmwareVersion: "1.0.0",
+    firmwareChannel: "stable",
+    transport: "esp32-wiegand",
+    schemaVersion: "1.0",
+    hardware: "ESP32",
+    ...overrides,
+  };
+}
+
+function activateBody(overrides: Record<string, unknown> = {}) {
+  return {
+    activationCode: "RG-ABCD-EFGH-IJKL",
+    hardwareId: "reader-gateway-74372C",
+    deviceId: "reader-gateway-74372C",
+    readerId: "reader-gateway-74372C",
     firmwareVersion: "1.0.0",
     firmwareChannel: "stable",
     transport: "esp32-wiegand",
@@ -1067,6 +1084,90 @@ describe("readerGatewayRoutes", () => {
         deviceKey: "attendance-gate-01",
         locationName: "Main Gate",
         locationType: "GATE",
+      }),
+    }));
+  });
+
+  it("activates a pending reader and issues a permanent device token", async () => {
+    prismaMocks.nfcOfflineDeviceFindFirst
+      .mockResolvedValueOnce({
+        id: "pending-1",
+        schoolId: "school-1",
+        name: "Preview Gate",
+        location: "Main Gate",
+        locationType: "GATE",
+        deviceKey: "pending-pending-1",
+        deviceTokenHash: null,
+        provisioningStatus: "PENDING_SETUP",
+        activationCodeExpiresAt: new Date(Date.now() + 60_000),
+        activationCodeUsedAt: null,
+        activationBoundHardwareId: null,
+      });
+    prismaMocks.transaction.mockImplementation(async (fn: (tx: any) => Promise<unknown>) => fn({
+      nfcOfflineDevice: {
+        updateMany: prismaMocks.nfcOfflineDeviceUpdateMany,
+      },
+      auditLog: { create: prismaMocks.auditLogCreate },
+    }));
+    prismaMocks.nfcOfflineDeviceUpdateMany.mockResolvedValue({ count: 1 });
+
+    const res = await request(buildApp())
+      .post("/api/readers/activate")
+      .send(activateBody());
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({
+      success: true,
+      status: "ACTIVATED",
+      schoolId: "school-1",
+      schoolName: "Preview School",
+      assignmentStatus: "ASSIGNED",
+      deviceId: "pending-1",
+      readerId: "pending-1",
+      deviceName: "Preview Gate",
+      location: "Main Gate",
+      readerType: "GATE",
+    });
+    expect(res.body.bearerToken).toBeTruthy();
+    expect(prismaMocks.nfcOfflineDeviceUpdateMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({
+        id: "pending-1",
+        provisioningStatus: { in: ["PENDING_SETUP", "ACTIVATION_FAILED", "ACTIVATION_EXPIRED"] },
+      }),
+      data: expect.objectContaining({
+        deviceKey: "reader-gateway-74372C",
+        provisioningStatus: "ACTIVE",
+        activationBoundHardwareId: "reader-gateway-74372C",
+      }),
+    }));
+  });
+
+  it("rejects an expired activation code without creating a duplicate device", async () => {
+    prismaMocks.nfcOfflineDeviceFindFirst.mockResolvedValueOnce({
+      id: "pending-expired",
+      schoolId: "school-1",
+      name: "Expired Reader",
+      location: "Admin Block",
+      locationType: "CLASSROOM",
+      deviceKey: "pending-expired",
+      deviceTokenHash: null,
+      provisioningStatus: "PENDING_SETUP",
+      activationCodeExpiresAt: new Date(Date.now() - 60_000),
+      activationCodeUsedAt: null,
+      activationBoundHardwareId: null,
+    });
+
+    const res = await request(buildApp())
+      .post("/api/readers/activate")
+      .send(activateBody({ activationCode: "RG-EXPR-CODE-0001" }));
+
+    expect(res.status).toBe(410);
+    expect(res.body.error).toMatch(/expired/i);
+    expect(prismaMocks.nfcOfflineDeviceCreate).not.toHaveBeenCalled();
+    expect(prismaMocks.nfcOfflineDeviceUpdate).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: "pending-expired" },
+      data: expect.objectContaining({
+        provisioningStatus: "ACTIVATION_EXPIRED",
       }),
     }));
   });

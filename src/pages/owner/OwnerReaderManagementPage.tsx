@@ -1,15 +1,20 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import {
+  cancelOwnerReaderSetup,
+  createPendingOwnerReader,
+  fetchOwnerSchools,
   fetchOwnerReader,
   fetchOwnerReaders,
+  regenerateOwnerReaderActivation,
   requestOwnerReaderAction,
   rotateOwnerReaderToken,
+  type OwnerSchool,
   type OwnerReader,
   type OwnerReaderDetail,
 } from "../../client/ownerClient";
 
-const STATUS_OPTIONS = ["ALL", "ONLINE", "OFFLINE", "DISABLED", "ERRORS", "OTA_PENDING"] as const;
+const STATUS_OPTIONS = ["ALL", "ONLINE", "OFFLINE", "PENDING_SETUP", "ACTIVATION_EXPIRED", "ACTIVATION_FAILED", "DISABLED", "ERRORS", "OTA_PENDING"] as const;
 const OTA_OPTIONS = ["ALL", "PENDING", "FAILED", "INSTALLED", "NO_UPDATE"] as const;
 
 function formatDateTime(value: string | null | undefined) {
@@ -36,6 +41,9 @@ function statusTone(status: string) {
   const key = status.toUpperCase();
   if (key === "ONLINE") return "border-emerald-200 bg-emerald-50 text-emerald-700";
   if (key === "OFFLINE") return "border-red-200 bg-red-50 text-red-700";
+  if (key === "PENDING_SETUP") return "border-amber-200 bg-amber-50 text-amber-800";
+  if (key === "ACTIVATION_EXPIRED") return "border-orange-200 bg-orange-50 text-orange-800";
+  if (key === "ACTIVATION_FAILED") return "border-rose-200 bg-rose-50 text-rose-700";
   if (key === "DISABLED") return "border-slate-200 bg-slate-100 text-slate-500";
   if (key === "ERRORS") return "border-amber-200 bg-amber-50 text-amber-700";
   if (key === "OTA_PENDING") return "border-blue-200 bg-blue-50 text-blue-700";
@@ -115,13 +123,19 @@ function ReaderCard({
 
 export function OwnerReaderManagementPage() {
   const [readers, setReaders] = useState<OwnerReader[]>([]);
+  const [allSchools, setAllSchools] = useState<OwnerSchool[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [creating, setCreating] = useState(false);
   const [search, setSearch] = useState("");
   const [schoolId, setSchoolId] = useState("");
   const [status, setStatus] = useState<(typeof STATUS_OPTIONS)[number]>("ALL");
   const [otaStatus, setOtaStatus] = useState<(typeof OTA_OPTIONS)[number]>("ALL");
   const [firmwareVersion, setFirmwareVersion] = useState("");
+  const [newSchoolId, setNewSchoolId] = useState("");
+  const [newDeviceName, setNewDeviceName] = useState("");
+  const [newLocation, setNewLocation] = useState("");
+  const [newReaderType, setNewReaderType] = useState<"GATE" | "CLASSROOM">("GATE");
 
   async function loadReaders() {
     setLoading(true);
@@ -147,8 +161,25 @@ export function OwnerReaderManagementPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search, schoolId, status, otaStatus, firmwareVersion]);
 
+  useEffect(() => {
+    void (async () => {
+      try {
+        const data = await fetchOwnerSchools();
+        setAllSchools(data.schools);
+        if (!newSchoolId && data.schools[0]?.id) {
+          setNewSchoolId(data.schools[0].id);
+        }
+      } catch {
+        // keep the page usable even if the school picker cannot preload.
+      }
+    })();
+  }, [newSchoolId]);
+
   const schools = useMemo(() => {
     const seen = new Map<string, { id: string; code: string; name: string }>();
+    for (const school of allSchools) {
+      seen.set(school.id, { id: school.id, code: school.code, name: school.name });
+    }
     for (const reader of readers) {
       if (reader.school?.id) {
         seen.set(reader.school.id, reader.school);
@@ -162,6 +193,7 @@ export function OwnerReaderManagementPage() {
     total: readers.length,
     online: readers.filter((reader) => reader.onlineStatus === "ONLINE").length,
     offline: readers.filter((reader) => reader.onlineStatus === "OFFLINE").length,
+    pending: readers.filter((reader) => reader.onlineStatus === "PENDING_SETUP").length,
     otaPending: readers.filter((reader) => reader.otaStatus && ["UPDATE_AVAILABLE", "DEFERRED", "PENDING"].includes(String(reader.otaStatus))).length,
     errors: readers.filter((reader) => Boolean(
       (reader.lastScanStatus && reader.lastScanStatus !== "SUCCESS" && reader.lastScanStatus !== "PRESENT")
@@ -194,9 +226,79 @@ export function OwnerReaderManagementPage() {
         <MetricCard label="Controllers" value={stats.total} />
         <MetricCard label="Online" value={stats.online} />
         <MetricCard label="Offline" value={stats.offline} />
-        <MetricCard label="OTA pending" value={stats.otaPending} />
+        <MetricCard label="Pending setup" value={stats.pending} />
         <MetricCard label="Errors" value={stats.errors} />
       </div>
+
+      <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="mb-3">
+          <p className="text-sm font-black text-slate-900">Add Reader</p>
+          <p className="text-sm text-slate-500">Create the reader first, then give the installer only the one-time activation code.</p>
+        </div>
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <select
+            value={newSchoolId}
+            onChange={(event) => setNewSchoolId(event.target.value)}
+            className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-blue-400"
+          >
+            <option value="">Select school</option>
+            {allSchools.map((school) => (
+              <option key={school.id} value={school.id}>{school.name}</option>
+            ))}
+          </select>
+          <input
+            type="text"
+            value={newDeviceName}
+            onChange={(event) => setNewDeviceName(event.target.value)}
+            placeholder="Device name"
+            className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-blue-400"
+          />
+          <input
+            type="text"
+            value={newLocation}
+            onChange={(event) => setNewLocation(event.target.value)}
+            placeholder="Reader location"
+            className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-blue-400"
+          />
+          <select
+            value={newReaderType}
+            onChange={(event) => setNewReaderType(event.target.value as "GATE" | "CLASSROOM")}
+            className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-blue-400"
+          >
+            <option value="GATE">GATE</option>
+            <option value="CLASSROOM">CLASSROOM</option>
+          </select>
+        </div>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <button
+            type="button"
+            disabled={creating}
+            onClick={async () => {
+              try {
+                setCreating(true);
+                const created = await createPendingOwnerReader({
+                  schoolId: newSchoolId,
+                  deviceName: newDeviceName,
+                  location: newLocation,
+                  readerType: newReaderType,
+                });
+                window.alert(`Activation code: ${created.activationCode}\nExpires: ${formatDateTime(created.activationExpiresAt)}`);
+                setNewDeviceName("");
+                setNewLocation("");
+                await loadReaders();
+              } catch (caught) {
+                window.alert(caught instanceof Error ? caught.message : "Could not create pending reader.");
+              } finally {
+                setCreating(false);
+              }
+            }}
+            className="rounded-full border border-blue-200 bg-blue-600 px-4 py-2 text-sm font-bold text-white shadow-sm hover:bg-blue-700 disabled:opacity-60"
+          >
+            {creating ? "Creating..." : "Add reader"}
+          </button>
+          <p className="self-center text-xs text-slate-500">Activation codes expire after 24 hours and are shown only once.</p>
+        </div>
+      </section>
 
       <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
         <div className="grid gap-3 lg:grid-cols-[1.4fr_0.9fr_0.9fr_0.9fr_0.9fr]">
@@ -302,21 +404,56 @@ export function OwnerReaderManagementPage() {
                           >
                             View
                           </Link>
-                          <button
-                            type="button"
-                            onClick={async () => {
-                              try {
-                                if (!window.confirm("Rotate this device token? The new token is shown once.")) return;
-                                const rotated = await rotateOwnerReaderToken(reader.schoolId ?? "", reader.id);
-                                window.alert(`One-time provisioning token: ${rotated.oneTimeToken}`);
-                              } catch (caught) {
-                                window.alert(caught instanceof Error ? caught.message : "Could not rotate token.");
-                              }
-                            }}
-                            className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50"
-                          >
-                            Rotate token
-                          </button>
+                          {reader.pendingSetup ? (
+                            <>
+                              <button
+                                type="button"
+                                onClick={async () => {
+                                  try {
+                                    const regenerated = await regenerateOwnerReaderActivation(reader.id);
+                                    window.alert(`Activation code: ${regenerated.activationCode}\nExpires: ${formatDateTime(regenerated.activationExpiresAt)}`);
+                                    await loadReaders();
+                                  } catch (caught) {
+                                    window.alert(caught instanceof Error ? caught.message : "Could not regenerate activation code.");
+                                  }
+                                }}
+                                className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50"
+                              >
+                                Regenerate code
+                              </button>
+                              <button
+                                type="button"
+                                onClick={async () => {
+                                  try {
+                                    if (!window.confirm("Cancel this pending reader setup?")) return;
+                                    await cancelOwnerReaderSetup(reader.id);
+                                    await loadReaders();
+                                  } catch (caught) {
+                                    window.alert(caught instanceof Error ? caught.message : "Could not cancel pending setup.");
+                                  }
+                                }}
+                                className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-bold text-rose-700 hover:bg-rose-100"
+                              >
+                                Cancel setup
+                              </button>
+                            </>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                try {
+                                  if (!window.confirm("Rotate this device token? The new token is shown once.")) return;
+                                  const rotated = await rotateOwnerReaderToken(reader.schoolId ?? "", reader.id);
+                                  window.alert(`One-time provisioning token: ${rotated.oneTimeToken}`);
+                                } catch (caught) {
+                                  window.alert(caught instanceof Error ? caught.message : "Could not rotate token.");
+                                }
+                              }}
+                              className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50"
+                            >
+                              Rotate token
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>

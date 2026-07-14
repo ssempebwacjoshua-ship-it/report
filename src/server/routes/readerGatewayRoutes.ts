@@ -13,6 +13,7 @@ import { captureReaderCredentialFromReader } from "../services/readerCredentialL
 import { getDashboardAttendanceSummaryForSchool } from "../services/dashboardService";
 import { publishAttendanceRealtime } from "../services/attendanceRealtime";
 import {
+  activateReaderGatewayDevice,
   authenticateReaderGatewayProvisioning,
   hashReaderGatewayToken,
   resolveReaderGatewayRegistration,
@@ -61,6 +62,18 @@ const registerSchema = z.object({
   firmwareChannel: z.string().trim().min(1).optional().default("stable"),
   firmwareVersion: z.string().trim().optional(),
   deviceTime: z.string().trim().optional(),
+  transport: z.string().trim().optional(),
+  schemaVersion: z.string().trim().optional(),
+  hardware: z.string().trim().optional(),
+});
+
+const activateSchema = z.object({
+  activationCode: z.string().trim().min(1, "Activation code is required."),
+  hardwareId: z.string().trim().min(1, "Hardware identity is required."),
+  deviceId: z.string().trim().min(1, "Device ID is required."),
+  readerId: z.string().trim().min(1, "Reader ID is required."),
+  firmwareChannel: z.string().trim().min(1).optional().default("stable"),
+  firmwareVersion: z.string().trim().optional(),
   transport: z.string().trim().optional(),
   schemaVersion: z.string().trim().optional(),
   hardware: z.string().trim().optional(),
@@ -315,6 +328,23 @@ function parseOptionalDate(value: string | null | undefined) {
 
 export function readerGatewayRoutes() {
   const router = Router();
+
+  router.post("/api/readers/activate", async (req, res, next) => {
+    try {
+      const body = activateSchema.parse(req.body);
+      const result = await activateReaderGatewayDevice(prisma, body, req.ip);
+      res.json({
+        success: true,
+        action: "REGISTER",
+        status: "ACTIVATED",
+        message: `Reader assigned to ${result.schoolName}`,
+        beep: "success",
+        ...result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
 
   router.post("/api/readers/register", async (req, res, next) => {
     try {

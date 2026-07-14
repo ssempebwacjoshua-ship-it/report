@@ -20,6 +20,18 @@ type RegistrationInput = {
   hardware?: string;
 };
 
+type ActivationInput = {
+  activationCode: string;
+  hardwareId: string;
+  deviceId: string;
+  readerId: string;
+  firmwareVersion?: string;
+  firmwareChannel?: string;
+  transport?: string;
+  schemaVersion?: string;
+  hardware?: string;
+};
+
 type ExistingDevice = {
   id: string;
   schoolId: string;
@@ -52,11 +64,15 @@ export type ReaderGatewayRegistrationResult = {
   bearerToken?: string;
   apiBaseUrl: string;
   firmwareChannel: string;
+  deviceName?: string;
+  location?: string;
+  readerType?: "GATE" | "CLASSROOM";
 };
 
 const FAILED_ATTEMPT_LIMIT = 5;
 const FAILED_ATTEMPT_WINDOW_MS = 10 * 60 * 1000;
 const failedRegistrationAttempts = new Map<string, number[]>();
+const failedActivationAttempts = new Map<string, number[]>();
 
 function normalizeCode(value: string) {
   return value.trim().toUpperCase();
@@ -92,6 +108,26 @@ function recordFailedAttempt(key: string) {
 
 function clearFailedAttempts(key: string) {
   failedRegistrationAttempts.delete(key);
+}
+
+function assertWithinActivationAttemptLimit(key: string) {
+  const now = Date.now();
+  const recent = (failedActivationAttempts.get(key) ?? []).filter((timestamp) => now - timestamp < FAILED_ATTEMPT_WINDOW_MS);
+  failedActivationAttempts.set(key, recent);
+  if (recent.length >= FAILED_ATTEMPT_LIMIT) {
+    throw Object.assign(new Error("Too many activation attempts. Please retry later."), { status: 429 });
+  }
+}
+
+function recordFailedActivationAttempt(key: string) {
+  const now = Date.now();
+  const recent = (failedActivationAttempts.get(key) ?? []).filter((timestamp) => now - timestamp < FAILED_ATTEMPT_WINDOW_MS);
+  recent.push(now);
+  failedActivationAttempts.set(key, recent);
+}
+
+function clearFailedActivationAttempts(key: string) {
+  failedActivationAttempts.delete(key);
 }
 
 function resolveLocationType(readerType: "GATE" | "CLASSROOM") {
@@ -308,4 +344,178 @@ export function authenticateReaderGatewayProvisioning(token: string | null) {
 
 export function hashReaderGatewayToken(token: string) {
   return hashToken(token);
+}
+
+export function hashReaderGatewayActivationCode(code: string) {
+  return hashToken(normalizeCode(code));
+}
+
+export function generateReaderGatewayActivationCode() {
+  const raw = randomBytes(9).toString("base64url").replace(/[-_]/g, "").toUpperCase();
+  return `RG-${raw.slice(0, 4)}-${raw.slice(4, 8)}-${raw.slice(8, 12)}`;
+}
+
+export async function activateReaderGatewayDevice(
+  db: RegistrationDb,
+  input: ActivationInput,
+  requestIp?: string,
+): Promise<ReaderGatewayRegistrationResult> {
+  const activationCode = normalizeCode(input.activationCode);
+  const hardwareId = input.hardwareId.trim();
+  const failureKey = [activationCode, hardwareId, requestIp ?? ""].join(":");
+  assertWithinActivationAttemptLimit(failureKey);
+
+  if (!activationCode) {
+    recordFailedActivationAttempt(failureKey);
+    throw Object.assign(new Error("Activation code is required."), { status: 400 });
+  }
+  if (!hardwareId) {
+    throw Object.assign(new Error("Hardware identity is required."), { status: 400 });
+  }
+
+  const activationCodeHash = hashReaderGatewayActivationCode(activationCode);
+  const now = new Date();
+  const pending = await db.nfcOfflineDevice.findFirst({
+    where: { activationCodeHash },
+    select: {
+      id: true,
+      schoolId: true,
+      name: true,
+      location: true,
+      locationType: true,
+      deviceKey: true,
+      provisioningStatus: true,
+      activationCodeExpiresAt: true,
+      activationCodeUsedAt: true,
+      activationBoundHardwareId: true,
+      deviceTokenHash: true,
+    },
+  }) as (ExistingDevice & {
+    provisioningStatus: string;
+    activationCodeExpiresAt: Date | null;
+    activationCodeUsedAt: Date | null;
+    activationBoundHardwareId: string | null;
+  }) | null;
+
+  if (!pending) {
+    recordFailedActivationAttempt(failureKey);
+    throw Object.assign(new Error("Activation code not found."), { status: 404 });
+  }
+  if (pending.activationCodeExpiresAt && pending.activationCodeExpiresAt <= now) {
+    await db.nfcOfflineDevice.update({
+      where: { id: pending.id },
+      data: {
+        provisioningStatus: "ACTIVATION_EXPIRED",
+        activationLastError: "Activation code expired.",
+      },
+    });
+    recordFailedActivationAttempt(failureKey);
+    throw Object.assign(new Error("Activation code expired."), { status: 410 });
+  }
+  if (pending.activationCodeUsedAt) {
+    recordFailedActivationAttempt(failureKey);
+    throw Object.assign(new Error("Activation code already used."), { status: 409 });
+  }
+  if (pending.activationBoundHardwareId && pending.activationBoundHardwareId !== hardwareId) {
+    recordFailedActivationAttempt(failureKey);
+    throw Object.assign(new Error("Reader already assigned; contact SSAMENJ"), { status: 409 });
+  }
+
+  const school = await db.school.findUnique({
+    where: { id: pending.schoolId },
+    select: { id: true, code: true, name: true, isActive: true },
+  }) as SchoolSummary | null;
+  if (!school) {
+    throw Object.assign(new Error("Assigned school was not found."), { status: 404 });
+  }
+  if (!school.isActive) {
+    await db.nfcOfflineDevice.update({
+      where: { id: pending.id },
+      data: {
+        provisioningStatus: "ACTIVATION_FAILED",
+        activationFailedAttempts: { increment: 1 },
+        activationLastFailedAt: now,
+        activationLastError: "School is not active.",
+      },
+    });
+    recordFailedActivationAttempt(failureKey);
+    throw Object.assign(new Error("School is not active"), { status: 403 });
+  }
+
+  const oneTimeToken = generateDeviceToken();
+  const oneTimeTokenHash = hashToken(oneTimeToken);
+  const canonicalDeviceId = pending.id;
+  const canonicalReaderId = pending.id;
+
+  await db.$transaction(async (tx) => {
+    const claimed = await tx.nfcOfflineDevice.updateMany({
+      where: {
+        id: pending.id,
+        activationCodeHash,
+        activationCodeUsedAt: null,
+        provisioningStatus: { in: ["PENDING_SETUP", "ACTIVATION_FAILED", "ACTIVATION_EXPIRED"] },
+        OR: [
+          { activationBoundHardwareId: null },
+          { activationBoundHardwareId: hardwareId },
+        ],
+      },
+      data: {
+        deviceKey: hardwareId,
+        deviceTokenHash: oneTimeTokenHash,
+        provisioningStatus: "ACTIVE",
+        activationCodeUsedAt: now,
+        activationBoundHardwareId: hardwareId,
+        activationFailedAttempts: 0,
+        activationLastFailedAt: null,
+        activationLastError: null,
+        status: "ACTIVE",
+        isActive: true,
+        firmwareVersion: input.firmwareVersion?.trim() || null,
+        lastSeenAt: now,
+        lastHeartbeatAt: now,
+      },
+    });
+
+    if (claimed.count !== 1) {
+      throw Object.assign(new Error("Activation code already used."), { status: 409 });
+    }
+
+    await tx.auditLog.create({
+      data: {
+        schoolId: school.id,
+        action: "reader_device.activated",
+        correlationId: hardwareId,
+        details: {
+          deviceId: canonicalDeviceId,
+          readerId: canonicalReaderId,
+          hardwareId,
+          deviceName: pending.name,
+          location: pending.location ?? null,
+          readerType: pending.locationType ?? null,
+          firmwareVersion: input.firmwareVersion?.trim() || null,
+          firmwareChannel: input.firmwareChannel?.trim() || "stable",
+          schemaVersion: input.schemaVersion ?? null,
+          transport: input.transport ?? null,
+          hardware: input.hardware ?? null,
+          assignmentStatus: "ASSIGNED",
+        },
+      },
+    });
+  });
+
+  clearFailedActivationAttempts(failureKey);
+
+  return {
+    deviceId: canonicalDeviceId,
+    readerId: canonicalReaderId,
+    schoolId: school.id,
+    schoolName: school.name,
+    assignmentStatus: "ASSIGNED",
+    bearerToken: oneTimeToken,
+    apiBaseUrl: getReaderGatewayCanonicalApiBaseUrl(),
+    firmwareChannel: input.firmwareChannel?.trim() || "stable",
+    deviceName: pending.name,
+    location: pending.location ?? undefined,
+    readerType: pending.locationType === "CLASSROOM" ? "CLASSROOM" : "GATE",
+  };
 }

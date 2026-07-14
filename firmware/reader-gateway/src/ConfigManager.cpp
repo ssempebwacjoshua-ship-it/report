@@ -27,16 +27,16 @@ bool ConfigManager::begin() {
 ReaderGatewayConfig ConfigManager::defaults() {
   ReaderGatewayConfig config;
   config.deviceId = defaultDeviceId();
-  config.schoolId = "school-001";
-  config.readerId = "attendance-gate-01";
-  config.schoolCode = "";
-  config.deviceName = "attendance-gate-01";
+  config.schoolId = "";
+  config.readerId = config.deviceId;
+  config.deviceName = config.deviceId;
   config.readerLocation = "";
-  config.readerType = "GATE";
+  config.readerType = "";
+  config.activationCode = "";
   config.firmwareChannel = SSAMENJ_GATEWAY_DEFAULT_FIRMWARE_CHANNEL;
   config.apiBaseUrl = SSAMENJ_GATEWAY_DEFAULT_API_BASE_URL;
   config.eventsPath = "/api/readers/events";
-  config.registrationPath = "/api/readers/register";
+  config.registrationPath = "/api/readers/activate";
   config.heartbeatPath = "/api/readers/heartbeat";
   config.otaCheckPath = "/api/readers/ota/check";
   config.otaStatusPath = "/api/readers/ota/status";
@@ -93,10 +93,10 @@ bool ConfigManager::load(ReaderGatewayConfig& config) {
   config.deviceId = doc["deviceId"] | config.deviceId;
   config.schoolId = doc["schoolId"] | config.schoolId;
   config.readerId = doc["readerId"] | config.readerId;
-  config.schoolCode = doc["schoolCode"] | config.schoolCode;
   config.deviceName = doc["deviceName"] | config.deviceName;
   config.readerLocation = doc["readerLocation"] | config.readerLocation;
   config.readerType = doc["readerType"] | config.readerType;
+  config.activationCode = doc["activationCode"] | config.activationCode;
   config.firmwareChannel = doc["firmwareChannel"] | config.firmwareChannel;
   config.wifiSsid = doc["wifiSsid"] | config.wifiSsid;
   config.wifiPassword = doc["wifiPassword"] | config.wifiPassword;
@@ -134,10 +134,10 @@ bool ConfigManager::save(const ReaderGatewayConfig& config) {
   doc["deviceId"] = config.deviceId;
   doc["schoolId"] = config.schoolId;
   doc["readerId"] = config.readerId;
-  doc["schoolCode"] = config.schoolCode;
   doc["deviceName"] = config.deviceName;
   doc["readerLocation"] = config.readerLocation;
   doc["readerType"] = config.readerType;
+  doc["activationCode"] = config.activationCode;
   doc["firmwareChannel"] = config.firmwareChannel;
   doc["wifiSsid"] = config.wifiSsid;
   doc["wifiPassword"] = config.wifiPassword;

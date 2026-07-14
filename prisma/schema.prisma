@@ -1442,6 +1442,14 @@ model NfcOfflineDevice {
   locationName     String?
   deviceKey        String
   deviceTokenHash  String?
+  provisioningStatus String  @default("ACTIVE") // PENDING_SETUP | ACTIVE | ACTIVATION_EXPIRED | ACTIVATION_FAILED | CANCELLED
+  activationCodeHash String?
+  activationCodeExpiresAt DateTime?
+  activationCodeUsedAt DateTime?
+  activationBoundHardwareId String?
+  activationFailedAttempts Int @default(0)
+  activationLastFailedAt DateTime?
+  activationLastError String?
   mode             String    @default("GATE") // GATE | CANTEEN | ATTENDANCE
   attendanceMode   String?
   studentScope     String?
@@ -1475,6 +1483,8 @@ model NfcOfflineDevice {
   school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
 
   @@index([schoolId, isActive])
+  @@index([provisioningStatus, activationCodeExpiresAt])
+  @@index([activationCodeHash])
 }
 
 model NfcOfflineSyncBatch {

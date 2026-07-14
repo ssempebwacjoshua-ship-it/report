@@ -84,10 +84,7 @@ class ReaderGatewayApp {
   String lastSuccessfulApiContactAt_;
   String provisionedWifiSsid_;
   String provisionedWifiPassword_;
-  String provisionedSchoolCode_;
-  String provisionedControllerName_;
-  String provisionedReaderLocation_;
-  String provisionedReaderType_;
+  String provisionedActivationCode_;
   String provisionedFirmwareChannel_;
   bool wifiConnectedLogged_ = false;
   String lastAcceptedCredential_;

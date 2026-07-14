@@ -24,10 +24,10 @@ struct ReaderGatewayConfig {
   String deviceId;
   String schoolId;
   String readerId;
-  String schoolCode;
   String deviceName;
   String readerLocation;
   String readerType;
+  String activationCode;
   String firmwareChannel;
   String wifiSsid;
   String wifiPassword;
@@ -99,6 +99,9 @@ struct ReaderRegistrationResult {
   String bearerToken;
   String apiBaseUrl;
   String firmwareChannel;
+  String deviceName;
+  String readerLocation;
+  String readerType;
   String message;
 };
 

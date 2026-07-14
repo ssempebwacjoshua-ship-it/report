@@ -9,6 +9,7 @@ import { REPORT_LAB_PLANS, getPlanByCode } from "../../shared/constants/subscrip
 import { CANONICAL_STREAM_CODES, provisionSchoolOnboarding } from "../services/schoolStructureProvisioningService";
 import { getSmartPagesPackage } from "../services/smartPagesService";
 import type { SmartPagesPackageCode, SmartPagesPaymentNetwork, SmartPagesPaymentRequest } from "../../shared/types/smartPages";
+import { generateReaderGatewayActivationCode, hashReaderGatewayActivationCode } from "../services/readerGatewayRegistrationService";
 
 const validPlanCodes = REPORT_LAB_PLANS.map((p) => p.code) as [string, ...string[]];
 const FEATURE_FLAGS = ["REPORT_LAB", "SMART_PAGES", "ATTENDANCE", "WALLET", "GATE", "NFC", "OCR", "AI"] as const;
@@ -18,10 +19,12 @@ const READER_STALE_WINDOW_MS = 5 * 60 * 1000;
 const READER_AUDIT_ACTIONS = [
   "reader_device.registered",
   "reader_device.re_registered",
+  "reader_device.activated",
   "reader_device.heartbeat",
   "reader_event.attendance",
   "reader_device.ota_status",
 ] as const;
+const READER_ACTIVATION_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 function ownerAudit(actorId: string, schoolId: string, action: string, details?: Record<string, unknown>) {
   return prisma.auditLog.create({ data: { schoolId, action, details: { actorUserId: actorId, ...details } } });
@@ -63,14 +66,25 @@ function mapAuditLog(row: { id: string; action: string; correlationId: string | 
 function mapReader(row: any) {
   const lastHeartbeatAt = row.lastHeartbeatAt ?? row.lastSeenAt ?? null;
   const heartbeatAgeMs = lastHeartbeatAt ? Date.now() - new Date(lastHeartbeatAt).getTime() : Number.POSITIVE_INFINITY;
-  const isOnline = row.isActive && row.status === "ACTIVE" && heartbeatAgeMs <= READER_STALE_WINDOW_MS;
+  const activationExpired = row.provisioningStatus === "PENDING_SETUP"
+    && row.activationCodeExpiresAt
+    && new Date(row.activationCodeExpiresAt).getTime() <= Date.now();
+  const effectiveProvisioningStatus = activationExpired ? "ACTIVATION_EXPIRED" : (row.provisioningStatus ?? "ACTIVE");
+  const isPendingSetup = effectiveProvisioningStatus === "PENDING_SETUP";
+  const isOnline = row.isActive && row.status === "ACTIVE" && effectiveProvisioningStatus === "ACTIVE" && heartbeatAgeMs <= READER_STALE_WINDOW_MS;
   const isAttendanceReader = row.mode === "ATTENDANCE";
   const setupStatus = isAttendanceReader && (!row.locationType || !row.attendanceMode)
     ? "INCOMPLETE_SETUP"
     : "READY";
-  const derivedOnlineStatus = row.isActive && row.status === "ACTIVE"
-    ? (isOnline ? "ONLINE" : "OFFLINE")
-    : "DISABLED";
+  const derivedOnlineStatus = effectiveProvisioningStatus === "PENDING_SETUP"
+    ? "PENDING_SETUP"
+    : effectiveProvisioningStatus === "ACTIVATION_EXPIRED"
+      ? "ACTIVATION_EXPIRED"
+      : effectiveProvisioningStatus === "ACTIVATION_FAILED"
+        ? "ACTIVATION_FAILED"
+        : row.isActive && row.status === "ACTIVE"
+          ? (isOnline ? "ONLINE" : "OFFLINE")
+          : "DISABLED";
   return {
     id: row.id,
     schoolId: row.schoolId,
@@ -91,6 +105,7 @@ function mapReader(row: any) {
     classId: row.classId ?? null,
     streamId: row.streamId ?? null,
     status: row.status,
+    provisioningStatus: effectiveProvisioningStatus,
     assignmentStatus: row.schoolId ? "ASSIGNED" : "UNASSIGNED",
     isActive: row.isActive,
     firmwareVersion: row.firmwareVersion ?? null,
@@ -109,9 +124,15 @@ function mapReader(row: any) {
     rawOnlineStatus: row.onlineStatus ?? "OFFLINE",
     otaStatus: row.otaStatus ?? null,
     otaMessage: row.otaMessage ?? null,
-    heartbeatStale: row.isActive && row.status === "ACTIVE" && !isOnline,
+    heartbeatStale: row.isActive && row.status === "ACTIVE" && effectiveProvisioningStatus === "ACTIVE" && !isOnline,
     hasToken: Boolean(row.deviceTokenHash),
     tokenHashPrefix: row.deviceTokenHash ? `${String(row.deviceTokenHash).slice(0, 10)}...` : null,
+    activationExpiresAt: row.activationCodeExpiresAt ? new Date(row.activationCodeExpiresAt).toISOString() : null,
+    activationUsedAt: row.activationCodeUsedAt ? new Date(row.activationCodeUsedAt).toISOString() : null,
+    activationFailedAttempts: row.activationFailedAttempts ?? 0,
+    activationLastError: row.activationLastError ?? null,
+    activationBoundHardwareId: row.activationBoundHardwareId ?? null,
+    pendingSetup: isPendingSetup,
   };
 }
 
@@ -845,6 +866,9 @@ export function platformOwnerRoutes() {
             || (statusFilter === "ONLINE" ? reader.onlineStatus === "ONLINE" : false)
             || (statusFilter === "OFFLINE" ? reader.onlineStatus === "OFFLINE" : false)
             || (statusFilter === "DISABLED" ? reader.onlineStatus === "DISABLED" : false)
+            || (statusFilter === "PENDING_SETUP" ? reader.onlineStatus === "PENDING_SETUP" : false)
+            || (statusFilter === "ACTIVATION_EXPIRED" ? reader.onlineStatus === "ACTIVATION_EXPIRED" : false)
+            || (statusFilter === "ACTIVATION_FAILED" ? reader.onlineStatus === "ACTIVATION_FAILED" : false)
             || (statusFilter === "ERRORS" ? Boolean(
               (reader.lastScanStatus && reader.lastScanStatus !== "SUCCESS" && reader.lastScanStatus !== "PRESENT")
               || reader.otaStatus === "FAILED",
@@ -861,6 +885,141 @@ export function platformOwnerRoutes() {
         });
 
       res.json({ readers: mapped });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/api/owner/readers", requirePlatformOwner, async (req, res, next) => {
+    try {
+      const body = z.object({
+        schoolId: z.string().uuid("Invalid school ID."),
+        deviceName: z.string().trim().min(2, "Device name is required.").max(120),
+        location: z.string().trim().min(2, "Location is required.").max(120),
+        readerType: z.enum(["GATE", "CLASSROOM"]),
+      }).parse(req.body);
+      const school = await requireOwnerSchool(body.schoolId);
+      const activationCode = generateReaderGatewayActivationCode();
+      const activationCodeHash = hashReaderGatewayActivationCode(activationCode);
+      const expiresAt = new Date(Date.now() + READER_ACTIVATION_WINDOW_MS);
+      const device = await prisma.nfcOfflineDevice.create({
+        data: {
+          schoolId: body.schoolId,
+          name: body.deviceName,
+          location: body.location,
+          locationName: body.location,
+          locationType: body.readerType,
+          deviceKey: `pending-${randomUUID()}`,
+          mode: "ATTENDANCE",
+          roleScope: "ADMIN_OPERATOR",
+          status: "ACTIVE",
+          isActive: true,
+          provisioningStatus: "PENDING_SETUP",
+          activationCodeHash,
+          activationCodeExpiresAt: expiresAt,
+        },
+        include: {
+          school: { select: { id: true, code: true, name: true } },
+        },
+      });
+      void ownerAudit(req.user!.userId, body.schoolId, "READER_PENDING_SETUP_CREATED", {
+        readerId: device.id,
+        schoolCode: school.code,
+        location: body.location,
+        readerType: body.readerType,
+        activationExpiresAt: expiresAt.toISOString(),
+      }).catch(() => {});
+      res.status(201).json({
+        reader: mapReader(device),
+        activationCode,
+        activationExpiresAt: expiresAt.toISOString(),
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/api/owner/readers/:readerId/regenerate-activation", requirePlatformOwner, async (req, res, next) => {
+    try {
+      const readerId = z.string().trim().min(1).parse(req.params.readerId);
+      const reader = await prisma.nfcOfflineDevice.findFirst({
+        where: buildDeviceIdentityWhere(readerId),
+        orderBy: RECENT_DEVICE_ORDER_BY,
+        include: { school: { select: { id: true, code: true, name: true } } },
+      });
+      if (!reader) {
+        res.status(404).json({ error: "Reader not found." });
+        return;
+      }
+      if (reader.provisioningStatus === "ACTIVE" && reader.deviceTokenHash) {
+        res.status(409).json({ error: "Reader is already active." });
+        return;
+      }
+      const activationCode = generateReaderGatewayActivationCode();
+      const activationCodeHash = hashReaderGatewayActivationCode(activationCode);
+      const expiresAt = new Date(Date.now() + READER_ACTIVATION_WINDOW_MS);
+      const updated = await prisma.nfcOfflineDevice.update({
+        where: { id: reader.id },
+        data: {
+          provisioningStatus: "PENDING_SETUP",
+          activationCodeHash,
+          activationCodeExpiresAt: expiresAt,
+          activationCodeUsedAt: null,
+          activationBoundHardwareId: null,
+          activationFailedAttempts: 0,
+          activationLastFailedAt: null,
+          activationLastError: null,
+          deviceTokenHash: null,
+          deviceKey: `pending-${reader.id}`,
+          lastHeartbeatAt: null,
+          lastSeenAt: null,
+          onlineStatus: "OFFLINE",
+        },
+        include: { school: { select: { id: true, code: true, name: true } } },
+      });
+      void ownerAudit(req.user!.userId, reader.schoolId, "READER_PENDING_SETUP_REGENERATED", {
+        readerId: reader.id,
+        activationExpiresAt: expiresAt.toISOString(),
+      }).catch(() => {});
+      res.json({
+        reader: mapReader(updated),
+        activationCode,
+        activationExpiresAt: expiresAt.toISOString(),
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/api/owner/readers/:readerId/cancel-setup", requirePlatformOwner, async (req, res, next) => {
+    try {
+      const readerId = z.string().trim().min(1).parse(req.params.readerId);
+      const reader = await prisma.nfcOfflineDevice.findFirst({
+        where: buildDeviceIdentityWhere(readerId),
+        orderBy: RECENT_DEVICE_ORDER_BY,
+      });
+      if (!reader) {
+        res.status(404).json({ error: "Reader not found." });
+        return;
+      }
+      const updated = await prisma.nfcOfflineDevice.update({
+        where: { id: reader.id },
+        data: {
+          provisioningStatus: "CANCELLED",
+          activationCodeHash: null,
+          activationCodeExpiresAt: null,
+          activationCodeUsedAt: null,
+          activationBoundHardwareId: null,
+          activationLastError: "Pending setup cancelled by platform owner.",
+          deviceTokenHash: null,
+          onlineStatus: "OFFLINE",
+        },
+        include: { school: { select: { id: true, code: true, name: true } } },
+      });
+      void ownerAudit(req.user!.userId, reader.schoolId, "READER_PENDING_SETUP_CANCELLED", {
+        readerId: reader.id,
+      }).catch(() => {});
+      res.json({ reader: mapReader(updated) });
     } catch (error) {
       next(error);
     }
@@ -885,7 +1044,7 @@ export function platformOwnerRoutes() {
         prisma.auditLog.findFirst({
           where: {
             schoolId: reader.schoolId,
-            action: { in: ["reader_device.registered", "reader_device.re_registered"] },
+            action: { in: ["reader_device.registered", "reader_device.re_registered", "reader_device.activated"] },
           },
           orderBy: { createdAt: "desc" },
         }),

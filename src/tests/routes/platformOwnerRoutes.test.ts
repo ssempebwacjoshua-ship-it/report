@@ -491,6 +491,61 @@ describe("platformOwnerRoutes ? reader management inventory", () => {
     expect(res.body.readers.find((reader: { id: string }) => reader.id === fixture.reader.id)?.setupStatus).toBe("INCOMPLETE_SETUP");
   });
 
+  it("creates a pending reader and returns a one-time activation code", async () => {
+    const schoolId = await firstSchoolIdForReaders();
+    if (!schoolId) return;
+
+    const res = await request(createServer())
+      .post("/api/owner/readers")
+      .set("Authorization", `Bearer ${ownerToken}`)
+      .send({
+        schoolId,
+        deviceName: `Pending Reader ${Date.now()}`,
+        location: "Main Gate",
+        readerType: "GATE",
+      });
+
+    expect(res.status).toBe(201);
+    expect(res.body.activationCode).toMatch(/^RG-/);
+    expect(res.body.reader.onlineStatus).toBe("PENDING_SETUP");
+    expect(res.body.reader.provisioningStatus).toBe("PENDING_SETUP");
+    expect(res.body.reader.schoolId).toBe(schoolId);
+    expect(res.body.reader.activationExpiresAt).toBeTruthy();
+  });
+
+  it("regenerates a pending reader activation code and keeps it pending", async () => {
+    const schoolId = await firstSchoolIdForReaders();
+    if (!schoolId) return;
+
+    const created = await prisma.nfcOfflineDevice.create({
+      data: {
+        schoolId,
+        name: `Pending Reader ${Date.now()}`,
+        location: "Front Office",
+        locationName: "Front Office",
+        locationType: "CLASSROOM",
+        deviceKey: `pending-${Date.now()}`,
+        mode: "ATTENDANCE",
+        status: "ACTIVE",
+        roleScope: "ADMIN_OPERATOR",
+        isActive: true,
+        provisioningStatus: "PENDING_SETUP",
+        activationCodeHash: "old-hash",
+        activationCodeExpiresAt: new Date(Date.now() + 60_000),
+      },
+    });
+
+    const res = await request(createServer())
+      .post(`/api/owner/readers/${created.id}/regenerate-activation`)
+      .set("Authorization", `Bearer ${ownerToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.activationCode).toMatch(/^RG-/);
+    expect(res.body.reader.id).toBe(created.id);
+    expect(res.body.reader.onlineStatus).toBe("PENDING_SETUP");
+    expect(res.body.reader.activationExpiresAt).toBeTruthy();
+  });
+
   it("returns a reader detail payload with diagnostics history", async () => {
     const fixture = await createReaderFixture();
     if (!fixture) return;

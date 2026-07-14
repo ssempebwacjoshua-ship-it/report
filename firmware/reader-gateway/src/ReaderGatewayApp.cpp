@@ -21,10 +21,7 @@ constexpr const char* PENDING_OTA_STATE_PATH = "/reader-gateway/ota-pending.json
 constexpr const char* PROVISIONING_NAMESPACE = "rg-setup";
 constexpr const char* PROVISIONING_WIFI_SSID_KEY = "wifiSsid";
 constexpr const char* PROVISIONING_WIFI_PASSWORD_KEY = "wifiPass";
-constexpr const char* PROVISIONING_SCHOOL_CODE_KEY = "schoolCode";
-constexpr const char* PROVISIONING_CONTROLLER_NAME_KEY = "controller";
-constexpr const char* PROVISIONING_LOCATION_KEY = "location";
-constexpr const char* PROVISIONING_READER_TYPE_KEY = "readerType";
+constexpr const char* PROVISIONING_ACTIVATION_CODE_KEY = "activationCode";
 constexpr const char* PROVISIONING_FIRMWARE_CHANNEL_KEY = "fwChannel";
 constexpr const char* PROVISIONING_SETUP_REQUIRED_KEY = "setupReq";
 constexpr const char* SETUP_PORTAL_PASSWORD = "ssamenj123";
@@ -221,10 +218,7 @@ bool ReaderGatewayApp::beginProvisioningStorage() {
 void ReaderGatewayApp::loadProvisioningState() {
   provisionedWifiSsid_ = "";
   provisionedWifiPassword_ = "";
-  provisionedSchoolCode_ = "";
-  provisionedControllerName_ = "";
-  provisionedReaderLocation_ = "";
-  provisionedReaderType_ = "";
+  provisionedActivationCode_ = "";
   provisionedFirmwareChannel_ = "";
   setupRequired_ = false;
 
@@ -234,18 +228,12 @@ void ReaderGatewayApp::loadProvisioningState() {
 
   provisionedWifiSsid_ = provisioningPreferences_.getString(PROVISIONING_WIFI_SSID_KEY, "");
   provisionedWifiPassword_ = provisioningPreferences_.getString(PROVISIONING_WIFI_PASSWORD_KEY, "");
-  provisionedSchoolCode_ = provisioningPreferences_.getString(PROVISIONING_SCHOOL_CODE_KEY, "");
-  provisionedControllerName_ = provisioningPreferences_.getString(PROVISIONING_CONTROLLER_NAME_KEY, "");
-  provisionedReaderLocation_ = provisioningPreferences_.getString(PROVISIONING_LOCATION_KEY, "");
-  provisionedReaderType_ = provisioningPreferences_.getString(PROVISIONING_READER_TYPE_KEY, "");
+  provisionedActivationCode_ = provisioningPreferences_.getString(PROVISIONING_ACTIVATION_CODE_KEY, "");
   provisionedFirmwareChannel_ = provisioningPreferences_.getString(PROVISIONING_FIRMWARE_CHANNEL_KEY, "");
   setupRequired_ = provisioningPreferences_.getBool(PROVISIONING_SETUP_REQUIRED_KEY, false);
   provisionedWifiSsid_.trim();
   provisionedWifiPassword_.trim();
-  provisionedSchoolCode_.trim();
-  provisionedControllerName_.trim();
-  provisionedReaderLocation_.trim();
-  provisionedReaderType_.trim();
+  provisionedActivationCode_.trim();
   provisionedFirmwareChannel_.trim();
 }
 
@@ -259,21 +247,8 @@ void ReaderGatewayApp::applyProvisioningOverrides() {
     config_.wifiPassword = wifiPassword;
   }
 
-  if (!provisionedControllerName_.isEmpty()) {
-    config_.deviceId = provisionedControllerName_;
-    config_.readerId = provisionedControllerName_;
-  }
-  if (!provisionedSchoolCode_.isEmpty()) {
-    config_.schoolCode = provisionedSchoolCode_;
-  }
-  if (!provisionedControllerName_.isEmpty()) {
-    config_.deviceName = provisionedControllerName_;
-  }
-  if (!provisionedReaderLocation_.isEmpty()) {
-    config_.readerLocation = provisionedReaderLocation_;
-  }
-  if (!provisionedReaderType_.isEmpty()) {
-    config_.readerType = provisionedReaderType_;
+  if (!provisionedActivationCode_.isEmpty()) {
+    config_.activationCode = provisionedActivationCode_;
   }
   if (!provisionedFirmwareChannel_.isEmpty()) {
     config_.firmwareChannel = provisionedFirmwareChannel_;
@@ -296,12 +271,26 @@ void ReaderGatewayApp::applyRegistrationResult(const ReaderRegistrationResult& r
   }
   if (!result.bearerToken.isEmpty()) {
     config_.bearerToken = result.bearerToken;
+    config_.activationCode = "";
+    provisionedActivationCode_ = "";
+    if (beginProvisioningStorage()) {
+      provisioningPreferences_.remove(PROVISIONING_ACTIVATION_CODE_KEY);
+    }
   }
   if (!result.apiBaseUrl.isEmpty()) {
     config_.apiBaseUrl = result.apiBaseUrl;
   }
   if (!result.firmwareChannel.isEmpty()) {
     config_.firmwareChannel = result.firmwareChannel;
+  }
+  if (!result.deviceName.isEmpty()) {
+    config_.deviceName = result.deviceName;
+  }
+  if (!result.readerLocation.isEmpty()) {
+    config_.readerLocation = result.readerLocation;
+  }
+  if (!result.readerType.isEmpty()) {
+    config_.readerType = result.readerType;
   }
   if (!result.assignmentStatus.isEmpty()) {
     Serial.printf("Reader assigned to %s\n", result.schoolName.c_str());
@@ -369,44 +358,17 @@ bool ReaderGatewayApp::openSetupPortal(const char* reason) {
   WiFi.mode(WIFI_AP_STA);
   WiFi.setAutoReconnect(true);
 
-  String schoolCodeValue = provisionedSchoolCode_;
-  if (schoolCodeValue.isEmpty()) {
-    schoolCodeValue = config_.schoolCode;
-  }
-  String controllerNameValue = provisionedControllerName_;
-  if (controllerNameValue.isEmpty()) {
-    controllerNameValue = config_.deviceName;
-  }
-  String locationValue = provisionedReaderLocation_.isEmpty() ? config_.readerLocation : provisionedReaderLocation_;
-  String readerTypeValue = provisionedReaderType_.isEmpty() ? config_.readerType : provisionedReaderType_;
-  String firmwareChannelValue = provisionedFirmwareChannel_.isEmpty() ? config_.firmwareChannel : provisionedFirmwareChannel_;
-
-  char schoolCodeBuffer[65];
-  char controllerNameBuffer[65];
-  char locationBuffer[65];
-  char readerTypeBuffer[16];
-  char firmwareChannelBuffer[32];
-  schoolCodeValue.toCharArray(schoolCodeBuffer, sizeof(schoolCodeBuffer));
-  controllerNameValue.toCharArray(controllerNameBuffer, sizeof(controllerNameBuffer));
-  locationValue.toCharArray(locationBuffer, sizeof(locationBuffer));
-  readerTypeValue.toCharArray(readerTypeBuffer, sizeof(readerTypeBuffer));
-  firmwareChannelValue.toCharArray(firmwareChannelBuffer, sizeof(firmwareChannelBuffer));
+  String activationCodeValue = provisionedActivationCode_.isEmpty() ? config_.activationCode : provisionedActivationCode_;
+  char activationCodeBuffer[65];
+  activationCodeValue.toCharArray(activationCodeBuffer, sizeof(activationCodeBuffer));
 
   WiFiManager manager;
-  WiFiManagerParameter schoolCodeParam("schoolCode", "School Code", schoolCodeBuffer, sizeof(schoolCodeBuffer));
-  WiFiManagerParameter locationParam("location", "Reader Location", locationBuffer, sizeof(locationBuffer));
-  WiFiManagerParameter readerTypeParam("readerType", "Reader Type (GATE/CLASSROOM)", readerTypeBuffer, sizeof(readerTypeBuffer));
-  WiFiManagerParameter controllerNameParam("controllerName", "Device Name", controllerNameBuffer, sizeof(controllerNameBuffer));
-  WiFiManagerParameter firmwareChannelParam("firmwareChannel", "Firmware Channel", firmwareChannelBuffer, sizeof(firmwareChannelBuffer));
+  WiFiManagerParameter activationCodeParam("activationCode", "Activation Code", activationCodeBuffer, sizeof(activationCodeBuffer));
 
   manager.setTitle("SSAMENJ Attendance Controller");
   manager.setCaptivePortalEnable(true);
   manager.setConnectTimeout(30);
-  manager.addParameter(&schoolCodeParam);
-  manager.addParameter(&locationParam);
-  manager.addParameter(&readerTypeParam);
-  manager.addParameter(&controllerNameParam);
-  manager.addParameter(&firmwareChannelParam);
+  manager.addParameter(&activationCodeParam);
 
   const String apSsid = setupAccessPointSsid();
   Serial.printf("Opening setup portal: %s\n", reason == nullptr ? "manual" : reason);
@@ -417,29 +379,13 @@ bool ReaderGatewayApp::openSetupPortal(const char* reason) {
   const bool connected = manager.startConfigPortal(apSsid.c_str(), SETUP_PORTAL_PASSWORD);
   stopSetupLedBlink();
 
-  provisionedSchoolCode_ = String(schoolCodeParam.getValue());
-  provisionedSchoolCode_.trim();
-  provisionedReaderLocation_ = String(locationParam.getValue());
-  provisionedReaderLocation_.trim();
-  provisionedReaderType_ = String(readerTypeParam.getValue());
-  provisionedReaderType_.trim();
-  provisionedControllerName_ = String(controllerNameParam.getValue());
-  provisionedControllerName_.trim();
-  provisionedFirmwareChannel_ = String(firmwareChannelParam.getValue());
-  provisionedFirmwareChannel_.trim();
+  provisionedActivationCode_ = String(activationCodeParam.getValue());
+  provisionedActivationCode_.trim();
 
-  if (provisionedReaderType_.isEmpty()) {
-    provisionedReaderType_ = "GATE";
-  }
-  if (provisionedFirmwareChannel_.isEmpty()) {
-    provisionedFirmwareChannel_ = "stable";
-  }
-
-  if (provisionedSchoolCode_.isEmpty() || provisionedReaderLocation_.isEmpty() || provisionedControllerName_.isEmpty()
-    || (!provisionedReaderType_.equalsIgnoreCase("GATE") && !provisionedReaderType_.equalsIgnoreCase("CLASSROOM"))) {
+  if (provisionedActivationCode_.isEmpty()) {
     setupRequired_ = true;
     provisioningPreferences_.putBool(PROVISIONING_SETUP_REQUIRED_KEY, true);
-    Serial.println("Provisioning validation failed; school code, location, reader type, and device name are required");
+    Serial.println("Provisioning validation failed; activation code is required");
     return false;
   }
 
@@ -453,11 +399,7 @@ bool ReaderGatewayApp::openSetupPortal(const char* reason) {
   }
   setupRequired_ = false;
   provisioningPreferences_.putBool(PROVISIONING_SETUP_REQUIRED_KEY, false);
-  provisioningPreferences_.putString(PROVISIONING_SCHOOL_CODE_KEY, provisionedSchoolCode_);
-  provisioningPreferences_.putString(PROVISIONING_LOCATION_KEY, provisionedReaderLocation_);
-  provisioningPreferences_.putString(PROVISIONING_READER_TYPE_KEY, provisionedReaderType_);
-  provisioningPreferences_.putString(PROVISIONING_CONTROLLER_NAME_KEY, provisionedControllerName_);
-  provisioningPreferences_.putString(PROVISIONING_FIRMWARE_CHANNEL_KEY, provisionedFirmwareChannel_);
+  provisioningPreferences_.putString(PROVISIONING_ACTIVATION_CODE_KEY, provisionedActivationCode_);
 
   applyProvisioningOverrides();
   wifiDisconnectedSinceMs_ = 0;
@@ -470,17 +412,8 @@ bool ReaderGatewayApp::openSetupPortal(const char* reason) {
 
   Serial.println("Connecting to Wi-Fi...");
   Serial.printf("Provisioned Wi-Fi SSID: %s\n", provisionedWifiSsid_.c_str());
-  if (!provisionedSchoolCode_.isEmpty()) {
-    Serial.printf("Provisioned school code: %s\n", provisionedSchoolCode_.c_str());
-  }
-  if (!provisionedControllerName_.isEmpty()) {
-    Serial.printf("Provisioned controller name: %s\n", provisionedControllerName_.c_str());
-  }
-  if (!provisionedReaderLocation_.isEmpty()) {
-    Serial.printf("Provisioned reader location: %s\n", provisionedReaderLocation_.c_str());
-  }
-  if (!provisionedReaderType_.isEmpty()) {
-    Serial.printf("Provisioned reader type: %s\n", provisionedReaderType_.c_str());
+  if (!provisionedActivationCode_.isEmpty()) {
+    Serial.println("Provisioned activation code saved");
   }
   Serial.printf("Provisioned IP: %s\n", WiFi.localIP().toString().c_str());
   WiFi.softAPdisconnect(true);
@@ -983,11 +916,8 @@ bool ReaderGatewayApp::begin() {
   Serial.printf("Wi-Fi SSID configured: %s\n", configuredWifiSsid().c_str());
   Serial.printf("Configured D0 pin: %d\n", static_cast<int>(config_.d0Pin));
   Serial.printf("Configured D1 pin: %d\n", static_cast<int>(config_.d1Pin));
-  if (!provisionedSchoolCode_.isEmpty()) {
-    Serial.printf("Provisioned school code: %s\n", provisionedSchoolCode_.c_str());
-  }
-  if (!config_.schoolCode.isEmpty()) {
-    Serial.printf("Loaded school code: %s\n", config_.schoolCode.c_str());
+  if (!provisionedActivationCode_.isEmpty()) {
+    Serial.println("Provisioned activation code is stored");
   }
 
   checkRollbackState();

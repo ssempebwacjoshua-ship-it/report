@@ -92,6 +92,7 @@ export type OwnerReader = {
   classId: string | null;
   streamId: string | null;
   status: string;
+  provisioningStatus?: string;
   assignmentStatus?: string;
   isActive: boolean;
   firmwareVersion: string | null;
@@ -113,14 +114,27 @@ export type OwnerReader = {
   heartbeatStale?: boolean;
   hasToken: boolean;
   tokenHashPrefix: string | null;
+  activationExpiresAt?: string | null;
+  activationUsedAt?: string | null;
+  activationFailedAttempts?: number;
+  activationLastError?: string | null;
+  activationBoundHardwareId?: string | null;
+  pendingSetup?: boolean;
 };
 
 export type OwnerReaderInventoryFilter = {
   search?: string;
   schoolId?: string;
-  status?: "ALL" | "ONLINE" | "OFFLINE" | "DISABLED" | "ERRORS" | "OTA_PENDING";
+  status?: "ALL" | "ONLINE" | "OFFLINE" | "DISABLED" | "PENDING_SETUP" | "ACTIVATION_EXPIRED" | "ACTIVATION_FAILED" | "ERRORS" | "OTA_PENDING";
   otaStatus?: "ALL" | "PENDING" | "FAILED" | "INSTALLED" | "NO_UPDATE";
   firmwareVersion?: string;
+};
+
+export type CreatePendingOwnerReaderInput = {
+  schoolId: string;
+  deviceName: string;
+  location: string;
+  readerType: "GATE" | "CLASSROOM";
 };
 
 export type OwnerReaderDiagnostics = {
@@ -385,6 +399,34 @@ export async function rotateOwnerReaderToken(schoolId: string, deviceId: string)
     headers: makeRequestHeaders(),
   });
   if (!res.ok) throw new Error(await parseApiError(res, "Could not rotate reader token"));
+  return res.json();
+}
+
+export async function createPendingOwnerReader(input: CreatePendingOwnerReaderInput): Promise<{ reader: OwnerReader; activationCode: string; activationExpiresAt: string }> {
+  const res = await fetch(`${API_BASE}/api/owner/readers`, {
+    method: "POST",
+    headers: makeRequestHeaders({ "Content-Type": "application/json" }),
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) throw new Error(await parseApiError(res, "Could not create pending reader"));
+  return res.json();
+}
+
+export async function regenerateOwnerReaderActivation(readerId: string): Promise<{ reader: OwnerReader; activationCode: string; activationExpiresAt: string }> {
+  const res = await fetch(`${API_BASE}/api/owner/readers/${encodeURIComponent(readerId)}/regenerate-activation`, {
+    method: "POST",
+    headers: makeRequestHeaders(),
+  });
+  if (!res.ok) throw new Error(await parseApiError(res, "Could not regenerate activation code"));
+  return res.json();
+}
+
+export async function cancelOwnerReaderSetup(readerId: string): Promise<{ reader: OwnerReader }> {
+  const res = await fetch(`${API_BASE}/api/owner/readers/${encodeURIComponent(readerId)}/cancel-setup`, {
+    method: "POST",
+    headers: makeRequestHeaders(),
+  });
+  if (!res.ok) throw new Error(await parseApiError(res, "Could not cancel pending reader setup"));
   return res.json();
 }
 

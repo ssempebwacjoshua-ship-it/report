@@ -72,10 +72,8 @@ String GatewayClient::buildBasePayload(const ReaderGatewayConfig& config, const 
 
   if (registration) {
     doc["eventType"] = "device.registration";
-    doc["schoolCode"] = config.schoolCode;
-    doc["location"] = config.readerLocation;
-    doc["readerType"] = config.readerType;
-    doc["deviceName"] = config.deviceName;
+    doc["activationCode"] = config.activationCode;
+    doc["hardwareId"] = config.deviceId;
     doc["hardware"] = "ESP32";
   } else if (event != nullptr) {
     doc["eventId"] = event->eventId;
@@ -253,6 +251,9 @@ bool GatewayClient::registerDevice(const ReaderGatewayConfig& config, ReaderApiR
     result.bearerToken = doc["bearerToken"] | "";
     result.apiBaseUrl = doc["apiBaseUrl"] | "";
     result.firmwareChannel = doc["firmwareChannel"] | "";
+    result.deviceName = doc["deviceName"] | "";
+    result.readerLocation = doc["location"] | "";
+    result.readerType = doc["readerType"] | "";
     result.message = doc["message"] | "";
   }
 
