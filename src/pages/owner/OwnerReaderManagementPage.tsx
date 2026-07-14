@@ -95,6 +95,7 @@ function ReaderCard({
         <Metric label="Last heartbeat" value={formatDateTime(reader.lastHeartbeatAt ?? reader.lastSeenAt)} />
         <Metric label="Last seen" value={formatDateTime(reader.lastSeenAt)} />
         <Metric label="Firmware" value={reader.firmwareVersion ?? "-"} />
+        <Metric label="Reader type" value={reader.locationType ?? "-"} />
         <Metric label="Assignment" value={reader.assignmentStatus ?? "UNKNOWN"} />
         <Metric label="OTA status" value={reader.otaStatus ?? "UNKNOWN"} />
         <Metric label="Queue" value={`${reader.queueDepth}`} />
@@ -265,6 +266,7 @@ export function OwnerReaderManagementPage() {
                     <th className="px-4 py-3">School</th>
                     <th className="px-4 py-3">Status</th>
                     <th className="px-4 py-3 whitespace-nowrap">Heartbeat</th>
+                    <th className="px-4 py-3 whitespace-nowrap">Type</th>
                     <th className="px-4 py-3 whitespace-nowrap">Firmware</th>
                     <th className="px-4 py-3 whitespace-nowrap">OTA</th>
                     <th className="px-4 py-3 whitespace-nowrap">Queue</th>
@@ -287,6 +289,7 @@ export function OwnerReaderManagementPage() {
                         <ReaderBadge label={reader.onlineStatus} tone={badgeClass(reader.onlineStatus)} />
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap text-slate-700">{formatDateTime(reader.lastHeartbeatAt ?? reader.lastSeenAt)}</td>
+                      <td className="px-4 py-3 whitespace-nowrap text-slate-700">{reader.locationType ?? "-"}</td>
                       <td className="px-4 py-3 whitespace-nowrap text-slate-700">{reader.firmwareVersion ?? "-"}</td>
                       <td className="px-4 py-3 whitespace-nowrap text-slate-700">{reader.otaStatus ?? "UNKNOWN"}</td>
                       <td className="px-4 py-3 whitespace-nowrap text-slate-700">{reader.queueDepth}</td>
@@ -429,6 +432,7 @@ export function OwnerReaderDetailPage() {
               <Metric label="Last heartbeat" value={formatDateTime(reader.lastHeartbeatAt ?? reader.lastSeenAt)} />
               <Metric label="Last seen" value={formatDateTime(reader.lastSeenAt)} />
               <Metric label="Firmware" value={reader.firmwareVersion ?? "-"} />
+              <Metric label="Reader type" value={reader.locationType ?? "-"} />
               <Metric label="OTA status" value={reader.otaStatus ?? "UNKNOWN"} />
               <Metric label="Queue / RSSI" value={`${reader.queueDepth} / ${formatRssi(reader.lastRssi)}`} />
               <Metric label="Uptime" value={reader.uptimeMs == null ? "-" : `${Math.round(reader.uptimeMs / 1000).toLocaleString("en-UG")}s`} />

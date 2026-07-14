@@ -14,5 +14,6 @@ class DeviceRegistration {
   GatewayClient* client_ = nullptr;
   const ReaderGatewayConfig* config_ = nullptr;
   uint32_t lastRegistrationMs_ = 0;
+  bool lastRegistrationSucceeded_ = false;
   uint32_t intervalMs_ = 24UL * 60UL * 60UL * 1000UL;
 };

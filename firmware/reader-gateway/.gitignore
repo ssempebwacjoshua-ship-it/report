@@ -1,3 +1,4 @@
 .pio/
 .vscode/
 data/reader-gateway/config.json
+secrets/device_bootstrap.auto.h

@@ -8,6 +8,18 @@
 #define SSAMENJ_GATEWAY_VERSION "1.0.0"
 #endif
 
+#ifndef SSAMENJ_GATEWAY_DEFAULT_API_BASE_URL
+#define SSAMENJ_GATEWAY_DEFAULT_API_BASE_URL "https://school-connect.example.com"
+#endif
+
+#ifndef SSAMENJ_GATEWAY_DEFAULT_PROVISIONING_TOKEN
+#define SSAMENJ_GATEWAY_DEFAULT_PROVISIONING_TOKEN ""
+#endif
+
+#ifndef SSAMENJ_GATEWAY_DEFAULT_FIRMWARE_CHANNEL
+#define SSAMENJ_GATEWAY_DEFAULT_FIRMWARE_CHANNEL "stable"
+#endif
+
 struct ReaderGatewayConfig {
   String deviceId;
   String schoolId;

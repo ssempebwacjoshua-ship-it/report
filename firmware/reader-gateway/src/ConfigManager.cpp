@@ -33,14 +33,14 @@ ReaderGatewayConfig ConfigManager::defaults() {
   config.deviceName = "attendance-gate-01";
   config.readerLocation = "";
   config.readerType = "GATE";
-  config.firmwareChannel = "stable";
-  config.apiBaseUrl = "https://school-connect.example.com";
+  config.firmwareChannel = SSAMENJ_GATEWAY_DEFAULT_FIRMWARE_CHANNEL;
+  config.apiBaseUrl = SSAMENJ_GATEWAY_DEFAULT_API_BASE_URL;
   config.eventsPath = "/api/readers/events";
   config.registrationPath = "/api/readers/register";
   config.heartbeatPath = "/api/readers/heartbeat";
   config.otaCheckPath = "/api/readers/ota/check";
   config.otaStatusPath = "/api/readers/ota/status";
-  config.bearerToken = "";
+  config.bearerToken = SSAMENJ_GATEWAY_DEFAULT_PROVISIONING_TOKEN;
   config.firmwareVersion = SSAMENJ_GATEWAY_VERSION;
   config.ntpServer = "pool.ntp.org";
   config.otaPublicKeyPem = "";

@@ -293,6 +293,10 @@ void ReaderGatewayApp::applyRegistrationResult(const ReaderRegistrationResult& r
   if (!result.firmwareChannel.isEmpty()) {
     config_.firmwareChannel = result.firmwareChannel;
   }
+  if (!result.assignmentStatus.isEmpty()) {
+    Serial.printf("Reader assigned to %s\n", result.schoolName.c_str());
+    Serial.println("Setup complete");
+  }
   persistAssignedConfiguration();
 }
 
@@ -454,6 +458,7 @@ bool ReaderGatewayApp::openSetupPortal(const char* reason) {
     return false;
   }
 
+  Serial.println("Connecting to Wi-Fi...");
   Serial.printf("Provisioned Wi-Fi SSID: %s\n", provisionedWifiSsid_.c_str());
   if (!provisionedSchoolCode_.isEmpty()) {
     Serial.printf("Provisioned school code: %s\n", provisionedSchoolCode_.c_str());
@@ -982,11 +987,16 @@ bool ReaderGatewayApp::begin() {
 
   ensureWiFi();
   if (WiFi.status() == WL_CONNECTED) {
+    Serial.println("Wi-Fi connected");
     syncClock();
     ReaderRegistrationResult registration;
     if (config_.autoRegister && deviceRegistration_.registerNow(&registration)) {
+      Serial.println("Verifying school code...");
+      Serial.println("Registering reader...");
       applyRegistrationResult(registration);
       markApiContact();
+    } else if (config_.autoRegister) {
+      Serial.println("Assignment Pending");
     }
     processOfflineQueue();
   }
@@ -1246,11 +1256,16 @@ void ReaderGatewayApp::loop() {
       Serial.printf("Wi-Fi IP: %s\n", WiFi.localIP().toString().c_str());
       Serial.printf("Wi-Fi RSSI: %d dBm\n", WiFi.RSSI());
       wifiConnectedLogged_ = true;
+      Serial.println("Wi-Fi connected");
       syncClock();
       ReaderRegistrationResult registration;
       if (config_.autoRegister && deviceRegistration_.registerNow(&registration)) {
+        Serial.println("Verifying school code...");
+        Serial.println("Registering reader...");
         applyRegistrationResult(registration);
         markApiContact();
+      } else if (config_.autoRegister) {
+        Serial.println("Assignment Pending");
       }
     }
     processOfflineQueue();
@@ -1268,8 +1283,11 @@ void ReaderGatewayApp::loop() {
   if (WiFi.status() == WL_CONNECTED && deviceRegistration_.shouldRegister(millis())) {
     ReaderRegistrationResult registration;
     if (deviceRegistration_.registerNow(&registration)) {
+      Serial.println("Registering reader...");
       applyRegistrationResult(registration);
       markApiContact();
+    } else {
+      Serial.println("Server unavailable; setup saved and retrying");
     }
   }
 }

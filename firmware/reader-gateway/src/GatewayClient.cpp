@@ -220,7 +220,6 @@ bool GatewayClient::sendJsonRaw(const ReaderGatewayConfig& config, const String&
       logTlsError(*secureClient);
     }
   }
-  Serial.printf("API response body: %s\n", responseBody.isEmpty() ? "(empty)" : responseBody.c_str());
   http.end();
 
   return statusCode >= 0;
