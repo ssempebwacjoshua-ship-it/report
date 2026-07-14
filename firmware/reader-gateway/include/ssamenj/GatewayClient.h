@@ -10,7 +10,7 @@ class GatewayClient {
  public:
   bool begin(const ReaderGatewayConfig& config);
   bool postScan(const ReaderGatewayConfig& config, const ReaderScanEvent& event, ReaderApiResponse& response);
-  bool registerDevice(const ReaderGatewayConfig& config, ReaderApiResponse& response);
+  bool registerDevice(const ReaderGatewayConfig& config, ReaderApiResponse& response, ReaderRegistrationResult& result);
   bool postHeartbeat(const ReaderGatewayConfig& config, const ReaderHeartbeatMetrics& metrics, ReaderApiResponse& response);
   bool checkForOtaUpdate(const ReaderGatewayConfig& config, size_t queueDepth, ReaderOtaManifest& manifest);
   bool reportOtaStatus(const ReaderGatewayConfig& config, const ReaderOtaStatusReport& report, ReaderApiResponse& response);

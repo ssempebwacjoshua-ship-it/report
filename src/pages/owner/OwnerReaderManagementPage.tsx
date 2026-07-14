@@ -95,6 +95,7 @@ function ReaderCard({
         <Metric label="Last heartbeat" value={formatDateTime(reader.lastHeartbeatAt ?? reader.lastSeenAt)} />
         <Metric label="Last seen" value={formatDateTime(reader.lastSeenAt)} />
         <Metric label="Firmware" value={reader.firmwareVersion ?? "-"} />
+        <Metric label="Assignment" value={reader.assignmentStatus ?? "UNKNOWN"} />
         <Metric label="OTA status" value={reader.otaStatus ?? "UNKNOWN"} />
         <Metric label="Queue" value={`${reader.queueDepth}`} />
         <Metric label="Wi-Fi RSSI" value={formatRssi(reader.lastRssi)} />

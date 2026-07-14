@@ -31,6 +31,8 @@ class ReaderGatewayApp {
   bool beginProvisioningStorage();
   void loadProvisioningState();
   void applyProvisioningOverrides();
+  bool persistAssignedConfiguration();
+  void applyRegistrationResult(const ReaderRegistrationResult& result);
   bool hasStoredWifiCredentials() const;
   String configuredWifiSsid() const;
   String configuredWifiPassword() const;
@@ -84,6 +86,9 @@ class ReaderGatewayApp {
   String provisionedWifiPassword_;
   String provisionedSchoolCode_;
   String provisionedControllerName_;
+  String provisionedReaderLocation_;
+  String provisionedReaderType_;
+  String provisionedFirmwareChannel_;
   bool wifiConnectedLogged_ = false;
   String lastAcceptedCredential_;
   String lastAcceptedReaderId_;

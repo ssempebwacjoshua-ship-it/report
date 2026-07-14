@@ -92,6 +92,7 @@ export type OwnerReader = {
   classId: string | null;
   streamId: string | null;
   status: string;
+  assignmentStatus?: string;
   isActive: boolean;
   firmwareVersion: string | null;
   lastHeartbeatAt?: string | null;

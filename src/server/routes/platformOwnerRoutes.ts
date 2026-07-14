@@ -89,6 +89,7 @@ function mapReader(row: any) {
     classId: row.classId ?? null,
     streamId: row.streamId ?? null,
     status: row.status,
+    assignmentStatus: row.schoolId ? "ASSIGNED" : "UNASSIGNED",
     isActive: row.isActive,
     firmwareVersion: row.firmwareVersion ?? null,
     lastHeartbeatAt: lastHeartbeatAt ? new Date(lastHeartbeatAt).toISOString() : null,

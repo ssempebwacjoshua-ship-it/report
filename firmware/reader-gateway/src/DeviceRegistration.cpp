@@ -12,13 +12,17 @@ bool DeviceRegistration::shouldRegister(uint32_t nowMs) const {
   return client_ != nullptr && config_ != nullptr && config_->autoRegister && (lastRegistrationMs_ == 0 || nowMs - lastRegistrationMs_ >= intervalMs_);
 }
 
-bool DeviceRegistration::registerNow() {
+bool DeviceRegistration::registerNow(ReaderRegistrationResult* result) {
   if (client_ == nullptr || config_ == nullptr || !config_->autoRegister) {
     return false;
   }
 
   lastRegistrationMs_ = millis();
   ReaderApiResponse response;
-  const bool ok = client_->registerDevice(*config_, response) && response.success;
+  ReaderRegistrationResult parsed;
+  const bool ok = client_->registerDevice(*config_, response, parsed) && response.success;
+  if (result != nullptr) {
+    *result = parsed;
+  }
   return ok;
 }

@@ -12,6 +12,11 @@ import {
 import { captureReaderCredentialFromReader } from "../services/readerCredentialLinkService";
 import { getDashboardAttendanceSummaryForSchool } from "../services/dashboardService";
 import { publishAttendanceRealtime } from "../services/attendanceRealtime";
+import {
+  authenticateReaderGatewayProvisioning,
+  hashReaderGatewayToken,
+  resolveReaderGatewayRegistration,
+} from "../services/readerGatewayRegistrationService";
 
 type ReaderGatewayDevice = {
   id: string;
@@ -45,9 +50,20 @@ const readerIdentitySchema = z.object({
   schoolId: z.string().trim().min(1, "School ID is required."),
 });
 
-const registerSchema = readerIdentitySchema.extend({
+const registerSchema = z.object({
+  deviceId: z.string().trim().min(1, "Device ID is required."),
+  readerId: z.string().trim().min(1, "Reader ID is required."),
+  schoolId: z.string().trim().optional(),
+  schoolCode: z.string().trim().max(50).optional(),
+  location: z.string().trim().max(120).optional(),
+  readerType: z.enum(["GATE", "CLASSROOM"]).optional().default("GATE"),
+  deviceName: z.string().trim().max(120).optional(),
+  firmwareChannel: z.string().trim().min(1).optional().default("stable"),
   firmwareVersion: z.string().trim().optional(),
   deviceTime: z.string().trim().optional(),
+  transport: z.string().trim().optional(),
+  schemaVersion: z.string().trim().optional(),
+  hardware: z.string().trim().optional(),
 });
 
 const eventSchema = readerIdentitySchema.extend({
@@ -99,7 +115,7 @@ function bearerToken(req: Express.Request) {
 }
 
 function hashToken(token: string) {
-  return createHash("sha256").update(token).digest("hex");
+  return hashReaderGatewayToken(token);
 }
 
 function cachedResponse(details: unknown): ReaderGatewayResponse | null {
@@ -266,6 +282,25 @@ async function authenticateDevice(req: Express.Request, body: { deviceId: string
   return device;
 }
 
+async function authenticateRegistration(req: Express.Request, body: z.infer<typeof registerSchema>) {
+  const token = bearerToken(req);
+  const provisioningAuth = authenticateReaderGatewayProvisioning(token);
+  if (provisioningAuth) {
+    return provisioningAuth;
+  }
+
+  if (!body.schoolId) {
+    throw Object.assign(new Error("School assignment is required before reader registration."), { status: 409 });
+  }
+
+  const device = await authenticateDevice(req, {
+    deviceId: body.deviceId,
+    readerId: body.readerId,
+    schoolId: body.schoolId,
+  });
+  return { kind: "device" as const, device, tokenHash: hashToken(token!) };
+}
+
 function parseDeviceTime(value: string | undefined) {
   if (!value) return new Date();
   const parsed = new Date(value);
@@ -284,28 +319,8 @@ export function readerGatewayRoutes() {
   router.post("/api/readers/register", async (req, res, next) => {
     try {
       const body = registerSchema.parse(req.body);
-      const device = await authenticateDevice(req, body);
-      const now = new Date();
-
-      await prisma.$transaction(async (tx) => {
-        await tx.nfcOfflineDevice.update({
-          where: { id: device.id },
-          data: { lastSeenAt: now, lastHeartbeatAt: now },
-        });
-        await tx.auditLog.create({
-          data: {
-            schoolId: device.schoolId,
-            action: "reader_device.registered",
-            correlationId: device.deviceKey,
-            details: {
-              deviceId: body.deviceId,
-              readerId: body.readerId,
-              firmwareVersion: body.firmwareVersion ?? null,
-              deviceTime: body.deviceTime ?? null,
-            },
-          },
-        });
-      });
+      const auth = await authenticateRegistration(req, body);
+      const registration = await resolveReaderGatewayRegistration(prisma as never, auth, body, req.ip);
 
       const response: ReaderGatewayResponse = {
         success: true,
@@ -315,7 +330,16 @@ export function readerGatewayRoutes() {
         beep: "success",
         feedback: { beep: "success" },
       };
-      res.json(response);
+      res.json({
+        ...response,
+        schoolId: registration.schoolId,
+        schoolName: registration.schoolName,
+        assignmentStatus: registration.assignmentStatus,
+        deviceId: registration.deviceId,
+        readerId: registration.readerId,
+        bearerToken: registration.bearerToken,
+        firmwareChannel: registration.firmwareChannel,
+      });
     } catch (error) {
       next(error);
     }

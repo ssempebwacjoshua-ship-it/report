@@ -62,13 +62,21 @@ String GatewayClient::buildBasePayload(const ReaderGatewayConfig& config, const 
   JsonDocument doc;
   doc["deviceId"] = config.deviceId;
   doc["readerId"] = config.readerId;
-  doc["schoolId"] = config.schoolId;
+  if (!config.schoolId.isEmpty()) {
+    doc["schoolId"] = config.schoolId;
+  }
   doc["firmwareVersion"] = config.firmwareVersion;
+  doc["firmwareChannel"] = config.firmwareChannel;
   doc["transport"] = "esp32-wiegand";
   doc["schemaVersion"] = "1.0";
 
   if (registration) {
     doc["eventType"] = "device.registration";
+    doc["schoolCode"] = config.schoolCode;
+    doc["location"] = config.readerLocation;
+    doc["readerType"] = config.readerType;
+    doc["deviceName"] = config.deviceName;
+    doc["hardware"] = "ESP32";
   } else if (event != nullptr) {
     doc["eventId"] = event->eventId;
     doc["credential"] = event->credential;
@@ -224,9 +232,31 @@ bool GatewayClient::postScan(const ReaderGatewayConfig& config, const ReaderScan
   return sendJson(config, config.eventsPath, body, response);
 }
 
-bool GatewayClient::registerDevice(const ReaderGatewayConfig& config, ReaderApiResponse& response) {
+bool GatewayClient::registerDevice(const ReaderGatewayConfig& config, ReaderApiResponse& response, ReaderRegistrationResult& result) {
+  result = ReaderRegistrationResult{};
   const String body = buildBasePayload(config, nullptr, true);
-  return sendJson(config, config.registrationPath, body, response);
+  int statusCode = 0;
+  String responseBody;
+  if (!sendJsonRaw(config, config.registrationPath, body, statusCode, responseBody)) {
+    response.statusCode = statusCode;
+    return false;
+  }
+  const bool ok = parseResponse(responseBody, statusCode, response);
+
+  JsonDocument doc;
+  if (deserializeJson(doc, responseBody) == DeserializationError::Ok) {
+    result.success = doc["success"] | ok;
+    result.assignmentStatus = doc["assignmentStatus"] | "";
+    result.schoolId = doc["schoolId"] | "";
+    result.schoolName = doc["schoolName"] | "";
+    result.deviceId = doc["deviceId"] | "";
+    result.readerId = doc["readerId"] | "";
+    result.bearerToken = doc["bearerToken"] | "";
+    result.firmwareChannel = doc["firmwareChannel"] | "";
+    result.message = doc["message"] | "";
+  }
+
+  return ok;
 }
 
 bool GatewayClient::postHeartbeat(const ReaderGatewayConfig& config, const ReaderHeartbeatMetrics& metrics, ReaderApiResponse& response) {

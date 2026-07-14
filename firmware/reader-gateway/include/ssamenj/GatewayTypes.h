@@ -12,6 +12,10 @@ struct ReaderGatewayConfig {
   String deviceId;
   String schoolId;
   String readerId;
+  String schoolCode;
+  String deviceName;
+  String readerLocation;
+  String readerType;
   String firmwareChannel;
   String wifiSsid;
   String wifiPassword;
@@ -71,6 +75,18 @@ struct ReaderApiResponse {
   String message;
   String studentName;
   String beep = "none";
+};
+
+struct ReaderRegistrationResult {
+  bool success = false;
+  String assignmentStatus;
+  String schoolId;
+  String schoolName;
+  String deviceId;
+  String readerId;
+  String bearerToken;
+  String firmwareChannel;
+  String message;
 };
 
 struct ReaderHeartbeatMetrics {

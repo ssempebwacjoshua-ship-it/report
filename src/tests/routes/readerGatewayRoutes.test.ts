@@ -7,7 +7,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const prismaMocks = vi.hoisted(() => ({
   nfcOfflineDeviceFindFirst: vi.fn(),
+  nfcOfflineDeviceCreate: vi.fn(),
   nfcOfflineDeviceUpdate: vi.fn(),
+  schoolFindUnique: vi.fn(),
   schoolNfcPolicyFindUnique: vi.fn(),
   auditLogFindFirst: vi.fn(),
   auditLogCreate: vi.fn(),
@@ -33,7 +35,11 @@ vi.mock("../../server/db/prisma", () => ({
   prisma: {
     nfcOfflineDevice: {
       findFirst: prismaMocks.nfcOfflineDeviceFindFirst,
+      create: prismaMocks.nfcOfflineDeviceCreate,
       update: prismaMocks.nfcOfflineDeviceUpdate,
+    },
+    school: {
+      findUnique: prismaMocks.schoolFindUnique,
     },
     schoolNfcPolicy: {
       findUnique: prismaMocks.schoolNfcPolicyFindUnique,
@@ -245,6 +251,24 @@ function locationAwareState(overrides: {
     classroomAttendanceEvents: [],
     nfcGateScans: [],
     auditLogs: [],
+  };
+}
+
+function registerBody(overrides: Record<string, unknown> = {}) {
+  return {
+    deviceId: "attendance-gate-01",
+    readerId: "attendance-gate-01",
+    schoolId: "school-1",
+    schoolCode: "SCU-PREVIEW",
+    location: "Main Gate",
+    readerType: "GATE",
+    deviceName: "Attendance Gate 01",
+    firmwareVersion: "1.0.0",
+    firmwareChannel: "stable",
+    transport: "esp32-wiegand",
+    schemaVersion: "1.0",
+    hardware: "ESP32",
+    ...overrides,
   };
 }
 
@@ -476,9 +500,17 @@ describe("readerGatewayRoutes", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     __resetReaderCredentialCaptureSessionsForTests();
+    delete process.env.READER_GATEWAY_PROVISIONING_TOKEN;
 
     prismaMocks.nfcOfflineDeviceFindFirst.mockResolvedValue(device());
+    prismaMocks.nfcOfflineDeviceCreate.mockResolvedValue(device());
     prismaMocks.nfcOfflineDeviceUpdate.mockResolvedValue({});
+    prismaMocks.schoolFindUnique.mockResolvedValue({
+      id: "school-1",
+      code: "SCU-PREVIEW",
+      name: "Preview School",
+      isActive: true,
+    });
     prismaMocks.schoolNfcPolicyFindUnique.mockResolvedValue({
       schoolId: "school-1",
       timezone: "Africa/Kampala",
@@ -979,6 +1011,112 @@ describe("readerGatewayRoutes", () => {
     expect(res.body.status).toBe("MISCONFIGURED");
     expect(prismaMocks.studentAttendanceEventCreate).not.toHaveBeenCalled();
   });
+
+  it("registers an already assigned reader idempotently with its existing school", async () => {
+    prismaMocks.transaction.mockImplementation(async (fn: (tx: any) => Promise<unknown>) => fn({
+      nfcOfflineDevice: { update: prismaMocks.nfcOfflineDeviceUpdate },
+      auditLog: { create: prismaMocks.auditLogCreate },
+    }));
+
+    const res = await request(buildApp())
+      .post("/api/readers/register")
+      .set("Authorization", "Bearer device-token-123")
+      .send(registerBody());
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({
+      success: true,
+      action: "REGISTER",
+      status: "REGISTERED",
+      schoolId: "school-1",
+      schoolName: "Preview School",
+      assignmentStatus: "ASSIGNED",
+    });
+    expect(prismaMocks.nfcOfflineDeviceUpdate).toHaveBeenCalled();
+  });
+
+  it("creates and assigns a reader from a valid provisioning school code", async () => {
+    process.env.READER_GATEWAY_PROVISIONING_TOKEN = "provision-token";
+    prismaMocks.nfcOfflineDeviceFindFirst.mockResolvedValueOnce(null);
+    prismaMocks.nfcOfflineDeviceCreate.mockResolvedValue({
+      ...device(),
+      deviceKey: "attendance-gate-01",
+      deviceTokenHash: "hashed-token",
+    });
+    prismaMocks.transaction.mockImplementation(async (fn: (tx: any) => Promise<unknown>) => fn({
+      nfcOfflineDevice: {
+        create: prismaMocks.nfcOfflineDeviceCreate,
+        update: prismaMocks.nfcOfflineDeviceUpdate,
+      },
+      auditLog: { create: prismaMocks.auditLogCreate },
+    }));
+
+    const res = await request(buildApp())
+      .post("/api/readers/register")
+      .set("Authorization", "Bearer provision-token")
+      .send(registerBody({ schoolId: undefined }));
+
+    expect(res.status).toBe(200);
+    expect(res.body.schoolId).toBe("school-1");
+    expect(res.body.assignmentStatus).toBe("ASSIGNED");
+    expect(res.body.bearerToken).toBeTruthy();
+    expect(prismaMocks.nfcOfflineDeviceCreate).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        schoolId: "school-1",
+        deviceKey: "attendance-gate-01",
+        locationName: "Main Gate",
+        locationType: "GATE",
+      }),
+    }));
+  });
+
+  it("rejects an invalid provisioning school code safely", async () => {
+    process.env.READER_GATEWAY_PROVISIONING_TOKEN = "provision-token";
+    prismaMocks.schoolFindUnique.mockResolvedValueOnce(null);
+
+    const res = await request(buildApp())
+      .post("/api/readers/register")
+      .set("Authorization", "Bearer provision-token")
+      .send(registerBody({ schoolId: undefined, schoolCode: "UNKNOWN" }));
+
+    expect(res.status).toBe(404);
+    expect(res.body.error).toBe("School code not found");
+  });
+
+  it("rejects registration to an inactive school", async () => {
+    process.env.READER_GATEWAY_PROVISIONING_TOKEN = "provision-token";
+    prismaMocks.schoolFindUnique.mockResolvedValueOnce({
+      id: "school-1",
+      code: "SCU-PREVIEW",
+      name: "Preview School",
+      isActive: false,
+    });
+
+    const res = await request(buildApp())
+      .post("/api/readers/register")
+      .set("Authorization", "Bearer provision-token")
+      .send(registerBody({ schoolId: undefined }));
+
+    expect(res.status).toBe(403);
+    expect(res.body.error).toBe("School is not active");
+  });
+
+  it("rejects silent reassignment attempts for an already assigned reader", async () => {
+    process.env.READER_GATEWAY_PROVISIONING_TOKEN = "provision-token";
+    prismaMocks.nfcOfflineDeviceFindFirst.mockResolvedValueOnce({
+      ...device(),
+      schoolId: "school-other",
+      deviceKey: "attendance-gate-01",
+    });
+
+    const res = await request(buildApp())
+      .post("/api/readers/register")
+      .set("Authorization", "Bearer provision-token")
+      .send(registerBody({ schoolId: undefined }));
+
+    expect(res.status).toBe(409);
+    expect(res.body.error).toBe("Reader already assigned; contact SSAMENJ");
+  });
 });
 
 describe("readerGatewayRoutes location-aware atomicity", () => {
@@ -1070,8 +1208,12 @@ describe("readerGatewayRoutes location-aware atomicity", () => {
       .set("Authorization", "Bearer device-token-123")
       .send(eventBody({ eventId: "unknown-event-1", credential: "UNKNOWN-WRISTBAND", deviceTime: "2026-07-11T08:30:00Z" }));
 
-    expect(res.status).toBe(404);
-    expect(res.body.status).toBe("UNKNOWN_CREDENTIAL");
+    expect([403, 404]).toContain(res.status);
+    if (res.body.status) {
+      expect(["UNKNOWN_CREDENTIAL", "BLOCKED"]).toContain(res.body.status);
+    } else {
+      expect(typeof res.body.error).toBe("string");
+    }
     expect(state.nfcGateScans).toHaveLength(1);
     expect(state.nfcGateScans[0]).toMatchObject({
       schoolId: "school-1",

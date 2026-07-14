@@ -8,7 +8,7 @@ class DeviceRegistration {
  public:
   bool begin(GatewayClient* client, const ReaderGatewayConfig* config);
   bool shouldRegister(uint32_t nowMs) const;
-  bool registerNow();
+  bool registerNow(ReaderRegistrationResult* result = nullptr);
 
  private:
   GatewayClient* client_ = nullptr;
