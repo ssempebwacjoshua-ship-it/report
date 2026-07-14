@@ -1,7 +1,7 @@
 import { MemoryRouter } from "react-router-dom";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { NfcAttendancePage } from "../../pages/NfcAttendancePage";
+import { getLocalDateInputValue, NfcAttendancePage } from "../../pages/NfcAttendancePage";
 
 const mockFetchAttendanceClasses = vi.hoisted(() => vi.fn());
 const mockFetchNfcAttendanceRegister = vi.hoisted(() => vi.fn());
@@ -199,6 +199,17 @@ beforeEach(() => {
 });
 
 describe("NfcAttendancePage", () => {
+  it("derives the report date from local calendar fields instead of UTC ISO strings", () => {
+    const fakeLocalDate = {
+      getFullYear: () => 2026,
+      getMonth: () => 6,
+      getDate: () => 15,
+      toISOString: () => "2026-07-14T21:15:00.000Z",
+    } as Date;
+
+    expect(getLocalDateInputValue(fakeLocalDate)).toBe("2026-07-15");
+  });
+
   it("keeps oversight data visible for administrators while hiding manual punch controls and collapsing the operator layout", async () => {
     renderPage();
 

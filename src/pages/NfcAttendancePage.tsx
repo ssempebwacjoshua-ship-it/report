@@ -564,6 +564,13 @@ function offlineReasonMessage(reason?: string) {
   }
 }
 
+export function getLocalDateInputValue(now = new Date()) {
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 // â”€â”€ Page â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export function NfcAttendancePage() {
@@ -600,7 +607,7 @@ export function NfcAttendancePage() {
   directionRef.current = direction;
   const previewRef = useRef<HTMLElement | null>(null);
 
-  const [date, setDate] = useState(() => new Date().toISOString().split("T")[0]);
+  const [date, setDate] = useState(() => getLocalDateInputValue());
   const [classId, setClassId] = useState("");
   const [streamId, setStreamId] = useState("");
   const [studentType, setStudentType] = useState<"ALL" | "DAY" | "BOARDING">("ALL");
@@ -630,7 +637,7 @@ export function NfcAttendancePage() {
   const [printPreview, setPrintPreview] = useState<AttendancePrintDocument | null>(null);
   const generatingPreviewRef = useRef(false);
 
-  const todayDate = new Date().toISOString().split("T")[0]!;
+  const todayDate = getLocalDateInputValue();
 
   // Load class list once
   useEffect(() => {
