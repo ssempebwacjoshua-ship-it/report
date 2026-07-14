@@ -1283,6 +1283,30 @@ describe("readerGatewayRoutes location-aware atomicity", () => {
     expect(state.device.lastScanStatus).toBe("PRESENT");
   });
 
+  it("accepts a commissioned gate reader when attendance config is carried by location-aware fields", async () => {
+    const state = locationAwareState({
+      device: {
+        mode: "GATE",
+        locationType: "GATE",
+        attendanceMode: "GATE_ATTENDANCE",
+      },
+    });
+    buildLocationAwareTransactionMocks(state);
+
+    const res = await request(buildApp())
+      .post("/api/readers/events")
+      .set("Authorization", "Bearer device-token-123")
+      .send(eventBody({ deviceTime: "2026-07-11T04:45:00Z" }));
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({
+      success: true,
+      action: "GATE_ENTRY",
+      status: "PRESENT",
+      message: "Arrival recorded",
+    });
+  });
+
   it("rolls back an approved override when audit creation fails", async () => {
     const state = locationAwareState({ activeFeeHold: true, approvedGateOverride: true });
     buildLocationAwareTransactionMocks(state, { failAuditCreate: true });
@@ -1421,5 +1445,38 @@ describe("readerGatewayRoutes location-aware atomicity", () => {
     expect(state.classroomAttendanceEvents).toHaveLength(0);
     expect(state.dailyAttendances).toHaveLength(0);
     expect(state.auditLogs).toHaveLength(0);
+  });
+
+  it("accepts a classroom reader scoped to all students without a class binding", async () => {
+    const state = locationAwareState({
+      studentType: "BOARDING",
+      device: {
+        locationType: "CLASSROOM",
+        locationName: "Assembly Hall",
+        attendanceMode: "CLASSROOM_ATTENDANCE",
+        studentScope: "ALL_STUDENTS",
+        classId: null,
+        streamId: null,
+      },
+    });
+    buildLocationAwareTransactionMocks(state);
+
+    const res = await request(buildApp())
+      .post("/api/readers/events")
+      .set("Authorization", "Bearer device-token-123")
+      .send(eventBody({ eventId: "classroom-all-students-1", deviceTime: "2026-07-11T05:00:00Z" }));
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({
+      success: true,
+      action: "CLASSROOM_ATTENDANCE",
+      status: "MORNING_CLASS_PRESENT",
+    });
+    expect(state.classroomAttendanceEvents).toHaveLength(1);
+    expect(state.classroomAttendanceEvents[0]).toMatchObject({
+      classId: null,
+      streamId: null,
+      status: "PRESENT",
+    });
   });
 });

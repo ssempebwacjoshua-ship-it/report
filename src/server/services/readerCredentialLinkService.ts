@@ -10,6 +10,7 @@ import {
   type ReaderCredentialAliasSource,
   type CredentialNormalizationInput,
 } from "../../shared/utils/credentialNormalization";
+import { isActiveAttendanceCapableReader } from "../../shared/utils/attendanceReaders";
 import { generateCredentialScanToken } from "./studentCredentialService";
 
 type ReaderCredentialLinkContext = {
@@ -33,6 +34,8 @@ type CaptureReaderDevice = {
   mode: string;
   location: string | null;
   locationName: string | null;
+  locationType: string | null;
+  attendanceMode: string | null;
   isActive: boolean;
   status: string;
 };
@@ -233,13 +236,15 @@ async function loadCaptureReader(
       mode: true,
       location: true,
       locationName: true,
+      locationType: true,
+      attendanceMode: true,
       isActive: true,
       status: true,
     },
   }) as CaptureReaderDevice | null;
 
   if (!device) throw Object.assign(new Error("Attendance reader not found."), { status: 404 });
-  if (device.mode !== "ATTENDANCE" || !device.isActive || device.status !== "ACTIVE") {
+  if (!isActiveAttendanceCapableReader(device)) {
     throw Object.assign(new Error("Only active attendance readers can capture wristband credentials."), { status: 409 });
   }
   return device;

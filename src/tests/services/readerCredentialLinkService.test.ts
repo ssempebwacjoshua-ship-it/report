@@ -84,6 +84,8 @@ function createMockDb() {
       mode: "ATTENDANCE",
       location: "Main Entrance",
       locationName: "Main Entrance",
+      locationType: null,
+      attendanceMode: null,
       isActive: true,
       status: "ACTIVE",
     },
@@ -226,6 +228,25 @@ describe("readerCredentialLinkService", () => {
     expect(result.tag.student.name).toBe("Jane Doe");
     expect(result.deviceLabel).toBe("Main Entrance");
     expect(auditLogs.some((entry) => entry.action === "nfc_tag.reader_capture_started")).toBe(true);
+  });
+
+  it("accepts a commissioned gate reader when it has location-aware attendance metadata", async () => {
+    const { db, devices } = createMockDb();
+    devices[0] = {
+      ...devices[0],
+      mode: "GATE",
+      locationType: "GATE",
+      attendanceMode: "GATE_ATTENDANCE",
+    };
+
+    const result = await startReaderCredentialCapture(
+      { schoolId: "school-1", actorId: "admin-1", role: "ADMIN_OPERATOR" },
+      { tagId: "tag-1", deviceId: "device-1" },
+      db,
+    );
+
+    expect(result.status).toBe("PENDING");
+    expect(result.deviceLabel).toBe("Main Entrance");
   });
 
   it("captures and atomically links a reader credential without changing the public payload", async () => {

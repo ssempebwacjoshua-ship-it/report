@@ -553,7 +553,7 @@ export function NfcOfflinePage() {
             </label>
           </div>
           <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-            Gate readers should not be scoped to a class or stream. Classroom readers should be assigned to a class and, when used for assigned-class checks, a stream.
+            Gate readers should not be scoped to a class or stream. Classroom readers may serve all students school-wide, but assigned-class checks still require a class and stream.
           </div>
           {selectedDevice.mode === "ATTENDANCE" && incompleteAttendanceSetup ? (
             <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">

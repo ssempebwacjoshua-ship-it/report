@@ -361,12 +361,45 @@ describe("NfcOperationsPage wristband grid layout", () => {
 
     renderPage();
 
-    await waitFor(() => expect(screen.getByRole("heading", { name: "Wristbands" })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getAllByRole("button", { name: /Link reader/i }).length).toBeGreaterThan(0));
 
     fireEvent.click(screen.getAllByRole("button", { name: /Link reader/i })[0]);
 
     expect(await screen.findByText("Link reader credential")).toBeInTheDocument();
     expect(screen.getByText(/Preserve the written/)).toBeInTheDocument();
     expect(screen.getByRole("option", { name: /Main Entrance/ })).toBeInTheDocument();
+  });
+
+  it("lists a commissioned gate reader when it has location-aware attendance metadata", async () => {
+    mockFetchOfflineSyncStatus.mockResolvedValueOnce({
+      providerReachable: true,
+      lastSyncAt: "2026-07-12T08:00:00.000Z",
+      pendingCount: 0,
+      stale: false,
+      devices: [
+        {
+          id: "device-1",
+          name: "Attendance Gate 01",
+          deviceKey: "attendance-gate-01",
+          location: "Main Entrance",
+          locationName: "Main Entrance",
+          locationType: "GATE",
+          attendanceMode: "GATE_ATTENDANCE",
+          mode: "GATE",
+          status: "ACTIVE",
+          isActive: true,
+          lastSeenAt: "2026-07-12T08:00:00.000Z",
+        },
+      ],
+    });
+
+    renderPage();
+
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Wristbands" })).toBeInTheDocument());
+
+    fireEvent.click(screen.getAllByRole("button", { name: /Link reader/i })[0]);
+
+    expect(await screen.findByRole("option", { name: /Main Entrance/ })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: /No active attendance readers found/i })).not.toBeInTheDocument();
   });
 });

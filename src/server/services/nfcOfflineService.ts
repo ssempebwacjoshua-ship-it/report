@@ -96,11 +96,11 @@ function validateAttendanceReaderConfiguration(input: AttendanceReaderConfigurat
   }
 
   if (input.locationType === "CLASSROOM") {
-    if (!input.classId) {
-      throw Object.assign(new Error("Classroom readers require a class assignment."), { status: 400 });
-    }
     if (input.attendanceMode && input.attendanceMode !== "CLASSROOM_ATTENDANCE") {
       throw Object.assign(new Error("Classroom readers must use classroom attendance mode."), { status: 400 });
+    }
+    if (input.studentScope === "ASSIGNED_CLASS" && !input.classId) {
+      throw Object.assign(new Error("Assigned-class classroom readers require a class assignment."), { status: 400 });
     }
     if (input.studentScope === "ASSIGNED_CLASS" && !input.streamId) {
       throw Object.assign(new Error("Assigned-class classroom readers require a stream assignment."), { status: 400 });
@@ -701,12 +701,12 @@ export async function updateOfflineDeviceConfiguration(
     where: { id: existing.id },
     data: {
       location: input.location ?? existing.location ?? null,
-      locationType: input.locationType ?? null,
+      locationType: input.locationType ?? existing.locationType ?? null,
       locationName: input.locationName ?? input.location ?? existing.locationName ?? existing.location ?? null,
-      attendanceMode: input.attendanceMode ?? null,
-      studentScope: input.studentScope ?? null,
-      classId: input.classId ?? null,
-      streamId: input.streamId ?? null,
+      attendanceMode: input.attendanceMode ?? existing.attendanceMode ?? null,
+      studentScope: input.studentScope ?? existing.studentScope ?? null,
+      classId: input.classId ?? existing.classId ?? null,
+      streamId: input.streamId ?? existing.streamId ?? null,
       direction: input.direction ?? existing.direction ?? null,
     },
   });

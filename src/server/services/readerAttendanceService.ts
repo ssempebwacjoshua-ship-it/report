@@ -607,9 +607,9 @@ async function processClassroomAttendance(
   policy: AttendancePolicy,
   db: ReaderAttendanceDb,
 ): Promise<ProcessedReaderAttendance> {
-  if (!device.classId) {
+  if (device.studentScope === "ASSIGNED_CLASS" && !device.classId) {
     return {
-      response: respond("CLASSROOM_ATTENDANCE", "MISCONFIGURED", "Classroom reader is missing class assignment", "error", false),
+      response: respond("CLASSROOM_ATTENDANCE", "MISCONFIGURED", "Assigned-class classroom reader is missing class assignment", "error", false),
       scannedAt,
       statusCode: 409,
     };

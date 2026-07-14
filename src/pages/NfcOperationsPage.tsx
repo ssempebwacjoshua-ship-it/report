@@ -26,6 +26,7 @@ import type {
   ReaderCredentialCaptureStartResponse,
   ReaderCredentialConflictResponse,
 } from "../shared/types/nfcTags";
+import { isActiveAttendanceCapableReader } from "../shared/utils/attendanceReaders";
 
 type StatusFilter = "" | "UNASSIGNED" | "ASSIGNED" | "DISABLED" | "LOST";
 
@@ -587,7 +588,7 @@ export function NfcOperationsPage() {
     setLinkReaderError(null);
     fetchOfflineSyncStatus()
       .then((status) => {
-        const attendanceDevices = status.devices.filter((device) => device.mode === "ATTENDANCE" && device.isActive);
+        const attendanceDevices = status.devices.filter((device) => isActiveAttendanceCapableReader(device));
         setLinkReaderDevices(attendanceDevices);
         setLinkReaderDeviceId((current) => current || attendanceDevices[0]?.id || attendanceDevices[0]?.deviceKey || "");
       })

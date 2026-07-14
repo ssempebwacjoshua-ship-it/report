@@ -175,6 +175,17 @@ const CASHIER_CTX: OfflineContext = { schoolId: "school-a", actorId: "cashier-a"
 const GATE_CTX: OfflineContext = { schoolId: "school-a", actorId: "gate-a", role: "GATE_SECURITY" };
 const OTHER_SCHOOL_CTX: OfflineContext = { schoolId: "school-b", actorId: "admin-b", role: "ADMIN_OPERATOR" };
 
+beforeEach(() => {
+  gateScanStore.length = 0;
+  attendanceStore.length = 0;
+  txStore.length = 0;
+  auditStore.length = 0;
+  offlineDeviceStore.length = 0;
+  offlineBatchStore.length = 0;
+  feeHoldStore.length = 0;
+  policyRow = mockPolicy();
+});
+
 describe("bootstrapOfflineSnapshot", () => {
   beforeEach(() => {
     feeHoldStore.length = 0;
@@ -642,27 +653,78 @@ describe("registerOfflineDevice", () => {
     )).rejects.toMatchObject({ status: 400 });
   });
 
-  it("rejects incomplete attendance device updates", async () => {
+  it("preserves existing attendance fields when an update omits them", async () => {
     const db = makeMockDb();
-    offlineDeviceStore.push({
-      id: "dev-att-1",
-      schoolId: "school-a",
+    const device = await registerOfflineDevice(ADMIN_CTX, {
       name: "Attendance Gate",
       deviceKey: "attendance-gate-01",
+      roleScope: "ATTENDANCE",
       mode: "ATTENDANCE",
-      locationType: null,
-      locationName: null,
-      attendanceMode: null,
-      studentScope: null,
+      locationType: "GATE",
+      attendanceMode: "GATE_ATTENDANCE",
+    }, db);
+
+    const updated = await updateOfflineDeviceConfiguration(
+      ADMIN_CTX,
+      (device as { id?: string }).id ?? "attendance-gate-01",
+      { attendanceMode: null },
+      db,
+    );
+
+    expect(updated).toMatchObject({
+      locationType: "GATE",
+      attendanceMode: "GATE_ATTENDANCE",
+    });
+  });
+
+  it("allows classroom readers for all students without a class assignment", async () => {
+    const db = makeMockDb();
+    const dev = await registerOfflineDevice(
+      ADMIN_CTX,
+      {
+        name: "Assembly Hall Reader",
+        deviceKey: "classroom-all-1",
+        roleScope: "ATTENDANCE",
+        mode: "ATTENDANCE",
+        locationType: "CLASSROOM",
+        locationName: "Assembly Hall",
+        attendanceMode: "CLASSROOM_ATTENDANCE",
+        studentScope: "ALL_STUDENTS",
+        classId: null,
+        streamId: null,
+      },
+      db,
+    );
+
+    expect(dev).toMatchObject({
+      locationType: "CLASSROOM",
+      attendanceMode: "CLASSROOM_ATTENDANCE",
+      studentScope: "ALL_STUDENTS",
       classId: null,
       streamId: null,
     });
+  });
 
-    await expect(updateOfflineDeviceConfiguration(
+  it("rejects assigned-class classroom readers without a class assignment", async () => {
+    const db = makeMockDb();
+    await expect(registerOfflineDevice(
       ADMIN_CTX,
-      "dev-att-1",
-      { locationType: "GATE" },
+      {
+        name: "Senior 1 Reader",
+        deviceKey: "classroom-assigned-1",
+        roleScope: "ATTENDANCE",
+        mode: "ATTENDANCE",
+        locationType: "CLASSROOM",
+        locationName: "Senior 1",
+        attendanceMode: "CLASSROOM_ATTENDANCE",
+        studentScope: "ASSIGNED_CLASS",
+        classId: null,
+        streamId: null,
+      },
       db,
-    )).rejects.toMatchObject({ status: 400 });
+    )).rejects.toMatchObject({
+      status: 400,
+      message: "Assigned-class classroom readers require a class assignment.",
+    });
   });
 });

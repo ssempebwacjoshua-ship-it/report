@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { Router } from "express";
 import { z } from "zod";
+import { isAttendanceCapableReader } from "../../shared/utils/attendanceReaders";
 import { prisma } from "../db/prisma";
 import { findReaderGatewayOtaRelease, getReaderGatewayOtaReleaseById } from "../config/readerGatewayOtaCatalog";
 import {
@@ -381,7 +382,7 @@ export function readerGatewayRoutes() {
     try {
       const body = eventSchema.parse(req.body);
       const device = await authenticateDevice(req, body);
-      if (device.mode !== "ATTENDANCE") {
+      if (!isAttendanceCapableReader(device)) {
         res.status(409).json({
           success: false,
           action: "ATTENDANCE",

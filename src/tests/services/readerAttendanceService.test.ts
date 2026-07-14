@@ -464,6 +464,28 @@ describe("readerAttendanceService", () => {
     expect(db.stores.campusMovementEvents).toHaveLength(0);
   });
 
+  it("records classroom attendance for all students without requiring a class assignment", async () => {
+    const db = createDb({ studentType: "BOARDING" });
+    const result = await processLocationAwareReaderEvent(classroomReader({
+      studentScope: "ALL_STUDENTS",
+      classId: null,
+      streamId: null,
+    }), {
+      eventId: "event-4b",
+      credential: "WB-1",
+      deviceTime: "2026-07-11T05:00:00.000Z",
+    }, db as never);
+
+    expect(result.statusCode).toBe(200);
+    expect(result.response.status).toBe("MORNING_CLASS_PRESENT");
+    expect(db.stores.classroomAttendanceEvents).toHaveLength(1);
+    expect(db.stores.classroomAttendanceEvents[0]).toMatchObject({
+      classId: null,
+      streamId: null,
+      status: "PRESENT",
+    });
+  });
+
   it("records only campus movement for a boarder gate scan", async () => {
     const db = createDb({ studentType: "BOARDING" });
     const result = await processLocationAwareReaderEvent(gateReader({ studentScope: "ALL_STUDENTS" }), {
