@@ -33,6 +33,7 @@ export type OfflineDeviceStatus = {
   direction?: string | null;
   status: string;
   isActive: boolean;
+  lastHeartbeatAt?: string | null;
   lastSeenAt: string | null;
   lastIp?: string | null;
   lastRssi?: number | null;

@@ -216,6 +216,10 @@ beforeEach(() => {
   });
 });
 
+function isoMinutesAgo(minutes: number) {
+  return new Date(Date.now() - minutes * 60 * 1000).toISOString();
+}
+
 function renderPage() {
   return render(
     <MemoryRouter>
@@ -341,7 +345,7 @@ describe("NfcOperationsPage wristband grid layout", () => {
   it("opens the link reader modal from the link reader button", async () => {
     mockFetchOfflineSyncStatus.mockResolvedValueOnce({
       providerReachable: true,
-      lastSyncAt: "2026-07-12T08:00:00.000Z",
+      lastSyncAt: isoMinutesAgo(0),
       pendingCount: 0,
       stale: false,
       devices: [
@@ -355,7 +359,8 @@ describe("NfcOperationsPage wristband grid layout", () => {
           status: "ACTIVE",
           isActive: true,
           onlineStatus: "ONLINE",
-          lastSeenAt: "2026-07-12T08:00:00.000Z",
+          lastHeartbeatAt: isoMinutesAgo(0),
+          lastSeenAt: isoMinutesAgo(0),
         },
       ],
     });
@@ -374,7 +379,7 @@ describe("NfcOperationsPage wristband grid layout", () => {
   it("lists a commissioned gate reader when it has location-aware attendance metadata", async () => {
     mockFetchOfflineSyncStatus.mockResolvedValueOnce({
       providerReachable: true,
-      lastSyncAt: "2026-07-12T08:00:00.000Z",
+      lastSyncAt: isoMinutesAgo(0),
       pendingCount: 0,
       stale: false,
       devices: [
@@ -390,7 +395,8 @@ describe("NfcOperationsPage wristband grid layout", () => {
           status: "ACTIVE",
           isActive: true,
           onlineStatus: "ONLINE",
-          lastSeenAt: "2026-07-12T08:00:00.000Z",
+          lastHeartbeatAt: isoMinutesAgo(0),
+          lastSeenAt: isoMinutesAgo(0),
         },
       ],
     });
@@ -408,7 +414,7 @@ describe("NfcOperationsPage wristband grid layout", () => {
   it("hides offline attendance readers from capture mode", async () => {
     mockFetchOfflineSyncStatus.mockResolvedValueOnce({
       providerReachable: true,
-      lastSyncAt: "2026-07-12T08:00:00.000Z",
+      lastSyncAt: isoMinutesAgo(0),
       pendingCount: 0,
       stale: false,
       devices: [
@@ -424,7 +430,8 @@ describe("NfcOperationsPage wristband grid layout", () => {
           status: "ACTIVE",
           isActive: true,
           onlineStatus: "OFFLINE",
-          lastSeenAt: "2026-07-12T07:30:00.000Z",
+          lastHeartbeatAt: isoMinutesAgo(30),
+          lastSeenAt: isoMinutesAgo(30),
         },
         {
           id: "device-online",
@@ -438,7 +445,8 @@ describe("NfcOperationsPage wristband grid layout", () => {
           status: "ACTIVE",
           isActive: true,
           onlineStatus: "ONLINE",
-          lastSeenAt: "2026-07-12T08:00:00.000Z",
+          lastHeartbeatAt: isoMinutesAgo(0),
+          lastSeenAt: isoMinutesAgo(0),
         },
       ],
     });
@@ -451,5 +459,55 @@ describe("NfcOperationsPage wristband grid layout", () => {
 
     expect(await screen.findByRole("option", { name: /Block A \(Classroom\)/ })).toBeInTheDocument();
     expect(screen.queryByRole("option", { name: /Block 1 \(BLOCK 1\)/i })).not.toBeInTheDocument();
+  });
+
+  it("hides stale readers even when the backend still reports ONLINE", async () => {
+    mockFetchOfflineSyncStatus.mockResolvedValueOnce({
+      providerReachable: true,
+      lastSyncAt: isoMinutesAgo(0),
+      pendingCount: 0,
+      stale: false,
+      devices: [
+        {
+          id: "device-stale",
+          name: "Block B",
+          deviceKey: "block-b",
+          location: "BLOCK B",
+          locationName: "BLOCK B",
+          locationType: "CLASSROOM",
+          attendanceMode: "CLASSROOM_ATTENDANCE",
+          mode: "ATTENDANCE",
+          status: "ACTIVE",
+          isActive: true,
+          onlineStatus: "ONLINE",
+          lastHeartbeatAt: isoMinutesAgo(30),
+          lastSeenAt: isoMinutesAgo(30),
+        },
+        {
+          id: "device-online",
+          name: "Block A",
+          deviceKey: "attendance-gate-01",
+          location: "Classroom",
+          locationName: "Classroom",
+          locationType: "CLASSROOM",
+          attendanceMode: "CLASSROOM_ATTENDANCE",
+          mode: "ATTENDANCE",
+          status: "ACTIVE",
+          isActive: true,
+          onlineStatus: "ONLINE",
+          lastHeartbeatAt: isoMinutesAgo(0),
+          lastSeenAt: isoMinutesAgo(0),
+        },
+      ],
+    });
+
+    renderPage();
+
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Wristbands" })).toBeInTheDocument());
+
+    fireEvent.click(screen.getAllByRole("button", { name: /Link reader/i })[0]);
+
+    expect(await screen.findByRole("option", { name: /Block A \(Classroom\)/ })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: /Block B \(BLOCK B\)/i })).not.toBeInTheDocument();
   });
 });

@@ -596,6 +596,7 @@ export async function getOfflineSyncStatus(
 ) {
   const schoolId = requireSchoolId(ctx);
   requirePermission(ctx, "nfc.devices.manage");
+  const OFFLINE_STATUS_STALE_WINDOW_MS = 5 * 60 * 1000;
 
   const recent = await db.nfcOfflineSyncBatch.findMany({
     where: { schoolId },
@@ -605,10 +606,31 @@ export async function getOfflineSyncStatus(
 
   const devices = await db.nfcOfflineDevice.findMany({
     where: { schoolId, isActive: true },
-    orderBy: { createdAt: "desc" },
+    orderBy: [
+      { lastHeartbeatAt: "desc" },
+      { lastSeenAt: "desc" },
+      { updatedAt: "desc" },
+      { createdAt: "desc" },
+    ],
   });
 
-  return { batches: recent, devices };
+  const now = Date.now();
+  const normalizedDevices = devices.map((device) => {
+    const lastHeartbeatAt = (device as { lastHeartbeatAt?: Date | null }).lastHeartbeatAt ?? null;
+    const lastSeenAt = (device as { lastSeenAt?: Date | null }).lastSeenAt ?? null;
+    const lastContactAt = Math.max(lastHeartbeatAt?.getTime() ?? 0, lastSeenAt?.getTime() ?? 0);
+    const effectiveOnlineStatus = lastContactAt > 0 && now - lastContactAt <= OFFLINE_STATUS_STALE_WINDOW_MS
+      ? "ONLINE"
+      : "OFFLINE";
+
+    return {
+      ...device,
+      lastHeartbeatAt,
+      onlineStatus: effectiveOnlineStatus,
+    };
+  });
+
+  return { batches: recent, devices: normalizedDevices };
 }
 
 // ─── Register device ──────────────────────────────────────────────────────────

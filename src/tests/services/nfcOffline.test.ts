@@ -610,6 +610,29 @@ describe("getOfflineSyncStatus", () => {
     expect(res).toHaveProperty("batches");
     expect(res).toHaveProperty("devices");
   });
+
+  it("derives OFFLINE when the stored online flag is stale", async () => {
+    const db = makeMockDb();
+    offlineDeviceStore.push({
+      id: "device-stale",
+      schoolId: "school-a",
+      name: "Block B",
+      deviceKey: "block-b",
+      status: "ACTIVE",
+      isActive: true,
+      onlineStatus: "ONLINE",
+      lastHeartbeatAt: new Date(Date.now() - 10 * 60 * 1000),
+      lastSeenAt: new Date(Date.now() - 10 * 60 * 1000),
+      createdAt: new Date(Date.now() - 10 * 60 * 1000),
+      updatedAt: new Date(Date.now() - 10 * 60 * 1000),
+    });
+
+    const res = await getOfflineSyncStatus(ADMIN_CTX, db);
+    expect(res.devices[0]).toMatchObject({
+      deviceKey: "block-b",
+      onlineStatus: "OFFLINE",
+    });
+  });
 });
 
 describe("registerOfflineDevice", () => {

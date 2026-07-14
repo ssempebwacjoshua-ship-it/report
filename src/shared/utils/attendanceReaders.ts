@@ -35,13 +35,14 @@ export function isActiveAttendanceCapableReader(reader: AttendanceCapableReader)
 }
 
 export function isReaderRecentlyOnline(reader: AttendanceCapableReader, now = Date.now()): boolean {
-  if (reader.onlineStatus === "ONLINE") return true;
   const lastContactAt = Math.max(
     toTimestamp(reader.lastHeartbeatAt) ?? 0,
     toTimestamp(reader.lastSeenAt) ?? 0,
   );
-  if (!lastContactAt) return false;
-  return now - lastContactAt <= CAPTURE_ONLINE_WINDOW_MS;
+  if (lastContactAt) {
+    return now - lastContactAt <= CAPTURE_ONLINE_WINDOW_MS;
+  }
+  return reader.onlineStatus === "ONLINE";
 }
 
 export function isReaderAvailableForCredentialCapture(reader: AttendanceCapableReader, now = Date.now()): boolean {
