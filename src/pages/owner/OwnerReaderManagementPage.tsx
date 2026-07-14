@@ -13,6 +13,7 @@ import {
   type OwnerReader,
   type OwnerReaderDetail,
 } from "../../client/ownerClient";
+import { countsAsReaderErrorStatus } from "../../shared/utils/readerScanStatus";
 
 const STATUS_OPTIONS = ["ALL", "ONLINE", "OFFLINE", "PENDING_SETUP", "ACTIVATION_EXPIRED", "ACTIVATION_FAILED", "DISABLED", "ERRORS", "OTA_PENDING"] as const;
 const OTA_OPTIONS = ["ALL", "PENDING", "FAILED", "INSTALLED", "NO_UPDATE"] as const;
@@ -195,10 +196,7 @@ export function OwnerReaderManagementPage() {
     offline: readers.filter((reader) => reader.onlineStatus === "OFFLINE").length,
     pending: readers.filter((reader) => reader.onlineStatus === "PENDING_SETUP").length,
     otaPending: readers.filter((reader) => reader.otaStatus && ["UPDATE_AVAILABLE", "DEFERRED", "PENDING"].includes(String(reader.otaStatus))).length,
-    errors: readers.filter((reader) => Boolean(
-      (reader.lastScanStatus && reader.lastScanStatus !== "SUCCESS" && reader.lastScanStatus !== "PRESENT")
-      || reader.otaStatus === "FAILED",
-    )).length,
+    errors: readers.filter((reader) => countsAsReaderErrorStatus(reader.lastScanStatus) || reader.otaStatus === "FAILED").length,
   }), [readers]);
 
   return (

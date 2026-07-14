@@ -169,8 +169,10 @@ function inferReaderEventStatusCode(response: ReaderGatewayResponse) {
     case "WRONG_CLASS":
       return 403;
     case "MISCONFIGURED":
-    case "SESSION_CLOSED":
       return 409;
+    case "SESSION_CLOSED":
+    case "UNCLASSIFIED":
+      return 202;
     default:
       return response.success ? 200 : 400;
   }

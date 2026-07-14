@@ -593,9 +593,9 @@ async function processGateAttendance(
     });
   }
   return {
-    response: respond("GATE_SCAN", "UNCLASSIFIED", "Scan recorded for review", "duplicate", true, student.studentName),
+    response: respond("GATE_SCAN", "UNCLASSIFIED", "Scan recorded for review", "warning", true, student.studentName),
     scannedAt,
-    statusCode: 200,
+    statusCode: 202,
   };
 }
 
@@ -648,9 +648,9 @@ async function processClassroomAttendance(
       });
     }
     return {
-      response: respond("CLASSROOM_ATTENDANCE", "SESSION_CLOSED", "Scan recorded for review", "duplicate", false, student.studentName),
+      response: respond("CLASSROOM_ATTENDANCE", "SESSION_CLOSED", "Scan recorded for review", "warning", true, student.studentName),
       scannedAt,
-      statusCode: 409,
+      statusCode: 202,
     };
   }
 

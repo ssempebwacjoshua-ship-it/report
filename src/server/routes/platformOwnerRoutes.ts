@@ -5,6 +5,7 @@ import { prisma } from "../db/prisma";
 import { requirePlatformOwner } from "../middleware/requirePlatformOwner";
 import { hashPassword } from "../services/authService";
 import { buildDeviceIdentityWhere, RECENT_DEVICE_ORDER_BY } from "../utils/deviceIdentity";
+import { isReviewOnlyReaderScanStatus } from "../../shared/utils/readerScanStatus";
 import { REPORT_LAB_PLANS, getPlanByCode } from "../../shared/constants/subscriptionPlans";
 import { CANONICAL_STREAM_CODES, provisionSchoolOnboarding } from "../services/schoolStructureProvisioningService";
 import { getSmartPagesPackage } from "../services/smartPagesService";
@@ -1147,7 +1148,10 @@ export function platformOwnerRoutes() {
           return details?.status === "FAILED";
         }
         if (log.action === "reader_event.attendance") {
-          const response = (log.details as Record<string, unknown> | null)?.response as { success?: unknown } | undefined;
+          const response = (log.details as Record<string, unknown> | null)?.response as { success?: unknown; status?: unknown } | undefined;
+          if (isReviewOnlyReaderScanStatus(typeof response?.status === "string" ? response.status : null)) {
+            return false;
+          }
           return response?.success === false;
         }
         return false;

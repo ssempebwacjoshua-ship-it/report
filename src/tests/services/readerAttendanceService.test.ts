@@ -319,7 +319,13 @@ describe("readerAttendanceService", () => {
       deviceTime: "2026-07-11T08:30:00.000Z",
     }, db as never);
 
-    expect(result.response.status).toBe("UNCLASSIFIED");
+    expect(result.statusCode).toBe(202);
+    expect(result.response).toMatchObject({
+      success: true,
+      status: "UNCLASSIFIED",
+      message: "Scan recorded for review",
+      beep: "warning",
+    });
     expect(db.stores.dailyAttendances).toHaveLength(1);
     expect(db.stores.campusMovementEvents[0]?.type).toBe("UNCLASSIFIED_GATE_SCAN");
   });
@@ -365,7 +371,12 @@ describe("readerAttendanceService", () => {
       deviceTime: "2026-07-11T11:30:00.000Z",
     }, db as never);
 
-    expect(result.response.status).toBe("UNCLASSIFIED");
+    expect(result.statusCode).toBe(202);
+    expect(result.response).toMatchObject({
+      success: true,
+      status: "UNCLASSIFIED",
+      beep: "warning",
+    });
     expect(db.stores.campusMovementEvents[0]?.type).toBe("UNCLASSIFIED_GATE_SCAN");
   });
 
@@ -517,5 +528,28 @@ describe("readerAttendanceService", () => {
     expect(result.response.status).toBe("MORNING_CLASS_PRESENT");
     expect(db.stores.classroomAttendanceEvents).toHaveLength(1);
     expect(db.stores.dailyAttendances).toHaveLength(0);
+  });
+
+  it("records an after-hours classroom scan for review without flagging it as a duplicate failure", async () => {
+    const db = createDb({ studentType: "BOARDING" });
+    const result = await processLocationAwareReaderEvent(classroomReader(), {
+      eventId: "event-after-hours-classroom",
+      credential: "WB-1",
+      deviceTime: "2026-07-11T20:50:00.000Z",
+    }, db as never);
+
+    expect(result.statusCode).toBe(202);
+    expect(result.response).toMatchObject({
+      success: true,
+      action: "CLASSROOM_ATTENDANCE",
+      status: "SESSION_CLOSED",
+      message: "Scan recorded for review",
+      beep: "warning",
+    });
+    expect(db.stores.classroomAttendanceEvents).toHaveLength(1);
+    expect(db.stores.classroomAttendanceEvents[0]).toMatchObject({
+      sessionType: "UNCLASSIFIED",
+      status: "SESSION_CLOSED",
+    });
   });
 });
