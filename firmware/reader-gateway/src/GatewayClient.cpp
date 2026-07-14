@@ -75,6 +75,9 @@ String GatewayClient::buildBasePayload(const ReaderGatewayConfig& config, const 
     doc["activationCode"] = config.activationCode;
     doc["hardwareId"] = config.deviceId;
     doc["hardware"] = "ESP32";
+    doc["deviceName"] = config.deviceName;
+    doc["location"] = config.readerLocation;
+    doc["readerType"] = config.readerType;
   } else if (event != nullptr) {
     doc["eventId"] = event->eventId;
     doc["credential"] = event->credential;
