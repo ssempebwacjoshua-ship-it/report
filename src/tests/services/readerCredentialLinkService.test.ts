@@ -88,6 +88,9 @@ function createMockDb() {
       attendanceMode: null,
       isActive: true,
       status: "ACTIVE",
+      onlineStatus: "ONLINE",
+      lastSeenAt: new Date("2026-07-12T08:00:00.000Z"),
+      lastHeartbeatAt: new Date("2026-07-12T08:00:00.000Z"),
     },
   ];
 
@@ -226,7 +229,7 @@ describe("readerCredentialLinkService", () => {
 
     expect(result.status).toBe("PENDING");
     expect(result.tag.student.name).toBe("Jane Doe");
-    expect(result.deviceLabel).toBe("Main Entrance");
+    expect(result.deviceLabel).toBe("Attendance Gate 01 (Main Entrance)");
     expect(auditLogs.some((entry) => entry.action === "nfc_tag.reader_capture_started")).toBe(true);
   });
 
@@ -246,7 +249,23 @@ describe("readerCredentialLinkService", () => {
     );
 
     expect(result.status).toBe("PENDING");
-    expect(result.deviceLabel).toBe("Main Entrance");
+    expect(result.deviceLabel).toBe("Attendance Gate 01 (Main Entrance)");
+  });
+
+  it("rejects offline readers for credential capture", async () => {
+    const { db, devices } = createMockDb();
+    devices[0] = {
+      ...devices[0],
+      onlineStatus: "OFFLINE",
+      lastSeenAt: new Date("2026-07-12T07:50:00.000Z"),
+      lastHeartbeatAt: new Date("2026-07-12T07:50:00.000Z"),
+    };
+
+    await expect(startReaderCredentialCapture(
+      { schoolId: "school-1", actorId: "admin-1", role: "ADMIN_OPERATOR" },
+      { tagId: "tag-1", deviceId: "device-1" },
+      db,
+    )).rejects.toMatchObject({ message: "Selected attendance reader is offline. Choose the online reader and try again." });
   });
 
   it("captures and atomically links a reader credential without changing the public payload", async () => {

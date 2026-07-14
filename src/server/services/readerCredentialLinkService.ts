@@ -10,7 +10,11 @@ import {
   type ReaderCredentialAliasSource,
   type CredentialNormalizationInput,
 } from "../../shared/utils/credentialNormalization";
-import { isActiveAttendanceCapableReader } from "../../shared/utils/attendanceReaders";
+import {
+  formatAttendanceReaderLabel,
+  isActiveAttendanceCapableReader,
+  isReaderAvailableForCredentialCapture,
+} from "../../shared/utils/attendanceReaders";
 import { generateCredentialScanToken } from "./studentCredentialService";
 
 type ReaderCredentialLinkContext = {
@@ -38,6 +42,9 @@ type CaptureReaderDevice = {
   attendanceMode: string | null;
   isActive: boolean;
   status: string;
+  onlineStatus: string | null;
+  lastSeenAt: Date | null;
+  lastHeartbeatAt: Date | null;
 };
 
 type CapturedReaderCredential = {
@@ -240,12 +247,18 @@ async function loadCaptureReader(
       attendanceMode: true,
       isActive: true,
       status: true,
+      onlineStatus: true,
+      lastSeenAt: true,
+      lastHeartbeatAt: true,
     },
   }) as CaptureReaderDevice | null;
 
   if (!device) throw Object.assign(new Error("Attendance reader not found."), { status: 404 });
   if (!isActiveAttendanceCapableReader(device)) {
     throw Object.assign(new Error("Only active attendance readers can capture wristband credentials."), { status: 409 });
+  }
+  if (!isReaderAvailableForCredentialCapture(device)) {
+    throw Object.assign(new Error("Selected attendance reader is offline. Choose the online reader and try again."), { status: 409 });
   }
   return device;
 }
@@ -303,7 +316,7 @@ export async function startReaderCredentialCapture(
     tagId: tag.id,
     studentId: tag.studentId!,
     deviceId: reader?.id ?? null,
-    deviceLabel: reader ? (reader.locationName ?? reader.location ?? reader.name) : null,
+    deviceLabel: reader ? formatAttendanceReaderLabel(reader) : null,
     createdAt: now.toISOString(),
     expiresAt: expiresAt.toISOString(),
     confirmedAt: null,
@@ -411,7 +424,7 @@ export async function captureReaderCredentialFromReader(
     cardNumber: body.cardNumber ?? null,
     capturedAt: new Date().toISOString(),
     readerId: device.id,
-    readerName: device.locationName ?? device.location ?? device.name,
+    readerName: formatAttendanceReaderLabel(device),
   };
 
   return serializeCaptureSession(activeSession);

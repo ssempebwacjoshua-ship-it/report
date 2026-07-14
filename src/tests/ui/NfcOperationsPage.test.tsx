@@ -354,6 +354,7 @@ describe("NfcOperationsPage wristband grid layout", () => {
           mode: "ATTENDANCE",
           status: "ACTIVE",
           isActive: true,
+          onlineStatus: "ONLINE",
           lastSeenAt: "2026-07-12T08:00:00.000Z",
         },
       ],
@@ -367,7 +368,7 @@ describe("NfcOperationsPage wristband grid layout", () => {
 
     expect(await screen.findByText("Link reader credential")).toBeInTheDocument();
     expect(screen.getByText(/Preserve the written/)).toBeInTheDocument();
-    expect(screen.getByRole("option", { name: /Main Entrance/ })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: /Attendance Gate 01 \(Main Entrance\)/ })).toBeInTheDocument();
   });
 
   it("lists a commissioned gate reader when it has location-aware attendance metadata", async () => {
@@ -388,6 +389,7 @@ describe("NfcOperationsPage wristband grid layout", () => {
           mode: "GATE",
           status: "ACTIVE",
           isActive: true,
+          onlineStatus: "ONLINE",
           lastSeenAt: "2026-07-12T08:00:00.000Z",
         },
       ],
@@ -399,7 +401,55 @@ describe("NfcOperationsPage wristband grid layout", () => {
 
     fireEvent.click(screen.getAllByRole("button", { name: /Link reader/i })[0]);
 
-    expect(await screen.findByRole("option", { name: /Main Entrance/ })).toBeInTheDocument();
-    expect(screen.queryByRole("option", { name: /No active attendance readers found/i })).not.toBeInTheDocument();
+    expect(await screen.findByRole("option", { name: /Attendance Gate 01 \(Main Entrance\)/ })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: /No online attendance readers found/i })).not.toBeInTheDocument();
+  });
+
+  it("hides offline attendance readers from capture mode", async () => {
+    mockFetchOfflineSyncStatus.mockResolvedValueOnce({
+      providerReachable: true,
+      lastSyncAt: "2026-07-12T08:00:00.000Z",
+      pendingCount: 0,
+      stale: false,
+      devices: [
+        {
+          id: "device-offline",
+          name: "Block 1",
+          deviceKey: "reader-gateway-319D48",
+          location: "BLOCK 1",
+          locationName: "BLOCK 1",
+          locationType: "CLASSROOM",
+          attendanceMode: "CLASSROOM_ATTENDANCE",
+          mode: "ATTENDANCE",
+          status: "ACTIVE",
+          isActive: true,
+          onlineStatus: "OFFLINE",
+          lastSeenAt: "2026-07-12T07:30:00.000Z",
+        },
+        {
+          id: "device-online",
+          name: "Block A",
+          deviceKey: "attendance-gate-01",
+          location: "Classroom",
+          locationName: "Classroom",
+          locationType: "CLASSROOM",
+          attendanceMode: "CLASSROOM_ATTENDANCE",
+          mode: "ATTENDANCE",
+          status: "ACTIVE",
+          isActive: true,
+          onlineStatus: "ONLINE",
+          lastSeenAt: "2026-07-12T08:00:00.000Z",
+        },
+      ],
+    });
+
+    renderPage();
+
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Wristbands" })).toBeInTheDocument());
+
+    fireEvent.click(screen.getAllByRole("button", { name: /Link reader/i })[0]);
+
+    expect(await screen.findByRole("option", { name: /Block A \(Classroom\)/ })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: /Block 1 \(BLOCK 1\)/i })).not.toBeInTheDocument();
   });
 });

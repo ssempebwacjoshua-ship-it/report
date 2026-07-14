@@ -26,7 +26,10 @@ import type {
   ReaderCredentialCaptureStartResponse,
   ReaderCredentialConflictResponse,
 } from "../shared/types/nfcTags";
-import { isActiveAttendanceCapableReader } from "../shared/utils/attendanceReaders";
+import {
+  formatAttendanceReaderLabel,
+  isReaderAvailableForCredentialCapture,
+} from "../shared/utils/attendanceReaders";
 
 type StatusFilter = "" | "UNASSIGNED" | "ASSIGNED" | "DISABLED" | "LOST";
 
@@ -588,7 +591,9 @@ export function NfcOperationsPage() {
     setLinkReaderError(null);
     fetchOfflineSyncStatus()
       .then((status) => {
-        const attendanceDevices = status.devices.filter((device) => isActiveAttendanceCapableReader(device));
+        const attendanceDevices = status.devices
+          .filter((device) => isReaderAvailableForCredentialCapture(device))
+          .sort((left, right) => new Date(right.lastHeartbeatAt ?? right.lastSeenAt ?? 0).getTime() - new Date(left.lastHeartbeatAt ?? left.lastSeenAt ?? 0).getTime());
         setLinkReaderDevices(attendanceDevices);
         setLinkReaderDeviceId((current) => current || attendanceDevices[0]?.id || attendanceDevices[0]?.deviceKey || "");
       })
@@ -1183,10 +1188,10 @@ export function NfcOperationsPage() {
                     onChange={(e) => setLinkReaderDeviceId(e.target.value)}
                     disabled={linkReaderDevicesLoading || linkReaderLoading}
                   >
-                    {linkReaderDevices.length === 0 && <option value="">No active attendance readers found</option>}
+                    {linkReaderDevices.length === 0 && <option value="">No online attendance readers found</option>}
                     {linkReaderDevices.map((device) => (
                       <option key={device.id} value={device.id}>
-                        {(device.locationName ?? device.location ?? device.name)} ({device.deviceKey})
+                        {formatAttendanceReaderLabel(device)} ({device.deviceKey})
                       </option>
                     ))}
                   </select>
