@@ -393,15 +393,6 @@ export async function requestOwnerReaderAction(schoolId: string, deviceId: strin
   if (!res.ok) throw new Error(await parseApiError(res, "Could not request reader action"));
 }
 
-export async function rotateOwnerReaderToken(schoolId: string, deviceId: string): Promise<{ oneTimeToken: string; deviceKey: string }> {
-  const res = await fetch(`${API_BASE}/api/owner/schools/${encodeURIComponent(schoolId)}/readers/${encodeURIComponent(deviceId)}/rotate-token`, {
-    method: "POST",
-    headers: makeRequestHeaders(),
-  });
-  if (!res.ok) throw new Error(await parseApiError(res, "Could not rotate reader token"));
-  return res.json();
-}
-
 export async function createPendingOwnerReader(input: CreatePendingOwnerReaderInput): Promise<{ reader: OwnerReader; activationCode: string; activationExpiresAt: string }> {
   const res = await fetch(`${API_BASE}/api/owner/readers`, {
     method: "POST",

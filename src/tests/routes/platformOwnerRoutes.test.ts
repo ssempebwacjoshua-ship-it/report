@@ -385,7 +385,7 @@ describe("platformOwnerRoutes ? school management console", () => {
     expect(res.body.ok).toBe(true);
   });
 
-  it("rotates reader token without returning stored hashes as the token", async () => {
+  it("blocks reader token rotation", async () => {
     const schoolId = await firstSchoolId();
     if (!schoolId) return;
 
@@ -406,12 +406,11 @@ describe("platformOwnerRoutes ? school management console", () => {
       .post(`/api/owner/schools/${schoolId}/readers/${reader.id}/rotate-token`)
       .set("Authorization", `Bearer ${ownerToken}`);
 
-    expect(res.status).toBe(200);
-    expect(res.body.oneTimeToken).toBeTruthy();
-    expect(res.body.oneTimeToken).not.toBe("old-hash");
+    expect(res.status).toBe(409);
+    expect(String(res.body.error ?? "")).toMatch(/rotation is disabled/i);
 
     const updated = await prisma.nfcOfflineDevice.findUnique({ where: { id: reader.id } });
-    expect(updated?.deviceTokenHash).not.toBe(res.body.oneTimeToken);
+    expect(updated?.deviceTokenHash).toBe("old-hash");
   });
 });
 

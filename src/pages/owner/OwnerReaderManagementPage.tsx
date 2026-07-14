@@ -8,7 +8,6 @@ import {
   fetchOwnerReaders,
   regenerateOwnerReaderActivation,
   requestOwnerReaderAction,
-  rotateOwnerReaderToken,
   type OwnerSchool,
   type OwnerReader,
   type OwnerReaderDetail,
@@ -548,21 +547,9 @@ export function OwnerReaderManagementPage() {
                               </button>
                             </>
                           ) : (
-                            <button
-                              type="button"
-                              onClick={async () => {
-                                try {
-                                  if (!window.confirm("Rotate this device token? The new token is shown once.")) return;
-                                  const rotated = await rotateOwnerReaderToken(reader.schoolId ?? "", reader.id);
-                                  window.alert(`One-time provisioning token: ${rotated.oneTimeToken}`);
-                                } catch (caught) {
-                                  window.alert(caught instanceof Error ? caught.message : "Could not rotate token.");
-                                }
-                              }}
-                              className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50"
-                            >
-                              Rotate token
-                            </button>
+                            <span className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold text-slate-500">
+                              Token rotation disabled
+                            </span>
                           )}
                         </div>
                       </td>
@@ -584,7 +571,6 @@ export function OwnerReaderDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
-  const [oneTimeToken, setOneTimeToken] = useState("");
 
   async function loadReader() {
     setLoading(true);
@@ -615,19 +601,6 @@ export function OwnerReaderDetailPage() {
     }
   }
 
-  async function rotate() {
-    try {
-      if (!data?.reader.schoolId) return;
-      if (!window.confirm("Rotate this device token? The new provisioning token is shown once.")) return;
-      const rotated = await rotateOwnerReaderToken(data.reader.schoolId, data.reader.id);
-      setOneTimeToken(rotated.oneTimeToken);
-      setNotice(`One-time provisioning token generated for ${rotated.deviceKey}. Save it securely.`);
-      await loadReader();
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Could not rotate token.");
-    }
-  }
-
   const reader = data?.reader ?? null;
 
   return (
@@ -644,21 +617,11 @@ export function OwnerReaderDetailPage() {
           <button type="button" onClick={() => void loadReader()} className="w-full rounded-full border border-blue-200 bg-white px-4 py-3 text-sm font-bold text-blue-700 shadow-sm hover:bg-blue-50 sm:py-2">
             Refresh
           </button>
-          <button type="button" onClick={() => void rotate()} className="w-full rounded-full bg-blue-600 px-4 py-3 text-sm font-bold text-white shadow-sm hover:bg-blue-700 sm:py-2">
-            Rotate token
-          </button>
         </div>
       </div>
 
       {error ? <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</div> : null}
       {notice ? <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-700">{notice}</div> : null}
-      {oneTimeToken ? (
-        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
-          <p className="font-bold">One-time provisioning token</p>
-          <p className="mt-1 text-xs text-amber-800">Save this now. It is shown once and is required to reconnect the reader securely.</p>
-          <p className="mt-3 break-all rounded-xl bg-white px-3 py-3 font-mono text-xs text-slate-900">{oneTimeToken}</p>
-        </div>
-      ) : null}
 
       {loading || !data || !reader ? (
         <div className="rounded-2xl border border-slate-200 bg-white p-6 text-center text-sm text-slate-500">Loading reader details...</div>

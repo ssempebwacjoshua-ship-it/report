@@ -1,6 +1,6 @@
 ﻿import { Router } from "express";
 import { z } from "zod";
-import { createHash, randomBytes, randomUUID } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import { prisma } from "../db/prisma";
 import { requirePlatformOwner } from "../middleware/requirePlatformOwner";
 import { hashPassword } from "../services/authService";
@@ -36,16 +36,8 @@ function requestIdFrom(req: { headers: Record<string, unknown> }) {
   return typeof header === "string" && header.trim() ? header.trim() : randomUUID();
 }
 
-function hashToken(token: string) {
-  return createHash("sha256").update(token).digest("hex");
-}
-
 function generateTemporaryPassword() {
   return `Sc-${randomBytes(9).toString("base64url")}!`;
-}
-
-function generateDeviceToken() {
-  return randomBytes(32).toString("base64url");
 }
 
 async function requireOwnerSchool(schoolId: string) {
@@ -1420,10 +1412,9 @@ export function platformOwnerRoutes() {
         res.status(404).json({ error: "Reader not found." });
         return;
       }
-      const oneTimeToken = generateDeviceToken();
-      await prisma.nfcOfflineDevice.update({ where: { id: reader.id }, data: { deviceTokenHash: hashToken(oneTimeToken), status: "ACTIVE", isActive: true } });
-      void ownerAudit(req.user!.userId, schoolId, "READER_TOKEN_ROTATED_BY_OWNER", { readerId: reader.id, deviceKey: reader.deviceKey }).catch(() => {});
-      res.json({ ok: true, readerId: reader.id, deviceKey: reader.deviceKey, oneTimeToken });
+      res.status(409).json({
+        error: "Reader token rotation is disabled. Recommission the reader through the controlled setup flow instead.",
+      });
     } catch (error) {
       next(error);
     }

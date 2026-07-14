@@ -11,7 +11,6 @@ import {
   patchOwnerSchool,
   requestOwnerMaintenance,
   requestOwnerReaderAction,
-  rotateOwnerReaderToken,
   startOwnerSupportSession,
   updateOwnerFeatureFlags,
   updateOwnerSchoolDetails,
@@ -751,16 +750,9 @@ function OwnerSchoolConsoleDrawer({
                             {action.replace(/_/g, " ")}
                           </button>
                         ))}
-                        <button type="button" className="rounded-xl bg-amber-50 px-3 py-3 text-xs font-bold text-amber-800 xl:px-3 xl:py-2" onClick={async () => {
-                          if (!window.confirm("Rotate this reader token? The new token is shown once.")) return;
-                          try {
-                            const rotated = await rotateOwnerReaderToken(school.id, reader.id);
-                            setOneTimeSecret(`Reader ${rotated.deviceKey} token: ${rotated.oneTimeToken}`);
-                            onRefresh();
-                          } catch (e: unknown) {
-                            onError(e instanceof Error ? e.message : "Could not rotate token.");
-                          }
-                        }}>Rotate Token</button>
+                        <span className="rounded-xl bg-slate-100 px-3 py-3 text-center text-xs font-bold text-slate-500 xl:px-3 xl:py-2">
+                          Token rotation disabled
+                        </span>
                       </div>
                     </div>
                   ))}
