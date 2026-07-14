@@ -276,7 +276,7 @@ function registerBody(overrides: Record<string, unknown> = {}) {
 
 function activateBody(overrides: Record<string, unknown> = {}) {
   return {
-    activationCode: "RG-ABCD-EFGH-IJKL",
+    activationCode: "123456",
     hardwareId: "reader-gateway-74372C",
     deviceId: "reader-gateway-74372C",
     readerId: "reader-gateway-74372C",
@@ -1163,7 +1163,7 @@ describe("readerGatewayRoutes", () => {
 
     const res = await request(buildApp())
       .post("/api/readers/activate")
-      .send(activateBody({ activationCode: "RG-EXPR-CODE-0001" }));
+      .send(activateBody({ activationCode: "654321" }));
 
     expect(res.status).toBe(410);
     expect(res.body.error).toMatch(/expired/i);

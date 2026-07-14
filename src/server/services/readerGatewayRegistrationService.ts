@@ -358,8 +358,8 @@ export function hashReaderGatewayActivationCode(code: string) {
 }
 
 export function generateReaderGatewayActivationCode() {
-  const raw = randomBytes(9).toString("base64url").replace(/[-_]/g, "").toUpperCase();
-  return `RG-${raw.slice(0, 4)}-${raw.slice(4, 8)}-${raw.slice(8, 12)}`;
+  const value = randomBytes(4).readUInt32BE(0) % 1000000;
+  return value.toString().padStart(6, "0");
 }
 
 export async function activateReaderGatewayDevice(

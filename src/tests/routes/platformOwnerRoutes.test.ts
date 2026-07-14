@@ -506,7 +506,7 @@ describe("platformOwnerRoutes ? reader management inventory", () => {
       });
 
     expect(res.status).toBe(201);
-    expect(res.body.activationCode).toMatch(/^RG-/);
+    expect(res.body.activationCode).toMatch(/^\d{6}$/);
     expect(res.body.reader.onlineStatus).toBe("PENDING_SETUP");
     expect(res.body.reader.provisioningStatus).toBe("PENDING_SETUP");
     expect(res.body.reader.schoolId).toBe(schoolId);
@@ -540,7 +540,7 @@ describe("platformOwnerRoutes ? reader management inventory", () => {
       .set("Authorization", `Bearer ${ownerToken}`);
 
     expect(res.status).toBe(200);
-    expect(res.body.activationCode).toMatch(/^RG-/);
+    expect(res.body.activationCode).toMatch(/^\d{6}$/);
     expect(res.body.reader.id).toBe(created.id);
     expect(res.body.reader.onlineStatus).toBe("PENDING_SETUP");
     expect(res.body.reader.activationExpiresAt).toBeTruthy();
