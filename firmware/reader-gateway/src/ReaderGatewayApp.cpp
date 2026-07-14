@@ -282,6 +282,22 @@ void ReaderGatewayApp::applyProvisioningOverrides() {
   }
 }
 
+bool ReaderGatewayApp::normalizeRegistrationMode() {
+  const bool hasAssignedToken = !config_.bearerToken.isEmpty()
+    && config_.bearerToken != SSAMENJ_GATEWAY_DEFAULT_PROVISIONING_TOKEN;
+  const bool hasActivationCode = !config_.activationCode.isEmpty() || !provisionedActivationCode_.isEmpty();
+  const bool shouldUseActivation = !hasAssignedToken && hasActivationCode;
+  const String desiredPath = shouldUseActivation ? "/api/readers/activate" : "/api/readers/register";
+
+  if (config_.registrationPath == desiredPath) {
+    return false;
+  }
+
+  config_.registrationPath = desiredPath;
+  Serial.printf("Normalized registration path to %s\n", config_.registrationPath.c_str());
+  return persistAssignedConfiguration();
+}
+
 bool ReaderGatewayApp::persistAssignedConfiguration() {
   return configManager_.save(config_);
 }
@@ -300,6 +316,7 @@ void ReaderGatewayApp::applyRegistrationResult(const ReaderRegistrationResult& r
     config_.bearerToken = result.bearerToken;
     config_.activationCode = "";
     provisionedActivationCode_ = "";
+    config_.registrationPath = "/api/readers/register";
     if (beginProvisioningStorage()) {
       provisioningPreferences_.remove(PROVISIONING_ACTIVATION_CODE_KEY);
     }
@@ -936,6 +953,7 @@ bool ReaderGatewayApp::begin() {
   const bool configLoaded = configManager_.load(config_);
   loadProvisioningState();
   applyProvisioningOverrides();
+  normalizeRegistrationMode();
   if (isLocalApiBaseUrl(config_.apiBaseUrl) && !isLocalApiBaseUrl(String(SSAMENJ_GATEWAY_DEFAULT_API_BASE_URL))) {
     config_.apiBaseUrl = SSAMENJ_GATEWAY_DEFAULT_API_BASE_URL;
     persistAssignedConfiguration();
