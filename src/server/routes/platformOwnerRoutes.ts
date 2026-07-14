@@ -4,6 +4,7 @@ import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { prisma } from "../db/prisma";
 import { requirePlatformOwner } from "../middleware/requirePlatformOwner";
 import { hashPassword } from "../services/authService";
+import { buildDeviceIdentityWhere, RECENT_DEVICE_ORDER_BY } from "../utils/deviceIdentity";
 import { REPORT_LAB_PLANS, getPlanByCode } from "../../shared/constants/subscriptionPlans";
 import { CANONICAL_STREAM_CODES, provisionSchoolOnboarding } from "../services/schoolStructureProvisioningService";
 import { getSmartPagesPackage } from "../services/smartPagesService";
@@ -16,6 +17,7 @@ const READER_ACTIONS = ["RESTART", "SYNC", "UPDATE_FIRMWARE", "RE_REGISTER"] as 
 const READER_STALE_WINDOW_MS = 5 * 60 * 1000;
 const READER_AUDIT_ACTIONS = [
   "reader_device.registered",
+  "reader_device.re_registered",
   "reader_device.heartbeat",
   "reader_event.attendance",
   "reader_device.ota_status",
@@ -129,6 +131,26 @@ function readerEventMatchesDevice(details: unknown, device: { id: string; device
   const identifiers = extractReaderIdentity(details);
   if (!identifiers) return false;
   return identifiers.includes(device.id) || identifiers.includes(device.deviceKey);
+}
+
+function summarizeReaderAuditLog(log: { action: string; createdAt: Date; details: unknown } | null) {
+  if (!log) return null;
+  const details = log.details && typeof log.details === "object"
+    ? log.details as Record<string, unknown>
+    : {};
+  return {
+    action: log.action,
+    createdAt: log.createdAt.toISOString(),
+    deviceId: typeof details.deviceId === "string" ? details.deviceId : null,
+    readerId: typeof details.readerId === "string" ? details.readerId : null,
+    schoolCode: typeof details.schoolCode === "string" ? details.schoolCode : null,
+    deviceName: typeof details.deviceName === "string" ? details.deviceName : null,
+    location: typeof details.location === "string" ? details.location : null,
+    readerType: typeof details.readerType === "string" ? details.readerType : null,
+    firmwareVersion: typeof details.firmwareVersion === "string" ? details.firmwareVersion : null,
+    firmwareChannel: typeof details.firmwareChannel === "string" ? details.firmwareChannel : null,
+    assignmentStatus: typeof details.assignmentStatus === "string" ? details.assignmentStatus : null,
+  };
 }
 
 function smartPagesPaymentToDto(row: any): SmartPagesPaymentRequest {
@@ -844,13 +866,99 @@ export function platformOwnerRoutes() {
     }
   });
 
+  router.get("/api/owner/readers/diagnostics/lookup", requirePlatformOwner, async (req, res, next) => {
+    try {
+      const identifier = z.string().trim().min(1).parse(req.query.deviceId ?? req.query.deviceKey ?? req.query.readerId);
+      const reader = await prisma.nfcOfflineDevice.findFirst({
+        where: buildDeviceIdentityWhere(identifier),
+        orderBy: RECENT_DEVICE_ORDER_BY,
+        include: {
+          school: { select: { id: true, code: true, name: true, isActive: true } },
+        },
+      });
+      if (!reader) {
+        res.status(404).json({ error: "Reader not found." });
+        return;
+      }
+
+      const [latestRegistration, latestHeartbeat, schoolReaders, inventoryReaders] = await Promise.all([
+        prisma.auditLog.findFirst({
+          where: {
+            schoolId: reader.schoolId,
+            action: { in: ["reader_device.registered", "reader_device.re_registered"] },
+          },
+          orderBy: { createdAt: "desc" },
+        }),
+        prisma.auditLog.findFirst({
+          where: {
+            schoolId: reader.schoolId,
+            action: "reader_device.heartbeat",
+          },
+          orderBy: { createdAt: "desc" },
+        }),
+        prisma.nfcOfflineDevice.findMany({
+          where: { schoolId: reader.schoolId },
+          orderBy: { createdAt: "desc" },
+        }),
+        prisma.nfcOfflineDevice.findMany({
+          orderBy: { createdAt: "desc" },
+          include: {
+            school: { select: { id: true, code: true, name: true } },
+          },
+        }),
+      ]);
+
+      const inventoryMatch = inventoryReaders
+        .map(mapReader)
+        .find((device) => device.id === reader.id || device.deviceKey === reader.deviceKey) ?? null;
+
+      res.json({
+        lookup: {
+          identifier,
+          serverApiBaseUrl: process.env.PUBLIC_APP_URL ?? process.env.APP_URL ?? null,
+        },
+        resolvedSchool: reader.school ? {
+          id: reader.school.id,
+          code: reader.school.code,
+          name: reader.school.name,
+          isActive: reader.school.isActive,
+        } : null,
+        persistedDevice: {
+          id: reader.id,
+          deviceKey: reader.deviceKey,
+          schoolId: reader.schoolId,
+          name: reader.name,
+          location: reader.location,
+          locationType: reader.locationType,
+          locationName: reader.locationName,
+          status: reader.status,
+          isActive: reader.isActive,
+          firmwareVersion: reader.firmwareVersion,
+          lastHeartbeatAt: reader.lastHeartbeatAt?.toISOString() ?? null,
+          lastSeenAt: reader.lastSeenAt?.toISOString() ?? null,
+          onlineStatus: reader.onlineStatus,
+          assignmentStatus: reader.schoolId ? "ASSIGNED" : "UNASSIGNED",
+        },
+        latestRegistration: summarizeReaderAuditLog(latestRegistration),
+        latestHeartbeat: summarizeReaderAuditLog(latestHeartbeat),
+        uiQueryResult: inventoryMatch,
+        schoolQueryResult: {
+          schoolId: reader.schoolId,
+          visible: schoolReaders.some((device) => device.id === reader.id),
+          totalReaders: schoolReaders.length,
+        },
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
+
   router.get("/api/owner/readers/:readerId", requirePlatformOwner, async (req, res, next) => {
     try {
       const readerId = z.string().trim().min(1).parse(req.params.readerId);
       const reader = await prisma.nfcOfflineDevice.findFirst({
-        where: {
-          OR: [{ id: readerId }, { deviceKey: readerId }],
-        },
+        where: buildDeviceIdentityWhere(readerId),
+        orderBy: RECENT_DEVICE_ORDER_BY,
         include: {
           school: { select: { id: true, code: true, name: true } },
         },
@@ -1118,7 +1226,7 @@ export function platformOwnerRoutes() {
       const { schoolId, deviceId } = req.params;
       await requireOwnerSchool(schoolId);
       const body = z.object({ action: z.enum(READER_ACTIONS), firmwareVersion: z.string().max(50).optional() }).parse(req.body);
-      const reader = await prisma.nfcOfflineDevice.findFirst({ where: { schoolId, OR: [{ id: deviceId }, { deviceKey: deviceId }] } });
+      const reader = await prisma.nfcOfflineDevice.findFirst({ where: { schoolId, ...buildDeviceIdentityWhere(deviceId) }, orderBy: RECENT_DEVICE_ORDER_BY });
       if (!reader) {
         res.status(404).json({ error: "Reader not found." });
         return;
@@ -1141,7 +1249,7 @@ export function platformOwnerRoutes() {
     try {
       const { schoolId, deviceId } = req.params;
       await requireOwnerSchool(schoolId);
-      const reader = await prisma.nfcOfflineDevice.findFirst({ where: { schoolId, OR: [{ id: deviceId }, { deviceKey: deviceId }] } });
+      const reader = await prisma.nfcOfflineDevice.findFirst({ where: { schoolId, ...buildDeviceIdentityWhere(deviceId) }, orderBy: RECENT_DEVICE_ORDER_BY });
       if (!reader) {
         res.status(404).json({ error: "Reader not found." });
         return;

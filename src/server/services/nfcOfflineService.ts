@@ -1,4 +1,5 @@
 import type { PrismaClient } from "@prisma/client";
+import { buildDeviceIdentityWhere, RECENT_DEVICE_ORDER_BY } from "../utils/deviceIdentity";
 import { createHash, randomUUID } from "crypto";
 import { prisma as defaultPrisma } from "../db/prisma";
 import { hasPermission } from "../../shared/permissions";
@@ -326,7 +327,7 @@ export async function bootstrapOfflineSnapshot(
     await db.nfcOfflineDevice.updateMany({
       where: {
         schoolId,
-        OR: [{ id: input.deviceId }, { deviceKey: input.deviceId }],
+        ...buildDeviceIdentityWhere(input.deviceId),
       },
       data: { lastSnapshotAt: generatedAt, lastSeenAt: generatedAt },
     }).catch(() => null);
@@ -392,8 +393,9 @@ export async function syncOfflineEvents(
   const device = await db.nfcOfflineDevice.findFirst({
     where: {
       schoolId,
-      OR: [{ id: input.deviceId }, { deviceKey: input.deviceId }],
+      ...buildDeviceIdentityWhere(input.deviceId),
     },
+    orderBy: RECENT_DEVICE_ORDER_BY,
   });
   if (device?.status === "REVOKED" || device?.isActive === false) {
     return {
@@ -678,8 +680,9 @@ export async function updateOfflineDeviceConfiguration(
   const existing = await db.nfcOfflineDevice.findFirst({
     where: {
       schoolId,
-      OR: [{ id: deviceId }, { deviceKey: deviceId }],
+      ...buildDeviceIdentityWhere(deviceId),
     },
+    orderBy: RECENT_DEVICE_ORDER_BY,
   });
   if (!existing) {
     throw Object.assign(new Error("Offline device not found."), { status: 404 });

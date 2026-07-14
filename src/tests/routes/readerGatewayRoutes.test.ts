@@ -1070,6 +1070,38 @@ describe("readerGatewayRoutes", () => {
     }));
   });
 
+  it("looks up existing provisioning devices by deviceKey when the reader identity is not a UUID", async () => {
+    process.env.READER_GATEWAY_PROVISIONING_TOKEN = "provision-token";
+    prismaMocks.nfcOfflineDeviceFindFirst.mockResolvedValueOnce({
+      ...device(),
+      id: "dev-1",
+      schoolId: "school-1",
+      deviceKey: "attendance-gate-01",
+      deviceTokenHash: "existing-token-hash",
+    });
+    prismaMocks.transaction.mockImplementation(async (fn: (tx: any) => Promise<unknown>) => fn({
+      nfcOfflineDevice: {
+        create: prismaMocks.nfcOfflineDeviceCreate,
+        update: prismaMocks.nfcOfflineDeviceUpdate,
+      },
+      auditLog: { create: prismaMocks.auditLogCreate },
+    }));
+
+    const res = await request(buildApp())
+      .post("/api/readers/register")
+      .set("Authorization", "Bearer provision-token")
+      .send(registerBody({ schoolId: undefined }));
+
+    expect(res.status).toBe(200);
+    expect(prismaMocks.nfcOfflineDeviceFindFirst).toHaveBeenCalledWith(expect.objectContaining({
+      where: {
+        deviceKey: "attendance-gate-01",
+      },
+      select: expect.any(Object),
+    }));
+    expect(res.body.assignmentStatus).toBe("ASSIGNED");
+  });
+
   it("rejects an invalid provisioning school code safely", async () => {
     process.env.READER_GATEWAY_PROVISIONING_TOKEN = "provision-token";
     prismaMocks.schoolFindUnique.mockResolvedValueOnce(null);

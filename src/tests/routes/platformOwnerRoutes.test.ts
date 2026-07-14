@@ -504,5 +504,33 @@ describe("platformOwnerRoutes ? reader management inventory", () => {
     expect(Array.isArray(res.body.diagnostics.heartbeats)).toBe(true);
     expect(Array.isArray(res.body.diagnostics.recentScans)).toBe(true);
   });
+
+  it("returns reader diagnostics when looked up by non-UUID device key", async () => {
+    const fixture = await createReaderFixture();
+    if (!fixture) return;
+
+    const res = await request(createServer())
+      .get("/api/owner/readers/diagnostics/lookup")
+      .set("Authorization", `Bearer ${ownerToken}`)
+      .query({ deviceId: fixture.reader.deviceKey });
+
+    expect(res.status).toBe(200);
+    expect(res.body.lookup.identifier).toBe(fixture.reader.deviceKey);
+    expect(res.body.persistedDevice.deviceKey).toBe(fixture.reader.deviceKey);
+    expect(res.body.uiQueryResult.deviceKey).toBe(fixture.reader.deviceKey);
+    expect(res.body.schoolQueryResult.visible).toBe(true);
+  });
+
+  it("returns reader detail by non-UUID device key without UUID lookup errors", async () => {
+    const fixture = await createReaderFixture();
+    if (!fixture) return;
+
+    const res = await request(createServer())
+      .get(`/api/owner/readers/${encodeURIComponent(fixture.reader.deviceKey)}`)
+      .set("Authorization", `Bearer ${ownerToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.reader.deviceKey).toBe(fixture.reader.deviceKey);
+  });
 });
 

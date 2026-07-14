@@ -1,5 +1,6 @@
 import { createHash, randomBytes } from "node:crypto";
 import type { PrismaClient } from "@prisma/client";
+import { buildDeviceIdentityWhere, RECENT_DEVICE_ORDER_BY } from "../utils/deviceIdentity";
 
 type RegistrationDb = Pick<PrismaClient, "school" | "nfcOfflineDevice" | "auditLog" | "$transaction">;
 
@@ -191,9 +192,8 @@ export async function resolveReaderGatewayRegistration(
   }
 
   const existing = await db.nfcOfflineDevice.findFirst({
-    where: {
-      OR: [{ deviceKey: input.deviceId }, { id: input.deviceId }],
-    },
+    where: buildDeviceIdentityWhere(input.deviceId),
+    orderBy: RECENT_DEVICE_ORDER_BY,
     select: {
       id: true,
       schoolId: true,

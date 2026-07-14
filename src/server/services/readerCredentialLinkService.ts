@@ -2,6 +2,7 @@ import type { PrismaClient } from "@prisma/client";
 import { CredentialStatus, CredentialType } from "@prisma/client";
 import { randomUUID } from "node:crypto";
 import { prisma as defaultPrisma } from "../db/prisma";
+import { buildDeviceIdentityWhere, RECENT_DEVICE_ORDER_BY } from "../utils/deviceIdentity";
 import { hasPermission } from "../../shared/permissions";
 import {
   buildReaderCredentialAliases,
@@ -221,8 +222,9 @@ async function loadCaptureReader(
   const device = await db.nfcOfflineDevice.findFirst({
     where: {
       schoolId,
-      OR: [{ id: deviceId }, { deviceKey: deviceId }],
+      ...buildDeviceIdentityWhere(deviceId),
     },
+    orderBy: RECENT_DEVICE_ORDER_BY,
     select: {
       id: true,
       schoolId: true,
