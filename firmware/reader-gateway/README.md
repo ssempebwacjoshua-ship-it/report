@@ -112,7 +112,7 @@ The device loads JSON from LittleFS at:
 
 First-time provisioning workflow:
 
-1. Flash the gateway firmware and LittleFS image once. The firmware now supports first-time Wi-Fi setup from the device itself.
+1. Flash the gateway firmware and LittleFS image once. The firmware supports first-time Wi-Fi setup from the device itself.
 
 2. On first boot, when no Wi-Fi credentials are stored in NVS, the ESP32 opens a captive portal:
 
@@ -122,44 +122,43 @@ First-time provisioning workflow:
    URL fallback: http://192.168.4.1
    ```
 
-3. The setup page lets the installer:
-   - choose a nearby school Wi-Fi network;
-   - enter the Wi-Fi password;
-   - enter the school code;
-   - set the reader location;
-   - choose the reader type (`GATE` or `CLASSROOM`);
-   - set the device name (default: `attendance-gate-01`).
+3. The setup page asks the installer only for:
+   - school Wi-Fi SSID;
+   - Wi-Fi password;
+   - one-time activation code.
 
-   Optional advanced setup may expose the firmware channel, but normal installers should not need it.
+   The installer is not asked for a bearer token, provisioning token, school UUID, API URL, OTA key, or backend secret.
 
-4. On save, the firmware stores Wi-Fi and local setup metadata in ESP32 NVS/Preferences, connects to Wi-Fi, stops AP mode, and resumes the normal School Connect registration, heartbeat, offline queue replay, and attendance loop.
+4. On save, the firmware stores the Wi-Fi credentials and activation code locally, connects to Wi-Fi, stops AP mode, calls the activation endpoint, stores the returned device token and canonical reader assignment, and then resumes the normal School Connect heartbeat, offline queue replay, and attendance loop.
 
-5. On every reboot, the gateway first tries the stored Wi-Fi credentials. If Wi-Fi stays unavailable for 2 minutes, it automatically reopens the setup portal so the installer can update the network without USB access.
+5. On later reboots, the gateway keeps retrying the stored Wi-Fi credentials. Temporary Wi-Fi loss does not reopen setup automatically and does not clear credentials.
 
 6. Factory reset Wi-Fi by holding the ESP32 BOOT button for 10 seconds. This clears only the stored Wi-Fi credentials and reopens the setup portal.
 
 Important:
 
-- The bootstrap provisioning credential is preloaded during USB flashing from a protected build-time header generated from server-side env values.
-- Installers must never be asked for bearer tokens, provisioning tokens, raw school UUIDs, API URLs, OTA keys, or backend secrets.
+- Fresh devices activate through `/api/readers/activate` using the one-time activation code.
+- Once activation succeeds, the firmware stores the returned bearer token and normalizes future registration calls to `/api/readers/register`.
 - Existing LittleFS `wifiSsid` and `wifiPassword` values remain as a fallback for previously provisioned devices until NVS credentials are saved.
+- If a deployed reader token must be rotated, use Owner Console and recover the one-time token from the reader detail page immediately. The detail page now shows the rotated token once in a highlighted panel.
 
 Example configuration:
 
 ```json
 {
+  "deviceId": "reader-gateway-74372C",
   "readerId": "attendance-gate-01",
   "schoolId": "",
-  "schoolCode": "YOUR_SCHOOL_CODE",
   "deviceName": "Attendance Gate 01",
   "readerLocation": "Main Gate",
   "readerType": "GATE",
   "wifiSsid": "YOUR_WIFI_NAME",
   "wifiPassword": "YOUR_WIFI_PASSWORD",
+  "activationCode": "123456",
   "tlsInsecure": true,
   "retryIntervalMs": 30000,
   "eventsPath": "/api/readers/events",
-  "registrationPath": "/api/readers/register",
+  "registrationPath": "/api/readers/activate",
   "heartbeatPath": "/api/readers/heartbeat",
   "firmwareVersion": "1.0.0",
   "wifiReconnectIntervalMs": 15000,
@@ -168,17 +167,18 @@ Example configuration:
 }
 ```
 
-Registration contract:
+Activation and registration contract:
 
-- The device posts `deviceId`, `readerId`, `schoolCode`, `location`, `readerType`, `deviceName`, `firmwareVersion`, `firmwareChannel`, and transport metadata to `/api/readers/register`.
-- The backend resolves the canonical `schoolId`, creates or updates the device idempotently, and returns the assigned `schoolId`, school display name, assignment status, and a canonical device token when first-time provisioning used a provisioning token.
+- First-time setup posts `activationCode`, `hardwareId`, `deviceId`, `readerId`, `firmwareVersion`, `firmwareChannel`, and transport metadata to `/api/readers/activate`.
+- The backend validates the code, binds the hardware identity to the pending reader, and returns the canonical `schoolId`, school name, device token, firmware channel, location, and reader type.
+- After activation, the reader uses its stored bearer token on `/api/readers/register`, `/api/readers/heartbeat`, `/api/readers/events`, and OTA endpoints.
 
-Hidden bootstrap mechanism:
+Bootstrap mechanism:
 
-- `READER_GATEWAY_PROVISIONING_TOKEN` remains server-only in Report Lab `.env`.
-- A prebuild script generates `secrets/device_bootstrap.auto.h` locally and PlatformIO force-includes it during USB flashing.
+- `READER_GATEWAY_PRODUCTION_API_BASE_URL` controls the API base URL embedded into firmware at build time.
+- The prebuild script generates `secrets/device_bootstrap.auto.h` locally and PlatformIO force-includes it during flashing.
 - The generated header is ignored by git and never shown in the captive portal.
-- Production should evolve this into unique per-device bootstrap credentials or one-time claim codes instead of a shared fleet secret.
+- Localhost firmware bootstrap is blocked by default; use a real HTTPS backend for field installs unless you explicitly opt into a lab-only local build.
 
 ## Build
 
