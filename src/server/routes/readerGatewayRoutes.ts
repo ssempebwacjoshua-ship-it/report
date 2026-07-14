@@ -338,6 +338,7 @@ export function readerGatewayRoutes() {
         deviceId: registration.deviceId,
         readerId: registration.readerId,
         bearerToken: registration.bearerToken,
+        apiBaseUrl: registration.apiBaseUrl,
         firmwareChannel: registration.firmwareChannel,
       });
     } catch (error) {

@@ -97,6 +97,7 @@ struct ReaderRegistrationResult {
   String deviceId;
   String readerId;
   String bearerToken;
+  String apiBaseUrl;
   String firmwareChannel;
   String message;
 };

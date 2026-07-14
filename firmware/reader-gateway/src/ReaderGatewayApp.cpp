@@ -59,6 +59,13 @@ String lowerTrimmed(const String& value) {
   return normalized;
 }
 
+bool isLocalApiBaseUrl(const String& value) {
+  const String normalized = lowerTrimmed(value);
+  return normalized.startsWith("http://localhost")
+    || normalized.startsWith("http://127.0.0.1")
+    || normalized.startsWith("http://0.0.0.0");
+}
+
 String digestToHex(const uint8_t digest[32]) {
   static constexpr char kHex[] = "0123456789abcdef";
   char buffer[65];
@@ -289,6 +296,9 @@ void ReaderGatewayApp::applyRegistrationResult(const ReaderRegistrationResult& r
   }
   if (!result.bearerToken.isEmpty()) {
     config_.bearerToken = result.bearerToken;
+  }
+  if (!result.apiBaseUrl.isEmpty()) {
+    config_.apiBaseUrl = result.apiBaseUrl;
   }
   if (!result.firmwareChannel.isEmpty()) {
     config_.firmwareChannel = result.firmwareChannel;
@@ -958,6 +968,11 @@ bool ReaderGatewayApp::begin() {
   const bool configLoaded = configManager_.load(config_);
   loadProvisioningState();
   applyProvisioningOverrides();
+  if (isLocalApiBaseUrl(config_.apiBaseUrl) && !isLocalApiBaseUrl(String(SSAMENJ_GATEWAY_DEFAULT_API_BASE_URL))) {
+    config_.apiBaseUrl = SSAMENJ_GATEWAY_DEFAULT_API_BASE_URL;
+    persistAssignedConfiguration();
+    Serial.printf("Migrated stored apiBaseUrl to production default: %s\n", config_.apiBaseUrl.c_str());
+  }
   Serial.println(configLoaded ? "Config load complete" : "Config load failed; using defaults");
   Serial.printf("Loaded readerId: %s\n", config_.readerId.c_str());
   Serial.printf("Loaded schoolId: %s\n", config_.schoolId.c_str());

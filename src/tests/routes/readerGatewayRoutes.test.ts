@@ -1060,6 +1060,7 @@ describe("readerGatewayRoutes", () => {
     expect(res.body.schoolId).toBe("school-1");
     expect(res.body.assignmentStatus).toBe("ASSIGNED");
     expect(res.body.bearerToken).toBeTruthy();
+    expect(res.body.apiBaseUrl).toBeTruthy();
     expect(prismaMocks.nfcOfflineDeviceCreate).toHaveBeenCalledWith(expect.objectContaining({
       data: expect.objectContaining({
         schoolId: "school-1",
@@ -1097,6 +1098,7 @@ describe("readerGatewayRoutes", () => {
       where: {
         deviceKey: "attendance-gate-01",
       },
+      orderBy: expect.any(Array),
       select: expect.any(Object),
     }));
     expect(res.body.assignmentStatus).toBe("ASSIGNED");

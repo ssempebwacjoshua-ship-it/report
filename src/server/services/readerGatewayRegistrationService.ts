@@ -1,6 +1,7 @@
 import { createHash, randomBytes } from "node:crypto";
 import type { PrismaClient } from "@prisma/client";
 import { buildDeviceIdentityWhere, RECENT_DEVICE_ORDER_BY } from "../utils/deviceIdentity";
+import { getReaderGatewayCanonicalApiBaseUrl } from "../config/readerGatewayCanonicalConfig";
 
 type RegistrationDb = Pick<PrismaClient, "school" | "nfcOfflineDevice" | "auditLog" | "$transaction">;
 
@@ -49,6 +50,7 @@ export type ReaderGatewayRegistrationResult = {
   schoolName: string;
   assignmentStatus: "ASSIGNED";
   bearerToken?: string;
+  apiBaseUrl: string;
   firmwareChannel: string;
 };
 
@@ -162,6 +164,7 @@ export async function resolveReaderGatewayRegistration(
       schoolId: school.id,
       schoolName: school.name,
       assignmentStatus: "ASSIGNED",
+      apiBaseUrl: getReaderGatewayCanonicalApiBaseUrl(),
       firmwareChannel,
     };
   }
@@ -286,6 +289,7 @@ export async function resolveReaderGatewayRegistration(
     schoolName: school.name,
     assignmentStatus: "ASSIGNED",
     bearerToken: existing?.deviceTokenHash ? undefined : oneTimeToken,
+    apiBaseUrl: getReaderGatewayCanonicalApiBaseUrl(),
     firmwareChannel,
   };
 }

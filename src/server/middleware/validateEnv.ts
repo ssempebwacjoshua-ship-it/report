@@ -102,6 +102,10 @@ export function validateEnv(env: Record<string, string | undefined> = process.en
       errors.push("PUBLIC_APP_URL points at localhost. Public report links must use the real production report domain.");
     }
 
+    if (env.READER_GATEWAY_PRODUCTION_API_BASE_URL && isLocalUrl(env.READER_GATEWAY_PRODUCTION_API_BASE_URL)) {
+      errors.push("READER_GATEWAY_PRODUCTION_API_BASE_URL points at localhost. Production reader bootstrap must use the live HTTPS backend.");
+    }
+
     if (!env.APP_BASE_URL && !env.PUBLIC_APP_URL) {
       warnings.push(
         "APP_BASE_URL / PUBLIC_APP_URL is not set. Parent links will fall back to CLIENT_ORIGIN; set a branded report domain before releasing reports to parents.",

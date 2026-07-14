@@ -251,6 +251,7 @@ bool GatewayClient::registerDevice(const ReaderGatewayConfig& config, ReaderApiR
     result.deviceId = doc["deviceId"] | "";
     result.readerId = doc["readerId"] | "";
     result.bearerToken = doc["bearerToken"] | "";
+    result.apiBaseUrl = doc["apiBaseUrl"] | "";
     result.firmwareChannel = doc["firmwareChannel"] | "";
     result.message = doc["message"] | "";
   }
