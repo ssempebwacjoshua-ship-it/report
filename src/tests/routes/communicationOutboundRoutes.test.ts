@@ -60,6 +60,7 @@ beforeAll(async () => {
 beforeEach(async () => {
   vi.restoreAllMocks();
   vi.unstubAllEnvs();
+  await prisma.communicationTemplate.deleteMany({ where: { schoolId } });
   await prisma.communicationDeliveryAttempt.deleteMany({ where: { delivery: { schoolId } } });
   await prisma.communicationDelivery.deleteMany({ where: { schoolId } });
   await prisma.communicationRecipient.deleteMany({ where: { schoolId } });
@@ -82,6 +83,51 @@ async function createCampaign(token = adminToken) {
   return res.body.campaign.id as string;
 }
 
+async function createTemplate(input: {
+  channel: "WHATSAPP" | "SMS";
+  status?: string;
+  providerTemplateName?: string | null;
+  providerTemplateId?: string | null;
+  variablesJson?: unknown;
+  body?: string;
+}) {
+  return prisma.communicationTemplate.create({
+    data: {
+      schoolId,
+      channel: input.channel,
+      communicationType: "ANNOUNCEMENT" as never,
+      name: `${input.channel.toLowerCase()}-${Date.now()}`,
+      status: input.status ?? "APPROVED",
+      content: input.body ?? "Hello {{guardianName}}",
+      providerTemplateName: input.providerTemplateName ?? null,
+      providerTemplateId: input.providerTemplateId ?? null,
+      variablesJson: input.variablesJson ?? ["guardianName"],
+    },
+  });
+}
+
+async function ensureActiveSubscription() {
+  const existing = await prisma.reportLabSubscription.findUnique({ where: { schoolId } });
+  if (existing) {
+    await prisma.reportLabSubscription.update({
+      where: { schoolId },
+      data: { status: "ACTIVE", currentPeriodEnd: new Date("2030-01-01T00:00:00.000Z") },
+    });
+    return;
+  }
+  await prisma.reportLabSubscription.create({
+    data: {
+      schoolId,
+      planCode: "REPORT_LAB_1000",
+      billingCycle: "YEAR",
+      status: "ACTIVE",
+      currentPeriodStart: new Date("2026-01-01T00:00:00.000Z"),
+      currentPeriodEnd: new Date("2030-01-01T00:00:00.000Z"),
+      studentLimit: 1000,
+    },
+  });
+}
+
 describe("communication outbound routes", () => {
   it("denies sending to users without communications.send", async () => {
     const campaignId = await createCampaign();
@@ -92,21 +138,23 @@ describe("communication outbound routes", () => {
     expect(res.status).toBe(403);
   });
 
-  it("fails closed when SMS provider is disabled", async () => {
+  it("fails closed when live SMS is missing an approved template", async () => {
     const campaignId = await createCampaign();
     await prisma.communicationCampaign.update({ where: { id: campaignId }, data: { status: "APPROVED" } });
+    await ensureActiveSubscription();
     vi.stubEnv("COMMUNICATION_DRY_RUN", "false");
     const res = await request(createServer())
       .post(`/api/communications/campaigns/${campaignId}/send`)
       .set("Authorization", auth(adminToken))
       .send({ channel: "SMS", confirm: true, audience: { studentIds: [studentId], mode: "GENERAL" } });
     expect(res.status).toBe(402);
-    expect(res.body.message).toMatch(/communications are not enabled/i);
+    expect(res.body.message).toMatch(/approved communication template/i);
   });
 
-  it("blocks queueing and sending live campaigns when communications are disabled", async () => {
+  it("blocks queueing and sending live campaigns without an approved template", async () => {
     const campaignId = await createCampaign();
     await prisma.communicationCampaign.update({ where: { id: campaignId }, data: { status: "APPROVED" } });
+    await ensureActiveSubscription();
     vi.stubEnv("COMMUNICATION_DRY_RUN", "false");
 
     const queueRes = await request(createServer())
@@ -114,14 +162,143 @@ describe("communication outbound routes", () => {
       .set("Authorization", auth(adminToken))
       .send({ channels: ["SMS"] });
     expect(queueRes.status).toBe(402);
-    expect(queueRes.body.message).toMatch(/communications are not enabled/i);
+    expect(queueRes.body.message).toMatch(/approved communication template/i);
 
     const sendRes = await request(createServer())
       .post(`/api/communications/campaigns/${campaignId}/send`)
       .set("Authorization", auth(adminToken))
       .send({ channel: "SMS", confirm: true, audience: { studentIds: [studentId], mode: "GENERAL" } });
     expect(sendRes.status).toBe(402);
-    expect(sendRes.body.message).toMatch(/communications are not enabled/i);
+    expect(sendRes.body.message).toMatch(/approved communication template/i);
+  });
+
+  it("blocks live WhatsApp sends without an approved provider template", async () => {
+    const campaignId = await createCampaign();
+    await prisma.communicationCampaign.update({ where: { id: campaignId }, data: { status: "APPROVED" } });
+    await ensureActiveSubscription();
+    await createTemplate({
+      channel: "WHATSAPP",
+      status: "DRAFT",
+      providerTemplateName: null,
+      providerTemplateId: null,
+    });
+    vi.stubEnv("COMMUNICATION_DRY_RUN", "false");
+    vi.stubEnv("WHATSAPP_PROVIDER_ENABLED", "true");
+    vi.stubEnv("WHATSAPP_META_ACCESS_TOKEN", "token-secret");
+    vi.stubEnv("WHATSAPP_META_PHONE_NUMBER_ID", "phone-1");
+
+    const res = await request(createServer())
+      .post(`/api/communications/campaigns/${campaignId}/send`)
+      .set("Authorization", auth(adminToken))
+      .send({ channel: "WHATSAPP", confirm: true, audience: { studentIds: [studentId], mode: "GENERAL" } });
+
+    expect(res.status).toBe(402);
+    expect(res.body.message).toMatch(/approved communication template/i);
+  });
+
+  it("allows live WhatsApp sends only with approved provider template metadata", async () => {
+    const campaignId = await createCampaign();
+    await prisma.communicationCampaign.update({ where: { id: campaignId }, data: { status: "APPROVED" } });
+    await ensureActiveSubscription();
+    await createTemplate({
+      channel: "WHATSAPP",
+      providerTemplateName: "parent_notice_v1",
+      providerTemplateId: "tpl_123",
+      variablesJson: ["guardianName"],
+    });
+    vi.stubEnv("COMMUNICATION_DRY_RUN", "false");
+    vi.stubEnv("WHATSAPP_PROVIDER_ENABLED", "true");
+    vi.stubEnv("WHATSAPP_META_ACCESS_TOKEN", "token-secret");
+    vi.stubEnv("WHATSAPP_META_PHONE_NUMBER_ID", "phone-1");
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: true,
+      json: async () => ({ messages: [{ id: "wamid.approved" }] }),
+    } as Response);
+
+    const res = await request(createServer())
+      .post(`/api/communications/campaigns/${campaignId}/send`)
+      .set("Authorization", auth(adminToken))
+      .send({ channel: "WHATSAPP", confirm: true, audience: { studentIds: [studentId], mode: "GENERAL" } });
+
+    expect(res.status).toBe(200);
+    expect(res.body.result.templatePolicy.policyStatus).toBe("APPROVED_TEMPLATE_BOUND");
+    expect(res.body.result.submitted).toBe(1);
+    expect(fetchMock).toHaveBeenCalled();
+  });
+
+  it("blocks live SMS sends without an approved template or policy", async () => {
+    const campaignId = await createCampaign();
+    await prisma.communicationCampaign.update({ where: { id: campaignId }, data: { status: "APPROVED" } });
+    await ensureActiveSubscription();
+    vi.stubEnv("COMMUNICATION_DRY_RUN", "false");
+    vi.stubEnv("SMS_PROVIDER", "mock");
+    vi.stubEnv("SMS_PROVIDER_ENABLED", "true");
+
+    const res = await request(createServer())
+      .post(`/api/communications/campaigns/${campaignId}/send`)
+      .set("Authorization", auth(adminToken))
+      .send({ channel: "SMS", confirm: true, audience: { studentIds: [studentId], mode: "GENERAL" } });
+
+    expect(res.status).toBe(402);
+    expect(res.body.message).toMatch(/approved communication template/i);
+  });
+
+  it("blocks live sends when template variables do not match the approved template", async () => {
+    const campaignId = await createCampaign();
+    await prisma.communicationCampaign.update({ where: { id: campaignId }, data: { status: "APPROVED" } });
+    await ensureActiveSubscription();
+    const content = await prisma.communicationContent.findFirst({ where: { campaignId } });
+    expect(content).toBeTruthy();
+    await createTemplate({
+      channel: "WHATSAPP",
+      providerTemplateName: "parent_notice_v1",
+      providerTemplateId: "tpl_123",
+      variablesJson: ["guardianName"],
+      body: "Hello {{guardianName}} {{unexpectedVar}}",
+    });
+    if (content) {
+      await prisma.communicationContent.update({ where: { id: content.id }, data: { body: "Hello {{guardianName}} {{unexpectedVar}}" } });
+    }
+    vi.stubEnv("COMMUNICATION_DRY_RUN", "false");
+    vi.stubEnv("WHATSAPP_PROVIDER_ENABLED", "true");
+    vi.stubEnv("WHATSAPP_META_ACCESS_TOKEN", "token-secret");
+    vi.stubEnv("WHATSAPP_META_PHONE_NUMBER_ID", "phone-1");
+
+    const res = await request(createServer())
+      .post(`/api/communications/campaigns/${campaignId}/send`)
+      .set("Authorization", auth(adminToken))
+      .send({ channel: "WHATSAPP", confirm: true, audience: { studentIds: [studentId], mode: "GENERAL" } });
+
+    expect(res.status).toBe(400);
+    expect(res.body.message).toMatch(/message variables do not match/i);
+  });
+
+  it("keeps the entitlement gate ahead of live template checks", async () => {
+    const campaignId = await createCampaign();
+    await prisma.communicationCampaign.update({ where: { id: campaignId }, data: { status: "APPROVED" } });
+    await ensureActiveSubscription();
+    await createTemplate({
+      channel: "WHATSAPP",
+      providerTemplateName: "parent_notice_v1",
+      providerTemplateId: "tpl_123",
+      variablesJson: ["guardianName"],
+    });
+    await prisma.reportLabSubscription.update({
+      where: { schoolId },
+      data: { status: "EXPIRED", currentPeriodEnd: new Date("2020-01-01T00:00:00.000Z") },
+    });
+    vi.stubEnv("COMMUNICATION_DRY_RUN", "false");
+    vi.stubEnv("WHATSAPP_PROVIDER_ENABLED", "true");
+    vi.stubEnv("WHATSAPP_META_ACCESS_TOKEN", "token-secret");
+    vi.stubEnv("WHATSAPP_META_PHONE_NUMBER_ID", "phone-1");
+
+    const res = await request(createServer())
+      .post(`/api/communications/campaigns/${campaignId}/send`)
+      .set("Authorization", auth(adminToken))
+      .send({ channel: "WHATSAPP", confirm: true, audience: { studentIds: [studentId], mode: "GENERAL" } });
+
+    expect(res.status).toBe(402);
+    expect(res.body.message).toMatch(/communications are not enabled/i);
   });
 
   it("blocks draft campaigns from direct send", async () => {
@@ -150,6 +327,8 @@ describe("communication outbound routes", () => {
     expect(second.status).toBe(200);
     expect(second.body.result.submitted).toBe(0);
     expect(second.body.result.skippedDuplicate).toBe(1);
+    expect(second.body.result.templatePolicy.policyStatus).toBe("DRY_RUN_ONLY");
+    expect(second.body.result.templatePolicy.note).toMatch(/approved template binding/i);
     await expect(prisma.communicationDelivery.count({ where: { schoolId, campaignId } })).resolves.toBe(1);
 
     await prisma.communicationCampaign.update({ where: { id: campaignId }, data: { status: "APPROVED" } });

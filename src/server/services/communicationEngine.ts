@@ -18,6 +18,8 @@ import { evaluateSubscriptionEntitlement } from "./subscriptionEntitlementServic
 
 type Db = PrismaClient;
 
+type TemplatePolicyStatus = "DRY_RUN_ONLY" | "APPROVED_TEMPLATE_BOUND" | "TEMPLATE_REQUIRED" | "TEMPLATE_VARIABLES_INVALID";
+
 export type CommunicationContext = {
   schoolId: string;
   schoolName: string;
@@ -47,6 +49,135 @@ async function requireLiveCommunicationsEnabled(db: Db, ctx: CommunicationContex
       },
     });
   }
+}
+
+type TemplateValidationResult = {
+  template: {
+    id: string;
+    name: string;
+    channel: CommunicationChannel;
+    communicationType: string;
+    status: string;
+    providerTemplateName: string | null;
+    providerTemplateId: string | null;
+    variablesJson: unknown;
+  };
+  policyStatus: TemplatePolicyStatus;
+};
+
+function extractTemplateVariables(input: string) {
+  const variables = new Set<string>();
+  const pattern = /\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g;
+  for (let match = pattern.exec(input); match; match = pattern.exec(input)) {
+    variables.add(match[1]);
+  }
+  return [...variables];
+}
+
+function normalizeTemplateVariableNames(value: unknown) {
+  if (Array.isArray(value)) {
+    return value.filter((entry): entry is string => typeof entry === "string").map((entry) => entry.trim()).filter(Boolean);
+  }
+  if (value && typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    const candidates = [
+      record.variables,
+      record.required,
+      record.requiredVariables,
+      record.allowed,
+      record.allowedVariables,
+      record.placeholders,
+    ];
+    for (const candidate of candidates) {
+      const normalized = normalizeTemplateVariableNames(candidate);
+      if (normalized.length) return normalized;
+    }
+  }
+  return [];
+}
+
+function getMessageVariables(content: { body: string; shortBody?: string | null }) {
+  return [...new Set([
+    ...extractTemplateVariables(content.body),
+    ...extractTemplateVariables(content.shortBody ?? ""),
+  ])];
+}
+
+function hasOwnTemplateBinding(template: TemplateValidationResult["template"]) {
+  return Boolean(template.providerTemplateName?.trim() || template.providerTemplateId?.trim());
+}
+
+async function requireLiveTemplatePolicy(db: Db, ctx: CommunicationContext, campaignId: string, channel: CommunicationChannel) {
+  const campaign = await getCampaignOrThrow(db, ctx, campaignId);
+  const content = campaign.contents.find((entry) => entry.version === campaign.contentVersion) ?? campaign.contents[0];
+  if (!content?.body?.trim()) {
+    throw httpError(400, "Message body is required before sending.");
+  }
+
+  const template = await db.communicationTemplate.findFirst({
+    where: {
+      schoolId: ctx.schoolId,
+      channel: channel as never,
+      communicationType: campaign.type as never,
+      status: { in: ["APPROVED", "ACTIVE"] },
+    },
+    orderBy: { updatedAt: "desc" },
+  });
+  if (!template) {
+    throw Object.assign(new Error("An approved communication template is required before live sending."), {
+      status: 402,
+      expose: true,
+      code: "COMMUNICATION_TEMPLATE_REQUIRED",
+      details: {
+        channel,
+        communicationType: campaign.type,
+        templateStatus: null,
+        policyStatus: "TEMPLATE_REQUIRED" as TemplatePolicyStatus,
+      },
+    });
+  }
+
+  if (channel === "WHATSAPP" && !hasOwnTemplateBinding(template)) {
+    throw Object.assign(new Error("WhatsApp live sending requires an approved provider template binding."), {
+      status: 402,
+      expose: true,
+      code: "WHATSAPP_TEMPLATE_BINDING_REQUIRED",
+      details: {
+        channel,
+        communicationType: campaign.type,
+        templateId: template.id,
+        templateStatus: template.status,
+        policyStatus: "TEMPLATE_REQUIRED" as TemplatePolicyStatus,
+      },
+    });
+  }
+
+  const requiredVariables = new Set([
+    ...getMessageVariables(content),
+    ...normalizeTemplateVariableNames(template.variablesJson),
+  ]);
+  const allowedVariables = new Set(normalizeTemplateVariableNames(template.variablesJson));
+  const unknownVariables = [...requiredVariables].filter((variable) => allowedVariables.size === 0 || !allowedVariables.has(variable));
+  if (unknownVariables.length > 0) {
+    throw Object.assign(new Error("Message variables do not match the approved template."), {
+      status: 400,
+      expose: true,
+      code: "COMMUNICATION_TEMPLATE_VARIABLES_INVALID",
+      details: {
+        channel,
+        communicationType: campaign.type,
+        templateId: template.id,
+        missingVariables: [...requiredVariables].filter((variable) => !allowedVariables.has(variable)),
+        unknownVariables,
+        policyStatus: "TEMPLATE_VARIABLES_INVALID" as TemplatePolicyStatus,
+      },
+    });
+  }
+
+  return {
+    template,
+    policyStatus: "APPROVED_TEMPLATE_BOUND" as TemplatePolicyStatus,
+  };
 }
 
 export async function createCampaign(db: Db, ctx: CommunicationContext, input: {
@@ -251,6 +382,11 @@ export async function approveCampaign(db: Db, ctx: CommunicationContext, campaig
 
 export async function queueCampaign(db: Db, ctx: CommunicationContext, campaignId: string, channels: CommunicationChannel[] = ["WHATSAPP"]) {
   await requireLiveCommunicationsEnabled(db, ctx);
+  if (!isCommunicationDryRun()) {
+    for (const channel of channels) {
+      await requireLiveTemplatePolicy(db, ctx, campaignId, channel);
+    }
+  }
   const campaign = await getCampaignOrThrow(db, ctx, campaignId);
   if (campaign.status !== "APPROVED" && campaign.status !== "FAILED") throw httpError(400, "Only approved campaigns can be queued.");
   const recipients = await db.communicationRecipient.findMany({ where: { schoolId: ctx.schoolId, campaignId, status: { in: ["READY", "WARNING"] } } });
@@ -313,6 +449,13 @@ export async function sendCampaign(db: Db, ctx: CommunicationContext, campaignId
   if (!["APPROVED", "QUEUED", "SENDING"].includes(campaign.status)) {
     throw httpError(400, "Only approved campaigns can be sent.");
   }
+  const templatePolicy = isCommunicationDryRun()
+    ? {
+        policyStatus: "DRY_RUN_ONLY" as TemplatePolicyStatus,
+        liveTemplateRequired: true,
+        note: "Dry-run staging is allowed; live sending will require an approved template binding.",
+      }
+    : await requireLiveTemplatePolicy(db, ctx, campaignId, input.channel);
   if (!campaign.audienceSnapshots[0]) {
     await createAudienceSnapshot(db, ctx, campaignId, input.audience ?? ((campaign.audience?.definitionJson ?? {}) as AudienceDefinition));
   }
@@ -457,7 +600,7 @@ export async function sendCampaign(db: Db, ctx: CommunicationContext, campaignId
     data: { status: failed > 0 && submitted > 0 ? "PARTIALLY_DELIVERED" : failed > 0 && submitted === 0 ? "FAILED" : "SENDING", sendingStartedAt: new Date() },
   });
   await audit(db, ctx, "communication.delivery_submitted", campaignId, { channel: input.channel, provider: provider.providerKey, submitted, failed, skippedDuplicate });
-  return { submitted, failed, skippedDuplicate, results };
+  return { submitted, failed, skippedDuplicate, results, templatePolicy };
 }
 
 export async function transitionCampaign(db: Db, ctx: CommunicationContext, campaignId: string, to: CommunicationCampaignStatus, extra: Record<string, unknown> = {}) {
