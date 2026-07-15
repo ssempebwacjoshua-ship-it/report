@@ -29,6 +29,7 @@
     "artifactPath": "firmware/reader-gateway/releases/ssamenj-reader-gateway-1.0.17-rollback.bin",
     "enabled": true,
     "targetDeviceIds": [
+      "892f16aa-ec12-4152-8613-e9e7f4e52267",
       "reader-gateway-74372C"
     ]
   }
