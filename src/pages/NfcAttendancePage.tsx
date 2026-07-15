@@ -79,6 +79,10 @@ function formatDateTime(iso: string | null | undefined) {
   return new Date(iso).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
 }
 
+function formatStudentClass(className: string | null | undefined, streamName: string | null | undefined) {
+  return `${className ?? EM_DASH}${streamName ? ` / ${streamName}` : ""}`;
+}
+
 type AttendancePrintDocument = {
   view: "REGISTER" | "GATE" | "CLASSROOM";
   generatedAt: string;
@@ -342,7 +346,7 @@ function SummaryCard({ label, value, color }: { label: string; value: number; co
   return (
     <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
       <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">{label}</p>
-      <p className={`mt-1 text-2xl font-bold leading-none ${color}`}>{value}</p>
+      <p className={`mt-1 text-xl font-bold leading-none sm:text-2xl ${color}`}>{value}</p>
     </div>
   );
 }
@@ -365,8 +369,8 @@ function ClickableSummaryCard({
       className="rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm text-left transition hover:border-blue-300 hover:shadow-md active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-1"
     >
       <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">{label}</p>
-      <p className={`mt-1 text-2xl font-bold leading-none ${color}`}>{value}</p>
-      <p className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-blue-500">View list â†’</p>
+      <p className={`mt-1 text-xl font-bold leading-none sm:text-2xl ${color}`}>{value}</p>
+      <p className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-blue-500">View list</p>
     </button>
   );
 }
@@ -417,11 +421,11 @@ function DrillDownModal({
       onClick={onClose}
     >
       <div
-        className="relative w-full max-w-2xl rounded-2xl border border-slate-200 bg-white shadow-2xl"
+        className="relative max-h-[calc(100vh-2rem)] w-full max-w-2xl overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
+        <div className="flex items-start justify-between gap-3 border-b border-slate-100 px-5 py-4">
           <div>
             <h2 className="text-base font-bold text-slate-950">{title}</h2>
             <p className="mt-0.5 text-xs text-slate-500">{statusRows.length} student{statusRows.length !== 1 ? "s" : ""}</p>
@@ -432,7 +436,7 @@ function DrillDownModal({
             className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 hover:text-slate-700"
             aria-label="Close"
           >
-            âœ•
+            x
           </button>
         </div>
 
@@ -476,6 +480,35 @@ function DrillDownModal({
               </p>
             </div>
           ) : (
+            <>
+              <div data-testid="attendance-drilldown-mobile-list" className="grid gap-3 p-4 md:hidden">
+                {filtered.map((row) => (
+                  <article key={row.student.id} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        <p className="font-bold text-slate-950">{row.student.name}</p>
+                        <p className="mt-1 font-mono text-xs text-slate-500">{row.student.admissionNumber}</p>
+                      </div>
+                      {row.student.studentType ? (
+                        <span className={`inline-block rounded-full px-2 py-0.5 text-[10px] font-bold ${row.student.studentType === "DAY" ? "bg-sky-100 text-sky-700" : "bg-violet-100 text-violet-700"}`}>
+                          {ATTENDANCE_PROFILE_LABELS[row.student.studentType === "DAY" ? "DAY_SCHOLAR" : "BOARDER"]}
+                        </span>
+                      ) : null}
+                    </div>
+                    <dl className="mt-4 grid gap-3 text-sm">
+                      <div>
+                        <dt className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Class</dt>
+                        <dd className="mt-1 text-slate-700">{formatStudentClass(row.student.className, row.student.streamName)}</dd>
+                      </div>
+                      <div>
+                        <dt className="text-[11px] font-bold uppercase tracking-wide text-slate-500">{status === "PRESENT" ? "Check-in" : "Last tap"}</dt>
+                        <dd className="mt-1 text-slate-700">{status === "PRESENT" ? formatTime(row.tapIn?.scannedAt) : row.lastScan ? formatTime(row.lastScan.scannedAt) : EM_DASH}</dd>
+                      </div>
+                    </dl>
+                  </article>
+                ))}
+              </div>
+              <div className="hidden md:block">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50 text-left">
@@ -523,6 +556,8 @@ function DrillDownModal({
                 ))}
               </tbody>
             </table>
+              </div>
+            </>
           )}
         </div>
 
@@ -1011,8 +1046,8 @@ export function NfcAttendancePage() {
               ))}
             </div>
           </div>
-          <div className="flex flex-wrap items-center gap-3 lg:justify-end">
-            <div className="flex min-w-[180px] items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
+          <div className="grid w-full gap-3 sm:grid-cols-[minmax(0,1fr)_auto] lg:w-auto lg:flex lg:flex-wrap lg:items-center lg:justify-end">
+            <div className="flex min-w-0 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-sm sm:min-w-[180px]">
               <input
                 type="date"
                 aria-label="Attendance date"
@@ -1023,7 +1058,7 @@ export function NfcAttendancePage() {
             </div>
             <button
               type="button"
-              className="btn btn-secondary px-4"
+              className="btn btn-secondary w-full justify-center px-4 sm:w-auto"
               onClick={() => void handleGeneratePreview()}
               disabled={!canGeneratePreview || generatingPreview}
             >
@@ -1080,17 +1115,17 @@ export function NfcAttendancePage() {
           data-testid="attendance-preview-section"
           className="attendance-preview-section report-print-area"
         >
-          <div className="no-print flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-blue-100 bg-blue-50/70 px-4 py-3">
+          <div className="no-print flex flex-col gap-3 rounded-2xl border border-blue-100 bg-blue-50/70 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="text-xs font-bold uppercase tracking-[0.18em] text-blue-700">Attendance Preview</p>
               <p className="mt-1 text-sm font-semibold text-slate-900">{printPreview.scopeLabel}</p>
               <p className="text-xs text-slate-600">Generated {formatPrintDateTime(printPreview.generatedAt)}</p>
             </div>
-            <div className="flex flex-wrap gap-2">
-              <button type="button" className="btn btn-secondary px-4" onClick={handlePrintPreview}>
+            <div className="grid gap-2 sm:flex sm:flex-wrap">
+              <button type="button" className="btn btn-secondary w-full justify-center px-4 sm:w-auto" onClick={handlePrintPreview}>
                 Print
               </button>
-              <button type="button" className="btn btn-secondary px-4" onClick={() => setPrintPreview(null)}>
+              <button type="button" className="btn btn-secondary w-full justify-center px-4 sm:w-auto" onClick={() => setPrintPreview(null)}>
                 Close Preview
               </button>
             </div>
@@ -1451,9 +1486,9 @@ export function NfcAttendancePage() {
             </div>
 
             <div className="mt-4 flex flex-col gap-3 border-t border-slate-100 pt-3 lg:flex-row lg:items-end lg:justify-between">
-              <div data-testid="attendance-filter-actions" className="flex flex-wrap items-center gap-2">
+              <div data-testid="attendance-filter-actions" className="grid gap-2 sm:flex sm:flex-wrap sm:items-center">
                 <button
-                  className="btn btn-primary px-5"
+                  className="btn btn-primary w-full justify-center px-5 sm:w-auto"
                   type="button"
                   onClick={() => void loadCurrentView()}
                   disabled={loading}
@@ -1461,7 +1496,7 @@ export function NfcAttendancePage() {
                   {loading ? "Loading..." : "Apply Filters"}
                 </button>
                 <button
-                  className="btn btn-secondary px-4"
+                  className="btn btn-secondary w-full justify-center px-4 sm:w-auto"
                   type="button"
                   onClick={() => {
                     handleResetFilters();
@@ -1479,10 +1514,10 @@ export function NfcAttendancePage() {
                   <p className="text-[11px] font-bold uppercase tracking-wide text-slate-600">Print Preview</p>
                   <p className="mt-1 text-xs text-slate-500">Generate a compact signed-off view before printing or exporting to PDF</p>
                 </div>
-                <div data-testid="attendance-print-actions" className="flex flex-wrap gap-2">
+                <div data-testid="attendance-print-actions" className="grid gap-2 sm:flex sm:flex-wrap">
                   <button
                     type="button"
-                    className="btn btn-primary justify-center px-4"
+                    className="btn btn-primary w-full justify-center px-4 sm:w-auto"
                     data-testid="attendance-generate-button"
                     onClick={() => void handleGeneratePreview()}
                     disabled={!canGeneratePreview || generatingPreview}
@@ -1491,7 +1526,7 @@ export function NfcAttendancePage() {
                   </button>
                   <button
                     type="button"
-                    className="btn btn-secondary justify-center px-4"
+                    className="btn btn-secondary w-full justify-center px-4 sm:w-auto"
                     data-testid="attendance-preview-print-button"
                     onClick={handlePrintPreview}
                     disabled={!printPreview}
@@ -1500,7 +1535,7 @@ export function NfcAttendancePage() {
                   </button>
                   <button
                     type="button"
-                    className="btn btn-secondary justify-center px-4"
+                    className="btn btn-secondary w-full justify-center px-4 sm:w-auto"
                     data-testid="attendance-preview-close-button"
                     onClick={() => setPrintPreview(null)}
                     disabled={!printPreview}
@@ -1522,7 +1557,63 @@ export function NfcAttendancePage() {
             </p>
           </div>
 
-          <div className="overflow-x-auto">
+          <div data-testid="attendance-register-mobile-list" className="grid gap-3 p-4 md:hidden">
+            {paginatedRegisterRows.map((row) => (
+              <article key={row.student.id} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="font-bold text-slate-950">{row.student.name}</p>
+                    <p className="mt-1 font-mono text-xs text-slate-500">{row.student.admissionNumber}</p>
+                  </div>
+                  <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-bold ${STATUS_COLORS[row.currentStatus]}`}>
+                    {STATUS_LABELS[row.currentStatus]}
+                  </span>
+                </div>
+                <dl className="mt-4 grid gap-3 text-sm">
+                  <div>
+                    <dt className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Class</dt>
+                    <dd className="mt-1 text-slate-700">{formatStudentClass(row.student.className, row.student.streamName)}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Student type</dt>
+                    <dd className="mt-1 text-slate-700">
+                      {row.student.studentType ? ATTENDANCE_PROFILE_LABELS[row.student.studentType === "DAY" ? "DAY_SCHOLAR" : "BOARDER"] : EM_DASH}
+                    </dd>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <dt className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Tap in</dt>
+                      <dd className="mt-1 text-slate-700">{formatTime(row.tapIn?.scannedAt)}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Tap out</dt>
+                      <dd className="mt-1 text-slate-700">{formatTime(row.tapOut?.scannedAt)}</dd>
+                    </div>
+                  </div>
+                  <div>
+                    <dt className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Last scan</dt>
+                    <dd className="mt-1 break-words text-slate-700">
+                      {row.lastScan ? `${formatTime(row.lastScan.scannedAt)}${row.lastScan.reason ? ` | ${row.lastScan.reason}` : ""}` : EM_DASH}
+                    </dd>
+                  </div>
+                </dl>
+              </article>
+            ))}
+
+            {register && register.rows.length === 0 ? (
+              <div className="rounded-xl border border-slate-200 bg-white px-4 py-10 text-center text-slate-500">
+                No students found. Try adjusting the date or filters.
+              </div>
+            ) : null}
+
+            {!register && !loadError ? (
+              <div className="rounded-xl border border-slate-200 bg-white px-4 py-10 text-center text-slate-500">
+                Loading...
+              </div>
+            ) : null}
+          </div>
+
+          <div className="hidden overflow-x-auto md:block">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50 text-left">
@@ -1542,8 +1633,7 @@ export function NfcAttendancePage() {
                     <td className="px-4 py-2.5 font-medium text-slate-900">{row.student.name}</td>
                     <td className="px-4 py-2.5 font-mono text-xs text-slate-600">{row.student.admissionNumber}</td>
                     <td className="px-4 py-2.5 text-slate-600">
-                      {row.student.className ?? EM_DASH}
-                      {row.student.streamName ? ` / ${row.student.streamName}` : ""}
+                      {formatStudentClass(row.student.className, row.student.streamName)}
                     </td>
                     <td className="px-4 py-2.5">
                       {row.student.studentType ? (
@@ -1598,7 +1688,7 @@ export function NfcAttendancePage() {
                 Showing {totalRegisterRows === 0 ? 0 : registerPageStart + 1} to {registerPageEnd} of {totalRegisterRows} students
               </p>
               <div className="flex flex-wrap items-center gap-3">
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <button
                     type="button"
                     className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-bold text-slate-600 disabled:opacity-40"
@@ -1656,7 +1746,71 @@ export function NfcAttendancePage() {
                 <h2 className="text-base font-bold text-slate-950">Gate Attendance View</h2>
                 <p className="text-xs text-slate-500">Arrival, departure, campus status, fee-hold attempts, and manual overrides for the selected date.</p>
               </div>
-              <div className="overflow-x-auto">
+              <div data-testid="attendance-gate-mobile-list" className="grid gap-3 p-4 md:hidden">
+                {(gateReport?.rows ?? []).map((row) => (
+                  <article key={row.studentId} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        <p className="font-bold text-slate-950">{row.studentName}</p>
+                        <p className="mt-1 font-mono text-xs text-slate-500">{row.admissionNumber}</p>
+                      </div>
+                      <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-bold ${row.attendanceStatus === "PRESENT" ? "bg-green-100 text-green-700" : row.attendanceStatus === "LATE" ? "bg-amber-100 text-amber-700" : "bg-slate-100 text-slate-600"}`}>
+                        {row.attendanceStatus}
+                      </span>
+                    </div>
+                    <dl className="mt-4 grid gap-3 text-sm">
+                      <div>
+                        <dt className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Class</dt>
+                        <dd className="mt-1 text-slate-700">{formatStudentClass(row.className, row.streamName)}</dd>
+                      </div>
+                      <div>
+                        <dt className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Student type</dt>
+                        <dd className="mt-1 text-slate-700">{row.scholarType ?? EM_DASH}</dd>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <dt className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Arrival</dt>
+                          <dd className="mt-1 text-slate-700">{formatTime(row.arrivalTime)}{row.lateIndicator ? " | Late" : ""}</dd>
+                        </div>
+                        <div>
+                          <dt className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Departure</dt>
+                          <dd className="mt-1 text-slate-700">{row.departureNotRecorded ? "Departure not recorded" : formatTime(row.departureTime)}</dd>
+                        </div>
+                      </div>
+                      <div>
+                        <dt className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Campus</dt>
+                        <dd className="mt-1 text-slate-700">{row.campusStatus}</dd>
+                      </div>
+                      <div>
+                        <dt className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Reader</dt>
+                        <dd className="mt-1 break-words text-slate-700">{row.readerUsed ?? EM_DASH}</dd>
+                      </div>
+                      <div>
+                        <dt className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Flags</dt>
+                        <dd className="mt-1 break-words text-slate-700">
+                          {row.feeHoldAttempt ? `Restricted attempt ${formatDateTime(row.lastRestrictedAttemptAt)}` : "No fee-hold attempt"}
+                          {" | "}
+                          {row.manualOverride ? "Manual override used" : row.offlineSynced ? "Offline-synced event" : "Live event"}
+                        </dd>
+                      </div>
+                    </dl>
+                    <div className="mt-4">
+                      {row.feeHoldAttempt && !row.manualOverride ? (
+                        <button type="button" className="w-full rounded-xl bg-blue-600 px-3 py-2 text-sm font-bold text-white hover:bg-blue-700" onClick={() => { void handleApproveOverride(row.studentId); }}>
+                          Approve override
+                        </button>
+                      ) : (
+                        <span className="text-xs text-slate-400">{EM_DASH}</span>
+                      )}
+                    </div>
+                  </article>
+                ))}
+                {gateReport && gateReport.rows.length === 0 ? (
+                  <div className="rounded-xl border border-slate-200 bg-white px-4 py-10 text-center text-slate-500">No gate attendance rows match the selected filters.</div>
+                ) : null}
+              </div>
+
+              <div className="hidden overflow-x-auto md:block">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-slate-200 bg-slate-50 text-left">
@@ -1679,7 +1833,7 @@ export function NfcAttendancePage() {
                           <p className="font-medium text-slate-900">{row.studentName}</p>
                           <p className="font-mono text-xs text-slate-500">{row.admissionNumber}</p>
                         </td>
-                        <td className="px-4 py-3 text-slate-600">{row.className ?? EM_DASH}{row.streamName ? ` / ${row.streamName}` : ""}</td>
+                        <td className="px-4 py-3 text-slate-600">{formatStudentClass(row.className, row.streamName)}</td>
                         <td className="px-4 py-3 text-slate-600">{row.scholarType ?? EM_DASH}</td>
                         <td className="px-4 py-3">
                           <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-bold ${row.attendanceStatus === "PRESENT" ? "bg-green-100 text-green-700" : row.attendanceStatus === "LATE" ? "bg-amber-100 text-amber-700" : "bg-slate-100 text-slate-600"}`}>
@@ -1720,7 +1874,54 @@ export function NfcAttendancePage() {
                 <h2 className="text-base font-bold text-slate-950">Classroom Attendance View</h2>
                 <p className="text-xs text-slate-500">Morning attendance, night prep, missing boarders, wrong-class attempts, and original device times.</p>
               </div>
-              <div className="overflow-x-auto">
+              <div data-testid="attendance-classroom-mobile-list" className="grid gap-3 p-4 md:hidden">
+                {(classroomReport?.rows ?? []).map((row) => (
+                  <article key={row.id} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        <p className="font-bold text-slate-950">{row.studentName}</p>
+                        <p className="mt-1 font-mono text-xs text-slate-500">{row.admissionNumber}</p>
+                      </div>
+                      <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-bold text-slate-700">
+                        {row.eventStatus}
+                      </span>
+                    </div>
+                    <dl className="mt-4 grid gap-3 text-sm">
+                      <div>
+                        <dt className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Class</dt>
+                        <dd className="mt-1 text-slate-700">{formatStudentClass(row.className, row.streamName)}</dd>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <dt className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Morning</dt>
+                          <dd className="mt-1 text-slate-700">{row.morningAttendance ? "Present" : EM_DASH}</dd>
+                        </div>
+                        <div>
+                          <dt className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Night prep</dt>
+                          <dd className="mt-1 text-slate-700">{row.nightPrepAttendance ? "Present" : row.missingBoarder ? "Missing boarder" : EM_DASH}</dd>
+                        </div>
+                      </div>
+                      <div>
+                        <dt className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Flags</dt>
+                        <dd className="mt-1 text-slate-700">{row.wrongClassAttempt ? "Wrong class attempt" : row.sessionClosedScan ? "Session closed scan" : row.eventStatus}</dd>
+                      </div>
+                      <div>
+                        <dt className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Reader</dt>
+                        <dd className="mt-1 break-words text-slate-700">{row.readerUsed ?? EM_DASH}</dd>
+                      </div>
+                      <div>
+                        <dt className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Device time</dt>
+                        <dd className="mt-1 text-slate-700">{formatDateTime(row.originalDeviceTime)}</dd>
+                      </div>
+                    </dl>
+                  </article>
+                ))}
+                {classroomReport && classroomReport.rows.length === 0 ? (
+                  <div className="rounded-xl border border-slate-200 bg-white px-4 py-10 text-center text-slate-500">No classroom attendance rows match the selected filters.</div>
+                ) : null}
+              </div>
+
+              <div className="hidden overflow-x-auto md:block">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-slate-200 bg-slate-50 text-left">
@@ -1740,7 +1941,7 @@ export function NfcAttendancePage() {
                           <p className="font-medium text-slate-900">{row.studentName}</p>
                           <p className="font-mono text-xs text-slate-500">{row.admissionNumber}</p>
                         </td>
-                        <td className="px-4 py-3 text-slate-600">{row.className ?? EM_DASH}{row.streamName ? ` / ${row.streamName}` : ""}</td>
+                        <td className="px-4 py-3 text-slate-600">{formatStudentClass(row.className, row.streamName)}</td>
                         <td className="px-4 py-3 text-slate-700">{row.morningAttendance ? "Present" : EM_DASH}</td>
                         <td className="px-4 py-3 text-slate-700">{row.nightPrepAttendance ? "Present" : row.missingBoarder ? "Missing boarder" : EM_DASH}</td>
                         <td className="px-4 py-3 text-xs text-slate-600">

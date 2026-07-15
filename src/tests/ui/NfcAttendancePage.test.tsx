@@ -231,8 +231,8 @@ describe("NfcAttendancePage", () => {
 
     await waitFor(() => expect(mockFetchNfcAttendanceRegister).toHaveBeenCalled());
     expect(screen.getByTestId("attendance-filter-grid")).toHaveClass("xl:grid-cols-[160px_220px_180px_180px_minmax(0,1fr)]");
-    expect(screen.getByTestId("attendance-print-actions")).toHaveClass("flex", "flex-wrap", "gap-2");
-    expect(screen.getByTestId("attendance-filter-actions")).toHaveClass("flex", "flex-wrap", "items-center", "gap-2");
+    expect(screen.getByTestId("attendance-print-actions")).toHaveClass("grid", "gap-2", "sm:flex", "sm:flex-wrap");
+    expect(screen.getByTestId("attendance-filter-actions")).toHaveClass("grid", "gap-2", "sm:flex", "sm:flex-wrap", "sm:items-center");
   });
 
   it("keeps the register directly after filters and preserves filter handlers", async () => {
@@ -247,6 +247,58 @@ describe("NfcAttendancePage", () => {
       expect.objectContaining({ search: "Ada" }),
     );
     expect(screen.getByTestId("attendance-register-card")).toBeInTheDocument();
+  });
+
+  it("renders mobile-safe card containers for register, gate, classroom, and drill-down views", async () => {
+    mockFetchNfcAttendanceRegister.mockResolvedValue({
+      date: "2026-07-12",
+      summary: { totalStudents: 1, present: 1, out: 0, absent: 0, blockedScans: 0, duplicateScans: 0 },
+      rows: [
+        {
+          student: {
+            id: "student-1",
+            name: "Ada Lovelace",
+            admissionNumber: "A-001",
+            className: "Senior 1",
+            streamName: "A",
+            studentType: "DAY",
+            photoUrl: null,
+          },
+          tapIn: {
+            id: "scan-1",
+            direction: "TAP_IN",
+            scannedAt: "2026-07-12T05:00:00.000Z",
+            status: "VALID",
+            source: "Main Entrance",
+          },
+          tapOut: null,
+          lastScan: {
+            id: "scan-1",
+            direction: "TAP_IN",
+            scannedAt: "2026-07-12T05:00:00.000Z",
+            status: "VALID",
+            reason: null,
+          },
+          currentStatus: "PRESENT",
+        },
+      ],
+    });
+    renderPage();
+
+    await waitFor(() => expect(mockFetchNfcAttendanceRegister).toHaveBeenCalledTimes(2));
+    expect(screen.getByTestId("attendance-register-mobile-list")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /present/i }));
+    expect(screen.getByTestId("attendance-drilldown-mobile-list")).toBeInTheDocument();
+    fireEvent.click(screen.getAllByRole("button", { name: /close/i }).at(-1) as HTMLButtonElement);
+
+    fireEvent.click(screen.getByRole("button", { name: /gate view/i }));
+    await waitFor(() => expect(screen.getByTestId("attendance-gate-mobile-list")).toBeInTheDocument());
+    expect(screen.getAllByText("Ada Lovelace").length).toBeGreaterThan(0);
+
+    fireEvent.click(screen.getByRole("button", { name: /classroom view/i }));
+    await waitFor(() => expect(screen.getByTestId("attendance-classroom-mobile-list")).toBeInTheDocument());
+    expect(screen.getAllByText("Alan Turing").length).toBeGreaterThan(0);
   });
 
   it("shows punch mode to explicitly authorized attendance operators", async () => {
@@ -442,6 +494,6 @@ describe("NfcAttendancePage", () => {
 
     await waitFor(() => expect(screen.queryByTestId("attendance-preview-sheet")).not.toBeInTheDocument());
     expect(screen.getByTestId("attendance-filter-grid")).toBeInTheDocument();
-    expect(screen.getByTestId("attendance-print-actions")).toHaveClass("flex", "flex-wrap", "gap-2");
+    expect(screen.getByTestId("attendance-print-actions")).toHaveClass("grid", "gap-2", "sm:flex", "sm:flex-wrap");
   });
 });
