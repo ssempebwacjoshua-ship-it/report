@@ -145,7 +145,7 @@ export interface ReaderCredentialCaptureSession {
   createdAt: string;
   expiresAt: string;
   confirmedAt: string | null;
-  status: "PENDING" | "CAPTURED" | "CONFIRMED" | "EXPIRED";
+  status: "PENDING" | "CAPTURED" | "CONFIRMED" | "CANCELLED" | "EXPIRED";
   preview: ReaderCredentialCapturePreview | null;
 }
 
