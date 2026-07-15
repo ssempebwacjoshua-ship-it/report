@@ -19,7 +19,6 @@ class FeedbackController {
   int8_t buzzerPin_ = -1;
   int8_t ledPin_ = -1;
   bool enabled_ = false;
-  bool openDrainOutputs_ = false;
   uint8_t activeLevel_ = HIGH;
   uint8_t idleLevel_ = LOW;
   FeedbackPattern currentPattern_ {0, 0, 0, 0, false, 0};
