@@ -1,6 +1,7 @@
 ﻿import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { downloadPublishedDocumentPdf, getPublishedDocument } from "../../client/documentIntelligenceClient";
+import { BrandedLoader } from "../../components/BrandedLoader";
 import { DocumentPreview } from "../../components/smart-pages/DocumentPreview";
 import type { SmartDocumentDetail } from "../../shared/types/documentIntelligence";
 import { DEFAULT_THEME } from "../../shared/types/documentIntelligence";
@@ -56,9 +57,7 @@ export function PublishedDocumentPage() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-100 p-4">
-        <p className="text-sm text-slate-500">Loading...</p>
-      </div>
+      <BrandedLoader message="Loading document..." />
     );
   }
 

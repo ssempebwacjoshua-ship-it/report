@@ -15,6 +15,7 @@ import {
   updateGuardianContact,
 } from "../client/studentsClient";
 import { Icon } from "../components/layout/Icon";
+import { BrandedLoader } from "../components/BrandedLoader";
 import { PassportPhotoAvatar } from "../components/students/PassportPhotoAvatar";
 import { getApiBaseUrl } from "../client/apiBase";
 import type { AttendanceProfile } from "../shared/attendanceProfiles";
@@ -119,6 +120,7 @@ export function StudentsPage() {
 
   const selected = useMemo(() => students.find((student) => student.id === selectedId) ?? students[0] ?? null, [students, selectedId]);
   const streams = context?.streams.filter((stream) => stream.classId === filters.classId) ?? [];
+
   function editContact(contact: GuardianContact) {
     setEditingContactId(contact.id);
     setContactInput(toContactInput(contact));
@@ -289,6 +291,10 @@ export function StudentsPage() {
     } finally {
       setPhotoLoading(false);
     }
+  }
+
+  if (!context && !error) {
+    return <BrandedLoader message="Loading students..." />;
   }
 
   return (

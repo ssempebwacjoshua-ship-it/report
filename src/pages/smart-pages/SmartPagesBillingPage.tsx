@@ -6,6 +6,7 @@ import {
   prepareSmartPagesPayment,
   submitSmartPagesPaymentReceipt,
 } from "../../client/smartPagesBillingClient";
+import { BrandedLoader } from "../../components/BrandedLoader";
 import { SMART_PAGES_PACKAGES } from "../../shared/types/smartPages";
 import type {
   SmartPageSummary,
@@ -171,11 +172,7 @@ export function SmartPagesBillingPage() {
   }
 
   if (loading) {
-    return (
-      <div className="flex min-h-[40vh] items-center justify-center">
-        <p className="text-sm text-slate-500">Loading billing...</p>
-      </div>
-    );
+    return <BrandedLoader message="Loading billing..." />;
   }
 
   const trialClaimed = summary?.trialClaimed ?? false;

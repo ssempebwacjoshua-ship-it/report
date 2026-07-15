@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { createDocument, listDocuments } from "../../client/documentIntelligenceClient";
 import { fetchSmartPagesBillingSummary } from "../../client/smartPagesBillingClient";
+import { BrandedLoader } from "../../components/BrandedLoader";
 import type { SmartDocumentSummary } from "../../shared/types/documentIntelligence";
 import type { SmartPageSummary } from "../../shared/types/smartPages";
 
@@ -67,11 +68,7 @@ export function SmartPagesPage() {
   }
 
   if (loading) {
-    return (
-      <div className="flex min-h-[40vh] items-center justify-center">
-        <p className="text-sm text-slate-500">Loading documents...</p>
-      </div>
-    );
+    return <BrandedLoader message="Loading documents..." />;
   }
 
   return (

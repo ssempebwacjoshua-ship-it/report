@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { fetchNfcPolicy, updateNfcPolicy } from "../client/studentCredentialsClient";
+import { BrandedLoader } from "../components/BrandedLoader";
 
 const inputClass = "premium-control h-11 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm text-slate-900 outline-none focus:border-blue-400 focus:bg-white";
 const selectClass = inputClass;
@@ -102,7 +103,7 @@ export function NfcSettingsPage() {
   }
 
   if (loading) {
-    return <main className="grid gap-4"><div className="premium-card rounded-xl p-5 text-sm text-slate-600">Loading NFC settings...</div></main>;
+    return <BrandedLoader message="Loading NFC settings..." />;
   }
 
   return (

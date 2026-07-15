@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { fetchStudentWallet } from "../client/studentCredentialsClient";
+import { BrandedLoader } from "../components/BrandedLoader";
 import type { StudentWalletDetail } from "../shared/types/studentCredentials";
 
 function money(cents: number) {
@@ -31,6 +32,10 @@ export function StudentWalletPage() {
       .finally(() => setLoading(false));
   }, [studentId]);
 
+  if (loading) {
+    return <BrandedLoader message="Loading wallet..." />;
+  }
+
   return (
     <main className="grid gap-5">
       <header className="page-header flex items-start justify-between gap-3">
@@ -49,9 +54,7 @@ export function StudentWalletPage() {
 
       {error ? <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div> : null}
 
-      {loading ? (
-        <div className="premium-card rounded-2xl p-5 text-sm text-slate-500">Loading wallet…</div>
-      ) : wallet ? (
+      {wallet ? (
         <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
           <section className="grid gap-4">
             <div className="premium-card rounded-2xl p-5">

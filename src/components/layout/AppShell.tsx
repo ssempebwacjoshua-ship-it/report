@@ -21,7 +21,7 @@ export function AppShell() {
   const { user, loading: authLoading } = useAuth();
 
   if (authLoading) {
-    return <BrandedLoader text="Loading SSAMENJ..." />;
+    return <BrandedLoader message="Loading SSAMENJ..." />;
   }
 
   if (!user) {
@@ -107,7 +107,7 @@ function AppShellWorkspaceGate({
   const settingsState = useAppSettings();
 
   if (settingsState?.loading) {
-    return <BrandedLoader text="Loading school workspace..." />;
+    return <BrandedLoader message="Loading school workspace..." />;
   }
 
   if (settingsState?.error) {

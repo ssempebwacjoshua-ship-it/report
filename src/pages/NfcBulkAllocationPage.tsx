@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { BrandedLoader } from "../components/BrandedLoader";
 import {
   amendStudentCredential,
   bulkAllocateStudentCredentials,
@@ -304,6 +305,10 @@ export function NfcBulkAllocationPage() {
   }
 
   const nextUnallocated = unallocatedRows[0] ?? null;
+
+  if (loading && rows.length === 0) {
+    return <BrandedLoader message="Loading wristbands..." />;
+  }
 
   return (
     <main className="grid gap-5">

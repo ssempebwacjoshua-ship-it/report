@@ -1,6 +1,7 @@
 ﻿import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { getApiBaseUrl } from "../client/apiBase";
+import { BrandedLoader } from "../components/BrandedLoader";
 
 const API_BASE = getApiBaseUrl();
 
@@ -45,6 +46,10 @@ export function VerifyPage() {
       .finally(() => setLoading(false));
   }, [code]);
 
+  if (loading) {
+    return <BrandedLoader message="Verifying report..." />;
+  }
+
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-slate-50 px-4 py-12">
       <div className="w-full max-w-md">
@@ -60,9 +65,7 @@ export function VerifyPage() {
             <p className="font-mono text-lg font-bold tracking-widest text-slate-800">{code}</p>
           </div>
 
-          {loading ? (
-            <p className="text-sm text-slate-500">Verifying...</p>
-          ) : fetchError ? (
+          {fetchError ? (
             <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">{fetchError}</div>
           ) : !result?.found ? (
             <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">

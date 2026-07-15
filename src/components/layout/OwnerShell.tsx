@@ -7,7 +7,7 @@ export function OwnerShell() {
   const { user, loading, logout } = useAuth();
 
   if (loading) {
-    return <BrandedLoader text="Loading owner console..." />;
+    return <BrandedLoader message="Loading owner console..." />;
   }
 
   if (!user) return <Navigate to="/login" replace />;

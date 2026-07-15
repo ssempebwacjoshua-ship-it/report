@@ -27,7 +27,7 @@ export function LawyerShell() {
   }, []);
 
   if (authLoading || (!user && token)) {
-    return <BrandedLoader text="Loading legal workspace..." />;
+    return <BrandedLoader message="Loading legal workspace..." />;
   }
 
   if (!user) {

@@ -72,7 +72,7 @@ const LawyerOnboardingPage = lazy(() => import("../pages/lawyers/LawyerOnboardin
 
 function lazyElement(Component: ComponentType) {
   return (
-    <Suspense fallback={<BrandedLoader text="Loading page..." />}>
+    <Suspense fallback={<BrandedLoader message="Loading page..." />}>
       <Component />
     </Suspense>
   );

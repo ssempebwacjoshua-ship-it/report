@@ -13,6 +13,7 @@ import {
   updateExtractedKnowledge,
   uploadDocumentFile,
 } from "../../client/documentIntelligenceClient";
+import { BrandedLoader } from "../../components/BrandedLoader";
 import { DocumentPreview } from "../../components/smart-pages/DocumentPreview";
 import { SmartPageTemplatePicker } from "../../components/smart-pages/SmartPageTemplatePicker";
 import { SCHOOL_VERTICAL, getSmartPageTemplates, type SmartPageTemplateDefinition } from "../../shared/smartPagesTemplates";
@@ -1005,11 +1006,7 @@ export function DocumentEditorPage() {
   }
 
   if (loading) {
-    return (
-      <div className="flex min-h-[60vh] items-center justify-center">
-        <p className="text-sm text-slate-500">Loading document...</p>
-      </div>
-    );
+    return <BrandedLoader message="Loading document..." />;
   }
 
   if (loadError || !doc) {

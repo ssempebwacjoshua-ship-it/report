@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { fetchStudentWallet, topUpNfcWallet } from "../client/studentCredentialsClient";
+import { BrandedLoader } from "../components/BrandedLoader";
 import type { StudentWalletDetail, WalletPaymentMethod, NfcWalletTopUpResult } from "../shared/types/studentCredentials";
 
 const inputClass =
@@ -78,6 +79,10 @@ export function StudentWalletTopUpPage() {
     }
   }
 
+  if (loading) {
+    return <BrandedLoader message="Loading wallet..." />;
+  }
+
   return (
     <main className="grid gap-5">
       <header className="page-header flex items-start justify-between gap-3">
@@ -95,9 +100,7 @@ export function StudentWalletTopUpPage() {
 
       {lookupError ? <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{lookupError}</div> : null}
 
-      {loading ? (
-        <div className="premium-card rounded-2xl p-5 text-sm text-slate-500">Loading wallet…</div>
-      ) : wallet ? (
+      {wallet ? (
         <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
           <section className="grid gap-4">
             <div className="premium-card rounded-2xl p-5">

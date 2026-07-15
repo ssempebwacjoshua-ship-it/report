@@ -12,6 +12,7 @@ import {
   updateExtractedKnowledge,
 } from "../../client/documentIntelligenceClient";
 import { listPreferences } from "../../client/documentOsClient";
+import { BrandedLoader } from "../../components/BrandedLoader";
 import { DocumentPreview } from "../../components/smart-pages/DocumentPreview";
 import { applyDocumentPatches, parseAiEditResponse } from "../../shared/documentPatch";
 import {
@@ -519,11 +520,7 @@ export function LawyerDocumentEditorPage() {
   }
 
   if (loading) {
-    return (
-      <div className="flex min-h-[60vh] items-center justify-center">
-        <p className="text-sm text-slate-500">Loading document...</p>
-      </div>
-    );
+    return <BrandedLoader message="Loading document..." />;
   }
 
   if (loadError || !doc) {

@@ -6,6 +6,7 @@ import {
   deleteCollection,
   type Collection,
 } from "../../client/collectionsClient";
+import { BrandedLoader } from "../../components/BrandedLoader";
 
 const COLLECTION_TYPES = ["CUSTOM", "STUDENTS", "PATIENTS", "CLIENTS", "EMPLOYEES"] as const;
 
@@ -64,7 +65,7 @@ export function CollectionsPage() {
     }
   }
 
-  if (loading) return <div className="p-8 text-center text-sm text-slate-500">Loading collections?</div>;
+  if (loading) return <BrandedLoader message="Loading collections..." />;
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-8">

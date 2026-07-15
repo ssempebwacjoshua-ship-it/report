@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { BrandedLoader } from "../components/BrandedLoader";
 import { NfcSectionTabs } from "../components/nfc/NfcSectionTabs";
 import {
   bulkImportUids,
@@ -203,6 +204,10 @@ export function NfcBulkIssuingPage() {
         ? "bg-blue-600 text-white"
         : "bg-slate-100 text-slate-700 hover:bg-slate-200"
     }`;
+
+  if (batchesLoading && batches.length === 0) {
+    return <BrandedLoader message="Loading wristbands..." />;
+  }
 
   return (
     <main className="grid gap-5">

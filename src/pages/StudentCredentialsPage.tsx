@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { BrandedLoader } from "../components/BrandedLoader";
 import { NfcSectionTabs } from "../components/nfc/NfcSectionTabs";
 import {
   amendStudentCredential,
@@ -215,6 +216,10 @@ export function StudentCredentialsPage() {
     } finally {
       setReactivateLoading(false);
     }
+  }
+
+  if (loading && credentials.length === 0 && students.length === 0) {
+    return <BrandedLoader message="Loading wristbands..." />;
   }
 
   return (

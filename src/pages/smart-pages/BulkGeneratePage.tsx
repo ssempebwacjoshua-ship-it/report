@@ -1,6 +1,7 @@
 ﻿import { useState, useEffect, useCallback } from "react";
 import { useNavigate, useParams } from "react-router";
 import { getCollection, createBulkJob, type Collection } from "../../client/collectionsClient";
+import { BrandedLoader } from "../../components/BrandedLoader";
 import { SmartPageTemplatePicker } from "../../components/smart-pages/SmartPageTemplatePicker";
 import { SCHOOL_VERTICAL, getSmartPageTemplates } from "../../shared/smartPagesTemplates";
 
@@ -51,7 +52,7 @@ export function BulkGeneratePage() {
 
   const records = collection?.records ?? [];
 
-  if (loading) return <div className="p-8 text-center text-sm text-slate-500">Loading...</div>;
+  if (loading) return <BrandedLoader message="Loading collection..." />;
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-8">

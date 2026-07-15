@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { resolveNfcPublicCode } from "../client/nfcTagsClient";
+import { BrandedLoader } from "../components/BrandedLoader";
 import type { NfcResolveResponse } from "../shared/types/nfcTags";
 
 export function NfcTapPage() {
@@ -23,6 +24,10 @@ export function NfcTapPage() {
     })();
   }, [publicCode]);
 
+  if (loading) {
+    return <BrandedLoader message="Reading NFC tag..." />;
+  }
+
   return (
     <div className="flex min-h-screen items-center justify-center bg-slate-50 p-4">
       <div className="w-full max-w-sm">
@@ -35,13 +40,6 @@ export function NfcTapPage() {
         </div>
 
         <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm text-center">
-          {loading && (
-            <div className="py-6">
-              <div className="mx-auto h-10 w-10 animate-spin rounded-full border-4 border-slate-200 border-t-blue-600" />
-              <p className="mt-4 text-sm text-slate-500">Reading NFC tag…</p>
-            </div>
-          )}
-
           {error && (
             <div className="py-4">
               <p className="text-4xl">⚠️</p>

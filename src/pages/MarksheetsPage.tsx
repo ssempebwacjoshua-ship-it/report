@@ -1,4 +1,5 @@
 ﻿import { useEffect, useRef, useState } from "react";
+import { BrandedLoader } from "../components/BrandedLoader";
 import { PrintableMarksheet } from "../components/marksheets/PrintableMarksheet";
 import { Icon } from "../components/layout/Icon";
 import {
@@ -806,7 +807,7 @@ function HmReviewTab() {
     return `${batch.marksCount} marks`;
   }
 
-  if (loading) return <div className="py-16 text-center text-slate-400">Loading batches...</div>;
+  if (loading) return <BrandedLoader message="Loading marks review..." />;
 
   return (
     <div>

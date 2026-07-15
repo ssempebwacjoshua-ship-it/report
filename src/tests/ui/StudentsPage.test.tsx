@@ -160,7 +160,8 @@ describe("StudentsPage", () => {
       </MemoryRouter>,
     );
 
-    await user.click(screen.getAllByRole("button", { name: "Import Batch" })[0]);
+    const importButtons = await screen.findAllByRole("button", { name: "Import Batch" });
+    await user.click(importButtons[0]);
     const file = new File(["admissionNumber,fullName,studentType,gender,class,stream\nADM-010,Good Student,DAY_SCHOLAR,Female,Senior 1,A"], "students.csv", { type: "text/csv" });
     const input = container.querySelector('input[type="file"]');
     expect(input).toBeInstanceOf(HTMLInputElement);
@@ -213,7 +214,8 @@ describe("StudentsPage", () => {
       </MemoryRouter>,
     );
 
-    await user.click(screen.getAllByRole("button", { name: "Import Batch" })[0]);
+    const importButtons = await screen.findAllByRole("button", { name: "Import Batch" });
+    await user.click(importButtons[0]);
     const file = new File(["admissionNumber,fullName,studentType,gender,class,stream\nADM-020,Fallback Student,DAY_SCHOLAR,Female,Senior 1,A"], "students.csv", { type: "text/csv" });
     const input = container.querySelector('input[type="file"]');
     expect(input).toBeInstanceOf(HTMLInputElement);

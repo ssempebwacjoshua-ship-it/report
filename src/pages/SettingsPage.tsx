@@ -8,6 +8,7 @@ import {
   type SettingsFieldErrors,
   uploadReportPersonalizationAsset,
 } from "../client/settingsClient";
+import { BrandedLoader } from "../components/BrandedLoader";
 import { SchoolStructureSection } from "../components/settings/SchoolStructureSection";
 import { SubscriptionSection } from "../components/settings/SubscriptionSection";
 import { defaultSettingsSections, type SettingSection, type SettingsResponse, type SettingsSections } from "../shared/types/settings";
@@ -225,7 +226,7 @@ export function SettingsPage() {
   }
 
   if (loading) {
-    return <main className="grid gap-4"><div className="premium-card rounded-xl p-5 text-sm text-slate-600">Loading settings...</div></main>;
+    return <BrandedLoader message="Loading settings..." />;
   }
 
   return (

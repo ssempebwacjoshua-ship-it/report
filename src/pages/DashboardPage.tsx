@@ -6,6 +6,7 @@ import {
   streamDashboardAttendanceSummary,
 } from "../client/dashboardClient";
 import { StatCard } from "../components/dashboard/StatCard";
+import { BrandedLoader } from "../components/BrandedLoader";
 import { Icon } from "../components/layout/Icon";
 import { getSchoolDisplayName } from "../components/layout/branding";
 import { useAppSettings } from "../components/layout/SettingsContext";
@@ -288,6 +289,10 @@ export function DashboardPage() {
     : statsError
       ? "Could not load live stats. Check your connection."
       : `${fmt(issuedCount)} reports issued - ${fmt(pendingCount)} marks uploads pending review`;
+
+  if (statsLoading && !stats) {
+    return <BrandedLoader message="Syncing data..." />;
+  }
 
   const attendanceValues = attendanceSummary
     ? {

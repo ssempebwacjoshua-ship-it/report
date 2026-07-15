@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { listPreferences, savePreference, type CreatorPreference } from "../../client/documentOsClient";
+import { BrandedLoader } from "../../components/BrandedLoader";
 
 const PRACTICE_AREAS = [
   "Land",
@@ -123,7 +124,7 @@ export function LawyerOnboardingPage() {
   }
 
   if (loading) {
-    return <div className="flex min-h-[50vh] items-center justify-center text-sm text-slate-500">Loading...</div>;
+    return <BrandedLoader message="Loading lawyer profile..." />;
   }
 
   return (

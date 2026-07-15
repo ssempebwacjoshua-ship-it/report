@@ -179,7 +179,6 @@ describe("DashboardPage", () => {
   });
 
   it("preserves previous attendance values during temporary failures and shows a paused notice", async () => {
-    vi.useFakeTimers();
     mockFetchAttendanceSummary
       .mockResolvedValueOnce(attendancePayload)
       .mockRejectedValueOnce(new Error("Temporary outage"))
@@ -188,25 +187,20 @@ describe("DashboardPage", () => {
 
     renderPage();
 
-    await vi.advanceTimersByTimeAsync(0);
+    expect(await screen.findByText("70.0%")).toBeInTheDocument();
+
+    window.dispatchEvent(new Event("focus"));
+    await waitFor(() => expect(mockFetchAttendanceSummary).toHaveBeenCalledTimes(2));
     expect(screen.getByText("70.0%")).toBeInTheDocument();
 
     window.dispatchEvent(new Event("focus"));
-    await vi.advanceTimersByTimeAsync(0);
-    expect(mockFetchAttendanceSummary).toHaveBeenCalledTimes(2);
-    expect(screen.getByText("70.0%")).toBeInTheDocument();
-
-    window.dispatchEvent(new Event("focus"));
-    await vi.advanceTimersByTimeAsync(0);
-    expect(mockFetchAttendanceSummary).toHaveBeenCalledTimes(3);
+    await waitFor(() => expect(mockFetchAttendanceSummary).toHaveBeenCalledTimes(3));
     expect(screen.getByText(/attendance update paused/i)).toBeInTheDocument();
     expect(screen.getByText("70.0%")).toBeInTheDocument();
 
     window.dispatchEvent(new Event("focus"));
-    await vi.advanceTimersByTimeAsync(0);
-    expect(screen.getByText("80.0%")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("80.0%")).toBeInTheDocument());
     expect(screen.queryByText(/attendance update paused/i)).not.toBeInTheDocument();
-    vi.useRealTimers();
   });
 
   it("shows no active students safely", async () => {
