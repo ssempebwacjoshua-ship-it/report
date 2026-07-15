@@ -366,6 +366,11 @@ void ReaderGatewayApp::logRegistrationFailure(const char* context, const ReaderA
   );
 }
 
+bool ReaderGatewayApp::shouldReenterActivation(const ReaderApiResponse& response) const {
+  return response.statusCode == 401
+    && response.message.indexOf("Invalid or revoked device token") >= 0;
+}
+
 bool ReaderGatewayApp::hasStoredWifiCredentials() const {
   if (setupRequired_) {
     return false;
@@ -1289,7 +1294,15 @@ void ReaderGatewayApp::loop() {
         applyRegistrationResult(registration);
         markApiContact();
       } else if (config_.autoRegister) {
-        logRegistrationFailure("Assignment Pending", deviceRegistration_.lastResponse());
+        const ReaderApiResponse& response = deviceRegistration_.lastResponse();
+        logRegistrationFailure("Assignment Pending", response);
+        if (shouldReenterActivation(response)) {
+          Serial.println("Invalid device token detected; reopening setup for activation");
+          config_.bearerToken = "";
+          config_.registrationPath = "/api/readers/activate";
+          persistAssignedConfiguration();
+          openSetupPortal("Invalid device token; activation required");
+        }
       }
     }
     processOfflineQueue();
@@ -1311,7 +1324,15 @@ void ReaderGatewayApp::loop() {
       applyRegistrationResult(registration);
       markApiContact();
     } else {
-      logRegistrationFailure("Server unavailable; setup saved and retrying", deviceRegistration_.lastResponse());
+      const ReaderApiResponse& response = deviceRegistration_.lastResponse();
+      logRegistrationFailure("Server unavailable; setup saved and retrying", response);
+      if (shouldReenterActivation(response)) {
+        Serial.println("Invalid device token detected; reopening setup for activation");
+        config_.bearerToken = "";
+        config_.registrationPath = "/api/readers/activate";
+        persistAssignedConfiguration();
+        openSetupPortal("Invalid device token; activation required");
+      }
     }
   }
 }

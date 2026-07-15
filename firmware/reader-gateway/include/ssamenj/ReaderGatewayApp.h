@@ -30,6 +30,7 @@ class ReaderGatewayApp {
   void maybeConfirmOtaBoot();
   void reportOtaStatus(const String& status, const String& message, const ReaderOtaManifest& manifest);
   void logRegistrationFailure(const char* context, const ReaderApiResponse& response) const;
+  bool shouldReenterActivation(const ReaderApiResponse& response) const;
   bool beginProvisioningStorage();
   void loadProvisioningState();
   void applyProvisioningOverrides();
