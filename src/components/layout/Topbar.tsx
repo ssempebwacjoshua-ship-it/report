@@ -58,6 +58,7 @@ export function Topbar({ onMenuClick }: Props) {
   const location = useLocation();
   const currentProduct = getProductFromPath(location.pathname);
   const visibleProducts = getVisibleProductSwitcherProducts(user?.role, location.pathname);
+  const isGateAccount = user?.role === "SECURITY" || user?.role === "GATE_SECURITY";
 
   const { state: connState, pendingCount } = useConnectivityStatus();
 
@@ -115,15 +116,17 @@ export function Topbar({ onMenuClick }: Props) {
             <p className="text-xs leading-tight text-white">{user?.role ? (ROLE_LABELS[user.role] ?? user.role) : "User"}</p>
           </div>
         </div>
-        <button
-          type="button"
-          onClick={handleLogout}
-          className="ml-1 grid h-8 w-8 place-items-center rounded-lg text-white transition hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60 focus-visible:ring-offset-0"
-          title="Sign out"
-          aria-label="Sign out"
-        >
-          <SignOutRegular className="h-5 w-5" />
-        </button>
+        {!isGateAccount ? (
+          <button
+            type="button"
+            onClick={handleLogout}
+            className="ml-1 grid h-8 w-8 place-items-center rounded-lg text-white transition hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60 focus-visible:ring-offset-0"
+            title="Sign out"
+            aria-label="Sign out"
+          >
+            <SignOutRegular className="h-5 w-5" />
+          </button>
+        ) : null}
       </div>
     </header>
   );
