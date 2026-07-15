@@ -8,6 +8,15 @@ void FeedbackController::begin(const ReaderGatewayConfig& config) {
   enabled_ = config.feedbackOutputsEnabled && (buzzerPin_ >= 0 || ledPin_ >= 0);
   activeLevel_ = config.feedbackDriverActiveHigh ? HIGH : LOW;
   idleLevel_ = config.feedbackDriverActiveHigh ? LOW : HIGH;
+  Serial.printf(
+    "Feedback config: buzzerPin=%d ledPin=%d feedbackDriverActiveHigh=%s activeLevel=%s idleLevel=%s enabled=%s\n",
+    static_cast<int>(buzzerPin_),
+    static_cast<int>(ledPin_),
+    config.feedbackDriverActiveHigh ? "true" : "false",
+    activeLevel_ == HIGH ? "HIGH" : "LOW",
+    idleLevel_ == HIGH ? "HIGH" : "LOW",
+    enabled_ ? "true" : "false"
+  );
 
   if (!enabled_) {
     Serial.printf(
@@ -23,6 +32,11 @@ void FeedbackController::begin(const ReaderGatewayConfig& config) {
     digitalWrite(buzzerPin_, idleLevel_);
     pinMode(buzzerPin_, OUTPUT);
     digitalWrite(buzzerPin_, idleLevel_);
+    Serial.printf(
+      "Feedback init: buzzerPin=%d idle %s initialized\n",
+      static_cast<int>(buzzerPin_),
+      idleLevel_ == HIGH ? "HIGH" : "LOW"
+    );
   }
   if (ledPin_ >= 0) {
     digitalWrite(ledPin_, idleLevel_);
