@@ -21,13 +21,12 @@ class FeedbackController {
   bool enabled_ = false;
   uint8_t activeLevel_ = HIGH;
   uint8_t idleLevel_ = LOW;
-  FeedbackPattern currentPattern_ {0, 0, 0, 0, false, 0};
+  FeedbackPattern currentPattern_ {0, 0, 0, false, 0};
   bool buzzerActive_ = false;
   bool ledActive_ = false;
   bool playing_ = false;
   bool ledLatchArmed_ = false;
   uint8_t pulsesRemaining_ = 0;
-  uint8_t pulsesPlayed_ = 0;
   unsigned long nextTransitionMs_ = 0;
   unsigned long ledOffAtMs_ = 0;
 };

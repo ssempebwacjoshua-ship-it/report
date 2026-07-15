@@ -14,8 +14,6 @@ class GatewayClient {
   bool postHeartbeat(const ReaderGatewayConfig& config, const ReaderHeartbeatMetrics& metrics, ReaderApiResponse& response);
   bool checkForOtaUpdate(const ReaderGatewayConfig& config, size_t queueDepth, ReaderOtaManifest& manifest);
   bool reportOtaStatus(const ReaderGatewayConfig& config, const ReaderOtaStatusReport& report, ReaderApiResponse& response);
-  bool acknowledgeCommand(const ReaderGatewayConfig& config, const String& commandId, ReaderApiResponse& response);
-  bool reportCommandStatus(const ReaderGatewayConfig& config, const ReaderCommandStatusReport& report, ReaderApiResponse& response);
 
  private:
   bool sendJson(const ReaderGatewayConfig& config, const String& path, const String& body, ReaderApiResponse& response);

@@ -1,5 +1,4 @@
 #include "ssamenj/FeedbackController.h"
-#include "ssamenj/BeepToneMapping.h"
 #include "ssamenj/FeedbackPattern.h"
 
 void FeedbackController::begin(const ReaderGatewayConfig& config) {
@@ -8,23 +7,9 @@ void FeedbackController::begin(const ReaderGatewayConfig& config) {
   enabled_ = config.feedbackOutputsEnabled && (buzzerPin_ >= 0 || ledPin_ >= 0);
   activeLevel_ = config.feedbackDriverActiveHigh ? HIGH : LOW;
   idleLevel_ = config.feedbackDriverActiveHigh ? LOW : HIGH;
-  Serial.printf(
-    "Feedback config: buzzerPin=%d ledPin=%d feedbackDriverActiveHigh=%s activeLevel=%s idleLevel=%s enabled=%s\n",
-    static_cast<int>(buzzerPin_),
-    static_cast<int>(ledPin_),
-    config.feedbackDriverActiveHigh ? "true" : "false",
-    activeLevel_ == HIGH ? "HIGH" : "LOW",
-    idleLevel_ == HIGH ? "HIGH" : "LOW",
-    enabled_ ? "true" : "false"
-  );
 
   if (!enabled_) {
-    Serial.printf(
-      "Feedback outputs disabled; built-in reader beep will remain generic (buzzerPin=%d ledPin=%d enabled=%s)\n",
-      static_cast<int>(buzzerPin_),
-      static_cast<int>(ledPin_),
-      config.feedbackOutputsEnabled ? "true" : "false"
-    );
+    Serial.println("Feedback outputs disabled; control wires must remain disconnected");
     return;
   }
 
@@ -32,11 +17,6 @@ void FeedbackController::begin(const ReaderGatewayConfig& config) {
     digitalWrite(buzzerPin_, idleLevel_);
     pinMode(buzzerPin_, OUTPUT);
     digitalWrite(buzzerPin_, idleLevel_);
-    Serial.printf(
-      "Feedback init: buzzerPin=%d idle %s initialized\n",
-      static_cast<int>(buzzerPin_),
-      idleLevel_ == HIGH ? "HIGH" : "LOW"
-    );
   }
   if (ledPin_ >= 0) {
     digitalWrite(ledPin_, idleLevel_);
@@ -66,41 +46,33 @@ void FeedbackController::resetPlayback() {
   playing_ = false;
   ledLatchArmed_ = false;
   pulsesRemaining_ = 0;
-  pulsesPlayed_ = 0;
   nextTransitionMs_ = 0;
   ledOffAtMs_ = 0;
 }
 
 void FeedbackController::play(GatewayFeedbackTone tone) {
-  const char* toneLabel = nullptr;
   switch (tone) {
     case GatewayFeedbackTone::Success:
-      toneLabel = "success";
+      Serial.println("Feedback: success");
       break;
     case GatewayFeedbackTone::Duplicate:
-      toneLabel = "duplicate";
-      break;
-    case GatewayFeedbackTone::Unknown:
-      toneLabel = "unknown";
-      break;
-    case GatewayFeedbackTone::OutOfSession:
-      toneLabel = "out_of_session";
-      break;
-    case GatewayFeedbackTone::Queued:
-      toneLabel = "queued";
+      Serial.println("Feedback: duplicate");
       break;
     case GatewayFeedbackTone::Error:
-      toneLabel = "error";
+      Serial.println("Feedback: error");
+      break;
+    case GatewayFeedbackTone::Offline:
+      Serial.println("Feedback: offline");
+      break;
+    case GatewayFeedbackTone::NetworkFailure:
+      Serial.println("Feedback: network-failure");
       break;
     case GatewayFeedbackTone::None:
     default:
       return;
   }
 
-  Serial.printf("Feedback: %s\n", toneLabel);
-
   if (!enabled_) {
-    Serial.printf("Feedback tone '%s' requested but GPIO feedback is disabled; no ESP32 buzzer pattern will play\n", toneLabel);
     return;
   }
 
@@ -108,7 +80,6 @@ void FeedbackController::play(GatewayFeedbackTone tone) {
   const unsigned long now = millis();
   playing_ = currentPattern_.buzzerPulses > 0;
   pulsesRemaining_ = currentPattern_.buzzerPulses;
-  pulsesPlayed_ = 0;
   ledLatchArmed_ = currentPattern_.ledEnabled && currentPattern_.ledOnMs > 0;
   ledOffAtMs_ = ledLatchArmed_ ? now + currentPattern_.ledOnMs : 0;
 
@@ -120,7 +91,7 @@ void FeedbackController::play(GatewayFeedbackTone tone) {
 
   if (playing_ && buzzerPin_ >= 0) {
     setBuzzer(true);
-    nextTransitionMs_ = now + currentPattern_.firstBuzzerOnMs;
+    nextTransitionMs_ = now + currentPattern_.buzzerOnMs;
   } else {
     setBuzzer(false);
     nextTransitionMs_ = 0;
@@ -151,7 +122,6 @@ void FeedbackController::loop() {
     setBuzzer(false);
     if (pulsesRemaining_ > 0) {
       pulsesRemaining_ -= 1;
-      pulsesPlayed_ += 1;
     }
     if (pulsesRemaining_ == 0) {
       playing_ = false;
@@ -163,6 +133,5 @@ void FeedbackController::loop() {
   }
 
   setBuzzer(true);
-  const uint16_t pulseOnMs = pulsesPlayed_ == 0 ? currentPattern_.firstBuzzerOnMs : currentPattern_.repeatingBuzzerOnMs;
-  nextTransitionMs_ = now + pulseOnMs;
+  nextTransitionMs_ = now + currentPattern_.buzzerOnMs;
 }

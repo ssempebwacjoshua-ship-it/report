@@ -53,12 +53,12 @@ ReaderGatewayConfig ConfigManager::defaults() {
   config.otaCheckIntervalMs = 3600000;
   config.d0Pin = 18;
   config.d1Pin = 19;
-  config.buzzerPin = SSAMENJ_GATEWAY_DEFAULT_BUZZER_PIN;
-  config.ledPin = SSAMENJ_GATEWAY_DEFAULT_LED_PIN;
+  config.buzzerPin = -1;
+  config.ledPin = -1;
   config.tlsInsecure = true;
   config.autoRegister = true;
-  config.feedbackOutputsEnabled = SSAMENJ_GATEWAY_DEFAULT_FEEDBACK_OUTPUTS_ENABLED != 0;
-  config.feedbackDriverActiveHigh = SSAMENJ_GATEWAY_DEFAULT_FEEDBACK_DRIVER_ACTIVE_HIGH != 0;
+  config.feedbackOutputsEnabled = false;
+  config.feedbackDriverActiveHigh = false;
   return config;
 }
 

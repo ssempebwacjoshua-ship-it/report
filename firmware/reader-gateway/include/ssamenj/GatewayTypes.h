@@ -41,18 +41,6 @@
 #ifndef SSAMENJ_GATEWAY_DEFAULT_DEVICE_TOKEN
 #define SSAMENJ_GATEWAY_DEFAULT_DEVICE_TOKEN ""
 #endif
-#ifndef SSAMENJ_GATEWAY_DEFAULT_BUZZER_PIN
-#define SSAMENJ_GATEWAY_DEFAULT_BUZZER_PIN (-1)
-#endif
-#ifndef SSAMENJ_GATEWAY_DEFAULT_LED_PIN
-#define SSAMENJ_GATEWAY_DEFAULT_LED_PIN (-1)
-#endif
-#ifndef SSAMENJ_GATEWAY_DEFAULT_FEEDBACK_OUTPUTS_ENABLED
-#define SSAMENJ_GATEWAY_DEFAULT_FEEDBACK_OUTPUTS_ENABLED 0
-#endif
-#ifndef SSAMENJ_GATEWAY_DEFAULT_FEEDBACK_DRIVER_ACTIVE_HIGH
-#define SSAMENJ_GATEWAY_DEFAULT_FEEDBACK_DRIVER_ACTIVE_HIGH 0
-#endif
 
 struct ReaderGatewayConfig {
   String deviceId;
@@ -86,13 +74,13 @@ struct ReaderGatewayConfig {
 
   int8_t d0Pin = 18;
   int8_t d1Pin = 19;
-  int8_t buzzerPin = SSAMENJ_GATEWAY_DEFAULT_BUZZER_PIN;
-  int8_t ledPin = SSAMENJ_GATEWAY_DEFAULT_LED_PIN;
+  int8_t buzzerPin = -1;
+  int8_t ledPin = -1;
 
   bool tlsInsecure = true;
   bool autoRegister = true;
-  bool feedbackOutputsEnabled = SSAMENJ_GATEWAY_DEFAULT_FEEDBACK_OUTPUTS_ENABLED != 0;
-  bool feedbackDriverActiveHigh = SSAMENJ_GATEWAY_DEFAULT_FEEDBACK_DRIVER_ACTIVE_HIGH != 0;
+  bool feedbackOutputsEnabled = false;
+  bool feedbackDriverActiveHigh = false;
 };
 
 struct ReaderScanEvent {
@@ -118,18 +106,9 @@ struct ReaderApiResponse {
   bool success = false;
   int statusCode = 0;
   String action;
-  String status;
   String message;
   String studentName;
   String beep = "none";
-  bool hasCommand = false;
-  struct ReaderPendingCommand {
-    String id;
-    String type;
-    String firmwareVersion;
-    String firmwareUrl;
-    String firmwareSha256;
-  } command;
 };
 
 struct ReaderRegistrationResult {
@@ -178,11 +157,4 @@ struct ReaderOtaStatusReport {
   String toVersion;
   String status;
   String message;
-};
-
-struct ReaderCommandStatusReport {
-  String commandId;
-  String status;
-  String message;
-  String firmwareVersion;
 };
