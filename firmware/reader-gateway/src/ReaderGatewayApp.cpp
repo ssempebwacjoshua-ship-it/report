@@ -904,7 +904,7 @@ bool ReaderGatewayApp::isValidScanEvent(const ReaderScanEvent& event, const char
     reason = "no pulses received";
     return false;
   }
-  if (event.rawWiegandBitCount != 26 && event.rawWiegandBitCount != 34) {
+  if (event.rawWiegandBitCount != 26 && event.rawWiegandBitCount != 34 && event.rawWiegandBitCount != 36) {
     reason = "unsupported bit count";
     return false;
   }
@@ -920,13 +920,15 @@ bool ReaderGatewayApp::isValidScanEvent(const ReaderScanEvent& event, const char
     reason = "credential is zero";
     return false;
   }
-  if (isZeroValue(event.cardNumber)) {
-    reason = "card number is zero";
-    return false;
-  }
-  if (isZeroValue(event.facilityCode) && isZeroValue(event.cardNumber)) {
-    reason = "facility code and card number are both zero";
-    return false;
+  if (event.rawWiegandBitCount != 36) {
+    if (isZeroValue(event.cardNumber)) {
+      reason = "card number is zero";
+      return false;
+    }
+    if (isZeroValue(event.facilityCode) && isZeroValue(event.cardNumber)) {
+      reason = "facility code and card number are both zero";
+      return false;
+    }
   }
   return true;
 }
