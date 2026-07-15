@@ -266,6 +266,7 @@ void ReaderGatewayApp::loadProvisioningState() {
 
 void ReaderGatewayApp::applyProvisioningOverrides() {
   config_.firmwareVersion = SSAMENJ_GATEWAY_VERSION;
+  bool shouldPersist = false;
 
   const String wifiSsid = configuredWifiSsid();
   const String wifiPassword = configuredWifiPassword();
@@ -274,11 +275,37 @@ void ReaderGatewayApp::applyProvisioningOverrides() {
     config_.wifiPassword = wifiPassword;
   }
 
-  if (!provisionedActivationCode_.isEmpty()) {
+  const bool hasAssignedToken = !config_.bearerToken.isEmpty()
+    && config_.bearerToken != SSAMENJ_GATEWAY_DEFAULT_PROVISIONING_TOKEN;
+
+  if (hasAssignedToken) {
+    if (config_.registrationPath != "/api/readers/register") {
+      config_.registrationPath = "/api/readers/register";
+      shouldPersist = true;
+    }
+    if (!config_.activationCode.isEmpty()) {
+      config_.activationCode = "";
+      shouldPersist = true;
+    }
+    if (!provisionedActivationCode_.isEmpty()) {
+      provisionedActivationCode_ = "";
+    }
+  } else {
+    if (config_.registrationPath != "/api/readers/activate") {
+      config_.registrationPath = "/api/readers/activate";
+      shouldPersist = true;
+    }
+  }
+
+  if (!provisionedActivationCode_.isEmpty() && !hasAssignedToken) {
     config_.activationCode = provisionedActivationCode_;
   }
   if (!provisionedFirmwareChannel_.isEmpty()) {
     config_.firmwareChannel = provisionedFirmwareChannel_;
+  }
+
+  if (shouldPersist) {
+    persistAssignedConfiguration();
   }
 }
 
@@ -300,6 +327,7 @@ void ReaderGatewayApp::applyRegistrationResult(const ReaderRegistrationResult& r
     config_.bearerToken = result.bearerToken;
     config_.activationCode = "";
     provisionedActivationCode_ = "";
+    config_.registrationPath = "/api/readers/register";
     if (beginProvisioningStorage()) {
       provisioningPreferences_.remove(PROVISIONING_ACTIVATION_CODE_KEY);
     }
@@ -324,6 +352,18 @@ void ReaderGatewayApp::applyRegistrationResult(const ReaderRegistrationResult& r
     Serial.println("Setup complete");
   }
   persistAssignedConfiguration();
+}
+
+void ReaderGatewayApp::logRegistrationFailure(const char* context, const ReaderApiResponse& response) const {
+  Serial.printf(
+    "%s path=%s status=%d action=%s beep=%s message=%s\n",
+    context == nullptr ? "Registration failed" : context,
+    config_.registrationPath.c_str(),
+    response.statusCode,
+    response.action.isEmpty() ? "-" : response.action.c_str(),
+    response.beep.isEmpty() ? "-" : response.beep.c_str(),
+    response.message.isEmpty() ? "-" : response.message.c_str()
+  );
 }
 
 bool ReaderGatewayApp::hasStoredWifiCredentials() const {
@@ -1252,7 +1292,7 @@ void ReaderGatewayApp::loop() {
         applyRegistrationResult(registration);
         markApiContact();
       } else if (config_.autoRegister) {
-        Serial.println("Assignment Pending");
+        logRegistrationFailure("Assignment Pending", deviceRegistration_.lastResponse());
       }
     }
     processOfflineQueue();
@@ -1274,7 +1314,7 @@ void ReaderGatewayApp::loop() {
       applyRegistrationResult(registration);
       markApiContact();
     } else {
-      Serial.println("Server unavailable; setup saved and retrying");
+      logRegistrationFailure("Server unavailable; setup saved and retrying", deviceRegistration_.lastResponse());
     }
   }
 }

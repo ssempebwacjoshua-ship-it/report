@@ -31,9 +31,14 @@ bool DeviceRegistration::registerNow(ReaderRegistrationResult* result) {
   ReaderApiResponse response;
   ReaderRegistrationResult parsed;
   const bool ok = client_->registerDevice(*config_, response, parsed) && response.success;
+  lastResponse_ = response;
   lastRegistrationSucceeded_ = ok;
   if (result != nullptr) {
     *result = parsed;
   }
   return ok;
+}
+
+const ReaderApiResponse& DeviceRegistration::lastResponse() const {
+  return lastResponse_;
 }
