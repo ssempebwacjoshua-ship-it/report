@@ -85,11 +85,15 @@ The reader may still emit its built-in scan beep. API-directed feedback starts i
 | API `beep` | Physical response | Serial log |
 | --- | --- | --- |
 | `success` | 1 short pulse | `Feedback: success` |
-| `duplicate` (or legacy `warning`) | 2 short pulses | `Feedback: duplicate` |
-| `error` | 1 long pulse | `Feedback: error` |
-| `offline` / queued locally | 3 short pulses | `Feedback: offline` |
+| `duplicate` | 2 quick short pulses | `Feedback: duplicate` |
+| `out_of_session` | 1 long pulse | `Feedback: out_of_session` |
+| `unknown` | 3 fast error pulses | `Feedback: unknown` |
+| `queued` | 1 short pulse, then 1 long pulse | `Feedback: queued` |
+| `error` | 2 long error pulses | `Feedback: error` |
 
 When feedback outputs are disabled, these serial logs still appear but no feedback GPIO is configured as an output.
+
+Reader event serial logs now also print the scanned credential, backend HTTP status, and selected feedback pattern after each tap. Bearer tokens are never written to serial logs.
 
 ## Firmware modules
 
@@ -141,6 +145,7 @@ Important:
 - Once activation succeeds, the firmware stores the returned bearer token and normalizes future registration calls to `/api/readers/register`.
 - Existing LittleFS `wifiSsid` and `wifiPassword` values remain as a fallback for previously provisioned devices until NVS credentials are saved.
 - If a deployed reader token must be rotated, use Owner Console and recover the one-time token from the reader detail page immediately. The detail page now shows the rotated token once in a highlighted panel.
+- `buzzerPin` remains optional. Use `-1` to disable the external driver output, or set a verified GPIO only after the isolated buzzer/LED interface has been validated for the exact reader hardware.
 
 Example configuration:
 
@@ -259,11 +264,21 @@ Content-Type: application/json
 {
   "success": true,
   "action": "ATTENDANCE",
+  "status": "ACCEPTED",
   "message": "Attendance recorded",
   "studentName": "John Doe",
   "beep": "success"
 }
 ```
+
+Tap responses from `POST /api/readers/events` use these device-directed `beep` values:
+
+- `success` for accepted attendance
+- `duplicate` for repeated taps inside the duplicate window
+- `out_of_session` for attendance windows that are closed or review-only
+- `unknown` for an unregistered credential
+- `queued` when the event is stored locally because Wi-Fi/API is unavailable
+- `error` for unexpected API or device failures
 
 ## Notes
 
