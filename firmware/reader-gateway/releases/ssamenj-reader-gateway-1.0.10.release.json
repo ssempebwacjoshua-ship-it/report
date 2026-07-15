@@ -1,0 +1,35 @@
+{
+  "releaseId": "ssamenj-reader-gateway-1.0.10-stable",
+  "version": "1.0.10",
+  "channel": "stable",
+  "artifactPath": "firmware/reader-gateway/releases/ssamenj-reader-gateway-1.0.10.bin",
+  "sha256": "381582eb2eb05e8260c9221a3da3e17843c2f12b62ab8d2365fe80b7ae2ba7a4",
+  "routeManifestCanonicalJson": "{\"channel\":\"stable\",\"downloadPath\":\"/api/readers/ota/download/ssamenj-reader-gateway-1.0.10-stable\",\"publicKeyId\":\"reader-gateway-2026\",\"releaseId\":\"ssamenj-reader-gateway-1.0.10-stable\",\"sha256\":\"381582eb2eb05e8260c9221a3da3e17843c2f12b62ab8d2365fe80b7ae2ba7a4\",\"signature\":\"MEUCIG6HzL5DOSqpD4vClZ2ccd65BzJ8cvgY9KGVwsLJeWkBAiEArVXkUovRDoKr1Usw31TXXCsXDXeLCvG/vy7ruMr+3dY=\",\"signatureAlgorithm\":\"ECDSA_P256_SHA256\",\"sizeBytes\":1168576,\"updateAvailable\":true,\"version\":\"1.0.10\"}",
+  "routeManifest": {
+    "updateAvailable": true,
+    "releaseId": "ssamenj-reader-gateway-1.0.10-stable",
+    "version": "1.0.10",
+    "channel": "stable",
+    "downloadPath": "/api/readers/ota/download/ssamenj-reader-gateway-1.0.10-stable",
+    "sha256": "381582eb2eb05e8260c9221a3da3e17843c2f12b62ab8d2365fe80b7ae2ba7a4",
+    "signature": "MEUCIG6HzL5DOSqpD4vClZ2ccd65BzJ8cvgY9KGVwsLJeWkBAiEArVXkUovRDoKr1Usw31TXXCsXDXeLCvG/vy7ruMr+3dY=",
+    "signatureAlgorithm": "ECDSA_P256_SHA256",
+    "publicKeyId": "reader-gateway-2026",
+    "sizeBytes": 1168576
+  },
+  "railwayRelease": {
+    "releaseId": "ssamenj-reader-gateway-1.0.10-stable",
+    "version": "1.0.10",
+    "channel": "stable",
+    "sha256": "381582eb2eb05e8260c9221a3da3e17843c2f12b62ab8d2365fe80b7ae2ba7a4",
+    "signature": "MEUCIG6HzL5DOSqpD4vClZ2ccd65BzJ8cvgY9KGVwsLJeWkBAiEArVXkUovRDoKr1Usw31TXXCsXDXeLCvG/vy7ruMr+3dY=",
+    "signatureAlgorithm": "ECDSA_P256_SHA256",
+    "publicKeyId": "reader-gateway-2026",
+    "sizeBytes": 1168576,
+    "artifactPath": "firmware/reader-gateway/releases/ssamenj-reader-gateway-1.0.10.bin",
+    "enabled": true,
+    "targetDeviceIds": [
+      "attendance-gate-01"
+    ]
+  }
+}
