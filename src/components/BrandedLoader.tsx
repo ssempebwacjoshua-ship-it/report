@@ -1,3 +1,5 @@
+import { useState } from "react";
+import ssamenjLogo from "../assets/ssamenj-logo-transparent.png";
 import styles from "./BrandedLoader.module.css";
 
 type BrandedLoaderProps = {
@@ -13,6 +15,7 @@ export function BrandedLoader({
   compact = false,
   text,
 }: BrandedLoaderProps) {
+  const [logoFailed, setLogoFailed] = useState(false);
   const label = message ?? text ?? "Loading school workspace...";
   const className = [
     fullScreen ? styles.page : styles.inline,
@@ -25,7 +28,16 @@ export function BrandedLoader({
         <div className={styles.markWrap} aria-hidden="true">
           <span className={styles.glow} />
           <span className={styles.ring} />
-          <img src="/ssamenj-logo-transparent.png" alt="" className={styles.logo} />
+          {logoFailed ? (
+            <span className={styles.logoFallback}>S</span>
+          ) : (
+            <img
+              src={ssamenjLogo}
+              alt="SSAMENJ"
+              className={styles.logo}
+              onError={() => setLogoFailed(true)}
+            />
+          )}
         </div>
         <p className={styles.text}>{label}</p>
       </div>
