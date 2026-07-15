@@ -6,16 +6,18 @@ void FeedbackController::begin(const ReaderGatewayConfig& config) {
   buzzerPin_ = config.buzzerPin;
   ledPin_ = config.ledPin;
   enabled_ = config.feedbackOutputsEnabled && (buzzerPin_ >= 0 || ledPin_ >= 0);
+  openDrainOutputs_ = !config.feedbackDriverActiveHigh;
   activeLevel_ = config.feedbackDriverActiveHigh ? HIGH : LOW;
   idleLevel_ = config.feedbackDriverActiveHigh ? LOW : HIGH;
   Serial.printf(
-    "Feedback config: buzzerPin=%d ledPin=%d feedbackDriverActiveHigh=%s activeLevel=%s idleLevel=%s enabled=%s\n",
+    "Feedback config: buzzerPin=%d ledPin=%d feedbackDriverActiveHigh=%s activeLevel=%s idleLevel=%s enabled=%s openDrain=%s\n",
     static_cast<int>(buzzerPin_),
     static_cast<int>(ledPin_),
     config.feedbackDriverActiveHigh ? "true" : "false",
     activeLevel_ == HIGH ? "HIGH" : "LOW",
     idleLevel_ == HIGH ? "HIGH" : "LOW",
-    enabled_ ? "true" : "false"
+    enabled_ ? "true" : "false",
+    openDrainOutputs_ ? "true" : "false"
   );
 
   if (!enabled_) {
@@ -29,18 +31,17 @@ void FeedbackController::begin(const ReaderGatewayConfig& config) {
   }
 
   if (buzzerPin_ >= 0) {
-    digitalWrite(buzzerPin_, idleLevel_);
-    pinMode(buzzerPin_, OUTPUT);
+    pinMode(buzzerPin_, openDrainOutputs_ ? OUTPUT_OPEN_DRAIN : OUTPUT);
     digitalWrite(buzzerPin_, idleLevel_);
     Serial.printf(
-      "Feedback init: buzzerPin=%d idle %s initialized\n",
+      "Feedback init: buzzerPin=%d idle %s initialized mode=%s\n",
       static_cast<int>(buzzerPin_),
-      idleLevel_ == HIGH ? "HIGH" : "LOW"
+      idleLevel_ == HIGH ? "HIGH" : "LOW",
+      openDrainOutputs_ ? "OUTPUT_OPEN_DRAIN" : "OUTPUT"
     );
   }
   if (ledPin_ >= 0) {
-    digitalWrite(ledPin_, idleLevel_);
-    pinMode(ledPin_, OUTPUT);
+    pinMode(ledPin_, openDrainOutputs_ ? OUTPUT_OPEN_DRAIN : OUTPUT);
     digitalWrite(ledPin_, idleLevel_);
   }
   resetPlayback();
