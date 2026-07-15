@@ -80,16 +80,23 @@ Only after those checks may the local ignored configuration set GPIO numbers and
 
 Keep `feedbackOutputsEnabled` set to `false` until the driver circuit and reader-side measurements are confirmed. GPIO 18 and GPIO 19 above are examples, not approved wiring assignments. Check the actual ESP32 board and connected peripherals before selecting pins. If an electrically isolated driver has an active-low ESP32 input, set `feedbackDriverActiveHigh` to `false`.
 
-The reader may still emit its built-in scan beep. API-directed feedback starts immediately after the scan response arrives and therefore follows that automatic beep:
+The reader may still emit its built-in scan beep. API-directed feedback starts immediately after the scan response arrives and therefore follows that automatic beep.
+
+Important:
+
+- If `feedbackOutputsEnabled` is `false`, or `buzzerPin` remains `-1`, the ESP32 does not drive a separate buzzer output.
+- In that case, you will still hear only the reader's own generic scan beep even when the backend returns different `beep` values.
+- Boot and tap serial logs now state explicitly when GPIO feedback is disabled.
+
+When GPIO feedback has been electrically verified and enabled, the current firmware uses these patterns:
 
 | API `beep` | Physical response | Serial log |
 | --- | --- | --- |
 | `success` | 1 short pulse | `Feedback: success` |
 | `duplicate` | 2 quick short pulses | `Feedback: duplicate` |
-| `out_of_session` | 1 long pulse | `Feedback: out_of_session` |
-| `unknown` | 3 fast error pulses | `Feedback: unknown` |
-| `queued` | 1 short pulse, then 1 long pulse | `Feedback: queued` |
-| `error` | 2 long error pulses | `Feedback: error` |
+| `warning` | 1 long pulse | `Feedback: warning` |
+| `offline` or `offline_queued` | 1 short pulse, then 1 long pulse | `Feedback: offline` |
+| `error` | 1 long error pulse | `Feedback: error` |
 
 When feedback outputs are disabled, these serial logs still appear but no feedback GPIO is configured as an output.
 
@@ -275,9 +282,10 @@ Tap responses from `POST /api/readers/events` use these device-directed `beep` v
 
 - `success` for accepted attendance
 - `duplicate` for repeated taps inside the duplicate window
-- `out_of_session` for attendance windows that are closed or review-only
-- `unknown` for an unregistered credential
-- `queued` when the event is stored locally because Wi-Fi/API is unavailable
+- `warning` for attendance windows that are closed or review-only
+- `error` for an unregistered credential or other denied/error outcomes
+- `offline_queued` when the event is stored locally because Wi-Fi/API is unavailable
+- `offline` for network fallback feedback inside firmware
 - `error` for unexpected API or device failures
 
 ## Notes
