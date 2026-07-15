@@ -593,10 +593,15 @@ export function OwnerReaderDetailPage() {
   async function run(action: "RESTART" | "SYNC" | "UPDATE_FIRMWARE" | "RE_REGISTER") {
     try {
       if (!data?.reader.schoolId) return;
-      await requestOwnerReaderAction(data.reader.schoolId, data.reader.id, action);
-      setNotice(action === "UPDATE_FIRMWARE"
-        ? "Firmware update requested. Keep the reader powered and connected to Wi-Fi while it installs."
-        : `${action.replace(/_/g, " ")} requested.`);
+      const result = await requestOwnerReaderAction(data.reader.schoolId, data.reader.id, action);
+      if (action === "RE_REGISTER" && result.bearerToken) {
+        window.alert(`New reader token:\n${result.bearerToken}\n\nShown once. Put this token on the same reader device.`);
+        setNotice("New reader token issued for this same device. It is shown once.");
+      } else {
+        setNotice(action === "UPDATE_FIRMWARE"
+          ? "Firmware update requested. Keep the reader powered and connected to Wi-Fi while it installs."
+          : result.message ?? `${action.replace(/_/g, " ")} requested.`);
+      }
       await loadReader();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Could not request reader action.");
