@@ -89,7 +89,9 @@ export function useNfcScanner({ onScan, cooldownMs = 1500 }: UseNfcScannerOption
 
   const deviceId = useRef(getOrCreateDeviceId());
   const stateRef = useRef<ScannerState>("IDLE");
+  const readerRef = useRef<NDEFReader | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const shouldScanRef = useRef(false);
   const cooldownRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const isWebNfcAvailable = typeof window !== "undefined" && "NDEFReader" in window;
@@ -112,7 +114,9 @@ export function useNfcScanner({ onScan, cooldownMs = 1500 }: UseNfcScannerOption
 
   useEffect(() => {
     return () => {
+      shouldScanRef.current = false;
       abortRef.current?.abort();
+      readerRef.current = null;
       if (cooldownRef.current) clearTimeout(cooldownRef.current);
     };
   }, []);
@@ -153,10 +157,12 @@ export function useNfcScanner({ onScan, cooldownMs = 1500 }: UseNfcScannerOption
 
   const startScanner = useCallback(async () => {
     if (!isWebNfcAvailable) {
+      shouldScanRef.current = false;
       setStateSync("IDLE");
       return;
     }
 
+    shouldScanRef.current = true;
     setStateSync("PERMISSION");
     setError(null);
 
@@ -164,6 +170,7 @@ export function useNfcScanner({ onScan, cooldownMs = 1500 }: UseNfcScannerOption
       const reader = new NDEFReader();
       abortRef.current?.abort();
       abortRef.current = new AbortController();
+      readerRef.current = reader;
 
       await reader.scan({ signal: abortRef.current.signal });
       setStateSync("READY");
@@ -182,6 +189,7 @@ export function useNfcScanner({ onScan, cooldownMs = 1500 }: UseNfcScannerOption
         resetAfterCooldown();
       });
     } catch (err) {
+      readerRef.current = null;
       if (err instanceof Error && err.name === "AbortError") return;
       setError(normalizeNfcScannerError(err));
       setStateSync("ERROR");
@@ -189,12 +197,45 @@ export function useNfcScanner({ onScan, cooldownMs = 1500 }: UseNfcScannerOption
   }, [isWebNfcAvailable, processRaw, resetAfterCooldown, setStateSync]);
 
   const stopScanner = useCallback(() => {
+    shouldScanRef.current = false;
     abortRef.current?.abort();
     abortRef.current = null;
+    readerRef.current = null;
     if (cooldownRef.current) clearTimeout(cooldownRef.current);
     setStateSync("IDLE");
     setError(null);
   }, [setStateSync]);
+
+  useEffect(() => {
+    const suspendScanner = () => {
+      if (document.visibilityState !== "hidden" || !shouldScanRef.current) return;
+      abortRef.current?.abort();
+      abortRef.current = null;
+      readerRef.current = null;
+    };
+
+    const resumeScanner = () => {
+      if (
+        document.visibilityState === "visible" &&
+        shouldScanRef.current &&
+        (!readerRef.current || !abortRef.current || abortRef.current.signal.aborted)
+      ) {
+        void startScanner();
+      }
+    };
+
+    document.addEventListener("visibilitychange", suspendScanner);
+    document.addEventListener("visibilitychange", resumeScanner);
+    window.addEventListener("pageshow", resumeScanner);
+    window.addEventListener("focus", resumeScanner);
+
+    return () => {
+      document.removeEventListener("visibilitychange", suspendScanner);
+      document.removeEventListener("visibilitychange", resumeScanner);
+      window.removeEventListener("pageshow", resumeScanner);
+      window.removeEventListener("focus", resumeScanner);
+    };
+  }, [startScanner]);
 
   const submitManual = useCallback((raw: string) => {
     if (!raw.trim()) return;
