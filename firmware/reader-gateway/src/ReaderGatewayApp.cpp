@@ -426,7 +426,7 @@ bool ReaderGatewayApp::openSetupPortal(const char* reason) {
   WiFi.setAutoReconnect(true);
 
   WiFiManager manager;
-  const bool preconfiguredDeployment = !config_.schoolId.isEmpty() && !config_.bearerToken.isEmpty() && config_.registrationPath.endsWith("/register");
+  const bool activationCodeRequired = config_.bearerToken.isEmpty() || config_.registrationPath.endsWith("/activate");
   String activationCodeValue = provisionedActivationCode_.isEmpty() ? config_.activationCode : provisionedActivationCode_;
   char activationCodeBuffer[65];
   activationCodeValue.toCharArray(activationCodeBuffer, sizeof(activationCodeBuffer));
@@ -435,25 +435,22 @@ bool ReaderGatewayApp::openSetupPortal(const char* reason) {
   manager.setTitle("SSAMENJ Attendance Controller");
   manager.setCaptivePortalEnable(true);
   manager.setConnectTimeout(30);
-  if (!preconfiguredDeployment) {
-    manager.addParameter(&activationCodeParam);
-  }
+  manager.addParameter(&activationCodeParam);
 
   const String apSsid = setupAccessPointSsid();
   Serial.printf("Opening setup portal: %s\n", reason == nullptr ? "manual" : reason);
   Serial.printf("Setup portal SSID: %s\n", apSsid.c_str());
   Serial.println("Setup portal fallback URL: http://192.168.4.1");
+  Serial.printf("Activation code required: %s\n", activationCodeRequired ? "yes" : "no");
 
   startSetupLedBlink();
   const bool connected = manager.startConfigPortal(apSsid.c_str(), SETUP_PORTAL_PASSWORD);
   stopSetupLedBlink();
 
-  if (!preconfiguredDeployment) {
-    provisionedActivationCode_ = String(activationCodeParam.getValue());
-    provisionedActivationCode_.trim();
-  }
+  provisionedActivationCode_ = String(activationCodeParam.getValue());
+  provisionedActivationCode_.trim();
 
-  if (!preconfiguredDeployment && provisionedActivationCode_.isEmpty()) {
+  if (activationCodeRequired && provisionedActivationCode_.isEmpty()) {
     setupRequired_ = true;
     provisioningPreferences_.putBool(PROVISIONING_SETUP_REQUIRED_KEY, true);
     Serial.println("Provisioning validation failed; activation code is required");
@@ -470,7 +467,7 @@ bool ReaderGatewayApp::openSetupPortal(const char* reason) {
   }
   setupRequired_ = false;
   provisioningPreferences_.putBool(PROVISIONING_SETUP_REQUIRED_KEY, false);
-  if (!preconfiguredDeployment) {
+  if (!provisionedActivationCode_.isEmpty()) {
     provisioningPreferences_.putString(PROVISIONING_ACTIVATION_CODE_KEY, provisionedActivationCode_);
   }
 
