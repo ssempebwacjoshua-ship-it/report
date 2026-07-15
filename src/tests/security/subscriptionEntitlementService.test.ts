@@ -32,6 +32,17 @@ describe("subscriptionEntitlementService", () => {
     expect(decision.code).toBe("SUBSCRIPTION_REQUIRED");
   });
 
+  it("treats communications sending as a paid entitlement and fails closed without a subscription", async () => {
+    const decision = await evaluateSubscriptionEntitlement({
+      db: dbWithSubscription(null),
+      schoolId: "school-1",
+      entitlement: "communications.send",
+    });
+
+    expect(decision.allowed).toBe(false);
+    expect(decision.code).toBe("SUBSCRIPTION_REQUIRED");
+  });
+
   it("rejects expired or suspended subscriptions without mutating historical data", async () => {
     for (const status of ["EXPIRED", "SUSPENDED"] as const) {
       const db = dbWithSubscription({ status, currentPeriodEnd: new Date("2030-01-01") });

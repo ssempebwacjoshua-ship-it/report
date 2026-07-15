@@ -100,8 +100,28 @@ describe("communication outbound routes", () => {
       .post(`/api/communications/campaigns/${campaignId}/send`)
       .set("Authorization", auth(adminToken))
       .send({ channel: "SMS", confirm: true, audience: { studentIds: [studentId], mode: "GENERAL" } });
-    expect(res.status).toBe(503);
-    expect(res.body.message).toMatch(/SMS is not configured yet/i);
+    expect(res.status).toBe(402);
+    expect(res.body.message).toMatch(/communications are not enabled/i);
+  });
+
+  it("blocks queueing and sending live campaigns when communications are disabled", async () => {
+    const campaignId = await createCampaign();
+    await prisma.communicationCampaign.update({ where: { id: campaignId }, data: { status: "APPROVED" } });
+    vi.stubEnv("COMMUNICATION_DRY_RUN", "false");
+
+    const queueRes = await request(createServer())
+      .post(`/api/communications/campaigns/${campaignId}/queue`)
+      .set("Authorization", auth(adminToken))
+      .send({ channels: ["SMS"] });
+    expect(queueRes.status).toBe(402);
+    expect(queueRes.body.message).toMatch(/communications are not enabled/i);
+
+    const sendRes = await request(createServer())
+      .post(`/api/communications/campaigns/${campaignId}/send`)
+      .set("Authorization", auth(adminToken))
+      .send({ channel: "SMS", confirm: true, audience: { studentIds: [studentId], mode: "GENERAL" } });
+    expect(sendRes.status).toBe(402);
+    expect(sendRes.body.message).toMatch(/communications are not enabled/i);
   });
 
   it("blocks draft campaigns from direct send", async () => {
@@ -131,6 +151,15 @@ describe("communication outbound routes", () => {
     expect(second.body.result.submitted).toBe(0);
     expect(second.body.result.skippedDuplicate).toBe(1);
     await expect(prisma.communicationDelivery.count({ where: { schoolId, campaignId } })).resolves.toBe(1);
+
+    await prisma.communicationCampaign.update({ where: { id: campaignId }, data: { status: "APPROVED" } });
+    const queueRes = await request(createServer())
+      .post(`/api/communications/campaigns/${campaignId}/queue`)
+      .set("Authorization", auth(adminToken))
+      .send({ channels: ["SMS"] });
+    expect(queueRes.status).toBe(200);
+    expect(queueRes.body.ok).toBe(true);
+    expect(queueRes.body.dryRun).toBe(true);
   });
 
   it("blocks cross-school reads as not found", async () => {

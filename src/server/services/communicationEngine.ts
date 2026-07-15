@@ -14,6 +14,7 @@ import { collectCommunicationAudienceRows, resolveCommunicationAudience } from "
 
 export { resolveCommunicationAudience } from "./communicationAudienceService";
 import { createProviderForChannel, DryRunMessageProvider } from "./communicationProviders";
+import { evaluateSubscriptionEntitlement } from "./subscriptionEntitlementService";
 
 type Db = PrismaClient;
 
@@ -26,6 +27,26 @@ export type CommunicationContext = {
 
 export function isCommunicationDryRun() {
   return process.env.COMMUNICATION_DRY_RUN !== "false";
+}
+
+async function requireLiveCommunicationsEnabled(db: Db, ctx: CommunicationContext) {
+  if (isCommunicationDryRun()) return;
+  const decision = await evaluateSubscriptionEntitlement({
+    db,
+    schoolId: ctx.schoolId,
+    entitlement: "communications.send",
+  });
+  if (!decision.allowed) {
+    throw Object.assign(new Error("Communications are not enabled for this school. Contact platform support."), {
+      status: decision.status,
+      expose: true,
+      code: decision.code,
+      details: {
+        entitlement: "communications.send",
+        subscriptionStatus: decision.subscriptionStatus ?? null,
+      },
+    });
+  }
 }
 
 export async function createCampaign(db: Db, ctx: CommunicationContext, input: {
@@ -229,6 +250,7 @@ export async function approveCampaign(db: Db, ctx: CommunicationContext, campaig
 }
 
 export async function queueCampaign(db: Db, ctx: CommunicationContext, campaignId: string, channels: CommunicationChannel[] = ["WHATSAPP"]) {
+  await requireLiveCommunicationsEnabled(db, ctx);
   const campaign = await getCampaignOrThrow(db, ctx, campaignId);
   if (campaign.status !== "APPROVED" && campaign.status !== "FAILED") throw httpError(400, "Only approved campaigns can be queued.");
   const recipients = await db.communicationRecipient.findMany({ where: { schoolId: ctx.schoolId, campaignId, status: { in: ["READY", "WARNING"] } } });
@@ -285,6 +307,7 @@ export async function sendCampaign(db: Db, ctx: CommunicationContext, campaignId
   if (!communicationChannels.includes(input.channel)) throw httpError(400, "Unsupported communication channel.");
   if (input.channel !== "WHATSAPP" && input.channel !== "SMS") throw httpError(400, "Only SMS and WhatsApp sending are supported.");
   if (!input.confirm) throw httpError(400, "Sending requires explicit confirmation.");
+  await requireLiveCommunicationsEnabled(db, ctx);
   const campaign = await getCampaignOrThrow(db, ctx, campaignId);
   if (["CANCELLED", "DELIVERED"].includes(campaign.status)) throw httpError(400, "This campaign cannot be sent.");
   if (!["APPROVED", "QUEUED", "SENDING"].includes(campaign.status)) {

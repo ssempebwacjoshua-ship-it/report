@@ -10,7 +10,8 @@ export type SubscriptionEntitlement =
   | "ocr.scan"
   | "smart_pages.ai"
   | "settings.premium_branding"
-  | "report.download";
+  | "report.download"
+  | "communications.send";
 
 export type EntitlementDecision = {
   allowed: boolean;
