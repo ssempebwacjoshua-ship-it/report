@@ -8,5 +8,4 @@ void setup() {
 
 void loop() {
   gatewayApp.loop();
-  delay(5);
 }

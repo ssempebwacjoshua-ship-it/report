@@ -146,9 +146,14 @@ bool WiegandReader::poll(ReaderScanEvent& event) {
   noInterrupts();
   const uint32_t nowUs = micros();
   if (activeBitCount_ > 0 && static_cast<uint32_t>(nowUs - activeLastPulseUs_) >= timeoutUs_) {
+    const uint8_t pendingBits = activeBitCount_;
+    const uint32_t gapUs = static_cast<uint32_t>(nowUs - activeLastPulseUs_);
     finalizeActiveFrame();
+    interrupts();
+    Serial.printf("Reader frame timeout: bitCount=%u gap_us=%lu\n", static_cast<unsigned int>(pendingBits), static_cast<unsigned long>(gapUs));
+  } else {
+    interrupts();
   }
-  interrupts();
 
   PendingFrame frame;
   if (!popPendingFrame(frame)) {
@@ -163,6 +168,8 @@ bool WiegandReader::poll(ReaderScanEvent& event) {
   }
 
   const uint32_t frameDurationUs = frame.lastPulseUs >= frame.firstPulseUs ? frame.lastPulseUs - frame.firstPulseUs : 0;
+  Serial.printf("Wiegand bits: %u\n", static_cast<unsigned int>(decoded.bitCount));
+  Serial.printf("Card value: %s\n", decoded.rawDecimal.c_str());
   Serial.printf(
     "Reader frame captured: timestamp_ms=%lu duration_us=%lu bitCount=%u rawBinary=%s rawDecimal=%s rawHex=%s facilityCode=%s cardNumber=%s parity=%s\n",
     static_cast<unsigned long>(millis()),
