@@ -370,7 +370,7 @@ export function DashboardPage() {
           trend={statsLoading ? "-" : activeTerm ? "Live" : "No term"}
           tone="green"
           icon="students"
-          href="/students"
+          to="/students"
         />
         <StatCard
           label="Marks Pending Review"
@@ -379,7 +379,7 @@ export function DashboardPage() {
           trend={pendingCount > 0 ? "Action" : "Clear"}
           tone="yellow"
           icon="cloud"
-          href="/imports/marks"
+          to="/imports/marks"
         />
         <StatCard
           label="Reports Issued"
@@ -388,7 +388,7 @@ export function DashboardPage() {
           trend={issuedCount > 0 ? "Live" : "None"}
           tone="purple"
           icon="file"
-          href="/reports"
+          to="/reports?status=issued"
         />
         <StatCard
           label="Reports Released"
@@ -397,7 +397,7 @@ export function DashboardPage() {
           trend={stats?.reportsReleasedCount ? "Sent" : "None"}
           tone="blue"
           icon="check"
-          href="/reports/release"
+          to="/reports?status=released"
         />
       </section>
 
@@ -471,84 +471,8 @@ export function DashboardPage() {
             href="/nfc/attendance?view=GATE&campusStatus=ON_CAMPUS"
           />
         </div>
-
-        {attendanceSummary ? (
-          <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
-              <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Day Scholars Present</p>
-              <p className="mt-1 text-lg font-bold text-slate-950">{fmt(attendanceSummary.dayScholarsPresent ?? 0)}</p>
-            </div>
-            <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
-              <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Day Scholars Absent</p>
-              <p className="mt-1 text-lg font-bold text-slate-950">{fmt(attendanceSummary.dayScholarsAbsent ?? 0)}</p>
-            </div>
-            <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
-              <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Boarders Present</p>
-              <p className="mt-1 text-lg font-bold text-slate-950">{fmt(attendanceSummary.boardersPresent ?? 0)}</p>
-            </div>
-            <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
-              <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Boarders Not Seen</p>
-              <p className="mt-1 text-lg font-bold text-slate-950">{fmt(attendanceSummary.boardersNotSeenToday ?? 0)}</p>
-            </div>
-          </div>
-        ) : null}
-
         {attendanceSummary?.totalStudents === 0 ? (
           <p className="mt-3 text-xs font-semibold text-slate-500">No active students.</p>
-        ) : null}
-
-        {(attendanceSummary?.latestScans?.length ?? 0) > 0 || (attendanceSummary?.classSummaries?.length ?? 0) > 0 ? (
-          <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
-            <section className="rounded-xl border border-slate-200 bg-white p-3">
-              <div className="flex items-center justify-between gap-2">
-                <h3 className="text-sm font-bold text-slate-950">Latest Scans</h3>
-                <Link to="/nfc/attendance?view=REGISTER" className="text-xs font-bold text-[color:var(--sc-primary)]">
-                  Open register
-                </Link>
-              </div>
-              <div className="mt-3 space-y-2">
-                {(attendanceSummary?.latestScans ?? []).map((scan) => (
-                  <div key={`${scan.studentId}:${scan.occurredAt}:${scan.eventType}`} className="flex items-start justify-between gap-3 rounded-xl border border-slate-100 bg-slate-50 px-3 py-2">
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-bold text-slate-900">{scan.studentName}</p>
-                      <p className="text-xs text-slate-500">
-                        {scan.admissionNumber}
-                        {scan.className ? ` • ${scan.className}` : ""}
-                        {scan.streamName ? ` / ${scan.streamName}` : ""}
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-xs font-bold text-slate-700">{scan.eventType.replaceAll("_", " ")}</p>
-                      <p className="text-xs text-slate-500">{fmtTime(scan.occurredAt)}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </section>
-
-            <section className="rounded-xl border border-slate-200 bg-white p-3">
-              <div className="flex items-center justify-between gap-2">
-                <h3 className="text-sm font-bold text-slate-950">Class Summaries</h3>
-                <span className="text-xs font-semibold text-slate-500">Canonical gate and classroom attendance</span>
-              </div>
-              <div className="mt-3 space-y-2">
-                {(attendanceSummary?.classSummaries ?? []).slice(0, 6).map((row) => (
-                  <div key={`${row.className}:${row.streamName ?? ""}`} className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2">
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="text-sm font-bold text-slate-900">
-                        {row.className}
-                        {row.streamName ? ` / ${row.streamName}` : ""}
-                      </p>
-                      <p className="text-xs font-semibold text-slate-500">{fmtPercent(row.totalStudents > 0 ? (row.present / row.totalStudents) * 100 : 0)}</p>
-                    </div>
-                    <p className="mt-1 text-xs text-slate-500">
-                      Present {row.present} • Late {row.late} • Absent {row.absent}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            </section>
-          </div>
         ) : null}
       </section>
 
@@ -600,3 +524,4 @@ export function DashboardPage() {
     </main>
   );
 }
+

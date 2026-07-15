@@ -1573,13 +1573,13 @@ body {
 }
 
 .attendance-preview-section {
-  border: 1px solid rgba(191, 219, 254, 0.9);
-  border-radius: 1.25rem;
+  border: 1px solid rgba(191, 219, 254, 0.65);
+  border-radius: 1rem;
   background:
-    linear-gradient(180deg, rgba(239, 246, 255, 0.92), rgba(255, 255, 255, 0.98)),
+    linear-gradient(180deg, rgba(248, 251, 255, 0.95), rgba(255, 255, 255, 0.99)),
     #ffffff;
-  padding: 0.85rem;
-  box-shadow: 0 18px 44px rgba(15, 23, 42, 0.08);
+  padding: 0.5rem;
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.06);
 }
 
 .attendance-preview-sheet {
@@ -1587,33 +1587,33 @@ body {
   width: 100%;
   max-width: 210mm;
   border: 1px solid rgba(226, 232, 240, 0.95);
-  border-radius: 1rem;
+  border-radius: 0.85rem;
   background: #ffffff;
   color: #0f172a;
-  box-shadow: 0 16px 36px rgba(15, 23, 42, 0.08);
-  overflow: hidden;
+  box-shadow: 0 14px 32px rgba(15, 23, 42, 0.06);
+  overflow: visible;
 }
 
 .attendance-preview-header {
   display: flex;
   flex-wrap: wrap;
   justify-content: space-between;
-  gap: 0.85rem;
-  padding: 1.1rem 1.2rem 0.75rem;
+  gap: 0.6rem;
+  padding: 0.7rem 0.85rem 0.55rem;
   border-bottom: 1px solid #dbeafe;
-  background: linear-gradient(180deg, rgba(239, 246, 255, 0.9), rgba(255, 255, 255, 0.98));
+  background: linear-gradient(180deg, rgba(245, 249, 255, 0.95), rgba(255, 255, 255, 0.98));
 }
 
 .attendance-preview-brand {
   display: flex;
   align-items: center;
-  gap: 0.875rem;
+  gap: 0.7rem;
   min-width: 0;
 }
 
 .attendance-preview-logo {
-  width: 2.8rem;
-  height: 2.8rem;
+  width: 2.15rem;
+  height: 2.15rem;
   border-radius: 9999px;
   object-fit: cover;
   border: 1px solid rgba(191, 219, 254, 0.95);
@@ -1622,96 +1622,96 @@ body {
 
 .attendance-preview-overline {
   margin: 0;
-  font-size: 0.72rem;
+  font-size: 0.62rem;
   font-weight: 700;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.16em;
   text-transform: uppercase;
   color: #2563eb;
 }
 
 .attendance-preview-school {
-  margin: 0.2rem 0 0;
-  font-size: 1.32rem;
-  line-height: 1.15;
+  margin: 0.1rem 0 0;
+  font-size: 1.08rem;
+  line-height: 1.12;
   font-weight: 800;
   color: #0f172a;
 }
 
 .attendance-preview-contact {
-  margin: 0.2rem 0 0;
-  max-width: 32rem;
-  font-size: 0.82rem;
-  line-height: 1.4;
+  margin: 0.15rem 0 0;
+  max-width: 30rem;
+  font-size: 0.7rem;
+  line-height: 1.25;
   color: #475569;
 }
 
 .attendance-preview-heading {
   display: grid;
   align-content: start;
-  gap: 0.2rem;
+  gap: 0.1rem;
   justify-items: end;
   text-align: right;
 }
 
 .attendance-preview-title {
   margin: 0;
-  font-size: 1.2rem;
-  line-height: 1.2;
+  font-size: 0.98rem;
+  line-height: 1.15;
   font-weight: 800;
   color: #0f172a;
 }
 
 .attendance-preview-generated {
   margin: 0;
-  font-size: 0.76rem;
-  line-height: 1.35;
+  font-size: 0.68rem;
+  line-height: 1.25;
   color: #64748b;
 }
 
 .attendance-preview-meta,
 .attendance-preview-summary {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
-  gap: 0.55rem;
-  padding: 0.8rem 1.2rem 0;
+  grid-template-columns: repeat(auto-fit, minmax(7.6rem, 1fr));
+  gap: 0.35rem;
+  padding: 0.45rem 0.85rem 0;
 }
 
 .attendance-preview-meta-card,
 .attendance-preview-summary-card {
   display: grid;
-  gap: 0.2rem;
+  gap: 0.1rem;
   border: 1px solid rgba(226, 232, 240, 0.95);
-  border-radius: 0.85rem;
+  border-radius: 0.65rem;
   background: #ffffff;
-  padding: 0.62rem 0.75rem;
+  padding: 0.4rem 0.55rem;
 }
 
 .attendance-preview-meta-label,
 .attendance-preview-summary-label {
-  font-size: 0.7rem;
+  font-size: 0.58rem;
   font-weight: 700;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
   color: #64748b;
 }
 
 .attendance-preview-meta-value {
-  font-size: 0.86rem;
-  line-height: 1.35;
+  font-size: 0.72rem;
+  line-height: 1.22;
   font-weight: 600;
   color: #0f172a;
 }
 
 .attendance-preview-summary-value {
-  font-size: 1rem;
+  font-size: 0.82rem;
   line-height: 1.2;
   font-weight: 800;
   color: #0f172a;
 }
 
 .attendance-preview-table-wrap {
-  padding: 0.85rem 1.2rem 1rem;
-  overflow-x: auto;
+  padding: 0.45rem 0.85rem 0.7rem;
+  overflow-x: visible;
 }
 
 .attendance-preview-table {
@@ -1723,43 +1723,44 @@ body {
 
 .attendance-preview-table th,
 .attendance-preview-table td {
-  padding: 0.48rem 0.5rem;
+  padding: 0.28rem 0.32rem;
   border-bottom: 1px solid rgba(226, 232, 240, 0.9);
   vertical-align: top;
-  font-size: 0.79rem;
-  line-height: 1.32;
+  font-size: 0.7rem;
+  line-height: 1.22;
   color: #0f172a;
   text-align: left;
-  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 .attendance-preview-table th {
   background: #eff6ff;
-  font-size: 0.67rem;
+  font-size: 0.58rem;
   font-weight: 800;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: #1e3a8a;
+  vertical-align: bottom;
 }
 
 .attendance-preview-col-number {
-  width: 5%;
+  width: 4%;
 }
 
 .attendance-preview-col-admission {
-  width: 12%;
+  width: 11%;
 }
 
 .attendance-preview-col-student {
-  width: 20%;
+  width: 18%;
 }
 
 .attendance-preview-col-type {
-  width: 12%;
+  width: 10%;
 }
 
 .attendance-preview-col-status {
-  width: 11%;
+  width: 12%;
 }
 
 .attendance-preview-col-time {
@@ -1767,32 +1768,40 @@ body {
 }
 
 .attendance-preview-col-source {
-  width: 12%;
+  width: 10%;
 }
 
 .attendance-preview-col-remarks {
-  width: 16%;
+  width: 13%;
+}
+
+.attendance-preview-cell-mono {
+  font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
 }
 
 .attendance-preview-status {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 1.55rem;
-  min-width: 4.6rem;
-  border: 1px solid rgba(148, 163, 184, 0.8);
+  min-height: 1.1rem;
+  min-width: 0;
+  max-width: 100%;
+  border: 1px solid rgba(148, 163, 184, 0.72);
   border-radius: 9999px;
-  padding: 0.15rem 0.55rem;
+  padding: 0.12rem 0.42rem;
   background: #ffffff;
-  font-size: 0.66rem;
+  font-size: 0.56rem;
   font-weight: 800;
-  letter-spacing: 0.05em;
+  line-height: 1.1;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: #0f172a;
+  overflow-wrap: normal;
+  word-break: normal;
 }
 
 .attendance-preview-empty {
-  padding: 2rem 1rem !important;
+  padding: 1.2rem 0.8rem !important;
   text-align: center !important;
   font-style: italic;
   color: #475569 !important;
@@ -1802,20 +1811,24 @@ body {
   display: flex;
   flex-wrap: wrap;
   justify-content: space-between;
-  gap: 0.6rem;
+  gap: 0.35rem;
   border-top: 1px solid rgba(226, 232, 240, 0.95);
-  padding: 0.75rem 1.2rem 0.9rem;
-  font-size: 0.72rem;
+  padding: 0.45rem 0.85rem 0.55rem;
+  font-size: 0.62rem;
   color: #64748b;
 }
 
 .attendance-preview-page-number::after {
-  content: "Page " counter(page);
+  content: "Page " counter(page) " of " counter(pages);
+}
+
+.attendance-preview-page-number {
+  visibility: hidden;
 }
 
 @media (max-width: 767px) {
   .attendance-preview-header {
-    padding: 1rem;
+    padding: 0.9rem;
   }
 
   .attendance-preview-heading {
@@ -1826,18 +1839,23 @@ body {
   .attendance-preview-meta,
   .attendance-preview-summary,
   .attendance-preview-table-wrap {
-    padding-left: 1rem;
-    padding-right: 1rem;
+    padding-left: 0.9rem;
+    padding-right: 0.9rem;
   }
 
   .attendance-preview-table th,
   .attendance-preview-table td {
-    padding: 0.46rem 0.42rem;
-    font-size: 0.76rem;
+    padding: 0.38rem 0.35rem;
+    font-size: 0.72rem;
   }
 }
 
 @media print {
+  @page {
+    size: A4 portrait;
+    margin: 10mm 11mm 11mm;
+  }
+
   .attendance-page-root {
     display: block !important;
     background: #ffffff !important;
@@ -1880,27 +1898,24 @@ body {
 
   .attendance-preview-table {
     width: 100% !important;
-    font-size: 9.5px !important;
+    font-size: 7.5pt !important;
+    table-layout: fixed !important;
   }
 
   .attendance-preview-table thead {
     display: table-header-group;
   }
 
-  .attendance-preview-table tr,
-  .attendance-preview-header,
-  .attendance-preview-meta-card,
-  .attendance-preview-summary-card,
-  .attendance-preview-footer {
+  .attendance-preview-table tr {
     break-inside: avoid;
     page-break-inside: avoid;
   }
 
   .attendance-preview-table th,
   .attendance-preview-table td {
-    padding: 4px 5px !important;
-    font-size: 9.5px !important;
-    line-height: 1.3 !important;
+    padding: 3px 4px !important;
+    font-size: 7.5pt !important;
+    line-height: 1.22 !important;
   }
 
   .attendance-preview-status {
@@ -1908,10 +1923,16 @@ body {
     border-color: #64748b !important;
     background: #ffffff !important;
     color: #0f172a !important;
+    overflow-wrap: normal !important;
+    word-break: normal !important;
   }
 
   .attendance-preview-footer {
     padding-bottom: 0 !important;
+  }
+
+  .attendance-preview-page-number {
+    visibility: visible !important;
   }
 }
 /* Mobile viewport stability: prevent horizontal scroll and mobile input zoom */
