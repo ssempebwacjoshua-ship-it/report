@@ -862,7 +862,7 @@ bool ReaderGatewayApp::isValidScanEvent(const ReaderScanEvent& event, const char
     reason = "no pulses received";
     return false;
   }
-  if (event.rawWiegandBitCount != 26 && event.rawWiegandBitCount != 34) {
+  if (event.rawWiegandBitCount != 26 && event.rawWiegandBitCount != 34 && event.rawWiegandBitCount != 37) {
     reason = "unsupported bit count";
     return false;
   }
