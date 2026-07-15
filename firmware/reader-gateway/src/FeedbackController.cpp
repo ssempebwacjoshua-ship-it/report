@@ -46,6 +46,7 @@ void FeedbackController::resetPlayback() {
   playing_ = false;
   ledLatchArmed_ = false;
   pulsesRemaining_ = 0;
+  pulsesPlayed_ = 0;
   nextTransitionMs_ = 0;
   ledOffAtMs_ = 0;
 }
@@ -58,14 +59,17 @@ void FeedbackController::play(GatewayFeedbackTone tone) {
     case GatewayFeedbackTone::Duplicate:
       Serial.println("Feedback: duplicate");
       break;
+    case GatewayFeedbackTone::OutOfSession:
+      Serial.println("Feedback: out_of_session");
+      break;
+    case GatewayFeedbackTone::Unknown:
+      Serial.println("Feedback: unknown");
+      break;
+    case GatewayFeedbackTone::Queued:
+      Serial.println("Feedback: queued");
+      break;
     case GatewayFeedbackTone::Error:
       Serial.println("Feedback: error");
-      break;
-    case GatewayFeedbackTone::Offline:
-      Serial.println("Feedback: offline");
-      break;
-    case GatewayFeedbackTone::NetworkFailure:
-      Serial.println("Feedback: network-failure");
       break;
     case GatewayFeedbackTone::None:
     default:
@@ -80,6 +84,7 @@ void FeedbackController::play(GatewayFeedbackTone tone) {
   const unsigned long now = millis();
   playing_ = currentPattern_.buzzerPulses > 0;
   pulsesRemaining_ = currentPattern_.buzzerPulses;
+  pulsesPlayed_ = 0;
   ledLatchArmed_ = currentPattern_.ledEnabled && currentPattern_.ledOnMs > 0;
   ledOffAtMs_ = ledLatchArmed_ ? now + currentPattern_.ledOnMs : 0;
 
@@ -91,7 +96,7 @@ void FeedbackController::play(GatewayFeedbackTone tone) {
 
   if (playing_ && buzzerPin_ >= 0) {
     setBuzzer(true);
-    nextTransitionMs_ = now + currentPattern_.buzzerOnMs;
+    nextTransitionMs_ = now + currentPattern_.firstBuzzerOnMs;
   } else {
     setBuzzer(false);
     nextTransitionMs_ = 0;
@@ -122,6 +127,7 @@ void FeedbackController::loop() {
     setBuzzer(false);
     if (pulsesRemaining_ > 0) {
       pulsesRemaining_ -= 1;
+      pulsesPlayed_ += 1;
     }
     if (pulsesRemaining_ == 0) {
       playing_ = false;
@@ -133,5 +139,6 @@ void FeedbackController::loop() {
   }
 
   setBuzzer(true);
-  nextTransitionMs_ = now + currentPattern_.buzzerOnMs;
+  const uint16_t pulseOnMs = pulsesPlayed_ == 0 ? currentPattern_.firstBuzzerOnMs : currentPattern_.repeatingBuzzerOnMs;
+  nextTransitionMs_ = now + pulseOnMs;
 }

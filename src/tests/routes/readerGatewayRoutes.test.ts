@@ -955,8 +955,13 @@ describe("readerGatewayRoutes", () => {
           mode: "ATTENDANCE",
           location: "Main Entrance",
           locationName: "Main Entrance",
+          locationType: "GATE",
+          attendanceMode: "GATE_ATTENDANCE",
           isActive: true,
           status: "ACTIVE",
+          onlineStatus: "ONLINE",
+          lastSeenAt: new Date(),
+          lastHeartbeatAt: new Date(),
         }),
       },
       auditLog: {
@@ -1374,6 +1379,7 @@ describe("readerGatewayRoutes location-aware atomicity", () => {
     expect([403, 404]).toContain(res.status);
     if (res.body.status) {
       expect(["UNKNOWN_CREDENTIAL", "BLOCKED"]).toContain(res.body.status);
+      expect(res.body.beep).toBe("unknown");
     } else {
       expect(typeof res.body.error).toBe("string");
     }

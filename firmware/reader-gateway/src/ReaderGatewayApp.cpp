@@ -123,13 +123,42 @@ GatewayFeedbackTone toneFromBeep(const String& beep) {
   if (beep.equalsIgnoreCase("success")) {
     return GatewayFeedbackTone::Success;
   }
-  if (beep.equalsIgnoreCase("warning") || beep.equalsIgnoreCase("duplicate") || beep.equalsIgnoreCase("error")) {
+  if (beep.equalsIgnoreCase("duplicate")) {
+    return GatewayFeedbackTone::Duplicate;
+  }
+  if (beep.equalsIgnoreCase("out_of_session") || beep.equalsIgnoreCase("warning")) {
+    return GatewayFeedbackTone::OutOfSession;
+  }
+  if (beep.equalsIgnoreCase("unknown")) {
+    return GatewayFeedbackTone::Unknown;
+  }
+  if (beep.equalsIgnoreCase("queued") || beep.equalsIgnoreCase("offline") || beep.equalsIgnoreCase("offline_queued")) {
+    return GatewayFeedbackTone::Queued;
+  }
+  if (beep.equalsIgnoreCase("error")) {
     return GatewayFeedbackTone::Error;
   }
-  if (beep.equalsIgnoreCase("offline") || beep.equalsIgnoreCase("offline_queued")) {
-    return GatewayFeedbackTone::NetworkFailure;
-  }
   return GatewayFeedbackTone::None;
+}
+
+const char* toneName(GatewayFeedbackTone tone) {
+  switch (tone) {
+    case GatewayFeedbackTone::Success:
+      return "success";
+    case GatewayFeedbackTone::Duplicate:
+      return "duplicate";
+    case GatewayFeedbackTone::OutOfSession:
+      return "out_of_session";
+    case GatewayFeedbackTone::Unknown:
+      return "unknown";
+    case GatewayFeedbackTone::Queued:
+      return "queued";
+    case GatewayFeedbackTone::Error:
+      return "error";
+    case GatewayFeedbackTone::None:
+    default:
+      return "none";
+  }
 }
 
 bool isTimeValid() {
@@ -1157,6 +1186,10 @@ void ReaderGatewayApp::processScan(const ReaderScanEvent& scan) {
     offlineQueueDepth_ += 1;
     Serial.println("Queued scan for delivery");
     Serial.printf("Queue status after enqueue: %u\n", static_cast<unsigned int>(offlineQueueDepth_));
+    if (!hasWorkingNetwork()) {
+      Serial.printf("Scan feedback: credential=%s serverStatus=%d beep=%s\n", event.credential.c_str(), 0, toneName(GatewayFeedbackTone::Queued));
+      feedback_.play(GatewayFeedbackTone::Queued);
+    }
     return;
   }
 
@@ -1174,12 +1207,15 @@ void ReaderGatewayApp::processScan(const ReaderScanEvent& scan) {
     rememberAcceptedScan(event);
     markApiContact();
     Serial.println(response.success ? "Upload Success" : "Scan Rejected");
-    feedback_.play(toneFromBeep(response.beep));
+    const GatewayFeedbackTone tone = toneFromBeep(response.beep);
+    Serial.printf("Scan feedback: credential=%s serverStatus=%d beep=%s\n", event.credential.c_str(), response.statusCode, toneName(tone));
+    feedback_.play(tone);
     return;
   }
 
   Serial.println("Upload Failed");
-  feedback_.play(GatewayFeedbackTone::NetworkFailure);
+  Serial.printf("Scan feedback: credential=%s serverStatus=%d beep=%s\n", event.credential.c_str(), response.statusCode, toneName(GatewayFeedbackTone::Queued));
+  feedback_.play(GatewayFeedbackTone::Queued);
 }
 
 void ReaderGatewayApp::processOfflineQueue() {
@@ -1235,7 +1271,9 @@ void ReaderGatewayApp::processOfflineQueue() {
       response.action.c_str(),
       response.message.c_str());
   }
-  feedback_.play(toneFromBeep(response.beep));
+  const GatewayFeedbackTone tone = toneFromBeep(response.beep);
+  Serial.printf("Queued scan feedback: credential=%s serverStatus=%d beep=%s\n", event.credential.c_str(), response.statusCode, toneName(tone));
+  feedback_.play(tone);
 }
 
 void ReaderGatewayApp::loop() {
