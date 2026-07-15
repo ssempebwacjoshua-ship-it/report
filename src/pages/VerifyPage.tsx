@@ -1,7 +1,7 @@
 ﻿import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { getApiBaseUrl } from "../client/apiBase";
-import { BrandedLoader } from "../components/BrandedLoader";
+import { SectionLoader } from "../components/SectionLoader";
 
 const API_BASE = getApiBaseUrl();
 
@@ -47,7 +47,7 @@ export function VerifyPage() {
   }, [code]);
 
   if (loading) {
-    return <BrandedLoader message="Verifying report..." />;
+    return <SectionLoader message="Verifying report..." />;
   }
 
   return (

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { fetchStudentWallet } from "../client/studentCredentialsClient";
-import { BrandedLoader } from "../components/BrandedLoader";
+import { SectionLoader } from "../components/SectionLoader";
 import type { StudentWalletDetail } from "../shared/types/studentCredentials";
 
 function money(cents: number) {
@@ -33,7 +33,7 @@ export function StudentWalletPage() {
   }, [studentId]);
 
   if (loading) {
-    return <BrandedLoader message="Loading wallet..." />;
+    return <SectionLoader message="Loading wallet..." />;
   }
 
   return (

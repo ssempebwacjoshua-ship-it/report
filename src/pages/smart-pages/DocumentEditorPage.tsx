@@ -13,7 +13,7 @@ import {
   updateExtractedKnowledge,
   uploadDocumentFile,
 } from "../../client/documentIntelligenceClient";
-import { BrandedLoader } from "../../components/BrandedLoader";
+import { SectionLoader } from "../../components/SectionLoader";
 import { DocumentPreview } from "../../components/smart-pages/DocumentPreview";
 import { SmartPageTemplatePicker } from "../../components/smart-pages/SmartPageTemplatePicker";
 import { SCHOOL_VERTICAL, getSmartPageTemplates, type SmartPageTemplateDefinition } from "../../shared/smartPagesTemplates";
@@ -1006,7 +1006,7 @@ export function DocumentEditorPage() {
   }
 
   if (loading) {
-    return <BrandedLoader message="Loading document..." />;
+    return <SectionLoader message="Loading document..." />;
   }
 
   if (loadError || !doc) {

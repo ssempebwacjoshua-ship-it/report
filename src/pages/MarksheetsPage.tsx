@@ -1,5 +1,5 @@
 ﻿import { useEffect, useRef, useState } from "react";
-import { BrandedLoader } from "../components/BrandedLoader";
+import { SectionLoader } from "../components/SectionLoader";
 import { PrintableMarksheet } from "../components/marksheets/PrintableMarksheet";
 import { Icon } from "../components/layout/Icon";
 import {
@@ -807,7 +807,7 @@ function HmReviewTab() {
     return `${batch.marksCount} marks`;
   }
 
-  if (loading) return <BrandedLoader message="Loading marks review..." />;
+  if (loading) return <SectionLoader message="Loading marks review..." />;
 
   return (
     <div>

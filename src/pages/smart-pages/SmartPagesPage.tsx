@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { createDocument, listDocuments } from "../../client/documentIntelligenceClient";
 import { fetchSmartPagesBillingSummary } from "../../client/smartPagesBillingClient";
-import { BrandedLoader } from "../../components/BrandedLoader";
+import { SectionLoader } from "../../components/SectionLoader";
 import type { SmartDocumentSummary } from "../../shared/types/documentIntelligence";
 import type { SmartPageSummary } from "../../shared/types/smartPages";
 
@@ -68,7 +68,7 @@ export function SmartPagesPage() {
   }
 
   if (loading) {
-    return <BrandedLoader message="Loading documents..." />;
+    return <SectionLoader message="Loading documents..." />;
   }
 
   return (

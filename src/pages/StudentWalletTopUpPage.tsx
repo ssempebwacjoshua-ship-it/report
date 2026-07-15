@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { fetchStudentWallet, topUpNfcWallet } from "../client/studentCredentialsClient";
-import { BrandedLoader } from "../components/BrandedLoader";
+import { SectionLoader } from "../components/SectionLoader";
 import type { StudentWalletDetail, WalletPaymentMethod, NfcWalletTopUpResult } from "../shared/types/studentCredentials";
 
 const inputClass =
@@ -80,7 +80,7 @@ export function StudentWalletTopUpPage() {
   }
 
   if (loading) {
-    return <BrandedLoader message="Loading wallet..." />;
+    return <SectionLoader message="Loading wallet..." />;
   }
 
   return (

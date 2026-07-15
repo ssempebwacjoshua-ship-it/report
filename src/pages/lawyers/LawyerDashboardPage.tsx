@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { createDocument, listDocuments } from "../../client/documentIntelligenceClient";
-import { BrandedLoader } from "../../components/BrandedLoader";
+import { SectionLoader } from "../../components/SectionLoader";
 import type { SmartDocumentSummary } from "../../shared/types/documentIntelligence";
 
 function countByKeyword(documents: SmartDocumentSummary[], keyword: string): number {
@@ -42,7 +42,7 @@ export function LawyerDashboardPage() {
   }
 
   if (loading) {
-    return <BrandedLoader message="Loading legal dashboard..." />;
+    return <SectionLoader message="Loading legal dashboard..." />;
   }
 
   const recent = documents.slice(0, 6);

@@ -1,7 +1,7 @@
 ﻿import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { EmptyReportState } from "../components/reports/EmptyReportState";
-import { BrandedLoader } from "../components/BrandedLoader";
+import { SectionLoader } from "../components/SectionLoader";
 import { ReportFilters } from "../components/reports/ReportFilters";
 import { StudentReportCard } from "../components/reports/StudentReportCard";
 import { StudentReportDetail } from "../components/reports/StudentReportDetail";
@@ -216,7 +216,7 @@ export function ReportsPage() {
     : "";
 
   if (!context && !error) {
-    return <BrandedLoader message="Preparing reports..." />;
+    return <SectionLoader message="Preparing reports..." />;
   }
 
   return (

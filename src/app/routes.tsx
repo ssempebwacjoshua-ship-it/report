@@ -61,7 +61,7 @@ import { SearchPage } from "../pages/smart-pages/SearchPage";
 import { RouteErrorPage } from "../pages/RouteErrorPage";
 import { PromotionWorkspacePage } from "../pages/PromotionWorkspacePage";
 import { PermissionGuard } from "../components/PermissionGuard";
-import { BrandedLoader } from "../components/BrandedLoader";
+import { SectionLoader } from "../components/SectionLoader";
 
 const lawyerSmartPagesEnabled = import.meta.env.VITE_ENABLE_SMART_PAGES_LAWYERS === "true";
 const LawyerShell = lazy(() => import("../components/lawyers/LawyerShell").then((module) => ({ default: module.LawyerShell })));
@@ -72,7 +72,7 @@ const LawyerOnboardingPage = lazy(() => import("../pages/lawyers/LawyerOnboardin
 
 function lazyElement(Component: ComponentType) {
   return (
-    <Suspense fallback={<BrandedLoader message="Loading page..." />}>
+    <Suspense fallback={<SectionLoader message="Loading page..." />}>
       <Component />
     </Suspense>
   );

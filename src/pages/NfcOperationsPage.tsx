@@ -1,5 +1,5 @@
 ﻿import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { BrandedLoader } from "../components/BrandedLoader";
+import { SectionLoader } from "../components/SectionLoader";
 import type { NfcTag } from "../shared/types/nfcTags";
 import { NfcSectionTabs } from "../components/nfc/NfcSectionTabs";
 import {
@@ -1002,7 +1002,7 @@ export function NfcOperationsPage() {
   }
 
   if (loading && tags.length === 0) {
-    return <BrandedLoader message="Loading wristbands..." />;
+    return <SectionLoader message="Loading wristbands..." />;
   }
 
   return (

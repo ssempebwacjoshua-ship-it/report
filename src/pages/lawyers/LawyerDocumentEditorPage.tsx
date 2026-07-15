@@ -12,7 +12,7 @@ import {
   updateExtractedKnowledge,
 } from "../../client/documentIntelligenceClient";
 import { listPreferences } from "../../client/documentOsClient";
-import { BrandedLoader } from "../../components/BrandedLoader";
+import { SectionLoader } from "../../components/SectionLoader";
 import { DocumentPreview } from "../../components/smart-pages/DocumentPreview";
 import { applyDocumentPatches, parseAiEditResponse } from "../../shared/documentPatch";
 import {
@@ -520,7 +520,7 @@ export function LawyerDocumentEditorPage() {
   }
 
   if (loading) {
-    return <BrandedLoader message="Loading document..." />;
+    return <SectionLoader message="Loading document..." />;
   }
 
   if (loadError || !doc) {

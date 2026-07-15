@@ -1,7 +1,7 @@
 ﻿import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { getApiBaseUrl } from "../client/apiBase";
-import { BrandedLoader } from "../components/BrandedLoader";
+import { SectionLoader } from "../components/SectionLoader";
 import { getSchoolBranding } from "../components/layout/branding";
 import { StudentReportDetail } from "../components/reports/StudentReportDetail";
 import type { StudentReportCard } from "../shared/types/reports";
@@ -72,7 +72,7 @@ export function ParentReportPage() {
   }
 
   if (loading) {
-    return <BrandedLoader message="Loading report..." />;
+    return <SectionLoader message="Loading report..." />;
   }
 
   if (error || !data) {

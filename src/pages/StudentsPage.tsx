@@ -15,7 +15,7 @@ import {
   updateGuardianContact,
 } from "../client/studentsClient";
 import { Icon } from "../components/layout/Icon";
-import { BrandedLoader } from "../components/BrandedLoader";
+import { SectionLoader } from "../components/SectionLoader";
 import { PassportPhotoAvatar } from "../components/students/PassportPhotoAvatar";
 import { getApiBaseUrl } from "../client/apiBase";
 import type { AttendanceProfile } from "../shared/attendanceProfiles";
@@ -294,7 +294,7 @@ export function StudentsPage() {
   }
 
   if (!context && !error) {
-    return <BrandedLoader message="Loading students..." />;
+    return <SectionLoader message="Loading students..." />;
   }
 
   return (

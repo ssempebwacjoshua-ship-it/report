@@ -1,7 +1,7 @@
 ﻿import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate, useParams } from "react-router";
 import { getBulkJobDetail, type BulkJobSummary, type BulkJobOutput } from "../../client/collectionsClient";
-import { BrandedLoader } from "../../components/BrandedLoader";
+import { SectionLoader } from "../../components/SectionLoader";
 
 const STATUS_COLORS: Record<string, string> = {
   PENDING: "bg-slate-100 text-slate-600",
@@ -63,7 +63,7 @@ export function BulkJobStatusPage() {
 
   const origin = window.location.origin;
 
-  if (loading) return <BrandedLoader message="Loading bulk job..." />;
+  if (loading) return <SectionLoader message="Loading bulk job..." />;
   if (!job) return <div className="p-8 text-center text-sm text-red-500">{error ?? "Job not found."}</div>;
 
   const isActive = job.status === "PENDING" || job.status === "PROCESSING";

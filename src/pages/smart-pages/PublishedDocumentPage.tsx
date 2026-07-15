@@ -1,7 +1,7 @@
 ﻿import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { downloadPublishedDocumentPdf, getPublishedDocument } from "../../client/documentIntelligenceClient";
-import { BrandedLoader } from "../../components/BrandedLoader";
+import { SectionLoader } from "../../components/SectionLoader";
 import { DocumentPreview } from "../../components/smart-pages/DocumentPreview";
 import type { SmartDocumentDetail } from "../../shared/types/documentIntelligence";
 import { DEFAULT_THEME } from "../../shared/types/documentIntelligence";
@@ -57,7 +57,7 @@ export function PublishedDocumentPage() {
 
   if (loading) {
     return (
-      <BrandedLoader message="Loading document..." />
+      <SectionLoader message="Loading document..." />
     );
   }
 

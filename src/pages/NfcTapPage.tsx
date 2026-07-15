@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { resolveNfcPublicCode } from "../client/nfcTagsClient";
-import { BrandedLoader } from "../components/BrandedLoader";
+import { SectionLoader } from "../components/SectionLoader";
 import type { NfcResolveResponse } from "../shared/types/nfcTags";
 
 export function NfcTapPage() {
@@ -25,7 +25,7 @@ export function NfcTapPage() {
   }, [publicCode]);
 
   if (loading) {
-    return <BrandedLoader message="Reading NFC tag..." />;
+    return <SectionLoader message="Reading NFC tag..." />;
   }
 
   return (

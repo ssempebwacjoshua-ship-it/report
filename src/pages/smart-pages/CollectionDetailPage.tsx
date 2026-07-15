@@ -8,7 +8,7 @@ import {
   type Collection,
   type CollectionRecord,
 } from "../../client/collectionsClient";
-import { BrandedLoader } from "../../components/BrandedLoader";
+import { SectionLoader } from "../../components/SectionLoader";
 
 export function CollectionDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -104,7 +104,7 @@ export function CollectionDetailPage() {
     ? Array.from(new Set(records.flatMap((r) => Object.keys(r.data))))
     : [];
 
-  if (loading) return <BrandedLoader message="Loading collection..." />;
+  if (loading) return <SectionLoader message="Loading collection..." />;
   if (!collection) return <div className="p-8 text-center text-sm text-red-500">{error ?? "Collection not found."}</div>;
 
   return (

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { BrandedLoader } from "../components/BrandedLoader";
+import { SectionLoader } from "../components/SectionLoader";
 import { NfcSectionTabs } from "../components/nfc/NfcSectionTabs";
 import {
   bulkImportUids,
@@ -206,7 +206,7 @@ export function NfcBulkIssuingPage() {
     }`;
 
   if (batchesLoading && batches.length === 0) {
-    return <BrandedLoader message="Loading wristbands..." />;
+    return <SectionLoader message="Loading wristbands..." />;
   }
 
   return (

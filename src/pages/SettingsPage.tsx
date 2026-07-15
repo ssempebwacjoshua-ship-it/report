@@ -8,7 +8,7 @@ import {
   type SettingsFieldErrors,
   uploadReportPersonalizationAsset,
 } from "../client/settingsClient";
-import { BrandedLoader } from "../components/BrandedLoader";
+import { SectionLoader } from "../components/SectionLoader";
 import { SchoolStructureSection } from "../components/settings/SchoolStructureSection";
 import { SubscriptionSection } from "../components/settings/SubscriptionSection";
 import { defaultSettingsSections, type SettingSection, type SettingsResponse, type SettingsSections } from "../shared/types/settings";
@@ -226,7 +226,7 @@ export function SettingsPage() {
   }
 
   if (loading) {
-    return <BrandedLoader message="Loading settings..." />;
+    return <SectionLoader message="Loading settings..." />;
   }
 
   return (
