@@ -299,6 +299,7 @@ void ReaderGatewayApp::applyRegistrationResult(const ReaderRegistrationResult& r
   if (!result.bearerToken.isEmpty()) {
     config_.bearerToken = result.bearerToken;
     config_.activationCode = "";
+    config_.registrationPath = "/api/readers/register";
     provisionedActivationCode_ = "";
     if (beginProvisioningStorage()) {
       provisioningPreferences_.remove(PROVISIONING_ACTIVATION_CODE_KEY);
@@ -511,6 +512,7 @@ void ReaderGatewayApp::handleFactoryResetButton() {
   bootButtonPressedAtMs_ = 0;
   clearStoredWifiCredentials();
   openSetupPortal("Factory reset requested");
+  wiegand_.reset();
 }
 
 bool ReaderGatewayApp::consumeFactoryResetFlag() {
@@ -969,6 +971,9 @@ bool ReaderGatewayApp::begin() {
 
   if (!hasStoredWifiCredentials()) {
     openSetupPortal("No saved Wi-Fi credentials were found");
+    // The setup portal can leave the reader lines noisy while the installer is
+    // entering Wi-Fi/code details. Clear stale pulses before normal tap capture.
+    wiegand_.reset();
   }
 
   ensureWiFi();

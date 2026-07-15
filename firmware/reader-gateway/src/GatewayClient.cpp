@@ -227,6 +227,9 @@ bool GatewayClient::sendJsonRaw(const ReaderGatewayConfig& config, const String&
   statusCode = http.POST(body);
   responseBody = http.getString();
   Serial.printf("HTTP status code: %d\n", statusCode);
+  if (statusCode >= 400 && !responseBody.isEmpty()) {
+    Serial.printf("HTTP response body: %s\n", responseBody.c_str());
+  }
   if (statusCode < 0) {
     Serial.printf("HTTP error: %s\n", HTTPClient::errorToString(statusCode).c_str());
     if (secureClient) {
