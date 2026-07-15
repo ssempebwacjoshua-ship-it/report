@@ -85,7 +85,7 @@ describe("AppShell workspace loading", () => {
 
     renderShell();
 
-    expect(screen.getByText("Loading...")).toBeInTheDocument();
+    expect(screen.getByRole("status", { name: "Loading SSAMENJ..." })).toBeInTheDocument();
     expect(mockFetchSettings).not.toHaveBeenCalled();
   });
 

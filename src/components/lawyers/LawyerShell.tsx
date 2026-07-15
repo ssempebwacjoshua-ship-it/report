@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, NavLink, Navigate, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { DocumentRegular, HomeRegular, NavigationRegular, PersonRegular, SettingsRegular, SignOutRegular } from "@fluentui/react-icons";
 import { useAuth } from "../../contexts/AuthContext";
+import { BrandedLoader } from "../BrandedLoader";
 
 const navItems = [
   { to: "/lawyers/dashboard", label: "Dashboard", icon: HomeRegular, exact: true },
@@ -26,11 +27,7 @@ export function LawyerShell() {
   }, []);
 
   if (authLoading || (!user && token)) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-50">
-        <p className="text-sm text-slate-500">Loading...</p>
-      </div>
-    );
+    return <BrandedLoader text="Loading legal workspace..." />;
   }
 
   if (!user) {

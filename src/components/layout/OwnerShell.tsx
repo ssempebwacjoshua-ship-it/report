@@ -1,16 +1,13 @@
 import { NavLink, Navigate, Outlet } from "react-router-dom";
 import { useAuth } from "../../contexts/AuthContext";
+import { BrandedLoader } from "../BrandedLoader";
 import { SupportWidget } from "../support/SupportWidget";
 
 export function OwnerShell() {
   const { user, loading, logout } = useAuth();
 
   if (loading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-50">
-        <p className="text-sm text-slate-500">Loading...</p>
-      </div>
-    );
+    return <BrandedLoader text="Loading owner console..." />;
   }
 
   if (!user) return <Navigate to="/login" replace />;

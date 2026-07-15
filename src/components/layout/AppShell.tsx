@@ -9,6 +9,7 @@ import { Topbar } from "./Topbar";
 import { SettingsProvider, useAppSettings } from "./SettingsContext";
 import { hasPermission } from "../../shared/permissions";
 import { ConnectivityProvider } from "../../hooks/useConnectivityStatus";
+import { BrandedLoader } from "../BrandedLoader";
 
 const SIDEBAR_WIDTH_KEY = "school-connect-sidebar-width";
 const DEFAULT_SIDEBAR_WIDTH = 232;
@@ -20,11 +21,7 @@ export function AppShell() {
   const { user, loading: authLoading } = useAuth();
 
   if (authLoading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-50">
-        <p className="text-sm text-slate-500">Loading...</p>
-      </div>
-    );
+    return <BrandedLoader text="Loading SSAMENJ..." />;
   }
 
   if (!user) {
@@ -110,14 +107,7 @@ function AppShellWorkspaceGate({
   const settingsState = useAppSettings();
 
   if (settingsState?.loading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-50 px-4">
-        <div className="max-w-sm rounded-2xl border border-slate-200 bg-white px-5 py-4 text-center shadow-sm">
-          <p className="text-sm font-semibold text-slate-950">Loading school workspace...</p>
-          <p className="mt-1 text-sm text-slate-500">Please wait while we load your school settings.</p>
-        </div>
-      </div>
-    );
+    return <BrandedLoader text="Loading school workspace..." />;
   }
 
   if (settingsState?.error) {
