@@ -15,6 +15,8 @@
 #include <memory>
 #include <time.h>
 
+#include "ssamenj/BeepToneMapping.h"
+
 namespace {
 constexpr const char* FACTORY_RESET_FLAG_PATH = "/reader-gateway/factory-reset.once";
 constexpr const char* PENDING_OTA_STATE_PATH = "/reader-gateway/ota-pending.json";
@@ -120,45 +122,11 @@ const char* wifiStatusToString(wl_status_t status) {
 }
 
 GatewayFeedbackTone toneFromBeep(const String& beep) {
-  if (beep.equalsIgnoreCase("success")) {
-    return GatewayFeedbackTone::Success;
-  }
-  if (beep.equalsIgnoreCase("duplicate")) {
-    return GatewayFeedbackTone::Duplicate;
-  }
-  if (beep.equalsIgnoreCase("out_of_session") || beep.equalsIgnoreCase("warning")) {
-    return GatewayFeedbackTone::OutOfSession;
-  }
-  if (beep.equalsIgnoreCase("unknown")) {
-    return GatewayFeedbackTone::Unknown;
-  }
-  if (beep.equalsIgnoreCase("queued") || beep.equalsIgnoreCase("offline") || beep.equalsIgnoreCase("offline_queued")) {
-    return GatewayFeedbackTone::Queued;
-  }
-  if (beep.equalsIgnoreCase("error")) {
-    return GatewayFeedbackTone::Error;
-  }
-  return GatewayFeedbackTone::None;
+  return feedbackToneFromBeepValue(beep.c_str());
 }
 
 const char* toneName(GatewayFeedbackTone tone) {
-  switch (tone) {
-    case GatewayFeedbackTone::Success:
-      return "success";
-    case GatewayFeedbackTone::Duplicate:
-      return "duplicate";
-    case GatewayFeedbackTone::OutOfSession:
-      return "out_of_session";
-    case GatewayFeedbackTone::Unknown:
-      return "unknown";
-    case GatewayFeedbackTone::Queued:
-      return "queued";
-    case GatewayFeedbackTone::Error:
-      return "error";
-    case GatewayFeedbackTone::None:
-    default:
-      return "none";
-  }
+  return feedbackToneName(tone);
 }
 
 bool isTimeValid() {
@@ -1187,8 +1155,8 @@ void ReaderGatewayApp::processScan(const ReaderScanEvent& scan) {
     Serial.println("Queued scan for delivery");
     Serial.printf("Queue status after enqueue: %u\n", static_cast<unsigned int>(offlineQueueDepth_));
     if (!hasWorkingNetwork()) {
-      Serial.printf("Scan feedback: credential=%s serverStatus=%d beep=%s\n", event.credential.c_str(), 0, toneName(GatewayFeedbackTone::Queued));
-      feedback_.play(GatewayFeedbackTone::Queued);
+      Serial.printf("Scan feedback: credential=%s serverStatus=%d beep=%s\n", event.credential.c_str(), 0, toneName(GatewayFeedbackTone::Offline));
+      feedback_.play(GatewayFeedbackTone::Offline);
     }
     return;
   }
@@ -1214,8 +1182,8 @@ void ReaderGatewayApp::processScan(const ReaderScanEvent& scan) {
   }
 
   Serial.println("Upload Failed");
-  Serial.printf("Scan feedback: credential=%s serverStatus=%d beep=%s\n", event.credential.c_str(), response.statusCode, toneName(GatewayFeedbackTone::Queued));
-  feedback_.play(GatewayFeedbackTone::Queued);
+  Serial.printf("Scan feedback: credential=%s serverStatus=%d beep=%s\n", event.credential.c_str(), response.statusCode, toneName(GatewayFeedbackTone::Offline));
+  feedback_.play(GatewayFeedbackTone::Offline);
 }
 
 void ReaderGatewayApp::processOfflineQueue() {

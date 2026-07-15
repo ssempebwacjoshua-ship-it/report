@@ -1,4 +1,5 @@
 #include "ssamenj/FeedbackController.h"
+#include "ssamenj/BeepToneMapping.h"
 #include "ssamenj/FeedbackPattern.h"
 
 void FeedbackController::begin(const ReaderGatewayConfig& config) {
@@ -59,14 +60,11 @@ void FeedbackController::play(GatewayFeedbackTone tone) {
     case GatewayFeedbackTone::Duplicate:
       Serial.println("Feedback: duplicate");
       break;
-    case GatewayFeedbackTone::OutOfSession:
-      Serial.println("Feedback: out_of_session");
+    case GatewayFeedbackTone::Warning:
+      Serial.println("Feedback: warning");
       break;
-    case GatewayFeedbackTone::Unknown:
-      Serial.println("Feedback: unknown");
-      break;
-    case GatewayFeedbackTone::Queued:
-      Serial.println("Feedback: queued");
+    case GatewayFeedbackTone::Offline:
+      Serial.println("Feedback: offline");
       break;
     case GatewayFeedbackTone::Error:
       Serial.println("Feedback: error");

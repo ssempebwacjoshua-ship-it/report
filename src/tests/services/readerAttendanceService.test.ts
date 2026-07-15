@@ -325,7 +325,7 @@ describe("readerAttendanceService", () => {
       success: true,
       status: "UNCLASSIFIED",
       message: "Scan recorded for review",
-      beep: "out_of_session",
+      beep: "warning",
     });
     expect(db.stores.dailyAttendances).toHaveLength(1);
     expect(db.stores.campusMovementEvents[0]?.type).toBe("UNCLASSIFIED_GATE_SCAN");
@@ -344,7 +344,7 @@ describe("readerAttendanceService", () => {
 
     expect(result.response.status).toBe("UNKNOWN_CREDENTIAL");
     expect(result.statusCode).toBe(404);
-    expect(result.response.beep).toBe("unknown");
+    expect(result.response.beep).toBe("error");
     expect(db.stores.nfcGateScans).toHaveLength(1);
     expect(db.stores.nfcGateScans[0]).toMatchObject({
       schoolId: "school-1",
@@ -377,7 +377,7 @@ describe("readerAttendanceService", () => {
     expect(result.response).toMatchObject({
       success: true,
       status: "UNCLASSIFIED",
-      beep: "out_of_session",
+      beep: "warning",
     });
     expect(db.stores.campusMovementEvents[0]?.type).toBe("UNCLASSIFIED_GATE_SCAN");
   });
@@ -546,7 +546,7 @@ describe("readerAttendanceService", () => {
       action: "CLASSROOM_ATTENDANCE",
       status: "SESSION_CLOSED",
       message: "Scan recorded for review",
-      beep: "out_of_session",
+      beep: "warning",
     });
     expect(db.stores.classroomAttendanceEvents).toHaveLength(1);
     expect(db.stores.classroomAttendanceEvents[0]).toMatchObject({

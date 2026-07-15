@@ -14,9 +14,9 @@ export type ReaderGatewayResponse = {
   action: string;
   status?: string;
   message: string;
-  beep: "success" | "duplicate" | "out_of_session" | "unknown" | "queued" | "error" | "none";
+  beep: "success" | "duplicate" | "warning" | "error" | "offline" | "offline_queued" | "none";
   studentName?: string;
-  feedback: { beep: "success" | "duplicate" | "out_of_session" | "unknown" | "queued" | "error" | "none" };
+  feedback: { beep: "success" | "duplicate" | "warning" | "error" | "offline" | "offline_queued" | "none" };
 };
 
 export type LocationAwareReaderDevice = {
@@ -593,7 +593,7 @@ async function processGateAttendance(
     });
   }
   return {
-    response: respond("GATE_SCAN", "UNCLASSIFIED", "Scan recorded for review", "out_of_session", true, student.studentName),
+    response: respond("GATE_SCAN", "UNCLASSIFIED", "Scan recorded for review", "warning", true, student.studentName),
     scannedAt,
     statusCode: 202,
   };
@@ -648,7 +648,7 @@ async function processClassroomAttendance(
       });
     }
     return {
-      response: respond("CLASSROOM_ATTENDANCE", "SESSION_CLOSED", "Scan recorded for review", "out_of_session", true, student.studentName),
+      response: respond("CLASSROOM_ATTENDANCE", "SESSION_CLOSED", "Scan recorded for review", "warning", true, student.studentName),
       scannedAt,
       statusCode: 202,
     };
@@ -777,7 +777,7 @@ export async function processLocationAwareReaderEvent(
       },
     });
     return {
-      response: respond("ATTENDANCE", "UNKNOWN_CREDENTIAL", "Wristband not registered", "unknown", false),
+      response: respond("ATTENDANCE", "UNKNOWN_CREDENTIAL", "Wristband not registered", "error", false),
       scannedAt,
       statusCode: 404,
     };

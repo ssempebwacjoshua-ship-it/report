@@ -19,14 +19,12 @@ inline FeedbackPattern feedbackPatternForTone(GatewayFeedbackTone tone) {
       return {1, 120, 120, 0, true, 800};
     case GatewayFeedbackTone::Duplicate:
       return {2, 100, 100, 90, false, 0};
-    case GatewayFeedbackTone::OutOfSession:
+    case GatewayFeedbackTone::Warning:
       return {1, 420, 420, 0, false, 0};
-    case GatewayFeedbackTone::Unknown:
-      return {3, 90, 90, 80, false, 0};
-    case GatewayFeedbackTone::Queued:
+    case GatewayFeedbackTone::Offline:
       return {2, 100, 320, 120, false, 0};
     case GatewayFeedbackTone::Error:
-      return {2, 360, 360, 180, false, 0};
+      return {1, 420, 420, 0, false, 0};
     case GatewayFeedbackTone::None:
     default:
       return {0, 0, 0, 0, false, 0};
