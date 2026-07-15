@@ -299,6 +299,7 @@ void ReaderGatewayApp::applyRegistrationResult(const ReaderRegistrationResult& r
   if (!result.bearerToken.isEmpty()) {
     config_.bearerToken = result.bearerToken;
     config_.activationCode = "";
+    config_.registrationPath = "/api/readers/register";
     provisionedActivationCode_ = "";
     if (beginProvisioningStorage()) {
       provisioningPreferences_.remove(PROVISIONING_ACTIVATION_CODE_KEY);
