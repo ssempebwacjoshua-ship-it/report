@@ -3,6 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import { WifiOffRegular } from "@fluentui/react-icons";
 import { NfcScanPanel } from "../components/nfc/NfcScanPanel";
 import { getSchoolBranding } from "../components/layout/branding";
+import { AttendanceNfcPrintDocument } from "../components/attendance/AttendanceNfcPrintDocument";
 import { useAppSettings } from "../components/layout/SettingsContext";
 import { useNfcScanner, type ScanResult } from "../hooks/useNfcScanner";
 import { useConnectivityStatus } from "../hooks/useConnectivityStatus";
@@ -1131,97 +1132,19 @@ export function NfcAttendancePage() {
             </div>
           </div>
 
-          <article data-testid="attendance-preview-sheet" className="attendance-preview-sheet report-print-page">
-            <header className="attendance-preview-header">
-              <div className="attendance-preview-brand">
-                {schoolBranding.logoUrl ? (
-                  <img
-                    className="attendance-preview-logo"
-                    src={schoolBranding.logoUrl}
-                    alt={`${schoolBranding.schoolName} logo`}
-                  />
-                ) : null}
-                <div className="min-w-0">
-                  <p className="attendance-preview-overline">School Connect</p>
-                  <h2 className="attendance-preview-school">{schoolBranding.schoolName}</h2>
-                  <p className="attendance-preview-contact">
-                    {[schoolBranding.address, schoolBranding.phone, schoolBranding.email].filter(Boolean).join(" | ")}
-                  </p>
-                </div>
-              </div>
-              <div className="attendance-preview-heading">
-                <p className="attendance-preview-title">{printPreview.title}</p>
-                <p className="attendance-preview-generated">Generated {formatPrintDateTime(printPreview.generatedAt)}</p>
-              </div>
-            </header>
-
-            <section className="attendance-preview-meta">
-              {printPreview.metadata.map((item) => (
-                <div key={item.label} className="attendance-preview-meta-card">
-                  <span className="attendance-preview-meta-label">{item.label}</span>
-                  <span className="attendance-preview-meta-value">{item.value || EM_DASH}</span>
-                </div>
-              ))}
-            </section>
-
-            <section className="attendance-preview-summary">
-              {printPreview.summary.map((item) => (
-                <div key={item.label} className="attendance-preview-summary-card">
-                  <span className="attendance-preview-summary-label">{item.label}</span>
-                  <span className="attendance-preview-summary-value">{item.value}</span>
-                </div>
-              ))}
-            </section>
-
-            <div className="attendance-preview-table-wrap">
-              <table data-testid="attendance-preview-table" className="attendance-preview-table">
-                <thead>
-                  <tr>
-                    <th className="attendance-preview-col-number">No.</th>
-                    <th className="attendance-preview-col-admission">Admission No.</th>
-                    <th className="attendance-preview-col-student">Student name</th>
-                    <th className="attendance-preview-col-type">Student type</th>
-                    <th className="attendance-preview-col-status">Status</th>
-                    <th className="attendance-preview-col-time">First seen</th>
-                    <th className="attendance-preview-col-time">Last movement / checkout</th>
-                    {printPreview.showSource ? <th className="attendance-preview-col-source">Reader / Source</th> : null}
-                    <th className="attendance-preview-col-remarks">Remarks</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {printPreview.rows.length > 0 ? (
-                    printPreview.rows.map((row, index) => (
-                      <tr key={row.id}>
-                        <td>{index + 1}</td>
-                        <td>{row.admissionNumber || EM_DASH}</td>
-                        <td>{row.studentName || EM_DASH}</td>
-                        <td>{row.studentType || EM_DASH}</td>
-                        <td>
-                          <span className="attendance-preview-status">{row.status || EM_DASH}</span>
-                        </td>
-                        <td>{row.firstSeen || EM_DASH}</td>
-                        <td>{row.lastMovement || EM_DASH}</td>
-                        {printPreview.showSource ? <td>{row.source || EM_DASH}</td> : null}
-                        <td>{row.remarks || EM_DASH}</td>
-                      </tr>
-                    ))
-                  ) : (
-                    <tr>
-                      <td colSpan={printPreview.showSource ? 9 : 8} className="attendance-preview-empty">
-                        {printPreview.emptyMessage}
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-
-            <footer className="attendance-preview-footer">
-              <span>{schoolBranding.schoolName}</span>
-              <span>{printPreview.scopeLabel}</span>
-              <span className="attendance-preview-page-number" />
-            </footer>
-          </article>
+          <AttendanceNfcPrintDocument
+            schoolName={schoolBranding.schoolName}
+            logoUrl={schoolBranding.logoUrl}
+            contactLine={[schoolBranding.address, schoolBranding.phone, schoolBranding.email].filter(Boolean).join(" | ")}
+            title={printPreview.title}
+            generatedAt={formatPrintDateTime(printPreview.generatedAt)}
+            scopeLabel={printPreview.scopeLabel}
+            metadata={printPreview.metadata}
+            summary={printPreview.summary}
+            rows={printPreview.rows}
+            emptyMessage={printPreview.emptyMessage}
+            showSource={printPreview.showSource}
+          />
         </section>
       ) : null}
 
