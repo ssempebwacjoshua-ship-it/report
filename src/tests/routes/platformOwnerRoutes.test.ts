@@ -574,6 +574,61 @@ describe("platformOwnerRoutes ? reader management inventory", () => {
     expect(Array.isArray(res.body.diagnostics.recentScans)).toBe(true);
   });
 
+  it("keeps recent scans visible even when heartbeat logs are noisier", async () => {
+    const fixture = await createReaderFixture();
+    if (!fixture) return;
+
+    const attendanceTime = new Date(Date.now() - 10 * 60 * 1000);
+    await prisma.auditLog.create({
+      data: {
+        schoolId: fixture.schoolId,
+        action: "reader_event.attendance",
+        createdAt: attendanceTime,
+        details: {
+          deviceId: fixture.reader.id,
+          readerId: fixture.reader.deviceKey,
+          response: {
+            success: true,
+            status: "ACCEPTED",
+            beep: "success",
+            message: "Attendance recorded",
+          },
+        },
+      },
+    });
+
+    await Promise.all(
+      Array.from({ length: 205 }, (_, index) =>
+        prisma.auditLog.create({
+          data: {
+            schoolId: fixture.schoolId,
+            action: "reader_device.heartbeat",
+            createdAt: new Date(Date.now() + index * 1000),
+            details: {
+              deviceId: fixture.reader.id,
+              readerId: fixture.reader.deviceKey,
+              firmwareVersion: "1.0.2",
+              wifiRssi: -52,
+              localIp: "192.168.1.51",
+              uptimeMs: 12345 + index,
+              freeHeap: 204800,
+              queueDepth: 0,
+            },
+          },
+        }),
+      ),
+    );
+
+    const res = await request(createServer())
+      .get(`/api/owner/readers/${fixture.reader.id}`)
+      .set("Authorization", `Bearer ${ownerToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.diagnostics.recentScans.some((log: { action: string; details?: { response?: { message?: string } } }) =>
+      log.action === "reader_event.attendance" && log.details?.response?.message === "Attendance recorded",
+    )).toBe(true);
+  });
+
   it("returns reader diagnostics when looked up by non-UUID device key", async () => {
     const fixture = await createReaderFixture();
     if (!fixture) return;

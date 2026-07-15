@@ -1124,33 +1124,60 @@ export function platformOwnerRoutes() {
         return;
       }
 
-      const auditLogs = await prisma.auditLog.findMany({
-        where: {
-          schoolId: reader.schoolId,
-          action: { in: [...READER_AUDIT_ACTIONS] },
-        },
-        orderBy: { createdAt: "desc" },
-        take: 200,
-      });
+      const [attendanceLogs, heartbeatLogs, otaLogs] = await Promise.all([
+        prisma.auditLog.findMany({
+          where: {
+            schoolId: reader.schoolId,
+            action: "reader_event.attendance",
+          },
+          orderBy: { createdAt: "desc" },
+          take: 100,
+        }),
+        prisma.auditLog.findMany({
+          where: {
+            schoolId: reader.schoolId,
+            action: "reader_device.heartbeat",
+          },
+          orderBy: { createdAt: "desc" },
+          take: 100,
+        }),
+        prisma.auditLog.findMany({
+          where: {
+            schoolId: reader.schoolId,
+            action: "reader_device.ota_status",
+          },
+          orderBy: { createdAt: "desc" },
+          take: 100,
+        }),
+      ]);
 
-      const readerLogs = auditLogs.filter((log) => readerEventMatchesDevice(log.details, reader));
-      const recentScans = readerLogs.filter((log) => log.action === "reader_event.attendance").slice(0, 12);
-      const recentErrors = readerLogs.filter((log) => {
-        if (log.action === "reader_device.ota_status") {
-          const details = log.details as Record<string, unknown> | null;
-          return details?.status === "FAILED";
-        }
-        if (log.action === "reader_event.attendance") {
+      const recentScans = attendanceLogs
+        .filter((log) => readerEventMatchesDevice(log.details, reader))
+        .slice(0, 12);
+
+      const recentErrors = [
+        ...attendanceLogs.filter((log) => {
           const response = (log.details as Record<string, unknown> | null)?.response as { success?: unknown; status?: unknown } | undefined;
           if (isReviewOnlyReaderScanStatus(typeof response?.status === "string" ? response.status : null)) {
             return false;
           }
           return response?.success === false;
-        }
-        return false;
-      }).slice(0, 12);
-      const otaHistory = readerLogs.filter((log) => log.action === "reader_device.ota_status").slice(0, 12);
-      const heartbeats = readerLogs.filter((log) => log.action === "reader_device.heartbeat").slice(0, 12);
+        }),
+        ...otaLogs.filter((log) => {
+          const details = log.details as Record<string, unknown> | null;
+          return details?.status === "FAILED" && readerEventMatchesDevice(log.details, reader);
+        }),
+      ]
+        .filter((log) => readerEventMatchesDevice(log.details, reader))
+        .slice(0, 12);
+
+      const otaHistory = otaLogs
+        .filter((log) => readerEventMatchesDevice(log.details, reader))
+        .slice(0, 12);
+
+      const heartbeats = heartbeatLogs
+        .filter((log) => readerEventMatchesDevice(log.details, reader))
+        .slice(0, 12);
 
       res.json({
         reader: mapReader(reader),
