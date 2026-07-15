@@ -1517,7 +1517,7 @@ describe("readerGatewayRoutes location-aware atomicity", () => {
     expect([403, 404]).toContain(res.status);
     if (res.body.status) {
       expect(["UNKNOWN_CREDENTIAL", "BLOCKED"]).toContain(res.body.status);
-      expect(res.body.beep).toBe("error");
+      expect(res.body.beep).toBe("unknown");
     } else {
       expect(typeof res.body.error).toBe("string");
     }

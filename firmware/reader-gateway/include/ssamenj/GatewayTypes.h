@@ -118,6 +118,7 @@ struct ReaderApiResponse {
   bool success = false;
   int statusCode = 0;
   String action;
+  String status;
   String message;
   String studentName;
   String beep = "none";

@@ -191,6 +191,7 @@ bool GatewayClient::parseResponse(const String& body, int statusCode, ReaderApiR
 
   response.success = doc["success"] | response.success;
   response.action = doc["action"] | "";
+  response.status = doc["status"] | "";
   response.message = doc["message"] | "";
   response.studentName = doc["studentName"] | "";
   response.beep = doc["beep"] | response.beep;

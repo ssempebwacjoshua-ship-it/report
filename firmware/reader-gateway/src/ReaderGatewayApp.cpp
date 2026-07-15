@@ -121,8 +121,13 @@ const char* wifiStatusToString(wl_status_t status) {
   }
 }
 
-GatewayFeedbackTone toneFromBeep(const String& beep) {
-  return feedbackToneFromBeepValue(beep.c_str());
+GatewayFeedbackTone toneFromResponse(const ReaderApiResponse& response) {
+  return feedbackToneFromResponse(
+    response.beep.c_str(),
+    response.status.c_str(),
+    response.statusCode,
+    response.success
+  );
 }
 
 const char* toneName(GatewayFeedbackTone tone) {
@@ -1357,8 +1362,13 @@ void ReaderGatewayApp::processScan(const ReaderScanEvent& scan) {
     Serial.println("Queued scan for delivery");
     Serial.printf("Queue status after enqueue: %u\n", static_cast<unsigned int>(offlineQueueDepth_));
     if (!hasWorkingNetwork()) {
-      Serial.printf("Scan feedback: credential=%s serverStatus=%d beep=%s\n", event.credential.c_str(), 0, toneName(GatewayFeedbackTone::Offline));
-      feedback_.play(GatewayFeedbackTone::Offline);
+      Serial.printf(
+        "SERVER_BEEP=queued STATUS=OFFLINE_QUEUED HTTP=%d SELECTED_PATTERN=%s credential=%s\n",
+        0,
+        toneName(GatewayFeedbackTone::Queued),
+        event.credential.c_str()
+      );
+      feedback_.play(GatewayFeedbackTone::Queued);
     }
     return;
   }
@@ -1377,15 +1387,27 @@ void ReaderGatewayApp::processScan(const ReaderScanEvent& scan) {
     rememberAcceptedScan(event);
     markApiContact();
     Serial.println(response.success ? "Upload Success" : "Scan Rejected");
-    const GatewayFeedbackTone tone = toneFromBeep(response.beep);
-    Serial.printf("Scan feedback: credential=%s serverStatus=%d beep=%s\n", event.credential.c_str(), response.statusCode, toneName(tone));
+    const GatewayFeedbackTone tone = toneFromResponse(response);
+    Serial.printf(
+      "SERVER_BEEP=%s STATUS=%s HTTP=%d SELECTED_PATTERN=%s credential=%s\n",
+      response.beep.c_str(),
+      response.status.c_str(),
+      response.statusCode,
+      toneName(tone),
+      event.credential.c_str()
+    );
     feedback_.play(tone);
     return;
   }
 
   Serial.println("Upload Failed");
-  Serial.printf("Scan feedback: credential=%s serverStatus=%d beep=%s\n", event.credential.c_str(), response.statusCode, toneName(GatewayFeedbackTone::Offline));
-  feedback_.play(GatewayFeedbackTone::Offline);
+  Serial.printf(
+    "SERVER_BEEP=queued STATUS=OFFLINE_QUEUED HTTP=%d SELECTED_PATTERN=%s credential=%s\n",
+    response.statusCode,
+    toneName(GatewayFeedbackTone::Queued),
+    event.credential.c_str()
+  );
+  feedback_.play(GatewayFeedbackTone::Queued);
 }
 
 void ReaderGatewayApp::processOfflineQueue() {
@@ -1441,8 +1463,15 @@ void ReaderGatewayApp::processOfflineQueue() {
       response.action.c_str(),
       response.message.c_str());
   }
-  const GatewayFeedbackTone tone = toneFromBeep(response.beep);
-  Serial.printf("Queued scan feedback: credential=%s serverStatus=%d beep=%s\n", event.credential.c_str(), response.statusCode, toneName(tone));
+  const GatewayFeedbackTone tone = toneFromResponse(response);
+  Serial.printf(
+    "SERVER_BEEP=%s STATUS=%s HTTP=%d SELECTED_PATTERN=%s credential=%s\n",
+    response.beep.c_str(),
+    response.status.c_str(),
+    response.statusCode,
+    toneName(tone),
+    event.credential.c_str()
+  );
   feedback_.play(tone);
 }
 

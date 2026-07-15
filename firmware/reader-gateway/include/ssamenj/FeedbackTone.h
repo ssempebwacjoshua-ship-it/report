@@ -4,7 +4,8 @@ enum class GatewayFeedbackTone {
   None,
   Success,
   Duplicate,
-  Warning,
-  Offline,
+  Unknown,
+  OutOfSession,
+  Queued,
   Error,
 };

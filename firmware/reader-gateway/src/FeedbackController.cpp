@@ -66,11 +66,14 @@ void FeedbackController::play(GatewayFeedbackTone tone) {
     case GatewayFeedbackTone::Duplicate:
       toneLabel = "duplicate";
       break;
-    case GatewayFeedbackTone::Warning:
-      toneLabel = "warning";
+    case GatewayFeedbackTone::Unknown:
+      toneLabel = "unknown";
       break;
-    case GatewayFeedbackTone::Offline:
-      toneLabel = "offline";
+    case GatewayFeedbackTone::OutOfSession:
+      toneLabel = "out_of_session";
+      break;
+    case GatewayFeedbackTone::Queued:
+      toneLabel = "queued";
       break;
     case GatewayFeedbackTone::Error:
       toneLabel = "error";
