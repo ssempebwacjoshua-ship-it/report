@@ -97,6 +97,10 @@ describe("DashboardPage", () => {
     expect(screen.getAllByText("3").length).toBeGreaterThan(0);
     expect(screen.getAllByText("2").length).toBeGreaterThan(0);
     expect(screen.getAllByText("5").length).toBeGreaterThan(0);
+    expect(screen.getByRole("link", { name: /enrolled students/i })).toHaveAttribute("href", "/students");
+    expect(screen.getByRole("link", { name: /marks pending review/i })).toHaveAttribute("href", "/imports/marks");
+    expect(screen.getByRole("link", { name: /reports issued/i })).toHaveAttribute("href", "/reports?status=issued");
+    expect(screen.getByRole("link", { name: /reports released/i })).toHaveAttribute("href", "/reports?status=released");
     expect(screen.getByRole("link", { name: /gate and classroom attendance, including late students/i })).toHaveAttribute(
       "href",
       "/nfc/attendance?view=REGISTER",

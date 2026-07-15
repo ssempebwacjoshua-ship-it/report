@@ -370,7 +370,7 @@ export function DashboardPage() {
           trend={statsLoading ? "-" : activeTerm ? "Live" : "No term"}
           tone="green"
           icon="students"
-          href="/students"
+          to="/students"
         />
         <StatCard
           label="Marks Pending Review"
@@ -379,7 +379,7 @@ export function DashboardPage() {
           trend={pendingCount > 0 ? "Action" : "Clear"}
           tone="yellow"
           icon="cloud"
-          href="/imports/marks"
+          to="/imports/marks"
         />
         <StatCard
           label="Reports Issued"
@@ -388,7 +388,7 @@ export function DashboardPage() {
           trend={issuedCount > 0 ? "Live" : "None"}
           tone="purple"
           icon="file"
-          href="/reports"
+          to="/reports?status=issued"
         />
         <StatCard
           label="Reports Released"
@@ -397,7 +397,7 @@ export function DashboardPage() {
           trend={stats?.reportsReleasedCount ? "Sent" : "None"}
           tone="blue"
           icon="check"
-          href="/reports/release"
+          to="/reports?status=released"
         />
       </section>
 

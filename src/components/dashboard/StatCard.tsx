@@ -1,4 +1,5 @@
-﻿import { Icon } from "../layout/Icon";
+import { Link } from "react-router-dom";
+import { Icon } from "../layout/Icon";
 
 type Props = {
   label: string;
@@ -7,7 +8,7 @@ type Props = {
   trend: string;
   tone: "green" | "yellow" | "purple" | "blue";
   icon: "students" | "cloud" | "file" | "check";
-  href: string;
+  to: string;
 };
 
 const tones = {
@@ -40,9 +41,9 @@ const noteColors = {
   blue: "text-[color:var(--sc-primary-active)]",
 };
 
-export function StatCard({ label, value, note, trend, tone, icon, href }: Props) {
+export function StatCard({ label, value, note, trend, tone, icon, to }: Props) {
   return (
-    <a href={href} className="premium-card premium-card-hover group relative overflow-hidden rounded-xl p-3">
+    <Link to={to} className="premium-card premium-card-hover group relative overflow-hidden rounded-xl p-3">
       <div className={`absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${tones[tone].accent}`} />
       <div className="flex items-start gap-3">
         <div className={`grid h-9 w-9 shrink-0 place-items-center rounded-xl shadow-md shadow-slate-200 ${tones[tone].icon}`}>
@@ -62,7 +63,6 @@ export function StatCard({ label, value, note, trend, tone, icon, href }: Props)
           </p>
         </div>
       </div>
-    </a>
+    </Link>
   );
 }
-
