@@ -40,8 +40,6 @@ constexpr int SETUP_LED_PIN = 2;
 constexpr uint8_t SETUP_LED_ACTIVE_LEVEL = HIGH;
 constexpr uint8_t SETUP_LED_IDLE_LEVEL = LOW;
 constexpr int FACTORY_RESET_BUTTON_PIN = 0;
-constexpr int READER_STANDARD_D0_PIN = 4;
-constexpr int READER_STANDARD_D1_PIN = 5;
 constexpr int READER_STANDARD_BUZZER_PIN = 17;
 constexpr bool READER_STANDARD_FEEDBACK_DRIVER_ACTIVE_HIGH = false;
 
@@ -290,26 +288,6 @@ void ReaderGatewayApp::applyProvisioningOverrides() {
 
 bool ReaderGatewayApp::migrateHardwareFeedbackConfig() {
   bool changed = false;
-
-  if (config_.d0Pin != READER_STANDARD_D0_PIN) {
-    Serial.printf(
-      "Migrating D0 pin from %d to %d\n",
-      static_cast<int>(config_.d0Pin),
-      READER_STANDARD_D0_PIN
-    );
-    config_.d0Pin = READER_STANDARD_D0_PIN;
-    changed = true;
-  }
-
-  if (config_.d1Pin != READER_STANDARD_D1_PIN) {
-    Serial.printf(
-      "Migrating D1 pin from %d to %d\n",
-      static_cast<int>(config_.d1Pin),
-      READER_STANDARD_D1_PIN
-    );
-    config_.d1Pin = READER_STANDARD_D1_PIN;
-    changed = true;
-  }
 
   if (config_.buzzerPin != READER_STANDARD_BUZZER_PIN) {
     Serial.printf(
