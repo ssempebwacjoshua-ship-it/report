@@ -10,7 +10,12 @@ void FeedbackController::begin(const ReaderGatewayConfig& config) {
   idleLevel_ = config.feedbackDriverActiveHigh ? LOW : HIGH;
 
   if (!enabled_) {
-    Serial.println("Feedback outputs disabled; control wires must remain disconnected");
+    Serial.printf(
+      "Feedback outputs disabled; built-in reader beep will remain generic (buzzerPin=%d ledPin=%d enabled=%s)\n",
+      static_cast<int>(buzzerPin_),
+      static_cast<int>(ledPin_),
+      config.feedbackOutputsEnabled ? "true" : "false"
+    );
     return;
   }
 
@@ -53,28 +58,32 @@ void FeedbackController::resetPlayback() {
 }
 
 void FeedbackController::play(GatewayFeedbackTone tone) {
+  const char* toneLabel = nullptr;
   switch (tone) {
     case GatewayFeedbackTone::Success:
-      Serial.println("Feedback: success");
+      toneLabel = "success";
       break;
     case GatewayFeedbackTone::Duplicate:
-      Serial.println("Feedback: duplicate");
+      toneLabel = "duplicate";
       break;
     case GatewayFeedbackTone::Warning:
-      Serial.println("Feedback: warning");
+      toneLabel = "warning";
       break;
     case GatewayFeedbackTone::Offline:
-      Serial.println("Feedback: offline");
+      toneLabel = "offline";
       break;
     case GatewayFeedbackTone::Error:
-      Serial.println("Feedback: error");
+      toneLabel = "error";
       break;
     case GatewayFeedbackTone::None:
     default:
       return;
   }
 
+  Serial.printf("Feedback: %s\n", toneLabel);
+
   if (!enabled_) {
+    Serial.printf("Feedback tone '%s' requested but GPIO feedback is disabled; no ESP32 buzzer pattern will play\n", toneLabel);
     return;
   }
 

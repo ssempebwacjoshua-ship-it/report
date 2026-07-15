@@ -41,6 +41,18 @@
 #ifndef SSAMENJ_GATEWAY_DEFAULT_DEVICE_TOKEN
 #define SSAMENJ_GATEWAY_DEFAULT_DEVICE_TOKEN ""
 #endif
+#ifndef SSAMENJ_GATEWAY_DEFAULT_BUZZER_PIN
+#define SSAMENJ_GATEWAY_DEFAULT_BUZZER_PIN (-1)
+#endif
+#ifndef SSAMENJ_GATEWAY_DEFAULT_LED_PIN
+#define SSAMENJ_GATEWAY_DEFAULT_LED_PIN (-1)
+#endif
+#ifndef SSAMENJ_GATEWAY_DEFAULT_FEEDBACK_OUTPUTS_ENABLED
+#define SSAMENJ_GATEWAY_DEFAULT_FEEDBACK_OUTPUTS_ENABLED 0
+#endif
+#ifndef SSAMENJ_GATEWAY_DEFAULT_FEEDBACK_DRIVER_ACTIVE_HIGH
+#define SSAMENJ_GATEWAY_DEFAULT_FEEDBACK_DRIVER_ACTIVE_HIGH 0
+#endif
 
 struct ReaderGatewayConfig {
   String deviceId;
@@ -74,13 +86,13 @@ struct ReaderGatewayConfig {
 
   int8_t d0Pin = 18;
   int8_t d1Pin = 19;
-  int8_t buzzerPin = -1;
-  int8_t ledPin = -1;
+  int8_t buzzerPin = SSAMENJ_GATEWAY_DEFAULT_BUZZER_PIN;
+  int8_t ledPin = SSAMENJ_GATEWAY_DEFAULT_LED_PIN;
 
   bool tlsInsecure = true;
   bool autoRegister = true;
-  bool feedbackOutputsEnabled = false;
-  bool feedbackDriverActiveHigh = false;
+  bool feedbackOutputsEnabled = SSAMENJ_GATEWAY_DEFAULT_FEEDBACK_OUTPUTS_ENABLED != 0;
+  bool feedbackDriverActiveHigh = SSAMENJ_GATEWAY_DEFAULT_FEEDBACK_DRIVER_ACTIVE_HIGH != 0;
 };
 
 struct ReaderScanEvent {
