@@ -1,4 +1,4 @@
-﻿import { useCallback, useEffect, useRef, useState } from "react";
+﻿import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { NfcTag } from "../shared/types/nfcTags";
 import { NfcSectionTabs } from "../components/nfc/NfcSectionTabs";
 import {
@@ -105,6 +105,9 @@ function ActionsDropdown({ tag, actions, isOpen, onToggle, onClose }: {
   onClose: () => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const [placement, setPlacement] = useState<"down" | "up">("down");
 
   useEffect(() => {
     if (!isOpen) return;
@@ -114,6 +117,43 @@ function ActionsDropdown({ tag, actions, isOpen, onToggle, onClose }: {
     document.addEventListener("mousedown", handleClick);
     return () => document.removeEventListener("mousedown", handleClick);
   }, [isOpen, onClose]);
+
+  useLayoutEffect(() => {
+    if (!isOpen) return;
+
+    const updatePlacement = () => {
+      const trigger = triggerRef.current;
+      const menu = menuRef.current;
+      if (!trigger || !menu) return;
+
+      const triggerRect = trigger.getBoundingClientRect();
+      const menuHeight = menu.getBoundingClientRect().height || menu.scrollHeight || 0;
+      const viewportHeight = window.innerHeight;
+      const belowSpace = viewportHeight - triggerRect.bottom;
+      const aboveSpace = triggerRect.top;
+      const gap = 12;
+
+      if (belowSpace >= menuHeight + gap) {
+        setPlacement("down");
+        return;
+      }
+
+      if (aboveSpace >= menuHeight + gap) {
+        setPlacement("up");
+        return;
+      }
+
+      setPlacement(belowSpace >= aboveSpace ? "down" : "up");
+    };
+
+    updatePlacement();
+    window.addEventListener("resize", updatePlacement);
+    window.addEventListener("scroll", updatePlacement, true);
+    return () => {
+      window.removeEventListener("resize", updatePlacement);
+      window.removeEventListener("scroll", updatePlacement, true);
+    };
+  }, [isOpen]);
 
   const canAssign = tag.status !== "DISABLED" && tag.status !== "ASSIGNED";
   const canUnassign = tag.status === "ASSIGNED";
@@ -127,8 +167,9 @@ function ActionsDropdown({ tag, actions, isOpen, onToggle, onClose }: {
       <button
         type="button"
         onClick={onToggle}
+        ref={triggerRef}
         aria-label="Open actions"
-        className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+        className="relative z-50 inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
       >
         <svg className="h-4 w-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M12 5v.01M12 12v.01M12 19v.01" />
@@ -136,7 +177,9 @@ function ActionsDropdown({ tag, actions, isOpen, onToggle, onClose }: {
       </button>
 
       {isOpen && (
-        <div className="absolute bottom-full right-0 z-40 mb-1.5 w-52 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg">
+        <div
+          ref={menuRef}
+          className={`absolute right-0 z-[60] w-52 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg ${placement === "up" ? "bottom-full mb-1.5" : "top-full mt-1.5"}`}>
           <button
             type="button"
             onClick={() => { actions.onCopyPayload(); onClose(); }}
@@ -231,6 +274,9 @@ function RowMoreMenu({ tag, actions, isOpen, onToggle, onClose }: {
   onClose: () => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const [placement, setPlacement] = useState<"down" | "up">("down");
 
   useEffect(() => {
     if (!isOpen) return;
@@ -241,6 +287,43 @@ function RowMoreMenu({ tag, actions, isOpen, onToggle, onClose }: {
     return () => document.removeEventListener("mousedown", handleClick);
   }, [isOpen, onClose]);
 
+  useLayoutEffect(() => {
+    if (!isOpen) return;
+
+    const updatePlacement = () => {
+      const trigger = triggerRef.current;
+      const menu = menuRef.current;
+      if (!trigger || !menu) return;
+
+      const triggerRect = trigger.getBoundingClientRect();
+      const menuHeight = menu.getBoundingClientRect().height || menu.scrollHeight || 0;
+      const viewportHeight = window.innerHeight;
+      const belowSpace = viewportHeight - triggerRect.bottom;
+      const aboveSpace = triggerRect.top;
+      const gap = 12;
+
+      if (belowSpace >= menuHeight + gap) {
+        setPlacement("down");
+        return;
+      }
+
+      if (aboveSpace >= menuHeight + gap) {
+        setPlacement("up");
+        return;
+      }
+
+      setPlacement(belowSpace >= aboveSpace ? "down" : "up");
+    };
+
+    updatePlacement();
+    window.addEventListener("resize", updatePlacement);
+    window.addEventListener("scroll", updatePlacement, true);
+    return () => {
+      window.removeEventListener("resize", updatePlacement);
+      window.removeEventListener("scroll", updatePlacement, true);
+    };
+  }, [isOpen]);
+
   const canDisable = tag.status !== "DISABLED" && tag.status !== "LOST";
   const canEnable = tag.status === "DISABLED" || tag.status === "LOST";
 
@@ -249,7 +332,8 @@ function RowMoreMenu({ tag, actions, isOpen, onToggle, onClose }: {
       <button
         type="button"
         onClick={onToggle}
-        className="inline-flex min-h-[34px] items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-black leading-none text-slate-700 hover:bg-slate-50"
+        ref={triggerRef}
+        className="relative z-50 inline-flex min-h-[34px] items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-black leading-none text-slate-700 hover:bg-slate-50"
       >
         More
         <svg className="h-3.5 w-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -258,7 +342,9 @@ function RowMoreMenu({ tag, actions, isOpen, onToggle, onClose }: {
       </button>
 
       {isOpen ? (
-        <div className="absolute right-0 top-full z-40 mt-1.5 w-56 overflow-visible rounded-xl border border-slate-200 bg-white shadow-lg">
+        <div
+          ref={menuRef}
+          className={`absolute right-0 z-[60] w-56 overflow-visible rounded-xl border border-slate-200 bg-white shadow-lg ${placement === "up" ? "bottom-full mb-1.5" : "top-full mt-1.5"}`}>
           <button type="button" onClick={() => { actions.onCopyPayload(); onClose(); }} className="flex w-full items-center px-3 py-2.5 text-left text-sm font-semibold text-blue-700 hover:bg-blue-50">
             {actions.copiedPayloadId === tag.id ? "Copied!" : "Copy Payload"}
           </button>
