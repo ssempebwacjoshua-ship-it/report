@@ -23,6 +23,7 @@ class ReaderGatewayApp {
   bool savePendingOtaManifest(const ReaderOtaManifest& manifest) const;
   void clearPendingOtaManifest() const;
   bool shouldDeferOtaUpdate() const;
+  bool isProvisioned() const;
   bool verifyDownloadedFirmware(const String& digestHex, const ReaderOtaManifest& manifest) const;
   bool installOtaUpdate(const ReaderOtaManifest& manifest);
   void maybeCheckForOtaUpdate();

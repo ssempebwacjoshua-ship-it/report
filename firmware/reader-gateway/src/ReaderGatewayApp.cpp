@@ -555,6 +555,12 @@ bool ReaderGatewayApp::shouldDeferOtaUpdate() const {
   return transactionActive_ || otaUpdateInProgress_ || offlineQueueDepth_ > 0 || wiegand_.hasPendingFrame();
 }
 
+bool ReaderGatewayApp::isProvisioned() const {
+  return !config_.schoolId.isEmpty()
+    && !config_.bearerToken.isEmpty()
+    && config_.bearerToken != SSAMENJ_GATEWAY_DEFAULT_PROVISIONING_TOKEN;
+}
+
 bool ReaderGatewayApp::verifyDownloadedFirmware(const String& digestHex, const ReaderOtaManifest& manifest) const {
   const String expectedSha = lowerTrimmed(manifest.sha256);
   if (expectedSha.isEmpty() || digestHex != expectedSha) {
@@ -1065,7 +1071,7 @@ void ReaderGatewayApp::markApiContact() {
 }
 
 void ReaderGatewayApp::sendHeartbeat() {
-  if (!hasWorkingNetwork() || offlineQueueDepth_ > 0 || wiegand_.hasPendingFrame()) {
+  if (!hasWorkingNetwork() || !isProvisioned() || offlineQueueDepth_ > 0 || wiegand_.hasPendingFrame()) {
     return;
   }
 
@@ -1165,7 +1171,7 @@ void ReaderGatewayApp::processScan(const ReaderScanEvent& scan) {
 }
 
 void ReaderGatewayApp::processOfflineQueue() {
-  if (!hasWorkingNetwork()) {
+  if (!hasWorkingNetwork() || !isProvisioned()) {
     return;
   }
 
@@ -1250,7 +1256,7 @@ void ReaderGatewayApp::loop() {
       }
     }
     processOfflineQueue();
-    if (!wiegand_.hasPendingFrame() && offlineQueueDepth_ == 0) {
+    if (isProvisioned() && !wiegand_.hasPendingFrame() && offlineQueueDepth_ == 0) {
       sendHeartbeat();
       maybeCheckForOtaUpdate();
     }
