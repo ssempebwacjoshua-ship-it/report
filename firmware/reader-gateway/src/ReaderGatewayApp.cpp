@@ -40,6 +40,8 @@ constexpr int SETUP_LED_PIN = 2;
 constexpr uint8_t SETUP_LED_ACTIVE_LEVEL = HIGH;
 constexpr uint8_t SETUP_LED_IDLE_LEVEL = LOW;
 constexpr int FACTORY_RESET_BUTTON_PIN = 0;
+constexpr int READER_STANDARD_BUZZER_PIN = 17;
+constexpr bool READER_STANDARD_FEEDBACK_DRIVER_ACTIVE_HIGH = false;
 
 String joinPath(const String& base, const String& path) {
   if (base.endsWith("/") && path.startsWith("/")) {
@@ -282,6 +284,42 @@ void ReaderGatewayApp::applyProvisioningOverrides() {
   if (!provisionedFirmwareChannel_.isEmpty()) {
     config_.firmwareChannel = provisionedFirmwareChannel_;
   }
+}
+
+bool ReaderGatewayApp::migrateHardwareFeedbackConfig() {
+  bool changed = false;
+
+  if (config_.buzzerPin != READER_STANDARD_BUZZER_PIN) {
+    Serial.printf(
+      "Migrating buzzer pin from %d to %d\n",
+      static_cast<int>(config_.buzzerPin),
+      READER_STANDARD_BUZZER_PIN
+    );
+    config_.buzzerPin = READER_STANDARD_BUZZER_PIN;
+    changed = true;
+  }
+
+  if (config_.feedbackDriverActiveHigh != READER_STANDARD_FEEDBACK_DRIVER_ACTIVE_HIGH) {
+    Serial.printf(
+      "Migrating feedbackDriverActiveHigh from %s to %s\n",
+      config_.feedbackDriverActiveHigh ? "true" : "false",
+      READER_STANDARD_FEEDBACK_DRIVER_ACTIVE_HIGH ? "true" : "false"
+    );
+    config_.feedbackDriverActiveHigh = READER_STANDARD_FEEDBACK_DRIVER_ACTIVE_HIGH;
+    changed = true;
+  }
+
+  if (!changed) {
+    return false;
+  }
+
+  if (!persistAssignedConfiguration()) {
+    Serial.println("Failed to persist hardware feedback config migration");
+    return false;
+  }
+
+  Serial.println("Hardware feedback config migration saved");
+  return true;
 }
 
 bool ReaderGatewayApp::normalizeRegistrationMode() {
@@ -1137,6 +1175,7 @@ bool ReaderGatewayApp::begin() {
   const bool configLoaded = configManager_.load(config_);
   loadProvisioningState();
   applyProvisioningOverrides();
+  migrateHardwareFeedbackConfig();
   normalizeRegistrationMode();
   if (isLocalApiBaseUrl(config_.apiBaseUrl) && !isLocalApiBaseUrl(String(SSAMENJ_GATEWAY_DEFAULT_API_BASE_URL))) {
     config_.apiBaseUrl = SSAMENJ_GATEWAY_DEFAULT_API_BASE_URL;

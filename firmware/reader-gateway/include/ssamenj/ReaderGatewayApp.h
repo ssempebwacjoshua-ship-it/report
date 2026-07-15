@@ -31,6 +31,7 @@ class ReaderGatewayApp {
   bool beginProvisioningStorage();
   void loadProvisioningState();
   void applyProvisioningOverrides();
+  bool migrateHardwareFeedbackConfig();
   bool normalizeRegistrationMode();
   bool persistAssignedConfiguration();
   void applyRegistrationResult(const ReaderRegistrationResult& result);
