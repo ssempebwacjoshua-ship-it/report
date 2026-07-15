@@ -11,6 +11,7 @@ import { CANONICAL_STREAM_CODES, provisionSchoolOnboarding } from "../services/s
 import { getSmartPagesPackage } from "../services/smartPagesService";
 import type { SmartPagesPackageCode, SmartPagesPaymentNetwork, SmartPagesPaymentRequest } from "../../shared/types/smartPages";
 import { generateReaderGatewayActivationCode, hashReaderGatewayActivationCode } from "../services/readerGatewayRegistrationService";
+import { createFirmwareUpdateCommand } from "../services/readerDeviceCommandService";
 
 const validPlanCodes = REPORT_LAB_PLANS.map((p) => p.code) as [string, ...string[]];
 const FEATURE_FLAGS = ["REPORT_LAB", "SMART_PAGES", "ATTENDANCE", "WALLET", "GATE", "NFC", "OCR", "AI"] as const;
@@ -1374,6 +1375,47 @@ export function platformOwnerRoutes() {
       const body = z.object({ action: z.enum(MAINTENANCE_ACTIONS), reason: z.string().max(500).optional() }).parse(req.body);
       void ownerAudit(req.user!.userId, schoolId, `MAINTENANCE_${body.action}_REQUESTED_BY_OWNER`, { reason: body.reason ?? null }).catch(() => {});
       res.json({ ok: true, action: body.action, queued: false, message: "Maintenance request audited. Worker execution is not configured yet." });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/api/readers/:readerId/commands/firmware-update", requirePlatformOwner, async (req, res, next) => {
+    try {
+      const readerId = z.string().trim().min(1).parse(req.params.readerId);
+      const reader = await prisma.nfcOfflineDevice.findFirst({
+        where: buildDeviceIdentityWhere(readerId),
+        orderBy: RECENT_DEVICE_ORDER_BY,
+      });
+      if (!reader) {
+        res.status(404).json({ error: "Reader not found." });
+        return;
+      }
+
+      const result = await createFirmwareUpdateCommand(prisma as never, req.user!.userId, {
+        id: reader.id,
+        schoolId: reader.schoolId,
+        deviceKey: reader.deviceKey,
+        firmwareVersion: reader.firmwareVersion ?? null,
+        firmwareChannel: "stable",
+        otaStatus: reader.otaStatus ?? null,
+        otaMessage: reader.otaMessage ?? null,
+      });
+
+      res.status(result.idempotent ? 200 : 201).json({
+        ok: true,
+        command: {
+          id: result.command.id,
+          type: result.command.type,
+          status: result.command.status,
+          firmwareVersion: result.command.firmwareVersion,
+          firmwareUrl: result.command.firmwareUrl,
+          firmwareSha256: result.command.firmwareSha256,
+          requestedAt: result.command.requestedAt.toISOString(),
+        },
+        idempotent: result.idempotent,
+        warning: result.warning,
+      });
     } catch (error) {
       next(error);
     }

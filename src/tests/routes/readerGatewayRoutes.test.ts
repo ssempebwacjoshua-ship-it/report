@@ -10,6 +10,9 @@ const prismaMocks = vi.hoisted(() => ({
   nfcOfflineDeviceCreate: vi.fn(),
   nfcOfflineDeviceUpdate: vi.fn(),
   nfcOfflineDeviceUpdateMany: vi.fn(),
+  readerDeviceCommandFindFirst: vi.fn(),
+  readerDeviceCommandCreate: vi.fn(),
+  readerDeviceCommandUpdate: vi.fn(),
   schoolFindUnique: vi.fn(),
   schoolNfcPolicyFindUnique: vi.fn(),
   auditLogFindFirst: vi.fn(),
@@ -39,6 +42,11 @@ vi.mock("../../server/db/prisma", () => ({
       create: prismaMocks.nfcOfflineDeviceCreate,
       update: prismaMocks.nfcOfflineDeviceUpdate,
       updateMany: prismaMocks.nfcOfflineDeviceUpdateMany,
+    },
+    readerDeviceCommand: {
+      findFirst: prismaMocks.readerDeviceCommandFindFirst,
+      create: prismaMocks.readerDeviceCommandCreate,
+      update: prismaMocks.readerDeviceCommandUpdate,
     },
     school: {
       findUnique: prismaMocks.schoolFindUnique,
@@ -522,6 +530,9 @@ describe("readerGatewayRoutes", () => {
     prismaMocks.nfcOfflineDeviceFindFirst.mockResolvedValue(device());
     prismaMocks.nfcOfflineDeviceCreate.mockResolvedValue(device());
     prismaMocks.nfcOfflineDeviceUpdate.mockResolvedValue({});
+    prismaMocks.readerDeviceCommandFindFirst.mockResolvedValue(null);
+    prismaMocks.readerDeviceCommandCreate.mockResolvedValue({});
+    prismaMocks.readerDeviceCommandUpdate.mockResolvedValue({});
     prismaMocks.schoolFindUnique.mockResolvedValue({
       id: "school-1",
       code: "SCU-PREVIEW",
@@ -802,6 +813,133 @@ describe("readerGatewayRoutes", () => {
           freeHeap: 204800,
           rebootReason: "POWER_ON",
         }),
+      }),
+    }));
+  });
+
+  it("returns a pending firmware command for the authenticated reader heartbeat only", async () => {
+    prismaMocks.readerDeviceCommandFindFirst.mockResolvedValue({
+      id: "11111111-1111-4111-8111-111111111111",
+      type: "FIRMWARE_UPDATE",
+      status: "PENDING",
+      firmwareVersion: "1.0.10",
+      firmwareUrl: "https://report-production-b00d.up.railway.app/api/readers/ota/download/release-101",
+      firmwareSha256: "abc123",
+    });
+
+    const res = await request(buildApp())
+      .post("/api/readers/heartbeat")
+      .set("Authorization", "Bearer device-token-123")
+      .send({
+        deviceId: "attendance-gate-01",
+        readerId: "attendance-gate-01",
+        schoolId: "school-1",
+        firmwareVersion: "1.0.9",
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body.command).toMatchObject({
+      id: "11111111-1111-4111-8111-111111111111",
+      type: "FIRMWARE_UPDATE",
+      firmwareVersion: "1.0.10",
+      firmwareSha256: "abc123",
+    });
+    expect(prismaMocks.readerDeviceCommandFindFirst).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({
+        schoolId: "school-1",
+        deviceId: "dev-1",
+        status: "PENDING",
+      }),
+    }));
+  });
+
+  it("acks a pending firmware command for the authenticated reader", async () => {
+    prismaMocks.readerDeviceCommandFindFirst.mockResolvedValue({
+      id: "11111111-1111-4111-8111-111111111111",
+      schoolId: "school-1",
+      deviceId: "dev-1",
+      type: "FIRMWARE_UPDATE",
+      status: "PENDING",
+      firmwareVersion: "1.0.10",
+      requestedAt: new Date("2026-07-15T10:00:00Z"),
+      ackedAt: null,
+      completedAt: null,
+      lastStatusAt: null,
+      lastStatusMessage: null,
+      firmwareUrl: "https://report-production-b00d.up.railway.app/api/readers/ota/download/release-101",
+      firmwareSha256: "abc123",
+      requestedByUserId: "owner-1",
+      createdAt: new Date("2026-07-15T10:00:00Z"),
+      updatedAt: new Date("2026-07-15T10:00:00Z"),
+    });
+    prismaMocks.transaction.mockImplementation(async (fn: (tx: any) => Promise<unknown>) => fn({
+      readerDeviceCommand: { update: prismaMocks.readerDeviceCommandUpdate },
+      nfcOfflineDevice: { update: prismaMocks.nfcOfflineDeviceUpdate },
+      auditLog: { create: prismaMocks.auditLogCreate },
+    }));
+
+    const res = await request(buildApp())
+      .post("/api/readers/commands/11111111-1111-4111-8111-111111111111/ack")
+      .set("Authorization", "Bearer device-token-123")
+      .send({
+        deviceId: "attendance-gate-01",
+        readerId: "attendance-gate-01",
+        schoolId: "school-1",
+      });
+
+    expect(res.status).toBe(200);
+    expect(prismaMocks.readerDeviceCommandUpdate).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: "11111111-1111-4111-8111-111111111111" },
+      data: expect.objectContaining({
+        status: "ACKED",
+      }),
+    }));
+  });
+
+  it("records firmware command progress for the authenticated reader", async () => {
+    prismaMocks.readerDeviceCommandFindFirst.mockResolvedValue({
+      id: "11111111-1111-4111-8111-111111111111",
+      schoolId: "school-1",
+      deviceId: "dev-1",
+      type: "FIRMWARE_UPDATE",
+      status: "ACKED",
+      firmwareVersion: "1.0.10",
+      requestedAt: new Date("2026-07-15T10:00:00Z"),
+      ackedAt: new Date("2026-07-15T10:01:00Z"),
+      completedAt: null,
+      lastStatusAt: null,
+      lastStatusMessage: null,
+      firmwareUrl: "https://report-production-b00d.up.railway.app/api/readers/ota/download/release-101",
+      firmwareSha256: "abc123",
+      requestedByUserId: "owner-1",
+      createdAt: new Date("2026-07-15T10:00:00Z"),
+      updatedAt: new Date("2026-07-15T10:01:00Z"),
+    });
+    prismaMocks.transaction.mockImplementation(async (fn: (tx: any) => Promise<unknown>) => fn({
+      readerDeviceCommand: { update: prismaMocks.readerDeviceCommandUpdate },
+      nfcOfflineDevice: { update: prismaMocks.nfcOfflineDeviceUpdate },
+      auditLog: { create: prismaMocks.auditLogCreate },
+    }));
+
+    const res = await request(buildApp())
+      .post("/api/readers/commands/11111111-1111-4111-8111-111111111111/status")
+      .set("Authorization", "Bearer device-token-123")
+      .send({
+        deviceId: "attendance-gate-01",
+        readerId: "attendance-gate-01",
+        schoolId: "school-1",
+        status: "DOWNLOADING",
+        message: "Downloading firmware update.",
+        firmwareVersion: "1.0.10",
+      });
+
+    expect(res.status).toBe(200);
+    expect(prismaMocks.readerDeviceCommandUpdate).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: "11111111-1111-4111-8111-111111111111" },
+      data: expect.objectContaining({
+        status: "DOWNLOADING",
+        lastStatusMessage: "Downloading firmware update.",
+        firmwareVersion: "1.0.10",
       }),
     }));
   });

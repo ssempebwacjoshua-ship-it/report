@@ -19,6 +19,11 @@ import {
   hashReaderGatewayToken,
   resolveReaderGatewayRegistration,
 } from "../services/readerGatewayRegistrationService";
+import {
+  acknowledgeReaderCommand,
+  getPendingReaderCommand,
+  updateReaderCommandStatus,
+} from "../services/readerDeviceCommandService";
 
 type ReaderGatewayDevice = {
   id: string;
@@ -122,6 +127,14 @@ const otaStatusSchema = readerIdentitySchema.extend({
   toVersion: z.string().trim().min(1, "To version is required."),
   status: z.enum(["DOWNLOADING", "VERIFYING", "INSTALLING", "CONFIRMED", "FAILED", "DEFERRED"]),
   message: z.string().trim().min(1).max(500),
+});
+
+const commandAckSchema = readerIdentitySchema.extend({});
+
+const commandStatusSchema = readerIdentitySchema.extend({
+  status: z.enum(["ACKED", "DOWNLOADING", "INSTALLING", "SUCCEEDED", "FAILED"]),
+  message: z.string().trim().min(1).max(500),
+  firmwareVersion: z.string().trim().optional(),
 });
 
 function bearerToken(req: Express.Request) {
@@ -355,6 +368,19 @@ export function readerGatewayRoutes() {
       const body = registerSchema.parse(req.body);
       const auth = await authenticateRegistration(req, body);
       const registration = await resolveReaderGatewayRegistration(prisma as never, auth, body, req.ip);
+      const registeredDevice = await prisma.nfcOfflineDevice.findFirst({
+        where: {
+          schoolId: registration.schoolId,
+          OR: [
+            { id: registration.deviceId },
+            { deviceKey: registration.deviceId },
+          ],
+        },
+        select: { id: true },
+      });
+      const command = registeredDevice
+        ? await getPendingReaderCommand(prisma as never, registration.schoolId, registeredDevice.id)
+        : null;
 
       const response: ReaderGatewayResponse = {
         success: true,
@@ -374,6 +400,7 @@ export function readerGatewayRoutes() {
         bearerToken: registration.bearerToken,
         apiBaseUrl: registration.apiBaseUrl,
         firmwareChannel: registration.firmwareChannel,
+        command,
       });
     } catch (error) {
       next(error);
@@ -609,11 +636,64 @@ export function readerGatewayRoutes() {
         },
       }).catch(() => null);
 
-      res.json({
+      const command = await getPendingReaderCommand(prisma as never, device.schoolId, device.id);
+
+      const heartbeatResponse: ReaderGatewayResponse = {
         success: true,
         action: "REGISTER",
         status: "REGISTERED",
         message: "Heartbeat received",
+        beep: "none",
+        feedback: { beep: "none" },
+      };
+      res.json({
+        ...heartbeatResponse,
+        command,
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/api/readers/commands/:commandId/ack", async (req, res, next) => {
+    try {
+      const commandId = z.string().uuid("Command ID is invalid.").parse(req.params.commandId);
+      const body = commandAckSchema.parse(req.body);
+      const device = await authenticateDevice(req, body);
+      await acknowledgeReaderCommand(prisma as never, device, commandId);
+
+      res.json({
+        success: true,
+        action: "COMMAND",
+        status: "ACKED",
+        message: "Reader command acknowledged.",
+        beep: "none",
+        feedback: { beep: "none" },
+      } satisfies ReaderGatewayResponse);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/api/readers/commands/:commandId/status", async (req, res, next) => {
+    try {
+      const commandId = z.string().uuid("Command ID is invalid.").parse(req.params.commandId);
+      const body = commandStatusSchema.parse(req.body);
+      const device = await authenticateDevice(req, body);
+      await updateReaderCommandStatus(
+        prisma as never,
+        device,
+        commandId,
+        body.status,
+        body.message,
+        body.firmwareVersion ?? null,
+      );
+
+      res.json({
+        success: true,
+        action: "COMMAND",
+        status: body.status,
+        message: "Reader command status recorded.",
         beep: "none",
         feedback: { beep: "none" },
       } satisfies ReaderGatewayResponse);

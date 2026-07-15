@@ -50,6 +50,7 @@ model School {
   nfcTags                      NfcTag[]
   nfcTagBatches                NfcTagBatch[]
   nfcOfflineDevices            NfcOfflineDevice[]
+  readerDeviceCommands         ReaderDeviceCommand[]
   nfcOfflineSyncBatches        NfcOfflineSyncBatch[]
   communicationCampaigns       CommunicationCampaign[]
   communicationRecipients      CommunicationRecipient[]
@@ -1480,11 +1481,37 @@ model NfcOfflineDevice {
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 
-  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  school         School               @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  deviceCommands ReaderDeviceCommand[]
 
   @@index([schoolId, isActive])
   @@index([provisioningStatus, activationCodeExpiresAt])
   @@index([activationCodeHash])
+}
+
+model ReaderDeviceCommand {
+  id                String   @id @default(uuid()) @db.Uuid
+  schoolId          String   @db.Uuid
+  deviceId          String   @db.Uuid
+  type              String
+  status            String   @default("PENDING") // PENDING | ACKED | DOWNLOADING | INSTALLING | SUCCEEDED | FAILED
+  firmwareVersion   String?
+  firmwareUrl       String?
+  firmwareSha256    String?
+  requestedByUserId String?
+  requestedAt       DateTime @default(now())
+  ackedAt           DateTime?
+  completedAt       DateTime?
+  lastStatusAt      DateTime?
+  lastStatusMessage String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  school School           @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  device NfcOfflineDevice @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  @@index([schoolId, deviceId, type, status, requestedAt], map: "ReaderDeviceCommand_school_device_type_status_requestedAt_idx")
+  @@index([deviceId, status, requestedAt], map: "ReaderDeviceCommand_device_status_requestedAt_idx")
 }
 
 model NfcOfflineSyncBatch {

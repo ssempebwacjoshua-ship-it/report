@@ -121,6 +121,14 @@ struct ReaderApiResponse {
   String message;
   String studentName;
   String beep = "none";
+  bool hasCommand = false;
+  struct ReaderPendingCommand {
+    String id;
+    String type;
+    String firmwareVersion;
+    String firmwareUrl;
+    String firmwareSha256;
+  } command;
 };
 
 struct ReaderRegistrationResult {
@@ -169,4 +177,11 @@ struct ReaderOtaStatusReport {
   String toVersion;
   String status;
   String message;
+};
+
+struct ReaderCommandStatusReport {
+  String commandId;
+  String status;
+  String message;
+  String firmwareVersion;
 };

@@ -157,6 +157,22 @@ String buildOtaStatusPayload(const ReaderGatewayConfig& config, const ReaderOtaS
   return payload;
 }
 
+String buildCommandStatusPayload(const ReaderGatewayConfig& config, const ReaderCommandStatusReport& report) {
+  JsonDocument doc;
+  doc["deviceId"] = config.deviceId;
+  doc["readerId"] = config.readerId;
+  doc["schoolId"] = config.schoolId;
+  doc["status"] = report.status;
+  doc["message"] = report.message;
+  if (!report.firmwareVersion.isEmpty()) {
+    doc["firmwareVersion"] = report.firmwareVersion;
+  }
+
+  String payload;
+  serializeJson(doc, payload);
+  return payload;
+}
+
 bool GatewayClient::parseResponse(const String& body, int statusCode, ReaderApiResponse& response) {
   response = ReaderApiResponse{};
   response.statusCode = statusCode;
@@ -178,6 +194,15 @@ bool GatewayClient::parseResponse(const String& body, int statusCode, ReaderApiR
   response.message = doc["message"] | "";
   response.studentName = doc["studentName"] | "";
   response.beep = doc["beep"] | response.beep;
+  JsonVariant command = doc["command"];
+  if (!command.isNull()) {
+    response.command.id = command["id"] | "";
+    response.command.type = command["type"] | "";
+    response.command.firmwareVersion = command["firmwareVersion"] | "";
+    response.command.firmwareUrl = command["firmwareUrl"] | "";
+    response.command.firmwareSha256 = command["firmwareSha256"] | "";
+    response.hasCommand = !response.command.id.isEmpty() && !response.command.type.isEmpty();
+  }
   return response.success;
 }
 
@@ -339,4 +364,25 @@ bool GatewayClient::reportOtaStatus(const ReaderGatewayConfig& config, const Rea
   }
   const String body = buildOtaStatusPayload(config, report);
   return sendJson(config, config.otaStatusPath, body, response);
+}
+
+bool GatewayClient::acknowledgeCommand(const ReaderGatewayConfig& config, const String& commandId, ReaderApiResponse& response) {
+  if (commandId.isEmpty()) {
+    return false;
+  }
+  JsonDocument doc;
+  doc["deviceId"] = config.deviceId;
+  doc["readerId"] = config.readerId;
+  doc["schoolId"] = config.schoolId;
+  String body;
+  serializeJson(doc, body);
+  return sendJson(config, String("/api/readers/commands/") + commandId + "/ack", body, response);
+}
+
+bool GatewayClient::reportCommandStatus(const ReaderGatewayConfig& config, const ReaderCommandStatusReport& report, ReaderApiResponse& response) {
+  if (report.commandId.isEmpty()) {
+    return false;
+  }
+  const String body = buildCommandStatusPayload(config, report);
+  return sendJson(config, String("/api/readers/commands/") + report.commandId + "/status", body, response);
 }

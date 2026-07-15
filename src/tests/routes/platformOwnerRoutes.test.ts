@@ -415,6 +415,21 @@ describe("platformOwnerRoutes ? school management console", () => {
 });
 
 describe("platformOwnerRoutes ? reader management inventory", () => {
+  beforeAll(() => {
+    process.env.READER_GATEWAY_OTA_RELEASES_JSON = JSON.stringify([{
+      releaseId: "release-command-110",
+      version: "1.0.10",
+      channel: "stable",
+      sha256: "abc123",
+      signature: "ZmFrZS1zaWduYXR1cmU=",
+      signatureAlgorithm: "ECDSA_P256_SHA256",
+      publicKeyId: "reader-gateway-2026",
+      artifactPath: "firmware/reader-gateway/releases/ssamenj-reader-gateway-1.0.10.bin",
+      enabled: true,
+      targetDeviceIds: ["attendance-gate-01"],
+    }]);
+  });
+
   async function firstSchoolIdForReaders() {
     const schoolsRes = await request(createServer())
       .get("/api/owner/schools")
@@ -585,6 +600,84 @@ describe("platformOwnerRoutes ? reader management inventory", () => {
 
     expect(res.status).toBe(200);
     expect(res.body.reader.deviceKey).toBe(fixture.reader.deviceKey);
+  });
+
+  it("blocks non-owners from creating firmware update commands", async () => {
+    const res = await request(createServer())
+      .post("/api/readers/attendance-gate-01/commands/firmware-update")
+      .set("Authorization", `Bearer ${normalToken}`);
+
+    expect(res.status).toBe(403);
+  });
+
+  it("creates a pending firmware update command for a targeted reader", async () => {
+    const schoolId = await firstSchoolIdForReaders();
+    if (!schoolId) return;
+
+    const reader = await prisma.nfcOfflineDevice.create({
+      data: {
+        schoolId,
+        name: `OTA Reader ${Date.now()}`,
+        deviceKey: "attendance-gate-01",
+        deviceTokenHash: "ota-hash",
+        mode: "ATTENDANCE",
+        location: "Main Gate",
+        locationName: "Main Gate",
+        locationType: "GATE",
+        firmwareVersion: "1.0.9",
+        status: "ACTIVE",
+        roleScope: "ADMIN_OPERATOR",
+        isActive: true,
+      },
+    });
+
+    const res = await request(createServer())
+      .post(`/api/readers/${reader.id}/commands/firmware-update`)
+      .set("Authorization", `Bearer ${ownerToken}`);
+
+    expect([200, 201]).toContain(res.status);
+    expect(res.body.command.type).toBe("FIRMWARE_UPDATE");
+    expect(res.body.command.status).toBe("PENDING");
+    expect(res.body.command.firmwareVersion).toBe("1.0.10");
+    const created = await (prisma as any).readerDeviceCommand.findFirst({
+      where: { deviceId: reader.id, status: "PENDING" },
+      orderBy: { requestedAt: "desc" },
+    });
+    expect(created).toBeTruthy();
+  });
+
+  it("returns the existing active firmware command for duplicate reader/version requests", async () => {
+    const schoolId = await firstSchoolIdForReaders();
+    if (!schoolId) return;
+
+    const reader = await prisma.nfcOfflineDevice.create({
+      data: {
+        schoolId,
+        name: `OTA Reader Duplicate ${Date.now()}`,
+        deviceKey: "attendance-gate-01",
+        deviceTokenHash: "ota-hash-duplicate",
+        mode: "ATTENDANCE",
+        location: "Main Gate",
+        locationName: "Main Gate",
+        locationType: "GATE",
+        firmwareVersion: "1.0.9",
+        status: "ACTIVE",
+        roleScope: "ADMIN_OPERATOR",
+        isActive: true,
+      },
+    });
+
+    const first = await request(createServer())
+      .post(`/api/readers/${reader.id}/commands/firmware-update`)
+      .set("Authorization", `Bearer ${ownerToken}`);
+    const second = await request(createServer())
+      .post(`/api/readers/${reader.id}/commands/firmware-update`)
+      .set("Authorization", `Bearer ${ownerToken}`);
+
+    expect([200, 201]).toContain(first.status);
+    expect(second.status).toBe(200);
+    expect(second.body.idempotent).toBe(true);
+    expect(second.body.command.id).toBe(first.body.command.id);
   });
 });
 

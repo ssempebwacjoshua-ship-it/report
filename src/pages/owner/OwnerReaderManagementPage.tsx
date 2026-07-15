@@ -594,7 +594,9 @@ export function OwnerReaderDetailPage() {
     try {
       if (!data?.reader.schoolId) return;
       await requestOwnerReaderAction(data.reader.schoolId, data.reader.id, action);
-      setNotice(`${action.replace(/_/g, " ")} requested.`);
+      setNotice(action === "UPDATE_FIRMWARE"
+        ? "Firmware update requested. Keep the reader powered and connected to Wi-Fi while it installs."
+        : `${action.replace(/_/g, " ")} requested.`);
       await loadReader();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Could not request reader action.");

@@ -385,6 +385,14 @@ export async function requestOwnerMaintenance(schoolId: string, action: "FORCE_S
 }
 
 export async function requestOwnerReaderAction(schoolId: string, deviceId: string, action: "RESTART" | "SYNC" | "UPDATE_FIRMWARE" | "RE_REGISTER"): Promise<void> {
+  if (action === "UPDATE_FIRMWARE") {
+    const updateRes = await fetch(`${API_BASE}/api/readers/${encodeURIComponent(deviceId)}/commands/firmware-update`, {
+      method: "POST",
+      headers: makeRequestHeaders({ "Content-Type": "application/json" }),
+    });
+    if (!updateRes.ok) throw new Error(await parseApiError(updateRes, "Could not request firmware update"));
+    return;
+  }
   const res = await fetch(`${API_BASE}/api/owner/schools/${encodeURIComponent(schoolId)}/readers/${encodeURIComponent(deviceId)}/actions`, {
     method: "POST",
     headers: makeRequestHeaders({ "Content-Type": "application/json" }),

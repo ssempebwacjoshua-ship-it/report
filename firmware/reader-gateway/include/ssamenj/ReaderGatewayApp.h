@@ -53,6 +53,9 @@ class ReaderGatewayApp {
   void processScan(const ReaderScanEvent& event);
   void processOfflineQueue();
   void sendHeartbeat();
+  void maybeProcessPendingCommand(const ReaderApiResponse& response);
+  bool installCommandOtaUpdate(const ReaderApiResponse::ReaderPendingCommand& command);
+  void reportCommandStatus(const String& commandId, const String& status, const String& message, const String& firmwareVersion = "");
   void markApiContact();
   bool hasWorkingNetwork() const;
   bool shouldSuppressDuplicateScan(const ReaderScanEvent& event) const;

@@ -647,6 +647,188 @@ void ReaderGatewayApp::reportOtaStatus(const String& status, const String& messa
   Serial.printf("OTA status reported: %s\n", status.c_str());
 }
 
+void ReaderGatewayApp::reportCommandStatus(
+  const String& commandId,
+  const String& status,
+  const String& message,
+  const String& firmwareVersion
+) {
+  if (commandId.isEmpty()) {
+    return;
+  }
+
+  ReaderCommandStatusReport report;
+  report.commandId = commandId;
+  report.status = status;
+  report.message = message;
+  report.firmwareVersion = firmwareVersion;
+
+  ReaderApiResponse response;
+  if (!gatewayClient_.reportCommandStatus(config_, report, response)) {
+    Serial.printf("Command status report failed: %s\n", status.c_str());
+    return;
+  }
+  Serial.printf("Command status reported: %s\n", status.c_str());
+}
+
+bool ReaderGatewayApp::installCommandOtaUpdate(const ReaderApiResponse::ReaderPendingCommand& command) {
+  if (command.id.isEmpty() || command.firmwareUrl.isEmpty()) {
+    Serial.println("Command OTA skipped: missing command ID or firmware URL");
+    return false;
+  }
+
+  otaUpdateInProgress_ = true;
+  Serial.printf("Reader command received: id=%s type=%s version=%s\n",
+    command.id.c_str(),
+    command.type.c_str(),
+    command.firmwareVersion.c_str());
+
+  ReaderApiResponse ackResponse;
+  if (!gatewayClient_.acknowledgeCommand(config_, command.id, ackResponse) || !ackResponse.success) {
+    otaUpdateInProgress_ = false;
+    Serial.printf("Command ack failed: %s\n", command.id.c_str());
+    return false;
+  }
+
+  reportCommandStatus(command.id, "DOWNLOADING", "Downloading commanded firmware update.", command.firmwareVersion);
+  Serial.printf("Firmware download started: %s\n", command.firmwareUrl.c_str());
+
+  const String url = command.firmwareUrl;
+  HTTPClient http;
+  std::unique_ptr<WiFiClientSecure> secureClient;
+  WiFiClient plainClient;
+  if (url.startsWith("https://")) {
+    secureClient.reset(new WiFiClientSecure());
+    if (!config_.tlsRootCaPem.isEmpty()) {
+      secureClient->setCACert(config_.tlsRootCaPem.c_str());
+    } else if (config_.tlsInsecure) {
+      secureClient->setInsecure();
+    }
+    if (!http.begin(*secureClient, url)) {
+      Serial.printf("Command OTA HTTP begin failed for %s\n", url.c_str());
+      logTlsError(*secureClient);
+      otaUpdateInProgress_ = false;
+      reportCommandStatus(command.id, "FAILED", "Failed to open commanded firmware URL.", command.firmwareVersion);
+      return false;
+    }
+  } else if (!http.begin(plainClient, url)) {
+    Serial.printf("Command OTA HTTP begin failed for %s\n", url.c_str());
+    otaUpdateInProgress_ = false;
+    reportCommandStatus(command.id, "FAILED", "Failed to open commanded firmware URL.", command.firmwareVersion);
+    return false;
+  }
+
+  http.setTimeout(15000);
+  http.addHeader("X-Device-Id", config_.deviceId);
+  http.addHeader("X-Reader-Id", config_.readerId);
+  http.addHeader("X-School-Id", config_.schoolId);
+  http.addHeader("X-Firmware-Version", config_.firmwareVersion);
+  http.addHeader("X-Firmware-Channel", config_.firmwareChannel);
+  if (!config_.bearerToken.isEmpty()) {
+    http.addHeader("Authorization", String("Bearer ") + config_.bearerToken);
+  }
+
+  const int statusCode = http.GET();
+  if (statusCode != 200) {
+    Serial.printf("Command OTA download failed with status %d\n", statusCode);
+    if (statusCode < 0 && secureClient) {
+      logTlsError(*secureClient);
+    }
+    http.end();
+    otaUpdateInProgress_ = false;
+    reportCommandStatus(command.id, "FAILED", "Commanded firmware download request failed.", command.firmwareVersion);
+    return false;
+  }
+
+  const int contentLength = http.getSize();
+  if (!Update.begin(contentLength > 0 ? static_cast<size_t>(contentLength) : UPDATE_SIZE_UNKNOWN, U_FLASH)) {
+    Serial.printf("Command OTA Update.begin failed: %s\n", Update.errorString());
+    http.end();
+    otaUpdateInProgress_ = false;
+    reportCommandStatus(command.id, "FAILED", "Commanded OTA partition init failed.", command.firmwareVersion);
+    return false;
+  }
+
+  reportCommandStatus(command.id, "INSTALLING", "Installing commanded firmware update.", command.firmwareVersion);
+  Serial.println("Firmware install started");
+
+  WiFiClient* stream = http.getStreamPtr();
+  mbedtls_sha256_context sha;
+  mbedtls_sha256_init(&sha);
+  mbedtls_sha256_starts_ret(&sha, 0);
+
+  uint8_t buffer[1024];
+  int remaining = contentLength;
+  while (http.connected() && (remaining > 0 || remaining == -1)) {
+    const size_t available = stream->available();
+    if (available == 0) {
+      delay(1);
+      yield();
+      continue;
+    }
+
+    const size_t chunkSize = available > sizeof(buffer) ? sizeof(buffer) : available;
+    const int bytesRead = stream->readBytes(reinterpret_cast<char*>(buffer), chunkSize);
+    if (bytesRead <= 0) {
+      continue;
+    }
+
+    mbedtls_sha256_update_ret(&sha, buffer, static_cast<size_t>(bytesRead));
+    if (Update.write(buffer, static_cast<size_t>(bytesRead)) != static_cast<size_t>(bytesRead)) {
+      Serial.printf("Command OTA write failed: %s\n", Update.errorString());
+      mbedtls_sha256_free(&sha);
+      Update.abort();
+      http.end();
+      otaUpdateInProgress_ = false;
+      reportCommandStatus(command.id, "FAILED", "Commanded OTA write failed.", command.firmwareVersion);
+      return false;
+    }
+
+    if (remaining > 0) {
+      remaining -= bytesRead;
+    }
+    yield();
+  }
+
+  uint8_t digest[32];
+  mbedtls_sha256_finish_ret(&sha, digest);
+  mbedtls_sha256_free(&sha);
+  const String digestHex = lowerTrimmed(digestToHex(digest));
+  const String expectedSha = lowerTrimmed(command.firmwareSha256);
+
+  if (remaining > 0) {
+    Update.abort();
+    http.end();
+    otaUpdateInProgress_ = false;
+    reportCommandStatus(command.id, "FAILED", "Commanded OTA download ended early.", command.firmwareVersion);
+    return false;
+  }
+
+  if (!expectedSha.isEmpty() && digestHex != expectedSha) {
+    Serial.printf("Command OTA SHA mismatch expected=%s actual=%s\n", expectedSha.c_str(), digestHex.c_str());
+    Update.abort();
+    http.end();
+    otaUpdateInProgress_ = false;
+    reportCommandStatus(command.id, "FAILED", "Commanded OTA SHA-256 verification failed.", command.firmwareVersion);
+    return false;
+  }
+
+  if (!Update.end(true) || !Update.isFinished()) {
+    Serial.printf("Command OTA finalize failed: %s\n", Update.errorString());
+    http.end();
+    otaUpdateInProgress_ = false;
+    reportCommandStatus(command.id, "FAILED", "Commanded OTA finalize failed.", command.firmwareVersion);
+    return false;
+  }
+
+  http.end();
+  Serial.printf("Firmware install success: %s -> %s\n", config_.firmwareVersion.c_str(), command.firmwareVersion.c_str());
+  reportCommandStatus(command.id, "SUCCEEDED", "Commanded firmware update installed successfully. Rebooting.", command.firmwareVersion);
+  delay(250);
+  ESP.restart();
+  return true;
+}
+
 bool ReaderGatewayApp::installOtaUpdate(const ReaderOtaManifest& manifest) {
   if (shouldDeferOtaUpdate()) {
     reportOtaStatus("DEFERRED", "Reader transaction is active; OTA deferred.", manifest);
@@ -1079,6 +1261,25 @@ void ReaderGatewayApp::markApiContact() {
   maybeConfirmOtaBoot();
 }
 
+void ReaderGatewayApp::maybeProcessPendingCommand(const ReaderApiResponse& response) {
+  if (!response.hasCommand) {
+    return;
+  }
+  if (!response.command.type.equalsIgnoreCase("FIRMWARE_UPDATE")) {
+    Serial.printf("Reader command ignored: unsupported type=%s\n", response.command.type.c_str());
+    return;
+  }
+  if (shouldDeferOtaUpdate()) {
+    Serial.printf("Reader command deferred: id=%s queueDepth=%u transactionActive=%s pendingFrame=%s\n",
+      response.command.id.c_str(),
+      static_cast<unsigned int>(offlineQueueDepth_),
+      transactionActive_ ? "true" : "false",
+      wiegand_.hasPendingFrame() ? "true" : "false");
+    return;
+  }
+  installCommandOtaUpdate(response.command);
+}
+
 void ReaderGatewayApp::sendHeartbeat() {
   if (!hasWorkingNetwork() || offlineQueueDepth_ > 0 || wiegand_.hasPendingFrame()) {
     return;
@@ -1102,6 +1303,7 @@ void ReaderGatewayApp::sendHeartbeat() {
   ReaderApiResponse response;
   if (gatewayClient_.postHeartbeat(config_, metrics, response) && response.success) {
     markApiContact();
+    maybeProcessPendingCommand(response);
     Serial.println("Heartbeat Success");
     return;
   }
