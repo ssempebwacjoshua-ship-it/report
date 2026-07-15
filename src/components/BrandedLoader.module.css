@@ -12,6 +12,13 @@
 }
 
 .page {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
+  min-height: 100vh;
   min-height: 100dvh;
 }
 
@@ -30,8 +37,8 @@
 .markWrap {
   position: relative;
   display: grid;
-  width: 9.25rem;
-  height: 9.25rem;
+  width: 128px;
+  height: 128px;
   place-items: center;
 }
 
@@ -50,10 +57,12 @@
 }
 
 .ring {
-  inset: 0.72rem;
-  border: 1px solid rgba(0, 127, 255, 0.18);
+  inset: 0;
+  border: 1.5px solid rgba(59, 130, 246, 0.14);
+  border-top-color: rgba(37, 99, 235, 0.85);
+  border-right-color: rgba(0, 127, 255, 0.34);
   box-shadow:
-    0 0 0 0.42rem rgba(239, 246, 255, 0.72),
+    0 0 0 0.36rem rgba(239, 246, 255, 0.72),
     0 18px 48px rgba(0, 127, 255, 0.14);
 }
 
@@ -65,11 +74,12 @@
   background: conic-gradient(
     from 18deg,
     rgba(0, 127, 255, 0),
-    rgba(0, 127, 255, 0.48),
-    rgba(0, 127, 255, 0) 32%,
+    rgba(37, 99, 235, 0.5),
+    rgba(0, 127, 255, 0) 26%,
     rgba(0, 127, 255, 0) 100%
   );
   mask: radial-gradient(circle, transparent calc(100% - 2px), #000 calc(100% - 1px));
+  opacity: 0.75;
 }
 
 .logo,
@@ -99,11 +109,16 @@
 
 .text {
   margin: 0;
+  min-height: 24px;
+  max-width: min(320px, calc(100vw - 32px));
   color: #0b2f6b;
   font-size: var(--font-body, 0.875rem);
   font-weight: 800;
   line-height: 1.4;
   text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .compact {
@@ -139,8 +154,8 @@
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  .ring::after {
-    animation: brandedLoaderRing 1900ms linear infinite;
+  .ring {
+    animation: brandedLoaderRing 1600ms linear infinite;
   }
 
   .glow {
@@ -155,6 +170,7 @@
 
 @media (prefers-reduced-motion: reduce) {
   .ring::after,
+  .ring,
   .glow,
   .logo,
   .logoFallback {
