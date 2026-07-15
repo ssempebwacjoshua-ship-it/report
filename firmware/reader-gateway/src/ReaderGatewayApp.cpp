@@ -477,7 +477,6 @@ bool ReaderGatewayApp::openSetupPortal(const char* reason) {
   }
 
   applyProvisioningOverrides();
-  wiegand_.reset();
   wifiDisconnectedSinceMs_ = 0;
   lastWifiAttemptMs_ = millis();
 
@@ -905,7 +904,7 @@ bool ReaderGatewayApp::isValidScanEvent(const ReaderScanEvent& event, const char
     reason = "no pulses received";
     return false;
   }
-  if (event.rawWiegandBitCount != 26 && event.rawWiegandBitCount != 34 && event.rawWiegandBitCount != 37) {
+  if (event.rawWiegandBitCount != 26 && event.rawWiegandBitCount != 34) {
     reason = "unsupported bit count";
     return false;
   }
@@ -1023,10 +1022,9 @@ bool ReaderGatewayApp::begin() {
       Serial.println("Verifying school code...");
       Serial.println("Registering reader...");
       applyRegistrationResult(registration);
-      wiegand_.reset();
       markApiContact();
     } else if (config_.autoRegister) {
-      logRegistrationFailure("Assignment Pending", deviceRegistration_.lastResponse());
+      Serial.println("Assignment Pending");
     }
     processOfflineQueue();
   }
@@ -1296,9 +1294,8 @@ void ReaderGatewayApp::loop() {
         applyRegistrationResult(registration);
         markApiContact();
       } else if (config_.autoRegister) {
-        const ReaderApiResponse& response = deviceRegistration_.lastResponse();
-        logRegistrationFailure("Assignment Pending", response);
-        if (shouldReenterActivation(response)) {
+        logRegistrationFailure("Assignment Pending", deviceRegistration_.lastResponse());
+        if (shouldReenterActivation(deviceRegistration_.lastResponse())) {
           Serial.println("Invalid device token detected; reopening setup for activation");
           config_.bearerToken = "";
           config_.registrationPath = "/api/readers/activate";
@@ -1324,12 +1321,10 @@ void ReaderGatewayApp::loop() {
     if (deviceRegistration_.registerNow(&registration)) {
       Serial.println("Registering reader...");
       applyRegistrationResult(registration);
-      wiegand_.reset();
       markApiContact();
     } else {
-      const ReaderApiResponse& response = deviceRegistration_.lastResponse();
-      logRegistrationFailure("Server unavailable; setup saved and retrying", response);
-      if (shouldReenterActivation(response)) {
+      logRegistrationFailure("Server unavailable; setup saved and retrying", deviceRegistration_.lastResponse());
+      if (shouldReenterActivation(deviceRegistration_.lastResponse())) {
         Serial.println("Invalid device token detected; reopening setup for activation");
         config_.bearerToken = "";
         config_.registrationPath = "/api/readers/activate";

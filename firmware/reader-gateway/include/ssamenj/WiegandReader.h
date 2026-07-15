@@ -19,8 +19,6 @@ class WiegandReader {
     uint32_t firstPulseUs = 0;
     uint32_t lastPulseUs = 0;
     bool overflow = false;
-    uint32_t d0PulseCount = 0;
-    uint32_t d1PulseCount = 0;
   };
 
   static constexpr uint8_t kPendingFrameCapacity = 8;
@@ -37,8 +35,6 @@ class WiegandReader {
   volatile uint8_t activeBitCount_ = 0;
   volatile uint32_t activeFirstPulseUs_ = 0;
   volatile uint32_t activeLastPulseUs_ = 0;
-  volatile uint32_t activeD0PulseCount_ = 0;
-  volatile uint32_t activeD1PulseCount_ = 0;
   volatile bool activeOverflow_ = false;
   PendingFrame pendingFrames_[kPendingFrameCapacity] {};
   volatile uint8_t pendingHead_ = 0;

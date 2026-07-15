@@ -23,20 +23,6 @@ def c_string(value: str) -> str:
     return value.replace("\\", "\\\\").replace('"', '\\"')
 
 
-def c_int(value: str, default: int) -> int:
-    normalized = value.strip()
-    if not normalized:
-        return default
-    return int(normalized, 10)
-
-
-def c_bool(value: str, default: bool) -> int:
-    normalized = value.strip().lower()
-    if not normalized:
-        return 1 if default else 0
-    return 1 if normalized in {"1", "true", "yes", "on"} else 0
-
-
 def is_local_url(value: str) -> bool:
     normalized = value.strip().lower()
     return normalized.startswith("http://localhost") or normalized.startswith("http://127.0.0.1")
@@ -69,10 +55,6 @@ bootstrap_keys = {
     "device_token": "READER_GATEWAY_DEFAULT_DEVICE_TOKEN",
 }
 bootstrap_values = {name: merged.get(key, "") for name, key in bootstrap_keys.items()}
-feedback_buzzer_pin = c_int(merged.get("READER_GATEWAY_DEFAULT_BUZZER_PIN", ""), -1)
-feedback_led_pin = c_int(merged.get("READER_GATEWAY_DEFAULT_LED_PIN", ""), -1)
-feedback_outputs_enabled = c_bool(merged.get("READER_GATEWAY_DEFAULT_FEEDBACK_OUTPUTS_ENABLED", ""), False)
-feedback_driver_active_high = c_bool(merged.get("READER_GATEWAY_DEFAULT_FEEDBACK_DRIVER_ACTIVE_HIGH", ""), False)
 allow_local_bootstrap = merged.get("READER_GATEWAY_ALLOW_LOCAL_API_BOOTSTRAP", "").strip().lower() in {"1", "true", "yes"}
 
 if is_local_url(api_base_url) and not allow_local_bootstrap:
@@ -93,10 +75,6 @@ header = f"""#pragma once
 #define SSAMENJ_GATEWAY_DEFAULT_READER_LOCATION "{c_string(bootstrap_values['reader_location'])}"
 #define SSAMENJ_GATEWAY_DEFAULT_READER_TYPE "{c_string(bootstrap_values['reader_type'])}"
 #define SSAMENJ_GATEWAY_DEFAULT_DEVICE_TOKEN "{c_string(bootstrap_values['device_token'])}"
-#define SSAMENJ_GATEWAY_DEFAULT_BUZZER_PIN ({feedback_buzzer_pin})
-#define SSAMENJ_GATEWAY_DEFAULT_LED_PIN ({feedback_led_pin})
-#define SSAMENJ_GATEWAY_DEFAULT_FEEDBACK_OUTPUTS_ENABLED {feedback_outputs_enabled}
-#define SSAMENJ_GATEWAY_DEFAULT_FEEDBACK_DRIVER_ACTIVE_HIGH {feedback_driver_active_high}
 """
 
 output_path = project_dir / "secrets" / "device_bootstrap.auto.h"
