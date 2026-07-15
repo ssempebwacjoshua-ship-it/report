@@ -16,7 +16,7 @@ export function LogoutPage() {
 
     logout();
     navigate("/login", { replace: true });
-  }, [loading, user?.role, logout, navigate]);
+  }, [loading]);
 
   return null;
 }
