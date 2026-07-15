@@ -389,7 +389,8 @@ export type OwnerReaderActionResult = {
   action?: "RESTART" | "SYNC" | "UPDATE_FIRMWARE" | "RE_REGISTER";
   delivered?: boolean;
   message?: string;
-  bearerToken?: string;
+  activationCode?: string;
+  activationExpiresAt?: string;
   reader?: OwnerReader;
 };
 

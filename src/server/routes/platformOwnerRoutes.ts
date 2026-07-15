@@ -10,11 +10,7 @@ import { REPORT_LAB_PLANS, getPlanByCode } from "../../shared/constants/subscrip
 import { CANONICAL_STREAM_CODES, provisionSchoolOnboarding } from "../services/schoolStructureProvisioningService";
 import { getSmartPagesPackage } from "../services/smartPagesService";
 import type { SmartPagesPackageCode, SmartPagesPaymentNetwork, SmartPagesPaymentRequest } from "../../shared/types/smartPages";
-import {
-  generateReaderGatewayActivationCode,
-  hashReaderGatewayActivationCode,
-  hashReaderGatewayToken,
-} from "../services/readerGatewayRegistrationService";
+import { generateReaderGatewayActivationCode, hashReaderGatewayActivationCode } from "../services/readerGatewayRegistrationService";
 import { createFirmwareUpdateCommand } from "../services/readerDeviceCommandService";
 
 const validPlanCodes = REPORT_LAB_PLANS.map((p) => p.code) as [string, ...string[]];
@@ -1463,35 +1459,42 @@ export function platformOwnerRoutes() {
         return;
       }
       if (body.action === "RE_REGISTER") {
-        const bearerToken = randomBytes(32).toString("base64url");
+        const activationCode = generateReaderGatewayActivationCode();
+        const activationCodeHash = hashReaderGatewayActivationCode(activationCode);
+        const expiresAt = new Date(Date.now() + READER_ACTIVATION_WINDOW_MS);
         const updated = await prisma.nfcOfflineDevice.update({
           where: { id: reader.id },
           data: {
-            deviceTokenHash: hashReaderGatewayToken(bearerToken),
-            provisioningStatus: "ACTIVE",
-            activationCodeHash: null,
-            activationCodeExpiresAt: null,
-            activationCodeUsedAt: new Date(),
-            activationBoundHardwareId: reader.deviceKey,
+            provisioningStatus: "PENDING_SETUP",
+            activationCodeHash,
+            activationCodeExpiresAt: expiresAt,
+            activationCodeUsedAt: null,
+            activationBoundHardwareId: null,
             activationFailedAttempts: 0,
             activationLastFailedAt: null,
             activationLastError: null,
+            deviceTokenHash: null,
+            deviceKey: `pending-${reader.id}`,
+            lastHeartbeatAt: null,
+            lastSeenAt: null,
+            onlineStatus: "OFFLINE",
             status: "ACTIVE",
             isActive: true,
           },
           include: { school: { select: { id: true, code: true, name: true } } },
         });
-        void ownerAudit(req.user!.userId, schoolId, "READER_RE_REGISTER_TOKEN_ISSUED_BY_OWNER", {
+        void ownerAudit(req.user!.userId, schoolId, "READER_RE_REGISTER_CODE_ISSUED_BY_OWNER", {
           readerId: reader.id,
-          deviceKey: reader.deviceKey,
-          tokenHashPrefix: `${hashReaderGatewayToken(bearerToken).slice(0, 10)}...`,
+          previousDeviceKey: reader.deviceKey,
+          activationExpiresAt: expiresAt.toISOString(),
         }).catch(() => {});
         res.json({
           ok: true,
           action: body.action,
           delivered: false,
-          message: "New reader token issued. It is shown once; update the device with this token before rebooting it.",
-          bearerToken,
+          message: "New 6-digit setup code issued. It is shown once; enter it in the reader setup portal.",
+          activationCode,
+          activationExpiresAt: expiresAt.toISOString(),
           reader: mapReader(updated),
         });
         return;
@@ -1516,34 +1519,41 @@ export function platformOwnerRoutes() {
         res.status(404).json({ error: "Reader not found." });
         return;
       }
-      const bearerToken = randomBytes(32).toString("base64url");
+      const activationCode = generateReaderGatewayActivationCode();
+      const activationCodeHash = hashReaderGatewayActivationCode(activationCode);
+      const expiresAt = new Date(Date.now() + READER_ACTIVATION_WINDOW_MS);
       const updated = await prisma.nfcOfflineDevice.update({
         where: { id: reader.id },
         data: {
-          deviceTokenHash: hashReaderGatewayToken(bearerToken),
-          provisioningStatus: "ACTIVE",
-          activationCodeHash: null,
-          activationCodeExpiresAt: null,
-          activationCodeUsedAt: new Date(),
-          activationBoundHardwareId: reader.deviceKey,
+          provisioningStatus: "PENDING_SETUP",
+          activationCodeHash,
+          activationCodeExpiresAt: expiresAt,
+          activationCodeUsedAt: null,
+          activationBoundHardwareId: null,
           activationFailedAttempts: 0,
           activationLastFailedAt: null,
           activationLastError: null,
+          deviceTokenHash: null,
+          deviceKey: `pending-${reader.id}`,
+          lastHeartbeatAt: null,
+          lastSeenAt: null,
+          onlineStatus: "OFFLINE",
           status: "ACTIVE",
           isActive: true,
         },
         include: { school: { select: { id: true, code: true, name: true } } },
       });
-      void ownerAudit(req.user!.userId, schoolId, "READER_TOKEN_ROTATED_BY_OWNER", {
+      void ownerAudit(req.user!.userId, schoolId, "READER_SETUP_CODE_ROTATED_BY_OWNER", {
         readerId: reader.id,
-        deviceKey: reader.deviceKey,
-        tokenHashPrefix: `${hashReaderGatewayToken(bearerToken).slice(0, 10)}...`,
+        previousDeviceKey: reader.deviceKey,
+        activationExpiresAt: expiresAt.toISOString(),
       }).catch(() => {});
       res.json({
         ok: true,
         reader: mapReader(updated),
-        bearerToken,
-        message: "New reader token issued. It is shown once; update the device with this token before rebooting it.",
+        activationCode,
+        activationExpiresAt: expiresAt.toISOString(),
+        message: "New 6-digit setup code issued. It is shown once; enter it in the reader setup portal.",
       });
     } catch (error) {
       next(error);
