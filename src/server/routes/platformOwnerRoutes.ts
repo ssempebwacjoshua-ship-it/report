@@ -10,7 +10,11 @@ import { REPORT_LAB_PLANS, getPlanByCode } from "../../shared/constants/subscrip
 import { CANONICAL_STREAM_CODES, provisionSchoolOnboarding } from "../services/schoolStructureProvisioningService";
 import { getSmartPagesPackage } from "../services/smartPagesService";
 import type { SmartPagesPackageCode, SmartPagesPaymentNetwork, SmartPagesPaymentRequest } from "../../shared/types/smartPages";
-import { generateReaderGatewayActivationCode, hashReaderGatewayActivationCode } from "../services/readerGatewayRegistrationService";
+import {
+  generateReaderGatewayActivationCode,
+  hashReaderGatewayActivationCode,
+  hashReaderGatewayToken,
+} from "../services/readerGatewayRegistrationService";
 import { createFirmwareUpdateCommand } from "../services/readerDeviceCommandService";
 
 const validPlanCodes = REPORT_LAB_PLANS.map((p) => p.code) as [string, ...string[]];
@@ -1459,7 +1463,38 @@ export function platformOwnerRoutes() {
         return;
       }
       if (body.action === "RE_REGISTER") {
-        await prisma.nfcOfflineDevice.update({ where: { id: reader.id }, data: { status: "ACTIVE", isActive: true } });
+        const bearerToken = randomBytes(32).toString("base64url");
+        const updated = await prisma.nfcOfflineDevice.update({
+          where: { id: reader.id },
+          data: {
+            deviceTokenHash: hashReaderGatewayToken(bearerToken),
+            provisioningStatus: "ACTIVE",
+            activationCodeHash: null,
+            activationCodeExpiresAt: null,
+            activationCodeUsedAt: new Date(),
+            activationBoundHardwareId: reader.deviceKey,
+            activationFailedAttempts: 0,
+            activationLastFailedAt: null,
+            activationLastError: null,
+            status: "ACTIVE",
+            isActive: true,
+          },
+          include: { school: { select: { id: true, code: true, name: true } } },
+        });
+        void ownerAudit(req.user!.userId, schoolId, "READER_RE_REGISTER_TOKEN_ISSUED_BY_OWNER", {
+          readerId: reader.id,
+          deviceKey: reader.deviceKey,
+          tokenHashPrefix: `${hashReaderGatewayToken(bearerToken).slice(0, 10)}...`,
+        }).catch(() => {});
+        res.json({
+          ok: true,
+          action: body.action,
+          delivered: false,
+          message: "New reader token issued. It is shown once; update the device with this token before rebooting it.",
+          bearerToken,
+          reader: mapReader(updated),
+        });
+        return;
       }
       void ownerAudit(req.user!.userId, schoolId, `READER_${body.action}_REQUESTED_BY_OWNER`, {
         readerId: reader.id,
@@ -1481,8 +1516,34 @@ export function platformOwnerRoutes() {
         res.status(404).json({ error: "Reader not found." });
         return;
       }
-      res.status(409).json({
-        error: "Reader token rotation is disabled. Recommission the reader through the controlled setup flow instead.",
+      const bearerToken = randomBytes(32).toString("base64url");
+      const updated = await prisma.nfcOfflineDevice.update({
+        where: { id: reader.id },
+        data: {
+          deviceTokenHash: hashReaderGatewayToken(bearerToken),
+          provisioningStatus: "ACTIVE",
+          activationCodeHash: null,
+          activationCodeExpiresAt: null,
+          activationCodeUsedAt: new Date(),
+          activationBoundHardwareId: reader.deviceKey,
+          activationFailedAttempts: 0,
+          activationLastFailedAt: null,
+          activationLastError: null,
+          status: "ACTIVE",
+          isActive: true,
+        },
+        include: { school: { select: { id: true, code: true, name: true } } },
+      });
+      void ownerAudit(req.user!.userId, schoolId, "READER_TOKEN_ROTATED_BY_OWNER", {
+        readerId: reader.id,
+        deviceKey: reader.deviceKey,
+        tokenHashPrefix: `${hashReaderGatewayToken(bearerToken).slice(0, 10)}...`,
+      }).catch(() => {});
+      res.json({
+        ok: true,
+        reader: mapReader(updated),
+        bearerToken,
+        message: "New reader token issued. It is shown once; update the device with this token before rebooting it.",
       });
     } catch (error) {
       next(error);
