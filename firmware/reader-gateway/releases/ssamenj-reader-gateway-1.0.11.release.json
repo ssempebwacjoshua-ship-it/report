@@ -4,7 +4,7 @@
   "channel": "stable",
   "artifactPath": "firmware/reader-gateway/releases/ssamenj-reader-gateway-1.0.11.bin",
   "sha256": "76ecf30d2fe7723164a22bf0c96500317f53d149bf2e1d81558ddee09544c360",
-  "routeManifestCanonicalJson": "{\"channel\":\"stable\",\"downloadPath\":\"/api/readers/ota/download/ssamenj-reader-gateway-1.0.11-stable\",\"publicKeyId\":\"reader-gateway-2026\",\"releaseId\":\"ssamenj-reader-gateway-1.0.11-stable\",\"sha256\":\"76ecf30d2fe7723164a22bf0c96500317f53d149bf2e1d81558ddee09544c360\",\"signature\":\"MEYCIQC/9pGW9Y3z75KCdFMK4fhwcw0vArhW3zG98b36O9lF5QIhANcl4cE2O+4QqZRVoqECb8oPLRPGhHJkc+OhXr4QIskS\",\"signatureAlgorithm\":\"ECDSA_P256_SHA256\",\"sizeBytes\":1177584,\"updateAvailable\":true,\"version\":\"1.0.11\"}",
+  "routeManifestCanonicalJson": "{\"channel\":\"stable\",\"downloadPath\":\"/api/readers/ota/download/ssamenj-reader-gateway-1.0.11-stable\",\"publicKeyId\":\"ssamenj-reader-ota-2026-01\",\"releaseId\":\"ssamenj-reader-gateway-1.0.11-stable\",\"sha256\":\"76ecf30d2fe7723164a22bf0c96500317f53d149bf2e1d81558ddee09544c360\",\"signature\":\"MEYCIQC/9pGW9Y3z75KCdFMK4fhwcw0vArhW3zG98b36O9lF5QIhANcl4cE2O+4QqZRVoqECb8oPLRPGhHJkc+OhXr4QIskS\",\"signatureAlgorithm\":\"ECDSA_P256_SHA256\",\"sizeBytes\":1177584,\"updateAvailable\":true,\"version\":\"1.0.11\"}",
   "routeManifest": {
     "updateAvailable": true,
     "releaseId": "ssamenj-reader-gateway-1.0.11-stable",
@@ -14,7 +14,7 @@
     "sha256": "76ecf30d2fe7723164a22bf0c96500317f53d149bf2e1d81558ddee09544c360",
     "signature": "MEYCIQC/9pGW9Y3z75KCdFMK4fhwcw0vArhW3zG98b36O9lF5QIhANcl4cE2O+4QqZRVoqECb8oPLRPGhHJkc+OhXr4QIskS",
     "signatureAlgorithm": "ECDSA_P256_SHA256",
-    "publicKeyId": "reader-gateway-2026",
+    "publicKeyId": "ssamenj-reader-ota-2026-01",
     "sizeBytes": 1177584
   },
   "railwayRelease": {
@@ -24,7 +24,7 @@
     "sha256": "76ecf30d2fe7723164a22bf0c96500317f53d149bf2e1d81558ddee09544c360",
     "signature": "MEYCIQC/9pGW9Y3z75KCdFMK4fhwcw0vArhW3zG98b36O9lF5QIhANcl4cE2O+4QqZRVoqECb8oPLRPGhHJkc+OhXr4QIskS",
     "signatureAlgorithm": "ECDSA_P256_SHA256",
-    "publicKeyId": "reader-gateway-2026",
+    "publicKeyId": "ssamenj-reader-ota-2026-01",
     "sizeBytes": 1177584,
     "artifactPath": "firmware/reader-gateway/releases/ssamenj-reader-gateway-1.0.11.bin",
     "enabled": true
