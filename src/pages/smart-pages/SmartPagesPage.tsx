@@ -67,10 +67,6 @@ export function SmartPagesPage() {
     }
   }
 
-  if (loading) {
-    return <SectionLoader message="Loading documents..." />;
-  }
-
   return (
     <div className="mx-auto max-w-4xl space-y-5">
       {/* Header */}
@@ -133,7 +129,11 @@ export function SmartPagesPage() {
       </Link>
 
       {/* Document grid */}
-      {documents.length === 0 ? (
+      {loading ? (
+        <div className="py-3">
+          <SectionLoader message="Loading documents..." />
+        </div>
+      ) : documents.length === 0 ? (
         <div className="flex flex-col items-center gap-4 rounded-2xl border-2 border-dashed border-slate-200 bg-white py-16 text-center">
           <div className="h-16 w-16 rounded-2xl bg-blue-50 grid place-items-center">
             <svg viewBox="0 0 24 24" className="h-8 w-8 text-blue-400" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
