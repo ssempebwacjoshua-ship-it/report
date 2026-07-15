@@ -594,9 +594,9 @@ export function OwnerReaderDetailPage() {
     try {
       if (!data?.reader.schoolId) return;
       const result = await requestOwnerReaderAction(data.reader.schoolId, data.reader.id, action);
-      if (action === "RE_REGISTER" && result.bearerToken) {
-        window.alert(`New reader token:\n${result.bearerToken}\n\nShown once. Put this token on the same reader device.`);
-        setNotice("New reader token issued for this same device. It is shown once.");
+      if (action === "RE_REGISTER" && result.activationCode) {
+        window.alert(`New 6-digit setup code:\n${result.activationCode}\n\nExpires: ${formatDateTime(result.activationExpiresAt)}\nShown once. Enter this in the reader setup portal.`);
+        setNotice("New 6-digit setup code issued for this same reader. It is shown once.");
       } else {
         setNotice(action === "UPDATE_FIRMWARE"
           ? "Firmware update requested. Keep the reader powered and connected to Wi-Fi while it installs."
