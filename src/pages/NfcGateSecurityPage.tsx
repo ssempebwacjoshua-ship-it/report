@@ -40,6 +40,22 @@ type LocalScanResult = NfcGateScanResponse | { result: "ALLOWED" | "BLOCKED"; re
 export function NfcGateSecurityPage() {
   const { user, token, loading: authLoading } = useAuth();
   const deviceId = useRef(getDeviceId()).current;
+  const isGateAccount = user?.role === "SECURITY" || user?.role === "GATE_SECURITY";
+
+  useEffect(() => {
+    if (!isGateAccount) return;
+
+    const lockBackNavigation = () => {
+      window.history.pushState({ gateKioskLock: true }, "", window.location.href);
+    };
+
+    lockBackNavigation();
+    window.addEventListener("popstate", lockBackNavigation);
+
+    return () => {
+      window.removeEventListener("popstate", lockBackNavigation);
+    };
+  }, [isGateAccount]);
 
   const { state: connState, isOfflineReady, pendingCount, triggerSync } = useConnectivityStatus(user?.schoolId, deviceId, "gate");
   const snapshotRefresh = useNfcOfflineSnapshotRefresh({
