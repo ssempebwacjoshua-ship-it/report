@@ -17,7 +17,7 @@ describe("PWA manifest", () => {
     expect(manifest.name).toBe("SSAMENJ Technologies");
     expect(manifest.short_name).toBe("SSAMENJ");
     expect(manifest.display).toBe("standalone");
-    expect(manifest.start_url).toBe("/report-lab/");
+    expect(manifest.start_url).toBe("/report-lab/login");
     expect(manifest.scope).toBe("/report-lab/");
     expect(manifest.theme_color).toBeTruthy();
     expect(manifest.background_color).toBeTruthy();
