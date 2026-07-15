@@ -244,6 +244,23 @@ Important:
 - Do not offer unsigned firmware images.
 - If `tlsInsecure` is still `true`, firmware signature verification remains mandatory, but production should move to a real CA bundle in `tlsRootCaPem`.
 
+## Live OTA Command Polling
+
+Owner Console firmware updates now use device command polling instead of a direct push connection:
+
+1. Owner requests firmware update for a reader.
+2. Backend stores a pending `FIRMWARE_UPDATE` command for that reader.
+3. The reader receives the pending command in its normal heartbeat/register response.
+4. The reader acknowledges the command and starts OTA only when no scan/queue work is active.
+5. The reader reports command status transitions: `ACKED`, `DOWNLOADING`, `INSTALLING`, `SUCCEEDED`, or `FAILED`.
+
+Notes:
+
+- The backend does not open an inbound connection to the ESP32.
+- Commanded OTA still preserves LittleFS config and the offline queue across reboot.
+- Keep the reader powered during OTA installation.
+- Bearer tokens are never written to serial logs.
+
 ## Example API request
 
 ```http
