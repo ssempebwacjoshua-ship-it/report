@@ -142,6 +142,8 @@ First-time provisioning workflow:
 
 4. On save, the firmware stores the Wi-Fi credentials and activation code locally, connects to Wi-Fi, stops AP mode, calls the activation endpoint, stores the returned device token and canonical reader assignment, and then resumes the normal School Connect heartbeat, offline queue replay, and attendance loop.
 
+   After successful activation, the firmware persists the canonical device and reader identifiers, school assignment, bearer token, API base URL, firmware channel, device metadata, and normalizes future registration calls to `/api/readers/register`.
+
 5. On later reboots, the gateway keeps retrying the stored Wi-Fi credentials. Temporary Wi-Fi loss does not reopen setup automatically and does not clear credentials.
 
 6. Factory reset Wi-Fi by holding the ESP32 BOOT button for 10 seconds. This clears only the stored Wi-Fi credentials and reopens the setup portal.
@@ -150,6 +152,7 @@ Important:
 
 - Fresh devices activate through `/api/readers/activate` using the one-time activation code.
 - Once activation succeeds, the firmware stores the returned bearer token and normalizes future registration calls to `/api/readers/register`.
+- Reader startup logs now print the configured D0/D1 pins, their idle levels, and frame-level Wiegand diagnostics so wiring issues can be distinguished from backend failures.
 - Existing LittleFS `wifiSsid` and `wifiPassword` values remain as a fallback for previously provisioned devices until NVS credentials are saved.
 - If a deployed reader token must be rotated, use Owner Console and recover the one-time token from the reader detail page immediately. The detail page now shows the rotated token once in a highlighted panel.
 - `buzzerPin` remains optional. Use `-1` to disable the external driver output, or set a verified GPIO only after the isolated buzzer/LED interface has been validated for the exact reader hardware.

@@ -477,6 +477,7 @@ bool ReaderGatewayApp::openSetupPortal(const char* reason) {
   }
 
   applyProvisioningOverrides();
+  wiegand_.reset();
   wifiDisconnectedSinceMs_ = 0;
   lastWifiAttemptMs_ = millis();
 
@@ -904,7 +905,7 @@ bool ReaderGatewayApp::isValidScanEvent(const ReaderScanEvent& event, const char
     reason = "no pulses received";
     return false;
   }
-  if (event.rawWiegandBitCount != 26 && event.rawWiegandBitCount != 34) {
+  if (event.rawWiegandBitCount != 26 && event.rawWiegandBitCount != 34 && event.rawWiegandBitCount != 37) {
     reason = "unsupported bit count";
     return false;
   }
@@ -1022,9 +1023,10 @@ bool ReaderGatewayApp::begin() {
       Serial.println("Verifying school code...");
       Serial.println("Registering reader...");
       applyRegistrationResult(registration);
+      wiegand_.reset();
       markApiContact();
     } else if (config_.autoRegister) {
-      Serial.println("Assignment Pending");
+      logRegistrationFailure("Assignment Pending", deviceRegistration_.lastResponse());
     }
     processOfflineQueue();
   }
@@ -1322,6 +1324,7 @@ void ReaderGatewayApp::loop() {
     if (deviceRegistration_.registerNow(&registration)) {
       Serial.println("Registering reader...");
       applyRegistrationResult(registration);
+      wiegand_.reset();
       markApiContact();
     } else {
       const ReaderApiResponse& response = deviceRegistration_.lastResponse();

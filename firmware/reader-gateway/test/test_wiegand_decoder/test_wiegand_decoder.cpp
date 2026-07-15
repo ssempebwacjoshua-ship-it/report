@@ -37,6 +37,17 @@ uint64_t buildWiegand34(uint16_t facilityCode, uint16_t cardNumber) {
   }
   return frame;
 }
+
+uint64_t buildWiegand37(uint32_t facilityCode, uint32_t cardNumber) {
+  uint64_t frame = (static_cast<uint64_t>(facilityCode) << 18) | (static_cast<uint64_t>(cardNumber) << 1);
+  if ((countBits((frame >> 19) & 0x1FFFFULL) % 2U) != 0U) {
+    frame |= (1ULL << 36);
+  }
+  if ((countBits((frame >> 1) & 0x3FFFFULL) % 2U) == 0U) {
+    frame |= 1ULL;
+  }
+  return frame;
+}
 }  // namespace
 
 void test_decodes_wiegand26_payload() {
@@ -81,11 +92,27 @@ void test_marks_wrong_parity_invalid() {
   TEST_ASSERT_EQUAL_STRING("top parity failed", result.parityResult.c_str());
 }
 
-void test_marks_wiegand37_invalid() {
-  const WiegandDecodeResult result = decodeWiegandFrame((1ULL << 36) | 1ULL, 37);
+void test_decodes_wiegand37_parity() {
+  const WiegandDecodeResult result = decodeWiegandFrame(buildWiegand37(1, 1), 37);
+  TEST_ASSERT_TRUE(result.valid);
+  TEST_ASSERT_TRUE(result.parityValid);
+  TEST_ASSERT_EQUAL_STRING("wiegand37", result.format.c_str());
+  TEST_ASSERT_EQUAL_STRING("ok", result.parityResult.c_str());
+}
+
+void test_decodes_wiegand37_payload() {
+  const WiegandDecodeResult result = decodeWiegandFrame(buildWiegand37(0, 0), 37);
+  TEST_ASSERT_TRUE(result.valid);
+  TEST_ASSERT_TRUE(result.parityValid);
+  TEST_ASSERT_EQUAL_STRING("wiegand37", result.format.c_str());
+  TEST_ASSERT_EQUAL_STRING("0", result.credential.c_str());
+}
+
+void test_marks_all_zero_frame_invalid() {
+  const WiegandDecodeResult result = decodeWiegandFrame(0, 26);
   TEST_ASSERT_FALSE(result.valid);
-  TEST_ASSERT_EQUAL_STRING("wiegand-37", result.format.c_str());
-  TEST_ASSERT_EQUAL_STRING("unsupported bit count", result.parityResult.c_str());
+  TEST_ASSERT_EQUAL_STRING("wiegand-26", result.format.c_str());
+  TEST_ASSERT_EQUAL_STRING("all-zero frame", result.parityResult.c_str());
 }
 
 int main() {
@@ -94,6 +121,8 @@ int main() {
   RUN_TEST(test_decodes_wiegand34_payload);
   RUN_TEST(test_decodes_wiegand26_facility_and_card);
   RUN_TEST(test_marks_wrong_parity_invalid);
-  RUN_TEST(test_marks_wiegand37_invalid);
+  RUN_TEST(test_decodes_wiegand37_parity);
+  RUN_TEST(test_decodes_wiegand37_payload);
+  RUN_TEST(test_marks_all_zero_frame_invalid);
   return UNITY_END();
 }
