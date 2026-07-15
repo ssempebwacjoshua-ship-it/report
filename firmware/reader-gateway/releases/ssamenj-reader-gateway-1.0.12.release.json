@@ -1,0 +1,32 @@
+{
+  "releaseId": "ssamenj-reader-gateway-1.0.12-stable",
+  "version": "1.0.12",
+  "channel": "stable",
+  "artifactPath": "firmware/reader-gateway/releases/ssamenj-reader-gateway-1.0.12.bin",
+  "sha256": "e9fdeff7dff82c8ca1492f4e258c5ec796d47db7c593f72131ed5cbae22b2e6f",
+  "routeManifestCanonicalJson": "{\"channel\":\"stable\",\"downloadPath\":\"/api/readers/ota/download/ssamenj-reader-gateway-1.0.12-stable\",\"publicKeyId\":\"ssamenj-reader-ota-2026-01\",\"releaseId\":\"ssamenj-reader-gateway-1.0.12-stable\",\"sha256\":\"e9fdeff7dff82c8ca1492f4e258c5ec796d47db7c593f72131ed5cbae22b2e6f\",\"signature\":\"MEUCIAoU1XfQ1bs7kEdbwAjnMjeS3KgRe7OCqg7FvD8RA6lJAiEAvSBHsnBj1u4P1Ycof4x/jjhk/pO2Wimjdp2puhprS7c=\",\"signatureAlgorithm\":\"ECDSA_P256_SHA256\",\"sizeBytes\":1177584,\"updateAvailable\":true,\"version\":\"1.0.12\"}",
+  "routeManifest": {
+    "updateAvailable": true,
+    "releaseId": "ssamenj-reader-gateway-1.0.12-stable",
+    "version": "1.0.12",
+    "channel": "stable",
+    "downloadPath": "/api/readers/ota/download/ssamenj-reader-gateway-1.0.12-stable",
+    "sha256": "e9fdeff7dff82c8ca1492f4e258c5ec796d47db7c593f72131ed5cbae22b2e6f",
+    "signature": "MEUCIAoU1XfQ1bs7kEdbwAjnMjeS3KgRe7OCqg7FvD8RA6lJAiEAvSBHsnBj1u4P1Ycof4x/jjhk/pO2Wimjdp2puhprS7c=",
+    "signatureAlgorithm": "ECDSA_P256_SHA256",
+    "publicKeyId": "ssamenj-reader-ota-2026-01",
+    "sizeBytes": 1177584
+  },
+  "railwayRelease": {
+    "releaseId": "ssamenj-reader-gateway-1.0.12-stable",
+    "version": "1.0.12",
+    "channel": "stable",
+    "sha256": "e9fdeff7dff82c8ca1492f4e258c5ec796d47db7c593f72131ed5cbae22b2e6f",
+    "signature": "MEUCIAoU1XfQ1bs7kEdbwAjnMjeS3KgRe7OCqg7FvD8RA6lJAiEAvSBHsnBj1u4P1Ycof4x/jjhk/pO2Wimjdp2puhprS7c=",
+    "signatureAlgorithm": "ECDSA_P256_SHA256",
+    "publicKeyId": "ssamenj-reader-ota-2026-01",
+    "sizeBytes": 1177584,
+    "artifactPath": "firmware/reader-gateway/releases/ssamenj-reader-gateway-1.0.12.bin",
+    "enabled": true
+  }
+}
