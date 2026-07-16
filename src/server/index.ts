@@ -29,6 +29,7 @@ import { promotionRoutes } from "./routes/promotionRoutes";
 import { releaseCenterRoutes } from "./routes/releaseCenterRoutes";
 import { communicationRoutes } from "./routes/communicationRoutes";
 import { whatsappIntegrationRoutes } from "./routes/whatsappIntegrationRoutes";
+import { smsIntegrationRoutes } from "./routes/smsIntegrationRoutes";
 import { parentRoutes } from "./routes/parentRoutes";
 import { verifyRoutes } from "./routes/verifyRoutes";
 import { ocrRoutes } from "./routes/ocrRoutes";
@@ -125,6 +126,7 @@ function isUploadOrImportPath(pathname: string) {
 function isPublicTokenPath(pathname: string) {
   return pathname.startsWith("/api/verify/")
     || pathname.startsWith("/api/integrations/whatsapp/webhook")
+    || pathname.startsWith("/api/integrations/sms/webhook")
     || pathname.startsWith("/api/p/")
     || pathname.startsWith("/api/nfc/t/")
     || pathname.startsWith("/api/nfc/resolve/")
@@ -232,7 +234,7 @@ export function createServer() {
   app.use(rateLimitWhen((req) => req.method !== "GET" && isUploadOrImportPath(req.path), uploadImportLimiter));
   app.use(rateLimitWhen((req) => isPublicTokenPath(req.path), publicTokenLimiter));
   app.use(rateLimitWhen((req) => req.method !== "GET" && isOcrOrScanPath(req.path), ocrScanLimiter));
-  app.use(rateLimitWhen((req) => req.path.startsWith("/api/integrations/whatsapp/webhook"), webhookLimiter));
+  app.use(rateLimitWhen((req) => req.path.startsWith("/api/integrations/whatsapp/webhook") || req.path.startsWith("/api/integrations/sms/webhook"), webhookLimiter));
 
   app.use(
     "/templates",
@@ -256,6 +258,7 @@ export function createServer() {
   app.use(nfcTagsPublicRoutes());
   app.use(readerGatewayRoutes());
   app.use(whatsappIntegrationRoutes());
+  app.use(smsIntegrationRoutes());
 
   // Document Intelligence Engine ? creator auth accepts both school JWTs and external creator JWTs
   app.use("/api/creator", creatorAuthRoutes());

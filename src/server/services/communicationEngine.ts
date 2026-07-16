@@ -5,15 +5,17 @@ import {
   communicationChannels,
   estimateSmsSegments,
   hashRenderedContent,
+  normalizeDeliveryProgressState,
   type AudienceDefinition,
   type CommunicationChannel,
   type CommunicationCampaignStatus,
+  type CommunicationProgressState,
   type ValidationIssue,
 } from "../../shared/communications";
 import { collectCommunicationAudienceRows, resolveCommunicationAudience } from "./communicationAudienceService";
 
 export { resolveCommunicationAudience } from "./communicationAudienceService";
-import { createProviderForChannel, DryRunMessageProvider } from "./communicationProviders";
+import { createProviderForChannel, DryRunMessageProvider, resolveSmsProvider, type SmsProvider } from "./communicationProviders";
 import { evaluateSubscriptionEntitlement } from "./subscriptionEntitlementService";
 
 type Db = PrismaClient;
@@ -463,6 +465,21 @@ export async function sendCampaign(db: Db, ctx: CommunicationContext, campaignId
   const content = refreshed.contents.find((c) => c.version === refreshed.contentVersion) ?? refreshed.contents[0];
   if (!content?.body?.trim()) throw httpError(400, "Message body is required before sending.");
 
+  const recipients = await db.communicationRecipient.findMany({
+    where: { schoolId: ctx.schoolId, campaignId, status: { in: ["READY", "WARNING", "QUEUED"] }, phoneE164: { not: null } },
+    orderBy: { createdAt: "asc" },
+    take: Number(process.env.COMMUNICATION_BATCH_SIZE ?? 25),
+  });
+  if (recipients.length === 0) throw httpError(400, "No valid recipients are available for sending.");
+
+  if (refreshed.status !== "SENDING") {
+    await transitionCampaignIfAllowed(db, ctx, campaignId, "QUEUED");
+  }
+
+  if (input.channel === "SMS") {
+    return sendSmsCampaign(db, ctx, refreshed, recipients, content, templatePolicy);
+  }
+
   const provider = isCommunicationDryRun()
     ? new DryRunMessageProvider(input.channel)
     : createProviderForChannel(input.channel);
@@ -475,23 +492,13 @@ export async function sendCampaign(db: Db, ctx: CommunicationContext, campaignId
     providerMetadata: (channelSetting?.providerMetadataJson ?? null) as Record<string, unknown> | null,
   });
   if (!config.sendingEnabled) {
-    throw Object.assign(new Error(`${input.channel === "WHATSAPP" ? "WhatsApp" : "SMS"} is not configured yet. Contact platform owner.`), {
+    throw Object.assign(new Error("WhatsApp is not configured yet. Contact platform owner."), {
       status: 503,
       expose: true,
       details: config.issues,
     });
   }
 
-  const recipients = await db.communicationRecipient.findMany({
-    where: { schoolId: ctx.schoolId, campaignId, status: { in: ["READY", "WARNING", "QUEUED"] }, phoneE164: { not: null } },
-    orderBy: { createdAt: "asc" },
-    take: Number(process.env.COMMUNICATION_BATCH_SIZE ?? 25),
-  });
-  if (recipients.length === 0) throw httpError(400, "No valid recipients are available for sending.");
-
-  if (refreshed.status !== "SENDING") {
-    await transitionCampaignIfAllowed(db, ctx, campaignId, "QUEUED");
-  }
   let submitted = 0;
   let failed = 0;
   let skippedDuplicate = 0;
@@ -600,7 +607,319 @@ export async function sendCampaign(db: Db, ctx: CommunicationContext, campaignId
     data: { status: failed > 0 && submitted > 0 ? "PARTIALLY_DELIVERED" : failed > 0 && submitted === 0 ? "FAILED" : "SENDING", sendingStartedAt: new Date() },
   });
   await audit(db, ctx, "communication.delivery_submitted", campaignId, { channel: input.channel, provider: provider.providerKey, submitted, failed, skippedDuplicate });
-  return { submitted, failed, skippedDuplicate, results, templatePolicy };
+  return { submitted, failed, skippedDuplicate, results, templatePolicy, progress: await getCampaignProgressTotals(db, ctx, campaignId) };
+}
+
+async function sendSmsCampaign(
+  db: Db,
+  ctx: CommunicationContext,
+  campaign: Awaited<ReturnType<typeof getCampaignOrThrow>>,
+  recipients: Awaited<ReturnType<Db["communicationRecipient"]["findMany"]>>,
+  content: NonNullable<Awaited<ReturnType<typeof getCampaignOrThrow>>["contents"][number]>,
+  templatePolicy: Record<string, unknown>,
+) {
+  if (isCommunicationDryRun()) {
+    return sendDryRunSmsCampaign(db, ctx, campaign, recipients, content, templatePolicy);
+  }
+
+  const provider = resolveSmsProvider();
+  const channelSetting = await db.communicationChannelSetting.findFirst({
+    where: { schoolId: ctx.schoolId, channel: "SMS", provider: provider.providerKey },
+  });
+  const providerContext = {
+    schoolId: ctx.schoolId,
+    sendingEnabled: channelSetting?.sendingEnabled ?? true,
+    providerMetadata: (channelSetting?.providerMetadataJson ?? null) as Record<string, unknown> | null,
+  };
+  const config = await provider.checkHealth(providerContext);
+  if (!config.sendingEnabled) {
+    throw Object.assign(new Error("SMS provider is not configured yet. Contact platform owner."), {
+      status: 503,
+      expose: true,
+      code: "PROVIDER_NOT_CONFIGURED",
+      details: config.issues,
+    });
+  }
+
+  let submitted = 0;
+  let failed = 0;
+  let skippedDuplicate = 0;
+  const results: Array<Record<string, unknown>> = [];
+  const pendingMessages: Array<{
+    recipientId: string;
+    deliveryId: string;
+    attemptId: string;
+    idempotencyKey: string;
+    text: string;
+    segmentCount: number;
+  }> = [];
+
+  for (const recipient of recipients) {
+    const values = (recipient.personalisationJson ?? {}) as Record<string, string>;
+    const text = renderContent(content.shortBody || content.body, values);
+    const segmentEstimate = estimateSmsSegments(text);
+    const idempotencyKey = buildDeliveryIdempotencyKey({
+      schoolId: ctx.schoolId,
+      campaignId: campaign.id,
+      recipientId: recipient.id,
+      channel: "SMS",
+      contentVersion: campaign.contentVersion,
+    });
+    const existing = await db.communicationDelivery.findUnique({ where: { idempotencyKey } });
+    if (existing?.providerMessageId || (existing && ["SUBMITTED", "ACCEPTED", "DELIVERED", "READ"].includes(existing.status))) {
+      skippedDuplicate += 1;
+      results.push({ recipientId: recipient.id, status: "SKIPPED_DUPLICATE" });
+      continue;
+    }
+
+    const delivery = await db.communicationDelivery.upsert({
+      where: { idempotencyKey },
+      update: {
+        provider: provider.providerKey,
+        status: "SUBMITTING",
+        renderedContentHash: hashRenderedContent(text),
+        queuedAt: existing?.queuedAt ?? new Date(),
+      },
+      create: {
+        schoolId: ctx.schoolId,
+        campaignId: campaign.id,
+        recipientId: recipient.id,
+        channel: "SMS" as never,
+        provider: provider.providerKey,
+        status: "SUBMITTING",
+        contentVersion: campaign.contentVersion,
+        idempotencyKey,
+        renderedContentHash: hashRenderedContent(text),
+        queuedAt: new Date(),
+      },
+    });
+    const attempt = await db.communicationDeliveryAttempt.create({
+      data: {
+        deliveryId: delivery.id,
+        attemptNumber: delivery.attemptCount + 1,
+        provider: provider.providerKey,
+        status: "STARTED",
+        requestId: idempotencyKey,
+      },
+    });
+    pendingMessages.push({
+      recipientId: recipient.id,
+      deliveryId: delivery.id,
+      attemptId: attempt.id,
+      idempotencyKey,
+      text,
+      segmentCount: segmentEstimate.segments,
+    });
+  }
+
+  const recipientMap = new Map(recipients.map((recipient) => [recipient.id, recipient]));
+  const batchResult = await provider.sendBatch(
+    pendingMessages.map((message) => ({
+      recipientId: message.recipientId,
+      toE164: recipientMap.get(message.recipientId)?.phoneE164 ?? "",
+      text: message.text,
+      idempotencyKey: message.idempotencyKey,
+      segmentCount: message.segmentCount,
+    })),
+    providerContext,
+  );
+  const acceptedMap = new Map(batchResult.acceptedRecipients.map((item) => [item.recipientId, item]));
+  const rejectedMap = new Map(batchResult.rejectedRecipients.map((item) => [item.recipientId, item]));
+
+  for (const pending of pendingMessages) {
+    const now = new Date();
+    const accepted = acceptedMap.get(pending.recipientId);
+    const rejected = rejectedMap.get(pending.recipientId);
+    if (accepted) {
+      submitted += 1;
+      await db.communicationDelivery.update({
+        where: { id: pending.deliveryId },
+        data: {
+          status: "SUBMITTED",
+          providerMessageId: accepted.providerMessageId,
+          submittedAt: now,
+          acceptedAt: accepted.lifecycleState === "SENT" ? now : null,
+          attemptCount: { increment: 1 },
+          lastErrorCode: null,
+          lastErrorMessageSafe: null,
+        },
+      });
+      await db.communicationDeliveryAttempt.update({
+        where: { id: pending.attemptId },
+        data: {
+          status: "PROVIDER_ACCEPTED",
+          providerMessageId: accepted.providerMessageId,
+          providerResponseCode: accepted.providerStatus,
+          completedAt: now,
+        },
+      });
+      await db.communicationUsageRecord.create({
+        data: {
+          schoolId: ctx.schoolId,
+          campaignId: campaign.id,
+          deliveryId: pending.deliveryId,
+          channel: "SMS" as never,
+          provider: provider.providerKey,
+          billableUnits: accepted.billableUnits,
+          status: "ESTIMATED",
+        },
+      });
+      results.push({ recipientId: pending.recipientId, status: "SUBMITTED", providerMessageId: accepted.providerMessageId });
+      continue;
+    }
+
+    failed += 1;
+    const failure = rejected ?? {
+      lifecycleState: "FAILED" as const,
+      providerStatus: "FAILED",
+      errorCode: "PROVIDER_NOT_CONFIGURED",
+      safeErrorMessage: "SMS provider rejected the message.",
+    };
+    await db.communicationDelivery.update({
+      where: { id: pending.deliveryId },
+      data: {
+        status: "FAILED",
+        failedAt: now,
+        lastErrorCode: failure.errorCode,
+        lastErrorMessageSafe: failure.safeErrorMessage,
+        attemptCount: { increment: 1 },
+      },
+    });
+    await db.communicationDeliveryAttempt.update({
+      where: { id: pending.attemptId },
+      data: {
+        status: "PROVIDER_REJECTED",
+        providerResponseCode: failure.providerStatus,
+        errorCode: failure.errorCode,
+        errorMessageSafe: failure.safeErrorMessage,
+        completedAt: now,
+      },
+    });
+    results.push({ recipientId: pending.recipientId, status: "FAILED", errorCode: failure.errorCode });
+  }
+
+  await db.communicationCampaign.update({
+    where: { id: campaign.id },
+    data: { status: failed > 0 && submitted > 0 ? "PARTIALLY_DELIVERED" : failed > 0 && submitted === 0 ? "FAILED" : "SENDING", sendingStartedAt: new Date() },
+  });
+  await audit(db, ctx, "communication.delivery_submitted", campaign.id, { channel: "SMS", provider: provider.providerKey, submitted, failed, skippedDuplicate });
+  return { submitted, failed, skippedDuplicate, results, templatePolicy, progress: await getCampaignProgressTotals(db, ctx, campaign.id) };
+}
+
+async function sendDryRunSmsCampaign(
+  db: Db,
+  ctx: CommunicationContext,
+  campaign: Awaited<ReturnType<typeof getCampaignOrThrow>>,
+  recipients: Awaited<ReturnType<Db["communicationRecipient"]["findMany"]>>,
+  content: NonNullable<Awaited<ReturnType<typeof getCampaignOrThrow>>["contents"][number]>,
+  templatePolicy: Record<string, unknown>,
+) {
+  const provider = new DryRunMessageProvider("SMS");
+  let submitted = 0;
+  let skippedDuplicate = 0;
+  const results: Array<Record<string, unknown>> = [];
+
+  for (const recipient of recipients) {
+    const values = (recipient.personalisationJson ?? {}) as Record<string, string>;
+    const text = renderContent(content.shortBody || content.body, values);
+    const idempotencyKey = buildDeliveryIdempotencyKey({
+      schoolId: ctx.schoolId,
+      campaignId: campaign.id,
+      recipientId: recipient.id,
+      channel: "SMS",
+      contentVersion: campaign.contentVersion,
+    });
+    const existing = await db.communicationDelivery.findUnique({ where: { idempotencyKey } });
+    if (existing?.providerMessageId || (existing && ["SUBMITTED", "ACCEPTED", "DELIVERED", "READ"].includes(existing.status))) {
+      skippedDuplicate += 1;
+      results.push({ recipientId: recipient.id, status: "SKIPPED_DUPLICATE" });
+      continue;
+    }
+
+    const delivery = await db.communicationDelivery.upsert({
+      where: { idempotencyKey },
+      update: {
+        provider: provider.providerKey,
+        status: "SUBMITTED",
+        renderedContentHash: hashRenderedContent(text),
+      },
+      create: {
+        schoolId: ctx.schoolId,
+        campaignId: campaign.id,
+        recipientId: recipient.id,
+        channel: "SMS" as never,
+        provider: provider.providerKey,
+        status: "SUBMITTED",
+        contentVersion: campaign.contentVersion,
+        idempotencyKey,
+        renderedContentHash: hashRenderedContent(text),
+        queuedAt: new Date(),
+      },
+    });
+    const attempt = await db.communicationDeliveryAttempt.create({
+      data: {
+        deliveryId: delivery.id,
+        attemptNumber: delivery.attemptCount + 1,
+        provider: provider.providerKey,
+        status: "STARTED",
+        requestId: idempotencyKey,
+      },
+    });
+    const response = await provider.submit({
+      toE164: recipient.phoneE164!,
+      rendered: await provider.render({ text }),
+      idempotencyKey,
+    });
+    const now = new Date();
+    submitted += 1;
+    await db.communicationDelivery.update({
+      where: { id: delivery.id },
+      data: {
+        status: "SUBMITTED",
+        providerMessageId: response.providerMessageId,
+        submittedAt: now,
+        acceptedAt: now,
+        attemptCount: { increment: 1 },
+      },
+    });
+    await db.communicationDeliveryAttempt.update({
+      where: { id: attempt.id },
+      data: {
+        status: "PROVIDER_ACCEPTED",
+        providerMessageId: response.providerMessageId,
+        providerResponseCode: response.providerStatus,
+        completedAt: now,
+      },
+    });
+    results.push({ recipientId: recipient.id, status: "SUBMITTED", providerMessageId: response.providerMessageId });
+  }
+
+  await db.communicationCampaign.update({
+    where: { id: campaign.id },
+    data: { status: "SENDING", sendingStartedAt: new Date() },
+  });
+  await audit(db, ctx, "communication.delivery_submitted", campaign.id, { channel: "SMS", provider: provider.providerKey, submitted, failed: 0, skippedDuplicate });
+  return { submitted, failed: 0, skippedDuplicate, results, templatePolicy, progress: await getCampaignProgressTotals(db, ctx, campaign.id) };
+}
+
+export async function getCampaignProgressTotals(db: Db, ctx: CommunicationContext, campaignId: string) {
+  await getCampaignOrThrow(db, ctx, campaignId);
+  const deliveries = await db.communicationDelivery.groupBy({
+    by: ["status"],
+    where: { schoolId: ctx.schoolId, campaignId },
+    _count: { status: true },
+  });
+  const totals: Record<CommunicationProgressState, number> = {
+    QUEUED: 0,
+    PROCESSING: 0,
+    SENT: 0,
+    DELIVERED: 0,
+    FAILED: 0,
+  };
+  for (const delivery of deliveries) {
+    totals[normalizeDeliveryProgressState(delivery.status as never)] += delivery._count.status;
+  }
+  return totals;
 }
 
 export async function transitionCampaign(db: Db, ctx: CommunicationContext, campaignId: string, to: CommunicationCampaignStatus, extra: Record<string, unknown> = {}) {

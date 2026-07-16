@@ -57,6 +57,7 @@ export type CommunicationCampaignStatus =
   | "FAILED"
   | "PAUSED"
   | "CANCELLED";
+export type CommunicationProgressState = "QUEUED" | "PROCESSING" | "SENT" | "DELIVERED" | "FAILED";
 
 export type ValidationIssue = {
   code: string;
@@ -190,20 +191,73 @@ export function normalizePhoneToE164(value: string | null | undefined, defaultCo
   const trimmed = value.trim();
   if (!trimmed) return null;
   const digits = trimmed.replace(/[^\d+]/g, "");
-  if (/^\+\d{8,15}$/.test(digits)) return digits;
+  if (defaultCountryCode !== "256") {
+    if (/^\+\d{8,15}$/.test(digits)) return digits;
+    const local = digits.replace(/\D/g, "");
+    if (/^0\d{8,12}$/.test(local)) return `+${defaultCountryCode}${local.slice(1)}`;
+    if (/^\d{8,12}$/.test(local)) return `+${defaultCountryCode}${local}`;
+    return null;
+  }
+  if (/^\+256\d{9}$/.test(digits)) return digits;
   const local = digits.replace(/\D/g, "");
-  if (/^0\d{8,12}$/.test(local)) return `+${defaultCountryCode}${local.slice(1)}`;
-  if (/^\d{8,12}$/.test(local)) return `+${defaultCountryCode}${local}`;
+  if (/^256\d{9}$/.test(local)) return `+${local}`;
+  if (/^0\d{9}$/.test(local)) return `+256${local.slice(1)}`;
   return null;
 }
 
 export function estimateSmsSegments(message: string) {
-  const gsmBasic = /^[\n\r A-Za-z0-9@£$¥èéùìòÇØøÅåΔ_ΦΓΛΩΠΨΣΘΞÆæßÉ!"#%&'()*+,\-./:;<=>?¡ÄÖÑÜ§¿äöñüà^{}\\[~\]|€]*$/;
-  const encoding = gsmBasic.test(message) ? "GSM_7" : "UCS_2";
-  const length = message.length;
-  const singleLimit = encoding === "GSM_7" ? 160 : 70;
-  const multipartLimit = encoding === "GSM_7" ? 153 : 67;
-  const segments = length <= singleLimit ? 1 : Math.ceil(length / multipartLimit);
+  const basicCharacters = new Set([
+    "@", "£", "$", "¥", "è", "é", "ù", "ì", "ò", "Ç", "\n", "Ø", "ø", "\r", "Å", "å", "Δ", "_", "Φ", "Γ", "Λ", "Ω",
+    "Π", "Ψ", "Σ", "Θ", "Ξ", "Æ", "æ", "ß", "É", " ", "!", "\"", "#", "%", "&", "'", "(", ")", "*", "+", ",", "-",
+    ".", "/", ...Array.from("0123456789"), ":", ";", "<", "=", ">", "?", "¡", ...Array.from("ABCDEFGHIJKLMNOPQRSTUVWXYZ"),
+    "Ä", "Ö", "Ñ", "Ü", "§", "¿", ...Array.from("abcdefghijklmnopqrstuvwxyz"), "ä", "ö", "ñ", "ü", "à",
+  ]);
+  const extensionCharacters = new Set(["^", "{", "}", "\\", "[", "~", "]", "|", "€"]);
+  let usesUnicode = false;
+  let septetLength = 0;
+
+  for (const character of Array.from(message)) {
+    if (basicCharacters.has(character)) {
+      septetLength += 1;
+      continue;
+    }
+    if (extensionCharacters.has(character)) {
+      septetLength += 2;
+      continue;
+    }
+    usesUnicode = true;
+    break;
+  }
+
+  const encoding = usesUnicode ? "UCS_2" : "GSM_7";
+  const characterCount = usesUnicode ? Array.from(message).length : septetLength;
+  const singleLimit = usesUnicode ? 70 : 160;
+  const multipartLimit = usesUnicode ? 67 : 153;
+  const segments = characterCount === 0 ? 0 : characterCount <= singleLimit ? 1 : Math.ceil(characterCount / multipartLimit);
   const warnings = encoding === "UCS_2" ? ["SMS_UCS2_ENCODING"] : [];
-  return { encoding, characterCount: length, segments, billableUnits: segments, warnings };
+
+  return { encoding, characterCount, segments, billableUnits: segments, warnings };
+}
+
+export function normalizeDeliveryProgressState(status: CommunicationDeliveryStatus): CommunicationProgressState {
+  switch (status) {
+    case "QUEUED":
+      return "QUEUED";
+    case "SUBMITTING":
+    case "RETRY_SCHEDULED":
+      return "PROCESSING";
+    case "SUBMITTED":
+    case "ACCEPTED":
+      return "SENT";
+    case "DELIVERED":
+    case "READ":
+      return "DELIVERED";
+    case "FAILED":
+    case "CANCELLED":
+    case "SKIPPED":
+      return "FAILED";
+    case "PENDING":
+    default:
+      return "QUEUED";
+  }
 }

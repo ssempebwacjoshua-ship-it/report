@@ -61,6 +61,7 @@ beforeEach(async () => {
   vi.restoreAllMocks();
   vi.unstubAllEnvs();
   await prisma.communicationTemplate.deleteMany({ where: { schoolId } });
+  await prisma.communicationTemplate.deleteMany({ where: { schoolId: otherSchoolId } });
   await prisma.communicationDeliveryAttempt.deleteMany({ where: { delivery: { schoolId } } });
   await prisma.communicationDelivery.deleteMany({ where: { schoolId } });
   await prisma.communicationRecipient.deleteMany({ where: { schoolId } });
@@ -71,6 +72,7 @@ beforeEach(async () => {
   await prisma.communicationUsageRecord.deleteMany({ where: { schoolId } });
   await prisma.communicationCampaign.deleteMany({ where: { schoolId } });
   await prisma.communicationWebhookEvent.deleteMany({ where: { provider: "META_CLOUD_WHATSAPP" } });
+  await prisma.communicationWebhookEvent.deleteMany({ where: { provider: "YOOLA_SMS" } });
   await prisma.auditLog.deleteMany({ where: { schoolId, action: { startsWith: "communication." } } });
 });
 
@@ -231,7 +233,35 @@ describe("communication outbound routes", () => {
     await prisma.communicationCampaign.update({ where: { id: campaignId }, data: { status: "APPROVED" } });
     await ensureActiveSubscription();
     vi.stubEnv("COMMUNICATION_DRY_RUN", "false");
-    vi.stubEnv("SMS_PROVIDER", "mock");
+    vi.stubEnv("SMS_PROVIDER", "yoola");
+    vi.stubEnv("SMS_PROVIDER_ENABLED", "true");
+
+    const res = await request(createServer())
+      .post(`/api/communications/campaigns/${campaignId}/send`)
+      .set("Authorization", auth(adminToken))
+      .send({ channel: "SMS", confirm: true, audience: { studentIds: [studentId], mode: "GENERAL" } });
+
+    expect(res.status).toBe(402);
+    expect(res.body.message).toMatch(/approved communication template/i);
+  });
+
+  it("keeps SMS templates tenant-scoped", async () => {
+    const campaignId = await createCampaign();
+    await prisma.communicationCampaign.update({ where: { id: campaignId }, data: { status: "APPROVED" } });
+    await ensureActiveSubscription();
+    await prisma.communicationTemplate.create({
+      data: {
+        schoolId: otherSchoolId,
+        channel: "SMS",
+        communicationType: "ANNOUNCEMENT" as never,
+        name: `other-school-sms-${Date.now()}`,
+        status: "APPROVED",
+        content: "Hello {{guardianName}}",
+        variablesJson: ["guardianName"],
+      },
+    });
+    vi.stubEnv("COMMUNICATION_DRY_RUN", "false");
+    vi.stubEnv("SMS_PROVIDER", "yoola");
     vi.stubEnv("SMS_PROVIDER_ENABLED", "true");
 
     const res = await request(createServer())
@@ -339,6 +369,65 @@ describe("communication outbound routes", () => {
     expect(queueRes.status).toBe(200);
     expect(queueRes.body.ok).toBe(true);
     expect(queueRes.body.dryRun).toBe(true);
+  });
+
+  it("fails clearly when the live Yoola provider is still disabled", async () => {
+    const campaignId = await createCampaign();
+    await prisma.communicationCampaign.update({ where: { id: campaignId }, data: { status: "APPROVED" } });
+    await ensureActiveSubscription();
+    await createTemplate({ channel: "SMS" });
+    vi.stubEnv("COMMUNICATION_DRY_RUN", "false");
+    vi.stubEnv("SMS_PROVIDER", "yoola");
+    vi.stubEnv("SMS_PROVIDER_ENABLED", "false");
+
+    const res = await request(createServer())
+      .post(`/api/communications/campaigns/${campaignId}/send`)
+      .set("Authorization", auth(adminToken))
+      .send({ channel: "SMS", confirm: true, audience: { studentIds: [studentId], mode: "GENERAL" } });
+
+    expect(res.status).toBe(503);
+    expect(res.body.message).toMatch(/sms provider is not configured yet/i);
+  });
+
+  it("returns normalized campaign progress totals", async () => {
+    const campaignId = await createCampaign();
+    const snapshot = await prisma.communicationAudienceSnapshot.create({ data: { campaignId, snapshotVersion: 1, recipientCount: 5 } });
+    const recipientIds = [];
+    for (let index = 0; index < 5; index += 1) {
+      const recipient = await prisma.communicationRecipient.create({
+        data: {
+          schoolId,
+          campaignId,
+          audienceSnapshotId: snapshot.id,
+          displayName: `Progress ${index}`,
+          phoneE164: `+25677454986${index}`,
+          status: "QUEUED",
+        },
+      });
+      recipientIds.push(recipient.id);
+    }
+    await prisma.communicationDelivery.createMany({
+      data: [
+        { schoolId, campaignId, recipientId: recipientIds[0]!, channel: "SMS", provider: "YOOLA_SMS", status: "QUEUED", contentVersion: 1, idempotencyKey: `${campaignId}-queued` },
+        { schoolId, campaignId, recipientId: recipientIds[1]!, channel: "SMS", provider: "YOOLA_SMS", status: "SUBMITTING", contentVersion: 1, idempotencyKey: `${campaignId}-processing` },
+        { schoolId, campaignId, recipientId: recipientIds[2]!, channel: "SMS", provider: "YOOLA_SMS", status: "SUBMITTED", contentVersion: 1, idempotencyKey: `${campaignId}-sent` },
+        { schoolId, campaignId, recipientId: recipientIds[3]!, channel: "SMS", provider: "YOOLA_SMS", status: "DELIVERED", contentVersion: 1, idempotencyKey: `${campaignId}-delivered` },
+        { schoolId, campaignId, recipientId: recipientIds[4]!, channel: "SMS", provider: "YOOLA_SMS", status: "FAILED", contentVersion: 1, idempotencyKey: `${campaignId}-failed` },
+      ] as never[],
+    });
+
+    const res = await request(createServer())
+      .get(`/api/communications/campaigns/${campaignId}/status`)
+      .set("Authorization", auth(adminToken));
+
+    expect(res.status).toBe(200);
+    expect(res.body.progress).toEqual({
+      QUEUED: 1,
+      PROCESSING: 1,
+      SENT: 1,
+      DELIVERED: 1,
+      FAILED: 1,
+    });
   });
 
   it("blocks cross-school reads as not found", async () => {

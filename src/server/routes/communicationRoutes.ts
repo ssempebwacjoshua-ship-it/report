@@ -8,6 +8,7 @@ import {
   createAudienceSnapshot,
   createCampaign,
   getCampaignOrThrow,
+  getCampaignProgressTotals,
   listCampaigns,
   queueCampaign,
   previewAudience,
@@ -179,12 +180,8 @@ export function communicationRoutes() {
     try {
       const id = routeId(req);
       const campaign = await getCampaignOrThrow(prisma, ctx(req), id);
-      const deliveries = await prisma.communicationDelivery.groupBy({
-        by: ["status"],
-        where: { schoolId: req.school!.id, campaignId: id },
-        _count: { status: true },
-      });
-      res.json({ campaign: { id: campaign.id, status: campaign.status, title: campaign.title }, deliveries });
+      const progress = await getCampaignProgressTotals(prisma, ctx(req), id);
+      res.json({ campaign: { id: campaign.id, status: campaign.status, title: campaign.title }, progress });
     } catch (error) {
       next(error);
     }
