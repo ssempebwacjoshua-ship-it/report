@@ -296,43 +296,111 @@ export class MetaCloudWhatsAppProvider implements OutboundMessageProvider {
   }
 }
 
-export class DisabledYoolaSmsProvider implements SmsProvider {
+export class YoolaSmsProvider implements SmsProvider {
   readonly providerKey = "YOOLA_SMS";
   readonly channel = "SMS" as const;
   private readonly env: NodeJS.ProcessEnv;
+  private readonly endpointUrl: string;
 
   constructor(env: NodeJS.ProcessEnv = process.env) {
     this.env = env;
+    this.endpointUrl = resolveYoolaEndpointUrl(env);
   }
 
   async validateConfiguration(context: ProviderSchoolContext): Promise<ProviderConfigurationResult> {
     const issues = [];
     if (this.env.SMS_PROVIDER?.trim().toLowerCase() !== "yoola") issues.push("SMS_PROVIDER_NOT_YOOLA");
     if (this.env.SMS_PROVIDER_ENABLED !== "true") issues.push("SMS_PROVIDER_DISABLED");
-    if (!this.env.SMS_API_BASE_URL?.trim()) issues.push("SMS_API_BASE_URL_MISSING");
-    if (!this.env.SMS_API_USERNAME?.trim()) issues.push("SMS_API_USERNAME_MISSING");
     if (!this.env.SMS_API_KEY?.trim()) issues.push("SMS_API_KEY_MISSING");
-    if (!this.env.SMS_SENDER_ID?.trim()) issues.push("SMS_SENDER_ID_MISSING");
-    if (!this.env.SMS_WEBHOOK_SECRET?.trim()) issues.push("SMS_WEBHOOK_SECRET_MISSING");
     if (context.sendingEnabled === false) issues.push("SMS_CHANNEL_DISABLED");
-    issues.push("YOOLA_API_CONTRACT_PENDING");
-    return { configured: false, sendingEnabled: false, issues };
+    if (!this.endpointUrl) issues.push("SMS_API_BASE_URL_INVALID");
+    return { configured: issues.length === 0, sendingEnabled: issues.length === 0, issues };
   }
 
   async checkHealth(context: ProviderSchoolContext): Promise<ProviderConfigurationResult> {
     return this.validateConfiguration(context);
   }
 
-  async sendBatch(messages: SmsBatchMessage[]): Promise<SmsBatchSendResult> {
+  async sendBatch(messages: SmsBatchMessage[], context: ProviderSchoolContext): Promise<SmsBatchSendResult> {
+    const configuration = await this.validateConfiguration(context);
+    if (!configuration.sendingEnabled) {
+      return {
+        acceptedRecipients: [],
+        rejectedRecipients: messages.map((message) => ({
+          recipientId: message.recipientId,
+          lifecycleState: "FAILED",
+          providerStatus: "FAILED",
+          errorCode: "PROVIDER_NOT_CONFIGURED",
+          safeErrorMessage: "Yoola SMS is not configured yet. Contact platform owner.",
+        })),
+      };
+    }
+
+    const acceptedRecipients: SmsBatchAcceptedRecipient[] = [];
+    const rejectedRecipients: SmsBatchRejectedRecipient[] = [];
+    for (const message of messages) {
+      const phone = normalizeYoolaPhone(message.toE164);
+      if (!phone) {
+        rejectedRecipients.push({
+          recipientId: message.recipientId,
+          lifecycleState: "FAILED",
+          providerStatus: "FAILED",
+          errorCode: "INVALID_PHONE",
+          safeErrorMessage: "Recipient phone number is not a valid Uganda mobile number.",
+        });
+        continue;
+      }
+
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 15_000);
+      try {
+        const response = await fetch(this.endpointUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            api_key: this.env.SMS_API_KEY,
+            phone,
+            message: message.text,
+          }),
+          signal: controller.signal,
+        });
+        const parsed = await parseProviderResponse(response, [this.env.SMS_API_KEY?.trim() ?? ""]);
+        if (response.ok) {
+          acceptedRecipients.push({
+            recipientId: message.recipientId,
+            providerMessageId: extractProviderMessageId(parsed.parsedBody),
+            lifecycleState: "SENT",
+            providerStatus: extractProviderStatus(parsed.parsedBody) ?? `HTTP_${response.status}`,
+            billableUnits: message.segmentCount,
+          });
+          continue;
+        }
+
+        rejectedRecipients.push({
+          recipientId: message.recipientId,
+          lifecycleState: "FAILED",
+          providerStatus: extractProviderStatus(parsed.parsedBody) ?? `HTTP_${response.status}`,
+          errorCode: extractProviderErrorCode(parsed.parsedBody) ?? `HTTP_${response.status}`,
+          safeErrorMessage: buildSafeProviderErrorMessage(parsed.safeBody, response.status),
+        });
+      } catch (error) {
+        rejectedRecipients.push({
+          recipientId: message.recipientId,
+          lifecycleState: "FAILED",
+          providerStatus: "FAILED",
+          errorCode: error instanceof DOMException && error.name === "AbortError" ? "TIMEOUT" : "NETWORK_ERROR",
+          safeErrorMessage: error instanceof DOMException && error.name === "AbortError"
+            ? "Yoola SMS request timed out before the provider confirmed acceptance."
+            : "Yoola SMS request failed before the provider confirmed acceptance.",
+        });
+      } finally {
+        clearTimeout(timeout);
+      }
+    }
+
     return {
-      acceptedRecipients: [],
-      rejectedRecipients: messages.map((message) => ({
-        recipientId: message.recipientId,
-        lifecycleState: "FAILED",
-        providerStatus: "FAILED",
-        errorCode: "PROVIDER_NOT_CONFIGURED",
-        safeErrorMessage: "Yoola SMS is disabled until the official API contract is supplied.",
-      })),
+      acceptedRecipients,
+      rejectedRecipients,
     };
   }
 
@@ -341,7 +409,7 @@ export class DisabledYoolaSmsProvider implements SmsProvider {
   }
 
   async parseDeliveryWebhook(): Promise<SmsWebhookParseResult> {
-    throw Object.assign(new Error("Yoola SMS webhook parsing is disabled until the official API contract is supplied."), {
+    throw Object.assign(new Error("Yoola SMS delivery webhooks are pending because the provider webhook contract is not documented yet."), {
       status: 503,
       expose: true,
       code: "PROVIDER_NOT_CONFIGURED",
@@ -355,7 +423,7 @@ export function createProviderForChannel(channel: CommunicationChannel, env: Nod
 }
 
 export function resolveSmsProvider(env: NodeJS.ProcessEnv = process.env): SmsProvider {
-  return new DisabledYoolaSmsProvider(env);
+  return new YoolaSmsProvider(env);
 }
 
 export async function sendWhatsAppMessage(input: SubmitMessageInput, env: NodeJS.ProcessEnv = process.env) {
@@ -399,6 +467,98 @@ function safeProviderCode(value: unknown) {
 function safeProviderMessage(value: unknown) {
   if (typeof value !== "string") return undefined;
   return value.replace(/Bearer\s+\S+/gi, "Bearer [redacted]").slice(0, 180);
+}
+
+function normalizeYoolaPhone(toE164: string) {
+  const trimmed = toE164.trim();
+  if (!/^\+256\d{9}$/.test(trimmed)) return null;
+  return trimmed.slice(1);
+}
+
+function resolveYoolaEndpointUrl(env: NodeJS.ProcessEnv) {
+  const configured = env.SMS_API_BASE_URL?.trim();
+  if (!configured) return "https://yoolasms.com/api/v1/send_sms";
+  try {
+    const url = new URL(configured);
+    if (url.pathname === "/" || url.pathname === "") {
+      url.pathname = "/api/v1/send_sms";
+    }
+    return url.toString();
+  } catch {
+    return "";
+  }
+}
+
+async function parseProviderResponse(response: Response, secrets: string[]) {
+  const text = await response.text();
+  const contentType = response.headers.get("content-type") ?? "";
+  const parsedBody = contentType.includes("application/json") ? tryParseJson(text) : tryParseJson(text) ?? text;
+  return {
+    parsedBody,
+    safeBody: redactSensitiveText(text, secrets),
+  };
+}
+
+function tryParseJson(text: string) {
+  try {
+    return JSON.parse(text) as unknown;
+  } catch {
+    return null;
+  }
+}
+
+function extractProviderMessageId(value: unknown) {
+  return findFirstString(value, ["message_id", "messageId", "id", "sms_id", "smsId", "reference", "request_id", "requestId"]);
+}
+
+function extractProviderStatus(value: unknown) {
+  return findFirstString(value, ["status", "message_status", "messageStatus", "state", "result"]);
+}
+
+function extractProviderErrorCode(value: unknown) {
+  return findFirstString(value, ["error_code", "errorCode", "code", "status_code", "statusCode"]);
+}
+
+function findFirstString(value: unknown, candidates: string[]) {
+  if (!value || typeof value !== "object") return undefined;
+  const record = value as Record<string, unknown>;
+  for (const candidate of candidates) {
+    const found = record[candidate];
+    if (typeof found === "string" && found.trim()) return redactSensitiveText(found);
+    if (typeof found === "number") return String(found);
+  }
+  return undefined;
+}
+
+function buildSafeProviderErrorMessage(value: unknown, statusCode: number) {
+  if (typeof value === "string" && value.trim()) {
+    return redactSensitiveText(value).slice(0, 180);
+  }
+  if (value && typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    const candidates = [
+      record.error_message,
+      record.errorMessage,
+      record.error,
+      record.message,
+      record.detail,
+    ];
+    for (const candidate of candidates) {
+      if (typeof candidate === "string" && candidate.trim()) return redactSensitiveText(candidate).slice(0, 180);
+    }
+  }
+  return `Yoola SMS rejected the request with HTTP ${statusCode}.`;
+}
+
+function redactSensitiveText(value: string, secrets: string[] = []) {
+  let redacted = value;
+  for (const secret of secrets) {
+    if (secret) redacted = redacted.replaceAll(secret, "[redacted]");
+  }
+  return redacted
+    .replace(/[A-Fa-f0-9]{32,}/g, "[redacted]")
+    .replace(/\+?256\d{9}/g, "[redacted-phone]")
+    .replace(/\b0\d{9}\b/g, "[redacted-phone]");
 }
 
 function verifyHmacSha256(rawBody: Buffer | undefined, signatureHeader: string | undefined, secret: string | undefined) {
