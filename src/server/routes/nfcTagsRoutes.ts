@@ -312,6 +312,14 @@ export function nfcTagsRoutes() {
       if (!(await requirePlatformModule(req, res, "nfc.tags"))) return;
       res.json(await cancelReaderCredentialCapture(ctx(req), req.params.captureId));
     } catch (error) {
+      if ((error as { status?: unknown })?.status === 404) {
+        res.json({
+          ok: true,
+          captureId: req.params.captureId,
+          status: "CANCELLED",
+        });
+        return;
+      }
       next(error);
     }
   });
