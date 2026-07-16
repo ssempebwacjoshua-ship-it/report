@@ -4,6 +4,8 @@ export type CredentialNormalizationInput = {
   value?: string | null;
   cardNumber?: string | null;
   facilityCode?: string | null;
+  rawWiegandBitCount?: number | null;
+  rawWiegandBinary?: string | null;
   rawWiegandDecimal?: string | null;
   rawWiegandHex?: string | null;
 };
@@ -14,6 +16,7 @@ export type CredentialNormalizationResult = {
   tokenValues: string[];
   strongAliases: string[];
   weakAliases: string[];
+  aliasSource: Record<string, ReaderCredentialAliasSource>;
 };
 
 export type ReaderCredentialAliasResult = {
@@ -30,10 +33,12 @@ export type ReaderCredentialAliasSource =
   | "rawWiegandHex"
   | "credential"
   | "credentialEquivalent"
+  | "credentialHex"
   | "cardNumber"
   | "cardNumberZeroPadded"
   | "facilityCodeCardNumber"
   | "facilityCodeCardNumberVariant"
+  | "facilityCodeCardNumberCompact"
   | "rawWiegandDecimalZeroPadded";
 
 function unique(values: string[]): string[] {
@@ -51,9 +56,18 @@ function stripNumericLeadingZeros(value: string): string {
 }
 
 function stripHexLeadingZeros(value: string): string {
-  const upper = clean(value).toUpperCase();
+  const upper = clean(value).replace(/^0x/i, "").toUpperCase();
   if (!/^[0-9A-F]+$/.test(upper)) return upper;
   return upper.replace(/^0+(?=[0-9A-F])/, "") || "0";
+}
+
+function looksHex(value: string): boolean {
+  return /^[0-9A-F]+$/i.test(value.replace(/^0x/i, ""));
+}
+
+function toHexWidth(bitCount: number | null | undefined): number | null {
+  if (!bitCount || bitCount <= 0) return null;
+  return Math.ceil(bitCount / 4);
 }
 
 function addCredentialForms(values: Set<string>, value: string | null | undefined) {
@@ -107,8 +121,11 @@ export function buildReaderCredentialAliases(input: CredentialNormalizationInput
 
   const rawWiegandDecimal = normalizeCredentialUID(input.rawWiegandDecimal ?? "");
   const rawWiegandDecimalOriginal = clean(input.rawWiegandDecimal);
+  const rawWiegandHexOriginal = clean(input.rawWiegandHex).replace(/^0x/i, "").toUpperCase();
   const rawWiegandHex = stripHexLeadingZeros(input.rawWiegandHex ?? "");
+  const rawWiegandHexWidth = toHexWidth(input.rawWiegandBitCount ?? null);
   const credential = normalizeCredentialUID(input.value ?? "");
+  const credentialRaw = clean(input.value);
   const cardNumber = normalizeCredentialUID(input.cardNumber ?? "");
   const facilityCode = clean(input.facilityCode).toUpperCase();
 
@@ -120,7 +137,13 @@ export function buildReaderCredentialAliases(input: CredentialNormalizationInput
   }
 
   if (rawWiegandHex) {
+    if (rawWiegandHexOriginal && rawWiegandHexOriginal !== rawWiegandHex) {
+      pushWeak(rawWiegandHexOriginal, "rawWiegandHex", true);
+    }
     pushStrong(rawWiegandHex, "rawWiegandHex");
+    if (rawWiegandHexWidth && /^[0-9A-F]+$/.test(rawWiegandHex)) {
+      pushWeak(rawWiegandHex.padStart(rawWiegandHexWidth, "0"), "rawWiegandHex", true);
+    }
   }
 
   if (credential) {
@@ -128,6 +151,20 @@ export function buildReaderCredentialAliases(input: CredentialNormalizationInput
       pushStrong(credential, "credentialEquivalent");
     } else if (!rawWiegandDecimal && !rawWiegandHex) {
       pushWeak(credential, "credential");
+    }
+  }
+
+  if (credentialRaw && looksHex(credentialRaw)) {
+    const rawHexInput = credentialRaw.replace(/^0x/i, "").toUpperCase();
+    const normalizedHex = stripHexLeadingZeros(credentialRaw);
+    if (rawHexInput) {
+      pushWeak(rawHexInput, "credentialHex", true);
+    }
+    if (normalizedHex && normalizedHex !== rawWiegandHex) {
+      pushWeak(normalizedHex, "credentialHex", true);
+      if (rawWiegandHexWidth && /^[0-9A-F]+$/.test(normalizedHex)) {
+        pushWeak(normalizedHex.padStart(rawWiegandHexWidth, "0"), "credentialHex", true);
+      }
     }
   }
 
@@ -146,6 +183,7 @@ export function buildReaderCredentialAliases(input: CredentialNormalizationInput
   if (facilityCode && cardNumber) {
     pushWeak(`${facilityCode}-${cardNumber}`, "facilityCodeCardNumber", true);
     pushWeak(`${facilityCode}:${cardNumber}`, "facilityCodeCardNumberVariant", true);
+    pushWeak(`${facilityCode}${cardNumber}`, "facilityCodeCardNumberCompact", true);
   }
 
   const aliases = unique([...strongAliases, ...weakAliases]);
@@ -175,6 +213,7 @@ export function normalizeCredentialForLookup(input: CredentialNormalizationInput
     tokenValues: unique([...tokenValues]),
     strongAliases: readerAliases.strongAliases,
     weakAliases: readerAliases.weakAliases,
+    aliasSource: readerAliases.aliasSource,
   };
 }
 

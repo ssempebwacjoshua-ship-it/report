@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const storeMocks = vi.hoisted(() => ({
-  getTagByScanValue: vi.fn(),
+  getTagByScanCandidates: vi.fn(),
   getStudentById: vi.fn(),
   getOfflineWallet: vi.fn(),
 }));
@@ -45,7 +45,7 @@ describe("resolveOfflineNfcScan", () => {
   it.each(["ASSIGNED", "ALLOCATED", "ACTIVE", "VERIFIED", "REGISTERED", "WRITTEN", "GENERATED"])(
     "allows %s tags that are linked to a student",
     async (status) => {
-      storeMocks.getTagByScanValue.mockResolvedValue(tag(status));
+      storeMocks.getTagByScanCandidates.mockResolvedValue(tag(status));
       const { resolveOfflineNfcScan } = await import("../../offline/offlineResolver");
 
       await expect(resolveOfflineNfcScan("school-a", "PUB001")).resolves.toMatchObject({
@@ -57,7 +57,7 @@ describe("resolveOfflineNfcScan", () => {
   );
 
   it.each(["UNASSIGNED", "UNALLOCATED", "GENERATED"])("blocks %s tags with no student", async (status) => {
-    storeMocks.getTagByScanValue.mockResolvedValue(tag(status, null));
+    storeMocks.getTagByScanCandidates.mockResolvedValue(tag(status, null));
     const { resolveOfflineNfcScan } = await import("../../offline/offlineResolver");
 
     await expect(resolveOfflineNfcScan("school-a", "PUB001")).resolves.toMatchObject({
@@ -68,7 +68,7 @@ describe("resolveOfflineNfcScan", () => {
   });
 
   it.each(["DISABLED", "LOST"])("blocks %s tags even when linked to a student", async (status) => {
-    storeMocks.getTagByScanValue.mockResolvedValue(tag(status));
+    storeMocks.getTagByScanCandidates.mockResolvedValue(tag(status));
     const { resolveOfflineNfcScan } = await import("../../offline/offlineResolver");
 
     await expect(resolveOfflineNfcScan("school-a", "PUB001")).resolves.toMatchObject({
@@ -78,7 +78,7 @@ describe("resolveOfflineNfcScan", () => {
   });
 
   it("blocks locally when the Local Gate Register marks an active fee hold", async () => {
-    storeMocks.getTagByScanValue.mockResolvedValue(tag("ASSIGNED"));
+    storeMocks.getTagByScanCandidates.mockResolvedValue(tag("ASSIGNED"));
     storeMocks.getStudentById.mockResolvedValue({
       ...activeStudent,
       feeHoldStatus: "ACTIVE",
@@ -94,7 +94,7 @@ describe("resolveOfflineNfcScan", () => {
   });
 
   it("does not guess fee-hold blocking when fee-hold fields are missing", async () => {
-    storeMocks.getTagByScanValue.mockResolvedValue(tag("ASSIGNED"));
+    storeMocks.getTagByScanCandidates.mockResolvedValue(tag("ASSIGNED"));
     storeMocks.getStudentById.mockResolvedValue(activeStudent);
     const { resolveOfflineNfcScan } = await import("../../offline/offlineResolver");
 
