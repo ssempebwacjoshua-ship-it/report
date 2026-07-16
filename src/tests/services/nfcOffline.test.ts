@@ -17,6 +17,8 @@ type MockTx = { id: string; schoolId: string; studentId: string; walletId: strin
 type MockGateScan = { id: string; schoolId: string; studentId: string | null; credentialId: null; scannedByUserId: null; result: string; reason: string | null; scannedAt: Date };
 type MockAttendance = { id: string; schoolId: string; studentId: string; credentialId: string | null; direction: string; source: string; status: string; reason: null; scannedAt: Date };
 type MockFeeHold = { id: string; schoolId: string; studentId: string; status: "ACTIVE" | "CLEARED" | "CANCELLED" };
+type MockDailyAttendance = { id: string; schoolId: string; studentId: string; attendanceDate: Date; status: string; firstRecordedAt: Date; source: string };
+type MockCampusMovementEvent = { id: string; schoolId: string; studentId: string; readerId: string; type: string; occurredAt: Date; deviceTime: Date; offlineSynced: boolean; metadata: Record<string, unknown> | null };
 
 const students: MockStudent[] = [
   { id: "stu-1", schoolId: "school-a", admissionNumber: "A001", firstName: "Alice", lastName: "M", isActive: true, studentType: "DAY", enrollments: [{ isActive: true, status: "ACTIVE", class: { id: "cls-1", name: "P4" }, stream: { id: "str-1", name: "A" } }] },
@@ -24,6 +26,7 @@ const students: MockStudent[] = [
 ];
 const tags: MockTag[] = [
   { id: "tag-1", schoolId: "school-a", publicCode: "PUB001", physicalUid: "UID001", studentId: "stu-1", status: "ASSIGNED", tagMode: "WRISTBAND", purpose: null, writtenPayload: null },
+  { id: "tag-2", schoolId: "school-a", publicCode: "PUB002", physicalUid: "UID002", studentId: "stu-2", status: "ASSIGNED", tagMode: "WRISTBAND", purpose: null, writtenPayload: null },
 ];
 const wallets: MockWallet[] = [
   { id: "wal-1", studentId: "stu-1", schoolId: "school-a", status: "ACTIVE", balanceCents: 50000, frozenReason: null, pinHash: "pbkdf2$100000$salt$hash", pinLockedUntil: null },
@@ -35,6 +38,30 @@ const auditStore: unknown[] = [];
 const offlineDeviceStore: unknown[] = [];
 const offlineBatchStore: unknown[] = [];
 const feeHoldStore: MockFeeHold[] = [];
+const dailyAttendanceStore: MockDailyAttendance[] = [];
+const campusMovementStore: MockCampusMovementEvent[] = [];
+
+function makeGateDevice(overrides: Record<string, unknown> = {}) {
+  return {
+    id: "device-gate-1",
+    schoolId: "school-a",
+    name: "Gate Reader 1",
+    deviceKey: "dev-1",
+    mode: "ATTENDANCE",
+    location: "Main Gate",
+    locationType: "GATE",
+    locationName: "Main Gate",
+    attendanceMode: "GATE_ATTENDANCE",
+    studentScope: "ALL_STUDENTS",
+    classId: null,
+    streamId: null,
+    direction: "ENTRY",
+    status: "ACTIVE",
+    roleScope: "GATE_SECURITY",
+    isActive: true,
+    ...overrides,
+  };
+}
 
 function mockPolicy(overrides: Record<string, unknown> = {}) {
   const now = new Date("2026-06-28T10:00:00.000Z");
@@ -77,6 +104,34 @@ function makeMockDb() {
     nfcTag: {
       findMany: async ({ where }: { where: { schoolId: string } }) =>
         tags.filter((t) => t.schoolId === where.schoolId),
+      findFirst: async ({ where }: { where: { schoolId: string; OR?: Array<{ publicCode?: { in?: string[] }; physicalUid?: { equals: string; mode: string } }> } }) => {
+        const tag = tags.find((item) => {
+          if (item.schoolId !== where.schoolId || !where.OR?.length) return false;
+          return where.OR.some((candidate) =>
+            (candidate.publicCode?.in?.includes(item.publicCode) ?? false)
+            || (candidate.physicalUid?.equals
+              ? item.physicalUid?.toLowerCase() === candidate.physicalUid.equals.toLowerCase()
+              : false));
+        });
+        if (!tag?.studentId) return null;
+        const student = students.find((row) => row.id === tag.studentId);
+        if (!student) return null;
+        return {
+          ...tag,
+          student: {
+            id: student.id,
+            firstName: student.firstName,
+            lastName: student.lastName,
+            attendanceProfile: student.studentType === "BOARDING" ? "BOARDER" : "DAY_SCHOLAR",
+            studentType: student.studentType ?? null,
+            isActive: student.isActive,
+            enrollments: [{
+              classId: ((student.enrollments[0] as { class?: { id?: string } | null } | undefined)?.class?.id) ?? null,
+              streamId: ((student.enrollments[0] as { stream?: { id?: string } | null } | undefined)?.stream?.id) ?? null,
+            }],
+          },
+        };
+      },
     },
     studentWallet: {
       findMany: async ({ where }: { where: { schoolId: string; status?: string } }) =>
@@ -98,13 +153,39 @@ function makeMockDb() {
         return { count: 1 };
       },
     },
-    studentCredential: {},
+    studentCredential: {
+      findFirst: async () => null,
+    },
     schoolNfcPolicy: {
+      findUnique: async () => ({
+        schoolId: "school-a",
+        timezone: "Africa/Kampala",
+        duplicateWindowSeconds: 60,
+        gateArrivalStart: "05:30",
+        gateArrivalLateAfter: "08:00",
+        gateArrivalEnd: "10:00",
+        morningClassroomStart: "06:30",
+        morningClassroomEnd: "10:00",
+        gateDepartureStart: "14:00",
+        gateDepartureEnd: "19:00",
+        nightPrepStart: "18:30",
+        nightPrepEnd: "22:30",
+        nightPrepBoardingOnly: true,
+        allowAutomaticCheckout: false,
+        recordUnclassifiedScans: true,
+        feeGatePolicyEnabled: policyRow.feeDefaulterBlockingEnabled,
+      }),
       upsert: async () => policyRow,
     },
     studentFeeHold: {
       findMany: async ({ where }: { where: { schoolId: string; status?: string } }) =>
         feeHoldStore.filter((hold) => hold.schoolId === where.schoolId && (!where.status || hold.status === where.status)),
+      findFirst: async ({ where }: { where: { schoolId: string; studentId: string; status?: string } }) =>
+        feeHoldStore.find((hold) => hold.schoolId === where.schoolId && hold.studentId === where.studentId && (!where.status || hold.status === where.status)) ?? null,
+    },
+    studentGateHold: {
+      findFirst: async () => null,
+      updateMany: async () => ({ count: 0 }),
     },
     nfcGateScan: {
       findFirst: async ({ where }: { where: { schoolId: string; scannedAt: Date } }) =>
@@ -131,6 +212,50 @@ function makeMockDb() {
         attendanceStore.push(evt);
         return evt;
       },
+    },
+    dailyAttendance: {
+      findFirst: async ({ where }: { where: { schoolId: string; studentId: string; attendanceDate: Date } }) =>
+        dailyAttendanceStore.find((row) =>
+          row.schoolId === where.schoolId
+          && row.studentId === where.studentId
+          && row.attendanceDate.getTime() === where.attendanceDate.getTime()) ?? null,
+      upsert: async ({ where, create }: { where: { schoolId_studentId_attendanceDate: { schoolId: string; studentId: string; attendanceDate: Date } }; create: MockDailyAttendance }) => {
+        const existing = dailyAttendanceStore.find((row) =>
+          row.schoolId === where.schoolId_studentId_attendanceDate.schoolId
+          && row.studentId === where.schoolId_studentId_attendanceDate.studentId
+          && row.attendanceDate.getTime() === where.schoolId_studentId_attendanceDate.attendanceDate.getTime());
+        if (existing) return existing;
+        const next = { ...create, id: `daily-${dailyAttendanceStore.length + 1}` };
+        dailyAttendanceStore.push(next);
+        return next;
+      },
+    },
+    campusMovementEvent: {
+      findFirst: async ({ where, orderBy }: { where: Record<string, any>; orderBy?: { occurredAt: "desc" | "asc" } }) => {
+        const filtered = campusMovementStore.filter((item) => {
+          if (where.schoolId && item.schoolId !== where.schoolId) return false;
+          if (where.studentId && item.studentId !== where.studentId) return false;
+          if (where.readerId && item.readerId !== where.readerId) return false;
+          if (where.type?.in && !where.type.in.includes(item.type)) return false;
+          if (where.occurredAt?.gte && item.occurredAt < where.occurredAt.gte) return false;
+          if (where.occurredAt?.lte && item.occurredAt > where.occurredAt.lte) return false;
+          if (where.occurredAt?.lt && item.occurredAt >= where.occurredAt.lt) return false;
+          return true;
+        });
+        filtered.sort((a, b) => orderBy?.occurredAt === "asc"
+          ? a.occurredAt.getTime() - b.occurredAt.getTime()
+          : b.occurredAt.getTime() - a.occurredAt.getTime());
+        return filtered[0] ?? null;
+      },
+      create: async ({ data }: { data: MockCampusMovementEvent }) => {
+        const next = { ...data, id: `move-${campusMovementStore.length + 1}` };
+        campusMovementStore.push(next);
+        return next;
+      },
+    },
+    classroomAttendanceEvent: {
+      findFirst: async () => null,
+      create: async ({ data }: { data: Record<string, unknown> }) => data,
     },
     studentWalletTransaction: {
       findFirst: async ({ where }: { where: { schoolId: string; idempotencyKey?: string } }) =>
@@ -183,6 +308,8 @@ beforeEach(() => {
   offlineDeviceStore.length = 0;
   offlineBatchStore.length = 0;
   feeHoldStore.length = 0;
+  dailyAttendanceStore.length = 0;
+  campusMovementStore.length = 0;
   policyRow = mockPolicy();
 });
 
@@ -197,7 +324,7 @@ describe("bootstrapOfflineSnapshot", () => {
     const snap = await bootstrapOfflineSnapshot(ADMIN_CTX, {}, db);
     expect(snap.schoolId).toBe("school-a");
     expect(snap.students).toHaveLength(2);
-    expect(snap.tags).toHaveLength(1);
+    expect(snap.tags).toHaveLength(2);
     expect(snap.wallets).toHaveLength(1);
   });
 
@@ -292,9 +419,14 @@ describe("bootstrapOfflineSnapshot", () => {
 });
 
 describe("syncOfflineEvents — gate scan", () => {
-  beforeEach(() => { gateScanStore.length = 0; });
+  beforeEach(() => {
+    gateScanStore.length = 0;
+    dailyAttendanceStore.length = 0;
+    campusMovementStore.length = 0;
+    offlineDeviceStore.push(makeGateDevice());
+  });
 
-  it("creates a gate scan record", async () => {
+  it("creates a gate scan record plus admin-visible movement and attendance", async () => {
     const db = makeMockDb();
     const result = await syncOfflineEvents(
       ADMIN_CTX,
@@ -309,7 +441,14 @@ describe("syncOfflineEvents — gate scan", () => {
           actionType: "GATE_SCAN",
           sequenceNumber: 0,
           idempotencyKey: "gate:dev-1:0",
-          payload: { result: "ALLOWED", studentId: "stu-1", reason: null },
+          payload: {
+            result: "ALLOWED",
+            studentId: "stu-1",
+            reason: null,
+            publicCode: "PUB001",
+            physicalUid: "UID001",
+            scannedAt: "2026-07-11T04:45:00.000Z",
+          },
           payloadHash: "hash1",
           previousHash: null,
           eventHash: "evhash1",
@@ -320,11 +459,18 @@ describe("syncOfflineEvents — gate scan", () => {
     );
     expect(result.results[0]?.status).toBe("SYNCED");
     expect(gateScanStore).toHaveLength(1);
+    expect(dailyAttendanceStore).toHaveLength(1);
+    expect(campusMovementStore).toHaveLength(1);
+    expect(campusMovementStore[0]).toMatchObject({
+      type: "GATE_ENTRY",
+      studentId: "stu-1",
+      offlineSynced: true,
+    });
   });
 
-  it("deduplicates gate scan by scannedAt", async () => {
+  it("deduplicates gate scan by scannedAt without duplicating attendance", async () => {
     const db = makeMockDb();
-    const createdAt = new Date().toISOString();
+    const createdAt = "2026-07-11T04:45:30.000Z";
     const event = {
       localId: "local-dup",
       schoolId: "school-a",
@@ -333,7 +479,14 @@ describe("syncOfflineEvents — gate scan", () => {
       actionType: "GATE_SCAN" as const,
       sequenceNumber: 0,
       idempotencyKey: "gate:dev-1:0",
-      payload: { result: "ALLOWED", studentId: "stu-1", reason: null },
+      payload: {
+        result: "ALLOWED",
+        studentId: "stu-1",
+        reason: null,
+        publicCode: "PUB001",
+        physicalUid: "UID001",
+        scannedAt: createdAt,
+      },
       payloadHash: "h",
       previousHash: null,
       eventHash: "eh",
@@ -343,6 +496,8 @@ describe("syncOfflineEvents — gate scan", () => {
     await syncOfflineEvents(ADMIN_CTX, input, db);
     const res2 = await syncOfflineEvents(ADMIN_CTX, { ...input, events: [{ ...event, localId: "local-dup2" }] }, db);
     expect(res2.results[0]?.status).toBe("DUPLICATE");
+    expect(dailyAttendanceStore).toHaveLength(1);
+    expect(campusMovementStore).toHaveLength(1);
   });
 
   it("rejects events from a different school (school isolation)", async () => {
@@ -371,6 +526,96 @@ describe("syncOfflineEvents — gate scan", () => {
     );
     expect(result.results[0]?.status).toBe("FAILED");
     expect(result.results[0]?.errorMessage).toMatch(/mismatch/i);
+  });
+
+  it("records only movement for boarding students and keeps it admin-visible", async () => {
+    const db = makeMockDb();
+    const result = await syncOfflineEvents(
+      ADMIN_CTX,
+      {
+        deviceId: "dev-1",
+        snapshotId: "snap-1",
+        events: [{
+          localId: "local-boarder",
+          schoolId: "school-a",
+          deviceId: "dev-1",
+          snapshotId: "snap-1",
+          actionType: "GATE_SCAN",
+          sequenceNumber: 0,
+          idempotencyKey: "gate:dev-1:boarder",
+          payload: {
+            result: "ALLOWED",
+            studentId: "stu-2",
+            reason: null,
+            publicCode: "PUB002",
+            physicalUid: "UID002",
+            scannedAt: "2026-07-11T04:45:00.000Z",
+          },
+          payloadHash: "hb",
+          previousHash: null,
+          eventHash: "ehb",
+          createdAt: "2026-07-11T04:45:00.000Z",
+        }],
+      },
+      db,
+    );
+
+    expect(result.results[0]?.status).toBe("SYNCED");
+    expect(dailyAttendanceStore).toHaveLength(0);
+    expect(campusMovementStore).toHaveLength(1);
+    expect(campusMovementStore[0]).toMatchObject({
+      type: "GATE_ENTRY",
+      studentId: "stu-2",
+      offlineSynced: true,
+    });
+  });
+
+  it("records blocked gate movement for fee-held day scholars", async () => {
+    policyRow = mockPolicy({ feeDefaulterBlockingEnabled: true });
+    feeHoldStore.push({ id: "hold-1", schoolId: "school-a", studentId: "stu-1", status: "ACTIVE" });
+    const db = makeMockDb();
+
+    const result = await syncOfflineEvents(
+      ADMIN_CTX,
+      {
+        deviceId: "dev-1",
+        snapshotId: "snap-1",
+        events: [{
+          localId: "local-held",
+          schoolId: "school-a",
+          deviceId: "dev-1",
+          snapshotId: "snap-1",
+          actionType: "GATE_SCAN",
+          sequenceNumber: 0,
+          idempotencyKey: "gate:dev-1:held",
+          payload: {
+            result: "BLOCKED",
+            studentId: "stu-1",
+            reason: "school fees defaulter",
+            publicCode: "PUB001",
+            physicalUid: "UID001",
+            scannedAt: "2026-07-11T04:45:00.000Z",
+          },
+          payloadHash: "hh",
+          previousHash: null,
+          eventHash: "ehh",
+          createdAt: "2026-07-11T04:45:00.000Z",
+        }],
+      },
+      db,
+    );
+
+    expect(result.results[0]?.status).toBe("SYNCED");
+    expect(dailyAttendanceStore).toHaveLength(0);
+    expect(campusMovementStore).toHaveLength(1);
+    expect(campusMovementStore[0]).toMatchObject({
+      type: "RESTRICTED_ENTRY_ATTEMPT",
+      studentId: "stu-1",
+      offlineSynced: true,
+    });
+    expect(gateScanStore[0]).toMatchObject({
+      result: "BLOCKED",
+    });
   });
 });
 
