@@ -398,9 +398,27 @@ describe("communication outbound routes", () => {
     vi.stubEnv("SMS_PROVIDER", "yoola");
     vi.stubEnv("SMS_PROVIDER_ENABLED", "true");
     vi.stubEnv("SMS_API_KEY", "live-yoola-key");
+    vi.stubEnv("SMS_SENDER_ID", "");
     const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({
-      status: "SUCCESS",
-      message_id: "yoola-msg-123",
+      status: "success",
+      code: 200,
+      message_id: 987654321,
+      sender_used: "YOOLA",
+      successful: 1,
+      failed: 0,
+      credits_used: 1,
+      credits_refunded: 0,
+      amount_charged: 35,
+      message_parts: 1,
+      balance: 1200,
+      per_recipient: [
+        {
+          number: "256774549869",
+          status: "Success",
+          statusCode: 100,
+          reference: "yoola-ref-123",
+        },
+      ],
     }), {
       status: 200,
       headers: { "Content-Type": "application/json" },
@@ -421,6 +439,15 @@ describe("communication outbound routes", () => {
     expect(second.body.result.submitted).toBe(0);
     expect(second.body.result.skippedDuplicate).toBe(1);
     expect(fetchMock).toHaveBeenCalledTimes(1);
+    await expect(prisma.communicationDelivery.findFirstOrThrow({ where: { schoolId, campaignId } })).resolves.toMatchObject({
+      providerMessageId: "yoola-ref-123",
+      status: "SUBMITTED",
+    });
+    await expect(prisma.communicationUsageRecord.findFirstOrThrow({ where: { schoolId, campaignId } })).resolves.toMatchObject({
+      billableUnits: 1,
+      providerCostMinor: 35,
+      unitType: "SEGMENT",
+    });
   });
 
   it("returns normalized campaign progress totals", async () => {

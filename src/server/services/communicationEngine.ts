@@ -749,7 +749,7 @@ async function sendSmsCampaign(
         data: {
           status: "PROVIDER_ACCEPTED",
           providerMessageId: accepted.providerMessageId,
-          providerResponseCode: accepted.providerStatus,
+          providerResponseCode: accepted.providerStatusCode ?? accepted.providerStatus,
           completedAt: now,
         },
       });
@@ -761,6 +761,8 @@ async function sendSmsCampaign(
           channel: "SMS" as never,
           provider: provider.providerKey,
           billableUnits: accepted.billableUnits,
+          unitType: "SEGMENT",
+          providerCostMinor: accepted.amountChargedMinor,
           status: "ESTIMATED",
         },
       });
@@ -802,7 +804,23 @@ async function sendSmsCampaign(
     where: { id: campaign.id },
     data: { status: failed > 0 && submitted > 0 ? "PARTIALLY_DELIVERED" : failed > 0 && submitted === 0 ? "FAILED" : "SENDING", sendingStartedAt: new Date() },
   });
-  await audit(db, ctx, "communication.delivery_submitted", campaign.id, { channel: "SMS", provider: provider.providerKey, submitted, failed, skippedDuplicate });
+  await audit(db, ctx, "communication.delivery_submitted", campaign.id, {
+    channel: "SMS",
+    provider: provider.providerKey,
+    submitted,
+    failed,
+    skippedDuplicate,
+    acceptedProviderMetadata: batchResult.acceptedRecipients.map((item) => ({
+      recipientId: item.recipientId,
+      deliveryCorrelationId: item.providerMessageId ?? null,
+      requestProviderMessageId: item.requestProviderMessageId ?? null,
+      senderUsed: item.senderUsed ?? null,
+      providerStatusCode: item.providerStatusCode ?? null,
+      creditsUsed: item.creditsUsed ?? null,
+      amountChargedMinor: item.amountChargedMinor ?? null,
+      messageParts: item.billableUnits,
+    })),
+  });
   return { submitted, failed, skippedDuplicate, results, templatePolicy, progress: await getCampaignProgressTotals(db, ctx, campaign.id) };
 }
 

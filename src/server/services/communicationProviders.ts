@@ -80,9 +80,14 @@ export type SmsBatchMessage = {
 export type SmsBatchAcceptedRecipient = {
   recipientId: string;
   providerMessageId?: string;
+  requestProviderMessageId?: string;
   lifecycleState: CommunicationProgressState;
   providerStatus: string;
   billableUnits: number;
+  providerStatusCode?: string;
+  senderUsed?: string;
+  creditsUsed?: number;
+  amountChargedMinor?: number;
 };
 
 export type SmsBatchRejectedRecipient = {
@@ -312,6 +317,7 @@ export class YoolaSmsProvider implements SmsProvider {
     if (this.env.SMS_PROVIDER?.trim().toLowerCase() !== "yoola") issues.push("SMS_PROVIDER_NOT_YOOLA");
     if (this.env.SMS_PROVIDER_ENABLED !== "true") issues.push("SMS_PROVIDER_DISABLED");
     if (!this.env.SMS_API_KEY?.trim()) issues.push("SMS_API_KEY_MISSING");
+    if (!isValidYoolaSender(this.env.SMS_SENDER_ID)) issues.push("SMS_SENDER_ID_TOO_LONG");
     if (context.sendingEnabled === false) issues.push("SMS_CHANNEL_DISABLED");
     if (!this.endpointUrl) issues.push("SMS_API_BASE_URL_INVALID");
     return { configured: issues.length === 0, sendingEnabled: issues.length === 0, issues };
@@ -338,6 +344,7 @@ export class YoolaSmsProvider implements SmsProvider {
 
     const acceptedRecipients: SmsBatchAcceptedRecipient[] = [];
     const rejectedRecipients: SmsBatchRejectedRecipient[] = [];
+    const sender = resolveConfiguredYoolaSender(this.env.SMS_SENDER_ID);
     for (const message of messages) {
       const phone = normalizeYoolaPhone(message.toE164);
       if (!phone) {
@@ -361,17 +368,30 @@ export class YoolaSmsProvider implements SmsProvider {
             api_key: this.env.SMS_API_KEY,
             phone,
             message: message.text,
+            ...(sender ? { sender } : {}),
           }),
           signal: controller.signal,
         });
         const parsed = await parseProviderResponse(response, [this.env.SMS_API_KEY?.trim() ?? ""]);
-        if (response.ok) {
+        const successResult = normalizeYoolaAcceptedResponse({
+          response,
+          parsedBody: parsed.parsedBody,
+          recipientId: message.recipientId,
+          phone,
+          fallbackBillableUnits: message.segmentCount,
+        });
+        if (successResult) {
           acceptedRecipients.push({
             recipientId: message.recipientId,
-            providerMessageId: extractProviderMessageId(parsed.parsedBody),
+            providerMessageId: successResult.providerMessageId,
+            requestProviderMessageId: successResult.requestProviderMessageId,
             lifecycleState: "SENT",
-            providerStatus: extractProviderStatus(parsed.parsedBody) ?? `HTTP_${response.status}`,
-            billableUnits: message.segmentCount,
+            providerStatus: successResult.providerStatus,
+            billableUnits: successResult.billableUnits,
+            providerStatusCode: successResult.providerStatusCode,
+            senderUsed: successResult.senderUsed,
+            creditsUsed: successResult.creditsUsed,
+            amountChargedMinor: successResult.amountChargedMinor,
           });
           continue;
         }
@@ -380,8 +400,8 @@ export class YoolaSmsProvider implements SmsProvider {
           recipientId: message.recipientId,
           lifecycleState: "FAILED",
           providerStatus: extractProviderStatus(parsed.parsedBody) ?? `HTTP_${response.status}`,
-          errorCode: extractProviderErrorCode(parsed.parsedBody) ?? `HTTP_${response.status}`,
-          safeErrorMessage: buildSafeProviderErrorMessage(parsed.safeBody, response.status),
+          errorCode: extractYoolaFailureCode(parsed.parsedBody, response.status),
+          safeErrorMessage: buildYoolaFailureMessage(parsed.parsedBody, parsed.safeBody, response.status, phone),
         });
       } catch (error) {
         rejectedRecipients.push({
@@ -475,6 +495,19 @@ function normalizeYoolaPhone(toE164: string) {
   return trimmed.slice(1);
 }
 
+function resolveConfiguredYoolaSender(value: string | undefined) {
+  const trimmed = value?.trim();
+  if (!trimmed) return undefined;
+  if (!isValidYoolaSender(trimmed)) return undefined;
+  return trimmed;
+}
+
+function isValidYoolaSender(value: string | undefined) {
+  const trimmed = value?.trim();
+  if (!trimmed) return true;
+  return trimmed.length <= 11;
+}
+
 function resolveYoolaEndpointUrl(env: NodeJS.ProcessEnv) {
   const configured = env.SMS_API_BASE_URL?.trim();
   if (!configured) return "https://yoolasms.com/api/v1/send_sms";
@@ -550,6 +583,103 @@ function buildSafeProviderErrorMessage(value: unknown, statusCode: number) {
   return `Yoola SMS rejected the request with HTTP ${statusCode}.`;
 }
 
+function normalizeYoolaAcceptedResponse(input: {
+  response: Response;
+  parsedBody: unknown;
+  recipientId: string;
+  phone: string;
+  fallbackBillableUnits: number;
+}) {
+  if (!input.response.ok || !input.parsedBody || typeof input.parsedBody !== "object") return null;
+  const body = input.parsedBody as YoolaSendResponse;
+  if (body.status !== "success" || body.code !== 200) return null;
+  if (typeof body.successful === "number" && body.successful <= 0) return null;
+  if (typeof body.failed === "number" && body.failed > 0) return null;
+
+  const matchedRecipient = Array.isArray(body.per_recipient)
+    ? body.per_recipient.find((entry) => entry?.number === input.phone)
+    : undefined;
+  if (!matchedRecipient) return null;
+  if (matchedRecipient.status !== "Success" || matchedRecipient.statusCode !== 100) return null;
+
+  return {
+    recipientId: input.recipientId,
+    providerMessageId: matchedRecipient.reference ? redactSensitiveText(String(matchedRecipient.reference)) : undefined,
+    requestProviderMessageId: body.message_id === undefined || body.message_id === null
+      ? undefined
+      : redactSensitiveText(String(body.message_id)),
+    providerStatus: `${body.status}:${matchedRecipient.status}`,
+    providerStatusCode: String(matchedRecipient.statusCode),
+    billableUnits: asPositiveInteger(body.message_parts) ?? input.fallbackBillableUnits,
+    senderUsed: sanitizeSenderValue(body.sender_used),
+    creditsUsed: asPositiveInteger(body.credits_used) ?? undefined,
+    amountChargedMinor: parseYoolaAmountMinor(body.amount_charged),
+  };
+}
+
+function extractYoolaFailureCode(value: unknown, statusCode: number) {
+  if (value && typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    const matchedRecipient = Array.isArray(record.per_recipient) ? record.per_recipient[0] as Record<string, unknown> | undefined : undefined;
+    return safeProviderCode(
+      matchedRecipient?.statusCode
+      ?? record.code
+      ?? record.error_code
+      ?? record.errorCode,
+    ) ?? `HTTP_${statusCode}`;
+  }
+  return `HTTP_${statusCode}`;
+}
+
+function buildYoolaFailureMessage(parsedBody: unknown, safeBody: string, statusCode: number, phone: string) {
+  const normalizedSafeBody = redactSensitiveText(safeBody, [phone]);
+  if (parsedBody && typeof parsedBody === "object") {
+    const record = parsedBody as Record<string, unknown>;
+    const matchedRecipient = Array.isArray(record.per_recipient)
+      ? (record.per_recipient[0] as Record<string, unknown> | undefined)
+      : undefined;
+    if (record.code === 200 && record.status === "success") {
+      return "Yoola SMS returned a response that did not confirm recipient acceptance.";
+    }
+    const candidates = [
+      matchedRecipient?.status,
+      matchedRecipient?.message,
+      record.message,
+      record.error,
+      record.detail,
+      record.status,
+    ];
+    for (const candidate of candidates) {
+      if (typeof candidate === "string" && candidate.trim()) {
+        return redactSensitiveText(candidate, [phone]).slice(0, 180);
+      }
+    }
+  }
+  return buildSafeProviderErrorMessage(normalizedSafeBody, statusCode);
+}
+
+function asPositiveInteger(value: unknown) {
+  if (typeof value === "number" && Number.isInteger(value) && value >= 0) return value;
+  if (typeof value === "string" && /^\d+$/.test(value.trim())) return Number.parseInt(value.trim(), 10);
+  return null;
+}
+
+function parseYoolaAmountMinor(value: unknown) {
+  if (typeof value === "number" && Number.isFinite(value) && value >= 0) return Math.round(value);
+  if (typeof value === "string" && value.trim()) {
+    const normalized = Number(value.trim());
+    if (Number.isFinite(normalized) && normalized >= 0) return Math.round(normalized);
+  }
+  return undefined;
+}
+
+function sanitizeSenderValue(value: unknown) {
+  if (typeof value !== "string") return undefined;
+  const trimmed = value.trim();
+  if (!trimmed) return undefined;
+  return trimmed.slice(0, 32);
+}
+
 function redactSensitiveText(value: string, secrets: string[] = []) {
   let redacted = value;
   for (const secret of secrets) {
@@ -595,4 +725,24 @@ type MetaWebhookPayload = {
 type MetaSendResponse = {
   messages?: Array<{ id?: string }>;
   error?: { code?: string | number; message?: string };
+};
+
+type YoolaSendResponse = {
+  status?: string;
+  code?: number;
+  message_id?: string | number;
+  sender_used?: string;
+  successful?: number;
+  failed?: number;
+  credits_used?: number | string;
+  credits_refunded?: number | string;
+  amount_charged?: number | string;
+  message_parts?: number | string;
+  per_recipient?: Array<{
+    number?: string;
+    status?: string;
+    statusCode?: number;
+    reference?: string | number;
+    message?: string;
+  }>;
 };
