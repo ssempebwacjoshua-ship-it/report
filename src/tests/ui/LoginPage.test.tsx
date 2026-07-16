@@ -6,6 +6,18 @@ import { LoginPage } from "../../pages/LoginPage";
 
 const navigateMock = vi.hoisted(() => vi.fn());
 const loginMock = vi.hoisted(() => vi.fn());
+const authState = vi.hoisted(() => ({
+  user: null as null | {
+    id: string;
+    schoolId: string;
+    name: string;
+    email: string;
+    role: "ADMIN_OPERATOR" | "SECURITY" | "GATE_SECURITY";
+    isPlatformOwner: boolean;
+  },
+  token: null as string | null,
+  loading: false,
+}));
 
 vi.mock("react-router-dom", async () => {
   const actual = await vi.importActual<typeof import("react-router-dom")>("react-router-dom");
@@ -16,13 +28,16 @@ vi.mock("react-router-dom", async () => {
 });
 
 vi.mock("../../contexts/AuthContext", () => ({
-  useAuth: () => ({ login: loginMock }),
+  useAuth: () => ({ login: loginMock, user: authState.user, token: authState.token, loading: authState.loading }),
 }));
 
 describe("LoginPage", () => {
   beforeEach(() => {
     navigateMock.mockReset();
     loginMock.mockReset();
+    authState.user = null;
+    authState.token = null;
+    authState.loading = false;
   });
 
   it.each([
@@ -109,5 +124,25 @@ describe("LoginPage", () => {
     await waitFor(() => {
       expect(screen.getByText(/unable to connect to the report lab service/i)).toBeInTheDocument();
     });
+  });
+
+  it("redirects restored sessions away from login", async () => {
+    authState.user = {
+      id: "user-1",
+      schoolId: "school-1",
+      name: "Gate Security",
+      email: "gate@test.com",
+      role: "SECURITY",
+      isPlatformOwner: false,
+    };
+    authState.token = "tok-1";
+
+    render(
+      <MemoryRouter>
+        <LoginPage />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => expect(navigateMock).toHaveBeenCalledWith("/nfc/gate", { replace: true }));
   });
 });
