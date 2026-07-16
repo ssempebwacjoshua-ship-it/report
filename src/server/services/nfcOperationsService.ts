@@ -4,7 +4,6 @@ import { prisma as defaultPrisma } from "../db/prisma";
 import type { SchoolUserRole } from "./authService";
 import { assertPinFormat, checkPin, hashWalletPin } from "./walletPinService";
 import { canOperateAttendance, hasPermission } from "../../shared/permissions";
-import { normalizeCredentialUID } from "../../shared/utils/credentialNormalization";
 import { normalizeNfcScanValue } from "../../shared/utils/nfcPayload";
 import {
   getSchoolNfcPolicy,
@@ -19,6 +18,10 @@ import {
   getCanonicalAttendanceRegister,
   type AttendanceRegisterResponse,
 } from "./locationAttendanceService";
+import {
+  mapCredentialFailureReason,
+  resolveNfcCredential,
+} from "./nfcCredentialResolver";
 
 const {
   AttendanceDirection,
@@ -154,14 +157,6 @@ function studentSummary(student: StudentForNfc) {
   };
 }
 
-function extractTokenOrUid(value: string) {
-  const extracted = normalizeNfcScanValue(value);
-  return {
-    token: extracted,
-    uid: normalizeCredentialUID(extracted),
-  };
-}
-
 async function runWrite<T>(db: NfcOperationsClient, fn: (tx: NfcOperationsClient) => Promise<T>) {
   return db.$transaction ? db.$transaction(fn) : fn(db);
 }
@@ -191,77 +186,34 @@ async function resolveNfcScanTarget(
   tokenOrUid: string,
   options: ResolveTargetOptions = {},
 ): Promise<NfcScanTarget | null> {
-  const { token, uid } = extractTokenOrUid(tokenOrUid);
-
-  // 1. StudentCredential by scanToken or credentialUID
-  const credential = await db.studentCredential.findFirst({
-    where: { schoolId, type: CredentialType.NFC_WRISTBAND, OR: [{ scanToken: token }, { credentialUID: uid }] },
-    include: credentialInclude,
-  }) as CredentialForNfc | null;
-
-  if (credential) {
-    const reason = blockedReason(credential);
-    if (reason) {
-      return { student: credential.student, credential, nfcTagId: null, blocked: true, reason };
-    }
-    if (options.applyFeeHoldBlocking) {
-      const policy = await getSchoolNfcPolicy({ schoolId, actorId: null, role: null }, db);
-      const activeHold = await getActiveStudentFeeHold(db, schoolId, credential.student.id);
-      if (shouldBlockForFeeHold(credential.student, policy.policy, activeHold)) {
-        return { student: credential.student, credential, nfcTagId: null, blocked: true, reason: "school fees defaulter" };
-      }
-    }
-    return { student: credential.student, credential, nfcTagId: null, blocked: false, reason: null };
-  }
-
-  const tagInclude = {
-    student: { select: { id: true, admissionNumber: true, firstName: true, lastName: true, studentType: true, isActive: true, enrollments: studentInclude.enrollments } },
-  };
-  const tagStatusFilter = { notIn: ["DISABLED", "LOST"] };
-
-  // 2. NfcTag by publicCode (case-sensitive, as stored)
-  const tagByCode = await db.nfcTag.findFirst({
-    where: { schoolId, publicCode: token, studentId: { not: null }, status: tagStatusFilter },
-    include: tagInclude,
+  const resolved = await resolveNfcCredential(db as never, {
+    schoolId,
+    value: tokenOrUid,
   });
+  if (!resolved.ok) return null;
 
-  if (tagByCode?.student) {
-    const student = tagByCode.student as StudentForNfc;
-    const reason = student.isActive ? null : "inactive student";
-    if (reason) return { student, credential: null, nfcTagId: tagByCode.id, blocked: true, reason };
-    if (options.applyFeeHoldBlocking) {
-      const policy = await getSchoolNfcPolicy({ schoolId, actorId: null, role: null }, db);
-      const activeHold = await getActiveStudentFeeHold(db, schoolId, student.id);
-      if (shouldBlockForFeeHold(student, policy.policy, activeHold)) {
-        return { student, credential: null, nfcTagId: tagByCode.id, blocked: true, reason: "school fees defaulter" };
-      }
-    }
-    return { student, credential: null, nfcTagId: tagByCode.id, blocked: false, reason: null };
+  const student = {
+    ...resolved.student,
+    enrollments: (resolved.student.enrollments as StudentForNfc["enrollments"]) ?? [],
+  } as StudentForNfc;
+  const reason = resolved.credential ? blockedReason(resolved.credential as CredentialForNfc) : !resolved.student.isActive ? "inactive student" : null;
+  if (reason) {
+    return { student, credential: (resolved.credential as CredentialForNfc | null) ?? null, nfcTagId: resolved.tag?.id ?? null, blocked: true, reason };
   }
-
-  // 3. NfcTag by physicalUid (case-insensitive)
-  if (uid) {
-    const tagByUid = await db.nfcTag.findFirst({
-      where: { schoolId, physicalUid: { equals: uid, mode: "insensitive" }, studentId: { not: null }, status: tagStatusFilter },
-      include: tagInclude,
-    });
-
-    if (tagByUid?.student) {
-      const student = tagByUid.student as StudentForNfc;
-      const reason = student.isActive ? null : "inactive student";
-      if (reason) return { student, credential: null, nfcTagId: tagByUid.id, blocked: true, reason };
-      if (options.applyFeeHoldBlocking) {
-        const policy = await getSchoolNfcPolicy({ schoolId, actorId: null, role: null }, db);
-        const activeHold = await getActiveStudentFeeHold(db, schoolId, student.id);
-        if (shouldBlockForFeeHold(student, policy.policy, activeHold)) {
-          return { student, credential: null, nfcTagId: tagByUid.id, blocked: true, reason: "school fees defaulter" };
-        }
-      }
-      return { student, credential: null, nfcTagId: tagByUid.id, blocked: false, reason: null };
+  if (options.applyFeeHoldBlocking) {
+    const policy = await getSchoolNfcPolicy({ schoolId, actorId: null, role: null }, db);
+    const activeHold = await getActiveStudentFeeHold(db, schoolId, student.id);
+    if (shouldBlockForFeeHold(student, policy.policy, activeHold)) {
+      return { student, credential: (resolved.credential as CredentialForNfc | null) ?? null, nfcTagId: resolved.tag?.id ?? null, blocked: true, reason: "school fees defaulter" };
     }
   }
-
-  return null;
+  return {
+    student,
+    credential: (resolved.credential as CredentialForNfc | null) ?? null,
+    nfcTagId: resolved.tag?.id ?? null,
+    blocked: false,
+    reason: null,
+  };
 }
 
 async function resolveGateBlockedReason(
@@ -269,60 +221,11 @@ async function resolveGateBlockedReason(
   schoolId: string,
   tokenOrUid: string,
 ): Promise<string> {
-  const { token, uid } = extractTokenOrUid(tokenOrUid);
-  const unassignedTagStatuses = new Set(["UNASSIGNED", "UNALLOCATED", "GENERATED", "WRITTEN", "VERIFIED", "REGISTERED"]);
-  const gateStudentSelect = {
-    id: true,
-    admissionNumber: true,
-    firstName: true,
-    lastName: true,
-    studentType: true,
-    isActive: true,
-    enrollments: studentInclude.enrollments,
-  };
-
-  const tag = await db.nfcTag.findFirst({
-    where: {
-      OR: [
-        { publicCode: token },
-        ...(uid ? [{ physicalUid: { equals: uid, mode: "insensitive" as const } }] : []),
-      ],
-    },
-    include: {
-      school: { select: { id: true } },
-      student: { select: gateStudentSelect },
-    },
+  const resolved = await resolveNfcCredential(db as never, {
+    schoolId,
+    value: tokenOrUid,
   });
-
-  if (tag) {
-    if (tag.schoolId !== schoolId) return "wrong school tag";
-    if (!tag.studentId || unassignedTagStatuses.has(tag.status)) return "tag not assigned";
-    if (tag.status === "DISABLED" || tag.status === "LOST") return "lost or deactivated wristband";
-    if (!tag.student?.isActive) return "inactive student";
-    return "unknown token";
-  }
-
-  const credential = await db.studentCredential.findFirst({
-    where: {
-      OR: [
-        { scanToken: token },
-        ...(uid ? [{ credentialUID: uid }] : []),
-      ],
-    },
-    include: {
-      school: { select: { id: true } },
-      student: { select: gateStudentSelect },
-    },
-  }) as (CredentialForNfc & { school?: { id: string } | null }) | null;
-
-  if (credential) {
-    if (credential.schoolId !== schoolId) return "wrong school tag";
-    if (credential.status !== CredentialStatus.ACTIVE) return "lost or deactivated wristband";
-    if (!credential.student?.isActive) return "inactive student";
-    return "unknown token";
-  }
-
-  return "unknown token";
+  return resolved.ok ? "unknown token" : mapCredentialFailureReason(resolved.reason);
 }
 
 function buildStudentWhere(

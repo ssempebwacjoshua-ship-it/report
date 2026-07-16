@@ -221,31 +221,38 @@ export async function getSnapshotCounts(schoolId?: string): Promise<{ studentCou
 
 // ─── Read-only snapshot lookups ───────────────────────────────────────────────
 
+export async function getTagByScanCandidates(schoolId: string, lookupValues: string[]): Promise<OfflineTag | null> {
+  for (const normalizedValue of lookupValues) {
+    const byCode = await offlineDb.offline_tags
+      .where("[schoolId+publicCode]")
+      .equals([schoolId, normalizedValue])
+      .first();
+    if (byCode) return byCode;
+
+    const byUid = await offlineDb.offline_tags
+      .where("[schoolId+physicalUid]")
+      .equals([schoolId, normalizedValue])
+      .first();
+    if (byUid) return byUid;
+
+    const lookupHash = await hashNfcLookupValue(normalizedValue);
+    const byCodeHash = await offlineDb.offline_tags
+      .where("[schoolId+publicCodeHash]")
+      .equals([schoolId, lookupHash])
+      .first();
+    if (byCodeHash) return byCodeHash;
+
+    const byUidHash = await offlineDb.offline_tags
+      .where("[schoolId+physicalUidHash]")
+      .equals([schoolId, lookupHash])
+      .first();
+    if (byUidHash) return byUidHash;
+  }
+  return null;
+}
+
 export async function getTagByScanValue(schoolId: string, normalizedValue: string): Promise<OfflineTag | null> {
-  const byCode = await offlineDb.offline_tags
-    .where("[schoolId+publicCode]")
-    .equals([schoolId, normalizedValue])
-    .first();
-  if (byCode) return byCode;
-
-  const byUid = await offlineDb.offline_tags
-    .where("[schoolId+physicalUid]")
-    .equals([schoolId, normalizedValue])
-    .first();
-  if (byUid) return byUid;
-
-  const lookupHash = await hashNfcLookupValue(normalizedValue);
-  const byCodeHash = await offlineDb.offline_tags
-    .where("[schoolId+publicCodeHash]")
-    .equals([schoolId, lookupHash])
-    .first();
-  if (byCodeHash) return byCodeHash;
-
-  const byUidHash = await offlineDb.offline_tags
-    .where("[schoolId+physicalUidHash]")
-    .equals([schoolId, lookupHash])
-    .first();
-  return byUidHash ?? null;
+  return getTagByScanCandidates(schoolId, [normalizedValue]);
 }
 
 export async function getStudentById(schoolId: string, studentId: string): Promise<OfflineStudent | null> {

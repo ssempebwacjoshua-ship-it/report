@@ -8,6 +8,10 @@ import {
 } from "../../shared/attendanceProfiles";
 import { maskCredentialValue, normalizeCredentialForLookup } from "../../shared/utils/credentialNormalization";
 import { getTimeParts, getZonedDateKey, zonedDateToUtc } from "./nfcPolicyService";
+import {
+  mapCredentialFailureReason,
+  resolveNfcCredential,
+} from "./nfcCredentialResolver";
 
 export type ReaderGatewayResponse = {
   success: boolean;
@@ -44,6 +48,7 @@ type EventBody = {
   credentialUID?: string;
   format?: string;
   rawWiegandBitCount?: number;
+  rawWiegandBinary?: string;
   rawWiegandHex?: string;
   rawWiegandDecimal?: string;
   facilityCode?: string;
@@ -198,100 +203,34 @@ async function resolveStudentForReader(
 ): Promise<ResolvedStudent | null> {
   const tokenOrUid = body.credentialUID ?? body.credential;
   if (!tokenOrUid) return null;
-  const normalized = normalizeCredentialForLookup({
+  const resolved = await resolveNfcCredential(db as never, {
+    schoolId,
     value: tokenOrUid,
-    cardNumber: body.cardNumber,
-    facilityCode: body.facilityCode,
+    rawWiegandBitCount: body.rawWiegandBitCount,
+    rawWiegandBinary: body.rawWiegandBinary,
     rawWiegandDecimal: body.rawWiegandDecimal,
     rawWiegandHex: body.rawWiegandHex,
+    facilityCode: body.facilityCode,
+    cardNumber: body.cardNumber,
   });
-
-  const credential = await db.studentCredential.findFirst({
-    where: {
-      schoolId,
-      type: CredentialType.NFC_WRISTBAND,
-      OR: [
-        ...(normalized.tokenValues.length ? [{ scanToken: { in: normalized.tokenValues } }] : []),
-        ...(normalized.lookupValues.length ? [{ credentialUID: { in: normalized.lookupValues } }] : []),
-      ],
-    },
-    include: {
-      student: {
-        select: {
-          id: true,
-          firstName: true,
-          lastName: true,
-          attendanceProfile: true,
-          studentType: true,
-          isActive: true,
-          enrollments: {
-            where: { isActive: true, status: "ACTIVE" as const },
-            orderBy: { createdAt: "desc" as const },
-            take: 1,
-            select: { classId: true, streamId: true },
-          },
-        },
-      },
-    },
-  });
-  if (credential) {
-    return {
-      studentId: credential.studentId,
-      studentName: `${credential.student.firstName} ${credential.student.lastName}`.trim(),
-      attendanceProfile: resolveAttendanceProfile(credential.student),
-      studentType: attendanceProfileToLegacyStudentType(resolveAttendanceProfile(credential.student)),
-      classId: credential.student.enrollments[0]?.classId ?? null,
-      streamId: credential.student.enrollments[0]?.streamId ?? null,
-      credentialId: credential.id,
-      blockedReason: credential.status !== CredentialStatus.ACTIVE
-        ? "Wristband is disabled"
-        : !credential.student.isActive
-          ? "Student is inactive"
-          : null,
-    };
-  }
-
-  const tag = await db.nfcTag.findFirst({
-    where: {
-      schoolId,
-      OR: [
-        ...(normalized.tokenValues.length ? [{ publicCode: { in: normalized.tokenValues } }] : []),
-        ...(normalized.lookupValues.map((value) => ({ physicalUid: { equals: value, mode: "insensitive" as const } }))),
-      ],
-    },
-    include: {
-      student: {
-        select: {
-          id: true,
-          firstName: true,
-          lastName: true,
-          attendanceProfile: true,
-          studentType: true,
-          isActive: true,
-          enrollments: {
-            where: { isActive: true, status: "ACTIVE" as const },
-            orderBy: { createdAt: "desc" as const },
-            take: 1,
-            select: { classId: true, streamId: true },
-          },
-        },
-      },
-    },
-  });
-  if (!tag?.studentId || !tag.student) return null;
+  if (!resolved.ok && !resolved.student) return null;
+  if (!resolved.student) return null;
+  const student = resolved.student;
   return {
-    studentId: tag.studentId,
-    studentName: `${tag.student.firstName} ${tag.student.lastName}`.trim(),
-    attendanceProfile: resolveAttendanceProfile(tag.student),
-    studentType: attendanceProfileToLegacyStudentType(resolveAttendanceProfile(tag.student)),
-    classId: tag.student.enrollments[0]?.classId ?? null,
-    streamId: tag.student.enrollments[0]?.streamId ?? null,
-    credentialId: null,
-    blockedReason: tag.status === "DISABLED" || tag.status === "LOST"
-      ? "Wristband is disabled"
-      : !tag.student.isActive
-        ? "Student is inactive"
-        : null,
+    studentId: student.id,
+    studentName: `${student.firstName} ${student.lastName}`.trim(),
+    attendanceProfile: resolveAttendanceProfile(student),
+    studentType: attendanceProfileToLegacyStudentType(resolveAttendanceProfile(student)),
+    classId: student.enrollments?.[0]?.classId ?? null,
+    streamId: student.enrollments?.[0]?.streamId ?? null,
+    credentialId: resolved.credential?.id ?? null,
+    blockedReason: resolved.ok
+      ? null
+      : resolved.reason === "CREDENTIAL_DISABLED"
+        ? "Wristband is disabled"
+        : resolved.reason === "STUDENT_INACTIVE"
+          ? "Student is inactive"
+          : mapCredentialFailureReason(resolved.reason),
   };
 }
 
@@ -807,6 +746,8 @@ export function buildReaderCredentialDiagnostics(body: EventBody) {
   const tokenOrUid = body.credentialUID ?? body.credential ?? "";
   const normalized = normalizeCredentialForLookup({
     value: tokenOrUid,
+    rawWiegandBitCount: body.rawWiegandBitCount,
+    rawWiegandBinary: body.rawWiegandBinary,
     cardNumber: body.cardNumber,
     facilityCode: body.facilityCode,
     rawWiegandDecimal: body.rawWiegandDecimal,
@@ -816,8 +757,10 @@ export function buildReaderCredentialDiagnostics(body: EventBody) {
     receivedMasked: tokenOrUid ? maskCredentialValue(tokenOrUid) : null,
     normalizedMasked: tokenOrUid ? maskCredentialValue(normalized.canonical) : null,
     lookupCount: normalized.lookupValues.length,
+    candidateCount: normalized.lookupValues.length + normalized.tokenValues.length,
     format: body.format ?? null,
     rawWiegandBitCount: body.rawWiegandBitCount ?? null,
+    rawWiegandBinary: body.rawWiegandBinary ?? null,
     rawWiegandHexMasked: maskCredentialValue(body.rawWiegandHex),
     facilityCodeMasked: maskCredentialValue(body.facilityCode),
     cardNumberMasked: maskCredentialValue(body.cardNumber),

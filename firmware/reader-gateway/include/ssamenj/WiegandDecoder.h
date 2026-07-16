@@ -88,7 +88,7 @@ inline WiegandDecodeResult decodeWiegandFrame(uint64_t bits, uint8_t bitCount) {
 
   if (bitCount != 26 && bitCount != 34 && bitCount != 37) {
     result.format = "wiegand-" + std::to_string(bitCount);
-    result.parityResult = "unsupported bit count";
+    result.parityResult = "UNSUPPORTED_WIEGAND_BIT_COUNT";
     return result;
   }
 
