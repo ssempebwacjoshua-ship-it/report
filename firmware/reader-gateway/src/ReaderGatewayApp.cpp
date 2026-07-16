@@ -26,6 +26,7 @@ constexpr const char* PROVISIONING_FIRMWARE_CHANNEL_KEY = "fwChannel";
 constexpr const char* PROVISIONING_SETUP_REQUIRED_KEY = "setupReq";
 constexpr const char* SETUP_PORTAL_PASSWORD = "ssamenj123";
 constexpr unsigned long HEARTBEAT_INTERVAL_MS = 60000;
+constexpr unsigned long READER_READY_DIAGNOSTIC_INTERVAL_MS = 10000;
 constexpr unsigned long SETUP_PORTAL_REOPEN_DELAY_MS = 2UL * 60UL * 1000UL;
 constexpr unsigned long FACTORY_RESET_HOLD_MS = 10000;
 constexpr unsigned long MAX_RETRY_INTERVAL_MS = 5UL * 60UL * 1000UL;
@@ -350,6 +351,15 @@ void ReaderGatewayApp::applyRegistrationResult(const ReaderRegistrationResult& r
   if (!result.assignmentStatus.isEmpty()) {
     Serial.printf("Reader assigned to %s\n", result.schoolName.c_str());
     Serial.println("Setup complete");
+    Serial.printf(
+      "Reader ready for scans: deviceId=%s readerId=%s schoolId=%s d0Pin=%d d1Pin=%d\n",
+      config_.deviceId.c_str(),
+      config_.readerId.c_str(),
+      config_.schoolId.c_str(),
+      static_cast<int>(config_.d0Pin),
+      static_cast<int>(config_.d1Pin)
+    );
+    lastReaderReadyLogMs_ = 0;
   }
   persistAssignedConfiguration();
 }
@@ -1112,6 +1122,29 @@ void ReaderGatewayApp::markApiContact() {
   maybeConfirmOtaBoot();
 }
 
+void ReaderGatewayApp::logReaderReadyDiagnostic() {
+  if (!isProvisioned()) {
+    return;
+  }
+
+  const unsigned long now = millis();
+  if (now - lastReaderReadyLogMs_ < READER_READY_DIAGNOSTIC_INTERVAL_MS) {
+    return;
+  }
+  lastReaderReadyLogMs_ = now;
+
+  Serial.printf(
+    "Reader idle: provisioned=%s wifi=%s queueDepth=%u pendingFrame=%s d0=%d d1=%d rssi=%d\n",
+    isProvisioned() ? "yes" : "no",
+    WiFi.status() == WL_CONNECTED ? "connected" : wifiStatusToString(WiFi.status()),
+    static_cast<unsigned int>(offlineQueueDepth_),
+    wiegand_.hasPendingFrame() ? "yes" : "no",
+    digitalRead(config_.d0Pin),
+    digitalRead(config_.d1Pin),
+    WiFi.status() == WL_CONNECTED ? WiFi.RSSI() : 0
+  );
+}
+
 void ReaderGatewayApp::sendHeartbeat() {
   if (!hasWorkingNetwork() || !isProvisioned() || offlineQueueDepth_ > 0 || wiegand_.hasPendingFrame()) {
     return;
@@ -1275,6 +1308,7 @@ void ReaderGatewayApp::loop() {
   if (wiegand_.poll(event)) {
     processScan(event);
   }
+  logReaderReadyDiagnostic();
   ensureWiFi();
   updateOfflinePortalFallback();
 

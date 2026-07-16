@@ -287,11 +287,26 @@ export function nfcTagsRoutes() {
 
   router.get("/api/nfc/tags/reader-credential-captures/:captureId", async (req, res, next) => {
     try {
+      res.set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+      res.set("Pragma", "no-cache");
+      res.set("Expires", "0");
+      res.set("Surrogate-Control", "no-store");
       if (!(await requirePlatformModule(req, res, "nfc.tags"))) {
         return;
       }
       res.json(await getReaderCredentialCapture(ctx(req), req.params.captureId));
     } catch (error) {
+      if ((error as { status?: unknown })?.status === 404) {
+        res.status(410).json({
+          ok: false,
+          error: true,
+          code: "READER_CREDENTIAL_CAPTURE_EXPIRED",
+          message: "Capture session expired or was cleared. Start a new reader credential capture and tap again.",
+          captureId: req.params.captureId,
+          status: "EXPIRED",
+        });
+        return;
+      }
       next(error);
     }
   });
@@ -301,6 +316,14 @@ export function nfcTagsRoutes() {
       if (!(await requirePlatformModule(req, res, "nfc.tags"))) return;
       res.json(await cancelReaderCredentialCapture(ctx(req), req.params.captureId));
     } catch (error) {
+      if ((error as { status?: unknown })?.status === 404) {
+        res.json({
+          ok: true,
+          captureId: req.params.captureId,
+          status: "CANCELLED",
+        });
+        return;
+      }
       next(error);
     }
   });
