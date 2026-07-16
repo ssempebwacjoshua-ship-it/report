@@ -46,6 +46,14 @@ function extractRawValue(message: NDEFMessage): string {
   return "";
 }
 
+function describeNfcMessage(message: NDEFMessage): Array<{ recordType: string; mediaType?: string; hasData: boolean }> {
+  return message.records.map((record) => ({
+    recordType: record.recordType,
+    mediaType: record.mediaType,
+    hasData: !!record.data,
+  }));
+}
+
 export function normalizeNfcScannerError(error: unknown): string {
   const message = error instanceof Error ? `${error.name}: ${error.message}` : String(error ?? "");
   if (/AbortError/i.test(message)) return "Scanner was cancelled.";
@@ -217,13 +225,25 @@ export function useNfcScanner({ onScan, cooldownMs = 1500, scanTimeoutMs = 8000 
       setStateSync("READY");
       scannerLog("scanner rearmed", { sessionId });
 
-      reader.addEventListener("reading", ({ message }) => {
+      reader.addEventListener("reading", ({ message, serialNumber }) => {
         if (sessionId !== sessionRef.current) return;
-        scannerLog("scan received", { sessionId });
+        scannerLog("scan received", {
+          sessionId,
+          serialNumber,
+          records: describeNfcMessage(message),
+        });
         if (processingRef.current || Date.now() < cooldownUntilRef.current) return;
         setStateSync("READING");
-        const raw = extractRawValue(message);
-        if (raw) void processRaw(raw, sessionId);
+        const ndefPayload = extractRawValue(message);
+        const raw = ndefPayload || serialNumber || "";
+        if (!raw.trim()) {
+          scannerLog("timeout/error", { sessionId, error: "NFC tag had no readable payload or serial number" });
+          setError("NFC tag was detected but no readable ID was found.");
+          setStateSync("ERROR");
+          resetAfterCooldown(sessionId);
+          return;
+        }
+        void processRaw(raw, sessionId);
       });
 
       reader.addEventListener("readingerror", () => {
