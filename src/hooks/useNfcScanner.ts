@@ -46,6 +46,25 @@ function extractRawValue(message: NDEFMessage): string {
   return "";
 }
 
+function describeNfcMessage(message: NDEFMessage): Array<{ recordType: string; mediaType?: string; hasData: boolean }> {
+  return message.records.map((record) => ({
+    recordType: record.recordType,
+    mediaType: record.mediaType,
+    hasData: !!record.data,
+  }));
+}
+
+function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
+  let timeoutId: ReturnType<typeof setTimeout> | null = null;
+  const timeout = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(() => reject(new Error(message)), ms);
+  });
+
+  return Promise.race([promise, timeout]).finally(() => {
+    if (timeoutId) clearTimeout(timeoutId);
+  });
+}
+
 export function normalizeNfcScannerError(error: unknown): string {
   const message = error instanceof Error ? `${error.name}: ${error.message}` : String(error ?? "");
   if (/AbortError/i.test(message)) return "Scanner was cancelled.";
@@ -139,7 +158,11 @@ export function useNfcScanner({ onScan, cooldownMs = 1500 }: UseNfcScannerOption
     if (navigator.vibrate) navigator.vibrate([40]);
 
     try {
-      await onScan({ tokenOrUid, idempotencyKey, deviceId: deviceId.current });
+      await withTimeout(
+        onScan({ tokenOrUid, idempotencyKey, deviceId: deviceId.current }),
+        15000,
+        "NFC scan timed out before the backend responded.",
+      );
       setStateSync("SUCCESS");
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Scan failed";
@@ -175,12 +198,38 @@ export function useNfcScanner({ onScan, cooldownMs = 1500 }: UseNfcScannerOption
       await reader.scan({ signal: abortRef.current.signal });
       setStateSync("READY");
 
-      reader.addEventListener("reading", ({ message }) => {
+      reader.addEventListener("reading", ({ message, serialNumber }) => {
         const current = stateRef.current;
-        if (current === "PROCESSING" || current === "SUCCESS" || current === "BLOCKED" || current === "ERROR") return;
+        console.info("[NFC] reading event received", {
+          state: current,
+          serialNumber,
+          records: describeNfcMessage(message),
+        });
+
+        if (current === "PROCESSING" || current === "SUCCESS" || current === "BLOCKED" || current === "ERROR") {
+          console.info("[NFC] tap ignored while scanner is busy", { state: current });
+          return;
+        }
+
         setStateSync("READING");
-        const raw = extractRawValue(message);
-        if (raw) void processRaw(raw);
+        const ndefPayload = extractRawValue(message);
+        const raw = ndefPayload || serialNumber || "";
+
+        if (!raw.trim()) {
+          console.warn("[NFC] tap had no readable payload or serial number", {
+            records: describeNfcMessage(message),
+          });
+          setError("NFC tag was detected but no readable ID was found.");
+          setStateSync("ERROR");
+          resetAfterCooldown();
+          return;
+        }
+
+        console.info("[NFC] tap accepted for processing", {
+          source: ndefPayload ? "ndef" : "serialNumber",
+          valuePreview: raw.slice(0, 12),
+        });
+        void processRaw(raw);
       });
 
       reader.addEventListener("readingerror", () => {
