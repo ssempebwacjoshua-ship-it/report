@@ -62,8 +62,14 @@ function createDb() {
       findFirst: async () => null,
     },
     studentCredential: {
-      findFirst: async ({ where }: { where: { schoolId?: string; OR: Array<{ scanToken?: string; credentialUID?: string }> } }) => {
-        const matchesToken = where.OR.some((condition) => condition.scanToken === "token-a" || condition.credentialUID === "UID-A");
+      findFirst: async ({ where }: { where: { schoolId?: string; scanToken?: string; credentialUID?: string; OR?: Array<{ scanToken?: string; credentialUID?: string }> } }) => {
+        const matchesToken = where.scanToken === "token-a"
+          || where.credentialUID === "UID-A"
+          || where.credentialUID === "12-1"
+          || Boolean(where.OR?.some((condition) =>
+            condition.scanToken === "token-a"
+            || condition.credentialUID === "UID-A"
+            || condition.credentialUID === "12-1"));
         if (!matchesToken) return null;
         if (where.schoolId && where.schoolId !== "school-a") return null;
         return {
@@ -71,7 +77,7 @@ function createDb() {
           schoolId: "school-a",
           studentId: "student-a",
           type: "NFC_WRISTBAND",
-          credentialUID: "UID-A",
+          credentialUID: where.credentialUID === "12-1" ? "12-1" : "UID-A",
           scanToken: "token-a",
           status: "ACTIVE",
           issuedAt: new Date("2026-06-21T08:00:00.000Z"),
@@ -149,6 +155,21 @@ describe("NFC gate operations", () => {
     });
   });
 
+  it("keeps the old live gate path working with direct credential UID lookups", async () => {
+    const { db } = createDb();
+    const ctx = { schoolId: "school-a", actorId: "gate-a", role: "GATE_SECURITY" as const };
+
+    const scan = await scanGate(ctx, {
+      tokenOrUid: "12-1",
+      deviceId: "11111111-1111-1111-1111-111111111111",
+      idempotencyKey: "gate-live-w26-1",
+    }, db);
+
+    expect(scan.result).toBe(GateScanResult.ALLOWED);
+    expect(scan.student?.id).toBe("student-a");
+    expect(scan.credentialStatus).toBe("ACTIVE");
+  });
+
   it("blocks GATE_SECURITY from the admin attendance dashboard but allows explicit attendance operation scans", async () => {
     const { db } = createDb();
     const ctx = { schoolId: "school-a", actorId: "gate-a", role: "GATE_SECURITY" as const };
@@ -192,8 +213,10 @@ describe("NFC gate operations", () => {
         findFirst: async () => null,
       },
       studentCredential: {
-        findFirst: async ({ where }: { where: { schoolId?: string; OR: Array<{ scanToken?: string; credentialUID?: string }> } }) => {
-          const wantsWrongSchool = where.OR.some((condition) => condition.scanToken === "wrong-school" || condition.credentialUID === "wrong-school");
+        findFirst: async ({ where }: { where: { schoolId?: string; scanToken?: string; credentialUID?: string; OR?: Array<{ scanToken?: string; credentialUID?: string }> } }) => {
+          const wantsWrongSchool = where.scanToken === "wrong-school"
+            || where.credentialUID === "wrong-school"
+            || Boolean(where.OR?.some((condition) => condition.scanToken === "wrong-school" || condition.credentialUID === "wrong-school"));
           if (!wantsWrongSchool) return null;
           if (where.schoolId) return null;
           return {
@@ -220,7 +243,9 @@ describe("NFC gate operations", () => {
       },
       nfcTag: {
         findFirst: async ({ where }: { where: { publicCode?: string; physicalUid?: { equals: string }; OR?: Array<{ publicCode?: string; physicalUid?: { equals: string } }> } }) => {
-          const wantsUnassigned = where.publicCode === "unassigned" || where.OR?.some((condition) => condition.publicCode === "unassigned");
+          const wantsUnassigned = where.publicCode === "unassigned"
+            || where.physicalUid?.equals === "unassigned"
+            || where.OR?.some((condition) => condition.publicCode === "unassigned" || condition.physicalUid?.equals === "unassigned");
           if (wantsUnassigned) {
             return {
               id: "tag-1",

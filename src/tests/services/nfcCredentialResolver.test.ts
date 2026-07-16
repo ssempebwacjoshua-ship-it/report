@@ -172,9 +172,11 @@ function createDb() {
 
   return {
     studentCredential: {
-      findFirst: vi.fn(async ({ where }: { where: { schoolId?: string; type?: string; OR?: Array<{ scanToken?: string; credentialUID?: string }> } }) => {
+      findFirst: vi.fn(async ({ where }: { where: { schoolId?: string; type?: string; OR?: Array<{ scanToken?: string; credentialUID?: string }>; scanToken?: string; credentialUID?: string } }) => {
         return credentials.find((credential) => {
           if (where.schoolId && credential.schoolId !== where.schoolId) return false;
+          if (where.scanToken !== undefined) return where.scanToken === credential.scanToken;
+          if (where.credentialUID !== undefined) return where.credentialUID === credential.credentialUID;
           if (!where.OR?.length) return false;
           return where.OR.some((entry) =>
             (entry.scanToken !== undefined && entry.scanToken === credential.scanToken)
@@ -183,9 +185,11 @@ function createDb() {
       }),
     },
     nfcTag: {
-      findFirst: vi.fn(async ({ where }: { where: { schoolId?: string; OR?: Array<{ publicCode?: string; physicalUid?: { equals: string; mode: string } }> } }) => {
+      findFirst: vi.fn(async ({ where }: { where: { schoolId?: string; OR?: Array<{ publicCode?: string; physicalUid?: { equals: string; mode: string } }>; publicCode?: string; physicalUid?: { equals: string; mode: string } } }) => {
         return tags.find((tag) => {
           if (where.schoolId && tag.schoolId !== where.schoolId) return false;
+          if (where.publicCode !== undefined) return where.publicCode === tag.publicCode;
+          if (where.physicalUid?.equals) return tag.physicalUid?.toLowerCase() === where.physicalUid.equals.toLowerCase();
           if (!where.OR?.length) return false;
           return where.OR.some((entry) =>
             (entry.publicCode !== undefined && entry.publicCode === tag.publicCode)
@@ -374,6 +378,25 @@ describe("resolveNfcCredential", () => {
     expect(result).toMatchObject({
       ok: false,
       reason: "UNSUPPORTED_WIEGAND_BIT_COUNT",
+    });
+  });
+
+  it("keeps exact live scanToken lookup ahead of Wiegand fallback aliases", async () => {
+    const db = createDb();
+    const result = await resolveNfcCredential(db as never, {
+      schoolId: "school-a",
+      value: "SCNFC:PUB001",
+      rawWiegandBitCount: 26,
+      rawWiegandDecimal: "35128677",
+      rawWiegandHex: "02180565",
+      facilityCode: "12",
+      cardNumber: "1",
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      source: "nfcTag.publicCode",
+      student: { id: "student-4" },
     });
   });
 });
