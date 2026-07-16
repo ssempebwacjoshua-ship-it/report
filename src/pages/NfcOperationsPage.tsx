@@ -33,6 +33,7 @@ import {
 } from "../shared/utils/attendanceReaders";
 
 type StatusFilter = "" | "UNASSIGNED" | "ASSIGNED" | "DISABLED" | "LOST";
+const LINK_READER_CAPTURE_WINDOW_MS = 25_000;
 
 const STATUS_COLORS: Record<string, string> = {
   UNASSIGNED: "bg-slate-100 text-slate-600",
@@ -598,6 +599,8 @@ export function NfcOperationsPage() {
   const [linkReaderConflict, setLinkReaderConflict] = useState<ReaderCredentialConflictResponse["conflict"] | null>(null);
   const [linkReaderTransferReason, setLinkReaderTransferReason] = useState("");
   const linkReaderPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const linkReaderTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const linkReaderSessionRef = useRef(0);
 
   // Open dropdown tracking (one at a time)
   const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
@@ -667,9 +670,14 @@ export function NfcOperationsPage() {
       setLinkReaderSuccess(null);
       setLinkReaderConflict(null);
       setLinkReaderTransferReason("");
+      linkReaderSessionRef.current += 1;
       if (linkReaderPollRef.current) {
         clearInterval(linkReaderPollRef.current);
         linkReaderPollRef.current = null;
+      }
+      if (linkReaderTimeoutRef.current) {
+        clearTimeout(linkReaderTimeoutRef.current);
+        linkReaderTimeoutRef.current = null;
       }
       return;
     }
@@ -712,12 +720,19 @@ export function NfcOperationsPage() {
       clearInterval(linkReaderPollRef.current);
     }
 
+    const currentSession = linkReaderSessionRef.current;
     linkReaderPollRef.current = setInterval(() => {
       void getReaderCredentialCapture(linkReaderCapture.captureId)
         .then((session) => {
+          if (linkReaderSessionRef.current !== currentSession) {
+            return;
+          }
           setLinkReaderCapture(session);
         })
         .catch((pollError) => {
+          if (linkReaderSessionRef.current !== currentSession) {
+            return;
+          }
           setLinkReaderError(pollError instanceof Error ? pollError.message : "Failed to refresh reader capture.");
           if (linkReaderPollRef.current) {
             clearInterval(linkReaderPollRef.current);
@@ -733,6 +748,18 @@ export function NfcOperationsPage() {
       }
     };
   }, [linkReaderCapture, linkReaderTarget]);
+
+  useEffect(() => () => {
+    linkReaderSessionRef.current += 1;
+    if (linkReaderPollRef.current) {
+      clearInterval(linkReaderPollRef.current);
+      linkReaderPollRef.current = null;
+    }
+    if (linkReaderTimeoutRef.current) {
+      clearTimeout(linkReaderTimeoutRef.current);
+      linkReaderTimeoutRef.current = null;
+    }
+  }, []);
 
   function openWalletPinModal(target: WalletPinTarget) {
     setWalletPinTarget(target);
@@ -881,12 +908,31 @@ export function NfcOperationsPage() {
     setLinkReaderSuccess(null);
     setLinkReaderConflict(null);
     setLinkReaderTransferReason("");
+    linkReaderSessionRef.current += 1;
+    if (linkReaderPollRef.current) {
+      clearInterval(linkReaderPollRef.current);
+      linkReaderPollRef.current = null;
+    }
+    if (linkReaderTimeoutRef.current) {
+      clearTimeout(linkReaderTimeoutRef.current);
+      linkReaderTimeoutRef.current = null;
+    }
   }
 
   async function closeLinkReaderModal() {
-    if (linkReaderCapture?.status === "PENDING") {
+    const captureToCancel = linkReaderCapture?.status === "PENDING" ? linkReaderCapture.captureId : null;
+    linkReaderSessionRef.current += 1;
+    if (linkReaderPollRef.current) {
+      clearInterval(linkReaderPollRef.current);
+      linkReaderPollRef.current = null;
+    }
+    if (linkReaderTimeoutRef.current) {
+      clearTimeout(linkReaderTimeoutRef.current);
+      linkReaderTimeoutRef.current = null;
+    }
+    if (captureToCancel) {
       try {
-        await cancelReaderCredentialCapture(linkReaderCapture.captureId);
+        await cancelReaderCredentialCapture(captureToCancel);
       } catch {
         // The session may already have expired or been cleared by the server.
       }
@@ -907,6 +953,16 @@ export function NfcOperationsPage() {
       return;
     }
 
+    const currentSession = linkReaderSessionRef.current + 1;
+    linkReaderSessionRef.current = currentSession;
+    if (linkReaderPollRef.current) {
+      clearInterval(linkReaderPollRef.current);
+      linkReaderPollRef.current = null;
+    }
+    if (linkReaderTimeoutRef.current) {
+      clearTimeout(linkReaderTimeoutRef.current);
+      linkReaderTimeoutRef.current = null;
+    }
     setLinkReaderLoading(true);
     setLinkReaderError(null);
     setLinkReaderSuccess(null);
@@ -916,11 +972,45 @@ export function NfcOperationsPage() {
       const capture = await startReaderCredentialCapture(linkReaderTarget.id, {
         deviceId: linkReaderDeviceId || null,
       });
+      if (linkReaderSessionRef.current !== currentSession) {
+        return;
+      }
       setLinkReaderCapture(capture);
+      linkReaderTimeoutRef.current = setTimeout(() => {
+        if (linkReaderSessionRef.current !== currentSession) {
+          return;
+        }
+        linkReaderSessionRef.current += 1;
+        if (linkReaderPollRef.current) {
+          clearInterval(linkReaderPollRef.current);
+          linkReaderPollRef.current = null;
+        }
+        if (linkReaderTimeoutRef.current) {
+          clearTimeout(linkReaderTimeoutRef.current);
+          linkReaderTimeoutRef.current = null;
+        }
+        void cancelReaderCredentialCapture(capture.captureId).catch(() => {
+          // The session may already have expired or been cleared by the server.
+        });
+        setLinkReaderTarget(null);
+        setLinkReaderCapture(null);
+        setLinkReaderLoading(false);
+        setLinkReaderConfirming(false);
+        setLinkReaderTransferring(false);
+        setLinkReaderError(null);
+        setLinkReaderSuccess(null);
+        setLinkReaderConflict(null);
+        setLinkReaderTransferReason("");
+      }, LINK_READER_CAPTURE_WINDOW_MS);
     } catch (caught) {
+      if (linkReaderSessionRef.current !== currentSession) {
+        return;
+      }
       setLinkReaderError(caught instanceof Error ? caught.message : "Failed to start reader credential capture.");
     } finally {
-      setLinkReaderLoading(false);
+      if (linkReaderSessionRef.current === currentSession) {
+        setLinkReaderLoading(false);
+      }
     }
   }
 

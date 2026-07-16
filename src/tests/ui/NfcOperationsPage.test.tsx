@@ -1,11 +1,13 @@
 import { MemoryRouter } from "react-router-dom";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NfcOperationsPage } from "../../pages/NfcOperationsPage";
 import type { NfcTag } from "../../shared/types/nfcTags";
 
 const mockAssignNfcTag = vi.hoisted(() => vi.fn());
 const mockStartReaderCredentialCapture = vi.hoisted(() => vi.fn());
+const mockCancelReaderCredentialCapture = vi.hoisted(() => vi.fn());
+const mockGetReaderCredentialCapture = vi.hoisted(() => vi.fn());
 const mockListNfcTags = vi.hoisted(() => vi.fn());
 const mockFetchOfflineSyncStatus = vi.hoisted(() => vi.fn());
 const mockFetchStudents = vi.hoisted(() => vi.fn());
@@ -19,7 +21,8 @@ vi.mock("../../client/nfcTagsClient", () => ({
   disableNfcTag: vi.fn(),
   enableNfcTag: vi.fn(),
   generateNfcTags: vi.fn(),
-  getReaderCredentialCapture: vi.fn(),
+  getReaderCredentialCapture: mockGetReaderCredentialCapture,
+  cancelReaderCredentialCapture: mockCancelReaderCredentialCapture,
   getNfcTagEvents: vi.fn(),
   listNfcTags: mockListNfcTags,
   transferReaderCredentialCapture: vi.fn(),
@@ -178,6 +181,29 @@ beforeEach(() => {
     pinSet: true,
     pinLocked: false,
     pinLockedUntil: null,
+  });
+  mockCancelReaderCredentialCapture.mockResolvedValue(undefined);
+  mockGetReaderCredentialCapture.mockResolvedValue({
+    captureId: "capture-1",
+    tagId: "tag-1",
+    studentId: "student-1",
+    deviceId: "device-1",
+    deviceLabel: "Main Entrance Reader",
+    createdAt: "2026-07-12T08:30:00.000Z",
+    expiresAt: "2026-07-12T08:35:00.000Z",
+    confirmedAt: null,
+    status: "PENDING",
+    preview: null,
+    tag: {
+      id: "tag-1",
+      publicCode: "PUBLICCODE-ASSIGNED-001",
+      label: "Tag 48048b9f",
+      student: {
+        id: "student-1",
+        name: "Claire Nakibuuka With A Very Long Display Name For Layout",
+        admissionNumber: "SCU-S1A-018",
+      },
+    },
   });
   mockAssignNfcTag.mockResolvedValue({
     ...SAMPLE_TAGS[1],
@@ -510,4 +536,134 @@ describe("NfcOperationsPage wristband grid layout", () => {
     expect(await screen.findByRole("option", { name: /Block A \(Classroom\)/ })).toBeInTheDocument();
     expect(screen.queryByRole("option", { name: /Block B \(BLOCK B\)/i })).not.toBeInTheDocument();
   });
+
+  it("closes the link reader capture window after 25 seconds and ignores late capture responses", async () => {
+    let resolveLateCapture: ((value: {
+      captureId: string;
+      tagId: string;
+      studentId: string;
+      deviceId: string;
+      deviceLabel: string;
+      createdAt: string;
+      expiresAt: string;
+      confirmedAt: null;
+      status: "CAPTURED";
+      preview: {
+        credential: string;
+        rawWiegandDecimal: string;
+        rawWiegandHex: string;
+        facilityCode: string;
+        cardNumber: string;
+        maskedCanonicalCredential: string;
+        maskedAliases: string[];
+        readerName: string;
+        capturedAt: string;
+      };
+      tag: {
+        id: string;
+        publicCode: string;
+        label: string;
+        student: {
+          id: string;
+          name: string;
+          admissionNumber: string;
+        };
+      };
+    }) => void) | null = null;
+    const lateCapturePromise = new Promise<any>((resolve) => {
+      resolveLateCapture = resolve;
+    });
+    mockGetReaderCredentialCapture.mockImplementation(() => lateCapturePromise);
+    mockFetchOfflineSyncStatus.mockResolvedValueOnce({
+      providerReachable: true,
+      lastSyncAt: isoMinutesAgo(0),
+      pendingCount: 0,
+      stale: false,
+      devices: [
+        {
+          id: "device-1",
+          name: "Attendance Gate 01",
+          deviceKey: "attendance-gate-01",
+          location: "Main Entrance",
+          locationName: "Main Entrance",
+          locationType: "GATE",
+          attendanceMode: "GATE_ATTENDANCE",
+          mode: "GATE",
+          status: "ACTIVE",
+          isActive: true,
+          onlineStatus: "ONLINE",
+          lastHeartbeatAt: isoMinutesAgo(0),
+          lastSeenAt: isoMinutesAgo(0),
+        },
+      ],
+    });
+
+    renderPage();
+
+    await waitFor(() => expect(screen.getAllByRole("button", { name: /Link reader/i }).length).toBeGreaterThan(0));
+    fireEvent.click(screen.getAllByRole("button", { name: /Link reader/i })[0]);
+    const startCaptureButton = await screen.findByRole("button", { name: "Start capture mode" });
+    try {
+      vi.useFakeTimers();
+      await act(async () => {
+        fireEvent.click(startCaptureButton);
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+      expect(screen.getByText("Capture status")).toBeInTheDocument();
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(24_999);
+      });
+      expect(screen.getByText("Link reader credential")).toBeInTheDocument();
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1);
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+      expect(mockCancelReaderCredentialCapture).toHaveBeenCalledWith("capture-1");
+      expect(screen.queryByText("Link reader credential")).not.toBeInTheDocument();
+
+      resolveLateCapture?.({
+        captureId: "capture-1",
+        tagId: "tag-1",
+        studentId: "student-1",
+        deviceId: "device-1",
+        deviceLabel: "Main Entrance Reader",
+        createdAt: "2026-07-12T08:30:00.000Z",
+        expiresAt: "2026-07-12T08:35:00.000Z",
+        confirmedAt: null,
+        status: "CAPTURED",
+        preview: {
+          credential: "786777",
+          rawWiegandDecimal: "35128677",
+          rawWiegandHex: "02180565",
+          facilityCode: "12",
+          cardNumber: "1",
+          maskedCanonicalCredential: "35...77 (len 8)",
+          maskedAliases: ["12-1"],
+          readerName: "Attendance Gate 01",
+          capturedAt: "2026-07-12T08:30:05.000Z",
+        },
+        tag: {
+          id: "tag-1",
+          publicCode: "PUBLICCODE-ASSIGNED-001",
+          label: "Tag 48048b9f",
+          student: {
+            id: "student-1",
+            name: "Claire Nakibuuka With A Very Long Display Name For Layout",
+            admissionNumber: "SCU-S1A-018",
+          },
+        },
+      });
+      await act(async () => {
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+      expect(screen.queryByText("Link reader credential")).not.toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  }, 10_000);
 });
