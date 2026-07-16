@@ -1,6 +1,6 @@
 ﻿import { createBrowserRouter, Navigate } from "react-router-dom";
 import { AppShell } from "../components/layout/AppShell";
-import { lazy, Suspense, type ComponentType } from "react";
+import { lazy, Suspense, type ComponentType, type ReactNode } from "react";
 import { OwnerShell } from "../components/layout/OwnerShell";
 import { useAuth } from "../contexts/AuthContext";
 import { getDefaultRouteForRole } from "../shared/permissions";
@@ -84,13 +84,27 @@ function RoleAwareRedirect() {
   return <Navigate to={getDefaultRouteForRole(user?.role)} replace />;
 }
 
+function PublicOnlyRoute({ children }: { children: ReactNode }) {
+  const { user, loading } = useAuth();
+
+  if (loading) {
+    return <SectionLoader message="Loading SSAMENJ..." />;
+  }
+
+  if (user) {
+    return <Navigate to={user.isPlatformOwner ? "/owner" : getDefaultRouteForRole(user.role)} replace />;
+  }
+
+  return <>{children}</>;
+}
+
 export const router = createBrowserRouter([
   // Public routes — no AppShell, no auth
-  { path: "/demo", element: <DemoPage /> },
-  { path: "/features-demo", element: <FeaturesDemoPage /> },
-  { path: "/pricing", element: <PricingPage /> },
-  { path: "/contact", element: <ContactPage /> },
-  { path: "/login", element: <LoginPage /> },
+  { path: "/demo", element: <PublicOnlyRoute><DemoPage /></PublicOnlyRoute> },
+  { path: "/features-demo", element: <PublicOnlyRoute><FeaturesDemoPage /></PublicOnlyRoute> },
+  { path: "/pricing", element: <PublicOnlyRoute><PricingPage /></PublicOnlyRoute> },
+  { path: "/contact", element: <PublicOnlyRoute><ContactPage /></PublicOnlyRoute> },
+  { path: "/login", element: <PublicOnlyRoute><LoginPage /></PublicOnlyRoute> },
   { path: "/pwa-launch", element: <PwaLaunchPage /> },
   { path: "/forgot-password", element: <ForgotPasswordPage /> },
   { path: "/reset-password", element: <TokenPasswordPage mode="reset" /> },
