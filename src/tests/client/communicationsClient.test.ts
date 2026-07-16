@@ -29,4 +29,15 @@ describe("communicationsClient", () => {
       "WhatsApp/SMS is not configured yet. Contact platform owner.",
     );
   });
+
+  it("calls the approve endpoint and preserves backend request references on failure", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({
+      error: true,
+      message: "Approval failed",
+      requestId: "req-approve-1",
+    }), { status: 400, headers: { "Content-Type": "application/json" } })));
+
+    const { approveCommunicationCampaign } = await import("../../client/communicationsClient");
+    await expect(approveCommunicationCampaign("campaign-1")).rejects.toThrow("Approval failed (ref: req-approve-1)");
+  });
 });

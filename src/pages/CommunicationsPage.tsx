@@ -1,23 +1,27 @@
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import {
+  approveCommunicationCampaign,
   createCommunicationCampaign,
   fetchCommunicationCampaigns,
   previewCommunicationRecipients,
   sendCommunication,
   type CommunicationCampaign,
 } from "../client/communicationsClient";
+import { useAuth } from "../contexts/AuthContext";
 import { fetchReportContext } from "../client/reportsClient";
 import { fetchStaffUsers, type StaffUser } from "../client/staffUsersClient";
 import { fetchStudents } from "../client/studentsClient";
 import {
   communicationAudienceTypes,
   communicationContactRoles,
+  estimateSmsSegments,
   type AudienceDefinition,
   type AudienceResolution,
   type CommunicationAudienceType,
   type CommunicationChannel,
   type CommunicationContactRole,
 } from "../shared/communications";
+import { hasPermission } from "../shared/permissions";
 import type { ReportContext, ReportContextOption } from "../shared/types/reports";
 import type { StudentListItem } from "../shared/types/students";
 
@@ -67,6 +71,7 @@ const defaultAudience: AudienceFormState = {
 };
 
 export function CommunicationsPage() {
+  const { user } = useAuth();
   const [campaigns, setCampaigns] = useState<CommunicationCampaign[]>([]);
   const [reportContext, setReportContext] = useState<ReportContext | null>(null);
   const [students, setStudents] = useState<StudentListItem[]>([]);
@@ -77,16 +82,19 @@ export function CommunicationsPage() {
   const [tab, setTab] = useState<"Campaigns" | "Delivery">("Campaigns");
   const [creating, setCreating] = useState(false);
   const [sendingId, setSendingId] = useState<string | null>(null);
+  const [approvingId, setApprovingId] = useState<string | null>(null);
   const [selectedCampaignId, setSelectedCampaignId] = useState<string>("");
   const [preview, setPreview] = useState<AudienceResolution | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
-  const [sendResult, setSendResult] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [form, setForm] = useState({ type: "ANNOUNCEMENT", title: "", subject: "", body: "" });
   const [audience, setAudience] = useState<AudienceFormState>(defaultAudience);
+  const canApproveCampaigns = hasPermission(user?.role, "communications.approve");
 
   async function load() {
     setLoading(true);
     setError(null);
+    setNotice(null);
     setStaffError(null);
     try {
       const [campaignData, contextData, studentData, staffData] = await Promise.allSettled([
@@ -212,7 +220,7 @@ export function CommunicationsPage() {
     if (!confirmed) return;
     setSendingId(campaignId);
     setError(null);
-    setSendResult(null);
+    setNotice(null);
     try {
       const deliveryChannel = audience.channel === "SMS" ? "SMS" : "WHATSAPP";
       const result = await sendCommunication(campaignId, {
@@ -220,12 +228,30 @@ export function CommunicationsPage() {
         confirm: true,
         audience: audienceToDefinition(audience),
       });
-      setSendResult(`Submitted ${result.result.submitted}; failed ${result.result.failed}; duplicates skipped ${result.result.skippedDuplicate}.`);
+      setNotice(`Submitted ${result.result.submitted}; failed ${result.result.failed}; duplicates skipped ${result.result.skippedDuplicate}.`);
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : `${audience.channel === "WHATSAPP" ? "WhatsApp" : "SMS"} is not configured yet. Contact platform owner.`);
     } finally {
       setSendingId(null);
+    }
+  }
+
+  async function handleApprove(campaign: CommunicationCampaign) {
+    if (approvingId) return;
+    const confirmation = buildApprovalConfirmation(campaign, selectedCampaignId === campaign.id ? preview : null, audience.channel);
+    if (!window.confirm(confirmation)) return;
+    setApprovingId(campaign.id);
+    setError(null);
+    setNotice(null);
+    try {
+      await approveCommunicationCampaign(campaign.id);
+      await load();
+      setNotice(`Campaign approved: ${campaign.title}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not approve communication campaign");
+    } finally {
+      setApprovingId(null);
     }
   }
 
@@ -273,7 +299,7 @@ export function CommunicationsPage() {
       </header>
 
       {error ? <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div> : null}
-      {sendResult ? <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700">{sendResult}</div> : null}
+      {notice ? <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700">{notice}</div> : null}
       {staffError ? <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">{staffError}</div> : null}
 
       <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
@@ -561,19 +587,24 @@ export function CommunicationsPage() {
                 }
               }}
               sending={sendingId === selectedCampaignId}
-              canSend={Boolean(preview && preview.eligibleRecipientsCount > 0 && selectedCampaignId)}
+              canSend={Boolean(preview && preview.eligibleRecipientsCount > 0 && selectedCampaignId && selectedCampaign?.status === "APPROVED")}
               channel={audience.channel}
             />
 
             <CampaignList
               loading={loading}
               campaigns={campaigns}
+              canApproveCampaigns={canApproveCampaigns}
               selectedCampaignId={selectedCampaignId}
               preview={preview}
               sendingId={sendingId}
+              approvingId={approvingId}
               onPreview={(campaignId) => {
                 setSelectedCampaignId(campaignId);
                 void handlePreview(campaignId, audience);
+              }}
+              onApprove={(campaign) => {
+                void handleApprove(campaign);
               }}
               onSend={(campaignId) => {
                 void handleSend(campaignId);
@@ -586,6 +617,23 @@ export function CommunicationsPage() {
       )}
     </main>
   );
+}
+
+function buildApprovalConfirmation(campaign: CommunicationCampaign, preview: AudienceResolution | null, channel: CommunicationChannel) {
+  const body = campaign.contents?.[0]?.shortBody || campaign.contents?.[0]?.body || "";
+  const segmentEstimate = estimateSmsSegments(body);
+  const recipientCount = preview?.eligibleRecipientsCount ?? campaign._count?.recipients ?? 0;
+  const totalBillableSegments = recipientCount * Math.max(segmentEstimate.segments, 0);
+  const estimatedCost = channel === "SMS"
+    ? `Approx ${totalBillableSegments} billable SMS segment${totalBillableSegments === 1 ? "" : "s"} before provider pricing.`
+    : "Channel pricing varies by provider configuration and is confirmed later during delivery submission.";
+  return [
+    `Approve campaign "${campaign.title}"?`,
+    "",
+    `Recipient count: ${recipientCount}`,
+    `Segment count: ${segmentEstimate.segments}`,
+    `Estimated cost: ${estimatedCost}`,
+  ].join("\n");
 }
 
 function audienceToDefinition(audience: AudienceFormState): AudienceDefinition {
@@ -818,18 +866,24 @@ function StatusPill({ status }: { status: string }) {
 function CampaignList({
   loading,
   campaigns,
+  canApproveCampaigns,
   selectedCampaignId,
   preview,
   sendingId,
+  approvingId,
   onPreview,
+  onApprove,
   onSend,
 }: {
   loading: boolean;
   campaigns: CommunicationCampaign[];
+  canApproveCampaigns: boolean;
   selectedCampaignId: string;
   preview: AudienceResolution | null;
   sendingId: string | null;
+  approvingId: string | null;
   onPreview: (campaignId: string) => void;
+  onApprove: (campaign: CommunicationCampaign) => void;
   onSend: (campaignId: string) => void;
 }) {
   if (loading) return <div className="rounded-xl border border-slate-200 bg-white p-5 text-sm text-slate-500">Loading...</div>;
@@ -850,18 +904,34 @@ function CampaignList({
               </p>
             ) : null}
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <button type="button" className="btn btn-secondary" onClick={() => onPreview(campaign.id)}>
-              Preview
-            </button>
-            <button
-              type="button"
-              className="btn btn-primary"
-              onClick={() => onSend(campaign.id)}
-              disabled={sendingId === campaign.id || selectedCampaignId !== campaign.id || !preview || preview.eligibleRecipientsCount === 0}
-            >
-              {sendingId === campaign.id ? "Sending..." : "Confirm send"}
-            </button>
+            <div className="flex flex-wrap items-center gap-2">
+              <button type="button" className="btn btn-secondary" onClick={() => onPreview(campaign.id)}>
+                Preview
+              </button>
+              {canApproveCampaigns && campaign.status === "APPROVAL_PENDING" ? (
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => onApprove(campaign)}
+                  disabled={approvingId !== null}
+                >
+                  {approvingId === campaign.id ? "Approving..." : "Approve"}
+                </button>
+              ) : null}
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={() => onSend(campaign.id)}
+                disabled={
+                  sendingId === campaign.id
+                  || selectedCampaignId !== campaign.id
+                  || !preview
+                  || preview.eligibleRecipientsCount === 0
+                  || campaign.status !== "APPROVED"
+                }
+              >
+                {sendingId === campaign.id ? "Sending..." : "Confirm send"}
+              </button>
             <span className="w-fit rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-black uppercase text-slate-700">
               {campaign.status.replaceAll("_", " ")}
             </span>

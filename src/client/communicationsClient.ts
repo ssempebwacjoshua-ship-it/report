@@ -49,6 +49,15 @@ export async function previewCommunicationRecipients(campaignId: string, audienc
   return res.json();
 }
 
+export async function approveCommunicationCampaign(campaignId: string): Promise<{ ok: true }> {
+  const res = await fetch(`${API_BASE}/api/communications/campaigns/${campaignId}/approve`, {
+    method: "POST",
+    headers: makeRequestHeaders(),
+  });
+  if (!res.ok) throw new Error(await parseApiError(res, "Could not approve communication campaign"));
+  return res.json();
+}
+
 export async function sendCommunication(campaignId: string, body: {
   channel: "WHATSAPP" | "SMS";
   confirm: boolean;
