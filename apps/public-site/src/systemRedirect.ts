@@ -44,9 +44,5 @@ export function resolvePublicSiteSystemRedirect(pathname: string, hasSystemSessi
     }
   }
 
-  if (hasSystemSession) {
-    return SYSTEM_LAUNCH_PATH;
-  }
-
   return null;
 }

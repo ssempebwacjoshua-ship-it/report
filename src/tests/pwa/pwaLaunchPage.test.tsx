@@ -45,6 +45,14 @@ describe("PwaLaunchPage", () => {
     expect(screen.getByLabelText(/opening installed workspace/i)).toBeInTheDocument();
   });
 
+  it("waits for auth restoration before redirecting to login when no token snapshot is available yet", () => {
+    authState.loading = true;
+
+    renderLaunchPage();
+
+    expect(screen.getByLabelText(/opening installed workspace/i)).toBeInTheDocument();
+  });
+
   it("redirects expired sessions to login", async () => {
     renderLaunchPage();
     expect(await screen.findByText("Login Page")).toBeInTheDocument();

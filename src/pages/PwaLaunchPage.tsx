@@ -6,7 +6,7 @@ import { resolveDedicatedPwaLaunchPath } from "../pwa/standaloneMode";
 export function PwaLaunchPage() {
   const { user, token, loading } = useAuth();
 
-  if (loading && token) {
+  if (loading) {
     return <BrandedLoader message="Opening installed workspace..." />;
   }
 
