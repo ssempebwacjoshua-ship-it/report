@@ -45,6 +45,22 @@ function buildApp(role: Role) {
   return app;
 }
 
+function buildUnauthedApp() {
+  const app = express();
+  app.use(express.json());
+  app.use((req: any, _res, next) => {
+    req.user = null;
+    req.school = null;
+    next();
+  });
+  app.use(enforceSchoolRoleAccess);
+  app.use(nfcOperationsRoutes());
+  app.use((error: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+    res.status(error?.status ?? 500).json({ error: error?.message ?? "Unexpected error" });
+  });
+  return app;
+}
+
 describe("NFC gate routes", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -93,5 +109,25 @@ describe("NFC gate routes", () => {
     expect(dashboardRes.status).toBe(200);
     expect(attendanceRes.status).toBe(200);
     expect(settingsRes.status).toBe(200);
+  });
+
+  it("returns 401 for gate scan requests without an authenticated school session", async () => {
+    const app = buildUnauthedApp();
+    svcMocks.scanGate.mockImplementationOnce(async (context: { schoolId?: string; actorId?: string; role?: string }) => {
+      if (!context.schoolId || !context.actorId || !context.role) {
+        throw Object.assign(new Error("Authentication required."), { status: 401 });
+      }
+      return {
+        result: "ALLOWED",
+        reason: null,
+        scannedAt: "2026-06-28T00:00:00.000Z",
+        credentialStatus: "ACTIVE",
+        todayAttendanceStatus: "NONE",
+      };
+    });
+
+    const scanRes = await request(app).post("/api/nfc/gate/scan").send({ tokenOrUid: "token-a" });
+
+    expect(scanRes.status).toBe(401);
   });
 });

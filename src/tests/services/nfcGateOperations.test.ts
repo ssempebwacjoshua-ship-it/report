@@ -50,6 +50,8 @@ function createDb() {
       credential: { status: "ACTIVE" as const },
     },
   ];
+  const dailyAttendances: Array<Record<string, unknown>> = [];
+  const campusMovementEvents: Array<Record<string, unknown>> = [];
 
   const db = {
     $transaction: async (fn: (tx: unknown) => Promise<unknown>) => fn(db),
@@ -84,6 +86,21 @@ function createDb() {
       findMany: async () => gateScans,
       create: async ({ data }: { data: Record<string, unknown> }) => ({ ...data, id: "gate-2", scannedAt: new Date("2026-06-21T10:00:00.000Z") }),
     },
+    dailyAttendance: {
+      upsert: async ({ create }: { create: Record<string, unknown> }) => {
+        const row = { id: `daily-${dailyAttendances.length + 1}`, ...create };
+        dailyAttendances.push(row);
+        return row;
+      },
+    },
+    campusMovementEvent: {
+      findFirst: async () => campusMovementEvents.length > 0 ? campusMovementEvents[campusMovementEvents.length - 1] : null,
+      create: async ({ data }: { data: Record<string, unknown> }) => {
+        const row = { id: `move-${campusMovementEvents.length + 1}`, ...data };
+        campusMovementEvents.push(row);
+        return row;
+      },
+    },
     studentAttendanceEvent: {
       findMany: async () => [],
       findFirst: async () => null,
@@ -97,20 +114,39 @@ function createDb() {
     },
   };
 
-  return { db: db as never };
+  return { db: db as never, dailyAttendances, campusMovementEvents, students, policy };
 }
 
 describe("NFC gate operations", () => {
   it("lets GATE_SECURITY load the gate dashboard and scan gate tokens", async () => {
-    const { db } = createDb();
+    const { db, dailyAttendances, campusMovementEvents } = createDb();
     const ctx = { schoolId: "school-a", actorId: "gate-a", role: "GATE_SECURITY" as const };
 
     const dashboard = await getGateDashboard(ctx, db);
-    const scan = await scanGate(ctx, { tokenOrUid: "token-a" }, db);
+    const scan = await scanGate(ctx, {
+      tokenOrUid: "token-a",
+      deviceId: "11111111-1111-1111-1111-111111111111",
+      idempotencyKey: "gate-live-1",
+    }, db);
 
     expect(dashboard.recentScans).toHaveLength(1);
     expect(scan.result).toBe(GateScanResult.ALLOWED);
     expect(scan.credentialStatus).toBe("ACTIVE");
+    expect(dailyAttendances).toHaveLength(1);
+    expect(dailyAttendances[0]).toMatchObject({
+      schoolId: "school-a",
+      studentId: "student-a",
+      status: "PRESENT",
+      source: "GATE_PWA",
+    });
+    expect(campusMovementEvents).toHaveLength(1);
+    expect(campusMovementEvents[0]).toMatchObject({
+      schoolId: "school-a",
+      studentId: "student-a",
+      readerId: "11111111-1111-1111-1111-111111111111",
+      type: "GATE_ENTRY",
+      eventId: "gate-live-1",
+    });
   });
 
   it("blocks GATE_SECURITY from the admin attendance dashboard but allows explicit attendance operation scans", async () => {
@@ -145,8 +181,13 @@ describe("NFC gate operations", () => {
   });
 
   it("returns specific gate-blocked reasons for wrong-school and unassigned tags", async () => {
+    const { students, policy } = createDb();
+    const blockedMovements: Array<Record<string, unknown>> = [];
     const tagDb = {
       $transaction: async (fn: (tx: unknown) => Promise<unknown>) => fn(tagDb),
+      schoolNfcPolicy: {
+        upsert: async () => policy,
+      },
       studentFeeHold: {
         findFirst: async () => null,
       },
@@ -197,6 +238,16 @@ describe("NFC gate operations", () => {
       nfcGateScan: {
         create: async ({ data }: { data: Record<string, unknown> }) => ({ ...data, id: "gate-x", scannedAt: new Date("2026-06-21T10:00:00.000Z") }),
       },
+      dailyAttendance: {
+        upsert: vi.fn(),
+      },
+      campusMovementEvent: {
+        findFirst: async () => null,
+        create: async ({ data }: { data: Record<string, unknown> }) => {
+          blockedMovements.push(data);
+          return { id: `move-${blockedMovements.length}`, ...data };
+        },
+      },
       studentAttendanceEvent: {
         findFirst: async () => null,
       },
@@ -210,5 +261,6 @@ describe("NFC gate operations", () => {
 
     expect(wrongSchool.reason).toBe("wrong school tag");
     expect(unassigned.reason).toBe("tag not assigned");
+    expect(blockedMovements).toHaveLength(0);
   });
 });

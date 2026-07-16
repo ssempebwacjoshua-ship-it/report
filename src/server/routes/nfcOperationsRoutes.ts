@@ -57,6 +57,7 @@ const filtersSchema = z.object({
 
 const scanSchema = z.object({
   tokenOrUid: z.string().trim().min(1, "NFC token or UID is required."),
+  idempotencyKey: z.string().trim().optional(),
   deviceId: z.string().trim().optional(),
 });
 

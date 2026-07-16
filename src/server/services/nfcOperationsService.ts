@@ -995,6 +995,9 @@ export async function scanGate(
 ) {
   const schoolId = requireSchoolId(ctx);
   requirePermission(ctx, "nfc.gate.scan", "POST /api/nfc/gate/scan");
+  const policy = await getSchoolNfcPolicy(ctx, db);
+  const now = new Date();
+  const readerId = input.deviceId?.trim() || ctx.actorId || null;
 
   const target = await resolveNfcScanTarget(db, schoolId, input.tokenOrUid, { applyFeeHoldBlocking: true });
   const result = target && !target.blocked ? GateScanResult.ALLOWED : GateScanResult.BLOCKED;
@@ -1012,11 +1015,88 @@ export async function scanGate(
   });
 
   if (result === GateScanResult.BLOCKED) {
+    if (target?.student.id && readerId) {
+      const eventId = input.idempotencyKey?.trim() || `gate-scan:${scan.id}`;
+      await db.campusMovementEvent.create({
+        data: {
+          eventId,
+          schoolId,
+          studentId: target.student.id,
+          readerId,
+          type: "RESTRICTED_ENTRY_ATTEMPT",
+          occurredAt: scan.scannedAt,
+          deviceTime: now,
+          offlineSynced: false,
+          metadata: {
+            source: "GATE_PWA",
+            gateScanId: scan.id,
+            scannedByUserId: ctx.actorId ?? null,
+            reason,
+          },
+        },
+      });
+    }
     await db.auditLog.create({
       data: {
         schoolId,
         action: "nfc_gate.blocked",
         details: { studentId: target?.student.id ?? null, reason, actor: { id: ctx.actorId ?? null } },
+      },
+    });
+  } else if (target?.student.id && readerId) {
+    const latestMovement = await db.campusMovementEvent.findFirst({
+      where: {
+        schoolId,
+        studentId: target.student.id,
+        type: { in: ["GATE_ENTRY", "MANUAL_GATE_OVERRIDE", "GATE_EXIT"] },
+      },
+      orderBy: { occurredAt: "desc" },
+    });
+    const movementType = latestMovement?.type === "GATE_ENTRY" || latestMovement?.type === "MANUAL_GATE_OVERRIDE"
+      ? "GATE_EXIT"
+      : "GATE_ENTRY";
+
+    if (movementType === "GATE_ENTRY") {
+      const isLate = policy.policy.attendanceTapInCutoffEnabled
+        && !!policy.policy.tapInCutoffTime
+        && isAfterCutoff(now, policy.policy.timezone, policy.policy.tapInCutoffTime);
+      const { start } = getZonedDayRange(now, policy.policy.timezone);
+      await db.dailyAttendance.upsert({
+        where: {
+          schoolId_studentId_attendanceDate: {
+            schoolId,
+            studentId: target.student.id,
+            attendanceDate: start,
+          },
+        },
+        create: {
+          schoolId,
+          studentId: target.student.id,
+          attendanceDate: start,
+          status: isLate ? "LATE" : "PRESENT",
+          firstRecordedAt: scan.scannedAt,
+          source: "GATE_PWA",
+        },
+        update: {},
+      });
+    }
+
+    const eventId = input.idempotencyKey?.trim() || `gate-scan:${scan.id}`;
+    await db.campusMovementEvent.create({
+      data: {
+        eventId,
+        schoolId,
+        studentId: target.student.id,
+        readerId,
+        type: movementType,
+        occurredAt: scan.scannedAt,
+        deviceTime: now,
+        offlineSynced: false,
+        metadata: {
+          source: "GATE_PWA",
+          gateScanId: scan.id,
+          scannedByUserId: ctx.actorId ?? null,
+        },
       },
     });
   }
