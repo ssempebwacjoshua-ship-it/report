@@ -4,6 +4,7 @@ import { getApiBaseUrl } from "../client/apiBase";
 const TOKEN_KEY = "sc_auth_token";
 const USER_KEY = "sc_auth_user";
 const API_BASE = getApiBaseUrl();
+const AUTH_REFRESH_TIMEOUT_MS = 4000;
 
 export type AuthUser = {
   id: string;
@@ -62,8 +63,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     async function refreshSession() {
       for (let attempt = 0; attempt < 2; attempt += 1) {
+        const controller = new AbortController();
+        const timeoutId = window.setTimeout(() => controller.abort(), AUTH_REFRESH_TIMEOUT_MS);
         try {
-          const res = await fetch(`${API_BASE}/api/auth/me`, { headers: { Authorization: `Bearer ${token}` } });
+          const res = await fetch(`${API_BASE}/api/auth/me`, {
+            headers: { Authorization: `Bearer ${token}` },
+            signal: controller.signal,
+          });
+          window.clearTimeout(timeoutId);
           if (cancelled) return;
           if (res.status === 401) {
             try {
@@ -92,6 +99,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setLoading(false);
           return;
         } catch {
+          window.clearTimeout(timeoutId);
           if (cancelled) return;
           if (attempt === 0) {
             await new Promise((resolve) => window.setTimeout(resolve, 250));
