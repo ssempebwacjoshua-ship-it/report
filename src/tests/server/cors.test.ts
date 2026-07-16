@@ -63,12 +63,14 @@ describe("CORS origin control", () => {
       .options("/api/nfc/tags/reader-credential-captures/capture-1")
       .set("Origin", "https://ssamenj.online")
       .set("Access-Control-Request-Method", "GET")
-      .set("Access-Control-Request-Headers", "authorization,cache-control");
+      .set("Access-Control-Request-Headers", "authorization,cache-control,pragma");
 
     expect(res.status).toBe(204);
     expect(res.headers["access-control-allow-origin"]).toBe("https://ssamenj.online");
     expect(res.headers["access-control-allow-credentials"]).toBe("true");
     expect(res.headers["access-control-allow-headers"]).toContain("Cache-Control");
+    expect(res.headers["access-control-allow-headers"]).toContain("Pragma");
+    expect(res.headers["access-control-allow-headers"]).toContain("Authorization");
   });
 
   it("allows localhost when CLIENT_ORIGIN is not configured (local dev)", async () => {
