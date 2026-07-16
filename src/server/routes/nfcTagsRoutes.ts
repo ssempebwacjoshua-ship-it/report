@@ -287,6 +287,10 @@ export function nfcTagsRoutes() {
 
   router.get("/api/nfc/tags/reader-credential-captures/:captureId", async (req, res, next) => {
     try {
+      res.set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+      res.set("Pragma", "no-cache");
+      res.set("Expires", "0");
+      res.set("Surrogate-Control", "no-store");
       if (!(await requirePlatformModule(req, res, "nfc.tags"))) {
         return;
       }
