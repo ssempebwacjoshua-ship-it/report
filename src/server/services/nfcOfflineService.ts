@@ -4,6 +4,10 @@ import { createHash, randomUUID } from "crypto";
 import { prisma as defaultPrisma } from "../db/prisma";
 import { hasPermission } from "../../shared/permissions";
 import { feeHoldAppliesToStudent, getSchoolNfcPolicy } from "./nfcPolicyService";
+import {
+  processLocationAwareReaderEvent,
+  type LocationAwareReaderDevice,
+} from "./readerAttendanceService";
 
 type OfflineClient = Pick<
   PrismaClient,
@@ -17,6 +21,10 @@ type OfflineClient = Pick<
   | "nfcOfflineDevice"
   | "nfcOfflineSyncBatch"
   | "nfcGateScan"
+  | "studentGateHold"
+  | "dailyAttendance"
+  | "campusMovementEvent"
+  | "classroomAttendanceEvent"
   | "studentAttendanceEvent"
   | "studentWalletTransaction"
   | "auditLog"
@@ -382,6 +390,46 @@ type QueuedEvent = {
   createdAt: string;
 };
 
+function buildOfflineAttendanceReader(
+  schoolId: string,
+  device: {
+    id: string;
+    deviceKey: string;
+    name: string;
+    location: string | null;
+    locationType: string | null;
+    locationName: string | null;
+    mode: string | null;
+    attendanceMode: string | null;
+    studentScope: string | null;
+    classId: string | null;
+    streamId: string | null;
+    direction: string | null;
+    roleScope: string | null;
+    isActive: boolean | null;
+    status: string | null;
+  },
+): LocationAwareReaderDevice {
+  return {
+    id: device.id,
+    schoolId,
+    deviceKey: device.deviceKey,
+    name: device.name,
+    location: device.location ?? null,
+    locationType: device.locationType ?? "GATE",
+    locationName: device.locationName ?? device.location ?? null,
+    mode: device.mode ?? "ATTENDANCE",
+    attendanceMode: device.attendanceMode ?? "GATE_ATTENDANCE",
+    studentScope: device.studentScope ?? "ALL_STUDENTS",
+    classId: device.classId ?? null,
+    streamId: device.streamId ?? null,
+    direction: device.direction ?? "ENTRY",
+    roleScope: device.roleScope ?? "GATE_SECURITY",
+    isActive: device.isActive !== false,
+    status: device.status ?? "ACTIVE",
+  };
+}
+
 export async function syncOfflineEvents(
   ctx: OfflineContext,
   input: { deviceId: string; snapshotId: string; events: QueuedEvent[] },
@@ -434,11 +482,17 @@ export async function syncOfflineEvents(
       let serverId: string | undefined;
 
       if (event.actionType === "GATE_SCAN") {
+        const scannedAtIso = typeof payload.scannedAt === "string" && payload.scannedAt
+          ? payload.scannedAt
+          : event.createdAt;
+        const scannedAt = new Date(scannedAtIso);
+        if (Number.isNaN(scannedAt.getTime())) {
+          throw new Error("Invalid scannedAt");
+        }
         const existing = await db.nfcGateScan.findFirst({
           where: {
-            // Idempotency via compound match on schoolId + credentialId + scannedAt timestamp (close enough)
             schoolId,
-            scannedAt: new Date(event.createdAt),
+            scannedAt,
           },
         });
         if (existing) {
@@ -446,18 +500,51 @@ export async function syncOfflineEvents(
           syncedItems++;
           continue;
         }
-        const scan = await db.nfcGateScan.create({
+
+        if (!device) {
+          throw new Error("Offline device not registered");
+        }
+
+        const reader = buildOfflineAttendanceReader(schoolId, {
+          id: device.id,
+          deviceKey: device.deviceKey,
+          name: device.name,
+          location: device.location ?? null,
+          locationType: device.locationType ?? null,
+          locationName: device.locationName ?? null,
+          mode: device.mode ?? null,
+          attendanceMode: device.attendanceMode ?? null,
+          studentScope: device.studentScope ?? null,
+          classId: device.classId ?? null,
+          streamId: device.streamId ?? null,
+          direction: device.direction ?? null,
+          roleScope: device.roleScope ?? null,
+          isActive: device.isActive ?? true,
+          status: device.status ?? "ACTIVE",
+        });
+
+        const processed = await processLocationAwareReaderEvent(reader, {
+          eventId: event.idempotencyKey,
+          credential: typeof payload.publicCode === "string" ? payload.publicCode : undefined,
+          credentialUID: typeof payload.physicalUid === "string" ? payload.physicalUid : undefined,
+          deviceTime: scannedAt.toISOString(),
+          syncStatus: "OFFLINE_SYNCED",
+        }, db as never);
+
+        const gateScan = await db.nfcGateScan.create({
           data: {
             schoolId,
             studentId: (payload.studentId as string) || null,
             credentialId: null,
             scannedByUserId: null,
-            result: (payload.result as "ALLOWED" | "BLOCKED") ?? "BLOCKED",
-            reason: (payload.reason as string) || null,
-            scannedAt: new Date(event.createdAt),
+            result: processed.statusCode >= 400 ? "BLOCKED" : ((payload.result as "ALLOWED" | "BLOCKED") ?? "ALLOWED"),
+            reason: (processed.response.message && processed.statusCode >= 400)
+              ? processed.response.message
+              : (payload.reason as string) || null,
+            scannedAt,
           },
         });
-        serverId = scan.id;
+        serverId = gateScan.id;
         syncedItems++;
 
       } else if (event.actionType === "ATTENDANCE_SCAN") {
