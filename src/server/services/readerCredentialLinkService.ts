@@ -449,60 +449,58 @@ export async function captureReaderCredentialFromReader(
   },
   db: ReaderCredentialLinkDb = defaultPrisma,
 ) {
-  return runWrite(db, async (tx) => {
-    await cleanExpiredSessions(tx, device.schoolId);
+  await cleanExpiredSessions(db, device.schoolId);
 
-    const activeSession = await tx.readerCredentialCaptureSession.findFirst({
-      where: {
-        schoolId: device.schoolId,
-        activeSchoolId: device.schoolId,
-        status: { in: ["PENDING", "CAPTURED"] },
-        OR: [
-          { deviceId: null },
-          { deviceId: device.id },
-        ],
+  const activeSession = await db.readerCredentialCaptureSession.findFirst({
+    where: {
+      schoolId: device.schoolId,
+      activeSchoolId: device.schoolId,
+      status: { in: ["PENDING", "CAPTURED"] },
+      OR: [
+        { deviceId: null },
+        { deviceId: device.id },
+      ],
+    },
+    orderBy: { createdAt: "desc" },
+  }) as ReaderCredentialCaptureSessionRow | null;
+
+  if (!activeSession) return null;
+
+  if (activeSession.status === "CAPTURED" && activeSession.capturedCredentialJson) {
+    return serializeCaptureSession(activeSession);
+  }
+
+  const aliases = buildReaderCredentialAliases(buildCaptureInput(body));
+  if (!aliases.canonical) {
+    return null;
+  }
+
+  const updated = await db.readerCredentialCaptureSession.update({
+    where: { id: activeSession.id },
+    data: {
+      status: "CAPTURED",
+      capturedAt: new Date(),
+      capturedReaderId: device.id,
+      capturedReaderName: formatAttendanceReaderLabel(device),
+      capturedCredentialJson: {
+        canonical: aliases.canonical,
+        aliases: aliases.aliases,
+        strongAliases: aliases.strongAliases,
+        weakAliases: aliases.weakAliases,
+        aliasSource: aliases.aliasSource,
+        credential: body.credentialUID ?? body.credential ?? null,
+        rawWiegandDecimal: body.rawWiegandDecimal ?? null,
+        rawWiegandHex: body.rawWiegandHex ?? null,
+        facilityCode: body.facilityCode ?? null,
+        cardNumber: body.cardNumber ?? null,
+        capturedAt: new Date().toISOString(),
+        readerId: device.id,
+        readerName: formatAttendanceReaderLabel(device),
       },
-      orderBy: { createdAt: "desc" },
-    }) as ReaderCredentialCaptureSessionRow | null;
+    },
+  }) as ReaderCredentialCaptureSessionRow;
 
-    if (!activeSession) return null;
-
-    if (activeSession.status === "CAPTURED" && activeSession.capturedCredentialJson) {
-      return serializeCaptureSession(activeSession);
-    }
-
-    const aliases = buildReaderCredentialAliases(buildCaptureInput(body));
-    if (!aliases.canonical) {
-      return null;
-    }
-
-    const updated = await tx.readerCredentialCaptureSession.update({
-      where: { id: activeSession.id },
-      data: {
-        status: "CAPTURED",
-        capturedAt: new Date(),
-        capturedReaderId: device.id,
-        capturedReaderName: formatAttendanceReaderLabel(device),
-        capturedCredentialJson: {
-          canonical: aliases.canonical,
-          aliases: aliases.aliases,
-          strongAliases: aliases.strongAliases,
-          weakAliases: aliases.weakAliases,
-          aliasSource: aliases.aliasSource,
-          credential: body.credentialUID ?? body.credential ?? null,
-          rawWiegandDecimal: body.rawWiegandDecimal ?? null,
-          rawWiegandHex: body.rawWiegandHex ?? null,
-          facilityCode: body.facilityCode ?? null,
-          cardNumber: body.cardNumber ?? null,
-          capturedAt: new Date().toISOString(),
-          readerId: device.id,
-          readerName: formatAttendanceReaderLabel(device),
-        },
-      },
-    }) as ReaderCredentialCaptureSessionRow;
-
-    return serializeCaptureSession(updated);
-  });
+  return serializeCaptureSession(updated);
 }
 
 async function findCredentialConflict(

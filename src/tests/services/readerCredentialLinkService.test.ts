@@ -388,6 +388,34 @@ describe("readerCredentialLinkService", () => {
     expect(auditLogs.some((entry) => entry.action === "nfc_tag.reader_credential_linked")).toBe(true);
   });
 
+  it("captures a reader credential without opening a new interactive transaction", async () => {
+    const { db, devices } = createMockDb();
+
+    const started = await startReaderCredentialCapture(
+      { schoolId: "school-1", actorId: "admin-1", role: "ADMIN_OPERATOR" },
+      { tagId: "tag-1", deviceId: "device-1" },
+      db,
+    );
+
+    expect(started.status).toBe("PENDING");
+
+    const transactionSpy = vi.fn(async () => {
+      throw new Error("capture path should not open a transaction");
+    });
+    (db as { $transaction?: typeof transactionSpy }).$transaction = transactionSpy;
+
+    const captured = await captureReaderCredentialFromReader(devices[0], {
+      credential: "786777",
+      rawWiegandDecimal: "35128677",
+      rawWiegandHex: "02180565",
+      facilityCode: "12",
+      cardNumber: "1",
+    }, db);
+
+    expect(captured?.status).toBe("CAPTURED");
+    expect(transactionSpy).not.toHaveBeenCalled();
+  });
+
   it("keeps capture sessions visible across separate service instances", async () => {
     const { db, devices } = createMockDb();
     const firstInstance = await import("../../server/services/readerCredentialLinkService");

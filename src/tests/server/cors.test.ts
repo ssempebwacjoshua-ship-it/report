@@ -56,6 +56,21 @@ describe("CORS origin control", () => {
     expect(res.headers["access-control-allow-credentials"]).toBe("true");
   });
 
+  it("allows reader credential capture preflight with cache-control from ssamenj.online", async () => {
+    vi.stubEnv("NODE_ENV", "test");
+    vi.stubEnv("CLIENT_ORIGIN", "https://ssamenj.online");
+    const res = await request(createServer())
+      .options("/api/nfc/tags/reader-credential-captures/capture-1")
+      .set("Origin", "https://ssamenj.online")
+      .set("Access-Control-Request-Method", "GET")
+      .set("Access-Control-Request-Headers", "authorization,cache-control");
+
+    expect(res.status).toBe(204);
+    expect(res.headers["access-control-allow-origin"]).toBe("https://ssamenj.online");
+    expect(res.headers["access-control-allow-credentials"]).toBe("true");
+    expect(res.headers["access-control-allow-headers"]).toContain("Cache-Control");
+  });
+
   it("allows localhost when CLIENT_ORIGIN is not configured (local dev)", async () => {
     vi.stubEnv("NODE_ENV", "development");
     vi.stubEnv("CLIENT_ORIGIN", ""); // explicit empty = not configured
