@@ -292,6 +292,17 @@ export function nfcTagsRoutes() {
       }
       res.json(await getReaderCredentialCapture(ctx(req), req.params.captureId));
     } catch (error) {
+      if ((error as { status?: unknown })?.status === 404) {
+        res.status(410).json({
+          ok: false,
+          error: true,
+          code: "READER_CREDENTIAL_CAPTURE_EXPIRED",
+          message: "Capture session expired or was cleared. Start a new reader credential capture and tap again.",
+          captureId: req.params.captureId,
+          status: "EXPIRED",
+        });
+        return;
+      }
       next(error);
     }
   });
