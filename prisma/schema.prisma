@@ -50,6 +50,7 @@ model School {
   nfcTags                      NfcTag[]
   nfcTagBatches                NfcTagBatch[]
   nfcOfflineDevices            NfcOfflineDevice[]
+  readerCredentialCaptureSessions ReaderCredentialCaptureSession[]
   readerDeviceCommands         ReaderDeviceCommand[]
   nfcOfflineSyncBatches        NfcOfflineSyncBatch[]
   communicationCampaigns       CommunicationCampaign[]
@@ -1512,6 +1513,34 @@ model ReaderDeviceCommand {
 
   @@index([schoolId, deviceId, type, status, requestedAt], map: "ReaderDeviceCommand_school_device_type_status_requestedAt_idx")
   @@index([deviceId, status, requestedAt], map: "ReaderDeviceCommand_device_status_requestedAt_idx")
+}
+
+model ReaderCredentialCaptureSession {
+  id                    String    @id @default(uuid()) @db.Uuid
+  schoolId              String    @db.Uuid
+  tagId                 String    @db.Uuid
+  studentId             String    @db.Uuid
+  deviceId              String?   @db.Uuid
+  deviceLabel           String?
+  status                String    @default("PENDING") // PENDING | CAPTURED | CONFIRMED | CANCELLED | EXPIRED
+  activeSchoolId        String?   @unique @db.Uuid
+  expiresAt             DateTime
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+  capturedAt            DateTime?
+  confirmedAt           DateTime?
+  cancelledAt           DateTime?
+  expiredAt             DateTime?
+  capturedReaderId      String?
+  capturedReaderName    String?
+  capturedCredentialJson Json?
+
+  school School @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+
+  @@index([schoolId, status, expiresAt], map: "ReaderCredentialCaptureSession_school_status_expiresAt_idx")
+  @@index([schoolId, tagId], map: "ReaderCredentialCaptureSession_school_tag_idx")
+  @@index([schoolId, studentId], map: "ReaderCredentialCaptureSession_school_student_idx")
+  @@index([schoolId, deviceId, status], map: "ReaderCredentialCaptureSession_school_device_status_idx")
 }
 
 model NfcOfflineSyncBatch {

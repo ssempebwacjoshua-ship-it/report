@@ -17,7 +17,7 @@ describe("PWA manifest", () => {
     expect(manifest.name).toBe("SSAMENJ Technologies");
     expect(manifest.short_name).toBe("SSAMENJ");
     expect(manifest.display).toBe("standalone");
-    expect(manifest.start_url).toBe("/report-lab/login");
+    expect(manifest.start_url).toBe("/report-lab/pwa-launch");
     expect(manifest.scope).toBe("/report-lab/");
     expect(manifest.theme_color).toBeTruthy();
     expect(manifest.background_color).toBeTruthy();
@@ -63,6 +63,17 @@ describe("service worker safety", () => {
     expect(sw).toMatch(/CACHE_VERSION/);
     expect(sw).toContain("skipWaiting");
     expect(sw).toContain("clients.claim");
+  });
+
+  it("pins the app shell to an authenticated route and avoids caching public auth pages as shell", () => {
+    expect(sw).toContain('const APP_SHELL_URL = `${BASE_PATH}/pwa-launch`;');
+    expect(sw).toContain('pathname === `${BASE_PATH}/login`');
+    expect(sw).toContain('pathname === `${BASE_PATH}/logout`');
+    expect(sw).toContain('pathname === `${BASE_PATH}/forgot-password`');
+    expect(sw).toContain('pathname === `${BASE_PATH}/reset-password`');
+    expect(sw).toContain('pathname.startsWith(`${BASE_PATH}/parent/`)');
+    expect(sw).toContain('pathname.startsWith(`${BASE_PATH}/verify/`)');
+    expect(sw).toContain("caches.match(APP_SHELL_URL)");
   });
 });
 

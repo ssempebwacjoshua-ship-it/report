@@ -1,16 +1,31 @@
-import { useNavigate, useLocation } from "react-router-dom";
 import { NavigationRegular, PersonRegular, SignOutRegular, WifiOffRegular, ArrowSyncRegular, WarningRegular } from "@fluentui/react-icons";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../../contexts/AuthContext";
-import { ROLE_LABELS } from "../../shared/permissions";
-import { getProductFromPath, getVisibleProductSwitcherProducts, productSwitcherItems } from "./navConfig";
 import { useConnectivityStatus, type ConnectivityState } from "../../hooks/useConnectivityStatus";
+import { ROLE_LABELS } from "../../shared/permissions";
+import { getDedicatedInstalledWorkspace } from "../../pwa/standaloneMode";
+import { getProductFromPath, getVisibleProductSwitcherProducts, productSwitcherItems } from "./navConfig";
 
 type Props = {
   onMenuClick: () => void;
 };
 
-function ConnectivityBadge({ state, pendingCount }: { state: ConnectivityState; pendingCount: number }) {
+function ConnectivityBadge({
+  state,
+  pendingCount,
+  workspace,
+}: {
+  state: ConnectivityState;
+  pendingCount: number;
+  workspace: "gate" | "canteen" | null;
+}) {
   if (state === "ONLINE") return null;
+
+  const pendingLabel = workspace === "gate"
+    ? "gate scans"
+    : workspace === "canteen"
+      ? "canteen sales"
+      : "pending actions";
 
   const configs: Record<ConnectivityState, { label: string; className: string; icon: React.ReactNode } | null> = {
     ONLINE: null,
@@ -25,12 +40,12 @@ function ConnectivityBadge({ state, pendingCount }: { state: ConnectivityState; 
       icon: <WifiOffRegular className="h-3.5 w-3.5 shrink-0" />,
     },
     OFFLINE_NOT_READY: {
-      label: "Offline – No snapshot",
+      label: "Offline - No snapshot",
       className: "bg-red-500/20 border-red-400/40 text-red-200",
       icon: <WifiOffRegular className="h-3.5 w-3.5 shrink-0" />,
     },
     SYNCING: {
-      label: pendingCount > 0 ? `Syncing ${pendingCount} pending actions…` : "Syncing…",
+      label: pendingCount > 0 ? `Syncing ${pendingCount} ${pendingLabel}...` : "Syncing...",
       className: "bg-blue-500/20 border-blue-400/40 text-blue-200",
       icon: <ArrowSyncRegular className="h-3.5 w-3.5 shrink-0 animate-spin" />,
     },
@@ -58,7 +73,8 @@ export function Topbar({ onMenuClick }: Props) {
   const location = useLocation();
   const currentProduct = getProductFromPath(location.pathname);
   const visibleProducts = getVisibleProductSwitcherProducts(user?.role, location.pathname);
-  const isGateAccount = user?.role === "SECURITY" || user?.role === "GATE_SECURITY";
+  const installedWorkspace = getDedicatedInstalledWorkspace(location.pathname, user?.role);
+  const blockLogout = installedWorkspace !== null;
 
   const { state: connState, pendingCount } = useConnectivityStatus();
 
@@ -103,7 +119,7 @@ export function Topbar({ onMenuClick }: Props) {
           ))}
         </div>
 
-        <ConnectivityBadge state={connState} pendingCount={pendingCount} />
+        <ConnectivityBadge state={connState} pendingCount={pendingCount} workspace={installedWorkspace} />
       </div>
 
       <div className="flex items-center gap-2.5">
@@ -116,7 +132,7 @@ export function Topbar({ onMenuClick }: Props) {
             <p className="text-xs leading-tight text-white">{user?.role ? (ROLE_LABELS[user.role] ?? user.role) : "User"}</p>
           </div>
         </div>
-        {!isGateAccount ? (
+        {!blockLogout ? (
           <button
             type="button"
             onClick={handleLogout}

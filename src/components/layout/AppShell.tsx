@@ -1,6 +1,6 @@
 ﻿import { useEffect, useState, type CSSProperties } from "react";
 import type { Dispatch, SetStateAction } from "react";
-import { Navigate, Outlet, useLocation } from "react-router-dom";
+import { Navigate, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../../contexts/AuthContext";
 import { InstallPrompt } from "../pwa/InstallPrompt";
 import { SupportWidget } from "../support/SupportWidget";
@@ -10,6 +10,8 @@ import { SettingsProvider, useAppSettings } from "./SettingsContext";
 import { hasPermission } from "../../shared/permissions";
 import { ConnectivityProvider } from "../../hooks/useConnectivityStatus";
 import { BrandedLoader } from "../BrandedLoader";
+import { rememberDedicatedPwaLaunchPath } from "../../pwa/standaloneMode";
+import { useDedicatedPwaNavigationGuard } from "../../pwa/useDedicatedPwaNavigationGuard";
 
 const SIDEBAR_WIDTH_KEY = "school-connect-sidebar-width";
 const DEFAULT_SIDEBAR_WIDTH = 232;
@@ -163,6 +165,7 @@ function AppShellInner({
   const { settings } = useAppSettings() ?? {};
   const { user } = useAuth();
   const location = useLocation();
+  const navigate = useNavigate();
   const [deviceId] = useState(() => {
     const key = "schoolconnect_nfc_device_id";
     try {
@@ -202,6 +205,20 @@ function AppShellInner({
     setSidebarOpen(false);
     document.body.style.overflow = "";
   }, [location.pathname, setSidebarOpen]);
+
+  useEffect(() => {
+    if (user?.role === "SECURITY" || user?.role === "GATE_SECURITY" || user?.role === "CANTEEN" || user?.role === "CASHIER") {
+      rememberDedicatedPwaLaunchPath(location.pathname);
+    }
+  }, [location.pathname, user?.role]);
+
+  useDedicatedPwaNavigationGuard(user?.role);
+
+  useEffect(() => {
+    if (!user) return;
+    if (location.pathname !== "/login") return;
+    navigate("/", { replace: true });
+  }, [location.pathname, navigate, user]);
 
   return (
     <ConnectivityProvider schoolId={user?.schoolId} deviceId={deviceId}>

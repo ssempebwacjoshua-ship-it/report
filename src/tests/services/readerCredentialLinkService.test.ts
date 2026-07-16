@@ -1,5 +1,5 @@
 import { CredentialStatus, CredentialType } from "@prisma/client";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   __resetReaderCredentialCaptureSessionsForTests,
   captureReaderCredentialFromReader,
@@ -39,6 +39,27 @@ type MockCredential = {
   issuedById: string | null;
 };
 
+type MockCaptureSession = {
+  id: string;
+  schoolId: string;
+  tagId: string;
+  studentId: string;
+  deviceId: string | null;
+  deviceLabel: string | null;
+  status: string;
+  activeSchoolId: string | null;
+  expiresAt: Date;
+  createdAt: Date;
+  updatedAt: Date;
+  capturedAt: Date | null;
+  confirmedAt: Date | null;
+  cancelledAt: Date | null;
+  expiredAt: Date | null;
+  capturedReaderId: string | null;
+  capturedReaderName: string | null;
+  capturedCredentialJson: Record<string, unknown> | null;
+};
+
 function createMockDb() {
   const tags: MockTag[] = [
     {
@@ -74,6 +95,7 @@ function createMockDb() {
   ];
 
   const credentials: MockCredential[] = [];
+  const captureSessions: MockCaptureSession[] = [];
   const auditLogs: Array<Record<string, unknown>> = [];
   const devices = [
     {
@@ -89,8 +111,8 @@ function createMockDb() {
       isActive: true,
       status: "ACTIVE",
       onlineStatus: "ONLINE",
-      lastSeenAt: new Date("2026-07-12T08:00:00.000Z"),
-      lastHeartbeatAt: new Date("2026-07-12T08:00:00.000Z"),
+      lastSeenAt: new Date(),
+      lastHeartbeatAt: new Date(),
     },
   ];
 
@@ -189,6 +211,66 @@ function createMockDb() {
         return row;
       },
     },
+    readerCredentialCaptureSession: {
+      findFirst: async ({ where }: { where: Record<string, unknown> }) => {
+        return captureSessions.find((session) => {
+          if (where.id && session.id !== where.id) return false;
+          if (where.schoolId && session.schoolId !== where.schoolId) return false;
+          if (where.activeSchoolId) {
+            if (typeof where.activeSchoolId === "object" && "not" in where.activeSchoolId) {
+              if (session.activeSchoolId === (where.activeSchoolId as { not: string | null }).not) return false;
+            } else if (session.activeSchoolId !== where.activeSchoolId) {
+              return false;
+            }
+          }
+          if (where.status && typeof where.status === "object" && "in" in where.status) {
+            if (!(where.status as { in: string[] }).in.includes(session.status)) return false;
+          } else if (where.status && session.status !== where.status) {
+            return false;
+          }
+          if (where.tagId && session.tagId !== where.tagId) return false;
+          if (where.studentId && session.studentId !== where.studentId) return false;
+          if (where.deviceId && session.deviceId !== where.deviceId) return false;
+          return true;
+        }) ?? null;
+      },
+      findMany: async ({ where }: { where: Record<string, unknown> }) => {
+        return captureSessions.filter((session) => {
+          if (where.schoolId && session.schoolId !== where.schoolId) return false;
+          if (where.activeSchoolId === null && session.activeSchoolId !== null) return false;
+          if (where.activeSchoolId && typeof where.activeSchoolId === "object" && "not" in where.activeSchoolId) {
+            if (session.activeSchoolId === (where.activeSchoolId as { not: string | null }).not) return false;
+          } else if (where.activeSchoolId && session.activeSchoolId !== where.activeSchoolId) {
+            return false;
+          }
+          if (where.status && typeof where.status === "object" && "in" in where.status) {
+            if (!(where.status as { in: string[] }).in.includes(session.status)) return false;
+          } else if (where.status && session.status !== where.status) {
+            return false;
+          }
+          if (where.expiresAt && typeof where.expiresAt === "object" && "lte" in where.expiresAt) {
+            if (!(session.expiresAt <= (where.expiresAt as { lte: Date }).lte)) return false;
+          }
+          return true;
+        });
+      },
+      create: async ({ data }: { data: Omit<MockCaptureSession, "createdAt" | "updatedAt"> }) => {
+        const row: MockCaptureSession = {
+          ...data,
+          createdAt: new Date("2026-07-12T08:00:00.000Z"),
+          updatedAt: new Date("2026-07-12T08:00:00.000Z"),
+        };
+        captureSessions.push(row);
+        return row;
+      },
+      update: async ({ where, data }: { where: { id: string }; data: Partial<MockCaptureSession> }) => {
+        const row = captureSessions.find((session) => session.id === where.id);
+        if (!row) throw new Error("capture session missing");
+        Object.assign(row, data);
+        row.updatedAt = new Date();
+        return row;
+      },
+    },
     nfcOfflineDevice: {
       findFirst: async ({ where }: { where: Record<string, unknown> }) => {
         return devices.find((device) => {
@@ -210,7 +292,7 @@ function createMockDb() {
     $transaction: async <T>(fn: (tx: typeof db) => Promise<T>) => fn(db),
   };
 
-  return { db: db as never, tags, credentials, auditLogs, devices };
+  return { db: db as never, tags, credentials, auditLogs, devices, captureSessions };
 }
 
 describe("readerCredentialLinkService", () => {
@@ -283,7 +365,7 @@ describe("readerCredentialLinkService", () => {
       rawWiegandHex: "02180565",
       facilityCode: "12",
       cardNumber: "1",
-    });
+    }, db);
 
     expect(captured?.status).toBe("CAPTURED");
     expect(captured?.preview?.maskedCanonicalCredential).toBeTruthy();
@@ -304,6 +386,38 @@ describe("readerCredentialLinkService", () => {
       status: CredentialStatus.ACTIVE,
     });
     expect(auditLogs.some((entry) => entry.action === "nfc_tag.reader_credential_linked")).toBe(true);
+  });
+
+  it("keeps capture sessions visible across separate service instances", async () => {
+    const { db, devices } = createMockDb();
+    const firstInstance = await import("../../server/services/readerCredentialLinkService");
+
+    const started = await firstInstance.startReaderCredentialCapture(
+      { schoolId: "school-1", actorId: "admin-1", role: "ADMIN_OPERATOR" },
+      { tagId: "tag-1", deviceId: "device-1" },
+      db,
+    );
+
+    const firstCapture = await firstInstance.captureReaderCredentialFromReader(devices[0], {
+      credential: "786777",
+      rawWiegandDecimal: "35128677",
+      rawWiegandHex: "02180565",
+      facilityCode: "12",
+      cardNumber: "1",
+    }, db);
+
+    expect(firstCapture?.status).toBe("CAPTURED");
+
+    vi.resetModules();
+    const secondInstance = await import("../../server/services/readerCredentialLinkService");
+
+    const confirmed = await secondInstance.confirmReaderCredentialLink(
+      { schoolId: "school-1", actorId: "admin-1", role: "ADMIN_OPERATOR" },
+      started.captureId,
+      db,
+    );
+
+    expect(confirmed.ok).toBe(true);
   });
 
   it("returns a genuine same-wristband conflict when the strong raw Wiegand identity is already active for another student", async () => {
@@ -334,7 +448,7 @@ describe("readerCredentialLinkService", () => {
       rawWiegandHex: "02180565",
       facilityCode: "12",
       cardNumber: "1",
-    });
+    }, db);
 
     await expect(confirmReaderCredentialLink(
       { schoolId: "school-1", actorId: "admin-1", role: "ADMIN_OPERATOR" },
@@ -379,7 +493,7 @@ describe("readerCredentialLinkService", () => {
       rawWiegandHex: "02180565",
       facilityCode: "12",
       cardNumber: "1",
-    });
+    }, db);
 
     const confirmed = await confirmReaderCredentialLink(
       { schoolId: "school-1", actorId: "admin-1", role: "ADMIN_OPERATOR" },
@@ -418,7 +532,7 @@ describe("readerCredentialLinkService", () => {
       rawWiegandHex: "02180565",
       facilityCode: "12",
       cardNumber: "1",
-    });
+    }, db);
 
     await expect(transferReaderCredentialLink(
       { schoolId: "school-1", actorId: "staff-1", role: "TEACHER" },
@@ -464,7 +578,7 @@ describe("readerCredentialLinkService", () => {
       rawWiegandHex: "02180565",
       facilityCode: "12",
       cardNumber: "1",
-    });
+    }, db);
 
     const transferred = await transferReaderCredentialLink(
       { schoolId: "school-1", actorId: "admin-1", role: "ADMIN_OPERATOR" },
@@ -511,7 +625,7 @@ describe("readerCredentialLinkService", () => {
       rawWiegandHex: "02180565",
       facilityCode: "12",
       cardNumber: "1",
-    });
+    }, db);
 
     await expect(transferReaderCredentialLink(
       { schoolId: "school-2", actorId: "admin-1", role: "ADMIN_OPERATOR" },
@@ -532,6 +646,24 @@ describe("readerCredentialLinkService", () => {
     await expect(getReaderCredentialCapture(
       { schoolId: "school-2", actorId: "admin-2", role: "ADMIN_OPERATOR" },
       started.captureId,
+      db,
     )).rejects.toMatchObject({ status: 404 });
+  });
+
+  it("treats cancelling a missing capture session as success", async () => {
+    const { db } = createMockDb();
+    const { cancelReaderCredentialCapture } = await import("../../server/services/readerCredentialLinkService");
+
+    const result = await cancelReaderCredentialCapture(
+      { schoolId: "school-1", actorId: "admin-1", role: "ADMIN_OPERATOR" },
+      "missing-capture",
+      db,
+    );
+
+    expect(result).toMatchObject({
+      ok: true,
+      captureId: "missing-capture",
+      status: "CANCELLED",
+    });
   });
 });

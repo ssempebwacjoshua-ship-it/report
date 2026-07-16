@@ -221,14 +221,20 @@ bool GatewayClient::sendJsonRaw(const ReaderGatewayConfig& config, const String&
     }
   }
 
+  Serial.printf("HTTP POST path=%s url=%s\n", path.c_str(), url.c_str());
   http.setTimeout(10000);
   applyRequestHeaders(http, config);
 
   statusCode = http.POST(body);
   responseBody = http.getString();
   Serial.printf("HTTP status code: %d\n", statusCode);
-  if (statusCode >= 400 && !responseBody.isEmpty()) {
-    Serial.printf("HTTP response body: %s\n", responseBody.c_str());
+  if (statusCode >= 400) {
+    Serial.printf(
+      "HTTP failure path=%s status=%d body=%s\n",
+      path.c_str(),
+      statusCode,
+      responseBody.isEmpty() ? "(empty)" : responseBody.c_str()
+    );
   }
   if (statusCode < 0) {
     Serial.printf("HTTP error: %s\n", HTTPClient::errorToString(statusCode).c_str());

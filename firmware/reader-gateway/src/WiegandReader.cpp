@@ -9,12 +9,25 @@ bool WiegandReader::begin(int8_t d0Pin, int8_t d1Pin, uint32_t timeoutMs) {
   d1Pin_ = d1Pin;
   timeoutUs_ = timeoutMs == 0 ? kDefaultTimeoutUs : timeoutMs * 1000UL;
 
+  if (d0Pin_ < 0 || d1Pin_ < 0) {
+    Serial.printf("Wiegand begin skipped: invalid pins D0=%d D1=%d\n", static_cast<int>(d0Pin_), static_cast<int>(d1Pin_));
+    return false;
+  }
+
   pinMode(d0Pin_, INPUT_PULLUP);
   pinMode(d1Pin_, INPUT_PULLUP);
 
   attachInterruptArg(d0Pin_, &WiegandReader::onD0Thunk, this, FALLING);
   attachInterruptArg(d1Pin_, &WiegandReader::onD1Thunk, this, FALLING);
   reset();
+  Serial.printf(
+    "Wiegand begin: D0=%d level=%d D1=%d level=%d timeoutMs=%lu\n",
+    static_cast<int>(d0Pin_),
+    digitalRead(d0Pin_),
+    static_cast<int>(d1Pin_),
+    digitalRead(d1Pin_),
+    static_cast<unsigned long>(timeoutUs_ / 1000UL)
+  );
   return true;
 }
 
@@ -32,6 +45,8 @@ void WiegandReader::reset() {
   activeBitCount_ = 0;
   activeFirstPulseUs_ = 0;
   activeLastPulseUs_ = 0;
+  activeD0PulseCount_ = 0;
+  activeD1PulseCount_ = 0;
   activeOverflow_ = false;
   pendingHead_ = 0;
   pendingTail_ = 0;
@@ -48,7 +63,7 @@ void IRAM_ATTR WiegandReader::onD1Thunk(void* arg) {
   static_cast<WiegandReader*>(arg)->onPulse(true);
 }
 
-void IRAM_ATTR WiegandReader::finalizeActiveFrame() {
+void IRAM_ATTR WiegandReader::finalizeActiveFrame(bool timedOut) {
   if (activeBitCount_ == 0) {
     return;
   }
@@ -64,7 +79,10 @@ void IRAM_ATTR WiegandReader::finalizeActiveFrame() {
   slot.bitCount = activeBitCount_;
   slot.firstPulseUs = activeFirstPulseUs_;
   slot.lastPulseUs = activeLastPulseUs_;
+  slot.d0PulseCount = activeD0PulseCount_;
+  slot.d1PulseCount = activeD1PulseCount_;
   slot.overflow = activeOverflow_;
+  slot.timedOut = timedOut;
 
   pendingTail_ = static_cast<uint8_t>((pendingTail_ + 1) % kPendingFrameCapacity);
   pendingCount_ += 1;
@@ -73,6 +91,8 @@ void IRAM_ATTR WiegandReader::finalizeActiveFrame() {
   activeBitCount_ = 0;
   activeFirstPulseUs_ = 0;
   activeLastPulseUs_ = 0;
+  activeD0PulseCount_ = 0;
+  activeD1PulseCount_ = 0;
   activeOverflow_ = false;
 }
 
@@ -101,7 +121,7 @@ void IRAM_ATTR WiegandReader::onPulse(bool oneBit) {
   const uint32_t nowUs = micros();
 
   if (activeBitCount_ > 0 && static_cast<uint32_t>(nowUs - activeLastPulseUs_) >= timeoutUs_) {
-    finalizeActiveFrame();
+    finalizeActiveFrame(true);
   }
 
   if (activeBitCount_ > 0 && static_cast<uint32_t>(nowUs - activeLastPulseUs_) < kMinPulseSpacingUs) {
@@ -110,6 +130,12 @@ void IRAM_ATTR WiegandReader::onPulse(bool oneBit) {
 
   if (activeBitCount_ == 0) {
     activeFirstPulseUs_ = nowUs;
+  }
+
+  if (oneBit) {
+    activeD1PulseCount_ += 1;
+  } else {
+    activeD0PulseCount_ += 1;
   }
 
   if (activeBitCount_ < 63) {
@@ -146,14 +172,9 @@ bool WiegandReader::poll(ReaderScanEvent& event) {
   noInterrupts();
   const uint32_t nowUs = micros();
   if (activeBitCount_ > 0 && static_cast<uint32_t>(nowUs - activeLastPulseUs_) >= timeoutUs_) {
-    const uint8_t pendingBits = activeBitCount_;
-    const uint32_t gapUs = static_cast<uint32_t>(nowUs - activeLastPulseUs_);
-    finalizeActiveFrame();
-    interrupts();
-    Serial.printf("Reader frame timeout: bitCount=%u gap_us=%lu\n", static_cast<unsigned int>(pendingBits), static_cast<unsigned long>(gapUs));
-  } else {
-    interrupts();
+    finalizeActiveFrame(true);
   }
+  interrupts();
 
   PendingFrame frame;
   if (!popPendingFrame(frame)) {
@@ -168,8 +189,14 @@ bool WiegandReader::poll(ReaderScanEvent& event) {
   }
 
   const uint32_t frameDurationUs = frame.lastPulseUs >= frame.firstPulseUs ? frame.lastPulseUs - frame.firstPulseUs : 0;
-  Serial.printf("Wiegand bits: %u\n", static_cast<unsigned int>(decoded.bitCount));
-  Serial.printf("Card value: %s\n", decoded.rawDecimal.c_str());
+  Serial.printf(
+    "Reader frame timeout: bitCount=%u timedOut=%s d0Pulses=%u d1Pulses=%u overflow=%s\n",
+    static_cast<unsigned int>(frame.bitCount),
+    frame.timedOut ? "yes" : "no",
+    static_cast<unsigned int>(frame.d0PulseCount),
+    static_cast<unsigned int>(frame.d1PulseCount),
+    frame.overflow ? "yes" : "no"
+  );
   Serial.printf(
     "Reader frame captured: timestamp_ms=%lu duration_us=%lu bitCount=%u rawBinary=%s rawDecimal=%s rawHex=%s facilityCode=%s cardNumber=%s parity=%s\n",
     static_cast<unsigned long>(millis()),

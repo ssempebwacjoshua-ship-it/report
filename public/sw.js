@@ -8,12 +8,28 @@
  */
 const CACHE_VERSION = "report-lab-v6";
 const BASE_PATH = "/report-lab";
+const APP_SHELL_URL = `${BASE_PATH}/pwa-launch`;
 const SHELL_CACHE = `${CACHE_VERSION}-shell`;
 const ASSET_CACHE = `${CACHE_VERSION}-assets`;
 
+function isShellNavigationPath(pathname) {
+  if (!pathname.startsWith(`${BASE_PATH}/`)) return false;
+  if (pathname === `${BASE_PATH}/login`) return false;
+  if (pathname === `${BASE_PATH}/logout`) return false;
+  if (pathname === `${BASE_PATH}/forgot-password`) return false;
+  if (pathname === `${BASE_PATH}/reset-password`) return false;
+  if (pathname === `${BASE_PATH}/account/setup`) return false;
+  if (pathname.startsWith(`${BASE_PATH}/parent/`)) return false;
+  if (pathname.startsWith(`${BASE_PATH}/verify/`)) return false;
+  if (pathname.startsWith(`${BASE_PATH}/nfc/t/`)) return false;
+  if (pathname.startsWith(`${BASE_PATH}/t/`)) return false;
+  if (pathname.startsWith(`${BASE_PATH}/p/`)) return false;
+  return true;
+}
+
 self.addEventListener("install", (event) => {
   event.waitUntil(
-    caches.open(SHELL_CACHE).then((cache) => cache.addAll([`${BASE_PATH}/`, `${BASE_PATH}/manifest.webmanifest`])).then(() => self.skipWaiting())
+    caches.open(SHELL_CACHE).then((cache) => cache.addAll([APP_SHELL_URL, `${BASE_PATH}/manifest.webmanifest`])).then(() => self.skipWaiting())
   );
 });
 
@@ -40,11 +56,13 @@ self.addEventListener("fetch", (event) => {
     event.respondWith(
       fetch(req)
         .then((res) => {
-          const copy = res.clone();
-          caches.open(SHELL_CACHE).then((cache) => cache.put(`${BASE_PATH}/`, copy)).catch(() => {});
+          if (res.ok && isShellNavigationPath(url.pathname)) {
+            const copy = res.clone();
+            caches.open(SHELL_CACHE).then((cache) => cache.put(APP_SHELL_URL, copy)).catch(() => {});
+          }
           return res;
         })
-        .catch(() => caches.match(`${BASE_PATH}/`))
+        .catch(() => caches.match(APP_SHELL_URL))
     );
     return;
   }

@@ -98,11 +98,18 @@ function loadReaderGatewayOtaCatalogFromRepo(): ReaderGatewayResolvedRelease[] {
 }
 
 function loadReaderGatewayOtaCatalog(): ReaderGatewayResolvedRelease[] {
+  const fromEnv = loadReaderGatewayOtaCatalogFromEnv();
   const fromRepo = loadReaderGatewayOtaCatalogFromRepo();
-  if (fromRepo.length > 0) {
-    return fromRepo;
+  const releases = [...fromEnv, ...fromRepo];
+  if (releases.length === 0) {
+    return [];
   }
-  return loadReaderGatewayOtaCatalogFromEnv();
+
+  const deduped = new Map<string, ReaderGatewayResolvedRelease>();
+  for (const release of releases) {
+    deduped.set(release.releaseId, release);
+  }
+  return Array.from(deduped.values());
 }
 
 export function findReaderGatewayOtaRelease(context: ReaderGatewayOtaDeviceContext) {

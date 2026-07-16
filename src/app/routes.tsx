@@ -17,6 +17,7 @@ import { LoginPage } from "../pages/LoginPage";
 import { ForgotPasswordPage } from "../pages/ForgotPasswordPage";
 import { TokenPasswordPage } from "../pages/TokenPasswordPage";
 import { LogoutPage } from "../pages/LogoutPage";
+import { PwaLaunchPage } from "../pages/PwaLaunchPage";
 import { DemoPage } from "../pages/DemoPage";
 import { FeaturesDemoPage } from "../pages/FeaturesDemoPage";
 import { PricingPage } from "../pages/PricingPage";
@@ -104,6 +105,7 @@ export const router = createBrowserRouter([
   { path: "/pricing", element: <PublicOnlyRoute><PricingPage /></PublicOnlyRoute> },
   { path: "/contact", element: <PublicOnlyRoute><ContactPage /></PublicOnlyRoute> },
   { path: "/login", element: <PublicOnlyRoute><LoginPage /></PublicOnlyRoute> },
+  { path: "/pwa-launch", element: <PwaLaunchPage /> },
   { path: "/forgot-password", element: <ForgotPasswordPage /> },
   { path: "/reset-password", element: <TokenPasswordPage mode="reset" /> },
   { path: "/account/setup", element: <TokenPasswordPage mode="setup" /> },

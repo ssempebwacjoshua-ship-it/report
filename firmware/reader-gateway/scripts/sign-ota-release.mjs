@@ -37,8 +37,8 @@ const artifactPath = path.resolve(requireArg(args, "artifact"));
 const version = requireArg(args, "version");
 const channel = requireArg(args, "channel");
 const publicKeyId = requireArg(args, "publicKeyId");
+const deviceId = requireArg(args, "deviceId");
 const privateKeyPath = path.resolve(requireArg(args, "privateKey"));
-const deviceId = args.deviceId?.trim();
 const artifactPathForRailway = args.artifactPath ?? path.relative(process.cwd(), artifactPath).replace(/\\/g, "/");
 const releaseId = args.releaseId ?? `ssamenj-reader-gateway-${version}-${channel}`;
 const outputPath = args.output ? path.resolve(args.output) : "";
@@ -74,7 +74,7 @@ const railwayRelease = {
   sizeBytes: firmware.byteLength,
   artifactPath: artifactPathForRailway,
   enabled: true,
-  ...(deviceId ? { targetDeviceIds: [deviceId] } : {}),
+  targetDeviceIds: [deviceId],
 };
 
 const payload = {

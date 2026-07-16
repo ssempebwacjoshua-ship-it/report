@@ -12,6 +12,76 @@
       "permanent": true
     },
     {
+      "source": "/login",
+      "destination": "/report-lab/login",
+      "permanent": false
+    },
+    {
+      "source": "/logout",
+      "destination": "/report-lab/logout",
+      "permanent": false
+    },
+    {
+      "source": "/forgot-password",
+      "destination": "/report-lab/forgot-password",
+      "permanent": false
+    },
+    {
+      "source": "/reset-password",
+      "destination": "/report-lab/reset-password",
+      "permanent": false
+    },
+    {
+      "source": "/pwa-launch",
+      "destination": "/report-lab/pwa-launch",
+      "permanent": false
+    },
+    {
+      "source": "/dashboard",
+      "destination": "/report-lab/dashboard",
+      "permanent": false
+    },
+    {
+      "source": "/admin",
+      "destination": "/report-lab/dashboard",
+      "permanent": false
+    },
+    {
+      "source": "/gate",
+      "destination": "/report-lab/nfc/gate",
+      "permanent": false
+    },
+    {
+      "source": "/gate-security",
+      "destination": "/report-lab/nfc/gate",
+      "permanent": false
+    },
+    {
+      "source": "/canteen",
+      "destination": "/report-lab/nfc/canteen",
+      "permanent": false
+    },
+    {
+      "source": "/canteen-charge",
+      "destination": "/report-lab/nfc/canteen",
+      "permanent": false
+    },
+    {
+      "source": "/account/:path*",
+      "destination": "/report-lab/account/:path*",
+      "permanent": false
+    },
+    {
+      "source": "/nfc/:path*",
+      "destination": "/report-lab/nfc/:path*",
+      "permanent": false
+    },
+    {
+      "source": "/students/:path*",
+      "destination": "/report-lab/students/:path*",
+      "permanent": false
+    },
+    {
       "source": "/demo",
       "destination": "/demos",
       "permanent": true

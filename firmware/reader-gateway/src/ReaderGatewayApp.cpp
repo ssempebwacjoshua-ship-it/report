@@ -267,6 +267,7 @@ void ReaderGatewayApp::loadProvisioningState() {
 
 void ReaderGatewayApp::applyProvisioningOverrides() {
   config_.firmwareVersion = SSAMENJ_GATEWAY_VERSION;
+  bool shouldPersist = false;
 
   const String wifiSsid = configuredWifiSsid();
   const String wifiPassword = configuredWifiPassword();
@@ -275,11 +276,37 @@ void ReaderGatewayApp::applyProvisioningOverrides() {
     config_.wifiPassword = wifiPassword;
   }
 
-  if (!provisionedActivationCode_.isEmpty()) {
+  const bool hasAssignedToken = !config_.bearerToken.isEmpty()
+    && config_.bearerToken != SSAMENJ_GATEWAY_DEFAULT_PROVISIONING_TOKEN;
+
+  if (hasAssignedToken) {
+    if (config_.registrationPath != "/api/readers/register") {
+      config_.registrationPath = "/api/readers/register";
+      shouldPersist = true;
+    }
+    if (!config_.activationCode.isEmpty()) {
+      config_.activationCode = "";
+      shouldPersist = true;
+    }
+    if (!provisionedActivationCode_.isEmpty()) {
+      provisionedActivationCode_ = "";
+    }
+  } else {
+    if (config_.registrationPath != "/api/readers/activate") {
+      config_.registrationPath = "/api/readers/activate";
+      shouldPersist = true;
+    }
+  }
+
+  if (!provisionedActivationCode_.isEmpty() && !hasAssignedToken) {
     config_.activationCode = provisionedActivationCode_;
   }
   if (!provisionedFirmwareChannel_.isEmpty()) {
     config_.firmwareChannel = provisionedFirmwareChannel_;
+  }
+
+  if (shouldPersist) {
+    persistAssignedConfiguration();
   }
 }
 
@@ -300,8 +327,8 @@ void ReaderGatewayApp::applyRegistrationResult(const ReaderRegistrationResult& r
   if (!result.bearerToken.isEmpty()) {
     config_.bearerToken = result.bearerToken;
     config_.activationCode = "";
-    config_.registrationPath = "/api/readers/register";
     provisionedActivationCode_ = "";
+    config_.registrationPath = "/api/readers/register";
     if (beginProvisioningStorage()) {
       provisioningPreferences_.remove(PROVISIONING_ACTIVATION_CODE_KEY);
     }
@@ -335,6 +362,23 @@ void ReaderGatewayApp::applyRegistrationResult(const ReaderRegistrationResult& r
     lastReaderReadyLogMs_ = 0;
   }
   persistAssignedConfiguration();
+}
+
+void ReaderGatewayApp::logRegistrationFailure(const char* context, const ReaderApiResponse& response) const {
+  Serial.printf(
+    "%s path=%s status=%d action=%s beep=%s message=%s\n",
+    context == nullptr ? "Registration failed" : context,
+    config_.registrationPath.c_str(),
+    response.statusCode,
+    response.action.isEmpty() ? "-" : response.action.c_str(),
+    response.beep.isEmpty() ? "-" : response.beep.c_str(),
+    response.message.isEmpty() ? "-" : response.message.c_str()
+  );
+}
+
+bool ReaderGatewayApp::shouldReenterActivation(const ReaderApiResponse& response) const {
+  return response.statusCode == 401
+    && response.message.indexOf("Invalid or revoked device token") >= 0;
 }
 
 bool ReaderGatewayApp::hasStoredWifiCredentials() const {
@@ -397,7 +441,7 @@ bool ReaderGatewayApp::openSetupPortal(const char* reason) {
   WiFi.setAutoReconnect(true);
 
   WiFiManager manager;
-  const bool preconfiguredDeployment = !config_.schoolId.isEmpty() && !config_.bearerToken.isEmpty() && config_.registrationPath.endsWith("/register");
+  const bool activationCodeRequired = config_.bearerToken.isEmpty() || config_.registrationPath.endsWith("/activate");
   String activationCodeValue = provisionedActivationCode_.isEmpty() ? config_.activationCode : provisionedActivationCode_;
   char activationCodeBuffer[65];
   activationCodeValue.toCharArray(activationCodeBuffer, sizeof(activationCodeBuffer));
@@ -406,25 +450,22 @@ bool ReaderGatewayApp::openSetupPortal(const char* reason) {
   manager.setTitle("SSAMENJ Attendance Controller");
   manager.setCaptivePortalEnable(true);
   manager.setConnectTimeout(30);
-  if (!preconfiguredDeployment) {
-    manager.addParameter(&activationCodeParam);
-  }
+  manager.addParameter(&activationCodeParam);
 
   const String apSsid = setupAccessPointSsid();
   Serial.printf("Opening setup portal: %s\n", reason == nullptr ? "manual" : reason);
   Serial.printf("Setup portal SSID: %s\n", apSsid.c_str());
   Serial.println("Setup portal fallback URL: http://192.168.4.1");
+  Serial.printf("Activation code required: %s\n", activationCodeRequired ? "yes" : "no");
 
   startSetupLedBlink();
   const bool connected = manager.startConfigPortal(apSsid.c_str(), SETUP_PORTAL_PASSWORD);
   stopSetupLedBlink();
 
-  if (!preconfiguredDeployment) {
-    provisionedActivationCode_ = String(activationCodeParam.getValue());
-    provisionedActivationCode_.trim();
-  }
+  provisionedActivationCode_ = String(activationCodeParam.getValue());
+  provisionedActivationCode_.trim();
 
-  if (!preconfiguredDeployment && provisionedActivationCode_.isEmpty()) {
+  if (activationCodeRequired && provisionedActivationCode_.isEmpty()) {
     setupRequired_ = true;
     provisioningPreferences_.putBool(PROVISIONING_SETUP_REQUIRED_KEY, true);
     Serial.println("Provisioning validation failed; activation code is required");
@@ -441,7 +482,7 @@ bool ReaderGatewayApp::openSetupPortal(const char* reason) {
   }
   setupRequired_ = false;
   provisioningPreferences_.putBool(PROVISIONING_SETUP_REQUIRED_KEY, false);
-  if (!preconfiguredDeployment) {
+  if (!provisionedActivationCode_.isEmpty()) {
     provisioningPreferences_.putString(PROVISIONING_ACTIVATION_CODE_KEY, provisionedActivationCode_);
   }
 
@@ -522,7 +563,6 @@ void ReaderGatewayApp::handleFactoryResetButton() {
   bootButtonPressedAtMs_ = 0;
   clearStoredWifiCredentials();
   openSetupPortal("Factory reset requested");
-  wiegand_.reset();
 }
 
 bool ReaderGatewayApp::consumeFactoryResetFlag() {
@@ -874,7 +914,7 @@ bool ReaderGatewayApp::isValidScanEvent(const ReaderScanEvent& event, const char
     reason = "no pulses received";
     return false;
   }
-  if (event.rawWiegandBitCount != 26 && event.rawWiegandBitCount != 34 && event.rawWiegandBitCount != 37) {
+  if (event.rawWiegandBitCount != 26 && event.rawWiegandBitCount != 34) {
     reason = "unsupported bit count";
     return false;
   }
@@ -981,9 +1021,6 @@ bool ReaderGatewayApp::begin() {
 
   if (!hasStoredWifiCredentials()) {
     openSetupPortal("No saved Wi-Fi credentials were found");
-    // The setup portal can leave the reader lines noisy while the installer is
-    // entering Wi-Fi/code details. Clear stale pulses before normal tap capture.
-    wiegand_.reset();
   }
 
   ensureWiFi();
@@ -1291,7 +1328,14 @@ void ReaderGatewayApp::loop() {
         applyRegistrationResult(registration);
         markApiContact();
       } else if (config_.autoRegister) {
-        Serial.println("Assignment Pending");
+        logRegistrationFailure("Assignment Pending", deviceRegistration_.lastResponse());
+        if (shouldReenterActivation(deviceRegistration_.lastResponse())) {
+          Serial.println("Invalid device token detected; reopening setup for activation");
+          config_.bearerToken = "";
+          config_.registrationPath = "/api/readers/activate";
+          persistAssignedConfiguration();
+          openSetupPortal("Invalid device token; activation required");
+        }
       }
     }
     processOfflineQueue();
@@ -1313,7 +1357,14 @@ void ReaderGatewayApp::loop() {
       applyRegistrationResult(registration);
       markApiContact();
     } else {
-      Serial.println("Server unavailable; setup saved and retrying");
+      logRegistrationFailure("Server unavailable; setup saved and retrying", deviceRegistration_.lastResponse());
+      if (shouldReenterActivation(deviceRegistration_.lastResponse())) {
+        Serial.println("Invalid device token detected; reopening setup for activation");
+        config_.bearerToken = "";
+        config_.registrationPath = "/api/readers/activate";
+        persistAssignedConfiguration();
+        openSetupPortal("Invalid device token; activation required");
+      }
     }
   }
 }

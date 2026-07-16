@@ -4,11 +4,12 @@ import { useAuth } from "../contexts/AuthContext";
 import { getApiBaseUrl } from "../client/apiBase";
 import { getDefaultRouteForRole } from "../shared/permissions";
 import { isDemoRuntime } from "../shared/runtimeMode";
+import { BrandedLoader } from "../components/BrandedLoader";
 
 const API_BASE = getApiBaseUrl();
 
 export function LoginPage() {
-  const { login } = useAuth();
+  const { login, user, token, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const [schoolCode, setSchoolCode] = useState("");
   const [email, setEmail] = useState("");
@@ -27,6 +28,16 @@ export function LoginPage() {
       mounted = false;
     };
   }, []);
+
+  useEffect(() => {
+    if (authLoading) return;
+    if (!token || !user) return;
+    navigate(user.isPlatformOwner ? "/owner" : getDefaultRouteForRole(user.role), { replace: true });
+  }, [authLoading, navigate, token, user]);
+
+  if (authLoading && token) {
+    return <BrandedLoader message="Opening your workspace..." />;
+  }
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();

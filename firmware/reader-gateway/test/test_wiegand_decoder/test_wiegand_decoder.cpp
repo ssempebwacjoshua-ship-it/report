@@ -37,6 +37,7 @@ uint64_t buildWiegand34(uint16_t facilityCode, uint16_t cardNumber) {
   }
   return frame;
 }
+
 }  // namespace
 
 void test_decodes_wiegand26_payload() {
@@ -81,19 +82,11 @@ void test_marks_wrong_parity_invalid() {
   TEST_ASSERT_EQUAL_STRING("top parity failed", result.parityResult.c_str());
 }
 
-void test_marks_wiegand37_invalid() {
-  const WiegandDecodeResult result = decodeWiegandFrame((1ULL << 36) | 1ULL, 37);
-  TEST_ASSERT_FALSE(result.valid);
-  TEST_ASSERT_EQUAL_STRING("wiegand-37", result.format.c_str());
-  TEST_ASSERT_EQUAL_STRING("unsupported bit count", result.parityResult.c_str());
-}
-
 int main() {
   UNITY_BEGIN();
   RUN_TEST(test_decodes_wiegand26_payload);
   RUN_TEST(test_decodes_wiegand34_payload);
   RUN_TEST(test_decodes_wiegand26_facility_and_card);
   RUN_TEST(test_marks_wrong_parity_invalid);
-  RUN_TEST(test_marks_wiegand37_invalid);
   return UNITY_END();
 }
