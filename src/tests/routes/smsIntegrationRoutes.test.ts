@@ -8,7 +8,14 @@ import * as providers from "../../server/services/communicationProviders";
 describe("smsIntegrationRoutes", () => {
   beforeEach(async () => {
     vi.restoreAllMocks();
+    await prisma.communicationDeliveryAttempt.deleteMany({ where: { delivery: { provider: "YOOLA_SMS" } } });
+    await prisma.communicationDelivery.deleteMany({ where: { provider: "YOOLA_SMS" } });
+    await prisma.communicationRecipient.deleteMany({ where: { campaign: { title: "Webhook campaign" } } });
+    await prisma.communicationAudienceSnapshot.deleteMany({ where: { campaign: { title: "Webhook campaign" } } });
+    await prisma.communicationContent.deleteMany({ where: { campaign: { title: "Webhook campaign" } } });
+    await prisma.communicationCampaign.deleteMany({ where: { title: "Webhook campaign" } });
     await prisma.communicationWebhookEvent.deleteMany({ where: { provider: "YOOLA_SMS" } });
+    await prisma.auditLog.deleteMany({ where: { action: { in: ["communication.provider_delivered", "communication.delivery_failed", "communication.provider_accepted"] } } });
   });
 
   it("deduplicates repeated delivery events", async () => {
@@ -39,7 +46,7 @@ describe("smsIntegrationRoutes", () => {
         status: "QUEUED",
       },
     });
-    await prisma.communicationDelivery.create({
+    const createdDelivery = await prisma.communicationDelivery.create({
       data: {
         schoolId: school.id,
         campaignId: campaign.id,
@@ -92,8 +99,8 @@ describe("smsIntegrationRoutes", () => {
     expect(first.status).toBe(200);
     expect(second.status).toBe(200);
     await expect(prisma.communicationWebhookEvent.count({ where: { provider: "YOOLA_SMS", externalEventId: "event-1" } })).resolves.toBe(1);
-    const delivery = await prisma.communicationDelivery.findFirstOrThrow({
-      where: { provider: "YOOLA_SMS", providerMessageId: "provider-message-1" },
+    const delivery = await prisma.communicationDelivery.findUniqueOrThrow({
+      where: { id: createdDelivery.id },
     });
     expect(delivery.status).toBe("DELIVERED");
   });

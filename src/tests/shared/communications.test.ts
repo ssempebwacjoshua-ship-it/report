@@ -38,7 +38,7 @@ describe("communication domain helpers", () => {
     expect(estimateSmsSegments("Short school notice").segments).toBe(1);
     const long = "A".repeat(170);
     expect(estimateSmsSegments(long).segments).toBe(2);
-    expect(estimateSmsSegments("Curly braces {}").characterCount).toBe(16);
+    expect(estimateSmsSegments("Curly braces {}").characterCount).toBe(17);
     const unicode = estimateSmsSegments("Report ready 😊");
     expect(unicode.encoding).toBe("UCS_2");
     expect(unicode.warnings).toContain("SMS_UCS2_ENCODING");

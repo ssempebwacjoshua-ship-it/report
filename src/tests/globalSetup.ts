@@ -1,49 +1,19 @@
-import "dotenv/config";
 import { execSync } from "node:child_process";
 import { PrismaClient } from "@prisma/client";
-
-function looksLikeSafeTestDatabaseUrl(value: string | undefined) {
-  if (!value) return false;
-  const lower = value.trim().toLowerCase();
-  return (
-    lower.includes("localhost")
-    || lower.includes("127.0.0.1")
-    || lower.includes("[::1]")
-    || lower.includes("::1")
-    || lower.includes("test")
-  );
-}
-
-function assertSafeTestMigrationsEnvironment() {
-  const nodeEnv = process.env.NODE_ENV?.trim().toLowerCase();
-  const vitestEnabled = Boolean(process.env.VITEST);
-  if (nodeEnv !== "test" && !vitestEnabled) {
-    throw new Error("Refusing to run test migrations because NODE_ENV is not test and VITEST is not set.");
-  }
-
-  const testDatabaseUrl = process.env.TEST_DATABASE_URL?.trim();
-  const databaseUrl = process.env.DATABASE_URL?.trim();
-  const candidateUrl = testDatabaseUrl || databaseUrl;
-
-  if (!candidateUrl || !looksLikeSafeTestDatabaseUrl(candidateUrl)) {
-    throw new Error("Refusing to run test migrations because DATABASE_URL does not look like a test database.");
-  }
-
-  return testDatabaseUrl ? { DATABASE_URL: testDatabaseUrl } : {};
-}
+import { resolveSafeTestDatabaseEnvironment } from "./testDatabaseEnvironment";
 
 export default async function globalSetup() {
-  const envOverride = assertSafeTestMigrationsEnvironment();
+  const resolution = resolveSafeTestDatabaseEnvironment();
   execSync("npm exec -- prisma migrate deploy", {
     stdio: "inherit",
     env: {
       ...process.env,
-      ...envOverride,
+      ...resolution.envOverride,
     },
   });
 
   const prisma = new PrismaClient({
-    datasources: envOverride.DATABASE_URL ? { db: { url: envOverride.DATABASE_URL } } : undefined,
+    datasources: { db: { url: resolution.databaseUrl } },
   });
   try {
     const school = await prisma.school.upsert({
