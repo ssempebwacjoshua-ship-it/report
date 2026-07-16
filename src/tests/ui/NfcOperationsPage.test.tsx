@@ -622,7 +622,7 @@ describe("NfcOperationsPage wristband grid layout", () => {
         await Promise.resolve();
         await Promise.resolve();
       });
-      expect(mockCancelReaderCredentialCapture).toHaveBeenCalledWith("capture-1");
+      expect(mockCancelReaderCredentialCapture).toHaveBeenCalledWith("capture-1", {});
       expect(screen.queryByText("Link reader credential")).not.toBeInTheDocument();
 
       resolveLateCapture?.({
@@ -666,4 +666,104 @@ describe("NfcOperationsPage wristband grid layout", () => {
       vi.useRealTimers();
     }
   }, 10_000);
+
+  it("cancels a captured session when the modal is closed and allows the next capture immediately", async () => {
+    mockFetchOfflineSyncStatus.mockResolvedValue({
+      providerReachable: true,
+      lastSyncAt: isoMinutesAgo(0),
+      pendingCount: 0,
+      stale: false,
+      devices: [
+        {
+          id: "device-1",
+          name: "Attendance Gate 01",
+          deviceKey: "attendance-gate-01",
+          location: "Main Entrance",
+          locationName: "Main Entrance",
+          locationType: "GATE",
+          attendanceMode: "GATE_ATTENDANCE",
+          mode: "GATE",
+          status: "ACTIVE",
+          isActive: true,
+          onlineStatus: "ONLINE",
+          lastHeartbeatAt: isoMinutesAgo(0),
+          lastSeenAt: isoMinutesAgo(0),
+        },
+      ],
+    });
+    mockStartReaderCredentialCapture
+      .mockResolvedValueOnce({
+        captureId: "capture-1",
+        tagId: "tag-1",
+        studentId: "student-1",
+        deviceId: "device-1",
+        deviceLabel: "Main Entrance Reader",
+        createdAt: "2026-07-12T08:30:00.000Z",
+        expiresAt: "2026-07-12T08:30:25.000Z",
+        confirmedAt: null,
+        status: "CAPTURED",
+        preview: {
+          credential: "786777",
+          rawWiegandDecimal: "35128677",
+          rawWiegandHex: "02180565",
+          facilityCode: "12",
+          cardNumber: "1",
+          maskedCanonicalCredential: "35...77 (len 8)",
+          maskedAliases: ["12-1"],
+          readerName: "Attendance Gate 01",
+          capturedAt: "2026-07-12T08:30:05.000Z",
+        },
+        tag: {
+          id: "tag-1",
+          publicCode: "PUBLICCODE-ASSIGNED-001",
+          label: "Tag 48048b9f",
+          student: {
+            id: "student-1",
+            name: "Claire Nakibuuka With A Very Long Display Name For Layout",
+            admissionNumber: "SCU-S1A-018",
+          },
+        },
+      })
+      .mockResolvedValueOnce({
+        captureId: "capture-2",
+        tagId: "tag-1",
+        studentId: "student-1",
+        deviceId: "device-1",
+        deviceLabel: "Main Entrance Reader",
+        createdAt: "2026-07-12T08:31:00.000Z",
+        expiresAt: "2026-07-12T08:31:25.000Z",
+        confirmedAt: null,
+        status: "PENDING",
+        preview: null,
+        tag: {
+          id: "tag-1",
+          publicCode: "PUBLICCODE-ASSIGNED-001",
+          label: "Tag 48048b9f",
+          student: {
+            id: "student-1",
+            name: "Claire Nakibuuka With A Very Long Display Name For Layout",
+            admissionNumber: "SCU-S1A-018",
+          },
+        },
+      });
+
+    renderPage();
+
+    await waitFor(() => expect(screen.getAllByRole("button", { name: /Link reader/i }).length).toBeGreaterThan(0));
+    fireEvent.click(screen.getAllByRole("button", { name: /Link reader/i })[0]);
+    fireEvent.click(await screen.findByRole("button", { name: "Start capture mode" }));
+
+    await screen.findByText("Review the masked reader identifiers above, confirm the student and wristband, then save the canonical reader credential. The written NFC payload will not be changed.");
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+
+    await waitFor(() => expect(mockCancelReaderCredentialCapture).toHaveBeenCalledWith("capture-1", {}));
+    expect(screen.queryByText("Link reader credential")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getAllByRole("button", { name: /Link reader/i })[0]);
+    fireEvent.click(await screen.findByRole("button", { name: "Start capture mode" }));
+
+    await waitFor(() => expect(mockStartReaderCredentialCapture).toHaveBeenNthCalledWith(2, "tag-1", expect.objectContaining({
+      deviceId: "device-1",
+    })));
+  });
 });

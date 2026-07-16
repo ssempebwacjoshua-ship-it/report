@@ -475,13 +475,14 @@ export async function captureReaderCredentialFromReader(
     return null;
   }
 
-  const updated = await db.readerCredentialCaptureSession.update({
-    where: { id: activeSession.id },
-    data: {
-      status: "CAPTURED",
-      capturedAt: new Date(),
-      capturedReaderId: device.id,
-      capturedReaderName: formatAttendanceReaderLabel(device),
+    const updated = await db.readerCredentialCaptureSession.update({
+      where: { id: activeSession.id },
+      data: {
+        status: "CAPTURED",
+        activeSchoolId: null,
+        capturedAt: new Date(),
+        capturedReaderId: device.id,
+        capturedReaderName: formatAttendanceReaderLabel(device),
       capturedCredentialJson: {
         canonical: aliases.canonical,
         aliases: aliases.aliases,

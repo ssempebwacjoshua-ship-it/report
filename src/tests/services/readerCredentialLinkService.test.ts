@@ -388,6 +388,67 @@ describe("readerCredentialLinkService", () => {
     expect(auditLogs.some((entry) => entry.action === "nfc_tag.reader_credential_linked")).toBe(true);
   });
 
+  it("allows a second capture to begin immediately after a successful reader tap capture", async () => {
+    const { db, devices } = createMockDb();
+
+    const first = await startReaderCredentialCapture(
+      { schoolId: "school-1", actorId: "admin-1", role: "ADMIN_OPERATOR" },
+      { tagId: "tag-1", deviceId: "device-1" },
+      db,
+    );
+
+    const captured = await captureReaderCredentialFromReader(devices[0], {
+      credential: "786777",
+      rawWiegandDecimal: "35128677",
+      rawWiegandHex: "02180565",
+      facilityCode: "12",
+      cardNumber: "1",
+    }, db);
+
+    expect(first.status).toBe("PENDING");
+    expect(captured?.status).toBe("CAPTURED");
+
+    const second = await startReaderCredentialCapture(
+      { schoolId: "school-1", actorId: "admin-1", role: "ADMIN_OPERATOR" },
+      { tagId: "tag-2", deviceId: "device-1" },
+      db,
+    );
+
+    expect(second.status).toBe("PENDING");
+    expect(second.tag.id).toBe("tag-2");
+  });
+
+  it("treats cancelling an already captured session as a safe idempotent success", async () => {
+    const { db, devices } = createMockDb();
+
+    const started = await startReaderCredentialCapture(
+      { schoolId: "school-1", actorId: "admin-1", role: "ADMIN_OPERATOR" },
+      { tagId: "tag-1", deviceId: "device-1" },
+      db,
+    );
+
+    await captureReaderCredentialFromReader(devices[0], {
+      credential: "786777",
+      rawWiegandDecimal: "35128677",
+      rawWiegandHex: "02180565",
+      facilityCode: "12",
+      cardNumber: "1",
+    }, db);
+
+    const { cancelReaderCredentialCapture } = await import("../../server/services/readerCredentialLinkService");
+    const result = await cancelReaderCredentialCapture(
+      { schoolId: "school-1", actorId: "admin-1", role: "ADMIN_OPERATOR" },
+      started.captureId,
+      db,
+    );
+
+    expect(result).toMatchObject({
+      ok: true,
+      captureId: started.captureId,
+      status: "CANCELLED",
+    });
+  });
+
   it("captures a reader credential without opening a new interactive transaction", async () => {
     const { db, devices } = createMockDb();
 
