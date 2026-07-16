@@ -2,7 +2,7 @@
   "name": "SSAMENJ Technologies",
   "short_name": "SSAMENJ",
   "description": "School Connect — Report Lab and Smart Pages for schools",
-  "start_url": "/report-lab/dashboard",
+  "start_url": "/report-lab/pwa-launch",
   "scope": "/report-lab/",
   "display": "standalone",
   "orientation": "portrait-primary",

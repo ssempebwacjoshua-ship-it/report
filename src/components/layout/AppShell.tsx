@@ -10,6 +10,7 @@ import { SettingsProvider, useAppSettings } from "./SettingsContext";
 import { hasPermission } from "../../shared/permissions";
 import { ConnectivityProvider } from "../../hooks/useConnectivityStatus";
 import { BrandedLoader } from "../BrandedLoader";
+import { rememberDedicatedPwaLaunchPath } from "../../pwa/standaloneMode";
 
 const SIDEBAR_WIDTH_KEY = "school-connect-sidebar-width";
 const DEFAULT_SIDEBAR_WIDTH = 232;
@@ -202,6 +203,12 @@ function AppShellInner({
     setSidebarOpen(false);
     document.body.style.overflow = "";
   }, [location.pathname, setSidebarOpen]);
+
+  useEffect(() => {
+    if (user?.role === "SECURITY" || user?.role === "GATE_SECURITY" || user?.role === "CANTEEN" || user?.role === "CASHIER") {
+      rememberDedicatedPwaLaunchPath(location.pathname);
+    }
+  }, [location.pathname, user?.role]);
 
   return (
     <ConnectivityProvider schoolId={user?.schoolId} deviceId={deviceId}>

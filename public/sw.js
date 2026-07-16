@@ -8,7 +8,7 @@
  */
 const CACHE_VERSION = "report-lab-v6";
 const BASE_PATH = "/report-lab";
-const APP_SHELL_URL = `${BASE_PATH}/dashboard`;
+const APP_SHELL_URL = `${BASE_PATH}/pwa-launch`;
 const SHELL_CACHE = `${CACHE_VERSION}-shell`;
 const ASSET_CACHE = `${CACHE_VERSION}-assets`;
 
