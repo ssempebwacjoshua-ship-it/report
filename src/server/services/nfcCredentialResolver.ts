@@ -3,6 +3,7 @@ import type { PrismaClient } from "@prisma/client";
 import {
   maskCredentialValue,
   normalizeCredentialForLookup,
+  normalizeCredentialUID,
   type CredentialNormalizationInput,
 } from "../../shared/utils/credentialNormalization";
 
@@ -139,74 +140,162 @@ function hasUnsupportedWiegandBitCount(input: CredentialResolutionInput) {
   return input.rawWiegandBitCount !== 26 && input.rawWiegandBitCount !== 34;
 }
 
+type ResolverCandidates = {
+  exactTokenValues: string[];
+  exactLookupValues: string[];
+  fallbackTokenValues: string[];
+  fallbackLookupValues: string[];
+};
+
+const aliasPriority: Record<string, number> = {
+  facilityCodeCardNumber: 1,
+  facilityCodeCardNumberVariant: 2,
+  facilityCodeCardNumberCompact: 3,
+  rawWiegandDecimal: 4,
+  rawWiegandDecimalZeroPadded: 5,
+  rawWiegandHex: 6,
+  credentialEquivalent: 7,
+  credential: 8,
+  credentialHex: 9,
+  cardNumber: 10,
+  cardNumberZeroPadded: 11,
+};
+
+function splitResolverCandidates(
+  input: CredentialResolutionInput,
+  normalized: ReturnType<typeof normalizeCredentialForLookup>,
+): ResolverCandidates {
+  const exactTokenValues = [...normalized.tokenValues];
+
+  const exactLookupValues = [...new Set([
+    exactTokenValues[0] ? normalizeCredentialUID(exactTokenValues[0]) : "",
+  ].filter(Boolean))];
+
+  const sortedFallbackLookupValues = [...normalized.lookupValues]
+    .filter((value) => !exactLookupValues.includes(value))
+    .sort((left, right) => {
+      const leftPriority = aliasPriority[normalized.aliasSource[left] ?? ""] ?? Number.MAX_SAFE_INTEGER;
+      const rightPriority = aliasPriority[normalized.aliasSource[right] ?? ""] ?? Number.MAX_SAFE_INTEGER;
+      if (leftPriority !== rightPriority) return leftPriority - rightPriority;
+      return 0;
+    });
+
+  return {
+    exactTokenValues,
+    exactLookupValues,
+    fallbackTokenValues: normalized.tokenValues.filter((value) => !exactTokenValues.includes(value)),
+    fallbackLookupValues: sortedFallbackLookupValues,
+  };
+}
+
 async function findCredentialInSchool(
   db: CredentialResolverDb,
   schoolId: string,
-  normalized: ReturnType<typeof normalizeCredentialForLookup>,
+  candidates: { tokenValues: string[]; lookupValues: string[] },
 ) {
-  if (!normalized.tokenValues.length && !normalized.lookupValues.length) return null;
-  return db.studentCredential.findFirst({
-    where: {
-      schoolId,
-      type: CredentialType.NFC_WRISTBAND,
-      OR: [
-        ...normalized.tokenValues.map((value) => ({ scanToken: value })),
-        ...normalized.lookupValues.map((value) => ({ credentialUID: value })),
-      ],
-    },
-    include: credentialInclude,
-  }) as Promise<CredentialIdentity | null>;
+  for (const value of candidates.tokenValues) {
+    const credential = await db.studentCredential.findFirst({
+      where: {
+        schoolId,
+        type: CredentialType.NFC_WRISTBAND,
+        scanToken: value,
+      },
+      include: credentialInclude,
+    }) as CredentialIdentity | null;
+    if (credential) return credential;
+  }
+  for (const value of candidates.lookupValues) {
+    const credential = await db.studentCredential.findFirst({
+      where: {
+        schoolId,
+        type: CredentialType.NFC_WRISTBAND,
+        credentialUID: value,
+      },
+      include: credentialInclude,
+    }) as CredentialIdentity | null;
+    if (credential) return credential;
+  }
+  return null;
 }
 
 async function findTagInSchool(
   db: CredentialResolverDb,
   schoolId: string,
-  normalized: ReturnType<typeof normalizeCredentialForLookup>,
+  candidates: { tokenValues: string[]; lookupValues: string[] },
 ) {
-  if (!normalized.tokenValues.length && !normalized.lookupValues.length) return null;
-  return db.nfcTag.findFirst({
-    where: {
-      schoolId,
-      OR: [
-        ...normalized.tokenValues.map((value) => ({ publicCode: value })),
-        ...normalized.lookupValues.map((value) => ({ physicalUid: { equals: value, mode: "insensitive" as const } })),
-      ],
-    },
-    include: tagInclude,
-  }) as Promise<TagIdentity | null>;
+  for (const value of candidates.tokenValues) {
+    const tag = await db.nfcTag.findFirst({
+      where: {
+        schoolId,
+        publicCode: value,
+      },
+      include: tagInclude,
+    }) as TagIdentity | null;
+    if (tag) return tag;
+  }
+  for (const value of candidates.lookupValues) {
+    const tag = await db.nfcTag.findFirst({
+      where: {
+        schoolId,
+        physicalUid: { equals: value, mode: "insensitive" as const },
+      },
+      include: tagInclude,
+    }) as TagIdentity | null;
+    if (tag) return tag;
+  }
+  return null;
 }
 
 async function findCredentialAnySchool(
   db: CredentialResolverDb,
-  normalized: ReturnType<typeof normalizeCredentialForLookup>,
+  candidates: { tokenValues: string[]; lookupValues: string[] },
 ) {
-  if (!normalized.tokenValues.length && !normalized.lookupValues.length) return null;
-  return db.studentCredential.findFirst({
-    where: {
-      type: CredentialType.NFC_WRISTBAND,
-      OR: [
-        ...normalized.tokenValues.map((value) => ({ scanToken: value })),
-        ...normalized.lookupValues.map((value) => ({ credentialUID: value })),
-      ],
-    },
-    include: credentialInclude,
-  }) as Promise<CredentialIdentity | null>;
+  for (const value of candidates.tokenValues) {
+    const credential = await db.studentCredential.findFirst({
+      where: {
+        type: CredentialType.NFC_WRISTBAND,
+        scanToken: value,
+      },
+      include: credentialInclude,
+    }) as CredentialIdentity | null;
+    if (credential) return credential;
+  }
+  for (const value of candidates.lookupValues) {
+    const credential = await db.studentCredential.findFirst({
+      where: {
+        type: CredentialType.NFC_WRISTBAND,
+        credentialUID: value,
+      },
+      include: credentialInclude,
+    }) as CredentialIdentity | null;
+    if (credential) return credential;
+  }
+  return null;
 }
 
 async function findTagAnySchool(
   db: CredentialResolverDb,
-  normalized: ReturnType<typeof normalizeCredentialForLookup>,
+  candidates: { tokenValues: string[]; lookupValues: string[] },
 ) {
-  if (!normalized.tokenValues.length && !normalized.lookupValues.length) return null;
-  return db.nfcTag.findFirst({
-    where: {
-      OR: [
-        ...normalized.tokenValues.map((value) => ({ publicCode: value })),
-        ...normalized.lookupValues.map((value) => ({ physicalUid: { equals: value, mode: "insensitive" as const } })),
-      ],
-    },
-    include: tagInclude,
-  }) as Promise<TagIdentity | null>;
+  for (const value of candidates.tokenValues) {
+    const tag = await db.nfcTag.findFirst({
+      where: {
+        publicCode: value,
+      },
+      include: tagInclude,
+    }) as TagIdentity | null;
+    if (tag) return tag;
+  }
+  for (const value of candidates.lookupValues) {
+    const tag = await db.nfcTag.findFirst({
+      where: {
+        physicalUid: { equals: value, mode: "insensitive" as const },
+      },
+      include: tagInclude,
+    }) as TagIdentity | null;
+    if (tag) return tag;
+  }
+  return null;
 }
 
 function resolveCandidate(
@@ -220,11 +309,90 @@ function resolveCandidate(
     ?? value;
 }
 
+function buildCredentialResult(
+  credential: CredentialIdentity,
+  normalized: ReturnType<typeof normalizeCredentialForLookup>,
+): CredentialResolutionResult {
+  if (credential.status !== CredentialStatus.ACTIVE) {
+    return {
+      ok: false,
+      reason: "CREDENTIAL_DISABLED",
+      candidate: resolveCandidate(normalized, credential.credentialUID),
+      credential,
+      tag: null,
+      student: credential.student,
+    };
+  }
+  if (!credential.student.isActive) {
+    return {
+      ok: false,
+      reason: "STUDENT_INACTIVE",
+      candidate: resolveCandidate(normalized, credential.credentialUID),
+      credential,
+      tag: null,
+      student: credential.student,
+    };
+  }
+  return {
+    ok: true,
+    source: normalized.tokenValues.includes(credential.scanToken ?? "") ? "studentCredential.scanToken" : "studentCredential.credentialUID",
+    candidate: resolveCandidate(normalized, credential.scanToken ?? credential.credentialUID) ?? credential.credentialUID,
+    credential,
+    tag: null,
+    student: credential.student,
+  };
+}
+
+function buildTagResult(
+  tag: TagIdentity,
+  normalized: ReturnType<typeof normalizeCredentialForLookup>,
+): CredentialResolutionResult {
+  if (!tag.studentId || !tag.student) {
+    return {
+      ok: false,
+      reason: "TAG_ORPHANED_NOT_LINKED_TO_STUDENT",
+      candidate: resolveCandidate(normalized, tag.publicCode || tag.physicalUid),
+      credential: null,
+      tag,
+      student: null,
+    };
+  }
+  if (tag.status === "DISABLED" || tag.status === "LOST") {
+    return {
+      ok: false,
+      reason: "CREDENTIAL_DISABLED",
+      candidate: resolveCandidate(normalized, tag.physicalUid ?? tag.publicCode),
+      credential: null,
+      tag,
+      student: tag.student,
+    };
+  }
+  if (!tag.student.isActive) {
+    return {
+      ok: false,
+      reason: "STUDENT_INACTIVE",
+      candidate: resolveCandidate(normalized, tag.physicalUid ?? tag.publicCode),
+      credential: null,
+      tag,
+      student: tag.student,
+    };
+  }
+  return {
+    ok: true,
+    source: normalized.tokenValues.includes(tag.publicCode) ? "nfcTag.publicCode" : "nfcTag.physicalUid",
+    candidate: resolveCandidate(normalized, tag.physicalUid ?? tag.publicCode) ?? tag.publicCode,
+    credential: null,
+    tag,
+    student: tag.student,
+  };
+}
+
 export async function resolveNfcCredential(
   db: CredentialResolverDb,
   input: CredentialResolutionInput,
 ): Promise<CredentialResolutionResult> {
   const normalized = normalizeCredentialForLookup(input);
+  const candidates = splitResolverCandidates(input, normalized);
   let result: CredentialResolutionResult;
 
   if (hasUnsupportedWiegandBitCount(input)) {
@@ -240,95 +408,53 @@ export async function resolveNfcCredential(
     return result;
   }
 
-  const credential = await findCredentialInSchool(db, input.schoolId, normalized);
-  if (credential) {
-    if (credential.status !== CredentialStatus.ACTIVE) {
-      result = {
-        ok: false,
-        reason: "CREDENTIAL_DISABLED",
-        candidate: resolveCandidate(normalized, credential.credentialUID),
-        credential,
-        tag: null,
-        student: credential.student,
-      };
-      logResolution(input, normalized, result);
-      return result;
-    }
-    if (!credential.student.isActive) {
-      result = {
-        ok: false,
-        reason: "STUDENT_INACTIVE",
-        candidate: resolveCandidate(normalized, credential.credentialUID),
-        credential,
-        tag: null,
-        student: credential.student,
-      };
-      logResolution(input, normalized, result);
-      return result;
-    }
-    result = {
-      ok: true,
-      source: normalized.tokenValues.includes(credential.scanToken ?? "") ? "studentCredential.scanToken" : "studentCredential.credentialUID",
-      candidate: resolveCandidate(normalized, credential.scanToken ?? credential.credentialUID) ?? credential.credentialUID,
-      credential,
-      tag: null,
-      student: credential.student,
-    };
+  const exactCredential = await findCredentialInSchool(db, input.schoolId, {
+    tokenValues: candidates.exactTokenValues,
+    lookupValues: candidates.exactLookupValues,
+  });
+  if (exactCredential) {
+    result = buildCredentialResult(exactCredential, normalized);
     logResolution(input, normalized, result);
     return result;
   }
 
-  const tag = await findTagInSchool(db, input.schoolId, normalized);
-  if (tag) {
-    if (!tag.studentId || !tag.student) {
-      result = {
-        ok: false,
-        reason: "TAG_ORPHANED_NOT_LINKED_TO_STUDENT",
-        candidate: resolveCandidate(normalized, tag.publicCode || tag.physicalUid),
-        credential: null,
-        tag,
-        student: null,
-      };
-      logResolution(input, normalized, result);
-      return result;
-    }
-    if (tag.status === "DISABLED" || tag.status === "LOST") {
-      result = {
-        ok: false,
-        reason: "CREDENTIAL_DISABLED",
-        candidate: resolveCandidate(normalized, tag.physicalUid ?? tag.publicCode),
-        credential: null,
-        tag,
-        student: tag.student,
-      };
-      logResolution(input, normalized, result);
-      return result;
-    }
-    if (!tag.student.isActive) {
-      result = {
-        ok: false,
-        reason: "STUDENT_INACTIVE",
-        candidate: resolveCandidate(normalized, tag.physicalUid ?? tag.publicCode),
-        credential: null,
-        tag,
-        student: tag.student,
-      };
-      logResolution(input, normalized, result);
-      return result;
-    }
-    result = {
-      ok: true,
-      source: normalized.tokenValues.includes(tag.publicCode) ? "nfcTag.publicCode" : "nfcTag.physicalUid",
-      candidate: resolveCandidate(normalized, tag.physicalUid ?? tag.publicCode) ?? tag.publicCode,
-      credential: null,
-      tag,
-      student: tag.student,
-    };
+  const exactTag = await findTagInSchool(db, input.schoolId, {
+    tokenValues: candidates.exactTokenValues,
+    lookupValues: candidates.exactLookupValues,
+  });
+  if (exactTag) {
+    result = buildTagResult(exactTag, normalized);
     logResolution(input, normalized, result);
     return result;
   }
 
-  const wrongSchoolCredential = await findCredentialAnySchool(db, normalized);
+  const fallbackCredential = await findCredentialInSchool(db, input.schoolId, {
+    tokenValues: candidates.fallbackTokenValues,
+    lookupValues: candidates.fallbackLookupValues,
+  });
+  if (fallbackCredential) {
+    result = buildCredentialResult(fallbackCredential, normalized);
+    logResolution(input, normalized, result);
+    return result;
+  }
+
+  const fallbackTag = await findTagInSchool(db, input.schoolId, {
+    tokenValues: candidates.fallbackTokenValues,
+    lookupValues: candidates.fallbackLookupValues,
+  });
+  if (fallbackTag) {
+    result = buildTagResult(fallbackTag, normalized);
+    logResolution(input, normalized, result);
+    return result;
+  }
+
+  const wrongSchoolCredential = await findCredentialAnySchool(db, {
+    tokenValues: candidates.exactTokenValues,
+    lookupValues: candidates.exactLookupValues,
+  }) ?? await findCredentialAnySchool(db, {
+    tokenValues: candidates.fallbackTokenValues,
+    lookupValues: candidates.fallbackLookupValues,
+  });
   if (wrongSchoolCredential && wrongSchoolCredential.schoolId !== input.schoolId) {
     result = {
       ok: false,
@@ -342,7 +468,13 @@ export async function resolveNfcCredential(
     return result;
   }
 
-  const wrongSchoolTag = await findTagAnySchool(db, normalized);
+  const wrongSchoolTag = await findTagAnySchool(db, {
+    tokenValues: candidates.exactTokenValues,
+    lookupValues: candidates.exactLookupValues,
+  }) ?? await findTagAnySchool(db, {
+    tokenValues: candidates.fallbackTokenValues,
+    lookupValues: candidates.fallbackLookupValues,
+  });
   if (wrongSchoolTag && wrongSchoolTag.schoolId !== input.schoolId) {
     result = {
       ok: false,

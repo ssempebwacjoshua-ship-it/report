@@ -74,19 +74,29 @@ function createDb(options: {
       }),
     },
     studentCredential: {
-      findFirst: async () => ({
-        id: "cred-1",
-        studentId: student.id,
-        status: "ACTIVE",
-        student: {
-          id: student.id,
-          firstName: student.firstName,
-          lastName: student.lastName,
-          studentType: student.studentType,
-          isActive: student.isActive,
-          enrollments: [{ classId: student.classId, streamId: student.streamId }],
-        },
-      }),
+      findFirst: async ({ where }: { where: { schoolId?: string; scanToken?: string; credentialUID?: string; OR?: Array<{ scanToken?: { in: string[] }; credentialUID?: { in: string[] } }> } }) => {
+        const tokenMatches = where.scanToken === "WB-1"
+          || where.scanToken === "token-1"
+          || Boolean(where.OR?.some((entry) => entry.scanToken?.in?.includes("WB-1") || entry.scanToken?.in?.includes("token-1")));
+        const uidMatches = where.credentialUID === "12-1"
+          || where.credentialUID === "35128677"
+          || Boolean(where.OR?.some((entry) => entry.credentialUID?.in?.includes("12-1") || entry.credentialUID?.in?.includes("35128677")));
+        if (!tokenMatches && !uidMatches) return null;
+        if (where.schoolId && where.schoolId !== "school-1") return null;
+        return {
+          id: "cred-1",
+          studentId: student.id,
+          status: "ACTIVE",
+          student: {
+            id: student.id,
+            firstName: student.firstName,
+            lastName: student.lastName,
+            studentType: student.studentType,
+            isActive: student.isActive,
+            enrollments: [{ classId: student.classId, streamId: student.streamId }],
+          },
+        };
+      },
     },
     nfcTag: {
       findFirst: async () => null,
@@ -229,6 +239,37 @@ function classroomReader(overrides: Partial<LocationAwareReaderDevice> = {}): Lo
 }
 
 describe("readerAttendanceService", () => {
+  it("keeps exact live token scans working before trying aliases", async () => {
+    const db = createDb();
+    const result = await processLocationAwareReaderEvent(gateReader(), {
+      eventId: "event-token-priority",
+      credential: "WB-1",
+      deviceTime: "2026-07-11T04:45:00.000Z",
+    }, db as never);
+
+    expect(result.statusCode).toBe(200);
+    expect(result.response.status).toBe("PRESENT");
+    expect(db.stores.campusMovementEvents).toHaveLength(1);
+  });
+
+  it("adds W26 raw decimal fallback on the live reader path", async () => {
+    const db = createDb();
+    const result = await processLocationAwareReaderEvent(gateReader(), {
+      eventId: "event-w26-fallback",
+      credential: "786777",
+      rawWiegandBitCount: 26,
+      rawWiegandDecimal: "35128677",
+      rawWiegandHex: "02180565",
+      facilityCode: "12",
+      cardNumber: "1",
+      deviceTime: "2026-07-11T04:45:00.000Z",
+    }, db as never);
+
+    expect(result.statusCode).toBe(200);
+    expect(result.response.status).toBe("PRESENT");
+    expect(db.stores.campusMovementEvents).toHaveLength(1);
+  });
+
   it("records a gate arrival and daily attendance for a day scholar", async () => {
     const db = createDb();
     const result = await processLocationAwareReaderEvent(gateReader(), {
