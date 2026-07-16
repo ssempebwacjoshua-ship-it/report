@@ -384,14 +384,24 @@ export async function requestOwnerMaintenance(schoolId: string, action: "FORCE_S
   if (!res.ok) throw new Error(await parseApiError(res, "Could not request maintenance"));
 }
 
-export async function requestOwnerReaderAction(schoolId: string, deviceId: string, action: "RESTART" | "SYNC" | "UPDATE_FIRMWARE" | "RE_REGISTER"): Promise<void> {
+export type OwnerReaderActionResult = {
+  ok: boolean;
+  action?: "RESTART" | "SYNC" | "UPDATE_FIRMWARE" | "RE_REGISTER";
+  delivered?: boolean;
+  message?: string;
+  activationCode?: string;
+  activationExpiresAt?: string;
+  reader?: OwnerReader;
+};
+
+export async function requestOwnerReaderAction(schoolId: string, deviceId: string, action: "RESTART" | "SYNC" | "UPDATE_FIRMWARE" | "RE_REGISTER"): Promise<OwnerReaderActionResult> {
   if (action === "UPDATE_FIRMWARE") {
     const updateRes = await fetch(`${API_BASE}/api/readers/${encodeURIComponent(deviceId)}/commands/firmware-update`, {
       method: "POST",
       headers: makeRequestHeaders({ "Content-Type": "application/json" }),
     });
     if (!updateRes.ok) throw new Error(await parseApiError(updateRes, "Could not request firmware update"));
-    return;
+    return updateRes.json();
   }
   const res = await fetch(`${API_BASE}/api/owner/schools/${encodeURIComponent(schoolId)}/readers/${encodeURIComponent(deviceId)}/actions`, {
     method: "POST",
@@ -399,6 +409,7 @@ export async function requestOwnerReaderAction(schoolId: string, deviceId: strin
     body: JSON.stringify({ action }),
   });
   if (!res.ok) throw new Error(await parseApiError(res, "Could not request reader action"));
+  return res.json();
 }
 
 export async function createPendingOwnerReader(input: CreatePendingOwnerReaderInput): Promise<{ reader: OwnerReader; activationCode: string; activationExpiresAt: string }> {

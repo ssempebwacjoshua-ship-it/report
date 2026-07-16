@@ -1459,7 +1459,45 @@ export function platformOwnerRoutes() {
         return;
       }
       if (body.action === "RE_REGISTER") {
-        await prisma.nfcOfflineDevice.update({ where: { id: reader.id }, data: { status: "ACTIVE", isActive: true } });
+        const activationCode = generateReaderGatewayActivationCode();
+        const activationCodeHash = hashReaderGatewayActivationCode(activationCode);
+        const expiresAt = new Date(Date.now() + READER_ACTIVATION_WINDOW_MS);
+        const updated = await prisma.nfcOfflineDevice.update({
+          where: { id: reader.id },
+          data: {
+            provisioningStatus: "PENDING_SETUP",
+            activationCodeHash,
+            activationCodeExpiresAt: expiresAt,
+            activationCodeUsedAt: null,
+            activationBoundHardwareId: null,
+            activationFailedAttempts: 0,
+            activationLastFailedAt: null,
+            activationLastError: null,
+            deviceTokenHash: null,
+            deviceKey: `pending-${reader.id}`,
+            lastHeartbeatAt: null,
+            lastSeenAt: null,
+            onlineStatus: "OFFLINE",
+            status: "ACTIVE",
+            isActive: true,
+          },
+          include: { school: { select: { id: true, code: true, name: true } } },
+        });
+        void ownerAudit(req.user!.userId, schoolId, "READER_RE_REGISTER_CODE_ISSUED_BY_OWNER", {
+          readerId: reader.id,
+          previousDeviceKey: reader.deviceKey,
+          activationExpiresAt: expiresAt.toISOString(),
+        }).catch(() => {});
+        res.json({
+          ok: true,
+          action: body.action,
+          delivered: false,
+          message: "New 6-digit setup code issued. It is shown once; enter it in the reader setup portal.",
+          activationCode,
+          activationExpiresAt: expiresAt.toISOString(),
+          reader: mapReader(updated),
+        });
+        return;
       }
       void ownerAudit(req.user!.userId, schoolId, `READER_${body.action}_REQUESTED_BY_OWNER`, {
         readerId: reader.id,
@@ -1481,8 +1519,41 @@ export function platformOwnerRoutes() {
         res.status(404).json({ error: "Reader not found." });
         return;
       }
-      res.status(409).json({
-        error: "Reader token rotation is disabled. Recommission the reader through the controlled setup flow instead.",
+      const activationCode = generateReaderGatewayActivationCode();
+      const activationCodeHash = hashReaderGatewayActivationCode(activationCode);
+      const expiresAt = new Date(Date.now() + READER_ACTIVATION_WINDOW_MS);
+      const updated = await prisma.nfcOfflineDevice.update({
+        where: { id: reader.id },
+        data: {
+          provisioningStatus: "PENDING_SETUP",
+          activationCodeHash,
+          activationCodeExpiresAt: expiresAt,
+          activationCodeUsedAt: null,
+          activationBoundHardwareId: null,
+          activationFailedAttempts: 0,
+          activationLastFailedAt: null,
+          activationLastError: null,
+          deviceTokenHash: null,
+          deviceKey: `pending-${reader.id}`,
+          lastHeartbeatAt: null,
+          lastSeenAt: null,
+          onlineStatus: "OFFLINE",
+          status: "ACTIVE",
+          isActive: true,
+        },
+        include: { school: { select: { id: true, code: true, name: true } } },
+      });
+      void ownerAudit(req.user!.userId, schoolId, "READER_SETUP_CODE_ROTATED_BY_OWNER", {
+        readerId: reader.id,
+        previousDeviceKey: reader.deviceKey,
+        activationExpiresAt: expiresAt.toISOString(),
+      }).catch(() => {});
+      res.json({
+        ok: true,
+        reader: mapReader(updated),
+        activationCode,
+        activationExpiresAt: expiresAt.toISOString(),
+        message: "New 6-digit setup code issued. It is shown once; enter it in the reader setup portal.",
       });
     } catch (error) {
       next(error);
