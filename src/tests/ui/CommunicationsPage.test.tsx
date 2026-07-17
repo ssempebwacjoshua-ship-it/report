@@ -15,6 +15,7 @@ vi.mock("../../client/communicationsClient", () => ({
   fetchCommunicationCampaigns: vi.fn(),
   createCommunicationCampaign: vi.fn(),
   previewCommunicationRecipients: vi.fn(),
+  requestCommunicationCampaignApproval: vi.fn(),
   approveCommunicationCampaign: vi.fn(),
   sendCommunication: vi.fn(),
 }));
@@ -36,6 +37,7 @@ import {
   createCommunicationCampaign,
   fetchCommunicationCampaigns,
   previewCommunicationRecipients,
+  requestCommunicationCampaignApproval,
   sendCommunication,
 } from "../../client/communicationsClient";
 import { fetchReportContext } from "../../client/reportsClient";
@@ -152,6 +154,22 @@ beforeEach(() => {
   vi.mocked(fetchStaffUsers).mockResolvedValue({ users: [] });
   vi.mocked(previewCommunicationRecipients).mockResolvedValue(buildPreview(1));
   vi.mocked(sendCommunication).mockResolvedValue({ ok: true, result: { submitted: 1, failed: 0, skippedDuplicate: 0 } });
+  vi.mocked(requestCommunicationCampaignApproval).mockResolvedValue({
+    ok: true,
+    duplicate: false,
+    campaign: buildCampaign("APPROVAL_PENDING"),
+    validation: {
+      channel: "WHATSAPP",
+      recipientCount: 3,
+      validRecipientCount: 1,
+      invalidRecipientCount: 2,
+      segmentCount: 0,
+      estimatedBillableUnits: 1,
+      estimatedProviderCostMinor: null,
+      estimatedProviderCostCurrency: null,
+      estimatedProviderCostNote: "Channel pricing varies by provider configuration.",
+    },
+  });
   vi.mocked(approveCommunicationCampaign).mockResolvedValue({ ok: true });
   vi.mocked(createCommunicationCampaign).mockResolvedValue({
     campaign: buildCampaign("DRAFT"),
@@ -170,7 +188,6 @@ describe("CommunicationsPage", () => {
     await waitFor(() => expect(screen.getByText("Preview recipients")).toBeInTheDocument());
     const buttons = screen.getAllByRole("button", { name: "Confirm send" });
     expect(buttons[0]).toBeDisabled();
-    expect(buttons[1]).toBeDisabled();
   });
 
   it("shows Approve only for approval-pending campaigns and approved users, then refreshes after approval", async () => {
@@ -202,6 +219,34 @@ describe("CommunicationsPage", () => {
     await waitFor(() => expect(screen.getByText("Campaign approved: Parent Notice")).toBeInTheDocument());
   });
 
+  it("shows Submit for approval for drafts and refreshes after submission", async () => {
+    vi.mocked(fetchCommunicationCampaigns)
+      .mockResolvedValueOnce({
+        campaigns: [buildCampaign("DRAFT")],
+        summary: [{ status: "DRAFT", _count: { status: 1 } }],
+      })
+      .mockResolvedValueOnce({
+        campaigns: [buildCampaign("APPROVAL_PENDING")],
+        summary: [{ status: "APPROVAL_PENDING", _count: { status: 1 } }],
+      });
+
+    render(
+      <MemoryRouter>
+        <CommunicationsPage />
+      </MemoryRouter>,
+    );
+
+    const submitButton = await screen.findByRole("button", { name: "Submit for approval" });
+    fireEvent.click(submitButton);
+
+    await waitFor(() => expect(requestCommunicationCampaignApproval).toHaveBeenCalledWith("campaign-1"));
+    const confirmMessage = vi.mocked(confirm).mock.calls[0]?.[0];
+    expect(confirmMessage).toContain("Recipient count: 3");
+    expect(confirmMessage).toContain("Estimated cost:");
+    await waitFor(() => expect(fetchCommunicationCampaigns).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(screen.getByText("Campaign submitted for approval: Parent Notice (1 valid recipient)")).toBeInTheDocument());
+  });
+
   it("prevents duplicate approval submissions while approval is in flight", async () => {
     vi.mocked(fetchCommunicationCampaigns).mockResolvedValue({
       campaigns: [buildCampaign("APPROVAL_PENDING")],
@@ -225,6 +270,41 @@ describe("CommunicationsPage", () => {
     expect(screen.queryByRole("button", { name: "Approve" })).not.toBeInTheDocument();
     resolveApproval?.({ ok: true });
     await waitFor(() => expect(approveCommunicationCampaign).toHaveBeenCalledTimes(1));
+  });
+
+  it("prevents duplicate submit-for-approval actions while submission is in flight", async () => {
+    let resolveSubmit: ((value: Awaited<ReturnType<typeof requestCommunicationCampaignApproval>>) => void) | undefined;
+    vi.mocked(requestCommunicationCampaignApproval).mockImplementation(() => new Promise((resolve) => {
+      resolveSubmit = resolve;
+    }));
+
+    render(
+      <MemoryRouter>
+        <CommunicationsPage />
+      </MemoryRouter>,
+    );
+
+    const submitButton = await screen.findByRole("button", { name: "Submit for approval" });
+    fireEvent.click(submitButton);
+
+    await waitFor(() => expect(screen.getByRole("button", { name: "Submitting..." })).toBeDisabled());
+    resolveSubmit?.({
+      ok: true,
+      duplicate: false,
+      campaign: buildCampaign("APPROVAL_PENDING"),
+      validation: {
+        channel: "WHATSAPP",
+        recipientCount: 3,
+        validRecipientCount: 1,
+        invalidRecipientCount: 2,
+        segmentCount: 0,
+        estimatedBillableUnits: 1,
+        estimatedProviderCostMinor: null,
+        estimatedProviderCostCurrency: null,
+        estimatedProviderCostNote: "Channel pricing varies by provider configuration.",
+      },
+    });
+    await waitFor(() => expect(requestCommunicationCampaignApproval).toHaveBeenCalledTimes(1));
   });
 
   it("hides Approve when the current user lacks communications.approve", async () => {
@@ -260,5 +340,52 @@ describe("CommunicationsPage", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Approve" }));
 
     await waitFor(() => expect(screen.getByText("Approval failed (ref: req-approve-1)")).toBeInTheDocument());
+  });
+
+  it("reaches approved send flow end-to-end with mocked client actions", async () => {
+    vi.mocked(fetchCommunicationCampaigns)
+      .mockResolvedValueOnce({
+        campaigns: [buildCampaign("DRAFT")],
+        summary: [{ status: "DRAFT", _count: { status: 1 } }],
+      })
+      .mockResolvedValueOnce({
+        campaigns: [buildCampaign("APPROVAL_PENDING")],
+        summary: [{ status: "APPROVAL_PENDING", _count: { status: 1 } }],
+      })
+      .mockResolvedValueOnce({
+        campaigns: [buildCampaign("APPROVED")],
+        summary: [{ status: "APPROVED", _count: { status: 1 } }],
+      })
+      .mockResolvedValueOnce({
+        campaigns: [buildCampaign("SENDING")],
+        summary: [{ status: "SENDING", _count: { status: 1 } }],
+      });
+
+    render(
+      <MemoryRouter>
+        <CommunicationsPage />
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(await screen.findByRole("button", { name: "Submit for approval" }));
+    await waitFor(() => expect(requestCommunicationCampaignApproval).toHaveBeenCalledWith("campaign-1"));
+
+    fireEvent.click(await screen.findByRole("button", { name: "Approve" }));
+    await waitFor(() => expect(approveCommunicationCampaign).toHaveBeenCalledWith("campaign-1"));
+
+    fireEvent.click((await screen.findAllByRole("button", { name: "Preview" }))[0]);
+    const sendButtons = await screen.findAllByRole("button", { name: "Confirm send" });
+    const sendButton = sendButtons.find((button) => !button.hasAttribute("disabled"));
+    expect(sendButton).toBeDefined();
+    if (!sendButton) {
+      throw new Error("Expected an enabled Confirm send button.");
+    }
+    fireEvent.click(sendButton);
+
+    await waitFor(() => expect(sendCommunication).toHaveBeenCalledWith("campaign-1", expect.objectContaining({
+      channel: "WHATSAPP",
+      confirm: true,
+    })));
+    await waitFor(() => expect(screen.getByText("Submitted 1; failed 0; duplicates skipped 0.")).toBeInTheDocument());
   });
 });

@@ -140,8 +140,8 @@ export function communicationRoutes() {
 
   router.post("/api/communications/campaigns/:id/request-approval", requireSchoolPermission("communications.requestApproval"), async (req, res, next) => {
     try {
-      await requestApproval(prisma, ctx(req), routeId(req));
-      res.json({ ok: true });
+      const result = await requestApproval(prisma, ctx(req), routeId(req));
+      res.json({ ok: true, ...result });
     } catch (error) {
       next(error);
     }
@@ -149,8 +149,8 @@ export function communicationRoutes() {
 
   router.post("/api/communications/campaigns/:id/approve", requireSchoolPermission("communications.approve"), async (req, res, next) => {
     try {
-      await approveCampaign(prisma, ctx(req), routeId(req));
-      res.json({ ok: true });
+      const campaign = await approveCampaign(prisma, ctx(req), routeId(req));
+      res.json({ ok: true, campaign });
     } catch (error) {
       next(error);
     }

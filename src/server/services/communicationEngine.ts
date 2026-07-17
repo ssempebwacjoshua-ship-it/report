@@ -10,6 +10,7 @@ import {
   type CommunicationChannel,
   type CommunicationCampaignStatus,
   type CommunicationProgressState,
+  type CommunicationSubmissionValidation,
   type ValidationIssue,
 } from "../../shared/communications";
 import { collectCommunicationAudienceRows, resolveCommunicationAudience } from "./communicationAudienceService";
@@ -257,38 +258,51 @@ export async function updateCampaignDraft(db: Db, ctx: CommunicationContext, id:
   if (["QUEUED", "SENDING", "DELIVERED", "CANCELLED"].includes(campaign.status)) {
     throw httpError(400, "This campaign can no longer be edited.");
   }
-  const nextVersion = campaign.status === "APPROVED" ? campaign.contentVersion + 1 : campaign.contentVersion;
+  const latestContent = campaign.contents.find((entry) => entry.version === campaign.contentVersion) ?? campaign.contents[0];
+  const nextAudienceDefinition = input.audience ?? ((campaign.audience?.definitionJson ?? null) as AudienceDefinition | null);
+  const meaningfulContentEdit = input.body !== undefined || input.subject !== undefined;
+  const meaningfulAudienceEdit = input.audience !== undefined;
+  const approvalInvalidated = meaningfulContentEdit || meaningfulAudienceEdit;
+  const shouldResetToDraft = approvalInvalidated && ["APPROVED", "APPROVAL_PENDING", "READY_FOR_APPROVAL", "VALIDATING", "VALIDATION_FAILED", "FAILED"].includes(campaign.status);
+  const nextVersion = meaningfulContentEdit ? campaign.contentVersion + 1 : campaign.contentVersion;
   const updated = await db.$transaction(async (tx) => {
-    if (input.body || input.subject) {
+    if (meaningfulContentEdit) {
       await tx.communicationContent.create({
         data: {
           campaignId: id,
           version: nextVersion,
-          subject: input.subject ?? campaign.contents[0]?.subject ?? null,
-          body: input.body ?? campaign.contents[0]?.body ?? "",
+          subject: input.subject ?? latestContent?.subject ?? null,
+          body: input.body ?? latestContent?.body ?? "",
           createdByUserId: ctx.actorId,
         },
       });
     }
-    if (input.audience) {
+    if (meaningfulAudienceEdit) {
       await tx.communicationAudience.upsert({
         where: { campaignId: id },
         update: { definitionJson: input.audience as never },
         create: { campaignId: id, definitionJson: input.audience as never },
       });
     }
+    if (approvalInvalidated) {
+      await clearCampaignAudienceArtifacts(tx as Db, ctx, id);
+    }
     return tx.communicationCampaign.update({
       where: { id },
       data: {
         title: input.title,
         contentVersion: nextVersion,
-        status: campaign.status === "APPROVED" ? "APPROVAL_PENDING" : campaign.status,
-        approvedAt: campaign.status === "APPROVED" ? null : campaign.approvedAt,
-        approvedByUserId: campaign.status === "APPROVED" ? null : campaign.approvedByUserId,
+        status: shouldResetToDraft ? "DRAFT" : campaign.status,
+        approvedAt: shouldResetToDraft ? null : campaign.approvedAt,
+        approvedByUserId: shouldResetToDraft ? null : campaign.approvedByUserId,
       },
     });
   });
-  await audit(db, ctx, "communication.content_edited", id, { nextVersion });
+  await audit(db, ctx, "communication.content_edited", id, {
+    nextVersion,
+    approvalInvalidated: shouldResetToDraft,
+    channel: nextAudienceDefinition?.channel ?? null,
+  });
   return updated;
 }
 
@@ -366,20 +380,59 @@ export async function validateCampaign(db: Db, ctx: CommunicationContext, campai
 }
 
 export async function requestApproval(db: Db, ctx: CommunicationContext, campaignId: string) {
-  await transitionCampaign(db, ctx, campaignId, "APPROVAL_PENDING");
-  await db.communicationApproval.create({
-    data: { campaignId, requiredRole: "ADMIN_OPERATOR", requestedByUserId: ctx.actorId },
+  const campaign = await getCampaignOrThrow(db, ctx, campaignId);
+  if (campaign.status === "APPROVAL_PENDING") {
+    return {
+      campaign,
+      validation: await getCampaignSubmissionValidation(db, ctx, campaignId),
+      duplicate: true,
+    };
+  }
+  if (campaign.status === "APPROVED") {
+    return {
+      campaign,
+      validation: await getCampaignSubmissionValidation(db, ctx, campaignId),
+      duplicate: true,
+    };
+  }
+
+  const validation = await getCampaignSubmissionValidation(db, ctx, campaignId);
+  await db.$transaction(async (tx) => {
+    await replaceCampaignAudienceSnapshot(tx as Db, ctx, campaignId, validation.resolution);
+    await transitionCampaign(tx as Db, ctx, campaignId, "APPROVAL_PENDING");
+    await tx.communicationApproval.create({
+      data: { campaignId, requiredRole: "ADMIN_OPERATOR", requestedByUserId: ctx.actorId },
+    });
   });
-  await audit(db, ctx, "communication.approval_requested", campaignId, {});
+  const refreshed = await getCampaignOrThrow(db, ctx, campaignId);
+  await audit(db, ctx, "communication.approval_requested", campaignId, {
+    recipientCount: validation.validation.recipientCount,
+    segmentCount: validation.validation.segmentCount,
+    estimatedBillableUnits: validation.validation.estimatedBillableUnits,
+    estimatedProviderCostMinor: validation.validation.estimatedProviderCostMinor,
+  });
+  return {
+    campaign: refreshed,
+    validation: validation.validation,
+    duplicate: false,
+  };
 }
 
 export async function approveCampaign(db: Db, ctx: CommunicationContext, campaignId: string) {
+  const campaign = await getCampaignOrThrow(db, ctx, campaignId);
+  if (campaign.status === "APPROVED") {
+    return campaign;
+  }
+  if (campaign.status !== "APPROVAL_PENDING") {
+    throw httpError(409, "Only campaigns pending approval can be approved.");
+  }
   await transitionCampaign(db, ctx, campaignId, "APPROVED", { approvedAt: new Date(), approvedByUserId: ctx.actorId });
   await db.communicationApproval.updateMany({
     where: { campaignId, status: "PENDING" },
     data: { status: "APPROVED", reviewedByUserId: ctx.actorId, reviewedAt: new Date() },
   });
   await audit(db, ctx, "communication.campaign_approved", campaignId, {});
+  return getCampaignOrThrow(db, ctx, campaignId);
 }
 
 export async function queueCampaign(db: Db, ctx: CommunicationContext, campaignId: string, channels: CommunicationChannel[] = ["WHATSAPP"]) {
@@ -971,4 +1024,183 @@ async function transitionCampaignIfAllowed(db: Db, ctx: CommunicationContext, ca
   const campaign = await getCampaignOrThrow(db, ctx, campaignId);
   if (campaign.status === to) return campaign;
   return transitionCampaign(db, ctx, campaignId, to);
+}
+
+async function getCampaignSubmissionValidation(db: Db, ctx: CommunicationContext, campaignId: string): Promise<{
+  validation: CommunicationSubmissionValidation;
+  resolution: Awaited<ReturnType<typeof collectCommunicationAudienceRows>>;
+}> {
+  const campaign = await getCampaignOrThrow(db, ctx, campaignId);
+  const activeContent = campaign.contents.find((entry) => entry.version === campaign.contentVersion) ?? campaign.contents[0];
+  const body = activeContent?.shortBody?.trim() || activeContent?.body?.trim() || "";
+  if (!body) {
+    throw httpError(400, "Message body is required before submitting for approval.");
+  }
+
+  const definition = (campaign.audience?.definitionJson ?? {}) as AudienceDefinition;
+  const resolution = await collectCommunicationAudienceRows(db, ctx, definition);
+  const eligibleRecipients = resolution.rows.filter((row) => row.eligibilityStatus === "ELIGIBLE");
+  if (eligibleRecipients.length === 0) {
+    throw httpError(400, "At least one valid recipient is required before submitting for approval.");
+  }
+
+  const channel = definition.channel ?? "WHATSAPP";
+  const segmentEstimate = estimateSmsSegments(body);
+  const estimatedBillableUnits = channel === "SMS"
+    ? eligibleRecipients.length * Math.max(segmentEstimate.billableUnits, 0)
+    : eligibleRecipients.length;
+  const estimatedCost = await estimateCampaignProviderCost(db, ctx, channel, estimatedBillableUnits);
+
+  return {
+    validation: {
+      channel,
+      recipientCount: resolution.rows.length,
+      validRecipientCount: eligibleRecipients.length,
+      invalidRecipientCount: resolution.rows.length - eligibleRecipients.length,
+      segmentCount: channel === "SMS" ? segmentEstimate.segments : 0,
+      estimatedBillableUnits,
+      estimatedProviderCostMinor: estimatedCost.amountMinor,
+      estimatedProviderCostCurrency: estimatedCost.currency,
+      estimatedProviderCostNote: estimatedCost.note,
+    },
+    resolution,
+  };
+}
+
+async function replaceCampaignAudienceSnapshot(
+  db: Db,
+  ctx: CommunicationContext,
+  campaignId: string,
+  collection: Awaited<ReturnType<typeof collectCommunicationAudienceRows>>,
+) {
+  const campaign = await getCampaignOrThrow(db, ctx, campaignId);
+  await clearCampaignAudienceArtifacts(db, ctx, campaignId);
+  const latest = campaign.audienceSnapshots[0]?.snapshotVersion ?? 0;
+  const snapshot = await db.communicationAudienceSnapshot.create({
+    data: { campaignId, snapshotVersion: latest + 1, createdByUserId: ctx.actorId },
+  });
+
+  const recipients = collection.rows.map((recipient) => {
+    const eligible = recipient.eligibilityStatus === "ELIGIBLE";
+    const status = eligible ? "READY" : recipient.eligibilityStatus === "DUPLICATE_CONTACT" ? "EXCLUDED" : "BLOCKED";
+    const guardianId = recipient.source === "guardian" ? recipient.id.replace(/^guardian:/, "") : null;
+    const staffUserId = recipient.source === "staff" ? recipient.id.replace(/^staff:/, "") : null;
+    return {
+      schoolId: ctx.schoolId,
+      campaignId,
+      audienceSnapshotId: snapshot.id,
+      guardianId,
+      studentId: recipient.studentId,
+      staffUserId,
+      displayName: recipient.contactName || recipient.studentName,
+      relationship: recipient.relationship,
+      phoneE164: eligible && recipient.channelAvailability.sms ? recipient.phone : null,
+      email: recipient.email,
+      preferredChannel: recipient.selectedChannel,
+      status,
+      warningCodesJson: eligible ? [] : null,
+      blockedReasonCode: eligible ? null : recipient.eligibilityStatus,
+      personalisationJson: {
+        guardianName: recipient.contactName || recipient.studentName,
+        studentName: recipient.studentName,
+        className: recipient.className,
+        streamName: recipient.streamName,
+        schoolName: ctx.schoolName,
+        communicationTitle: campaign.title,
+        contactRole: recipient.contactRole,
+      },
+    };
+  });
+
+  if (recipients.length > 0) {
+    await db.communicationRecipient.createMany({ data: recipients as never[] });
+  }
+  await db.communicationAudienceSnapshot.update({
+    where: { id: snapshot.id },
+    data: { recipientCount: recipients.length },
+  });
+  return snapshot;
+}
+
+async function clearCampaignAudienceArtifacts(db: Db, ctx: CommunicationContext, campaignId: string) {
+  await db.communicationDeliveryAttempt.deleteMany({
+    where: {
+      delivery: {
+        schoolId: ctx.schoolId,
+        campaignId,
+      },
+    },
+  });
+  await db.communicationUsageRecord.deleteMany({ where: { schoolId: ctx.schoolId, campaignId } });
+  await db.communicationDelivery.deleteMany({ where: { schoolId: ctx.schoolId, campaignId } });
+  await db.communicationRecipient.deleteMany({ where: { schoolId: ctx.schoolId, campaignId } });
+  await db.communicationAudienceSnapshot.deleteMany({ where: { campaign: { schoolId: ctx.schoolId, id: campaignId } } });
+  await db.communicationApproval.updateMany({
+    where: { campaignId, status: "PENDING" },
+    data: {
+      status: "REJECTED",
+      reviewedByUserId: ctx.actorId,
+      reviewedAt: new Date(),
+      comment: "Superseded by a newer draft revision before approval.",
+    },
+  });
+}
+
+async function estimateCampaignProviderCost(db: Db, ctx: CommunicationContext, channel: CommunicationChannel, estimatedBillableUnits: number) {
+  if (estimatedBillableUnits <= 0) {
+    return {
+      amountMinor: 0,
+      currency: channel === "SMS" ? "UGX" : null,
+      note: channel === "SMS" ? "No billable SMS segments are expected." : "No billable provider units are expected.",
+    };
+  }
+
+  if (channel !== "SMS") {
+    return {
+      amountMinor: null,
+      currency: null,
+      note: "Estimated provider cost is confirmed later by the configured channel provider.",
+    };
+  }
+
+  const channelSetting = await db.communicationChannelSetting.findFirst({
+    where: { schoolId: ctx.schoolId, channel: "SMS" as never },
+    orderBy: { updatedAt: "desc" },
+  });
+  const metadata = (channelSetting?.providerMetadataJson ?? null) as Record<string, unknown> | null;
+  const unitCostMinor = pickPositiveNumber(
+    metadata?.estimatedCostPerSegmentMinor,
+    metadata?.segmentCostMinor,
+    metadata?.costPerSegmentMinor,
+  );
+  const currency = typeof metadata?.estimatedCostCurrency === "string"
+    ? metadata.estimatedCostCurrency
+    : typeof metadata?.currency === "string"
+      ? metadata.currency
+      : "UGX";
+
+  if (unitCostMinor == null) {
+    return {
+      amountMinor: null,
+      currency,
+      note: `Estimated ${estimatedBillableUnits} SMS segment${estimatedBillableUnits === 1 ? "" : "s"}; provider pricing metadata is not configured.`,
+    };
+  }
+
+  return {
+    amountMinor: unitCostMinor * estimatedBillableUnits,
+    currency,
+    note: `Estimated from ${estimatedBillableUnits} SMS segment${estimatedBillableUnits === 1 ? "" : "s"} at ${unitCostMinor} ${currency} each.`,
+  };
+}
+
+function pickPositiveNumber(...values: unknown[]) {
+  for (const value of values) {
+    if (typeof value === "number" && Number.isFinite(value) && value >= 0) return Math.round(value);
+    if (typeof value === "string" && value.trim()) {
+      const normalized = Number(value.trim());
+      if (Number.isFinite(normalized) && normalized >= 0) return Math.round(normalized);
+    }
+  }
+  return null;
 }
