@@ -920,7 +920,9 @@ export function NfcOperationsPage() {
   }
 
   async function closeLinkReaderModal() {
-    const captureToCancel = linkReaderCapture?.status === "PENDING" ? linkReaderCapture.captureId : null;
+    const captureToCancel = linkReaderCapture && (linkReaderCapture.status === "PENDING" || linkReaderCapture.status === "CAPTURED")
+      ? linkReaderCapture.captureId
+      : null;
     linkReaderSessionRef.current += 1;
     if (linkReaderPollRef.current) {
       clearInterval(linkReaderPollRef.current);
@@ -971,6 +973,7 @@ export function NfcOperationsPage() {
     try {
       const capture = await startReaderCredentialCapture(linkReaderTarget.id, {
         deviceId: linkReaderDeviceId || null,
+        expiresInSeconds: LINK_READER_CAPTURE_WINDOW_MS / 1000,
       });
       if (linkReaderSessionRef.current !== currentSession) {
         return;
