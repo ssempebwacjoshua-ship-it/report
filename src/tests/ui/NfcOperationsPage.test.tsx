@@ -9,6 +9,7 @@ const mockStartReaderCredentialCapture = vi.hoisted(() => vi.fn());
 const mockCancelReaderCredentialCapture = vi.hoisted(() => vi.fn());
 const mockGetReaderCredentialCapture = vi.hoisted(() => vi.fn());
 const mockListNfcTags = vi.hoisted(() => vi.fn());
+const mockGenerateNfcTags = vi.hoisted(() => vi.fn());
 const mockFetchOfflineSyncStatus = vi.hoisted(() => vi.fn());
 const mockFetchStudents = vi.hoisted(() => vi.fn());
 const mockGetStudentWalletPinStatus = vi.hoisted(() => vi.fn());
@@ -20,7 +21,7 @@ vi.mock("../../client/nfcTagsClient", () => ({
   confirmReaderCredentialCapture: vi.fn(),
   disableNfcTag: vi.fn(),
   enableNfcTag: vi.fn(),
-  generateNfcTags: vi.fn(),
+  generateNfcTags: mockGenerateNfcTags,
   getReaderCredentialCapture: mockGetReaderCredentialCapture,
   cancelReaderCredentialCapture: mockCancelReaderCredentialCapture,
   getNfcTagEvents: vi.fn(),
@@ -281,6 +282,27 @@ describe("NfcOperationsPage wristband grid layout", () => {
     expect(screen.getAllByText("Claire Nakibuuka With A Very Long Display Name For Layout").length).toBeGreaterThan(0);
     expect(screen.getAllByText("SCNFC:PUBLICCODE-ASSIGNED-001-WITH-A-LONG-PAYLOAD-VALUE").length).toBeGreaterThan(0);
     expect(screen.getAllByText("No student assigned").length).toBeGreaterThan(0);
+  });
+
+  it("generates wristbands and refreshes the list", async () => {
+    mockGenerateNfcTags.mockResolvedValueOnce({
+      generated: 2,
+      tags: [
+        { ...SAMPLE_TAGS[0], id: "tag-4", label: "Generated Tag A", publicCode: "PUBLICCODE-NEW-004", status: "UNASSIGNED" },
+        { ...SAMPLE_TAGS[1], id: "tag-5", label: "Generated Tag B", publicCode: "PUBLICCODE-NEW-005", status: "UNASSIGNED" },
+      ],
+    });
+
+    renderPage();
+
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Wristbands" })).toBeInTheDocument());
+
+    fireEvent.change(screen.getByLabelText("Quantity"), { target: { value: "2" } });
+    fireEvent.click(screen.getByRole("button", { name: "Generate 2 wristbands" }));
+
+    await waitFor(() => expect(mockGenerateNfcTags).toHaveBeenCalledWith(2));
+    expect(await screen.findByText("Generated Tag A")).toBeInTheDocument();
+    expect(screen.getByText("Generated Tag B")).toBeInTheDocument();
   });
 
   it("opens the wallet PIN modal, saves a PIN, and clears stale modal state on close", async () => {
