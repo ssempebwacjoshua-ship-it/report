@@ -888,6 +888,28 @@ export function NfcOperationsPage() {
     }
   }
 
+  async function handleGenerate() {
+    if (generating) {
+      return;
+    }
+
+    setGenerating(true);
+    setGenerateError(null);
+
+    try {
+      const result = await generateNfcTags(generateCount);
+      setTags((current) => {
+        const existingIds = new Set(current.map((tag) => tag.id));
+        const newTags = result.tags.filter((tag) => !existingIds.has(tag.id));
+        return [...newTags, ...current];
+      });
+    } catch (caught) {
+      setGenerateError(caught instanceof Error ? caught.message : "Could not generate wristbands.");
+    } finally {
+      setGenerating(false);
+    }
+  }
+
   function openLinkReaderModal(tag: NfcTag) {
     if (!tag.student) {
       return;
