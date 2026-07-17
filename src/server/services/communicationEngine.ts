@@ -448,7 +448,7 @@ export async function sendCampaign(db: Db, ctx: CommunicationContext, campaignId
   await requireLiveCommunicationsEnabled(db, ctx);
   const campaign = await getCampaignOrThrow(db, ctx, campaignId);
   if (["CANCELLED", "DELIVERED"].includes(campaign.status)) throw httpError(400, "This campaign cannot be sent.");
-  if (!["APPROVED", "QUEUED", "SENDING"].includes(campaign.status)) {
+  if (!["APPROVED", "QUEUED", "SENDING", "SENT"].includes(campaign.status)) {
     throw httpError(400, "Only approved campaigns can be sent.");
   }
   const templatePolicy = isCommunicationDryRun()
@@ -472,7 +472,7 @@ export async function sendCampaign(db: Db, ctx: CommunicationContext, campaignId
   });
   if (recipients.length === 0) throw httpError(400, "No valid recipients are available for sending.");
 
-  if (refreshed.status !== "SENDING") {
+  if (refreshed.status !== "SENDING" && refreshed.status !== "SENT") {
     await transitionCampaignIfAllowed(db, ctx, campaignId, "QUEUED");
   }
 
@@ -607,7 +607,7 @@ export async function sendCampaign(db: Db, ctx: CommunicationContext, campaignId
     data: { status: failed > 0 && submitted > 0 ? "PARTIALLY_DELIVERED" : failed > 0 && submitted === 0 ? "FAILED" : "SENDING", sendingStartedAt: new Date() },
   });
   await audit(db, ctx, "communication.delivery_submitted", campaignId, { channel: input.channel, provider: provider.providerKey, submitted, failed, skippedDuplicate });
-  return { submitted, failed, skippedDuplicate, results, templatePolicy, progress: await getCampaignProgressTotals(db, ctx, campaignId) };
+  return { submitted, failed, skippedDuplicate, results, templatePolicy, dryRun: isCommunicationDryRun(), progress: await getCampaignProgressTotals(db, ctx, campaignId) };
 }
 
 async function sendSmsCampaign(
@@ -802,7 +802,7 @@ async function sendSmsCampaign(
 
   await db.communicationCampaign.update({
     where: { id: campaign.id },
-    data: { status: failed > 0 && submitted > 0 ? "PARTIALLY_DELIVERED" : failed > 0 && submitted === 0 ? "FAILED" : "SENDING", sendingStartedAt: new Date() },
+    data: { status: determinePostSendCampaignStatus(campaign.status, submitted, failed), sendingStartedAt: new Date() },
   });
   await audit(db, ctx, "communication.delivery_submitted", campaign.id, {
     channel: "SMS",
@@ -821,7 +821,7 @@ async function sendSmsCampaign(
       messageParts: item.billableUnits,
     })),
   });
-  return { submitted, failed, skippedDuplicate, results, templatePolicy, progress: await getCampaignProgressTotals(db, ctx, campaign.id) };
+  return { submitted, failed, skippedDuplicate, results, templatePolicy, dryRun: false, progress: await getCampaignProgressTotals(db, ctx, campaign.id) };
 }
 
 async function sendDryRunSmsCampaign(
@@ -914,10 +914,17 @@ async function sendDryRunSmsCampaign(
 
   await db.communicationCampaign.update({
     where: { id: campaign.id },
-    data: { status: "SENDING", sendingStartedAt: new Date() },
+    data: { status: determinePostSendCampaignStatus(campaign.status, submitted, 0), sendingStartedAt: new Date() },
   });
   await audit(db, ctx, "communication.delivery_submitted", campaign.id, { channel: "SMS", provider: provider.providerKey, submitted, failed: 0, skippedDuplicate });
-  return { submitted, failed: 0, skippedDuplicate, results, templatePolicy, progress: await getCampaignProgressTotals(db, ctx, campaign.id) };
+  return { submitted, failed: 0, skippedDuplicate, results, templatePolicy, dryRun: true, progress: await getCampaignProgressTotals(db, ctx, campaign.id) };
+}
+
+function determinePostSendCampaignStatus(currentStatus: string, submitted: number, failed: number): CommunicationCampaignStatus {
+  if (failed > 0 && submitted > 0) return "PARTIALLY_DELIVERED";
+  if (failed > 0) return "FAILED";
+  if (submitted > 0) return "SENT";
+  return currentStatus as CommunicationCampaignStatus;
 }
 
 export async function getCampaignProgressTotals(db: Db, ctx: CommunicationContext, campaignId: string) {

@@ -220,7 +220,8 @@ export function CommunicationsPage() {
         confirm: true,
         audience: audienceToDefinition(audience),
       });
-      setSendResult(`Submitted ${result.result.submitted}; failed ${result.result.failed}; duplicates skipped ${result.result.skippedDuplicate}.`);
+      const dryRunNotice = result.result.dryRun ? " Dry-run only: no provider message was sent." : "";
+      setSendResult(`Submitted ${result.result.submitted}; failed ${result.result.failed}; duplicates skipped ${result.result.skippedDuplicate}.${dryRunNotice}`);
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : `${audience.channel === "WHATSAPP" ? "WhatsApp" : "SMS"} is not configured yet. Contact platform owner.`);

@@ -513,8 +513,13 @@ function resolveYoolaEndpointUrl(env: NodeJS.ProcessEnv) {
   if (!configured) return "https://yoolasms.com/api/v1/send_sms";
   try {
     const url = new URL(configured);
-    if (url.pathname === "/" || url.pathname === "") {
+    const normalizedPath = url.pathname.replace(/\/+$/, "");
+    if (normalizedPath === "" || normalizedPath === "/") {
       url.pathname = "/api/v1/send_sms";
+    } else if (normalizedPath.endsWith("/send_sms")) {
+      url.pathname = normalizedPath;
+    } else {
+      url.pathname = `${normalizedPath}/send_sms`;
     }
     return url.toString();
   } catch {

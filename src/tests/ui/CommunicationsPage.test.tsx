@@ -1,4 +1,5 @@
 import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { CommunicationsPage } from "../../pages/CommunicationsPage";
@@ -160,5 +161,83 @@ describe("CommunicationsPage", () => {
     expect(screen.queryByText("Selected students")).not.toBeInTheDocument();
     const buttons = screen.getAllByRole("button", { name: "Confirm send" });
     expect(buttons[0]).toBeDisabled();
+  });
+
+  it("shows dry-run mode clearly after a communication send", async () => {
+    const user = userEvent.setup();
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    vi.mocked(fetchCommunicationCampaigns).mockResolvedValue({
+      campaigns: [
+        {
+          id: "campaign-1",
+          title: "Parent Notice",
+          type: "ANNOUNCEMENT",
+          status: "APPROVED",
+          priority: "NORMAL",
+          contentVersion: 1,
+          createdAt: "2026-07-01T00:00:00.000Z",
+          updatedAt: "2026-07-01T00:00:00.000Z",
+          _count: { recipients: 1, deliveries: 0 },
+          contents: [{ subject: "Notice", body: "Hello parents", shortBody: null }],
+        },
+      ],
+      summary: [{ status: "APPROVED", _count: { status: 1 } }],
+    });
+    vi.mocked(previewCommunicationRecipients).mockResolvedValue({
+      preview: {
+        audienceType: "ALL_PARENTS_GUARDIANS",
+        matchedStudentsCount: 1,
+        rawContactsCount: 1,
+        eligibleRecipientsCount: 1,
+        missingContactsCount: 0,
+        duplicateContactsRemovedCount: 0,
+        excludedRecipientsCount: 0,
+        optedOutRecipientsCount: 0,
+        bouncedRecipientsCount: 0,
+        invalidRecipientsCount: 0,
+        channel: "WHATSAPP",
+        page: 1,
+        pageSize: 10,
+        totalPages: 1,
+        totalRecipients: 1,
+        recipients: [
+          {
+            id: "guardian:contact-1",
+            source: "guardian",
+            studentId: "student-1",
+            studentName: "Ada Lovelace",
+            className: "Senior 1",
+            streamName: "A",
+            contactName: "Grace Hopper",
+            relationship: "Mother",
+            phone: "+256774549869",
+            email: "grace@example.test",
+            channelAvailability: { whatsapp: true, sms: true, email: true },
+            selectedChannel: "WHATSAPP",
+            eligibilityStatus: "ELIGIBLE",
+            exclusionReason: null,
+            dedupeKey: "guardian:contact-1",
+            contactRole: "MOTHER",
+          },
+        ],
+      },
+    });
+    vi.mocked(sendCommunication).mockResolvedValue({
+      ok: true,
+      result: { submitted: 1, failed: 0, skippedDuplicate: 0, dryRun: true },
+    });
+
+    render(
+      <MemoryRouter>
+        <CommunicationsPage />
+      </MemoryRouter>,
+    );
+
+    await user.click(await screen.findByRole("button", { name: "Preview" }));
+    await waitFor(() => expect(screen.getByText(/1 eligible/i)).toBeInTheDocument());
+    const sendButtons = screen.getAllByRole("button", { name: "Confirm send" });
+    await user.click(sendButtons.find((button) => !button.hasAttribute("disabled"))!);
+
+    await waitFor(() => expect(screen.getByText(/Dry-run only: no provider message was sent/i)).toBeInTheDocument());
   });
 });
