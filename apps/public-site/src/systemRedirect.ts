@@ -32,7 +32,7 @@ export function hasSystemSessionMarker() {
   }
 }
 
-export function resolvePublicSiteSystemRedirect(pathname: string, hasSystemSession = false) {
+export function resolvePublicSiteSystemRedirect(pathname: string, _hasSystemSession = false) {
   if (pathname.startsWith(`${SYSTEM_BASE}/`)) return null;
 
   const exact = EXACT_SYSTEM_REDIRECTS.get(pathname);
