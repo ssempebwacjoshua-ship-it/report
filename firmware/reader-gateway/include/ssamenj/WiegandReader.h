@@ -13,9 +13,6 @@ class WiegandReader {
   void reset();
 
  private:
-  static constexpr uint8_t kMinFrameBits = 4;
-  static constexpr uint8_t kMaxFrameBits = 64;
-
   struct PendingFrame {
     uint64_t bits = 0;
     uint8_t bitCount = 0;
@@ -34,7 +31,6 @@ class WiegandReader {
   static void IRAM_ATTR onD1Thunk(void* arg);
   void IRAM_ATTR onPulse(bool oneBit);
   void IRAM_ATTR finalizeActiveFrame(bool timedOut);
-  bool tryFinalizeTimedOutFrame();
   bool popPendingFrame(PendingFrame& frame);
   void logRejectedFrame(const PendingFrame& frame, const WiegandDecodeResult& decoded, const char* reason) const;
 

@@ -96,20 +96,6 @@ void IRAM_ATTR WiegandReader::finalizeActiveFrame(bool timedOut) {
   activeOverflow_ = false;
 }
 
-bool WiegandReader::tryFinalizeTimedOutFrame() {
-  bool finalized = false;
-
-  noInterrupts();
-  const uint32_t nowUs = micros();
-  if (activeBitCount_ > 0 && static_cast<uint32_t>(nowUs - activeLastPulseUs_) >= timeoutUs_) {
-    finalizeActiveFrame(true);
-    finalized = true;
-  }
-  interrupts();
-
-  return finalized;
-}
-
 bool WiegandReader::popPendingFrame(PendingFrame& frame) {
   noInterrupts();
   if (pendingCount_ == 0) {
@@ -152,7 +138,7 @@ void IRAM_ATTR WiegandReader::onPulse(bool oneBit) {
     activeD0PulseCount_ += 1;
   }
 
-  if (activeBitCount_ < kMaxFrameBits) {
+  if (activeBitCount_ < 63) {
     activeFrameBits_ = (activeFrameBits_ << 1ULL) | (oneBit ? 1ULL : 0ULL);
     activeBitCount_ += 1;
   } else {
@@ -183,25 +169,15 @@ void WiegandReader::logRejectedFrame(const PendingFrame& frame, const WiegandDec
 }
 
 bool WiegandReader::poll(ReaderScanEvent& event) {
-  tryFinalizeTimedOutFrame();
+  noInterrupts();
+  const uint32_t nowUs = micros();
+  if (activeBitCount_ > 0 && static_cast<uint32_t>(nowUs - activeLastPulseUs_) >= timeoutUs_) {
+    finalizeActiveFrame(true);
+  }
+  interrupts();
 
   PendingFrame frame;
   if (!popPendingFrame(frame)) {
-    return false;
-  }
-
-  Serial.printf(
-    "Frame complete: bits=%u value=%llu\n",
-    static_cast<unsigned int>(frame.bitCount),
-    static_cast<unsigned long long>(frame.bits)
-  );
-
-  if (frame.bitCount < kMinFrameBits || frame.bitCount > kMaxFrameBits) {
-    Serial.printf(
-      "Reader discarded frame: bitCount=%u reason=invalid_length rawValue=%llu\n",
-      static_cast<unsigned int>(frame.bitCount),
-      static_cast<unsigned long long>(frame.bits)
-    );
     return false;
   }
 
