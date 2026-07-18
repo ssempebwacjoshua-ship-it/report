@@ -20,7 +20,16 @@ vi.mock("resend", () => ({
   },
 }));
 
-import { configuredAuthEmailProvider, configuredCompanyReplyTo, configuredCompanySender, isAuthEmailConfigured, sendAuthEmail, sendOutreachEmail } from "../../server/services/emailService";
+import {
+  configuredAuthEmailProvider,
+  configuredCompanyReplyTo,
+  configuredCompanySender,
+  isAuthEmailConfigured,
+  OFFICIAL_COMPANY_OUTREACH_SENDER,
+  OFFICIAL_SUPPORT_EMAIL,
+  sendAuthEmail,
+  sendOutreachEmail,
+} from "../../server/services/emailService";
 
 describe("emailService", () => {
   const previousEnv = {
@@ -179,10 +188,16 @@ describe("emailService", () => {
   });
 
   it("prefers the company outreach sender when available", () => {
-    process.env.OUTREACH_EMAIL_FROM = "Joshua from SSAMENJ Technologies <support@ssamenj.online>";
+    process.env.OUTREACH_EMAIL_FROM = "SSAMENJ Technologies <support@ssamenj.online>";
     process.env.AUTH_EMAIL_FROM = "SSAMENJ Report Lab <support@ssamenj.online>";
 
-    expect(configuredCompanySender()).toBe("Joshua from SSAMENJ Technologies <support@ssamenj.online>");
+    expect(configuredCompanySender()).toBe("SSAMENJ Technologies <support@ssamenj.online>");
+  });
+
+  it("falls back to the official company outreach sender when the env var is absent", () => {
+    delete process.env.OUTREACH_EMAIL_FROM;
+
+    expect(configuredCompanySender()).toBe(OFFICIAL_COMPANY_OUTREACH_SENDER);
   });
 
   it("prefers the company outreach reply-to when available", () => {
@@ -190,6 +205,13 @@ describe("emailService", () => {
     process.env.AUTH_EMAIL_REPLY_TO = "reply@fallback.example.com";
 
     expect(configuredCompanyReplyTo()).toBe("support@ssamenj.online");
+  });
+
+  it("falls back to the official support reply-to when outreach reply-to is absent", () => {
+    delete process.env.OUTREACH_REPLY_TO;
+    delete process.env.AUTH_EMAIL_REPLY_TO;
+
+    expect(configuredCompanyReplyTo()).toBe(OFFICIAL_SUPPORT_EMAIL);
   });
 
   it("fails safely when outreach sender is missing", async () => {

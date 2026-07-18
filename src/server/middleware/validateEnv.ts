@@ -37,6 +37,17 @@ function isValidAuthEmailFrom(value: string) {
   return isValidEmailAddress(email);
 }
 
+function isOfficialOutreachReplyTo(value: string) {
+  return value.trim().toLowerCase() === "support@ssamenj.online";
+}
+
+function isOfficialOutreachSender(value: string) {
+  const normalized = normalizeAuthEmailFrom(value);
+  const match = normalized.match(/^(.*)<([^<>]+)>$/);
+  const email = match ? match[2].trim() : normalized;
+  return email.toLowerCase() === "support@ssamenj.online";
+}
+
 export type EnvValidationResult = {
   valid: boolean;
   errors: string[];
@@ -114,6 +125,10 @@ export function validateEnv(env: Record<string, string | undefined> = process.en
 
     const authEmailProvider = env.AUTH_EMAIL_PROVIDER?.trim().toUpperCase() || "";
     const authEmailFrom = env.AUTH_EMAIL_FROM?.trim();
+    const outreachEmailFrom = env.OUTREACH_EMAIL_FROM?.trim();
+    const outreachReplyTo = env.OUTREACH_REPLY_TO?.trim()
+      || env.AUTH_EMAIL_REPLY_TO?.trim()
+      || "";
     const authEmailAppUrl = env.APP_PUBLIC_URL?.trim()
       || env.PUBLIC_APP_URL?.trim()
       || env.APP_URL?.trim()
@@ -139,6 +154,20 @@ export function validateEnv(env: Record<string, string | undefined> = process.en
       errors.push(
         "APP_PUBLIC_URL / PUBLIC_APP_URL / APP_URL / APP_BASE_URL is not set. Production auth emails need the app URL for setup and reset links.",
       );
+    }
+    if (!outreachEmailFrom) {
+      errors.push(
+        "OUTREACH_EMAIL_FROM is not set. Outreach emails must use the official company sender address (SSAMENJ Technologies <support@ssamenj.online>).",
+      );
+    } else if (!isValidAuthEmailFrom(outreachEmailFrom) || !isOfficialOutreachSender(outreachEmailFrom)) {
+      errors.push(
+        "OUTREACH_EMAIL_FROM must use the official company sender address (SSAMENJ Technologies <support@ssamenj.online>).",
+      );
+    }
+    if (!outreachReplyTo) {
+      errors.push("OUTREACH_REPLY_TO is not set. Outreach replies must go to support@ssamenj.online.");
+    } else if (!isOfficialOutreachReplyTo(outreachReplyTo)) {
+      errors.push("OUTREACH_REPLY_TO must be support@ssamenj.online for outreach sends.");
     }
 
     if (!env.PLATFORM_ADMIN_KEY) {

@@ -1,5 +1,9 @@
 import { Resend } from "resend";
 
+export const OFFICIAL_SUPPORT_EMAIL = "support@ssamenj.online";
+export const OFFICIAL_COMPANY_DISPLAY_NAME = "SSAMENJ Technologies";
+export const OFFICIAL_COMPANY_OUTREACH_SENDER = `${OFFICIAL_COMPANY_DISPLAY_NAME} <${OFFICIAL_SUPPORT_EMAIL}>`;
+
 type EmailSendInput = {
   to: string;
   subject: string;
@@ -42,7 +46,7 @@ function configuredOutreachFrom(env: NodeJS.ProcessEnv = process.env) {
 function configuredOutreachReplyTo(env: NodeJS.ProcessEnv = process.env) {
   return readEnv(env, "OUTREACH_REPLY_TO")
     || readEnv(env, "AUTH_EMAIL_REPLY_TO")
-    || undefined;
+    || OFFICIAL_SUPPORT_EMAIL;
 }
 
 function configuredAppUrl(env: NodeJS.ProcessEnv = process.env) {
@@ -92,7 +96,7 @@ export function configuredAuthEmailProvider(env: NodeJS.ProcessEnv = process.env
 }
 
 export function configuredCompanySender(env: NodeJS.ProcessEnv = process.env) {
-  return configuredOutreachFrom(env);
+  return normalizeVerifiedSender(configuredOutreachFrom(env) || OFFICIAL_COMPANY_OUTREACH_SENDER);
 }
 
 export function configuredCompanyReplyTo(env: NodeJS.ProcessEnv = process.env) {
@@ -163,6 +167,7 @@ function outreachMissingConfigCode(missing: string[]) {
   if (first === "RESEND_API_KEY") return "missing_api_key";
   if (first === "OUTREACH_EMAIL_FROM") return "missing_outreach_email_from";
   if (first === "OUTREACH_EMAIL_FROM_INVALID_FORMAT") return "invalid_outreach_email_from";
+  if (first === "OUTREACH_EMAIL_FROM_UNSAFE") return "invalid_outreach_email_from";
   if (first === "OUTREACH_EMAIL_FROM (valid email or Name <email> format)") return "invalid_outreach_email_from";
   if (first === "OUTREACH_REPLY_TO") return "missing_outreach_reply_to";
   if (first.startsWith("APP_PUBLIC_URL")) return "missing_public_app_url";

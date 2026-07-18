@@ -2,6 +2,8 @@ import { describe, expect, it, vi } from "vitest";
 
 vi.mock("../../server/services/emailService", () => ({
   sendOutreachEmail: vi.fn(async () => ({ ok: true, provider: "RESEND", messageId: "msg-1" })),
+  configuredCompanyReplyTo: vi.fn(() => "support@ssamenj.online"),
+  configuredCompanySender: vi.fn(() => "SSAMENJ Technologies <support@ssamenj.online>"),
 }));
 
 import { buildOutreachBatchReport, sendEligibleOutreachBatch } from "../../server/services/outreachBatchService";
@@ -22,7 +24,7 @@ describe("outreach batch service", () => {
     expect(report.skippedInvalidOrSuspicious).toBe(1);
     expect(report.draftsUpdatedOrCreated).toBe(1);
     expect(report.items.find((item) => item.to === "info@school-a.com" && item.outreachStatus === "eligible_for_company_resend")?.newSender)
-      .toBe("Joshua from SSAMENJ Technologies <support@ssamenj.online>");
+      .toBe("SSAMENJ Technologies <support@ssamenj.online>");
   });
 
   it("sends only eligible leads with the official reply-to", async () => {
@@ -40,5 +42,21 @@ describe("outreach batch service", () => {
       to: "info@school-c.com",
       replyTo: "support@ssamenj.online",
     }));
+  });
+
+  it("does not resend to contacts already sent from the company email", () => {
+    const report = buildOutreachBatchReport([
+      {
+        to: "info@school-e.com",
+        schoolName: "School E",
+        subject: "E",
+        html: "<p>E</p>",
+        text: "E",
+        outreachStatus: "already_sent_from_company_email",
+      },
+    ]);
+
+    expect(report.eligibleToResend).toBe(0);
+    expect(report.items[0]?.skippedReason).toBeTruthy();
   });
 });
