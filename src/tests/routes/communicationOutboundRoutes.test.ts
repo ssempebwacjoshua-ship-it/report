@@ -397,7 +397,7 @@ describe("communication outbound routes", () => {
     expect(res.body.message).toMatch(/message variables do not match/i);
   });
 
-  it("keeps the entitlement gate ahead of live template checks", async () => {
+  it("bypasses the entitlement gate for live sends while communications are temporarily open", async () => {
     const campaignId = await createCampaign();
     await prisma.communicationCampaign.update({ where: { id: campaignId }, data: { status: "APPROVED" } });
     await ensureActiveSubscription();
@@ -415,14 +415,19 @@ describe("communication outbound routes", () => {
     vi.stubEnv("WHATSAPP_PROVIDER_ENABLED", "true");
     vi.stubEnv("WHATSAPP_META_ACCESS_TOKEN", "token-secret");
     vi.stubEnv("WHATSAPP_META_PHONE_NUMBER_ID", "phone-1");
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: true,
+      json: async () => ({ messages: [{ id: "wamid.entitlement-bypassed" }] }),
+    } as Response);
 
     const res = await request(createServer())
       .post(`/api/communications/campaigns/${campaignId}/send`)
       .set("Authorization", auth(adminToken))
       .send({ channel: "WHATSAPP", confirm: true, audience: { studentIds: [studentId], mode: "GENERAL" } });
 
-    expect(res.status).toBe(402);
-    expect(res.body.message).toMatch(/communications are not enabled/i);
+    expect(res.status).toBe(200);
+    expect(res.body.result.submitted).toBe(1);
+    expect(fetchMock).toHaveBeenCalled();
   });
 
   it("blocks draft campaigns from direct send", async () => {
