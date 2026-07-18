@@ -172,7 +172,16 @@ function studentSummary(student: StudentForNfc) {
 }
 
 function isStudentCurrentlyOnCampus(latestMovement: { type: string } | null) {
-  return latestMovement?.type === "GATE_ENTRY" || latestMovement?.type === "MANUAL_GATE_OVERRIDE";
+  return latestMovement?.type === "GATE_ENTRY"
+    || latestMovement?.type === "PASS_OUT_CHECKIN"
+    || latestMovement?.type === "MANUAL_GATE_OVERRIDE";
+}
+
+function parentSmsStatusFromNotification(result: { submitted?: number; failed?: number; skipped?: number } | null) {
+  if (!result) return "SKIPPED" as const;
+  if ((result.submitted ?? 0) > 0) return "QUEUED" as const;
+  if ((result.failed ?? 0) > 0) return "FAILED" as const;
+  return "SKIPPED" as const;
 }
 
 async function runWrite<T>(db: NfcOperationsClient, fn: (tx: NfcOperationsClient) => Promise<T>) {
@@ -969,11 +978,11 @@ export async function scanGate(
       where: {
         schoolId,
         studentId: target.student.id,
-        type: { in: ["GATE_ENTRY", "MANUAL_GATE_OVERRIDE", "GATE_EXIT"] },
+        type: { in: ["GATE_ENTRY", "PASS_OUT_CHECKIN", "MANUAL_GATE_OVERRIDE", "GATE_EXIT", "PASS_OUT_CHECKOUT"] },
       },
       orderBy: { occurredAt: "desc" },
     });
-    const activePassOut = await db.studentPassOut.findFirst({
+    const activePassOuts = await db.studentPassOut.findMany({
       where: {
         schoolId,
         studentId: target.student.id,
@@ -983,15 +992,43 @@ export async function scanGate(
         cancelledAt: null,
       },
       orderBy: { createdAt: "desc" },
+      take: 5,
     });
+    const activePassOut = activePassOuts[0] ?? null;
+    let passOutAction: "CHECKED_OUT" | "CHECKED_IN" | null = null;
+    let parentSmsStatus: "QUEUED" | "SENT" | "FAILED" | "SKIPPED" | null = null;
+
+    if (activePassOuts.length > 1) {
+      console.warn("[nfc-passout-ambiguous]", {
+        schoolId,
+        studentId: target.student.id,
+        selectedPassOutId: activePassOut.id,
+        candidatePassOutIds: activePassOuts.map((passOut) => passOut.id),
+      });
+      await db.auditLog.create({
+        data: {
+          schoolId,
+          action: "student_pass_out.ambiguous_gate_match",
+          details: {
+            actor: { id: ctx.actorId ?? null },
+            studentId: target.student.id,
+            selectedPassOutId: activePassOut.id,
+            candidatePassOutIds: activePassOuts.map((passOut) => passOut.id),
+          },
+        },
+      });
+    }
+
     const onCampus = isStudentCurrentlyOnCampus(latestMovement);
-    const movementType = activePassOut
-      ? (onCampus ? "GATE_EXIT" : "GATE_ENTRY")
-      : onCampus
+    const movementType = activePassOut?.status === "APPROVED"
+      ? "PASS_OUT_CHECKOUT"
+      : activePassOut?.status === "CHECKED_OUT"
+        ? "PASS_OUT_CHECKIN"
+        : onCampus
         ? "GATE_EXIT"
         : "GATE_ENTRY";
 
-    if (movementType === "GATE_ENTRY") {
+    if (movementType === "GATE_ENTRY" || movementType === "PASS_OUT_CHECKIN") {
       const isLate = policy.policy.attendanceTapInCutoffEnabled
         && !!policy.policy.tapInCutoffTime
         && isAfterCutoff(now, policy.policy.timezone, policy.policy.tapInCutoffTime);
@@ -1032,13 +1069,14 @@ export async function scanGate(
           gateScanId: scan.id,
           scannedByUserId: ctx.actorId ?? null,
           passOutId: activePassOut?.id ?? null,
-          passOutAction: activePassOut ? (movementType === "GATE_EXIT" ? "CHECK_OUT" : "CHECK_IN") : null,
+          passOutAction: activePassOut ? (movementType === "PASS_OUT_CHECKOUT" ? "CHECK_OUT" : "CHECK_IN") : null,
         },
       },
     });
 
     if (activePassOut) {
-      const passOutUpdate = movementType === "GATE_EXIT"
+      passOutAction = movementType === "PASS_OUT_CHECKOUT" ? "CHECKED_OUT" : "CHECKED_IN";
+      const passOutUpdate = movementType === "PASS_OUT_CHECKOUT"
         ? {
             status: "CHECKED_OUT",
             checkedOutAt: activePassOut.checkedOutAt ?? scan.scannedAt,
@@ -1056,7 +1094,7 @@ export async function scanGate(
       await db.auditLog.create({
         data: {
           schoolId,
-          action: movementType === "GATE_EXIT" ? "student_pass_out.checked_out" : "student_pass_out.returned",
+          action: movementType === "PASS_OUT_CHECKOUT" ? "student_pass_out.checked_out" : "student_pass_out.returned",
           details: {
             actor: { id: ctx.actorId ?? null },
             passOutId: activePassOut.id,
@@ -1067,29 +1105,56 @@ export async function scanGate(
         },
       });
       try {
-        await notifyParentStudentPassOut({
+        const notification = await notifyParentStudentPassOut({
           schoolId,
           actorId: ctx.actorId ?? null,
         }, {
           studentId: target.student.id,
           passOutId: activePassOut.id,
           movementEventId: movement.id,
-          event: movementType === "GATE_EXIT" ? "CHECK_OUT" : "CHECK_IN",
+          event: movementType === "PASS_OUT_CHECKOUT" ? "CHECK_OUT" : "CHECK_IN",
           scannedAt: scan.scannedAt,
           activeUntil: activePassOut.activeUntil,
           reason: activePassOut.reason,
         }, db as never);
+        parentSmsStatus = parentSmsStatusFromNotification(notification);
       } catch (error) {
+        parentSmsStatus = "FAILED";
         console.warn("[nfc-passout-notification]", {
           schoolId,
           studentId: target.student.id,
           passOutId: activePassOut.id,
           movementEventId: movement.id,
-          event: movementType === "GATE_EXIT" ? "CHECK_OUT" : "CHECK_IN",
+          event: movementType === "PASS_OUT_CHECKOUT" ? "CHECK_OUT" : "CHECK_IN",
           message: error instanceof Error ? error.message : String(error),
         });
       }
     }
+
+    return {
+      result,
+      reason,
+      scannedAt: scan.scannedAt.toISOString(),
+      student: studentSummary(target.student),
+      credentialStatus: target.credential?.status ?? "ACTIVE",
+      todayAttendanceStatus: "NONE",
+      passOutAction,
+      passOutId: activePassOut?.id ?? null,
+      parentSmsStatus,
+      passOut: activePassOut
+        ? await db.studentPassOut.findFirst({
+            where: { schoolId, studentId: target.student.id },
+            orderBy: { createdAt: "desc" },
+          }).then((row) => row ? {
+            id: row.id,
+            status: row.status,
+            activeFrom: row.activeFrom.toISOString(),
+            activeUntil: row.activeUntil.toISOString(),
+            checkedOutAt: row.checkedOutAt?.toISOString() ?? null,
+            checkedInAt: row.checkedInAt?.toISOString() ?? null,
+          } : null)
+        : null,
+    };
   }
 
   const lastAttendance = target

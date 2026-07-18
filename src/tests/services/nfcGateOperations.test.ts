@@ -147,6 +147,20 @@ function createDb() {
         }
         return studentPassOuts[studentPassOuts.length - 1] ?? null;
       },
+      findMany: async ({ where, take }: { where: Record<string, any>; take?: number }) => {
+        const statuses = where.status?.in as string[] | undefined;
+        const activeFromLte = where.activeFrom?.lte as Date | undefined;
+        const activeUntilGte = where.activeUntil?.gte as Date | undefined;
+        return studentPassOuts
+          .filter((row) => row.studentId === where.studentId
+            && row.schoolId === where.schoolId
+            && (!statuses || statuses.includes(String(row.status)))
+            && (!where.cancelledAt || row.cancelledAt === null)
+            && (!activeFromLte || row.activeFrom <= activeFromLte)
+            && (!activeUntilGte || row.activeUntil >= activeUntilGte))
+          .sort((a, b) => Number(b.createdAt ?? 0) - Number(a.createdAt ?? 0))
+          .slice(0, take ?? undefined);
+      },
       update: async ({ where, data }: { where: { id: string }; data: Record<string, unknown> }) => {
         const index = studentPassOuts.findIndex((row) => row.id === where.id);
         const updated = { ...studentPassOuts[index], ...data };
@@ -260,8 +274,11 @@ describe("NFC gate operations", () => {
       }, db);
 
       expect(scan.result).toBe(GateScanResult.ALLOWED);
+      expect(scan.passOutAction).toBe("CHECKED_OUT");
+      expect(scan.passOutId).toBe("passout-1");
+      expect(scan.parentSmsStatus).toBe("QUEUED");
       expect(campusMovementEvents.at(-1)).toMatchObject({
-        type: "GATE_EXIT",
+        type: "PASS_OUT_CHECKOUT",
         metadata: expect.objectContaining({
           passOutId: "passout-1",
           passOutAction: "CHECK_OUT",
@@ -320,8 +337,11 @@ describe("NFC gate operations", () => {
       }, db);
 
       expect(scan.result).toBe(GateScanResult.ALLOWED);
+      expect(scan.passOutAction).toBe("CHECKED_IN");
+      expect(scan.passOutId).toBe("passout-1");
+      expect(scan.parentSmsStatus).toBe("QUEUED");
       expect(campusMovementEvents.at(-1)).toMatchObject({
-        type: "GATE_ENTRY",
+        type: "PASS_OUT_CHECKIN",
         metadata: expect.objectContaining({
           passOutId: "passout-1",
           passOutAction: "CHECK_IN",
@@ -343,6 +363,81 @@ describe("NFC gate operations", () => {
         db,
       );
     } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("does not check out an expired pass-out and keeps normal gate behavior", async () => {
+    notifyParentStudentPassOutMock.mockClear();
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-07-18T10:30:00.000Z"));
+    try {
+      const { db, campusMovementEvents, studentPassOuts } = createDb();
+      studentPassOuts.push({
+        id: "passout-expired",
+        schoolId: "school-a",
+        studentId: "student-a",
+        status: "APPROVED",
+        activeFrom: new Date("2026-07-18T07:00:00.000Z"),
+        activeUntil: new Date("2026-07-18T08:00:00.000Z"),
+        checkedOutAt: null,
+        checkedInAt: null,
+        cancelledAt: null,
+        createdAt: new Date("2026-07-18T06:00:00.000Z"),
+      });
+
+      const scan = await scanGate(GATE_CTX, {
+        tokenOrUid: "token-a",
+        deviceId: "11111111-1111-1111-1111-111111111111",
+        idempotencyKey: "expired-passout-1",
+      }, db);
+
+      expect(scan.result).toBe(GateScanResult.ALLOWED);
+      expect(scan.passOutAction).toBeNull();
+      expect(studentPassOuts[0]).toMatchObject({ status: "APPROVED", checkedOutAt: null });
+      expect(campusMovementEvents.at(-1)).toMatchObject({ type: "GATE_ENTRY" });
+      expect(notifyParentStudentPassOutMock).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("keeps the gate scan successful when pass-out SMS notification fails", async () => {
+    notifyParentStudentPassOutMock.mockRejectedValueOnce(new Error("SMS provider down"));
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-07-18T10:30:00.000Z"));
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const { db, studentPassOuts } = createDb();
+      studentPassOuts.push({
+        id: "passout-1",
+        schoolId: "school-a",
+        studentId: "student-a",
+        status: "APPROVED",
+        activeFrom: new Date("2026-07-18T00:00:00.000Z"),
+        activeUntil: new Date("2026-07-18T23:59:59.000Z"),
+        checkedOutAt: null,
+        checkedInAt: null,
+        cancelledAt: null,
+        createdAt: new Date("2026-07-18T08:00:00.000Z"),
+      });
+
+      const scan = await scanGate(GATE_CTX, {
+        tokenOrUid: "token-a",
+        deviceId: "11111111-1111-1111-1111-111111111111",
+        idempotencyKey: "passout-sms-failure-1",
+      }, db);
+
+      expect(scan.result).toBe(GateScanResult.ALLOWED);
+      expect(scan.passOutAction).toBe("CHECKED_OUT");
+      expect(scan.parentSmsStatus).toBe("FAILED");
+      expect(studentPassOuts[0]).toMatchObject({ status: "CHECKED_OUT" });
+      expect(warnSpy).toHaveBeenCalledWith("[nfc-passout-notification]", expect.objectContaining({
+        passOutId: "passout-1",
+        message: "SMS provider down",
+      }));
+    } finally {
+      warnSpy.mockRestore();
       vi.useRealTimers();
     }
   });

@@ -577,6 +577,14 @@ export async function fetchNfcGateDashboard() {
   return response.json() as Promise<NfcGateDashboard>;
 }
 
+export async function fetchNfcGatePassOuts() {
+  const response = await fetch(`${API_BASE}/api/nfc/gate/pass-outs`, {
+    headers: makeSchoolRequestHeaders(),
+  });
+  if (!response.ok) throw new Error(await parseApiError(response, "Could not load gate pass-outs"));
+  return response.json() as Promise<StudentPassOutListResponse>;
+}
+
 export async function fetchNfcGateAdminDashboard() {
   const response = await fetch(`${API_BASE}/api/nfc/gate-admin/dashboard`, {
     headers: makeSchoolRequestHeaders(),

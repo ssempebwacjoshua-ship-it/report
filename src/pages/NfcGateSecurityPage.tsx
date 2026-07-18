@@ -8,6 +8,7 @@ import { useAuth } from "../contexts/AuthContext";
 import {
   checkOutNfcVisitor,
   fetchNfcGateDashboard,
+  fetchNfcGatePassOuts,
   fetchNfcVisitors,
   registerNfcVisitor,
   scanNfcGate,
@@ -17,7 +18,7 @@ import { queueGateScan, getSnapshotMeta, getGateQueueStatus, type GateQueueStatu
 import { getSnapshotValidity } from "../offline/offlineStatus";
 import { hashNfcLookupValue } from "../offline/offlineHash";
 import { normalizeNfcScanValue } from "../shared/utils/nfcPayload";
-import type { NfcGateDashboard, NfcGateScanResponse, NfcVisitorVisit } from "../shared/types/studentCredentials";
+import type { NfcGateDashboard, NfcGateScanResponse, NfcVisitorVisit, StudentPassOutRow } from "../shared/types/studentCredentials";
 import type { OfflineResolveResult } from "../offline/offlineTypes";
 
 function offlineReasonMessage(reason?: string) {
@@ -81,6 +82,20 @@ function formatPassOutStatus(status: string | null | undefined) {
   return status.toLowerCase().replace(/_/g, " ");
 }
 
+function passOutInstruction(status: StudentPassOutRow["status"]) {
+  if (status === "APPROVED") return "Scan student card to check out";
+  if (status === "CHECKED_OUT") return "Scan student card when student returns";
+  if (status === "RETURNED") return "Returned";
+  return "Not active";
+}
+
+function passOutResultTitle(scanResult: LocalScanResult) {
+  if (!("passOutAction" in scanResult)) return null;
+  if (scanResult.passOutAction === "CHECKED_OUT") return "Pass-out checkout confirmed";
+  if (scanResult.passOutAction === "CHECKED_IN") return "Return check-in confirmed";
+  return null;
+}
+
 export function NfcGateSecurityPage() {
   const { user, token, loading: authLoading } = useAuth();
   const deviceId = useRef(getDeviceId()).current;
@@ -112,6 +127,7 @@ export function NfcGateSecurityPage() {
 
   const [scanResult, setScanResult] = useState<LocalScanResult | null>(null);
   const [dashboard, setDashboard] = useState<NfcGateDashboard | null>(null);
+  const [passOuts, setPassOuts] = useState<StudentPassOutRow[]>([]);
   const [loadError, setLoadError] = useState("");
   const [offlineQueue, setOfflineQueue] = useState<Array<{ result: string; student?: string; scannedAt: string }>>([]);
   const [queueStatus, setQueueStatus] = useState<GateQueueStatus | null>(null);
@@ -137,10 +153,16 @@ export function NfcGateSecurityPage() {
     }
     try {
       setLoadError("");
-      setDashboard(await fetchNfcGateDashboard());
+      const [nextDashboard, nextPassOuts] = await Promise.all([
+        fetchNfcGateDashboard(),
+        fetchNfcGatePassOuts(),
+      ]);
+      setDashboard(nextDashboard);
+      setPassOuts(nextPassOuts.passOuts);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Could not load gate scans.";
       setDashboard(null);
+      setPassOuts([]);
       if (/session|unauthori[sz]ed|login|sign in/i.test(message)) {
         setLoadError("Please sign in again.");
       } else if (/access|forbidden|permission/i.test(message)) {
@@ -320,13 +342,14 @@ export function NfcGateSecurityPage() {
     } else {
       const result = await scanNfcGate({ tokenOrUid, idempotencyKey, deviceId: scanDeviceId });
       setScanResult(result);
-      void load().catch(() => null);
+      await load();
     }
   };
 
   const scanner = useNfcScanner({ onScan: handleScan });
   const result = scanResult?.result;
   const allowed = result === "ALLOWED";
+  const passOutTitle = scanResult ? passOutResultTitle(scanResult) : null;
 
   if (authLoading) {
     return (
@@ -439,6 +462,16 @@ export function NfcGateSecurityPage() {
                 )}
               </div>
               <p className="mt-2 text-sm text-slate-700">{scanResult.reason ?? "Valid active student"}</p>
+              {passOutTitle ? (
+                <div className="mt-3 rounded-xl border border-emerald-200 bg-white/80 p-3">
+                  <p className="text-base font-black text-emerald-800">{passOutTitle}</p>
+                  {"parentSmsStatus" in scanResult ? (
+                    <p className="mt-1 text-xs font-semibold uppercase tracking-wide text-emerald-700">
+                      Parent SMS: {scanResult.parentSmsStatus ?? "SKIPPED"}
+                    </p>
+                  ) : null}
+                </div>
+              ) : null}
               {scanResult.student && (
                 <div className="mt-4 text-sm">
                   <p className="text-lg font-bold text-slate-950">{scanResult.student.name}</p>
@@ -529,6 +562,45 @@ export function NfcGateSecurityPage() {
         </div>
 
         <aside className="grid gap-4">
+          <section className="premium-card rounded-xl p-4">
+            <div className="flex items-center justify-between gap-3">
+              <h2 className="text-base font-bold text-slate-950">Pass-outs</h2>
+              <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-blue-700">
+                Today
+              </span>
+            </div>
+            <p className="mt-1 text-xs text-slate-500">NFC tap is the checkout and return confirmation.</p>
+            <div className="mt-3 grid gap-2">
+              {isOfflineReady ? (
+                <p className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm font-semibold text-amber-800">
+                  Pass-out checkout requires internet.
+                </p>
+              ) : passOuts.length === 0 ? (
+                <p className="text-sm text-slate-500">No active pass-outs for today.</p>
+              ) : (
+                passOuts.map((passOut) => (
+                  <div key={passOut.id} className="rounded-xl border border-slate-200 bg-white p-3 text-sm">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="font-bold text-slate-900">{passOut.student.studentName}</p>
+                        <p className="text-slate-600">{passOut.student.admissionNumber}</p>
+                        <p className="text-xs text-slate-500">
+                          {(passOut.student.className ?? "No class")} / {(passOut.student.streamName ?? "No stream")}
+                        </p>
+                      </div>
+                      <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${passOut.status === "CHECKED_OUT" ? "bg-amber-100 text-amber-700" : passOut.status === "RETURNED" ? "bg-emerald-100 text-emerald-700" : "bg-blue-100 text-blue-700"}`}>
+                        {formatPassOutStatus(passOut.status)}
+                      </span>
+                    </div>
+                    <p className="mt-2 text-xs text-slate-600">Reason: {passOut.reason}</p>
+                    <p className="text-xs text-slate-500">Window: {formatDateTime(passOut.activeFrom)} to {formatDateTime(passOut.activeUntil)}</p>
+                    <p className="mt-2 text-xs font-bold text-slate-800">{passOutInstruction(passOut.status)}</p>
+                  </div>
+                ))
+              )}
+            </div>
+          </section>
+
           <section className="premium-card rounded-xl p-4">
             <h2 className="text-base font-bold text-slate-950">Recent gate scans</h2>
             <div className="mt-3 grid gap-2">

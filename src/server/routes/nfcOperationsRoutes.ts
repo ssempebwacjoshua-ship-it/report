@@ -45,6 +45,7 @@ import {
 import {
   cancelStudentPassOut,
   createStudentPassOut,
+  listGateActiveStudentPassOuts,
   listStudentPassOuts,
   searchPassOutStudents,
 } from "../services/nfcPassOutService";
@@ -818,6 +819,17 @@ export function nfcOperationsRoutes() {
         return;
       }
       res.json(await getGateDashboard(ctx(req)));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.get("/api/nfc/gate/pass-outs", async (req, res, next) => {
+    try {
+      if (!(await requirePlatformModule(req, res, "nfc.core"))) {
+        return;
+      }
+      res.json(await listGateActiveStudentPassOuts(ctx(req)));
     } catch (error) {
       next(error);
     }

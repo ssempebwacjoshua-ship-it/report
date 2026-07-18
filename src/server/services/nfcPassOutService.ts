@@ -41,6 +41,13 @@ function requirePermission(ctx: NfcPassOutContext, permission: string) {
   }
 }
 
+function requireAnyPermission(ctx: NfcPassOutContext, permissions: string[]) {
+  if (!ctx.actorId || !ctx.role) throw Object.assign(new Error("Authentication required."), { status: 401 });
+  if (!permissions.some((permission) => hasPermission(ctx.role, permission))) {
+    throw Object.assign(new Error("You do not have permission for this action."), { status: 403 });
+  }
+}
+
 const PASS_OUT_STATUS = {
   APPROVED: "APPROVED",
   CHECKED_OUT: "CHECKED_OUT",
@@ -51,6 +58,14 @@ const PASS_OUT_STATUS = {
 
 function runWrite<T>(db: NfcPassOutClient, fn: (tx: NfcPassOutClient) => Promise<T>) {
   return db.$transaction ? db.$transaction(fn) : fn(db);
+}
+
+function todayRange(now = new Date()) {
+  const start = new Date(now);
+  start.setHours(0, 0, 0, 0);
+  const end = new Date(start);
+  end.setDate(end.getDate() + 1);
+  return { start, end };
 }
 
 function studentWhere(
@@ -251,6 +266,45 @@ export async function listStudentPassOuts(
       },
     },
     orderBy: [{ status: "asc" }, { activeFrom: "desc" }, { createdAt: "desc" }],
+  });
+
+  return { passOuts: passOuts.map((passOut) => formatPassOutRow(passOut as never)) };
+}
+
+export async function listGateActiveStudentPassOuts(
+  ctx: NfcPassOutContext,
+  db: NfcPassOutClient = defaultPrisma,
+) {
+  const schoolId = requireSchoolId(ctx);
+  requireAnyPermission(ctx, ["nfc.gate.view", "nfc.gate.scan"]);
+  const { start, end } = todayRange();
+
+  const passOuts = await db.studentPassOut.findMany({
+    where: {
+      schoolId,
+      status: { in: [PASS_OUT_STATUS.APPROVED, PASS_OUT_STATUS.CHECKED_OUT, PASS_OUT_STATUS.RETURNED] },
+      activeFrom: { lt: end },
+      activeUntil: { gte: start },
+      cancelledAt: null,
+    },
+    include: {
+      student: {
+        select: {
+          id: true,
+          admissionNumber: true,
+          firstName: true,
+          lastName: true,
+          studentType: true,
+          enrollments: {
+            where: { isActive: true, status: "ACTIVE" as const },
+            include: { class: { select: { name: true } }, stream: { select: { name: true } } },
+            orderBy: { createdAt: "desc" as const },
+            take: 1,
+          },
+        },
+      },
+    },
+    orderBy: [{ status: "asc" }, { activeFrom: "asc" }, { createdAt: "desc" }],
   });
 
   return { passOuts: passOuts.map((passOut) => formatPassOutRow(passOut as never)) };

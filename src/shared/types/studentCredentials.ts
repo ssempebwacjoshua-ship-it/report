@@ -267,6 +267,9 @@ export type NfcGateScanResponse = {
   student?: NfcStudentSummary;
   credentialStatus?: CredentialStatus | "UNKNOWN";
   todayAttendanceStatus?: AttendanceDirection | "NONE";
+  passOutAction?: "CHECKED_OUT" | "CHECKED_IN" | null;
+  passOutId?: string | null;
+  parentSmsStatus?: "QUEUED" | "SENT" | "FAILED" | "SKIPPED" | null;
   passOut?: {
     id: string;
     status: "APPROVED" | "CHECKED_OUT" | "RETURNED" | "CANCELLED" | "EXPIRED";
