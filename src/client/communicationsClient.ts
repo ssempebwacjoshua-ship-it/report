@@ -1,5 +1,5 @@
 import { getApiBaseUrl, makeRequestHeaders, parseApiError } from "./apiBase";
-import type { AudienceDefinition, AudienceResolution } from "../shared/communications";
+import type { AudienceDefinition, AudienceResolution, CommunicationSubmissionValidation } from "../shared/communications";
 
 const API_BASE = getApiBaseUrl();
 
@@ -46,6 +46,29 @@ export async function previewCommunicationRecipients(campaignId: string, audienc
     body: JSON.stringify(audience),
   });
   if (!res.ok) throw new Error(await parseApiError(res, "Could not preview recipients"));
+  return res.json();
+}
+
+export async function approveCommunicationCampaign(campaignId: string): Promise<{ ok: true }> {
+  const res = await fetch(`${API_BASE}/api/communications/campaigns/${campaignId}/approve`, {
+    method: "POST",
+    headers: makeRequestHeaders(),
+  });
+  if (!res.ok) throw new Error(await parseApiError(res, "Could not approve communication campaign"));
+  return res.json();
+}
+
+export async function requestCommunicationCampaignApproval(campaignId: string): Promise<{
+  ok: true;
+  campaign: CommunicationCampaign;
+  validation: CommunicationSubmissionValidation;
+  duplicate: boolean;
+}> {
+  const res = await fetch(`${API_BASE}/api/communications/campaigns/${campaignId}/request-approval`, {
+    method: "POST",
+    headers: makeRequestHeaders(),
+  });
+  if (!res.ok) throw new Error(await parseApiError(res, "Could not submit communication campaign for approval"));
   return res.json();
 }
 

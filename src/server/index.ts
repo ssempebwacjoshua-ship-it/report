@@ -50,6 +50,7 @@ import { smartPagesBillingRoutes } from "./routes/smartPagesBillingRoutes";
 import { smartPagesTemplateRoutes } from "./routes/smartPagesTemplateRoutes";
 import { startBulkGenerationWorker } from "./services/bulkGenerationService";
 import { startDocumentExtractionWorker } from "./services/documentIntelligenceService";
+import { startSmsDeliveryWorker } from "./services/communicationEngine";
 import geminiOcrRoutes from "./routes/geminiOcrRoutes";
 import geminiRosterRoutes from "./routes/geminiRosterRoutes";
 import geminiMarksImportRoutes from "./routes/geminiMarksImportRoutes";
@@ -370,6 +371,7 @@ if (process.env.NODE_ENV !== "test") {
   });
   startBulkGenerationWorker();
   startDocumentExtractionWorker();
+  startSmsDeliveryWorker(prisma);
   const httpServer = http.createServer(createServer());
   httpServer.requestTimeout = 120_000;
   httpServer.headersTimeout = 125_000;

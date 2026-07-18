@@ -60,6 +60,18 @@ export type CommunicationCampaignStatus =
   | "CANCELLED";
 export type CommunicationProgressState = "QUEUED" | "PROCESSING" | "SENT" | "DELIVERED" | "FAILED";
 
+export type CommunicationSubmissionValidation = {
+  channel: CommunicationChannel;
+  recipientCount: number;
+  validRecipientCount: number;
+  invalidRecipientCount: number;
+  segmentCount: number;
+  estimatedBillableUnits: number;
+  estimatedProviderCostMinor: number | null;
+  estimatedProviderCostCurrency: string | null;
+  estimatedProviderCostNote: string;
+};
+
 export type ValidationIssue = {
   code: string;
   severity: "WARNING" | "BLOCKING";
@@ -143,9 +155,9 @@ export type AudienceResolution = AudienceResolutionSummary & {
 };
 
 export const validCampaignTransitions: Record<CommunicationCampaignStatus, CommunicationCampaignStatus[]> = {
-  DRAFT: ["VALIDATING", "CANCELLED"],
+  DRAFT: ["VALIDATING", "VALIDATION_FAILED", "READY_FOR_APPROVAL", "APPROVAL_PENDING", "CANCELLED"],
   VALIDATING: ["READY_FOR_APPROVAL", "VALIDATION_FAILED", "DRAFT"],
-  VALIDATION_FAILED: ["DRAFT", "VALIDATING", "CANCELLED"],
+  VALIDATION_FAILED: ["DRAFT", "VALIDATING", "READY_FOR_APPROVAL", "APPROVAL_PENDING", "CANCELLED"],
   READY_FOR_APPROVAL: ["APPROVAL_PENDING", "DRAFT", "CANCELLED"],
   APPROVAL_PENDING: ["APPROVED", "READY_FOR_APPROVAL", "CANCELLED"],
   APPROVED: ["QUEUED", "SCHEDULED", "DRAFT", "CANCELLED"],

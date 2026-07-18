@@ -8,7 +8,8 @@ import {
 } from "../../shared/communications";
 
 describe("communication domain helpers", () => {
-  it("allows approved campaigns to queue but blocks draft direct send", () => {
+  it("allows draft campaigns to enter approval and blocks draft direct queue", () => {
+    expect(() => assertCampaignTransition("DRAFT", "APPROVAL_PENDING")).not.toThrow();
     expect(() => assertCampaignTransition("APPROVED", "QUEUED")).not.toThrow();
     expect(() => assertCampaignTransition("DRAFT", "QUEUED")).toThrow(/Invalid communication campaign transition/);
   });

@@ -1,11 +1,13 @@
 import "@testing-library/jest-dom/vitest";
 import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import type { ReactNode } from "react";
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { RentFlowPage } from "../../pages/RentFlowPage";
 import { getSeoForPathname } from "../../config/seo";
+
+const appRoot = resolve(__dirname, "../../..");
 
 vi.mock("react-router-dom", async () => {
   const actual = await vi.importActual<typeof import("react-router-dom")>("react-router-dom");
@@ -62,8 +64,8 @@ describe("RentFlow public website", () => {
   });
 
   it("keeps RentFlow in the sitemap and leaves robots.txt permissive", () => {
-    const sitemap = readFileSync(join(process.cwd(), "apps/public-site/public/sitemap.xml"), "utf8");
-    const robots = readFileSync(join(process.cwd(), "apps/public-site/public/robots.txt"), "utf8");
+    const sitemap = readFileSync(join(appRoot, "public/sitemap.xml"), "utf8");
+    const robots = readFileSync(join(appRoot, "public/robots.txt"), "utf8");
 
     expect(sitemap).toContain("<loc>https://ssamenj.vercel.app/rentflow</loc>");
     expect(sitemap).not.toContain("localhost");

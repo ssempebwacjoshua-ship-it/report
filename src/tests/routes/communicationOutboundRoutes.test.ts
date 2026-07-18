@@ -3,6 +3,7 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { createServer } from "../../server";
 import { prisma } from "../../server/db/prisma";
 import { hashPassword, signToken } from "../../server/services/authService";
+import { processPendingSmsDeliveries } from "../../server/services/communicationEngine";
 import { persistAndProcessWhatsAppWebhook } from "../../server/services/whatsappWebhookService";
 
 let adminToken = "";
@@ -76,11 +77,14 @@ beforeEach(async () => {
   await prisma.auditLog.deleteMany({ where: { schoolId, action: { startsWith: "communication." } } });
 });
 
-async function createCampaign(token = adminToken) {
+async function createCampaign(
+  token = adminToken,
+  body: Record<string, unknown> = { type: "ANNOUNCEMENT", title: "Outbound test", body: "Hello {{guardianName}}" },
+) {
   const res = await request(createServer())
     .post("/api/communications/campaigns")
     .set("Authorization", auth(token))
-    .send({ type: "ANNOUNCEMENT", title: "Outbound test", body: "Hello {{guardianName}}" });
+    .send(body);
   expect(res.status).toBe(201);
   return res.body.campaign.id as string;
 }
@@ -156,6 +160,96 @@ function yoolaSuccessBody(overrides: Record<string, unknown> = {}) {
 }
 
 describe("communication outbound routes", () => {
+  it("returns the current persisted campaign status from the status endpoint", async () => {
+    const campaignId = await createCampaign();
+    const res = await request(createServer())
+      .get(`/api/communications/campaigns/${campaignId}/status`)
+      .set("Authorization", auth(adminToken));
+
+    expect(res.status).toBe(200);
+    expect(res.body.campaign.status).toBe("DRAFT");
+  });
+
+  it("submits a draft campaign for approval with validation details", async () => {
+    const campaignId = await createCampaign(adminToken, {
+      type: "ANNOUNCEMENT",
+      title: "Approval flow",
+      body: "Hello {{guardianName}}",
+      audience: {
+        audienceType: "PARENTS_OF_SELECTED_STUDENTS",
+        studentIds: [studentId],
+        channel: "SMS",
+        mode: "GENERAL",
+      },
+    });
+
+    const res = await request(createServer())
+      .post(`/api/communications/campaigns/${campaignId}/request-approval`)
+      .set("Authorization", auth(adminToken))
+      .send({});
+
+    expect(res.status).toBe(200);
+    expect(res.body.ok).toBe(true);
+    expect(res.body.campaign.status).toBe("APPROVAL_PENDING");
+    expect(res.body.validation.validRecipientCount).toBe(1);
+    expect(res.body.validation.recipientCount).toBeGreaterThanOrEqual(1);
+    expect(res.body.validation.segmentCount).toBe(1);
+    expect(res.body.validation.estimatedBillableUnits).toBe(1);
+  });
+
+  it("keeps duplicate submit-for-approval requests idempotent", async () => {
+    const campaignId = await createCampaign(adminToken, {
+      type: "ANNOUNCEMENT",
+      title: "Duplicate submit",
+      body: "Hello {{guardianName}}",
+      audience: {
+        audienceType: "PARENTS_OF_SELECTED_STUDENTS",
+        studentIds: [studentId],
+        channel: "SMS",
+        mode: "GENERAL",
+      },
+    });
+
+    const first = await request(createServer())
+      .post(`/api/communications/campaigns/${campaignId}/request-approval`)
+      .set("Authorization", auth(adminToken))
+      .send({});
+    const second = await request(createServer())
+      .post(`/api/communications/campaigns/${campaignId}/request-approval`)
+      .set("Authorization", auth(adminToken))
+      .send({});
+
+    expect(first.status).toBe(200);
+    expect(first.body.duplicate).toBe(false);
+    expect(second.status).toBe(200);
+    expect(second.body.duplicate).toBe(true);
+    await expect(prisma.communicationApproval.count({ where: { campaignId } })).resolves.toBe(1);
+  });
+
+  it("rejects invalid or empty campaigns before approval submission", async () => {
+    const campaignId = await createCampaign(adminToken, {
+      type: "ANNOUNCEMENT",
+      title: "Invalid approval flow",
+      body: "Hello {{guardianName}}",
+      audience: {
+        audienceType: "PARENTS_OF_SELECTED_STUDENTS",
+        studentIds: [studentId],
+        channel: "SMS",
+        mode: "GENERAL",
+      },
+    });
+    const content = await prisma.communicationContent.findFirstOrThrow({ where: { campaignId } });
+    await prisma.communicationContent.update({ where: { id: content.id }, data: { body: "" } });
+
+    const res = await request(createServer())
+      .post(`/api/communications/campaigns/${campaignId}/request-approval`)
+      .set("Authorization", auth(adminToken))
+      .send({});
+
+    expect(res.status).toBe(400);
+    expect(res.body.message).toMatch(/message body is required/i);
+  });
+
   it("denies sending to users without communications.send", async () => {
     const campaignId = await createCampaign();
     const res = await request(createServer())
@@ -328,7 +422,7 @@ describe("communication outbound routes", () => {
     expect(res.body.message).toMatch(/message variables do not match/i);
   });
 
-  it("keeps the entitlement gate ahead of live template checks", async () => {
+  it("bypasses the entitlement gate for live sends while communications are temporarily open", async () => {
     const campaignId = await createCampaign();
     await prisma.communicationCampaign.update({ where: { id: campaignId }, data: { status: "APPROVED" } });
     await ensureActiveSubscription();
@@ -346,14 +440,19 @@ describe("communication outbound routes", () => {
     vi.stubEnv("WHATSAPP_PROVIDER_ENABLED", "true");
     vi.stubEnv("WHATSAPP_META_ACCESS_TOKEN", "token-secret");
     vi.stubEnv("WHATSAPP_META_PHONE_NUMBER_ID", "phone-1");
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: true,
+      json: async () => ({ messages: [{ id: "wamid.entitlement-bypassed" }] }),
+    } as Response);
 
     const res = await request(createServer())
       .post(`/api/communications/campaigns/${campaignId}/send`)
       .set("Authorization", auth(adminToken))
       .send({ channel: "WHATSAPP", confirm: true, audience: { studentIds: [studentId], mode: "GENERAL" } });
 
-    expect(res.status).toBe(402);
-    expect(res.body.message).toMatch(/communications are not enabled/i);
+    expect(res.status).toBe(200);
+    expect(res.body.result.submitted).toBe(1);
+    expect(fetchMock).toHaveBeenCalled();
   });
 
   it("blocks draft campaigns from direct send", async () => {
@@ -363,6 +462,90 @@ describe("communication outbound routes", () => {
 
     expect(res.status).toBe(400);
     expect(res.body.message).toMatch(/Only approved campaigns can be sent/i);
+  });
+
+  it("allows an approver to approve a pending campaign", async () => {
+    const campaignId = await createCampaign(adminToken, {
+      type: "ANNOUNCEMENT",
+      title: "Approver flow",
+      body: "Hello {{guardianName}}",
+      audience: {
+        audienceType: "PARENTS_OF_SELECTED_STUDENTS",
+        studentIds: [studentId],
+        channel: "SMS",
+        mode: "GENERAL",
+      },
+    });
+    await request(createServer())
+      .post(`/api/communications/campaigns/${campaignId}/request-approval`)
+      .set("Authorization", auth(adminToken))
+      .send({});
+
+    const res = await request(createServer())
+      .post(`/api/communications/campaigns/${campaignId}/approve`)
+      .set("Authorization", auth(adminToken))
+      .send({});
+
+    expect(res.status).toBe(200);
+    expect(res.body.campaign.status).toBe("APPROVED");
+  });
+
+  it("prevents unauthorized users from approving pending campaigns", async () => {
+    const campaignId = await createCampaign(adminToken, {
+      type: "ANNOUNCEMENT",
+      title: "Approval auth",
+      body: "Hello {{guardianName}}",
+      audience: {
+        audienceType: "PARENTS_OF_SELECTED_STUDENTS",
+        studentIds: [studentId],
+        channel: "SMS",
+        mode: "GENERAL",
+      },
+    });
+    await request(createServer())
+      .post(`/api/communications/campaigns/${campaignId}/request-approval`)
+      .set("Authorization", auth(adminToken))
+      .send({});
+
+    const res = await request(createServer())
+      .post(`/api/communications/campaigns/${campaignId}/approve`)
+      .set("Authorization", auth(teacherToken))
+      .send({});
+
+    expect(res.status).toBe(403);
+  });
+
+  it("returns approved campaigns to draft when approved content is edited", async () => {
+    const campaignId = await createCampaign(adminToken, {
+      type: "ANNOUNCEMENT",
+      title: "Edit resets approval",
+      body: "Hello {{guardianName}}",
+      audience: {
+        audienceType: "PARENTS_OF_SELECTED_STUDENTS",
+        studentIds: [studentId],
+        channel: "SMS",
+        mode: "GENERAL",
+      },
+    });
+    await request(createServer())
+      .post(`/api/communications/campaigns/${campaignId}/request-approval`)
+      .set("Authorization", auth(adminToken))
+      .send({});
+    await request(createServer())
+      .post(`/api/communications/campaigns/${campaignId}/approve`)
+      .set("Authorization", auth(adminToken))
+      .send({});
+
+    const res = await request(createServer())
+      .patch(`/api/communications/campaigns/${campaignId}`)
+      .set("Authorization", auth(adminToken))
+      .send({ body: "Updated {{guardianName}}" });
+
+    expect(res.status).toBe(200);
+    expect(res.body.campaign.status).toBe("DRAFT");
+    const campaign = await prisma.communicationCampaign.findUniqueOrThrow({ where: { id: campaignId } });
+    expect(campaign.approvedAt).toBeNull();
+    expect(campaign.approvedByUserId).toBeNull();
   });
 
   it("creates dry-run delivery rows and prevents duplicate sends without live provider credentials", async () => {
@@ -380,7 +563,7 @@ describe("communication outbound routes", () => {
     expect(deliveriesAfterFirst[0]?.providerMessageId).toMatch(/^dry-run-/);
     expect(deliveriesAfterFirst[0]?.status).toBe("SUBMITTED");
     await expect(prisma.communicationCampaign.findUniqueOrThrow({ where: { id: campaignId } })).resolves.toMatchObject({
-      status: "SENT",
+      status: "SENDING",
     });
 
     const second = await request(createServer()).post(`/api/communications/campaigns/${campaignId}/send`).set("Authorization", auth(adminToken)).send(body);
@@ -454,7 +637,7 @@ describe("communication outbound routes", () => {
       status: "SUBMITTED",
     });
     await expect(prisma.communicationCampaign.findUniqueOrThrow({ where: { id: campaignId } })).resolves.toMatchObject({
-      status: "SENT",
+      status: "SENDING",
     });
     expect(first.body.result.progress).toMatchObject({ SENT: 1, DELIVERED: 0, FAILED: 0 });
     await expect(prisma.communicationUsageRecord.findFirstOrThrow({ where: { schoolId, campaignId } })).resolves.toMatchObject({
@@ -521,6 +704,42 @@ describe("communication outbound routes", () => {
     const deliveries = await prisma.communicationDelivery.findMany({ where: { schoolId, campaignId }, orderBy: { createdAt: "asc" } });
     expect(deliveries.map((delivery) => delivery.status).sort()).toEqual(["FAILED", "SUBMITTED"]);
     expect(deliveries.some((delivery) => delivery.status === "DELIVERED")).toBe(false);
+  });
+
+  it("promotes submitted SMS deliveries to delivered and completes the campaign asynchronously", async () => {
+    const campaignId = await createCampaign();
+    await prisma.communicationCampaign.update({ where: { id: campaignId }, data: { status: "APPROVED" } });
+    await ensureActiveSubscription();
+    await createTemplate({ channel: "SMS" });
+    vi.stubEnv("COMMUNICATION_DRY_RUN", "false");
+    vi.stubEnv("SMS_PROVIDER", "yoola");
+    vi.stubEnv("SMS_PROVIDER_ENABLED", "true");
+    vi.stubEnv("SMS_API_KEY", "live-yoola-key");
+    vi.stubEnv("SMS_SENDER_ID", "");
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify(yoolaSuccessBody()), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    }));
+
+    const send = await request(createServer())
+      .post(`/api/communications/campaigns/${campaignId}/send`)
+      .set("Authorization", auth(adminToken))
+      .send({ channel: "SMS", confirm: true, audience: { studentIds: [studentId], mode: "GENERAL" } });
+
+    expect(send.status).toBe(200);
+    await expect(prisma.communicationCampaign.findUniqueOrThrow({ where: { id: campaignId } })).resolves.toMatchObject({
+      status: "SENDING",
+    });
+
+    const processed = await processPendingSmsDeliveries(prisma);
+
+    expect(processed.processed).toBe(1);
+    await expect(prisma.communicationDelivery.findFirstOrThrow({ where: { schoolId, campaignId } })).resolves.toMatchObject({
+      status: "DELIVERED",
+    });
+    await expect(prisma.communicationCampaign.findUniqueOrThrow({ where: { id: campaignId } })).resolves.toMatchObject({
+      status: "DELIVERED",
+    });
   });
 
   it("returns normalized campaign progress totals", async () => {
