@@ -41,6 +41,7 @@ model School {
   nfcPolicy                    SchoolNfcPolicy?
   studentFeeHolds              StudentFeeHold[]
   studentGateHolds             StudentGateHold[]
+  studentPassOuts              StudentPassOut[]
   canteenReconciliations       CanteenReconciliation[]
   studentAttendanceEvents      StudentAttendanceEvent[]
   dailyAttendances             DailyAttendance[]
@@ -156,6 +157,7 @@ model Student {
   walletTransactions        StudentWalletTransaction[]
   feeHolds                  StudentFeeHold[]
   gateHolds                 StudentGateHold[]
+  passOuts                  StudentPassOut[]
   attendanceEvents          StudentAttendanceEvent[]
   dailyAttendances          DailyAttendance[]
   campusMovementEvents      CampusMovementEvent[]
@@ -406,6 +408,9 @@ model User {
   communicationConsentsRecorded   CommunicationConsent[]          @relation("CommunicationConsentRecordedBy")
   feeHoldsCreated                 StudentFeeHold[]                @relation("StudentFeeHoldCreatedBy")
   feeHoldsCleared                 StudentFeeHold[]                @relation("StudentFeeHoldClearedBy")
+  passOutsCreated                 StudentPassOut[]                @relation("StudentPassOutCreatedBy")
+  passOutsApproved                StudentPassOut[]                @relation("StudentPassOutApprovedBy")
+  passOutsCancelled               StudentPassOut[]                @relation("StudentPassOutCancelledBy")
   canteenReconciliationCashiers   CanteenReconciliation[]         @relation("CanteenReconciliationCashier")
   canteenReconciliationOperators  CanteenReconciliation[]         @relation("CanteenReconciliationOperator")
   submittedCanteenReconciliations CanteenReconciliation[]         @relation("CanteenReconciliationSubmittedBy")
@@ -686,6 +691,38 @@ model StudentGateHold {
 
   @@index([schoolId, studentId, status])
   @@index([schoolId, status, activeFrom, activeUntil])
+}
+
+model StudentPassOut {
+  id                     String               @id @default(uuid()) @db.Uuid
+  schoolId               String               @db.Uuid
+  studentId              String               @db.Uuid
+  status                 StudentPassOutStatus @default(APPROVED)
+  reason                 String
+  approvedAt             DateTime?
+  activeFrom             DateTime
+  activeUntil            DateTime
+  checkedOutAt           DateTime?
+  checkedInAt            DateTime?
+  cancelledAt            DateTime?
+  cancellationReason     String?
+  createdByUserId        String?              @db.Uuid
+  approvedByUserId       String?              @db.Uuid
+  cancelledByUserId      String?              @db.Uuid
+  checkoutMovementEventId String?
+  checkinMovementEventId  String?
+  createdAt              DateTime             @default(now())
+  updatedAt              DateTime             @updatedAt
+
+  school      School  @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  student     Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  createdBy   User?   @relation("StudentPassOutCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  approvedBy  User?   @relation("StudentPassOutApprovedBy", fields: [approvedByUserId], references: [id], onDelete: SetNull)
+  cancelledBy User?   @relation("StudentPassOutCancelledBy", fields: [cancelledByUserId], references: [id], onDelete: SetNull)
+
+  @@index([schoolId, studentId, status, activeFrom, activeUntil])
+  @@index([schoolId, status, activeFrom, activeUntil])
+  @@index([schoolId, createdAt])
 }
 
 model CanteenReconciliation {
@@ -1969,6 +2006,14 @@ enum CommunicationCampaignStatus {
   FAILED
   PAUSED
   CANCELLED
+}
+
+enum StudentPassOutStatus {
+  APPROVED
+  CHECKED_OUT
+  RETURNED
+  CANCELLED
+  EXPIRED
 }
 
 enum CommunicationRecipientStatus {
