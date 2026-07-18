@@ -1,5 +1,6 @@
 import prismaPkg from "@prisma/client";
 import { Router } from "express";
+import multer from "multer";
 import { z } from "zod";
 import { verifyToken } from "../services/authService";
 import {
@@ -47,11 +48,18 @@ import {
   searchPassOutStudents,
 } from "../services/nfcPassOutService";
 import {
+  checkOutVisitor,
+  getVisitorVisitDetail,
+  listVisitorVisits,
+  registerVisitor,
+} from "../services/nfcVisitorService";
+import {
   approveGateOverride,
   listClassroomAttendanceReport,
   listGateAttendanceReport,
 } from "../services/locationAttendanceService";
 import { attachUsageWarning, recordPlatformUsage, requirePlatformModule } from "../platformIntegration";
+import { ensureNonEmptyUpload, sendUploadValidationError } from "../utils/uploadSafety";
 
 const { AttendanceDirection } = prismaPkg;
 
@@ -226,6 +234,25 @@ const createPassOutSchema = z.object({
 
 const cancelPassOutSchema = z.object({
   reason: z.string().trim().min(1, "Cancellation reason is required."),
+});
+
+const visitorUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 2 * 1024 * 1024, files: 2 },
+});
+
+const visitorListFiltersSchema = z.object({
+  status: z.enum(["CURRENT", "HISTORY", "ALL"]).optional(),
+  search: z.string().optional(),
+});
+
+const registerVisitorSchema = z.object({
+  fullName: z.string().trim().min(1, "Visitor name is required."),
+  phone: z.string().trim().optional().nullable(),
+  idDocumentType: z.string().trim().min(1, "ID/passport type is required."),
+  idDocumentNumber: z.string().trim().min(1, "ID/passport number is required."),
+  purpose: z.string().trim().min(1, "Visit purpose is required."),
+  hostName: z.string().trim().min(1, "Host or person visiting is required."),
 });
 
 const gateOverrideSchema = z.object({
@@ -475,6 +502,65 @@ export function nfcOperationsRoutes() {
         return;
       }
       res.json(await cancelStudentPassOut(ctx(req), req.params.id, parseOrThrow(cancelPassOutSchema.safeParse(req.body)).reason));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.get("/api/nfc/visitors", async (req, res, next) => {
+    try {
+      if (!(await requirePlatformModule(req, res, "nfc.core"))) {
+        return;
+      }
+      res.json(await listVisitorVisits(ctx(req), parseOrThrow(visitorListFiltersSchema.safeParse(req.query))));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.get("/api/nfc/visitors/:id", async (req, res, next) => {
+    try {
+      if (!(await requirePlatformModule(req, res, "nfc.core"))) {
+        return;
+      }
+      res.json(await getVisitorVisitDetail(ctx(req), req.params.id));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/api/nfc/visitors/register", visitorUpload.fields([
+    { name: "idDocumentImage", maxCount: 1 },
+    { name: "selfieImage", maxCount: 1 },
+  ]), async (req, res, next) => {
+    try {
+      if (!(await requirePlatformModule(req, res, "nfc.core"))) {
+        return;
+      }
+      const files = req.files as Record<string, Express.Multer.File[]> | undefined;
+      const idDocumentImage = files?.idDocumentImage?.[0];
+      const selfieImage = files?.selfieImage?.[0];
+      ensureNonEmptyUpload(idDocumentImage, "The visitor ID/passport image");
+      ensureNonEmptyUpload(selfieImage, "The visitor selfie image");
+      const input = parseOrThrow(registerVisitorSchema.safeParse(req.body));
+      res.status(201).json(await registerVisitor(ctx(req), input, {
+        idDocumentImage,
+        selfieImage,
+      }));
+    } catch (error) {
+      if (sendUploadValidationError(res, error)) {
+        return;
+      }
+      next(error);
+    }
+  });
+
+  router.patch("/api/nfc/visitors/:id/check-out", async (req, res, next) => {
+    try {
+      if (!(await requirePlatformModule(req, res, "nfc.core"))) {
+        return;
+      }
+      res.json(await checkOutVisitor(ctx(req), req.params.id));
     } catch (error) {
       next(error);
     }
