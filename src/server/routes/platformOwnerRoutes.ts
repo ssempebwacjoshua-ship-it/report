@@ -14,6 +14,8 @@ import { generateReaderGatewayActivationCode, hashReaderGatewayActivationCode } 
 import { createFirmwareUpdateCommand } from "../services/readerDeviceCommandService";
 
 const validPlanCodes = REPORT_LAB_PLANS.map((p) => p.code) as [string, ...string[]];
+const subscriptionBillingCycles = ["YEAR"] as const;
+const subscriptionStatuses = ["ACTIVE", "EXPIRED", "SUSPENDED", "PENDING", "TRIAL"] as const;
 const FEATURE_FLAGS = ["REPORT_LAB", "SMART_PAGES", "ATTENDANCE", "WALLET", "GATE", "NFC", "OCR", "AI"] as const;
 const MAINTENANCE_ACTIONS = ["FORCE_SYNC", "REBUILD_SEARCH", "REPAIR_DOCUMENTS", "REGENERATE_QR_CODES", "RESEND_PENDING_EMAILS"] as const;
 const READER_ACTIONS = ["RESTART", "SYNC", "UPDATE_FIRMWARE", "RE_REGISTER"] as const;
@@ -54,6 +56,46 @@ function mapAuditLog(row: { id: string; action: string; correlationId: string | 
     correlationId: row.correlationId,
     details: row.details,
     createdAt: row.createdAt.toISOString(),
+  };
+}
+
+type OwnerSubscriptionRow = {
+  id: string;
+  schoolId: string;
+  planCode: string;
+  billingCycle: string;
+  status: string;
+  currentPeriodStart: Date;
+  currentPeriodEnd: Date;
+  studentLimit: number | null;
+  createdAt?: Date;
+  updatedAt?: Date;
+};
+
+function mapOwnerSubscription(subscription: OwnerSubscriptionRow | null) {
+  if (!subscription) return null;
+  return {
+    id: subscription.id,
+    schoolId: subscription.schoolId,
+    planCode: subscription.planCode,
+    billingCycle: subscription.billingCycle,
+    status: subscription.status,
+    currentPeriodStart: subscription.currentPeriodStart.toISOString(),
+    currentPeriodEnd: subscription.currentPeriodEnd.toISOString(),
+    studentLimit: subscription.studentLimit,
+    createdAt: subscription.createdAt?.toISOString(),
+    updatedAt: subscription.updatedAt?.toISOString(),
+  };
+}
+
+function mapPlanEntitlements(planCode: string | null | undefined) {
+  const plan = planCode ? getPlanByCode(planCode) : null;
+  return {
+    planName: plan?.name ?? null,
+    studentLimit: plan?.studentLimit ?? null,
+    billingCycle: plan?.billingCycle ?? null,
+    features: plan?.features ?? [],
+    addOns: plan?.addOns ?? [],
   };
 }
 
@@ -248,7 +290,7 @@ export function platformOwnerRoutes() {
           brandingMode: true,
           isActive: true,
           createdAt: true,
-          subscription: { select: { planCode: true, status: true, currentPeriodEnd: true, studentLimit: true } },
+          subscription: { select: { planCode: true, billingCycle: true, status: true, currentPeriodStart: true, currentPeriodEnd: true, studentLimit: true } },
           users: { where: { role: "ADMIN_OPERATOR", isActive: true, isPlatformOwner: false }, select: { id: true, name: true, email: true }, take: 1 },
           _count: { select: { students: true } },
         },
@@ -267,7 +309,11 @@ export function platformOwnerRoutes() {
           brandingMode: s.brandingMode,
           isActive: s.isActive,
           createdAt: s.createdAt.toISOString(),
-          subscription: s.subscription ?? null,
+          subscription: s.subscription ? {
+            ...s.subscription,
+            currentPeriodStart: s.subscription.currentPeriodStart.toISOString(),
+            currentPeriodEnd: s.subscription.currentPeriodEnd.toISOString(),
+          } : null,
           primaryAdmin: s.users[0] ?? null,
           studentCount: s._count.students,
         })),
@@ -1266,6 +1312,121 @@ export function platformOwnerRoutes() {
       })));
       void ownerAudit(req.user!.userId, schoolId, "FEATURE_FLAGS_UPDATED_BY_OWNER", { flags: body.flags }).catch(() => {});
       res.json({ ok: true, featureFlags: body.flags });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  const ownerSubscriptionSelect = {
+    id: true,
+    schoolId: true,
+    planCode: true,
+    billingCycle: true,
+    status: true,
+    currentPeriodStart: true,
+    currentPeriodEnd: true,
+    studentLimit: true,
+    createdAt: true,
+    updatedAt: true,
+  } as const;
+
+  const ownerSubscriptionInputSchema = z.object({
+    planCode: z.enum(validPlanCodes as [string, ...string[]]),
+    billingCycle: z.enum(subscriptionBillingCycles),
+    status: z.enum(subscriptionStatuses),
+    currentPeriodStart: z.string().datetime(),
+    currentPeriodEnd: z.string().datetime(),
+    studentLimit: z.coerce.number().int().min(0).nullable(),
+  }).refine((input) => new Date(input.currentPeriodEnd).getTime() > new Date(input.currentPeriodStart).getTime(), {
+    path: ["currentPeriodEnd"],
+    message: "Current period end must be after current period start.",
+  });
+
+  router.get("/api/platform-owner/schools/:schoolId/subscription", requirePlatformOwner, async (req, res, next) => {
+    try {
+      const { schoolId } = req.params;
+      const school = await prisma.school.findUnique({
+        where: { id: schoolId },
+        select: {
+          id: true,
+          code: true,
+          name: true,
+          subscription: { select: ownerSubscriptionSelect },
+        },
+      });
+
+      if (!school) {
+        res.status(404).json({ error: "School not found." });
+        return;
+      }
+
+      res.json({
+        school: { id: school.id, code: school.code, name: school.name },
+        subscription: mapOwnerSubscription(school.subscription),
+        entitlements: mapPlanEntitlements(school.subscription?.planCode),
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.put("/api/platform-owner/schools/:schoolId/subscription", requirePlatformOwner, async (req, res, next) => {
+    try {
+      const { schoolId } = req.params;
+      const body = ownerSubscriptionInputSchema.parse(req.body);
+      const requestId = requestIdFrom(req);
+      const school = await requireOwnerSchool(schoolId);
+      const previous = await prisma.reportLabSubscription.findUnique({ where: { schoolId }, select: ownerSubscriptionSelect });
+
+      const subscription = await prisma.$transaction(async (tx) => {
+        const updated = await tx.reportLabSubscription.upsert({
+          where: { schoolId },
+          create: {
+            schoolId,
+            planCode: body.planCode,
+            billingCycle: body.billingCycle,
+            status: body.status,
+            currentPeriodStart: new Date(body.currentPeriodStart),
+            currentPeriodEnd: new Date(body.currentPeriodEnd),
+            studentLimit: body.studentLimit,
+          },
+          update: {
+            planCode: body.planCode,
+            billingCycle: body.billingCycle,
+            status: body.status,
+            currentPeriodStart: new Date(body.currentPeriodStart),
+            currentPeriodEnd: new Date(body.currentPeriodEnd),
+            studentLimit: body.studentLimit,
+          },
+          select: ownerSubscriptionSelect,
+        });
+
+        await tx.auditLog.create({
+          data: {
+            schoolId,
+            action: "SUBSCRIPTION_UPSERTED_BY_OWNER",
+            correlationId: requestId,
+            details: {
+              actorUserId: req.user!.userId,
+              tenant: schoolId,
+              target: updated.id,
+              requestId,
+              schoolCode: school.code,
+              before: previous ? mapOwnerSubscription(previous) : null,
+              after: mapOwnerSubscription(updated),
+            },
+          },
+        });
+
+        return updated;
+      });
+
+      res.json({
+        ok: true,
+        school: { id: school.id, code: school.code, name: school.name },
+        subscription: mapOwnerSubscription(subscription),
+        entitlements: mapPlanEntitlements(subscription.planCode),
+      });
     } catch (error) {
       next(error);
     }
