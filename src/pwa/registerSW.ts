@@ -9,6 +9,21 @@ export function registerServiceWorker() {
     navigator.serviceWorker
       .register("/report-lab/sw.js", { scope: "/report-lab/" })
       .then((registration) => {
+        const activateWaitingWorker = () => {
+          registration.waiting?.postMessage({ type: "SKIP_WAITING" });
+        };
+
+        activateWaitingWorker();
+        registration.addEventListener("updatefound", () => {
+          const nextWorker = registration.installing;
+          if (!nextWorker) return;
+          nextWorker.addEventListener("statechange", () => {
+            if (nextWorker.state === "installed" && navigator.serviceWorker.controller) {
+              activateWaitingWorker();
+            }
+          });
+        });
+
         // Re-check for a new SW (i.e. new deploy) when the tab regains focus.
         document.addEventListener("visibilitychange", () => {
           if (document.visibilityState === "visible") registration.update().catch(() => {});

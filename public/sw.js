@@ -6,7 +6,7 @@
  *    shows the app's own honest error/offline states (no fake data, no fake login).
  *  - Versioned cache + immediate activation so users don't stay on stale bundles.
  */
-const CACHE_VERSION = "report-lab-v6";
+const CACHE_VERSION = "report-lab-v7";
 const BASE_PATH = "/report-lab";
 const APP_SHELL_URL = `${BASE_PATH}/pwa-launch`;
 const SHELL_CACHE = `${CACHE_VERSION}-shell`;
@@ -33,6 +33,12 @@ self.addEventListener("install", (event) => {
   );
 });
 
+self.addEventListener("message", (event) => {
+  if (event.data?.type === "SKIP_WAITING") {
+    self.skipWaiting();
+  }
+});
+
 self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches
@@ -54,7 +60,7 @@ self.addEventListener("fetch", (event) => {
   // Navigations: network-first, fall back to cached shell when offline.
   if (req.mode === "navigate") {
     event.respondWith(
-      fetch(req)
+      fetch(req, { cache: "no-store" })
         .then((res) => {
           if (res.ok && isShellNavigationPath(url.pathname)) {
             const copy = res.clone();
