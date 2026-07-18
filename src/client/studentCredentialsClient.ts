@@ -13,6 +13,7 @@ import type {
   NfcAttendanceDashboard,
   NfcAttendanceScanResponse,
   NfcCanteenChargeResult,
+  NfcGateAdminDashboard,
   NfcGateDashboard,
   NfcGateScanResponse,
   NfcVisitorVisit,
@@ -574,6 +575,14 @@ export async function fetchNfcGateDashboard() {
   });
   if (!response.ok) throw new Error(await parseApiError(response, "Could not load gate scans"));
   return response.json() as Promise<NfcGateDashboard>;
+}
+
+export async function fetchNfcGateAdminDashboard() {
+  const response = await fetch(`${API_BASE}/api/nfc/gate-admin/dashboard`, {
+    headers: makeSchoolRequestHeaders(),
+  });
+  if (!response.ok) throw new Error(await parseApiError(response, "Could not load gate operations"));
+  return response.json() as Promise<NfcGateAdminDashboard>;
 }
 
 export async function fetchStudentPassOuts(filters: {

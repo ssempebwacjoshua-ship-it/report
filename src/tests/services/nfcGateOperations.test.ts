@@ -9,7 +9,7 @@ vi.mock("../../server/services/nfcPassOutNotificationService", () => ({
   notifyParentStudentPassOut: notifyParentStudentPassOutMock,
 }));
 
-import { getAttendanceDashboard, scanAttendance, getGateDashboard, scanGate } from "../../server/services/nfcOperationsService";
+import { getAttendanceDashboard, getGateAdminDashboard, scanAttendance, getGateDashboard, scanGate } from "../../server/services/nfcOperationsService";
 
 const GATE_CTX = { schoolId: "school-a", actorId: "gate-a", role: "GATE_SECURITY" as const };
 
@@ -64,6 +64,8 @@ function createDb() {
   const dailyAttendances: Array<Record<string, unknown>> = [];
   const campusMovementEvents: Array<Record<string, unknown>> = [];
   const studentPassOuts: Array<Record<string, unknown>> = [];
+  const visitorVisits: Array<Record<string, unknown>> = [];
+  const failedDeliveries: Array<Record<string, unknown>> = [];
 
   const db = {
     $transaction: async (fn: (tx: unknown) => Promise<unknown>) => fn(db),
@@ -113,6 +115,7 @@ function createDb() {
     },
     campusMovementEvent: {
       findFirst: async () => campusMovementEvents.length > 0 ? campusMovementEvents[campusMovementEvents.length - 1] : null,
+      findMany: async () => campusMovementEvents,
       create: async ({ data }: { data: Record<string, unknown> }) => {
         const row = { id: `move-${campusMovementEvents.length + 1}`, ...data };
         campusMovementEvents.push(row);
@@ -120,6 +123,14 @@ function createDb() {
       },
     },
     studentPassOut: {
+      count: async ({ where }: { where: Record<string, any> }) => studentPassOuts.filter((row) => {
+        if (row.schoolId !== where.schoolId) return false;
+        if (where.status?.in && !where.status.in.includes(row.status)) return false;
+        if (typeof where.status === "string" && row.status !== where.status) return false;
+        if (where.activeFrom?.lte && row.activeFrom > where.activeFrom.lte) return false;
+        if (where.activeUntil?.gte && row.activeUntil < where.activeUntil.gte) return false;
+        return true;
+      }).length,
       findFirst: async ({ where }: { where: Record<string, any> }) => {
         if (where?.studentId) {
           return studentPassOuts.find((row) => {
@@ -143,6 +154,13 @@ function createDb() {
         return updated;
       },
     },
+    visitorVisit: {
+      count: async ({ where }: { where: Record<string, any> }) => visitorVisits.filter((row) => row.schoolId === where.schoolId && row.status === where.status && row.checkedOutAt === where.checkedOutAt).length,
+      findMany: async () => visitorVisits,
+    },
+    communicationDelivery: {
+      count: async ({ where }: { where: Record<string, any> }) => failedDeliveries.filter((row) => row.schoolId === where.schoolId && row.channel === where.channel && row.status === where.status).length,
+    },
     studentAttendanceEvent: {
       findMany: async () => [],
       findFirst: async () => null,
@@ -156,7 +174,7 @@ function createDb() {
     },
   };
 
-  return { db: db as never, dailyAttendances, campusMovementEvents, studentPassOuts, students, policy };
+  return { db: db as never, dailyAttendances, campusMovementEvents, studentPassOuts, visitorVisits, failedDeliveries, students, policy };
 }
 
 describe("NFC gate operations", () => {
@@ -358,6 +376,66 @@ describe("NFC gate operations", () => {
 
     expect(dashboard.summary.totalTappedIn).toBe(0);
     expect(dashboard.summary.notYetTapped).toBe(1);
+  });
+
+  it("builds an admin gate dashboard with tenant-scoped summaries and activity", async () => {
+    const { db, campusMovementEvents, studentPassOuts, visitorVisits, failedDeliveries, students } = createDb();
+    studentPassOuts.push(
+      {
+        id: "passout-1",
+        schoolId: "school-a",
+        studentId: "student-a",
+        status: "APPROVED",
+        activeFrom: new Date("2026-07-18T00:00:00.000Z"),
+        activeUntil: new Date("2026-07-18T23:59:59.000Z"),
+      },
+      {
+        id: "passout-2",
+        schoolId: "school-a",
+        studentId: "student-a",
+        status: "CHECKED_OUT",
+        activeFrom: new Date("2026-07-18T00:00:00.000Z"),
+        activeUntil: new Date("2026-07-18T23:59:59.000Z"),
+      },
+    );
+    campusMovementEvents.push({
+      id: "move-1",
+      schoolId: "school-a",
+      studentId: "student-a",
+      type: "GATE_EXIT",
+      occurredAt: new Date("2026-07-18T08:45:00.000Z"),
+      metadata: { passOutAction: "CHECK_OUT" },
+      student: students[0],
+    });
+    visitorVisits.push({
+      id: "visit-1",
+      schoolId: "school-a",
+      status: "CHECKED_IN",
+      hostName: "Bursar",
+      checkedInAt: new Date("2026-07-18T08:10:00.000Z"),
+      checkedOutAt: null,
+      visitor: { fullName: "Mary Nakiwala", phone: "256700000001" },
+    });
+    failedDeliveries.push({
+      id: "delivery-1",
+      schoolId: "school-a",
+      channel: "SMS",
+      status: "FAILED",
+    });
+
+    const dashboard = await getGateAdminDashboard({ schoolId: "school-a", actorId: "admin-a", role: "ADMIN_OPERATOR" }, db);
+
+    expect(dashboard.summary).toMatchObject({
+      activePassOuts: 2,
+      studentsCurrentlyOut: 1,
+      visitorsCurrentlyInside: 1,
+      failedParentSms: 1,
+    });
+    expect(dashboard.activity[0]).toMatchObject({
+      type: "PASS_OUT_CHECKOUT",
+      summary: "Ada Lovelace",
+    });
+    expect(dashboard.activity.some((row) => row.type === "VISITOR_CHECKIN")).toBe(true);
   });
 
   it("returns specific gate-blocked reasons for wrong-school and unassigned tags", async () => {

@@ -5,6 +5,7 @@ import {
   fetchDashboardStats,
   streamDashboardAttendanceSummary,
 } from "../client/dashboardClient";
+import { fetchNfcGateAdminDashboard } from "../client/studentCredentialsClient";
 import { StatCard } from "../components/dashboard/StatCard";
 import { SectionLoader } from "../components/SectionLoader";
 import { Icon } from "../components/layout/Icon";
@@ -14,6 +15,7 @@ import type {
   DashboardAttendanceSummary,
   DashboardStats,
 } from "../shared/types/dashboard";
+import type { NfcGateAdminDashboard } from "../shared/types/studentCredentials";
 
 const dashboardTabs = [
   { label: "Overview", href: null },
@@ -137,6 +139,9 @@ export function DashboardPage() {
   const [attendancePaused, setAttendancePaused] = useState(false);
   const [attendanceError, setAttendanceError] = useState("");
   const [attendanceStreamError, setAttendanceStreamError] = useState("");
+  const [gateSnapshot, setGateSnapshot] = useState<NfcGateAdminDashboard | null>(null);
+  const [gateSnapshotLoading, setGateSnapshotLoading] = useState(true);
+  const [gateSnapshotError, setGateSnapshotError] = useState("");
 
   const refreshTimerRef = useRef<number | null>(null);
   const attendanceAbortRef = useRef<AbortController | null>(null);
@@ -158,6 +163,31 @@ export function DashboardPage() {
       });
 
     return () => controller.abort();
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    setGateSnapshotLoading(true);
+    setGateSnapshotError("");
+    void fetchNfcGateAdminDashboard()
+      .then((snapshot) => {
+        if (!cancelled) {
+          setGateSnapshot(snapshot);
+        }
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          setGateSnapshotError(error instanceof Error ? error.message : "Could not load gate operations.");
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setGateSnapshotLoading(false);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
@@ -404,6 +434,64 @@ export function DashboardPage() {
           icon="check"
           to="/reports?status=released"
         />
+      </section>
+
+      <section className="premium-card rounded-xl p-4">
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <div>
+            <h2 className="text-sm font-bold text-slate-950">Gate Operations Snapshot</h2>
+            <p className="mt-0.5 text-xs text-slate-500">
+              Quick pass-out, visitor, and parent-SMS status from the gate admin workspace.
+            </p>
+          </div>
+          <Link to="/nfc/gate-admin" className="action-link text-sm">
+            Open gate operations
+            <span aria-hidden="true">&rarr;</span>
+          </Link>
+        </div>
+        {gateSnapshotError ? (
+          <div className="mt-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+            {gateSnapshotError}
+          </div>
+        ) : null}
+        <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-2 md:gap-4 xl:grid-cols-4">
+          <StatCard
+            label="Active Pass-outs"
+            value={gateSnapshotLoading ? "-" : fmt(gateSnapshot?.summary.activePassOuts ?? 0)}
+            note="Approved or checked-out passes still in effect"
+            trend={gateSnapshotLoading ? "-" : "Gate"}
+            tone="blue"
+            icon="check"
+            to="/nfc/gate-admin"
+          />
+          <StatCard
+            label="Students Currently Out"
+            value={gateSnapshotLoading ? "-" : fmt(gateSnapshot?.summary.studentsCurrentlyOut ?? 0)}
+            note="Students with an active checked-out pass-out"
+            trend={gateSnapshotLoading ? "-" : "Live"}
+            tone="yellow"
+            icon="students"
+            to="/nfc/gate-admin"
+          />
+          <StatCard
+            label="Visitors Currently Inside"
+            value={gateSnapshotLoading ? "-" : fmt(gateSnapshot?.summary.visitorsCurrentlyInside ?? 0)}
+            note="Gate-registered visitors still on site"
+            trend={gateSnapshotLoading ? "-" : "Gate"}
+            tone="green"
+            icon="students"
+            to="/nfc/gate-admin"
+          />
+          <StatCard
+            label="Failed Parent SMS"
+            value={gateSnapshotLoading ? "-" : fmt(gateSnapshot?.summary.failedParentSms ?? 0)}
+            note="Pass-out parent alerts that need follow-up"
+            trend={gateSnapshotLoading ? "-" : "Action"}
+            tone="purple"
+            icon="cloud"
+            to="/nfc/gate-admin"
+          />
+        </div>
       </section>
 
       <section className="premium-card rounded-xl p-4">

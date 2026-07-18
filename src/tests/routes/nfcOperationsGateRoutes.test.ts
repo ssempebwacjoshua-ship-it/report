@@ -3,6 +3,7 @@ import request from "supertest";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const svcMocks = vi.hoisted(() => ({
+  getGateAdminDashboard: vi.fn(),
   getGateDashboard: vi.fn(),
   scanGate: vi.fn(),
   getAttendanceDashboard: vi.fn(),
@@ -10,6 +11,7 @@ const svcMocks = vi.hoisted(() => ({
 }));
 
 vi.mock("../../server/services/nfcOperationsService", () => ({
+  getGateAdminDashboard: svcMocks.getGateAdminDashboard,
   getGateDashboard: svcMocks.getGateDashboard,
   scanGate: svcMocks.scanGate,
   getAttendanceDashboard: svcMocks.getAttendanceDashboard,
@@ -64,6 +66,7 @@ function buildUnauthedApp() {
 describe("NFC gate routes", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    svcMocks.getGateAdminDashboard.mockResolvedValue({ summary: {}, activity: [] });
     svcMocks.getGateDashboard.mockResolvedValue({ recentScans: [] });
     svcMocks.scanGate.mockResolvedValue({
       result: "ALLOWED",
@@ -103,12 +106,23 @@ describe("NFC gate routes", () => {
     const app = buildApp("ADMIN_OPERATOR");
 
     const dashboardRes = await request(app).get("/api/nfc/gate");
+    const gateAdminRes = await request(app).get("/api/nfc/gate-admin/dashboard");
     const attendanceRes = await request(app).get("/api/nfc/attendance");
     const settingsRes = await request(app).get("/api/settings");
 
     expect(dashboardRes.status).toBe(200);
+    expect(gateAdminRes.status).toBe(200);
     expect(attendanceRes.status).toBe(200);
     expect(settingsRes.status).toBe(200);
+  });
+
+  it("keeps gate-admin dashboard admin-only", async () => {
+    const app = buildApp("GATE_SECURITY");
+    svcMocks.getGateAdminDashboard.mockRejectedValueOnce(Object.assign(new Error("You do not have permission for this action."), { status: 403 }));
+
+    const res = await request(app).get("/api/nfc/gate-admin/dashboard");
+
+    expect(res.status).toBe(403);
   });
 
   it("returns 401 for gate scan requests without an authenticated school session", async () => {

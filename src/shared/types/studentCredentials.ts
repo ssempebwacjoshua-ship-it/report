@@ -281,6 +281,38 @@ export type NfcGateDashboard = {
   recentScans: NfcGateScanResponse[];
 };
 
+export type NfcGateActivityType =
+  | "NORMAL_ENTRY"
+  | "NORMAL_EXIT"
+  | "PASS_OUT_CHECKOUT"
+  | "PASS_OUT_CHECKIN"
+  | "BLOCKED_ATTEMPT"
+  | "VISITOR_CHECKIN"
+  | "VISITOR_CHECKOUT";
+
+export type NfcGateActivityRow = {
+  id: string;
+  type: NfcGateActivityType;
+  occurredAt: string;
+  summary: string;
+  detail: string | null;
+  student?: NfcStudentSummary;
+  visitor?: {
+    fullName: string;
+    phone: string | null;
+  };
+};
+
+export type NfcGateAdminDashboard = {
+  summary: {
+    activePassOuts: number;
+    studentsCurrentlyOut: number;
+    visitorsCurrentlyInside: number;
+    failedParentSms: number;
+  };
+  activity: NfcGateActivityRow[];
+};
+
 export type StudentPassOutStatus = "APPROVED" | "CHECKED_OUT" | "RETURNED" | "CANCELLED" | "EXPIRED";
 
 export type StudentPassOutRow = {

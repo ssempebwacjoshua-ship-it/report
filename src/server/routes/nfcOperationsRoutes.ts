@@ -16,6 +16,7 @@ import {
   getAttendanceDashboard,
   getAttendanceRegister,
   getDailySummary,
+  getGateAdminDashboard,
   getGateDashboard,
   getStudentWalletDetail,
   getStudentWalletPinStatus,
@@ -817,6 +818,17 @@ export function nfcOperationsRoutes() {
         return;
       }
       res.json(await getGateDashboard(ctx(req)));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.get("/api/nfc/gate-admin/dashboard", async (req, res, next) => {
+    try {
+      if (!(await requirePlatformModule(req, res, "nfc.core"))) {
+        return;
+      }
+      res.json(await getGateAdminDashboard(ctx(req)));
     } catch (error) {
       next(error);
     }

@@ -38,7 +38,20 @@ const {
 
 type NfcOperationsClient = Pick<
   PrismaClient,
-  "student" | "studentCredential" | "studentWallet" | "studentWalletTransaction" | "studentAttendanceEvent" | "nfcGateScan" | "auditLog" | "nfcTag" | "schoolNfcPolicy" | "studentFeeHold" | "studentPassOut"
+  | "student"
+  | "studentCredential"
+  | "studentWallet"
+  | "studentWalletTransaction"
+  | "studentAttendanceEvent"
+  | "nfcGateScan"
+  | "auditLog"
+  | "nfcTag"
+  | "schoolNfcPolicy"
+  | "studentFeeHold"
+  | "studentPassOut"
+  | "campusMovementEvent"
+  | "visitorVisit"
+  | "communicationDelivery"
 > & {
   $transaction?: <T>(fn: (tx: NfcOperationsClient) => Promise<T>) => Promise<T>;
 };
@@ -1646,5 +1659,169 @@ export async function getGateDashboard(ctx: NfcOperationsContext, db: NfcOperati
       credentialStatus: scan.credential?.status ?? "UNKNOWN",
       todayAttendanceStatus: "NONE" as const,
     })),
+  };
+}
+
+export async function getGateAdminDashboard(ctx: NfcOperationsContext, db: NfcOperationsClient = defaultPrisma) {
+  const schoolId = requireSchoolId(ctx);
+  requirePermission(ctx, "app.admin", "GET /api/nfc/gate-admin/dashboard");
+
+  const now = new Date();
+  const [activePassOuts, studentsCurrentlyOut, visitorsCurrentlyInside, failedParentSms, movements, blockedScans, visitorVisits] = await Promise.all([
+    db.studentPassOut.count({
+      where: {
+        schoolId,
+        status: { in: ["APPROVED", "CHECKED_OUT"] },
+        activeFrom: { lte: now },
+        activeUntil: { gte: now },
+      },
+    }),
+    db.studentPassOut.count({
+      where: {
+        schoolId,
+        status: "CHECKED_OUT",
+        activeFrom: { lte: now },
+        activeUntil: { gte: now },
+      },
+    }),
+    db.visitorVisit.count({
+      where: {
+        schoolId,
+        status: "CHECKED_IN",
+        checkedOutAt: null,
+      },
+    }),
+    db.communicationDelivery.count({
+      where: {
+        schoolId,
+        channel: "SMS",
+        status: "FAILED",
+        campaign: { type: "ATTENDANCE_ALERT" },
+      } as Prisma.CommunicationDeliveryWhereInput,
+    }),
+    db.campusMovementEvent.findMany({
+      where: { schoolId },
+      orderBy: { occurredAt: "desc" },
+      take: 20,
+      include: {
+        student: {
+          select: {
+            id: true,
+            admissionNumber: true,
+            firstName: true,
+            lastName: true,
+            studentType: true,
+            isActive: true,
+            enrollments: studentInclude.enrollments,
+          },
+        },
+      },
+    }),
+    db.nfcGateScan.findMany({
+      where: { schoolId, result: GateScanResult.BLOCKED },
+      orderBy: { scannedAt: "desc" },
+      take: 12,
+      include: {
+        student: {
+          select: {
+            id: true,
+            admissionNumber: true,
+            firstName: true,
+            lastName: true,
+            studentType: true,
+            isActive: true,
+            enrollments: studentInclude.enrollments,
+          },
+        },
+      },
+    }),
+    db.visitorVisit.findMany({
+      where: { schoolId },
+      orderBy: { checkedInAt: "desc" },
+      take: 12,
+      include: {
+        visitor: {
+          select: {
+            fullName: true,
+            phone: true,
+          },
+        },
+      },
+    }),
+  ]);
+
+  const activity = [
+    ...movements.map((movement) => {
+      const metadata = movement.metadata && typeof movement.metadata === "object" ? movement.metadata as Record<string, unknown> : null;
+      const passOutAction = typeof metadata?.passOutAction === "string" ? metadata.passOutAction : null;
+      const type = passOutAction === "CHECK_OUT"
+        ? "PASS_OUT_CHECKOUT"
+        : passOutAction === "CHECK_IN"
+          ? "PASS_OUT_CHECKIN"
+          : movement.type === "GATE_EXIT"
+            ? "NORMAL_EXIT"
+            : "NORMAL_ENTRY";
+      return {
+        id: `movement:${movement.id}`,
+        type,
+        occurredAt: movement.occurredAt.toISOString(),
+        summary: movement.student ? `${studentSummary(movement.student as StudentForNfc).name}` : "Student movement",
+        detail: type === "PASS_OUT_CHECKOUT"
+          ? "Checked out using an approved pass-out."
+          : type === "PASS_OUT_CHECKIN"
+            ? "Returned using an active pass-out."
+            : movement.type === "GATE_EXIT"
+              ? "Normal gate exit recorded."
+              : "Normal gate entry recorded.",
+        student: movement.student ? studentSummary(movement.student as StudentForNfc) : undefined,
+      };
+    }),
+    ...blockedScans.map((scan) => ({
+      id: `blocked:${scan.id}`,
+      type: "BLOCKED_ATTEMPT" as const,
+      occurredAt: scan.scannedAt.toISOString(),
+      summary: scan.student ? studentSummary(scan.student as StudentForNfc).name : "Unknown card",
+      detail: scan.reason ?? "Blocked gate attempt.",
+      student: scan.student ? studentSummary(scan.student as StudentForNfc) : undefined,
+    })),
+    ...visitorVisits.flatMap((visit) => {
+      const rows = [{
+        id: `visitor-in:${visit.id}`,
+        type: "VISITOR_CHECKIN" as const,
+        occurredAt: visit.checkedInAt.toISOString(),
+        summary: visit.visitor.fullName,
+        detail: `Checked in to visit ${visit.hostName}.`,
+        visitor: {
+          fullName: visit.visitor.fullName,
+          phone: visit.visitor.phone,
+        },
+      }];
+      if (visit.checkedOutAt) {
+        rows.push({
+          id: `visitor-out:${visit.id}`,
+          type: "VISITOR_CHECKOUT" as const,
+          occurredAt: visit.checkedOutAt.toISOString(),
+          summary: visit.visitor.fullName,
+          detail: `Checked out after visiting ${visit.hostName}.`,
+          visitor: {
+            fullName: visit.visitor.fullName,
+            phone: visit.visitor.phone,
+          },
+        });
+      }
+      return rows;
+    }),
+  ]
+    .sort((left, right) => new Date(right.occurredAt).getTime() - new Date(left.occurredAt).getTime())
+    .slice(0, 20);
+
+  return {
+    summary: {
+      activePassOuts,
+      studentsCurrentlyOut,
+      visitorsCurrentlyInside,
+      failedParentSms,
+    },
+    activity,
   };
 }

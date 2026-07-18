@@ -142,6 +142,9 @@ describe("Sidebar navigation", () => {
     expect(screen.getByRole("link", { name: /^wallets$/i })).toHaveAttribute("href", "/nfc/wallets");
     expect(screen.getByRole("link", { name: /^attendance$/i })).toHaveAttribute("href", "/nfc/attendance");
     expect(screen.getByRole("link", { name: /^charge$/i })).toHaveAttribute("href", "/nfc/canteen");
+    expect(screen.getByRole("link", { name: /gate operations/i })).toHaveAttribute("href", "/nfc/gate-admin");
+    expect(screen.queryByRole("link", { name: /^holds$/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /^gate$/i })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /^tags$/i })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /^bands$/i })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /^issue tags$/i })).not.toBeInTheDocument();
@@ -171,6 +174,8 @@ describe("Sidebar navigation", () => {
     renderSidebar("/nfc/gate");
 
     await waitFor(() => expect(screen.getByText("NFC")).toBeInTheDocument());
+    expect(screen.getByRole("link", { name: /^gate$/i })).toHaveAttribute("href", "/nfc/gate");
+    expect(screen.queryByRole("link", { name: /gate operations/i })).not.toBeInTheDocument();
     expect(screen.queryByText("SMART PAGES")).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /settings/i })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /students/i })).not.toBeInTheDocument();
