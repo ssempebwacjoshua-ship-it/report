@@ -1,5 +1,14 @@
 import { AttendanceDirection, GateScanResult } from "@prisma/client";
 import { describe, expect, it, vi } from "vitest";
+
+const { notifyParentStudentPassOutMock } = vi.hoisted(() => ({
+  notifyParentStudentPassOutMock: vi.fn(async () => ({ submitted: 1, failed: 0, skipped: 0 })),
+}));
+
+vi.mock("../../server/services/nfcPassOutNotificationService", () => ({
+  notifyParentStudentPassOut: notifyParentStudentPassOutMock,
+}));
+
 import { getAttendanceDashboard, scanAttendance, getGateDashboard, scanGate } from "../../server/services/nfcOperationsService";
 
 const GATE_CTX = { schoolId: "school-a", actorId: "gate-a", role: "GATE_SECURITY" as const };
@@ -152,6 +161,7 @@ function createDb() {
 
 describe("NFC gate operations", () => {
   it("lets GATE_SECURITY load the gate dashboard and scan gate tokens", async () => {
+    notifyParentStudentPassOutMock.mockClear();
     const { db, dailyAttendances, campusMovementEvents } = createDb();
     const ctx = GATE_CTX;
 
@@ -180,6 +190,7 @@ describe("NFC gate operations", () => {
       type: "GATE_ENTRY",
       eventId: "gate-live-1",
     });
+    expect(notifyParentStudentPassOutMock).not.toHaveBeenCalled();
   });
 
   it("keeps the old live gate path working with direct credential UID lookups", async () => {
@@ -198,6 +209,7 @@ describe("NFC gate operations", () => {
   });
 
   it("checks a student out when an active approved pass-out exists and the student is on campus", async () => {
+    notifyParentStudentPassOutMock.mockClear();
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-07-18T10:30:00.000Z"));
     try {
@@ -241,12 +253,23 @@ describe("NFC gate operations", () => {
         status: "CHECKED_OUT",
         checkoutMovementEventId: "move-2",
       });
+      expect(notifyParentStudentPassOutMock).toHaveBeenCalledWith(
+        expect.objectContaining({ schoolId: "school-a", actorId: "gate-a" }),
+        expect.objectContaining({
+          studentId: "student-a",
+          passOutId: "passout-1",
+          movementEventId: "move-2",
+          event: "CHECK_OUT",
+        }),
+        db,
+      );
     } finally {
       vi.useRealTimers();
     }
   });
 
   it("checks a student back in when an active checked-out pass-out exists and the student is off campus", async () => {
+    notifyParentStudentPassOutMock.mockClear();
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-07-18T10:30:00.000Z"));
     try {
@@ -291,6 +314,16 @@ describe("NFC gate operations", () => {
         checkinMovementEventId: "move-2",
       });
       expect(dailyAttendances).toHaveLength(1);
+      expect(notifyParentStudentPassOutMock).toHaveBeenCalledWith(
+        expect.objectContaining({ schoolId: "school-a", actorId: "gate-a" }),
+        expect.objectContaining({
+          studentId: "student-a",
+          passOutId: "passout-1",
+          movementEventId: "move-2",
+          event: "CHECK_IN",
+        }),
+        db,
+      );
     } finally {
       vi.useRealTimers();
     }

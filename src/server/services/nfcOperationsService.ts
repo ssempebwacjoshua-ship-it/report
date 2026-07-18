@@ -22,6 +22,7 @@ import {
   mapCredentialFailureReason,
   resolveNfcCredential,
 } from "./nfcCredentialResolver";
+import { notifyParentStudentPassOut } from "./nfcPassOutNotificationService";
 
 const {
   AttendanceDirection,
@@ -1052,6 +1053,29 @@ export async function scanGate(
           },
         },
       });
+      try {
+        await notifyParentStudentPassOut({
+          schoolId,
+          actorId: ctx.actorId ?? null,
+        }, {
+          studentId: target.student.id,
+          passOutId: activePassOut.id,
+          movementEventId: movement.id,
+          event: movementType === "GATE_EXIT" ? "CHECK_OUT" : "CHECK_IN",
+          scannedAt: scan.scannedAt,
+          activeUntil: activePassOut.activeUntil,
+          reason: activePassOut.reason,
+        }, db as never);
+      } catch (error) {
+        console.warn("[nfc-passout-notification]", {
+          schoolId,
+          studentId: target.student.id,
+          passOutId: activePassOut.id,
+          movementEventId: movement.id,
+          event: movementType === "GATE_EXIT" ? "CHECK_OUT" : "CHECK_IN",
+          message: error instanceof Error ? error.message : String(error),
+        });
+      }
     }
   }
 
