@@ -195,4 +195,25 @@ describe("normalizeNfcScannerError", () => {
     expect(scanMock).toHaveBeenCalledTimes(3);
     expect(readers[1].signal?.aborted).toBe(true);
   });
+
+  it("rearms the scanner after idle while the page stays visible", async () => {
+    vi.useFakeTimers();
+    const onScan = vi.fn(async () => undefined);
+    const { result } = renderHook(() => useNfcScanner({ onScan, idleRearmMs: 1000 }));
+
+    await act(async () => {
+      await result.current.startScanner();
+    });
+
+    const firstSignal = readers[0].signal;
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1200);
+    });
+
+    expect(scanMock).toHaveBeenCalledTimes(2);
+    expect(firstSignal?.aborted).toBe(true);
+    expect(readers[1].signal?.aborted).toBe(false);
+    expect(result.current.state).toBe("READY");
+  });
 });
