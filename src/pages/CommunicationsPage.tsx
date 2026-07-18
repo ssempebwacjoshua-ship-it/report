@@ -393,7 +393,7 @@ export function CommunicationsPage() {
   }
 
   return (
-    <main className="grid gap-4 pb-2">
+    <main className="grid gap-3 pb-2">
       <header className="page-header flex flex-wrap items-end justify-between gap-3">
         <div>
           <p className="text-xs font-bold uppercase tracking-wide text-blue-600">Communication Center</p>
@@ -420,7 +420,7 @@ export function CommunicationsPage() {
       {notice ? <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700">{notice}</div> : null}
       {staffError ? <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">{staffError}</div> : null}
 
-      <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+      <section className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
         <Metric label="Drafts" value={counts.drafts} />
         <Metric label="Approval" value={counts.approval} />
         <Metric label="Scheduled" value={counts.scheduled} />
@@ -442,7 +442,7 @@ export function CommunicationsPage() {
       </div>
 
       {tab === "Campaigns" ? (
-        <div className="grid gap-4 xl:grid-cols-[minmax(0,1.06fr)_minmax(0,0.94fr)]">
+        <div className="grid min-h-0 gap-3 xl:grid-cols-[minmax(0,1.06fr)_minmax(0,0.94fr)]">
           <form onSubmit={submitCampaign} className="grid gap-4">
             <section className="premium-card grid gap-3 rounded-xl p-4">
               <div className="flex items-center justify-between gap-3">
@@ -691,7 +691,7 @@ export function CommunicationsPage() {
             </section>
           </form>
 
-          <section className="grid gap-4">
+          <section className="grid min-h-0 gap-3">
             <AudiencePreviewPanel
               preview={preview}
               selectedCampaignId={selectedCampaignId}
@@ -775,8 +775,8 @@ function TemplatesPanel({
   onEdit: (template: CommunicationTemplate) => void;
 }) {
   return (
-    <div className="grid gap-4 xl:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)]">
-      <form onSubmit={onSave} className="premium-card grid gap-3 rounded-xl p-4">
+    <div className="grid min-h-0 gap-3 xl:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)]">
+      <form onSubmit={onSave} className="premium-card grid gap-3 rounded-xl p-3.5">
         <div>
           <p className="text-xs font-bold uppercase tracking-wide text-blue-600">Template setup</p>
           <h2 className="text-sm font-black text-slate-900">Set default SMS template</h2>
@@ -836,7 +836,7 @@ function TemplatesPanel({
 
         <label className="grid gap-1 text-xs font-bold uppercase text-slate-500">
           Content
-          <textarea className="premium-control min-h-36 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900" value={form.content} onChange={(event) => onChange({ ...form, content: event.target.value })} />
+          <textarea className="premium-control min-h-28 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900" value={form.content} onChange={(event) => onChange({ ...form, content: event.target.value })} />
         </label>
 
         <button type="submit" className="btn btn-primary" disabled={saving || !form.name.trim() || !form.content.trim()}>
@@ -844,7 +844,7 @@ function TemplatesPanel({
         </button>
       </form>
 
-      <section className="premium-card grid gap-3 rounded-xl p-4">
+      <section className="premium-card grid min-h-0 gap-3 rounded-xl p-3.5">
         <div>
           <h2 className="text-sm font-black text-slate-900">Existing templates</h2>
           <p className="mt-1 text-xs text-slate-500">Templates are scoped to this school only.</p>
@@ -854,9 +854,9 @@ function TemplatesPanel({
             No communication templates are configured yet. Save the default SMS announcement template to unblock live SMS sending.
           </div>
         ) : (
-          <div className="grid gap-3">
+          <div className="grid max-h-[min(58vh,620px)] gap-2 overflow-y-auto pr-1">
             {templates.map((template) => (
-              <article key={template.id} className="rounded-xl border border-slate-200 bg-white p-3">
+              <article key={template.id} className="rounded-xl border border-slate-200 bg-white p-2.5">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0">
                     <p className="text-sm font-black text-slate-900">{template.name}</p>
@@ -871,8 +871,8 @@ function TemplatesPanel({
                     Edit
                   </button>
                 </div>
-                <p className="mt-3 line-clamp-2 text-sm text-slate-600">{template.content}</p>
-                <p className="mt-2 text-xs text-slate-500">Variables: {template.variables.length > 0 ? template.variables.join(", ") : "None"}</p>
+                <p className="mt-2 line-clamp-1 text-sm text-slate-600">{template.content}</p>
+                <p className="mt-1 line-clamp-1 text-xs text-slate-500">Variables: {template.variables.length > 0 ? template.variables.join(", ") : "None"}</p>
               </article>
             ))}
           </div>
@@ -972,9 +972,9 @@ function contextClassMatches(student: StudentListItem, classId: string) {
 
 function Metric({ label, value }: { label: string; value: number }) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+    <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
       <p className="text-xs font-bold uppercase text-slate-500">{label}</p>
-      <p className="mt-1 text-2xl font-black text-slate-950">{value}</p>
+      <p className="text-xl font-black text-slate-950">{value}</p>
     </div>
   );
 }
@@ -1030,7 +1030,7 @@ function AudiencePreviewPanel({
   channel: CommunicationChannel;
 }) {
   return (
-    <section className="premium-card rounded-xl p-4">
+    <section className="premium-card min-h-0 rounded-xl p-3.5">
       <div className="flex items-center justify-between gap-3">
         <div>
           <h2 className="text-sm font-black text-slate-900">Preview recipients</h2>
@@ -1077,14 +1077,14 @@ function AudiencePreviewPanel({
             </div>
           ) : null}
 
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
             <PreviewMetric label="Matched students" value={preview.matchedStudentsCount} />
             <PreviewMetric label="Raw contacts" value={preview.rawContactsCount} />
             <PreviewMetric label="Eligible" value={preview.eligibleRecipientsCount} />
             <PreviewMetric label="Excluded" value={preview.excludedRecipientsCount} />
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-3">
+          <div className="grid gap-2 sm:grid-cols-3">
             <PreviewMetric label="Missing contact" value={preview.missingContactsCount} />
             <PreviewMetric label="Duplicates removed" value={preview.duplicateContactsRemovedCount} />
             <PreviewMetric label="Opted out / invalid" value={preview.optedOutRecipientsCount + preview.invalidRecipientsCount + preview.bouncedRecipientsCount} />
@@ -1105,43 +1105,43 @@ function AudiencePreviewPanel({
           </div>
 
           <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
-            <div className="max-h-[680px] overflow-auto">
+            <div className="max-h-[min(48vh,460px)] overflow-auto">
               <table className="w-full table-fixed border-separate border-spacing-0">
                 <thead className="sticky top-0 bg-slate-50 text-left text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">
                   <tr>
-                    <th className="w-[18%] px-3 py-3">Student</th>
-                    <th className="w-[20%] px-3 py-3">Contact</th>
-                    <th className="w-[18%] px-3 py-3">Role</th>
-                    <th className="w-[28%] px-3 py-3">Availability</th>
-                    <th className="w-[16%] px-3 py-3">Status</th>
+                    <th className="w-[18%] px-3 py-2">Student</th>
+                    <th className="w-[20%] px-3 py-2">Contact</th>
+                    <th className="w-[18%] px-3 py-2">Role</th>
+                    <th className="w-[28%] px-3 py-2">Availability</th>
+                    <th className="w-[16%] px-3 py-2">Status</th>
                   </tr>
                 </thead>
                 <tbody>
                   {preview.recipients.map((row) => (
                     <tr key={row.id} className="border-t border-slate-100 align-top">
-                      <td className="px-3 py-3">
+                      <td className="px-3 py-2">
                         <div className="min-w-0">
                           <p className="truncate text-sm font-bold text-slate-900">{row.studentName || "No student assigned"}</p>
                           <p className="truncate text-xs text-slate-500">{row.className ?? "No class"}{row.streamName ? ` / ${row.streamName}` : ""}</p>
                         </div>
                       </td>
-                      <td className="px-3 py-3">
+                      <td className="px-3 py-2">
                         <div className="min-w-0">
                           <p className="truncate text-sm font-semibold text-slate-900">{row.contactName}</p>
                           <p className="truncate text-xs text-slate-500">{row.phone ?? row.email ?? "No contact details"}</p>
                         </div>
                       </td>
-                      <td className="px-3 py-3 text-sm text-slate-600">
+                      <td className="px-3 py-2 text-sm text-slate-600">
                         {row.relationship ?? "-"}
                       </td>
-                      <td className="px-3 py-3">
+                      <td className="px-3 py-2">
                         <div className="flex flex-wrap gap-1.5">
                           <Badge active={row.channelAvailability.whatsapp}>WhatsApp</Badge>
                           <Badge active={row.channelAvailability.sms}>SMS</Badge>
                           <Badge active={row.channelAvailability.email}>Email</Badge>
                         </div>
                       </td>
-                      <td className="px-3 py-3">
+                      <td className="px-3 py-2">
                         <div className="grid gap-1">
                           <StatusPill status={row.eligibilityStatus} />
                           {row.exclusionReason ? <p className="text-xs leading-5 text-slate-500">{row.exclusionReason}</p> : null}
@@ -1161,9 +1161,9 @@ function AudiencePreviewPanel({
 
 function PreviewMetric({ label, value }: { label: string; value: number }) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+    <div className="rounded-xl border border-slate-200 bg-slate-50 p-2.5">
       <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500">{label}</p>
-      <p className="mt-1 text-xl font-black text-slate-950 sm:text-2xl">{value}</p>
+      <p className="text-lg font-black text-slate-950 sm:text-xl">{value}</p>
     </div>
   );
 }
@@ -1220,9 +1220,9 @@ function CampaignList({
   if (loading) return <div className="rounded-xl border border-slate-200 bg-white p-5 text-sm text-slate-500">Loading...</div>;
   if (campaigns.length === 0) return <div className="rounded-xl border border-slate-200 bg-white p-5 text-sm text-slate-500">No communication campaigns yet.</div>;
   return (
-    <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+    <section className="max-h-[min(54vh,560px)] overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-sm">
       {campaigns.map((campaign) => (
-        <article key={campaign.id} className="flex flex-col gap-2 border-b border-slate-100 p-3.5 last:border-0 md:flex-row md:items-center md:justify-between">
+        <article key={campaign.id} className="flex flex-col gap-2 border-b border-slate-100 p-2.5 last:border-0 md:flex-row md:items-center md:justify-between">
           <div className="min-w-0">
             <h2 className="truncate font-black text-slate-900">{campaign.title}</h2>
             <p className="text-sm text-slate-600">
@@ -1237,7 +1237,7 @@ function CampaignList({
                 Preview: {preview.eligibleRecipientsCount} eligible - {preview.excludedRecipientsCount} excluded
               </p>
             ) : null}
-            <p className="mt-2 text-xs text-slate-500">{describeCampaignActionState(campaign, {
+            <p className="mt-1 line-clamp-1 text-xs text-slate-500">{describeCampaignActionState(campaign, {
               canRequestApproval,
               canApproveCampaigns,
               canSendCampaigns,
