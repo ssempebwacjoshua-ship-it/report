@@ -414,6 +414,125 @@ describe("platformOwnerRoutes ? school management console", () => {
   });
 });
 
+describe("platformOwnerRoutes ? owner subscription management", () => {
+  async function createSubscriptionSchool() {
+    return prisma.school.create({
+      data: {
+        code: `SUB-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`.toUpperCase(),
+        name: "Owner Subscription Test School",
+      },
+    });
+  }
+
+  it("allows a platform owner to get a school's subscription", async () => {
+    const school = await createSubscriptionSchool();
+    const start = new Date("2026-01-01T00:00:00.000Z");
+    const end = new Date("2026-12-31T00:00:00.000Z");
+    await prisma.reportLabSubscription.create({
+      data: {
+        schoolId: school.id,
+        planCode: "REPORT_LAB_500",
+        billingCycle: "YEAR",
+        status: "ACTIVE",
+        currentPeriodStart: start,
+        currentPeriodEnd: end,
+        studentLimit: 500,
+      },
+    });
+
+    const res = await request(createServer())
+      .get(`/api/platform-owner/schools/${school.id}/subscription`)
+      .set("Authorization", `Bearer ${ownerToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.school).toMatchObject({ id: school.id, code: school.code, name: school.name });
+    expect(res.body.subscription).toMatchObject({
+      planCode: "REPORT_LAB_500",
+      billingCycle: "YEAR",
+      status: "ACTIVE",
+      studentLimit: 500,
+    });
+    expect(res.body.entitlements.features).toContain("Report generation");
+  });
+
+  it("allows a platform owner to upsert and update a school's subscription", async () => {
+    const school = await createSubscriptionSchool();
+    const payload = {
+      planCode: "REPORT_LAB_1000",
+      billingCycle: "YEAR",
+      status: "TRIAL",
+      currentPeriodStart: "2026-02-01T00:00:00.000Z",
+      currentPeriodEnd: "2027-02-01T00:00:00.000Z",
+      studentLimit: 975,
+    };
+
+    const createRes = await request(createServer())
+      .put(`/api/platform-owner/schools/${school.id}/subscription`)
+      .set("Authorization", `Bearer ${ownerToken}`)
+      .set("x-request-id", "owner-subscription-test")
+      .send(payload);
+
+    expect(createRes.status).toBe(200);
+    expect(createRes.body.subscription).toMatchObject({
+      planCode: "REPORT_LAB_1000",
+      status: "TRIAL",
+      studentLimit: 975,
+    });
+
+    const updateRes = await request(createServer())
+      .put(`/api/platform-owner/schools/${school.id}/subscription`)
+      .set("Authorization", `Bearer ${ownerToken}`)
+      .send({ ...payload, status: "ACTIVE", studentLimit: 1000 });
+
+    expect(updateRes.status).toBe(200);
+    expect(updateRes.body.subscription).toMatchObject({
+      planCode: "REPORT_LAB_1000",
+      status: "ACTIVE",
+      studentLimit: 1000,
+    });
+
+    const persisted = await prisma.reportLabSubscription.findUnique({ where: { schoolId: school.id } });
+    expect(persisted?.status).toBe("ACTIVE");
+    expect(persisted?.studentLimit).toBe(1000);
+  });
+
+  it("blocks non-owner users from owner subscription endpoints", async () => {
+    const school = await createSubscriptionSchool();
+
+    const res = await request(createServer())
+      .get(`/api/platform-owner/schools/${school.id}/subscription`)
+      .set("Authorization", `Bearer ${normalToken}`);
+
+    expect(res.status).toBe(403);
+  });
+
+  it("returns 404 for an invalid school", async () => {
+    const res = await request(createServer())
+      .get("/api/platform-owner/schools/00000000-0000-0000-0000-000000000099/subscription")
+      .set("Authorization", `Bearer ${ownerToken}`);
+
+    expect(res.status).toBe(404);
+  });
+
+  it("returns 400 for invalid plan/status payloads", async () => {
+    const school = await createSubscriptionSchool();
+
+    const res = await request(createServer())
+      .put(`/api/platform-owner/schools/${school.id}/subscription`)
+      .set("Authorization", `Bearer ${ownerToken}`)
+      .send({
+        planCode: "NOT_A_PLAN",
+        billingCycle: "YEAR",
+        status: "NOT_A_STATUS",
+        currentPeriodStart: "2026-02-01T00:00:00.000Z",
+        currentPeriodEnd: "2027-02-01T00:00:00.000Z",
+        studentLimit: 100,
+      });
+
+    expect(res.status).toBe(400);
+  });
+});
+
 describe("platformOwnerRoutes ? reader management inventory", () => {
   beforeAll(() => {
     process.env.READER_GATEWAY_OTA_RELEASES_JSON = JSON.stringify([{

@@ -2049,6 +2049,7 @@ enum CommunicationCampaignStatus {
   SCHEDULED
   QUEUED
   SENDING
+  SENT
   PARTIALLY_DELIVERED
   DELIVERED
   FAILED

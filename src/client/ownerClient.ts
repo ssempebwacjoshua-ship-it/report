@@ -25,9 +25,43 @@ export type OwnerSchool = {
   brandingMode?: string;
   isActive: boolean;
   createdAt: string;
-  subscription: { planCode: string; status: string; currentPeriodEnd: string; studentLimit: number | null } | null;
+  subscription: OwnerSubscription | null;
   primaryAdmin: { id: string; name: string; email: string } | null;
   studentCount: number;
+};
+
+export type OwnerSubscription = {
+  id?: string;
+  schoolId?: string;
+  planCode: string;
+  billingCycle: "YEAR";
+  status: "ACTIVE" | "EXPIRED" | "SUSPENDED" | "PENDING" | "TRIAL";
+  currentPeriodStart: string;
+  currentPeriodEnd: string;
+  studentLimit: number | null;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export type OwnerSchoolSubscriptionResponse = {
+  school: { id: string; code: string; name: string };
+  subscription: OwnerSubscription | null;
+  entitlements: {
+    planName: string | null;
+    studentLimit: number | null;
+    billingCycle: string | null;
+    features: string[];
+    addOns: string[];
+  };
+};
+
+export type SaveOwnerSubscriptionInput = {
+  planCode: string;
+  billingCycle: "YEAR";
+  status: "ACTIVE" | "EXPIRED" | "SUSPENDED" | "PENDING" | "TRIAL";
+  currentPeriodStart: string;
+  currentPeriodEnd: string;
+  studentLimit: number | null;
 };
 
 export type CreateOwnerSchoolInput = {
@@ -47,7 +81,7 @@ export type CreateOwnerSchoolInput = {
 export type CreateOwnerSchoolResult = {
   ok: boolean;
   school: { id: string; code: string; name: string; phone: string | null; address: string | null; isActive: boolean };
-  subscription: { id: string; planCode: string; status: string; currentPeriodEnd: string; studentLimit: number | null };
+  subscription: OwnerSubscription;
   invoice: { id: string; setupFeeUgx: number; amountUgx: number; totalUgx: number; status: string };
   admin: { id: string; email: string; name: string; mustChangePassword: boolean };
   academicYear: { id: string; name: string };
@@ -335,6 +369,24 @@ export async function fetchOwnerSchoolConsole(schoolId: string): Promise<OwnerSc
     headers: makeRequestHeaders(),
   });
   if (!res.ok) throw new Error(await parseApiError(res, "Could not load school console"));
+  return res.json();
+}
+
+export async function fetchOwnerSchoolSubscription(schoolId: string): Promise<OwnerSchoolSubscriptionResponse> {
+  const res = await fetch(`${API_BASE}/api/platform-owner/schools/${encodeURIComponent(schoolId)}/subscription`, {
+    headers: makeRequestHeaders(),
+  });
+  if (!res.ok) throw new Error(await parseApiError(res, "Could not load subscription"));
+  return res.json();
+}
+
+export async function saveOwnerSchoolSubscription(schoolId: string, input: SaveOwnerSubscriptionInput): Promise<OwnerSchoolSubscriptionResponse> {
+  const res = await fetch(`${API_BASE}/api/platform-owner/schools/${encodeURIComponent(schoolId)}/subscription`, {
+    method: "PUT",
+    headers: makeRequestHeaders({ "Content-Type": "application/json" }),
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) throw new Error(await parseApiError(res, "Could not update subscription"));
   return res.json();
 }
 
