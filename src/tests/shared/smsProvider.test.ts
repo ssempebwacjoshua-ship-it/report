@@ -104,6 +104,39 @@ describe("YoolaSmsProvider", () => {
     expect(result.acceptedRecipients[0]?.requestProviderMessageId).toBeUndefined();
   });
 
+  it("accepts recipient success when Yoola returns lowercase status or string statusCode", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify(yoolaSuccessFixture({
+      per_recipient: [
+        {
+          number: "256700000001",
+          status: "success",
+          statusCode: "100",
+          reference: "yoola-ref-123",
+        },
+      ],
+    })), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    }));
+    const provider = createProvider();
+
+    const result = await provider.sendBatch([{
+      recipientId: "recipient-1",
+      toE164: "+256700000001",
+      text: "Hello parent",
+      idempotencyKey: "idem-1",
+      segmentCount: 1,
+    }], {
+      schoolId: "school-1",
+      sendingEnabled: true,
+      providerMetadata: null,
+    });
+
+    expect(result.acceptedRecipients).toHaveLength(1);
+    expect(result.acceptedRecipients[0]?.providerMessageId).toBe("yoola-ref-123");
+    expect(result.rejectedRecipients).toEqual([]);
+  });
+
   it("treats non-JSON 2xx responses as failed because recipient acceptance was not confirmed", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("OK", {
       status: 200,
