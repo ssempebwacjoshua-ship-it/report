@@ -11,14 +11,17 @@ import {
   patchOwnerSchool,
   requestOwnerMaintenance,
   requestOwnerReaderAction,
+  fetchOwnerSchoolSubscription,
+  saveOwnerSchoolSubscription,
   startOwnerSupportSession,
   updateOwnerFeatureFlags,
   updateOwnerSchoolDetails,
-  updateOwnerSubscription,
   type CreateOwnerSchoolResult,
   type OwnerFeatureFlag,
   type OwnerSchool,
   type OwnerSchoolConsole,
+  type OwnerSchoolSubscriptionResponse,
+  type SaveOwnerSubscriptionInput,
 } from "../../client/ownerClient";
 import { REPORT_LAB_PLANS } from "../../shared/constants/subscriptionPlans";
 
@@ -27,6 +30,7 @@ type Section = (typeof SECTIONS)[number];
 const STREAM_CODES = ["A", "B", "C", "D"] as const;
 type StreamCode = (typeof STREAM_CODES)[number];
 const MIN_ADMIN_TEMP_PASSWORD_LENGTH = 10;
+const SUBSCRIPTION_STATUSES = ["ACTIVE", "TRIAL", "PENDING", "EXPIRED", "SUSPENDED"] as const;
 
 const LOGIN_URL = `${window.location.origin}/login`;
 
@@ -36,6 +40,30 @@ function formatDate(iso: string) {
 
 function formatUgx(n: number) {
   return `UGX ${n.toLocaleString("en-UG")}`;
+}
+
+function toDateInputValue(value?: string | null) {
+  if (!value) return "";
+  return value.slice(0, 10);
+}
+
+function isoFromDateInput(value: string) {
+  return new Date(`${value}T00:00:00.000Z`).toISOString();
+}
+
+function defaultSubscriptionForm(initial?: OwnerSchool["subscription"] | null): SaveOwnerSubscriptionInput {
+  const plan = REPORT_LAB_PLANS.find((p) => p.code === initial?.planCode) ?? REPORT_LAB_PLANS[0]!;
+  const today = new Date();
+  const end = new Date(today);
+  end.setFullYear(end.getFullYear() + 1);
+  return {
+    planCode: initial?.planCode ?? plan.code,
+    billingCycle: "YEAR",
+    status: (initial?.status as SaveOwnerSubscriptionInput["status"] | undefined) ?? "ACTIVE",
+    currentPeriodStart: toDateInputValue(initial?.currentPeriodStart) || today.toISOString().slice(0, 10),
+    currentPeriodEnd: toDateInputValue(initial?.currentPeriodEnd) || end.toISOString().slice(0, 10),
+    studentLimit: initial?.studentLimit ?? plan.studentLimit,
+  };
 }
 
 function StatusBadge({ status }: { status: string }) {
@@ -86,7 +114,7 @@ const ACTION_LABELS: Record<SchoolAction, string> = {
   unlock: "Unlock Account",
   support: "Support Session",
   readers: "Manage Readers",
-  subscription: "Subscription",
+  subscription: "Manage Subscription",
   health: "Health",
   features: "Feature Flags",
   "api-keys": "API Keys",
@@ -144,7 +172,13 @@ function SchoolCard({ school, onAction }: { school: OwnerSchool; onAction: (scho
           <p className="mt-0.5 text-sm font-semibold text-slate-900">{formatDate(school.createdAt)}</p>
         </div>
       </div>
-      <div className="mt-3 flex justify-end">
+      <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_1fr_auto]">
+        <button type="button" onClick={() => onAction(school, "view")} className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-black text-slate-700 hover:bg-slate-50">
+          View/manage school
+        </button>
+        <button type="button" onClick={() => onAction(school, "subscription")} className="rounded-xl bg-blue-600 px-3 py-2 text-xs font-black text-white hover:bg-blue-700">
+          Manage subscription
+        </button>
         <ActionsMenu school={school} onAction={onAction} />
       </div>
     </article>
@@ -292,6 +326,7 @@ export function OwnerSchoolsPage() {
   }
 
   async function refreshSelectedConsole() {
+    await loadSchools();
     if (selectedSchool) await loadSchoolConsole(selectedSchool, selectedSection);
   }
 
@@ -393,7 +428,15 @@ export function OwnerSchoolsPage() {
                         <td className="px-4 py-3"><SchoolBadge active={school.isActive} /></td>
                         <td className="px-4 py-3 whitespace-nowrap text-xs text-slate-500">{formatDate(school.createdAt)}</td>
                         <td className="px-4 py-3">
-                          <ActionsMenu school={school} onAction={(item, action) => { void handleSchoolAction(item, action); }} />
+                          <div className="flex flex-wrap items-center gap-2">
+                            <button type="button" onClick={() => { void handleSchoolAction(school, "view"); }} className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-black text-slate-700 hover:bg-slate-50">
+                              View/manage school
+                            </button>
+                            <button type="button" onClick={() => { void handleSchoolAction(school, "subscription"); }} className="rounded-xl bg-blue-600 px-3 py-2 text-xs font-black text-white hover:bg-blue-700">
+                              Manage subscription
+                            </button>
+                            <ActionsMenu school={school} onAction={(item, action) => { void handleSchoolAction(item, action); }} />
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -761,15 +804,13 @@ function OwnerSchoolConsoleDrawer({
             ) : null}
 
             {section === "subscription" ? (
-              <section className="rounded-2xl border border-slate-200 p-4">
-                <h4 className="font-black text-slate-900">Subscription</h4>
-                <p className="mt-1 text-sm text-slate-500">{data.school.subscription?.planCode ?? "No plan"} - {data.school.subscription?.status ?? "No subscription"}</p>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <button type="button" className="btn text-sm" onClick={() => { void run("Subscription extended.", () => updateOwnerSubscription(school.id, { action: "EXTEND", extendDays: 30 })); }}>Extend 30 days</button>
-                  <button type="button" className="btn text-sm" onClick={() => { void run("Subscription paused.", () => updateOwnerSubscription(school.id, { action: "PAUSE" })); }}>Pause</button>
-                  <button type="button" className="btn text-sm" onClick={() => { void run("Subscription cancelled.", () => updateOwnerSubscription(school.id, { action: "CANCEL" })); }}>Cancel</button>
-                </div>
-              </section>
+              <SubscriptionManagementPanel
+                school={school}
+                initialSubscription={data.school.subscription}
+                onNotice={onNotice}
+                onError={onError}
+                onRefresh={onRefresh}
+              />
             ) : null}
 
             {section === "health" ? (
@@ -867,5 +908,171 @@ function DetailMini({ label, value }: { label: string; value: string }) {
       <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-500">{label}</p>
       <p className="mt-0.5 break-words text-sm font-semibold text-slate-900">{value}</p>
     </div>
+  );
+}
+
+function SubscriptionManagementPanel({
+  school,
+  initialSubscription,
+  onNotice,
+  onError,
+  onRefresh,
+}: {
+  school: OwnerSchool;
+  initialSubscription: OwnerSchool["subscription"];
+  onNotice: (value: string) => void;
+  onError: (value: string) => void;
+  onRefresh: () => void;
+}) {
+  const [details, setDetails] = useState<OwnerSchoolSubscriptionResponse | null>(null);
+  const [form, setForm] = useState<SaveOwnerSubscriptionInput>(() => defaultSubscriptionForm(initialSubscription));
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [localError, setLocalError] = useState("");
+  const [success, setSuccess] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setLocalError("");
+    fetchOwnerSchoolSubscription(school.id)
+      .then((result) => {
+        if (cancelled) return;
+        setDetails(result);
+        setForm(defaultSubscriptionForm(result.subscription));
+      })
+      .catch((error: unknown) => {
+        if (cancelled) return;
+        setLocalError(error instanceof Error ? error.message : "Could not load subscription.");
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [school.id]);
+
+  const selectedPlan = REPORT_LAB_PLANS.find((plan) => plan.code === form.planCode) ?? REPORT_LAB_PLANS[0]!;
+  const entitlementSummary = details?.entitlements.features.length
+    ? details.entitlements.features
+    : selectedPlan.features;
+
+  function resetForm() {
+    setForm(defaultSubscriptionForm(details?.subscription ?? initialSubscription));
+    setLocalError("");
+    setSuccess("");
+  }
+
+  async function save() {
+    setSaving(true);
+    setLocalError("");
+    setSuccess("");
+    try {
+      const result = await saveOwnerSchoolSubscription(school.id, {
+        ...form,
+        currentPeriodStart: isoFromDateInput(form.currentPeriodStart),
+        currentPeriodEnd: isoFromDateInput(form.currentPeriodEnd),
+      });
+      setDetails(result);
+      setForm(defaultSubscriptionForm(result.subscription));
+      setSuccess("Subscription saved.");
+      onNotice("Subscription saved.");
+      onRefresh();
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Could not save subscription.";
+      setLocalError(message);
+      onError(message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <section className="rounded-2xl border border-slate-200 p-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h4 className="font-black text-slate-900">Manage Subscription</h4>
+          <p className="mt-1 text-sm text-slate-500">Owner-only controls for school plan, period, status, and student limit.</p>
+        </div>
+        {details?.subscription ? <StatusBadge status={details.subscription.status} /> : <StatusBadge status="PENDING" />}
+      </div>
+
+      <div className="mt-4 grid gap-2 text-sm sm:grid-cols-2 lg:grid-cols-3">
+        <InfoRow label="School" value={details?.school.name ?? school.name} />
+        <InfoRow label="Code" value={details?.school.code ?? school.code} mono />
+        <InfoRow label="Current plan" value={details?.subscription?.planCode ?? initialSubscription?.planCode ?? "No subscription"} />
+        <InfoRow label="Billing cycle" value={details?.subscription?.billingCycle ?? initialSubscription?.billingCycle ?? "YEAR"} />
+        <InfoRow label="Status" value={details?.subscription?.status ?? initialSubscription?.status ?? "PENDING"} />
+        <InfoRow label="Student limit" value={`${details?.subscription?.studentLimit ?? initialSubscription?.studentLimit ?? selectedPlan.studentLimit ?? "Custom"}`} />
+      </div>
+
+      {loading ? <p className="mt-4 rounded-2xl bg-slate-50 p-3 text-sm text-slate-500">Loading subscription...</p> : null}
+      {localError ? <p className="mt-4 rounded-2xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{localError}</p> : null}
+      {success ? <p className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">{success}</p> : null}
+
+      <div className="mt-4 grid gap-3 sm:grid-cols-2">
+        <label className="grid gap-1 text-sm font-bold text-slate-700">
+          Plan code
+          <select
+            value={form.planCode}
+            onChange={(event) => {
+              const plan = REPORT_LAB_PLANS.find((item) => item.code === event.target.value);
+              setForm((current) => ({ ...current, planCode: event.target.value, studentLimit: plan?.studentLimit ?? null }));
+            }}
+            className="input w-full text-sm"
+          >
+            {REPORT_LAB_PLANS.map((plan) => <option key={plan.code} value={plan.code}>{plan.code} - {plan.name}</option>)}
+          </select>
+        </label>
+        <label className="grid gap-1 text-sm font-bold text-slate-700">
+          Billing cycle
+          <select value={form.billingCycle} onChange={(event) => setForm((current) => ({ ...current, billingCycle: event.target.value as "YEAR" }))} className="input w-full text-sm">
+            <option value="YEAR">YEAR</option>
+          </select>
+        </label>
+        <label className="grid gap-1 text-sm font-bold text-slate-700">
+          Status
+          <select value={form.status} onChange={(event) => setForm((current) => ({ ...current, status: event.target.value as SaveOwnerSubscriptionInput["status"] }))} className="input w-full text-sm">
+            {SUBSCRIPTION_STATUSES.map((status) => <option key={status} value={status}>{status}</option>)}
+          </select>
+        </label>
+        <label className="grid gap-1 text-sm font-bold text-slate-700">
+          Student limit
+          <input
+            type="number"
+            min="0"
+            value={form.studentLimit ?? ""}
+            onChange={(event) => setForm((current) => ({ ...current, studentLimit: event.target.value === "" ? null : Number(event.target.value) }))}
+            className="input w-full text-sm"
+            placeholder="Custom"
+          />
+        </label>
+        <label className="grid gap-1 text-sm font-bold text-slate-700">
+          Current period start
+          <input type="date" value={form.currentPeriodStart} onChange={(event) => setForm((current) => ({ ...current, currentPeriodStart: event.target.value }))} className="input w-full text-sm" />
+        </label>
+        <label className="grid gap-1 text-sm font-bold text-slate-700">
+          Current period end
+          <input type="date" value={form.currentPeriodEnd} onChange={(event) => setForm((current) => ({ ...current, currentPeriodEnd: event.target.value }))} className="input w-full text-sm" />
+        </label>
+      </div>
+
+      <div className="mt-4 rounded-2xl bg-slate-50 p-3">
+        <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">Active module / entitlement summary</p>
+        <div className="mt-2 flex flex-wrap gap-2">
+          {entitlementSummary.length === 0 ? <span className="text-sm text-slate-500">No entitlement summary available.</span> : entitlementSummary.map((feature) => (
+            <span key={feature} className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-bold text-slate-700">{feature}</span>
+          ))}
+        </div>
+      </div>
+
+      <div className="mt-4 flex flex-wrap gap-2">
+        <button type="button" onClick={() => { void save(); }} disabled={saving || loading || !form.currentPeriodStart || !form.currentPeriodEnd} className="btn btn-primary text-sm">
+          {saving ? "Saving..." : "Save subscription"}
+        </button>
+        <button type="button" onClick={resetForm} disabled={saving} className="btn text-sm">Cancel</button>
+      </div>
+    </section>
   );
 }
