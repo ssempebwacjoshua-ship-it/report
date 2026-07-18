@@ -13,6 +13,7 @@ import {
   registerNfcVisitor,
   scanNfcGate,
 } from "../client/studentCredentialsClient";
+import { fetchAppVersion } from "../client/appVersionClient";
 import { resolveOfflineNfcScan } from "../offline/offlineResolver";
 import { queueGateScan, getSnapshotMeta, getGateQueueStatus, type GateQueueStatus } from "../offline/offlineStore";
 import { getSnapshotValidity } from "../offline/offlineStatus";
@@ -71,6 +72,9 @@ const INITIAL_VISITOR_FORM: VisitorFormState = {
   purpose: "",
   hostName: "",
 };
+
+const GATE_APP_VERSION_KEY = "sc_gate_app_version";
+const GATE_APP_RELOAD_KEY = "sc_gate_app_reloaded_version";
 
 function formatDateTime(value: string | null | undefined) {
   if (!value) return "Not recorded";
@@ -140,6 +144,7 @@ export function NfcGateSecurityPage() {
   const [visitorSuccess, setVisitorSuccess] = useState("");
   const [registeringVisitor, setRegisteringVisitor] = useState(false);
   const [checkingOutVisitorId, setCheckingOutVisitorId] = useState<string | null>(null);
+  const [updateAvailable, setUpdateAvailable] = useState(false);
   const [visitorForm, setVisitorForm] = useState<VisitorFormState>(INITIAL_VISITOR_FORM);
   const [idDocumentImage, setIdDocumentImage] = useState<File | null>(null);
   const [selfieImage, setSelfieImage] = useState<File | null>(null);
@@ -350,6 +355,55 @@ export function NfcGateSecurityPage() {
   const result = scanResult?.result;
   const allowed = result === "ALLOWED";
   const passOutTitle = scanResult ? passOutResultTitle(scanResult) : null;
+  const scannerIdleForReload = !["PERMISSION", "READING", "PROCESSING"].includes(scanner.state);
+
+  useEffect(() => {
+    if (!user || !token) return;
+
+    let cancelled = false;
+    let checking = false;
+    const checkVersion = async () => {
+      if (checking || (typeof navigator !== "undefined" && !navigator.onLine)) return;
+      checking = true;
+      try {
+        const next = await fetchAppVersion();
+        if (cancelled || !next.version) return;
+        const current = window.localStorage.getItem(GATE_APP_VERSION_KEY);
+        window.localStorage.setItem(GATE_APP_VERSION_KEY, next.version);
+        if (!current || current === next.version) {
+          setUpdateAvailable(false);
+          return;
+        }
+
+        setUpdateAvailable(true);
+        const alreadyReloaded = window.sessionStorage.getItem(GATE_APP_RELOAD_KEY);
+        if (scannerIdleForReload && alreadyReloaded !== next.version) {
+          window.sessionStorage.setItem(GATE_APP_RELOAD_KEY, next.version);
+          window.location.reload();
+        }
+      } catch {
+        // Version checks are a freshness enhancement; never block gate scanning.
+      } finally {
+        checking = false;
+      }
+    };
+
+    const onVisibleOrOnline = () => {
+      if (document.visibilityState === "visible") void checkVersion();
+    };
+
+    void checkVersion();
+    document.addEventListener("visibilitychange", onVisibleOrOnline);
+    window.addEventListener("online", onVisibleOrOnline);
+    const interval = window.setInterval(() => void checkVersion(), 60_000);
+
+    return () => {
+      cancelled = true;
+      document.removeEventListener("visibilitychange", onVisibleOrOnline);
+      window.removeEventListener("online", onVisibleOrOnline);
+      window.clearInterval(interval);
+    };
+  }, [scannerIdleForReload, token, user]);
 
   if (authLoading) {
     return (
@@ -399,6 +453,18 @@ export function NfcGateSecurityPage() {
         <div className="flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 p-3">
           <ArrowSyncRegular className="h-4 w-4 shrink-0 animate-spin text-amber-600" />
           <p className="text-sm text-amber-800">Connection unstable - scans are still going to the server</p>
+        </div>
+      )}
+
+      {updateAvailable && (
+        <div className="rounded-xl border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">
+          <p className="font-bold">Update available</p>
+          <p className="mt-1">Gate will reload to the latest version when the scanner is idle. Offline queue and local register data are preserved.</p>
+          {scannerIdleForReload ? (
+            <button type="button" className="mt-2 rounded-lg bg-blue-700 px-3 py-1.5 text-xs font-bold text-white" onClick={() => window.location.reload()}>
+              Reload app
+            </button>
+          ) : null}
         </div>
       )}
 

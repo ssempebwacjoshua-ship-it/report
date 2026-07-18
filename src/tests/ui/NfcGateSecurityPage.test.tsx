@@ -18,6 +18,7 @@ const mockFetchGatePassOuts = vi.hoisted(() => vi.fn(async () => ({ passOuts: st
 const mockFetchVisitors = vi.hoisted(() => vi.fn(async () => ({ visits: [] })));
 const mockRegisterVisitor = vi.hoisted(() => vi.fn(async () => ({ visit: { id: "visit-2", status: "CHECKED_IN" } })));
 const mockCheckOutVisitor = vi.hoisted(() => vi.fn(async () => ({ visit: { id: "visit-1", status: "CHECKED_OUT" }, duplicate: false })));
+const mockFetchAppVersion = vi.hoisted(() => vi.fn(async () => ({ version: "test-build", buildTime: null })));
 const mockScanGate = vi.hoisted(() => vi.fn(async () => ({
   result: "ALLOWED",
   reason: null,
@@ -80,6 +81,10 @@ vi.mock("../../client/studentCredentialsClient", () => ({
   scanAttendance: mockFetchAttendanceScan,
 }));
 
+vi.mock("../../client/appVersionClient", () => ({
+  fetchAppVersion: mockFetchAppVersion,
+}));
+
 vi.mock("../../offline/offlineResolver", () => ({
   resolveOfflineNfcScan: mockResolveOfflineNfcScan,
 }));
@@ -107,6 +112,8 @@ describe("NfcGateSecurityPage", () => {
     mockFetchVisitors.mockResolvedValue({ visits: [] });
     mockRegisterVisitor.mockClear();
     mockCheckOutVisitor.mockClear();
+    mockFetchAppVersion.mockReset();
+    mockFetchAppVersion.mockResolvedValue({ version: "test-build", buildTime: null });
     mockFetchAttendanceScan.mockClear();
     mockResolveOfflineNfcScan.mockReset();
     mockQueueGateScan.mockClear();
@@ -130,6 +137,8 @@ describe("NfcGateSecurityPage", () => {
     state.user = { id: "user-1", schoolId: "school-a", name: "Gate User", role: "GATE_SECURITY" };
     state.token = "school-token";
     state.loading = false;
+    window.localStorage.removeItem("sc_gate_app_version");
+    window.sessionStorage.removeItem("sc_gate_app_reloaded_version");
     setNavigatorOnline(true);
   });
 

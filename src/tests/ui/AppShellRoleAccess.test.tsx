@@ -50,6 +50,7 @@ function renderShell(initialPath: string) {
             }
           />
           <Route path="/nfc/gate" element={<div>Gate Content</div>} />
+          <Route path="/gate/nfc/:token" element={<div>Gate Content</div>} />
           <Route path="/dashboard" element={<div>Dashboard Content</div>} />
         </Route>
       </Routes>
@@ -85,6 +86,16 @@ describe("AppShell role access", () => {
     await waitFor(() => expect(screen.getByText("Gate Content")).toBeInTheDocument());
     expect(mockFetchSettings).not.toHaveBeenCalled();
     expect(screen.queryByText("Smart Pages Content")).not.toBeInTheDocument();
+  });
+
+  it("renders the new gate UI route for NFC token links", async () => {
+    authState.user = { id: "u1", schoolId: "school-1", name: "Gate Security", role: "SECURITY" };
+    authState.token = "tok";
+
+    renderShell("/gate/nfc/token-1");
+
+    await waitFor(() => expect(screen.getByText("Gate Content")).toBeInTheDocument());
+    expect(mockFetchSettings).not.toHaveBeenCalled();
   });
 
   it("still loads settings for ADMIN_OPERATOR users on Smart Pages", async () => {

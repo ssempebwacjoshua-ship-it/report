@@ -63,6 +63,12 @@ describe("service worker safety", () => {
     expect(sw).toMatch(/CACHE_VERSION/);
     expect(sw).toContain("skipWaiting");
     expect(sw).toContain("clients.claim");
+    expect(sw).toContain('event.data?.type === "SKIP_WAITING"');
+  });
+
+  it("fetches navigations without browser cache before falling back to the shell", () => {
+    expect(sw).toContain('fetch(req, { cache: "no-store" })');
+    expect(sw).toContain("caches.match(APP_SHELL_URL)");
   });
 
   it("pins the app shell to an authenticated route and avoids caching public auth pages as shell", () => {

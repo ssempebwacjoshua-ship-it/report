@@ -63,6 +63,18 @@ import { securityHeaders } from "./middleware/securityHeaders";
 import { checkNfcWristbandSchema } from "./utils/nfcSchemaCheck";
 import { assertPlatformIntegrationConfigured } from "./platformClient";
 
+const APP_BUILD_VERSION = (
+  process.env.RAILWAY_GIT_COMMIT_SHA
+  || process.env.VERCEL_GIT_COMMIT_SHA
+  || process.env.RENDER_GIT_COMMIT
+  || process.env.SOURCE_VERSION
+  || process.env.GIT_COMMIT_SHA
+  || process.env.npm_package_version
+  || "development"
+).trim();
+
+const APP_BUILD_TIME = process.env.BUILD_TIME?.trim() || null;
+
 const LOCALHOST_ORIGIN = /^https?:\/\/(?:localhost|127\.0\.0\.1)(:\d+)?$/;
 const CANONICAL_PRODUCTION_ORIGINS = new Set([
   "https://ssamenj.online",
@@ -260,6 +272,12 @@ export function createServer() {
   app.use(readerGatewayRoutes());
   app.use(whatsappIntegrationRoutes());
   app.use(smsIntegrationRoutes());
+
+  app.get("/api/app-version", (_req, res) => {
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+    res.setHeader("Pragma", "no-cache");
+    res.json({ version: APP_BUILD_VERSION, buildTime: APP_BUILD_TIME });
+  });
 
   // Document Intelligence Engine ? creator auth accepts both school JWTs and external creator JWTs
   app.use("/api/creator", creatorAuthRoutes());
