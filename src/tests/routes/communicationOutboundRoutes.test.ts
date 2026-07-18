@@ -8,6 +8,7 @@ import { persistAndProcessWhatsAppWebhook } from "../../server/services/whatsapp
 
 let adminToken = "";
 let teacherToken = "";
+let otherAdminToken = "";
 let schoolId = "";
 let otherSchoolId = "";
 let studentId = "";
@@ -42,8 +43,14 @@ beforeAll(async () => {
     update: { role: "TEACHER", isActive: true, passwordHash, tokenVersion: 0 },
     create: { schoolId, email: "comm-teacher@school.test", name: "Comm Teacher", role: "TEACHER", isActive: true, passwordHash, tokenVersion: 0 },
   });
+  const otherAdmin = await prisma.user.upsert({
+    where: { schoolId_email: { schoolId: otherSchoolId, email: "comm-admin-other@school.test" } },
+    update: { role: "ADMIN_OPERATOR", isActive: true, passwordHash, tokenVersion: 0 },
+    create: { schoolId: otherSchoolId, email: "comm-admin-other@school.test", name: "Other Comm Admin", role: "ADMIN_OPERATOR", isActive: true, passwordHash, tokenVersion: 0 },
+  });
   adminToken = signToken({ userId: admin.id, schoolId, name: admin.name, email: admin.email, role: admin.role, tokenVersion: admin.tokenVersion });
   teacherToken = signToken({ userId: teacher.id, schoolId, name: teacher.name, email: teacher.email, role: teacher.role, tokenVersion: teacher.tokenVersion });
+  otherAdminToken = signToken({ userId: otherAdmin.id, schoolId: otherSchoolId, name: otherAdmin.name, email: otherAdmin.email, role: otherAdmin.role, tokenVersion: otherAdmin.tokenVersion });
 
   const student = await prisma.student.upsert({
     where: { schoolId_admissionNumber: { schoolId, admissionNumber: "COMM-001" } },
@@ -135,6 +142,114 @@ async function ensureActiveSubscription() {
 }
 
 describe("communication outbound routes", () => {
+  it("lets admins list communication templates for their school", async () => {
+    await createTemplate({ channel: "SMS", body: "Hello {{guardianName}}" });
+    await prisma.communicationTemplate.create({
+      data: {
+        schoolId: otherSchoolId,
+        channel: "SMS",
+        communicationType: "ANNOUNCEMENT" as never,
+        name: `other-list-sms-${Date.now()}`,
+        status: "APPROVED",
+        content: "Other school only",
+        variablesJson: [],
+      },
+    });
+
+    const res = await request(createServer())
+      .get("/api/communications/templates")
+      .set("Authorization", auth(adminToken));
+
+    expect(res.status).toBe(200);
+    expect(res.body.templates).toHaveLength(1);
+    expect(res.body.templates[0]).toMatchObject({
+      channel: "SMS",
+      communicationType: "ANNOUNCEMENT",
+      status: "APPROVED",
+    });
+  });
+
+  it("lets admins create an approved SMS announcement template and extracts variables", async () => {
+    const res = await request(createServer())
+      .post("/api/communications/templates")
+      .set("Authorization", auth(adminToken))
+      .send({
+        channel: "SMS",
+        communicationType: "ANNOUNCEMENT",
+        name: "sms-announcement-default",
+        status: "APPROVED",
+        content: "Hello {{guardianName}}, {{schoolName}}: {{communicationTitle}}. {{message}}",
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body.template).toMatchObject({
+      channel: "SMS",
+      communicationType: "ANNOUNCEMENT",
+      name: "sms-announcement-default",
+      status: "APPROVED",
+      languageCode: "en",
+      variables: ["guardianName", "schoolName", "communicationTitle", "message"],
+    });
+    await expect(prisma.communicationTemplate.count({ where: { schoolId, name: "sms-announcement-default" } })).resolves.toBe(1);
+    await expect(prisma.auditLog.findFirst({ where: { schoolId, action: "communication.template.upsert" } })).resolves.toBeTruthy();
+  });
+
+  it("prevents teachers from managing communication templates", async () => {
+    const listRes = await request(createServer())
+      .get("/api/communications/templates")
+      .set("Authorization", auth(teacherToken));
+    const saveRes = await request(createServer())
+      .post("/api/communications/templates")
+      .set("Authorization", auth(teacherToken))
+      .send({
+        channel: "SMS",
+        communicationType: "ANNOUNCEMENT",
+        name: "teacher-template",
+        status: "APPROVED",
+        content: "Hello {{guardianName}}",
+      });
+
+    expect(listRes.status).toBe(403);
+    expect(saveRes.status).toBe(403);
+  });
+
+  it("upserts templates inside the authenticated school scope only", async () => {
+    await request(createServer())
+      .post("/api/communications/templates")
+      .set("Authorization", auth(adminToken))
+      .send({
+        channel: "SMS",
+        communicationType: "ANNOUNCEMENT",
+        name: "shared-template-name",
+        status: "APPROVED",
+        content: "School A {{guardianName}}",
+      });
+    await request(createServer())
+      .post("/api/communications/templates")
+      .set("Authorization", auth(otherAdminToken))
+      .send({
+        channel: "SMS",
+        communicationType: "ANNOUNCEMENT",
+        name: "shared-template-name",
+        status: "APPROVED",
+        content: "School B {{guardianName}}",
+      });
+
+    const schoolA = await request(createServer())
+      .get("/api/communications/templates")
+      .set("Authorization", auth(adminToken));
+    const schoolB = await request(createServer())
+      .get("/api/communications/templates")
+      .set("Authorization", auth(otherAdminToken));
+
+    expect(schoolA.status).toBe(200);
+    expect(schoolB.status).toBe(200);
+    expect(schoolA.body.templates).toHaveLength(1);
+    expect(schoolB.body.templates).toHaveLength(1);
+    expect(schoolA.body.templates[0].content).toBe("School A {{guardianName}}");
+    expect(schoolB.body.templates[0].content).toBe("School B {{guardianName}}");
+  });
+
   it("returns the current persisted campaign status from the status endpoint", async () => {
     const campaignId = await createCampaign();
     const res = await request(createServer())

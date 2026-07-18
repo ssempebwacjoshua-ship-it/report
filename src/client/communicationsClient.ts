@@ -16,9 +16,50 @@ export type CommunicationCampaign = {
   contents?: Array<{ subject: string | null; body: string; shortBody: string | null }>;
 };
 
+export type CommunicationTemplate = {
+  id: string;
+  channel: "SMS" | "WHATSAPP";
+  communicationType: string;
+  name: string;
+  providerTemplateName: string | null;
+  providerTemplateId: string | null;
+  languageCode: string;
+  status: "DRAFT" | "APPROVED" | "ACTIVE";
+  content: string;
+  variables: unknown[];
+  createdAt: string;
+  updatedAt: string;
+};
+
 export async function fetchCommunicationCampaigns(): Promise<{ campaigns: CommunicationCampaign[]; summary: Array<{ status: string; _count: { status: number } }> }> {
   const res = await fetch(`${API_BASE}/api/communications/campaigns`, { headers: makeRequestHeaders() });
   if (!res.ok) throw new Error(await parseApiError(res, "Could not load communication campaigns"));
+  return res.json();
+}
+
+export async function fetchCommunicationTemplates(): Promise<{ templates: CommunicationTemplate[] }> {
+  const res = await fetch(`${API_BASE}/api/communications/templates`, { headers: makeRequestHeaders() });
+  if (!res.ok) throw new Error(await parseApiError(res, "Could not load communication templates"));
+  return res.json();
+}
+
+export async function saveCommunicationTemplate(body: {
+  channel: "SMS" | "WHATSAPP";
+  communicationType: string;
+  name: string;
+  content: string;
+  status: "DRAFT" | "APPROVED" | "ACTIVE";
+  languageCode?: string;
+  providerTemplateName?: string | null;
+  providerTemplateId?: string | null;
+  variables?: string[];
+}): Promise<{ template: CommunicationTemplate }> {
+  const res = await fetch(`${API_BASE}/api/communications/templates`, {
+    method: "POST",
+    headers: makeRequestHeaders({ "Content-Type": "application/json" }),
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(await parseApiError(res, "Could not save communication template"));
   return res.json();
 }
 

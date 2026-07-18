@@ -3,10 +3,13 @@ import {
   approveCommunicationCampaign,
   createCommunicationCampaign,
   fetchCommunicationCampaigns,
+  fetchCommunicationTemplates,
   previewCommunicationRecipients,
   requestCommunicationCampaignApproval,
+  saveCommunicationTemplate,
   sendCommunication,
   type CommunicationCampaign,
+  type CommunicationTemplate,
 } from "../client/communicationsClient";
 import { useAuth } from "../contexts/AuthContext";
 import { fetchReportContext } from "../client/reportsClient";
@@ -42,6 +45,19 @@ type AudienceFormState = AudienceDefinition & {
   mode: "GENERAL" | "PER_STUDENT";
 };
 
+type TemplateFormState = {
+  channel: "SMS" | "WHATSAPP";
+  communicationType: string;
+  name: string;
+  status: "DRAFT" | "APPROVED" | "ACTIVE";
+  languageCode: string;
+  content: string;
+  providerTemplateName: string;
+  providerTemplateId: string;
+};
+
+type CommunicationTab = "Campaigns" | "Delivery" | "Templates";
+
 const campaignTypes = [
   "ANNOUNCEMENT",
   "CIRCULAR",
@@ -71,17 +87,30 @@ const defaultAudience: AudienceFormState = {
   mode: "GENERAL",
 };
 
+const defaultTemplateForm: TemplateFormState = {
+  channel: "SMS",
+  communicationType: "ANNOUNCEMENT",
+  name: "sms-announcement-default",
+  status: "APPROVED",
+  languageCode: "en",
+  content: "Hello {{guardianName}}, {{schoolName}}: {{communicationTitle}}. {{message}}",
+  providerTemplateName: "",
+  providerTemplateId: "",
+};
+
 export function CommunicationsPage() {
   const { user } = useAuth();
   const [campaigns, setCampaigns] = useState<CommunicationCampaign[]>([]);
+  const [templates, setTemplates] = useState<CommunicationTemplate[]>([]);
   const [reportContext, setReportContext] = useState<ReportContext | null>(null);
   const [students, setStudents] = useState<StudentListItem[]>([]);
   const [staffUsers, setStaffUsers] = useState<StaffUser[]>([]);
   const [staffError, setStaffError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [tab, setTab] = useState<"Campaigns" | "Delivery">("Campaigns");
+  const [tab, setTab] = useState<CommunicationTab>("Campaigns");
   const [creating, setCreating] = useState(false);
+  const [savingTemplate, setSavingTemplate] = useState(false);
   const [sendingId, setSendingId] = useState<string | null>(null);
   const [approvingId, setApprovingId] = useState<string | null>(null);
   const [submittingId, setSubmittingId] = useState<string | null>(null);
@@ -90,10 +119,12 @@ export function CommunicationsPage() {
   const [previewLoading, setPreviewLoading] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [form, setForm] = useState({ type: "ANNOUNCEMENT", title: "", subject: "", body: "" });
+  const [templateForm, setTemplateForm] = useState<TemplateFormState>(defaultTemplateForm);
   const [audience, setAudience] = useState<AudienceFormState>(defaultAudience);
   const canRequestApproval = hasPermission(user?.role, "communications.requestApproval");
   const canApproveCampaigns = hasPermission(user?.role, "communications.approve");
   const canSendCampaigns = hasPermission(user?.role, "communications.send");
+  const canManageTemplates = hasPermission(user?.role, "communications.templates.manage");
 
   async function load() {
     setLoading(true);
@@ -101,11 +132,12 @@ export function CommunicationsPage() {
     setNotice(null);
     setStaffError(null);
     try {
-      const [campaignData, contextData, studentData, staffData] = await Promise.allSettled([
+      const [campaignData, contextData, studentData, staffData, templateData] = await Promise.allSettled([
         fetchCommunicationCampaigns(),
         fetchReportContext(),
         fetchStudents({ isActive: "true" }),
         fetchStaffUsers(),
+        canManageTemplates ? fetchCommunicationTemplates() : Promise.resolve({ templates: [] }),
       ]);
       if (campaignData.status === "fulfilled") {
         setCampaigns(campaignData.value.campaigns);
@@ -124,6 +156,12 @@ export function CommunicationsPage() {
       } else {
         setStaffUsers([]);
         setStaffError("Staff list unavailable for this account. The resolver still supports staff audiences if you have access.");
+      }
+      if (templateData.status === "fulfilled") {
+        setTemplates(templateData.value.templates);
+      } else if (canManageTemplates) {
+        setTemplates([]);
+        setError(templateData.reason instanceof Error ? templateData.reason.message : "Could not load communication templates");
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not load communication data");
@@ -241,9 +279,38 @@ export function CommunicationsPage() {
       await load();
       setNotice(`Submitted ${result.result.submitted}; failed ${result.result.failed}; duplicates skipped ${result.result.skippedDuplicate}.`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : `${audience.channel === "WHATSAPP" ? "WhatsApp" : "SMS"} is not configured yet. Contact platform owner.`);
+      const deliveryChannel = audience.channel === "SMS" ? "SMS" : "WHATSAPP";
+      setError(formatCommunicationSendError(err, deliveryChannel, selectedCampaign));
     } finally {
       setSendingId(null);
+    }
+  }
+
+  async function handleSaveTemplate(event: FormEvent) {
+    event.preventDefault();
+    if (savingTemplate) return;
+    setSavingTemplate(true);
+    setError(null);
+    setNotice(null);
+    try {
+      const result = await saveCommunicationTemplate({
+        channel: templateForm.channel,
+        communicationType: templateForm.communicationType,
+        name: templateForm.name,
+        status: templateForm.status,
+        languageCode: templateForm.languageCode || "en",
+        content: templateForm.content,
+        providerTemplateName: templateForm.providerTemplateName || null,
+        providerTemplateId: templateForm.providerTemplateId || null,
+      });
+      const data = await fetchCommunicationTemplates();
+      setTemplates(data.templates);
+      setTemplateForm((current) => ({ ...current, ...templateToForm(result.template) }));
+      setNotice(`Template saved: ${result.template.channel} + ${result.template.communicationType}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not save communication template");
+    } finally {
+      setSavingTemplate(false);
     }
   }
 
@@ -340,7 +407,16 @@ export function CommunicationsPage() {
         </span>
       </header>
 
-      {error ? <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div> : null}
+      {error ? (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <span>{error}</span>
+          {canManageTemplates && error.includes("Open Templates tab") ? (
+            <button type="button" className="rounded-lg border border-red-200 bg-white px-3 py-1.5 text-xs font-black text-red-700" onClick={() => setTab("Templates")}>
+              Open Templates
+            </button>
+          ) : null}
+        </div>
+      ) : null}
       {notice ? <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700">{notice}</div> : null}
       {staffError ? <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">{staffError}</div> : null}
 
@@ -353,7 +429,7 @@ export function CommunicationsPage() {
       </section>
 
       <div className="tab-tray w-fit">
-        {(["Campaigns", "Delivery"] as const).map((item) => (
+        {(["Campaigns", "Delivery", ...(canManageTemplates ? ["Templates"] : [])] as CommunicationTab[]).map((item) => (
           <button
             key={item}
             type="button"
@@ -667,10 +743,142 @@ export function CommunicationsPage() {
             />
           </section>
         </div>
+      ) : tab === "Templates" && canManageTemplates ? (
+        <TemplatesPanel
+          templates={templates}
+          form={templateForm}
+          saving={savingTemplate}
+          onChange={setTemplateForm}
+          onSave={handleSaveTemplate}
+          onEdit={(template) => setTemplateForm(templateToForm(template))}
+        />
       ) : (
         <DeliverySummary campaigns={campaigns} />
       )}
     </main>
+  );
+}
+
+function TemplatesPanel({
+  templates,
+  form,
+  saving,
+  onChange,
+  onSave,
+  onEdit,
+}: {
+  templates: CommunicationTemplate[];
+  form: TemplateFormState;
+  saving: boolean;
+  onChange: (form: TemplateFormState) => void;
+  onSave: (event: FormEvent) => void;
+  onEdit: (template: CommunicationTemplate) => void;
+}) {
+  return (
+    <div className="grid gap-4 xl:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)]">
+      <form onSubmit={onSave} className="premium-card grid gap-3 rounded-xl p-4">
+        <div>
+          <p className="text-xs font-bold uppercase tracking-wide text-blue-600">Template setup</p>
+          <h2 className="text-sm font-black text-slate-900">Set default SMS template</h2>
+          <p className="mt-1 text-xs leading-5 text-slate-500">
+            Live SMS and WhatsApp sends require an approved school-scoped template. Provider IDs are optional for SMS and required by some WhatsApp providers.
+          </p>
+        </div>
+
+        <div className="grid gap-3 md:grid-cols-2">
+          <label className="grid gap-1 text-xs font-bold uppercase text-slate-500">
+            Channel
+            <select className="premium-control rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900" value={form.channel} onChange={(event) => onChange({ ...form, channel: event.target.value as TemplateFormState["channel"] })}>
+              <option value="SMS">SMS</option>
+              <option value="WHATSAPP">WhatsApp</option>
+            </select>
+          </label>
+          <label className="grid gap-1 text-xs font-bold uppercase text-slate-500">
+            Type
+            <select className="premium-control rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900" value={form.communicationType} onChange={(event) => onChange({ ...form, communicationType: event.target.value })}>
+              {campaignTypes.map((type) => (
+                <option key={type} value={type}>{type.replaceAll("_", " ")}</option>
+              ))}
+            </select>
+          </label>
+        </div>
+
+        <div className="grid gap-3 md:grid-cols-2">
+          <label className="grid gap-1 text-xs font-bold uppercase text-slate-500">
+            Name
+            <input className="premium-control rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900" value={form.name} onChange={(event) => onChange({ ...form, name: event.target.value })} />
+          </label>
+          <label className="grid gap-1 text-xs font-bold uppercase text-slate-500">
+            Status
+            <select className="premium-control rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900" value={form.status} onChange={(event) => onChange({ ...form, status: event.target.value as TemplateFormState["status"] })}>
+              <option value="DRAFT">Draft</option>
+              <option value="APPROVED">Approved</option>
+              <option value="ACTIVE">Active</option>
+            </select>
+          </label>
+        </div>
+
+        <div className="grid gap-3 md:grid-cols-2">
+          <label className="grid gap-1 text-xs font-bold uppercase text-slate-500">
+            Language
+            <input className="premium-control rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900" value={form.languageCode} onChange={(event) => onChange({ ...form, languageCode: event.target.value })} />
+          </label>
+          <label className="grid gap-1 text-xs font-bold uppercase text-slate-500">
+            Provider template name
+            <input className="premium-control rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900" value={form.providerTemplateName} onChange={(event) => onChange({ ...form, providerTemplateName: event.target.value })} />
+          </label>
+        </div>
+
+        <label className="grid gap-1 text-xs font-bold uppercase text-slate-500">
+          Provider template ID
+          <input className="premium-control rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900" value={form.providerTemplateId} onChange={(event) => onChange({ ...form, providerTemplateId: event.target.value })} />
+        </label>
+
+        <label className="grid gap-1 text-xs font-bold uppercase text-slate-500">
+          Content
+          <textarea className="premium-control min-h-36 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900" value={form.content} onChange={(event) => onChange({ ...form, content: event.target.value })} />
+        </label>
+
+        <button type="submit" className="btn btn-primary" disabled={saving || !form.name.trim() || !form.content.trim()}>
+          {saving ? "Saving..." : "Save template"}
+        </button>
+      </form>
+
+      <section className="premium-card grid gap-3 rounded-xl p-4">
+        <div>
+          <h2 className="text-sm font-black text-slate-900">Existing templates</h2>
+          <p className="mt-1 text-xs text-slate-500">Templates are scoped to this school only.</p>
+        </div>
+        {templates.length === 0 ? (
+          <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-3 text-sm text-amber-800">
+            No communication templates are configured yet. Save the default SMS announcement template to unblock live SMS sending.
+          </div>
+        ) : (
+          <div className="grid gap-3">
+            {templates.map((template) => (
+              <article key={template.id} className="rounded-xl border border-slate-200 bg-white p-3">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-sm font-black text-slate-900">{template.name}</p>
+                    <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
+                      {template.channel} / {template.communicationType} / {template.status}
+                    </p>
+                    <p className="mt-1 text-xs text-slate-500">
+                      Provider: {template.providerTemplateName || template.providerTemplateId || "Not bound"}
+                    </p>
+                  </div>
+                  <button type="button" className="btn btn-secondary" onClick={() => onEdit(template)}>
+                    Edit
+                  </button>
+                </div>
+                <p className="mt-3 line-clamp-2 text-sm text-slate-600">{template.content}</p>
+                <p className="mt-2 text-xs text-slate-500">Variables: {template.variables.length > 0 ? template.variables.join(", ") : "None"}</p>
+              </article>
+            ))}
+          </div>
+        )}
+      </section>
+    </div>
   );
 }
 
@@ -701,6 +909,27 @@ function buildActionConfirmation(input: {
     `Segment count: ${segmentEstimate.segments}`,
     `Estimated cost: ${estimatedCost}`,
   ].join("\n");
+}
+
+function templateToForm(template: CommunicationTemplate): TemplateFormState {
+  return {
+    channel: template.channel,
+    communicationType: template.communicationType,
+    name: template.name,
+    status: template.status,
+    languageCode: template.languageCode,
+    content: template.content,
+    providerTemplateName: template.providerTemplateName ?? "",
+    providerTemplateId: template.providerTemplateId ?? "",
+  };
+}
+
+function formatCommunicationSendError(err: unknown, channel: "SMS" | "WHATSAPP", campaign: CommunicationCampaign | null) {
+  const message = err instanceof Error ? err.message : `${channel === "WHATSAPP" ? "WhatsApp" : "SMS"} is not configured yet. Contact platform owner.`;
+  if (/approved communication template/i.test(message)) {
+    return `Missing approved template for ${channel} + ${campaign?.type ?? "ANNOUNCEMENT"}. Open Templates tab and approve one.`;
+  }
+  return message;
 }
 
 function audienceToDefinition(audience: AudienceFormState): AudienceDefinition {

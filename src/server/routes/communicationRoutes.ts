@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import { Router, type Request } from "express";
 import { z } from "zod";
 import { prisma } from "../db/prisma";
@@ -63,9 +64,91 @@ const sendCommunicationSchema = z.object({
   audience: audienceSchema.optional(),
 });
 
+const templateStatusSchema = z.enum(["DRAFT", "APPROVED", "ACTIVE"]);
+
+const templateSchema = z.object({
+  channel: z.enum(["SMS", "WHATSAPP"]),
+  communicationType: z.enum(communicationTypes),
+  name: z.string().trim().min(3).max(120),
+  content: z.string().trim().min(1).max(3000),
+  status: templateStatusSchema,
+  languageCode: z.string().trim().min(2).max(16).default("en"),
+  providerTemplateName: z.string().trim().max(160).nullable().optional(),
+  providerTemplateId: z.string().trim().max(160).nullable().optional(),
+  variables: z.array(z.string().trim().min(1).max(80).regex(/^[a-zA-Z_][a-zA-Z0-9_]*$/)).optional(),
+});
+
 export function communicationRoutes() {
   const router = Router();
   router.use(requireAuth);
+
+  router.get("/api/communications/templates", requireSchoolPermission("communications.templates.manage"), async (req, res, next) => {
+    try {
+      const templates = await prisma.communicationTemplate.findMany({
+        where: { schoolId: req.school!.id },
+        orderBy: [{ channel: "asc" }, { communicationType: "asc" }, { name: "asc" }, { languageCode: "asc" }],
+      });
+      res.json({ templates: templates.map(safeTemplate) });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/api/communications/templates", requireSchoolPermission("communications.templates.manage"), async (req, res, next) => {
+    try {
+      const body = templateSchema.parse(req.body);
+      const variables = body.variables ?? extractTemplateVariables(body.content);
+      const template = await prisma.communicationTemplate.upsert({
+        where: {
+          schoolId_channel_name_languageCode: {
+            schoolId: req.school!.id,
+            channel: body.channel,
+            name: body.name,
+            languageCode: body.languageCode,
+          },
+        },
+        update: {
+          communicationType: body.communicationType,
+          content: body.content,
+          status: body.status,
+          providerTemplateName: blankToNull(body.providerTemplateName),
+          providerTemplateId: blankToNull(body.providerTemplateId),
+          variablesJson: variables as Prisma.InputJsonValue,
+        },
+        create: {
+          schoolId: req.school!.id,
+          channel: body.channel,
+          communicationType: body.communicationType,
+          name: body.name,
+          content: body.content,
+          status: body.status,
+          languageCode: body.languageCode,
+          providerTemplateName: blankToNull(body.providerTemplateName),
+          providerTemplateId: blankToNull(body.providerTemplateId),
+          variablesJson: variables as Prisma.InputJsonValue,
+        },
+      });
+      await prisma.auditLog.create({
+        data: {
+          schoolId: req.school!.id,
+          action: "communication.template.upsert",
+          correlationId: template.id,
+          details: {
+            actorId: req.user?.userId ?? "system",
+            channel: template.channel,
+            communicationType: template.communicationType,
+            languageCode: template.languageCode,
+            name: template.name,
+            status: template.status,
+            variableCount: variables.length,
+          },
+        },
+      });
+      res.json({ template: safeTemplate(template) });
+    } catch (error) {
+      next(error);
+    }
+  });
 
   router.get("/api/communications/campaigns", requireSchoolPermission("communications.view"), async (req, res, next) => {
     try {
@@ -260,4 +343,48 @@ function routeId(req: Request) {
     throw error;
   }
   return id;
+}
+
+function extractTemplateVariables(content: string) {
+  const variables = new Set<string>();
+  for (const match of content.matchAll(/\{\{\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}/g)) {
+    const variable = match[1];
+    if (variable) variables.add(variable);
+  }
+  return [...variables];
+}
+
+function blankToNull(value: string | null | undefined) {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : null;
+}
+
+function safeTemplate(template: {
+  id: string;
+  channel: string;
+  communicationType: string;
+  name: string;
+  providerTemplateName: string | null;
+  providerTemplateId: string | null;
+  languageCode: string;
+  status: string;
+  content: string;
+  variablesJson: Prisma.JsonValue | null;
+  createdAt: Date;
+  updatedAt: Date;
+}) {
+  return {
+    id: template.id,
+    channel: template.channel,
+    communicationType: template.communicationType,
+    name: template.name,
+    providerTemplateName: template.providerTemplateName,
+    providerTemplateId: template.providerTemplateId,
+    languageCode: template.languageCode,
+    status: template.status,
+    content: template.content,
+    variables: Array.isArray(template.variablesJson) ? template.variablesJson : [],
+    createdAt: template.createdAt,
+    updatedAt: template.updatedAt,
+  };
 }
