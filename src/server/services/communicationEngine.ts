@@ -140,8 +140,9 @@ async function requireLiveTemplatePolicy(db: Db, ctx: CommunicationContext, camp
     orderBy: { updatedAt: "desc" },
   });
   if (!template) {
-    if (channel === "SMS" && !shouldRequireTemplate()) {
-      console.warn("No approved template found - using fallback message");
+    const requireTemplate = shouldRequireTemplate();
+    if (channel === "SMS" && !requireTemplate) {
+      console.warn("No approved template found - allowing fallback SMS send");
       return {
         template: null,
         policyStatus: "FALLBACK_MESSAGE" as TemplatePolicyStatus,
