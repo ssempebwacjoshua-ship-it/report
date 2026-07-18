@@ -30,6 +30,7 @@ import { releaseCenterRoutes } from "./routes/releaseCenterRoutes";
 import { communicationRoutes } from "./routes/communicationRoutes";
 import { whatsappIntegrationRoutes } from "./routes/whatsappIntegrationRoutes";
 import { smsIntegrationRoutes } from "./routes/smsIntegrationRoutes";
+import { startSmsDeliveryWorker } from "./services/communicationEngine";
 import { parentRoutes } from "./routes/parentRoutes";
 import { verifyRoutes } from "./routes/verifyRoutes";
 import { ocrRoutes } from "./routes/ocrRoutes";
@@ -370,6 +371,7 @@ if (process.env.NODE_ENV !== "test") {
   });
   startBulkGenerationWorker();
   startDocumentExtractionWorker();
+  startSmsDeliveryWorker(prisma);
   const httpServer = http.createServer(createServer());
   httpServer.requestTimeout = 120_000;
   httpServer.headersTimeout = 125_000;

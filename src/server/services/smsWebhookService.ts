@@ -1,6 +1,7 @@
 import type { PrismaClient } from "@prisma/client";
 import { hashPayload, type CommunicationDeliveryStatus } from "../../shared/communications";
 import { resolveSmsProvider } from "./communicationProviders";
+import { updateCampaignDeliveryStatus } from "./communicationEngine";
 
 type Db = PrismaClient;
 
@@ -117,6 +118,7 @@ async function applySmsWebhookEvent(
       data: { processingStatus: "PROCESSED", processedAt: new Date() },
     });
   });
+  await updateCampaignDeliveryStatus(db, delivery.schoolId, delivery.campaignId);
 }
 
 function mapSmsLifecycleToDeliveryStatus(state: "QUEUED" | "PROCESSING" | "SENT" | "DELIVERED" | "FAILED"): CommunicationDeliveryStatus {

@@ -3,6 +3,7 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { createServer } from "../../server";
 import { prisma } from "../../server/db/prisma";
 import { hashPassword, signToken } from "../../server/services/authService";
+import { determinePostSendCampaignStatus, processPendingSmsDeliveries } from "../../server/services/communicationEngine";
 import { persistAndProcessWhatsAppWebhook } from "../../server/services/whatsappWebhookService";
 
 let adminToken = "";
@@ -665,6 +666,46 @@ describe("communication outbound routes", () => {
       SENT: 1,
       DELIVERED: 1,
       FAILED: 1,
+    });
+  });
+
+  it("keeps submitted SMS campaigns sending until the delivery worker completes them", async () => {
+    expect(determinePostSendCampaignStatus({ submitted: 1, failed: 0 })).toBe("SENDING");
+
+    const campaignId = await createCampaign();
+    await prisma.communicationCampaign.update({ where: { id: campaignId }, data: { status: "SENDING" } });
+    const snapshot = await prisma.communicationAudienceSnapshot.create({ data: { campaignId, snapshotVersion: 1, recipientCount: 1 } });
+    const recipient = await prisma.communicationRecipient.create({
+      data: {
+        schoolId,
+        campaignId,
+        audienceSnapshotId: snapshot.id,
+        displayName: "Worker Parent",
+        phoneE164: "+256774549869",
+        status: "QUEUED",
+      },
+    });
+    const delivery = await prisma.communicationDelivery.create({
+      data: {
+        schoolId,
+        campaignId,
+        recipientId: recipient.id,
+        channel: "SMS",
+        provider: "YOOLA_SMS",
+        status: "SUBMITTED",
+        submittedAt: new Date("2026-07-18T09:00:00.000Z"),
+        contentVersion: 1,
+        idempotencyKey: `${campaignId}-submitted`,
+        providerMessageId: "worker-message-1",
+      },
+    });
+
+    await expect(processPendingSmsDeliveries(prisma)).resolves.toEqual({ processed: 1 });
+    await expect(prisma.communicationDelivery.findUniqueOrThrow({ where: { id: delivery.id } })).resolves.toMatchObject({
+      status: "DELIVERED",
+    });
+    await expect(prisma.communicationCampaign.findUniqueOrThrow({ where: { id: campaignId } })).resolves.toMatchObject({
+      status: "DELIVERED",
     });
   });
 
