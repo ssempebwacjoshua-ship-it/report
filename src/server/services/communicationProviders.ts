@@ -605,7 +605,7 @@ function normalizeYoolaAcceptedResponse(input: {
     ? body.per_recipient.find((entry) => entry?.number === input.phone)
     : undefined;
   if (!matchedRecipient) return null;
-  if (matchedRecipient.status !== "Success" || matchedRecipient.statusCode !== 100) return null;
+  if (!isYoolaRecipientAccepted(matchedRecipient.status, matchedRecipient.statusCode)) return null;
 
   return {
     recipientId: input.recipientId,
@@ -620,6 +620,16 @@ function normalizeYoolaAcceptedResponse(input: {
     creditsUsed: asPositiveInteger(body.credits_used) ?? undefined,
     amountChargedMinor: parseYoolaAmountMinor(body.amount_charged),
   };
+}
+
+function isYoolaRecipientAccepted(status: unknown, statusCode: unknown) {
+  const normalizedStatus = typeof status === "string" ? status.trim().toLowerCase() : "";
+  const normalizedStatusCode = typeof statusCode === "number"
+    ? statusCode
+    : typeof statusCode === "string" && /^\d+$/.test(statusCode.trim())
+      ? Number.parseInt(statusCode.trim(), 10)
+      : null;
+  return normalizedStatus === "success" && normalizedStatusCode === 100;
 }
 
 function extractYoolaFailureCode(value: unknown, statusCode: number) {
