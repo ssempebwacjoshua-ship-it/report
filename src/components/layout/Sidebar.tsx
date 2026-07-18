@@ -105,7 +105,8 @@ function SidebarSection({
   const { user } = useAuth();
   const allItems = navItemsByProduct[product];
   const items = allItems.filter((item) =>
-    !item.requiredPermission || hasPermission(user?.role, item.requiredPermission),
+    (!item.requiredPermission || hasPermission(user?.role, item.requiredPermission))
+    && (!item.visibleRoles || item.visibleRoles.includes(user?.role ?? "")),
   );
   const sectionLabel = product === "reportLab" ? "REPORT LAB" : product === "nfc" ? "NFC" : "SMART PAGES";
 

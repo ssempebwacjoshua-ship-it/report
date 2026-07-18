@@ -7,6 +7,7 @@ import {
   fetchDashboardStats,
   streamDashboardAttendanceSummary,
 } from "../../client/dashboardClient";
+import { fetchNfcGateAdminDashboard } from "../../client/studentCredentialsClient";
 import type {
   DashboardAttendanceSummary,
   DashboardStats,
@@ -18,6 +19,10 @@ vi.mock("../../client/dashboardClient", () => ({
   streamDashboardAttendanceSummary: vi.fn(async () => {}),
 }));
 
+vi.mock("../../client/studentCredentialsClient", () => ({
+  fetchNfcGateAdminDashboard: vi.fn(),
+}));
+
 vi.mock("../../components/layout/SettingsContext", () => ({
   useAppSettings: () => ({
     settings: { sections: { school: { schoolName: "Test School" } } },
@@ -27,6 +32,7 @@ vi.mock("../../components/layout/SettingsContext", () => ({
 const mockFetchStats = vi.mocked(fetchDashboardStats);
 const mockFetchAttendanceSummary = vi.mocked(fetchDashboardAttendanceSummary);
 const mockStreamDashboardAttendanceSummary = vi.mocked(streamDashboardAttendanceSummary);
+const mockFetchGateAdminDashboard = vi.mocked(fetchNfcGateAdminDashboard);
 
 const statsPayload: DashboardStats = {
   schoolName: "Test School",
@@ -79,11 +85,21 @@ beforeEach(() => {
   mockFetchStats.mockReset();
   mockFetchAttendanceSummary.mockReset();
   mockStreamDashboardAttendanceSummary.mockReset();
+  mockFetchGateAdminDashboard.mockReset();
   setNavigatorOnline(true);
   setVisibility("visible");
   mockFetchStats.mockResolvedValue(statsPayload);
   mockFetchAttendanceSummary.mockResolvedValue(attendancePayload);
   mockStreamDashboardAttendanceSummary.mockResolvedValue();
+  mockFetchGateAdminDashboard.mockResolvedValue({
+    summary: {
+      activePassOuts: 2,
+      studentsCurrentlyOut: 1,
+      visitorsCurrentlyInside: 3,
+      failedParentSms: 1,
+    },
+    activity: [],
+  });
 });
 
 describe("DashboardPage", () => {
@@ -92,6 +108,9 @@ describe("DashboardPage", () => {
 
     await waitFor(() => expect(screen.getByText("Today's Attendance")).toBeInTheDocument());
     await waitFor(() => expect(screen.getByText("70.0%")).toBeInTheDocument());
+    expect(screen.getByText("Gate Operations Snapshot")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /open gate operations/i })).toHaveAttribute("href", "/nfc/gate-admin");
+    expect(screen.getByText("Active Pass-outs")).toBeInTheDocument();
 
     expect(screen.getAllByText("7").length).toBeGreaterThan(0);
     expect(screen.getAllByText("3").length).toBeGreaterThan(0);

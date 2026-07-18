@@ -35,6 +35,7 @@ import { NfcCanteenChargePage } from "../pages/NfcCanteenChargePage";
 import { NfcCanteenReconciliationPage } from "../pages/NfcCanteenReconciliationPage";
 import { NfcSettingsPage } from "../pages/NfcSettingsPage";
 import { NfcFeeHoldsPage } from "../pages/NfcFeeHoldsPage";
+import { NfcGateOperationsPage } from "../pages/NfcGateOperationsPage";
 import { NfcGateSecurityPage } from "../pages/NfcGateSecurityPage";
 import { NfcTokenPage } from "../pages/NfcTokenPage";
 import { NfcOperationsPage } from "../pages/NfcOperationsPage";
@@ -64,6 +65,7 @@ import { PromotionWorkspacePage } from "../pages/PromotionWorkspacePage";
 import { PermissionGuard } from "../components/PermissionGuard";
 import { SectionLoader } from "../components/SectionLoader";
 
+const routerBasename = import.meta.env.BASE_URL.replace(/\/$/, "") || "/";
 const lawyerSmartPagesEnabled = import.meta.env.VITE_ENABLE_SMART_PAGES_LAWYERS === "true";
 const LawyerShell = lazy(() => import("../components/lawyers/LawyerShell").then((module) => ({ default: module.LawyerShell })));
 const LawyerDashboardPage = lazy(() => import("../pages/lawyers/LawyerDashboardPage").then((module) => ({ default: module.LawyerDashboardPage })));
@@ -171,6 +173,7 @@ export const router = createBrowserRouter([
       { path: "nfc/settings", element: <PermissionGuard permission="app.admin"><NfcSettingsPage /></PermissionGuard> },
       { path: "nfc/fee-holds", element: <PermissionGuard permission="nfc.fee-holds.manage"><NfcFeeHoldsPage /></PermissionGuard> },
       { path: "nfc/gate", element: <PermissionGuard permission="nfc.gate.view"><NfcGateSecurityPage /></PermissionGuard> },
+      { path: "nfc/gate-admin", element: <PermissionGuard permission="app.admin"><NfcGateOperationsPage /></PermissionGuard> },
       { path: "nfc/staff-users", element: <PermissionGuard permission="staff.manage"><StaffUsersPage /></PermissionGuard> },
       { path: "nfc/offline", element: <PermissionGuard permission="nfc.devices.manage"><NfcOfflinePage /></PermissionGuard> },
       // ── NFC routes — legacy redirects ─────────────────────────────────────────
@@ -211,6 +214,6 @@ export const router = createBrowserRouter([
     ],
   },
 ], {
-  basename: "/report-lab",
+  basename: routerBasename,
 });
 

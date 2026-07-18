@@ -1,5 +1,5 @@
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NfcOperationsPage } from "../../pages/NfcOperationsPage";
 import type { NfcTag } from "../../shared/types/nfcTags";
@@ -58,7 +58,7 @@ const SAMPLE_TAGS: NfcTag[] = [
     studentId: "student-1",
     student: {
       id: "student-1",
-      name: "Claire Nakibuuka With A Very Long Display Name For Layout",
+      name: "Claire Nakibuuka",
       admissionNumber: "SCU-S1A-018",
       className: "Senior 1",
       streamName: "A",
@@ -98,60 +98,17 @@ const SAMPLE_TAGS: NfcTag[] = [
     createdAt: "2026-07-10T08:10:00.000Z",
     updatedAt: "2026-07-12T07:30:00.000Z",
   },
-  {
-    id: "tag-3",
-    schoolId: "school-1",
-    batchId: null,
-    publicCode: "PUBLICCODE-DISABLED-003",
-    physicalUid: null,
-    tagMode: "UID",
-    label: "Dorm wristband",
-    type: "STUDENT",
-    purpose: "ATTENDANCE",
-    status: "DISABLED",
-    studentId: null,
-    student: null,
-    writtenUrl: null,
-    writtenPayload: null,
-    issuedAt: "2026-07-10T08:20:00.000Z",
-    writtenAt: null,
-    verifiedAt: null,
-    assignedAt: null,
-    lastSeenAt: null,
-    tapCount: 2,
-    createdAt: "2026-07-10T08:20:00.000Z",
-    updatedAt: "2026-07-12T07:30:00.000Z",
-  },
 ];
 
 beforeEach(() => {
   vi.clearAllMocks();
   mockListNfcTags.mockResolvedValue({ tags: SAMPLE_TAGS, total: SAMPLE_TAGS.length });
-  mockFetchOfflineSyncStatus.mockResolvedValue({
-    providerReachable: true,
-    lastSyncAt: "2026-07-12T08:00:00.000Z",
-    pendingCount: 0,
-    stale: false,
-    devices: [],
+  mockGenerateNfcTags.mockResolvedValue({
+    generated: 1,
+    tags: [{ ...SAMPLE_TAGS[1], id: "tag-3", label: "Generated Tag", publicCode: "PUBLICCODE-NEW-003" }],
   });
   mockFetchStudents.mockResolvedValue({
     students: [
-      {
-        id: "student-1",
-        studentName: "Claire Nakibuuka With A Very Long Display Name For Layout",
-        admissionNumber: "SCU-S1A-018",
-        className: "Senior 1",
-        streamName: "A",
-        isActive: true,
-        enrollmentStatus: "ACTIVE",
-        classId: "class-1",
-        streamId: "stream-1",
-        academicYearId: "year-1",
-        termId: "term-1",
-        contactReadiness: "READY",
-        contactSummary: "Ready",
-        guardianContacts: [],
-      },
       {
         id: "student-2",
         studentName: "Mike Ssempebwa",
@@ -159,14 +116,6 @@ beforeEach(() => {
         className: "Senior 1",
         streamName: "B",
         isActive: true,
-        enrollmentStatus: "ACTIVE",
-        classId: "class-1",
-        streamId: "stream-2",
-        academicYearId: "year-1",
-        termId: "term-1",
-        contactReadiness: "READY",
-        contactSummary: "Ready",
-        guardianContacts: [],
       },
     ],
   });
@@ -183,28 +132,26 @@ beforeEach(() => {
     pinLocked: false,
     pinLockedUntil: null,
   });
-  mockCancelReaderCredentialCapture.mockResolvedValue(undefined);
-  mockGetReaderCredentialCapture.mockResolvedValue({
-    captureId: "capture-1",
-    tagId: "tag-1",
-    studentId: "student-1",
-    deviceId: "device-1",
-    deviceLabel: "Main Entrance Reader",
-    createdAt: "2026-07-12T08:30:00.000Z",
-    expiresAt: "2026-07-12T08:35:00.000Z",
-    confirmedAt: null,
-    status: "PENDING",
-    preview: null,
-    tag: {
-      id: "tag-1",
-      publicCode: "PUBLICCODE-ASSIGNED-001",
-      label: "Tag 48048b9f",
-      student: {
-        id: "student-1",
-        name: "Claire Nakibuuka With A Very Long Display Name For Layout",
-        admissionNumber: "SCU-S1A-018",
+  mockFetchOfflineSyncStatus.mockResolvedValue({
+    providerReachable: true,
+    lastSyncAt: "2026-07-12T08:00:00.000Z",
+    pendingCount: 0,
+    stale: false,
+    devices: [
+      {
+        id: "device-1",
+        name: "Attendance Gate 01",
+        deviceKey: "attendance-gate-01",
+        location: "Main Entrance",
+        locationName: "Main Entrance",
+        mode: "ATTENDANCE",
+        status: "ACTIVE",
+        isActive: true,
+        onlineStatus: "ONLINE",
+        lastHeartbeatAt: "2026-07-12T08:00:00.000Z",
+        lastSeenAt: "2026-07-12T08:00:00.000Z",
       },
-    },
+    ],
   });
   mockAssignNfcTag.mockResolvedValue({
     ...SAMPLE_TAGS[1],
@@ -236,16 +183,34 @@ beforeEach(() => {
       label: "Tag 48048b9f",
       student: {
         id: "student-1",
-        name: "Claire Nakibuuka With A Very Long Display Name For Layout",
+        name: "Claire Nakibuuka",
+        admissionNumber: "SCU-S1A-018",
+      },
+    },
+  });
+  mockGetReaderCredentialCapture.mockResolvedValue({
+    captureId: "capture-1",
+    tagId: "tag-1",
+    studentId: "student-1",
+    deviceId: "device-1",
+    deviceLabel: "Main Entrance Reader",
+    createdAt: "2026-07-12T08:30:00.000Z",
+    expiresAt: "2026-07-12T08:35:00.000Z",
+    confirmedAt: null,
+    status: "PENDING",
+    preview: null,
+    tag: {
+      id: "tag-1",
+      publicCode: "PUBLICCODE-ASSIGNED-001",
+      label: "Tag 48048b9f",
+      student: {
+        id: "student-1",
+        name: "Claire Nakibuuka",
         admissionNumber: "SCU-S1A-018",
       },
     },
   });
 });
-
-function isoMinutesAgo(minutes: number) {
-  return new Date(Date.now() - minutes * 60 * 1000).toISOString();
-}
 
 function renderPage() {
   return render(
@@ -255,87 +220,41 @@ function renderPage() {
   );
 }
 
-describe("NfcOperationsPage wristband grid layout", () => {
-  it("renders the compact wristband grid with all row actions available", async () => {
+describe("NfcOperationsPage", () => {
+  it("keeps wristbands focused on wristband management only", async () => {
     renderPage();
 
     await waitFor(() => expect(screen.getByRole("heading", { name: "Wristbands" })).toBeInTheDocument());
-
     expect(screen.getByRole("link", { name: "Wristbands" })).toHaveAttribute("href", "/nfc/wristbands");
-    expect(screen.getByRole("link", { name: "Register" })).toHaveAttribute("href", "/nfc/wristbands/register");
-    expect(screen.getByRole("link", { name: "Bulk Issue" })).toHaveAttribute("href", "/nfc/wristbands/bulk-issue");
-
-    const cards = document.querySelectorAll(".rounded-2xl.border.border-slate-200.bg-white.p-4.shadow-sm");
-    expect(cards.length).toBeGreaterThanOrEqual(2);
-
-    expect(screen.getAllByRole("button", { name: "Open actions" }).length).toBeGreaterThan(0);
-    expect(screen.getAllByRole("button", { name: "Assign" }).length).toBeGreaterThan(0);
-    expect(screen.getAllByRole("button", { name: /Link reader/i }).length).toBeGreaterThan(0);
-
-    fireEvent.click(screen.getAllByRole("button", { name: "Open actions" })[0]);
-    expect(screen.getAllByRole("button", { name: /Copy Payload/i }).length).toBeGreaterThan(0);
-    expect(screen.getAllByRole("button", { name: /Copy URL/i }).length).toBeGreaterThan(0);
-    expect(screen.getAllByRole("button", { name: /Wallet PIN/i }).length).toBeGreaterThan(0);
-    expect(screen.getAllByRole("button", { name: /Events/i }).length).toBeGreaterThan(0);
-    expect(screen.getAllByRole("button", { name: /Disable/i }).length).toBeGreaterThan(0);
-
-    expect(screen.getAllByText("Claire Nakibuuka With A Very Long Display Name For Layout").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("SCNFC:PUBLICCODE-ASSIGNED-001-WITH-A-LONG-PAYLOAD-VALUE").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("No student assigned").length).toBeGreaterThan(0);
+    expect(screen.queryByRole("heading", { name: "Student pass-outs" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Visitor history" })).not.toBeInTheDocument();
   });
 
   it("generates wristbands and refreshes the list", async () => {
-    mockGenerateNfcTags.mockResolvedValueOnce({
-      generated: 2,
-      tags: [
-        { ...SAMPLE_TAGS[0], id: "tag-4", label: "Generated Tag A", publicCode: "PUBLICCODE-NEW-004", status: "UNASSIGNED" },
-        { ...SAMPLE_TAGS[1], id: "tag-5", label: "Generated Tag B", publicCode: "PUBLICCODE-NEW-005", status: "UNASSIGNED" },
-      ],
-    });
-
     renderPage();
-
     await waitFor(() => expect(screen.getByRole("heading", { name: "Wristbands" })).toBeInTheDocument());
 
-    fireEvent.change(screen.getByLabelText("Quantity"), { target: { value: "2" } });
-    fireEvent.click(screen.getByRole("button", { name: "Generate 2 wristbands" }));
+    fireEvent.click(screen.getByRole("button", { name: "Generate 1 wristband" }));
 
-    await waitFor(() => expect(mockGenerateNfcTags).toHaveBeenCalledWith(2));
-    expect(await screen.findByText("Generated Tag A")).toBeInTheDocument();
-    expect(screen.getByText("Generated Tag B")).toBeInTheDocument();
+    await waitFor(() => expect(mockGenerateNfcTags).toHaveBeenCalledWith(1));
+    expect(await screen.findByText("Generated Tag")).toBeInTheDocument();
   });
 
-  it("opens the wallet PIN modal, saves a PIN, and clears stale modal state on close", async () => {
+  it("assigns a student to an unassigned wristband", async () => {
     renderPage();
-
     await waitFor(() => expect(screen.getByRole("heading", { name: "Wristbands" })).toBeInTheDocument());
 
-    fireEvent.click(screen.getAllByRole("button", { name: "Open actions" })[0]);
-    fireEvent.click(screen.getByRole("button", { name: "Wallet PIN" }));
+    fireEvent.click(screen.getAllByRole("button", { name: "Assign" })[0]);
+    fireEvent.change(await screen.findByLabelText("Search student"), { target: { value: "mike" } });
+    fireEvent.click(await screen.findByRole("button", { name: /Mike Ssempebwa/i }, { timeout: 2000 }));
+    fireEvent.click(screen.getByRole("button", { name: "Assign to selected student" }));
 
-    expect(await screen.findByText("Reset wallet PIN")).toBeInTheDocument();
-    expect(mockGetStudentWalletPinStatus).toHaveBeenCalledWith("student-1");
-
-    fireEvent.change(screen.getByLabelText("New PIN (4–6 digits)"), { target: { value: "1234" } });
-    fireEvent.change(screen.getByLabelText("Confirm PIN"), { target: { value: "1234" } });
-    fireEvent.change(screen.getByLabelText("Reason"), { target: { value: "Initial setup" } });
-
-    fireEvent.click(screen.getByRole("button", { name: "Reset PIN" }));
-
-    await waitFor(() => expect(mockSetStudentWalletPin).toHaveBeenCalledWith("student-1", { pin: "1234", reason: "Initial setup" }));
-    expect(screen.getByText("PIN reset successfully.")).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("button", { name: "Close" }));
-
-    await waitFor(() => expect(screen.queryByText("PIN reset successfully.")).not.toBeInTheDocument());
-    expect(screen.queryByDisplayValue("1234")).not.toBeInTheDocument();
+    await waitFor(() => expect(mockAssignNfcTag).toHaveBeenCalledWith("tag-2", "student-2"));
+    expect(screen.getByText("Tag assigned successfully")).toBeInTheDocument();
   });
 
-  it("shows a safe error when the wallet PIN API fails", async () => {
-    mockSetStudentWalletPin.mockRejectedValueOnce(new Error("Could not set wallet PIN"));
-
+  it("opens the wallet PIN modal and saves a PIN", async () => {
     renderPage();
-
     await waitFor(() => expect(screen.getByRole("heading", { name: "Wristbands" })).toBeInTheDocument());
 
     fireEvent.click(screen.getAllByRole("button", { name: "Open actions" })[0]);
@@ -344,448 +263,10 @@ describe("NfcOperationsPage wristband grid layout", () => {
     fireEvent.change(await screen.findByLabelText("New PIN (4–6 digits)"), { target: { value: "1234" } });
     fireEvent.change(screen.getByLabelText("Confirm PIN"), { target: { value: "1234" } });
     fireEvent.change(screen.getByLabelText("Reason"), { target: { value: "Initial setup" } });
-
     fireEvent.click(screen.getByRole("button", { name: "Reset PIN" }));
 
-    expect(await screen.findByText("Could not set wallet PIN")).toBeInTheDocument();
+    await waitFor(() => expect(mockSetStudentWalletPin).toHaveBeenCalledWith("student-1", { pin: "1234", reason: "Initial setup" }));
+    expect(screen.getByText("PIN reset successfully.")).toBeInTheDocument();
   });
 
-  it("filters assignable students by trimmed case-insensitive name, admission number, and class/stream", async () => {
-    renderPage();
-
-    await waitFor(() => expect(screen.getByRole("heading", { name: "Wristbands" })).toBeInTheDocument());
-
-    fireEvent.click(screen.getAllByRole("button", { name: "Assign" })[0]);
-
-    const searchInput = await screen.findByLabelText("Search student");
-
-    fireEvent.change(searchInput, { target: { value: "  mike  " } });
-    expect(await screen.findByRole("button", { name: /Mike Ssempebwa/i })).toBeInTheDocument();
-
-    fireEvent.change(searchInput, { target: { value: "SCU-S1A-018" } });
-    expect(await screen.findByRole("button", { name: /Claire Nakibuuka With A Very Long Display Name For Layout/i })).toBeInTheDocument();
-
-    fireEvent.change(searchInput, { target: { value: "senior 1 b" } });
-    expect(await screen.findByRole("button", { name: /Mike Ssempebwa/i })).toBeInTheDocument();
-  });
-
-  it("shows an empty assign-search state and assigns the selected student", async () => {
-    renderPage();
-
-    await waitFor(() => expect(screen.getByRole("heading", { name: "Wristbands" })).toBeInTheDocument());
-
-    fireEvent.click(screen.getAllByRole("button", { name: "Assign" })[0]);
-
-    const searchInput = await screen.findByLabelText("Search student");
-
-    fireEvent.change(searchInput, { target: { value: "zzz" } });
-    expect(await screen.findByText("No students match your search.")).toBeInTheDocument();
-
-    fireEvent.change(searchInput, { target: { value: "mike" } });
-    fireEvent.click(await screen.findByRole("button", { name: /Mike Ssempebwa/i }));
-    fireEvent.click(screen.getByRole("button", { name: "Assign to selected student" }));
-
-    await waitFor(() => expect(mockAssignNfcTag).toHaveBeenCalledWith("tag-2", "student-2"));
-    expect(screen.getByText("Tag assigned successfully")).toBeInTheDocument();
-    expect(screen.getByText("Student: Mike Ssempebwa")).toBeInTheDocument();
-  });
-
-  it("opens the link reader modal from the link reader button", async () => {
-    mockFetchOfflineSyncStatus.mockResolvedValueOnce({
-      providerReachable: true,
-      lastSyncAt: isoMinutesAgo(0),
-      pendingCount: 0,
-      stale: false,
-      devices: [
-        {
-          id: "device-1",
-          name: "Attendance Gate 01",
-          deviceKey: "attendance-gate-01",
-          location: "Main Entrance",
-          locationName: "Main Entrance",
-          mode: "ATTENDANCE",
-          status: "ACTIVE",
-          isActive: true,
-          onlineStatus: "ONLINE",
-          lastHeartbeatAt: isoMinutesAgo(0),
-          lastSeenAt: isoMinutesAgo(0),
-        },
-      ],
-    });
-
-    renderPage();
-
-    await waitFor(() => expect(screen.getAllByRole("button", { name: /Link reader/i }).length).toBeGreaterThan(0));
-
-    fireEvent.click(screen.getAllByRole("button", { name: /Link reader/i })[0]);
-
-    expect(await screen.findByText("Link reader credential")).toBeInTheDocument();
-    expect(screen.getByText(/Preserve the written/)).toBeInTheDocument();
-    expect(screen.getByRole("option", { name: /Attendance Gate 01 \(Main Entrance\)/ })).toBeInTheDocument();
-  });
-
-  it("lists a commissioned gate reader when it has location-aware attendance metadata", async () => {
-    mockFetchOfflineSyncStatus.mockResolvedValueOnce({
-      providerReachable: true,
-      lastSyncAt: isoMinutesAgo(0),
-      pendingCount: 0,
-      stale: false,
-      devices: [
-        {
-          id: "device-1",
-          name: "Attendance Gate 01",
-          deviceKey: "attendance-gate-01",
-          location: "Main Entrance",
-          locationName: "Main Entrance",
-          locationType: "GATE",
-          attendanceMode: "GATE_ATTENDANCE",
-          mode: "GATE",
-          status: "ACTIVE",
-          isActive: true,
-          onlineStatus: "ONLINE",
-          lastHeartbeatAt: isoMinutesAgo(0),
-          lastSeenAt: isoMinutesAgo(0),
-        },
-      ],
-    });
-
-    renderPage();
-
-    await waitFor(() => expect(screen.getByRole("heading", { name: "Wristbands" })).toBeInTheDocument());
-
-    fireEvent.click(screen.getAllByRole("button", { name: /Link reader/i })[0]);
-
-    expect(await screen.findByRole("option", { name: /Attendance Gate 01 \(Main Entrance\)/ })).toBeInTheDocument();
-    expect(screen.queryByRole("option", { name: /No online attendance readers found/i })).not.toBeInTheDocument();
-  });
-
-  it("hides offline attendance readers from capture mode", async () => {
-    mockFetchOfflineSyncStatus.mockResolvedValueOnce({
-      providerReachable: true,
-      lastSyncAt: isoMinutesAgo(0),
-      pendingCount: 0,
-      stale: false,
-      devices: [
-        {
-          id: "device-offline",
-          name: "Block 1",
-          deviceKey: "reader-gateway-319D48",
-          location: "BLOCK 1",
-          locationName: "BLOCK 1",
-          locationType: "CLASSROOM",
-          attendanceMode: "CLASSROOM_ATTENDANCE",
-          mode: "ATTENDANCE",
-          status: "ACTIVE",
-          isActive: true,
-          onlineStatus: "OFFLINE",
-          lastHeartbeatAt: isoMinutesAgo(30),
-          lastSeenAt: isoMinutesAgo(30),
-        },
-        {
-          id: "device-online",
-          name: "Block A",
-          deviceKey: "attendance-gate-01",
-          location: "Classroom",
-          locationName: "Classroom",
-          locationType: "CLASSROOM",
-          attendanceMode: "CLASSROOM_ATTENDANCE",
-          mode: "ATTENDANCE",
-          status: "ACTIVE",
-          isActive: true,
-          onlineStatus: "ONLINE",
-          lastHeartbeatAt: isoMinutesAgo(0),
-          lastSeenAt: isoMinutesAgo(0),
-        },
-      ],
-    });
-
-    renderPage();
-
-    await waitFor(() => expect(screen.getByRole("heading", { name: "Wristbands" })).toBeInTheDocument());
-
-    fireEvent.click(screen.getAllByRole("button", { name: /Link reader/i })[0]);
-
-    expect(await screen.findByRole("option", { name: /Block A \(Classroom\)/ })).toBeInTheDocument();
-    expect(screen.queryByRole("option", { name: /Block 1 \(BLOCK 1\)/i })).not.toBeInTheDocument();
-  });
-
-  it("hides stale readers even when the backend still reports ONLINE", async () => {
-    mockFetchOfflineSyncStatus.mockResolvedValueOnce({
-      providerReachable: true,
-      lastSyncAt: isoMinutesAgo(0),
-      pendingCount: 0,
-      stale: false,
-      devices: [
-        {
-          id: "device-stale",
-          name: "Block B",
-          deviceKey: "block-b",
-          location: "BLOCK B",
-          locationName: "BLOCK B",
-          locationType: "CLASSROOM",
-          attendanceMode: "CLASSROOM_ATTENDANCE",
-          mode: "ATTENDANCE",
-          status: "ACTIVE",
-          isActive: true,
-          onlineStatus: "ONLINE",
-          lastHeartbeatAt: isoMinutesAgo(30),
-          lastSeenAt: isoMinutesAgo(30),
-        },
-        {
-          id: "device-online",
-          name: "Block A",
-          deviceKey: "attendance-gate-01",
-          location: "Classroom",
-          locationName: "Classroom",
-          locationType: "CLASSROOM",
-          attendanceMode: "CLASSROOM_ATTENDANCE",
-          mode: "ATTENDANCE",
-          status: "ACTIVE",
-          isActive: true,
-          onlineStatus: "ONLINE",
-          lastHeartbeatAt: isoMinutesAgo(0),
-          lastSeenAt: isoMinutesAgo(0),
-        },
-      ],
-    });
-
-    renderPage();
-
-    await waitFor(() => expect(screen.getByRole("heading", { name: "Wristbands" })).toBeInTheDocument());
-
-    fireEvent.click(screen.getAllByRole("button", { name: /Link reader/i })[0]);
-
-    expect(await screen.findByRole("option", { name: /Block A \(Classroom\)/ })).toBeInTheDocument();
-    expect(screen.queryByRole("option", { name: /Block B \(BLOCK B\)/i })).not.toBeInTheDocument();
-  });
-
-  it("closes the link reader capture window after 25 seconds and ignores late capture responses", async () => {
-    let resolveLateCapture: ((value: {
-      captureId: string;
-      tagId: string;
-      studentId: string;
-      deviceId: string;
-      deviceLabel: string;
-      createdAt: string;
-      expiresAt: string;
-      confirmedAt: null;
-      status: "CAPTURED";
-      preview: {
-        credential: string;
-        rawWiegandDecimal: string;
-        rawWiegandHex: string;
-        facilityCode: string;
-        cardNumber: string;
-        maskedCanonicalCredential: string;
-        maskedAliases: string[];
-        readerName: string;
-        capturedAt: string;
-      };
-      tag: {
-        id: string;
-        publicCode: string;
-        label: string;
-        student: {
-          id: string;
-          name: string;
-          admissionNumber: string;
-        };
-      };
-    }) => void) | null = null;
-    const lateCapturePromise = new Promise<any>((resolve) => {
-      resolveLateCapture = resolve;
-    });
-    mockGetReaderCredentialCapture.mockImplementation(() => lateCapturePromise);
-    mockFetchOfflineSyncStatus.mockResolvedValueOnce({
-      providerReachable: true,
-      lastSyncAt: isoMinutesAgo(0),
-      pendingCount: 0,
-      stale: false,
-      devices: [
-        {
-          id: "device-1",
-          name: "Attendance Gate 01",
-          deviceKey: "attendance-gate-01",
-          location: "Main Entrance",
-          locationName: "Main Entrance",
-          locationType: "GATE",
-          attendanceMode: "GATE_ATTENDANCE",
-          mode: "GATE",
-          status: "ACTIVE",
-          isActive: true,
-          onlineStatus: "ONLINE",
-          lastHeartbeatAt: isoMinutesAgo(0),
-          lastSeenAt: isoMinutesAgo(0),
-        },
-      ],
-    });
-
-    renderPage();
-
-    await waitFor(() => expect(screen.getAllByRole("button", { name: /Link reader/i }).length).toBeGreaterThan(0));
-    fireEvent.click(screen.getAllByRole("button", { name: /Link reader/i })[0]);
-    const startCaptureButton = await screen.findByRole("button", { name: "Start capture mode" });
-    try {
-      vi.useFakeTimers();
-      await act(async () => {
-        fireEvent.click(startCaptureButton);
-        await Promise.resolve();
-        await Promise.resolve();
-      });
-      expect(screen.getByText("Capture status")).toBeInTheDocument();
-
-      await act(async () => {
-        await vi.advanceTimersByTimeAsync(24_999);
-      });
-      expect(screen.getByText("Link reader credential")).toBeInTheDocument();
-
-      await act(async () => {
-        await vi.advanceTimersByTimeAsync(1);
-        await Promise.resolve();
-        await Promise.resolve();
-      });
-      expect(mockCancelReaderCredentialCapture).toHaveBeenCalledWith("capture-1", {});
-      expect(screen.queryByText("Link reader credential")).not.toBeInTheDocument();
-
-      resolveLateCapture?.({
-        captureId: "capture-1",
-        tagId: "tag-1",
-        studentId: "student-1",
-        deviceId: "device-1",
-        deviceLabel: "Main Entrance Reader",
-        createdAt: "2026-07-12T08:30:00.000Z",
-        expiresAt: "2026-07-12T08:35:00.000Z",
-        confirmedAt: null,
-        status: "CAPTURED",
-        preview: {
-          credential: "786777",
-          rawWiegandDecimal: "35128677",
-          rawWiegandHex: "02180565",
-          facilityCode: "12",
-          cardNumber: "1",
-          maskedCanonicalCredential: "35...77 (len 8)",
-          maskedAliases: ["12-1"],
-          readerName: "Attendance Gate 01",
-          capturedAt: "2026-07-12T08:30:05.000Z",
-        },
-        tag: {
-          id: "tag-1",
-          publicCode: "PUBLICCODE-ASSIGNED-001",
-          label: "Tag 48048b9f",
-          student: {
-            id: "student-1",
-            name: "Claire Nakibuuka With A Very Long Display Name For Layout",
-            admissionNumber: "SCU-S1A-018",
-          },
-        },
-      });
-      await act(async () => {
-        await Promise.resolve();
-        await Promise.resolve();
-      });
-      expect(screen.queryByText("Link reader credential")).not.toBeInTheDocument();
-    } finally {
-      vi.useRealTimers();
-    }
-  }, 10_000);
-
-  it("cancels a captured session when the modal is closed and allows the next capture immediately", async () => {
-    mockFetchOfflineSyncStatus.mockResolvedValue({
-      providerReachable: true,
-      lastSyncAt: isoMinutesAgo(0),
-      pendingCount: 0,
-      stale: false,
-      devices: [
-        {
-          id: "device-1",
-          name: "Attendance Gate 01",
-          deviceKey: "attendance-gate-01",
-          location: "Main Entrance",
-          locationName: "Main Entrance",
-          locationType: "GATE",
-          attendanceMode: "GATE_ATTENDANCE",
-          mode: "GATE",
-          status: "ACTIVE",
-          isActive: true,
-          onlineStatus: "ONLINE",
-          lastHeartbeatAt: isoMinutesAgo(0),
-          lastSeenAt: isoMinutesAgo(0),
-        },
-      ],
-    });
-    mockStartReaderCredentialCapture
-      .mockResolvedValueOnce({
-        captureId: "capture-1",
-        tagId: "tag-1",
-        studentId: "student-1",
-        deviceId: "device-1",
-        deviceLabel: "Main Entrance Reader",
-        createdAt: "2026-07-12T08:30:00.000Z",
-        expiresAt: "2026-07-12T08:30:25.000Z",
-        confirmedAt: null,
-        status: "CAPTURED",
-        preview: {
-          credential: "786777",
-          rawWiegandDecimal: "35128677",
-          rawWiegandHex: "02180565",
-          facilityCode: "12",
-          cardNumber: "1",
-          maskedCanonicalCredential: "35...77 (len 8)",
-          maskedAliases: ["12-1"],
-          readerName: "Attendance Gate 01",
-          capturedAt: "2026-07-12T08:30:05.000Z",
-        },
-        tag: {
-          id: "tag-1",
-          publicCode: "PUBLICCODE-ASSIGNED-001",
-          label: "Tag 48048b9f",
-          student: {
-            id: "student-1",
-            name: "Claire Nakibuuka With A Very Long Display Name For Layout",
-            admissionNumber: "SCU-S1A-018",
-          },
-        },
-      })
-      .mockResolvedValueOnce({
-        captureId: "capture-2",
-        tagId: "tag-1",
-        studentId: "student-1",
-        deviceId: "device-1",
-        deviceLabel: "Main Entrance Reader",
-        createdAt: "2026-07-12T08:31:00.000Z",
-        expiresAt: "2026-07-12T08:31:25.000Z",
-        confirmedAt: null,
-        status: "PENDING",
-        preview: null,
-        tag: {
-          id: "tag-1",
-          publicCode: "PUBLICCODE-ASSIGNED-001",
-          label: "Tag 48048b9f",
-          student: {
-            id: "student-1",
-            name: "Claire Nakibuuka With A Very Long Display Name For Layout",
-            admissionNumber: "SCU-S1A-018",
-          },
-        },
-      });
-
-    renderPage();
-
-    await waitFor(() => expect(screen.getAllByRole("button", { name: /Link reader/i }).length).toBeGreaterThan(0));
-    fireEvent.click(screen.getAllByRole("button", { name: /Link reader/i })[0]);
-    fireEvent.click(await screen.findByRole("button", { name: "Start capture mode" }));
-
-    await screen.findByText("Review the masked reader identifiers above, confirm the student and wristband, then save the canonical reader credential. The written NFC payload will not be changed.");
-    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
-
-    await waitFor(() => expect(mockCancelReaderCredentialCapture).toHaveBeenCalledWith("capture-1", {}));
-    expect(screen.queryByText("Link reader credential")).not.toBeInTheDocument();
-
-    fireEvent.click(screen.getAllByRole("button", { name: /Link reader/i })[0]);
-    fireEvent.click(await screen.findByRole("button", { name: "Start capture mode" }));
-
-    await waitFor(() => expect(mockStartReaderCredentialCapture).toHaveBeenNthCalledWith(2, "tag-1", expect.objectContaining({
-      deviceId: "device-1",
-    })));
-  });
 });

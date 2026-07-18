@@ -58,6 +58,8 @@ function createDb() {
     updatedAt: Date;
     student?: (typeof students)[number] | null;
   }> = [];
+  const campusMovementEvents: Array<Record<string, unknown>> = [];
+  const dailyAttendanceRows: Array<Record<string, unknown>> = [];
 
   const db = {
     $transaction: async (fn: (tx: unknown) => Promise<unknown>) => fn(db),
@@ -110,8 +112,13 @@ function createDb() {
       },
     },
     studentCredential: {
-      findFirst: async ({ where }: { where: { schoolId: string; OR: Array<{ scanToken?: string; credentialUID?: string }> } }) =>
-        where.schoolId === "school-a" && where.OR.some((condition) => condition.scanToken === "token-a" || condition.credentialUID === "UID-A")
+      findFirst: async ({ where }: { where: { schoolId: string; scanToken?: string; credentialUID?: string; OR?: Array<{ scanToken?: string; credentialUID?: string }> } }) =>
+        where.schoolId === "school-a"
+        && (
+          where.scanToken === "token-a"
+          || where.credentialUID === "UID-A"
+          || where.OR?.some((condition) => condition.scanToken === "token-a" || condition.credentialUID === "UID-A")
+        )
           ? {
               id: "credential-a",
               schoolId: "school-a",
@@ -131,8 +138,27 @@ function createDb() {
     nfcGateScan: {
       create: async ({ data }: { data: Record<string, unknown> }) => ({ ...data, id: "gate-1", scannedAt: new Date("2026-06-21T10:00:00.000Z") }),
     },
+    campusMovementEvent: {
+      findFirst: async () => campusMovementEvents.length > 0 ? campusMovementEvents[campusMovementEvents.length - 1] : null,
+      create: async ({ data }: { data: Record<string, unknown> }) => {
+        const row = { id: `move-${campusMovementEvents.length + 1}`, ...data };
+        campusMovementEvents.push(row);
+        return row;
+      },
+    },
+    studentPassOut: {
+      findFirst: async () => null,
+      update: async ({ data }: { data: Record<string, unknown> }) => data,
+    },
     studentAttendanceEvent: {
       findFirst: async () => null,
+    },
+    dailyAttendance: {
+      upsert: async ({ create, update }: { create: Record<string, unknown>; update: Record<string, unknown> }) => {
+        const row = { ...create, ...update };
+        dailyAttendanceRows.push(row);
+        return row;
+      },
     },
     auditLog: {
       create: async () => ({}),

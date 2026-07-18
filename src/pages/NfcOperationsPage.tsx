@@ -18,7 +18,10 @@ import {
 } from "../client/nfcTagsClient";
 import { fetchOfflineSyncStatus } from "../client/nfcOfflineClient";
 import { fetchStudents } from "../client/studentsClient";
-import { getStudentWalletPinStatus, setStudentWalletPin } from "../client/studentCredentialsClient";
+import {
+  getStudentWalletPinStatus,
+  setStudentWalletPin,
+} from "../client/studentCredentialsClient";
 import type { StudentListItem } from "../shared/types/students";
 import type { WalletPinStatus } from "../shared/types/studentCredentials";
 import type { OfflineDeviceStatus } from "../client/nfcOfflineClient";

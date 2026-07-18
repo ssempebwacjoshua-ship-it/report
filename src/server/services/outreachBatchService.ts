@@ -1,4 +1,4 @@
-import { sendOutreachEmail } from "./emailService";
+import { configuredCompanyReplyTo, configuredCompanySender, sendOutreachEmail } from "./emailService";
 
 export type OutreachLeadStatus =
   | "eligible_for_company_resend"
@@ -97,10 +97,16 @@ export function buildOutreachBatchReport(leads: OutreachLead[]): OutreachBatchRe
         next.skippedReason = "Needs human review.";
         skippedWrongContacts += 1;
         break;
+      case "already_drafted_from_company_email":
+        next.skippedReason = "Already prepared from the official company sender.";
+        break;
+      case "already_sent_from_company_email":
+        next.skippedReason = "Already sent from the official company sender.";
+        break;
       default:
         next.outreachStatus = "eligible_for_company_resend";
         next.draftStatus = "drafted";
-        next.newSender = "Joshua from SSAMENJ Technologies <support@ssamenj.online>";
+        next.newSender = configuredCompanySender() || undefined;
         next.resentFromOfficialAt = new Date().toISOString();
         break;
     }
@@ -135,7 +141,7 @@ export async function sendEligibleOutreachBatch(leads: OutreachLead[]) {
       subject: item.subject,
       html: item.html,
       text: item.text,
-      replyTo: "support@ssamenj.online",
+      replyTo: configuredCompanyReplyTo(),
     });
     results.push({ to: item.to, result });
   }

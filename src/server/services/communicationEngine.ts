@@ -532,7 +532,7 @@ export async function sendCampaign(db: Db, ctx: CommunicationContext, campaignId
   }
   await db.communicationCampaign.update({
     where: { id: campaignId },
-    data: { status: failed > 0 && submitted > 0 ? "PARTIALLY_DELIVERED" : failed > 0 && submitted === 0 ? "FAILED" : "SENDING", sendingStartedAt: new Date() },
+    data: { status: determinePostSendCampaignStatus(campaign.status, submitted, failed), sendingStartedAt: new Date() },
   });
   await audit(db, ctx, "communication.delivery_submitted", campaignId, { channel: input.channel, provider: provider.providerKey, submitted, failed, skippedDuplicate });
   return { submitted, failed, skippedDuplicate, results, templatePolicy: buildTemplatePolicy(input.channel, messageContent), dryRun: isCommunicationDryRun(), progress: await getCampaignProgressTotals(db, ctx, campaignId) };
@@ -896,7 +896,7 @@ async function sendDryRunSmsCampaign(
   return { submitted, failed: 0, skippedDuplicate, results, templatePolicy, dryRun: true, progress: await getCampaignProgressTotals(db, ctx, campaign.id) };
 }
 
-function determinePostSendCampaignStatus(currentStatus: string, submitted: number, failed: number): CommunicationCampaignStatus {
+export function determinePostSendCampaignStatus(currentStatus: string, submitted: number, failed: number): CommunicationCampaignStatus {
   if (failed > 0 && submitted > 0) return "PARTIALLY_DELIVERED";
   if (failed > 0) return "FAILED";
   if (submitted > 0) return "SENDING";

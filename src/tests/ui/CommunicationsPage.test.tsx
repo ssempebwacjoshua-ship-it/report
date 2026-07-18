@@ -14,10 +14,12 @@ vi.mock("../../contexts/AuthContext", () => ({
 
 vi.mock("../../client/communicationsClient", () => ({
   fetchCommunicationCampaigns: vi.fn(),
+  fetchCommunicationTemplates: vi.fn(),
   createCommunicationCampaign: vi.fn(),
   previewCommunicationRecipients: vi.fn(),
   requestCommunicationCampaignApproval: vi.fn(),
   approveCommunicationCampaign: vi.fn(),
+  saveCommunicationTemplate: vi.fn(),
   sendCommunication: vi.fn(),
 }));
 
@@ -37,8 +39,10 @@ import {
   approveCommunicationCampaign,
   createCommunicationCampaign,
   fetchCommunicationCampaigns,
+  fetchCommunicationTemplates,
   previewCommunicationRecipients,
   requestCommunicationCampaignApproval,
+  saveCommunicationTemplate,
   sendCommunication,
 } from "../../client/communicationsClient";
 import { fetchReportContext } from "../../client/reportsClient";
@@ -57,6 +61,23 @@ function buildCampaign(status: string) {
     updatedAt: "2026-07-01T00:00:00.000Z",
     _count: { recipients: 3, deliveries: 0 },
     contents: [{ subject: "Notice", body: "Hello parents", shortBody: null }],
+  };
+}
+
+function buildTemplate() {
+  return {
+    id: "template-1",
+    channel: "SMS" as const,
+    communicationType: "ANNOUNCEMENT",
+    name: "sms-announcement-default",
+    providerTemplateName: null,
+    providerTemplateId: null,
+    languageCode: "en",
+    status: "APPROVED" as const,
+    content: "Hello {{guardianName}}, {{schoolName}}: {{communicationTitle}}. {{message}}",
+    variables: ["guardianName", "schoolName", "communicationTitle", "message"],
+    createdAt: "2026-07-01T00:00:00.000Z",
+    updatedAt: "2026-07-01T00:00:00.000Z",
   };
 }
 
@@ -110,6 +131,7 @@ beforeEach(() => {
     campaigns: [buildCampaign("DRAFT")],
     summary: [{ status: "DRAFT", _count: { status: 1 } }],
   });
+  vi.mocked(fetchCommunicationTemplates).mockResolvedValue({ templates: [] });
   vi.mocked(fetchReportContext).mockResolvedValue({
     school: { id: "school-1", code: "SCU", name: "Buloba High School" },
     academicYears: [{ id: "ay-1", name: "2025/2026", isActive: true }],
@@ -175,6 +197,7 @@ beforeEach(() => {
   vi.mocked(createCommunicationCampaign).mockResolvedValue({
     campaign: buildCampaign("DRAFT"),
   });
+  vi.mocked(saveCommunicationTemplate).mockResolvedValue({ template: buildTemplate() });
 });
 
 describe("CommunicationsPage", () => {
@@ -341,6 +364,74 @@ describe("CommunicationsPage", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Approve" }));
 
     await waitFor(() => expect(screen.getByText("Approval failed (ref: req-approve-1)")).toBeInTheDocument());
+  });
+
+  it("shows a Templates tab to admins and saves the default SMS announcement template", async () => {
+    vi.mocked(fetchCommunicationTemplates)
+      .mockResolvedValueOnce({ templates: [] })
+      .mockResolvedValueOnce({ templates: [buildTemplate()] });
+
+    render(
+      <MemoryRouter>
+        <CommunicationsPage />
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(await screen.findByRole("button", { name: "Templates" }));
+    await waitFor(() => expect(screen.getByText("Set default SMS template")).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: "Save template" }));
+
+    await waitFor(() => expect(saveCommunicationTemplate).toHaveBeenCalledWith(expect.objectContaining({
+      channel: "SMS",
+      communicationType: "ANNOUNCEMENT",
+      name: "sms-announcement-default",
+      status: "APPROVED",
+      content: "Hello {{guardianName}}, {{schoolName}}: {{communicationTitle}}. {{message}}",
+    })));
+    await waitFor(() => expect(screen.getByText("Template saved: SMS + ANNOUNCEMENT")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("sms-announcement-default")).toBeInTheDocument());
+  });
+
+  it("hides template management from users without communications.templates.manage", async () => {
+    authState.user = { id: "user-2", schoolId: "school-1", name: "Teacher", email: "teacher@example.test", role: "TEACHER" };
+
+    render(
+      <MemoryRouter>
+        <CommunicationsPage />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => expect(screen.getByText("Audience")).toBeInTheDocument());
+    expect(screen.queryByRole("button", { name: "Templates" })).not.toBeInTheDocument();
+    expect(fetchCommunicationTemplates).not.toHaveBeenCalled();
+  });
+
+  it("turns missing approved template send errors into a Templates tab action", async () => {
+    vi.mocked(fetchCommunicationCampaigns).mockResolvedValue({
+      campaigns: [buildCampaign("APPROVED")],
+      summary: [{ status: "APPROVED", _count: { status: 1 } }],
+    });
+    vi.mocked(sendCommunication).mockRejectedValue(new Error("An approved communication template is required before live sending."));
+
+    render(
+      <MemoryRouter>
+        <CommunicationsPage />
+      </MemoryRouter>,
+    );
+
+    fireEvent.change(await screen.findByLabelText("Channel"), { target: { value: "SMS" } });
+    let sendButton: HTMLElement | undefined;
+    await waitFor(() => {
+      const sendButtons = screen.getAllByRole("button", { name: "Confirm send" });
+      sendButton = sendButtons.find((button) => !button.hasAttribute("disabled"));
+      expect(sendButton).toBeDefined();
+    });
+    if (!sendButton) throw new Error("Expected an enabled Confirm send button.");
+    fireEvent.click(sendButton);
+
+    await waitFor(() => expect(screen.getByText("Missing approved template for SMS + ANNOUNCEMENT. Open Templates tab and approve one.")).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: "Open Templates" }));
+    await waitFor(() => expect(screen.getByText("Set default SMS template")).toBeInTheDocument());
   });
 
   it("shows dry-run mode clearly after a communication send", async () => {

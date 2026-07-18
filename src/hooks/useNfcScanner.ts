@@ -89,6 +89,7 @@ type UseNfcScannerOptions = {
   onScan: (result: ScanResult) => Promise<void>;
   cooldownMs?: number;
   scanTimeoutMs?: number;
+  idleRearmMs?: number;
 };
 
 const scannerLog = (message: string, details?: Record<string, unknown>) => {
@@ -99,7 +100,7 @@ const scannerLog = (message: string, details?: Record<string, unknown>) => {
   console.info(`[nfc-scanner] ${message}`);
 };
 
-export function useNfcScanner({ onScan, cooldownMs = 1500, scanTimeoutMs = 8000 }: UseNfcScannerOptions) {
+export function useNfcScanner({ onScan, cooldownMs = 1500, scanTimeoutMs = 8000, idleRearmMs = 45000 }: UseNfcScannerOptions) {
   const [state, setState] = useState<ScannerState>("IDLE");
   const [error, setError] = useState<string | null>(null);
   const [isOnline, setIsOnline] = useState(typeof navigator !== "undefined" ? navigator.onLine : true);
@@ -113,6 +114,8 @@ export function useNfcScanner({ onScan, cooldownMs = 1500, scanTimeoutMs = 8000 
   const processingRef = useRef(false);
   const cooldownUntilRef = useRef(0);
   const shouldScanRef = useRef(false);
+  const lastActivityAtRef = useRef(Date.now());
+  const idleTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const restartScannerRef = useRef<() => void>(() => undefined);
 
   const isWebNfcAvailable = typeof window !== "undefined" && "NDEFReader" in window;
@@ -137,7 +140,13 @@ export function useNfcScanner({ onScan, cooldownMs = 1500, scanTimeoutMs = 8000 
     return () => {
       abortRef.current?.abort();
       if (cooldownRef.current) clearTimeout(cooldownRef.current);
+      if (idleTimerRef.current) clearInterval(idleTimerRef.current);
     };
+  }, []);
+
+  const markScannerActivity = useCallback((reason: string, sessionId = sessionRef.current) => {
+    lastActivityAtRef.current = Date.now();
+    scannerLog("activity", { reason, sessionId, state: stateRef.current });
   }, []);
 
   const resetAfterCooldown = useCallback((sessionId?: number) => {
@@ -148,9 +157,10 @@ export function useNfcScanner({ onScan, cooldownMs = 1500, scanTimeoutMs = 8000 
       cooldownUntilRef.current = 0;
       setStateSync("READY");
       setError(null);
+      markScannerActivity("cooldown-complete", sessionId ?? sessionRef.current);
       scannerLog("scanner rearmed", { sessionId: sessionId ?? sessionRef.current });
     }, cooldownMs);
-  }, [cooldownMs, setStateSync]);
+  }, [cooldownMs, markScannerActivity, setStateSync]);
 
   const runWithTimeout = useCallback((result: ScanResult) => {
     let timeoutId: ReturnType<typeof setTimeout> | null = null;
@@ -174,6 +184,7 @@ export function useNfcScanner({ onScan, cooldownMs = 1500, scanTimeoutMs = 8000 
 
     processingRef.current = true;
     setStateSync("PROCESSING");
+    markScannerActivity("processing-start", sessionId);
     scannerLog("processing started", { sessionId });
     if (navigator.vibrate) navigator.vibrate([40]);
 
@@ -196,7 +207,7 @@ export function useNfcScanner({ onScan, cooldownMs = 1500, scanTimeoutMs = 8000 
         resetAfterCooldown(sessionId);
       }
     }
-  }, [deviceId, resetAfterCooldown, runWithTimeout, setStateSync]);
+  }, [deviceId, markScannerActivity, resetAfterCooldown, runWithTimeout, setStateSync]);
 
   const startScanner = useCallback(async () => {
     shouldScanRef.current = true;
@@ -213,6 +224,7 @@ export function useNfcScanner({ onScan, cooldownMs = 1500, scanTimeoutMs = 8000 
 
     setStateSync("PERMISSION");
     setError(null);
+    markScannerActivity("start", sessionId);
     scannerLog("session restarted", { sessionId });
 
     try {
@@ -223,6 +235,7 @@ export function useNfcScanner({ onScan, cooldownMs = 1500, scanTimeoutMs = 8000 
       await reader.scan({ signal });
       if (sessionId !== sessionRef.current || signal.aborted) return;
       setStateSync("READY");
+      markScannerActivity("ready", sessionId);
       scannerLog("scanner rearmed", { sessionId });
 
       reader.addEventListener("reading", ({ message, serialNumber }) => {
@@ -234,6 +247,7 @@ export function useNfcScanner({ onScan, cooldownMs = 1500, scanTimeoutMs = 8000 
         });
         if (processingRef.current || Date.now() < cooldownUntilRef.current) return;
         setStateSync("READING");
+        markScannerActivity("reading", sessionId);
         const ndefPayload = extractRawValue(message);
         const raw = ndefPayload || serialNumber || "";
         if (!raw.trim()) {
@@ -263,13 +277,32 @@ export function useNfcScanner({ onScan, cooldownMs = 1500, scanTimeoutMs = 8000 
       setStateSync("ERROR");
       resetAfterCooldown(sessionId);
     }
-  }, [cooldownMs, isWebNfcAvailable, processRaw, resetAfterCooldown, setStateSync]);
+  }, [cooldownMs, isWebNfcAvailable, markScannerActivity, processRaw, resetAfterCooldown, setStateSync]);
 
   useEffect(() => {
     restartScannerRef.current = () => {
       void startScanner();
     };
   }, [startScanner]);
+
+  useEffect(() => {
+    if (idleTimerRef.current) clearInterval(idleTimerRef.current);
+    idleTimerRef.current = setInterval(() => {
+      if (!shouldScanRef.current || !isWebNfcAvailable) return;
+      if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
+      if (processingRef.current) return;
+      if (Date.now() < cooldownUntilRef.current) return;
+      const idleForMs = Date.now() - lastActivityAtRef.current;
+      if (idleForMs < idleRearmMs) return;
+      if (stateRef.current !== "READY" && stateRef.current !== "READING" && stateRef.current !== "SUCCESS") return;
+      scannerLog("session restarted", { reason: "idle-timeout", idleForMs, sessionId: sessionRef.current });
+      void startScanner();
+    }, Math.min(idleRearmMs, 5000));
+    return () => {
+      if (idleTimerRef.current) clearInterval(idleTimerRef.current);
+      idleTimerRef.current = null;
+    };
+  }, [idleRearmMs, isWebNfcAvailable, startScanner]);
 
   useEffect(() => {
     const restart = () => {
@@ -300,6 +333,7 @@ export function useNfcScanner({ onScan, cooldownMs = 1500, scanTimeoutMs = 8000 
     abortRef.current?.abort();
     abortRef.current = null;
     if (cooldownRef.current) clearTimeout(cooldownRef.current);
+    if (idleTimerRef.current) clearInterval(idleTimerRef.current);
     cooldownUntilRef.current = 0;
     setStateSync("IDLE");
     setError(null);

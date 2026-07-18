@@ -1,5 +1,6 @@
 import prismaPkg from "@prisma/client";
 import { Router } from "express";
+import multer from "multer";
 import { z } from "zod";
 import { verifyToken } from "../services/authService";
 import {
@@ -15,6 +16,7 @@ import {
   getAttendanceDashboard,
   getAttendanceRegister,
   getDailySummary,
+  getGateAdminDashboard,
   getGateDashboard,
   getStudentWalletDetail,
   getStudentWalletPinStatus,
@@ -41,11 +43,25 @@ import {
   updateSchoolNfcPolicy,
 } from "../services/nfcPolicyService";
 import {
+  cancelStudentPassOut,
+  createStudentPassOut,
+  listGateActiveStudentPassOuts,
+  listStudentPassOuts,
+  searchPassOutStudents,
+} from "../services/nfcPassOutService";
+import {
+  checkOutVisitor,
+  getVisitorVisitDetail,
+  listVisitorVisits,
+  registerVisitor,
+} from "../services/nfcVisitorService";
+import {
   approveGateOverride,
   listClassroomAttendanceReport,
   listGateAttendanceReport,
 } from "../services/locationAttendanceService";
 import { attachUsageWarning, recordPlatformUsage, requirePlatformModule } from "../platformIntegration";
+import { ensureNonEmptyUpload, sendUploadValidationError } from "../utils/uploadSafety";
 
 const { AttendanceDirection } = prismaPkg;
 
@@ -203,6 +219,44 @@ const clearFeeHoldSchema = z.object({
   reason: z.string().trim().optional().nullable(),
 });
 
+const passOutFiltersSchema = z.object({
+  search: z.string().optional(),
+  classId: z.string().uuid().optional(),
+  streamId: z.string().uuid().optional(),
+  status: z.enum(["ALL", "APPROVED", "CHECKED_OUT", "RETURNED", "CANCELLED", "EXPIRED"]).optional(),
+  activeOnly: z.coerce.boolean().optional(),
+});
+
+const createPassOutSchema = z.object({
+  studentId: z.string().uuid(),
+  reason: z.string().trim().min(1, "Pass-out reason is required."),
+  activeFrom: z.string().trim().min(1, "Pass-out start time is required."),
+  activeUntil: z.string().trim().min(1, "Pass-out end time is required."),
+});
+
+const cancelPassOutSchema = z.object({
+  reason: z.string().trim().min(1, "Cancellation reason is required."),
+});
+
+const visitorUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 2 * 1024 * 1024, files: 2 },
+});
+
+const visitorListFiltersSchema = z.object({
+  status: z.enum(["CURRENT", "HISTORY", "ALL"]).optional(),
+  search: z.string().optional(),
+});
+
+const registerVisitorSchema = z.object({
+  fullName: z.string().trim().min(1, "Visitor name is required."),
+  phone: z.string().trim().optional().nullable(),
+  idDocumentType: z.string().trim().min(1, "ID/passport type is required."),
+  idDocumentNumber: z.string().trim().min(1, "ID/passport number is required."),
+  purpose: z.string().trim().min(1, "Visit purpose is required."),
+  hostName: z.string().trim().min(1, "Host or person visiting is required."),
+});
+
 const gateOverrideSchema = z.object({
   studentId: z.string().uuid(),
   reason: z.string().trim().min(1, "Override reason is required."),
@@ -249,6 +303,15 @@ function authPayloadFromHeader(authHeader: string | undefined) {
   } catch {
     return null;
   }
+}
+
+function validationError(message: string) {
+  return Object.assign(new Error(message), { status: 400 });
+}
+
+function parseOrThrow<T>(result: { success: true; data: T } | { success: false; error: { issues?: Array<{ message?: string }> } }) {
+  if (result.success) return result.data;
+  throw validationError(result.error.issues?.[0]?.message || "Invalid request.");
 }
 
 export function nfcPublicRoutes() {
@@ -397,6 +460,109 @@ export function nfcOperationsRoutes() {
         return;
       }
       res.json(await clearStudentFeeHold(ctx(req), req.params.id, clearFeeHoldSchema.parse(req.body).reason));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.get("/api/nfc/pass-outs", async (req, res, next) => {
+    try {
+      if (!(await requirePlatformModule(req, res, "nfc.core"))) {
+        return;
+      }
+      res.json(await listStudentPassOuts(ctx(req), parseOrThrow(passOutFiltersSchema.safeParse(req.query))));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.get("/api/nfc/pass-outs/students", async (req, res, next) => {
+    try {
+      if (!(await requirePlatformModule(req, res, "nfc.core"))) {
+        return;
+      }
+      res.json(await searchPassOutStudents(ctx(req), parseOrThrow(filtersSchema.safeParse(req.query))));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/api/nfc/pass-outs", async (req, res, next) => {
+    try {
+      if (!(await requirePlatformModule(req, res, "nfc.core"))) {
+        return;
+      }
+      res.status(201).json(await createStudentPassOut(ctx(req), parseOrThrow(createPassOutSchema.safeParse(req.body))));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.patch("/api/nfc/pass-outs/:id/cancel", async (req, res, next) => {
+    try {
+      if (!(await requirePlatformModule(req, res, "nfc.core"))) {
+        return;
+      }
+      res.json(await cancelStudentPassOut(ctx(req), req.params.id, parseOrThrow(cancelPassOutSchema.safeParse(req.body)).reason));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.get("/api/nfc/visitors", async (req, res, next) => {
+    try {
+      if (!(await requirePlatformModule(req, res, "nfc.core"))) {
+        return;
+      }
+      res.json(await listVisitorVisits(ctx(req), parseOrThrow(visitorListFiltersSchema.safeParse(req.query))));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.get("/api/nfc/visitors/:id", async (req, res, next) => {
+    try {
+      if (!(await requirePlatformModule(req, res, "nfc.core"))) {
+        return;
+      }
+      res.json(await getVisitorVisitDetail(ctx(req), req.params.id));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/api/nfc/visitors/register", visitorUpload.fields([
+    { name: "idDocumentImage", maxCount: 1 },
+    { name: "selfieImage", maxCount: 1 },
+  ]), async (req, res, next) => {
+    try {
+      if (!(await requirePlatformModule(req, res, "nfc.core"))) {
+        return;
+      }
+      const files = req.files as Record<string, Express.Multer.File[]> | undefined;
+      const idDocumentImage = files?.idDocumentImage?.[0];
+      const selfieImage = files?.selfieImage?.[0];
+      ensureNonEmptyUpload(idDocumentImage, "The visitor ID/passport image");
+      ensureNonEmptyUpload(selfieImage, "The visitor selfie image");
+      const input = parseOrThrow(registerVisitorSchema.safeParse(req.body));
+      res.status(201).json(await registerVisitor(ctx(req), input, {
+        idDocumentImage,
+        selfieImage,
+      }));
+    } catch (error) {
+      if (sendUploadValidationError(res, error)) {
+        return;
+      }
+      next(error);
+    }
+  });
+
+  router.patch("/api/nfc/visitors/:id/check-out", async (req, res, next) => {
+    try {
+      if (!(await requirePlatformModule(req, res, "nfc.core"))) {
+        return;
+      }
+      res.json(await checkOutVisitor(ctx(req), req.params.id));
     } catch (error) {
       next(error);
     }
@@ -653,6 +819,28 @@ export function nfcOperationsRoutes() {
         return;
       }
       res.json(await getGateDashboard(ctx(req)));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.get("/api/nfc/gate/pass-outs", async (req, res, next) => {
+    try {
+      if (!(await requirePlatformModule(req, res, "nfc.core"))) {
+        return;
+      }
+      res.json(await listGateActiveStudentPassOuts(ctx(req)));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.get("/api/nfc/gate-admin/dashboard", async (req, res, next) => {
+    try {
+      if (!(await requirePlatformModule(req, res, "nfc.core"))) {
+        return;
+      }
+      res.json(await getGateAdminDashboard(ctx(req)));
     } catch (error) {
       next(error);
     }

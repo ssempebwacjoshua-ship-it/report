@@ -7,6 +7,7 @@ export type NavItem = {
   label: string;
   exact?: boolean;
   requiredPermission?: string;
+  visibleRoles?: string[];
   icon:
     | "activity"
     | "bell"
@@ -66,8 +67,8 @@ export const navItemsByProduct: Record<ProductKey, NavItem[]> = {
     { to: "/nfc/attendance", label: "Attendance", icon: "activity", exact: true, requiredPermission: "nfc.devices.manage" },
     { to: "/nfc/wallets", label: "Wallets", icon: "credit-card", exact: true, requiredPermission: "nfc.wallets.pin.manage" },
     { to: "/nfc/canteen", label: "Charge", icon: "credit-card", exact: true, requiredPermission: "nfc.canteen.charge" },
-    { to: "/nfc/fee-holds", label: "Holds", icon: "clipboard", exact: true, requiredPermission: "nfc.fee-holds.manage" },
-    { to: "/nfc/gate", label: "Gate", icon: "shield", exact: true, requiredPermission: "nfc.gate.view" },
+    { to: "/nfc/gate", label: "Gate", icon: "shield", exact: true, requiredPermission: "nfc.gate.view", visibleRoles: ["SECURITY", "GATE_SECURITY"] },
+    { to: "/nfc/gate-admin", label: "Gate Operations", icon: "activity", exact: true, requiredPermission: "app.admin" },
     { to: "/nfc/settings", label: "Settings", icon: "settings", exact: true, requiredPermission: "app.admin" },
     { to: "/nfc/staff-users", label: "Staff", icon: "settings", exact: true, requiredPermission: "staff.manage" },
   ],
