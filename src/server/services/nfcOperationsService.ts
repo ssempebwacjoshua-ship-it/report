@@ -37,7 +37,7 @@ const {
 
 type NfcOperationsClient = Pick<
   PrismaClient,
-  "student" | "studentCredential" | "studentWallet" | "studentWalletTransaction" | "studentAttendanceEvent" | "nfcGateScan" | "auditLog" | "nfcTag" | "schoolNfcPolicy" | "studentFeeHold"
+  "student" | "studentCredential" | "studentWallet" | "studentWalletTransaction" | "studentAttendanceEvent" | "nfcGateScan" | "auditLog" | "nfcTag" | "schoolNfcPolicy" | "studentFeeHold" | "studentPassOut"
 > & {
   $transaction?: <T>(fn: (tx: NfcOperationsClient) => Promise<T>) => Promise<T>;
 };
@@ -155,6 +155,10 @@ function studentSummary(student: StudentForNfc) {
     streamName: enrollment?.stream?.name ?? null,
     photoUrl: null,
   };
+}
+
+function isStudentCurrentlyOnCampus(latestMovement: { type: string } | null) {
+  return latestMovement?.type === "GATE_ENTRY" || latestMovement?.type === "MANUAL_GATE_OVERRIDE";
 }
 
 async function runWrite<T>(db: NfcOperationsClient, fn: (tx: NfcOperationsClient) => Promise<T>) {
@@ -955,9 +959,23 @@ export async function scanGate(
       },
       orderBy: { occurredAt: "desc" },
     });
-    const movementType = latestMovement?.type === "GATE_ENTRY" || latestMovement?.type === "MANUAL_GATE_OVERRIDE"
-      ? "GATE_EXIT"
-      : "GATE_ENTRY";
+    const activePassOut = await db.studentPassOut.findFirst({
+      where: {
+        schoolId,
+        studentId: target.student.id,
+        status: { in: ["APPROVED", "CHECKED_OUT"] as never },
+        activeFrom: { lte: now },
+        activeUntil: { gte: now },
+        cancelledAt: null,
+      },
+      orderBy: { createdAt: "desc" },
+    });
+    const onCampus = isStudentCurrentlyOnCampus(latestMovement);
+    const movementType = activePassOut
+      ? (onCampus ? "GATE_EXIT" : "GATE_ENTRY")
+      : onCampus
+        ? "GATE_EXIT"
+        : "GATE_ENTRY";
 
     if (movementType === "GATE_ENTRY") {
       const isLate = policy.policy.attendanceTapInCutoffEnabled
@@ -985,7 +1003,7 @@ export async function scanGate(
     }
 
     const eventId = input.idempotencyKey?.trim() || `gate-scan:${scan.id}`;
-    await db.campusMovementEvent.create({
+    const movement = await db.campusMovementEvent.create({
       data: {
         eventId,
         schoolId,
@@ -999,9 +1017,42 @@ export async function scanGate(
           source: "GATE_PWA",
           gateScanId: scan.id,
           scannedByUserId: ctx.actorId ?? null,
+          passOutId: activePassOut?.id ?? null,
+          passOutAction: activePassOut ? (movementType === "GATE_EXIT" ? "CHECK_OUT" : "CHECK_IN") : null,
         },
       },
     });
+
+    if (activePassOut) {
+      const passOutUpdate = movementType === "GATE_EXIT"
+        ? {
+            status: "CHECKED_OUT",
+            checkedOutAt: activePassOut.checkedOutAt ?? scan.scannedAt,
+            checkoutMovementEventId: movement.id,
+          }
+        : {
+            status: "RETURNED",
+            checkedInAt: scan.scannedAt,
+            checkinMovementEventId: movement.id,
+          };
+      await db.studentPassOut.update({
+        where: { id: activePassOut.id },
+        data: passOutUpdate as never,
+      });
+      await db.auditLog.create({
+        data: {
+          schoolId,
+          action: movementType === "GATE_EXIT" ? "student_pass_out.checked_out" : "student_pass_out.returned",
+          details: {
+            actor: { id: ctx.actorId ?? null },
+            passOutId: activePassOut.id,
+            studentId: target.student.id,
+            gateScanId: scan.id,
+            movementEventId: movement.id,
+          },
+        },
+      });
+    }
   }
 
   const lastAttendance = target
@@ -1015,6 +1066,19 @@ export async function scanGate(
     student: target ? studentSummary(target.student) : undefined,
     credentialStatus: target?.credential?.status ?? (target ? "ACTIVE" : "UNKNOWN"),
     todayAttendanceStatus: lastAttendance?.direction ?? "NONE",
+    passOut: target?.student.id
+      ? await db.studentPassOut.findFirst({
+          where: { schoolId, studentId: target.student.id },
+          orderBy: { createdAt: "desc" },
+        }).then((row) => row ? {
+          id: row.id,
+          status: row.status,
+          activeFrom: row.activeFrom.toISOString(),
+          activeUntil: row.activeUntil.toISOString(),
+          checkedOutAt: row.checkedOutAt?.toISOString() ?? null,
+          checkedInAt: row.checkedInAt?.toISOString() ?? null,
+        } : null)
+      : null,
   };
 }
 

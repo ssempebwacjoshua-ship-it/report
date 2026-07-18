@@ -72,6 +72,8 @@ function createDb(options: {
     student: (typeof students)[number];
   }> = [];
   const gateScans: Array<Record<string, unknown>> = [];
+  const campusMovementEvents: Array<Record<string, unknown>> = [];
+  const dailyAttendanceRows: Array<Record<string, unknown>> = [];
   const feeHolds: Array<{
     id: string;
     schoolId: string;
@@ -118,10 +120,14 @@ function createDb(options: {
   const db = {
     $transaction: async (fn: (tx: unknown) => Promise<unknown>) => fn(db),
     studentCredential: {
-      findFirst: async ({ where }: { where: { schoolId: string; OR: Array<{ scanToken?: string; credentialUID?: string }> } }) =>
+      findFirst: async ({ where }: { where: { schoolId: string; scanToken?: string; credentialUID?: string; OR?: Array<{ scanToken?: string; credentialUID?: string }> } }) =>
         credentials.find((credential) =>
           credential.schoolId === where.schoolId
-          && where.OR.some((condition) => condition.scanToken === credential.scanToken || condition.credentialUID === credential.credentialUID),
+          && (
+            where.scanToken === credential.scanToken
+            || where.credentialUID === credential.credentialUID
+            || where.OR?.some((condition) => condition.scanToken === credential.scanToken || condition.credentialUID === credential.credentialUID)
+          ),
         ) ?? null,
     },
     schoolNfcPolicy: {
@@ -178,9 +184,27 @@ function createDb(options: {
     },
     dailyAttendance: {
       findMany: async () => [],
+      upsert: async ({ create, update }: { create: Record<string, unknown>; update: Record<string, unknown> }) => {
+        const row = { ...create, ...update };
+        dailyAttendanceRows.push(row);
+        return row;
+      },
     },
     campusMovementEvent: {
+      findMany: async () => campusMovementEvents,
+      findFirst: async () => campusMovementEvents.length > 0 ? campusMovementEvents[campusMovementEvents.length - 1] : null,
+      create: async ({ data }: { data: Record<string, unknown> }) => {
+        const row = { id: `move-${campusMovementEvents.length + 1}`, ...data };
+        campusMovementEvents.push(row);
+        return row;
+      },
+    },
+    classroomAttendanceEvent: {
       findMany: async () => [],
+    },
+    studentPassOut: {
+      findFirst: async () => null,
+      update: async ({ data }: { data: Record<string, unknown> }) => data,
     },
     nfcOfflineDevice: {
       findMany: async () => [],

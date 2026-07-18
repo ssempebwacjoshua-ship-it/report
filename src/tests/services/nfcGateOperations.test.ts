@@ -2,6 +2,8 @@ import { AttendanceDirection, GateScanResult } from "@prisma/client";
 import { describe, expect, it, vi } from "vitest";
 import { getAttendanceDashboard, scanAttendance, getGateDashboard, scanGate } from "../../server/services/nfcOperationsService";
 
+const GATE_CTX = { schoolId: "school-a", actorId: "gate-a", role: "GATE_SECURITY" as const };
+
 function createDb() {
   const students = [
     {
@@ -52,6 +54,7 @@ function createDb() {
   ];
   const dailyAttendances: Array<Record<string, unknown>> = [];
   const campusMovementEvents: Array<Record<string, unknown>> = [];
+  const studentPassOuts: Array<Record<string, unknown>> = [];
 
   const db = {
     $transaction: async (fn: (tx: unknown) => Promise<unknown>) => fn(db),
@@ -107,6 +110,30 @@ function createDb() {
         return row;
       },
     },
+    studentPassOut: {
+      findFirst: async ({ where }: { where: Record<string, any> }) => {
+        if (where?.studentId) {
+          return studentPassOuts.find((row) => {
+            const statuses = where.status?.in as string[] | undefined;
+            const activeFromLte = where.activeFrom?.lte as Date | undefined;
+            const activeUntilGte = where.activeUntil?.gte as Date | undefined;
+            return row.studentId === where.studentId
+              && row.schoolId === where.schoolId
+              && (!statuses || statuses.includes(String(row.status)))
+              && (!where.cancelledAt || row.cancelledAt === null)
+              && (!activeFromLte || row.activeFrom <= activeFromLte)
+              && (!activeUntilGte || row.activeUntil >= activeUntilGte);
+          }) ?? null;
+        }
+        return studentPassOuts[studentPassOuts.length - 1] ?? null;
+      },
+      update: async ({ where, data }: { where: { id: string }; data: Record<string, unknown> }) => {
+        const index = studentPassOuts.findIndex((row) => row.id === where.id);
+        const updated = { ...studentPassOuts[index], ...data };
+        studentPassOuts[index] = updated;
+        return updated;
+      },
+    },
     studentAttendanceEvent: {
       findMany: async () => [],
       findFirst: async () => null,
@@ -120,13 +147,13 @@ function createDb() {
     },
   };
 
-  return { db: db as never, dailyAttendances, campusMovementEvents, students, policy };
+  return { db: db as never, dailyAttendances, campusMovementEvents, studentPassOuts, students, policy };
 }
 
 describe("NFC gate operations", () => {
   it("lets GATE_SECURITY load the gate dashboard and scan gate tokens", async () => {
     const { db, dailyAttendances, campusMovementEvents } = createDb();
-    const ctx = { schoolId: "school-a", actorId: "gate-a", role: "GATE_SECURITY" as const };
+    const ctx = GATE_CTX;
 
     const dashboard = await getGateDashboard(ctx, db);
     const scan = await scanGate(ctx, {
@@ -157,7 +184,7 @@ describe("NFC gate operations", () => {
 
   it("keeps the old live gate path working with direct credential UID lookups", async () => {
     const { db } = createDb();
-    const ctx = { schoolId: "school-a", actorId: "gate-a", role: "GATE_SECURITY" as const };
+    const ctx = GATE_CTX;
 
     const scan = await scanGate(ctx, {
       tokenOrUid: "12-1",
@@ -168,6 +195,105 @@ describe("NFC gate operations", () => {
     expect(scan.result).toBe(GateScanResult.ALLOWED);
     expect(scan.student?.id).toBe("student-a");
     expect(scan.credentialStatus).toBe("ACTIVE");
+  });
+
+  it("checks a student out when an active approved pass-out exists and the student is on campus", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-07-18T10:30:00.000Z"));
+    try {
+      const { db, campusMovementEvents, studentPassOuts } = createDb();
+      studentPassOuts.push({
+        id: "passout-1",
+        schoolId: "school-a",
+        studentId: "student-a",
+        status: "APPROVED",
+        activeFrom: new Date("2026-07-18T00:00:00.000Z"),
+        activeUntil: new Date("2026-07-18T23:59:59.000Z"),
+        checkedOutAt: null,
+        checkedInAt: null,
+        cancelledAt: null,
+        createdAt: new Date("2026-07-18T08:00:00.000Z"),
+      });
+      campusMovementEvents.push({
+        id: "move-entry-1",
+        schoolId: "school-a",
+        studentId: "student-a",
+        readerId: "reader-a",
+        type: "GATE_ENTRY",
+        occurredAt: new Date("2026-07-18T07:00:00.000Z"),
+      });
+
+      const scan = await scanGate(GATE_CTX, {
+        tokenOrUid: "token-a",
+        deviceId: "11111111-1111-1111-1111-111111111111",
+        idempotencyKey: "passout-checkout-1",
+      }, db);
+
+      expect(scan.result).toBe(GateScanResult.ALLOWED);
+      expect(campusMovementEvents.at(-1)).toMatchObject({
+        type: "GATE_EXIT",
+        metadata: expect.objectContaining({
+          passOutId: "passout-1",
+          passOutAction: "CHECK_OUT",
+        }),
+      });
+      expect(studentPassOuts[0]).toMatchObject({
+        status: "CHECKED_OUT",
+        checkoutMovementEventId: "move-2",
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("checks a student back in when an active checked-out pass-out exists and the student is off campus", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-07-18T10:30:00.000Z"));
+    try {
+      const { db, campusMovementEvents, studentPassOuts, dailyAttendances } = createDb();
+      studentPassOuts.push({
+        id: "passout-1",
+        schoolId: "school-a",
+        studentId: "student-a",
+        status: "CHECKED_OUT",
+        activeFrom: new Date("2026-07-18T00:00:00.000Z"),
+        activeUntil: new Date("2026-07-18T23:59:59.000Z"),
+        checkedOutAt: new Date("2026-07-18T09:00:00.000Z"),
+        checkedInAt: null,
+        cancelledAt: null,
+        createdAt: new Date("2026-07-18T08:00:00.000Z"),
+      });
+      campusMovementEvents.push({
+        id: "move-exit-1",
+        schoolId: "school-a",
+        studentId: "student-a",
+        readerId: "reader-a",
+        type: "GATE_EXIT",
+        occurredAt: new Date("2026-07-18T09:00:00.000Z"),
+      });
+
+      const scan = await scanGate(GATE_CTX, {
+        tokenOrUid: "token-a",
+        deviceId: "11111111-1111-1111-1111-111111111111",
+        idempotencyKey: "passout-return-1",
+      }, db);
+
+      expect(scan.result).toBe(GateScanResult.ALLOWED);
+      expect(campusMovementEvents.at(-1)).toMatchObject({
+        type: "GATE_ENTRY",
+        metadata: expect.objectContaining({
+          passOutId: "passout-1",
+          passOutAction: "CHECK_IN",
+        }),
+      });
+      expect(studentPassOuts[0]).toMatchObject({
+        status: "RETURNED",
+        checkinMovementEventId: "move-2",
+      });
+      expect(dailyAttendances).toHaveLength(1);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("blocks GATE_SECURITY from the admin attendance dashboard but allows explicit attendance operation scans", async () => {
