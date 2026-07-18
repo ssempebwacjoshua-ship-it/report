@@ -38,8 +38,13 @@ describe("validateEnv ? production JWT_SECRET checks", () => {
     AUTH_EMAIL_PROVIDER: "RESEND",
     RESEND_API_KEY: "resend-key",
     AUTH_EMAIL_FROM: "SSAMENJ Report Lab <support@ssamenj.online>",
+    OUTREACH_EMAIL_PROVIDER: "gmail",
     OUTREACH_EMAIL_FROM: "SSAMENJ Technologies <support@ssamenj.online>",
     OUTREACH_REPLY_TO: "support@ssamenj.online",
+    SMTP_HOST: "smtp.gmail.com",
+    SMTP_PORT: "465",
+    SMTP_USER: "support@ssamenj.online",
+    SMTP_PASSWORD: "app-password",
     APP_PUBLIC_URL: "https://ssamenj.online/report-lab",
   };
 
@@ -82,8 +87,13 @@ describe("validateEnv ? production required vars", () => {
     AUTH_EMAIL_PROVIDER: "RESEND",
     RESEND_API_KEY: "resend-key",
     AUTH_EMAIL_FROM: "SSAMENJ Report Lab <support@ssamenj.online>",
+    OUTREACH_EMAIL_PROVIDER: "gmail",
     OUTREACH_EMAIL_FROM: "SSAMENJ Technologies <support@ssamenj.online>",
     OUTREACH_REPLY_TO: "support@ssamenj.online",
+    SMTP_HOST: "smtp.gmail.com",
+    SMTP_PORT: "465",
+    SMTP_USER: "support@ssamenj.online",
+    SMTP_PASSWORD: "app-password",
     APP_PUBLIC_URL: "https://ssamenj.online/report-lab",
   };
 
@@ -130,6 +140,70 @@ describe("validateEnv ? production required vars", () => {
     expect(result.valid).toBe(true);
     expect(result.errors).toHaveLength(0);
     expect(result.warnings).toHaveLength(0);
+  });
+
+  it("errors when Gmail outreach SMTP credentials are incomplete in production", () => {
+    const result = validateEnv({
+      NODE_ENV: "production",
+      JWT_SECRET: "a".repeat(32),
+      DATABASE_URL: "postgresql://prod-user:prod-pass@db.railway.internal:5432/school_connect_reports_lab",
+      CLIENT_ORIGIN: "https://app.example.com",
+      AUTH_EMAIL_PROVIDER: "RESEND",
+      RESEND_API_KEY: "resend-key",
+      AUTH_EMAIL_FROM: "SSAMENJ Report Lab <support@ssamenj.online>",
+      OUTREACH_EMAIL_PROVIDER: "gmail",
+      OUTREACH_EMAIL_FROM: "SSAMENJ Technologies <support@ssamenj.online>",
+      OUTREACH_REPLY_TO: "support@ssamenj.online",
+      SMTP_HOST: "smtp.gmail.com",
+      SMTP_PORT: "465",
+      SMTP_USER: "support@ssamenj.online",
+      APP_PUBLIC_URL: "https://ssamenj.online/report-lab",
+    });
+
+    expect(result.valid).toBe(false);
+    expect(result.errors.some((e) => e.includes("SMTP_PASSWORD is not set"))).toBe(true);
+  });
+
+  it("errors when Gmail outreach SMTP user is not the official support mailbox in production", () => {
+    const result = validateEnv({
+      NODE_ENV: "production",
+      JWT_SECRET: "a".repeat(32),
+      DATABASE_URL: "postgresql://prod-user:prod-pass@db.railway.internal:5432/school_connect_reports_lab",
+      CLIENT_ORIGIN: "https://app.example.com",
+      AUTH_EMAIL_PROVIDER: "RESEND",
+      RESEND_API_KEY: "resend-key",
+      AUTH_EMAIL_FROM: "SSAMENJ Report Lab <support@ssamenj.online>",
+      OUTREACH_EMAIL_PROVIDER: "gmail",
+      OUTREACH_EMAIL_FROM: "SSAMENJ Technologies <support@ssamenj.online>",
+      OUTREACH_REPLY_TO: "support@ssamenj.online",
+      SMTP_HOST: "smtp.gmail.com",
+      SMTP_PORT: "465",
+      SMTP_USER: "hello@example.com",
+      SMTP_PASSWORD: "app-password",
+      APP_PUBLIC_URL: "https://ssamenj.online/report-lab",
+    });
+
+    expect(result.valid).toBe(false);
+    expect(result.errors.some((e) => e.includes("SMTP_USER must be support@ssamenj.online"))).toBe(true);
+  });
+
+  it("errors when outreach email provider is unsupported in production", () => {
+    const result = validateEnv({
+      NODE_ENV: "production",
+      JWT_SECRET: "a".repeat(32),
+      DATABASE_URL: "postgresql://prod-user:prod-pass@db.railway.internal:5432/school_connect_reports_lab",
+      CLIENT_ORIGIN: "https://app.example.com",
+      AUTH_EMAIL_PROVIDER: "RESEND",
+      RESEND_API_KEY: "resend-key",
+      AUTH_EMAIL_FROM: "SSAMENJ Report Lab <support@ssamenj.online>",
+      OUTREACH_EMAIL_PROVIDER: "mailgun",
+      OUTREACH_EMAIL_FROM: "SSAMENJ Technologies <support@ssamenj.online>",
+      OUTREACH_REPLY_TO: "support@ssamenj.online",
+      APP_PUBLIC_URL: "https://ssamenj.online/report-lab",
+    });
+
+    expect(result.valid).toBe(false);
+    expect(result.errors.some((e) => e.includes("OUTREACH_EMAIL_PROVIDER must be set to resend or gmail"))).toBe(true);
   });
 
   it("errors when DATABASE_URL points at localhost in production", () => {

@@ -1,4 +1,5 @@
 import { Resend } from "resend";
+import nodemailer from "nodemailer";
 
 export const OFFICIAL_SUPPORT_EMAIL = "support@ssamenj.online";
 export const OFFICIAL_COMPANY_DISPLAY_NAME = "SSAMENJ Technologies";
@@ -18,11 +19,18 @@ type ResendErrorLike = {
   statusCode?: number | null;
 };
 
+type SmtpSendMailResult = {
+  messageId?: string;
+};
+
+type OutreachEmailProvider = "RESEND" | "GMAIL_SMTP";
+
 export type EmailSendResult =
   | { ok: true; provider: "RESEND"; messageId: string | null }
+  | { ok: true; provider: "GMAIL_SMTP"; messageId: string | null }
   | {
       ok: false;
-      provider: "RESEND" | "NONE";
+      provider: "RESEND" | "GMAIL_SMTP" | "NONE";
       reason: "NOT_CONFIGURED" | "SEND_FAILED";
       safeErrorCode?: string;
       safeErrorMessage?: string;
@@ -95,6 +103,14 @@ export function configuredAuthEmailProvider(env: NodeJS.ProcessEnv = process.env
   return readEnv(env, "AUTH_EMAIL_PROVIDER") || "RESEND";
 }
 
+export function configuredOutreachEmailProvider(env: NodeJS.ProcessEnv = process.env): OutreachEmailProvider | "UNKNOWN" {
+  const raw = readEnv(env, "OUTREACH_EMAIL_PROVIDER") || "RESEND";
+  if (/^gmail$/i.test(raw)) return "GMAIL_SMTP";
+  if (/^gmail_smtp$/i.test(raw)) return "GMAIL_SMTP";
+  if (/^resend$/i.test(raw)) return "RESEND";
+  return "UNKNOWN";
+}
+
 export function configuredCompanySender(env: NodeJS.ProcessEnv = process.env) {
   return normalizeVerifiedSender(configuredOutreachFrom(env) || OFFICIAL_COMPANY_OUTREACH_SENDER);
 }
@@ -165,11 +181,17 @@ function missingConfigCode(missing: string[]) {
 function outreachMissingConfigCode(missing: string[]) {
   const first = missing[0] || "";
   if (first === "RESEND_API_KEY") return "missing_api_key";
+  if (first === "SMTP_HOST") return "missing_smtp_host";
+  if (first === "SMTP_PORT") return "missing_smtp_port";
+  if (first === "SMTP_USER") return "missing_smtp_user";
+  if (first === "SMTP_PASSWORD") return "missing_smtp_password";
+  if (first === "SMTP_USER_UNSAFE") return "invalid_smtp_user";
   if (first === "OUTREACH_EMAIL_FROM") return "missing_outreach_email_from";
   if (first === "OUTREACH_EMAIL_FROM_INVALID_FORMAT") return "invalid_outreach_email_from";
   if (first === "OUTREACH_EMAIL_FROM_UNSAFE") return "invalid_outreach_email_from";
   if (first === "OUTREACH_EMAIL_FROM (valid email or Name <email> format)") return "invalid_outreach_email_from";
   if (first === "OUTREACH_REPLY_TO") return "missing_outreach_reply_to";
+  if (first === "OUTREACH_EMAIL_PROVIDER") return "invalid_outreach_email_provider";
   if (first.startsWith("APP_PUBLIC_URL")) return "missing_public_app_url";
   if (first === "AUTH_EMAIL_PROVIDER=RESEND") return "missing_auth_email_provider";
   return "missing_outreach_email_config";
@@ -218,19 +240,33 @@ function normalizeVerifiedSender(value: string) {
 }
 
 function resolveOutreachEmailConfig(env: NodeJS.ProcessEnv = process.env) {
-  const provider = configuredAuthEmailProvider(env);
+  const provider = configuredOutreachEmailProvider(env);
   const apiKey = readEnv(env, "RESEND_API_KEY");
   const rawFrom = configuredOutreachFrom(env);
   const from = rawFrom ? normalizeVerifiedSender(rawFrom) : "";
   const replyTo = configuredOutreachReplyTo(env);
   const publicUrl = configuredAppUrl(env);
+  const smtpHost = readEnv(env, "SMTP_HOST");
+  const smtpPortRaw = readEnv(env, "SMTP_PORT");
+  const smtpSecureRaw = readEnv(env, "SMTP_SECURE");
+  const smtpUser = readEnv(env, "SMTP_USER");
+  const smtpPassword = readEnv(env, "SMTP_PASSWORD");
+  const smtpPort = smtpPortRaw ? Number.parseInt(smtpPortRaw, 10) : Number.NaN;
+  const smtpSecure = smtpSecureRaw ? /^true$/i.test(smtpSecureRaw) : true;
   const missing: string[] = [];
 
-  if (provider !== "RESEND") {
-    missing.push("AUTH_EMAIL_PROVIDER=RESEND");
+  if (provider === "UNKNOWN") {
+    missing.push("OUTREACH_EMAIL_PROVIDER");
   }
-  if (!apiKey) {
+  if (provider === "RESEND" && !apiKey) {
     missing.push("RESEND_API_KEY");
+  }
+  if (provider === "GMAIL_SMTP") {
+    if (!smtpHost) missing.push("SMTP_HOST");
+    if (!smtpPortRaw || !Number.isFinite(smtpPort) || smtpPort <= 0) missing.push("SMTP_PORT");
+    if (!smtpUser) missing.push("SMTP_USER");
+    if (!smtpPassword) missing.push("SMTP_PASSWORD");
+    if (smtpUser && smtpUser.toLowerCase() !== OFFICIAL_SUPPORT_EMAIL) missing.push("SMTP_USER_UNSAFE");
   }
   if (!rawFrom) {
     missing.push("OUTREACH_EMAIL_FROM");
@@ -247,7 +283,7 @@ function resolveOutreachEmailConfig(env: NodeJS.ProcessEnv = process.env) {
     missing.push("APP_PUBLIC_URL / PUBLIC_APP_URL / APP_URL / APP_BASE_URL");
   }
 
-  return { provider, apiKey, from, publicUrl, replyTo, missing };
+  return { provider, apiKey, from, publicUrl, replyTo, missing, smtpHost, smtpPort, smtpSecure, smtpUser, smtpPassword };
 }
 
 export function isAuthEmailConfigured(env: NodeJS.ProcessEnv = process.env) {
@@ -321,13 +357,13 @@ export async function sendAuthEmail(input: EmailSendInput): Promise<EmailSendRes
 
 export async function sendOutreachEmail(input: EmailSendInput): Promise<EmailSendResult> {
   const config = resolveOutreachEmailConfig();
-  if (config.provider !== "RESEND") {
+  if (config.provider === "UNKNOWN") {
     return {
       ok: false,
       provider: "NONE",
       reason: "NOT_CONFIGURED",
       safeErrorCode: "unsupported_provider",
-      safeErrorMessage: `AUTH_EMAIL_PROVIDER=${config.provider} is not supported. Set AUTH_EMAIL_PROVIDER=RESEND.`,
+      safeErrorMessage: "OUTREACH_EMAIL_PROVIDER is not supported. Set OUTREACH_EMAIL_PROVIDER=resend or OUTREACH_EMAIL_PROVIDER=gmail.",
     };
   }
   if (config.missing.length > 0) {
@@ -338,6 +374,37 @@ export async function sendOutreachEmail(input: EmailSendInput): Promise<EmailSen
       safeErrorCode: outreachMissingConfigCode(config.missing),
       safeErrorMessage: outreachMissingConfigMessage(config.missing),
     };
+  }
+
+  if (config.provider === "GMAIL_SMTP") {
+    try {
+      const transporter = nodemailer.createTransport({
+        host: config.smtpHost,
+        port: config.smtpPort,
+        secure: config.smtpSecure,
+        auth: {
+          user: config.smtpUser,
+          pass: config.smtpPassword,
+        },
+      });
+      const result = await transporter.sendMail({
+        from: config.from,
+        to: input.to,
+        subject: input.subject,
+        html: input.html,
+        text: input.text,
+        replyTo: input.replyTo ?? config.replyTo,
+      }) as SmtpSendMailResult;
+      return { ok: true, provider: "GMAIL_SMTP", messageId: result.messageId ?? null };
+    } catch (error) {
+      return {
+        ok: false,
+        provider: "GMAIL_SMTP",
+        reason: "SEND_FAILED",
+        safeErrorCode: error instanceof Error ? error.name || "SMTP_SEND_FAILED" : "SMTP_SEND_FAILED",
+        safeErrorMessage: error instanceof Error ? error.message : "SMTP send failed.",
+      };
+    }
   }
 
   try {
