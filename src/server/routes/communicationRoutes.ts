@@ -60,6 +60,7 @@ const channelListSchema = z.object({
 const sendCommunicationSchema = z.object({
   channel: z.enum(["WHATSAPP", "SMS"]),
   confirm: z.boolean(),
+  message: z.string().trim().min(1).max(3000).optional(),
   audience: audienceSchema.optional(),
 });
 

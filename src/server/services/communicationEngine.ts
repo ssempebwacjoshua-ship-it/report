@@ -21,7 +21,7 @@ import { evaluateSubscriptionEntitlement } from "./subscriptionEntitlementServic
 
 type Db = PrismaClient;
 
-type TemplatePolicyStatus = "DRY_RUN_ONLY" | "APPROVED_TEMPLATE_BOUND" | "TEMPLATE_REQUIRED" | "TEMPLATE_VARIABLES_INVALID" | "FALLBACK_MESSAGE";
+type TemplatePolicyStatus = "DIRECT_MESSAGE";
 
 const SMS_DELIVERY_WORKER_INTERVAL_MS = 5_000;
 const SMS_FALLBACK_MESSAGE = "Test SMS from School Connect";
@@ -51,20 +51,6 @@ async function requireLiveCommunicationsEnabled(db: Db, ctx: CommunicationContex
     console.warn("Communications disabled but bypassed for development");
   }
 }
-
-type TemplateValidationResult = {
-  template: {
-    id: string;
-    name: string;
-    channel: CommunicationChannel;
-    communicationType: string;
-    status: string;
-    providerTemplateName: string | null;
-    providerTemplateId: string | null;
-    variablesJson: unknown;
-  };
-  policyStatus: TemplatePolicyStatus;
-};
 
 function extractTemplateVariables(input: string) {
   const variables = new Set<string>();
@@ -104,106 +90,19 @@ function getMessageVariables(content: { body: string; shortBody?: string | null 
   ])];
 }
 
-function hasOwnTemplateBinding(template: TemplateValidationResult["template"]) {
-  return Boolean(template.providerTemplateName?.trim() || template.providerTemplateId?.trim());
-}
-
-function shouldRequireTemplate() {
-  return process.env.REQUIRE_TEMPLATE === "true";
-}
-
-function isSmsFallbackTemplatePolicy(templatePolicy: Record<string, unknown>) {
-  return templatePolicy.policyStatus === "FALLBACK_MESSAGE" && typeof templatePolicy.fallbackMessage === "string";
-}
-
-function resolveSmsMessageText(content: { body: string; shortBody?: string | null }, values: Record<string, string>, templatePolicy: Record<string, unknown>) {
-  if (isSmsFallbackTemplatePolicy(templatePolicy)) {
-    return templatePolicy.fallbackMessage as string;
-  }
-  return renderContent(content.shortBody || content.body, values);
-}
-
-async function requireLiveTemplatePolicy(db: Db, ctx: CommunicationContext, campaignId: string, channel: CommunicationChannel) {
-  const campaign = await getCampaignOrThrow(db, ctx, campaignId);
-  const content = campaign.contents.find((entry) => entry.version === campaign.contentVersion) ?? campaign.contents[0];
-  if (!content?.body?.trim()) {
-    throw httpError(400, "Message body is required before sending.");
-  }
-
-  const template = await db.communicationTemplate.findFirst({
-    where: {
-      schoolId: ctx.schoolId,
-      channel: channel as never,
-      communicationType: campaign.type as never,
-      status: { in: ["APPROVED", "ACTIVE"] },
-    },
-    orderBy: { updatedAt: "desc" },
-  });
-  if (!template) {
-    const requireTemplate = shouldRequireTemplate();
-    if (channel === "SMS" && !requireTemplate) {
-      console.warn("No approved template found - allowing fallback SMS send");
-      return {
-        template: null,
-        policyStatus: "FALLBACK_MESSAGE" as TemplatePolicyStatus,
-        fallbackMessage: SMS_FALLBACK_MESSAGE,
-        liveTemplateRequired: false,
-      };
-    }
-    throw Object.assign(new Error("An approved communication template is required before live sending."), {
-      status: 402,
-      expose: true,
-      code: "COMMUNICATION_TEMPLATE_REQUIRED",
-      details: {
-        channel,
-        communicationType: campaign.type,
-        templateStatus: null,
-        policyStatus: "TEMPLATE_REQUIRED" as TemplatePolicyStatus,
-      },
-    });
-  }
-
-  if (channel === "WHATSAPP" && !hasOwnTemplateBinding(template)) {
-    throw Object.assign(new Error("WhatsApp live sending requires an approved provider template binding."), {
-      status: 402,
-      expose: true,
-      code: "WHATSAPP_TEMPLATE_BINDING_REQUIRED",
-      details: {
-        channel,
-        communicationType: campaign.type,
-        templateId: template.id,
-        templateStatus: template.status,
-        policyStatus: "TEMPLATE_REQUIRED" as TemplatePolicyStatus,
-      },
-    });
-  }
-
-  const requiredVariables = new Set([
-    ...getMessageVariables(content),
-    ...normalizeTemplateVariableNames(template.variablesJson),
-  ]);
-  const allowedVariables = new Set(normalizeTemplateVariableNames(template.variablesJson));
-  const unknownVariables = [...requiredVariables].filter((variable) => allowedVariables.size === 0 || !allowedVariables.has(variable));
-  if (unknownVariables.length > 0) {
-    throw Object.assign(new Error("Message variables do not match the approved template."), {
-      status: 400,
-      expose: true,
-      code: "COMMUNICATION_TEMPLATE_VARIABLES_INVALID",
-      details: {
-        channel,
-        communicationType: campaign.type,
-        templateId: template.id,
-        missingVariables: [...requiredVariables].filter((variable) => !allowedVariables.has(variable)),
-        unknownVariables,
-        policyStatus: "TEMPLATE_VARIABLES_INVALID" as TemplatePolicyStatus,
-      },
-    });
-  }
-
+function buildTemplatePolicy(channel: CommunicationChannel, directMessage: string | null) {
   return {
-    template,
-    policyStatus: "APPROVED_TEMPLATE_BOUND" as TemplatePolicyStatus,
+    template: null,
+    policyStatus: "DIRECT_MESSAGE" as TemplatePolicyStatus,
+    templateRequired: false,
+    channel,
+    fallbackMessage: directMessage ? null : SMS_FALLBACK_MESSAGE,
   };
+}
+
+function resolveMessageText(content: { body: string; shortBody?: string | null }, values: Record<string, string>, directMessage?: string | null) {
+  const messageContent = directMessage?.trim() || content.shortBody?.trim() || content.body?.trim() || SMS_FALLBACK_MESSAGE;
+  return renderContent(messageContent, values);
 }
 
 export async function createCampaign(db: Db, ctx: CommunicationContext, input: {
@@ -460,11 +359,6 @@ export async function approveCampaign(db: Db, ctx: CommunicationContext, campaig
 
 export async function queueCampaign(db: Db, ctx: CommunicationContext, campaignId: string, channels: CommunicationChannel[] = ["WHATSAPP"]) {
   await requireLiveCommunicationsEnabled(db, ctx);
-  if (!isCommunicationDryRun()) {
-    for (const channel of channels) {
-      await requireLiveTemplatePolicy(db, ctx, campaignId, channel);
-    }
-  }
   const campaign = await getCampaignOrThrow(db, ctx, campaignId);
   if (campaign.status !== "APPROVED" && campaign.status !== "FAILED") throw httpError(400, "Only approved campaigns can be queued.");
   const recipients = await db.communicationRecipient.findMany({ where: { schoolId: ctx.schoolId, campaignId, status: { in: ["READY", "WARNING"] } } });
@@ -516,6 +410,7 @@ export async function queueCampaign(db: Db, ctx: CommunicationContext, campaignI
 export async function sendCampaign(db: Db, ctx: CommunicationContext, campaignId: string, input: {
   channel: CommunicationChannel;
   confirm: boolean;
+  message?: string;
   audience?: AudienceDefinition;
 }) {
   if (!communicationChannels.includes(input.channel)) throw httpError(400, "Unsupported communication channel.");
@@ -527,13 +422,6 @@ export async function sendCampaign(db: Db, ctx: CommunicationContext, campaignId
   if (!["APPROVED", "QUEUED", "SENDING", "SENT"].includes(campaign.status)) {
     throw httpError(400, "Only approved campaigns can be sent.");
   }
-  const templatePolicy = isCommunicationDryRun()
-    ? {
-        policyStatus: "DRY_RUN_ONLY" as TemplatePolicyStatus,
-        liveTemplateRequired: true,
-        note: "Dry-run staging is allowed; live sending will require an approved template binding.",
-      }
-    : await requireLiveTemplatePolicy(db, ctx, campaignId, input.channel);
   if (!campaign.audienceSnapshots[0]) {
     await createAudienceSnapshot(db, ctx, campaignId, input.audience ?? ((campaign.audience?.definitionJson ?? {}) as AudienceDefinition));
   }
@@ -553,7 +441,7 @@ export async function sendCampaign(db: Db, ctx: CommunicationContext, campaignId
   }
 
   if (input.channel === "SMS") {
-    return sendSmsCampaign(db, ctx, refreshed, recipients, content, templatePolicy);
+    return sendSmsCampaign(db, ctx, refreshed, recipients, content, buildTemplatePolicy(input.channel, input.message ?? null), input.message ?? null);
   }
 
   const provider = isCommunicationDryRun()
@@ -582,7 +470,7 @@ export async function sendCampaign(db: Db, ctx: CommunicationContext, campaignId
 
   for (const recipient of recipients) {
     const values = (recipient.personalisationJson ?? {}) as Record<string, string>;
-    const text = renderContent(content.shortBody || content.body, values);
+    const text = resolveMessageText(content, values, input.message ?? null);
     const rendered = await provider.render({ text });
     const idempotencyKey = buildDeliveryIdempotencyKey({
       schoolId: ctx.schoolId,
@@ -683,7 +571,7 @@ export async function sendCampaign(db: Db, ctx: CommunicationContext, campaignId
     data: { status: failed > 0 && submitted > 0 ? "PARTIALLY_DELIVERED" : failed > 0 && submitted === 0 ? "FAILED" : "SENDING", sendingStartedAt: new Date() },
   });
   await audit(db, ctx, "communication.delivery_submitted", campaignId, { channel: input.channel, provider: provider.providerKey, submitted, failed, skippedDuplicate });
-  return { submitted, failed, skippedDuplicate, results, templatePolicy, dryRun: isCommunicationDryRun(), progress: await getCampaignProgressTotals(db, ctx, campaignId) };
+  return { submitted, failed, skippedDuplicate, results, templatePolicy: buildTemplatePolicy(input.channel, input.message ?? null), dryRun: isCommunicationDryRun(), progress: await getCampaignProgressTotals(db, ctx, campaignId) };
 }
 
 async function sendSmsCampaign(
@@ -693,9 +581,10 @@ async function sendSmsCampaign(
   recipients: Awaited<ReturnType<Db["communicationRecipient"]["findMany"]>>,
   content: NonNullable<Awaited<ReturnType<typeof getCampaignOrThrow>>["contents"][number]>,
   templatePolicy: Record<string, unknown>,
+  directMessage: string | null,
 ) {
   if (isCommunicationDryRun()) {
-    return sendDryRunSmsCampaign(db, ctx, campaign, recipients, content, templatePolicy);
+    return sendDryRunSmsCampaign(db, ctx, campaign, recipients, content, templatePolicy, directMessage);
   }
 
   const provider = resolveSmsProvider();
@@ -732,7 +621,7 @@ async function sendSmsCampaign(
 
   for (const recipient of recipients) {
     const values = (recipient.personalisationJson ?? {}) as Record<string, string>;
-    const text = resolveSmsMessageText(content, values, templatePolicy);
+    const text = resolveMessageText(content, values, directMessage);
     const segmentEstimate = estimateSmsSegments(text);
     const idempotencyKey = buildDeliveryIdempotencyKey({
       schoolId: ctx.schoolId,
@@ -907,6 +796,7 @@ async function sendDryRunSmsCampaign(
   recipients: Awaited<ReturnType<Db["communicationRecipient"]["findMany"]>>,
   content: NonNullable<Awaited<ReturnType<typeof getCampaignOrThrow>>["contents"][number]>,
   templatePolicy: Record<string, unknown>,
+  directMessage: string | null,
 ) {
   const provider = new DryRunMessageProvider("SMS");
   let submitted = 0;
@@ -915,7 +805,7 @@ async function sendDryRunSmsCampaign(
 
   for (const recipient of recipients) {
     const values = (recipient.personalisationJson ?? {}) as Record<string, string>;
-    const text = resolveSmsMessageText(content, values, templatePolicy);
+    const text = resolveMessageText(content, values, directMessage);
     const idempotencyKey = buildDeliveryIdempotencyKey({
       schoolId: ctx.schoolId,
       campaignId: campaign.id,
