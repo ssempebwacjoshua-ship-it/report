@@ -13,6 +13,9 @@ const state = vi.hoisted(() => ({
 }));
 
 const mockFetchGateDashboard = vi.hoisted(() => vi.fn(async () => state.dashboard));
+const mockFetchVisitors = vi.hoisted(() => vi.fn(async () => ({ visits: [] })));
+const mockRegisterVisitor = vi.hoisted(() => vi.fn(async () => ({ visit: { id: "visit-2", status: "CHECKED_IN" } })));
+const mockCheckOutVisitor = vi.hoisted(() => vi.fn(async () => ({ visit: { id: "visit-1", status: "CHECKED_OUT" }, duplicate: false })));
 const mockScanGate = vi.hoisted(() => vi.fn(async () => ({
   result: "ALLOWED",
   reason: null,
@@ -67,6 +70,9 @@ vi.mock("../../hooks/useNfcOfflineSnapshotRefresh", () => ({
 
 vi.mock("../../client/studentCredentialsClient", () => ({
   fetchNfcGateDashboard: mockFetchGateDashboard,
+  fetchNfcVisitors: mockFetchVisitors,
+  registerNfcVisitor: mockRegisterVisitor,
+  checkOutNfcVisitor: mockCheckOutVisitor,
   scanNfcGate: mockScanGate,
   scanAttendance: mockFetchAttendanceScan,
 }));
@@ -93,6 +99,10 @@ describe("NfcGateSecurityPage", () => {
   beforeEach(() => {
     mockFetchGateDashboard.mockClear();
     mockScanGate.mockClear();
+    mockFetchVisitors.mockReset();
+    mockFetchVisitors.mockResolvedValue({ visits: [] });
+    mockRegisterVisitor.mockClear();
+    mockCheckOutVisitor.mockClear();
     mockFetchAttendanceScan.mockClear();
     mockResolveOfflineNfcScan.mockReset();
     mockQueueGateScan.mockClear();
@@ -323,5 +333,98 @@ describe("NfcGateSecurityPage", () => {
     await waitFor(() => expect(screen.getByText(/local gate register is not downloaded yet/i)).toBeInTheDocument());
     expect(mockScanGate).not.toHaveBeenCalled();
     expect(mockResolveOfflineNfcScan).not.toHaveBeenCalled();
+  });
+
+  it("shows pass-out details from the gate scan response", async () => {
+    mockScanGate.mockResolvedValueOnce({
+      result: "ALLOWED",
+      reason: null,
+      scannedAt: "2026-07-18T10:00:00.000Z",
+      credentialStatus: "ACTIVE",
+      todayAttendanceStatus: "NONE",
+      student: {
+        id: "student-1",
+        name: "Ada Lovelace",
+        admissionNumber: "A-001",
+        className: "S1",
+        streamName: "A",
+      },
+      passOut: {
+        id: "passout-1",
+        status: "CHECKED_OUT",
+        activeFrom: "2026-07-18T08:00:00.000Z",
+        activeUntil: "2026-07-18T18:00:00.000Z",
+        checkedOutAt: "2026-07-18T09:00:00.000Z",
+        checkedInAt: null,
+      },
+    });
+
+    render(<NfcGateSecurityPage />);
+
+    fireEvent.change(screen.getByPlaceholderText(/scan token or uid/i), { target: { value: "token-a" } });
+    fireEvent.click(screen.getByRole("button", { name: "Go" }));
+
+    expect(await screen.findByText(/pass-out: checked out/i)).toBeInTheDocument();
+    expect(screen.getByText(/window:/i)).toBeInTheDocument();
+  });
+
+  it("registers a visitor and refreshes the visitor register", async () => {
+    render(<NfcGateSecurityPage />);
+
+    await waitFor(() => expect(mockFetchVisitors).toHaveBeenCalledTimes(1));
+
+    fireEvent.change(screen.getByLabelText(/visitor name/i), { target: { value: "Grace Hopper" } });
+    fireEvent.change(screen.getByLabelText(/phone number/i), { target: { value: "256700000001" } });
+    fireEvent.change(screen.getByLabelText(/id\/passport type/i), { target: { value: "National ID" } });
+    fireEvent.change(screen.getByLabelText(/id\/passport number/i), { target: { value: "CF1234" } });
+    fireEvent.change(screen.getByLabelText(/^purpose$/i), { target: { value: "Meeting" } });
+    fireEvent.change(screen.getByLabelText(/host or person visiting/i), { target: { value: "Head Teacher" } });
+
+    const idFile = new File(["id-image"], "id.png", { type: "image/png" });
+    const selfieFile = new File(["selfie-image"], "selfie.png", { type: "image/png" });
+    fireEvent.change(screen.getByLabelText(/id\/passport image/i), { target: { files: [idFile] } });
+    fireEvent.change(screen.getByLabelText(/selfie image/i), { target: { files: [selfieFile] } });
+    fireEvent.click(screen.getByRole("button", { name: /check in visitor/i }));
+
+    await waitFor(() => expect(mockRegisterVisitor).toHaveBeenCalledWith(expect.objectContaining({
+      fullName: "Grace Hopper",
+      idDocumentImage: idFile,
+      selfieImage: selfieFile,
+    })));
+    expect(await screen.findByText(/visitor checked in and added to the gate register/i)).toBeInTheDocument();
+    expect(mockFetchVisitors).toHaveBeenCalledTimes(2);
+  });
+
+  it("checks out a current visitor from the register", async () => {
+    mockFetchVisitors.mockResolvedValue({
+      visits: [
+        {
+          id: "visit-1",
+          status: "CHECKED_IN",
+          purpose: "Delivery",
+          hostName: "Bursar",
+          checkedInAt: "2026-07-18T08:30:00.000Z",
+          checkedOutAt: null,
+          idDocumentImageUrl: null,
+          selfieImageUrl: null,
+          createdAt: "2026-07-18T08:30:00.000Z",
+          updatedAt: "2026-07-18T08:30:00.000Z",
+          visitor: {
+            id: "visitor-1",
+            fullName: "Mary Nakiwala",
+            phone: null,
+            idDocumentType: "Passport",
+            idDocumentNumber: "P12345",
+          },
+        },
+      ],
+    });
+
+    render(<NfcGateSecurityPage />);
+
+    expect(await screen.findByText(/mary nakiwala/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /check out/i }));
+
+    await waitFor(() => expect(mockCheckOutVisitor).toHaveBeenCalledWith("visit-1"));
   });
 });

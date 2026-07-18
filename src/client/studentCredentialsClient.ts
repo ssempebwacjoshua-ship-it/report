@@ -15,11 +15,13 @@ import type {
   NfcCanteenChargeResult,
   NfcGateDashboard,
   NfcGateScanResponse,
+  NfcVisitorVisitListResponse,
   NfcTokenResolution,
   NfcWalletDashboard,
   NfcFeeHold,
   NfcFeeHoldListResponse,
   NfcPolicyResponse,
+  StudentPassOutListResponse,
   StudentWalletDetail,
   NfcWalletStudentResolution,
   NfcWalletTopUpResult,
@@ -571,6 +573,76 @@ export async function fetchNfcGateDashboard() {
   });
   if (!response.ok) throw new Error(await parseApiError(response, "Could not load gate scans"));
   return response.json() as Promise<NfcGateDashboard>;
+}
+
+export async function fetchStudentPassOuts(filters: {
+  search?: string;
+  classId?: string;
+  streamId?: string;
+  status?: "ALL" | "APPROVED" | "CHECKED_OUT" | "RETURNED" | "CANCELLED" | "EXPIRED";
+  activeOnly?: boolean;
+} = {}) {
+  const params = new URLSearchParams();
+  Object.entries(filters).forEach(([key, value]) => {
+    if (value === undefined || value === "" || value === false) return;
+    params.set(key, String(value));
+  });
+  const response = await fetch(`${API_BASE}/api/nfc/pass-outs?${params.toString()}`, {
+    headers: makeSchoolRequestHeaders(),
+  });
+  if (!response.ok) throw new Error(await parseApiError(response, "Could not load pass-outs"));
+  return response.json() as Promise<StudentPassOutListResponse>;
+}
+
+export async function fetchNfcVisitors(filters: { status?: "CURRENT" | "HISTORY" | "ALL"; search?: string } = {}) {
+  const params = new URLSearchParams();
+  Object.entries(filters).forEach(([key, value]) => {
+    if (!value) return;
+    params.set(key, value);
+  });
+  const response = await fetch(`${API_BASE}/api/nfc/visitors?${params.toString()}`, {
+    headers: makeSchoolRequestHeaders(),
+  });
+  if (!response.ok) throw new Error(await parseApiError(response, "Could not load visitor register"));
+  return response.json() as Promise<NfcVisitorVisitListResponse>;
+}
+
+export async function registerNfcVisitor(input: {
+  fullName: string;
+  phone?: string;
+  idDocumentType: string;
+  idDocumentNumber: string;
+  purpose: string;
+  hostName: string;
+  idDocumentImage: File;
+  selfieImage: File;
+}) {
+  const form = new FormData();
+  form.set("fullName", input.fullName);
+  if (input.phone?.trim()) form.set("phone", input.phone.trim());
+  form.set("idDocumentType", input.idDocumentType);
+  form.set("idDocumentNumber", input.idDocumentNumber);
+  form.set("purpose", input.purpose);
+  form.set("hostName", input.hostName);
+  form.set("idDocumentImage", input.idDocumentImage);
+  form.set("selfieImage", input.selfieImage);
+
+  const response = await fetch(`${API_BASE}/api/nfc/visitors/register`, {
+    method: "POST",
+    headers: makeSchoolRequestHeaders(),
+    body: form,
+  });
+  if (!response.ok) throw new Error(await parseApiError(response, "Could not register visitor"));
+  return response.json() as Promise<{ visit: NfcVisitorVisitListResponse["visits"][number] }>;
+}
+
+export async function checkOutNfcVisitor(visitId: string) {
+  const response = await fetch(`${API_BASE}/api/nfc/visitors/${encodeURIComponent(visitId)}/check-out`, {
+    method: "PATCH",
+    headers: makeSchoolRequestHeaders(),
+  });
+  if (!response.ok) throw new Error(await parseApiError(response, "Could not check out visitor"));
+  return response.json() as Promise<{ visit: NfcVisitorVisitListResponse["visits"][number]; duplicate: boolean }>;
 }
 
 export async function getWalletPinStatus(walletId: string) {

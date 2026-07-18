@@ -1,17 +1,23 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { WifiOffRegular, ArrowSyncRegular } from "@fluentui/react-icons";
 import { NfcScanPanel } from "../components/nfc/NfcScanPanel";
 import { useNfcScanner, type ScanResult } from "../hooks/useNfcScanner";
 import { useConnectivityStatus } from "../hooks/useConnectivityStatus";
 import { useNfcOfflineSnapshotRefresh } from "../hooks/useNfcOfflineSnapshotRefresh";
 import { useAuth } from "../contexts/AuthContext";
-import { fetchNfcGateDashboard, scanNfcGate } from "../client/studentCredentialsClient";
+import {
+  checkOutNfcVisitor,
+  fetchNfcGateDashboard,
+  fetchNfcVisitors,
+  registerNfcVisitor,
+  scanNfcGate,
+} from "../client/studentCredentialsClient";
 import { resolveOfflineNfcScan } from "../offline/offlineResolver";
 import { queueGateScan, getSnapshotMeta, getGateQueueStatus, type GateQueueStatus } from "../offline/offlineStore";
 import { getSnapshotValidity } from "../offline/offlineStatus";
 import { hashNfcLookupValue } from "../offline/offlineHash";
 import { normalizeNfcScanValue } from "../shared/utils/nfcPayload";
-import type { NfcGateDashboard, NfcGateScanResponse } from "../shared/types/studentCredentials";
+import type { NfcGateDashboard, NfcGateScanResponse, NfcVisitorVisit } from "../shared/types/studentCredentials";
 import type { OfflineResolveResult } from "../offline/offlineTypes";
 
 function offlineReasonMessage(reason?: string) {
@@ -35,7 +41,45 @@ function getDeviceId(): string {
   return id;
 }
 
-type LocalScanResult = NfcGateScanResponse | { result: "ALLOWED" | "BLOCKED"; reason?: string; student?: { name: string; admissionNumber: string; className?: string | null; streamName?: string | null }; scannedAt: string; offline?: true; queued?: boolean; syncStatus?: "Pending" | "Syncing in background" };
+type LocalScanResult =
+  | NfcGateScanResponse
+  | {
+      result: "ALLOWED" | "BLOCKED";
+      reason?: string;
+      student?: { name: string; admissionNumber: string; className?: string | null; streamName?: string | null };
+      scannedAt: string;
+      offline?: true;
+      queued?: boolean;
+      syncStatus?: "Pending" | "Syncing in background";
+    };
+
+type VisitorFormState = {
+  fullName: string;
+  phone: string;
+  idDocumentType: string;
+  idDocumentNumber: string;
+  purpose: string;
+  hostName: string;
+};
+
+const INITIAL_VISITOR_FORM: VisitorFormState = {
+  fullName: "",
+  phone: "",
+  idDocumentType: "",
+  idDocumentNumber: "",
+  purpose: "",
+  hostName: "",
+};
+
+function formatDateTime(value: string | null | undefined) {
+  if (!value) return "Not recorded";
+  return new Date(value).toLocaleString();
+}
+
+function formatPassOutStatus(status: string | null | undefined) {
+  if (!status) return "No pass-out";
+  return status.toLowerCase().replace(/_/g, " ");
+}
 
 export function NfcGateSecurityPage() {
   const { user, token, loading: authLoading } = useAuth();
@@ -74,6 +118,15 @@ export function NfcGateSecurityPage() {
   const [retryMessage, setRetryMessage] = useState("");
   const [retrying, setRetrying] = useState(false);
   const [lastSyncAttemptAt, setLastSyncAttemptAt] = useState<string | null>(null);
+  const [visitors, setVisitors] = useState<NfcVisitorVisit[]>([]);
+  const [visitorLoading, setVisitorLoading] = useState(false);
+  const [visitorError, setVisitorError] = useState("");
+  const [visitorSuccess, setVisitorSuccess] = useState("");
+  const [registeringVisitor, setRegisteringVisitor] = useState(false);
+  const [checkingOutVisitorId, setCheckingOutVisitorId] = useState<string | null>(null);
+  const [visitorForm, setVisitorForm] = useState<VisitorFormState>(INITIAL_VISITOR_FORM);
+  const [idDocumentImage, setIdDocumentImage] = useState<File | null>(null);
+  const [selfieImage, setSelfieImage] = useState<File | null>(null);
 
   async function load() {
     if (isOfflineReady) return;
@@ -98,9 +151,31 @@ export function NfcGateSecurityPage() {
     }
   }
 
+  async function loadVisitors() {
+    if (isOfflineReady || !user || !token) {
+      setVisitors([]);
+      return;
+    }
+    try {
+      setVisitorLoading(true);
+      setVisitorError("");
+      const result = await fetchNfcVisitors({ status: "ALL" });
+      setVisitors(result.visits);
+    } catch (error) {
+      setVisitorError(error instanceof Error ? error.message : "Could not load visitor register.");
+    } finally {
+      setVisitorLoading(false);
+    }
+  }
+
   useEffect(() => {
     if (authLoading) return;
     void load();
+  }, [authLoading, isOfflineReady, token, user?.schoolId]);
+
+  useEffect(() => {
+    if (authLoading) return;
+    void loadVisitors();
   }, [authLoading, isOfflineReady, token, user?.schoolId]);
 
   async function refreshGateQueueStatus() {
@@ -128,11 +203,60 @@ export function NfcGateSecurityPage() {
     }
   }
 
+  function updateVisitorField(field: keyof VisitorFormState, value: string) {
+    setVisitorForm((current) => ({ ...current, [field]: value }));
+  }
+
+  async function submitVisitorRegistration(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = event.currentTarget;
+    if (!idDocumentImage || !selfieImage) {
+      setVisitorError("Both the visitor ID/passport image and selfie image are required.");
+      setVisitorSuccess("");
+      return;
+    }
+
+    setRegisteringVisitor(true);
+    setVisitorError("");
+    setVisitorSuccess("");
+    try {
+      await registerNfcVisitor({
+        ...visitorForm,
+        idDocumentImage,
+        selfieImage,
+      });
+      setVisitorForm(INITIAL_VISITOR_FORM);
+      setIdDocumentImage(null);
+      setSelfieImage(null);
+      form.reset();
+      setVisitorSuccess("Visitor checked in and added to the gate register.");
+      await loadVisitors();
+    } catch (error) {
+      setVisitorError(error instanceof Error ? error.message : "Could not register visitor.");
+    } finally {
+      setRegisteringVisitor(false);
+    }
+  }
+
+  async function handleVisitorCheckout(visitId: string) {
+    setCheckingOutVisitorId(visitId);
+    setVisitorError("");
+    setVisitorSuccess("");
+    try {
+      const result = await checkOutNfcVisitor(visitId);
+      setVisitorSuccess(result.duplicate ? "Visitor was already checked out." : "Visitor checked out successfully.");
+      await loadVisitors();
+    } catch (error) {
+      setVisitorError(error instanceof Error ? error.message : "Could not check out visitor.");
+    } finally {
+      setCheckingOutVisitorId(null);
+    }
+  }
+
   const handleScan = async ({ tokenOrUid, idempotencyKey, deviceId: scanDeviceId }: ScanResult) => {
     const validity = await getSnapshotValidity({ schoolId: user?.schoolId, deviceId, mode: "GATE", requiredModule: "gate" });
 
     if (validity.valid) {
-      // Offline path — resolve locally then queue
       if (!user?.schoolId) return;
       const resolve: OfflineResolveResult = await resolveOfflineNfcScan(user.schoolId, tokenOrUid);
       const meta = await getSnapshotMeta({ schoolId: user.schoolId, deviceId, mode: "GATE" });
@@ -194,7 +318,6 @@ export function NfcGateSecurityPage() {
     } else if (typeof navigator !== "undefined" && !navigator.onLine) {
       throw new Error(offlineReasonMessage(validity.reason));
     } else {
-      // Online path — send to server
       const result = await scanNfcGate({ tokenOrUid, idempotencyKey, deviceId: scanDeviceId });
       setScanResult(result);
       void load().catch(() => null);
@@ -242,7 +365,7 @@ export function NfcGateSecurityPage() {
 
       {isOfflineReady && (
         <div className="flex items-center gap-3 rounded-xl border border-orange-200 bg-orange-50 p-3">
-          <WifiOffRegular className="h-5 w-5 text-orange-600 shrink-0" />
+          <WifiOffRegular className="h-5 w-5 shrink-0 text-orange-600" />
           <div>
             <p className="text-sm font-semibold text-orange-800">Local Gate Register Active</p>
             <p className="text-xs text-orange-600">Gate scans are saved locally first. {pendingCount > 0 ? `Pending gate sync: ${pendingCount} scans.` : "Will sync when connection returns."}</p>
@@ -251,8 +374,8 @@ export function NfcGateSecurityPage() {
       )}
       {connState === "DEGRADED" && (
         <div className="flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 p-3">
-          <ArrowSyncRegular className="h-4 w-4 text-amber-600 animate-spin shrink-0" />
-          <p className="text-sm text-amber-800">Connection unstable — scans are still going to the server</p>
+          <ArrowSyncRegular className="h-4 w-4 shrink-0 animate-spin text-amber-600" />
+          <p className="text-sm text-amber-800">Connection unstable - scans are still going to the server</p>
         </div>
       )}
 
@@ -310,7 +433,7 @@ export function NfcGateSecurityPage() {
                   {allowed ? "ALLOWED" : "BLOCKED"}
                 </p>
                 {"offline" in scanResult && scanResult.offline && (
-                  <span className="text-xs font-semibold text-orange-600 bg-orange-100 rounded-full px-2 py-0.5">
+                  <span className="rounded-full bg-orange-100 px-2 py-0.5 text-xs font-semibold text-orange-600">
                     {scanResult.syncStatus ?? "Pending gate sync"}
                   </span>
                 )}
@@ -324,49 +447,165 @@ export function NfcGateSecurityPage() {
                     {(scanResult.student.className ?? "No class")} / {(scanResult.student.streamName ?? "No stream")}
                   </p>
                   {"credentialStatus" in scanResult && (
-                    <p className="text-slate-600 mt-1 text-xs">
-                      Status: {(scanResult as NfcGateScanResponse).credentialStatus} · Attendance: {(scanResult as NfcGateScanResponse).todayAttendanceStatus}
+                    <p className="mt-1 text-xs text-slate-600">
+                      Status: {(scanResult as NfcGateScanResponse).credentialStatus} | Attendance: {(scanResult as NfcGateScanResponse).todayAttendanceStatus}
                     </p>
+                  )}
+                  {"passOut" in scanResult && scanResult.passOut && (
+                    <div className="mt-3 rounded-xl border border-slate-200 bg-white/70 p-3 text-xs text-slate-700">
+                      <p className="font-bold text-slate-900">Pass-out: {formatPassOutStatus(scanResult.passOut.status)}</p>
+                      <p>Window: {formatDateTime(scanResult.passOut.activeFrom)} to {formatDateTime(scanResult.passOut.activeUntil)}</p>
+                      <p>Checked out: {formatDateTime(scanResult.passOut.checkedOutAt)}</p>
+                      <p>Returned: {formatDateTime(scanResult.passOut.checkedInAt)}</p>
+                    </div>
                   )}
                 </div>
               )}
               <p className="mt-3 text-xs text-slate-400">{new Date(scanResult.scannedAt).toLocaleTimeString()}</p>
             </div>
           )}
+
+          <section className="premium-card rounded-xl p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h2 className="text-base font-bold text-slate-950">Visitor check-in</h2>
+                <p className="mt-1 text-sm text-slate-600">Register visitors at the gate with ID/passport and selfie capture before entry.</p>
+              </div>
+              {isOfflineReady ? (
+                <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-1 text-[11px] font-semibold text-amber-700">
+                  Online required
+                </span>
+              ) : null}
+            </div>
+
+            {visitorError ? (
+              <div className="mt-3 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{visitorError}</div>
+            ) : null}
+            {visitorSuccess ? (
+              <div className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700">{visitorSuccess}</div>
+            ) : null}
+
+            <form className="mt-4 grid gap-3 md:grid-cols-2" onSubmit={(event) => void submitVisitorRegistration(event)}>
+              <label className="grid gap-1 text-sm text-slate-700">
+                <span className="font-medium">Visitor name</span>
+                <input className="premium-control" value={visitorForm.fullName} onChange={(event) => updateVisitorField("fullName", event.target.value)} disabled={registeringVisitor || isOfflineReady} />
+              </label>
+              <label className="grid gap-1 text-sm text-slate-700">
+                <span className="font-medium">Phone number</span>
+                <input className="premium-control" value={visitorForm.phone} onChange={(event) => updateVisitorField("phone", event.target.value)} disabled={registeringVisitor || isOfflineReady} />
+              </label>
+              <label className="grid gap-1 text-sm text-slate-700">
+                <span className="font-medium">ID/passport type</span>
+                <input className="premium-control" value={visitorForm.idDocumentType} onChange={(event) => updateVisitorField("idDocumentType", event.target.value)} disabled={registeringVisitor || isOfflineReady} />
+              </label>
+              <label className="grid gap-1 text-sm text-slate-700">
+                <span className="font-medium">ID/passport number</span>
+                <input className="premium-control" value={visitorForm.idDocumentNumber} onChange={(event) => updateVisitorField("idDocumentNumber", event.target.value)} disabled={registeringVisitor || isOfflineReady} />
+              </label>
+              <label className="grid gap-1 text-sm text-slate-700 md:col-span-2">
+                <span className="font-medium">Purpose</span>
+                <input className="premium-control" value={visitorForm.purpose} onChange={(event) => updateVisitorField("purpose", event.target.value)} disabled={registeringVisitor || isOfflineReady} />
+              </label>
+              <label className="grid gap-1 text-sm text-slate-700 md:col-span-2">
+                <span className="font-medium">Host or person visiting</span>
+                <input className="premium-control" value={visitorForm.hostName} onChange={(event) => updateVisitorField("hostName", event.target.value)} disabled={registeringVisitor || isOfflineReady} />
+              </label>
+              <label className="grid gap-1 text-sm text-slate-700">
+                <span className="font-medium">ID/passport image</span>
+                <input type="file" accept="image/*" onChange={(event) => setIdDocumentImage(event.target.files?.[0] ?? null)} disabled={registeringVisitor || isOfflineReady} />
+              </label>
+              <label className="grid gap-1 text-sm text-slate-700">
+                <span className="font-medium">Selfie image</span>
+                <input type="file" accept="image/*" onChange={(event) => setSelfieImage(event.target.files?.[0] ?? null)} disabled={registeringVisitor || isOfflineReady} />
+              </label>
+              <div className="flex items-center justify-between gap-3 md:col-span-2">
+                <p className="text-xs text-slate-500">Visitor registration stays inside the current school and uses the existing private upload path.</p>
+                <button type="submit" className="btn" disabled={registeringVisitor || isOfflineReady}>
+                  {registeringVisitor ? "Checking in..." : "Check in visitor"}
+                </button>
+              </div>
+            </form>
+          </section>
         </div>
 
-        {/* Recent scans sidebar */}
-        <aside className="premium-card rounded-xl p-4">
-          <h2 className="text-base font-bold text-slate-950">Recent gate scans</h2>
-          <div className="mt-3 grid gap-2">
-            {isOfflineReady ? (
-              offlineQueue.length === 0 ? (
-                <p className="text-sm text-slate-500">No offline scans yet.</p>
-              ) : (
-                offlineQueue.map((scan, i) => (
-                  <div key={i} className="rounded-xl border border-slate-200 bg-white p-3 text-sm">
-                    <div className="flex items-center justify-between">
-                      <p className={`font-bold ${scan.result === "ALLOWED" ? "text-emerald-700" : "text-red-700"}`}>{scan.result}</p>
-                      <span className="text-xs text-orange-500">offline</span>
+        <aside className="grid gap-4">
+          <section className="premium-card rounded-xl p-4">
+            <h2 className="text-base font-bold text-slate-950">Recent gate scans</h2>
+            <div className="mt-3 grid gap-2">
+              {isOfflineReady ? (
+                offlineQueue.length === 0 ? (
+                  <p className="text-sm text-slate-500">No offline scans yet.</p>
+                ) : (
+                  offlineQueue.map((scan, i) => (
+                    <div key={i} className="rounded-xl border border-slate-200 bg-white p-3 text-sm">
+                      <div className="flex items-center justify-between">
+                        <p className={`font-bold ${scan.result === "ALLOWED" ? "text-emerald-700" : "text-red-700"}`}>{scan.result}</p>
+                        <span className="text-xs text-orange-500">offline</span>
+                      </div>
+                      <p className="text-slate-700">{scan.student ?? "Unknown tag"}</p>
+                      <p className="text-slate-500">{new Date(scan.scannedAt).toLocaleString()}</p>
                     </div>
-                    <p className="text-slate-700">{scan.student ?? "Unknown tag"}</p>
-                    <p className="text-slate-500">{new Date(scan.scannedAt).toLocaleString()}</p>
+                  ))
+                )
+              ) : (
+                (dashboard?.recentScans ?? []).map((scan, index) => (
+                  <div key={`${scan.scannedAt}-${index}`} className="rounded-xl border border-slate-200 bg-white p-3 text-sm">
+                    <p className={`font-bold ${scan.result === "ALLOWED" ? "text-emerald-700" : "text-red-700"}`}>{scan.result}</p>
+                    <p className="text-slate-700">{scan.student?.name ?? "Unknown tag"}</p>
+                    <p className="text-slate-500">{new Date(scan.scannedAt).toLocaleString()}{scan.reason ? ` | ${scan.reason}` : ""}</p>
                   </div>
                 ))
-              )
-            ) : (
-              (dashboard?.recentScans ?? []).map((scan, index) => (
-                <div key={`${scan.scannedAt}-${index}`} className="rounded-xl border border-slate-200 bg-white p-3 text-sm">
-                  <p className={`font-bold ${scan.result === "ALLOWED" ? "text-emerald-700" : "text-red-700"}`}>{scan.result}</p>
-                  <p className="text-slate-700">{scan.student?.name ?? "Unknown tag"}</p>
-                  <p className="text-slate-500">{new Date(scan.scannedAt).toLocaleString()}{scan.reason ? ` · ${scan.reason}` : ""}</p>
-                </div>
-              ))
-            )}
-            {!isOfflineReady && dashboard?.recentScans.length === 0 && (
-              <p className="text-sm text-slate-500">No gate scans yet.</p>
-            )}
-          </div>
+              )}
+              {!isOfflineReady && dashboard?.recentScans.length === 0 && (
+                <p className="text-sm text-slate-500">No gate scans yet.</p>
+              )}
+            </div>
+          </section>
+
+          <section className="premium-card rounded-xl p-4">
+            <div className="flex items-center justify-between gap-3">
+              <h2 className="text-base font-bold text-slate-950">Visitor register</h2>
+              <button type="button" className="rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-semibold text-slate-600 disabled:opacity-60" onClick={() => void loadVisitors()} disabled={visitorLoading || isOfflineReady}>
+                {visitorLoading ? "Refreshing..." : "Refresh"}
+              </button>
+            </div>
+            <div className="mt-3 grid gap-2">
+              {isOfflineReady ? (
+                <p className="text-sm text-slate-500">Visitor registration needs a live connection.</p>
+              ) : visitorLoading && visitors.length === 0 ? (
+                <p className="text-sm text-slate-500">Loading visitor register...</p>
+              ) : visitors.length === 0 ? (
+                <p className="text-sm text-slate-500">No visitors recorded yet.</p>
+              ) : (
+                visitors.slice(0, 10).map((visit) => (
+                  <div key={visit.id} className="rounded-xl border border-slate-200 bg-white p-3 text-sm">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="font-bold text-slate-900">{visit.visitor.fullName}</p>
+                        <p className="text-slate-600">{visit.purpose}</p>
+                        <p className="text-xs text-slate-500">Host: {visit.hostName}</p>
+                        <p className="text-xs text-slate-500">Checked in: {formatDateTime(visit.checkedInAt)}</p>
+                        <p className="text-xs text-slate-500">Checked out: {formatDateTime(visit.checkedOutAt)}</p>
+                      </div>
+                      <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${visit.status === "CHECKED_IN" ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-700"}`}>
+                        {visit.status === "CHECKED_IN" ? "On site" : "Checked out"}
+                      </span>
+                    </div>
+                    {visit.status === "CHECKED_IN" ? (
+                      <button
+                        type="button"
+                        className="mt-3 rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-bold text-white disabled:opacity-60"
+                        disabled={checkingOutVisitorId === visit.id}
+                        onClick={() => void handleVisitorCheckout(visit.id)}
+                      >
+                        {checkingOutVisitorId === visit.id ? "Checking out..." : "Check out"}
+                      </button>
+                    ) : null}
+                  </div>
+                ))
+              )}
+            </div>
+          </section>
         </aside>
       </section>
     </main>
