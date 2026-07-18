@@ -52,44 +52,6 @@ async function requireLiveCommunicationsEnabled(db: Db, ctx: CommunicationContex
   }
 }
 
-function extractTemplateVariables(input: string) {
-  const variables = new Set<string>();
-  const pattern = /\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g;
-  for (let match = pattern.exec(input); match; match = pattern.exec(input)) {
-    variables.add(match[1]);
-  }
-  return [...variables];
-}
-
-function normalizeTemplateVariableNames(value: unknown) {
-  if (Array.isArray(value)) {
-    return value.filter((entry): entry is string => typeof entry === "string").map((entry) => entry.trim()).filter(Boolean);
-  }
-  if (value && typeof value === "object") {
-    const record = value as Record<string, unknown>;
-    const candidates = [
-      record.variables,
-      record.required,
-      record.requiredVariables,
-      record.allowed,
-      record.allowedVariables,
-      record.placeholders,
-    ];
-    for (const candidate of candidates) {
-      const normalized = normalizeTemplateVariableNames(candidate);
-      if (normalized.length) return normalized;
-    }
-  }
-  return [];
-}
-
-function getMessageVariables(content: { body: string; shortBody?: string | null }) {
-  return [...new Set([
-    ...extractTemplateVariables(content.body),
-    ...extractTemplateVariables(content.shortBody ?? ""),
-  ])];
-}
-
 function buildTemplatePolicy(channel: CommunicationChannel, directMessage: string | null) {
   return {
     template: null,
@@ -681,9 +643,8 @@ async function sendSmsCampaign(
   }
 
   const recipientMap = new Map(recipients.map((recipient) => [recipient.id, recipient]));
-  let batchResult;
+  let batchResult: Awaited<ReturnType<SmsProvider["sendBatch"]>>;
   try {
-    console.log("Submitting SMS...");
     batchResult = await provider.sendBatch(
       pendingMessages.map((message) => ({
         recipientId: message.recipientId,
@@ -694,9 +655,48 @@ async function sendSmsCampaign(
       })),
       providerContext,
     );
-  } catch (err) {
-    console.error("SMS PROVIDER ERROR:", err);
-    throw httpError(500, err instanceof Error ? err.message : String(err));
+  } catch (error) {
+    const now = new Date();
+    const safeErrorMessage = error instanceof Error && error.message.trim()
+      ? error.message.slice(0, 240)
+      : "SMS provider failed before confirming acceptance.";
+    for (const pending of pendingMessages) {
+      failed += 1;
+      await db.communicationDelivery.update({
+        where: { id: pending.deliveryId },
+        data: {
+          status: "FAILED",
+          failedAt: now,
+          lastErrorCode: "PROVIDER_BATCH_ERROR",
+          lastErrorMessageSafe: safeErrorMessage,
+          attemptCount: { increment: 1 },
+        },
+      });
+      await db.communicationDeliveryAttempt.update({
+        where: { id: pending.attemptId },
+        data: {
+          status: "PROVIDER_REJECTED",
+          providerResponseCode: "FAILED",
+          errorCode: "PROVIDER_BATCH_ERROR",
+          errorMessageSafe: safeErrorMessage,
+          completedAt: now,
+        },
+      });
+      results.push({ recipientId: pending.recipientId, status: "FAILED", errorCode: "PROVIDER_BATCH_ERROR" });
+    }
+    await db.communicationCampaign.update({
+      where: { id: campaign.id },
+      data: { status: determinePostSendCampaignStatus(campaign.status, submitted, failed), sendingStartedAt: now },
+    });
+    await audit(db, ctx, "communication.delivery_submitted", campaign.id, {
+      channel: "SMS",
+      provider: provider.providerKey,
+      submitted,
+      failed,
+      skippedDuplicate,
+      providerBatchError: true,
+    });
+    return { submitted, failed, skippedDuplicate, results, templatePolicy, dryRun: false, progress: await getCampaignProgressTotals(db, ctx, campaign.id) };
   }
   const acceptedMap = new Map(batchResult.acceptedRecipients.map((item) => [item.recipientId, item]));
   const rejectedMap = new Map(batchResult.rejectedRecipients.map((item) => [item.recipientId, item]));
