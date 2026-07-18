@@ -18,9 +18,18 @@ import {
 } from "../client/nfcTagsClient";
 import { fetchOfflineSyncStatus } from "../client/nfcOfflineClient";
 import { fetchStudents } from "../client/studentsClient";
-import { getStudentWalletPinStatus, setStudentWalletPin } from "../client/studentCredentialsClient";
+import {
+  cancelStudentPassOut,
+  createStudentPassOut,
+  fetchNfcVisitorDetail,
+  fetchNfcVisitors,
+  fetchStudentPassOuts,
+  getStudentWalletPinStatus,
+  searchStudentPassOutCandidates,
+  setStudentWalletPin,
+} from "../client/studentCredentialsClient";
 import type { StudentListItem } from "../shared/types/students";
-import type { WalletPinStatus } from "../shared/types/studentCredentials";
+import type { NfcVisitorVisit, StudentPassOutRow, WalletPinStatus } from "../shared/types/studentCredentials";
 import type { OfflineDeviceStatus } from "../client/nfcOfflineClient";
 import type {
   ReaderCredentialCaptureSession,
@@ -604,6 +613,48 @@ export function NfcOperationsPage() {
   const linkReaderCancellingRef = useRef<Promise<void> | null>(null);
   const linkReaderCancellingCaptureIdRef = useRef<string | null>(null);
 
+  // Pass-out admin
+  const [passOuts, setPassOuts] = useState<StudentPassOutRow[]>([]);
+  const [passOutLoading, setPassOutLoading] = useState(false);
+  const [passOutError, setPassOutError] = useState<string | null>(null);
+  const [passOutSearch, setPassOutSearch] = useState("");
+  const [passOutStudentResults, setPassOutStudentResults] = useState<Array<{
+    id: string;
+    studentName: string;
+    admissionNumber: string;
+    className: string | null;
+    streamName: string | null;
+    studentType: "DAY" | "BOARDING" | null;
+    isActive: boolean;
+  }>>([]);
+  const [passOutStudentSearching, setPassOutStudentSearching] = useState(false);
+  const [passOutSelectedStudent, setPassOutSelectedStudent] = useState<null | {
+    id: string;
+    studentName: string;
+    admissionNumber: string;
+    className: string | null;
+    streamName: string | null;
+    studentType: "DAY" | "BOARDING" | null;
+    isActive: boolean;
+  }>(null);
+  const [passOutReason, setPassOutReason] = useState("");
+  const [passOutActiveFrom, setPassOutActiveFrom] = useState("");
+  const [passOutActiveUntil, setPassOutActiveUntil] = useState("");
+  const [passOutSubmitting, setPassOutSubmitting] = useState(false);
+  const [passOutSuccess, setPassOutSuccess] = useState<string | null>(null);
+  const [passOutCancelTarget, setPassOutCancelTarget] = useState<StudentPassOutRow | null>(null);
+  const [passOutCancelReason, setPassOutCancelReason] = useState("");
+  const [passOutCancelling, setPassOutCancelling] = useState(false);
+
+  // Visitor admin
+  const [visitorStatusFilter, setVisitorStatusFilter] = useState<"CURRENT" | "HISTORY" | "ALL">("ALL");
+  const [visitorSearch, setVisitorSearch] = useState("");
+  const [visits, setVisits] = useState<NfcVisitorVisit[]>([]);
+  const [visitsLoading, setVisitsLoading] = useState(false);
+  const [visitsError, setVisitsError] = useState<string | null>(null);
+  const [selectedVisit, setSelectedVisit] = useState<NfcVisitorVisit | null>(null);
+  const [selectedVisitLoading, setSelectedVisitLoading] = useState(false);
+
   // Open dropdown tracking (one at a time)
   const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
 
@@ -620,7 +671,38 @@ export function NfcOperationsPage() {
     }
   }, [statusFilter]);
 
+  const loadPassOuts = useCallback(async () => {
+    setPassOutLoading(true);
+    setPassOutError(null);
+    try {
+      const data = await fetchStudentPassOuts({ activeOnly: false });
+      setPassOuts(data.passOuts);
+    } catch (caught) {
+      setPassOutError(caught instanceof Error ? caught.message : "Could not load pass-outs.");
+    } finally {
+      setPassOutLoading(false);
+    }
+  }, []);
+
+  const loadVisitors = useCallback(async () => {
+    setVisitsLoading(true);
+    setVisitsError(null);
+    try {
+      const data = await fetchNfcVisitors({
+        status: visitorStatusFilter,
+        search: visitorSearch.trim() || undefined,
+      });
+      setVisits(data.visits);
+    } catch (caught) {
+      setVisitsError(caught instanceof Error ? caught.message : "Could not load visitor history.");
+    } finally {
+      setVisitsLoading(false);
+    }
+  }, [visitorSearch, visitorStatusFilter]);
+
   useEffect(() => { void loadTags(); }, [loadTags]);
+  useEffect(() => { void loadPassOuts(); }, [loadPassOuts]);
+  useEffect(() => { void loadVisitors(); }, [loadVisitors]);
 
   useEffect(() => {
     if (!assignTagId) {
@@ -897,6 +979,100 @@ export function NfcOperationsPage() {
     setAssignSearch(student.studentName);
     setAssignResults([]);
     setAssignError(null);
+  }
+
+  useEffect(() => {
+    const query = passOutSearch.trim();
+    if (!query) {
+      setPassOutStudentResults([]);
+      setPassOutStudentSearching(false);
+      return;
+    }
+
+    let cancelled = false;
+    setPassOutStudentSearching(true);
+    searchStudentPassOutCandidates({ search: query })
+      .then((result) => {
+        if (cancelled) return;
+        setPassOutStudentResults(result.students);
+      })
+      .catch((caught) => {
+        if (cancelled) return;
+        setPassOutError(caught instanceof Error ? caught.message : "Could not search pass-out students.");
+        setPassOutStudentResults([]);
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setPassOutStudentSearching(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [passOutSearch]);
+
+  async function handleCreatePassOut() {
+    if (!passOutSelectedStudent) {
+      setPassOutError("Select a student before creating a pass-out.");
+      return;
+    }
+    setPassOutSubmitting(true);
+    setPassOutError(null);
+    setPassOutSuccess(null);
+    try {
+      const result = await createStudentPassOut({
+        studentId: passOutSelectedStudent.id,
+        reason: passOutReason.trim(),
+        activeFrom: passOutActiveFrom,
+        activeUntil: passOutActiveUntil,
+      });
+      setPassOuts((current) => [result.passOut, ...current.filter((row) => row.id !== result.passOut.id)]);
+      setPassOutSuccess(`Pass-out approved for ${passOutSelectedStudent.studentName}.`);
+      setPassOutSelectedStudent(null);
+      setPassOutSearch("");
+      setPassOutStudentResults([]);
+      setPassOutReason("");
+      setPassOutActiveFrom("");
+      setPassOutActiveUntil("");
+    } catch (caught) {
+      setPassOutError(caught instanceof Error ? caught.message : "Could not create pass-out.");
+    } finally {
+      setPassOutSubmitting(false);
+    }
+  }
+
+  async function handleCancelPassOut() {
+    if (!passOutCancelTarget) {
+      return;
+    }
+    setPassOutCancelling(true);
+    setPassOutError(null);
+    setPassOutSuccess(null);
+    try {
+      const result = await cancelStudentPassOut(passOutCancelTarget.id, passOutCancelReason.trim());
+      setPassOuts((current) => current.map((row) => (row.id === result.passOut.id ? result.passOut : row)));
+      setPassOutSuccess(`Pass-out cancelled for ${passOutCancelTarget.student.studentName}.`);
+      setPassOutCancelTarget(null);
+      setPassOutCancelReason("");
+    } catch (caught) {
+      setPassOutError(caught instanceof Error ? caught.message : "Could not cancel pass-out.");
+    } finally {
+      setPassOutCancelling(false);
+    }
+  }
+
+  async function handleSelectVisit(visitId: string) {
+    setSelectedVisitLoading(true);
+    setVisitsError(null);
+    try {
+      const result = await fetchNfcVisitorDetail(visitId);
+      setSelectedVisit(result.visit);
+    } catch (caught) {
+      setVisitsError(caught instanceof Error ? caught.message : "Could not load visitor details.");
+    } finally {
+      setSelectedVisitLoading(false);
+    }
   }
 
   async function handleAssign() {
@@ -1190,6 +1366,197 @@ export function NfcOperationsPage() {
 
       {generateError && <div className="rounded-2xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{generateError}</div>}
       {error && <div className="rounded-2xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
+      {passOutError && <div className="rounded-2xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{passOutError}</div>}
+      {passOutSuccess && <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700">{passOutSuccess}</div>}
+      {visitsError && <div className="rounded-2xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{visitsError}</div>}
+
+      <div className="grid gap-3 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
+        <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-black text-slate-950">Student pass-outs</h2>
+              <p className="mt-1 text-sm text-slate-500">Create approved pass-outs for active students and cancel unused ones before gate use.</p>
+            </div>
+            <button type="button" className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-600" onClick={() => void loadPassOuts()} disabled={passOutLoading}>
+              {passOutLoading ? "Refreshing..." : "Refresh"}
+            </button>
+          </div>
+
+          <div className="mt-4 grid gap-3 lg:grid-cols-2">
+            <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
+              <h3 className="text-sm font-black text-slate-900">Approve new pass-out</h3>
+              <div className="relative">
+                <label className="grid gap-1 text-xs font-bold uppercase tracking-wide text-slate-500">
+                  Search pass-out student
+                  <input className="premium-control" value={passOutSearch} onChange={(event) => {
+                    setPassOutSearch(event.target.value);
+                    setPassOutSelectedStudent(null);
+                    setPassOutError(null);
+                  }} placeholder="Search by student name or admission number" />
+                </label>
+                {passOutStudentSearching ? <p className="mt-1 text-xs text-slate-400">Searching...</p> : null}
+                {!passOutStudentSearching && passOutStudentResults.length > 0 ? (
+                  <div className="mt-2 max-h-44 overflow-y-auto rounded-xl border border-slate-200 bg-white">
+                    {passOutStudentResults.map((student) => (
+                      <button
+                        key={student.id}
+                        type="button"
+                        className="block w-full border-b border-slate-100 px-3 py-2 text-left text-sm last:border-b-0 hover:bg-blue-50"
+                        onClick={() => {
+                          setPassOutSelectedStudent(student);
+                          setPassOutSearch(student.studentName);
+                          setPassOutStudentResults([]);
+                        }}
+                      >
+                        <p className="font-bold text-slate-900">{student.studentName}</p>
+                        <p className="text-xs text-slate-500">{student.admissionNumber} - {student.className ?? "No class"} / {student.streamName ?? "No stream"}</p>
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+
+              {passOutSelectedStudent ? (
+                <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm">
+                  <p className="font-bold text-emerald-800">{passOutSelectedStudent.studentName}</p>
+                  <p className="text-emerald-700">{passOutSelectedStudent.admissionNumber} - {passOutSelectedStudent.className ?? "No class"} / {passOutSelectedStudent.streamName ?? "No stream"}</p>
+                </div>
+              ) : null}
+
+              <label className="grid gap-1 text-xs font-bold uppercase tracking-wide text-slate-500">
+                Pass-out reason
+                <textarea className="premium-control min-h-[84px] resize-none" value={passOutReason} onChange={(event) => setPassOutReason(event.target.value)} placeholder="Parent-approved reason for leaving campus" />
+              </label>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="grid gap-1 text-xs font-bold uppercase tracking-wide text-slate-500">
+                  Pass-out active from
+                  <input type="datetime-local" className="premium-control" value={passOutActiveFrom} onChange={(event) => setPassOutActiveFrom(event.target.value)} />
+                </label>
+                <label className="grid gap-1 text-xs font-bold uppercase tracking-wide text-slate-500">
+                  Pass-out active until
+                  <input type="datetime-local" className="premium-control" value={passOutActiveUntil} onChange={(event) => setPassOutActiveUntil(event.target.value)} />
+                </label>
+              </div>
+              <button type="button" className="btn btn-primary min-h-[40px] rounded-xl px-4 py-2 text-sm font-black" disabled={passOutSubmitting} onClick={() => { void handleCreatePassOut(); }}>
+                {passOutSubmitting ? "Saving..." : "Approve pass-out"}
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-black text-slate-900">Recent pass-outs</h3>
+                <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-bold text-slate-600">{passOuts.length} total</span>
+              </div>
+              <div className="grid gap-2">
+                {passOutLoading && passOuts.length === 0 ? (
+                  <p className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-500">Loading pass-outs...</p>
+                ) : passOuts.length === 0 ? (
+                  <p className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-500">No pass-outs recorded yet.</p>
+                ) : (
+                  passOuts.slice(0, 8).map((passOut) => (
+                    <div key={passOut.id} className="rounded-xl border border-slate-200 bg-white p-3 text-sm">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="font-bold text-slate-900">{passOut.student.studentName}</p>
+                          <p className="text-slate-600">{passOut.student.admissionNumber} - {passOut.reason}</p>
+                          <p className="text-xs text-slate-500">Window: {new Date(passOut.activeFrom).toLocaleString()} to {new Date(passOut.activeUntil).toLocaleString()}</p>
+                        </div>
+                        <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-blue-700">{passOut.status}</span>
+                      </div>
+                      {passOut.status === "APPROVED" ? (
+                        <button type="button" className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-bold text-red-700" onClick={() => {
+                          setPassOutCancelTarget(passOut);
+                          setPassOutCancelReason("");
+                        }}>
+                          Cancel pass-out
+                        </button>
+                      ) : null}
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-black text-slate-950">Visitor history</h2>
+              <p className="mt-1 text-sm text-slate-500">See current visitors, history, and uploaded identity evidence for gate-registered visits.</p>
+            </div>
+            <button type="button" className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-600" onClick={() => void loadVisitors()} disabled={visitsLoading}>
+              {visitsLoading ? "Refreshing..." : "Refresh"}
+            </button>
+          </div>
+
+          <div className="mt-4 flex flex-wrap items-center gap-2">
+            {(["ALL", "CURRENT", "HISTORY"] as const).map((status) => (
+              <button
+                key={status}
+                type="button"
+                onClick={() => setVisitorStatusFilter(status)}
+                className={`min-h-[30px] rounded-full border px-2.5 py-1 text-[11px] font-black ${visitorStatusFilter === status ? "border-blue-600 bg-blue-600 text-white" : "border-slate-200 bg-white text-slate-600"}`}
+              >
+                {status}
+              </button>
+            ))}
+            <input className="premium-control ml-auto min-w-[220px]" value={visitorSearch} onChange={(event) => setVisitorSearch(event.target.value)} placeholder="Search visitors or host" />
+          </div>
+
+          <div className="mt-4 grid gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(0,0.9fr)]">
+            <div className="grid gap-2">
+              {visitsLoading && visits.length === 0 ? (
+                <p className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-500">Loading visitor history...</p>
+              ) : visits.length === 0 ? (
+                <p className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-500">No visitor records match this filter.</p>
+              ) : (
+                visits.slice(0, 10).map((visit) => (
+                  <button key={visit.id} type="button" className="rounded-xl border border-slate-200 bg-white p-3 text-left text-sm hover:border-blue-200 hover:bg-blue-50/40" onClick={() => { void handleSelectVisit(visit.id); }}>
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="font-bold text-slate-900">{visit.visitor.fullName}</p>
+                        <p className="text-slate-600">{visit.purpose}</p>
+                        <p className="text-xs text-slate-500">Host: {visit.hostName}</p>
+                      </div>
+                      <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${visit.status === "CHECKED_IN" ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-700"}`}>
+                        {visit.status}
+                      </span>
+                    </div>
+                    <p className="mt-2 text-xs text-slate-500">Checked in: {new Date(visit.checkedInAt).toLocaleString()}</p>
+                  </button>
+                ))
+              )}
+            </div>
+
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+              <h3 className="text-sm font-black text-slate-900">Visitor details</h3>
+              {selectedVisitLoading ? (
+                <p className="mt-3 text-sm text-slate-500">Loading visitor details...</p>
+              ) : selectedVisit ? (
+                <div className="mt-3 space-y-2 text-sm">
+                  <p className="font-bold text-slate-900">{selectedVisit.visitor.fullName}</p>
+                  <p className="text-slate-600">Phone: {selectedVisit.visitor.phone ?? "Not provided"}</p>
+                  <p className="text-slate-600">{selectedVisit.visitor.idDocumentType}: {selectedVisit.visitor.idDocumentNumber}</p>
+                  <p className="text-slate-600">Purpose: {selectedVisit.purpose}</p>
+                  <p className="text-slate-600">Host: {selectedVisit.hostName}</p>
+                  <p className="text-slate-600">Status: {selectedVisit.status}</p>
+                  <p className="text-slate-600">Checked in: {new Date(selectedVisit.checkedInAt).toLocaleString()}</p>
+                  <p className="text-slate-600">Checked out: {selectedVisit.checkedOutAt ? new Date(selectedVisit.checkedOutAt).toLocaleString() : "Still on site"}</p>
+                  <div className="pt-2 text-xs">
+                    {selectedVisit.idDocumentImageUrl ? <a className="font-bold text-blue-700 hover:underline" href={selectedVisit.idDocumentImageUrl} target="_blank" rel="noreferrer">Open ID/passport image</a> : <span className="text-slate-500">ID/passport image unavailable</span>}
+                  </div>
+                  <div className="text-xs">
+                    {selectedVisit.selfieImageUrl ? <a className="font-bold text-blue-700 hover:underline" href={selectedVisit.selfieImageUrl} target="_blank" rel="noreferrer">Open selfie image</a> : <span className="text-slate-500">Selfie image unavailable</span>}
+                  </div>
+                </div>
+              ) : (
+                <p className="mt-3 text-sm text-slate-500">Select a visitor record to inspect uploaded documents and full visit details.</p>
+              )}
+            </div>
+          </div>
+        </section>
+      </div>
 
       <div className="flex flex-wrap items-center gap-1.5">
         {(["", "UNASSIGNED", "ASSIGNED", "DISABLED", "LOST"] as StatusFilter[]).map((s) => (
@@ -1331,6 +1698,34 @@ export function NfcOperationsPage() {
                 </div>
               </>
             )}
+          </div>
+        </div>
+      )}
+
+      {passOutCancelTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => { setPassOutCancelTarget(null); setPassOutCancelReason(""); }}>
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl" onClick={(event) => event.stopPropagation()}>
+            <h2 className="text-lg font-black text-slate-950">Cancel pass-out</h2>
+            <p className="mt-2 text-sm text-slate-600">
+              Cancel the approved pass-out for <span className="font-bold">{passOutCancelTarget.student.studentName}</span> before it is used at the gate.
+            </p>
+            <label className="mt-4 grid gap-1.5 text-xs font-bold uppercase tracking-wide text-slate-500">
+              Cancellation reason
+              <textarea
+                className="premium-control min-h-[88px] resize-none"
+                value={passOutCancelReason}
+                onChange={(event) => setPassOutCancelReason(event.target.value)}
+                placeholder="Explain why the pass-out is being cancelled"
+              />
+            </label>
+            <div className="mt-5 flex gap-3">
+              <button type="button" className="btn btn-primary min-h-[44px] flex-1 rounded-xl py-2.5 text-sm font-black" disabled={passOutCancelling || !passOutCancelReason.trim()} onClick={() => { void handleCancelPassOut(); }}>
+                {passOutCancelling ? "Cancelling..." : "Confirm cancel"}
+              </button>
+              <button type="button" className="btn btn-secondary min-h-[44px] flex-1 rounded-xl py-2.5 text-sm font-bold" disabled={passOutCancelling} onClick={() => { setPassOutCancelTarget(null); setPassOutCancelReason(""); }}>
+                Close
+              </button>
+            </div>
           </div>
         </div>
       )}

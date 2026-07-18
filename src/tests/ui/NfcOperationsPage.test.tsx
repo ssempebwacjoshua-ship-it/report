@@ -14,6 +14,12 @@ const mockFetchOfflineSyncStatus = vi.hoisted(() => vi.fn());
 const mockFetchStudents = vi.hoisted(() => vi.fn());
 const mockGetStudentWalletPinStatus = vi.hoisted(() => vi.fn());
 const mockSetStudentWalletPin = vi.hoisted(() => vi.fn());
+const mockFetchStudentPassOuts = vi.hoisted(() => vi.fn());
+const mockSearchStudentPassOutCandidates = vi.hoisted(() => vi.fn());
+const mockCreateStudentPassOut = vi.hoisted(() => vi.fn());
+const mockCancelStudentPassOut = vi.hoisted(() => vi.fn());
+const mockFetchNfcVisitors = vi.hoisted(() => vi.fn());
+const mockFetchNfcVisitorDetail = vi.hoisted(() => vi.fn());
 
 vi.mock("../../client/nfcTagsClient", () => ({
   assignNfcTag: mockAssignNfcTag,
@@ -39,7 +45,13 @@ vi.mock("../../client/studentsClient", () => ({
 }));
 
 vi.mock("../../client/studentCredentialsClient", () => ({
+  cancelStudentPassOut: mockCancelStudentPassOut,
+  createStudentPassOut: mockCreateStudentPassOut,
+  fetchNfcVisitorDetail: mockFetchNfcVisitorDetail,
+  fetchNfcVisitors: mockFetchNfcVisitors,
+  fetchStudentPassOuts: mockFetchStudentPassOuts,
   getStudentWalletPinStatus: mockGetStudentWalletPinStatus,
+  searchStudentPassOutCandidates: mockSearchStudentPassOutCandidates,
   setStudentWalletPin: mockSetStudentWalletPin,
 }));
 
@@ -182,6 +194,161 @@ beforeEach(() => {
     pinSet: true,
     pinLocked: false,
     pinLockedUntil: null,
+  });
+  mockFetchStudentPassOuts.mockResolvedValue({
+    passOuts: [
+      {
+        id: "passout-1",
+        schoolId: "school-1",
+        studentId: "student-1",
+        status: "APPROVED",
+        reason: "Medical visit",
+        approvedAt: "2026-07-18T08:00:00.000Z",
+        activeFrom: "2026-07-18T09:00:00.000Z",
+        activeUntil: "2026-07-18T12:00:00.000Z",
+        checkedOutAt: null,
+        checkedInAt: null,
+        cancelledAt: null,
+        cancellationReason: null,
+        createdByUserId: "user-1",
+        approvedByUserId: "user-1",
+        cancelledByUserId: null,
+        checkoutMovementEventId: null,
+        checkinMovementEventId: null,
+        createdAt: "2026-07-18T08:00:00.000Z",
+        updatedAt: "2026-07-18T08:00:00.000Z",
+        student: {
+          id: "student-1",
+          studentName: "Claire Nakibuuka With A Very Long Display Name For Layout",
+          admissionNumber: "SCU-S1A-018",
+          className: "Senior 1",
+          streamName: "A",
+          studentType: "DAY",
+          isActive: true,
+        },
+      },
+    ],
+  });
+  mockSearchStudentPassOutCandidates.mockResolvedValue({
+    students: [
+      {
+        id: "student-2",
+        studentName: "Mike Ssempebwa",
+        admissionNumber: "SCU-S1B-030",
+        className: "Senior 1",
+        streamName: "B",
+        studentType: "DAY",
+        isActive: true,
+      },
+    ],
+  });
+  mockCreateStudentPassOut.mockResolvedValue({
+    passOut: {
+      id: "passout-2",
+      schoolId: "school-1",
+      studentId: "student-2",
+      status: "APPROVED",
+      reason: "Clinic review",
+      approvedAt: "2026-07-18T09:00:00.000Z",
+      activeFrom: "2026-07-18T10:00:00.000Z",
+      activeUntil: "2026-07-18T12:30:00.000Z",
+      checkedOutAt: null,
+      checkedInAt: null,
+      cancelledAt: null,
+      cancellationReason: null,
+      createdByUserId: "user-1",
+      approvedByUserId: "user-1",
+      cancelledByUserId: null,
+      checkoutMovementEventId: null,
+      checkinMovementEventId: null,
+      createdAt: "2026-07-18T09:00:00.000Z",
+      updatedAt: "2026-07-18T09:00:00.000Z",
+      student: {
+        id: "student-2",
+        studentName: "Mike Ssempebwa",
+        admissionNumber: "SCU-S1B-030",
+        className: "Senior 1",
+        streamName: "B",
+        studentType: "DAY",
+        isActive: true,
+      },
+    },
+  });
+  mockCancelStudentPassOut.mockResolvedValue({
+    passOut: {
+      id: "passout-1",
+      schoolId: "school-1",
+      studentId: "student-1",
+      status: "CANCELLED",
+      reason: "Medical visit",
+      approvedAt: "2026-07-18T08:00:00.000Z",
+      activeFrom: "2026-07-18T09:00:00.000Z",
+      activeUntil: "2026-07-18T12:00:00.000Z",
+      checkedOutAt: null,
+      checkedInAt: null,
+      cancelledAt: "2026-07-18T08:30:00.000Z",
+      cancellationReason: "Parent changed plan",
+      createdByUserId: "user-1",
+      approvedByUserId: "user-1",
+      cancelledByUserId: "user-1",
+      checkoutMovementEventId: null,
+      checkinMovementEventId: null,
+      createdAt: "2026-07-18T08:00:00.000Z",
+      updatedAt: "2026-07-18T08:30:00.000Z",
+      student: {
+        id: "student-1",
+        studentName: "Claire Nakibuuka With A Very Long Display Name For Layout",
+        admissionNumber: "SCU-S1A-018",
+        className: "Senior 1",
+        streamName: "A",
+        studentType: "DAY",
+        isActive: true,
+      },
+    },
+  });
+  mockFetchNfcVisitors.mockResolvedValue({
+    visits: [
+      {
+        id: "visit-1",
+        status: "CHECKED_IN",
+        purpose: "Deliver package",
+        hostName: "Bursar",
+        checkedInAt: "2026-07-18T08:10:00.000Z",
+        checkedOutAt: null,
+        idDocumentImageUrl: "/api/private-uploads/visitors/id-document.webp",
+        selfieImageUrl: "/api/private-uploads/visitors/selfie.webp",
+        createdAt: "2026-07-18T08:10:00.000Z",
+        updatedAt: "2026-07-18T08:10:00.000Z",
+        visitor: {
+          id: "visitor-1",
+          fullName: "Mary Nakiwala",
+          phone: "256700000001",
+          idDocumentType: "Passport",
+          idDocumentNumber: "P12345",
+        },
+      },
+    ],
+  });
+  mockFetchNfcVisitorDetail.mockResolvedValue({
+    visit: {
+      id: "visit-1",
+      status: "CHECKED_IN",
+      purpose: "Deliver package",
+      hostName: "Bursar",
+      checkedInAt: "2026-07-18T08:10:00.000Z",
+      checkedOutAt: null,
+      idDocumentImageUrl: "/api/private-uploads/visitors/id-document.webp",
+      selfieImageUrl: "/api/private-uploads/visitors/selfie.webp",
+      createdAt: "2026-07-18T08:10:00.000Z",
+      updatedAt: "2026-07-18T08:10:00.000Z",
+      visitor: {
+        id: "visitor-1",
+        fullName: "Mary Nakiwala",
+        phone: "256700000001",
+        idDocumentType: "Passport",
+        idDocumentNumber: "P12345",
+      },
+    },
   });
   mockCancelReaderCredentialCapture.mockResolvedValue(undefined);
   mockGetReaderCredentialCapture.mockResolvedValue({
@@ -787,5 +954,38 @@ describe("NfcOperationsPage wristband grid layout", () => {
     await waitFor(() => expect(mockStartReaderCredentialCapture).toHaveBeenNthCalledWith(2, "tag-1", expect.objectContaining({
       deviceId: "device-1",
     })));
+  });
+
+  it("creates a pass-out from the admin panel", async () => {
+    renderPage();
+
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Student pass-outs" })).toBeInTheDocument());
+
+    fireEvent.change(screen.getByLabelText("Search pass-out student"), { target: { value: "Mike" } });
+    expect(await screen.findByText("Mike Ssempebwa")).toBeInTheDocument();
+    fireEvent.click(screen.getByText("Mike Ssempebwa"));
+    fireEvent.change(screen.getByLabelText("Pass-out reason"), { target: { value: "Clinic review" } });
+    fireEvent.change(screen.getByLabelText("Pass-out active from"), { target: { value: "2026-07-18T10:00" } });
+    fireEvent.change(screen.getByLabelText("Pass-out active until"), { target: { value: "2026-07-18T12:30" } });
+    fireEvent.click(screen.getByRole("button", { name: "Approve pass-out" }));
+
+    await waitFor(() => expect(mockCreateStudentPassOut).toHaveBeenCalledWith({
+      studentId: "student-2",
+      reason: "Clinic review",
+      activeFrom: "2026-07-18T10:00",
+      activeUntil: "2026-07-18T12:30",
+    }));
+    expect(await screen.findByText(/pass-out approved for mike ssempebwa/i)).toBeInTheDocument();
+  });
+
+  it("loads visitor details from the admin visitor history panel", async () => {
+    renderPage();
+
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Visitor history" })).toBeInTheDocument());
+    fireEvent.click(await screen.findByText("Mary Nakiwala"));
+
+    await waitFor(() => expect(mockFetchNfcVisitorDetail).toHaveBeenCalledWith("visit-1"));
+    expect(await screen.findByText(/open id\/passport image/i)).toHaveAttribute("href", "/api/private-uploads/visitors/id-document.webp");
+    expect(screen.getByText(/phone: 256700000001/i)).toBeInTheDocument();
   });
 });

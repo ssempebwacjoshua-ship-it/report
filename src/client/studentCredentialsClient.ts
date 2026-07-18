@@ -15,6 +15,7 @@ import type {
   NfcCanteenChargeResult,
   NfcGateDashboard,
   NfcGateScanResponse,
+  NfcVisitorVisit,
   NfcVisitorVisitListResponse,
   NfcTokenResolution,
   NfcWalletDashboard,
@@ -594,6 +595,54 @@ export async function fetchStudentPassOuts(filters: {
   return response.json() as Promise<StudentPassOutListResponse>;
 }
 
+export async function searchStudentPassOutCandidates(filters: { search?: string; classId?: string; streamId?: string } = {}) {
+  const params = new URLSearchParams();
+  Object.entries(filters).forEach(([key, value]) => {
+    if (!value) return;
+    params.set(key, value);
+  });
+  const response = await fetch(`${API_BASE}/api/nfc/pass-outs/students?${params.toString()}`, {
+    headers: makeSchoolRequestHeaders(),
+  });
+  if (!response.ok) throw new Error(await parseApiError(response, "Could not search pass-out students"));
+  return response.json() as Promise<{
+    students: Array<{
+      id: string;
+      studentName: string;
+      admissionNumber: string;
+      className: string | null;
+      streamName: string | null;
+      studentType: "DAY" | "BOARDING" | null;
+      isActive: boolean;
+    }>;
+  }>;
+}
+
+export async function createStudentPassOut(input: {
+  studentId: string;
+  reason: string;
+  activeFrom: string;
+  activeUntil: string;
+}) {
+  const response = await fetch(`${API_BASE}/api/nfc/pass-outs`, {
+    method: "POST",
+    headers: makeSchoolRequestHeaders({ "Content-Type": "application/json" }),
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) throw new Error(await parseApiError(response, "Could not create pass-out"));
+  return response.json() as Promise<{ passOut: StudentPassOutListResponse["passOuts"][number] }>;
+}
+
+export async function cancelStudentPassOut(passOutId: string, reason: string) {
+  const response = await fetch(`${API_BASE}/api/nfc/pass-outs/${encodeURIComponent(passOutId)}/cancel`, {
+    method: "PATCH",
+    headers: makeSchoolRequestHeaders({ "Content-Type": "application/json" }),
+    body: JSON.stringify({ reason }),
+  });
+  if (!response.ok) throw new Error(await parseApiError(response, "Could not cancel pass-out"));
+  return response.json() as Promise<{ passOut: StudentPassOutListResponse["passOuts"][number] }>;
+}
+
 export async function fetchNfcVisitors(filters: { status?: "CURRENT" | "HISTORY" | "ALL"; search?: string } = {}) {
   const params = new URLSearchParams();
   Object.entries(filters).forEach(([key, value]) => {
@@ -605,6 +654,14 @@ export async function fetchNfcVisitors(filters: { status?: "CURRENT" | "HISTORY"
   });
   if (!response.ok) throw new Error(await parseApiError(response, "Could not load visitor register"));
   return response.json() as Promise<NfcVisitorVisitListResponse>;
+}
+
+export async function fetchNfcVisitorDetail(visitId: string) {
+  const response = await fetch(`${API_BASE}/api/nfc/visitors/${encodeURIComponent(visitId)}`, {
+    headers: makeSchoolRequestHeaders(),
+  });
+  if (!response.ok) throw new Error(await parseApiError(response, "Could not load visitor details"));
+  return response.json() as Promise<{ visit: NfcVisitorVisit }>;
 }
 
 export async function registerNfcVisitor(input: {
