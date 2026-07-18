@@ -60,6 +60,7 @@ beforeAll(async () => {
 
 beforeEach(async () => {
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
   vi.unstubAllEnvs();
   await prisma.communicationTemplate.deleteMany({ where: { schoolId } });
   await prisma.communicationTemplate.deleteMany({ where: { schoolId: otherSchoolId } });
@@ -568,6 +569,43 @@ describe("communication outbound routes", () => {
 
     expect(res.status).toBe(500);
     expect(res.body.message).toMatch(/SMS_PROVIDER_DISABLED/i);
+  });
+
+  it("marks live SMS deliveries failed when the provider crashes after rows are opened", async () => {
+    const campaignId = await createCampaign();
+    await prisma.communicationCampaign.update({ where: { id: campaignId }, data: { status: "APPROVED" } });
+    await ensureActiveSubscription();
+    await createTemplate({ channel: "SMS" });
+    vi.stubEnv("COMMUNICATION_DRY_RUN", "false");
+    vi.stubEnv("SMS_PROVIDER", "yoola");
+    vi.stubEnv("SMS_PROVIDER_ENABLED", "true");
+    vi.stubEnv("SMS_API_KEY", "live-yoola-key");
+    vi.stubEnv("SMS_SENDER_ID", "");
+    vi.stubGlobal("AbortController", class {
+      constructor() {
+        throw new Error("provider unavailable");
+      }
+    });
+
+    const res = await request(createServer())
+      .post(`/api/communications/campaigns/${campaignId}/send`)
+      .set("Authorization", auth(adminToken))
+      .send({ channel: "SMS", confirm: true, audience: { studentIds: [studentId], mode: "GENERAL" } });
+
+    expect(res.status).toBe(200);
+    expect(res.body.result.submitted).toBe(0);
+    expect(res.body.result.failed).toBe(1);
+    expect(res.body.result.progress).toMatchObject({ SENT: 0, FAILED: 1 });
+    await expect(prisma.communicationDelivery.findFirstOrThrow({ where: { schoolId, campaignId } })).resolves.toMatchObject({
+      status: "FAILED",
+      lastErrorCode: "PROVIDER_BATCH_ERROR",
+    });
+    await expect(prisma.communicationCampaign.findUniqueOrThrow({ where: { id: campaignId } })).resolves.toMatchObject({
+      status: "FAILED",
+    });
+
+    const processed = await processPendingSmsDeliveries(prisma);
+    expect(processed.processed).toBe(0);
   });
 
   it("prevents duplicate live Yoola sends after the first accepted submission", async () => {
