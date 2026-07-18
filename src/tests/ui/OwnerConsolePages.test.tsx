@@ -14,6 +14,7 @@ const ownerClientMocks = vi.hoisted(() => ({
   confirmOwnerSmartPagesPayment: vi.fn(),
   rejectOwnerSmartPagesPayment: vi.fn(),
   fetchOwnerSchools: vi.fn(),
+  fetchOwnerSchoolSubscription: vi.fn(),
   fetchOwnerReaders: vi.fn(),
   fetchOwnerReader: vi.fn(),
   createOwnerSchool: vi.fn(),
@@ -24,6 +25,7 @@ const ownerClientMocks = vi.hoisted(() => ({
   ownerDisableUser: vi.fn(),
   ownerEnableUser: vi.fn(),
   requestOwnerReaderAction: vi.fn(),
+  saveOwnerSchoolSubscription: vi.fn(),
 }));
 
 vi.mock("../../client/ownerClient", () => ownerClientMocks);
