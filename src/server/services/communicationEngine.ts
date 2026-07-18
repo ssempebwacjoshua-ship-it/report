@@ -21,9 +21,10 @@ import { evaluateSubscriptionEntitlement } from "./subscriptionEntitlementServic
 
 type Db = PrismaClient;
 
-type TemplatePolicyStatus = "DRY_RUN_ONLY" | "APPROVED_TEMPLATE_BOUND" | "TEMPLATE_REQUIRED" | "TEMPLATE_VARIABLES_INVALID";
+type TemplatePolicyStatus = "DRY_RUN_ONLY" | "APPROVED_TEMPLATE_BOUND" | "TEMPLATE_REQUIRED" | "TEMPLATE_VARIABLES_INVALID" | "FALLBACK_MESSAGE";
 
 const SMS_DELIVERY_WORKER_INTERVAL_MS = 5_000;
+const SMS_FALLBACK_MESSAGE = "Test SMS from School Connect";
 
 let smsDeliveryWorkerStarted = false;
 let smsDeliveryWorkerRunning = false;
@@ -107,6 +108,21 @@ function hasOwnTemplateBinding(template: TemplateValidationResult["template"]) {
   return Boolean(template.providerTemplateName?.trim() || template.providerTemplateId?.trim());
 }
 
+function shouldRequireTemplate() {
+  return process.env.REQUIRE_TEMPLATE === "true";
+}
+
+function isSmsFallbackTemplatePolicy(templatePolicy: Record<string, unknown>) {
+  return templatePolicy.policyStatus === "FALLBACK_MESSAGE" && typeof templatePolicy.fallbackMessage === "string";
+}
+
+function resolveSmsMessageText(content: { body: string; shortBody?: string | null }, values: Record<string, string>, templatePolicy: Record<string, unknown>) {
+  if (isSmsFallbackTemplatePolicy(templatePolicy)) {
+    return templatePolicy.fallbackMessage as string;
+  }
+  return renderContent(content.shortBody || content.body, values);
+}
+
 async function requireLiveTemplatePolicy(db: Db, ctx: CommunicationContext, campaignId: string, channel: CommunicationChannel) {
   const campaign = await getCampaignOrThrow(db, ctx, campaignId);
   const content = campaign.contents.find((entry) => entry.version === campaign.contentVersion) ?? campaign.contents[0];
@@ -124,6 +140,15 @@ async function requireLiveTemplatePolicy(db: Db, ctx: CommunicationContext, camp
     orderBy: { updatedAt: "desc" },
   });
   if (!template) {
+    if (channel === "SMS" && !shouldRequireTemplate()) {
+      console.warn("No approved template found - using fallback message");
+      return {
+        template: null,
+        policyStatus: "FALLBACK_MESSAGE" as TemplatePolicyStatus,
+        fallbackMessage: SMS_FALLBACK_MESSAGE,
+        liveTemplateRequired: false,
+      };
+    }
     throw Object.assign(new Error("An approved communication template is required before live sending."), {
       status: 402,
       expose: true,
@@ -706,7 +731,7 @@ async function sendSmsCampaign(
 
   for (const recipient of recipients) {
     const values = (recipient.personalisationJson ?? {}) as Record<string, string>;
-    const text = renderContent(content.shortBody || content.body, values);
+    const text = resolveSmsMessageText(content, values, templatePolicy);
     const segmentEstimate = estimateSmsSegments(text);
     const idempotencyKey = buildDeliveryIdempotencyKey({
       schoolId: ctx.schoolId,
@@ -889,7 +914,7 @@ async function sendDryRunSmsCampaign(
 
   for (const recipient of recipients) {
     const values = (recipient.personalisationJson ?? {}) as Record<string, string>;
-    const text = renderContent(content.shortBody || content.body, values);
+    const text = resolveSmsMessageText(content, values, templatePolicy);
     const idempotencyKey = buildDeliveryIdempotencyKey({
       schoolId: ctx.schoolId,
       campaignId: campaign.id,

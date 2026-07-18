@@ -259,11 +259,12 @@ describe("communication outbound routes", () => {
     expect(res.status).toBe(403);
   });
 
-  it("fails closed when live SMS is missing an approved template", async () => {
+  it("fails closed when live SMS is missing an approved template and strict templates are required", async () => {
     const campaignId = await createCampaign();
     await prisma.communicationCampaign.update({ where: { id: campaignId }, data: { status: "APPROVED" } });
     await ensureActiveSubscription();
     vi.stubEnv("COMMUNICATION_DRY_RUN", "false");
+    vi.stubEnv("REQUIRE_TEMPLATE", "true");
     const res = await request(createServer())
       .post(`/api/communications/campaigns/${campaignId}/send`)
       .set("Authorization", auth(adminToken))
@@ -272,11 +273,12 @@ describe("communication outbound routes", () => {
     expect(res.body.message).toMatch(/approved communication template/i);
   });
 
-  it("blocks queueing and sending live campaigns without an approved template", async () => {
+  it("blocks queueing and sending live campaigns without an approved template when strict templates are required", async () => {
     const campaignId = await createCampaign();
     await prisma.communicationCampaign.update({ where: { id: campaignId }, data: { status: "APPROVED" } });
     await ensureActiveSubscription();
     vi.stubEnv("COMMUNICATION_DRY_RUN", "false");
+    vi.stubEnv("REQUIRE_TEMPLATE", "true");
 
     const queueRes = await request(createServer())
       .post(`/api/communications/campaigns/${campaignId}/queue`)
@@ -347,21 +349,30 @@ describe("communication outbound routes", () => {
     expect(fetchMock).toHaveBeenCalled();
   });
 
-  it("blocks live SMS sends without an approved template or policy", async () => {
+  it("uses the fallback SMS message when no approved template exists by default", async () => {
     const campaignId = await createCampaign();
     await prisma.communicationCampaign.update({ where: { id: campaignId }, data: { status: "APPROVED" } });
     await ensureActiveSubscription();
     vi.stubEnv("COMMUNICATION_DRY_RUN", "false");
     vi.stubEnv("SMS_PROVIDER", "yoola");
     vi.stubEnv("SMS_PROVIDER_ENABLED", "true");
+    vi.stubEnv("SMS_API_KEY", "live-yoola-key");
+    vi.stubEnv("SMS_SENDER_ID", "");
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify(yoolaSuccessBody()), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    }));
 
     const res = await request(createServer())
       .post(`/api/communications/campaigns/${campaignId}/send`)
       .set("Authorization", auth(adminToken))
       .send({ channel: "SMS", confirm: true, audience: { studentIds: [studentId], mode: "GENERAL" } });
 
-    expect(res.status).toBe(402);
-    expect(res.body.message).toMatch(/approved communication template/i);
+    expect(res.status).toBe(200);
+    expect(res.body.result.submitted).toBe(1);
+    expect(res.body.result.templatePolicy.policyStatus).toBe("FALLBACK_MESSAGE");
+    const requestBody = JSON.parse(fetchMock.mock.calls[0]?.[1]?.body as string);
+    expect(requestBody.message).toBe("Test SMS from School Connect");
   });
 
   it("keeps SMS templates tenant-scoped", async () => {
@@ -380,6 +391,7 @@ describe("communication outbound routes", () => {
       },
     });
     vi.stubEnv("COMMUNICATION_DRY_RUN", "false");
+    vi.stubEnv("REQUIRE_TEMPLATE", "true");
     vi.stubEnv("SMS_PROVIDER", "yoola");
     vi.stubEnv("SMS_PROVIDER_ENABLED", "true");
 
