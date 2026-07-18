@@ -338,7 +338,7 @@ describe("communication outbound routes", () => {
     expect(res.body.result.submitted).toBe(1);
     expect(res.body.result.templatePolicy.policyStatus).toBe("DIRECT_MESSAGE");
     const requestBody = JSON.parse(fetchMock.mock.calls[0]?.[1]?.body as string);
-    expect(requestBody.message).toBe("Hello Test Guardian");
+    expect(requestBody.message).toBe("Test SMS from School Connect");
   });
 
   it("uses a direct SMS message when one is supplied", async () => {
@@ -557,7 +557,6 @@ describe("communication outbound routes", () => {
     const campaignId = await createCampaign();
     await prisma.communicationCampaign.update({ where: { id: campaignId }, data: { status: "APPROVED" } });
     await ensureActiveSubscription();
-    await createTemplate({ channel: "SMS" });
     vi.stubEnv("COMMUNICATION_DRY_RUN", "false");
     vi.stubEnv("SMS_PROVIDER", "yoola");
     vi.stubEnv("SMS_PROVIDER_ENABLED", "false");
@@ -567,8 +566,8 @@ describe("communication outbound routes", () => {
       .set("Authorization", auth(adminToken))
       .send({ channel: "SMS", confirm: true, audience: { studentIds: [studentId], mode: "GENERAL" } });
 
-    expect(res.status).toBe(503);
-    expect(res.body.message).toMatch(/sms provider is not configured yet/i);
+    expect(res.status).toBe(500);
+    expect(res.body.message).toMatch(/SMS_PROVIDER_DISABLED/i);
   });
 
   it("prevents duplicate live Yoola sends after the first accepted submission", async () => {

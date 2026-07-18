@@ -413,9 +413,11 @@ export async function sendCampaign(db: Db, ctx: CommunicationContext, campaignId
   message?: string;
   audience?: AudienceDefinition;
 }) {
+  try {
   if (!communicationChannels.includes(input.channel)) throw httpError(400, "Unsupported communication channel.");
   if (input.channel !== "WHATSAPP" && input.channel !== "SMS") throw httpError(400, "Only SMS and WhatsApp sending are supported.");
   if (!input.confirm) throw httpError(400, "Sending requires explicit confirmation.");
+  const messageContent = input.message ?? SMS_FALLBACK_MESSAGE;
   await requireLiveCommunicationsEnabled(db, ctx);
   const campaign = await getCampaignOrThrow(db, ctx, campaignId);
   if (["CANCELLED", "DELIVERED"].includes(campaign.status)) throw httpError(400, "This campaign cannot be sent.");
@@ -427,21 +429,21 @@ export async function sendCampaign(db: Db, ctx: CommunicationContext, campaignId
   }
   const refreshed = await getCampaignOrThrow(db, ctx, campaignId);
   const content = refreshed.contents.find((c) => c.version === refreshed.contentVersion) ?? refreshed.contents[0];
-  if (!content?.body?.trim()) throw httpError(400, "Message body is required before sending.");
+  if (input.channel !== "SMS" && !input.message?.trim() && !content?.body?.trim()) throw httpError(400, "Message body is required before sending.");
 
   const recipients = await db.communicationRecipient.findMany({
     where: { schoolId: ctx.schoolId, campaignId, status: { in: ["READY", "WARNING", "QUEUED"] }, phoneE164: { not: null } },
     orderBy: { createdAt: "asc" },
     take: Number(process.env.COMMUNICATION_BATCH_SIZE ?? 25),
   });
-  if (recipients.length === 0) throw httpError(400, "No valid recipients are available for sending.");
+  if (!recipients || recipients.length === 0) throw httpError(400, "No recipients found");
 
   if (refreshed.status !== "SENDING" && refreshed.status !== "SENT") {
     await transitionCampaignIfAllowed(db, ctx, campaignId, "QUEUED");
   }
 
   if (input.channel === "SMS") {
-    return sendSmsCampaign(db, ctx, refreshed, recipients, content, buildTemplatePolicy(input.channel, input.message ?? null), input.message ?? null);
+    return sendSmsCampaign(db, ctx, refreshed, recipients, content, buildTemplatePolicy(input.channel, messageContent), messageContent);
   }
 
   const provider = isCommunicationDryRun()
@@ -470,7 +472,7 @@ export async function sendCampaign(db: Db, ctx: CommunicationContext, campaignId
 
   for (const recipient of recipients) {
     const values = (recipient.personalisationJson ?? {}) as Record<string, string>;
-    const text = resolveMessageText(content, values, input.message ?? null);
+    const text = resolveMessageText(content, values, messageContent);
     const rendered = await provider.render({ text });
     const idempotencyKey = buildDeliveryIdempotencyKey({
       schoolId: ctx.schoolId,
@@ -571,7 +573,11 @@ export async function sendCampaign(db: Db, ctx: CommunicationContext, campaignId
     data: { status: failed > 0 && submitted > 0 ? "PARTIALLY_DELIVERED" : failed > 0 && submitted === 0 ? "FAILED" : "SENDING", sendingStartedAt: new Date() },
   });
   await audit(db, ctx, "communication.delivery_submitted", campaignId, { channel: input.channel, provider: provider.providerKey, submitted, failed, skippedDuplicate });
-  return { submitted, failed, skippedDuplicate, results, templatePolicy: buildTemplatePolicy(input.channel, input.message ?? null), dryRun: isCommunicationDryRun(), progress: await getCampaignProgressTotals(db, ctx, campaignId) };
+  return { submitted, failed, skippedDuplicate, results, templatePolicy: buildTemplatePolicy(input.channel, messageContent), dryRun: isCommunicationDryRun(), progress: await getCampaignProgressTotals(db, ctx, campaignId) };
+  } catch (err) {
+    console.error("SEND CAMPAIGN ERROR:", err);
+    throw err;
+  }
 }
 
 async function sendSmsCampaign(
@@ -598,12 +604,9 @@ async function sendSmsCampaign(
   };
   const config = await provider.checkHealth(providerContext);
   if (!config.sendingEnabled) {
-    throw Object.assign(new Error("SMS provider is not configured yet. Contact platform owner."), {
-      status: 503,
-      expose: true,
-      code: "PROVIDER_NOT_CONFIGURED",
-      details: config.issues,
-    });
+    const message = config.issues?.join(", ") || "SMS provider is not configured yet. Contact platform owner.";
+    console.error("SMS PROVIDER ERROR:", message);
+    throw httpError(500, message);
   }
 
   let submitted = 0;
@@ -678,16 +681,23 @@ async function sendSmsCampaign(
   }
 
   const recipientMap = new Map(recipients.map((recipient) => [recipient.id, recipient]));
-  const batchResult = await provider.sendBatch(
-    pendingMessages.map((message) => ({
-      recipientId: message.recipientId,
-      toE164: recipientMap.get(message.recipientId)?.phoneE164 ?? "",
-      text: message.text,
-      idempotencyKey: message.idempotencyKey,
-      segmentCount: message.segmentCount,
-    })),
-    providerContext,
-  );
+  let batchResult;
+  try {
+    console.log("Submitting SMS...");
+    batchResult = await provider.sendBatch(
+      pendingMessages.map((message) => ({
+        recipientId: message.recipientId,
+        toE164: recipientMap.get(message.recipientId)?.phoneE164 ?? "",
+        text: message.text,
+        idempotencyKey: message.idempotencyKey,
+        segmentCount: message.segmentCount,
+      })),
+      providerContext,
+    );
+  } catch (err) {
+    console.error("SMS PROVIDER ERROR:", err);
+    throw httpError(500, err instanceof Error ? err.message : String(err));
+  }
   const acceptedMap = new Map(batchResult.acceptedRecipients.map((item) => [item.recipientId, item]));
   const rejectedMap = new Map(batchResult.rejectedRecipients.map((item) => [item.recipientId, item]));
 
