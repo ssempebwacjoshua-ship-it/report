@@ -773,6 +773,14 @@ body {
   display: none;
 }
 
+.report-parent-preview .report-print-area {
+  padding: 0;
+}
+
+.report-parent-preview .report-card-sheet {
+  max-width: 100%;
+}
+
 @media print {
   @page {
     size: A4 portrait;
@@ -943,6 +951,7 @@ body {
   .report-parent-page .report-card-sheet {
     page-break-inside: auto !important;
     break-inside: auto !important;
+    box-shadow: none !important;
   }
 
   /* Reset min-height so the outer container never inflates the print area */
@@ -973,10 +982,87 @@ body {
     min-height: 0 !important;
   }
 
-  /* Keep parent/final report header visually consistent with the draft preview */
+  .report-parent-page .report-student-profile,
+  .report-parent-page .report-summary-cards,
+  .report-parent-page .report-comments,
+  .report-parent-page .report-signature-panel,
+  .report-parent-page .report-footer {
+    page-break-inside: auto !important;
+    break-inside: auto !important;
+  }
+
   .report-parent-page .report-header-bg {
-    padding-top: 26px !important;
-    padding-bottom: 26px !important;
+    padding: 16px 18px 12px !important;
+  }
+
+  .report-parent-page .report-header-bg h1 {
+    font-size: 24px !important;
+    letter-spacing: 0.12em !important;
+  }
+
+  .report-parent-page .report-header-bg p {
+    margin-top: 4px !important;
+  }
+
+  .report-parent-page .report-header-bg img,
+  .report-parent-page .report-header-bg > div > div:first-child,
+  .report-parent-page .report-header-bg > div > div:last-child {
+    transform: scale(0.88);
+    transform-origin: center;
+  }
+
+  .report-parent-page .report-student-profile {
+    margin-bottom: 6px !important;
+    padding: 8px !important;
+  }
+
+  .report-parent-page .report-summary-cards {
+    margin-bottom: 6px !important;
+    gap: 4px !important;
+  }
+
+  .report-parent-page .report-summary-card {
+    padding: 6px 4px !important;
+  }
+
+  .report-parent-page .report-table {
+    font-size: 7px !important;
+  }
+
+  .report-parent-page .report-table th,
+  .report-parent-page .report-table td {
+    padding: 2px 3px !important;
+    line-height: 1.1 !important;
+  }
+
+  .report-parent-page .report-table tbody tr {
+    break-inside: auto !important;
+    page-break-inside: auto !important;
+  }
+
+  .report-parent-page .report-comments {
+    margin-bottom: 6px !important;
+  }
+
+  .report-parent-page .report-comments > div,
+  .report-parent-page .report-comments > div > div,
+  .report-parent-page .report-signature-panel,
+  .report-parent-page .report-footer {
+    gap: 4px !important;
+  }
+
+  .report-parent-page .report-signature-panel {
+    margin-bottom: 4px !important;
+    padding-top: 6px !important;
+  }
+
+  .report-parent-page .report-footer {
+    padding-top: 4px !important;
+  }
+
+  .report-parent-page .report-footer p,
+  .report-parent-page .report-signature-panel p {
+    margin-top: 0 !important;
   }
 
   /* Strip screen card chrome from the marksheet preview wrapper */

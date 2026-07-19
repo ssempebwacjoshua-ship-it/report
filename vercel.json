@@ -17,6 +17,11 @@
       "source": "/demo",
       "destination": "https://ssamenj.vercel.app/demos",
       "permanent": true
+    },
+    {
+      "source": "/r/:token",
+      "destination": "/report-lab/parent/r/:token",
+      "permanent": false
     }
   ],
   "rewrites": [

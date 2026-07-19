@@ -9,3 +9,11 @@ export function getPublicAppUrl() {
   return LOCAL_APP_URL;
 }
 
+export function getPublicSiteUrl() {
+  return getPublicAppUrl().replace(/\/report-lab$/i, "");
+}
+
+export function buildParentReportPublicUrl(token: string) {
+  return `${getPublicSiteUrl()}/r/${token}`;
+}
+
