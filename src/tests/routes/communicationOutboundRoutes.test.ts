@@ -719,8 +719,12 @@ describe("communication outbound routes", () => {
       status: "FAILED",
     });
 
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => undefined);
     const processed = await processPendingSmsDeliveries(prisma);
     expect(processed.processed).toBe(0);
+    expect(logSpy).not.toHaveBeenCalledWith("Processing SMS deliveries...");
+    expect(logSpy).not.toHaveBeenCalledWith("Pending:", 0);
+    logSpy.mockRestore();
   });
 
   it("prevents duplicate live Yoola sends after the first accepted submission", async () => {
@@ -852,9 +856,14 @@ describe("communication outbound routes", () => {
       status: "SENDING",
     });
 
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => undefined);
     const processed = await processPendingSmsDeliveries(prisma);
 
     expect(processed.processed).toBe(1);
+    expect(logSpy).toHaveBeenCalledWith("Processing SMS deliveries...");
+    expect(logSpy).toHaveBeenCalledWith("Pending:", 1);
+    expect(logSpy).toHaveBeenCalledWith("Processed SMS deliveries:", 1);
+    logSpy.mockRestore();
     await expect(prisma.communicationDelivery.findFirstOrThrow({ where: { schoolId, campaignId } })).resolves.toMatchObject({
       status: "DELIVERED",
     });

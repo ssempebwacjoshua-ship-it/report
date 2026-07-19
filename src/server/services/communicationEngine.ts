@@ -924,7 +924,6 @@ export async function getCampaignProgressTotals(db: Db, ctx: CommunicationContex
 }
 
 export async function processPendingSmsDeliveries(db: Db) {
-  console.log("Processing SMS deliveries...");
   const pendingDeliveries = await db.communicationDelivery.findMany({
     where: {
       channel: "SMS",
@@ -940,7 +939,11 @@ export async function processPendingSmsDeliveries(db: Db) {
     orderBy: { submittedAt: "asc" },
     take: Number(process.env.SMS_DELIVERY_WORKER_BATCH_SIZE ?? 100),
   });
-  console.log("Pending:", pendingDeliveries.length);
+
+  if (pendingDeliveries.length > 0) {
+    console.log("Processing SMS deliveries...");
+    console.log("Pending:", pendingDeliveries.length);
+  }
 
   const now = new Date();
   const campaignKeys = new Map<string, { schoolId: string; campaignId: string }>();
@@ -968,6 +971,10 @@ export async function processPendingSmsDeliveries(db: Db) {
 
   for (const key of campaignKeys.values()) {
     await updateCampaignDeliveryStatus(db, key.schoolId, key.campaignId);
+  }
+
+  if (pendingDeliveries.length > 0) {
+    console.log("Processed SMS deliveries:", pendingDeliveries.length);
   }
 
   return { processed: pendingDeliveries.length };

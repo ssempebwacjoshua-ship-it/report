@@ -34,6 +34,11 @@ export async function resolveSchoolContext(
   res: Response,
   next: NextFunction,
 ): Promise<void> {
+  if (isPublicSchoolContextBypass(req.path)) {
+    next();
+    return;
+  }
+
   function logDeniedAccess(requiredPermission: string) {
     console.warn("[school-context-denied]", {
       path: req.path,
@@ -103,6 +108,10 @@ export async function resolveSchoolContext(
   } catch (error) {
     next(error);
   }
+}
+
+function isPublicSchoolContextBypass(pathname: string): boolean {
+  return pathname === "/api/app-version";
 }
 
 function extractClientSchoolCode(req: Request): string | null {
