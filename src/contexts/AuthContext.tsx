@@ -1,5 +1,5 @@
-﻿import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
-import { getApiBaseUrl } from "../client/apiBase";
+import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { describeBackendConnectionError, getApiBaseUrl } from "../client/apiBase";
 
 const TOKEN_KEY = "sc_auth_token";
 const USER_KEY = "sc_auth_user";
@@ -119,11 +119,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [token]);
 
   async function login(email: string, password: string, schoolCode: string): Promise<AuthUser> {
-    const res = await fetch(`${API_BASE}/api/auth/login`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password, schoolCode }),
-    });
+    let res: Response;
+    try {
+      res = await fetch(`${API_BASE}/api/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password, schoolCode }),
+      });
+    } catch (error) {
+      if (error instanceof TypeError) {
+        throw new Error(describeBackendConnectionError());
+      }
+      throw error;
+    }
 
     const body = (await readAuthBody(res)) as { token?: string; user?: AuthUser; error?: string };
 
@@ -173,4 +181,3 @@ export function useAuth() {
   if (!ctx) throw new Error("useAuth must be used within AuthProvider");
   return ctx;
 }
-

@@ -8,9 +8,9 @@ import type {
   ComponentNode,
 } from "../shared/types/documentIntelligence";
 import type { AiEditResponse } from "../shared/documentPatch";
-import { parseApiError } from "./apiBase";
+import { getApiBaseUrl, parseApiError } from "./apiBase";
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:4300";
+const API_BASE = getApiBaseUrl();
 
 function buildHeaders(token: string | null | undefined): HeadersInit {
   return token ? { Authorization: `Bearer ${token}`, "Content-Type": "application/json" } : { "Content-Type": "application/json" };

@@ -6,8 +6,8 @@
  *    shows the app's own honest error/offline states (no fake data, no fake login).
  *  - Versioned cache + immediate activation so users don't stay on stale bundles.
  */
-const CACHE_VERSION = "report-lab-v7";
-const BASE_PATH = "/report-lab";
+const CACHE_VERSION = "report-lab-v8";
+const BASE_PATH = self.registration.scope.replace(self.location.origin, "").replace(/\/$/, "") || "/";
 const APP_SHELL_URL = `${BASE_PATH}/pwa-launch`;
 const SHELL_CACHE = `${CACHE_VERSION}-shell`;
 const ASSET_CACHE = `${CACHE_VERSION}-assets`;
@@ -50,14 +50,12 @@ self.addEventListener("activate", (event) => {
 
 self.addEventListener("fetch", (event) => {
   const req = event.request;
-  if (req.method !== "GET") return; // never touch mutations
+  if (req.method !== "GET") return;
 
   const url = new URL(req.url);
 
-  // Never intercept cross-origin (Railway API) or any /api/ path - browser handles them normally.
   if (url.origin !== self.location.origin || !url.pathname.startsWith(`${BASE_PATH}/`) || url.pathname.startsWith(`${BASE_PATH}/api/`)) return;
 
-  // Navigations: network-first, fall back to cached shell when offline.
   if (req.mode === "navigate") {
     event.respondWith(
       fetch(req, { cache: "no-store" })
@@ -73,7 +71,6 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // Hashed immutable assets + icons: cache-first.
   if (url.pathname.startsWith(`${BASE_PATH}/assets/`) || url.pathname.startsWith(`${BASE_PATH}/icons/`) || url.pathname === `${BASE_PATH}/manifest.webmanifest` || url.pathname === `${BASE_PATH}/manifest.json` || url.pathname === `${BASE_PATH}/favicon.svg`) {
     event.respondWith(
       caches.match(req).then(
@@ -89,5 +86,4 @@ self.addEventListener("fetch", (event) => {
       )
     );
   }
-  // Everything else: default browser behavior (no caching).
 });

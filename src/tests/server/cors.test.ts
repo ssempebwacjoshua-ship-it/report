@@ -44,16 +44,45 @@ describe("CORS origin control", () => {
 
   it("succeeds for OPTIONS preflight on auth login", async () => {
     vi.stubEnv("NODE_ENV", "test");
-    vi.stubEnv("CLIENT_ORIGIN", "https://ssamenj.online");
+    vi.stubEnv("CLIENT_ORIGIN", "https://schools.ssamenj.online");
+    vi.stubEnv("ALLOWED_ORIGINS", "https://schools.ssamenj.online,https://report-sigma-one.vercel.app,https://ssamenj.online,https://www.ssamenj.online");
     const res = await request(createServer())
       .options("/api/auth/login")
-      .set("Origin", "https://www.ssamenj.online")
+      .set("Origin", "https://schools.ssamenj.online")
       .set("Access-Control-Request-Method", "POST")
       .set("Access-Control-Request-Headers", "content-type,authorization");
 
     expect(res.status).toBe(204);
-    expect(res.headers["access-control-allow-origin"]).toBe("https://www.ssamenj.online");
+    expect(res.headers["access-control-allow-origin"]).toBe("https://schools.ssamenj.online");
     expect(res.headers["access-control-allow-credentials"]).toBe("true");
+  });
+
+  it("allows OPTIONS preflight on /api/settings from the schools domain", async () => {
+    vi.stubEnv("NODE_ENV", "test");
+    vi.stubEnv("CLIENT_ORIGIN", "https://schools.ssamenj.online");
+    vi.stubEnv("ALLOWED_ORIGINS", "https://schools.ssamenj.online,https://report-sigma-one.vercel.app,https://ssamenj.online,https://www.ssamenj.online");
+    const res = await request(createServer())
+      .options("/api/settings")
+      .set("Origin", "https://schools.ssamenj.online")
+      .set("Access-Control-Request-Method", "GET")
+      .set("Access-Control-Request-Headers", "authorization,content-type");
+
+    expect(res.status).toBe(204);
+    expect(res.headers["access-control-allow-origin"]).toBe("https://schools.ssamenj.online");
+    expect(res.headers["access-control-allow-credentials"]).toBe("true");
+  });
+
+  it("returns CORS headers on GET /api/health/ping from the schools domain", async () => {
+    vi.stubEnv("NODE_ENV", "test");
+    vi.stubEnv("CLIENT_ORIGIN", "https://schools.ssamenj.online");
+    vi.stubEnv("ALLOWED_ORIGINS", "https://schools.ssamenj.online,https://report-sigma-one.vercel.app,https://ssamenj.online,https://www.ssamenj.online");
+    const res = await request(createServer())
+      .get("/api/health/ping")
+      .set("Origin", "https://schools.ssamenj.online");
+
+    expect(res.status).toBe(200);
+    expect(res.headers["access-control-allow-origin"]).toBe("https://schools.ssamenj.online");
+    expect(res.headers["cache-control"]).toContain("no-store");
   });
 
   it("allows reader credential capture preflight with cache-control from ssamenj.online", async () => {
