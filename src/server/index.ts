@@ -273,11 +273,13 @@ export function createServer() {
   app.use(whatsappIntegrationRoutes());
   app.use(smsIntegrationRoutes());
 
-  app.get("/api/app-version", (_req, res) => {
+  const appVersionHandler: express.RequestHandler = (_req, res) => {
     res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
     res.setHeader("Pragma", "no-cache");
     res.json({ version: APP_BUILD_VERSION, buildTime: APP_BUILD_TIME });
-  });
+  };
+  app.get("/api/app-version", appVersionHandler);
+  app.get("/report-lab/api/app-version", appVersionHandler);
 
   // Document Intelligence Engine ? creator auth accepts both school JWTs and external creator JWTs
   app.use("/api/creator", creatorAuthRoutes());

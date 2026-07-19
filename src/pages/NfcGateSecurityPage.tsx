@@ -434,10 +434,32 @@ export function NfcGateSecurityPage() {
   }
 
   return (
-    <main className="grid gap-5">
-      <header className="page-header">
-        <p className="text-xs font-bold uppercase tracking-wide text-blue-600">NFC Operations</p>
-        <h1 className="text-xl font-bold text-slate-950 sm:text-2xl">Gate Security</h1>
+    <main className="grid gap-5 bg-[radial-gradient(circle_at_top_left,rgba(14,165,233,0.14),transparent_34%),linear-gradient(180deg,#f8fbff_0%,#eef4f8_100%)] p-3 sm:p-5">
+      <header className="overflow-hidden rounded-[1.75rem] border border-slate-200 bg-slate-950 text-white shadow-xl">
+        <div className="relative p-5 sm:p-6">
+          <div className="absolute right-[-4rem] top-[-5rem] h-44 w-44 rounded-full bg-cyan-400/20 blur-2xl" />
+          <div className="absolute bottom-[-5rem] left-1/2 h-44 w-44 rounded-full bg-emerald-400/20 blur-2xl" />
+          <div className="relative flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.28em] text-cyan-200">Gate PWA</p>
+              <h1 className="mt-2 text-3xl font-black tracking-tight sm:text-4xl">Gate Security</h1>
+              <p className="mt-2 max-w-2xl text-sm text-slate-300">
+                Scan student cards for entry, approved pass-out checkout, and safe return check-in from the same kiosk screen.
+              </p>
+            </div>
+            <div className="grid grid-cols-2 gap-2 text-xs sm:flex">
+              <span className="rounded-2xl border border-white/10 bg-white/10 px-3 py-2 font-bold text-cyan-100">
+                {scanner.isOnline ? "Online scanner" : "Offline mode"}
+              </span>
+              <span className="rounded-2xl border border-white/10 bg-white/10 px-3 py-2 font-bold text-emerald-100">
+                {isOfflineReady ? "Local register ready" : "Live verification"}
+              </span>
+              <span className="rounded-2xl border border-white/10 bg-white/10 px-3 py-2 font-bold text-amber-100">
+                {passOuts.length} pass-outs today
+              </span>
+            </div>
+          </div>
+        </div>
       </header>
 
       {isOfflineReady && (
