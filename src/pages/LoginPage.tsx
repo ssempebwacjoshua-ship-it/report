@@ -1,7 +1,7 @@
 import { type ComponentType, type FormEvent, useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
-import { getApiBaseUrl } from "../client/apiBase";
+import { describeBackendConnectionError, getApiBaseUrl } from "../client/apiBase";
 import { getDefaultRouteForRole } from "../shared/permissions";
 import { isDemoRuntime } from "../shared/runtimeMode";
 import { BrandedLoader } from "../components/BrandedLoader";
@@ -47,9 +47,8 @@ export function LoginPage() {
       const result = await login(email.trim(), password, schoolCode.trim());
       navigate(result?.isPlatformOwner ? "/owner" : getDefaultRouteForRole(result.role), { replace: true });
     } catch (caught) {
-      const safeNetworkMessage = "Unable to connect to the Report Lab service. Please try again.";
       if (caught instanceof TypeError && /fetch/i.test(caught.message)) {
-        setError(safeNetworkMessage);
+        setError(describeBackendConnectionError());
       } else {
         setError(caught instanceof Error ? caught.message : "Login failed.");
       }

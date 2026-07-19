@@ -1,3 +1,4 @@
+import { getAllowedBrowserOrigins } from "../config/deployRuntime";
 import { classifyRuntimeEnvironment } from "../utils/productionSafety";
 
 const DEV_JWT_SECRET = "dev-secret-change-in-production";
@@ -106,10 +107,28 @@ export function validateEnv(env: Record<string, string | undefined> = process.en
       );
     }
 
-    if (!env.CLIENT_ORIGIN) {
-      errors.push("CLIENT_ORIGIN is not set. Production browser CORS will reject explicit origins; set the real frontend origin.");
-    } else if (isLocalUrl(env.CLIENT_ORIGIN)) {
-      errors.push("CLIENT_ORIGIN points at localhost. Production must use the real frontend origin.");
+    const hasConfiguredOrigins = Boolean(
+      env.CLIENT_ORIGIN?.trim()
+      || env.CORS_ORIGIN?.trim()
+      || env.ALLOWED_ORIGINS?.trim(),
+    );
+    if (!hasConfiguredOrigins) {
+      errors.push("CLIENT_ORIGIN / CORS_ORIGIN / ALLOWED_ORIGINS is not set. Production browser CORS will reject explicit origins; set the real frontend origins.");
+    } else {
+      const configuredOrigins = getAllowedBrowserOrigins(env) ?? new Set<string>();
+      if (env.CLIENT_ORIGIN?.trim() && isLocalUrl(env.CLIENT_ORIGIN)) {
+        errors.push("CLIENT_ORIGIN points at localhost. Production must use the real frontend origin.");
+      }
+      if (env.CORS_ORIGIN?.trim() && isLocalUrl(env.CORS_ORIGIN)) {
+        errors.push("CORS_ORIGIN points at localhost. Production must use the real frontend origin.");
+      }
+      for (const origin of configuredOrigins) {
+        if (env.CLIENT_ORIGIN?.trim() || env.CORS_ORIGIN?.trim()) continue;
+        if (isLocalUrl(origin)) {
+          errors.push("ALLOWED_ORIGINS points at localhost. Production must use the real frontend origin.");
+          break;
+        }
+      }
     }
 
     if (env.APP_BASE_URL && isLocalUrl(env.APP_BASE_URL)) {

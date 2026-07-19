@@ -64,6 +64,7 @@ describe("service worker safety", () => {
     expect(sw).toContain("skipWaiting");
     expect(sw).toContain("clients.claim");
     expect(sw).toContain('event.data?.type === "SKIP_WAITING"');
+    expect(sw).toContain("self.registration.scope");
   });
 
   it("fetches navigations without browser cache before falling back to the shell", () => {

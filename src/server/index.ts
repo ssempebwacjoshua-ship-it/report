@@ -62,58 +62,7 @@ import { createRateLimiter, rateLimitWhen } from "./middleware/rateLimiters";
 import { securityHeaders } from "./middleware/securityHeaders";
 import { checkNfcWristbandSchema } from "./utils/nfcSchemaCheck";
 import { assertPlatformIntegrationConfigured } from "./platformClient";
-
-const APP_BUILD_VERSION = (
-  process.env.RAILWAY_GIT_COMMIT_SHA
-  || process.env.VERCEL_GIT_COMMIT_SHA
-  || process.env.RENDER_GIT_COMMIT
-  || process.env.SOURCE_VERSION
-  || process.env.GIT_COMMIT_SHA
-  || process.env.npm_package_version
-  || "development"
-).trim();
-
-const APP_BUILD_TIME = process.env.BUILD_TIME?.trim() || null;
-
-const LOCALHOST_ORIGIN = /^https?:\/\/(?:localhost|127\.0\.0\.1)(:\d+)?$/;
-const CANONICAL_PRODUCTION_ORIGINS = new Set([
-  "https://ssamenj.online",
-  "https://www.ssamenj.online",
-]);
-
-function normalizeOrigin(value: string): string {
-  return value.trim().replace(/\/+$/, "");
-}
-
-function getAllowedBrowserOrigins() {
-  const allowed = process.env.CLIENT_ORIGIN?.trim();
-  const origins = new Set<string>();
-  if (allowed) {
-    const normalized = normalizeOrigin(allowed);
-    origins.add(normalized);
-    try {
-      const parsed = new URL(normalized);
-      if (parsed.hostname === "ssamenj.online") origins.add("https://www.ssamenj.online");
-      if (parsed.hostname === "www.ssamenj.online") origins.add("https://ssamenj.online");
-    } catch {
-      // Leave the configured origin as-is; validateEnv will fail closed for bad production config.
-    }
-  } else if (process.env.NODE_ENV !== "production") {
-    return null;
-  } else {
-    for (const origin of CANONICAL_PRODUCTION_ORIGINS) origins.add(origin);
-  }
-  return origins;
-}
-
-function isAllowedBrowserOrigin(origin: string, allowedOrigins: Set<string> | null): boolean {
-  const normalized = normalizeOrigin(origin);
-  if (allowedOrigins) {
-    if (allowedOrigins.has(normalized)) return true;
-    return process.env.NODE_ENV !== "production" && LOCALHOST_ORIGIN.test(normalized);
-  }
-  return process.env.NODE_ENV !== "production" && LOCALHOST_ORIGIN.test(normalized);
-}
+import { APP_BUILD_TIME, APP_BUILD_VERSION, getAllowedBrowserOrigins, getRuntimeDiagnostics, isAllowedBrowserOrigin } from "./config/deployRuntime";
 
 function isAuthAttemptPath(pathname: string) {
   return pathname === "/api/auth/login"
@@ -379,6 +328,7 @@ if (process.env.NODE_ENV !== "test") {
   console.log("[startup] Gemini model (high-accuracy):", geminiModelHighAccuracy);
   console.log("[startup] Gemini model (stable):", geminiModelStable);
   console.log("[startup] Gemini key configured:", geminiKeyStatus);
+  console.log("[startup] Runtime diagnostics:", getRuntimeDiagnostics());
   console.log("[startup] Node DNS result order: ipv4first (forced)");
   console.log("[startup] Node version:", process.version);
   void recoverStaleStudentImportJobs(prisma).catch((error) => console.error("Failed to recover stale student import jobs", error));

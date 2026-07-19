@@ -1,4 +1,9 @@
-﻿const LOCAL_API_BASE = "http://localhost:4300";
+const LOCAL_API_BASE = "http://localhost:4300";
+const DEFAULT_PRODUCTION_API_BASE = "https://report-production-b00d.up.railway.app";
+const APP_BASENAME = import.meta.env.BASE_URL.replace(/\/$/, "") || "";
+const APP_BASE_PATH = APP_BASENAME || "/";
+const BUILD_VERSION = typeof __APP_BUILD_VERSION__ === "string" ? __APP_BUILD_VERSION__ : "development";
+const BUILD_TIME = typeof __APP_BUILD_TIME__ === "string" ? __APP_BUILD_TIME__ : null;
 
 function validateApiBase(url: string) {
   if (!/^https?:\/\//i.test(url)) {
@@ -13,8 +18,28 @@ function validateApiBase(url: string) {
 export function getApiBaseUrl() {
   const configured = import.meta.env.VITE_API_BASE_URL?.trim();
   if (configured) return validateApiBase(configured);
-  if (import.meta.env.DEV) return LOCAL_API_BASE;
-  throw new Error("VITE_API_BASE_URL is required in production.");
+  if (import.meta.env.DEV && process.env.NODE_ENV !== "production") return LOCAL_API_BASE;
+  return DEFAULT_PRODUCTION_API_BASE;
+}
+
+export function getAppBasePath() {
+  return APP_BASE_PATH;
+}
+
+export function getAppBuildVersion() {
+  return BUILD_VERSION;
+}
+
+export function getAppBuildTime() {
+  return BUILD_TIME;
+}
+
+export function getApiTargetHost() {
+  return new URL(getApiBaseUrl()).host;
+}
+
+export function describeBackendConnectionError() {
+  return `Unable to connect to the Report Lab backend at ${getApiTargetHost()}.`;
 }
 
 export const TOKEN_KEY = "sc_auth_token";
@@ -25,9 +50,6 @@ export function authHeaders(): HeadersInit {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
-// Returns auth + request-id headers for every outbound API call.
-// Pass extra to add Content-Type or other per-request headers.
-// Falls back to sp_creator_token so lawyer (external) creators can authenticate.
 export function makeRequestHeaders(extra?: Record<string, string>): Record<string, string> {
   const token = localStorage.getItem(TOKEN_KEY) ?? localStorage.getItem(CREATOR_TOKEN_KEY);
   return {
@@ -57,14 +79,9 @@ export function makeCreatorRequestHeaders(extra?: Record<string, string>): Recor
 
 export function handleSessionExpiry(): void {
   localStorage.removeItem(TOKEN_KEY);
-  window.location.href = "/report-lab/login?reason=session_expired";
+  window.location.href = `${APP_BASENAME}/login?reason=session_expired`;
 }
 
-// Parse an API error response into a human-readable string.
-// - Never returns "true" (ignores boolean error fields).
-// - Prefers body.message, then string body.error, then body.issues.
-// - Appends (ref: <requestId>) when the server echoes one back.
-// - Handles 401 (session expiry), 403 (access denied), 500+ (server error).
 export async function parseApiError(response: Response, fallback: string): Promise<string> {
   if (response.status === 401) {
     handleSessionExpiry();
@@ -79,7 +96,7 @@ export async function parseApiError(response: Response, fallback: string): Promi
     const text = await response.text();
     if (text) body = JSON.parse(text) as Record<string, unknown>;
   } catch {
-    // body stays empty ? use fallback below
+    // body stays empty; fall back below
   }
 
   const requestId = typeof body.requestId === "string" ? body.requestId : null;
@@ -98,7 +115,7 @@ export async function parseApiError(response: Response, fallback: string): Promi
   if (typeof body.error === "string" && body.error) return body.error + suffix;
   if (Array.isArray(body.issues) && (body.issues as unknown[]).length > 0) {
     const msg = (body.issues as Array<{ message?: string }>)
-      .map((i) => i.message)
+      .map((issue) => issue.message)
       .filter(Boolean)
       .join("; ");
     if (msg) return msg + suffix;
@@ -106,4 +123,3 @@ export async function parseApiError(response: Response, fallback: string): Promi
 
   return fallback + suffix;
 }
-

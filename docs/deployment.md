@@ -122,3 +122,20 @@ The script is idempotent.
 - Frontend never receives `DATABASE_URL`.
 - Frontend never receives `JWT_SECRET`, `GEMINI_API_KEY`, `PLATFORM_ADMIN_KEY`, or `INTERNAL_TEST_KEY`.
 - Railway serves the API and PostgreSQL only.
+
+## Report Lab stability checklist
+
+Use this checklist for the `report` Vercel project that serves `https://schools.ssamenj.online` and the Railway backend at `https://report-production-b00d.up.railway.app`.
+
+- Keep the frontend base path at `/report-lab/`. Do not switch between `/` and `/report-lab/` without updating the Vite base path, service-worker scope, and Vercel rewrites together.
+- Set Vercel production `VITE_API_BASE_URL` to exactly `https://report-production-b00d.up.railway.app`.
+- Confirm only the Vercel project `report` serves `schools.ssamenj.online`.
+- Confirm frontend API rewrites or direct calls point only at `https://report-production-b00d.up.railway.app`, never relative `/api` on the Vercel host.
+- Keep Railway `DATABASE_URL` stable and do not rotate `JWT_SECRET` during routine deploys.
+- Set Railway `CLIENT_ORIGIN` to `https://schools.ssamenj.online`.
+- Set Railway `ALLOWED_ORIGINS` to include `https://schools.ssamenj.online`, `https://report-sigma-one.vercel.app`, `https://ssamenj.online`, and `https://www.ssamenj.online`.
+- Verify `GET /api/health/ping`, `GET /api/app-version`, and `GET /api/health/runtime` return CORS headers for `https://schools.ssamenj.online`.
+- Verify `OPTIONS /api/auth/login` and `OPTIONS /api/settings` succeed with `204` from `https://schools.ssamenj.online`.
+- Check the browser console after deploy for the `[report-lab] runtime` log showing the API host, app base path, and build version.
+- Check Railway startup logs for the `[startup] Runtime diagnostics:` log showing runtime, allowed origins, and app version without secrets.
+- Force-refresh once after a deploy if a browser still has stale assets cached; the service worker should not cache `/api/*` responses and should reload when a new worker activates.

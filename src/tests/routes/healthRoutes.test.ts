@@ -29,6 +29,25 @@ describe("healthRoutes ? /api/health does not leak secrets", () => {
   });
 });
 
+describe("healthRoutes ? /api/health/runtime", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("returns non-secret runtime diagnostics", async () => {
+    vi.stubEnv("CLIENT_ORIGIN", "https://schools.ssamenj.online");
+    vi.stubEnv("ALLOWED_ORIGINS", "https://schools.ssamenj.online,https://report-sigma-one.vercel.app,https://ssamenj.online,https://www.ssamenj.online");
+    const res = await request(createServer()).get("/api/health/runtime");
+
+    expect(res.status).toBe(200);
+    expect(res.body.ok).toBe(true);
+    expect(Array.isArray(res.body.allowedOrigins)).toBe(true);
+    expect(res.body.allowedOrigins).toContain("https://schools.ssamenj.online");
+    expect(res.body.appVersion).toBeTruthy();
+    expect(res.headers["cache-control"]).toContain("no-store");
+  });
+});
+
 // ── HIGH 4: /api/health/env is internal-only ─────────────────────────────────
 
 describe("healthRoutes ? /api/health/env (internal key required)", () => {
