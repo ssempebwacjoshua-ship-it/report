@@ -158,6 +158,40 @@ describe("ReleaseCenterPage", () => {
     expect(screen.getByText(/SMS credits:/i)).toBeInTheDocument();
   });
 
+  it("shows provider setup errors from report release send", async () => {
+    mockFetchReleaseStatus.mockResolvedValue(buildStatusResponse([buildRow()]));
+    mockSendReportReleasesBulk
+      .mockResolvedValueOnce({
+        preview: {
+          totalSelected: 1,
+          issuableLinks: 1,
+          missingContacts: 0,
+          alreadySent: 0,
+          estimatedSmsSegments: 1,
+          estimatedSmsCredits: 1,
+        },
+        submitted: 0,
+        failed: 0,
+        skippedDuplicate: 0,
+        missingContact: 0,
+        alreadySent: 0,
+        skipped: [],
+      })
+      .mockRejectedValueOnce(new Error("SMS_PROVIDER_DISABLED, SMS_API_KEY_MISSING"));
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+
+    await renderPage();
+
+    const row = getDesktopRow("Ada Lovelace");
+    fireEvent.click(within(row).getByRole("checkbox"));
+    fireEvent.click(screen.getByRole("button", { name: "Preview send" }));
+    await screen.findByText(/SMS credits:/i);
+    fireEvent.click(screen.getByRole("button", { name: "Send reports to parents" }));
+
+    expect(await screen.findByText("SMS_PROVIDER_DISABLED, SMS_API_KEY_MISSING")).toBeInTheDocument();
+    expect(screen.queryByText("Could not send report links")).not.toBeInTheDocument();
+  });
+
   it("shows enabled Reissue for a READY row with a revoked report", async () => {
     mockFetchReleaseStatus.mockResolvedValue(buildStatusResponse([
       buildRow({

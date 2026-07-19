@@ -933,8 +933,59 @@ export function releaseCenterRoutes() {
       }
 
       if (body.previewOnly) {
-        res.json({ preview, submitted: 0, failed: 0, skippedDuplicate: preview.alreadySent, missingContact: preview.missingContacts, alreadySent: preview.alreadySent, skipped });
+        const message = preview.missingContacts > 0
+          ? `${preview.missingContacts} missing parent contact${preview.missingContacts === 1 ? "" : "s"}.`
+          : "Report release send preview is ready.";
+        res.json({ message, preview, submitted: 0, failed: 0, skippedDuplicate: preview.alreadySent, missingContact: preview.missingContacts, alreadySent: preview.alreadySent, skipped });
         return;
+      }
+
+      if (sendItems.length === 0) {
+        const message = preview.missingContacts > 0
+          ? `${preview.missingContacts} missing parent contact${preview.missingContacts === 1 ? "" : "s"}. No report links were sent.`
+          : preview.alreadySent > 0
+            ? `${preview.alreadySent} report link${preview.alreadySent === 1 ? " was" : "s were"} already sent. No duplicates were sent.`
+            : "No ready report links were available to send.";
+        res.json({
+          message,
+          preview,
+          submitted: 0,
+          failed: 0,
+          skippedDuplicate: preview.alreadySent,
+          missingContact: preview.missingContacts,
+          alreadySent: preview.alreadySent,
+          skipped,
+          results: [],
+        });
+        return;
+      }
+
+      if (body.channel === "SMS" && !isCommunicationDryRun()) {
+        const provider = resolveSmsProvider();
+        const channelSetting = await prisma.communicationChannelSetting.findFirst({
+          where: { schoolId: user.schoolId, channel: "SMS", provider: provider.providerKey },
+        });
+        const providerContext = {
+          schoolId: user.schoolId,
+          sendingEnabled: channelSetting?.sendingEnabled ?? true,
+          providerMetadata: (channelSetting?.providerMetadataJson ?? null) as Record<string, unknown> | null,
+        };
+        const config = await provider.checkHealth(providerContext);
+        if (!config.sendingEnabled) {
+          const message = config.issues?.join(", ") || "SMS provider is not configured yet. Contact platform owner.";
+          res.status(503).json({
+            message,
+            preview,
+            submitted: 0,
+            failed: sendItems.length,
+            skippedDuplicate: preview.alreadySent,
+            missingContact: preview.missingContacts,
+            alreadySent: preview.alreadySent,
+            skipped,
+            results: sendItems.map((item) => ({ studentId: item.card.studentId, status: "FAILED", errorCode: "PROVIDER_NOT_CONFIGURED" })),
+          });
+          return;
+        }
       }
 
       const campaign = await prisma.communicationCampaign.create({
@@ -1110,6 +1161,9 @@ export function releaseCenterRoutes() {
       });
       res.json({
         campaignId: campaign.id,
+        message: submitted > 0
+          ? `Submitted ${submitted} report link${submitted === 1 ? "" : "s"} for ${body.channel}.`
+          : `Failed to submit ${failed} report link${failed === 1 ? "" : "s"} for ${body.channel}.`,
         preview,
         submitted,
         failed,

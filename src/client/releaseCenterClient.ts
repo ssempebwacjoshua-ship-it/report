@@ -173,6 +173,7 @@ export type ReportReleaseSendChannel = "SMS" | "WHATSAPP";
 
 export type ReportReleaseSendResponse = {
   campaignId?: string;
+  message?: string;
   preview: {
     totalSelected: number;
     issuableLinks: number;

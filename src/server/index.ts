@@ -5,7 +5,7 @@ import path from "node:path";
 import fs from "node:fs";
 // Force IPv4 DNS resolution ? prevents "fetch failed" on Windows/IPv6 networks when reaching Gemini
 dns.setDefaultResultOrder("ipv4first");
-import cors from "cors";
+import cors, { type CorsOptions } from "cors";
 import express, { type ErrorRequestHandler } from "express";
 import http from "http";
 import { ZodError } from "zod";
@@ -154,6 +154,17 @@ function isOcrOrScanPath(pathname: string) {
     || pathname === "/internal/ocr/read";
 }
 
+const corsOptions: CorsOptions = {
+  origin: (origin, callback) => {
+    if (!origin) return callback(null, true); // non-browser (curl, server-to-server)
+    const allowedOrigins = getAllowedBrowserOrigins();
+    return callback(null, isAllowedBrowserOrigin(origin, allowedOrigins));
+  },
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization", "Cache-Control", "Pragma", "x-request-id", "x-internal-test-key"],
+};
+
 export const errorHandler: ErrorRequestHandler = (error, req, res, _next) => {
     if (error instanceof ZodError) {
       const fieldErrors = error.flatten().fieldErrors;
@@ -221,16 +232,8 @@ export const errorHandler: ErrorRequestHandler = (error, req, res, _next) => {
 export function createServer() {
   const app = express();
   app.use(securityHeaders);
-  app.use(cors({
-    origin: (origin, callback) => {
-      if (!origin) return callback(null, true); // non-browser (curl, server-to-server)
-      const allowedOrigins = getAllowedBrowserOrigins();
-      return callback(null, isAllowedBrowserOrigin(origin, allowedOrigins));
-    },
-    credentials: true,
-    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization", "Cache-Control", "Pragma", "x-request-id", "x-internal-test-key"],
-  }));
+  app.use(cors(corsOptions));
+  app.options(/.*/, cors(corsOptions));
   app.use(express.json({
     limit: "2mb",
     verify: (req, _res, buf) => {

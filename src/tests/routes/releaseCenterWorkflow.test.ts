@@ -248,7 +248,34 @@ describe("releaseCenterRoutes workflow", () => {
     }));
   });
 
-  it("does not mark an issued report sent when provider submission fails", async () => {
+  it("reports missing parent contacts clearly without creating a send campaign", async () => {
+    vi.stubEnv("COMMUNICATION_DRY_RUN", "true");
+    const campaignCreate = vi.fn(async () => ({ id: "campaign-1" }));
+    const prisma = {
+      issuedReport: {
+        findMany: vi.fn(async () => []),
+        create: vi.fn(async (args: any) => ({ id: args.data.id, sentAt: null })),
+        updateMany: vi.fn(async () => ({ count: 1 })),
+      },
+      communicationDelivery: { findFirst: vi.fn(async () => null) },
+      communicationCampaign: { create: campaignCreate },
+      auditLog: { create: vi.fn(async () => ({})) },
+      guardianContact: { findMany: vi.fn(async () => []) },
+    };
+
+    const app = await mountReleaseCenterApp(prisma);
+    const res = await request(app)
+      .post("/api/reports/release/send-bulk")
+      .send({ classId: "class-1", assessmentType: baseAssessmentType, channel: "SMS", confirm: true, studentIds: [baseStudentId] });
+
+    expect(res.status).toBe(200);
+    expect(res.body.message).toContain("1 missing parent contact");
+    expect(res.body.missingContact).toBe(1);
+    expect(res.body.submitted).toBe(0);
+    expect(campaignCreate).not.toHaveBeenCalled();
+  });
+
+  it("does not mark an issued report sent when provider setup fails", async () => {
     vi.stubEnv("COMMUNICATION_DRY_RUN", "false");
     vi.stubEnv("SMS_PROVIDER", "yoola");
     vi.stubEnv("SMS_PROVIDER_ENABLED", "false");
@@ -291,7 +318,8 @@ describe("releaseCenterRoutes workflow", () => {
       .post("/api/reports/release/send-bulk")
       .send({ classId: "class-1", assessmentType: baseAssessmentType, channel: "SMS", confirm: true, studentIds: [baseStudentId] });
 
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(503);
+    expect(res.body.message).toMatch(/SMS_PROVIDER_DISABLED|SMS_API_KEY_MISSING|PROVIDER_NOT_CONFIGURED/i);
     expect(res.body.failed).toBe(1);
     expect(issuedUpdateMany).not.toHaveBeenCalledWith(expect.objectContaining({
       data: expect.objectContaining({ sentAt: expect.any(Date) }),

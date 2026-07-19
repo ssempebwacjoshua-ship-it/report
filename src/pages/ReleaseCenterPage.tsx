@@ -62,6 +62,18 @@ function summarizeSkippedReasons(skipped: Array<{ studentName: string; reason: s
     .join("; ");
 }
 
+function summarizeReportSendResult(result: ReportReleaseSendResponse) {
+  const parts = [
+    result.message,
+    `submitted ${result.submitted}`,
+    `failed ${result.failed}`,
+    `duplicates skipped ${result.skippedDuplicate}`,
+    `${result.missingContact} missing parent contact${result.missingContact === 1 ? "" : "s"}`,
+    `${result.alreadySent} already sent`,
+  ].filter(Boolean);
+  return parts.join("; ");
+}
+
 // ── Status display ────────────────────────────────────────────────────────────
 
 const STATUS_CONFIG: Record<DeliveryStatus, { label: string; classes: string }> = {
@@ -521,6 +533,7 @@ export function ReleaseCenterPage() {
         previewOnly: true,
       });
       setSendPreview(result);
+      if (result.missingContact > 0) setBulkResult(`${result.missingContact} missing parent contact${result.missingContact === 1 ? "" : "s"}.`);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not preview report send.");
     } finally {
@@ -543,9 +556,7 @@ export function ReleaseCenterPage() {
         confirm: true,
       });
       setSendPreview(result);
-      setBulkResult(
-        `Submitted ${result.submitted}; failed ${result.failed}; duplicates skipped ${result.skippedDuplicate}; missing contacts ${result.missingContact}; already sent ${result.alreadySent}.`,
-      );
+      setBulkResult(summarizeReportSendResult(result));
       void loadStatus(filters, search);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not send report links.");

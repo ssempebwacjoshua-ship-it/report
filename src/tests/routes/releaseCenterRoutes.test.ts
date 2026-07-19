@@ -1,5 +1,5 @@
 ﻿import request from "supertest";
-import { beforeAll, describe, expect, it } from "vitest";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { createServer } from "../../server";
 import { hashPassword, signToken } from "../../server/services/authService";
 import { prisma } from "../../server/db/prisma";
@@ -106,6 +106,17 @@ describe("releaseCenterRoutes ? GET /api/reports/release-status", () => {
 });
 
 describe("releaseCenterRoutes bulk action endpoints", () => {
+  it("returns 401 for send-bulk without Authorization header", async () => {
+    const res = await request(createServer())
+      .post("/api/reports/release/send-bulk")
+      .send({
+        classId: "00000000-0000-0000-0000-000000000001",
+        channel: "SMS",
+        confirm: true,
+      });
+    expect(res.status).toBe(401);
+  });
+
   it("returns 400 for invalid mark-sent-bulk payload", async () => {
     const token = await makeToken();
     const res = await request(createServer())
@@ -123,6 +134,24 @@ describe("releaseCenterRoutes bulk action endpoints", () => {
       .send({ classId: "00000000-0000-0000-0000-000000000001" });
     expect(res.status).toBe(400);
   });
+
+  it("allows CORS preflight for send-bulk without school auth", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("CLIENT_ORIGIN", "https://ssamenj.online");
+    const res = await request(createServer())
+      .options("/api/reports/release/send-bulk")
+      .set("Origin", "https://ssamenj.online")
+      .set("Access-Control-Request-Method", "POST")
+      .set("Access-Control-Request-Headers", "authorization,content-type,x-request-id");
+
+    expect([200, 204]).toContain(res.status);
+    expect(res.headers["access-control-allow-origin"]).toBe("https://ssamenj.online");
+    expect(res.headers["access-control-allow-credentials"]).toBe("true");
+  });
+});
+
+afterEach(() => {
+  vi.unstubAllEnvs();
 });
 
 // ── POST /api/reports/issue-bulk ─────────────────────────────────────────────

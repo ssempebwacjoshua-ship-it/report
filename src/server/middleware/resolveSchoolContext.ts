@@ -34,6 +34,11 @@ export async function resolveSchoolContext(
   res: Response,
   next: NextFunction,
 ): Promise<void> {
+  if (req.method === "OPTIONS") {
+    next();
+    return;
+  }
+
   if (isPublicSchoolContextBypass(req.path)) {
     next();
     return;
