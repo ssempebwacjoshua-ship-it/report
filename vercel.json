@@ -20,7 +20,7 @@
     },
     {
       "source": "/r/:token",
-      "destination": "/report-lab/parent/r/:token",
+      "destination": "/report-lab/r/:token",
       "permanent": false
     }
   ],

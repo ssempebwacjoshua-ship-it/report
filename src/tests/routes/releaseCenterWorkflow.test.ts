@@ -1,7 +1,6 @@
 import express from "express";
 import request from "supertest";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { buildReportLinkToken, buildReportVersionSignature } from "../../server/services/reportLinkService";
 import { defaultSettingsSections } from "../../shared/types/settings";
 import { sanitizeReportCardForRender, sanitizeReportPersonalizationForReport, sanitizeSchoolSettingsForReport } from "../../shared/utils/reportContentLimits";
 
@@ -138,6 +137,16 @@ function mountReleaseCenterApp(prisma: any) {
   });
 }
 
+function mountParentApp(prisma: any) {
+  vi.doMock("../../server/db/prisma", () => ({ prisma }));
+  return import("../../server/routes/parentRoutes").then(({ parentRoutes }) => {
+    const app = express();
+    app.use(express.json());
+    app.use(parentRoutes());
+    return app;
+  });
+}
+
 afterEach(() => {
   vi.resetModules();
   vi.clearAllMocks();
@@ -154,7 +163,39 @@ describe("releaseCenterRoutes workflow", () => {
   it("creates a replacement report when the previous link is expired", async () => {
     const auditLogCreate = vi.fn(async () => ({}));
     const issuedUpdateMany = vi.fn(async () => ({ count: 0 }));
-    const created = vi.fn(async () => ({ id: "issued-2" }));
+    let storedIssued: any = null;
+    const created = vi.fn(async ({ data }: any) => {
+      storedIssued = {
+        id: "issued-2",
+        schoolId: baseSchoolId,
+        studentId: baseStudentId,
+        academicYear: baseAcademicYear,
+        term: baseTerm,
+        assessmentType: baseAssessmentType,
+        referenceCode: "20260719-NEW111",
+        publicShortCode: "SHORTNEW1",
+        status: "ISSUED",
+        issuedAt: new Date("2026-07-19T00:00:00.000Z"),
+        expiresAt: null,
+        viewedAt: null,
+        lastViewedAt: null,
+        openCount: 0,
+        downloadedAt: null,
+        lastDownloadedAt: null,
+        downloadCount: 0,
+        sentAt: null,
+        revokedAt: null,
+        revokeReason: null,
+        reportSnapshotJson: data.reportSnapshotJson,
+        school: { name: "Preview School" },
+      };
+      return {
+      id: "issued-2",
+      referenceCode: "20260719-NEW111",
+      publicShortCode: "SHORTNEW1",
+      issuedAt: new Date("2026-07-19T00:00:00.000Z"),
+      };
+    });
     const existingRecord = {
       id: "issued-1",
       schoolId: baseSchoolId,
@@ -183,6 +224,8 @@ describe("releaseCenterRoutes workflow", () => {
         findMany: vi.fn(async () => [existingRecord]),
         updateMany: issuedUpdateMany,
         create: created,
+        update: vi.fn(async () => ({})),
+        findUnique: vi.fn(async ({ where }: any) => where.publicShortCode === "SHORTNEW1" ? storedIssued : null),
       },
       auditLog: { create: auditLogCreate },
       guardianContact: { findMany: vi.fn(async () => [{ studentId: baseStudentId, guardianName: "Parent", preferredContactMethod: "WHATSAPP", phone: "+256700000000", email: null, isPrimary: true, canReceiveReports: true }]) },
@@ -199,12 +242,22 @@ describe("releaseCenterRoutes workflow", () => {
     expect(auditLogCreate).toHaveBeenCalledWith(expect.objectContaining({
       data: expect.objectContaining({ action: "report.link_issued" }),
     }));
+
+    const parentApp = await mountParentApp(prisma);
+    const openRes = await request(parentApp).get("/api/p/short/SHORTNEW1");
+    expect(openRes.status).toBe(200);
+    expect(openRes.body.referenceCode).toBe("20260719-NEW111");
   });
 
   it("reuses an active link when the report version matches", async () => {
     const auditLogCreate = vi.fn(async () => ({}));
     const issuedUpdateMany = vi.fn(async () => ({ count: 0 }));
-    const created = vi.fn(async () => ({ id: "issued-2" }));
+    const created = vi.fn(async () => ({
+      id: "issued-2",
+      referenceCode: "20260719-NEW222",
+      publicShortCode: "SHORTNEW2",
+      issuedAt: new Date("2026-07-19T00:00:00.000Z"),
+    }));
     const existingRecord = {
       id: "issued-1",
       schoolId: baseSchoolId,
@@ -213,6 +266,7 @@ describe("releaseCenterRoutes workflow", () => {
       term: baseTerm,
       assessmentType: baseAssessmentType,
       referenceCode: "20260710-ABC123",
+      publicShortCode: "SHORTABC1",
       status: "ISSUED",
       issuedAt: new Date("2026-07-10T00:00:00.000Z"),
       expiresAt: null,
@@ -233,6 +287,11 @@ describe("releaseCenterRoutes workflow", () => {
         findMany: vi.fn(async () => [existingRecord]),
         updateMany: issuedUpdateMany,
         create: created,
+        update: vi.fn(async () => ({})),
+        findUnique: vi.fn(async ({ where }: any) => where.publicShortCode === "SHORTABC1" ? {
+          ...existingRecord,
+          school: { name: "Preview School" },
+        } : null),
       },
       auditLog: { create: auditLogCreate },
       guardianContact: { findMany: vi.fn(async () => [{ studentId: baseStudentId, guardianName: "Parent", preferredContactMethod: "WHATSAPP", phone: "+256700000000", email: null, isPrimary: true, canReceiveReports: true }]) },
@@ -250,31 +309,30 @@ describe("releaseCenterRoutes workflow", () => {
       data: expect.objectContaining({ action: "report.link_reused", correlationId: "issued-1" }),
     }));
 
-    const expectedToken = buildReportLinkToken({
-      reportId: "issued-1",
-      snapshotSignature: buildReportVersionSignature({
-        ...buildVersionSnapshot(baseReportResult.cards[0]),
-      }),
-      schoolId: baseSchoolId,
-      studentId: baseStudentId,
-      academicYear: baseAcademicYear,
-      term: baseTerm,
-      assessmentType: baseAssessmentType,
-    });
-
     expect(res.body.issued).toEqual([
       expect.objectContaining({
         issuedReportId: "issued-1",
         referenceCode: "20260710-ABC123",
-        parentLink: `https://public.example/r/${expectedToken}`,
+        parentLink: "https://public.example/r/SHORTABC1",
+        parentAccessToken: null,
       }),
     ]);
+
+    const parentApp = await mountParentApp(prisma);
+    const openRes = await request(parentApp).get("/api/p/short/SHORTABC1");
+    expect(openRes.status).toBe(200);
+    expect(openRes.body.referenceCode).toBe("20260710-ABC123");
   });
 
   it("supersedes the older active link when the report version changes", async () => {
     const auditLogCreate = vi.fn(async () => ({}));
     const issuedUpdateMany = vi.fn(async () => ({ count: 1 }));
-    const created = vi.fn(async () => ({ id: "issued-2" }));
+    const created = vi.fn(async () => ({
+      id: "issued-2",
+      referenceCode: "20260719-NEW333",
+      publicShortCode: "SHORTNEW3",
+      issuedAt: new Date("2026-07-19T00:00:00.000Z"),
+    }));
     const existingRecord = {
       id: "issued-1",
       schoolId: baseSchoolId,
@@ -283,6 +341,7 @@ describe("releaseCenterRoutes workflow", () => {
       term: baseTerm,
       assessmentType: baseAssessmentType,
       referenceCode: "20260710-OLD999",
+      publicShortCode: "SHORTOLD9",
       status: "ISSUED",
       issuedAt: new Date("2026-07-10T00:00:00.000Z"),
       expiresAt: null,
