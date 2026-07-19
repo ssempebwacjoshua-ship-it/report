@@ -14,6 +14,8 @@ export type DeliveryStatus =
   | "NOT_ISSUED"
   | "LINK_GENERATED"
   | "READY_TO_SEND"
+  | "SENDING"
+  | "FAILED"
   | "SENT_MANUALLY"
   | "OPENED"
   | "DOWNLOADED"
@@ -58,6 +60,8 @@ export type ReleaseSummary = {
   downloaded: number;
   expired: number;
   needsAttention: number;
+  sending?: number;
+  failed?: number;
 };
 
 export type ReleaseStatusResponse = {
@@ -163,5 +167,46 @@ export async function revokeBulk(body: { studentIds: string[]; classId: string; 
   });
   if (!res.ok) throw new Error(await parseApiError(res, "Could not revoke reports"));
   return res.json() as Promise<BulkReleaseResult>;
+}
+
+export type ReportReleaseSendChannel = "SMS" | "WHATSAPP";
+
+export type ReportReleaseSendResponse = {
+  campaignId?: string;
+  preview: {
+    totalSelected: number;
+    issuableLinks: number;
+    missingContacts: number;
+    alreadySent: number;
+    estimatedSmsSegments: number;
+    estimatedSmsCredits: number;
+  };
+  submitted: number;
+  failed: number;
+  skippedDuplicate: number;
+  missingContact: number;
+  alreadySent: number;
+  skipped: Array<{ studentId: string; studentName: string; reason: string }>;
+  results?: Array<Record<string, unknown>>;
+};
+
+export async function sendReportReleasesBulk(body: {
+  classId: string;
+  streamId?: string;
+  academicYearId?: string;
+  termId?: string;
+  assessmentType?: string;
+  studentIds?: string[];
+  channel: ReportReleaseSendChannel;
+  confirm: boolean;
+  previewOnly?: boolean;
+}): Promise<ReportReleaseSendResponse> {
+  const res = await fetch(`${API_BASE}/api/reports/release/send-bulk`, {
+    method: "POST",
+    headers: makeRequestHeaders({ "Content-Type": "application/json" }),
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(await parseApiError(res, "Could not send report links"));
+  return res.json() as Promise<ReportReleaseSendResponse>;
 }
 

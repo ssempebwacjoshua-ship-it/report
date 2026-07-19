@@ -10,6 +10,7 @@ const mockMarkSent = vi.fn();
 const mockMarkSentBulk = vi.fn();
 const mockRevokeIssuedReport = vi.fn();
 const mockRevokeBulk = vi.fn();
+const mockSendReportReleasesBulk = vi.fn();
 const mockFetchReportContext = vi.fn();
 const mockFetchSettings = vi.fn();
 
@@ -20,6 +21,7 @@ vi.mock("../../client/releaseCenterClient", () => ({
   markSentBulk: (...args: unknown[]) => mockMarkSentBulk(...args),
   revokeIssuedReport: (...args: unknown[]) => mockRevokeIssuedReport(...args),
   revokeBulk: (...args: unknown[]) => mockRevokeBulk(...args),
+  sendReportReleasesBulk: (...args: unknown[]) => mockSendReportReleasesBulk(...args),
 }));
 
 vi.mock("../../client/reportsClient", () => ({
@@ -105,6 +107,22 @@ describe("ReleaseCenterPage", () => {
     mockMarkSentBulk.mockResolvedValue({ updated: 0, skipped: [] });
     mockRevokeIssuedReport.mockResolvedValue(undefined);
     mockRevokeBulk.mockResolvedValue({ updated: 0, skipped: [] });
+    mockSendReportReleasesBulk.mockResolvedValue({
+      preview: {
+        totalSelected: 1,
+        issuableLinks: 1,
+        missingContacts: 0,
+        alreadySent: 0,
+        estimatedSmsSegments: 1,
+        estimatedSmsCredits: 1,
+      },
+      submitted: 0,
+      failed: 0,
+      skippedDuplicate: 0,
+      missingContact: 0,
+      alreadySent: 0,
+      skipped: [],
+    });
   });
 
   afterEach(() => {
@@ -118,6 +136,26 @@ describe("ReleaseCenterPage", () => {
 
     const row = getDesktopRow("Ada Lovelace");
     expect(within(row).getByRole("button", { name: "Issue link" })).toBeEnabled();
+  });
+
+  it("shows bulk send controls and previews selected report delivery counts", async () => {
+    mockFetchReleaseStatus.mockResolvedValue(buildStatusResponse([buildRow()]));
+
+    await renderPage();
+
+    expect(screen.getByRole("heading", { name: "Send reports to parents" })).toBeInTheDocument();
+    const row = getDesktopRow("Ada Lovelace");
+    fireEvent.click(within(row).getByRole("checkbox"));
+    fireEvent.click(screen.getByRole("button", { name: "Preview send" }));
+
+    await waitFor(() => expect(mockSendReportReleasesBulk).toHaveBeenCalledWith(expect.objectContaining({
+      channel: "SMS",
+      confirm: false,
+      previewOnly: true,
+      studentIds: ["student-1"],
+    })));
+    expect(await screen.findByText(/Total selected:/i)).toBeInTheDocument();
+    expect(screen.getByText(/SMS credits:/i)).toBeInTheDocument();
   });
 
   it("shows enabled Reissue for a READY row with a revoked report", async () => {

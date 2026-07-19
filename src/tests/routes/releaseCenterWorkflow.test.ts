@@ -5,8 +5,8 @@ import { buildReportLinkToken, buildReportVersionSignature } from "../../server/
 import { defaultSettingsSections } from "../../shared/types/settings";
 import { sanitizeReportCardForRender, sanitizeReportPersonalizationForReport, sanitizeSchoolSettingsForReport } from "../../shared/utils/reportContentLimits";
 
-const baseSchoolId = "school-1";
-const baseStudentId = "student-1";
+const baseSchoolId = "00000000-0000-4000-8000-000000000001";
+const baseStudentId = "00000000-0000-4000-8000-000000000101";
 const baseAcademicYear = "2025/2026";
 const baseTerm = "Term 1";
 const baseAssessmentType = "EOT";
@@ -114,6 +114,9 @@ function mountReleaseCenterApp(prisma: any) {
   }));
   vi.doMock("../../server/repositories/settingsRepository", () => ({
     getSettingsSections: vi.fn(async () => ({
+      school: {
+        schoolName: "Preview School",
+      },
       academic: {
         defaultAssessmentType: baseAssessmentType,
         termEndDate: "2099-06-30",
@@ -134,6 +137,9 @@ function mountReleaseCenterApp(prisma: any) {
     const app = express();
     app.use(express.json());
     app.use(releaseCenterRoutes());
+    app.use((error: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+      res.status((error as { status?: number })?.status ?? 500).json({ error: error instanceof Error ? error.message : String(error) });
+    });
     return app;
   });
 }
@@ -142,6 +148,7 @@ afterEach(() => {
   vi.resetModules();
   vi.clearAllMocks();
   vi.restoreAllMocks();
+  vi.unstubAllEnvs();
   vi.doUnmock("../../server/db/prisma");
   vi.doUnmock("../../server/middleware/requireAuth");
   vi.doUnmock("../../server/repositories/settingsRepository");
@@ -151,6 +158,146 @@ afterEach(() => {
 });
 
 describe("releaseCenterRoutes workflow", () => {
+  it("sends a personalized report release through communication rows and marks the issued report sent", async () => {
+    vi.stubEnv("COMMUNICATION_DRY_RUN", "true");
+    const issuedCreate = vi.fn(async (args: any) => ({ id: args.data.id, sentAt: null }));
+    const issuedUpdateMany = vi.fn(async () => ({ count: 1 }));
+    const communicationRecipientCreate = vi.fn(async (args: any) => ({ id: "recipient-1", ...args.data }));
+    const communicationDeliveryCreate = vi.fn(async (args: any) => ({ id: "delivery-1", ...args.data }));
+    const communicationDeliveryUpdate = vi.fn(async () => ({}));
+    const communicationDeliveryAttemptCreate = vi.fn(async () => ({ id: "attempt-1" }));
+    const communicationDeliveryAttemptUpdate = vi.fn(async () => ({}));
+    const campaignCreate = vi.fn(async () => ({ id: "campaign-1" }));
+    const campaignUpdate = vi.fn(async () => ({}));
+
+    const prisma = {
+      issuedReport: {
+        findMany: vi.fn(async () => []),
+        create: issuedCreate,
+        updateMany: issuedUpdateMany,
+      },
+      communicationDelivery: {
+        findFirst: vi.fn(async () => null),
+        create: communicationDeliveryCreate,
+        update: communicationDeliveryUpdate,
+      },
+      communicationCampaign: {
+        create: campaignCreate,
+        update: campaignUpdate,
+      },
+      communicationAudienceSnapshot: {
+        create: vi.fn(async () => ({ id: "snapshot-1" })),
+      },
+      communicationRecipient: {
+        create: communicationRecipientCreate,
+      },
+      communicationDeliveryAttempt: {
+        create: communicationDeliveryAttemptCreate,
+        update: communicationDeliveryAttemptUpdate,
+      },
+      auditLog: { create: vi.fn(async () => ({})) },
+      guardianContact: {
+        findMany: vi.fn(async () => [{
+          id: "guardian-1",
+          schoolId: baseSchoolId,
+          studentId: baseStudentId,
+          guardianName: "Parent",
+          preferredContactMethod: "SMS",
+          phone: "0770000000",
+          email: null,
+          isPrimary: true,
+          canReceiveReports: true,
+          createdAt: new Date(),
+        }]),
+      },
+    };
+
+    const app = await mountReleaseCenterApp(prisma);
+    const res = await request(app)
+      .post("/api/reports/release/send-bulk")
+      .send({ classId: "class-1", assessmentType: baseAssessmentType, channel: "SMS", confirm: true, studentIds: [baseStudentId] });
+
+    expect(res.status).toBe(200);
+    expect(res.body.submitted).toBe(1);
+    expect(res.body.failed).toBe(0);
+    expect(campaignCreate).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ type: "REPORT_RELEASE" }),
+    }));
+    expect(communicationRecipientCreate).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        schoolId: baseSchoolId,
+        studentId: baseStudentId,
+        personalisationJson: expect.objectContaining({
+          studentName: "Ada Lovelace",
+          parentLink: expect.stringContaining("/parent/r/"),
+          issuedReportId: expect.any(String),
+        }),
+      }),
+    }));
+    expect(communicationDeliveryCreate).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        schoolId: baseSchoolId,
+        channel: "SMS",
+        renderedContentHash: expect.any(String),
+      }),
+    }));
+    expect(JSON.stringify(communicationRecipientCreate.mock.calls[0]?.[0])).not.toContain("Test SMS from School Connect");
+    expect(issuedUpdateMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ schoolId: baseSchoolId, sentAt: null }),
+      data: expect.objectContaining({ sentAt: expect.any(Date) }),
+    }));
+  });
+
+  it("does not mark an issued report sent when provider submission fails", async () => {
+    vi.stubEnv("COMMUNICATION_DRY_RUN", "false");
+    vi.stubEnv("SMS_PROVIDER", "yoola");
+    vi.stubEnv("SMS_PROVIDER_ENABLED", "false");
+    const issuedUpdateMany = vi.fn(async () => ({ count: 1 }));
+    const prisma = {
+      issuedReport: {
+        findMany: vi.fn(async () => []),
+        create: vi.fn(async (args: any) => ({ id: args.data.id, sentAt: null })),
+        updateMany: issuedUpdateMany,
+      },
+      communicationDelivery: {
+        findFirst: vi.fn(async () => null),
+        create: vi.fn(async (args: any) => ({ id: "delivery-1", ...args.data })),
+        update: vi.fn(async () => ({})),
+      },
+      communicationCampaign: { create: vi.fn(async () => ({ id: "campaign-1" })), update: vi.fn(async () => ({})) },
+      communicationAudienceSnapshot: { create: vi.fn(async () => ({ id: "snapshot-1" })) },
+      communicationRecipient: { create: vi.fn(async () => ({ id: "recipient-1" })) },
+      communicationDeliveryAttempt: { create: vi.fn(async () => ({ id: "attempt-1" })), update: vi.fn(async () => ({})) },
+      communicationChannelSetting: { findFirst: vi.fn(async () => null) },
+      auditLog: { create: vi.fn(async () => ({})) },
+      guardianContact: {
+        findMany: vi.fn(async () => [{
+          id: "guardian-1",
+          schoolId: baseSchoolId,
+          studentId: baseStudentId,
+          guardianName: "Parent",
+          preferredContactMethod: "SMS",
+          phone: "0770000000",
+          email: null,
+          isPrimary: true,
+          canReceiveReports: true,
+          createdAt: new Date(),
+        }]),
+      },
+    };
+
+    const app = await mountReleaseCenterApp(prisma);
+    const res = await request(app)
+      .post("/api/reports/release/send-bulk")
+      .send({ classId: "class-1", assessmentType: baseAssessmentType, channel: "SMS", confirm: true, studentIds: [baseStudentId] });
+
+    expect(res.status).toBe(200);
+    expect(res.body.failed).toBe(1);
+    expect(issuedUpdateMany).not.toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ sentAt: expect.any(Date) }),
+    }));
+  });
+
   it("creates a replacement report when the previous link is expired", async () => {
     const auditLogCreate = vi.fn(async () => ({}));
     const issuedUpdateMany = vi.fn(async () => ({ count: 0 }));

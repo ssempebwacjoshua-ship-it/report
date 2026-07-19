@@ -7,11 +7,14 @@ import {
   markSentBulk,
   revokeIssuedReport,
   revokeBulk,
+  sendReportReleasesBulk,
   type DeliveryStatus,
   type IssuedLinkData,
   type ReleaseFilters,
   type ReleaseRow,
   type ReleaseSummary,
+  type ReportReleaseSendChannel,
+  type ReportReleaseSendResponse,
 } from "../client/releaseCenterClient";
 import { fetchReportContext } from "../client/reportsClient";
 import { fetchSettings as loadSettings } from "../client/settingsClient";
@@ -67,6 +70,8 @@ const STATUS_CONFIG: Record<DeliveryStatus, { label: string; classes: string }> 
   NOT_ISSUED: { label: "Not issued", classes: "bg-amber-100 text-amber-700" },
   LINK_GENERATED: { label: "Link generated", classes: "bg-blue-100 text-blue-700" },
   READY_TO_SEND: { label: "Ready to send", classes: "bg-sky-100 text-sky-700" },
+  SENDING: { label: "Sending", classes: "bg-blue-100 text-blue-700" },
+  FAILED: { label: "Failed", classes: "bg-red-100 text-red-700" },
   SENT_MANUALLY: { label: "Sent manually", classes: "bg-emerald-100 text-emerald-700" },
   OPENED: { label: "Opened", classes: "bg-violet-100 text-violet-700" },
   DOWNLOADED: { label: "Downloaded", classes: "bg-green-100 text-green-700" },
@@ -296,6 +301,10 @@ export function ReleaseCenterPage() {
   const [issuingIds, setIssuingIds] = useState<Set<string>>(new Set());
   const [bulkIssuing, setBulkIssuing] = useState(false);
   const [bulkResult, setBulkResult] = useState<string | null>(null);
+  const [sendChannel, setSendChannel] = useState<ReportReleaseSendChannel>("SMS");
+  const [sendScope, setSendScope] = useState<"SELECTED" | "FILTER">("SELECTED");
+  const [sendPreview, setSendPreview] = useState<ReportReleaseSendResponse | null>(null);
+  const [sendingReports, setSendingReports] = useState(false);
   const [assessmentMismatchWarning, setAssessmentMismatchWarning] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [activeFilter, setActiveFilter] = useState<"ALL" | "READY" | "MISSING_CONTACT" | "SENT" | "OPENED" | "DOWNLOADED" | "NEEDS_ATTENTION">("ALL");
@@ -487,6 +496,64 @@ export function ReleaseCenterPage() {
     void loadStatus(filters, search);
   }
 
+  function getSendStudentIds() {
+    if (sendScope === "SELECTED") return selectedRows.map((row) => row.studentId);
+    return rows
+      .filter((row) => row.reportReadiness === "READY" || row.reportReadiness === "MISSING_MARKS")
+      .map((row) => row.studentId);
+  }
+
+  async function previewBulkSend() {
+    const studentIds = getSendStudentIds();
+    if (studentIds.length === 0) {
+      setBulkResult("No ready reports found for this send scope.");
+      return;
+    }
+    setSendingReports(true);
+    setBulkResult(null);
+    setError("");
+    try {
+      const result = await sendReportReleasesBulk({
+        ...filters,
+        studentIds,
+        channel: sendChannel,
+        confirm: false,
+        previewOnly: true,
+      });
+      setSendPreview(result);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not preview report send.");
+    } finally {
+      setSendingReports(false);
+    }
+  }
+
+  async function confirmBulkSend() {
+    const studentIds = getSendStudentIds();
+    if (!sendPreview || studentIds.length === 0) return;
+    if (!window.confirm(`This will send personalized report links to ${sendPreview.preview.issuableLinks - sendPreview.preview.alreadySent} parents.`)) return;
+    setSendingReports(true);
+    setBulkResult(null);
+    setError("");
+    try {
+      const result = await sendReportReleasesBulk({
+        ...filters,
+        studentIds,
+        channel: sendChannel,
+        confirm: true,
+      });
+      setSendPreview(result);
+      setBulkResult(
+        `Submitted ${result.submitted}; failed ${result.failed}; duplicates skipped ${result.skippedDuplicate}; missing contacts ${result.missingContact}; already sent ${result.alreadySent}.`,
+      );
+      void loadStatus(filters, search);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not send report links.");
+    } finally {
+      setSendingReports(false);
+    }
+  }
+
   // ── Mark sent ─────────────────────────────────────────────────────────────
 
   async function handleMarkSent(row: ReleaseRow) {
@@ -665,6 +732,46 @@ export function ReleaseCenterPage() {
           </button>
         </div>
       </header>
+
+      <section className="premium-card no-print rounded-2xl px-4 py-3">
+        <div className="flex flex-wrap items-end gap-3">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-wide text-blue-600">Bulk communication</p>
+            <h2 className="text-base font-bold text-slate-950">Send reports to parents</h2>
+            <p className="mt-1 text-sm text-slate-600">Issues missing links, builds one message per student, and sends through Communications.</p>
+          </div>
+          <label className="grid gap-1 text-xs font-semibold uppercase text-slate-500">
+            Channel
+            <select className={selectCls} value={sendChannel} onChange={(event) => setSendChannel(event.target.value as ReportReleaseSendChannel)}>
+              <option value="SMS">SMS</option>
+              <option value="WHATSAPP">WhatsApp</option>
+            </select>
+          </label>
+          <label className="grid gap-1 text-xs font-semibold uppercase text-slate-500">
+            Scope
+            <select className={selectCls} value={sendScope} onChange={(event) => setSendScope(event.target.value as "SELECTED" | "FILTER")}>
+              <option value="SELECTED">Selected students</option>
+              <option value="FILTER">All ready in current filter</option>
+            </select>
+          </label>
+          <button type="button" className="btn btn-secondary" onClick={() => void previewBulkSend()} disabled={sendingReports || (sendScope === "SELECTED" && !anySelected)}>
+            {sendingReports ? "Checking..." : "Preview send"}
+          </button>
+          <button type="button" className="btn btn-primary" onClick={() => void confirmBulkSend()} disabled={sendingReports || !sendPreview || sendPreview.preview.issuableLinks === sendPreview.preview.alreadySent}>
+            {sendingReports ? "Sending..." : "Send reports to parents"}
+          </button>
+        </div>
+        {sendPreview ? (
+          <div className="mt-3 grid gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700 sm:grid-cols-3 lg:grid-cols-6">
+            <p>Total selected: <span className="font-bold">{sendPreview.preview.totalSelected}</span></p>
+            <p>Issuable links: <span className="font-bold">{sendPreview.preview.issuableLinks}</span></p>
+            <p>Missing contact: <span className="font-bold">{sendPreview.preview.missingContacts}</span></p>
+            <p>Already sent: <span className="font-bold">{sendPreview.preview.alreadySent}</span></p>
+            <p>SMS segments: <span className="font-bold">{sendPreview.preview.estimatedSmsSegments}</span></p>
+            <p>SMS credits: <span className="font-bold">{sendPreview.preview.estimatedSmsCredits}</span></p>
+          </div>
+        ) : null}
+      </section>
 
       <div className="no-print flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">
         <button type="button" className="text-blue-600 underline" onClick={() => setSelectedIds(new Set(visibleRows.map((r) => r.studentId)))}>
