@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AppShell } from "../../components/layout/AppShell";
@@ -79,6 +79,8 @@ describe("AppShell role access", () => {
         dispatchEvent: vi.fn(),
       })),
     });
+    HTMLElement.prototype.scrollIntoView = vi.fn();
+    window.location.hash = "";
   });
 
   it("sends SECURITY users straight to gate without loading settings", async () => {
@@ -93,6 +95,23 @@ describe("AppShell role access", () => {
     expect(screen.getByRole("link", { name: "Pass-outs" })).toHaveAttribute("href", "/nfc/gate#gate-pass-outs");
     expect(mockFetchSettings).not.toHaveBeenCalled();
     expect(screen.queryByText("Smart Pages Content")).not.toBeInTheDocument();
+  });
+
+  it("updates the dedicated gate bottom nav active section when clicked", async () => {
+    authState.user = { id: "u1", schoolId: "school-1", name: "Gate Security", role: "SECURITY" };
+    authState.token = "tok";
+
+    renderShell("/nfc/gate");
+
+    await waitFor(() => expect(screen.getByText("Gate Content")).toBeInTheDocument());
+    const scanLink = screen.getByRole("link", { name: "Scan" });
+    const passOutsLink = screen.getByRole("link", { name: "Pass-outs" });
+
+    expect(scanLink).toHaveClass("bg-blue-50");
+    fireEvent.click(passOutsLink);
+
+    await waitFor(() => expect(passOutsLink).toHaveClass("bg-blue-50"));
+    expect(scanLink).not.toHaveClass("bg-blue-50");
   });
 
   it("renders the new gate UI route for NFC token links", async () => {

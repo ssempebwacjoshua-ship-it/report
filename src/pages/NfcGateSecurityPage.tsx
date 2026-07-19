@@ -434,18 +434,16 @@ export function NfcGateSecurityPage() {
   }
 
   return (
-    <main className="grid gap-3 pb-28 text-[13px] sm:gap-4">
-      <header className="overflow-hidden rounded-2xl border border-slate-200 bg-slate-950 p-3 text-white shadow-xl sm:p-4">
-        <p className="text-[10px] font-black uppercase tracking-[0.24em] text-cyan-200">Gate PWA</p>
-        <div className="mt-1 flex flex-wrap items-end justify-between gap-2">
-          <div>
-            <h1 className="text-2xl font-black tracking-tight sm:text-3xl">Gate Security</h1>
-            <p className="mt-1 max-w-2xl text-xs text-slate-300">Fast scan screen for entry, pass-out checkout, return check-in, and visitor control.</p>
-          </div>
-          <div className="flex flex-wrap gap-1.5 text-[10px] font-black uppercase tracking-wide">
-            <span className="rounded-full border border-white/10 bg-white/10 px-2 py-1">{scanner.isOnline ? "Online" : "Offline"}</span>
-            <span className="rounded-full border border-white/10 bg-white/10 px-2 py-1">{passOuts.length} pass-outs</span>
-          </div>
+    <main className="grid gap-3 pb-28 sm:gap-4">
+      <header className="page-header flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <p className="text-xs font-bold uppercase tracking-wide text-blue-600">NFC Operations</p>
+          <h1 className="text-xl font-bold text-slate-950 sm:text-2xl">Gate Security</h1>
+          <p className="mt-1 text-sm text-slate-600">Scan entry, pass-outs, returns, and visitors from one compact gate screen.</p>
+        </div>
+        <div className="flex flex-wrap gap-1.5 text-[11px] font-bold uppercase tracking-wide">
+          <span className="rounded-full border border-slate-200 bg-white px-2 py-1 text-slate-600">{scanner.isOnline ? "Online" : "Offline"}</span>
+          <span className="rounded-full border border-blue-100 bg-blue-50 px-2 py-1 text-blue-700">{passOuts.length} pass-outs</span>
         </div>
       </header>
 
@@ -512,7 +510,7 @@ export function NfcGateSecurityPage() {
       )}
 
       <section className="grid gap-2 min-[520px]:grid-cols-[minmax(0,1.1fr)_minmax(220px,0.9fr)] sm:gap-3 xl:grid-cols-[minmax(0,1fr)_360px]">
-        <div id="gate-scan" className="flex scroll-mt-4 flex-col gap-2 sm:gap-3">
+        <div id="gate-scan" className="flex scroll-mt-20 flex-col gap-2 sm:gap-3">
           <NfcScanPanel
             state={scanner.state}
             error={scanner.error}
@@ -525,7 +523,7 @@ export function NfcGateSecurityPage() {
           />
 
           {scanResult && (
-            <div className={`rounded-2xl border p-3 shadow-sm sm:p-4 ${allowed ? "border-emerald-200 bg-emerald-50" : "border-red-200 bg-red-50"}`}>
+            <div className={`rounded-xl border p-3 shadow-sm sm:p-4 ${allowed ? "border-emerald-200 bg-emerald-50" : "border-red-200 bg-red-50"}`}>
               <div className="flex items-center justify-between">
                 <p className={`text-2xl font-black sm:text-3xl ${allowed ? "text-emerald-700" : "text-red-700"}`}>
                   {allowed ? "ALLOWED" : "BLOCKED"}
@@ -573,7 +571,7 @@ export function NfcGateSecurityPage() {
             </div>
           )}
 
-          <section id="gate-visitors" className="premium-card scroll-mt-4 rounded-xl p-3 sm:p-4">
+          <section id="gate-visitors" className="premium-card scroll-mt-20 rounded-xl p-3 sm:p-4">
             <div className="flex items-start justify-between gap-3">
               <div>
                 <h2 className="text-base font-bold text-slate-950">Visitor check-in</h2>
@@ -637,7 +635,7 @@ export function NfcGateSecurityPage() {
         </div>
 
         <aside className="grid content-start gap-2 sm:gap-3">
-          <section id="gate-pass-outs" className="premium-card scroll-mt-4 rounded-xl p-3 sm:p-4">
+          <section id="gate-pass-outs" className="premium-card scroll-mt-20 rounded-xl p-3 sm:p-4">
             <div className="flex items-center justify-between gap-3">
               <h2 className="text-base font-bold text-slate-950">Pass-outs</h2>
               <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-blue-700">
@@ -676,7 +674,7 @@ export function NfcGateSecurityPage() {
             </div>
           </section>
 
-          <section id="gate-recent" className="premium-card scroll-mt-4 rounded-xl p-3 sm:p-4">
+          <section id="gate-recent" className="premium-card scroll-mt-20 rounded-xl p-3 sm:p-4">
             <h2 className="text-base font-bold text-slate-950">Recent gate scans</h2>
             <div className="mt-3 grid gap-2">
               {isOfflineReady ? (
