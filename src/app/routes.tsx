@@ -112,6 +112,7 @@ export const router = createBrowserRouter([
   { path: "/reset-password", element: <TokenPasswordPage mode="reset" /> },
   { path: "/account/setup", element: <TokenPasswordPage mode="setup" /> },
   { path: "/logout", element: <LogoutPage /> },
+  { path: "/r/:code", element: <ParentReportPage /> },
   { path: "/parent/r/:token", element: <ParentReportPage /> },
   { path: "/verify/:code", element: <VerifyPage /> },
   { path: "/nfc/t/:token", element: <NfcTokenPage /> },

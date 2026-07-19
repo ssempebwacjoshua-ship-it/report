@@ -996,6 +996,7 @@ model IssuedReport {
   reportSnapshotJson Json
   referenceCode      String             @unique
   parentAccessToken  String             @unique
+  publicShortCode    String?            @unique
   status             IssuedReportStatus @default(ISSUED)
   issuedAt           DateTime           @default(now())
   expiresAt          DateTime?
@@ -1017,6 +1018,7 @@ model IssuedReport {
   student            Student            @relation(fields: [studentId], references: [id], onDelete: Cascade)
 
   @@index([parentAccessToken])
+  @@index([publicShortCode])
   @@index([referenceCode])
   @@index([schoolId, status])
   @@index([studentId, status])

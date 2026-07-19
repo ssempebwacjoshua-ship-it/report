@@ -66,6 +66,16 @@ function renderPage() {
   );
 }
 
+function renderShortPage() {
+  return render(
+    <MemoryRouter initialEntries={["/r/SHORT1234"]}>
+      <Routes>
+        <Route path="/r/:code" element={<ParentReportPage />} />
+      </Routes>
+    </MemoryRouter>,
+  );
+}
+
 describe("ParentReportPage", () => {
   it("shows Print Report and Download PDF buttons", async () => {
     fetchMock.mockResolvedValueOnce({ ok: true, json: async () => issuedPayload });
@@ -123,6 +133,15 @@ describe("ParentReportPage", () => {
     renderPage();
 
     await waitFor(() => expect(screen.getByText("Valid")).toBeInTheDocument());
+  });
+
+  it("loads short-code links from /api/p/short/:code", async () => {
+    fetchMock.mockResolvedValueOnce({ ok: true, json: async () => issuedPayload });
+
+    renderShortPage();
+
+    await waitFor(() => expect(screen.getByText("Ada Lovelace")).toBeInTheDocument());
+    expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining("/api/p/short/SHORT1234"));
   });
 
   it("shows a Revoked badge and warning for revoked reports", async () => {

@@ -34,15 +34,16 @@ type ParentReportData = {
 type ApiErrorBody = { message?: string; code?: string; error?: string };
 
 export function ParentReportPage() {
-  const { token } = useParams<{ token: string }>();
+  const { token, code } = useParams<{ token?: string; code?: string }>();
   const [data, setData] = useState<ParentReportData | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
+  const apiPath = code ? `/api/p/short/${code}` : token ? `/api/p/${token}` : null;
 
   useEffect(() => {
-    if (!token) return;
-    fetch(`${API_BASE}/api/p/${token}`)
+    if (!apiPath) return;
+    fetch(`${API_BASE}${apiPath}`)
       .then(async (res) => {
         if (!res.ok) {
           const raw = await res.text();
@@ -55,11 +56,11 @@ export function ParentReportPage() {
       .then(setData)
       .catch((caught: Error) => setError(caught.message))
       .finally(() => setLoading(false));
-  }, [token]);
+  }, [apiPath]);
 
   function handlePrint() {
-    if (token) {
-      fetch(`${API_BASE}/api/p/${token}/downloaded`, { method: "POST" }).catch(() => {});
+    if (apiPath) {
+      fetch(`${API_BASE}${apiPath}/downloaded`, { method: "POST" }).catch(() => {});
     }
     window.print();
   }

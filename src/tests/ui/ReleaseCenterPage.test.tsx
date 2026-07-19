@@ -443,4 +443,28 @@ describe("ReleaseCenterPage", () => {
     const row = getDesktopRow("Ada Lovelace");
     expect(within(row).getAllByRole("button", { name: /Issue link|Reissue/ })).toHaveLength(1);
   });
+
+  it("stores selected bulk-issued links in state so the row shows a working link action", async () => {
+    mockFetchReleaseStatus.mockResolvedValue(buildStatusResponse([buildRow()]));
+    mockIssueBulk.mockResolvedValue({
+      issued: [{
+        studentId: "student-1",
+        studentName: "Ada Lovelace",
+        referenceCode: "20260719-ABC123",
+        publicShortCode: "SHORT1234",
+        parentLink: "https://schools.ssamenj.online/r/SHORT1234",
+        parentAccessToken: null,
+        issuedReportId: "issued-1",
+      }],
+      skipped: [],
+    });
+
+    await renderPage();
+
+    const row = getDesktopRow("Ada Lovelace");
+    fireEvent.click(within(row).getByRole("checkbox"));
+    fireEvent.click(screen.getByRole("button", { name: "Issue links for selected" }));
+
+    await waitFor(() => expect(within(getDesktopRow("Ada Lovelace")).getByRole("button", { name: "Copy link" })).toBeInTheDocument());
+  });
 });

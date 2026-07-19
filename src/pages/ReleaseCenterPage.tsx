@@ -129,6 +129,19 @@ function buildEmailBody(
   return buildMessage(row, link, schoolName, meta);
 }
 
+function buildIssuedLinkFromRow(row: ReleaseRow): IssuedLinkData | null {
+  if (!row.parentLink || !row.issuedReport) return null;
+  return {
+    studentId: row.studentId,
+    studentName: row.studentName,
+    referenceCode: row.issuedReport.referenceCode,
+    publicShortCode: row.issuedReport.publicShortCode ?? "",
+    parentLink: row.parentLink,
+    parentAccessToken: null,
+    issuedReportId: row.issuedReport.id,
+  };
+}
+
 // ── Summary cards ─────────────────────────────────────────────────────────────
 
 function SummaryCard({ label, value, tone }: { label: string; value: number; tone: string }) {
@@ -478,6 +491,13 @@ export function ReleaseCenterPage() {
     setError("");
     try {
       const result = await issueBulk({ ...filters, studentIds: ids });
+      setIssuedLinks((prev) => {
+        const next = new Map(prev);
+        for (const item of result.issued) {
+          next.set(item.studentId, item);
+        }
+        return next;
+      });
       const combinedSkipped = [...locallyBlocked, ...result.skipped];
       const skippedSummary = summarizeSkippedReasons(combinedSkipped);
       setBulkResult(
@@ -603,7 +623,7 @@ export function ReleaseCenterPage() {
     const header = "Student,Adm No,Guardian,Method,Contact,Status,Ref Code,Link\n";
     const body = rows
       .map((row) => {
-        const link = issuedLinks.get(row.studentId);
+        const link = issuedLinks.get(row.studentId) ?? buildIssuedLinkFromRow(row);
         return [
           `"${row.studentName}"`,
           row.admissionNumber,
@@ -630,7 +650,7 @@ export function ReleaseCenterPage() {
     const header = "studentName,admissionNumber,guardianName,preferredMethod,phone,email,reportRef,reportLink,deliveryStatus,messageText\n";
     const body = selected
       .map((row) => {
-        const link = issuedLinks.get(row.studentId) ?? null;
+        const link = issuedLinks.get(row.studentId) ?? buildIssuedLinkFromRow(row);
         const message = link ? buildMessage(row, link, schoolName, meta) : "Issue link first";
         return [
           `"${row.studentName}"`,
@@ -658,7 +678,7 @@ export function ReleaseCenterPage() {
   async function copySelectedMessages() {
     const text = selectedRows
       .map((row) => {
-        const link = issuedLinks.get(row.studentId) ?? null;
+        const link = issuedLinks.get(row.studentId) ?? buildIssuedLinkFromRow(row);
         if (!link) return `${row.studentName} - Issue link first`;
         return buildMessage(row, link, schoolName, meta);
       })
@@ -951,7 +971,7 @@ export function ReleaseCenterPage() {
               </thead>
               <tbody>
                 {visibleRows.map((row, i) => {
-                  const link = issuedLinks.get(row.studentId) ?? null;
+                  const link = issuedLinks.get(row.studentId) ?? buildIssuedLinkFromRow(row);
                   const ref = link?.referenceCode ?? row.issuedReport?.referenceCode;
                   return (
                     <tr
@@ -1008,7 +1028,7 @@ export function ReleaseCenterPage() {
           {/* Mobile card list */}
           <div className="grid gap-3 xl:hidden">
             {visibleRows.map((row) => {
-              const link = issuedLinks.get(row.studentId) ?? null;
+              const link = issuedLinks.get(row.studentId) ?? buildIssuedLinkFromRow(row);
               const ref = link?.referenceCode ?? row.issuedReport?.referenceCode;
               return (
                 <div key={row.studentId} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">

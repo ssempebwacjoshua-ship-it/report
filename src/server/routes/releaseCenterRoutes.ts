@@ -7,7 +7,8 @@ import { entitlementErrorBody, evaluateSubscriptionEntitlement } from "../servic
 import { loadReportEngineInput } from "../repositories/reportsRepository";
 import { getSettingsSections } from "../repositories/settingsRepository";
 import { buildReports } from "../services/reportEngine";
-import { buildReportLinkToken, buildReportVersionSignature, getReportLinkExpiry, isReportLinkExpired, sha256Hex } from "../services/reportLinkService";
+import { getReportLinkExpiry, isReportLinkExpired } from "../services/reportLinkService";
+import { issueOrReuseIssuedReportLink } from "../services/issuedReportLinkService";
 import { defaultSettingsSections } from "../../shared/types/settings";
 import type { PreferredContactMethod } from "@prisma/client";
 import { buildParentReportPublicUrl } from "../config/publicUrl";
@@ -22,15 +23,6 @@ import {
 } from "../../shared/communications";
 import { createProviderForChannel, DryRunMessageProvider, resolveSmsProvider } from "../services/communicationProviders";
 import { isCommunicationDryRun } from "../services/communicationEngine";
-
-function generateReferenceCode(): string {
-  const now = new Date();
-  const y = now.getFullYear();
-  const m = String(now.getMonth() + 1).padStart(2, "0");
-  const d = String(now.getDate()).padStart(2, "0");
-  const suffix = crypto.randomBytes(3).toString("hex").toUpperCase();
-  return `${y}${m}${d}-${suffix}`;
-}
 
 // ── Contact method resolution ─────────────────────────────────────────────────
 
@@ -144,7 +136,6 @@ async function ensureIssuedReportForCard(input: {
   card: ReturnType<typeof buildReports>["cards"][number];
 }) {
   const { user, filters, settings, reportResult, engineInput, card } = input;
-  const termExpiry = getReportLinkExpiry(settings.academic.termEndDate);
   const snapshot = {
     card: sanitizeReportCardForRender(card),
     settings: {
@@ -156,101 +147,27 @@ async function ensureIssuedReportForCard(input: {
     issuedByName: user.name,
     filters,
   };
-  const snapshotSignature = buildReportVersionSignature(snapshot);
-  const existingReports = await prisma.issuedReport.findMany({
-    where: {
-      schoolId: user.schoolId,
-      studentId: card.studentId,
-      academicYear: engineInput.academicYearName,
-      term: engineInput.termName,
-      assessmentType: filters.assessmentType,
-    },
-    orderBy: { issuedAt: "desc" },
-  });
-  const activeExisting = existingReports.find((report) => report.status === "ISSUED" && !isReportLinkExpired(report.expiresAt));
-  const activeExistingSignature = activeExisting ? buildReportVersionSignature(activeExisting.reportSnapshotJson) : null;
-  if (activeExisting && activeExistingSignature === snapshotSignature) {
-    const rawToken = buildReportLinkToken({
-      reportId: activeExisting.id,
-      snapshotSignature,
-      schoolId: user.schoolId,
-      studentId: card.studentId,
-      academicYear: engineInput.academicYearName,
-      term: engineInput.termName,
-      assessmentType: filters.assessmentType,
-    });
-    return {
-      issuedReportId: activeExisting.id,
-      parentLink: `${getPublicAppUrl()}/parent/r/${rawToken}`,
-      referenceCode: activeExisting.referenceCode,
-      sentAt: activeExisting.sentAt,
-    };
-  }
-
-  if (activeExisting) {
-    await prisma.issuedReport.updateMany({
-      where: {
-        schoolId: user.schoolId,
-        studentId: card.studentId,
-        academicYear: engineInput.academicYearName,
-        term: engineInput.termName,
-        assessmentType: filters.assessmentType,
-        status: "ISSUED",
-      },
-      data: { status: "SUPERSEDED", updatedAt: new Date() },
-    });
-  }
-
-  const recordId = crypto.randomUUID();
-  const rawToken = buildReportLinkToken({
-    reportId: recordId,
-    snapshotSignature,
+  const result = await issueOrReuseIssuedReportLink({
+    prisma,
     schoolId: user.schoolId,
     studentId: card.studentId,
     academicYear: engineInput.academicYearName,
     term: engineInput.termName,
     assessmentType: filters.assessmentType,
-  });
-  const referenceCode = generateReferenceCode();
-  const record = await prisma.issuedReport.create({
-    data: {
-      id: recordId,
-      schoolId: user.schoolId,
-      studentId: card.studentId,
-      academicYear: engineInput.academicYearName,
-      term: engineInput.termName,
-      assessmentType: filters.assessmentType,
-      reportSnapshotJson: snapshot,
-      referenceCode,
-      parentAccessToken: sha256Hex(rawToken),
-      status: "ISSUED",
-      expiresAt: termExpiry,
-      issuedById: user.userId,
-      issuedByName: user.name,
-    },
-  });
-  await prisma.auditLog.create({
-    data: {
-      schoolId: user.schoolId,
-      action: "report.link_issued",
-      correlationId: record.id,
-      details: {
-        issuedReportId: record.id,
-        referenceCode,
-        studentId: card.studentId,
-        academicYear: engineInput.academicYearName,
-        term: engineInput.termName,
-        assessmentType: filters.assessmentType,
-        actorId: user.userId,
-        actorName: user.name,
-      },
-    },
+    snapshot,
+    issuedById: user.userId,
+    issuedByName: user.name,
+    auditActorId: user.userId,
+    auditActorName: user.name,
+    expiresAt: getReportLinkExpiry(settings.academic.termEndDate),
   });
   return {
-    issuedReportId: record.id,
-    parentLink: `${getPublicAppUrl()}/parent/r/${rawToken}`,
-    referenceCode,
-    sentAt: record.sentAt,
+    issuedReportId: result.issuedReportId,
+    parentLink: result.parentLink,
+    referenceCode: result.referenceCode,
+    publicShortCode: result.publicShortCode,
+    parentAccessToken: result.parentAccessToken,
+    sentAt: result.sentAt,
   };
 }
 
@@ -481,6 +398,7 @@ export function releaseCenterRoutes() {
           const contact = resolveContact(contacts);
           const issued = issuedByStudent.get(card.studentId) ?? null;
           const isExpired = issued ? isReportLinkExpired(issued.expiresAt, now) : false;
+          const parentLink = issued?.publicShortCode ? buildParentReportPublicUrl(issued.publicShortCode) : null;
           const communicationDelivery = issued ? releaseDeliveryByIssuedReport.get(issued.id) ?? null : null;
           const deliveryStatus = communicationDelivery
             ? communicationDelivery.status === "FAILED" || communicationDelivery.status === "CANCELLED" || communicationDelivery.status === "SKIPPED"
@@ -497,10 +415,12 @@ export function releaseCenterRoutes() {
             reportReadiness: card.readiness,
             primaryContact: contact,
             isExpired,
+            parentLink,
             issuedReport: issued
               ? {
                   id: issued.id,
                   referenceCode: issued.referenceCode,
+                  publicShortCode: issued.publicShortCode,
                   status: issued.status,
                   issuedAt: issued.issuedAt.toISOString(),
                   expiresAt: issued.expiresAt?.toISOString() ?? null,
@@ -587,8 +507,9 @@ export function releaseCenterRoutes() {
         studentId: string;
         studentName: string;
         referenceCode: string;
+        publicShortCode: string;
         parentLink: string;
-        parentAccessToken: string;
+        parentAccessToken: string | null;
         issuedReportId: string;
       }> = [];
       const skipped: Array<{ studentId: string; studentName: string; reason: string }> = [];
@@ -611,148 +532,29 @@ export function releaseCenterRoutes() {
           issuedByName: user.name,
           filters,
         };
-        const snapshotSignature = buildReportVersionSignature(snapshot);
-        const existingReports = await prisma.issuedReport.findMany({
-          where: {
-            schoolId: user.schoolId,
-            studentId: card.studentId,
-            academicYear: engineInput.academicYearName,
-            term: engineInput.termName,
-            assessmentType: filters.assessmentType,
-          },
-          orderBy: { issuedAt: "desc" },
-        });
-        const activeExisting = existingReports.find((report) => report.status === "ISSUED" && !isReportLinkExpired(report.expiresAt));
-        const activeExistingSignature = activeExisting ? buildReportVersionSignature(activeExisting.reportSnapshotJson) : null;
-
-        if (activeExisting && activeExistingSignature === snapshotSignature) {
-          const rawToken = buildReportLinkToken({
-            reportId: activeExisting.id,
-            snapshotSignature,
-            schoolId: user.schoolId,
-            studentId: card.studentId,
-            academicYear: engineInput.academicYearName,
-            term: engineInput.termName,
-            assessmentType: filters.assessmentType,
-          });
-
-          issued.push({
-            studentId: card.studentId,
-            studentName: card.studentName,
-            referenceCode: activeExisting.referenceCode,
-            parentLink: buildParentReportPublicUrl(rawToken),
-            parentAccessToken: rawToken,
-            issuedReportId: activeExisting.id,
-          });
-
-          await prisma.auditLog.create({
-            data: {
-              schoolId: user.schoolId,
-              action: "report.link_reused",
-              correlationId: activeExisting.id,
-              details: {
-                issuedReportId: activeExisting.id,
-                referenceCode: activeExisting.referenceCode,
-                studentId: card.studentId,
-                academicYear: engineInput.academicYearName,
-                term: engineInput.termName,
-                assessmentType: filters.assessmentType,
-                actorId: user.userId,
-                actorName: user.name,
-              },
-            },
-          });
-          continue;
-        }
-
-        if (activeExisting) {
-          await prisma.issuedReport.updateMany({
-            where: {
-              schoolId: user.schoolId,
-              studentId: card.studentId,
-              academicYear: engineInput.academicYearName,
-              term: engineInput.termName,
-              assessmentType: filters.assessmentType,
-              status: "ISSUED",
-            },
-            data: { status: "SUPERSEDED", updatedAt: new Date() },
-          });
-
-          await prisma.auditLog.create({
-            data: {
-              schoolId: user.schoolId,
-              action: "report.link_replaced",
-              correlationId: activeExisting.id,
-              details: {
-                previousIssuedReportId: activeExisting.id,
-                previousReferenceCode: activeExisting.referenceCode,
-                studentId: card.studentId,
-                academicYear: engineInput.academicYearName,
-                term: engineInput.termName,
-                assessmentType: filters.assessmentType,
-                actorId: user.userId,
-                actorName: user.name,
-              },
-            },
-          });
-        }
-
-        const recordId = crypto.randomUUID();
-        const rawToken = buildReportLinkToken({
-          reportId: recordId,
-          snapshotSignature,
+        const result = await issueOrReuseIssuedReportLink({
+          prisma,
           schoolId: user.schoolId,
           studentId: card.studentId,
           academicYear: engineInput.academicYearName,
           term: engineInput.termName,
           assessmentType: filters.assessmentType,
-        });
-        const tokenHash = sha256Hex(rawToken);
-        const referenceCode = generateReferenceCode();
-
-        const record = await prisma.issuedReport.create({
-          data: {
-            id: recordId,
-            schoolId: user.schoolId,
-            studentId: card.studentId,
-            academicYear: engineInput.academicYearName,
-            term: engineInput.termName,
-            assessmentType: filters.assessmentType,
-            reportSnapshotJson: snapshot,
-            referenceCode,
-            parentAccessToken: tokenHash,
-            status: "ISSUED",
-            expiresAt: termExpiry,
-            issuedById: user.userId,
-            issuedByName: user.name,
-          },
-        });
-
-        await prisma.auditLog.create({
-          data: {
-            schoolId: user.schoolId,
-            action: "report.link_issued",
-            correlationId: record.id,
-            details: {
-              issuedReportId: record.id,
-              referenceCode,
-              studentId: card.studentId,
-              academicYear: engineInput.academicYearName,
-              term: engineInput.termName,
-              assessmentType: filters.assessmentType,
-              actorId: user.userId,
-              actorName: user.name,
-            },
-          },
+          snapshot,
+          issuedById: user.userId,
+          issuedByName: user.name,
+          auditActorId: user.userId,
+          auditActorName: user.name,
+          expiresAt: termExpiry,
         });
 
         issued.push({
           studentId: card.studentId,
           studentName: card.studentName,
-          referenceCode,
-          parentLink: buildParentReportPublicUrl(rawToken),
-          parentAccessToken: rawToken,
-          issuedReportId: record.id,
+          referenceCode: result.referenceCode,
+          publicShortCode: result.publicShortCode,
+          parentLink: result.parentLink,
+          parentAccessToken: result.parentAccessToken,
+          issuedReportId: result.issuedReportId,
         });
       }
 

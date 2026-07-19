@@ -29,9 +29,11 @@ export type ReleaseRow = {
   reportReadiness: string;
   primaryContact: ResolvedContact;
   isExpired?: boolean;
+  parentLink?: string | null;
   issuedReport: {
     id: string;
     referenceCode: string;
+    publicShortCode?: string | null;
     status: "ISSUED" | "REVOKED" | "SUPERSEDED";
     issuedAt: string;
     expiresAt: string | null;
@@ -100,8 +102,9 @@ export type IssuedLinkData = {
   studentId: string;
   studentName: string;
   referenceCode: string;
+  publicShortCode: string;
   parentLink: string;
-  parentAccessToken: string;
+  parentAccessToken: string | null;
   issuedReportId: string;
 };
 
