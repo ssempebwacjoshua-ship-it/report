@@ -236,7 +236,7 @@ describe("releaseCenterRoutes ? delivery status contract", () => {
     if (res.status === 201 && res.body.issued?.length > 0) {
       for (const item of res.body.issued) {
         // parentLink must be a browser URL, not an /api/ URL
-        expect(item.parentLink).toMatch(/\/parent\/r\//);
+        expect(item.parentLink).toMatch(/\/r\//);
         expect(item.parentLink).not.toMatch(/\/api\//);
         // referenceCode must match YYYYMMDD-XXXXXX
         expect(item.referenceCode).toMatch(/^\d{8}-[0-9A-F]{6}$/);

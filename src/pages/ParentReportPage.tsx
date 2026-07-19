@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { getApiBaseUrl } from "../client/apiBase";
 import { SectionLoader } from "../components/SectionLoader";
@@ -97,11 +97,10 @@ export function ParentReportPage() {
 
   return (
     <div className="report-parent-page min-h-screen bg-slate-50">
-      {/* Screen-only action card ? hidden in print via .no-print */}
-      <div className="no-print flex min-h-screen flex-col items-center justify-center px-4 py-8">
+      <div className="no-print mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8">
         {(status === "REVOKED" || status === "SUPERSEDED") && (
           <div
-            className={`mb-4 w-full max-w-sm rounded-xl border px-4 py-3 text-sm ${
+            className={`w-full rounded-2xl border px-4 py-3 text-sm shadow-sm ${
               status === "REVOKED"
                 ? "border-red-200 bg-red-50 text-red-700"
                 : "border-amber-200 bg-amber-50 text-amber-800"
@@ -113,60 +112,74 @@ export function ParentReportPage() {
           </div>
         )}
 
-        <div className="w-full max-w-sm rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <p className="text-center text-xs font-bold uppercase tracking-wide text-blue-600">
-            {branding.schoolName}
-          </p>
+        <div className="rounded-[1.75rem] border border-slate-200 bg-white/90 p-4 shadow-[0_20px_60px_rgba(15,23,42,0.08)] backdrop-blur sm:p-5">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div className="space-y-3">
+              <div className="flex flex-wrap items-center gap-3">
+                <p className="text-xs font-bold uppercase tracking-[0.18em] text-blue-700">
+                  {branding.schoolName}
+                </p>
+                {status === "REVOKED" ? (
+                  <span className="rounded-full bg-red-100 px-3 py-1 text-xs font-bold text-red-700">Revoked</span>
+                ) : status === "SUPERSEDED" ? (
+                  <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-bold text-amber-700">Superseded</span>
+                ) : (
+                  <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-bold text-emerald-700">Valid</span>
+                )}
+              </div>
 
-          <div className="mt-2 flex justify-center">
-            {status === "REVOKED" ? (
-              <span className="rounded-full bg-red-100 px-3 py-1 text-xs font-bold text-red-700">Revoked</span>
-            ) : status === "SUPERSEDED" ? (
-              <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-bold text-amber-700">Superseded</span>
-            ) : (
-              <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-bold text-emerald-700">Valid</span>
-            )}
-          </div>
+              <div>
+                <h1 className="text-2xl font-bold text-slate-950 sm:text-3xl">{card.studentName}</h1>
+                <p className="mt-1 text-sm text-slate-500">
+                  {card.className} • {card.academicYear} {card.term}
+                </p>
+              </div>
 
-          <div className="mt-4 text-center">
-            <h1 className="text-xl font-bold text-slate-900">{card.studentName}</h1>
-            <p className="mt-1 text-sm text-slate-500">
-              {card.className} ? {card.academicYear} {card.term}
-            </p>
-          </div>
+              <div className="flex flex-wrap gap-3 text-sm text-slate-500">
+                <div className="rounded-xl bg-slate-50 px-4 py-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Reference Code</p>
+                  <p className="font-mono text-base font-bold tracking-[0.18em] text-slate-800">{referenceCode}</p>
+                </div>
+                <div className="rounded-xl bg-slate-50 px-4 py-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Issued</p>
+                  <p className="font-semibold text-slate-700">{issuedDate}</p>
+                  <p className="text-xs text-slate-400">{issuedByName ? `By ${issuedByName}` : "School record"}</p>
+                </div>
+              </div>
+            </div>
 
-          <div className="mt-4 rounded-xl bg-slate-50 px-4 py-3 text-center">
-            <p className="text-xs font-medium text-slate-500">Reference Code</p>
-            <p className="font-mono text-base font-bold tracking-widest text-slate-800">{referenceCode}</p>
-            <p className="mt-1 text-xs text-slate-400">
-              Issued {issuedDate}
-              {issuedByName ? ` by ${issuedByName}` : ""}
-            </p>
+            <div className="flex w-full flex-col gap-3 lg:w-72">
+              <button type="button" className="btn btn-primary w-full py-3 text-base" onClick={handlePrint}>
+                Print Report
+              </button>
+              <button type="button" className="btn btn-secondary w-full py-3 text-base" onClick={handlePrint}>
+                Download PDF
+              </button>
+              <button
+                type="button"
+                className="text-sm text-slate-500 underline-offset-2 hover:text-slate-700 hover:underline"
+                onClick={() => void copyRef()}
+              >
+                {copied ? "Copied!" : "Copy reference code"}
+              </button>
+            </div>
           </div>
+        </div>
 
-          <div className="mt-6 flex flex-col gap-3">
-            <button type="button" className="btn btn-primary w-full py-3 text-base" onClick={handlePrint}>
-              Print Report
-            </button>
-            <button type="button" className="btn btn-secondary w-full py-3 text-base" onClick={handlePrint}>
-              Download PDF
-            </button>
-          </div>
-
-          <div className="mt-4 text-center">
-            <button
-              type="button"
-              className="text-xs text-slate-400 underline-offset-2 hover:text-slate-600 hover:underline"
-              onClick={() => void copyRef()}
-            >
-              {copied ? "Copied!" : "Copy reference code"}
-            </button>
-          </div>
+        <div className="report-parent-preview">
+          <StudentReportDetail
+            card={card}
+            assessmentType={snapshot.filters.assessmentType as "BOT" | "MOT" | "EOT" | "TERM_SUMMARY"}
+            showPositions={settings.reports.showOverallPosition}
+            schoolSettings={settings.school}
+            reportSettings={settings.reports}
+            personalization={settings.personalization ?? undefined}
+            grading={settings.grading}
+            initialComments={snapshot.reportComments}
+          />
         </div>
       </div>
 
-      {/* Print-only container ? hidden on screen via .print-only CSS class */}
-      {/* No wrapper divs here: extra height causes 2-page overflow on mobile print */}
       <div className="print-only">
         <StudentReportDetail
           card={card}
@@ -182,4 +195,3 @@ export function ParentReportPage() {
     </div>
   );
 }
-

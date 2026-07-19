@@ -10,7 +10,7 @@ import { buildReports } from "../services/reportEngine";
 import { buildReportLinkToken, buildReportVersionSignature, getReportLinkExpiry, isReportLinkExpired, sha256Hex } from "../services/reportLinkService";
 import { defaultSettingsSections } from "../../shared/types/settings";
 import type { PreferredContactMethod } from "@prisma/client";
-import { getPublicAppUrl } from "../config/publicUrl";
+import { buildParentReportPublicUrl } from "../config/publicUrl";
 import { sanitizeReportCardForRender, sanitizeReportPersonalizationForReport, sanitizeSchoolSettingsForReport } from "../../shared/utils/reportContentLimits";
 
 function generateReferenceCode(): string {
@@ -338,7 +338,7 @@ export function releaseCenterRoutes() {
             studentId: card.studentId,
             studentName: card.studentName,
             referenceCode: activeExisting.referenceCode,
-            parentLink: `${getPublicAppUrl()}/parent/r/${rawToken}`,
+            parentLink: buildParentReportPublicUrl(rawToken),
             parentAccessToken: rawToken,
             issuedReportId: activeExisting.id,
           });
@@ -448,7 +448,7 @@ export function releaseCenterRoutes() {
           studentId: card.studentId,
           studentName: card.studentName,
           referenceCode,
-          parentLink: `${getPublicAppUrl()}/parent/r/${rawToken}`,
+          parentLink: buildParentReportPublicUrl(rawToken),
           parentAccessToken: rawToken,
           issuedReportId: record.id,
         });

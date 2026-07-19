@@ -2,7 +2,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../db/prisma";
-import { getPublicAppUrl } from "../config/publicUrl";
+import { buildParentReportPublicUrl } from "../config/publicUrl";
 import { requireAuth } from "../middleware/requireAuth";
 import { loadReportEngineInput } from "../repositories/reportsRepository";
 import { getSettingsSections } from "../repositories/settingsRepository";
@@ -169,7 +169,7 @@ export function reportIssueRoutes() {
         },
       });
 
-      const parentLink = `${getPublicAppUrl()}/parent/r/${rawParentToken}`;
+      const parentLink = buildParentReportPublicUrl(rawParentToken);
       console.log("report.issue", {
         issuedReportId: issued.id,
         reportRefCode: referenceCode,

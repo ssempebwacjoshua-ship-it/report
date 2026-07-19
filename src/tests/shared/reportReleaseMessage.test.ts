@@ -7,13 +7,13 @@ describe("report release parent messages", () => {
       studentName: "Gabriel Lule",
       termName: "Term 1",
       schoolName: "ST JULIAN SS WAKISO",
-      reportLink: "https://reports.schoolconnect.example/parent/r/secure-token",
+      reportLink: "https://reports.schoolconnect.example/r/secure-token",
     });
 
     expect(message).toBe(`Dear Parent, Gabriel Lule's Term 1 school report from ST JULIAN SS WAKISO is ready.
 
 Please open the secure link below to view, print, or download the report:
-https://reports.schoolconnect.example/parent/r/secure-token`);
+https://reports.schoolconnect.example/r/secure-token`);
     expect(message).not.toContain("TERM_SUMMARY");
     expect(message).not.toContain("marks");
     expect(message).not.toContain("grades");

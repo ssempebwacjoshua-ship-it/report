@@ -127,7 +127,7 @@ function mountReleaseCenterApp(prisma: any) {
     buildReports: vi.fn(() => JSON.parse(JSON.stringify(baseReportResult))),
   }));
   vi.doMock("../../server/config/publicUrl", () => ({
-    getPublicAppUrl: () => "https://public.example",
+    buildParentReportPublicUrl: (token: string) => `https://public.example/r/${token}`,
   }));
 
   return import("../../server/routes/releaseCenterRoutes").then(({ releaseCenterRoutes }) => {
@@ -266,7 +266,7 @@ describe("releaseCenterRoutes workflow", () => {
       expect.objectContaining({
         issuedReportId: "issued-1",
         referenceCode: "20260710-ABC123",
-        parentLink: `https://public.example/parent/r/${expectedToken}`,
+        parentLink: `https://public.example/r/${expectedToken}`,
       }),
     ]);
   });
