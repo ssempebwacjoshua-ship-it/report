@@ -16,7 +16,7 @@ import { normalizeNfcScanValue } from "../shared/utils/nfcPayload";
 import type { NfcCanteenChargeResult, NfcWalletStudentResolution } from "../shared/types/studentCredentials";
 
 const inputClass =
-  "premium-control h-12 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm text-slate-900 outline-none focus:border-blue-400 focus:bg-white";
+  "premium-control h-11 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm text-slate-900 outline-none focus:border-blue-400 focus:bg-white";
 
 function money(cents: number) {
   return `UGX ${Math.round(cents / 100).toLocaleString()}`;
@@ -331,12 +331,15 @@ export function NfcCanteenChargePage() {
   }
 
   return (
-    <main className="grid gap-5">
-      <header className="page-header">
-        <p className="text-xs font-bold uppercase tracking-wide text-blue-600">NFC Operations</p>
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <h1 className="text-xl font-bold text-slate-950 sm:text-2xl">Canteen Charge</h1>
-          <Link to="/nfc/canteen/reconciliation" className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50">
+    <main className="grid gap-3 pb-28 text-[13px] sm:gap-4">
+      <header className="overflow-hidden rounded-2xl border border-slate-200 bg-slate-950 p-3 text-white shadow-xl sm:p-4">
+        <p className="text-[10px] font-black uppercase tracking-[0.24em] text-emerald-200">Canteen PWA</p>
+        <div className="mt-1 flex flex-wrap items-end justify-between gap-2">
+          <div>
+            <h1 className="text-2xl font-black tracking-tight sm:text-3xl">Canteen Charge</h1>
+            <p className="mt-1 max-w-xl text-xs text-slate-300">Enter amount, scan tag, verify PIN, and keep selling safely with the Local Canteen Register.</p>
+          </div>
+          <Link to="/nfc/canteen/reconciliation" className="rounded-xl border border-white/15 bg-white/10 px-3 py-2 text-xs font-black text-white hover:bg-white/15">
             Reconciliation
           </Link>
         </div>
@@ -388,9 +391,9 @@ export function NfcCanteenChargePage() {
         </div>
       )}
 
-      <section className="grid gap-4 lg:grid-cols-[380px_minmax(0,1fr)]">
-        <div className="flex flex-col gap-4">
-          <div className="premium-card rounded-xl p-4 grid gap-3">
+      <section className="grid gap-2 min-[560px]:grid-cols-[minmax(230px,0.9fr)_minmax(0,1.1fr)] sm:gap-3 xl:grid-cols-[380px_minmax(0,1fr)]">
+        <div id="canteen-charge" className="flex scroll-mt-4 flex-col gap-2 sm:gap-3">
+          <div className="premium-card grid gap-2 rounded-xl p-3 sm:p-4">
             <label className="grid gap-1 text-xs font-bold uppercase text-slate-500">
               Amount (UGX)
               <input
@@ -432,7 +435,7 @@ export function NfcCanteenChargePage() {
 
           {/* Online PIN phase */}
           {phase === "pin" && !usingLocalRegister && pending && (
-            <div className="premium-card rounded-xl p-4 grid gap-4">
+            <div className="premium-card grid gap-3 rounded-xl p-3 sm:p-4">
               <div className="rounded-xl border border-blue-100 bg-blue-50 p-3">
                 <p className="text-xs font-bold uppercase text-blue-600">Student identified</p>
                 <p className="mt-1 font-bold text-slate-950">{pending.student.student?.name ?? "Unknown"}</p>
@@ -507,7 +510,7 @@ export function NfcCanteenChargePage() {
 
           {/* Offline confirm phase (no PIN — validated at sync) */}
           {phase === "pin" && usingLocalRegister && offlinePending && (
-            <div className="premium-card rounded-xl p-4 grid gap-4">
+            <div className="premium-card grid gap-3 rounded-xl p-3 sm:p-4">
               <div className="rounded-xl border border-orange-100 bg-orange-50 p-3">
                 <p className="text-xs font-bold uppercase text-orange-600">Local Canteen Register - Student identified</p>
                 <p className="mt-1 font-bold text-slate-950">{offlinePending.studentName}</p>
@@ -557,7 +560,7 @@ export function NfcCanteenChargePage() {
         </div>
 
         {/* Right: result panel */}
-        <aside className="premium-card rounded-xl p-4">
+        <aside id="canteen-result" className="premium-card scroll-mt-4 rounded-xl p-3 sm:p-4">
           <h2 className="text-base font-bold text-slate-950">Charge result</h2>
           {offlineResult ? (
             <div className="mt-3 grid gap-3 text-sm">

@@ -138,6 +138,17 @@ describe("NfcCanteenChargePage", () => {
     });
   });
 
+  it("keeps the canteen operator page compact for dedicated PWA use", () => {
+    const fs = require("fs") as typeof import("fs");
+    const path = require("path") as typeof import("path");
+    const pageSource = fs.readFileSync(path.join(process.cwd(), "src/pages/NfcCanteenChargePage.tsx"), "utf-8");
+
+    expect(pageSource).toContain("min-[560px]:grid-cols");
+    expect(pageSource).toContain("pb-28");
+    expect(pageSource).toContain("id=\"canteen-charge\"");
+    expect(pageSource).toContain("id=\"canteen-result\"");
+  });
+
   it("uses the Local Canteen Register first even when the phone is online", async () => {
     setNavigatorOnline(true);
     state.isOfflineReady = false;
