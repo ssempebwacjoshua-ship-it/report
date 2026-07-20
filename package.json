@@ -42,6 +42,7 @@
     "verify:deploy-critical": "vitest run src/tests/ui/LoginPage.test.tsx src/tests/server/cors.test.ts src/tests/ui/ParentReportPage.test.tsx src/tests/ui/ReleaseCenterPage.test.tsx src/tests/services/nfcGateOperations.test.ts src/tests/routes/communicationOutboundRoutes.test.ts && npm run build",
     "verify:repo-health": "npm run typecheck && npm run test:critical && npm run build",
     "test:critical": "vitest run src/tests/ui/LoginPage.test.tsx src/tests/ui/AppShellRoleAccess.test.tsx src/tests/security/permissionRoutes.test.ts src/tests/client/studentsClient.test.ts src/tests/routes/studentsPassportPhotoRoute.test.ts src/tests/services/nfcGateOperations.test.ts src/tests/routes/nfcOperationsGateRoutes.test.ts src/tests/routes/nfcGateAuthenticatedFlow.test.ts src/tests/ui/NfcGateSecurityPage.test.tsx src/tests/services/documentIntelligenceService.test.ts src/tests/routes/documentIntelligenceRoutes.vertical.test.ts src/tests/ui/ParentReportPage.test.tsx",
+    "check:clean": "node scripts/check-clean-worktree.mjs",
     "check:migrations": "tsx scripts/check-migration-safety.ts",
     "check:smart-pages-verticals": "tsx scripts/check-smart-pages-vertical-leakage.ts"
   },
