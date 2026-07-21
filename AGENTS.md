@@ -172,6 +172,41 @@ Smart Pages, NFC, Reports, Students, Photos, Auth, Settings, unless directly req
 
 If a requested fix requires touching another module, explain why before making the change.
 
+For module migration or new module feature work, the future ownership boundary is:
+
+```text
+src/modules/<module>/
+```
+
+The old layout under these folders may still exist during migration, but it is no longer the target architecture:
+
+- `src/pages`
+- `src/components`
+- `src/client`
+- `src/server/routes`
+- `src/server/services`
+- `src/server/repositories`
+- `src/tests`
+
+New module work must prefer `src/modules/<module>` unless a task explicitly says it is maintaining legacy structure.
+
+Every module migration task must declare exactly one target module before edits.
+
+Use this format:
+
+```text
+Scope:
+Only touch this module: <module-name>
+
+Allowed touch points:
+<exact files or folders>
+
+Do not touch:
+<high-risk or unrelated modules>
+```
+
+If the task truly requires touching another module, stop and explain why before editing.
+
 ## 10. Do not make broad unrelated edits
 
 - Do not refactor unrelated files.
@@ -180,6 +215,44 @@ If a requested fix requires touching another module, explain why before making t
 - Do not change business logic during UI or documentation tasks unless explicitly required.
 - Do not touch unrelated dirty files.
 - Never use `git add .` when unrelated changes exist.
+- Do not mix module migration with feature work, UI redesign, schema changes, production fixes, or dependency upgrades.
+
+Module migration is first a behavior-preserving relocation, not a rewrite.
+
+During a module move, do not change:
+
+- public API paths;
+- HTTP methods;
+- request bodies;
+- response shapes;
+- permission checks;
+- auth behavior;
+- tenant isolation behavior;
+- rate limits;
+- audit behavior;
+- business calculations;
+- report formulas;
+- import logic;
+- NFC scan behavior;
+- wallet/canteen money logic;
+- Smart Pages billing logic;
+- UI design;
+- Prisma schema;
+- migrations;
+- env vars.
+
+Only update imports, exports, registration paths, and tests required to keep the same behavior working.
+
+If a bug is discovered during a module move, document it as a follow-up unless it blocks compilation or the moved module's existing tests.
+
+Do not split a large file and move it in the same task unless the user explicitly requests both.
+
+Preferred sequence:
+
+1. Move the file into its owning module without behavior changes.
+2. Verify tests/build.
+3. In a later task, split the large file internally.
+4. Verify tests/build again.
 
 ## 11. Protect completed flows
 
@@ -198,6 +271,78 @@ Before committing, make sure these critical flows are not broken:
 - Marks upload, preview, delayed commit, retry protection, and report generation work.
 - Report preview loads.
 - Production-safe build passes.
+
+Route registration files are contract boundaries during module migration.
+
+Current registration files include:
+
+- `src/server/modules/registerAuthRoutes.ts`
+- `src/server/modules/registerCommunicationRoutes.ts`
+- `src/server/modules/registerNfcRoutes.ts`
+- `src/server/modules/registerOwnerRoutes.ts`
+- `src/server/modules/registerPlatformRoutes.ts`
+- `src/server/modules/registerPublicRoutes.ts`
+- `src/server/modules/registerReportsRoutes.ts`
+- `src/server/modules/registerSmartPagesRoutes.ts`
+- `src/server/modules/registerWorkers.ts`
+
+During migration, these files may import routes from `src/modules/<module>`, but they must preserve:
+
+- middleware order;
+- public API paths;
+- auth gates;
+- permission gates;
+- tenant context order;
+- public/private route separation;
+- worker startup behavior.
+
+Do not rename routes or change mount paths as part of a file move.
+
+Frontend route split files are also contract boundaries.
+
+Current frontend route files include:
+
+- `src/app/routes/publicRoutes.tsx`
+- `src/app/routes/protectedRoutes.tsx`
+- `src/app/routes/nfcRoutes.tsx`
+- `src/app/routes/ownerRoutes.tsx`
+- `src/app/routes/reportsRoutes.tsx`
+- `src/app/routes/smartPagesRoutes.tsx`
+- `src/app/routes/routeHelpers.tsx`
+
+During migration, they may import pages from `src/modules/<module>`, but they must preserve:
+
+- URL paths;
+- guards;
+- redirects;
+- lazy-loading behavior;
+- role-aware redirects;
+- `PermissionGuard` usage;
+- public-only route behavior;
+- `AppShell`/`OwnerShell` boundaries.
+
+Do not redesign pages or navigation during route migration.
+
+These areas are high-risk and require separate explicit tasks:
+
+- auth/login/session/password reset/account setup;
+- tenant isolation and permissions;
+- students and guardian data;
+- marks imports and scan imports;
+- report calculations and ranking;
+- report issue/release/public links;
+- NFC reader gateway;
+- NFC attendance scans;
+- NFC offline mode;
+- NFC wallet/canteen transactions;
+- gate security/pass-outs/visitors;
+- Smart Pages billing;
+- Smart Pages extraction/AI/OCR;
+- production migrations;
+- seed/repair scripts;
+- deployment configuration.
+
+Do not include high-risk areas in a broad migration unless the task is specifically scoped to that area and the required tests are identified first.
 
 ## 12. Required tests
 
@@ -228,6 +373,19 @@ For import or transaction work, tests must include:
 
 Never point these tests at production.
 
+For module moves:
+
+- identify existing tests for that module before moving it;
+- run targeted tests if practical;
+- record the baseline result;
+- run the same targeted tests after moving it;
+- run affected route/client/UI tests;
+- run typecheck;
+- run build;
+- run critical tests when the module touches auth, permissions, tenant isolation, reports, imports, NFC, Smart Pages, or public links.
+
+If a test fails after a behavior-preserving move, fix import/export/registration issues only. Do not rewrite business logic to make the test pass unless the user explicitly approves a behavior fix.
+
 ## 13. Commit and deployment rules
 
 At the end of every completed task:
@@ -239,6 +397,28 @@ At the end of every completed task:
 5. Review the final diff for data-risk changes.
 6. Commit with a clear scoped message.
 7. Push only when asked or when the established repository workflow requires it.
+
+Before edits, always run:
+
+- `git status -sb`
+- `git branch --show-current`
+
+If the worktree has unrelated dirty files, stop and report them.
+
+If the active branch is ahead of origin, do not:
+
+- rebase;
+- squash;
+- reset;
+- force push;
+- push;
+- merge unrelated branches;
+
+unless explicitly instructed.
+
+Preserve local-only commits.
+
+When staging, use explicit file paths. Do not use `git add .` unless the worktree is clean except for the current task.
 
 Do not commit when:
 
@@ -275,6 +455,22 @@ When finishing a task, report:
 - migration review result, if applicable;
 - rollback or recovery plan;
 - risks, skipped checks, and deployment requirements.
+
+Every handoff must also include:
+
+- current branch;
+- whether the branch is ahead of origin;
+- files changed;
+- module touched;
+- runtime behavior changed: yes/no;
+- auth/permission changed: yes/no;
+- tenant isolation changed: yes/no;
+- Prisma/migration changed: yes/no;
+- tests run;
+- build/typecheck result;
+- skipped checks and why;
+- residual risk;
+- next safest step.
 
 Never report a production change as safe when verification was skipped.
 
