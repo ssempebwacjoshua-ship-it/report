@@ -71,6 +71,40 @@ Required process:
 
 A successful build does not prove that a migration is safe.
 
+### Prisma generate lock recovery on Windows
+
+On Windows, `npm run db:generate` may fail with:
+
+```text
+EPERM: operation not permitted, rename ... node_modules\prisma\query_engine-windows.dll.node.tmp... -> query_engine-windows.dll.node
+```
+
+This usually means Node, Prisma Studio, the VS Code TypeScript server, a dev server, a test watcher, antivirus, or another local process has locked the Prisma query engine DLL.
+
+When this happens:
+
+1. Do not edit schema, migrations, or runtime code to try to fix the lock.
+2. Stop dev servers, Prisma Studio, test watchers, and local app processes.
+3. Close VS Code if needed.
+4. In PowerShell, use PowerShell syntax, not CMD syntax:
+
+```powershell
+Remove-Item -Recurse -Force .\node_modules\prisma
+Remove-Item -Recurse -Force .\node_modules\.prisma
+```
+
+5. Then run:
+
+```powershell
+npm install
+npm run db:generate
+```
+
+6. If deletion is denied, restart Windows and run the same commands before opening VS Code.
+7. Use the repo script `npm run db:generate`, not plain `npx prisma generate`, unless explicitly instructed.
+8. After successful generation, run the relevant verification checks.
+9. Never delete `prisma/`, `prisma/schema.prisma`, or migration folders.
+
 ## 4. Production script and repair guardrails
 
 Any script capable of writing to the database must:
@@ -385,6 +419,17 @@ For module moves:
 - run critical tests when the module touches auth, permissions, tenant isolation, reports, imports, NFC, Smart Pages, or public links.
 
 If a test fails after a behavior-preserving move, fix import/export/registration issues only. Do not rewrite business logic to make the test pass unless the user explicitly approves a behavior fix.
+
+During enterprise module migration, `npm run typecheck` may fail because of known repo-wide TypeScript or test debt unrelated to the current relocation.
+
+When this happens:
+
+- do not fix repo-wide TypeScript or test debt inside a module migration task;
+- only fix typecheck errors clearly caused by the current move, such as broken import paths, broken export paths, incorrect shim paths, or missing moved-file references;
+- if errors are pre-existing or outside the moved module, report them as `typecheck failed with known repo-wide errors outside this relocation`;
+- continue the migration only if targeted tests for the moved module pass or the failure is confirmed pre-existing, `npm run build` passes, and changed files remain limited to the scoped move;
+- create a separate dedicated task for repo-wide typecheck cleanup;
+- do not mix relocation work with broad test fixture updates, stale type cleanup, Prisma schema changes, or unrelated refactors.
 
 ## 13. Commit and deployment rules
 

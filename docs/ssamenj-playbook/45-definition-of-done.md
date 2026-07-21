@@ -40,9 +40,16 @@ A SSAMENJ task is done only when the relevant checks are complete.
 - Post-move targeted tests ran.
 - Affected route/client/UI tests ran.
 - Typecheck ran.
+- If typecheck failed, the failure was either fixed when caused by the current move or explicitly reported as known repo-wide errors outside the relocation.
 - Build ran.
 - Critical tests ran when the moved module touched auth, permissions, tenant isolation, reports, imports, NFC, Smart Pages, or public links.
 - The owning module README was updated after the committed move when the task changed the module file map.
+
+## Prisma generation completion check
+
+- If Prisma client generation was required, the repo script `npm run db:generate` was used.
+- If Windows raised an `EPERM` lock error on the Prisma query engine DLL, lock recovery was handled without editing schema, migrations, or runtime code as a workaround.
+- Relevant verification checks ran after successful Prisma generation.
 
 ## Handoff Rule
 

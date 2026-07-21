@@ -75,6 +75,53 @@ Preferred sequence:
 3. In a later task, split the large file internally.
 4. Verify tests/build again.
 
+## Prisma generate lock recovery on Windows
+
+On Windows, `npm run db:generate` may fail with:
+
+```text
+EPERM: operation not permitted, rename ... node_modules\prisma\query_engine-windows.dll.node.tmp... -> query_engine-windows.dll.node
+```
+
+This usually means Node, Prisma Studio, the VS Code TypeScript server, a dev server, a test watcher, antivirus, or another local process has locked the Prisma query engine DLL.
+
+Workflow when this happens:
+
+1. Do not edit schema, migrations, or runtime code to try to fix the lock.
+2. Stop dev servers, Prisma Studio, test watchers, and local app processes.
+3. Close VS Code if needed.
+4. In PowerShell, use PowerShell syntax:
+
+```powershell
+Remove-Item -Recurse -Force .\node_modules\prisma
+Remove-Item -Recurse -Force .\node_modules\.prisma
+```
+
+5. Then run:
+
+```powershell
+npm install
+npm run db:generate
+```
+
+6. If deletion is denied, restart Windows and run the same commands before opening VS Code.
+7. Use the repo script `npm run db:generate`, not plain `npx prisma generate`, unless explicitly instructed.
+8. After successful generation, run the relevant verification checks.
+9. Never delete `prisma/`, `prisma/schema.prisma`, or migration folders.
+
+## Typecheck debt during module migration
+
+During enterprise module migration, `npm run typecheck` may fail because of known repo-wide TypeScript or test debt unrelated to the current move.
+
+When that happens:
+
+1. Do not fix repo-wide TypeScript or test debt inside a module migration task.
+2. Only fix typecheck errors clearly caused by the current move, such as broken import paths, broken export paths, incorrect shim paths, or missing moved-file references.
+3. If errors are pre-existing or outside the moved module, report them as `typecheck failed with known repo-wide errors outside this relocation`.
+4. Continue the migration only if targeted tests for the moved module pass or the failure is confirmed pre-existing, `npm run build` passes, and changed files remain limited to the scoped move.
+5. Create a separate dedicated task for repo-wide typecheck cleanup.
+6. Do not mix relocation work with broad test fixture updates, stale type cleanup, Prisma schema changes, or unrelated refactors.
+
 ## Migration contract boundaries
 
 Route registration files are contract boundaries:

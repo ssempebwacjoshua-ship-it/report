@@ -16,6 +16,7 @@ Codex must answer these before handoff or commit.
 - Audit logs added?
 - Tests run?
 - Build result?
+- Typecheck result?
 - Documentation update needed: yes/no?
 - Documentation updated: yes/no?
 - Documentation files updated, if any?
@@ -35,8 +36,13 @@ Codex must answer these before handoff or commit.
 - Were high-risk areas kept out unless the task was explicitly scoped to them?
 - Were baseline tests for the moved module identified before edits?
 - After the move, were the same targeted tests, affected tests, typecheck, and build run?
+- If typecheck failed, was the failure limited to the relocation, or was it correctly reported as known repo-wide debt outside the relocation?
 - Was the owning module README updated after the committed move when the task was a module migration?
 - If runtime behavior was intentionally changed, was that separately approved?
+
+## Prisma generate lock review question
+
+- If `npm run db:generate` failed on Windows with an `EPERM` Prisma engine rename error, was it treated as a local lock issue rather than a reason to edit schema, migrations, or runtime code?
 
 ## Rule
 

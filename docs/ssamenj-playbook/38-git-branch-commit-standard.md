@@ -23,6 +23,7 @@ Before committing:
 * Do not stage unrelated dirty files.
 * Do not use `git add .` unless the worktree is clean except for the current task.
 * Run relevant tests/build/typecheck where practical.
+* During module migration, if `npm run typecheck` fails with confirmed pre-existing repo-wide errors outside the relocation, report that explicitly and do not broaden the task into general type cleanup.
 
 Commit message format:
 
@@ -102,3 +103,14 @@ Verification should be lightweight:
 
 - `git diff --check`
 - `git diff --stat`
+
+## Prisma generate lock caution
+
+If Windows blocks `npm run db:generate` with an `EPERM` rename error on `node_modules\prisma\query_engine-windows.dll.node`, do not respond by editing schema, migrations, or runtime code just to get generation unstuck.
+
+Instead:
+
+- stop local dev servers, Prisma Studio, watchers, and editors that may hold the Prisma engine lock;
+- use the repo script `npm run db:generate`, not plain `npx prisma generate`, unless explicitly instructed;
+- if needed, remove only `.\node_modules\prisma` and `.\node_modules\.prisma` in PowerShell, then run `npm install` and retry generation;
+- never delete `prisma/`, `prisma/schema.prisma`, or migration folders as part of lock recovery.
