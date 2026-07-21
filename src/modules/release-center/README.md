@@ -9,24 +9,30 @@ Owns report-link issuance, bulk release operations, revoke/sent tracking, and pa
 - Public parent report access flows
 - Current public paths:
   - `/api/p/:token`
+  - `/api/p/short/:code`
   - `/api/p/:token/downloaded`
+  - `/api/p/short/:code/downloaded`
 - Route registration files:
   - `src/server/modules/registerReportsRoutes.ts`
   - `src/server/modules/registerPublicRoutes.ts`
 
 ## Owned Frontend Routes/Pages
 
-- Browser: `/report-lab/reports/release`, parent/public report access flows
+- Browser: `/report-lab/reports/release`
+- Parent/public report access flows currently rendered by:
+  - `src/pages/ParentReportPage.tsx`
 - Current legacy files:
   - `src/pages/ReleaseCenterPage.tsx`
   - `src/pages/ParentReportPage.tsx`
 
 ## Owned Server Routes
 
-- API: `/api/reports/release-*`, `/api/reports/issue-*`, `/api/p/:token`, `/api/p/:token/downloaded`
+- API: `/api/reports/release-*`, `/api/reports/issue`, `/api/reports/issue-bulk`, `/api/p/:token`, `/api/p/short/:code`, `/api/p/:token/downloaded`, `/api/p/short/:code/downloaded`
 - Current route files still outside the module:
   - `src/server/routes/releaseCenterRoutes.ts`
   - `src/server/routes/parentRoutes.ts`
+- Adjacent route file with release-center ownership overlap:
+  - `src/server/routes/reportIssueRoutes.ts`
 
 ## Owned Services
 
@@ -38,11 +44,14 @@ Owns report-link issuance, bulk release operations, revoke/sent tracking, and pa
 ## Owned Repositories
 
 - None isolated yet
+- Release-center route files currently depend on shared repositories rather than dedicated release-center repositories
 
 ## Owned Client API Files
 
 - Current legacy files:
   - `src/client/releaseCenterClient.ts`
+- Adjacent client file with release-center ownership overlap:
+  - `src/client/issueReportClient.ts`
 
 ## Owned Tests
 
@@ -50,9 +59,13 @@ Owns report-link issuance, bulk release operations, revoke/sent tracking, and pa
   - `src/tests/routes/releaseCenterRoutes.test.ts`
   - `src/tests/routes/releaseCenterWorkflow.test.ts`
   - `src/tests/routes/parentRoutes.test.ts`
+  - `src/tests/routes/reportIssueRoutes.test.ts`
   - `src/tests/ui/ReleaseCenterPage.test.tsx`
   - `src/tests/ui/ParentReportPage.test.tsx`
   - `src/tests/shared/reportReleaseMessage.test.ts`
+- Cross-module regression coverage that currently exercises release-center behavior:
+  - `src/tests/security/tenantIsolation.test.ts`
+  - `src/tests/ui/ReportsPage.test.tsx`
 
 ## Owned Prisma Models, If Any
 
@@ -61,18 +74,20 @@ Owns report-link issuance, bulk release operations, revoke/sent tracking, and pa
 ## Owned Permissions
 
 - Report release/issue/revoke/send permissions
-- Exact permission names must be mapped during module migration
+- Parent/public access token enforcement
+- Exact permission names must be mapped during route migration
 
 ## Owned Audit Events
 
-- Report issue, revoke, resend, and parent-download audit events
-- Exact event names must be mapped during module migration
+- Report issue, revoke, resend, sent-marking, open, and download audit events
+- Exact event names must be mapped during route and service migration
 
 ## Shared Dependencies
 
 - Reports for issuance-ready data and report content
 - Communications for outbound release messaging
 - Shared auth and public token handling
+- Shared report-content sanitization and settings contracts
 
 ## External Providers/Integrations
 
@@ -81,6 +96,7 @@ Owns report-link issuance, bulk release operations, revoke/sent tracking, and pa
 ## Background Jobs/Workers
 
 - Bulk release/send flows where applicable
+- No dedicated release-center worker entry points isolated yet
 
 ## High-Risk Flows
 
@@ -92,15 +108,91 @@ Owns report-link issuance, bulk release operations, revoke/sent tracking, and pa
 
 - Skeleton only
 - Ownership contract defined
+- Legacy files mapped
 - Runtime files not moved yet
 
 ## Known Legacy Files Still Outside The Module
 
-- `src/pages/ReleaseCenterPage.tsx`
-- `src/pages/ParentReportPage.tsx`
-- `src/client/releaseCenterClient.ts`
+### Routes
+
 - `src/server/routes/releaseCenterRoutes.ts`
 - `src/server/routes/parentRoutes.ts`
+- `src/server/routes/reportIssueRoutes.ts`
+
+### Services
+
 - `src/server/services/issuedReportLinkService.ts`
 - `src/server/services/reportLinkService.ts`
-- `src/shared/reportReleaseMessage.ts`
+
+### Client API Files
+
+- `src/client/releaseCenterClient.ts`
+- `src/client/issueReportClient.ts`
+
+### Pages
+
+- `src/pages/ReleaseCenterPage.tsx`
+- `src/pages/ParentReportPage.tsx`
+
+### Components
+
+- No dedicated release-center component folder exists yet
+- Current page dependencies still come from shared components:
+  - `src/components/SectionLoader.tsx`
+  - `src/components/layout/branding.ts`
+  - `src/components/reports/StudentReportDetail.tsx`
+
+### Shared Types / Shared Utilities
+
+- No dedicated release-center shared types file exists yet
+- Release-center-adjacent shared files currently used by the pages/routes:
+  - `src/shared/reportReleaseMessage.ts`
+  - `src/shared/types/dashboard.ts`
+  - `src/shared/types/reports.ts`
+  - `src/shared/types/settings.ts`
+  - `src/shared/utils/reportComments.ts`
+  - `src/shared/utils/reportContentLimits.ts`
+
+### Tests
+
+- `src/tests/routes/releaseCenterRoutes.test.ts`
+- `src/tests/routes/releaseCenterWorkflow.test.ts`
+- `src/tests/routes/parentRoutes.test.ts`
+- `src/tests/routes/reportIssueRoutes.test.ts`
+- `src/tests/ui/ReleaseCenterPage.test.tsx`
+- `src/tests/ui/ParentReportPage.test.tsx`
+- `src/tests/shared/reportReleaseMessage.test.ts`
+- `src/tests/security/tenantIsolation.test.ts`
+- `src/tests/ui/ReportsPage.test.tsx`
+
+## Proposed Move Plan
+
+1. Move the pure release-center docs/contracts first.
+   - Create `src/modules/release-center/shared/` contracts for release status, issued-link payloads, and parent-message helpers where ownership is clearly release-center-specific.
+   - Leave shared report-wide types in reports/shared until ownership is clearer.
+
+2. Move client files without changing API paths.
+   - Move `src/client/releaseCenterClient.ts` to `src/modules/release-center/client/releaseCenterClient.ts`.
+   - Evaluate `src/client/issueReportClient.ts` during the same task only if it remains release-center-owned after contract review; otherwise leave it with reports and document the boundary.
+
+3. Move frontend pages without redesign.
+   - Move `src/pages/ReleaseCenterPage.tsx` to `src/modules/release-center/pages/ReleaseCenterPage.tsx`.
+   - Move `src/pages/ParentReportPage.tsx` to `src/modules/release-center/pages/ParentReportPage.tsx`.
+   - Keep current URL paths, guards, redirects, and shell boundaries unchanged.
+
+4. Move server services before route splitting.
+   - Move `src/server/services/issuedReportLinkService.ts` and `src/server/services/reportLinkService.ts` to `src/modules/release-center/server/services/`.
+   - Do not change business logic, public-link generation behavior, expiry rules, or audit behavior during the move.
+
+5. Move routes last as a mechanical relocation.
+   - Move `src/server/routes/releaseCenterRoutes.ts` and `src/server/routes/parentRoutes.ts` into `src/modules/release-center/server/routes/`.
+   - Decide whether `src/server/routes/reportIssueRoutes.ts` belongs wholly in release-center or remains a reports/release-center integration boundary before moving it.
+   - Preserve middleware order, public API paths, auth gates, tenant context order, and public/private separation.
+
+6. Move tests alongside the owned files.
+   - Move route/UI/shared tests that are clearly release-center-owned into `src/modules/release-center/tests/`.
+   - Keep cross-module regression tests like tenant isolation and reports-page integrations in their current shared locations unless their owning module is also being migrated.
+
+7. Split large or mixed-ownership files later.
+   - Do not split `releaseCenterRoutes.ts` or `reportIssueRoutes.ts` in the same task as the move unless explicitly requested.
+   - Preserve behavior first, then split internally in a later task if still needed.
