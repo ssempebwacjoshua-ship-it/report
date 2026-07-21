@@ -33,7 +33,6 @@ Owns report-link issuance, bulk release operations, revoke/sent tracking, and pa
 
 - API: `/api/reports/release-*`, `/api/reports/issue`, `/api/reports/issue-bulk`, `/api/p/:token`, `/api/p/short/:code`, `/api/p/:token/downloaded`, `/api/p/short/:code/downloaded`
 - Current route files still outside the module:
-  - `src/server/routes/parentRoutes.ts`
 - Adjacent release-center-owned route now moved into:
   - `src/modules/release-center/server/routes/reportIssueRoutes.ts`
 - Compatibility shim retained at:
@@ -41,8 +40,11 @@ Owns report-link issuance, bulk release operations, revoke/sent tracking, and pa
 - Existing route registration and test imports remain supported through the shim
 - Module-owned route now moved into:
   - `src/modules/release-center/server/routes/releaseCenterRoutes.ts`
+- Public parent route now moved into:
+  - `src/modules/release-center/server/routes/parentRoutes.ts`
 - Compatibility shim retained at:
   - `src/server/routes/releaseCenterRoutes.ts`
+  - `src/server/routes/parentRoutes.ts`
 - Existing route registration imports remain supported through the shim
 
 ## Owned Services
@@ -150,11 +152,14 @@ Owns report-link issuance, bulk release operations, revoke/sent tracking, and pa
   - `src/modules/release-center/server/routes/releaseCenterRoutes.ts`
 - Report issue routes moved into:
   - `src/modules/release-center/server/routes/reportIssueRoutes.ts`
+- Parent public routes moved into:
+  - `src/modules/release-center/server/routes/parentRoutes.ts`
 - Compatibility shim retained at:
   - `src/server/routes/releaseCenterRoutes.ts`
   - `src/server/routes/reportIssueRoutes.ts`
+  - `src/server/routes/parentRoutes.ts`
 - Existing route registration imports remain supported through the shim
-- Build passed after the client, page, report-link service, release-center-routes, and report-issue-routes moves
+- Build passed after the client, page, report-link service, release-center-routes, report-issue-routes, and parent-routes moves
 - `npm run typecheck` still has unrelated repo-wide failures outside release-center client relocations
 - Other runtime files not moved yet
 
@@ -166,7 +171,8 @@ Owns report-link issuance, bulk release operations, revoke/sent tracking, and pa
 - `src/server/routes/releaseCenterRoutes.ts` (compatibility shim)
 - `src/modules/release-center/server/routes/reportIssueRoutes.ts`
 - `src/server/routes/reportIssueRoutes.ts` (compatibility shim)
-- `src/server/routes/parentRoutes.ts`
+- `src/modules/release-center/server/routes/parentRoutes.ts`
+- `src/server/routes/parentRoutes.ts` (compatibility shim)
 
 ### Services
 
@@ -250,7 +256,8 @@ Owns report-link issuance, bulk release operations, revoke/sent tracking, and pa
    - Keep `src/server/routes/releaseCenterRoutes.ts` as a compatibility shim until downstream imports are intentionally repointed.
    - `src/server/routes/reportIssueRoutes.ts` has already been moved to `src/modules/release-center/server/routes/reportIssueRoutes.ts`.
    - Keep `src/server/routes/reportIssueRoutes.ts` as a compatibility shim until downstream imports are intentionally repointed.
-   - Move `src/server/routes/parentRoutes.ts` into `src/modules/release-center/server/routes/`.
+   - `src/server/routes/parentRoutes.ts` has already been moved to `src/modules/release-center/server/routes/parentRoutes.ts`.
+   - Keep `src/server/routes/parentRoutes.ts` as a compatibility shim until downstream imports are intentionally repointed.
    - Preserve middleware order, public API paths, auth gates, tenant context order, and public/private separation.
 
 6. Move tests alongside the owned files.

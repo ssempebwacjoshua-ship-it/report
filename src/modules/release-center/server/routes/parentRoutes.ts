@@ -1,0 +1,324 @@
+import { Router } from "express";
+import { prisma } from "../../../../server/db/prisma";
+import { isReportLinkExpired, sha256Hex } from "../services/reportLinkService";
+import { sanitizeReportCardForRender, sanitizeReportComments, sanitizeReportPersonalizationForReport, sanitizeSchoolSettingsForReport } from "../../../../shared/utils/reportContentLimits";
+
+function hashToken(token: string): string {
+  return sha256Hex(token);
+}
+
+async function findIssuedReportByPublicLink(identifier: { token?: string; code?: string }) {
+  if (identifier.code) {
+    return prisma.issuedReport.findUnique({
+      where: { publicShortCode: identifier.code },
+      include: {
+        school: { select: { name: true } },
+      },
+    });
+  }
+
+  const tokenHash = hashToken(identifier.token ?? "");
+  console.log("parent.link.open", {
+    tokenLength: identifier.token?.length ?? 0,
+    tokenHashPrefix: `${tokenHash.slice(0, 12)}...`,
+  });
+  return prisma.issuedReport.findUnique({
+    where: { parentAccessToken: tokenHash },
+    include: {
+      school: { select: { name: true } },
+    },
+  });
+}
+
+async function findIssuedReportForDownload(identifier: { token?: string; code?: string }) {
+  if (identifier.code) {
+    return prisma.issuedReport.findUnique({
+      where: { publicShortCode: identifier.code },
+    });
+  }
+
+  return prisma.issuedReport.findUnique({
+    where: { parentAccessToken: hashToken(identifier.token ?? "") },
+  });
+}
+
+function buildPublicSnapshot(snapshot: any) {
+  const card = snapshot?.card ? sanitizeReportCardForRender(snapshot.card) : null;
+  const schoolSettings = snapshot?.settings?.school
+    ? sanitizeSchoolSettingsForReport(snapshot.settings.school)
+    : null;
+  const reportComments = snapshot?.reportComments
+    ? sanitizeReportComments(snapshot.reportComments)
+    : undefined;
+
+  return {
+    card: card
+      ? {
+          studentId: "",
+          admissionNumber: card.admissionNumber,
+          studentName: card.studentName,
+          passportPhotoUrl: card.passportPhotoUrl ?? null,
+          className: card.className,
+          streamName: card.streamName,
+          academicYear: card.academicYear,
+          term: card.term,
+          marksFound: card.marksFound,
+          totalSubjects: card.totalSubjects,
+          average: card.average,
+          grade: card.grade,
+          overallPosition: card.overallPosition,
+          readiness: card.readiness,
+          missingMarks: [],
+          comments: "",
+          contactReadiness: "NO_RECIPIENT",
+          contactSummary: "",
+          subjects: card.subjects.map((subject) => ({
+            subjectId: "",
+            subjectName: subject.subjectName,
+            botMarks: subject.botMarks,
+            motMarks: subject.motMarks,
+            eotMarks: subject.eotMarks,
+            total: subject.total,
+            average: subject.average,
+            grade: subject.grade,
+            subjectPosition: null,
+            missingMarks: [],
+            comments: subject.comments,
+          })),
+          progressionText: card.progressionText,
+        }
+      : null,
+    settings: schoolSettings && snapshot?.settings?.reports && snapshot?.settings?.grading
+      ? {
+          school: schoolSettings,
+          reports: snapshot.settings.reports,
+          personalization: snapshot.settings.personalization
+            ? sanitizeReportPersonalizationForReport(snapshot.settings.personalization)
+            : null,
+          grading: snapshot.settings.grading,
+        }
+      : null,
+    filters: snapshot?.filters ? { assessmentType: snapshot.filters.assessmentType } : null,
+    reportComments,
+  };
+}
+
+export function parentRoutes() {
+  const router = Router();
+
+  router.get("/api/p/:token", async (req, res, next) => {
+    try {
+      const { token } = req.params;
+      const issued = await findIssuedReportByPublicLink({ token });
+      if (!issued) {
+        res.status(404).json({ message: "Report link not found or expired", code: "REPORT_LINK_NOT_FOUND" });
+        return;
+      }
+      console.log("parent.link.found", { issuedReportId: issued.id, status: issued.status });
+      if (issued.status === "REVOKED") {
+        res.status(410).json({ message: "This report link was revoked", code: "REPORT_REVOKED" });
+        return;
+      }
+      if (issued.status === "SUPERSEDED") {
+        res.status(410).json({
+          message: "This report has been replaced by a newer issued report",
+          code: "REPORT_SUPERSEDED",
+        });
+        return;
+      }
+      if (isReportLinkExpired(issued.expiresAt)) {
+        res.status(410).json({ message: "This report link has expired", code: "REPORT_LINK_EXPIRED" });
+        return;
+      }
+      const openedAt = new Date();
+      await prisma.issuedReport.update({
+        where: { id: issued.id },
+        data: {
+          viewedAt: issued.viewedAt ?? openedAt,
+          lastViewedAt: openedAt,
+          openCount: { increment: 1 },
+        },
+      });
+      await prisma.auditLog.create({
+        data: {
+          schoolId: issued.schoolId,
+          action: "report.link_opened",
+          correlationId: issued.id,
+          details: {
+            issuedReportId: issued.id,
+            referenceCode: issued.referenceCode,
+          },
+        },
+      });
+
+      res.json({
+        status: issued.status,
+        referenceCode: issued.referenceCode,
+        issuedAt: issued.issuedAt,
+        issuedByName: issued.issuedByName,
+        school: { name: issued.school.name },
+        snapshot: buildPublicSnapshot(issued.reportSnapshotJson),
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.get("/api/p/short/:code", async (req, res, next) => {
+    try {
+      const issued = await findIssuedReportByPublicLink({ code: req.params.code });
+      if (!issued) {
+        res.status(404).json({ message: "Report link not found or expired", code: "REPORT_LINK_NOT_FOUND" });
+        return;
+      }
+      console.log("parent.link.found", { issuedReportId: issued.id, status: issued.status });
+      if (issued.status === "REVOKED") {
+        res.status(410).json({ message: "This report link was revoked", code: "REPORT_REVOKED" });
+        return;
+      }
+
+      if (issued.status === "SUPERSEDED") {
+        res.status(410).json({
+          message: "This report has been replaced by a newer issued report",
+          code: "REPORT_SUPERSEDED",
+        });
+        return;
+      }
+
+      if (isReportLinkExpired(issued.expiresAt)) {
+        res.status(410).json({ message: "This report link has expired", code: "REPORT_LINK_EXPIRED" });
+        return;
+      }
+
+      const openedAt = new Date();
+      await prisma.issuedReport.update({
+        where: { id: issued.id },
+        data: {
+          viewedAt: issued.viewedAt ?? openedAt,
+          lastViewedAt: openedAt,
+          openCount: { increment: 1 },
+        },
+      });
+      await prisma.auditLog.create({
+        data: {
+          schoolId: issued.schoolId,
+          action: "report.link_opened",
+          correlationId: issued.id,
+          details: {
+            issuedReportId: issued.id,
+            referenceCode: issued.referenceCode,
+          },
+        },
+      });
+
+      res.json({
+        status: issued.status,
+        referenceCode: issued.referenceCode,
+        issuedAt: issued.issuedAt,
+        issuedByName: issued.issuedByName,
+        school: { name: issued.school.name },
+        snapshot: buildPublicSnapshot(issued.reportSnapshotJson),
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/api/p/:token/downloaded", async (req, res, next) => {
+    try {
+      const issued = await findIssuedReportForDownload({ token: req.params.token });
+      if (!issued) {
+        res.status(404).json({ message: "Report link not found or expired", code: "REPORT_LINK_NOT_FOUND" });
+        return;
+      }
+      if (issued.status === "REVOKED") {
+        res.status(410).json({ message: "This report link was revoked", code: "REPORT_REVOKED" });
+        return;
+      }
+      if (issued.status === "SUPERSEDED") {
+        res.status(410).json({ message: "This report has been replaced by a newer issued report", code: "REPORT_SUPERSEDED" });
+        return;
+      }
+      if (isReportLinkExpired(issued.expiresAt)) {
+        res.status(410).json({ message: "This report link has expired", code: "REPORT_LINK_EXPIRED" });
+        return;
+      }
+      const downloadedAt = new Date();
+      await prisma.issuedReport.update({
+        where: { id: issued.id },
+        data: {
+          downloadedAt: issued.downloadedAt ?? downloadedAt,
+          lastDownloadedAt: downloadedAt,
+          downloadCount: { increment: 1 },
+        },
+      });
+      await prisma.auditLog.create({
+        data: {
+          schoolId: issued.schoolId,
+          action: "report.link_downloaded",
+          correlationId: issued.id,
+          details: {
+            issuedReportId: issued.id,
+            referenceCode: issued.referenceCode,
+          },
+        },
+      });
+
+      res.json({ ok: true });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/api/p/short/:code/downloaded", async (req, res, next) => {
+    try {
+      const issued = await findIssuedReportForDownload({ code: req.params.code });
+      if (!issued) {
+        res.status(404).json({ message: "Report link not found or expired", code: "REPORT_LINK_NOT_FOUND" });
+        return;
+      }
+
+      if (issued.status === "REVOKED") {
+        res.status(410).json({ message: "This report link was revoked", code: "REPORT_REVOKED" });
+        return;
+      }
+
+      if (issued.status === "SUPERSEDED") {
+        res.status(410).json({ message: "This report has been replaced by a newer issued report", code: "REPORT_SUPERSEDED" });
+        return;
+      }
+
+      if (isReportLinkExpired(issued.expiresAt)) {
+        res.status(410).json({ message: "This report link has expired", code: "REPORT_LINK_EXPIRED" });
+        return;
+      }
+
+      const downloadedAt = new Date();
+      await prisma.issuedReport.update({
+        where: { id: issued.id },
+        data: {
+          downloadedAt: issued.downloadedAt ?? downloadedAt,
+          lastDownloadedAt: downloadedAt,
+          downloadCount: { increment: 1 },
+        },
+      });
+      await prisma.auditLog.create({
+        data: {
+          schoolId: issued.schoolId,
+          action: "report.link_downloaded",
+          correlationId: issued.id,
+          details: {
+            issuedReportId: issued.id,
+            referenceCode: issued.referenceCode,
+          },
+        },
+      });
+
+      res.json({ ok: true });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  return router;
+}
