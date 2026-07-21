@@ -41,8 +41,12 @@ Owns report-link issuance, bulk release operations, revoke/sent tracking, and pa
 ## Owned Services
 
 - Report issue/release, issued-link, parent delivery, and release workflow services
-- Current legacy files still outside the module:
+- Module-owned service now moved into:
+  - `src/modules/release-center/server/services/issuedReportLinkService.ts`
+- Compatibility shim retained at:
   - `src/server/services/issuedReportLinkService.ts`
+- Existing service imports remain supported through the shim
+- Current legacy files still outside the module:
   - `src/server/services/reportLinkService.ts`
 
 ## Owned Repositories
@@ -121,12 +125,15 @@ Owns report-link issuance, bulk release operations, revoke/sent tracking, and pa
   - `src/modules/release-center/client/issueReportClient.ts`
 - Release Center page moved into:
   - `src/modules/release-center/pages/ReleaseCenterPage.tsx`
+- Issued report link service moved into:
+  - `src/modules/release-center/server/services/issuedReportLinkService.ts`
 - Compatibility shims retained at:
   - `src/client/releaseCenterClient.ts`
   - `src/client/issueReportClient.ts`
 - `src/pages/ReleaseCenterPage.tsx`
+- `src/server/services/issuedReportLinkService.ts`
 - Existing runtime imports still supported through the shims
-- Build passed after the client and page moves
+- Build passed after the client, page, and issued-report-link-service moves
 - `npm run typecheck` still has unrelated repo-wide failures outside release-center client relocations
 - Other runtime files not moved yet
 
@@ -140,7 +147,8 @@ Owns report-link issuance, bulk release operations, revoke/sent tracking, and pa
 
 ### Services
 
-- `src/server/services/issuedReportLinkService.ts`
+- `src/modules/release-center/server/services/issuedReportLinkService.ts`
+- `src/server/services/issuedReportLinkService.ts` (compatibility shim)
 - `src/server/services/reportLinkService.ts`
 
 ### Client API Files
@@ -207,7 +215,9 @@ Owns report-link issuance, bulk release operations, revoke/sent tracking, and pa
    - Keep current URL paths, guards, redirects, and shell boundaries unchanged.
 
 4. Move server services before route splitting.
-   - Move `src/server/services/issuedReportLinkService.ts` and `src/server/services/reportLinkService.ts` to `src/modules/release-center/server/services/`.
+   - `src/server/services/issuedReportLinkService.ts` has already been moved to `src/modules/release-center/server/services/issuedReportLinkService.ts`.
+   - Keep `src/server/services/issuedReportLinkService.ts` as a compatibility shim until downstream imports are intentionally repointed.
+   - Move `src/server/services/reportLinkService.ts` to `src/modules/release-center/server/services/` in a later task.
    - Do not change business logic, public-link generation behavior, expiry rules, or audit behavior during the move.
 
 5. Move routes last as a mechanical relocation.
