@@ -33,10 +33,14 @@ Owns report-link issuance, bulk release operations, revoke/sent tracking, and pa
 
 - API: `/api/reports/release-*`, `/api/reports/issue`, `/api/reports/issue-bulk`, `/api/p/:token`, `/api/p/short/:code`, `/api/p/:token/downloaded`, `/api/p/short/:code/downloaded`
 - Current route files still outside the module:
-  - `src/server/routes/releaseCenterRoutes.ts`
   - `src/server/routes/parentRoutes.ts`
 - Adjacent route file with release-center ownership overlap:
   - `src/server/routes/reportIssueRoutes.ts`
+- Module-owned route now moved into:
+  - `src/modules/release-center/server/routes/releaseCenterRoutes.ts`
+- Compatibility shim retained at:
+  - `src/server/routes/releaseCenterRoutes.ts`
+- Existing route registration imports remain supported through the shim
 
 ## Owned Services
 
@@ -139,6 +143,12 @@ Owns report-link issuance, bulk release operations, revoke/sent tracking, and pa
 - `src/server/services/reportLinkService.ts`
 - Existing runtime imports still supported through the shims
 - Build passed after the client, page, and report-link service moves
+- Release Center routes moved into:
+  - `src/modules/release-center/server/routes/releaseCenterRoutes.ts`
+- Compatibility shim retained at:
+  - `src/server/routes/releaseCenterRoutes.ts`
+- Existing route registration imports remain supported through the shim
+- Build passed after the client, page, report-link service, and release-center-routes moves
 - `npm run typecheck` still has unrelated repo-wide failures outside release-center client relocations
 - Other runtime files not moved yet
 
@@ -146,7 +156,8 @@ Owns report-link issuance, bulk release operations, revoke/sent tracking, and pa
 
 ### Routes
 
-- `src/server/routes/releaseCenterRoutes.ts`
+- `src/modules/release-center/server/routes/releaseCenterRoutes.ts`
+- `src/server/routes/releaseCenterRoutes.ts` (compatibility shim)
 - `src/server/routes/parentRoutes.ts`
 - `src/server/routes/reportIssueRoutes.ts`
 
@@ -228,7 +239,9 @@ Owns report-link issuance, bulk release operations, revoke/sent tracking, and pa
    - Do not change business logic, public-link generation behavior, expiry rules, or audit behavior during the move.
 
 5. Move routes last as a mechanical relocation.
-   - Move `src/server/routes/releaseCenterRoutes.ts` and `src/server/routes/parentRoutes.ts` into `src/modules/release-center/server/routes/`.
+   - `src/server/routes/releaseCenterRoutes.ts` has already been moved to `src/modules/release-center/server/routes/releaseCenterRoutes.ts`.
+   - Keep `src/server/routes/releaseCenterRoutes.ts` as a compatibility shim until downstream imports are intentionally repointed.
+   - Move `src/server/routes/parentRoutes.ts` into `src/modules/release-center/server/routes/`.
    - Decide whether `src/server/routes/reportIssueRoutes.ts` belongs wholly in release-center or remains a reports/release-center integration boundary before moving it.
    - Preserve middleware order, public API paths, auth gates, tenant context order, and public/private separation.
 
