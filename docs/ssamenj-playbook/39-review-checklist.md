@@ -16,6 +16,10 @@ Codex must answer these before handoff or commit.
 - Audit logs added?
 - Tests run?
 - Build result?
+- Documentation update needed: yes/no?
+- Documentation updated: yes/no?
+- Documentation files updated, if any?
+- If documentation was skipped, why?
 - Risks?
 - Follow-ups?
 
@@ -31,6 +35,7 @@ Codex must answer these before handoff or commit.
 - Were high-risk areas kept out unless the task was explicitly scoped to them?
 - Were baseline tests for the moved module identified before edits?
 - After the move, were the same targeted tests, affected tests, typecheck, and build run?
+- Was the owning module README updated after the committed move when the task was a module migration?
 - If runtime behavior was intentionally changed, was that separately approved?
 
 ## Rule

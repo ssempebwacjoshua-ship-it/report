@@ -143,6 +143,35 @@ These areas require separate explicit tasks:
 
 Do not include high-risk areas in a broad migration unless the task is specifically scoped to that area and the required tests are identified first.
 
+## Documentation sync rule
+
+At the end of every task, Codex must check whether any module README, architecture doc, or playbook file needs to be updated.
+
+This is required when the task:
+
+- moves a file into or out of a module;
+- creates a new route, service, client, page, test, permission, audit event, job, or integration;
+- changes ownership of any file or behavior;
+- adds a compatibility shim;
+- changes public API paths, frontend routes, or route registration;
+- changes high-risk flows such as auth, imports, reports, NFC, Smart Pages, billing, or tenant isolation.
+
+If documentation is needed, update it in the same task unless the user explicitly requested runtime-only work.
+
+If documentation is not needed, the final handoff must say:
+
+```text
+Documentation update needed: no
+```
+
+If documentation is needed but skipped, the final handoff must say:
+
+```text
+Documentation update needed: yes, skipped because <reason>
+```
+
+For module migration tasks, update the owning module README after every committed move so the migration map stays truthful.
+
 ## Reporting rules
 
 - Report current branch.
@@ -155,5 +184,9 @@ Do not include high-risk areas in a broad migration unless the task is specifica
 - Report whether Prisma/migration changed.
 - Report tests run.
 - Report build/typecheck result.
+- Report whether a documentation update was needed.
+- Report whether documentation was updated.
+- Report documentation files updated, if any.
+- Report why documentation was skipped, if it was needed but not updated.
 - Report risks or skipped checks.
 - Report the next safest step.

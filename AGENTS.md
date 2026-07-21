@@ -474,6 +474,35 @@ Every handoff must also include:
 
 Never report a production change as safe when verification was skipped.
 
+## 14A. Documentation Sync Rule
+
+At the end of every task, Codex must check whether any module README, architecture doc, or playbook file needs to be updated.
+
+This is required when the task:
+
+- moves a file into or out of a module;
+- creates a new route, service, client, page, test, permission, audit event, job, or integration;
+- changes ownership of any file or behavior;
+- adds a compatibility shim;
+- changes public API paths, frontend routes, or route registration;
+- changes high-risk flows such as auth, imports, reports, NFC, Smart Pages, billing, or tenant isolation.
+
+If documentation is needed, update it in the same task unless the user explicitly requested runtime-only work.
+
+If documentation is not needed, the final handoff must say:
+
+```text
+Documentation update needed: no
+```
+
+If documentation is needed but skipped, the final handoff must say:
+
+```text
+Documentation update needed: yes, skipped because <reason>
+```
+
+For module migration tasks, update the owning module README after every committed move so the migration map stays truthful.
+
 ## 15. SSAMENJ instruction hierarchy
 
 Before any task, read `docs/ssamenj-playbook/00-index.md`.

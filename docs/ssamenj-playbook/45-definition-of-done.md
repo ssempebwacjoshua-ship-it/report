@@ -15,6 +15,7 @@ A SSAMENJ task is done only when the relevant checks are complete.
 - Tests pass.
 - Build passes.
 - Docs updated.
+- Documentation sync review completed.
 - `.env.example` updated where needed.
 - Database changes reviewed for destructive migration risk.
 - Production backup/PITR confirmed before risky migrations.
@@ -41,7 +42,8 @@ A SSAMENJ task is done only when the relevant checks are complete.
 - Typecheck ran.
 - Build ran.
 - Critical tests ran when the moved module touched auth, permissions, tenant isolation, reports, imports, NFC, Smart Pages, or public links.
+- The owning module README was updated after the committed move when the task changed the module file map.
 
 ## Handoff Rule
 
-Final reports must include current branch, whether the branch is ahead of origin, files changed, module touched, whether runtime behavior changed, whether auth/permission changed, whether tenant isolation changed, whether Prisma/migration changed, commands run, build/test results, skipped checks, risks, and next safest steps.
+Final reports must include current branch, whether the branch is ahead of origin, files changed, module touched, whether runtime behavior changed, whether auth/permission changed, whether tenant isolation changed, whether Prisma/migration changed, whether a documentation update was needed, whether documentation was updated, documentation files updated if any, why documentation was skipped if needed, commands run, build/test results, skipped checks, risks, and next safest steps.
