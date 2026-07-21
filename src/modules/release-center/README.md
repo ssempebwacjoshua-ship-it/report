@@ -48,13 +48,13 @@ Owns report-link issuance, bulk release operations, revoke/sent tracking, and pa
 
 ## Owned Client API Files
 
-- Module-owned client file now moved into:
+- Module-owned client files now moved into:
   - `src/modules/release-center/client/releaseCenterClient.ts`
-- Compatibility shim retained at:
+  - `src/modules/release-center/client/issueReportClient.ts`
+- Compatibility shims retained at:
   - `src/client/releaseCenterClient.ts`
-- Existing runtime imports remain supported through the shim
-- Adjacent client file with release-center ownership overlap:
   - `src/client/issueReportClient.ts`
+- Existing runtime imports remain supported through the shims
 
 ## Owned Tests
 
@@ -112,11 +112,15 @@ Owns report-link issuance, bulk release operations, revoke/sent tracking, and pa
 - Skeleton only
 - Ownership contract defined
 - Legacy files mapped
-- Release-center client implementation moved into `src/modules/release-center/client/releaseCenterClient.ts`
-- Compatibility shim retained at `src/client/releaseCenterClient.ts`
-- Existing runtime imports still supported through the shim
-- Build passed after the client move
-- `npm run typecheck` still has unrelated repo-wide failures outside release-center client relocation
+- Release-center client implementations moved into:
+  - `src/modules/release-center/client/releaseCenterClient.ts`
+  - `src/modules/release-center/client/issueReportClient.ts`
+- Compatibility shims retained at:
+  - `src/client/releaseCenterClient.ts`
+  - `src/client/issueReportClient.ts`
+- Existing runtime imports still supported through the shims
+- Build passed after both client moves
+- `npm run typecheck` still has unrelated repo-wide failures outside release-center client relocations
 - Other runtime files not moved yet
 
 ## Known Legacy Files Still Outside The Module
@@ -135,8 +139,9 @@ Owns report-link issuance, bulk release operations, revoke/sent tracking, and pa
 ### Client API Files
 
 - `src/modules/release-center/client/releaseCenterClient.ts`
+- `src/modules/release-center/client/issueReportClient.ts`
 - `src/client/releaseCenterClient.ts` (compatibility shim)
-- `src/client/issueReportClient.ts`
+- `src/client/issueReportClient.ts` (compatibility shim)
 
 ### Pages
 
@@ -182,8 +187,10 @@ Owns report-link issuance, bulk release operations, revoke/sent tracking, and pa
 
 2. Move client files without changing API paths.
    - `src/client/releaseCenterClient.ts` has already been moved to `src/modules/release-center/client/releaseCenterClient.ts`.
+   - `src/client/issueReportClient.ts` has already been moved to `src/modules/release-center/client/issueReportClient.ts`.
    - Keep `src/client/releaseCenterClient.ts` as a compatibility shim until downstream imports are intentionally repointed.
-   - Evaluate `src/client/issueReportClient.ts` in a later task only if it remains release-center-owned after contract review; otherwise leave it with reports and document the boundary.
+   - Keep `src/client/issueReportClient.ts` as a compatibility shim until downstream imports are intentionally repointed.
+   - Review whether `ReportsPage.tsx` should continue consuming the release-center-owned issue client or whether that boundary should move during later reports/release-center cleanup.
 
 3. Move frontend pages without redesign.
    - Move `src/pages/ReleaseCenterPage.tsx` to `src/modules/release-center/pages/ReleaseCenterPage.tsx`.

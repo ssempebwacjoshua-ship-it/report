@@ -60,7 +60,10 @@ Owns academic reporting, report rendering, marks import workflows, marksheets, r
   - `src/client/reportsClient.ts`
   - `src/client/importsClient.ts`
   - `src/client/marksheetsClient.ts`
-  - `src/client/issueReportClient.ts`
+- Cross-module usage note:
+  - `src/modules/release-center/client/issueReportClient.ts` is currently owned by release-center
+  - `src/pages/ReportsPage.tsx` still uses it through the compatibility shim at `src/client/issueReportClient.ts`
+  - This boundary should be reviewed during later reports/release-center cleanup
 
 ## Owned Tests
 
@@ -127,6 +130,9 @@ Owns academic reporting, report rendering, marks import workflows, marksheets, r
 
 - Skeleton only
 - Ownership contract defined
+- Reports still consume the release-center-owned issue report client through a compatibility shim
+- Build passed after the release-center client moves
+- `npm run typecheck` still has unrelated repo-wide failures outside the client relocations
 - Runtime files not moved yet
 
 ## Known Legacy Files Still Outside The Module
@@ -138,6 +144,7 @@ Owns academic reporting, report rendering, marks import workflows, marksheets, r
 - `src/client/reportsClient.ts`
 - `src/client/importsClient.ts`
 - `src/client/marksheetsClient.ts`
+- `src/pages/ReportsPage.tsx` still depends on the release-center-owned issue report client through `src/client/issueReportClient.ts`
 - `src/server/routes/reportsRoutes.ts`
 - `src/server/routes/importsRoutes.ts`
 - `src/server/routes/marksheetsRoutes.ts`
