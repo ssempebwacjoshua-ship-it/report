@@ -21,8 +21,12 @@ Owns report-link issuance, bulk release operations, revoke/sent tracking, and pa
 - Browser: `/report-lab/reports/release`
 - Parent/public report access flows currently rendered by:
   - `src/pages/ParentReportPage.tsx`
-- Current legacy files:
+- Module-owned page now moved into:
+  - `src/modules/release-center/pages/ReleaseCenterPage.tsx`
+- Compatibility shim retained at:
   - `src/pages/ReleaseCenterPage.tsx`
+- Existing route imports remain supported through the shim
+- Current legacy files still outside the module:
   - `src/pages/ParentReportPage.tsx`
 
 ## Owned Server Routes
@@ -115,11 +119,14 @@ Owns report-link issuance, bulk release operations, revoke/sent tracking, and pa
 - Release-center client implementations moved into:
   - `src/modules/release-center/client/releaseCenterClient.ts`
   - `src/modules/release-center/client/issueReportClient.ts`
+- Release Center page moved into:
+  - `src/modules/release-center/pages/ReleaseCenterPage.tsx`
 - Compatibility shims retained at:
   - `src/client/releaseCenterClient.ts`
   - `src/client/issueReportClient.ts`
+- `src/pages/ReleaseCenterPage.tsx`
 - Existing runtime imports still supported through the shims
-- Build passed after both client moves
+- Build passed after the client and page moves
 - `npm run typecheck` still has unrelated repo-wide failures outside release-center client relocations
 - Other runtime files not moved yet
 
@@ -145,7 +152,8 @@ Owns report-link issuance, bulk release operations, revoke/sent tracking, and pa
 
 ### Pages
 
-- `src/pages/ReleaseCenterPage.tsx`
+- `src/modules/release-center/pages/ReleaseCenterPage.tsx`
+- `src/pages/ReleaseCenterPage.tsx` (compatibility shim)
 - `src/pages/ParentReportPage.tsx`
 
 ### Components
@@ -193,7 +201,8 @@ Owns report-link issuance, bulk release operations, revoke/sent tracking, and pa
    - Review whether `ReportsPage.tsx` should continue consuming the release-center-owned issue client or whether that boundary should move during later reports/release-center cleanup.
 
 3. Move frontend pages without redesign.
-   - Move `src/pages/ReleaseCenterPage.tsx` to `src/modules/release-center/pages/ReleaseCenterPage.tsx`.
+   - `src/pages/ReleaseCenterPage.tsx` has already been moved to `src/modules/release-center/pages/ReleaseCenterPage.tsx`.
+   - Keep `src/pages/ReleaseCenterPage.tsx` as a compatibility shim until downstream imports are intentionally repointed.
    - Move `src/pages/ParentReportPage.tsx` to `src/modules/release-center/pages/ParentReportPage.tsx`.
    - Keep current URL paths, guards, redirects, and shell boundaries unchanged.
 
