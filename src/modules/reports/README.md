@@ -60,8 +60,11 @@ Owns academic reporting, report rendering, marks import workflows, marksheets, r
 ## Owned Services
 
 - Report generation, comments, import, marksheet, validation, and promotion services
-- Current legacy files still outside the module:
+- Module-owned service now moved into:
+  - `src/modules/reports/server/services/marksImportService.ts`
+- Compatibility shim retained at:
   - `src/server/services/marksImportService.ts`
+- Existing service imports remain supported through the shim
 - Module-owned service now moved into:
   - `src/modules/reports/server/services/promotionService.ts`
 - Compatibility shim retained at:
@@ -257,6 +260,11 @@ Owns academic reporting, report rendering, marks import workflows, marksheets, r
 - Compatibility shim retained at:
   - `src/server/repositories/settingsRepository.ts`
 - Existing repository imports remain supported through the shim
+- Marks import service moved into:
+  - `src/modules/reports/server/services/marksImportService.ts`
+- Compatibility shim retained at:
+  - `src/server/services/marksImportService.ts`
+- Module path is now canonical and runtime behavior is unchanged
 - Reports client moved into:
   - `src/modules/reports/client/reportsClient.ts`
 - Compatibility shim retained at:
