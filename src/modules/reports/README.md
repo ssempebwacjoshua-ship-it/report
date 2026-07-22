@@ -141,6 +141,11 @@ Owns academic reporting, report rendering, marks import workflows, marksheets, r
   - `src/server/services/marksImportValidator.ts`
 - Existing service imports remain supported through the shim
 - Module-owned service now moved into:
+  - `src/modules/reports/server/services/geminiMarksImportService.ts`
+- Compatibility shim retained at:
+  - `src/server/services/geminiMarksImportService.ts`
+- Existing service imports remain supported through the shim
+- Module-owned service now moved into:
   - `src/modules/reports/server/services/reportAssistantContextService.ts`
 - Compatibility shim retained at:
   - `src/server/services/reportAssistantContextService.ts`
@@ -397,6 +402,11 @@ Owns academic reporting, report rendering, marks import workflows, marksheets, r
   - `src/modules/reports/server/services/marksImportValidator.ts`
 - Compatibility shim retained at:
   - `src/server/services/marksImportValidator.ts`
+- Module path is now canonical and runtime behavior is unchanged
+- Gemini marks import service moved into:
+  - `src/modules/reports/server/services/geminiMarksImportService.ts`
+- Compatibility shim retained at:
+  - `src/server/services/geminiMarksImportService.ts`
 - Module path is now canonical and runtime behavior is unchanged
 - Report assistant context service moved into:
   - `src/modules/reports/server/services/reportAssistantContextService.ts`
