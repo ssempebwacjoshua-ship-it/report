@@ -1,4 +1,5 @@
-﻿import { Router, type Request, type Response } from "express";
+import { Router, type Request, type Response } from "express";
+import { getRuntimeDiagnostics } from "../config/deployRuntime";
 
 const ENV_STATUS_KEYS = [
   "JWT_SECRET",
@@ -18,17 +19,18 @@ export function healthRoutes() {
   router.get("/health", handler);
   router.get("/api/health", handler);
 
-  // Lightweight ping for offline heartbeat — no auth required
   router.get("/api/health/ping", (_req: Request, res: Response) => {
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+    res.setHeader("Pragma", "no-cache");
     res.json({ ok: true, ts: Date.now() });
   });
 
-  /**
-   * GET /api/health/env
-   *
-   * Returns SET / MISSING for each required env var ? never the actual values.
-   * Protected by INTERNAL_TEST_KEY so it is not publicly accessible.
-   */
+  router.get("/api/health/runtime", (_req: Request, res: Response) => {
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+    res.setHeader("Pragma", "no-cache");
+    res.json({ ok: true, ...getRuntimeDiagnostics() });
+  });
+
   router.get("/api/health/env", (req: Request, res: Response) => {
     const provided = req.headers["x-internal-test-key"];
     const expected = process.env.INTERNAL_TEST_KEY;
@@ -47,4 +49,3 @@ export function healthRoutes() {
 
   return router;
 }
-

@@ -5,7 +5,7 @@ import path from "node:path";
 import fs from "node:fs";
 // Force IPv4 DNS resolution ? prevents "fetch failed" on Windows/IPv6 networks when reaching Gemini
 dns.setDefaultResultOrder("ipv4first");
-import cors from "cors";
+import cors, { type CorsOptions } from "cors";
 import express, { type ErrorRequestHandler } from "express";
 import http from "http";
 import { ZodError } from "zod";
@@ -29,6 +29,8 @@ import { promotionRoutes } from "./routes/promotionRoutes";
 import { releaseCenterRoutes } from "./routes/releaseCenterRoutes";
 import { communicationRoutes } from "./routes/communicationRoutes";
 import { whatsappIntegrationRoutes } from "./routes/whatsappIntegrationRoutes";
+import { smsIntegrationRoutes } from "./routes/smsIntegrationRoutes";
+import { startSmsDeliveryWorker } from "./services/communicationEngine";
 import { parentRoutes } from "./routes/parentRoutes";
 import { verifyRoutes } from "./routes/verifyRoutes";
 import { ocrRoutes } from "./routes/ocrRoutes";
@@ -60,46 +62,7 @@ import { createRateLimiter, rateLimitWhen } from "./middleware/rateLimiters";
 import { securityHeaders } from "./middleware/securityHeaders";
 import { checkNfcWristbandSchema } from "./utils/nfcSchemaCheck";
 import { assertPlatformIntegrationConfigured } from "./platformClient";
-
-const LOCALHOST_ORIGIN = /^https?:\/\/(?:localhost|127\.0\.0\.1)(:\d+)?$/;
-const CANONICAL_PRODUCTION_ORIGINS = new Set([
-  "https://ssamenj.online",
-  "https://www.ssamenj.online",
-]);
-
-function normalizeOrigin(value: string): string {
-  return value.trim().replace(/\/+$/, "");
-}
-
-function getAllowedBrowserOrigins() {
-  const allowed = process.env.CLIENT_ORIGIN?.trim();
-  const origins = new Set<string>();
-  if (allowed) {
-    const normalized = normalizeOrigin(allowed);
-    origins.add(normalized);
-    try {
-      const parsed = new URL(normalized);
-      if (parsed.hostname === "ssamenj.online") origins.add("https://www.ssamenj.online");
-      if (parsed.hostname === "www.ssamenj.online") origins.add("https://ssamenj.online");
-    } catch {
-      // Leave the configured origin as-is; validateEnv will fail closed for bad production config.
-    }
-  } else if (process.env.NODE_ENV !== "production") {
-    return null;
-  } else {
-    for (const origin of CANONICAL_PRODUCTION_ORIGINS) origins.add(origin);
-  }
-  return origins;
-}
-
-function isAllowedBrowserOrigin(origin: string, allowedOrigins: Set<string> | null): boolean {
-  const normalized = normalizeOrigin(origin);
-  if (allowedOrigins) {
-    if (allowedOrigins.has(normalized)) return true;
-    return process.env.NODE_ENV !== "production" && LOCALHOST_ORIGIN.test(normalized);
-  }
-  return process.env.NODE_ENV !== "production" && LOCALHOST_ORIGIN.test(normalized);
-}
+import { APP_BUILD_TIME, APP_BUILD_VERSION, getAllowedBrowserOrigins, getRuntimeDiagnostics, isAllowedBrowserOrigin } from "./config/deployRuntime";
 
 function isAuthAttemptPath(pathname: string) {
   return pathname === "/api/auth/login"
@@ -125,6 +88,7 @@ function isUploadOrImportPath(pathname: string) {
 function isPublicTokenPath(pathname: string) {
   return pathname.startsWith("/api/verify/")
     || pathname.startsWith("/api/integrations/whatsapp/webhook")
+    || pathname.startsWith("/api/integrations/sms/webhook")
     || pathname.startsWith("/api/p/")
     || pathname.startsWith("/api/nfc/t/")
     || pathname.startsWith("/api/nfc/resolve/")
@@ -138,6 +102,17 @@ function isOcrOrScanPath(pathname: string) {
     || pathname.includes("gemini")
     || pathname === "/internal/ocr/read";
 }
+
+const corsOptions: CorsOptions = {
+  origin: (origin, callback) => {
+    if (!origin) return callback(null, true); // non-browser (curl, server-to-server)
+    const allowedOrigins = getAllowedBrowserOrigins();
+    return callback(null, isAllowedBrowserOrigin(origin, allowedOrigins));
+  },
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization", "Cache-Control", "Pragma", "x-request-id", "x-internal-test-key"],
+};
 
 export const errorHandler: ErrorRequestHandler = (error, req, res, _next) => {
     if (error instanceof ZodError) {
@@ -206,16 +181,8 @@ export const errorHandler: ErrorRequestHandler = (error, req, res, _next) => {
 export function createServer() {
   const app = express();
   app.use(securityHeaders);
-  app.use(cors({
-    origin: (origin, callback) => {
-      if (!origin) return callback(null, true); // non-browser (curl, server-to-server)
-      const allowedOrigins = getAllowedBrowserOrigins();
-      return callback(null, isAllowedBrowserOrigin(origin, allowedOrigins));
-    },
-    credentials: true,
-    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization", "x-request-id", "x-internal-test-key"],
-  }));
+  app.use(cors(corsOptions));
+  app.options(/.*/, cors(corsOptions));
   app.use(express.json({
     limit: "2mb",
     verify: (req, _res, buf) => {
@@ -232,7 +199,7 @@ export function createServer() {
   app.use(rateLimitWhen((req) => req.method !== "GET" && isUploadOrImportPath(req.path), uploadImportLimiter));
   app.use(rateLimitWhen((req) => isPublicTokenPath(req.path), publicTokenLimiter));
   app.use(rateLimitWhen((req) => req.method !== "GET" && isOcrOrScanPath(req.path), ocrScanLimiter));
-  app.use(rateLimitWhen((req) => req.path.startsWith("/api/integrations/whatsapp/webhook"), webhookLimiter));
+  app.use(rateLimitWhen((req) => req.path.startsWith("/api/integrations/whatsapp/webhook") || req.path.startsWith("/api/integrations/sms/webhook"), webhookLimiter));
 
   app.use(
     "/templates",
@@ -256,6 +223,13 @@ export function createServer() {
   app.use(nfcTagsPublicRoutes());
   app.use(readerGatewayRoutes());
   app.use(whatsappIntegrationRoutes());
+  app.use(smsIntegrationRoutes());
+
+  app.get("/api/app-version", (_req, res) => {
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+    res.setHeader("Pragma", "no-cache");
+    res.json({ version: APP_BUILD_VERSION, buildTime: APP_BUILD_TIME });
+  });
 
   // Document Intelligence Engine ? creator auth accepts both school JWTs and external creator JWTs
   app.use("/api/creator", creatorAuthRoutes());
@@ -354,6 +328,7 @@ if (process.env.NODE_ENV !== "test") {
   console.log("[startup] Gemini model (high-accuracy):", geminiModelHighAccuracy);
   console.log("[startup] Gemini model (stable):", geminiModelStable);
   console.log("[startup] Gemini key configured:", geminiKeyStatus);
+  console.log("[startup] Runtime diagnostics:", getRuntimeDiagnostics());
   console.log("[startup] Node DNS result order: ipv4first (forced)");
   console.log("[startup] Node version:", process.version);
   void recoverStaleStudentImportJobs(prisma).catch((error) => console.error("Failed to recover stale student import jobs", error));
@@ -367,6 +342,7 @@ if (process.env.NODE_ENV !== "test") {
   });
   startBulkGenerationWorker();
   startDocumentExtractionWorker();
+  startSmsDeliveryWorker(prisma);
   const httpServer = http.createServer(createServer());
   httpServer.requestTimeout = 120_000;
   httpServer.headersTimeout = 125_000;

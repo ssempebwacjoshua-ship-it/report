@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import type { CommunicationChannel, CommunicationDeliveryStatus } from "../../shared/communications";
+import type { CommunicationChannel, CommunicationDeliveryStatus, CommunicationProgressState } from "../../shared/communications";
 
 export type ProviderSchoolContext = {
   schoolId: string;
@@ -67,6 +67,71 @@ export interface OutboundMessageProvider {
   render(input: RenderMessageInput): Promise<RenderedMessage>;
   submit(input: SubmitMessageInput): Promise<SubmitMessageResult>;
   normalizeWebhook(input: ProviderWebhookInput): Promise<NormalizedWebhookEvent[]>;
+}
+
+export type SmsBatchMessage = {
+  recipientId: string;
+  toE164: string;
+  text: string;
+  idempotencyKey: string;
+  segmentCount: number;
+};
+
+export type SmsBatchAcceptedRecipient = {
+  recipientId: string;
+  providerMessageId?: string;
+  requestProviderMessageId?: string;
+  lifecycleState: CommunicationProgressState;
+  providerStatus: string;
+  billableUnits: number;
+  providerStatusCode?: string;
+  senderUsed?: string;
+  creditsUsed?: number;
+  amountChargedMinor?: number;
+};
+
+export type SmsBatchRejectedRecipient = {
+  recipientId: string;
+  lifecycleState: "FAILED";
+  providerStatus: string;
+  errorCode: string;
+  safeErrorMessage: string;
+};
+
+export type SmsBatchSendResult = {
+  acceptedRecipients: SmsBatchAcceptedRecipient[];
+  rejectedRecipients: SmsBatchRejectedRecipient[];
+};
+
+export type SmsDeliveryWebhookEvent = {
+  provider: string;
+  externalEventId: string;
+  providerMessageId?: string;
+  lifecycleState: CommunicationProgressState;
+  providerStatus: string;
+  occurredAt?: Date;
+  errorCode?: string;
+  safeErrorMessage?: string;
+};
+
+export type SmsWebhookParseResult = {
+  events: SmsDeliveryWebhookEvent[];
+};
+
+export type SmsWebhookRequest = {
+  rawBody: Buffer;
+  payload: unknown;
+  headers: Record<string, string | undefined>;
+};
+
+export interface SmsProvider {
+  readonly providerKey: string;
+  readonly channel: "SMS";
+  validateConfiguration(context: ProviderSchoolContext): Promise<ProviderConfigurationResult>;
+  checkHealth(context: ProviderSchoolContext): Promise<ProviderConfigurationResult>;
+  sendBatch(messages: SmsBatchMessage[], context: ProviderSchoolContext): Promise<SmsBatchSendResult>;
+  verifyWebhookSignature(rawBody: Buffer | undefined, signatureHeader: string | undefined): boolean;
+  parseDeliveryWebhook(input: SmsWebhookRequest): Promise<SmsWebhookParseResult>;
 }
 
 export class DryRunMessageProvider implements OutboundMessageProvider {
@@ -236,142 +301,153 @@ export class MetaCloudWhatsAppProvider implements OutboundMessageProvider {
   }
 }
 
-export class MockSmsProvider implements OutboundMessageProvider {
-  readonly providerKey = "MOCK_SMS";
+export class YoolaSmsProvider implements SmsProvider {
+  readonly providerKey = "YOOLA_SMS";
   readonly channel = "SMS" as const;
   private readonly env: NodeJS.ProcessEnv;
+  private readonly endpointUrl: string;
 
   constructor(env: NodeJS.ProcessEnv = process.env) {
     this.env = env;
+    this.endpointUrl = resolveYoolaEndpointUrl(env);
   }
 
-  async validateConfiguration(_context?: ProviderSchoolContext): Promise<ProviderConfigurationResult> {
+  async validateConfiguration(context: ProviderSchoolContext): Promise<ProviderConfigurationResult> {
     const issues = [];
-    if (this.env.SMS_PROVIDER !== "mock") issues.push("SMS_PROVIDER_NOT_MOCK");
+    if (this.env.SMS_PROVIDER?.trim().toLowerCase() !== "yoola") issues.push("SMS_PROVIDER_NOT_YOOLA");
     if (this.env.SMS_PROVIDER_ENABLED !== "true") issues.push("SMS_PROVIDER_DISABLED");
+    if (!this.env.SMS_API_KEY?.trim()) issues.push("SMS_API_KEY_MISSING");
+    if (!isValidYoolaSender(this.env.SMS_SENDER_ID)) issues.push("SMS_SENDER_ID_TOO_LONG");
+    if (context.sendingEnabled === false) issues.push("SMS_CHANNEL_DISABLED");
+    if (!this.endpointUrl) issues.push("SMS_API_BASE_URL_INVALID");
     return { configured: issues.length === 0, sendingEnabled: issues.length === 0, issues };
   }
 
-  async render(input: RenderMessageInput): Promise<RenderedMessage> {
-    return {
-      channel: this.channel,
-      kind: "TEXT",
-      bodyPreview: input.text,
-      providerPayload: { text: input.text },
-    };
+  async checkHealth(context: ProviderSchoolContext): Promise<ProviderConfigurationResult> {
+    return this.validateConfiguration(context);
   }
 
-  async submit(input: SubmitMessageInput): Promise<SubmitMessageResult> {
-    const config = await this.validateConfiguration();
-    if (!config.sendingEnabled) {
+  async sendBatch(messages: SmsBatchMessage[], context: ProviderSchoolContext): Promise<SmsBatchSendResult> {
+    const configuration = await this.validateConfiguration(context);
+    if (!configuration.sendingEnabled) {
       return {
-        accepted: false,
-        providerStatus: "FAILED",
-        errorCode: "SMS_PROVIDER_NOT_CONFIGURED",
-        safeErrorMessage: "SMS is not configured yet. Contact platform owner.",
+        acceptedRecipients: [],
+        rejectedRecipients: messages.map((message) => ({
+          recipientId: message.recipientId,
+          lifecycleState: "FAILED",
+          providerStatus: "FAILED",
+          errorCode: "PROVIDER_NOT_CONFIGURED",
+          safeErrorMessage: "Yoola SMS is not configured yet. Contact platform owner.",
+        })),
       };
     }
-    return {
-      accepted: true,
-      providerStatus: "SENT",
-      providerMessageId: `mock-sms-${input.idempotencyKey.slice(0, 16)}`,
-      billableUnits: 1,
-    };
-  }
 
-  async normalizeWebhook(): Promise<NormalizedWebhookEvent[]> {
-    return [];
-  }
-}
+    const acceptedRecipients: SmsBatchAcceptedRecipient[] = [];
+    const rejectedRecipients: SmsBatchRejectedRecipient[] = [];
+    const sender = resolveConfiguredYoolaSender(this.env.SMS_SENDER_ID);
+    for (const message of messages) {
+      const phone = normalizeYoolaPhone(message.toE164);
+      if (!phone) {
+        rejectedRecipients.push({
+          recipientId: message.recipientId,
+          lifecycleState: "FAILED",
+          providerStatus: "FAILED",
+          errorCode: "INVALID_PHONE",
+          safeErrorMessage: "Recipient phone number is not a valid Uganda mobile number.",
+        });
+        continue;
+      }
 
-export class TwilioSmsProvider implements OutboundMessageProvider {
-  readonly providerKey = "TWILIO_SMS";
-  readonly channel = "SMS" as const;
-  private readonly env: NodeJS.ProcessEnv;
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 15_000);
+      try {
+        const response = await fetch(this.endpointUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            api_key: this.env.SMS_API_KEY,
+            phone,
+            message: message.text,
+            ...(sender ? { sender } : {}),
+          }),
+          signal: controller.signal,
+        });
+        const parsed = await parseProviderResponse(response, [this.env.SMS_API_KEY?.trim() ?? ""]);
+        const successResult = normalizeYoolaAcceptedResponse({
+          response,
+          parsedBody: parsed.parsedBody,
+          recipientId: message.recipientId,
+          phone,
+          fallbackBillableUnits: message.segmentCount,
+        });
+        if (successResult) {
+          acceptedRecipients.push({
+            recipientId: message.recipientId,
+            providerMessageId: successResult.providerMessageId,
+            requestProviderMessageId: successResult.requestProviderMessageId,
+            lifecycleState: "SENT",
+            providerStatus: successResult.providerStatus,
+            billableUnits: successResult.billableUnits,
+            providerStatusCode: successResult.providerStatusCode,
+            senderUsed: successResult.senderUsed,
+            creditsUsed: successResult.creditsUsed,
+            amountChargedMinor: successResult.amountChargedMinor,
+          });
+          continue;
+        }
 
-  constructor(env: NodeJS.ProcessEnv = process.env) {
-    this.env = env;
-  }
-
-  async validateConfiguration(_context?: ProviderSchoolContext): Promise<ProviderConfigurationResult> {
-    const issues = [];
-    if (this.env.SMS_PROVIDER !== "twilio") issues.push("SMS_PROVIDER_NOT_TWILIO");
-    if (this.env.SMS_PROVIDER_ENABLED !== "true") issues.push("SMS_PROVIDER_DISABLED");
-    if (!this.env.SMS_API_KEY) issues.push("SMS_API_KEY_MISSING");
-    if (!this.env.SMS_AUTH_TOKEN) issues.push("SMS_AUTH_TOKEN_MISSING");
-    if (!this.env.SMS_SENDER_ID) issues.push("SMS_SENDER_ID_MISSING");
-    return { configured: issues.length === 0, sendingEnabled: issues.length === 0, issues };
-  }
-
-  async render(input: RenderMessageInput): Promise<RenderedMessage> {
-    return {
-      channel: this.channel,
-      kind: "TEXT",
-      bodyPreview: input.text,
-      providerPayload: { Body: input.text },
-    };
-  }
-
-  async submit(input: SubmitMessageInput): Promise<SubmitMessageResult> {
-    const config = await this.validateConfiguration();
-    if (!config.sendingEnabled) {
-      return {
-        accepted: false,
-        providerStatus: "FAILED",
-        errorCode: "SMS_PROVIDER_NOT_CONFIGURED",
-        safeErrorMessage: "SMS is not configured yet. Contact platform owner.",
-      };
+        rejectedRecipients.push({
+          recipientId: message.recipientId,
+          lifecycleState: "FAILED",
+          providerStatus: extractProviderStatus(parsed.parsedBody) ?? `HTTP_${response.status}`,
+          errorCode: extractYoolaFailureCode(parsed.parsedBody, response.status),
+          safeErrorMessage: buildYoolaFailureMessage(parsed.parsedBody, parsed.safeBody, response.status, phone),
+        });
+      } catch (error) {
+        rejectedRecipients.push({
+          recipientId: message.recipientId,
+          lifecycleState: "FAILED",
+          providerStatus: "FAILED",
+          errorCode: error instanceof DOMException && error.name === "AbortError" ? "TIMEOUT" : "NETWORK_ERROR",
+          safeErrorMessage: error instanceof DOMException && error.name === "AbortError"
+            ? "Yoola SMS request timed out before the provider confirmed acceptance."
+            : "Yoola SMS request failed before the provider confirmed acceptance.",
+        });
+      } finally {
+        clearTimeout(timeout);
+      }
     }
-    const accountSid = this.env.SMS_API_KEY!;
-    const token = this.env.SMS_AUTH_TOKEN!;
-    const form = new URLSearchParams({
-      To: input.toE164,
-      From: this.env.SMS_SENDER_ID!,
-      Body: String(input.rendered.providerPayload.Body ?? input.rendered.bodyPreview),
+
+    return {
+      acceptedRecipients,
+      rejectedRecipients,
+    };
+  }
+
+  verifyWebhookSignature(rawBody: Buffer | undefined, signatureHeader: string | undefined) {
+    return verifyHmacSha256(rawBody, signatureHeader, this.env.SMS_WEBHOOK_SECRET);
+  }
+
+  async parseDeliveryWebhook(): Promise<SmsWebhookParseResult> {
+    throw Object.assign(new Error("Yoola SMS delivery webhooks are pending because the provider webhook contract is not documented yet."), {
+      status: 503,
+      expose: true,
+      code: "PROVIDER_NOT_CONFIGURED",
     });
-    const response = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${encodeURIComponent(accountSid)}/Messages.json`, {
-      method: "POST",
-      headers: {
-        Authorization: `Basic ${Buffer.from(`${accountSid}:${token}`).toString("base64")}`,
-        "Content-Type": "application/x-www-form-urlencoded",
-      },
-      body: form,
-    });
-    const json = await response.json().catch(() => ({})) as TwilioSendResponse;
-    if (!response.ok) {
-      return {
-        accepted: false,
-        providerStatus: "FAILED",
-        errorCode: safeProviderCode(json.code) ?? `HTTP_${response.status}`,
-        safeErrorMessage: safeProviderMessage(json.message) ?? "SMS provider rejected the message.",
-      };
-    }
-    return {
-      accepted: true,
-      providerStatus: json.status ?? "SENT",
-      providerMessageId: json.sid,
-      billableUnits: 1,
-    };
-  }
-
-  async normalizeWebhook(): Promise<NormalizedWebhookEvent[]> {
-    return [];
   }
 }
 
 export function createProviderForChannel(channel: CommunicationChannel, env: NodeJS.ProcessEnv = process.env): OutboundMessageProvider {
   if (channel === "WHATSAPP") return new MetaCloudWhatsAppProvider(env);
-  if (channel === "SMS") return env.SMS_PROVIDER === "twilio" ? new TwilioSmsProvider(env) : new MockSmsProvider(env);
-  throw Object.assign(new Error("Only SMS and WhatsApp sending are supported."), { status: 400, expose: true });
+  throw Object.assign(new Error("Only WhatsApp uses the generic outbound provider path."), { status: 400, expose: true });
+}
+
+export function resolveSmsProvider(env: NodeJS.ProcessEnv = process.env): SmsProvider {
+  return new YoolaSmsProvider(env);
 }
 
 export async function sendWhatsAppMessage(input: SubmitMessageInput, env: NodeJS.ProcessEnv = process.env) {
   const provider = new MetaCloudWhatsAppProvider(env);
-  return provider.submit(input);
-}
-
-export async function sendSmsMessage(input: SubmitMessageInput, env: NodeJS.ProcessEnv = process.env) {
-  const provider = createProviderForChannel("SMS", env);
   return provider.submit(input);
 }
 
@@ -388,6 +464,255 @@ function normalizeMetaStatus(status: string | undefined): CommunicationDeliveryS
     default:
       return "SUBMITTED";
   }
+}
+
+function whatsappProviderEnabled(env: NodeJS.ProcessEnv) {
+  return env.WHATSAPP_PROVIDER_ENABLED === "true";
+}
+
+function whatsappAccessToken(env: NodeJS.ProcessEnv) {
+  return env.WHATSAPP_META_ACCESS_TOKEN?.trim();
+}
+
+function whatsappPhoneNumberId(env: NodeJS.ProcessEnv, metadata?: Record<string, unknown> | null) {
+  return env.WHATSAPP_META_PHONE_NUMBER_ID?.trim()
+    || (typeof metadata?.phoneNumberId === "string" ? metadata.phoneNumberId : undefined);
+}
+
+function safeProviderCode(value: unknown) {
+  if (value === undefined || value === null) return undefined;
+  return String(value).replace(/[^A-Za-z0-9_.:-]/g, "").slice(0, 80);
+}
+
+function safeProviderMessage(value: unknown) {
+  if (typeof value !== "string") return undefined;
+  return value.replace(/Bearer\s+\S+/gi, "Bearer [redacted]").slice(0, 180);
+}
+
+function normalizeYoolaPhone(toE164: string) {
+  const trimmed = toE164.trim();
+  if (!/^\+256\d{9}$/.test(trimmed)) return null;
+  return trimmed.slice(1);
+}
+
+function resolveConfiguredYoolaSender(value: string | undefined) {
+  const trimmed = value?.trim();
+  if (!trimmed) return undefined;
+  if (!isValidYoolaSender(trimmed)) return undefined;
+  return trimmed;
+}
+
+function isValidYoolaSender(value: string | undefined) {
+  const trimmed = value?.trim();
+  if (!trimmed) return true;
+  return trimmed.length <= 11;
+}
+
+function resolveYoolaEndpointUrl(env: NodeJS.ProcessEnv) {
+  const configured = env.SMS_API_BASE_URL?.trim();
+  if (!configured) return "https://yoolasms.com/api/v1/send_sms";
+  try {
+    const url = new URL(configured);
+    const normalizedPath = url.pathname.replace(/\/+$/, "");
+    if (normalizedPath === "" || normalizedPath === "/") {
+      url.pathname = "/api/v1/send_sms";
+    } else if (normalizedPath.endsWith("/send_sms")) {
+      url.pathname = normalizedPath;
+    } else {
+      url.pathname = `${normalizedPath}/send_sms`;
+    }
+    return url.toString();
+  } catch {
+    return "";
+  }
+}
+
+async function parseProviderResponse(response: Response, secrets: string[]) {
+  const text = await response.text();
+  const contentType = response.headers.get("content-type") ?? "";
+  const parsedBody = contentType.includes("application/json") ? tryParseJson(text) : tryParseJson(text) ?? text;
+  return {
+    parsedBody,
+    safeBody: redactSensitiveText(text, secrets),
+  };
+}
+
+function tryParseJson(text: string) {
+  try {
+    return JSON.parse(text) as unknown;
+  } catch {
+    return null;
+  }
+}
+
+function extractProviderMessageId(value: unknown) {
+  return findFirstString(value, ["message_id", "messageId", "id", "sms_id", "smsId", "reference", "request_id", "requestId"]);
+}
+
+function extractProviderStatus(value: unknown) {
+  return findFirstString(value, ["status", "message_status", "messageStatus", "state", "result"]);
+}
+
+function extractProviderErrorCode(value: unknown) {
+  return findFirstString(value, ["error_code", "errorCode", "code", "status_code", "statusCode"]);
+}
+
+function findFirstString(value: unknown, candidates: string[]) {
+  if (!value || typeof value !== "object") return undefined;
+  const record = value as Record<string, unknown>;
+  for (const candidate of candidates) {
+    const found = record[candidate];
+    if (typeof found === "string" && found.trim()) return redactSensitiveText(found);
+    if (typeof found === "number") return String(found);
+  }
+  return undefined;
+}
+
+function buildSafeProviderErrorMessage(value: unknown, statusCode: number) {
+  if (typeof value === "string" && value.trim()) {
+    return redactSensitiveText(value).slice(0, 180);
+  }
+  if (value && typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    const candidates = [
+      record.error_message,
+      record.errorMessage,
+      record.error,
+      record.message,
+      record.detail,
+    ];
+    for (const candidate of candidates) {
+      if (typeof candidate === "string" && candidate.trim()) return redactSensitiveText(candidate).slice(0, 180);
+    }
+  }
+  return `Yoola SMS rejected the request with HTTP ${statusCode}.`;
+}
+
+function normalizeYoolaAcceptedResponse(input: {
+  response: Response;
+  parsedBody: unknown;
+  recipientId: string;
+  phone: string;
+  fallbackBillableUnits: number;
+}) {
+  if (!input.response.ok || !input.parsedBody || typeof input.parsedBody !== "object") return null;
+  const body = input.parsedBody as YoolaSendResponse;
+  if (body.status !== "success" || body.code !== 200) return null;
+  if (typeof body.successful === "number" && body.successful <= 0) return null;
+  if (typeof body.failed === "number" && body.failed > 0) return null;
+
+  const matchedRecipient = Array.isArray(body.per_recipient)
+    ? body.per_recipient.find((entry) => entry?.number === input.phone)
+    : undefined;
+  if (!matchedRecipient) return null;
+  if (!isYoolaRecipientAccepted(matchedRecipient.status, matchedRecipient.statusCode)) return null;
+
+  return {
+    recipientId: input.recipientId,
+    providerMessageId: matchedRecipient.reference ? redactSensitiveText(String(matchedRecipient.reference)) : undefined,
+    requestProviderMessageId: body.message_id === undefined || body.message_id === null
+      ? undefined
+      : redactSensitiveText(String(body.message_id)),
+    providerStatus: `${body.status}:${matchedRecipient.status}`,
+    providerStatusCode: String(matchedRecipient.statusCode),
+    billableUnits: asPositiveInteger(body.message_parts) ?? input.fallbackBillableUnits,
+    senderUsed: sanitizeSenderValue(body.sender_used),
+    creditsUsed: asPositiveInteger(body.credits_used) ?? undefined,
+    amountChargedMinor: parseYoolaAmountMinor(body.amount_charged),
+  };
+}
+
+function isYoolaRecipientAccepted(status: unknown, statusCode: unknown) {
+  const normalizedStatus = typeof status === "string" ? status.trim().toLowerCase() : "";
+  const normalizedStatusCode = typeof statusCode === "number"
+    ? statusCode
+    : typeof statusCode === "string" && /^\d+$/.test(statusCode.trim())
+      ? Number.parseInt(statusCode.trim(), 10)
+      : null;
+  return normalizedStatus === "success" && normalizedStatusCode === 100;
+}
+
+function extractYoolaFailureCode(value: unknown, statusCode: number) {
+  if (value && typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    const matchedRecipient = Array.isArray(record.per_recipient) ? record.per_recipient[0] as Record<string, unknown> | undefined : undefined;
+    return safeProviderCode(
+      matchedRecipient?.statusCode
+      ?? record.code
+      ?? record.error_code
+      ?? record.errorCode,
+    ) ?? `HTTP_${statusCode}`;
+  }
+  return `HTTP_${statusCode}`;
+}
+
+function buildYoolaFailureMessage(parsedBody: unknown, safeBody: string, statusCode: number, phone: string) {
+  const normalizedSafeBody = redactSensitiveText(safeBody, [phone]);
+  if (parsedBody && typeof parsedBody === "object") {
+    const record = parsedBody as Record<string, unknown>;
+    const matchedRecipient = Array.isArray(record.per_recipient)
+      ? (record.per_recipient[0] as Record<string, unknown> | undefined)
+      : undefined;
+    if (record.code === 200 && record.status === "success") {
+      return "Yoola SMS returned a response that did not confirm recipient acceptance.";
+    }
+    const candidates = [
+      matchedRecipient?.status,
+      matchedRecipient?.message,
+      record.message,
+      record.error,
+      record.detail,
+      record.status,
+    ];
+    for (const candidate of candidates) {
+      if (typeof candidate === "string" && candidate.trim()) {
+        return redactSensitiveText(candidate, [phone]).slice(0, 180);
+      }
+    }
+  }
+  return buildSafeProviderErrorMessage(normalizedSafeBody, statusCode);
+}
+
+function asPositiveInteger(value: unknown) {
+  if (typeof value === "number" && Number.isInteger(value) && value >= 0) return value;
+  if (typeof value === "string" && /^\d+$/.test(value.trim())) return Number.parseInt(value.trim(), 10);
+  return null;
+}
+
+function parseYoolaAmountMinor(value: unknown) {
+  if (typeof value === "number" && Number.isFinite(value) && value >= 0) return Math.round(value);
+  if (typeof value === "string" && value.trim()) {
+    const normalized = Number(value.trim());
+    if (Number.isFinite(normalized) && normalized >= 0) return Math.round(normalized);
+  }
+  return undefined;
+}
+
+function sanitizeSenderValue(value: unknown) {
+  if (typeof value !== "string") return undefined;
+  const trimmed = value.trim();
+  if (!trimmed) return undefined;
+  return trimmed.slice(0, 32);
+}
+
+function redactSensitiveText(value: string, secrets: string[] = []) {
+  let redacted = value;
+  for (const secret of secrets) {
+    if (secret) redacted = redacted.replaceAll(secret, "[redacted]");
+  }
+  return redacted
+    .replace(/[A-Fa-f0-9]{32,}/g, "[redacted]")
+    .replace(/\+?256\d{9}/g, "[redacted-phone]")
+    .replace(/\b0\d{9}\b/g, "[redacted-phone]");
+}
+
+function verifyHmacSha256(rawBody: Buffer | undefined, signatureHeader: string | undefined, secret: string | undefined) {
+  if (!rawBody || !signatureHeader || !secret) return false;
+  const expected = `sha256=${crypto.createHmac("sha256", secret).update(rawBody).digest("hex")}`;
+  const actual = signatureHeader.trim();
+  const expectedBuffer = Buffer.from(expected);
+  const actualBuffer = Buffer.from(actual);
+  return expectedBuffer.length === actualBuffer.length && crypto.timingSafeEqual(expectedBuffer, actualBuffer);
 }
 
 type MetaWebhookPayload = {
@@ -417,32 +742,22 @@ type MetaSendResponse = {
   error?: { code?: string | number; message?: string };
 };
 
-type TwilioSendResponse = {
-  sid?: string;
+type YoolaSendResponse = {
   status?: string;
-  code?: string | number;
-  message?: string;
+  code?: number;
+  message_id?: string | number;
+  sender_used?: string;
+  successful?: number;
+  failed?: number;
+  credits_used?: number | string;
+  credits_refunded?: number | string;
+  amount_charged?: number | string;
+  message_parts?: number | string;
+  per_recipient?: Array<{
+    number?: string;
+    status?: string;
+    statusCode?: number;
+    reference?: string | number;
+    message?: string;
+  }>;
 };
-
-function whatsappProviderEnabled(env: NodeJS.ProcessEnv) {
-  return env.WHATSAPP_PROVIDER_ENABLED === "true";
-}
-
-function whatsappAccessToken(env: NodeJS.ProcessEnv) {
-  return env.WHATSAPP_META_ACCESS_TOKEN?.trim();
-}
-
-function whatsappPhoneNumberId(env: NodeJS.ProcessEnv, metadata?: Record<string, unknown> | null) {
-  return env.WHATSAPP_META_PHONE_NUMBER_ID?.trim()
-    || (typeof metadata?.phoneNumberId === "string" ? metadata.phoneNumberId : undefined);
-}
-
-function safeProviderCode(value: unknown) {
-  if (value === undefined || value === null) return undefined;
-  return String(value).replace(/[^A-Za-z0-9_.:-]/g, "").slice(0, 80);
-}
-
-function safeProviderMessage(value: unknown) {
-  if (typeof value !== "string") return undefined;
-  return value.replace(/Bearer\s+\S+/gi, "Bearer [redacted]").slice(0, 180);
-}

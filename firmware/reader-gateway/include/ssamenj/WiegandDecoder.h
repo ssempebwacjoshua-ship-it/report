@@ -80,11 +80,6 @@ inline WiegandDecodeResult decodeWiegandFrame(uint64_t bits, uint8_t bitCount) {
   result.rawBinary = rawBits;
   result.rawDecimal = binaryStringToDecimalString(rawBits);
   result.rawHex = binaryStringToHexString(rawBits);
-  if (bits == 0 && bitCount > 0) {
-    result.format = "wiegand-" + std::to_string(bitCount);
-    result.parityResult = "all-zero frame";
-    return result;
-  }
   if (rawBits.size() < 3) {
     result.format = "wiegand-" + std::to_string(bitCount);
     result.parityResult = "frame too short";
@@ -93,7 +88,7 @@ inline WiegandDecodeResult decodeWiegandFrame(uint64_t bits, uint8_t bitCount) {
 
   if (bitCount != 26 && bitCount != 34 && bitCount != 37) {
     result.format = "wiegand-" + std::to_string(bitCount);
-    result.parityResult = "unsupported bit count";
+    result.parityResult = "UNSUPPORTED_WIEGAND_BIT_COUNT";
     return result;
   }
 
@@ -118,14 +113,16 @@ inline WiegandDecodeResult decodeWiegandFrame(uint64_t bits, uint8_t bitCount) {
     result.facilityCode = binaryStringToDecimalString(rawBits.substr(1, 16));
     result.cardNumber = binaryStringToDecimalString(rawBits.substr(17, 16));
   } else if (bitCount == 37) {
-    const std::string topBits = rawBits.substr(0, 18);
+    // HID 37-bit credentials commonly use an even leading parity bit, 16 facility bits,
+    // 19 card bits, and an odd trailing parity bit. Keep parity strict so noisy lines are rejected.
+    const std::string topBits = rawBits.substr(0, 19);
     const std::string bottomBits = rawBits.substr(18, 19);
     const bool topParityOk = (countSetBits(topBits) % 2U) == 0U;
     const bool bottomParityOk = (countSetBits(bottomBits) % 2U) == 1U;
     result.parityValid = topParityOk && bottomParityOk;
     result.parityResult = result.parityValid ? "ok" : (topParityOk ? "bottom parity failed" : (bottomParityOk ? "top parity failed" : "top and bottom parity failed"));
-    result.facilityCode = binaryStringToDecimalString(rawBits.substr(1, 18));
-    result.cardNumber = binaryStringToDecimalString(rawBits.substr(19, 17));
+    result.facilityCode = binaryStringToDecimalString(rawBits.substr(1, 16));
+    result.cardNumber = binaryStringToDecimalString(rawBits.substr(17, 19));
   }
   result.credential = binaryStringToDecimalString(rawBits.substr(1, rawBits.size() - 2));
   result.valid = result.parityValid;

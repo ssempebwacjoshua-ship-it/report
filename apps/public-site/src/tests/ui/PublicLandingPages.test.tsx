@@ -49,6 +49,6 @@ describe("Public keyword landing pages", () => {
   it("links to RentFlow from the homepage product strip", () => {
     render(<SSAMENJHomePage />);
 
-    expect(screen.getByRole("link", { name: /RentFlow/ })).toHaveAttribute("href", "/rentflow");
+    expect(screen.getAllByRole("link", { name: /RentFlow/ }).some((link) => link.getAttribute("href") === "/rentflow")).toBe(true);
   });
 });

@@ -1,5 +1,6 @@
 import { normalizeNfcScanValue } from "../shared/utils/nfcPayload";
-import { getTagByScanValue, getStudentById, getOfflineWallet } from "./offlineStore";
+import { normalizeCredentialForLookup } from "../shared/utils/credentialNormalization";
+import { getTagByScanCandidates, getStudentById, getOfflineWallet } from "./offlineStore";
 import type { OfflineResolveResult } from "./offlineTypes";
 
 const BLOCKED_STATUSES = new Set(["DISABLED", "LOST"]);
@@ -9,8 +10,8 @@ export async function resolveOfflineNfcScan(
   rawValue: string,
 ): Promise<OfflineResolveResult> {
   const normalized = normalizeNfcScanValue(rawValue);
-
-  const tag = await getTagByScanValue(schoolId, normalized);
+  const lookup = normalizeCredentialForLookup({ value: normalized });
+  const tag = await getTagByScanCandidates(schoolId, [...lookup.tokenValues, ...lookup.lookupValues]);
 
   if (!tag) {
     return { found: false, blocked: true, reason: "unknown token" };

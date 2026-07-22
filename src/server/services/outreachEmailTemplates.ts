@@ -29,7 +29,7 @@ export function outreachEmailTemplate(input: {
   const bodyHtml = `
     <p style="margin:0 0 12px;color:#475569;line-height:1.75">Hello ${escapeHtml(input.recipientName)},</p>
     <p style="margin:0 0 12px;color:#475569;line-height:1.75">I hope you are doing well.</p>
-    <p style="margin:0 0 12px;color:#475569;line-height:1.75">My name is Joshua from SSAMENJ Technologies Ltd. We build practical software and automation systems for schools that want to reduce paperwork, improve student safety, and make daily operations easier.</p>
+    <p style="margin:0 0 12px;color:#475569;line-height:1.75">This is the SSAMENJ Technologies team. We build practical software and automation systems for schools that want to reduce paperwork, improve student safety, and make daily operations easier.</p>
 
     <table role="presentation" cellspacing="0" cellpadding="0" class="outreach-hero-table email-hero-card" style="width:100%;border-collapse:separate;border-spacing:0;margin:24px 0 26px;background:linear-gradient(135deg,#173a72 0%,#214f98 58%,#f4c542 180%);border-radius:22px;overflow:hidden">
       <tr>
@@ -90,7 +90,7 @@ export function outreachEmailTemplate(input: {
     </div>
   `;
 
-  const bodyText = `Hello ${input.recipientName},\n\nI hope you are doing well.\n\nMy name is Joshua from SSAMENJ Technologies Ltd. We build practical software and automation systems for schools that want to reduce paperwork, improve student safety, and make daily operations easier.\n\nI wanted to introduce our School Connect Student NFC Wristband.\n\nWith one wristband, a school can support:\n\n- Attendance tracking\n- Gate access verification\n- Student identification\n- Library authorization\n- Cashless canteen payments\n\nThe wristband is designed for daily school use. It is durable, waterproof, unique to each student, and helps staff confirm student activity faster without relying on manual books or paper slips.\n\nFor example, a student can tap at the gate for attendance, tap at the canteen for payment, or tap at the library when borrowing a book. The school gets a cleaner record, and parents can receive better visibility where needed.\n\nWould ${schoolName} be open to a short demo so we can show how this can work in your school?`;
+  const bodyText = `Hello ${input.recipientName},\n\nI hope you are doing well.\n\nThis is the SSAMENJ Technologies team. We build practical software and automation systems for schools that want to reduce paperwork, improve student safety, and make daily operations easier.\n\nI wanted to introduce our School Connect Student NFC Wristband.\n\nWith one wristband, a school can support:\n\n- Attendance tracking\n- Gate access verification\n- Student identification\n- Library authorization\n- Cashless canteen payments\n\nThe wristband is designed for daily school use. It is durable, waterproof, unique to each student, and helps staff confirm student activity faster without relying on manual books or paper slips.\n\nFor example, a student can tap at the gate for attendance, tap at the canteen for payment, or tap at the library when borrowing a book. The school gets a cleaner record, and parents can receive better visibility where needed.\n\nWould ${schoolName} be open to a short demo so we can show how this can work in your school?`;
 
   return {
     subject: input.subject,

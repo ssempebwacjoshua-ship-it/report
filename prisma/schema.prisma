@@ -41,6 +41,9 @@ model School {
   nfcPolicy                    SchoolNfcPolicy?
   studentFeeHolds              StudentFeeHold[]
   studentGateHolds             StudentGateHold[]
+  studentPassOuts              StudentPassOut[]
+  visitors                     Visitor[]
+  visitorVisits                VisitorVisit[]
   canteenReconciliations       CanteenReconciliation[]
   studentAttendanceEvents      StudentAttendanceEvent[]
   dailyAttendances             DailyAttendance[]
@@ -50,6 +53,7 @@ model School {
   nfcTags                      NfcTag[]
   nfcTagBatches                NfcTagBatch[]
   nfcOfflineDevices            NfcOfflineDevice[]
+  readerCredentialCaptureSessions ReaderCredentialCaptureSession[]
   readerDeviceCommands         ReaderDeviceCommand[]
   nfcOfflineSyncBatches        NfcOfflineSyncBatch[]
   communicationCampaigns       CommunicationCampaign[]
@@ -155,6 +159,7 @@ model Student {
   walletTransactions        StudentWalletTransaction[]
   feeHolds                  StudentFeeHold[]
   gateHolds                 StudentGateHold[]
+  passOuts                  StudentPassOut[]
   attendanceEvents          StudentAttendanceEvent[]
   dailyAttendances          DailyAttendance[]
   campusMovementEvents      CampusMovementEvent[]
@@ -405,6 +410,11 @@ model User {
   communicationConsentsRecorded   CommunicationConsent[]          @relation("CommunicationConsentRecordedBy")
   feeHoldsCreated                 StudentFeeHold[]                @relation("StudentFeeHoldCreatedBy")
   feeHoldsCleared                 StudentFeeHold[]                @relation("StudentFeeHoldClearedBy")
+  passOutsCreated                 StudentPassOut[]                @relation("StudentPassOutCreatedBy")
+  passOutsApproved                StudentPassOut[]                @relation("StudentPassOutApprovedBy")
+  passOutsCancelled               StudentPassOut[]                @relation("StudentPassOutCancelledBy")
+  visitorVisitsCreated            VisitorVisit[]                  @relation("VisitorVisitCreatedBy")
+  visitorVisitsCheckedOut         VisitorVisit[]                  @relation("VisitorVisitCheckedOutBy")
   canteenReconciliationCashiers   CanteenReconciliation[]         @relation("CanteenReconciliationCashier")
   canteenReconciliationOperators  CanteenReconciliation[]         @relation("CanteenReconciliationOperator")
   submittedCanteenReconciliations CanteenReconciliation[]         @relation("CanteenReconciliationSubmittedBy")
@@ -687,6 +697,82 @@ model StudentGateHold {
   @@index([schoolId, status, activeFrom, activeUntil])
 }
 
+model StudentPassOut {
+  id                     String               @id @default(uuid()) @db.Uuid
+  schoolId               String               @db.Uuid
+  studentId              String               @db.Uuid
+  status                 StudentPassOutStatus @default(APPROVED)
+  reason                 String
+  approvedAt             DateTime?
+  activeFrom             DateTime
+  activeUntil            DateTime
+  checkedOutAt           DateTime?
+  checkedInAt            DateTime?
+  cancelledAt            DateTime?
+  cancellationReason     String?
+  createdByUserId        String?              @db.Uuid
+  approvedByUserId       String?              @db.Uuid
+  cancelledByUserId      String?              @db.Uuid
+  checkoutMovementEventId String?
+  checkinMovementEventId  String?
+  createdAt              DateTime             @default(now())
+  updatedAt              DateTime             @updatedAt
+
+  school      School  @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  student     Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  createdBy   User?   @relation("StudentPassOutCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  approvedBy  User?   @relation("StudentPassOutApprovedBy", fields: [approvedByUserId], references: [id], onDelete: SetNull)
+  cancelledBy User?   @relation("StudentPassOutCancelledBy", fields: [cancelledByUserId], references: [id], onDelete: SetNull)
+
+  @@index([schoolId, studentId, status, activeFrom, activeUntil])
+  @@index([schoolId, status, activeFrom, activeUntil])
+  @@index([schoolId, createdAt])
+}
+
+model Visitor {
+  id               String        @id @default(uuid()) @db.Uuid
+  schoolId         String        @db.Uuid
+  fullName         String
+  phone            String?
+  idDocumentType   String
+  idDocumentNumber String
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  school School        @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  visits VisitorVisit[]
+
+  @@unique([schoolId, idDocumentType, idDocumentNumber])
+  @@index([schoolId, fullName])
+  @@index([schoolId, phone])
+}
+
+model VisitorVisit {
+  id                 String   @id @default(uuid()) @db.Uuid
+  schoolId           String   @db.Uuid
+  visitorId          String   @db.Uuid
+  status             String   @default("CHECKED_IN")
+  purpose            String
+  hostName           String
+  checkedInAt        DateTime
+  checkedOutAt       DateTime?
+  idDocumentImageUrl String?
+  selfieImageUrl     String?
+  createdByUserId    String?  @db.Uuid
+  checkedOutByUserId String?  @db.Uuid
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  school      School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  visitor     Visitor  @relation(fields: [visitorId], references: [id], onDelete: Cascade)
+  createdBy   User?    @relation("VisitorVisitCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  checkedOutBy User?   @relation("VisitorVisitCheckedOutBy", fields: [checkedOutByUserId], references: [id], onDelete: SetNull)
+
+  @@index([schoolId, status, checkedInAt])
+  @@index([schoolId, checkedInAt])
+  @@index([schoolId, visitorId, checkedInAt])
+}
+
 model CanteenReconciliation {
   id                            String                      @id @default(uuid()) @db.Uuid
   schoolId                      String                      @db.Uuid
@@ -910,6 +996,7 @@ model IssuedReport {
   reportSnapshotJson Json
   referenceCode      String             @unique
   parentAccessToken  String             @unique
+  publicShortCode    String?            @unique
   status             IssuedReportStatus @default(ISSUED)
   issuedAt           DateTime           @default(now())
   expiresAt          DateTime?
@@ -931,6 +1018,7 @@ model IssuedReport {
   student            Student            @relation(fields: [studentId], references: [id], onDelete: Cascade)
 
   @@index([parentAccessToken])
+  @@index([publicShortCode])
   @@index([referenceCode])
   @@index([schoolId, status])
   @@index([studentId, status])
@@ -1514,6 +1602,34 @@ model ReaderDeviceCommand {
   @@index([deviceId, status, requestedAt], map: "ReaderDeviceCommand_device_status_requestedAt_idx")
 }
 
+model ReaderCredentialCaptureSession {
+  id                    String    @id @default(uuid()) @db.Uuid
+  schoolId              String    @db.Uuid
+  tagId                 String    @db.Uuid
+  studentId             String    @db.Uuid
+  deviceId              String?   @db.Uuid
+  deviceLabel           String?
+  status                String    @default("PENDING") // PENDING | CAPTURED | CONFIRMED | CANCELLED | EXPIRED
+  activeSchoolId        String?   @unique @db.Uuid
+  expiresAt             DateTime
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+  capturedAt            DateTime?
+  confirmedAt           DateTime?
+  cancelledAt           DateTime?
+  expiredAt             DateTime?
+  capturedReaderId      String?
+  capturedReaderName    String?
+  capturedCredentialJson Json?
+
+  school School @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+
+  @@index([schoolId, status, expiresAt], map: "ReaderCredentialCaptureSession_school_status_expiresAt_idx")
+  @@index([schoolId, tagId], map: "ReaderCredentialCaptureSession_school_tag_idx")
+  @@index([schoolId, studentId], map: "ReaderCredentialCaptureSession_school_student_idx")
+  @@index([schoolId, deviceId, status], map: "ReaderCredentialCaptureSession_school_device_status_idx")
+}
+
 model NfcOfflineSyncBatch {
   id          String   @id @default(uuid()) @db.Uuid
   schoolId    String   @db.Uuid
@@ -1935,11 +2051,20 @@ enum CommunicationCampaignStatus {
   SCHEDULED
   QUEUED
   SENDING
+  SENT
   PARTIALLY_DELIVERED
   DELIVERED
   FAILED
   PAUSED
   CANCELLED
+}
+
+enum StudentPassOutStatus {
+  APPROVED
+  CHECKED_OUT
+  RETURNED
+  CANCELLED
+  EXPIRED
 }
 
 enum CommunicationRecipientStatus {

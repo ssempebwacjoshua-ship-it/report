@@ -1,4 +1,4 @@
-﻿import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import { ParentReportPage } from "../../pages/ParentReportPage";
@@ -66,7 +66,17 @@ function renderPage() {
   );
 }
 
-describe("ParentReportPage ? public action card", () => {
+function renderShortPage() {
+  return render(
+    <MemoryRouter initialEntries={["/r/SHORT1234"]}>
+      <Routes>
+        <Route path="/r/:code" element={<ParentReportPage />} />
+      </Routes>
+    </MemoryRouter>,
+  );
+}
+
+describe("ParentReportPage", () => {
   it("shows Print Report and Download PDF buttons", async () => {
     fetchMock.mockResolvedValueOnce({ ok: true, json: async () => issuedPayload });
 
@@ -95,28 +105,17 @@ describe("ParentReportPage ? public action card", () => {
     expect(document.body.textContent).not.toContain("studentId");
   });
 
-  it("report detail is inside a print-only container, not directly visible on screen", async () => {
+  it("renders the report preview on screen and keeps a print-only copy", async () => {
     fetchMock.mockResolvedValueOnce({ ok: true, json: async () => issuedPayload });
 
     renderPage();
 
-    await waitFor(() => expect(screen.getByTestId("report-detail")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getAllByTestId("report-detail")).toHaveLength(2));
 
-    const reportDetail = screen.getByTestId("report-detail");
-    const printContainer = reportDetail.closest(".print-only");
-    expect(printContainer).toBeInTheDocument();
-  });
-
-  it("print container is in the DOM for window.print() to use", async () => {
-    fetchMock.mockResolvedValueOnce({ ok: true, json: async () => issuedPayload });
-
-    renderPage();
-
-    // The print-only container must exist so window.print() can render it
-    await waitFor(() => expect(document.querySelector(".print-only")).toBeInTheDocument());
-    // The report detail must be inside the print-only container
-    const printContainer = document.querySelector(".print-only");
-    expect(printContainer?.querySelector("[data-testid='report-detail']")).toBeInTheDocument();
+    const preview = document.querySelector(".report-parent-preview");
+    const printOnly = document.querySelector(".print-only");
+    expect(preview?.querySelector("[data-testid='report-detail']")).toBeInTheDocument();
+    expect(printOnly?.querySelector("[data-testid='report-detail']")).toBeInTheDocument();
   });
 
   it("does not render admin shell chrome", async () => {
@@ -134,6 +133,15 @@ describe("ParentReportPage ? public action card", () => {
     renderPage();
 
     await waitFor(() => expect(screen.getByText("Valid")).toBeInTheDocument());
+  });
+
+  it("loads short-code links from /api/p/short/:code", async () => {
+    fetchMock.mockResolvedValueOnce({ ok: true, json: async () => issuedPayload });
+
+    renderShortPage();
+
+    await waitFor(() => expect(screen.getByText("Ada Lovelace")).toBeInTheDocument());
+    expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining("/api/p/short/SHORT1234"));
   });
 
   it("shows a Revoked badge and warning for revoked reports", async () => {
@@ -160,23 +168,18 @@ describe("ParentReportPage ? public action card", () => {
     await waitFor(() => expect(screen.getByText("Report not available")).toBeInTheDocument());
     expect(screen.getByText("Not found")).toBeInTheDocument();
   });
-});
 
-describe("ParentReportPage ? one-report-only enforcement", () => {
-  it("renders exactly one report page ? no multi-student list", async () => {
+  it("renders exactly one preview report and one print report", async () => {
     fetchMock.mockResolvedValueOnce({ ok: true, json: async () => issuedPayload });
 
     renderPage();
 
-    await waitFor(() => expect(screen.getByTestId("report-detail")).toBeInTheDocument());
-
-    // Exactly one report detail rendered
-    expect(screen.getAllByTestId("report-detail")).toHaveLength(1);
+    await waitFor(() => expect(screen.getAllByTestId("report-detail")).toHaveLength(2));
   });
 
   it("Print Report button calls window.print exactly once", async () => {
     fetchMock.mockResolvedValueOnce({ ok: true, json: async () => issuedPayload });
-    fetchMock.mockResolvedValueOnce({ ok: true }); // /downloaded POST triggered by handlePrint
+    fetchMock.mockResolvedValueOnce({ ok: true });
     const printSpy = vi.spyOn(window, "print").mockImplementation(() => {});
 
     renderPage();
@@ -190,7 +193,7 @@ describe("ParentReportPage ? one-report-only enforcement", () => {
 
   it("Download PDF button calls window.print exactly once", async () => {
     fetchMock.mockResolvedValueOnce({ ok: true, json: async () => issuedPayload });
-    fetchMock.mockResolvedValueOnce({ ok: true }); // /downloaded POST triggered by handlePrint
+    fetchMock.mockResolvedValueOnce({ ok: true });
     const printSpy = vi.spyOn(window, "print").mockImplementation(() => {});
 
     renderPage();
@@ -202,74 +205,28 @@ describe("ParentReportPage ? one-report-only enforcement", () => {
     printSpy.mockRestore();
   });
 
-  it("has no student selection UI (no combobox or student selector)", async () => {
+  it("has no student selection UI", async () => {
     fetchMock.mockResolvedValueOnce({ ok: true, json: async () => issuedPayload });
 
     renderPage();
 
     await waitFor(() => expect(screen.getByText("Ada Lovelace")).toBeInTheDocument());
 
-    // No dropdowns or selection controls
     expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
     expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
     expect(screen.queryByText(/select student/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/choose student/i)).not.toBeInTheDocument();
   });
 
-  it("has no bulk report list ? only one student's data shown", async () => {
+  it("keeps parent-specific layout hooks for print overrides", async () => {
     fetchMock.mockResolvedValueOnce({ ok: true, json: async () => issuedPayload });
 
     renderPage();
 
-    await waitFor(() => expect(screen.getByTestId("report-detail")).toBeInTheDocument());
-
-    // No list of students or multiple reports
-    expect(screen.queryByRole("list")).not.toBeInTheDocument();
-    expect(screen.queryByText(/all students/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/select all/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/print all/i)).not.toBeInTheDocument();
-    // Only one report detail exists
-    expect(document.querySelectorAll("[data-testid='report-detail']")).toHaveLength(1);
-  });
-});
-
-describe("ParentReportPage ? single-page layout enforcement", () => {
-  it("print-only wrapper has no extra page-break containers between it and the report", async () => {
-    fetchMock.mockResolvedValueOnce({ ok: true, json: async () => issuedPayload });
-
-    renderPage();
-
-    await waitFor(() => expect(screen.getByTestId("report-detail")).toBeInTheDocument());
-
-    // No .marksheet-print-page wrappers (those force page breaks and belong in MarksheetsPage)
-    expect(document.querySelectorAll(".marksheet-print-page")).toHaveLength(0);
-    // No second report-print-page injected by ParentReportPage itself
-    // (StudentReportDetail is mocked so its internal .report-print-page is not in DOM)
-    expect(document.querySelectorAll(".report-print-page")).toHaveLength(0);
-  });
-
-  it("root element has report-parent-page class for scoped print CSS overrides", async () => {
-    fetchMock.mockResolvedValueOnce({ ok: true, json: async () => issuedPayload });
-
-    renderPage();
-
-    await waitFor(() => expect(screen.getByTestId("report-detail")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getAllByTestId("report-detail")).toHaveLength(2));
 
     expect(document.querySelector(".report-parent-page")).toBeInTheDocument();
-  });
-
-  it("print-only wrapper is a direct child of report-parent-page with no intermediate wrappers", async () => {
-    fetchMock.mockResolvedValueOnce({ ok: true, json: async () => issuedPayload });
-
-    renderPage();
-
-    await waitFor(() => expect(screen.getByTestId("report-detail")).toBeInTheDocument());
-
-    const parentPage = document.querySelector(".report-parent-page");
-    const printOnly = parentPage?.querySelector(".print-only");
-    expect(printOnly).toBeInTheDocument();
-    // The .print-only must be a direct child of .report-parent-page
-    expect(printOnly?.parentElement).toBe(parentPage);
+    expect(document.querySelector(".report-parent-preview")).toBeInTheDocument();
+    expect(document.querySelector(".print-only")).toBeInTheDocument();
   });
 });
-

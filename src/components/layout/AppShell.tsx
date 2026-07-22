@@ -1,15 +1,18 @@
 ﻿import { useEffect, useState, type CSSProperties } from "react";
 import type { Dispatch, SetStateAction } from "react";
-import { Navigate, Outlet, useLocation } from "react-router-dom";
+import { Navigate, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../../contexts/AuthContext";
 import { InstallPrompt } from "../pwa/InstallPrompt";
 import { SupportWidget } from "../support/SupportWidget";
+import { DedicatedRoleBottomNav } from "../pwa/DedicatedRoleBottomNav";
 import { Sidebar } from "./Sidebar";
 import { Topbar } from "./Topbar";
 import { SettingsProvider, useAppSettings } from "./SettingsContext";
 import { hasPermission } from "../../shared/permissions";
 import { ConnectivityProvider } from "../../hooks/useConnectivityStatus";
 import { BrandedLoader } from "../BrandedLoader";
+import { rememberDedicatedPwaLaunchPath } from "../../pwa/standaloneMode";
+import { useDedicatedPwaNavigationGuard } from "../../pwa/useDedicatedPwaNavigationGuard";
 
 const SIDEBAR_WIDTH_KEY = "school-connect-sidebar-width";
 const DEFAULT_SIDEBAR_WIDTH = 232;
@@ -163,6 +166,7 @@ function AppShellInner({
   const { settings } = useAppSettings() ?? {};
   const { user } = useAuth();
   const location = useLocation();
+  const navigate = useNavigate();
   const [deviceId] = useState(() => {
     const key = "schoolconnect_nfc_device_id";
     try {
@@ -175,6 +179,10 @@ function AppShellInner({
       return "web-shell";
     }
   });
+  const isDedicatedOperator = user?.role === "SECURITY"
+    || user?.role === "GATE_SECURITY"
+    || user?.role === "CANTEEN"
+    || user?.role === "CASHIER";
 
   useEffect(() => {
     if (!settings) return;
@@ -203,6 +211,20 @@ function AppShellInner({
     document.body.style.overflow = "";
   }, [location.pathname, setSidebarOpen]);
 
+  useEffect(() => {
+    if (user?.role === "SECURITY" || user?.role === "GATE_SECURITY" || user?.role === "CANTEEN" || user?.role === "CASHIER") {
+      rememberDedicatedPwaLaunchPath(location.pathname);
+    }
+  }, [location.pathname, user?.role]);
+
+  useDedicatedPwaNavigationGuard(user?.role);
+
+  useEffect(() => {
+    if (!user) return;
+    if (location.pathname !== "/login") return;
+    navigate("/", { replace: true });
+  }, [location.pathname, navigate, user]);
+
   return (
     <ConnectivityProvider schoolId={user?.schoolId} deviceId={deviceId}>
       <div
@@ -211,19 +233,22 @@ function AppShellInner({
           "--sidebar-width": `${sidebarCollapsed ? 72 : sidebarWidth}px`,
         } as CSSProperties}
       >
-        <Sidebar
-          open={sidebarOpen}
-          onClose={() => setSidebarOpen(false)}
-          collapsed={sidebarCollapsed}
-          onToggleCollapsed={() => setSidebarCollapsed((current) => !current)}
-          width={sidebarWidth}
-        />
-        <div className="app-shell-content flex min-w-0 flex-col lg:h-screen lg:min-h-0">
-          <Topbar onMenuClick={setSidebarOpenAndClose} />
-          <main className="app-page mx-auto min-h-0 w-full max-w-[1540px] flex-1 overflow-y-auto">
+        {!isDedicatedOperator ? (
+          <Sidebar
+            open={sidebarOpen}
+            onClose={() => setSidebarOpen(false)}
+            collapsed={sidebarCollapsed}
+            onToggleCollapsed={() => setSidebarCollapsed((current) => !current)}
+            width={sidebarWidth}
+          />
+        ) : null}
+        <div className="app-shell-content flex min-w-0 flex-1 flex-col lg:h-screen lg:min-h-0">
+          {!isDedicatedOperator ? <Topbar onMenuClick={setSidebarOpenAndClose} /> : null}
+          <main className={`app-page mx-auto min-h-0 w-full flex-1 overflow-y-auto ${isDedicatedOperator ? "max-w-none pb-24" : "max-w-[1540px]"}`}>
             <Outlet />
           </main>
         </div>
+        {isDedicatedOperator ? <DedicatedRoleBottomNav /> : null}
         <InstallPrompt />
         <SupportWidget />
       </div>

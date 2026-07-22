@@ -198,17 +198,27 @@ export async function startReaderCredentialCapture(
 }
 
 export async function getReaderCredentialCapture(captureId: string): Promise<ReaderCredentialCaptureSession> {
-  const res = await fetch(`${getApiBaseUrl()}/api/nfc/tags/reader-credential-captures/${encodeURIComponent(captureId)}`, {
-    headers: makeSchoolRequestHeaders(),
+  const url = new URL(`${getApiBaseUrl()}/api/nfc/tags/reader-credential-captures/${encodeURIComponent(captureId)}`);
+  url.searchParams.set("_", Date.now().toString());
+  const res = await fetch(url.toString(), {
+    cache: "no-store",
+    headers: makeSchoolRequestHeaders({
+      "Cache-Control": "no-cache",
+      Pragma: "no-cache",
+    }),
   });
   if (!res.ok) throw new Error(await parseApiError(res, "Failed to load reader credential capture."));
   return res.json();
 }
 
-export async function cancelReaderCredentialCapture(captureId: string): Promise<{ ok: true; captureId: string; status: "CANCELLED" }> {
+export async function cancelReaderCredentialCapture(
+  captureId: string,
+  options: { keepalive?: boolean } = {},
+): Promise<{ ok: true; captureId: string; status: "CANCELLED" }> {
   const res = await fetch(`${getApiBaseUrl()}/api/nfc/tags/reader-credential-captures/${encodeURIComponent(captureId)}`, {
     method: "DELETE",
     headers: makeSchoolRequestHeaders(),
+    keepalive: options.keepalive,
   });
   if (!res.ok) throw new Error(await parseApiError(res, "Failed to cancel reader credential capture."));
   return res.json();

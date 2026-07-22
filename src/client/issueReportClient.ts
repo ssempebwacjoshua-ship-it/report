@@ -20,7 +20,8 @@ export type IssueReportRequest = {
 export type IssueReportResult = {
   id: string;
   referenceCode: string;
-  parentAccessToken: string;
+  parentAccessToken: string | null;
+  publicShortCode: string;
   parentLink: string;
   studentName: string;
   academicYear: string;

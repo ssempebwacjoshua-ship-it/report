@@ -6,15 +6,37 @@
  *    shows the app's own honest error/offline states (no fake data, no fake login).
  *  - Versioned cache + immediate activation so users don't stay on stale bundles.
  */
-const CACHE_VERSION = "report-lab-v6";
-const BASE_PATH = "/report-lab";
+const CACHE_VERSION = "report-lab-v8";
+const BASE_PATH = self.registration.scope.replace(self.location.origin, "").replace(/\/$/, "") || "/";
+const APP_SHELL_URL = `${BASE_PATH}/pwa-launch`;
 const SHELL_CACHE = `${CACHE_VERSION}-shell`;
 const ASSET_CACHE = `${CACHE_VERSION}-assets`;
 
+function isShellNavigationPath(pathname) {
+  if (!pathname.startsWith(`${BASE_PATH}/`)) return false;
+  if (pathname === `${BASE_PATH}/login`) return false;
+  if (pathname === `${BASE_PATH}/logout`) return false;
+  if (pathname === `${BASE_PATH}/forgot-password`) return false;
+  if (pathname === `${BASE_PATH}/reset-password`) return false;
+  if (pathname === `${BASE_PATH}/account/setup`) return false;
+  if (pathname.startsWith(`${BASE_PATH}/parent/`)) return false;
+  if (pathname.startsWith(`${BASE_PATH}/verify/`)) return false;
+  if (pathname.startsWith(`${BASE_PATH}/nfc/t/`)) return false;
+  if (pathname.startsWith(`${BASE_PATH}/t/`)) return false;
+  if (pathname.startsWith(`${BASE_PATH}/p/`)) return false;
+  return true;
+}
+
 self.addEventListener("install", (event) => {
   event.waitUntil(
-    caches.open(SHELL_CACHE).then((cache) => cache.addAll([`${BASE_PATH}/`, `${BASE_PATH}/manifest.webmanifest`])).then(() => self.skipWaiting())
+    caches.open(SHELL_CACHE).then((cache) => cache.addAll([APP_SHELL_URL, `${BASE_PATH}/manifest.webmanifest`])).then(() => self.skipWaiting())
   );
+});
+
+self.addEventListener("message", (event) => {
+  if (event.data?.type === "SKIP_WAITING") {
+    self.skipWaiting();
+  }
 });
 
 self.addEventListener("activate", (event) => {
@@ -28,28 +50,27 @@ self.addEventListener("activate", (event) => {
 
 self.addEventListener("fetch", (event) => {
   const req = event.request;
-  if (req.method !== "GET") return; // never touch mutations
+  if (req.method !== "GET") return;
 
   const url = new URL(req.url);
 
-  // Never intercept cross-origin (Railway API) or any /api/ path - browser handles them normally.
   if (url.origin !== self.location.origin || !url.pathname.startsWith(`${BASE_PATH}/`) || url.pathname.startsWith(`${BASE_PATH}/api/`)) return;
 
-  // Navigations: network-first, fall back to cached shell when offline.
   if (req.mode === "navigate") {
     event.respondWith(
-      fetch(req)
+      fetch(req, { cache: "no-store" })
         .then((res) => {
-          const copy = res.clone();
-          caches.open(SHELL_CACHE).then((cache) => cache.put(`${BASE_PATH}/`, copy)).catch(() => {});
+          if (res.ok && isShellNavigationPath(url.pathname)) {
+            const copy = res.clone();
+            caches.open(SHELL_CACHE).then((cache) => cache.put(APP_SHELL_URL, copy)).catch(() => {});
+          }
           return res;
         })
-        .catch(() => caches.match(`${BASE_PATH}/`))
+        .catch(() => caches.match(APP_SHELL_URL))
     );
     return;
   }
 
-  // Hashed immutable assets + icons: cache-first.
   if (url.pathname.startsWith(`${BASE_PATH}/assets/`) || url.pathname.startsWith(`${BASE_PATH}/icons/`) || url.pathname === `${BASE_PATH}/manifest.webmanifest` || url.pathname === `${BASE_PATH}/manifest.json` || url.pathname === `${BASE_PATH}/favicon.svg`) {
     event.respondWith(
       caches.match(req).then(
@@ -65,5 +86,4 @@ self.addEventListener("fetch", (event) => {
       )
     );
   }
-  // Everything else: default browser behavior (no caching).
 });

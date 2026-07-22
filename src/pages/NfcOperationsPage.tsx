@@ -18,7 +18,10 @@ import {
 } from "../client/nfcTagsClient";
 import { fetchOfflineSyncStatus } from "../client/nfcOfflineClient";
 import { fetchStudents } from "../client/studentsClient";
-import { getStudentWalletPinStatus, setStudentWalletPin } from "../client/studentCredentialsClient";
+import {
+  getStudentWalletPinStatus,
+  setStudentWalletPin,
+} from "../client/studentCredentialsClient";
 import type { StudentListItem } from "../shared/types/students";
 import type { WalletPinStatus } from "../shared/types/studentCredentials";
 import type { OfflineDeviceStatus } from "../client/nfcOfflineClient";
@@ -601,6 +604,8 @@ export function NfcOperationsPage() {
   const linkReaderPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const linkReaderTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const linkReaderSessionRef = useRef(0);
+  const linkReaderCancellingRef = useRef<Promise<void> | null>(null);
+  const linkReaderCancellingCaptureIdRef = useRef<string | null>(null);
 
   // Open dropdown tracking (one at a time)
   const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
@@ -759,7 +764,40 @@ export function NfcOperationsPage() {
       clearTimeout(linkReaderTimeoutRef.current);
       linkReaderTimeoutRef.current = null;
     }
+    const captureId = linkReaderCapture?.captureId;
+    if (!captureId) {
+      return;
+    }
+    if (linkReaderCancellingCaptureIdRef.current === captureId && linkReaderCancellingRef.current) {
+      return;
+    }
+    linkReaderCancellingCaptureIdRef.current = captureId;
+    linkReaderCancellingRef.current = cancelReaderCredentialCapture(captureId, { keepalive: true })
+      .catch(() => {
+        // Best effort only during unmount/navigation.
+      })
+      .finally(() => {
+        linkReaderCancellingRef.current = null;
+        linkReaderCancellingCaptureIdRef.current = null;
+      });
   }, []);
+
+  async function cancelActiveReaderCapture(captureId: string, options: { keepalive?: boolean } = {}) {
+    if (linkReaderCancellingCaptureIdRef.current === captureId && linkReaderCancellingRef.current) {
+      await linkReaderCancellingRef.current;
+      return;
+    }
+    linkReaderCancellingCaptureIdRef.current = captureId;
+    linkReaderCancellingRef.current = cancelReaderCredentialCapture(captureId, options)
+      .catch(() => {
+        // The session may already have expired or been cleared by the server.
+      })
+      .finally(() => {
+        linkReaderCancellingRef.current = null;
+        linkReaderCancellingCaptureIdRef.current = null;
+      });
+    await linkReaderCancellingRef.current;
+  }
 
   function openWalletPinModal(target: WalletPinTarget) {
     setWalletPinTarget(target);
@@ -888,6 +926,28 @@ export function NfcOperationsPage() {
     }
   }
 
+  async function handleGenerate() {
+    if (generating) {
+      return;
+    }
+
+    setGenerating(true);
+    setGenerateError(null);
+
+    try {
+      const result = await generateNfcTags(generateCount);
+      setTags((current) => {
+        const existingIds = new Set(current.map((tag) => tag.id));
+        const newTags = result.tags.filter((tag) => !existingIds.has(tag.id));
+        return [...newTags, ...current];
+      });
+    } catch (caught) {
+      setGenerateError(caught instanceof Error ? caught.message : "Could not generate wristbands.");
+    } finally {
+      setGenerating(false);
+    }
+  }
+
   function openLinkReaderModal(tag: NfcTag) {
     if (!tag.student) {
       return;
@@ -917,10 +977,12 @@ export function NfcOperationsPage() {
       clearTimeout(linkReaderTimeoutRef.current);
       linkReaderTimeoutRef.current = null;
     }
+    linkReaderCancellingRef.current = null;
+    linkReaderCancellingCaptureIdRef.current = null;
   }
 
   async function closeLinkReaderModal() {
-    const captureToCancel = linkReaderCapture?.status === "PENDING" ? linkReaderCapture.captureId : null;
+    const captureToCancel = linkReaderCapture?.captureId ?? null;
     linkReaderSessionRef.current += 1;
     if (linkReaderPollRef.current) {
       clearInterval(linkReaderPollRef.current);
@@ -931,11 +993,7 @@ export function NfcOperationsPage() {
       linkReaderTimeoutRef.current = null;
     }
     if (captureToCancel) {
-      try {
-        await cancelReaderCredentialCapture(captureToCancel);
-      } catch {
-        // The session may already have expired or been cleared by the server.
-      }
+      await cancelActiveReaderCapture(captureToCancel);
     }
     setLinkReaderTarget(null);
     setLinkReaderCapture(null);
@@ -989,9 +1047,7 @@ export function NfcOperationsPage() {
           clearTimeout(linkReaderTimeoutRef.current);
           linkReaderTimeoutRef.current = null;
         }
-        void cancelReaderCredentialCapture(capture.captureId).catch(() => {
-          // The session may already have expired or been cleared by the server.
-        });
+        void cancelActiveReaderCapture(capture.captureId);
         setLinkReaderTarget(null);
         setLinkReaderCapture(null);
         setLinkReaderLoading(false);
@@ -1026,6 +1082,7 @@ export function NfcOperationsPage() {
 
     try {
       const response = await confirmReaderCredentialCapture(linkReaderCapture.captureId);
+      await cancelActiveReaderCapture(linkReaderCapture.captureId);
       setTags((current) => current.map((tag) => (tag.id === response.tag.id ? { ...tag, physicalUid: response.tag.physicalUid, studentId: response.tag.studentId, student: response.tag.student } : tag)));
       setLinkReaderCapture((current) => current ? { ...current, status: "CONFIRMED" } : current);
       setLinkReaderSuccess("Reader credential linked successfully.");
@@ -1059,6 +1116,7 @@ export function NfcOperationsPage() {
 
     try {
       const response = await transferReaderCredentialCapture(linkReaderCapture.captureId, linkReaderTransferReason.trim());
+      await cancelActiveReaderCapture(linkReaderCapture.captureId);
       setTags((current) => current.map((tag) => (tag.id === response.tag.id ? { ...tag, physicalUid: response.tag.physicalUid, studentId: response.tag.studentId, student: response.tag.student } : tag)));
       setLinkReaderCapture((current) => current ? { ...current, status: "CONFIRMED" } : current);
       setLinkReaderConflict(null);

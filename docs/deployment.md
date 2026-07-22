@@ -58,7 +58,14 @@ npx prisma migrate deploy && node dist/server/index.js
 | `AUTH_EMAIL_FROM` | `SSAMENJ Report Lab <support@ssamenj.online>` |
 | `EMAIL_FROM` | Alias for `AUTH_EMAIL_FROM` |
 | `RESEND_FROM_EMAIL` | Alias for `AUTH_EMAIL_FROM` |
-| `OUTREACH_EMAIL_FROM` | `Joshua from SSAMENJ Technologies <support@ssamenj.online>` |
+| `OUTREACH_EMAIL_PROVIDER` | `gmail` or `resend` |
+| `OUTREACH_EMAIL_FROM` | `SSAMENJ Technologies <support@ssamenj.online>` |
+| `OUTREACH_REPLY_TO` | `support@ssamenj.online` |
+| `SMTP_HOST` | `smtp.gmail.com` when `OUTREACH_EMAIL_PROVIDER=gmail` |
+| `SMTP_PORT` | `465` when `OUTREACH_EMAIL_PROVIDER=gmail` |
+| `SMTP_SECURE` | `true` when `OUTREACH_EMAIL_PROVIDER=gmail` |
+| `SMTP_USER` | `support@ssamenj.online` when `OUTREACH_EMAIL_PROVIDER=gmail` |
+| `SMTP_PASSWORD` | Gmail application password when `OUTREACH_EMAIL_PROVIDER=gmail` |
 | `AUTH_EMAIL_REPLY_TO` | `support@ssamenj.online` |
 | `PUBLIC_SITE_URL` | `https://ssamenj.online` |
 | `PUBLIC_COMPANY_LOGO_URL` | `https://ssamenj.online/ssamenj-logo.png` |
@@ -80,7 +87,7 @@ npx prisma migrate deploy && node dist/server/index.js
 
 `CLIENT_ORIGIN` controls CORS. Parent report links use `APP_BASE_URL` when set, then fall back to `PUBLIC_APP_URL` or `CLIENT_ORIGIN`. Replace any Vercel preview URL with the production branded report domain before releasing reports to parents.
 
-Account setup and password reset links use `APP_PUBLIC_URL` first, then `PUBLIC_APP_URL`, then `APP_URL`, then `APP_BASE_URL`. In production it must be HTTPS. Do not send production auth emails until `AUTH_EMAIL_PROVIDER=RESEND`, the sender domain is verified in Resend, and the sender address plus public app URL are configured. Set `PUBLIC_SITE_URL` and `PUBLIC_COMPANY_LOGO_URL` so branded HTML email can point at a public logo.
+Account setup and password reset links use `APP_PUBLIC_URL` first, then `PUBLIC_APP_URL`, then `APP_URL`, then `APP_BASE_URL`. In production it must be HTTPS. Do not send production auth emails until `AUTH_EMAIL_PROVIDER=RESEND`, the sender domain is verified in Resend, and the sender address plus public app URL are configured. For outreach, set `OUTREACH_EMAIL_PROVIDER=gmail` with `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER=support@ssamenj.online`, and a Gmail application password in `SMTP_PASSWORD`, or use `OUTREACH_EMAIL_PROVIDER=resend` with a verified Resend sender. Set `PUBLIC_SITE_URL` and `PUBLIC_COMPANY_LOGO_URL` so branded HTML email can point at a public logo.
 
 The server binds to `0.0.0.0` and the port from `process.env.PORT`, which Railway injects automatically.
 
@@ -115,3 +122,20 @@ The script is idempotent.
 - Frontend never receives `DATABASE_URL`.
 - Frontend never receives `JWT_SECRET`, `GEMINI_API_KEY`, `PLATFORM_ADMIN_KEY`, or `INTERNAL_TEST_KEY`.
 - Railway serves the API and PostgreSQL only.
+
+## Report Lab stability checklist
+
+Use this checklist for the `report` Vercel project that serves `https://schools.ssamenj.online` and the Railway backend at `https://report-production-b00d.up.railway.app`.
+
+- Keep the frontend base path at `/report-lab/`. Do not switch between `/` and `/report-lab/` without updating the Vite base path, service-worker scope, and Vercel rewrites together.
+- Set Vercel production `VITE_API_BASE_URL` to exactly `https://report-production-b00d.up.railway.app`.
+- Confirm only the Vercel project `report` serves `schools.ssamenj.online`.
+- Confirm frontend API rewrites or direct calls point only at `https://report-production-b00d.up.railway.app`, never relative `/api` on the Vercel host.
+- Keep Railway `DATABASE_URL` stable and do not rotate `JWT_SECRET` during routine deploys.
+- Set Railway `CLIENT_ORIGIN` to `https://schools.ssamenj.online`.
+- Set Railway `ALLOWED_ORIGINS` to include `https://schools.ssamenj.online`, `https://report-sigma-one.vercel.app`, `https://ssamenj.online`, and `https://www.ssamenj.online`.
+- Verify `GET /api/health/ping`, `GET /api/app-version`, and `GET /api/health/runtime` return CORS headers for `https://schools.ssamenj.online`.
+- Verify `OPTIONS /api/auth/login` and `OPTIONS /api/settings` succeed with `204` from `https://schools.ssamenj.online`.
+- Check the browser console after deploy for the `[report-lab] runtime` log showing the API host, app base path, and build version.
+- Check Railway startup logs for the `[startup] Runtime diagnostics:` log showing runtime, allowed origins, and app version without secrets.
+- Force-refresh once after a deploy if a browser still has stale assets cached; the service worker should not cache `/api/*` responses and should reload when a new worker activates.

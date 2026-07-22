@@ -34,4 +34,34 @@ describe("Vercel redirects", () => {
       ]),
     );
   });
+
+  it("rewrites /report-lab routes without redirecting rewritten system paths back onto themselves", () => {
+    const rootRedirects = (readJson("vercel.json").redirects ?? []) as Array<Record<string, unknown>>;
+    const publicRedirects = (readJson(path.join("apps", "public-site", "vercel.json")).redirects ?? []) as Array<Record<string, unknown>>;
+    const rootRewrites = (readJson("vercel.json").rewrites ?? []) as Array<Record<string, unknown>>;
+    const publicRewrites = (readJson(path.join("apps", "public-site", "vercel.json")).rewrites ?? []) as Array<Record<string, unknown>>;
+
+    expect(rootRewrites).toEqual(expect.arrayContaining([
+      expect.objectContaining({ source: "/report-lab/:path*", destination: "/:path*" }),
+    ]));
+    expect(publicRewrites).toEqual(expect.arrayContaining([
+      expect.objectContaining({ source: "/report-lab/:path*", destination: "https://report-sigma-one.vercel.app/:path*" }),
+    ]));
+
+    for (const redirects of [rootRedirects, publicRedirects]) {
+      expect(redirects).not.toEqual(expect.arrayContaining([
+        expect.objectContaining({ source: "/login" }),
+        expect.objectContaining({ source: "/logout" }),
+        expect.objectContaining({ source: "/forgot-password" }),
+        expect.objectContaining({ source: "/reset-password" }),
+        expect.objectContaining({ source: "/pwa-launch" }),
+        expect.objectContaining({ source: "/dashboard" }),
+        expect.objectContaining({ source: "/admin" }),
+        expect.objectContaining({ source: "/gate" }),
+        expect.objectContaining({ source: "/gate-security" }),
+        expect.objectContaining({ source: "/canteen" }),
+        expect.objectContaining({ source: "/canteen-charge" }),
+      ]));
+    }
+  });
 });

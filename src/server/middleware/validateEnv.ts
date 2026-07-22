@@ -1,3 +1,4 @@
+import { getAllowedBrowserOrigins } from "../config/deployRuntime";
 import { classifyRuntimeEnvironment } from "../utils/productionSafety";
 
 const DEV_JWT_SECRET = "dev-secret-change-in-production";
@@ -35,6 +36,24 @@ function isValidAuthEmailFrom(value: string) {
   if (!match) return false;
   const email = match[2].trim();
   return isValidEmailAddress(email);
+}
+
+function isOfficialOutreachReplyTo(value: string) {
+  return value.trim().toLowerCase() === "support@ssamenj.online";
+}
+
+function isOfficialOutreachSender(value: string) {
+  const normalized = normalizeAuthEmailFrom(value);
+  const match = normalized.match(/^(.*)<([^<>]+)>$/);
+  const email = match ? match[2].trim() : normalized;
+  return email.toLowerCase() === "support@ssamenj.online";
+}
+
+function normalizedOutreachProvider(value: string | undefined) {
+  const normalized = value?.trim().toLowerCase() || "resend";
+  if (normalized === "resend") return "resend";
+  if (normalized === "gmail" || normalized === "gmail_smtp") return "gmail";
+  return "unknown";
 }
 
 export type EnvValidationResult = {
@@ -88,10 +107,28 @@ export function validateEnv(env: Record<string, string | undefined> = process.en
       );
     }
 
-    if (!env.CLIENT_ORIGIN) {
-      errors.push("CLIENT_ORIGIN is not set. Production browser CORS will reject explicit origins; set the real frontend origin.");
-    } else if (isLocalUrl(env.CLIENT_ORIGIN)) {
-      errors.push("CLIENT_ORIGIN points at localhost. Production must use the real frontend origin.");
+    const hasConfiguredOrigins = Boolean(
+      env.CLIENT_ORIGIN?.trim()
+      || env.CORS_ORIGIN?.trim()
+      || env.ALLOWED_ORIGINS?.trim(),
+    );
+    if (!hasConfiguredOrigins) {
+      errors.push("CLIENT_ORIGIN / CORS_ORIGIN / ALLOWED_ORIGINS is not set. Production browser CORS will reject explicit origins; set the real frontend origins.");
+    } else {
+      const configuredOrigins = getAllowedBrowserOrigins(env) ?? new Set<string>();
+      if (env.CLIENT_ORIGIN?.trim() && isLocalUrl(env.CLIENT_ORIGIN)) {
+        errors.push("CLIENT_ORIGIN points at localhost. Production must use the real frontend origin.");
+      }
+      if (env.CORS_ORIGIN?.trim() && isLocalUrl(env.CORS_ORIGIN)) {
+        errors.push("CORS_ORIGIN points at localhost. Production must use the real frontend origin.");
+      }
+      for (const origin of configuredOrigins) {
+        if (env.CLIENT_ORIGIN?.trim() || env.CORS_ORIGIN?.trim()) continue;
+        if (isLocalUrl(origin)) {
+          errors.push("ALLOWED_ORIGINS points at localhost. Production must use the real frontend origin.");
+          break;
+        }
+      }
     }
 
     if (env.APP_BASE_URL && isLocalUrl(env.APP_BASE_URL)) {
@@ -113,7 +150,16 @@ export function validateEnv(env: Record<string, string | undefined> = process.en
     }
 
     const authEmailProvider = env.AUTH_EMAIL_PROVIDER?.trim().toUpperCase() || "";
+    const outreachEmailProvider = normalizedOutreachProvider(env.OUTREACH_EMAIL_PROVIDER);
     const authEmailFrom = env.AUTH_EMAIL_FROM?.trim();
+    const outreachEmailFrom = env.OUTREACH_EMAIL_FROM?.trim();
+    const outreachReplyTo = env.OUTREACH_REPLY_TO?.trim()
+      || env.AUTH_EMAIL_REPLY_TO?.trim()
+      || "";
+    const smtpHost = env.SMTP_HOST?.trim() || "";
+    const smtpPort = env.SMTP_PORT?.trim() || "";
+    const smtpUser = env.SMTP_USER?.trim() || "";
+    const smtpPassword = env.SMTP_PASSWORD?.trim() || "";
     const authEmailAppUrl = env.APP_PUBLIC_URL?.trim()
       || env.PUBLIC_APP_URL?.trim()
       || env.APP_URL?.trim()
@@ -139,6 +185,42 @@ export function validateEnv(env: Record<string, string | undefined> = process.en
       errors.push(
         "APP_PUBLIC_URL / PUBLIC_APP_URL / APP_URL / APP_BASE_URL is not set. Production auth emails need the app URL for setup and reset links.",
       );
+    }
+    if (!outreachEmailFrom) {
+      errors.push(
+        "OUTREACH_EMAIL_FROM is not set. Outreach emails must use the official company sender address (SSAMENJ Technologies <support@ssamenj.online>).",
+      );
+    } else if (!isValidAuthEmailFrom(outreachEmailFrom) || !isOfficialOutreachSender(outreachEmailFrom)) {
+      errors.push(
+        "OUTREACH_EMAIL_FROM must use the official company sender address (SSAMENJ Technologies <support@ssamenj.online>).",
+      );
+    }
+    if (!outreachReplyTo) {
+      errors.push("OUTREACH_REPLY_TO is not set. Outreach replies must go to support@ssamenj.online.");
+    } else if (!isOfficialOutreachReplyTo(outreachReplyTo)) {
+      errors.push("OUTREACH_REPLY_TO must be support@ssamenj.online for outreach sends.");
+    }
+    if (outreachEmailProvider === "unknown") {
+      errors.push("OUTREACH_EMAIL_PROVIDER must be set to resend or gmail in production for outreach email delivery.");
+    }
+    if (outreachEmailProvider === "gmail") {
+      if (!smtpHost) {
+        errors.push("SMTP_HOST is not set. Gmail SMTP outreach cannot send without the SMTP host.");
+      }
+      if (!smtpPort) {
+        errors.push("SMTP_PORT is not set. Gmail SMTP outreach cannot send without the SMTP port.");
+      }
+      if (!smtpUser) {
+        errors.push("SMTP_USER is not set. Gmail SMTP outreach cannot authenticate without the official mailbox.");
+      } else if (smtpUser.toLowerCase() !== "support@ssamenj.online") {
+        errors.push("SMTP_USER must be support@ssamenj.online for production Gmail outreach.");
+      }
+      if (!smtpPassword) {
+        errors.push("SMTP_PASSWORD is not set. Gmail SMTP outreach requires an application password.");
+      }
+    }
+    if (outreachEmailProvider === "resend" && !env.RESEND_API_KEY?.trim()) {
+      errors.push("RESEND_API_KEY is not set. Resend outreach cannot send without the Resend API key.");
     }
 
     if (!env.PLATFORM_ADMIN_KEY) {

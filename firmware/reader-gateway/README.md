@@ -80,27 +80,16 @@ Only after those checks may the local ignored configuration set GPIO numbers and
 
 Keep `feedbackOutputsEnabled` set to `false` until the driver circuit and reader-side measurements are confirmed. GPIO 18 and GPIO 19 above are examples, not approved wiring assignments. Check the actual ESP32 board and connected peripherals before selecting pins. If an electrically isolated driver has an active-low ESP32 input, set `feedbackDriverActiveHigh` to `false`.
 
-The reader may still emit its built-in scan beep. API-directed feedback starts immediately after the scan response arrives and therefore follows that automatic beep.
-
-Important:
-
-- If `feedbackOutputsEnabled` is `false`, or `buzzerPin` remains `-1`, the ESP32 does not drive a separate buzzer output.
-- In that case, you will still hear only the reader's own generic scan beep even when the backend returns different `beep` values.
-- Boot and tap serial logs now state explicitly when GPIO feedback is disabled.
-
-When GPIO feedback has been electrically verified and enabled, the current firmware uses these patterns:
+The reader may still emit its built-in scan beep. API-directed feedback starts immediately after the scan response arrives and therefore follows that automatic beep:
 
 | API `beep` | Physical response | Serial log |
 | --- | --- | --- |
 | `success` | 1 short pulse | `Feedback: success` |
-| `duplicate` | 2 quick short pulses | `Feedback: duplicate` |
-| `warning` | 1 long pulse | `Feedback: warning` |
-| `offline` or `offline_queued` | 1 short pulse, then 1 long pulse | `Feedback: offline` |
-| `error` | 1 long error pulse | `Feedback: error` |
+| `duplicate` (or legacy `warning`) | 2 short pulses | `Feedback: duplicate` |
+| `error` | 1 long pulse | `Feedback: error` |
+| `offline` / queued locally | 3 short pulses | `Feedback: offline` |
 
 When feedback outputs are disabled, these serial logs still appear but no feedback GPIO is configured as an output.
-
-Reader event serial logs now also print the scanned credential, backend HTTP status, and selected feedback pattern after each tap. Bearer tokens are never written to serial logs.
 
 ## Firmware modules
 
@@ -142,8 +131,6 @@ First-time provisioning workflow:
 
 4. On save, the firmware stores the Wi-Fi credentials and activation code locally, connects to Wi-Fi, stops AP mode, calls the activation endpoint, stores the returned device token and canonical reader assignment, and then resumes the normal School Connect heartbeat, offline queue replay, and attendance loop.
 
-   After successful activation, the firmware persists the canonical device and reader identifiers, school assignment, bearer token, API base URL, firmware channel, device metadata, and normalizes future registration calls to `/api/readers/register`.
-
 5. On later reboots, the gateway keeps retrying the stored Wi-Fi credentials. Temporary Wi-Fi loss does not reopen setup automatically and does not clear credentials.
 
 6. Factory reset Wi-Fi by holding the ESP32 BOOT button for 10 seconds. This clears only the stored Wi-Fi credentials and reopens the setup portal.
@@ -152,10 +139,8 @@ Important:
 
 - Fresh devices activate through `/api/readers/activate` using the one-time activation code.
 - Once activation succeeds, the firmware stores the returned bearer token and normalizes future registration calls to `/api/readers/register`.
-- Reader startup logs now print the configured D0/D1 pins, their idle levels, and frame-level Wiegand diagnostics so wiring issues can be distinguished from backend failures.
 - Existing LittleFS `wifiSsid` and `wifiPassword` values remain as a fallback for previously provisioned devices until NVS credentials are saved.
 - If a deployed reader token must be rotated, use Owner Console and recover the one-time token from the reader detail page immediately. The detail page now shows the rotated token once in a highlighted panel.
-- `buzzerPin` remains optional. Use `-1` to disable the external driver output, or set a verified GPIO only after the isolated buzzer/LED interface has been validated for the exact reader hardware.
 
 Example configuration:
 
@@ -247,23 +232,6 @@ Important:
 - Do not offer unsigned firmware images.
 - If `tlsInsecure` is still `true`, firmware signature verification remains mandatory, but production should move to a real CA bundle in `tlsRootCaPem`.
 
-## Live OTA Command Polling
-
-Owner Console firmware updates now use device command polling instead of a direct push connection:
-
-1. Owner requests firmware update for a reader.
-2. Backend stores a pending `FIRMWARE_UPDATE` command for that reader.
-3. The reader receives the pending command in its normal heartbeat/register response.
-4. The reader acknowledges the command and starts OTA only when no scan/queue work is active.
-5. The reader reports command status transitions: `ACKED`, `DOWNLOADING`, `INSTALLING`, `SUCCEEDED`, or `FAILED`.
-
-Notes:
-
-- The backend does not open an inbound connection to the ESP32.
-- Commanded OTA still preserves LittleFS config and the offline queue across reboot.
-- Keep the reader powered during OTA installation.
-- Bearer tokens are never written to serial logs.
-
 ## Example API request
 
 ```http
@@ -291,22 +259,11 @@ Content-Type: application/json
 {
   "success": true,
   "action": "ATTENDANCE",
-  "status": "ACCEPTED",
   "message": "Attendance recorded",
   "studentName": "John Doe",
   "beep": "success"
 }
 ```
-
-Tap responses from `POST /api/readers/events` use these device-directed `beep` values:
-
-- `success` for accepted attendance
-- `duplicate` for repeated taps inside the duplicate window
-- `warning` for attendance windows that are closed or review-only
-- `error` for an unregistered credential or other denied/error outcomes
-- `offline_queued` when the event is stored locally because Wi-Fi/API is unavailable
-- `offline` for network fallback feedback inside firmware
-- `error` for unexpected API or device failures
 
 ## Notes
 

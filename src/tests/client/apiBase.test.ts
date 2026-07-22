@@ -3,6 +3,13 @@
 // ── getApiBaseUrl ─────────────────────────────────────────────────────────────
 
 describe("getApiBaseUrl", () => {
+  it("uses VITE_API_BASE_URL when set", async () => {
+    vi.resetModules();
+    vi.stubEnv("VITE_API_BASE_URL", "https://report-production-b00d.up.railway.app");
+    const { getApiBaseUrl } = await import("../../client/apiBase");
+    expect(getApiBaseUrl()).toBe("https://report-production-b00d.up.railway.app");
+  });
+
   it("rejects postgres URLs", async () => {
     vi.resetModules();
     vi.stubEnv("VITE_API_BASE_URL", "postgresql://example.com/db");

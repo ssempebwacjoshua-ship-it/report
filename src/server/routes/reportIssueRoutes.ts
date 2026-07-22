@@ -1,33 +1,15 @@
-﻿import crypto from "node:crypto";
 import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../db/prisma";
-import { getPublicAppUrl } from "../config/publicUrl";
 import { requireAuth } from "../middleware/requireAuth";
 import { loadReportEngineInput } from "../repositories/reportsRepository";
 import { getSettingsSections } from "../repositories/settingsRepository";
 import { buildReports } from "../services/reportEngine";
 import { entitlementErrorBody, evaluateSubscriptionEntitlement } from "../services/subscriptionEntitlementService";
+import { issueOrReuseIssuedReportLink } from "../services/issuedReportLinkService";
 import { COMMENT_LIMITS } from "../../shared/utils/reportComments";
 import { defaultSettingsSections } from "../../shared/types/settings";
 import { sanitizeReportCardForRender, sanitizeReportComments, sanitizeReportPersonalizationForReport, sanitizeSchoolSettingsForReport } from "../../shared/utils/reportContentLimits";
-
-function generateToken(): string {
-  return crypto.randomBytes(32).toString("hex");
-}
-
-function hashToken(token: string): string {
-  return crypto.createHash("sha256").update(token).digest("hex");
-}
-
-function generateReferenceCode(): string {
-  const now = new Date();
-  const y = now.getFullYear();
-  const m = String(now.getMonth() + 1).padStart(2, "0");
-  const d = String(now.getDate()).padStart(2, "0");
-  const suffix = crypto.randomBytes(3).toString("hex").toUpperCase();
-  return `${y}${m}${d}-${suffix}`;
-}
 
 const reportCommentsSchema = z.object({
   classTeacherComment: z.string().max(COMMENT_LIMITS.classTeacherComment, `Class teacher comment must be ${COMMENT_LIMITS.classTeacherComment} characters or fewer.`).default(""),
@@ -55,7 +37,6 @@ const revokeSchema = z.object({
 export function reportIssueRoutes() {
   const router = Router();
 
-  // POST /api/reports/issue ? create or reissue a report snapshot for a student
   router.post("/api/reports/issue", requireAuth, async (req, res, next) => {
     try {
       const body = issueSchema.parse(req.body);
@@ -83,7 +64,7 @@ export function reportIssueRoutes() {
 
       const engineInput = await loadReportEngineInput(prisma, filters);
       const reportResult = buildReports(engineInput);
-      const card = reportResult.cards.find((c) => c.studentId === body.studentId);
+      const card = reportResult.cards.find((candidate) => candidate.studentId === body.studentId);
 
       if (!card) {
         res.status(404).json({ error: "No report found for this student with current filters." });
@@ -95,29 +76,6 @@ export function reportIssueRoutes() {
           error: `Cannot issue report: ${card.readiness === "NO_FINALIZED_MARKS" ? "No finalized marks for this student." : card.readiness}`,
         });
         return;
-      }
-
-      // Supersede any existing ISSUED reports for same student+year+term+type
-      const supersededResult = await prisma.issuedReport.updateMany({
-        where: {
-          schoolId: user.schoolId,
-          studentId: body.studentId,
-          academicYear: card.academicYear,
-          term: card.term,
-          assessmentType: filters.assessmentType,
-          status: "ISSUED",
-        },
-        data: { status: "SUPERSEDED", updatedAt: new Date() },
-      });
-
-      if (supersededResult.count > 0) {
-        await prisma.auditLog.create({
-          data: {
-            schoolId: user.schoolId,
-            action: "report.superseded",
-            details: { studentId: body.studentId, count: supersededResult.count, actorId: user.userId, actorName: user.name },
-          },
-        });
       }
 
       const snapshot = {
@@ -140,53 +98,55 @@ export function reportIssueRoutes() {
         }),
       };
 
-      const rawParentToken = generateToken();
-      const parentTokenHash = hashToken(rawParentToken);
-      const referenceCode = generateReferenceCode();
-
-      const issued = await prisma.issuedReport.create({
-        data: {
-          schoolId: user.schoolId,
-          studentId: body.studentId,
-          academicYear: card.academicYear,
-          term: card.term,
-          assessmentType: filters.assessmentType,
-          reportSnapshotJson: snapshot,
-          referenceCode,
-          parentAccessToken: parentTokenHash,
-          status: "ISSUED",
-          issuedById: user.userId,
-          issuedByName: user.name,
-        },
+      const issued = await issueOrReuseIssuedReportLink({
+        prisma,
+        schoolId: user.schoolId,
+        studentId: body.studentId,
+        academicYear: card.academicYear,
+        term: card.term,
+        assessmentType: filters.assessmentType,
+        snapshot,
+        issuedById: user.userId,
+        issuedByName: user.name,
+        auditActorId: user.userId,
+        auditActorName: user.name,
+        expiresAt: null,
       });
 
       await prisma.auditLog.create({
         data: {
           schoolId: user.schoolId,
           action: "report.issue",
-          correlationId: issued.id,
-          details: { issuedReportId: issued.id, referenceCode, studentId: body.studentId, actorId: user.userId, actorName: user.name },
+          correlationId: issued.issuedReportId,
+          details: {
+            issuedReportId: issued.issuedReportId,
+            referenceCode: issued.referenceCode,
+            studentId: body.studentId,
+            actorId: user.userId,
+            actorName: user.name,
+          },
         },
       });
 
-      const parentLink = `${getPublicAppUrl()}/parent/r/${rawParentToken}`;
       console.log("report.issue", {
-        issuedReportId: issued.id,
-        reportRefCode: referenceCode,
-        parentUrl: parentLink,
-        tokenLength: rawParentToken.length,
-        tokenHashPrefix: `${parentTokenHash.slice(0, 12)}...`,
+        issuedReportId: issued.issuedReportId,
+        reportRefCode: issued.referenceCode,
+        parentUrl: issued.parentLink,
+        publicShortCode: issued.publicShortCode,
+        reusedExisting: issued.reusedExisting,
+        rawTokenPresent: Boolean(issued.parentAccessToken),
       });
 
       res.status(201).json({
-        id: issued.id,
-        referenceCode,
-        parentAccessToken: rawParentToken,
-        parentLink,
+        id: issued.issuedReportId,
+        referenceCode: issued.referenceCode,
+        parentAccessToken: issued.parentAccessToken,
+        publicShortCode: issued.publicShortCode,
+        parentLink: issued.parentLink,
         studentName: card.studentName,
         academicYear: card.academicYear,
         term: card.term,
-        assessmentType: issued.assessmentType,
+        assessmentType: filters.assessmentType,
         issuedAt: issued.issuedAt,
       });
     } catch (error) {
@@ -194,7 +154,6 @@ export function reportIssueRoutes() {
     }
   });
 
-  // GET /api/reports/issued ? list issued reports for a school
   router.get("/api/reports/issued", requireAuth, async (req, res, next) => {
     try {
       const user = req.user!;
@@ -207,19 +166,20 @@ export function reportIssueRoutes() {
       });
 
       res.json(
-        issued.map((r) => ({
-          id: r.id,
-          referenceCode: r.referenceCode,
-          studentName: `${r.student.firstName} ${r.student.lastName}`,
-          admissionNumber: r.student.admissionNumber,
-          academicYear: r.academicYear,
-          term: r.term,
-          assessmentType: r.assessmentType,
-          status: r.status,
-          issuedAt: r.issuedAt,
-          issuedByName: r.issuedByName,
-          viewedAt: r.viewedAt,
-          downloadedAt: r.downloadedAt,
+        issued.map((row) => ({
+          id: row.id,
+          referenceCode: row.referenceCode,
+          publicShortCode: row.publicShortCode,
+          studentName: `${row.student.firstName} ${row.student.lastName}`,
+          admissionNumber: row.student.admissionNumber,
+          academicYear: row.academicYear,
+          term: row.term,
+          assessmentType: row.assessmentType,
+          status: row.status,
+          issuedAt: row.issuedAt,
+          issuedByName: row.issuedByName,
+          viewedAt: row.viewedAt,
+          downloadedAt: row.downloadedAt,
         })),
       );
     } catch (error) {
@@ -227,7 +187,6 @@ export function reportIssueRoutes() {
     }
   });
 
-  // PATCH /api/reports/issued/:id/revoke ? revoke an issued report
   router.patch("/api/reports/issued/:id/revoke", requireAuth, async (req, res, next) => {
     try {
       const { id } = req.params;
@@ -274,4 +233,3 @@ export function reportIssueRoutes() {
 
   return router;
 }
-

@@ -1,6 +1,6 @@
 ﻿import { createBrowserRouter, Navigate } from "react-router-dom";
 import { AppShell } from "../components/layout/AppShell";
-import { lazy, Suspense, type ComponentType } from "react";
+import { lazy, Suspense, type ComponentType, type ReactNode } from "react";
 import { OwnerShell } from "../components/layout/OwnerShell";
 import { useAuth } from "../contexts/AuthContext";
 import { getDefaultRouteForRole } from "../shared/permissions";
@@ -17,6 +17,7 @@ import { LoginPage } from "../pages/LoginPage";
 import { ForgotPasswordPage } from "../pages/ForgotPasswordPage";
 import { TokenPasswordPage } from "../pages/TokenPasswordPage";
 import { LogoutPage } from "../pages/LogoutPage";
+import { PwaLaunchPage } from "../pages/PwaLaunchPage";
 import { DemoPage } from "../pages/DemoPage";
 import { FeaturesDemoPage } from "../pages/FeaturesDemoPage";
 import { PricingPage } from "../pages/PricingPage";
@@ -34,6 +35,7 @@ import { NfcCanteenChargePage } from "../pages/NfcCanteenChargePage";
 import { NfcCanteenReconciliationPage } from "../pages/NfcCanteenReconciliationPage";
 import { NfcSettingsPage } from "../pages/NfcSettingsPage";
 import { NfcFeeHoldsPage } from "../pages/NfcFeeHoldsPage";
+import { NfcGateOperationsPage } from "../pages/NfcGateOperationsPage";
 import { NfcGateSecurityPage } from "../pages/NfcGateSecurityPage";
 import { NfcTokenPage } from "../pages/NfcTokenPage";
 import { NfcOperationsPage } from "../pages/NfcOperationsPage";
@@ -63,6 +65,7 @@ import { PromotionWorkspacePage } from "../pages/PromotionWorkspacePage";
 import { PermissionGuard } from "../components/PermissionGuard";
 import { SectionLoader } from "../components/SectionLoader";
 
+const routerBasename = import.meta.env.BASE_URL.replace(/\/$/, "") || "/";
 const lawyerSmartPagesEnabled = import.meta.env.VITE_ENABLE_SMART_PAGES_LAWYERS === "true";
 const LawyerShell = lazy(() => import("../components/lawyers/LawyerShell").then((module) => ({ default: module.LawyerShell })));
 const LawyerDashboardPage = lazy(() => import("../pages/lawyers/LawyerDashboardPage").then((module) => ({ default: module.LawyerDashboardPage })));
@@ -83,17 +86,33 @@ function RoleAwareRedirect() {
   return <Navigate to={getDefaultRouteForRole(user?.role)} replace />;
 }
 
+function PublicOnlyRoute({ children }: { children: ReactNode }) {
+  const { user, loading } = useAuth();
+
+  if (loading) {
+    return <SectionLoader message="Loading SSAMENJ..." />;
+  }
+
+  if (user) {
+    return <Navigate to={user.isPlatformOwner ? "/owner" : getDefaultRouteForRole(user.role)} replace />;
+  }
+
+  return <>{children}</>;
+}
+
 export const router = createBrowserRouter([
   // Public routes — no AppShell, no auth
-  { path: "/demo", element: <DemoPage /> },
-  { path: "/features-demo", element: <FeaturesDemoPage /> },
-  { path: "/pricing", element: <PricingPage /> },
-  { path: "/contact", element: <ContactPage /> },
-  { path: "/login", element: <LoginPage /> },
+  { path: "/demo", element: <PublicOnlyRoute><DemoPage /></PublicOnlyRoute> },
+  { path: "/features-demo", element: <PublicOnlyRoute><FeaturesDemoPage /></PublicOnlyRoute> },
+  { path: "/pricing", element: <PublicOnlyRoute><PricingPage /></PublicOnlyRoute> },
+  { path: "/contact", element: <PublicOnlyRoute><ContactPage /></PublicOnlyRoute> },
+  { path: "/login", element: <PublicOnlyRoute><LoginPage /></PublicOnlyRoute> },
+  { path: "/pwa-launch", element: <PwaLaunchPage /> },
   { path: "/forgot-password", element: <ForgotPasswordPage /> },
   { path: "/reset-password", element: <TokenPasswordPage mode="reset" /> },
   { path: "/account/setup", element: <TokenPasswordPage mode="setup" /> },
   { path: "/logout", element: <LogoutPage /> },
+  { path: "/r/:code", element: <ParentReportPage /> },
   { path: "/parent/r/:token", element: <ParentReportPage /> },
   { path: "/verify/:code", element: <VerifyPage /> },
   { path: "/nfc/t/:token", element: <NfcTokenPage /> },
@@ -155,6 +174,7 @@ export const router = createBrowserRouter([
       { path: "nfc/settings", element: <PermissionGuard permission="app.admin"><NfcSettingsPage /></PermissionGuard> },
       { path: "nfc/fee-holds", element: <PermissionGuard permission="nfc.fee-holds.manage"><NfcFeeHoldsPage /></PermissionGuard> },
       { path: "nfc/gate", element: <PermissionGuard permission="nfc.gate.view"><NfcGateSecurityPage /></PermissionGuard> },
+      { path: "nfc/gate-admin", element: <PermissionGuard permission="app.admin"><NfcGateOperationsPage /></PermissionGuard> },
       { path: "nfc/staff-users", element: <PermissionGuard permission="staff.manage"><StaffUsersPage /></PermissionGuard> },
       { path: "nfc/offline", element: <PermissionGuard permission="nfc.devices.manage"><NfcOfflinePage /></PermissionGuard> },
       // ── NFC routes — legacy redirects ─────────────────────────────────────────
@@ -195,6 +215,6 @@ export const router = createBrowserRouter([
     ],
   },
 ], {
-  basename: "/report-lab",
+  basename: routerBasename,
 });
 

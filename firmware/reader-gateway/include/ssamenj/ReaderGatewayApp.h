@@ -55,6 +55,7 @@ class ReaderGatewayApp {
   void processScan(const ReaderScanEvent& event);
   void processOfflineQueue();
   void sendHeartbeat();
+  void logReaderReadyDiagnostic();
   void markApiContact();
   bool hasWorkingNetwork() const;
   bool shouldSuppressDuplicateScan(const ReaderScanEvent& event) const;
@@ -82,6 +83,7 @@ class ReaderGatewayApp {
   unsigned long lastQueueAttemptMs_ = 0;
   unsigned long lastHeartbeatMs_ = 0;
   unsigned long lastOtaCheckMs_ = 0;
+  unsigned long lastReaderReadyLogMs_ = 0;
   unsigned long wifiDisconnectedSinceMs_ = 0;
   unsigned long bootButtonPressedAtMs_ = 0;
   String lastSuccessfulApiContactAt_;

@@ -25,7 +25,7 @@ type ReaderCredentialLinkContext = {
 
 type ReaderCredentialLinkDb = Pick<
   PrismaClient,
-  "nfcTag" | "studentCredential" | "nfcOfflineDevice" | "auditLog"
+  "nfcTag" | "studentCredential" | "nfcOfflineDevice" | "readerCredentialCaptureSession" | "auditLog"
 > & {
   $transaction?: <T>(fn: (tx: ReaderCredentialLinkDb) => Promise<T>) => Promise<T>;
 };
@@ -85,24 +85,9 @@ export type ReaderCredentialConflictPayload = {
   canTransfer: boolean;
 };
 
-type ReaderCredentialCaptureSession = {
-  id: string;
-  schoolId: string;
-  tagId: string;
-  studentId: string;
-  deviceId: string | null;
-  deviceLabel: string | null;
-  createdAt: string;
-  expiresAt: string;
-  confirmedAt: string | null;
-  captured: CapturedReaderCredential | null;
-};
-
-const ACTIVE_CAPTURE_STATUSES = new Set(["PENDING", "CAPTURED"]);
 const DEFAULT_CAPTURE_EXPIRY_SECONDS = 90;
 const MAX_CAPTURE_EXPIRY_SECONDS = 180;
 const MIN_CAPTURE_EXPIRY_SECONDS = 15;
-const captureSessions = new Map<string, ReaderCredentialCaptureSession>();
 
 function requireSchoolId(ctx: ReaderCredentialLinkContext): string {
   if (!ctx.schoolId) throw Object.assign(new Error("School context required."), { status: 401 });
@@ -122,47 +107,103 @@ function runWrite<T>(db: ReaderCredentialLinkDb, fn: (tx: ReaderCredentialLinkDb
   return db.$transaction ? db.$transaction(fn) : fn(db);
 }
 
-function cleanExpiredSessions(now = Date.now()) {
-  for (const [captureId, session] of captureSessions.entries()) {
-    if (session.confirmedAt) continue;
-    if (new Date(session.expiresAt).getTime() <= now) {
-      captureSessions.delete(captureId);
-    }
-  }
-}
+type ReaderCredentialCaptureSessionRow = {
+  id: string;
+  schoolId: string;
+  tagId: string;
+  studentId: string;
+  deviceId: string | null;
+  deviceLabel: string | null;
+  status: string;
+  activeSchoolId: string | null;
+  expiresAt: Date;
+  createdAt: Date;
+  updatedAt: Date;
+  capturedAt: Date | null;
+  confirmedAt: Date | null;
+  cancelledAt: Date | null;
+  expiredAt: Date | null;
+  capturedReaderId: string | null;
+  capturedReaderName: string | null;
+  capturedCredentialJson: CapturedReaderCredential | null;
+};
 
-function sessionStatus(session: ReaderCredentialCaptureSession, now = Date.now()) {
-  if (session.confirmedAt) return "CONFIRMED" as const;
+function sessionStatus(session: Pick<ReaderCredentialCaptureSessionRow, "status" | "expiresAt" | "confirmedAt" | "cancelledAt" | "expiredAt" | "capturedCredentialJson">, now = Date.now()) {
+  if (session.status === "CONFIRMED" || session.confirmedAt) return "CONFIRMED" as const;
+  if (session.status === "CANCELLED" || session.cancelledAt) return "CANCELLED" as const;
+  if (session.status === "EXPIRED" || session.expiredAt) return "EXPIRED" as const;
   if (new Date(session.expiresAt).getTime() <= now) return "EXPIRED" as const;
-  return session.captured ? "CAPTURED" as const : "PENDING" as const;
+  return session.capturedCredentialJson ? "CAPTURED" as const : "PENDING" as const;
 }
 
-function serializeCaptureSession(session: ReaderCredentialCaptureSession) {
+function serializeCaptureSession(session: ReaderCredentialCaptureSessionRow) {
   return {
     captureId: session.id,
     tagId: session.tagId,
     studentId: session.studentId,
     deviceId: session.deviceId,
     deviceLabel: session.deviceLabel,
-    createdAt: session.createdAt,
-    expiresAt: session.expiresAt,
-    confirmedAt: session.confirmedAt,
+    createdAt: session.createdAt.toISOString(),
+    expiresAt: session.expiresAt.toISOString(),
+    confirmedAt: session.confirmedAt ? session.confirmedAt.toISOString() : null,
     status: sessionStatus(session),
-    preview: session.captured
+    preview: session.capturedCredentialJson
       ? {
-          maskedCanonicalCredential: maskCredentialValue(session.captured.canonical),
-          maskedAliases: session.captured.aliases.map((value) => maskCredentialValue(value)).filter(Boolean),
-          credential: maskCredentialValue(session.captured.credential),
-          rawWiegandDecimal: maskCredentialValue(session.captured.rawWiegandDecimal),
-          rawWiegandHex: maskCredentialValue(session.captured.rawWiegandHex),
-          facilityCode: maskCredentialValue(session.captured.facilityCode),
-          cardNumber: maskCredentialValue(session.captured.cardNumber),
-          capturedAt: session.captured.capturedAt,
-          readerId: session.captured.readerId,
-          readerName: session.captured.readerName,
+          maskedCanonicalCredential: maskCredentialValue(session.capturedCredentialJson.canonical),
+          maskedAliases: session.capturedCredentialJson.aliases.map((value) => maskCredentialValue(value)).filter(Boolean),
+          credential: maskCredentialValue(session.capturedCredentialJson.credential),
+          rawWiegandDecimal: maskCredentialValue(session.capturedCredentialJson.rawWiegandDecimal),
+          rawWiegandHex: maskCredentialValue(session.capturedCredentialJson.rawWiegandHex),
+          facilityCode: maskCredentialValue(session.capturedCredentialJson.facilityCode),
+          cardNumber: maskCredentialValue(session.capturedCredentialJson.cardNumber),
+          capturedAt: session.capturedCredentialJson.capturedAt,
+          readerId: session.capturedCredentialJson.readerId,
+          readerName: session.capturedCredentialJson.readerName,
         }
       : null,
   };
+}
+
+async function cleanExpiredSessions(db: ReaderCredentialLinkDb, schoolId?: string) {
+  const now = new Date();
+  const expiredSessions = await db.readerCredentialCaptureSession.findMany({
+    where: {
+      ...(schoolId ? { schoolId } : {}),
+      activeSchoolId: { not: null },
+      expiresAt: { lte: now },
+      status: { in: ["PENDING", "CAPTURED"] },
+    },
+  }) as ReaderCredentialCaptureSessionRow[];
+
+  for (const session of expiredSessions) {
+    await db.readerCredentialCaptureSession.update({
+      where: { id: session.id },
+      data: {
+        status: "EXPIRED",
+        activeSchoolId: null,
+        expiredAt: now,
+      },
+    });
+  }
+}
+
+async function loadCaptureSession(db: ReaderCredentialLinkDb, schoolId: string, captureId: string) {
+  const session = await db.readerCredentialCaptureSession.findFirst({
+    where: { id: captureId, schoolId },
+  }) as ReaderCredentialCaptureSessionRow | null;
+  if (!session) throw Object.assign(new Error("Capture session not found."), { status: 404 });
+  return session;
+}
+
+async function loadActiveCaptureSession(db: ReaderCredentialLinkDb, schoolId: string) {
+  return db.readerCredentialCaptureSession.findFirst({
+    where: {
+      schoolId,
+      activeSchoolId: schoolId,
+      status: { in: ["PENDING", "CAPTURED"] },
+    },
+    orderBy: { createdAt: "desc" },
+  }) as Promise<ReaderCredentialCaptureSessionRow | null>;
 }
 
 function buildCaptureInput(body: {
@@ -292,74 +333,72 @@ export async function startReaderCredentialCapture(
 ) {
   const schoolId = requireSchoolId(ctx);
   requireTagManager(ctx);
-  cleanExpiredSessions();
+  return runWrite(db, async (tx) => {
+    await cleanExpiredSessions(tx, schoolId);
 
-  const activeConflict = [...captureSessions.values()].find((session) =>
-    session.schoolId === schoolId && ACTIVE_CAPTURE_STATUSES.has(sessionStatus(session)));
-  if (activeConflict) {
-    throw Object.assign(new Error("Another reader credential capture is already active for this school."), { status: 409 });
-  }
+    const activeConflict = await loadActiveCaptureSession(tx, schoolId);
+    if (activeConflict) {
+      throw Object.assign(new Error("Another reader credential capture is already active for this school."), { status: 409 });
+    }
 
-  const tag = await loadAssignedTag(db, schoolId, input.tagId);
-  const reader = input.deviceId ? await loadCaptureReader(db, schoolId, input.deviceId) : null;
+    const tag = await loadAssignedTag(tx, schoolId, input.tagId);
+    const reader = input.deviceId ? await loadCaptureReader(tx, schoolId, input.deviceId) : null;
 
-  const expiresInSeconds = Math.min(
-    MAX_CAPTURE_EXPIRY_SECONDS,
-    Math.max(MIN_CAPTURE_EXPIRY_SECONDS, input.expiresInSeconds ?? DEFAULT_CAPTURE_EXPIRY_SECONDS),
-  );
-  const now = new Date();
-  const expiresAt = new Date(now.getTime() + expiresInSeconds * 1000);
+    const expiresInSeconds = Math.min(
+      MAX_CAPTURE_EXPIRY_SECONDS,
+      Math.max(MIN_CAPTURE_EXPIRY_SECONDS, input.expiresInSeconds ?? DEFAULT_CAPTURE_EXPIRY_SECONDS),
+    );
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + expiresInSeconds * 1000);
 
-  const session: ReaderCredentialCaptureSession = {
-    id: randomUUID(),
-    schoolId,
-    tagId: tag.id,
-    studentId: tag.studentId!,
-    deviceId: reader?.id ?? null,
-    deviceLabel: reader ? formatAttendanceReaderLabel(reader) : null,
-    createdAt: now.toISOString(),
-    expiresAt: expiresAt.toISOString(),
-    confirmedAt: null,
-    captured: null,
-  };
-
-  captureSessions.set(session.id, session);
-  await auditAction(db, ctx, "nfc_tag.reader_capture_started", {
-    captureId: session.id,
-    tagId: tag.id,
-    studentId: tag.studentId,
-    deviceId: session.deviceId,
-    expiresAt: session.expiresAt,
-  });
-
-  return {
-    ...serializeCaptureSession(session),
-    tag: {
-      id: tag.id,
-      publicCode: tag.publicCode,
-      label: tag.label,
-      student: {
-        id: tag.student.id,
-        name: `${tag.student.firstName} ${tag.student.lastName}`.trim(),
-        admissionNumber: tag.student.admissionNumber,
+    const session = await tx.readerCredentialCaptureSession.create({
+      data: {
+        id: randomUUID(),
+        schoolId,
+        tagId: tag.id,
+        studentId: tag.studentId!,
+        deviceId: reader?.id ?? null,
+        deviceLabel: reader ? formatAttendanceReaderLabel(reader) : null,
+        status: "PENDING",
+        activeSchoolId: schoolId,
+        expiresAt,
+        capturedCredentialJson: null,
       },
-    },
-  };
+    }) as ReaderCredentialCaptureSessionRow;
+
+    await auditAction(tx, ctx, "nfc_tag.reader_capture_started", {
+      captureId: session.id,
+      tagId: tag.id,
+      studentId: tag.studentId,
+      deviceId: session.deviceId,
+      expiresAt: session.expiresAt.toISOString(),
+    });
+
+    return {
+      ...serializeCaptureSession(session),
+      tag: {
+        id: tag.id,
+        publicCode: tag.publicCode,
+        label: tag.label,
+        student: {
+          id: tag.student.id,
+          name: `${tag.student.firstName} ${tag.student.lastName}`.trim(),
+          admissionNumber: tag.student.admissionNumber,
+        },
+      },
+    };
+  });
 }
 
 export async function getReaderCredentialCapture(
   ctx: ReaderCredentialLinkContext,
   captureId: string,
+  db: ReaderCredentialLinkDb = defaultPrisma,
 ) {
   const schoolId = requireSchoolId(ctx);
   requireTagManager(ctx);
-  cleanExpiredSessions();
-
-  const session = captureSessions.get(captureId);
-  if (!session || session.schoolId !== schoolId) {
-    throw Object.assign(new Error("Capture session not found."), { status: 404 });
-  }
-
+  await cleanExpiredSessions(db, schoolId);
+  const session = await loadCaptureSession(db, schoolId, captureId);
   return serializeCaptureSession(session);
 }
 
@@ -370,18 +409,32 @@ export async function cancelReaderCredentialCapture(
 ) {
   const schoolId = requireSchoolId(ctx);
   requireTagManager(ctx);
-  const session = captureSessions.get(captureId);
-  if (!session || session.schoolId !== schoolId) {
-    throw Object.assign(new Error("Capture session not found."), { status: 404 });
-  }
-  captureSessions.delete(captureId);
-  await auditAction(db, ctx, "nfc_tag.reader_capture_cancelled", {
-    captureId,
-    tagId: session.tagId,
-    studentId: session.studentId,
-    deviceId: session.deviceId,
+  return runWrite(db, async (tx) => {
+    await cleanExpiredSessions(tx, schoolId);
+    const session = await tx.readerCredentialCaptureSession.findFirst({
+      where: { id: captureId, schoolId },
+    }) as ReaderCredentialCaptureSessionRow | null;
+    if (!session) {
+      return { ok: true, captureId, status: "CANCELLED" as const };
+    }
+    if (session.status !== "CANCELLED" && session.status !== "CONFIRMED") {
+      await tx.readerCredentialCaptureSession.update({
+        where: { id: session.id },
+        data: {
+          status: "CANCELLED",
+          activeSchoolId: null,
+          cancelledAt: new Date(),
+        },
+      });
+    }
+    await auditAction(tx, ctx, "nfc_tag.reader_capture_cancelled", {
+      captureId,
+      tagId: session.tagId,
+      studentId: session.studentId,
+      deviceId: session.deviceId,
+    });
+    return { ok: true, captureId, status: "CANCELLED" as const };
   });
-  return { ok: true, captureId, status: "CANCELLED" as const };
 }
 
 export async function captureReaderCredentialFromReader(
@@ -394,40 +447,61 @@ export async function captureReaderCredentialFromReader(
     facilityCode?: string | null;
     cardNumber?: string | null;
   },
+  db: ReaderCredentialLinkDb = defaultPrisma,
 ) {
-  cleanExpiredSessions();
+  await cleanExpiredSessions(db, device.schoolId);
 
-  const activeSession = [...captureSessions.values()]
-    .filter((session) =>
-      session.schoolId === device.schoolId
-      && sessionStatus(session) === "PENDING"
-      && (!session.deviceId || session.deviceId === device.id))
-    .sort((left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime())[0];
+  const activeSession = await db.readerCredentialCaptureSession.findFirst({
+    where: {
+      schoolId: device.schoolId,
+      activeSchoolId: device.schoolId,
+      status: { in: ["PENDING", "CAPTURED"] },
+      OR: [
+        { deviceId: null },
+        { deviceId: device.id },
+      ],
+    },
+    orderBy: { createdAt: "desc" },
+  }) as ReaderCredentialCaptureSessionRow | null;
 
   if (!activeSession) return null;
+
+  if (activeSession.status === "CAPTURED" && activeSession.capturedCredentialJson) {
+    return serializeCaptureSession(activeSession);
+  }
 
   const aliases = buildReaderCredentialAliases(buildCaptureInput(body));
   if (!aliases.canonical) {
     return null;
   }
 
-  activeSession.captured = {
-    canonical: aliases.canonical,
-    aliases: aliases.aliases,
-    strongAliases: aliases.strongAliases,
-    weakAliases: aliases.weakAliases,
-    aliasSource: aliases.aliasSource,
-    credential: body.credentialUID ?? body.credential ?? null,
-    rawWiegandDecimal: body.rawWiegandDecimal ?? null,
-    rawWiegandHex: body.rawWiegandHex ?? null,
-    facilityCode: body.facilityCode ?? null,
-    cardNumber: body.cardNumber ?? null,
-    capturedAt: new Date().toISOString(),
-    readerId: device.id,
-    readerName: formatAttendanceReaderLabel(device),
-  };
+    const updated = await db.readerCredentialCaptureSession.update({
+      where: { id: activeSession.id },
+      data: {
+        status: "CAPTURED",
+        activeSchoolId: null,
+        capturedAt: new Date(),
+        capturedReaderId: device.id,
+        capturedReaderName: formatAttendanceReaderLabel(device),
+      capturedCredentialJson: {
+        canonical: aliases.canonical,
+        aliases: aliases.aliases,
+        strongAliases: aliases.strongAliases,
+        weakAliases: aliases.weakAliases,
+        aliasSource: aliases.aliasSource,
+        credential: body.credentialUID ?? body.credential ?? null,
+        rawWiegandDecimal: body.rawWiegandDecimal ?? null,
+        rawWiegandHex: body.rawWiegandHex ?? null,
+        facilityCode: body.facilityCode ?? null,
+        cardNumber: body.cardNumber ?? null,
+        capturedAt: new Date().toISOString(),
+        readerId: device.id,
+        readerName: formatAttendanceReaderLabel(device),
+      },
+    },
+  }) as ReaderCredentialCaptureSessionRow;
 
-  return serializeCaptureSession(activeSession);
+  return serializeCaptureSession(updated);
 }
 
 async function findCredentialConflict(
@@ -570,22 +644,18 @@ export async function confirmReaderCredentialLink(
 ) {
   const schoolId = requireSchoolId(ctx);
   requireTagManager(ctx);
-  cleanExpiredSessions();
+  return runWrite(db, async (tx) => {
+    await cleanExpiredSessions(tx, schoolId);
 
-  const session = captureSessions.get(captureId);
-  if (!session || session.schoolId !== schoolId) {
-    throw Object.assign(new Error("Capture session not found."), { status: 404 });
-  }
-  if (sessionStatus(session) === "EXPIRED") {
-    throw Object.assign(new Error("Capture session expired. Start a new capture and tap again."), { status: 409 });
-  }
-  if (!session.captured) {
-    throw Object.assign(new Error("No reader credential has been captured yet."), { status: 409 });
-  }
+    const session = await loadCaptureSession(tx, schoolId, captureId);
+    if (session.status === "EXPIRED") {
+      throw Object.assign(new Error("Capture session expired. Start a new capture and tap again."), { status: 409 });
+    }
+    if (!session.capturedCredentialJson) {
+      throw Object.assign(new Error("No reader credential has been captured yet."), { status: 409 });
+    }
 
-  const captured = session.captured;
-
-  const result = await runWrite(db, async (tx) => {
+    const captured = session.capturedCredentialJson;
     const tag = await loadAssignedTag(tx, schoolId, session.tagId);
     if (tag.studentId !== session.studentId) {
       throw Object.assign(new Error("This wristband assignment changed while capture was in progress."), { status: 409 });
@@ -624,6 +694,16 @@ export async function confirmReaderCredentialLink(
       },
     });
 
+    const confirmedAt = new Date();
+    await tx.readerCredentialCaptureSession.update({
+      where: { id: session.id },
+      data: {
+        status: "CONFIRMED",
+        activeSchoolId: null,
+        confirmedAt,
+      },
+    });
+
     await tx.auditLog.create({
       data: {
         schoolId,
@@ -647,32 +727,25 @@ export async function confirmReaderCredentialLink(
     });
 
     return {
-      tag: updatedTag,
+      ok: true,
+      captureId: session.id,
+      maskedCanonicalCredential: maskCredentialValue(captured.canonical),
       credentialId: linkedCredential.id,
+      tag: {
+        id: updatedTag.id,
+        publicCode: updatedTag.publicCode,
+        physicalUid: updatedTag.physicalUid,
+        studentId: updatedTag.studentId,
+        student: updatedTag.student
+          ? {
+              id: updatedTag.student.id,
+              name: `${updatedTag.student.firstName} ${updatedTag.student.lastName}`.trim(),
+              admissionNumber: updatedTag.student.admissionNumber,
+            }
+          : null,
+      },
     };
   });
-
-  session.confirmedAt = new Date().toISOString();
-
-  return {
-    ok: true,
-    captureId: session.id,
-    maskedCanonicalCredential: maskCredentialValue(captured.canonical),
-    credentialId: result.credentialId,
-    tag: {
-      id: result.tag.id,
-      publicCode: result.tag.publicCode,
-      physicalUid: result.tag.physicalUid,
-      studentId: result.tag.studentId,
-      student: result.tag.student
-        ? {
-            id: result.tag.student.id,
-            name: `${result.tag.student.firstName} ${result.tag.student.lastName}`.trim(),
-            admissionNumber: result.tag.student.admissionNumber,
-          }
-        : null,
-    },
-  };
 }
 
 export async function transferReaderCredentialLink(
@@ -692,17 +765,14 @@ export async function transferReaderCredentialLink(
     throw Object.assign(new Error("Transfer reason is required."), { status: 400 });
   }
 
-  cleanExpiredSessions();
-  const session = captureSessions.get(captureId);
-  if (!session || session.schoolId !== schoolId) {
-    throw Object.assign(new Error("Capture session not found."), { status: 404 });
-  }
-  if (!session.captured) {
-    throw Object.assign(new Error("No reader credential has been captured yet."), { status: 409 });
-  }
+  return runWrite(db, async (tx) => {
+    await cleanExpiredSessions(tx, schoolId);
+    const session = await loadCaptureSession(tx, schoolId, captureId);
+    if (!session.capturedCredentialJson) {
+      throw Object.assign(new Error("No reader credential has been captured yet."), { status: 409 });
+    }
 
-  const captured = session.captured;
-  const result = await runWrite(db, async (tx) => {
+    const captured = session.capturedCredentialJson;
     const tag = await loadAssignedTag(tx, schoolId, session.tagId);
     const conflict = await findCredentialConflict(tx, schoolId, captured, tag.studentId!);
     if (!conflict) {
@@ -751,6 +821,15 @@ export async function transferReaderCredentialLink(
       },
     });
 
+    await tx.readerCredentialCaptureSession.update({
+      where: { id: session.id },
+      data: {
+        status: "CONFIRMED",
+        activeSchoolId: null,
+        confirmedAt: new Date(),
+      },
+    });
+
     await tx.auditLog.create({
       data: {
         schoolId,
@@ -775,28 +854,24 @@ export async function transferReaderCredentialLink(
       },
     });
 
-    return { updatedTag, linkedCredential, previousStudent: conflict.payload.previousStudent };
+    return {
+      ok: true,
+      transfer: true,
+      captureId: session.id,
+      reason: cleanReason,
+      previousStudent: conflict.payload.previousStudent,
+      tag: {
+        id: updatedTag.id,
+        publicCode: updatedTag.publicCode,
+        physicalUid: updatedTag.physicalUid,
+        studentId: updatedTag.studentId,
+        student: updatedTag.student ? namedStudent(updatedTag.student) : null,
+      },
+      credentialId: linkedCredential.id,
+    };
   });
-
-  session.confirmedAt = new Date().toISOString();
-
-  return {
-    ok: true,
-    transfer: true,
-    captureId: session.id,
-    reason: cleanReason,
-    previousStudent: result.previousStudent,
-    tag: {
-      id: result.updatedTag.id,
-      publicCode: result.updatedTag.publicCode,
-      physicalUid: result.updatedTag.physicalUid,
-      studentId: result.updatedTag.studentId,
-      student: result.updatedTag.student ? namedStudent(result.updatedTag.student) : null,
-    },
-    credentialId: result.linkedCredential.id,
-  };
 }
 
 export function __resetReaderCredentialCaptureSessionsForTests() {
-  captureSessions.clear();
+  // no-op: capture sessions are persisted in the database
 }

@@ -1,0 +1,36 @@
+{
+  "releaseId": "ssamenj-reader-gateway-1.0.17-rollback-stable",
+  "version": "1.0.17-rollback",
+  "channel": "stable",
+  "artifactPath": "firmware/reader-gateway/releases/ssamenj-reader-gateway-1.0.17-rollback.bin",
+  "sha256": "0eabe4657c24c2946c193a77df6f6390f21b13b84266ab16d63679fd940392e2",
+  "routeManifestCanonicalJson": "{\"channel\":\"stable\",\"downloadPath\":\"/api/readers/ota/download/ssamenj-reader-gateway-1.0.17-rollback-stable\",\"publicKeyId\":\"ssamenj-reader-ota-2026-01\",\"releaseId\":\"ssamenj-reader-gateway-1.0.17-rollback-stable\",\"sha256\":\"0eabe4657c24c2946c193a77df6f6390f21b13b84266ab16d63679fd940392e2\",\"signature\":\"MEQCIB+CHRAUADy58ViiCeNlit/M/8rAjoTh1DnZQF3MJrSXAiAbTHqHyyhChprznATbCnJ5fmKPg0hcJrFpY2A/NkmcvA==\",\"signatureAlgorithm\":\"ECDSA_P256_SHA256\",\"sizeBytes\":1169872,\"updateAvailable\":true,\"version\":\"1.0.17-rollback\"}",
+  "routeManifest": {
+    "updateAvailable": true,
+    "releaseId": "ssamenj-reader-gateway-1.0.17-rollback-stable",
+    "version": "1.0.17-rollback",
+    "channel": "stable",
+    "downloadPath": "/api/readers/ota/download/ssamenj-reader-gateway-1.0.17-rollback-stable",
+    "sha256": "0eabe4657c24c2946c193a77df6f6390f21b13b84266ab16d63679fd940392e2",
+    "signature": "MEQCIB+CHRAUADy58ViiCeNlit/M/8rAjoTh1DnZQF3MJrSXAiAbTHqHyyhChprznATbCnJ5fmKPg0hcJrFpY2A/NkmcvA==",
+    "signatureAlgorithm": "ECDSA_P256_SHA256",
+    "publicKeyId": "ssamenj-reader-ota-2026-01",
+    "sizeBytes": 1169872
+  },
+  "railwayRelease": {
+    "releaseId": "ssamenj-reader-gateway-1.0.17-rollback-stable",
+    "version": "1.0.17-rollback",
+    "channel": "stable",
+    "sha256": "0eabe4657c24c2946c193a77df6f6390f21b13b84266ab16d63679fd940392e2",
+    "signature": "MEQCIB+CHRAUADy58ViiCeNlit/M/8rAjoTh1DnZQF3MJrSXAiAbTHqHyyhChprznATbCnJ5fmKPg0hcJrFpY2A/NkmcvA==",
+    "signatureAlgorithm": "ECDSA_P256_SHA256",
+    "publicKeyId": "ssamenj-reader-ota-2026-01",
+    "sizeBytes": 1169872,
+    "artifactPath": "firmware/reader-gateway/releases/ssamenj-reader-gateway-1.0.17-rollback.bin",
+    "enabled": true,
+    "targetDeviceIds": [
+      "892f16aa-ec12-4152-8613-e9e7f4e52267",
+      "reader-gateway-74372C"
+    ]
+  }
+}

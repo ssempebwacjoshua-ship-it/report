@@ -1,5 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+const { smtpSendMail, smtpCreateTransport } = vi.hoisted(() => {
+  const sendMail = vi.fn();
+  const createTransport = vi.fn(() => ({ sendMail }));
+  return { smtpSendMail: sendMail, smtpCreateTransport: createTransport };
+});
+
 const resendInstances: Array<{ emails: { send: ReturnType<typeof vi.fn> } }> = [];
 let resendSendResult: { data: { id: string } | null; error: null | { name: string; message: string; statusCode: number | null }; headers: Record<string, string> } = {
   data: { id: "msg-1" },
@@ -20,7 +26,23 @@ vi.mock("resend", () => ({
   },
 }));
 
-import { configuredAuthEmailProvider, configuredCompanyReplyTo, configuredCompanySender, isAuthEmailConfigured, sendAuthEmail, sendOutreachEmail } from "../../server/services/emailService";
+vi.mock("nodemailer", () => ({
+  default: {
+    createTransport: smtpCreateTransport,
+  },
+}));
+
+import {
+  configuredAuthEmailProvider,
+  configuredCompanyReplyTo,
+  configuredCompanySender,
+  configuredOutreachEmailProvider,
+  isAuthEmailConfigured,
+  OFFICIAL_COMPANY_OUTREACH_SENDER,
+  OFFICIAL_SUPPORT_EMAIL,
+  sendAuthEmail,
+  sendOutreachEmail,
+} from "../../server/services/emailService";
 
 describe("emailService", () => {
   const previousEnv = {
@@ -30,7 +52,13 @@ describe("emailService", () => {
     EMAIL_FROM: process.env.EMAIL_FROM,
     RESEND_FROM_EMAIL: process.env.RESEND_FROM_EMAIL,
     OUTREACH_EMAIL_FROM: process.env.OUTREACH_EMAIL_FROM,
+    OUTREACH_EMAIL_PROVIDER: process.env.OUTREACH_EMAIL_PROVIDER,
     OUTREACH_REPLY_TO: process.env.OUTREACH_REPLY_TO,
+    SMTP_HOST: process.env.SMTP_HOST,
+    SMTP_PORT: process.env.SMTP_PORT,
+    SMTP_SECURE: process.env.SMTP_SECURE,
+    SMTP_USER: process.env.SMTP_USER,
+    SMTP_PASSWORD: process.env.SMTP_PASSWORD,
     AUTH_EMAIL_REPLY_TO: process.env.AUTH_EMAIL_REPLY_TO,
     APP_PUBLIC_URL: process.env.APP_PUBLIC_URL,
     PUBLIC_APP_URL: process.env.PUBLIC_APP_URL,
@@ -45,6 +73,9 @@ describe("emailService", () => {
       error: null,
       headers: {},
     };
+    smtpCreateTransport.mockClear();
+    smtpSendMail.mockReset();
+    smtpSendMail.mockResolvedValue({ messageId: "smtp-msg-1" });
     vi.restoreAllMocks();
   });
 
@@ -55,7 +86,13 @@ describe("emailService", () => {
     process.env.EMAIL_FROM = previousEnv.EMAIL_FROM;
     process.env.RESEND_FROM_EMAIL = previousEnv.RESEND_FROM_EMAIL;
     process.env.OUTREACH_EMAIL_FROM = previousEnv.OUTREACH_EMAIL_FROM;
+    process.env.OUTREACH_EMAIL_PROVIDER = previousEnv.OUTREACH_EMAIL_PROVIDER;
     process.env.OUTREACH_REPLY_TO = previousEnv.OUTREACH_REPLY_TO;
+    process.env.SMTP_HOST = previousEnv.SMTP_HOST;
+    process.env.SMTP_PORT = previousEnv.SMTP_PORT;
+    process.env.SMTP_SECURE = previousEnv.SMTP_SECURE;
+    process.env.SMTP_USER = previousEnv.SMTP_USER;
+    process.env.SMTP_PASSWORD = previousEnv.SMTP_PASSWORD;
     process.env.AUTH_EMAIL_REPLY_TO = previousEnv.AUTH_EMAIL_REPLY_TO;
     process.env.APP_PUBLIC_URL = previousEnv.APP_PUBLIC_URL;
     process.env.PUBLIC_APP_URL = previousEnv.PUBLIC_APP_URL;
@@ -179,10 +216,26 @@ describe("emailService", () => {
   });
 
   it("prefers the company outreach sender when available", () => {
-    process.env.OUTREACH_EMAIL_FROM = "Joshua from SSAMENJ Technologies <support@ssamenj.online>";
+    process.env.OUTREACH_EMAIL_FROM = "SSAMENJ Technologies <support@ssamenj.online>";
     process.env.AUTH_EMAIL_FROM = "SSAMENJ Report Lab <support@ssamenj.online>";
 
-    expect(configuredCompanySender()).toBe("Joshua from SSAMENJ Technologies <support@ssamenj.online>");
+    expect(configuredCompanySender()).toBe("SSAMENJ Technologies <support@ssamenj.online>");
+  });
+
+  it("selects Gmail SMTP when OUTREACH_EMAIL_PROVIDER=gmail", () => {
+    process.env.OUTREACH_EMAIL_PROVIDER = "gmail";
+    expect(configuredOutreachEmailProvider()).toBe("GMAIL_SMTP");
+  });
+
+  it("keeps Resend available when OUTREACH_EMAIL_PROVIDER=resend", () => {
+    process.env.OUTREACH_EMAIL_PROVIDER = "resend";
+    expect(configuredOutreachEmailProvider()).toBe("RESEND");
+  });
+
+  it("falls back to the official company outreach sender when the env var is absent", () => {
+    delete process.env.OUTREACH_EMAIL_FROM;
+
+    expect(configuredCompanySender()).toBe(OFFICIAL_COMPANY_OUTREACH_SENDER);
   });
 
   it("prefers the company outreach reply-to when available", () => {
@@ -192,8 +245,15 @@ describe("emailService", () => {
     expect(configuredCompanyReplyTo()).toBe("support@ssamenj.online");
   });
 
+  it("falls back to the official support reply-to when outreach reply-to is absent", () => {
+    delete process.env.OUTREACH_REPLY_TO;
+    delete process.env.AUTH_EMAIL_REPLY_TO;
+
+    expect(configuredCompanyReplyTo()).toBe(OFFICIAL_SUPPORT_EMAIL);
+  });
+
   it("fails safely when outreach sender is missing", async () => {
-    process.env.AUTH_EMAIL_PROVIDER = "RESEND";
+    process.env.OUTREACH_EMAIL_PROVIDER = "resend";
     process.env.RESEND_API_KEY = "resend-key";
     delete process.env.OUTREACH_EMAIL_FROM;
     delete process.env.OUTREACH_REPLY_TO;
@@ -214,7 +274,7 @@ describe("emailService", () => {
   });
 
   it("fails safely when outreach sender is unsafe", async () => {
-    process.env.AUTH_EMAIL_PROVIDER = "RESEND";
+    process.env.OUTREACH_EMAIL_PROVIDER = "resend";
     process.env.RESEND_API_KEY = "resend-key";
     process.env.OUTREACH_EMAIL_FROM = "Joshua <ssempebwacjoshua@gmail.com>";
     process.env.OUTREACH_REPLY_TO = "support@ssamenj.online";
@@ -256,6 +316,89 @@ describe("emailService", () => {
     expect(instance.emails.send).toHaveBeenCalledWith(expect.objectContaining({
       from: "SSAMENJ Report Lab <support@ssamenj.online>",
     }));
+  });
+
+  it("sends outreach through Gmail SMTP when configured", async () => {
+    process.env.OUTREACH_EMAIL_PROVIDER = "gmail";
+    process.env.OUTREACH_EMAIL_FROM = "SSAMENJ Technologies <support@ssamenj.online>";
+    process.env.OUTREACH_REPLY_TO = "support@ssamenj.online";
+    process.env.SMTP_HOST = "smtp.gmail.com";
+    process.env.SMTP_PORT = "465";
+    process.env.SMTP_SECURE = "true";
+    process.env.SMTP_USER = "support@ssamenj.online";
+    process.env.SMTP_PASSWORD = "app-password";
+    process.env.APP_PUBLIC_URL = "https://ssamenj.online/report-lab";
+
+    await expect(sendOutreachEmail({
+      to: "school@example.com",
+      subject: "Outreach",
+      html: "<p>Outreach</p>",
+      text: "Outreach",
+    })).resolves.toEqual({
+      ok: true,
+      provider: "GMAIL_SMTP",
+      messageId: "smtp-msg-1",
+    });
+
+    expect(smtpCreateTransport).toHaveBeenCalledWith(expect.objectContaining({
+      host: "smtp.gmail.com",
+      port: 465,
+      secure: true,
+      auth: { user: "support@ssamenj.online", pass: "app-password" },
+    }));
+    expect(smtpSendMail).toHaveBeenCalledWith(expect.objectContaining({
+      from: "SSAMENJ Technologies <support@ssamenj.online>",
+      replyTo: "support@ssamenj.online",
+      to: "school@example.com",
+    }));
+  });
+
+  it("fails safely when Gmail SMTP credentials are missing", async () => {
+    process.env.OUTREACH_EMAIL_PROVIDER = "gmail";
+    process.env.OUTREACH_EMAIL_FROM = "SSAMENJ Technologies <support@ssamenj.online>";
+    process.env.OUTREACH_REPLY_TO = "support@ssamenj.online";
+    process.env.SMTP_HOST = "smtp.gmail.com";
+    process.env.SMTP_PORT = "465";
+    process.env.SMTP_USER = "support@ssamenj.online";
+    delete process.env.SMTP_PASSWORD;
+    process.env.APP_PUBLIC_URL = "https://ssamenj.online/report-lab";
+
+    await expect(sendOutreachEmail({
+      to: "school@example.com",
+      subject: "Outreach",
+      html: "<p>Outreach</p>",
+      text: "Outreach",
+    })).resolves.toEqual({
+      ok: false,
+      provider: "NONE",
+      reason: "NOT_CONFIGURED",
+      safeErrorCode: "missing_smtp_password",
+      safeErrorMessage: "SMTP_PASSWORD is missing.",
+    });
+  });
+
+  it("fails safely when Gmail SMTP user is not the official sender mailbox", async () => {
+    process.env.OUTREACH_EMAIL_PROVIDER = "gmail";
+    process.env.OUTREACH_EMAIL_FROM = "SSAMENJ Technologies <support@ssamenj.online>";
+    process.env.OUTREACH_REPLY_TO = "support@ssamenj.online";
+    process.env.SMTP_HOST = "smtp.gmail.com";
+    process.env.SMTP_PORT = "465";
+    process.env.SMTP_USER = "another@example.com";
+    process.env.SMTP_PASSWORD = "app-password";
+    process.env.APP_PUBLIC_URL = "https://ssamenj.online/report-lab";
+
+    await expect(sendOutreachEmail({
+      to: "school@example.com",
+      subject: "Outreach",
+      html: "<p>Outreach</p>",
+      text: "Outreach",
+    })).resolves.toEqual({
+      ok: false,
+      provider: "NONE",
+      reason: "NOT_CONFIGURED",
+      safeErrorCode: "invalid_smtp_user",
+      safeErrorMessage: "SMTP_USER_UNSAFE is missing.",
+    });
   });
 
   it("fails safely when AUTH_EMAIL_FROM is malformed", async () => {
