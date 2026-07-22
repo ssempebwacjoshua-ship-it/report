@@ -1,7 +1,7 @@
 ﻿import { describe, expect, it } from "vitest";
 import { buildReports, type EngineInput } from "../../server/services/reportEngine";
 import { gradeForAverage } from "../../server/services/gradeService";
-import { defaultSettingsSections } from "../../shared/types/settings";
+import { defaultSettingsSections } from "../../../../shared/types/settings";
 
 const baseInput: EngineInput = {
   filters: { schoolCode: "SCU-PREVIEW", classId: "c1", assessmentType: "TERM_SUMMARY" },
