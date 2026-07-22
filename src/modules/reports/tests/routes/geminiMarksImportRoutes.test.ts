@@ -1,6 +1,6 @@
 import request from "supertest";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { signToken } from "../../server/services/authService";
+import { signToken } from "../../../../server/services/authService";
 
 // -- Mocks -------------------------------------------------------------------
 const {
@@ -90,11 +90,11 @@ const sessionValidationState = vi.hoisted(() => ({
   }),
 }));
 
-vi.mock("../../server/services/sessionValidationService", () => ({
+vi.mock("../../../../server/services/sessionValidationService", () => ({
   validateSchoolSession: sessionValidationState.validateSchoolSession,
 }));
 
-vi.mock("../../server/db/prisma", () => ({
+vi.mock("../../../../server/db/prisma", () => ({
   prisma: {
     $transaction: mockTransaction,
     school: { findUnique: vi.fn(async () => ({ id: "school-1", code: "SCU-PREVIEW" })) },
@@ -132,7 +132,7 @@ vi.mock("../../server/db/prisma", () => ({
   },
 }));
 
-vi.mock("../../server/services/smartPagesService", () => ({
+vi.mock("../../../../server/services/smartPagesService", () => ({
   canUseCredits: vi.fn().mockResolvedValue({ allowed: true }),
   deductPages: vi.fn().mockResolvedValue(undefined),
   isDuplicateJob: vi.fn().mockResolvedValue(false),
@@ -140,7 +140,7 @@ vi.mock("../../server/services/smartPagesService", () => ({
   getDefaultExtractionMode: vi.fn().mockReturnValue("balanced"),
 }));
 
-vi.mock("../../server/services/geminiOcrService", () => ({
+vi.mock("../../../../server/services/geminiOcrService", () => ({
   extractMarksWithGemini: vi.fn(async () => ({
     rows: [
       { studentId: "SC2026-00001", studentName: "Alice Nantongo", mark: "82", confidenceScore: 1, needsReview: false },
@@ -150,8 +150,8 @@ vi.mock("../../server/services/geminiOcrService", () => ({
   })),
 }));
 
-vi.mock("../../modules/reports/server/services/geminiMarksImportService", async (importActual) => {
-  const actual = await importActual<typeof import("../../modules/reports/server/services/geminiMarksImportService")>();
+vi.mock("../../server/services/geminiMarksImportService", async (importActual) => {
+  const actual = await importActual<typeof import("../../server/services/geminiMarksImportService")>();
   return {
     ...actual,
     loadExpectedStudents: vi.fn(async () => [
@@ -161,7 +161,7 @@ vi.mock("../../modules/reports/server/services/geminiMarksImportService", async 
   };
 });
 
-import { createServer } from "../../server";
+import { createServer } from "../../../../server";
 
 const IMAGE = Buffer.from("fake-marksheet-bytes");
 
@@ -337,7 +337,7 @@ describe("debugNoDb mode", () => {
 
 describe("no active students", () => {
   it("returns 400 NO_STUDENTS at stage load_expected_students when roster is empty", async () => {
-    const { loadExpectedStudents } = await import("../../modules/reports/server/services/geminiMarksImportService");
+    const { loadExpectedStudents } = await import("../../server/services/geminiMarksImportService");
     vi.mocked(loadExpectedStudents).mockResolvedValueOnce([]);
 
     const res = await authPost("/api/marks-import/scan/extract")
@@ -403,7 +403,7 @@ describe("GET /api/marks-import/scan/options", () => {
   });
 
   it("filters out non-canonical classes (S1A, S1B) and returns only Senior 1 (S1)", async () => {
-    const { prisma } = await import("../../server/db/prisma");
+    const { prisma } = await import("../../../../server/db/prisma");
     vi.mocked(prisma.schoolClass.findMany).mockResolvedValueOnce([
       { id: "class-s1",  name: "Senior 1",   code: "S1"  } as never,
       { id: "class-s1a", name: "Senior 1 A", code: "S1A" } as never,
@@ -421,7 +421,7 @@ describe("GET /api/marks-import/scan/options", () => {
   });
 
   it("filters streams to only those under canonical classes", async () => {
-    const { prisma } = await import("../../server/db/prisma");
+    const { prisma } = await import("../../../../server/db/prisma");
     vi.mocked(prisma.schoolClass.findMany).mockResolvedValueOnce([
       { id: "class-s1",  name: "Senior 1",   code: "S1"  } as never,
       { id: "class-s1a", name: "Senior 1 A", code: "S1A" } as never,
@@ -455,7 +455,7 @@ describe("GET /api/marks-import/scan/options", () => {
   });
 
   it("upserts P1-P7 (7 classes) when school sections setting is PRIMARY", async () => {
-    const { prisma } = await import("../../server/db/prisma");
+    const { prisma } = await import("../../../../server/db/prisma");
     vi.mocked(prisma.appSetting.findUnique).mockResolvedValueOnce({
       sections: { school: { schoolSections: ["PRIMARY"] } },
     } as never);
@@ -471,7 +471,7 @@ describe("GET /api/marks-import/scan/options", () => {
   });
 
   it("upserts Baby/Middle/Top (3 classes) when school sections setting is NURSERY", async () => {
-    const { prisma } = await import("../../server/db/prisma");
+    const { prisma } = await import("../../../../server/db/prisma");
     vi.mocked(prisma.appSetting.findUnique).mockResolvedValueOnce({
       sections: { school: { schoolSections: ["NURSERY"] } },
     } as never);
@@ -487,7 +487,7 @@ describe("GET /api/marks-import/scan/options", () => {
   });
 
   it("returns 200 with empty arrays when school has no subjects or terms (new school)", async () => {
-    const { prisma } = await import("../../server/db/prisma");
+    const { prisma } = await import("../../../../server/db/prisma");
     vi.mocked(prisma.subject.findMany).mockResolvedValueOnce([]);
     vi.mocked(prisma.term.findMany).mockResolvedValueOnce([]);
 
@@ -502,7 +502,7 @@ describe("GET /api/marks-import/scan/options", () => {
   });
 
   it("returns 200 with empty arrays when the dropdown DB query fails", async () => {
-    const { prisma } = await import("../../server/db/prisma");
+    const { prisma } = await import("../../../../server/db/prisma");
     vi.mocked(prisma.schoolClass.findMany).mockRejectedValueOnce(new Error("DB connection refused"));
 
     const res = await authGet("/api/marks-import/scan/options")
@@ -545,7 +545,7 @@ describe("GET /api/marks-import/scan/options", () => {
 
 describe("Gemini error handling", () => {
   it("returns 503 GEMINI_NOT_CONFIGURED when GEMINI_API_KEY is missing", async () => {
-    const { extractMarksWithGemini } = await import("../../server/services/geminiOcrService");
+    const { extractMarksWithGemini } = await import("../../../../server/services/geminiOcrService");
     vi.mocked(extractMarksWithGemini).mockRejectedValueOnce(new Error("Missing GEMINI_API_KEY"));
 
     const res = await authPost("/api/marks-import/scan/extract")
@@ -558,7 +558,7 @@ describe("Gemini error handling", () => {
   });
 
   it("returns 503 GEMINI_AUTH_ERROR for an invalid API key", async () => {
-    const { extractMarksWithGemini } = await import("../../server/services/geminiOcrService");
+    const { extractMarksWithGemini } = await import("../../../../server/services/geminiOcrService");
     vi.mocked(extractMarksWithGemini).mockRejectedValueOnce(new Error("API key not valid. Please pass a valid API key."));
 
     const res = await authPost("/api/marks-import/scan/extract")
@@ -571,7 +571,7 @@ describe("Gemini error handling", () => {
   });
 
   it("returns 503 GEMINI_RATE_LIMIT on quota exhaustion", async () => {
-    const { extractMarksWithGemini } = await import("../../server/services/geminiOcrService");
+    const { extractMarksWithGemini } = await import("../../../../server/services/geminiOcrService");
     vi.mocked(extractMarksWithGemini).mockRejectedValueOnce(new Error("RESOURCE_EXHAUSTED: quota exceeded"));
 
     const res = await authPost("/api/marks-import/scan/extract")
@@ -584,7 +584,7 @@ describe("Gemini error handling", () => {
   });
 
   it("returns 503 GEMINI_NETWORK_ERROR when Node fetch fails (network/DNS/proxy)", async () => {
-    const { extractMarksWithGemini } = await import("../../server/services/geminiOcrService");
+    const { extractMarksWithGemini } = await import("../../../../server/services/geminiOcrService");
     const fetchErr = new Error("fetch failed");
     vi.mocked(extractMarksWithGemini).mockRejectedValueOnce(fetchErr);
 
@@ -599,7 +599,7 @@ describe("Gemini error handling", () => {
   });
 
   it("returns 503 GEMINI_NETWORK_ERROR when cause contains ENOTFOUND", async () => {
-    const { extractMarksWithGemini } = await import("../../server/services/geminiOcrService");
+    const { extractMarksWithGemini } = await import("../../../../server/services/geminiOcrService");
     const fetchErr = Object.assign(new Error("fetch failed"), { cause: { code: "ENOTFOUND" } });
     vi.mocked(extractMarksWithGemini).mockRejectedValueOnce(fetchErr);
 
@@ -613,7 +613,7 @@ describe("Gemini error handling", () => {
   });
 
   it("returns 400 GEMINI_PARSE_ERROR when Gemini returns empty response", async () => {
-    const { extractMarksWithGemini } = await import("../../server/services/geminiOcrService");
+    const { extractMarksWithGemini } = await import("../../../../server/services/geminiOcrService");
     vi.mocked(extractMarksWithGemini).mockRejectedValueOnce(new Error("Gemini returned empty response"));
 
     const res = await authPost("/api/marks-import/scan/extract")

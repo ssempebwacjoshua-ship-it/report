@@ -220,6 +220,7 @@ Owns academic reporting, report rendering, marks import workflows, marksheets, r
 - Module-owned tests now moved into:
   - `src/modules/reports/tests/client/importsClient.test.ts`
   - `src/modules/reports/tests/routes/importsAtomicity.test.ts`
+  - `src/modules/reports/tests/routes/geminiMarksImportRoutes.test.ts`
   - `src/modules/reports/tests/routes/importsRoutes.test.ts`
   - `src/modules/reports/tests/services/marksImportHighTwo.test.ts`
   - `src/modules/reports/tests/services/marksImportValidator.test.ts`
