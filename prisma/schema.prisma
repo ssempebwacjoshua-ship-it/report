@@ -7,6 +7,7 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// Core tenancy
 model School {
   id                           String                        @id @default(uuid()) @db.Uuid
   code                         String                        @unique
@@ -225,6 +226,7 @@ model GuardianContact {
   @@index([studentId, canReceiveReports])
 }
 
+// Academic reports
 model Subject {
   id                 String                    @id @default(uuid()) @db.Uuid
   schoolId           String                    @db.Uuid
@@ -342,6 +344,7 @@ model AuditLog {
   @@index([schoolId, createdAt], map: "AuditLog_schoolId_createdAt_idx")
 }
 
+// Owner/subscription
 model PlatformSupportSession {
   id          String    @id @default(uuid()) @db.Uuid
   schoolId    String    @db.Uuid
@@ -382,6 +385,7 @@ model AppSetting {
   @@index([schoolCode])
 }
 
+// Auth/audit
 model User {
   id                              String                          @id @default(uuid()) @db.Uuid
   schoolId                        String                          @db.Uuid
@@ -528,6 +532,7 @@ model SmartPagePaymentRequest {
   @@index([status, createdAt])
 }
 
+// NFC / wallets / canteen / gate
 model StudentCredential {
   id                 String                     @id @default(uuid()) @db.Uuid
   schoolId           String                     @db.Uuid
@@ -986,6 +991,7 @@ model PromotionAction {
   @@index([schoolId, studentId, status])
 }
 
+// Report release
 model IssuedReport {
   id                 String             @id @default(uuid()) @db.Uuid
   schoolId           String             @db.Uuid
@@ -1058,6 +1064,7 @@ model ReportLabInvoice {
   @@index([subscriptionId, createdAt])
 }
 
+// Smart Pages
 model Creator {
   id            String               @id @default(uuid()) @db.Uuid
   type          CreatorType
@@ -1724,6 +1731,7 @@ model NfcTapEvent {
   @@index([schoolId, publicCode, createdAt], map: "NfcTapEvent_school_publicCode_createdAt_idx")
 }
 
+// Communications
 model CommunicationCampaign {
   id                      String                      @id @default(uuid()) @db.Uuid
   schoolId                String                      @db.Uuid

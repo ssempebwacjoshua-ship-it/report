@@ -1,8 +1,11 @@
-﻿# Review Checklist
+# Review Checklist
 
 Codex must answer these before handoff or commit.
 
+- Current branch.
+- Branch ahead of origin?
 - Files changed.
+- Module touched.
 - Business logic changed?
 - Auth/permission affected?
 - Tenant isolation affected?
@@ -13,8 +16,33 @@ Codex must answer these before handoff or commit.
 - Audit logs added?
 - Tests run?
 - Build result?
+- Typecheck result?
+- Documentation update needed: yes/no?
+- Documentation updated: yes/no?
+- Documentation files updated, if any?
+- If documentation was skipped, why?
 - Risks?
 - Follow-ups?
+
+## Module migration review questions
+
+- Was exactly one target module declared before edits?
+- Was the task limited to behavior-preserving relocation rather than rewrite?
+- Were public API paths, HTTP methods, request/response contracts, auth behavior, permissions, tenant isolation, rate limits, and audit behavior preserved?
+- Were route registration files treated as contract boundaries without mount-path changes?
+- Were frontend route split files treated as contract boundaries without URL/guard/redirect changes?
+- Were cross-module imports limited to the same module, `src/modules/shared`, or intentional public contracts?
+- Were any large files both moved and split in the same task? If yes, was that explicitly requested?
+- Were high-risk areas kept out unless the task was explicitly scoped to them?
+- Were baseline tests for the moved module identified before edits?
+- After the move, were the same targeted tests, affected tests, typecheck, and build run?
+- If typecheck failed, was the failure limited to the relocation, or was it correctly reported as known repo-wide debt outside the relocation?
+- Was the owning module README updated after the committed move when the task was a module migration?
+- If runtime behavior was intentionally changed, was that separately approved?
+
+## Prisma generate lock review question
+
+- If `npm run db:generate` failed on Windows with an `EPERM` Prisma engine rename error, was it treated as a local lock issue rather than a reason to edit schema, migrations, or runtime code?
 
 ## Rule
 

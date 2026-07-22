@@ -10,59 +10,29 @@ import express, { type ErrorRequestHandler } from "express";
 import http from "http";
 import { ZodError } from "zod";
 import multer from "multer";
-import { dashboardRoutes } from "./routes/dashboardRoutes";
-import { healthRoutes } from "./routes/healthRoutes";
-import { reportsRoutes } from "./routes/reportsRoutes";
-import { importsRoutes } from "./routes/importsRoutes";
-import { studentsRoutes, studentsPublicRoutes } from "./routes/studentsRoutes";
-import { marksheetsRoutes } from "./routes/marksheetsRoutes";
-import { settingsRoutes } from "./routes/settingsRoutes";
-import { schoolStructureRoutes } from "./routes/schoolStructureRoutes";
 import { resolveSchoolContext } from "./middleware/resolveSchoolContext";
 import { enforceSchoolRoleAccess } from "./middleware/enforceSchoolRoleAccess";
-import { authRoutes } from "./routes/authRoutes";
-import { platformAdminRoutes } from "./routes/platformAdminRoutes";
-import { platformOwnerRoutes } from "./routes/platformOwnerRoutes";
-import { reportIssueRoutes } from "./routes/reportIssueRoutes";
-import { reportAssistantRoutes } from "./routes/reportAssistantRoutes";
-import { promotionRoutes } from "./routes/promotionRoutes";
-import { releaseCenterRoutes } from "./routes/releaseCenterRoutes";
-import { communicationRoutes } from "./routes/communicationRoutes";
-import { whatsappIntegrationRoutes } from "./routes/whatsappIntegrationRoutes";
-import { smsIntegrationRoutes } from "./routes/smsIntegrationRoutes";
-import { startSmsDeliveryWorker } from "./services/communicationEngine";
-import { parentRoutes } from "./routes/parentRoutes";
-import { verifyRoutes } from "./routes/verifyRoutes";
 import { ocrRoutes } from "./routes/ocrRoutes";
 import { subscriptionRoutes } from "./routes/subscriptionRoutes";
-import { studentCredentialRoutes } from "./routes/studentCredentialRoutes";
-import { nfcOperationsRoutes, nfcPublicRoutes } from "./routes/nfcOperationsRoutes";
-import { staffUsersRoutes } from "./routes/staffUsersRoutes";
-import { nfcTagsPublicRoutes, nfcTagsRoutes } from "./routes/nfcTagsRoutes";
-import { nfcOfflineRoutes } from "./routes/nfcOfflineRoutes";
-import { readerGatewayRoutes } from "./routes/readerGatewayRoutes";
-import { documentIntelligenceRoutes } from "./routes/documentIntelligenceRoutes";
-import { creatorAuthRoutes } from "./routes/creatorAuthRoutes";
-import { collectionRoutes } from "./routes/collectionRoutes";
-import { bulkGenerationRoutes } from "./routes/bulkGenerationRoutes";
-import { documentOsRoutes } from "./routes/documentOsRoutes";
-import { supportRoutes } from "./routes/supportRoutes";
-import { smartPagesBillingRoutes } from "./routes/smartPagesBillingRoutes";
-import { smartPagesTemplateRoutes } from "./routes/smartPagesTemplateRoutes";
-import { startBulkGenerationWorker } from "./services/bulkGenerationService";
-import { startDocumentExtractionWorker } from "./services/documentIntelligenceService";
-import geminiOcrRoutes from "./routes/geminiOcrRoutes";
-import geminiRosterRoutes from "./routes/geminiRosterRoutes";
 import geminiMarksImportRoutes from "./routes/geminiMarksImportRoutes";
-import geminiOcrBenchmarkRoutes from "./routes/geminiOcrBenchmarkRoutes";
 import { prisma } from "./db/prisma";
-import { recoverStaleStudentImportJobs } from "./services/studentImportService";
 import { validateEnv } from "./middleware/validateEnv";
 import { createRateLimiter, rateLimitWhen } from "./middleware/rateLimiters";
 import { securityHeaders } from "./middleware/securityHeaders";
-import { checkNfcWristbandSchema } from "./utils/nfcSchemaCheck";
 import { assertPlatformIntegrationConfigured } from "./platformClient";
-import { APP_BUILD_TIME, APP_BUILD_VERSION, getAllowedBrowserOrigins, getRuntimeDiagnostics, isAllowedBrowserOrigin } from "./config/deployRuntime";
+import { getAllowedBrowserOrigins, getRuntimeDiagnostics, isAllowedBrowserOrigin } from "./config/deployRuntime";
+import { registerCommunicationPlatformRoutes, registerCommunicationRoutes } from "./modules/registerCommunicationRoutes";
+import { registerNfcRoutes } from "./modules/registerNfcRoutes";
+import { registerOwnerRoutes } from "./modules/registerOwnerRoutes";
+import { registerPlatformRoutes } from "./modules/registerPlatformRoutes";
+import { registerPublicRoutes } from "./modules/registerPublicRoutes";
+import { registerReportsRoutes } from "./modules/registerReportsRoutes";
+import { registerSmartPagesRoutes } from "./modules/registerSmartPagesRoutes";
+import { registerWorkers } from "./modules/registerWorkers";
+import { dashboardRoutes } from "./routes/dashboardRoutes";
+import { schoolStructureRoutes } from "./routes/schoolStructureRoutes";
+import { settingsRoutes } from "./routes/settingsRoutes";
+import { studentsRoutes } from "./routes/studentsRoutes";
 
 function isAuthAttemptPath(pathname: string) {
   return pathname === "/api/auth/login"
@@ -214,41 +184,16 @@ export function createServer() {
   );
 
   // Public routes ? no authentication required
-  app.use(healthRoutes());
-  app.use(authRoutes());
-  app.use(verifyRoutes());
-  app.use(parentRoutes());
-  app.use(studentsPublicRoutes());
-  app.use(nfcPublicRoutes());
-  app.use(nfcTagsPublicRoutes());
-  app.use(readerGatewayRoutes());
-  app.use(whatsappIntegrationRoutes());
-  app.use(smsIntegrationRoutes());
-
-  app.get("/api/app-version", (_req, res) => {
-    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
-    res.setHeader("Pragma", "no-cache");
-    res.json({ version: APP_BUILD_VERSION, buildTime: APP_BUILD_TIME });
-  });
-
-  // Document Intelligence Engine ? creator auth accepts both school JWTs and external creator JWTs
-  app.use("/api/creator", creatorAuthRoutes());
-  app.use("/api/smart-documents", documentIntelligenceRoutes());
-  app.use("/api/document-os", documentOsRoutes());
-  app.use("/api/collections", collectionRoutes());
-  app.use("/api/bulk-jobs", bulkGenerationRoutes());
+  registerPublicRoutes(app);
 
   // Platform-owner provisioning ? protected by PLATFORM_ADMIN_KEY, not by school JWT
-  app.use(platformAdminRoutes());
+  registerPlatformRoutes(app);
 
   // Platform owner console APIs ? protected by JWT with isPlatformOwner, not by school context
-  app.use(platformOwnerRoutes());
+  registerOwnerRoutes(app);
 
   // Internal diagnostic routes ? protected by their own x-internal-test-key, not by school context
-  app.use("/api", geminiOcrRoutes);
-  app.use("/api", geminiOcrBenchmarkRoutes);
-  app.use("/api", geminiRosterRoutes);
-  app.use(supportRoutes());
+  registerCommunicationPlatformRoutes(app);
 
   // Tenant isolation: resolve school context from JWT or (dev-only) schoolCode param
   app.use(resolveSchoolContext);
@@ -257,27 +202,16 @@ export function createServer() {
 
   // Protected data routes ? all have req.school set by the middleware above
   app.use(dashboardRoutes());
-  app.use(reportsRoutes());
-  app.use(reportIssueRoutes());
-  app.use(reportAssistantRoutes());
-  app.use(releaseCenterRoutes());
-  app.use(communicationRoutes());
-  app.use(importsRoutes());
+  registerReportsRoutes(app);
+  registerCommunicationRoutes(app);
   app.use(studentsRoutes());
-  app.use(marksheetsRoutes());
   app.use(schoolStructureRoutes());
   app.use(settingsRoutes());
   app.use(ocrRoutes());
   app.use(subscriptionRoutes());
-  app.use(studentCredentialRoutes());
-  app.use(nfcOperationsRoutes());
-  app.use(nfcTagsRoutes());
-  app.use(nfcOfflineRoutes());
-  app.use(staffUsersRoutes());
-  app.use(smartPagesBillingRoutes());
-  app.use(smartPagesTemplateRoutes());
+  registerNfcRoutes(app);
+  registerSmartPagesRoutes(app);
   app.use(geminiMarksImportRoutes());
-  app.use(promotionRoutes());
 
   // Static file serving + SPA fallback (production only ? never in test env, skipped when dist absent)
   const distDir = path.join(process.cwd(), "dist");
@@ -331,18 +265,7 @@ if (process.env.NODE_ENV !== "test") {
   console.log("[startup] Runtime diagnostics:", getRuntimeDiagnostics());
   console.log("[startup] Node DNS result order: ipv4first (forced)");
   console.log("[startup] Node version:", process.version);
-  void recoverStaleStudentImportJobs(prisma).catch((error) => console.error("Failed to recover stale student import jobs", error));
-  void checkNfcWristbandSchema(prisma).then((status) => {
-    if (!status.ok) {
-      console.warn("[startup] NFC wristband schema incomplete. Missing:", status.missing.join(", "));
-      console.warn("[startup] Fix: npx prisma migrate deploy");
-    } else {
-      console.log("[startup] NFC wristband schema OK");
-    }
-  });
-  startBulkGenerationWorker();
-  startDocumentExtractionWorker();
-  startSmsDeliveryWorker(prisma);
+  registerWorkers(prisma);
   const httpServer = http.createServer(createServer());
   httpServer.requestTimeout = 120_000;
   httpServer.headersTimeout = 125_000;

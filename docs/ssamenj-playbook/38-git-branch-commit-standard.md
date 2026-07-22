@@ -1,4 +1,4 @@
-﻿# Git Branch And Commit Standard
+# Git Branch And Commit Standard
 
 Use Git intentionally and avoid mixing unrelated work.
 
@@ -17,10 +17,13 @@ Default rule:
 Before committing:
 
 * Run `git status`.
+* Run `git status -sb`.
+* Run `git branch --show-current`.
 * Confirm the changed files belong to the current task.
 * Do not stage unrelated dirty files.
 * Do not use `git add .` unless the worktree is clean except for the current task.
 * Run relevant tests/build/typecheck where practical.
+* During module migration, if `npm run typecheck` fails with confirmed pre-existing repo-wide errors outside the relocation, report that explicitly and do not broaden the task into general type cleanup.
 
 Commit message format:
 
@@ -53,6 +56,24 @@ If not committing:
 - Docs-only commits separate from runtime commits.
 - Do not use `git add .` when unrelated dirty files exist.
 - Run tests before commit where practical.
+- Preserve local-only commits unless explicitly instructed otherwise.
+
+## Local-only branch protection
+
+If the worktree has unrelated dirty files, stop and report them before editing.
+
+If the active branch is ahead of origin, do not:
+
+- rebase;
+- squash;
+- reset;
+- force push;
+- push;
+- merge unrelated branches;
+
+unless explicitly instructed.
+
+When staging, use explicit file paths.
 
 ## Commit Prefixes
 
@@ -67,3 +88,29 @@ If not committing:
 ## Dirty Worktree Rule
 
 If unrelated files are dirty, stage explicit paths only and report what was left untouched.
+
+## Documentation-only verification
+
+When the scope is documentation/guidance only:
+
+- do not edit runtime code;
+- do not edit tests;
+- do not edit package files;
+- do not update snapshots;
+- do not run production commands.
+
+Verification should be lightweight:
+
+- `git diff --check`
+- `git diff --stat`
+
+## Prisma generate lock caution
+
+If Windows blocks `npm run db:generate` with an `EPERM` rename error on `node_modules\prisma\query_engine-windows.dll.node`, do not respond by editing schema, migrations, or runtime code just to get generation unstuck.
+
+Instead:
+
+- stop local dev servers, Prisma Studio, watchers, and editors that may hold the Prisma engine lock;
+- use the repo script `npm run db:generate`, not plain `npx prisma generate`, unless explicitly instructed;
+- if needed, remove only `.\node_modules\prisma` and `.\node_modules\.prisma` in PowerShell, then run `npm install` and retry generation;
+- never delete `prisma/`, `prisma/schema.prisma`, or migration folders as part of lock recovery.

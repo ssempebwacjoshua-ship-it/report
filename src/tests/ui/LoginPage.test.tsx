@@ -122,7 +122,7 @@ describe("LoginPage", () => {
     await user.click(screen.getByRole("button", { name: /sign in/i }));
 
     await waitFor(() => {
-      expect(screen.getByText(/unable to connect to the report lab service/i)).toBeInTheDocument();
+      expect(screen.getByText(/unable to connect to the report lab backend/i)).toBeInTheDocument();
     });
   });
 

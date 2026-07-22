@@ -16,6 +16,15 @@ describe("app version endpoint", () => {
     expect(res.headers.pragma).toBe("no-cache");
   });
 
+  it("also exposes the version endpoint under the report-lab base path", async () => {
+    const res = await request(createServer()).get("/report-lab/api/app-version");
+
+    expect(res.status).toBe(200);
+    expect(res.body.version).toBeTruthy();
+    expect(res.headers["cache-control"]).toContain("no-store");
+    expect(res.headers.pragma).toBe("no-cache");
+  });
+
   it("allows unauthenticated production-like app version requests without school context", async () => {
     vi.stubEnv("NODE_ENV", "production");
     vi.stubEnv("RAILWAY_ENVIRONMENT", "production");
