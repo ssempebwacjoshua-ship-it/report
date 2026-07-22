@@ -201,7 +201,6 @@ Owns academic reporting, report rendering, marks import workflows, marksheets, r
   - `src/tests/routes/reportCommentRoutes.test.ts`
   - `src/tests/routes/reportIssueRoutes.test.ts`
   - `src/tests/routes/verifyRoutes.test.ts`
-  - `src/tests/services/marksImport*`
   - `src/tests/services/marksheet*`
   - `src/tests/shared/remarksEngine.test.ts`
   - `src/tests/shared/reportComments.test.ts`
@@ -212,6 +211,7 @@ Owns academic reporting, report rendering, marks import workflows, marksheets, r
   - `src/modules/reports/tests/client/importsClient.test.ts`
   - `src/modules/reports/tests/routes/importsAtomicity.test.ts`
   - `src/modules/reports/tests/routes/importsRoutes.test.ts`
+  - `src/modules/reports/tests/services/marksImportHighTwo.test.ts`
   - `src/modules/reports/tests/services/reportEngine.test.ts`
   - `src/modules/reports/tests/routes/reportsRoutes.test.ts`
   - `src/modules/reports/tests/ui/ReportsPage.test.tsx`

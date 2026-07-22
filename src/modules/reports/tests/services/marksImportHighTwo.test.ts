@@ -303,7 +303,7 @@ const { batchFindFirst, rowFindMany, errorSchoolFindUnique } = vi.hoisted(() => 
   errorSchoolFindUnique: vi.fn(async () => ({ id: "sch-err", code: "ERRSCH", name: "Error School" })),
 }));
 
-vi.mock("../../server/db/prisma", () => ({
+vi.mock("../../../../server/db/prisma", () => ({
   prisma: {
     school: { findUnique: errorSchoolFindUnique },
     appSetting: { findUnique: vi.fn(async () => null) },
@@ -317,8 +317,8 @@ describe("GET /api/imports/marks/errors/:batchId", () => {
   let authToken: string;
 
   beforeAll(async () => {
-    const { signToken } = await import("../../server/services/authService");
-    const { createServer } = await import("../../server");
+    const { signToken } = await import("../../../../server/services/authService");
+    const { createServer } = await import("../../../../server");
     app = createServer();
     authToken = signToken({
       userId: "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11",
