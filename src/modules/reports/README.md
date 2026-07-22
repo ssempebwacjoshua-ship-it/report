@@ -54,7 +54,6 @@ Owns academic reporting, report rendering, marks import workflows, marksheets, r
 - Report generation, comments, import, marksheet, validation, and promotion services
 - Current legacy files still outside the module:
   - `src/server/services/marksImportService.ts`
-  - `src/server/services/marksImportValidator.ts`
   - `src/server/services/marksheetContextService.ts`
   - `src/server/services/marksheetGeometryService.ts`
   - `src/server/services/marksheetIdDetectionService.ts`
@@ -62,6 +61,11 @@ Owns academic reporting, report rendering, marks import workflows, marksheets, r
   - `src/server/services/promotionService.ts`
   - `src/server/services/scoreValidationService.ts`
   - `src/server/services/subjectComponentResolver.ts`
+- Module-owned service now moved into:
+  - `src/modules/reports/server/services/marksImportValidator.ts`
+- Compatibility shim retained at:
+  - `src/server/services/marksImportValidator.ts`
+- Existing service imports remain supported through the shim
 - Module-owned service now moved into:
   - `src/modules/reports/server/services/reportAssistantContextService.ts`
 - Compatibility shim retained at:
@@ -222,6 +226,11 @@ Owns academic reporting, report rendering, marks import workflows, marksheets, r
 - Compatibility shim retained at:
   - `src/client/marksheetsClient.ts`
 - Module path is now canonical and runtime behavior is unchanged
+- Marks import validator moved into:
+  - `src/modules/reports/server/services/marksImportValidator.ts`
+- Compatibility shim retained at:
+  - `src/server/services/marksImportValidator.ts`
+- Module path is now canonical and runtime behavior is unchanged
 - Report assistant context service moved into:
   - `src/modules/reports/server/services/reportAssistantContextService.ts`
 - Compatibility shim retained at:
@@ -266,6 +275,8 @@ Owns academic reporting, report rendering, marks import workflows, marksheets, r
 - `src/pages/MarksImportPage.tsx` (compatibility shim)
 - `src/modules/reports/pages/MarksheetsPage.tsx`
 - `src/pages/MarksheetsPage.tsx` (compatibility shim)
+- `src/modules/reports/server/services/marksImportValidator.ts`
+- `src/server/services/marksImportValidator.ts` (compatibility shim)
 - `src/modules/reports/server/services/reportAssistantContextService.ts`
 - `src/server/services/reportAssistantContextService.ts` (compatibility shim)
 - `src/modules/reports/server/services/reportCommentService.ts`
