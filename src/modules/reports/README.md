@@ -53,7 +53,6 @@ Owns academic reporting, report rendering, marks import workflows, marksheets, r
 
 - Report generation, comments, import, marksheet, validation, and promotion services
 - Current legacy files still outside the module:
-  - `src/server/services/reportAssistantContextService.ts`
   - `src/server/services/marksImportService.ts`
   - `src/server/services/marksImportValidator.ts`
   - `src/server/services/marksheetContextService.ts`
@@ -63,6 +62,11 @@ Owns academic reporting, report rendering, marks import workflows, marksheets, r
   - `src/server/services/promotionService.ts`
   - `src/server/services/scoreValidationService.ts`
   - `src/server/services/subjectComponentResolver.ts`
+- Module-owned service now moved into:
+  - `src/modules/reports/server/services/reportAssistantContextService.ts`
+- Compatibility shim retained at:
+  - `src/server/services/reportAssistantContextService.ts`
+- Existing service imports remain supported through the shim
 - Module-owned service now moved into:
   - `src/modules/reports/server/services/reportCommentService.ts`
 - Compatibility shim retained at:
@@ -218,6 +222,11 @@ Owns academic reporting, report rendering, marks import workflows, marksheets, r
 - Compatibility shim retained at:
   - `src/client/marksheetsClient.ts`
 - Module path is now canonical and runtime behavior is unchanged
+- Report assistant context service moved into:
+  - `src/modules/reports/server/services/reportAssistantContextService.ts`
+- Compatibility shim retained at:
+  - `src/server/services/reportAssistantContextService.ts`
+- Module path is now canonical and runtime behavior is unchanged
 - Report comment service moved into:
   - `src/modules/reports/server/services/reportCommentService.ts`
 - Compatibility shim retained at:
@@ -257,6 +266,8 @@ Owns academic reporting, report rendering, marks import workflows, marksheets, r
 - `src/pages/MarksImportPage.tsx` (compatibility shim)
 - `src/modules/reports/pages/MarksheetsPage.tsx`
 - `src/pages/MarksheetsPage.tsx` (compatibility shim)
+- `src/modules/reports/server/services/reportAssistantContextService.ts`
+- `src/server/services/reportAssistantContextService.ts` (compatibility shim)
 - `src/modules/reports/server/services/reportCommentService.ts`
 - `src/server/services/reportCommentService.ts` (compatibility shim)
 - `src/pages/ReportsPage.tsx` still depends on the release-center-owned issue report client through `src/client/issueReportClient.ts`
