@@ -3,7 +3,7 @@ import request from "supertest";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 function mountRouteApp(routeModulePath: string, exportName: "parentRoutes" | "verifyRoutes", prisma: any) {
-  vi.doMock("../../server/db/prisma", () => ({ prisma }));
+  vi.doMock("../../../../server/db/prisma", () => ({ prisma }));
   return import(routeModulePath).then((mod: any) => {
     const app = express();
     app.use(express.json());
@@ -16,12 +16,12 @@ afterEach(() => {
   vi.resetModules();
   vi.clearAllMocks();
   vi.restoreAllMocks();
-  vi.doUnmock("../../server/db/prisma");
+  vi.doUnmock("../../../../server/db/prisma");
 });
 
 describe("parentRoutes - GET /api/p/:token", () => {
   it("returns 404 JSON for non-existent token", async () => {
-    const app = await mountRouteApp("../../server/routes/parentRoutes", "parentRoutes", {
+    const app = await mountRouteApp("../../../../server/routes/parentRoutes", "parentRoutes", {
       issuedReport: { findUnique: vi.fn(async () => null) },
     });
 
@@ -104,7 +104,7 @@ describe("parentRoutes - GET /api/p/:token", () => {
       auditLog: { create: auditLogCreate },
     };
 
-    const app = await mountRouteApp("../../server/routes/parentRoutes", "parentRoutes", prisma);
+    const app = await mountRouteApp("../../../../server/routes/parentRoutes", "parentRoutes", prisma);
     const res = await request(app).get(`/api/p/${"b".repeat(64)}`);
 
     expect(res.status).toBe(200);
@@ -144,7 +144,7 @@ describe("parentRoutes - GET /api/p/:token", () => {
       auditLog: { create: vi.fn(async () => ({})) },
     };
 
-    const app = await mountRouteApp("../../server/routes/parentRoutes", "parentRoutes", prisma);
+    const app = await mountRouteApp("../../../../server/routes/parentRoutes", "parentRoutes", prisma);
     const res = await request(app).get(`/api/p/${"x".repeat(64)}`);
 
     expect(res.status).toBe(410);
@@ -154,7 +154,7 @@ describe("parentRoutes - GET /api/p/:token", () => {
   });
 
   it("returns 410 for revoked links", async () => {
-    const app = await mountRouteApp("../../server/routes/parentRoutes", "parentRoutes", {
+    const app = await mountRouteApp("../../../../server/routes/parentRoutes", "parentRoutes", {
       issuedReport: {
         findUnique: vi.fn(async () => ({
           id: "issued-1",
@@ -175,7 +175,7 @@ describe("parentRoutes - GET /api/p/:token", () => {
 
 describe("parentRoutes - POST /api/p/:token/downloaded", () => {
   it("returns 404 JSON for non-existent token", async () => {
-    const app = await mountRouteApp("../../server/routes/parentRoutes", "parentRoutes", {
+    const app = await mountRouteApp("../../../../server/routes/parentRoutes", "parentRoutes", {
       issuedReport: { findUnique: vi.fn(async () => null) },
     });
 
@@ -202,7 +202,7 @@ describe("parentRoutes - POST /api/p/:token/downloaded", () => {
       auditLog: { create: vi.fn(async () => ({})) },
     };
 
-    const app = await mountRouteApp("../../server/routes/parentRoutes", "parentRoutes", prisma);
+    const app = await mountRouteApp("../../../../server/routes/parentRoutes", "parentRoutes", prisma);
     const res = await request(app).post(`/api/p/${"e".repeat(64)}/downloaded`);
 
     expect(res.status).toBe(410);
@@ -227,7 +227,7 @@ describe("parentRoutes - POST /api/p/:token/downloaded", () => {
       auditLog: { create: auditLogCreate },
     };
 
-    const app = await mountRouteApp("../../server/routes/parentRoutes", "parentRoutes", prisma);
+    const app = await mountRouteApp("../../../../server/routes/parentRoutes", "parentRoutes", prisma);
     const res = await request(app).post(`/api/p/${"f".repeat(64)}/downloaded`);
 
     expect(res.status).toBe(200);
@@ -250,7 +250,7 @@ describe("parentRoutes - POST /api/p/:token/downloaded", () => {
 
 describe("verifyRoutes - GET /api/verify/:code", () => {
   it("returns 404 with found:false for unknown code", async () => {
-    const app = await mountRouteApp("../../server/routes/verifyRoutes", "verifyRoutes", {
+    const app = await mountRouteApp("../../../../server/routes/verifyRoutes", "verifyRoutes", {
       issuedReport: { findUnique: vi.fn(async () => null) },
     });
 
@@ -261,7 +261,7 @@ describe("verifyRoutes - GET /api/verify/:code", () => {
 
   it("normalises code to uppercase", async () => {
     const prisma = { issuedReport: { findUnique: vi.fn(async () => null) } };
-    const app = await mountRouteApp("../../server/routes/verifyRoutes", "verifyRoutes", prisma);
+    const app = await mountRouteApp("../../../../server/routes/verifyRoutes", "verifyRoutes", prisma);
 
     const res = await request(app).get("/api/verify/nonexistent-code");
     expect(res.status).toBe(404);
