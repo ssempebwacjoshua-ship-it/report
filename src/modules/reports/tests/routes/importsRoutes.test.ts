@@ -1,8 +1,8 @@
 import request from "supertest";
 import sharp from "sharp";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { signToken } from "../../server/services/authService";
-import { createServer } from "../../server";
+import { signToken } from "../../../../server/services/authService";
+import { createServer } from "../../../../server";
 
 const ocrMockState = vi.hoisted(() => ({
   idCropTexts: [] as string[],
@@ -78,13 +78,13 @@ function resolvedContextFor(id: string) {
   };
 }
 
-vi.mock("../../server/services/sessionValidationService", () => ({
+vi.mock("../../../../server/services/sessionValidationService", () => ({
   validateSchoolSession: authState.validateSchoolSession,
 }));
 
-vi.mock("../../server/services/azureOcrService", async () => {
-  const actual = await vi.importActual<typeof import("../../server/services/azureOcrService")>(
-    "../../server/services/azureOcrService",
+vi.mock("../../../../server/services/azureOcrService", async () => {
+  const actual = await vi.importActual<typeof import("../../../../server/services/azureOcrService")>(
+    "../../../../server/services/azureOcrService",
   );
   return {
     ...actual,
@@ -204,7 +204,7 @@ vi.mock("../../server/services/marksheetContextService", () => ({
   }),
 }));
 
-vi.mock("../../server/services/scanExtractionService", () => ({
+vi.mock("../../../../server/services/scanExtractionService", () => ({
   extractMarksFromScan: vi.fn(async () => ({
     parseStatus: "FAILED",
     message: "OCR provider is unavailable for this scan.",
@@ -216,7 +216,7 @@ vi.mock("../../server/services/scanExtractionService", () => ({
   })),
 }));
 
-vi.mock("../../server/services/scanImportValidator", () => ({
+vi.mock("../../../../server/services/scanImportValidator", () => ({
   parseScanMark: vi.fn(),
   validateScanRows: vi.fn((rows: Array<Record<string, unknown>>, context: { className: string }, roster: Array<{ admissionNumber: string }>) =>
     rows.map((row) => {
@@ -270,7 +270,7 @@ vi.mock("../../server/services/marksImportService", () => ({
   })),
 }));
 
-vi.mock("../../server/db/prisma", () => ({
+vi.mock("../../../../server/db/prisma", () => ({
   prisma: {
     school: {
       findUnique: vi.fn(async ({ where }: { where: { code: string } }) => (
