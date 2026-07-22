@@ -116,10 +116,11 @@ Owns report-link issuance, bulk release operations, revoke/sent tracking, and pa
 
 ## Current Delivery Contract
 
-- Release Center now supports real provider-backed report delivery by SMS and Email
-- The canonical Release Center page preview/send workflow derives student, guardian contact, issued link, message, and destination from tenant-scoped server data
-- Existing copy/export/manual workflows remain available as supporting tools, but provider-backed send is the primary delivery action
-- Provider-backed send and manual sent-marking remain distinct states
+- Release Center prepares released-report SMS campaigns for the Communications module rather than sending directly from the page
+- The canonical Release Center page preview workflow derives student, guardian contact, issued link, message, and destination from tenant-scoped server data
+- Existing copy/export/manual workflows remain available as supporting tools, while approval and actual sending continue inside Communications
+- `src/pages/CommunicationsPage.tsx` now accepts `?campaignId=` so Release Center can hand the user into the correct draft or existing campaign
+- Live SMS still uses the Communications module delivery path and must never fall back to placeholder content
 
 ## Background Jobs/Workers
 
@@ -134,7 +135,6 @@ Owns report-link issuance, bulk release operations, revoke/sent tracking, and pa
 
 ## Migration Status
 
-- Skeleton only
 - Ownership contract defined
 - Legacy files mapped
 - Release-center client implementations moved into:
@@ -172,7 +172,7 @@ Owns report-link issuance, bulk release operations, revoke/sent tracking, and pa
 - Build passed after the client, page, report-link service, release-center-routes, report-issue-routes, and parent-routes moves
 - `npm run typecheck` still has unrelated repo-wide failures outside release-center client relocations
 - Other runtime files not moved yet
-- Release Center now includes real send preview plus send-selected flows for report delivery by SMS and Email
+- Release Center now includes released-report communication preview plus campaign handoff into Communications
 
 ## Known Legacy Files Still Outside The Module
 

@@ -152,6 +152,89 @@ export type ReportReleaseSendResult = {
   skipped: Array<{ studentId: string; studentName: string; reason: string }>;
 };
 
+export type ReleaseCommunicationInput = {
+  classId: string;
+  streamId?: string;
+  academicYearId?: string;
+  termId?: string;
+  assessmentType: "BOT" | "MOT" | "EOT" | "TERM_SUMMARY";
+  studentIds?: string[];
+  introduction: string;
+  channel: "SMS" | "WHATSAPP";
+  forceNewVersion?: boolean;
+};
+
+export type ReleaseCommunicationPreview = {
+  channel: "SMS" | "WHATSAPP";
+  channelAvailable: boolean;
+  unavailableReason: string | null;
+  batchLabel: string;
+  introduction: string;
+  reportLinksPlaceholder: "{{reportLinksText}}";
+  messageTemplate: string;
+  selectedStudents: Array<{
+    studentId: string;
+    studentName: string;
+    issuedReportId: string | null;
+    guardianName: string | null;
+    phoneE164: string | null;
+    eligibilityStatus:
+      | "ELIGIBLE"
+      | "NOT_RELEASED"
+      | "WITHDRAWN"
+      | "SUPERSEDED"
+      | "EXPIRED"
+      | "MISSING_CONTACT"
+      | "INVALID_PHONE"
+      | "DUPLICATE_GUARDIAN_NUMBER";
+    exclusionReason: string | null;
+  }>;
+  recipients: Array<{
+    phoneE164: string;
+    guardianName: string;
+    studentNames: string[];
+    reportLinkCount: number;
+    segmentCount: number;
+  }>;
+  counts: {
+    selectedStudents: number;
+    validParentNumbers: number;
+    missingContacts: number;
+    invalidNumbers: number;
+    duplicateGuardianNumbers: number;
+    excludedStudents: number;
+    smsSegments: number;
+    estimatedCostMinor: number | null;
+    estimatedCostCurrency: string | null;
+    eligibleRecipients: number;
+  };
+  estimatedCostNote: string;
+  existingCampaign: {
+    id: string;
+    title: string;
+    status: string;
+    version: number;
+  } | null;
+  source: {
+    type: "RELEASE_CENTRE";
+    batchId: string;
+    sourceKey: string;
+    version: number;
+    classId: string;
+    streamId: string | null;
+    academicYearId: string | null;
+    termId: string | null;
+    academicYearName: string;
+    termName: string;
+    assessmentType: string;
+    selectedStudentIds: string[];
+    selectedIssuedReportIds: string[];
+    selectedCount: number;
+    channel: "SMS" | "WHATSAPP";
+    createdFrom: "release-centre";
+  };
+};
+
 export async function markSent(issuedReportId: string): Promise<void> {
   const res = await fetch(`${API_BASE}/api/reports/release/${issuedReportId}/mark-sent`, {
     method: "POST",
@@ -203,4 +286,30 @@ export async function sendReportReleasesBulk(body: {
   });
   if (!res.ok) throw new Error(await parseApiError(res, "Could not send report links"));
   return res.json() as Promise<ReportReleaseSendResult>;
+}
+
+export async function previewReleaseCommunication(body: ReleaseCommunicationInput): Promise<{ preview: ReleaseCommunicationPreview }> {
+  const res = await fetch(`${API_BASE}/api/reports/release/communications/preview`, {
+    method: "POST",
+    headers: makeRequestHeaders({ "Content-Type": "application/json" }),
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(await parseApiError(res, "Could not preview report communication"));
+  return res.json() as Promise<{ preview: ReleaseCommunicationPreview }>;
+}
+
+export async function createOrReopenReleaseCommunication(body: ReleaseCommunicationInput): Promise<{
+  reopened: boolean;
+  duplicate: boolean;
+  campaign: { id: string; title: string; status: string; version: number };
+  progress: { QUEUED: number; PROCESSING: number; SENT: number; DELIVERED: number; FAILED: number };
+  preview: ReleaseCommunicationPreview;
+}> {
+  const res = await fetch(`${API_BASE}/api/reports/release/communications`, {
+    method: "POST",
+    headers: makeRequestHeaders({ "Content-Type": "application/json" }),
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(await parseApiError(res, "Could not create report communication"));
+  return res.json();
 }

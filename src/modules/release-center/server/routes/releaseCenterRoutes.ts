@@ -3,6 +3,7 @@ import { z } from "zod";
 import type { PreferredContactMethod } from "@prisma/client";
 import { prisma } from "../../../../server/db/prisma";
 import { requireAuth } from "../../../../server/middleware/requireAuth";
+import { createAudienceSnapshot, createCampaign, getCampaignProgressTotals } from "../../../../server/services/communicationEngine";
 import { resolveSmsProvider } from "../../../../server/services/communicationProviders";
 import { sendOutreachEmail } from "../../../../server/services/emailService";
 import { entitlementErrorBody, evaluateSubscriptionEntitlement } from "../../../../server/services/subscriptionEntitlementService";
@@ -10,6 +11,7 @@ import { buildDeliveryIdempotencyKey, hashRenderedContent } from "../../../../se
 import { loadReportEngineInput } from "../../../../server/repositories/reportsRepository";
 import { getSettingsSections } from "../../../../server/repositories/settingsRepository";
 import { buildReports } from "../../../../server/services/reportEngine";
+import { prepareReleaseCenterCommunicationPreview } from "../services/releaseCenterCommunicationService";
 import { getReportLinkExpiry, isReportLinkExpired } from "../services/reportLinkService";
 import { issueOrReuseIssuedReportLink } from "../services/issuedReportLinkService";
 import { buildParentReportPublicUrl } from "../../../../server/config/publicUrl";
@@ -124,8 +126,142 @@ const bulkSendSchema = z.object({
   confirm: z.boolean().optional(),
 });
 
+const releaseCommunicationSchema = z.object({
+  classId: z.string().min(1),
+  streamId: z.string().optional(),
+  academicYearId: z.string().optional(),
+  termId: z.string().optional(),
+  assessmentType: z.enum(["BOT", "MOT", "EOT", "TERM_SUMMARY"]).default("TERM_SUMMARY"),
+  studentIds: z.array(z.string().uuid()).optional(),
+  introduction: z.string().default(""),
+  channel: z.enum(["SMS", "WHATSAPP"]).default("SMS"),
+  forceNewVersion: z.boolean().optional(),
+});
+
 export function releaseCenterRoutes() {
   const router = Router();
+
+  router.post("/api/reports/release/communications/preview", requireAuth, async (req, res, next) => {
+    try {
+      const body = releaseCommunicationSchema.parse(req.body);
+      const preview = await prepareReleaseCenterCommunicationPreview(prisma, {
+        schoolId: req.school!.id,
+        schoolCode: req.school!.code,
+        schoolName: req.school!.name,
+        actorId: req.user?.userId,
+        actorName: req.user?.name,
+      }, body);
+      res.json({ preview });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/api/reports/release/communications", requireAuth, async (req, res, next) => {
+    try {
+      const body = releaseCommunicationSchema.parse(req.body);
+      const user = req.user!;
+      const preview = await prepareReleaseCenterCommunicationPreview(prisma, {
+        schoolId: req.school!.id,
+        schoolCode: req.school!.code,
+        schoolName: req.school!.name,
+        actorId: user.userId,
+        actorName: user.name,
+      }, body);
+
+      if (!preview.channelAvailable) {
+        res.status(400).json({ message: preview.unavailableReason ?? "This delivery channel is not available yet." });
+        return;
+      }
+      if (preview.preparedRecipients.length === 0) {
+        res.status(400).json({ message: "At least one released report with a valid guardian phone number is required." });
+        return;
+      }
+
+      if (preview.existingCampaign && !body.forceNewVersion) {
+        const progress = await getCampaignProgressTotals(prisma, {
+          schoolId: req.school!.id,
+          schoolName: req.school!.name,
+          actorId: user.userId,
+          actorName: user.name,
+        }, preview.existingCampaign.id);
+        res.json({
+          reopened: true,
+          duplicate: true,
+          campaign: preview.existingCampaign,
+          progress,
+          preview,
+        });
+        return;
+      }
+
+      const title = `${preview.batchLabel} SMS`;
+      const campaign = await createCampaign(prisma, {
+        schoolId: req.school!.id,
+        schoolName: req.school!.name,
+        actorId: user.userId,
+        actorName: user.name,
+      }, {
+        type: "REPORT_RELEASE",
+        title,
+        body: preview.messageTemplate,
+        shortBody: preview.messageTemplate,
+        metadataJson: {
+          source: preview.source,
+          releaseCentre: {
+            introduction: preview.introduction,
+            reportLinksPlaceholder: preview.reportLinksPlaceholder,
+            counts: preview.counts,
+            estimatedCostNote: preview.estimatedCostNote,
+          },
+        },
+      });
+      await createAudienceSnapshot(prisma, {
+        schoolId: req.school!.id,
+        schoolName: req.school!.name,
+        actorId: user.userId,
+        actorName: user.name,
+      }, campaign.id, {});
+      const progress = await getCampaignProgressTotals(prisma, {
+        schoolId: req.school!.id,
+        schoolName: req.school!.name,
+        actorId: user.userId,
+        actorName: user.name,
+      }, campaign.id);
+      await prisma.auditLog.create({
+        data: {
+          schoolId: req.school!.id,
+          action: "report.release_communication_created",
+          correlationId: campaign.id,
+          details: {
+            campaignId: campaign.id,
+            reportBatchId: preview.source.batchId,
+            reportBatchVersion: preview.source.version,
+            selectedStudentIds: preview.source.selectedStudentIds,
+            selectedIssuedReportIds: preview.source.selectedIssuedReportIds,
+            recipientTotals: preview.counts,
+            actorId: user.userId,
+            actorName: user.name,
+          },
+        },
+      });
+
+      res.status(201).json({
+        reopened: false,
+        duplicate: false,
+        campaign: {
+          id: campaign.id,
+          title: campaign.title,
+          status: campaign.status,
+          version: preview.source.version,
+        },
+        progress,
+        preview,
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
 
   router.get("/api/reports/release-status", requireAuth, async (req, res, next) => {
     try {

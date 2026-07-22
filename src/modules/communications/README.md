@@ -110,6 +110,7 @@ Owns campaign authoring, approvals, audience selection, delivery orchestration, 
 - Dry-run sending is explicit opt-in only through `COMMUNICATION_DRY_RUN=true`
 - Live SMS must use the real campaign/direct message body and must never fall back to `"Test SMS from School Connect"`
 - Live email delivery reuses the shared outreach email infrastructure
+- Release Center now hands released-report SMS sends into normal Communications campaigns, including reopening an existing matching campaign when appropriate
 
 ## Background Jobs/Workers
 
