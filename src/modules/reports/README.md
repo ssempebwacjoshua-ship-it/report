@@ -96,6 +96,11 @@ Owns academic reporting, report rendering, marks import workflows, marksheets, r
   - `src/server/services/promotionService.ts`
 - Existing service imports remain supported through the shim
 - Module-owned service now moved into:
+  - `src/modules/reports/server/services/gradeService.ts`
+- Compatibility shim retained at:
+  - `src/server/services/gradeService.ts`
+- Existing service imports remain supported through the shim
+- Module-owned service now moved into:
   - `src/modules/reports/server/services/marksheetIdDetectionService.ts`
 - Compatibility shim retained at:
   - `src/server/services/marksheetIdDetectionService.ts`
@@ -296,6 +301,11 @@ Owns academic reporting, report rendering, marks import workflows, marksheets, r
 - Compatibility shim retained at:
   - `src/server/services/reportEngine.ts`
 - Existing service imports remain supported through the shim
+- Grade service moved into:
+  - `src/modules/reports/server/services/gradeService.ts`
+- Compatibility shim retained at:
+  - `src/server/services/gradeService.ts`
+- Module path is now canonical and runtime behavior is unchanged
 - Reports repository moved into:
   - `src/modules/reports/server/repositories/reportsRepository.ts`
 - Compatibility shim retained at:
