@@ -60,16 +60,18 @@ Owns academic reporting, report rendering, marks import workflows, marksheets, r
 
 ## Owned Repositories
 
-- Current legacy files still outside the module:
-  - `src/server/repositories/settingsRepository.ts`
 - Module-owned repository now moved into:
   - `src/modules/reports/server/repositories/reportsRepository.ts`
 - Module-owned repository now moved into:
   - `src/modules/reports/server/repositories/schoolRepository.ts`
+- Module-owned repository now moved into:
+  - `src/modules/reports/server/repositories/settingsRepository.ts`
 - Compatibility shim retained at:
   - `src/server/repositories/reportsRepository.ts`
 - Compatibility shim retained at:
   - `src/server/repositories/schoolRepository.ts`
+- Compatibility shim retained at:
+  - `src/server/repositories/settingsRepository.ts`
 - Existing repository imports remain supported through the shim
 
 ## Owned Client API Files
@@ -169,6 +171,11 @@ Owns academic reporting, report rendering, marks import workflows, marksheets, r
 - Compatibility shim retained at:
   - `src/server/repositories/schoolRepository.ts`
 - Existing repository imports remain supported through the shim
+- Settings repository moved into:
+  - `src/modules/reports/server/repositories/settingsRepository.ts`
+- Compatibility shim retained at:
+  - `src/server/repositories/settingsRepository.ts`
+- Existing repository imports remain supported through the shim
 - Build passed after the release-center client moves
 - `npm run typecheck` still has unrelated repo-wide failures outside the client relocations
 - Runtime files not moved yet
@@ -191,5 +198,7 @@ Owns academic reporting, report rendering, marks import workflows, marksheets, r
 - `src/server/repositories/reportsRepository.ts` (compatibility shim)
 - `src/modules/reports/server/repositories/schoolRepository.ts`
 - `src/server/repositories/schoolRepository.ts` (compatibility shim)
+- `src/modules/reports/server/repositories/settingsRepository.ts`
+- `src/server/repositories/settingsRepository.ts` (compatibility shim)
 - `src/server/routes/importsRoutes.ts`
 - `src/server/routes/marksheetsRoutes.ts`
