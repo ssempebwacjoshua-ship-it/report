@@ -3,7 +3,7 @@ import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import { ParentReportPage } from "../../pages/ParentReportPage";
 
-vi.mock("../../components/reports/StudentReportDetail", () => ({
+vi.mock("../../../../components/reports/StudentReportDetail", () => ({
   StudentReportDetail: () => <div data-testid="report-detail">Report detail</div>,
 }));
 
