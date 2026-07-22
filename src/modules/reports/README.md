@@ -17,6 +17,12 @@ Owns academic reporting, report rendering, marks import workflows, marksheets, r
 
 - Browser: `/report-lab/reports`, `/report-lab/imports/marks`, `/report-lab/marksheets`, `/report-lab/verify/:code`
 - Module-owned page now moved into:
+  - `src/modules/reports/pages/PromotionWorkspacePage.tsx`
+- Compatibility shim retained at:
+  - `src/pages/PromotionWorkspacePage.tsx`
+- Browser routes remain unchanged through the shim
+- Promotion workspace remains Reports-owned
+- Module-owned page now moved into:
   - `src/modules/reports/pages/ReportsPage.tsx`
 - Compatibility shim retained at:
   - `src/pages/ReportsPage.tsx`
@@ -244,6 +250,11 @@ Owns academic reporting, report rendering, marks import workflows, marksheets, r
 - Skeleton only
 - Ownership contract defined
 - Reports still consume the release-center-owned issue report client as a direct canonical cross-module dependency
+- Promotion workspace page moved into:
+  - `src/modules/reports/pages/PromotionWorkspacePage.tsx`
+- Compatibility shim retained at:
+  - `src/pages/PromotionWorkspacePage.tsx`
+- Module path is now canonical and browser/runtime behavior is unchanged
 - Reports page moved into:
   - `src/modules/reports/pages/ReportsPage.tsx`
 - Compatibility shim retained at:
