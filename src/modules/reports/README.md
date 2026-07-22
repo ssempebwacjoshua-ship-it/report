@@ -207,12 +207,12 @@ Owns academic reporting, report rendering, marks import workflows, marksheets, r
   - `src/tests/shared/remarksEngine.test.ts`
   - `src/tests/shared/reportComments.test.ts`
   - `src/tests/shared/reportContentLimits.test.ts`
-  - `src/tests/ui/ReportsPage.test.tsx`
   - `src/tests/ui/MarksImportPageModes.test.tsx`
   - `src/tests/ui/MarksheetsPage.test.tsx`
 - Module-owned tests now moved into:
   - `src/modules/reports/tests/services/reportEngine.test.ts`
   - `src/modules/reports/tests/routes/reportsRoutes.test.ts`
+  - `src/modules/reports/tests/ui/ReportsPage.test.tsx`
 
 ## Owned Prisma Models, If Any
 

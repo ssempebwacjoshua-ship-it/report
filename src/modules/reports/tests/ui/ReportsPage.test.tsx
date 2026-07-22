@@ -2,7 +2,7 @@
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ReportsPage } from "../../pages/ReportsPage";
-import type { ReportContext } from "../../shared/types/reports";
+import type { ReportContext } from "../../../../shared/types/reports";
 
 // Silence matchMedia ? unavailable in JSDOM
 beforeEach(() => {
@@ -42,7 +42,7 @@ vi.mock("../../client/reportsClient", () => ({
   })),
 }));
 
-vi.mock("../../client/settingsClient", () => ({
+vi.mock("../../../../client/settingsClient", () => ({
   fetchSettings: vi.fn(async () => ({
     sections: {
       academic: {
@@ -54,15 +54,15 @@ vi.mock("../../client/settingsClient", () => ({
   })),
 }));
 
-vi.mock("../../client/issueReportClient", () => ({ issueReport: vi.fn() }));
-vi.mock("../../components/layout/branding", () => ({ getSchoolDisplayName: vi.fn(() => "Test School") }));
-vi.mock("../../shared/reportReleaseMessage", () => ({ buildParentReportReleaseMessage: vi.fn(() => "") }));
+vi.mock("../../../release-center/client/issueReportClient", () => ({ issueReport: vi.fn() }));
+vi.mock("../../../../components/layout/branding", () => ({ getSchoolDisplayName: vi.fn(() => "Test School") }));
+vi.mock("../../../../shared/reportReleaseMessage", () => ({ buildParentReportReleaseMessage: vi.fn(() => "") }));
 
 // Mock heavy sub-components so the test focuses on filter wiring.
-vi.mock("../../components/reports/ReportFilters", () => ({ ReportFilters: () => null }));
-vi.mock("../../components/reports/StudentReportCard", () => ({ StudentReportCard: () => null }));
-vi.mock("../../components/reports/StudentReportDetail", () => ({ StudentReportDetail: () => null }));
-vi.mock("../../components/reports/EmptyReportState", () => ({ EmptyReportState: () => null }));
+vi.mock("../../../../components/reports/ReportFilters", () => ({ ReportFilters: () => null }));
+vi.mock("../../../../components/reports/StudentReportCard", () => ({ StudentReportCard: () => null }));
+vi.mock("../../../../components/reports/StudentReportDetail", () => ({ StudentReportDetail: () => null }));
+vi.mock("../../../../components/reports/EmptyReportState", () => ({ EmptyReportState: () => null }));
 
 function renderAtUrl(url: string) {
   return render(
