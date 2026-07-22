@@ -54,7 +54,11 @@ Owns academic reporting, report rendering, marks import workflows, marksheets, r
 - Report generation, comments, import, marksheet, validation, and promotion services
 - Current legacy files still outside the module:
   - `src/server/services/marksImportService.ts`
+- Module-owned service now moved into:
+  - `src/modules/reports/server/services/promotionService.ts`
+- Compatibility shim retained at:
   - `src/server/services/promotionService.ts`
+- Existing service imports remain supported through the shim
 - Module-owned service now moved into:
   - `src/modules/reports/server/services/marksheetIdDetectionService.ts`
 - Compatibility shim retained at:
@@ -250,6 +254,11 @@ Owns academic reporting, report rendering, marks import workflows, marksheets, r
 - Compatibility shim retained at:
   - `src/client/marksheetsClient.ts`
 - Module path is now canonical and runtime behavior is unchanged
+- Promotion service moved into:
+  - `src/modules/reports/server/services/promotionService.ts`
+- Compatibility shim retained at:
+  - `src/server/services/promotionService.ts`
+- Module path is now canonical and runtime behavior is unchanged
 - Marksheet ID detection service moved into:
   - `src/modules/reports/server/services/marksheetIdDetectionService.ts`
 - Compatibility shim retained at:
@@ -329,6 +338,8 @@ Owns academic reporting, report rendering, marks import workflows, marksheets, r
 - `src/pages/MarksImportPage.tsx` (compatibility shim)
 - `src/modules/reports/pages/MarksheetsPage.tsx`
 - `src/pages/MarksheetsPage.tsx` (compatibility shim)
+- `src/modules/reports/server/services/promotionService.ts`
+- `src/server/services/promotionService.ts` (compatibility shim)
 - `src/modules/reports/server/services/marksheetIdDetectionService.ts`
 - `src/server/services/marksheetIdDetectionService.ts` (compatibility shim)
 - `src/modules/reports/server/services/marksheetContextService.ts`
