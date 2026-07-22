@@ -40,8 +40,12 @@ Owns academic reporting, report rendering, marks import workflows, marksheets, r
 - Current route files still outside the module:
   - `src/server/routes/importsRoutes.ts`
   - `src/server/routes/marksheetsRoutes.ts`
-  - `src/server/routes/verifyRoutes.ts`
   - `src/server/routes/reportIssueRoutes.ts`
+- Module-owned route now moved into:
+  - `src/modules/reports/server/routes/verifyRoutes.ts`
+- Compatibility shim retained at:
+  - `src/server/routes/verifyRoutes.ts`
+- Existing route registration imports remain supported through the shim
 - Module-owned route now moved into:
   - `src/modules/reports/server/routes/promotionRoutes.ts`
 - Compatibility shim retained at:
@@ -218,6 +222,11 @@ Owns academic reporting, report rendering, marks import workflows, marksheets, r
 - Skeleton only
 - Ownership contract defined
 - Reports still consume the release-center-owned issue report client through a compatibility shim
+- Verify routes moved into:
+  - `src/modules/reports/server/routes/verifyRoutes.ts`
+- Compatibility shim retained at:
+  - `src/server/routes/verifyRoutes.ts`
+- Module path is now canonical and runtime behavior is unchanged
 - Promotion routes moved into:
   - `src/modules/reports/server/routes/promotionRoutes.ts`
 - Compatibility shim retained at:
@@ -368,6 +377,8 @@ Owns academic reporting, report rendering, marks import workflows, marksheets, r
 - `src/modules/reports/server/services/reportCommentService.ts`
 - `src/server/services/reportCommentService.ts` (compatibility shim)
 - `src/pages/ReportsPage.tsx` still depends on the release-center-owned issue report client through `src/client/issueReportClient.ts`
+- `src/modules/reports/server/routes/verifyRoutes.ts`
+- `src/server/routes/verifyRoutes.ts` (compatibility shim)
 - `src/modules/reports/server/routes/promotionRoutes.ts`
 - `src/server/routes/promotionRoutes.ts` (compatibility shim)
 - `src/modules/reports/server/routes/reportsRoutes.ts`

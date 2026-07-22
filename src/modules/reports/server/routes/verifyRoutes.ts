@@ -1,5 +1,5 @@
 ﻿import { Router } from "express";
-import { prisma } from "../db/prisma";
+import { prisma } from "../../../../server/db/prisma";
 
 export function verifyRoutes() {
   const router = Router();
