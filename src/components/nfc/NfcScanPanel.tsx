@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ScannerState } from "../../hooks/useNfcScanner";
 
 type Props = {
@@ -9,6 +9,7 @@ type Props = {
   onStart: () => void;
   onStop: () => void;
   onManualSubmit: (value: string) => void;
+  autoFocusManual?: boolean;
   scanLabel?: string;
   className?: string;
 };
@@ -35,12 +36,19 @@ export function NfcScanPanel({
   onStart,
   onStop,
   onManualSubmit,
+  autoFocusManual = false,
   scanLabel = "Start Scanner",
   className = "",
 }: Props) {
   const [manual, setManual] = useState("");
+  const manualInputRef = useRef<HTMLInputElement | null>(null);
   const cfg = STATE_CONFIG[state];
   const scanning = active(state);
+
+  useEffect(() => {
+    if (!autoFocusManual) return;
+    manualInputRef.current?.focus();
+  }, [autoFocusManual]);
 
   return (
     <div className={`rounded-xl border bg-white shadow-sm ${className}`}>
@@ -128,6 +136,7 @@ export function NfcScanPanel({
         <p className="text-xs text-gray-500 mb-2 font-medium uppercase tracking-wide">Manual entry</p>
         <div className="flex gap-2">
           <input
+            ref={manualInputRef}
             type="text"
             value={manual}
             onChange={(e) => setManual(e.target.value)}
