@@ -44,7 +44,12 @@ Owns academic reporting, report rendering, marks import workflows, marksheets, r
 
 - API: `/api/reports*`, `/api/imports/*`, `/api/marksheets/*`, `/api/verify/:code`
 - Current route files still outside the module:
-  - `src/server/routes/reportIssueRoutes.ts`
+  - none in Reports ownership; `src/server/routes/reportIssueRoutes.ts` remains Release Center-owned
+- Module-owned route now moved into:
+  - `src/modules/reports/server/routes/reportAssistantRoutes.ts`
+- Compatibility shim retained at:
+  - `src/server/routes/reportAssistantRoutes.ts`
+- Existing route registration imports remain supported through the shim
 - Module-owned route now moved into:
   - `src/modules/reports/server/routes/marksheetsRoutes.ts`
 - Compatibility shim retained at:
@@ -170,7 +175,7 @@ Owns academic reporting, report rendering, marks import workflows, marksheets, r
 - Existing runtime imports remain supported through the shim
 - Cross-module usage note:
   - `src/modules/release-center/client/issueReportClient.ts` is currently owned by release-center
-  - `src/pages/ReportsPage.tsx` still uses it through the compatibility shim at `src/client/issueReportClient.ts`
+  - `src/modules/reports/pages/ReportsPage.tsx` uses it directly as a canonical cross-module dependency
   - This boundary should be reviewed during later reports/release-center cleanup
 
 ## Owned Tests
@@ -238,13 +243,18 @@ Owns academic reporting, report rendering, marks import workflows, marksheets, r
 
 - Skeleton only
 - Ownership contract defined
-- Reports still consume the release-center-owned issue report client through a compatibility shim
+- Reports still consume the release-center-owned issue report client as a direct canonical cross-module dependency
 - Reports page moved into:
   - `src/modules/reports/pages/ReportsPage.tsx`
 - Compatibility shim retained at:
   - `src/pages/ReportsPage.tsx`
 - Module path is now canonical and browser/runtime behavior is unchanged
 - Reports page intentionally depends on the release-center-owned issue report client for report issuing/release
+- Report assistant routes moved into:
+  - `src/modules/reports/server/routes/reportAssistantRoutes.ts`
+- Compatibility shim retained at:
+  - `src/server/routes/reportAssistantRoutes.ts`
+- Module path is now canonical and runtime behavior is unchanged
 - Verify routes moved into:
   - `src/modules/reports/server/routes/verifyRoutes.ts`
 - Compatibility shim retained at:
@@ -414,7 +424,7 @@ Owns academic reporting, report rendering, marks import workflows, marksheets, r
 - `src/server/services/reportAssistantContextService.ts` (compatibility shim)
 - `src/modules/reports/server/services/reportCommentService.ts`
 - `src/server/services/reportCommentService.ts` (compatibility shim)
-- `src/pages/ReportsPage.tsx` still depends on the release-center-owned issue report client through `src/client/issueReportClient.ts`
+- `src/modules/reports/pages/ReportsPage.tsx` depends on the release-center-owned `src/modules/release-center/client/issueReportClient.ts`
 - `src/modules/reports/server/routes/verifyRoutes.ts`
 - `src/server/routes/verifyRoutes.ts` (compatibility shim)
 - `src/modules/reports/server/routes/promotionRoutes.ts`
