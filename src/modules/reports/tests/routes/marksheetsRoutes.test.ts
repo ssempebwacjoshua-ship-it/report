@@ -1,5 +1,5 @@
 import request from "supertest";
-import { beforeAll, describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 import { createServer } from "../../../../server";
 import { prisma } from "../../../../server/db/prisma";
 import { hashPassword, signToken } from "../../../../server/services/authService";
@@ -67,9 +67,27 @@ function authPost(path: string) {
   return request(createServer()).post(path).set("Authorization", `Bearer ${authToken}`);
 }
 
+async function unauthenticatedGetInProduction(path: string) {
+  vi.stubEnv("NODE_ENV", "production");
+  try {
+    return await request(createServer()).get(path);
+  } finally {
+    vi.unstubAllEnvs();
+  }
+}
+
+async function unauthenticatedPostInProduction(path: string, body: unknown) {
+  vi.stubEnv("NODE_ENV", "production");
+  try {
+    return await request(createServer()).post(path).send(body);
+  } finally {
+    vi.unstubAllEnvs();
+  }
+}
+
 describe("marksheetsRoutes", () => {
   it("GET /api/marksheets/students returns 401 without authentication", async () => {
-    const res = await request(createServer()).get("/api/marksheets/students?classId=fake-class-id");
+    const res = await unauthenticatedGetInProduction("/api/marksheets/students?classId=fake-class-id");
     expect(res.status).toBe(401);
   });
 
@@ -84,7 +102,7 @@ describe("marksheetsRoutes", () => {
   });
 
   it("GET /api/marksheets/batches returns 401 without authentication", async () => {
-    const res = await request(createServer()).get("/api/marksheets/batches");
+    const res = await unauthenticatedGetInProduction("/api/marksheets/batches");
     expect(res.status).toBe(401);
   });
 
@@ -94,9 +112,7 @@ describe("marksheetsRoutes", () => {
   });
 
   it("POST /api/marksheets/batches/:id/approve returns 401 without authentication", async () => {
-    const res = await request(createServer())
-      .post(`/api/marksheets/batches/${UNKNOWN_BATCH_ID}/approve`)
-      .send({ note: "Looks good" });
+    const res = await unauthenticatedPostInProduction(`/api/marksheets/batches/${UNKNOWN_BATCH_ID}/approve`, { note: "Looks good" });
     expect(res.status).toBe(401);
   });
 
@@ -108,9 +124,7 @@ describe("marksheetsRoutes", () => {
   });
 
   it("POST /api/marksheets/batches/:id/return returns 401 without authentication", async () => {
-    const res = await request(createServer())
-      .post(`/api/marksheets/batches/${UNKNOWN_BATCH_ID}/return`)
-      .send({ note: "Please correct row 3" });
+    const res = await unauthenticatedPostInProduction(`/api/marksheets/batches/${UNKNOWN_BATCH_ID}/return`, { note: "Please correct row 3" });
     expect(res.status).toBe(401);
   });
 
@@ -127,7 +141,7 @@ describe("marksheetsRoutes", () => {
   });
 
   it("POST /api/marksheets/dry-run returns 401 without authentication", async () => {
-    const res = await request(createServer()).post("/api/marksheets/dry-run").send({});
+    const res = await unauthenticatedPostInProduction("/api/marksheets/dry-run", {});
     expect(res.status).toBe(401);
   });
 
@@ -137,9 +151,7 @@ describe("marksheetsRoutes", () => {
   });
 
   it("POST /api/marksheets/commit returns 401 without authentication", async () => {
-    const res = await request(createServer())
-      .post("/api/marksheets/commit")
-      .send({ csvText: "header\nrow" });
+    const res = await unauthenticatedPostInProduction("/api/marksheets/commit", { csvText: "header\nrow" });
     expect(res.status).toBe(401);
   });
 
