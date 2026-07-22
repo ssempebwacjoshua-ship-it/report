@@ -282,8 +282,10 @@ Owns academic reporting, report rendering, marks import workflows, marksheets, r
 
 ## Migration Status
 
-- Skeleton only
 - Ownership contract defined
+- Reports-owned runtime implementations are now canonical under `src/modules/reports/`
+- Reports-owned tests are now canonical under `src/modules/reports/tests/`
+- Legacy paths are intentionally retained only as compatibility shims where listed below
 - Reports still consume the release-center-owned issue report client as a direct canonical cross-module dependency
 - Promotion workspace page moved into:
   - `src/modules/reports/pages/PromotionWorkspacePage.tsx`
@@ -452,61 +454,39 @@ Owns academic reporting, report rendering, marks import workflows, marksheets, r
 - Compatibility shim retained at:
   - `src/pages/VerifyPage.tsx`
 - Module path is canonical and runtime behavior and public/browser verification routes are unchanged
-- Build passed after the release-center client moves
-- `npm run typecheck` still has unrelated repo-wide failures outside the client relocations
-- Runtime files not moved yet
 
-## Known Legacy Files Still Outside The Module
+## Compatibility Shims Retained Outside The Module
 
+- `src/client/reportsClient.ts`
+- `src/client/importsClient.ts`
+- `src/client/marksheetsClient.ts`
 - `src/pages/ReportsPage.tsx`
-- `src/modules/reports/client/reportsClient.ts`
-- `src/client/reportsClient.ts` (compatibility shim)
-- `src/modules/reports/client/importsClient.ts`
-- `src/client/importsClient.ts` (compatibility shim)
-- `src/modules/reports/client/marksheetsClient.ts`
-- `src/client/marksheetsClient.ts` (compatibility shim)
-- `src/modules/reports/pages/VerifyPage.tsx`
-- `src/pages/VerifyPage.tsx` (compatibility shim)
-- `src/modules/reports/pages/MarksImportPage.tsx`
-- `src/pages/MarksImportPage.tsx` (compatibility shim)
-- `src/modules/reports/pages/MarksheetsPage.tsx`
-- `src/pages/MarksheetsPage.tsx` (compatibility shim)
-- `src/modules/reports/server/services/promotionService.ts`
-- `src/server/services/promotionService.ts` (compatibility shim)
-- `src/modules/reports/server/services/marksheetIdDetectionService.ts`
-- `src/server/services/marksheetIdDetectionService.ts` (compatibility shim)
-- `src/modules/reports/server/services/marksheetContextService.ts`
-- `src/server/services/marksheetContextService.ts` (compatibility shim)
-- `src/modules/reports/server/services/marksheetGeometryService.ts`
-- `src/server/services/marksheetGeometryService.ts` (compatibility shim)
-- `src/modules/reports/server/services/marksheetTableDetection.ts`
-- `src/server/services/marksheetTableDetection.ts` (compatibility shim)
-- `src/modules/reports/server/services/subjectComponentResolver.ts`
-- `src/server/services/subjectComponentResolver.ts` (compatibility shim)
-- `src/modules/reports/server/services/scoreValidationService.ts`
-- `src/server/services/scoreValidationService.ts` (compatibility shim)
-- `src/modules/reports/server/services/marksImportValidator.ts`
-- `src/server/services/marksImportValidator.ts` (compatibility shim)
-- `src/modules/reports/server/services/reportAssistantContextService.ts`
-- `src/server/services/reportAssistantContextService.ts` (compatibility shim)
-- `src/modules/reports/server/services/reportCommentService.ts`
-- `src/server/services/reportCommentService.ts` (compatibility shim)
-- `src/modules/reports/pages/ReportsPage.tsx` depends on the release-center-owned `src/modules/release-center/client/issueReportClient.ts`
-- `src/modules/reports/server/routes/verifyRoutes.ts`
-- `src/server/routes/verifyRoutes.ts` (compatibility shim)
-- `src/modules/reports/server/routes/promotionRoutes.ts`
-- `src/server/routes/promotionRoutes.ts` (compatibility shim)
-- `src/modules/reports/server/routes/reportsRoutes.ts`
-- `src/server/routes/reportsRoutes.ts` (compatibility shim)
-- `src/modules/reports/server/services/reportEngine.ts`
-- `src/server/services/reportEngine.ts` (compatibility shim)
-- `src/modules/reports/server/repositories/reportsRepository.ts`
-- `src/server/repositories/reportsRepository.ts` (compatibility shim)
-- `src/modules/reports/server/repositories/schoolRepository.ts`
-- `src/server/repositories/schoolRepository.ts` (compatibility shim)
-- `src/modules/reports/server/repositories/settingsRepository.ts`
-- `src/server/repositories/settingsRepository.ts` (compatibility shim)
-- `src/modules/reports/server/routes/geminiMarksImportRoutes.ts`
-- `src/server/routes/geminiMarksImportRoutes.ts` (compatibility shim)
+- `src/pages/MarksImportPage.tsx`
+- `src/pages/MarksheetsPage.tsx`
+- `src/pages/PromotionWorkspacePage.tsx`
+- `src/pages/VerifyPage.tsx`
+- `src/server/routes/reportsRoutes.ts`
 - `src/server/routes/importsRoutes.ts`
 - `src/server/routes/marksheetsRoutes.ts`
+- `src/server/routes/promotionRoutes.ts`
+- `src/server/routes/reportAssistantRoutes.ts`
+- `src/server/routes/verifyRoutes.ts`
+- `src/server/routes/geminiMarksImportRoutes.ts`
+- `src/server/services/reportEngine.ts`
+- `src/server/services/marksImportService.ts`
+- `src/server/services/marksImportValidator.ts`
+- `src/server/services/geminiMarksImportService.ts`
+- `src/server/services/marksheetContextService.ts`
+- `src/server/services/marksheetGeometryService.ts`
+- `src/server/services/marksheetIdDetectionService.ts`
+- `src/server/services/marksheetTableDetection.ts`
+- `src/server/services/promotionService.ts`
+- `src/server/services/reportAssistantContextService.ts`
+- `src/server/services/reportCommentService.ts`
+- `src/server/services/gradeService.ts`
+- `src/server/services/rankingService.ts`
+- `src/server/services/scoreValidationService.ts`
+- `src/server/services/subjectComponentResolver.ts`
+- `src/server/repositories/reportsRepository.ts`
+- `src/server/repositories/schoolRepository.ts`
+- `src/server/repositories/settingsRepository.ts`
