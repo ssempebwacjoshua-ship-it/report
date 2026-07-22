@@ -2,7 +2,7 @@
 import type { PrismaClient } from "@prisma/client";
 import { getReportContext } from "../../server/repositories/schoolRepository";
 import { loadReportEngineInput } from "../../server/repositories/reportsRepository";
-import { defaultSettingsSections } from "../../shared/types/settings";
+import { defaultSettingsSections } from "../../../../shared/types/settings";
 
 const SCHOOL_CODE = "SCU-PREVIEW";
 const SCHOOL_ID = "school-1";
