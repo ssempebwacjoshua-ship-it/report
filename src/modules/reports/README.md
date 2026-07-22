@@ -56,12 +56,16 @@ Owns academic reporting, report rendering, marks import workflows, marksheets, r
   - `src/server/services/marksImportService.ts`
   - `src/server/services/marksheetContextService.ts`
   - `src/server/services/marksheetIdDetectionService.ts`
-  - `src/server/services/marksheetTableDetection.ts`
   - `src/server/services/promotionService.ts`
 - Module-owned service now moved into:
   - `src/modules/reports/server/services/marksheetGeometryService.ts`
 - Compatibility shim retained at:
   - `src/server/services/marksheetGeometryService.ts`
+- Existing service imports remain supported through the shim
+- Module-owned service now moved into:
+  - `src/modules/reports/server/services/marksheetTableDetection.ts`
+- Compatibility shim retained at:
+  - `src/server/services/marksheetTableDetection.ts`
 - Existing service imports remain supported through the shim
 - Module-owned service now moved into:
   - `src/modules/reports/server/services/subjectComponentResolver.ts`
@@ -243,6 +247,11 @@ Owns academic reporting, report rendering, marks import workflows, marksheets, r
 - Compatibility shim retained at:
   - `src/server/services/marksheetGeometryService.ts`
 - Module path is now canonical and runtime behavior is unchanged
+- Marksheet table detection moved into:
+  - `src/modules/reports/server/services/marksheetTableDetection.ts`
+- Compatibility shim retained at:
+  - `src/server/services/marksheetTableDetection.ts`
+- Module path is now canonical and runtime behavior is unchanged
 - Subject component resolver moved into:
   - `src/modules/reports/server/services/subjectComponentResolver.ts`
 - Compatibility shim retained at:
@@ -304,6 +313,8 @@ Owns academic reporting, report rendering, marks import workflows, marksheets, r
 - `src/pages/MarksheetsPage.tsx` (compatibility shim)
 - `src/modules/reports/server/services/marksheetGeometryService.ts`
 - `src/server/services/marksheetGeometryService.ts` (compatibility shim)
+- `src/modules/reports/server/services/marksheetTableDetection.ts`
+- `src/server/services/marksheetTableDetection.ts` (compatibility shim)
 - `src/modules/reports/server/services/subjectComponentResolver.ts`
 - `src/server/services/subjectComponentResolver.ts` (compatibility shim)
 - `src/modules/reports/server/services/scoreValidationService.ts`
