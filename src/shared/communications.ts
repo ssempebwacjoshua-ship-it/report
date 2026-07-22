@@ -1,5 +1,3 @@
-import { createHash } from "node:crypto";
-
 export const communicationTypes = [
   "REPORT_RELEASE",
   "CIRCULAR",
@@ -178,26 +176,6 @@ export function assertCampaignTransition(from: CommunicationCampaignStatus, to: 
     Object.assign(error, { status: 400, expose: true });
     throw error;
   }
-}
-
-export function buildDeliveryIdempotencyKey(input: {
-  schoolId: string;
-  campaignId: string;
-  recipientId: string;
-  channel: CommunicationChannel;
-  contentVersion: number;
-}) {
-  return createHash("sha256")
-    .update(`${input.schoolId}:${input.campaignId}:${input.recipientId}:${input.channel}:${input.contentVersion}`)
-    .digest("hex");
-}
-
-export function hashRenderedContent(content: string) {
-  return createHash("sha256").update(content).digest("hex");
-}
-
-export function hashPayload(value: string | Buffer) {
-  return createHash("sha256").update(value).digest("hex");
 }
 
 export function normalizePhoneToE164(value: string | null | undefined, defaultCountryCode = "256") {

@@ -1,10 +1,8 @@
 import type { PrismaClient } from "@prisma/client";
 import {
   assertCampaignTransition,
-  buildDeliveryIdempotencyKey,
   communicationChannels,
   estimateSmsSegments,
-  hashRenderedContent,
   normalizeDeliveryProgressState,
   type AudienceDefinition,
   type CommunicationChannel,
@@ -13,6 +11,7 @@ import {
   type CommunicationSubmissionValidation,
   type ValidationIssue,
 } from "../../shared/communications";
+import { buildDeliveryIdempotencyKey, hashRenderedContent } from "../utils/communicationHashes";
 import { collectCommunicationAudienceRows, resolveCommunicationAudience } from "./communicationAudienceService";
 
 export { resolveCommunicationAudience } from "./communicationAudienceService";

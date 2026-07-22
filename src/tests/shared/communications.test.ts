@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   assertCampaignTransition,
-  buildDeliveryIdempotencyKey,
   estimateSmsSegments,
   normalizeDeliveryProgressState,
   normalizePhoneToE164,
 } from "../../shared/communications";
+import { buildDeliveryIdempotencyKey } from "../../server/utils/communicationHashes";
 
 describe("communication domain helpers", () => {
   it("allows draft campaigns to enter approval and blocks draft direct queue", () => {

@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import type { PrismaClient } from "@prisma/client";
-import { hashPayload } from "../../shared/communications";
+import { hashPayload } from "../utils/communicationHashes";
 import { MetaCloudWhatsAppProvider, type NormalizedWebhookEvent } from "./communicationProviders";
 
 type Db = PrismaClient;

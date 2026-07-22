@@ -1,11 +1,10 @@
 import type { PrismaClient } from "@prisma/client";
 import { prisma as defaultPrisma } from "../db/prisma";
 import {
-  buildDeliveryIdempotencyKey,
   estimateSmsSegments,
-  hashRenderedContent,
   normalizePhoneToE164,
 } from "../../shared/communications";
+import { buildDeliveryIdempotencyKey, hashRenderedContent } from "../utils/communicationHashes";
 import { DryRunMessageProvider, resolveSmsProvider } from "./communicationProviders";
 import { isCommunicationDryRun } from "./communicationEngine";
 

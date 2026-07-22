@@ -1,5 +1,6 @@
 import type { PrismaClient } from "@prisma/client";
-import { hashPayload, type CommunicationDeliveryStatus } from "../../shared/communications";
+import type { CommunicationDeliveryStatus } from "../../shared/communications";
+import { hashPayload } from "../utils/communicationHashes";
 import { updateCampaignDeliveryStatus } from "./communicationEngine";
 import { resolveSmsProvider } from "./communicationProviders";
 
