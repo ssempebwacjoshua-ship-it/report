@@ -104,11 +104,14 @@ function makeMockDb() {
     nfcTag: {
       findMany: async ({ where }: { where: { schoolId: string } }) =>
         tags.filter((t) => t.schoolId === where.schoolId),
-      findFirst: async ({ where }: { where: { schoolId: string; OR?: Array<{ publicCode?: { in?: string[] }; physicalUid?: { equals: string; mode: string } }> } }) => {
+      findFirst: async ({ where }: { where: { schoolId?: string; OR?: Array<{ publicCode?: string; physicalUid?: { equals: string; mode: string } }>; publicCode?: string; physicalUid?: { equals: string; mode: string } } }) => {
         const tag = tags.find((item) => {
-          if (item.schoolId !== where.schoolId || !where.OR?.length) return false;
+          if (where.schoolId && item.schoolId !== where.schoolId) return false;
+          if (where.publicCode !== undefined) return where.publicCode === item.publicCode;
+          if (where.physicalUid?.equals) return item.physicalUid?.toLowerCase() === where.physicalUid.equals.toLowerCase();
+          if (!where.OR?.length) return false;
           return where.OR.some((candidate) =>
-            (candidate.publicCode?.in?.includes(item.publicCode) ?? false)
+            (candidate.publicCode !== undefined && candidate.publicCode === item.publicCode)
             || (candidate.physicalUid?.equals
               ? item.physicalUid?.toLowerCase() === candidate.physicalUid.equals.toLowerCase()
               : false));
@@ -276,7 +279,9 @@ function makeMockDb() {
           const row = device as { schoolId?: string; id?: string; deviceKey?: string };
           if (row.schoolId !== where.schoolId) return false;
           const matchesDirect = (!where.id || row.id === where.id) && (!where.deviceKey || row.deviceKey === where.deviceKey);
-          const matchesOr = !where.OR || where.OR.some((cond) => (!cond.id || row.id === cond.id) || (!cond.deviceKey || row.deviceKey === cond.deviceKey));
+          const matchesOr = !where.OR || where.OR.some((cond) =>
+            (cond.id ? row.id === cond.id : false)
+            || (cond.deviceKey ? row.deviceKey === cond.deviceKey : false));
           return matchesDirect && matchesOr;
         }) ?? null,
       findMany: async () => offlineDeviceStore,
@@ -286,7 +291,21 @@ function makeMockDb() {
         Object.assign(device as Record<string, unknown>, data);
         return device;
       },
-      updateMany: async () => null,
+      updateMany: async ({ where, data }: { where: { schoolId?: string; id?: string; deviceKey?: string; OR?: Array<{ id?: string; deviceKey?: string }> }; data: Record<string, unknown> }) => {
+        let count = 0;
+        for (const device of offlineDeviceStore) {
+          const row = device as { schoolId?: string; id?: string; deviceKey?: string };
+          if (where.schoolId && row.schoolId !== where.schoolId) continue;
+          const matchesDirect = (!where.id || row.id === where.id) && (!where.deviceKey || row.deviceKey === where.deviceKey);
+          const matchesOr = !where.OR || where.OR.some((cond) =>
+            (cond.id ? row.id === cond.id : false)
+            || (cond.deviceKey ? row.deviceKey === cond.deviceKey : false));
+          if (!matchesDirect || !matchesOr) continue;
+          Object.assign(device as Record<string, unknown>, data);
+          count += 1;
+        }
+        return { count };
+      },
     },
     nfcOfflineSyncBatch: {
       create: async ({ data }: { data: unknown }) => { offlineBatchStore.push(data); return data; },
@@ -375,6 +394,82 @@ describe("bootstrapOfflineSnapshot", () => {
       status: "ASSIGNED",
       schoolId: "school-a",
     });
+  });
+
+  it("self-registers a gate-only offline device for GATE_SECURITY bootstrap", async () => {
+    const db = makeMockDb();
+
+    await bootstrapOfflineSnapshot(GATE_CTX, { mode: "GATE", modules: ["gate"], deviceId: "gate-phone-1" }, db);
+
+    expect(offlineDeviceStore).toContainEqual(expect.objectContaining({
+      schoolId: "school-a",
+      deviceKey: "gate-phone-1",
+      mode: "GATE",
+      roleScope: "GATE_SECURITY",
+      locationType: "GATE",
+      attendanceMode: "GATE_ATTENDANCE",
+      studentScope: "ALL_STUDENTS",
+      status: "ACTIVE",
+      isActive: true,
+    }));
+    expect(auditStore).toContainEqual(expect.objectContaining({
+      action: "nfc_offline.device_self_registered",
+      schoolId: "school-a",
+    }));
+  });
+
+  it("does not let CASHIER self-register a gate device through gate bootstrap", async () => {
+    const db = makeMockDb();
+
+    await expect(
+      bootstrapOfflineSnapshot(CASHIER_CTX, { mode: "GATE", modules: ["gate"], deviceId: "gate-phone-2" }, db),
+    ).rejects.toMatchObject({ status: 403 });
+    expect(offlineDeviceStore).toHaveLength(0);
+  });
+
+  it("does not reactivate a revoked gate device during gate bootstrap", async () => {
+    offlineDeviceStore.push(makeGateDevice({
+      id: "revoked-gate-device",
+      deviceKey: "gate-phone-revoked",
+      status: "REVOKED",
+      isActive: false,
+      lastSnapshotAt: null,
+      lastSeenAt: null,
+    }));
+    const db = makeMockDb();
+
+    await bootstrapOfflineSnapshot(GATE_CTX, { mode: "GATE", modules: ["gate"], deviceId: "gate-phone-revoked" }, db);
+
+    expect(offlineDeviceStore).toHaveLength(1);
+    expect(offlineDeviceStore[0]).toEqual(expect.objectContaining({
+      deviceKey: "gate-phone-revoked",
+      status: "REVOKED",
+      isActive: false,
+    }));
+    expect(auditStore.some((entry) => (entry as { action?: string }).action === "nfc_offline.device_self_registered")).toBe(false);
+  });
+
+  it("does not attach a gate bootstrap to another school's existing device", async () => {
+    offlineDeviceStore.push(makeGateDevice({
+      id: "other-school-device",
+      schoolId: "school-b",
+      deviceKey: "shared-gate-phone",
+    }));
+    const db = makeMockDb();
+
+    await bootstrapOfflineSnapshot(GATE_CTX, { mode: "GATE", modules: ["gate"], deviceId: "shared-gate-phone" }, db);
+
+    expect(offlineDeviceStore).toHaveLength(2);
+    expect(offlineDeviceStore).toContainEqual(expect.objectContaining({
+      schoolId: "school-a",
+      deviceKey: "shared-gate-phone",
+      mode: "GATE",
+      roleScope: "GATE_SECURITY",
+    }));
+    expect(offlineDeviceStore).toContainEqual(expect.objectContaining({
+      schoolId: "school-b",
+      deviceKey: "shared-gate-phone",
+    }));
   });
 
   it("includes active fee-hold gate blocking decisions in a gate register", async () => {
@@ -616,6 +711,48 @@ describe("syncOfflineEvents — gate scan", () => {
     expect(gateScanStore[0]).toMatchObject({
       result: "BLOCKED",
     });
+  });
+
+  it("syncs queued gate scans after gate bootstrap self-registration without device-not-registered failure", async () => {
+    const db = makeMockDb();
+    offlineDeviceStore.length = 0;
+
+    await bootstrapOfflineSnapshot(GATE_CTX, { mode: "GATE", modules: ["gate"], deviceId: "gate-sync-phone" }, db);
+    const result = await syncOfflineEvents(
+      GATE_CTX,
+      {
+        deviceId: "gate-sync-phone",
+        snapshotId: "snap-1",
+        events: [{
+          localId: "gate-sync-1",
+          schoolId: "school-a",
+          deviceId: "gate-sync-phone",
+          snapshotId: "snap-1",
+          actionType: "GATE_SCAN",
+          sequenceNumber: 0,
+          idempotencyKey: "gate:gate-sync-phone:0",
+          payload: {
+            result: "ALLOWED",
+            studentId: "stu-1",
+            reason: null,
+            publicCode: "PUB001",
+            physicalUid: "UID001",
+            scannedAt: "2026-07-12T04:45:00.000Z",
+          },
+          payloadHash: "hash-sync",
+          previousHash: null,
+          eventHash: "event-hash-sync",
+          createdAt: "2026-07-12T04:45:00.000Z",
+        }],
+      },
+      db,
+    );
+
+    expect(result.results[0]).toMatchObject({
+      localId: "gate-sync-1",
+      status: "SYNCED",
+    });
+    expect(result.results[0]?.errorMessage).toBeUndefined();
   });
 });
 

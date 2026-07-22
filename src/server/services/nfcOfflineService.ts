@@ -116,6 +116,102 @@ function validateAttendanceReaderConfiguration(input: AttendanceReaderConfigurat
   }
 }
 
+function isGateOnlyBootstrap(modules: string[]) {
+  return modules.length === 1 && modules[0] === "gate";
+}
+
+function canSelfRegisterGateBootstrapDevice(
+  ctx: OfflineContext,
+  mode: "GATE" | "CANTEEN" | "ATTENDANCE",
+  modules: string[],
+) {
+  if (!ctx.actorId || !ctx.role) return false;
+  if (mode !== "GATE") return false;
+  if (!isGateOnlyBootstrap(modules)) return false;
+  return hasPermission(ctx.role, "nfc.gate.scan") || hasPermission(ctx.role, "nfc.gate.view");
+}
+
+async function ensureGateBootstrapOfflineDevice(
+  ctx: OfflineContext,
+  input: { deviceId?: string; mode: "GATE" | "CANTEEN" | "ATTENDANCE"; modules: string[] },
+  generatedAt: Date,
+  db: OfflineClient,
+) {
+  const schoolId = requireSchoolId(ctx);
+  const rawDeviceId = input.deviceId?.trim();
+  if (!rawDeviceId) return null;
+  if (!canSelfRegisterGateBootstrapDevice(ctx, input.mode, input.modules)) return null;
+
+  const existing = await db.nfcOfflineDevice.findFirst({
+    where: {
+      schoolId,
+      ...buildDeviceIdentityWhere(rawDeviceId),
+    },
+    orderBy: RECENT_DEVICE_ORDER_BY,
+  });
+
+  if (existing?.status === "REVOKED" || existing?.isActive === false) {
+    await db.nfcOfflineDevice.updateMany({
+      where: {
+        schoolId,
+        ...buildDeviceIdentityWhere(rawDeviceId),
+      },
+      data: { lastSnapshotAt: generatedAt, lastSeenAt: generatedAt },
+    }).catch(() => null);
+    return existing;
+  }
+
+  if (existing) {
+    await db.nfcOfflineDevice.updateMany({
+      where: {
+        schoolId,
+        ...buildDeviceIdentityWhere(rawDeviceId),
+      },
+      data: { lastSnapshotAt: generatedAt, lastSeenAt: generatedAt },
+    }).catch(() => null);
+    return existing;
+  }
+
+  const device = await db.nfcOfflineDevice.create({
+    data: {
+      schoolId,
+      name: "Gate PWA",
+      location: "Gate PWA",
+      locationType: "GATE",
+      locationName: "Gate PWA",
+      deviceKey: rawDeviceId,
+      mode: "GATE",
+      attendanceMode: "GATE_ATTENDANCE",
+      studentScope: "ALL_STUDENTS",
+      status: "ACTIVE",
+      roleScope: "GATE_SECURITY",
+      isActive: true,
+      direction: "ENTRY",
+      lastSnapshotAt: generatedAt,
+      lastSeenAt: generatedAt,
+    },
+  });
+
+  await db.auditLog.create({
+    data: {
+      schoolId,
+      action: "nfc_offline.device_self_registered",
+      correlationId: (device as { id?: string }).id ?? rawDeviceId,
+      details: {
+        actorId: ctx.actorId,
+        deviceKey: rawDeviceId,
+        mode: "GATE",
+        roleScope: "GATE_SECURITY",
+        locationType: "GATE",
+        attendanceMode: "GATE_ATTENDANCE",
+        studentScope: "ALL_STUDENTS",
+      },
+    },
+  });
+
+  return device;
+}
+
 const SNAPSHOT_TTL_HOURS = 24;
 const DEFAULT_GATE_SNAPSHOT_VALID_HOURS = 24;
 const DEFAULT_CANTEEN_SNAPSHOT_VALID_HOURS = 24;
@@ -330,6 +426,8 @@ export async function bootstrapOfflineSnapshot(
       },
     },
   });
+
+  await ensureGateBootstrapOfflineDevice(ctx, { deviceId: input.deviceId, mode, modules }, generatedAt, db);
 
   if (input.deviceId) {
     await db.nfcOfflineDevice.updateMany({
