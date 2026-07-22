@@ -17,6 +17,8 @@ import { fetchAppVersion } from "../client/appVersionClient";
 import { resolveOfflineNfcScan } from "../offline/offlineResolver";
 import { queueGateScan, getSnapshotMeta, getGateQueueStatus, type GateQueueStatus } from "../offline/offlineStore";
 import { getSnapshotValidity } from "../offline/offlineStatus";
+import { isStandaloneDisplayMode } from "../pwa/standaloneMode";
+import { useWakeLock } from "../pwa/useWakeLock";
 import { hashNfcLookupValue } from "../offline/offlineHash";
 import { normalizeNfcScanValue } from "../shared/utils/nfcPayload";
 import type { NfcGateDashboard, NfcGateScanResponse, NfcVisitorVisit, StudentPassOutRow } from "../shared/types/studentCredentials";
@@ -104,6 +106,8 @@ export function NfcGateSecurityPage() {
   const { user, token, loading: authLoading } = useAuth();
   const deviceId = useRef(getDeviceId()).current;
   const isGateAccount = user?.role === "SECURITY" || user?.role === "GATE_SECURITY";
+  const hasAutoStartedScannerRef = useRef(false);
+  const wakeLock = useWakeLock({ enabled: isGateAccount });
 
   useEffect(() => {
     if (!isGateAccount) return;
@@ -356,6 +360,17 @@ export function NfcGateSecurityPage() {
   const allowed = result === "ALLOWED";
   const passOutTitle = scanResult ? passOutResultTitle(scanResult) : null;
   const scannerIdleForReload = !["PERMISSION", "READING", "PROCESSING"].includes(scanner.state);
+  const isStandaloneGateSession =
+    isGateAccount
+    && typeof window !== "undefined"
+    && typeof window.matchMedia === "function"
+    && isStandaloneDisplayMode();
+
+  useEffect(() => {
+    if (!isGateAccount || authLoading || !user || !token || hasAutoStartedScannerRef.current) return;
+    hasAutoStartedScannerRef.current = true;
+    void scanner.startScanner();
+  }, [authLoading, isGateAccount, scanner, token, user]);
 
   useEffect(() => {
     if (!user || !token) return;
@@ -444,8 +459,21 @@ export function NfcGateSecurityPage() {
         <div className="flex flex-wrap gap-1.5 text-[11px] font-bold uppercase tracking-wide">
           <span className="rounded-full border border-slate-200 bg-white px-2 py-1 text-slate-600">{scanner.isOnline ? "Online" : "Offline"}</span>
           <span className="rounded-full border border-blue-100 bg-blue-50 px-2 py-1 text-blue-700">{passOuts.length} pass-outs</span>
+          <span className={`rounded-full border px-2 py-1 ${wakeLock.isActive ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-amber-200 bg-amber-50 text-amber-700"}`}>
+            {wakeLock.isActive ? "Screen awake" : wakeLock.isSupported ? "Keep screen on" : "Wake lock unavailable"}
+          </span>
+          {isStandaloneGateSession ? (
+            <span className="rounded-full border border-cyan-100 bg-cyan-50 px-2 py-1 text-cyan-700">Standalone gate PWA</span>
+          ) : null}
         </div>
       </header>
+
+      {wakeLock.error ? (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+          <p className="font-bold">Keep screen on</p>
+          <p className="mt-1">{wakeLock.error}</p>
+        </div>
+      ) : null}
 
       {isOfflineReady && (
         <div className="flex items-center gap-3 rounded-xl border border-orange-200 bg-orange-50 p-3">
@@ -519,6 +547,7 @@ export function NfcGateSecurityPage() {
             onStart={scanner.startScanner}
             onStop={scanner.stopScanner}
             onManualSubmit={scanner.submitManual}
+            autoFocusManual={isGateAccount}
             scanLabel={isOfflineReady ? "Start Offline Gate Scanner" : "Start Gate Scanner"}
           />
 
