@@ -18,7 +18,11 @@ Owns academic reporting, report rendering, marks import workflows, marksheets, r
 - Browser: `/report-lab/reports`, `/report-lab/imports/marks`, `/report-lab/marksheets`, `/report-lab/verify/:code`
 - Current legacy files:
   - `src/pages/ReportsPage.tsx`
+- Module-owned page now moved into:
+  - `src/modules/reports/pages/VerifyPage.tsx`
+- Compatibility shim retained at:
   - `src/pages/VerifyPage.tsx`
+- Public/browser verification routes remain unchanged through the shim
 - Module-owned page now moved into:
   - `src/modules/reports/pages/MarksImportPage.tsx`
 - Compatibility shim retained at:
@@ -220,6 +224,11 @@ Owns academic reporting, report rendering, marks import workflows, marksheets, r
 - Compatibility shim retained at:
   - `src/pages/MarksImportPage.tsx`
 - Module path is canonical and runtime behavior and browser routes are unchanged
+- Verify page moved into:
+  - `src/modules/reports/pages/VerifyPage.tsx`
+- Compatibility shim retained at:
+  - `src/pages/VerifyPage.tsx`
+- Module path is canonical and runtime behavior and public/browser verification routes are unchanged
 - Build passed after the release-center client moves
 - `npm run typecheck` still has unrelated repo-wide failures outside the client relocations
 - Runtime files not moved yet
@@ -227,13 +236,14 @@ Owns academic reporting, report rendering, marks import workflows, marksheets, r
 ## Known Legacy Files Still Outside The Module
 
 - `src/pages/ReportsPage.tsx`
-- `src/pages/VerifyPage.tsx`
 - `src/modules/reports/client/reportsClient.ts`
 - `src/client/reportsClient.ts` (compatibility shim)
 - `src/modules/reports/client/importsClient.ts`
 - `src/client/importsClient.ts` (compatibility shim)
 - `src/modules/reports/client/marksheetsClient.ts`
 - `src/client/marksheetsClient.ts` (compatibility shim)
+- `src/modules/reports/pages/VerifyPage.tsx`
+- `src/pages/VerifyPage.tsx` (compatibility shim)
 - `src/modules/reports/pages/MarksImportPage.tsx`
 - `src/pages/MarksImportPage.tsx` (compatibility shim)
 - `src/modules/reports/pages/MarksheetsPage.tsx`
