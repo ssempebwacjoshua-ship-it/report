@@ -278,6 +278,33 @@ describe("YoolaSmsProvider", () => {
     expect(parsedBody.phone).toBe("256700000001");
   });
 
+  it("resolves both Yoola base URL and send endpoint formats to the exact send endpoint", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify(yoolaSuccessFixture()), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    }));
+
+    for (const baseUrl of ["https://yoolasms.com/api/v1", "https://yoolasms.com/api/v1/send_sms"]) {
+      const provider = createProvider({ SMS_API_BASE_URL: baseUrl });
+      await provider.sendBatch([{
+        recipientId: `recipient-${baseUrl}`,
+        toE164: "+256700000001",
+        text: "Hello parent",
+        idempotencyKey: `idem-${baseUrl}`,
+        segmentCount: 1,
+      }], {
+        schoolId: "school-1",
+        sendingEnabled: true,
+        providerMetadata: null,
+      });
+    }
+
+    expect(fetchMock.mock.calls.map(([url]) => String(url))).toEqual([
+      "https://yoolasms.com/api/v1/send_sms",
+      "https://yoolasms.com/api/v1/send_sms",
+    ]);
+  });
+
   it("redacts secrets and recipient numbers from provider error text", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(
       "Failure for 256700000001 and super-secret-api-key-value-1234567890abcdef",

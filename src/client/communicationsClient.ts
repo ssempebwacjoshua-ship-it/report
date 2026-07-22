@@ -117,7 +117,7 @@ export async function sendCommunication(campaignId: string, body: {
   channel: "WHATSAPP" | "SMS";
   confirm: boolean;
   audience?: AudienceDefinition;
-}): Promise<{ ok: true; result: { submitted: number; failed: number; skippedDuplicate: number } }> {
+}): Promise<{ ok: true; result: { submitted: number; failed: number; skippedDuplicate: number; dryRun?: boolean } }> {
   const res = await fetch(`${API_BASE}/api/communications/campaigns/${campaignId}/send`, {
     method: "POST",
     headers: makeRequestHeaders({ "Content-Type": "application/json" }),

@@ -212,6 +212,10 @@ describe("NfcGateSecurityPage", () => {
 
     expect(pageSource).toContain("fetchNfcGateDashboard");
     expect(pageSource).toContain("scanNfcGate");
+    expect(pageSource).toContain("min-[520px]:grid-cols");
+    expect(pageSource).toContain("pb-28");
+    expect(pageSource).toContain("id=\"gate-scan\"");
+    expect(pageSource).toContain("id=\"gate-pass-outs\"");
     expect(pageSource).not.toContain("/api/nfc/attendance/scan");
     expect(pageSource).not.toContain("scanAttendance");
   });

@@ -434,31 +434,16 @@ export function NfcGateSecurityPage() {
   }
 
   return (
-    <main className="grid gap-5 bg-[radial-gradient(circle_at_top_left,rgba(14,165,233,0.14),transparent_34%),linear-gradient(180deg,#f8fbff_0%,#eef4f8_100%)] p-3 sm:p-5">
-      <header className="overflow-hidden rounded-[1.75rem] border border-slate-200 bg-slate-950 text-white shadow-xl">
-        <div className="relative p-5 sm:p-6">
-          <div className="absolute right-[-4rem] top-[-5rem] h-44 w-44 rounded-full bg-cyan-400/20 blur-2xl" />
-          <div className="absolute bottom-[-5rem] left-1/2 h-44 w-44 rounded-full bg-emerald-400/20 blur-2xl" />
-          <div className="relative flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-            <div>
-              <p className="text-xs font-black uppercase tracking-[0.28em] text-cyan-200">Gate PWA</p>
-              <h1 className="mt-2 text-3xl font-black tracking-tight sm:text-4xl">Gate Security</h1>
-              <p className="mt-2 max-w-2xl text-sm text-slate-300">
-                Scan student cards for entry, approved pass-out checkout, and safe return check-in from the same kiosk screen.
-              </p>
-            </div>
-            <div className="grid grid-cols-2 gap-2 text-xs sm:flex">
-              <span className="rounded-2xl border border-white/10 bg-white/10 px-3 py-2 font-bold text-cyan-100">
-                {scanner.isOnline ? "Online scanner" : "Offline mode"}
-              </span>
-              <span className="rounded-2xl border border-white/10 bg-white/10 px-3 py-2 font-bold text-emerald-100">
-                {isOfflineReady ? "Local register ready" : "Live verification"}
-              </span>
-              <span className="rounded-2xl border border-white/10 bg-white/10 px-3 py-2 font-bold text-amber-100">
-                {passOuts.length} pass-outs today
-              </span>
-            </div>
-          </div>
+    <main className="grid gap-3 pb-28 sm:gap-4">
+      <header className="page-header flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <p className="text-xs font-bold uppercase tracking-wide text-blue-600">NFC Operations</p>
+          <h1 className="text-xl font-bold text-slate-950 sm:text-2xl">Gate Security</h1>
+          <p className="mt-1 text-sm text-slate-600">Scan entry, pass-outs, returns, and visitors from one compact gate screen.</p>
+        </div>
+        <div className="flex flex-wrap gap-1.5 text-[11px] font-bold uppercase tracking-wide">
+          <span className="rounded-full border border-slate-200 bg-white px-2 py-1 text-slate-600">{scanner.isOnline ? "Online" : "Offline"}</span>
+          <span className="rounded-full border border-blue-100 bg-blue-50 px-2 py-1 text-blue-700">{passOuts.length} pass-outs</span>
         </div>
       </header>
 
@@ -524,8 +509,8 @@ export function NfcGateSecurityPage() {
         <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{loadError}</div>
       )}
 
-      <section className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
-        <div className="flex flex-col gap-4">
+      <section className="grid gap-2 min-[520px]:grid-cols-[minmax(0,1.1fr)_minmax(220px,0.9fr)] sm:gap-3 xl:grid-cols-[minmax(0,1fr)_360px]">
+        <div id="gate-scan" className="flex scroll-mt-20 flex-col gap-2 sm:gap-3">
           <NfcScanPanel
             state={scanner.state}
             error={scanner.error}
@@ -538,9 +523,9 @@ export function NfcGateSecurityPage() {
           />
 
           {scanResult && (
-            <div className={`rounded-2xl border p-5 ${allowed ? "border-emerald-200 bg-emerald-50" : "border-red-200 bg-red-50"}`}>
+            <div className={`rounded-xl border p-3 shadow-sm sm:p-4 ${allowed ? "border-emerald-200 bg-emerald-50" : "border-red-200 bg-red-50"}`}>
               <div className="flex items-center justify-between">
-                <p className={`text-3xl font-black ${allowed ? "text-emerald-700" : "text-red-700"}`}>
+                <p className={`text-2xl font-black sm:text-3xl ${allowed ? "text-emerald-700" : "text-red-700"}`}>
                   {allowed ? "ALLOWED" : "BLOCKED"}
                 </p>
                 {"offline" in scanResult && scanResult.offline && (
@@ -586,7 +571,7 @@ export function NfcGateSecurityPage() {
             </div>
           )}
 
-          <section className="premium-card rounded-xl p-4">
+          <section id="gate-visitors" className="premium-card scroll-mt-20 rounded-xl p-3 sm:p-4">
             <div className="flex items-start justify-between gap-3">
               <div>
                 <h2 className="text-base font-bold text-slate-950">Visitor check-in</h2>
@@ -606,7 +591,7 @@ export function NfcGateSecurityPage() {
               <div className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700">{visitorSuccess}</div>
             ) : null}
 
-            <form className="mt-4 grid gap-3 md:grid-cols-2" onSubmit={(event) => void submitVisitorRegistration(event)}>
+            <form className="mt-3 grid gap-2 md:grid-cols-2" onSubmit={(event) => void submitVisitorRegistration(event)}>
               <label className="grid gap-1 text-sm text-slate-700">
                 <span className="font-medium">Visitor name</span>
                 <input className="premium-control" value={visitorForm.fullName} onChange={(event) => updateVisitorField("fullName", event.target.value)} disabled={registeringVisitor || isOfflineReady} />
@@ -649,8 +634,8 @@ export function NfcGateSecurityPage() {
           </section>
         </div>
 
-        <aside className="grid gap-4">
-          <section className="premium-card rounded-xl p-4">
+        <aside className="grid content-start gap-2 sm:gap-3">
+          <section id="gate-pass-outs" className="premium-card scroll-mt-20 rounded-xl p-3 sm:p-4">
             <div className="flex items-center justify-between gap-3">
               <h2 className="text-base font-bold text-slate-950">Pass-outs</h2>
               <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-blue-700">
@@ -689,7 +674,7 @@ export function NfcGateSecurityPage() {
             </div>
           </section>
 
-          <section className="premium-card rounded-xl p-4">
+          <section id="gate-recent" className="premium-card scroll-mt-20 rounded-xl p-3 sm:p-4">
             <h2 className="text-base font-bold text-slate-950">Recent gate scans</h2>
             <div className="mt-3 grid gap-2">
               {isOfflineReady ? (
@@ -722,7 +707,7 @@ export function NfcGateSecurityPage() {
             </div>
           </section>
 
-          <section className="premium-card rounded-xl p-4">
+          <section className="premium-card rounded-xl p-3 sm:p-4">
             <div className="flex items-center justify-between gap-3">
               <h2 className="text-base font-bold text-slate-950">Visitor register</h2>
               <button type="button" className="rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-semibold text-slate-600 disabled:opacity-60" onClick={() => void loadVisitors()} disabled={visitorLoading || isOfflineReady}>

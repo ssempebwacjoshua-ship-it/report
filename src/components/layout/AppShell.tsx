@@ -4,6 +4,7 @@ import { Navigate, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../../contexts/AuthContext";
 import { InstallPrompt } from "../pwa/InstallPrompt";
 import { SupportWidget } from "../support/SupportWidget";
+import { DedicatedRoleBottomNav } from "../pwa/DedicatedRoleBottomNav";
 import { Sidebar } from "./Sidebar";
 import { Topbar } from "./Topbar";
 import { SettingsProvider, useAppSettings } from "./SettingsContext";
@@ -178,6 +179,10 @@ function AppShellInner({
       return "web-shell";
     }
   });
+  const isDedicatedOperator = user?.role === "SECURITY"
+    || user?.role === "GATE_SECURITY"
+    || user?.role === "CANTEEN"
+    || user?.role === "CASHIER";
 
   useEffect(() => {
     if (!settings) return;
@@ -228,19 +233,22 @@ function AppShellInner({
           "--sidebar-width": `${sidebarCollapsed ? 72 : sidebarWidth}px`,
         } as CSSProperties}
       >
-        <Sidebar
-          open={sidebarOpen}
-          onClose={() => setSidebarOpen(false)}
-          collapsed={sidebarCollapsed}
-          onToggleCollapsed={() => setSidebarCollapsed((current) => !current)}
-          width={sidebarWidth}
-        />
-        <div className="app-shell-content flex min-w-0 flex-col lg:h-screen lg:min-h-0">
-          <Topbar onMenuClick={setSidebarOpenAndClose} />
-          <main className="app-page mx-auto min-h-0 w-full max-w-[1540px] flex-1 overflow-y-auto">
+        {!isDedicatedOperator ? (
+          <Sidebar
+            open={sidebarOpen}
+            onClose={() => setSidebarOpen(false)}
+            collapsed={sidebarCollapsed}
+            onToggleCollapsed={() => setSidebarCollapsed((current) => !current)}
+            width={sidebarWidth}
+          />
+        ) : null}
+        <div className="app-shell-content flex min-w-0 flex-1 flex-col lg:h-screen lg:min-h-0">
+          {!isDedicatedOperator ? <Topbar onMenuClick={setSidebarOpenAndClose} /> : null}
+          <main className={`app-page mx-auto min-h-0 w-full flex-1 overflow-y-auto ${isDedicatedOperator ? "max-w-none pb-24" : "max-w-[1540px]"}`}>
             <Outlet />
           </main>
         </div>
+        {isDedicatedOperator ? <DedicatedRoleBottomNav /> : null}
         <InstallPrompt />
         <SupportWidget />
       </div>

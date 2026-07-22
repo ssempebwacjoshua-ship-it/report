@@ -276,8 +276,9 @@ export function CommunicationsPage() {
         confirm: true,
         audience: audienceToDefinition(audience),
       });
+      const dryRunNotice = result.result.dryRun ? " Dry-run only: no provider message was sent." : "";
       await load();
-      setNotice(`Submitted ${result.result.submitted}; failed ${result.result.failed}; duplicates skipped ${result.result.skippedDuplicate}.`);
+      setNotice(`Submitted ${result.result.submitted}; failed ${result.result.failed}; duplicates skipped ${result.result.skippedDuplicate}.${dryRunNotice}`);
     } catch (err) {
       const deliveryChannel = audience.channel === "SMS" ? "SMS" : "WHATSAPP";
       setError(formatCommunicationSendError(err, deliveryChannel, selectedCampaign));

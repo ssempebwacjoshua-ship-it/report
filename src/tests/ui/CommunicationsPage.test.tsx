@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { CommunicationsPage } from "../../pages/CommunicationsPage";
@@ -431,6 +432,42 @@ describe("CommunicationsPage", () => {
     await waitFor(() => expect(screen.getByText("Missing approved template for SMS + ANNOUNCEMENT. Open Templates tab and approve one.")).toBeInTheDocument());
     fireEvent.click(screen.getByRole("button", { name: "Open Templates" }));
     await waitFor(() => expect(screen.getByText("Set default SMS template")).toBeInTheDocument());
+  });
+
+  it("shows dry-run mode clearly after a communication send", async () => {
+    const user = userEvent.setup();
+    vi.mocked(fetchCommunicationCampaigns)
+      .mockResolvedValueOnce({
+        campaigns: [buildCampaign("APPROVED")],
+        summary: [{ status: "APPROVED", _count: { status: 1 } }],
+      })
+      .mockResolvedValueOnce({
+        campaigns: [buildCampaign("SENDING")],
+        summary: [{ status: "SENDING", _count: { status: 1 } }],
+      });
+    vi.mocked(previewCommunicationRecipients).mockResolvedValue(buildPreview(1));
+    vi.mocked(sendCommunication).mockResolvedValue({
+      ok: true,
+      result: { submitted: 1, failed: 0, skippedDuplicate: 0, dryRun: true },
+    });
+
+    render(
+      <MemoryRouter>
+        <CommunicationsPage />
+      </MemoryRouter>,
+    );
+
+    await user.click(await screen.findByRole("button", { name: "Preview" }));
+    await waitFor(() => expect(screen.getByText(/1 eligible/i)).toBeInTheDocument());
+    const sendButtons = screen.getAllByRole("button", { name: "Confirm send" });
+    const sendButton = sendButtons.find((button) => !button.hasAttribute("disabled"));
+    expect(sendButton).toBeDefined();
+    if (!sendButton) {
+      throw new Error("Expected an enabled Confirm send button.");
+    }
+    await user.click(sendButton);
+
+    await waitFor(() => expect(screen.getByText(/Dry-run only: no provider message was sent/i)).toBeInTheDocument());
   });
 
   it("reaches approved send flow end-to-end with mocked client actions", async () => {

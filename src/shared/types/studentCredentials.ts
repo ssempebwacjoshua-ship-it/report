@@ -137,6 +137,87 @@ export type NfcAttendanceScanResponse = NfcAttendanceDashboard & {
   scan: NfcAttendanceScanEvent;
 };
 
+export type NfcGateAdminDashboard = {
+  summary: {
+    activePassOuts: number;
+    studentsCurrentlyOut: number;
+    visitorsCurrentlyInside: number;
+    failedParentSms: number;
+  };
+  activity: NfcGateActivityRow[];
+};
+
+export type NfcGateActivityRow = {
+  id: string;
+  type: string;
+  title: string;
+  detail: string | null;
+  createdAt: string;
+};
+
+export type StudentPassOutStatus = "APPROVED" | "CHECKED_OUT" | "RETURNED" | "CANCELLED" | "EXPIRED";
+
+export type StudentPassOutRow = {
+  id: string;
+  schoolId: string;
+  studentId: string;
+  status: StudentPassOutStatus;
+  reason: string;
+  approvedAt: string | null;
+  activeFrom: string;
+  activeUntil: string;
+  checkedOutAt: string | null;
+  checkedInAt: string | null;
+  cancelledAt: string | null;
+  cancellationReason: string | null;
+  createdByUserId: string | null;
+  approvedByUserId: string | null;
+  cancelledByUserId: string | null;
+  checkoutMovementEventId: string | null;
+  checkinMovementEventId: string | null;
+  createdAt: string;
+  updatedAt: string;
+  student: {
+    id: string;
+    studentName: string;
+    admissionNumber: string;
+    className: string | null;
+    streamName: string | null;
+    studentType: "DAY" | "BOARDING" | null;
+    isActive: boolean;
+  };
+};
+
+export type StudentPassOutListResponse = {
+  passOuts: StudentPassOutRow[];
+};
+
+export type NfcVisitorVisitStatus = "CHECKED_IN" | "CHECKED_OUT";
+
+export type NfcVisitorVisit = {
+  id: string;
+  status: NfcVisitorVisitStatus;
+  purpose: string;
+  hostName: string;
+  checkedInAt: string;
+  checkedOutAt: string | null;
+  idDocumentImageUrl: string | null;
+  selfieImageUrl: string | null;
+  createdAt: string;
+  updatedAt: string;
+  visitor: {
+    id: string;
+    fullName: string;
+    phone: string | null;
+    idDocumentType: string;
+    idDocumentNumber: string;
+  };
+};
+
+export type NfcVisitorVisitListResponse = {
+  visits: NfcVisitorVisit[];
+};
+
 export type AttendanceCurrentStatus = "ABSENT" | "PRESENT" | "LATE" | "OUT" | "OUT_ONLY" | "BLOCKED" | "DUPLICATE";
 
 export type GateAttendanceReportRow = {
