@@ -89,46 +89,38 @@ describe("NfcOfflinePage", () => {
     });
   });
 
-  it("allows an admin to register a Gate PWA from the offline page", async () => {
+  it("shows attendance-reader-only registration fields for admins", async () => {
     renderOfflinePage();
 
     await waitFor(() => expect(mockFetchOfflineSyncStatus).toHaveBeenCalled());
 
-    fireEvent.change(screen.getByLabelText(/device name/i), { target: { value: "Main Gate Phone" } });
-    fireEvent.change(screen.getByLabelText(/device key \/ local device id/i), { target: { value: "gate-phone-1" } });
-    fireEvent.change(screen.getByLabelText(/location name/i), { target: { value: "Main Gate" } });
+    expect(screen.queryByLabelText(/device type/i)).not.toBeInTheDocument();
+    expect(screen.getByText(/register school-managed attendance readers/i)).toBeInTheDocument();
+    expect(screen.queryByText(/gate pwa/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/canteen pwa/i)).not.toBeInTheDocument();
+  });
+
+  it("allows an admin to register an attendance reader from the offline page", async () => {
+    renderOfflinePage();
+
+    fireEvent.change(screen.getByLabelText(/device name/i), { target: { value: "Assembly Hall Reader" } });
+    fireEvent.change(screen.getByLabelText(/device key \/ local device id/i), { target: { value: "reader-1" } });
+    fireEvent.change(screen.getByLabelText(/location name/i), { target: { value: "Assembly Hall" } });
     fireEvent.click(screen.getByRole("button", { name: /register device/i }));
 
     await waitFor(() => expect(mockRegisterOfflineDevice).toHaveBeenCalledWith(expect.objectContaining({
-      name: "Main Gate Phone",
-      deviceKey: "gate-phone-1",
-      mode: "GATE",
-      roleScope: "GATE_SECURITY",
+      name: "Assembly Hall Reader",
+      deviceKey: "reader-1",
+      mode: "ATTENDANCE",
+      roleScope: "ADMIN_OPERATOR",
+      locationName: "Assembly Hall",
       locationType: "GATE",
       attendanceMode: "GATE_ATTENDANCE",
       studentScope: "ALL_STUDENTS",
       direction: "ENTRY",
     })));
     expect(await screen.findByText(/device registered/i)).toBeInTheDocument();
-    expect(screen.getByText(/sign in on that physical device and refresh the local gate\/canteen register/i)).toBeInTheDocument();
-  });
-
-  it("allows an admin to register a Canteen PWA from the offline page", async () => {
-    renderOfflinePage();
-
-    fireEvent.change(screen.getByLabelText(/device type/i), { target: { value: "CANTEEN_PWA" } });
-    fireEvent.change(screen.getByLabelText(/device name/i), { target: { value: "Canteen Tablet" } });
-    fireEvent.change(screen.getByLabelText(/device key \/ local device id/i), { target: { value: "canteen-tab-1" } });
-    fireEvent.change(screen.getByLabelText(/location name/i), { target: { value: "Canteen Counter" } });
-    fireEvent.click(screen.getByRole("button", { name: /register device/i }));
-
-    await waitFor(() => expect(mockRegisterOfflineDevice).toHaveBeenCalledWith(expect.objectContaining({
-      name: "Canteen Tablet",
-      deviceKey: "canteen-tab-1",
-      mode: "CANTEEN",
-      roleScope: "CANTEEN",
-      locationName: "Canteen Counter",
-    })));
+    expect(screen.getByText(/sign in on that physical device and refresh the local attendance reader/i)).toBeInTheDocument();
   });
 });
 

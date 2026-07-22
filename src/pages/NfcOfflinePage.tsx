@@ -105,7 +105,6 @@ export function NfcOfflinePage() {
   const [registeredDevice, setRegisteredDevice] = useState<RegisteredOfflineDevice | null>(null);
   const [classes, setClasses] = useState<Array<{ id: string; name: string; streams: Array<{ id: string; name: string }> }>>([]);
   const [selectedDeviceId, setSelectedDeviceId] = useState("");
-  const [deviceType, setDeviceType] = useState<"GATE_PWA" | "CANTEEN_PWA" | "ATTENDANCE_READER">("GATE_PWA");
   const [registrationForm, setRegistrationForm] = useState({
     name: "",
     deviceKey: "",
@@ -234,11 +233,6 @@ export function NfcOfflinePage() {
   }, [attendanceDevices, selectedDevice]);
 
   useEffect(() => {
-    setRegistrationError("");
-    setRegisteredDevice(null);
-  }, [deviceType]);
-
-  useEffect(() => {
     if (!selectedDevice) return;
     setReaderConfig({
       location: selectedDevice.location ?? "",
@@ -298,18 +292,14 @@ export function NfcOfflinePage() {
       return;
     }
 
-    if (
-      deviceType === "ATTENDANCE_READER"
-      && (!registrationForm.attendanceLocationType || !registrationForm.attendanceMode)
-    ) {
+    if (!registrationForm.attendanceLocationType || !registrationForm.attendanceMode) {
       setRegistrationError("Attendance readers require a location type and attendance mode.");
       setRegisteredDevice(null);
       return;
     }
 
     if (
-      deviceType === "ATTENDANCE_READER"
-      && registrationForm.attendanceStudentScope === "ASSIGNED_CLASS"
+      registrationForm.attendanceStudentScope === "ASSIGNED_CLASS"
       && (!registrationForm.attendanceClassId || !registrationForm.attendanceStreamId)
     ) {
       setRegistrationError("Assigned-class attendance readers require both class and stream.");
@@ -323,42 +313,20 @@ export function NfcOfflinePage() {
     setStatusMsg("");
 
     try {
-      const payload = deviceType === "GATE_PWA"
-        ? {
-            name: trimmedName,
-            deviceKey: trimmedDeviceKey,
-            roleScope: "GATE_SECURITY" as const,
-            mode: "GATE" as const,
-            location: trimmedLocationName || "Gate PWA",
-            locationType: "GATE" as const,
-            locationName: trimmedLocationName || "Gate PWA",
-            attendanceMode: "GATE_ATTENDANCE" as const,
-            studentScope: "ALL_STUDENTS" as const,
-            direction: "ENTRY" as const,
-          }
-        : deviceType === "CANTEEN_PWA"
-          ? {
-              name: trimmedName,
-              deviceKey: trimmedDeviceKey,
-              roleScope: "CANTEEN" as const,
-              mode: "CANTEEN" as const,
-              location: trimmedLocationName || "Canteen PWA",
-              locationName: trimmedLocationName || "Canteen PWA",
-            }
-          : {
-              name: trimmedName,
-              deviceKey: trimmedDeviceKey,
-              roleScope: "ADMIN_OPERATOR" as const,
-              mode: "ATTENDANCE" as const,
-              location: trimmedLocationName || null,
-              locationType: registrationForm.attendanceLocationType as "GATE" | "CLASSROOM",
-              locationName: trimmedLocationName || null,
-              attendanceMode: registrationForm.attendanceMode as "GATE_ATTENDANCE" | "CLASSROOM_ATTENDANCE",
-              studentScope: registrationForm.attendanceStudentScope as "ALL_STUDENTS" | "DAY_SCHOLARS" | "BOARDING_STUDENTS" | "ASSIGNED_CLASS",
-              classId: registrationForm.attendanceClassId || null,
-              streamId: registrationForm.attendanceStreamId || null,
-              direction: registrationForm.attendanceDirection as "ENTRY" | "EXIT",
-            };
+      const payload = {
+        name: trimmedName,
+        deviceKey: trimmedDeviceKey,
+        roleScope: "ADMIN_OPERATOR" as const,
+        mode: "ATTENDANCE" as const,
+        location: trimmedLocationName || null,
+        locationType: registrationForm.attendanceLocationType as "GATE" | "CLASSROOM",
+        locationName: trimmedLocationName || null,
+        attendanceMode: registrationForm.attendanceMode as "GATE_ATTENDANCE" | "CLASSROOM_ATTENDANCE",
+        studentScope: registrationForm.attendanceStudentScope as "ALL_STUDENTS" | "DAY_SCHOLARS" | "BOARDING_STUDENTS" | "ASSIGNED_CLASS",
+        classId: registrationForm.attendanceClassId || null,
+        streamId: registrationForm.attendanceStreamId || null,
+        direction: registrationForm.attendanceDirection as "ENTRY" | "EXIT",
+      };
 
       const created = await registerOfflineDevice(payload);
       setRegisteredDevice(created);
@@ -488,7 +456,7 @@ export function NfcOfflinePage() {
         <div className="mb-4">
           <h2 className="text-base font-bold text-slate-950">Register Device</h2>
           <p className="mt-0.5 text-sm text-slate-500">
-            Register school-managed Gate, Canteen, or Attendance offline devices without using owner hardware provisioning.
+            Register school-managed attendance readers without using owner hardware provisioning.
           </p>
         </div>
 
@@ -499,31 +467,18 @@ export function NfcOfflinePage() {
           <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700">
             <p className="font-semibold">Device registered</p>
             <p className="mt-1">Device key: <span className="font-mono">{registeredDevice.deviceKey}</span></p>
-            <p className="mt-1 text-emerald-800">Next: sign in on that physical device and refresh the Local Gate/Canteen Register.</p>
+            <p className="mt-1 text-emerald-800">Next: sign in on that physical device and refresh the local attendance reader.</p>
           </div>
         ) : null}
 
         <div className="grid gap-3 sm:grid-cols-2">
-          <label className="grid gap-1 text-xs font-bold uppercase text-slate-500">
-            Device Type
-            <select
-              className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
-              value={deviceType}
-              onChange={(event) => setDeviceType(event.target.value as "GATE_PWA" | "CANTEEN_PWA" | "ATTENDANCE_READER")}
-            >
-              <option value="GATE_PWA">Gate PWA</option>
-              <option value="CANTEEN_PWA">Canteen PWA</option>
-              <option value="ATTENDANCE_READER">Attendance Reader</option>
-            </select>
-          </label>
-
           <label className="grid gap-1 text-xs font-bold uppercase text-slate-500">
             Device Name
             <input
               className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
               value={registrationForm.name}
               onChange={(event) => setRegistrationForm((current) => ({ ...current, name: event.target.value }))}
-              placeholder="Main Gate Phone"
+              placeholder="Assembly Hall Reader"
             />
           </label>
 
@@ -543,107 +498,99 @@ export function NfcOfflinePage() {
               className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
               value={registrationForm.locationName}
               onChange={(event) => setRegistrationForm((current) => ({ ...current, locationName: event.target.value }))}
-              placeholder={deviceType === "GATE_PWA" ? "Main Gate" : deviceType === "CANTEEN_PWA" ? "Canteen Counter" : "Assembly Hall Reader"}
+              placeholder="Assembly Hall Reader"
             />
           </label>
 
-          {deviceType === "ATTENDANCE_READER" ? (
-            <>
-              <label className="grid gap-1 text-xs font-bold uppercase text-slate-500">
-                Location Type
-                <select
-                  className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
-                  value={registrationForm.attendanceLocationType}
-                  onChange={(event) => setRegistrationForm((current) => ({
-                    ...current,
-                    attendanceLocationType: event.target.value,
-                    attendanceMode: event.target.value === "CLASSROOM" ? "CLASSROOM_ATTENDANCE" : "GATE_ATTENDANCE",
-                    attendanceClassId: event.target.value === "GATE" ? "" : current.attendanceClassId,
-                    attendanceStreamId: event.target.value === "GATE" ? "" : current.attendanceStreamId,
-                  }))}
-                >
-                  <option value="GATE">Gate</option>
-                  <option value="CLASSROOM">Classroom</option>
-                </select>
-              </label>
+          <label className="grid gap-1 text-xs font-bold uppercase text-slate-500">
+            Location Type
+            <select
+              className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
+              value={registrationForm.attendanceLocationType}
+              onChange={(event) => setRegistrationForm((current) => ({
+                ...current,
+                attendanceLocationType: event.target.value,
+                attendanceMode: event.target.value === "CLASSROOM" ? "CLASSROOM_ATTENDANCE" : "GATE_ATTENDANCE",
+                attendanceClassId: event.target.value === "GATE" ? "" : current.attendanceClassId,
+                attendanceStreamId: event.target.value === "GATE" ? "" : current.attendanceStreamId,
+              }))}
+            >
+              <option value="GATE">Gate</option>
+              <option value="CLASSROOM">Classroom</option>
+            </select>
+          </label>
 
-              <label className="grid gap-1 text-xs font-bold uppercase text-slate-500">
-                Attendance Mode
-                <select
-                  className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
-                  value={registrationForm.attendanceMode}
-                  onChange={(event) => setRegistrationForm((current) => ({ ...current, attendanceMode: event.target.value }))}
-                >
-                  <option value="GATE_ATTENDANCE">Gate Attendance</option>
-                  <option value="CLASSROOM_ATTENDANCE">Classroom Attendance</option>
-                </select>
-              </label>
+          <label className="grid gap-1 text-xs font-bold uppercase text-slate-500">
+            Attendance Mode
+            <select
+              className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
+              value={registrationForm.attendanceMode}
+              onChange={(event) => setRegistrationForm((current) => ({ ...current, attendanceMode: event.target.value }))}
+            >
+              <option value="GATE_ATTENDANCE">Gate Attendance</option>
+              <option value="CLASSROOM_ATTENDANCE">Classroom Attendance</option>
+            </select>
+          </label>
 
-              <label className="grid gap-1 text-xs font-bold uppercase text-slate-500">
-                Student Scope
-                <select
-                  className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
-                  value={registrationForm.attendanceStudentScope}
-                  onChange={(event) => setRegistrationForm((current) => ({ ...current, attendanceStudentScope: event.target.value }))}
-                >
-                  <option value="ALL_STUDENTS">All students</option>
-                  <option value="DAY_SCHOLARS">Day scholars</option>
-                  <option value="BOARDING_STUDENTS">Boarding students</option>
-                  <option value="ASSIGNED_CLASS">Assigned class</option>
-                </select>
-              </label>
+          <label className="grid gap-1 text-xs font-bold uppercase text-slate-500">
+            Student Scope
+            <select
+              className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
+              value={registrationForm.attendanceStudentScope}
+              onChange={(event) => setRegistrationForm((current) => ({ ...current, attendanceStudentScope: event.target.value }))}
+            >
+              <option value="ALL_STUDENTS">All students</option>
+              <option value="DAY_SCHOLARS">Day scholars</option>
+              <option value="BOARDING_STUDENTS">Boarding students</option>
+              <option value="ASSIGNED_CLASS">Assigned class</option>
+            </select>
+          </label>
 
-              <label className="grid gap-1 text-xs font-bold uppercase text-slate-500">
-                Direction
-                <select
-                  className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
-                  value={registrationForm.attendanceDirection}
-                  onChange={(event) => setRegistrationForm((current) => ({ ...current, attendanceDirection: event.target.value }))}
-                >
-                  <option value="ENTRY">Entry</option>
-                  <option value="EXIT">Exit</option>
-                </select>
-              </label>
+          <label className="grid gap-1 text-xs font-bold uppercase text-slate-500">
+            Direction
+            <select
+              className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
+              value={registrationForm.attendanceDirection}
+              onChange={(event) => setRegistrationForm((current) => ({ ...current, attendanceDirection: event.target.value }))}
+            >
+              <option value="ENTRY">Entry</option>
+              <option value="EXIT">Exit</option>
+            </select>
+          </label>
 
-              <label className="grid gap-1 text-xs font-bold uppercase text-slate-500">
-                Class
-                <select
-                  className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
-                  value={registrationForm.attendanceClassId}
-                  onChange={(event) => setRegistrationForm((current) => ({ ...current, attendanceClassId: event.target.value, attendanceStreamId: "" }))}
-                  disabled={registrationForm.attendanceLocationType !== "CLASSROOM"}
-                >
-                  <option value="">Select class</option>
-                  {classes.map((item) => (
-                    <option key={item.id} value={item.id}>{item.name}</option>
-                  ))}
-                </select>
-              </label>
+          <label className="grid gap-1 text-xs font-bold uppercase text-slate-500">
+            Class
+            <select
+              className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
+              value={registrationForm.attendanceClassId}
+              onChange={(event) => setRegistrationForm((current) => ({ ...current, attendanceClassId: event.target.value, attendanceStreamId: "" }))}
+              disabled={registrationForm.attendanceLocationType !== "CLASSROOM"}
+            >
+              <option value="">Select class</option>
+              {classes.map((item) => (
+                <option key={item.id} value={item.id}>{item.name}</option>
+              ))}
+            </select>
+          </label>
 
-              <label className="grid gap-1 text-xs font-bold uppercase text-slate-500">
-                Stream
-                <select
-                  className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
-                  value={registrationForm.attendanceStreamId}
-                  onChange={(event) => setRegistrationForm((current) => ({ ...current, attendanceStreamId: event.target.value }))}
-                  disabled={registrationForm.attendanceLocationType !== "CLASSROOM"}
-                >
-                  <option value="">Select stream</option>
-                  {(classes.find((item) => item.id === registrationForm.attendanceClassId)?.streams ?? []).map((item) => (
-                    <option key={item.id} value={item.id}>{item.name}</option>
-                  ))}
-                </select>
-              </label>
-            </>
-          ) : null}
+          <label className="grid gap-1 text-xs font-bold uppercase text-slate-500">
+            Stream
+            <select
+              className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
+              value={registrationForm.attendanceStreamId}
+              onChange={(event) => setRegistrationForm((current) => ({ ...current, attendanceStreamId: event.target.value }))}
+              disabled={registrationForm.attendanceLocationType !== "CLASSROOM"}
+            >
+              <option value="">Select stream</option>
+              {(classes.find((item) => item.id === registrationForm.attendanceClassId)?.streams ?? []).map((item) => (
+                <option key={item.id} value={item.id}>{item.name}</option>
+              ))}
+            </select>
+          </label>
         </div>
 
         <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
-          {deviceType === "GATE_PWA"
-            ? "Gate PWA registers as an active gate device with gate attendance defaults."
-            : deviceType === "CANTEEN_PWA"
-              ? "Canteen PWA registers as a canteen device for school-managed offline use."
-              : "Attendance Reader registration requires explicit attendance setup before staff taps should rely on it."}
+          Attendance Reader registration requires explicit attendance setup before staff taps should rely on it.
         </div>
 
         <button
