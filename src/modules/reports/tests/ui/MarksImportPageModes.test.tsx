@@ -2,7 +2,7 @@
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import { MarksImportPage } from "../../pages/MarksImportPage";
-import type { ScanOptions } from "../../shared/types/imports";
+import type { ScanOptions } from "../../../../shared/types/imports";
 
 // Mock network clients so the page renders without hitting the API.
 vi.mock("../../client/importsClient", () => ({
@@ -26,7 +26,7 @@ vi.mock("../../client/importsClient", () => ({
   lookupMarksheetContext: vi.fn(),
   uploadScanFile: vi.fn(),
 }));
-vi.mock("../../client/settingsClient", () => ({
+vi.mock("../../../../client/settingsClient", () => ({
   fetchSettings: vi.fn().mockResolvedValue({ sections: {} }),
 }));
 
