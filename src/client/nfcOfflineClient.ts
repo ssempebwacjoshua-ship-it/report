@@ -50,6 +50,25 @@ export type OfflineSyncStatus = {
   devices: OfflineDeviceStatus[];
 };
 
+export type RegisterOfflineDeviceInput = {
+  name: string;
+  deviceKey: string;
+  roleScope: "GATE_SECURITY" | "CANTEEN" | "ADMIN_OPERATOR";
+  mode: "GATE" | "CANTEEN" | "ATTENDANCE";
+  location?: string | null;
+  locationType?: "GATE" | "CLASSROOM" | null;
+  locationName?: string | null;
+  attendanceMode?: "GATE_ATTENDANCE" | "CLASSROOM_ATTENDANCE" | null;
+  studentScope?: "ALL_STUDENTS" | "DAY_SCHOLARS" | "BOARDING_STUDENTS" | "ASSIGNED_CLASS" | null;
+  classId?: string | null;
+  streamId?: string | null;
+  direction?: "ENTRY" | "EXIT" | null;
+};
+
+export type RegisteredOfflineDevice = OfflineDeviceStatus & {
+  deviceToken?: string;
+};
+
 export async function fetchOfflineBootstrap(modules?: string[], deviceId?: string, mode?: "GATE" | "CANTEEN" | "ATTENDANCE"): Promise<OfflineBootstrapSnapshot> {
   const params = new URLSearchParams();
   if (modules?.length) params.set("modules", modules.join(","));
@@ -60,6 +79,13 @@ export async function fetchOfflineBootstrap(modules?: string[], deviceId?: strin
 
 export async function fetchOfflineSyncStatus(): Promise<OfflineSyncStatus> {
   return api<OfflineSyncStatus>("/api/nfc/offline/sync-status");
+}
+
+export async function registerOfflineDevice(input: RegisterOfflineDeviceInput) {
+  return api<RegisteredOfflineDevice>("/api/nfc/offline/devices/register", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
 }
 
 export async function updateOfflineDeviceConfig(deviceId: string, input: {
