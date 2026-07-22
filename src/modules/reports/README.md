@@ -26,12 +26,16 @@ Owns academic reporting, report rendering, marks import workflows, marksheets, r
 
 - API: `/api/reports*`, `/api/imports/*`, `/api/marksheets/*`, `/api/verify/:code`
 - Current route files still outside the module:
-  - `src/server/routes/reportsRoutes.ts`
   - `src/server/routes/importsRoutes.ts`
   - `src/server/routes/marksheetsRoutes.ts`
   - `src/server/routes/verifyRoutes.ts`
   - `src/server/routes/reportIssueRoutes.ts`
   - `src/server/routes/promotionRoutes.ts`
+- Module-owned route now moved into:
+  - `src/modules/reports/server/routes/reportsRoutes.ts`
+- Compatibility shim retained at:
+  - `src/server/routes/reportsRoutes.ts`
+- Existing route registration imports remain supported through the shim
 
 ## Owned Services
 
@@ -131,6 +135,11 @@ Owns academic reporting, report rendering, marks import workflows, marksheets, r
 - Skeleton only
 - Ownership contract defined
 - Reports still consume the release-center-owned issue report client through a compatibility shim
+- Reports route moved into:
+  - `src/modules/reports/server/routes/reportsRoutes.ts`
+- Compatibility shim retained at:
+  - `src/server/routes/reportsRoutes.ts`
+- Existing route registration imports remain supported through the shim
 - Build passed after the release-center client moves
 - `npm run typecheck` still has unrelated repo-wide failures outside the client relocations
 - Runtime files not moved yet
@@ -145,6 +154,7 @@ Owns academic reporting, report rendering, marks import workflows, marksheets, r
 - `src/client/importsClient.ts`
 - `src/client/marksheetsClient.ts`
 - `src/pages/ReportsPage.tsx` still depends on the release-center-owned issue report client through `src/client/issueReportClient.ts`
-- `src/server/routes/reportsRoutes.ts`
+- `src/modules/reports/server/routes/reportsRoutes.ts`
+- `src/server/routes/reportsRoutes.ts` (compatibility shim)
 - `src/server/routes/importsRoutes.ts`
 - `src/server/routes/marksheetsRoutes.ts`
