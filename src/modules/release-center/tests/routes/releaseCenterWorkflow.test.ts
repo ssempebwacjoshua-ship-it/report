@@ -1,8 +1,8 @@
 import express from "express";
 import request from "supertest";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { defaultSettingsSections } from "../../shared/types/settings";
-import { sanitizeReportCardForRender, sanitizeReportPersonalizationForReport, sanitizeSchoolSettingsForReport } from "../../shared/utils/reportContentLimits";
+import { defaultSettingsSections } from "../../../../shared/types/settings";
+import { sanitizeReportCardForRender, sanitizeReportPersonalizationForReport, sanitizeSchoolSettingsForReport } from "../../../../shared/utils/reportContentLimits";
 
 const baseSchoolId = "school-1";
 const baseStudentId = "student-1";
@@ -103,15 +103,15 @@ function mountReleaseCenterApp(prisma: any) {
   prisma.reportLabSubscription ??= {
     findUnique: vi.fn(async () => ({ status: "ACTIVE", currentPeriodEnd: new Date("2030-01-01T00:00:00.000Z") })),
   };
-  vi.doMock("../../server/db/prisma", () => ({ prisma }));
-  vi.doMock("../../server/middleware/requireAuth", () => ({
+  vi.doMock("../../../../server/db/prisma", () => ({ prisma }));
+  vi.doMock("../../../../server/middleware/requireAuth", () => ({
     requireAuth: (req: any, _res: any, next: () => void) => {
       req.user = { userId: "user-1", schoolId: baseSchoolId, name: "Admin" };
       req.school = { id: baseSchoolId, code: "SCU-PREVIEW" };
       next();
     },
   }));
-  vi.doMock("../../server/repositories/settingsRepository", () => ({
+  vi.doMock("../../../../server/repositories/settingsRepository", () => ({
     getSettingsSections: vi.fn(async () => ({
       academic: {
         defaultAssessmentType: baseAssessmentType,
@@ -119,17 +119,17 @@ function mountReleaseCenterApp(prisma: any) {
       },
     })),
   }));
-  vi.doMock("../../server/repositories/reportsRepository", () => ({
+  vi.doMock("../../../../server/repositories/reportsRepository", () => ({
     loadReportEngineInput: vi.fn(async () => baseEngineInput),
   }));
-  vi.doMock("../../server/services/reportEngine", () => ({
+  vi.doMock("../../../../server/services/reportEngine", () => ({
     buildReports: vi.fn(() => JSON.parse(JSON.stringify(baseReportResult))),
   }));
-  vi.doMock("../../server/config/publicUrl", () => ({
+  vi.doMock("../../../../server/config/publicUrl", () => ({
     buildParentReportPublicUrl: (token: string) => `https://public.example/r/${token}`,
   }));
 
-  return import("../../server/routes/releaseCenterRoutes").then(({ releaseCenterRoutes }) => {
+  return import("../../../../server/routes/releaseCenterRoutes").then(({ releaseCenterRoutes }) => {
     const app = express();
     app.use(express.json());
     app.use(releaseCenterRoutes());
@@ -138,8 +138,8 @@ function mountReleaseCenterApp(prisma: any) {
 }
 
 function mountParentApp(prisma: any) {
-  vi.doMock("../../server/db/prisma", () => ({ prisma }));
-  return import("../../server/routes/parentRoutes").then(({ parentRoutes }) => {
+  vi.doMock("../../../../server/db/prisma", () => ({ prisma }));
+  return import("../../../../server/routes/parentRoutes").then(({ parentRoutes }) => {
     const app = express();
     app.use(express.json());
     app.use(parentRoutes());
@@ -151,12 +151,12 @@ afterEach(() => {
   vi.resetModules();
   vi.clearAllMocks();
   vi.restoreAllMocks();
-  vi.doUnmock("../../server/db/prisma");
-  vi.doUnmock("../../server/middleware/requireAuth");
-  vi.doUnmock("../../server/repositories/settingsRepository");
-  vi.doUnmock("../../server/repositories/reportsRepository");
-  vi.doUnmock("../../server/services/reportEngine");
-  vi.doUnmock("../../server/config/publicUrl");
+  vi.doUnmock("../../../../server/db/prisma");
+  vi.doUnmock("../../../../server/middleware/requireAuth");
+  vi.doUnmock("../../../../server/repositories/settingsRepository");
+  vi.doUnmock("../../../../server/repositories/reportsRepository");
+  vi.doUnmock("../../../../server/services/reportEngine");
+  vi.doUnmock("../../../../server/config/publicUrl");
 });
 
 describe("releaseCenterRoutes workflow", () => {
@@ -190,10 +190,10 @@ describe("releaseCenterRoutes workflow", () => {
         school: { name: "Preview School" },
       };
       return {
-      id: "issued-2",
-      referenceCode: "20260719-NEW111",
-      publicShortCode: "SHORTNEW1",
-      issuedAt: new Date("2026-07-19T00:00:00.000Z"),
+        id: "issued-2",
+        referenceCode: "20260719-NEW111",
+        publicShortCode: "SHORTNEW1",
+        issuedAt: new Date("2026-07-19T00:00:00.000Z"),
       };
     });
     const existingRecord = {
