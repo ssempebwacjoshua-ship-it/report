@@ -41,7 +41,6 @@ Owns academic reporting, report rendering, marks import workflows, marksheets, r
 
 - Report generation, comments, import, marksheet, validation, and promotion services
 - Current legacy files still outside the module:
-  - `src/server/services/reportEngine.ts`
   - `src/server/services/reportCommentService.ts`
   - `src/server/services/reportAssistantContextService.ts`
   - `src/server/services/marksImportService.ts`
@@ -53,6 +52,11 @@ Owns academic reporting, report rendering, marks import workflows, marksheets, r
   - `src/server/services/promotionService.ts`
   - `src/server/services/scoreValidationService.ts`
   - `src/server/services/subjectComponentResolver.ts`
+- Module-owned service now moved into:
+  - `src/modules/reports/server/services/reportEngine.ts`
+- Compatibility shim retained at:
+  - `src/server/services/reportEngine.ts`
+- Existing service imports remain supported through the shim
 
 ## Owned Repositories
 
@@ -140,6 +144,11 @@ Owns academic reporting, report rendering, marks import workflows, marksheets, r
 - Compatibility shim retained at:
   - `src/server/routes/reportsRoutes.ts`
 - Existing route registration imports remain supported through the shim
+- Report engine moved into:
+  - `src/modules/reports/server/services/reportEngine.ts`
+- Compatibility shim retained at:
+  - `src/server/services/reportEngine.ts`
+- Existing service imports remain supported through the shim
 - Build passed after the release-center client moves
 - `npm run typecheck` still has unrelated repo-wide failures outside the client relocations
 - Runtime files not moved yet
@@ -156,5 +165,7 @@ Owns academic reporting, report rendering, marks import workflows, marksheets, r
 - `src/pages/ReportsPage.tsx` still depends on the release-center-owned issue report client through `src/client/issueReportClient.ts`
 - `src/modules/reports/server/routes/reportsRoutes.ts`
 - `src/server/routes/reportsRoutes.ts` (compatibility shim)
+- `src/modules/reports/server/services/reportEngine.ts`
+- `src/server/services/reportEngine.ts` (compatibility shim)
 - `src/server/routes/importsRoutes.ts`
 - `src/server/routes/marksheetsRoutes.ts`
