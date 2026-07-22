@@ -2,7 +2,7 @@ import type { AssessmentType, MarkStatus, PrismaClient } from "@prisma/client";
 import type { RawMarkImportRow, ValidatedMarkImportRow } from "../../../../shared/types/imports";
 import type { SettingsSections } from "../../../../shared/types/settings";
 import { getSettingsSections } from "../repositories/settingsRepository";
-import { validateScoreEntry } from "../../../../server/services/scoreValidationService";
+import { validateScoreEntry } from "./scoreValidationService";
 import { resolveSubjectComponent } from "../../../../server/services/subjectComponentResolver";
 
 export type ImportReferenceData = Awaited<ReturnType<typeof loadImportReferenceData>>;

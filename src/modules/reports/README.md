@@ -59,8 +59,12 @@ Owns academic reporting, report rendering, marks import workflows, marksheets, r
   - `src/server/services/marksheetIdDetectionService.ts`
   - `src/server/services/marksheetTableDetection.ts`
   - `src/server/services/promotionService.ts`
-  - `src/server/services/scoreValidationService.ts`
   - `src/server/services/subjectComponentResolver.ts`
+- Module-owned service now moved into:
+  - `src/modules/reports/server/services/scoreValidationService.ts`
+- Compatibility shim retained at:
+  - `src/server/services/scoreValidationService.ts`
+- Existing service imports remain supported through the shim
 - Module-owned service now moved into:
   - `src/modules/reports/server/services/marksImportValidator.ts`
 - Compatibility shim retained at:
@@ -226,6 +230,11 @@ Owns academic reporting, report rendering, marks import workflows, marksheets, r
 - Compatibility shim retained at:
   - `src/client/marksheetsClient.ts`
 - Module path is now canonical and runtime behavior is unchanged
+- Score validation service moved into:
+  - `src/modules/reports/server/services/scoreValidationService.ts`
+- Compatibility shim retained at:
+  - `src/server/services/scoreValidationService.ts`
+- Module path is now canonical and runtime behavior is unchanged
 - Marks import validator moved into:
   - `src/modules/reports/server/services/marksImportValidator.ts`
 - Compatibility shim retained at:
@@ -275,6 +284,8 @@ Owns academic reporting, report rendering, marks import workflows, marksheets, r
 - `src/pages/MarksImportPage.tsx` (compatibility shim)
 - `src/modules/reports/pages/MarksheetsPage.tsx`
 - `src/pages/MarksheetsPage.tsx` (compatibility shim)
+- `src/modules/reports/server/services/scoreValidationService.ts`
+- `src/server/services/scoreValidationService.ts` (compatibility shim)
 - `src/modules/reports/server/services/marksImportValidator.ts`
 - `src/server/services/marksImportValidator.ts` (compatibility shim)
 - `src/modules/reports/server/services/reportAssistantContextService.ts`
