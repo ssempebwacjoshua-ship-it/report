@@ -96,7 +96,9 @@ Owns report-link issuance, bulk release operations, revoke/sent tracking, and pa
 
 - Report release/issue/revoke/send permissions
 - Parent/public access token enforcement
-- Exact permission names must be mapped during route migration
+- Release Center communication handoff endpoints currently require:
+  - `communications.validate` for `/api/reports/release/communications/preview`
+  - `communications.create` for `/api/reports/release/communications`
 
 ## Owned Audit Events
 

@@ -3,6 +3,7 @@ import { z } from "zod";
 import type { PreferredContactMethod } from "@prisma/client";
 import { prisma } from "../../../../server/db/prisma";
 import { requireAuth } from "../../../../server/middleware/requireAuth";
+import { requireSchoolPermission } from "../../../../server/middleware/requireSchoolPermission";
 import { createAudienceSnapshot, createCampaign, getCampaignProgressTotals } from "../../../../server/services/communicationEngine";
 import { resolveSmsProvider } from "../../../../server/services/communicationProviders";
 import { sendOutreachEmail } from "../../../../server/services/emailService";
@@ -141,7 +142,7 @@ const releaseCommunicationSchema = z.object({
 export function releaseCenterRoutes() {
   const router = Router();
 
-  router.post("/api/reports/release/communications/preview", requireAuth, async (req, res, next) => {
+  router.post("/api/reports/release/communications/preview", requireAuth, requireSchoolPermission("communications.validate"), async (req, res, next) => {
     try {
       const body = releaseCommunicationSchema.parse(req.body);
       const preview = await prepareReleaseCenterCommunicationPreview(prisma, {
@@ -157,7 +158,7 @@ export function releaseCenterRoutes() {
     }
   });
 
-  router.post("/api/reports/release/communications", requireAuth, async (req, res, next) => {
+  router.post("/api/reports/release/communications", requireAuth, requireSchoolPermission("communications.create"), async (req, res, next) => {
     try {
       const body = releaseCommunicationSchema.parse(req.body);
       const user = req.user!;
@@ -221,7 +222,12 @@ export function releaseCenterRoutes() {
         schoolName: req.school!.name,
         actorId: user.userId,
         actorName: user.name,
-      }, campaign.id, {});
+      }, campaign.id, {
+        audienceType: "PARENTS_OF_SELECTED_STUDENTS",
+        studentIds: preview.source.selectedStudentIds,
+        channel: "SMS",
+        mode: "GENERAL",
+      });
       const progress = await getCampaignProgressTotals(prisma, {
         schoolId: req.school!.id,
         schoolName: req.school!.name,
