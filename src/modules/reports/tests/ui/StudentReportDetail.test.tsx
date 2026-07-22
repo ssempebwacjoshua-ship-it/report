@@ -1,8 +1,8 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { StudentReportDetail } from "../../components/reports/StudentReportDetail";
-import { defaultSettingsSections } from "../../shared/types/settings";
-import type { StudentReportCard } from "../../shared/types/reports";
+import { StudentReportDetail } from "../../../../components/reports/StudentReportDetail";
+import { defaultSettingsSections } from "../../../../shared/types/settings";
+import type { StudentReportCard } from "../../../../shared/types/reports";
 
 const card: StudentReportCard = {
   studentId: "s1",
