@@ -19,15 +19,13 @@ Owns report-link issuance, bulk release operations, revoke/sent tracking, and pa
 ## Owned Frontend Routes/Pages
 
 - Browser: `/report-lab/reports/release`
-- Parent/public report access flows currently rendered by:
-  - `src/pages/ParentReportPage.tsx`
 - Module-owned page now moved into:
   - `src/modules/release-center/pages/ReleaseCenterPage.tsx`
+  - `src/modules/release-center/pages/ParentReportPage.tsx`
 - Compatibility shim retained at:
   - `src/pages/ReleaseCenterPage.tsx`
-- Existing route imports remain supported through the shim
-- Current legacy files still outside the module:
   - `src/pages/ParentReportPage.tsx`
+- Existing route imports remain supported through the shim
 
 ## Owned Server Routes
 
@@ -136,6 +134,8 @@ Owns report-link issuance, bulk release operations, revoke/sent tracking, and pa
   - `src/modules/release-center/client/issueReportClient.ts`
 - Release Center page moved into:
   - `src/modules/release-center/pages/ReleaseCenterPage.tsx`
+- Parent report page moved into:
+  - `src/modules/release-center/pages/ParentReportPage.tsx`
 - Issued report link service moved into:
   - `src/modules/release-center/server/services/issuedReportLinkService.ts`
 - Report link service moved into:
@@ -144,10 +144,12 @@ Owns report-link issuance, bulk release operations, revoke/sent tracking, and pa
   - `src/client/releaseCenterClient.ts`
   - `src/client/issueReportClient.ts`
 - `src/pages/ReleaseCenterPage.tsx`
+- `src/pages/ParentReportPage.tsx`
 - `src/server/services/issuedReportLinkService.ts`
 - `src/server/services/reportLinkService.ts`
 - Existing runtime imports still supported through the shims
 - Build passed after the client, page, and report-link service moves
+- Existing public report UI imports still supported through the shim
 - Release Center routes moved into:
   - `src/modules/release-center/server/routes/releaseCenterRoutes.ts`
 - Report issue routes moved into:
@@ -191,8 +193,9 @@ Owns report-link issuance, bulk release operations, revoke/sent tracking, and pa
 ### Pages
 
 - `src/modules/release-center/pages/ReleaseCenterPage.tsx`
+- `src/modules/release-center/pages/ParentReportPage.tsx`
 - `src/pages/ReleaseCenterPage.tsx` (compatibility shim)
-- `src/pages/ParentReportPage.tsx`
+- `src/pages/ParentReportPage.tsx` (compatibility shim)
 
 ### Components
 
@@ -241,7 +244,8 @@ Owns report-link issuance, bulk release operations, revoke/sent tracking, and pa
 3. Move frontend pages without redesign.
    - `src/pages/ReleaseCenterPage.tsx` has already been moved to `src/modules/release-center/pages/ReleaseCenterPage.tsx`.
    - Keep `src/pages/ReleaseCenterPage.tsx` as a compatibility shim until downstream imports are intentionally repointed.
-   - Move `src/pages/ParentReportPage.tsx` to `src/modules/release-center/pages/ParentReportPage.tsx`.
+   - `src/pages/ParentReportPage.tsx` has already been moved to `src/modules/release-center/pages/ParentReportPage.tsx`.
+   - Keep `src/pages/ParentReportPage.tsx` as a compatibility shim until downstream imports are intentionally repointed.
    - Keep current URL paths, guards, redirects, and shell boundaries unchanged.
 
 4. Move server services before route splitting.
