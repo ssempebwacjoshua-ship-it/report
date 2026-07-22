@@ -1,6 +1,6 @@
 ﻿import { describe, expect, it, afterEach } from "vitest";
 import { generateStudentCommentDraft, MAX_COMMENT_LENGTH } from "../../server/services/reportCommentService";
-import { COMMENT_LIMITS } from "../../shared/utils/reportComments";
+import { COMMENT_LIMITS } from "../../../../shared/utils/reportComments";
 
 // ── Test fixtures ─────────────────────────────────────────────────────────────
 

@@ -1,6 +1,6 @@
 ﻿import request from "supertest";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { signToken } from "../../server/services/authService";
+import { signToken } from "../../../../server/services/authService";
 
 // ── Module-level mocks (hoisted) ──────────────────────────────────────────────
 
@@ -44,7 +44,7 @@ vi.mock("../../server/services/reportCommentService", async () => {
   };
 });
 
-vi.mock("../../server/db/prisma", () => ({
+vi.mock("../../../../server/db/prisma", () => ({
   prisma: {
     school: { findUnique: schoolFindUnique },
     appSetting: { findUnique: appSettingFindUnique },
@@ -63,11 +63,11 @@ vi.mock("../../server/db/prisma", () => ({
 // ── Shared test setup ─────────────────────────────────────────────────────────
 
 describe("HIGH 3 ? report comment routes", () => {
-  let app: ReturnType<typeof import("../../server").createServer>;
+  let app: ReturnType<typeof import("../../../../server").createServer>;
   let authToken: string;
 
   beforeAll(async () => {
-    const { createServer } = await import("../../server");
+    const { createServer } = await import("../../../../server");
     app = createServer();
     authToken = signToken({
       userId: "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11",

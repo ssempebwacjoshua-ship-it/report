@@ -207,7 +207,6 @@ Owns academic reporting, report rendering, marks import workflows, marksheets, r
 ## Owned Tests
 
 - Current legacy tests still outside the module:
-  - `src/tests/routes/reportCommentRoutes.test.ts`
   - `src/tests/routes/reportIssueRoutes.test.ts`
   - `src/tests/routes/verifyRoutes.test.ts`
   - `src/tests/shared/remarksEngine.test.ts`
@@ -219,6 +218,8 @@ Owns academic reporting, report rendering, marks import workflows, marksheets, r
   - `src/modules/reports/tests/routes/geminiMarksImportRoutes.test.ts`
   - `src/modules/reports/tests/routes/importsRoutes.test.ts`
   - `src/modules/reports/tests/routes/marksheetsRoutes.test.ts`
+  - `src/modules/reports/tests/routes/promotionRoutes.test.ts`
+  - `src/modules/reports/tests/routes/reportCommentRoutes.test.ts`
   - `src/modules/reports/tests/services/marksImportHighTwo.test.ts`
   - `src/modules/reports/tests/services/marksImportValidator.test.ts`
   - `src/modules/reports/tests/services/geminiMarksImportService.test.ts`
@@ -226,6 +227,8 @@ Owns academic reporting, report rendering, marks import workflows, marksheets, r
   - `src/modules/reports/tests/services/marksheetFallbackGeometry.test.ts`
   - `src/modules/reports/tests/services/marksheetGeometryService.test.ts`
   - `src/modules/reports/tests/services/marksheetIdDetectionService.test.ts`
+  - `src/modules/reports/tests/services/reportAssistantContextService.test.ts`
+  - `src/modules/reports/tests/services/reportCommentService.test.ts`
   - `src/modules/reports/tests/services/reportEngine.test.ts`
   - `src/modules/reports/tests/services/tableDetection.test.ts`
   - `src/modules/reports/tests/ui/MarksheetsPage.test.tsx`

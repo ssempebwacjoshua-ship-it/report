@@ -1,6 +1,6 @@
 import request from "supertest";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { signToken } from "../../server/services/authService";
+import { signToken } from "../../../../server/services/authService";
 import { getNextClassCode } from "../../server/services/promotionService";
 
 // UUIDs for test fixtures — must have version bit (3rd group starts 4) and variant (4th starts 8-b)
@@ -72,7 +72,7 @@ const {
   auditLogCreate: vi.fn(async () => ({})),
 }));
 
-vi.mock("../../server/db/prisma", () => ({
+vi.mock("../../../../server/db/prisma", () => ({
   prisma: {
     school: { findUnique: schoolFindUnique },
     appSetting: { findUnique: appSettingFindUnique },
@@ -101,11 +101,11 @@ vi.mock("../../server/db/prisma", () => ({
 // ── Shared setup ──────────────────────────────────────────────────────────────
 
 describe("promotionRoutes", () => {
-  let app: ReturnType<typeof import("../../server").createServer>;
+  let app: ReturnType<typeof import("../../../../server").createServer>;
   let token: string;
 
   beforeAll(async () => {
-    const { createServer } = await import("../../server");
+    const { createServer } = await import("../../../../server");
     app = createServer();
     token = signToken({
       userId: ID.user,
