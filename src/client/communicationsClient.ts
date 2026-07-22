@@ -129,7 +129,7 @@ export async function sendCommunication(campaignId: string, body: {
 
 export async function fetchCommunicationStatus(campaignId: string): Promise<{
   campaign: { id: string; title: string; status: string };
-  deliveries: Array<{ status: string; _count: { status: number } }>;
+  progress: { QUEUED: number; PROCESSING: number; SENT: number; DELIVERED: number; FAILED: number };
 }> {
   const res = await fetch(`${API_BASE}/api/communications/campaigns/${campaignId}/status`, { headers: makeRequestHeaders() });
   if (!res.ok) throw new Error(await parseApiError(res, "Could not load communication status"));

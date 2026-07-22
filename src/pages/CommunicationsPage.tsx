@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
   approveCommunicationCampaign,
   createCommunicationCampaign,
@@ -99,7 +100,9 @@ const defaultTemplateForm: TemplateFormState = {
 };
 
 export function CommunicationsPage() {
+  const [searchParams] = useSearchParams();
   const { user } = useAuth();
+  const requestedCampaignId = searchParams.get("campaignId") ?? "";
   const [campaigns, setCampaigns] = useState<CommunicationCampaign[]>([]);
   const [templates, setTemplates] = useState<CommunicationTemplate[]>([]);
   const [reportContext, setReportContext] = useState<ReportContext | null>(null);
@@ -141,7 +144,12 @@ export function CommunicationsPage() {
       ]);
       if (campaignData.status === "fulfilled") {
         setCampaigns(campaignData.value.campaigns);
-        setSelectedCampaignId((current) => current || campaignData.value.campaigns[0]?.id || "");
+        setSelectedCampaignId((current) => {
+          const requestedExists = requestedCampaignId
+            && campaignData.value.campaigns.some((campaign) => campaign.id === requestedCampaignId);
+          if (requestedExists) return requestedCampaignId;
+          return current || campaignData.value.campaigns[0]?.id || "";
+        });
       } else {
         throw campaignData.reason;
       }
@@ -172,7 +180,7 @@ export function CommunicationsPage() {
 
   useEffect(() => {
     void load();
-  }, []);
+  }, [requestedCampaignId]);
 
   useEffect(() => {
     if (!selectedCampaignId) return;

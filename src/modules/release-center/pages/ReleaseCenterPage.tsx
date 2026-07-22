@@ -1,20 +1,23 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { ReportsSectionTabs } from "../../../components/reports/ReportsSectionTabs";
 import {
+  createOrReopenReleaseCommunication,
   fetchReleaseStatus,
   issueBulk,
   markSent,
   markSentBulk,
+  previewReleaseCommunication,
   revokeIssuedReport,
   revokeBulk,
-  sendReportReleasesBulk,
   type DeliveryStatus,
   type IssuedLinkData,
-  type ReportReleaseSendResult,
+  type ReleaseCommunicationPreview,
   type ReleaseFilters,
   type ReleaseRow,
   type ReleaseSummary,
 } from "../client/releaseCenterClient";
+import { fetchCommunicationStatus } from "../../../client/communicationsClient";
 import { fetchReportContext } from "../../../client/reportsClient";
 import { fetchSettings as loadSettings } from "../../../client/settingsClient";
 import { buildParentReportReleaseMessage, formatTermLabel } from "../../../shared/reportReleaseMessage";
@@ -149,8 +152,6 @@ function RowActions({
   schoolName,
   meta,
   onIssue,
-  onSendSms,
-  onSendEmail,
   onMarkSent,
   onRevoke,
   issuing,
@@ -160,8 +161,6 @@ function RowActions({
   schoolName: string;
   meta: { term: string; assessmentType: string };
   onIssue: () => void;
-  onSendSms: () => void;
-  onSendEmail: () => void;
   onMarkSent: () => void;
   onRevoke: () => void;
   issuing: boolean;
@@ -218,9 +217,6 @@ function RowActions({
               >
                 {copied === "msg" ? "Copied!" : "Copy message"}
               </button>
-              <button type="button" className="btn btn-success-secondary py-1 text-xs" onClick={onSendSms}>
-                Send via SMS
-              </button>
             </>
           ) : contact?.method === "EMAIL" ? (
             <>
@@ -230,9 +226,6 @@ function RowActions({
                 onClick={() => void copy(buildEmailBody(row, link, schoolName, meta), "msg")}
               >
                 {copied === "msg" ? "Copied!" : "Copy email body"}
-              </button>
-              <button type="button" className="btn btn-success-secondary py-1 text-xs" onClick={onSendEmail}>
-                Send via Email
               </button>
             </>
           ) : null}
@@ -266,6 +259,7 @@ const selectCls =
   "premium-control h-9 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-semibold text-slate-900 outline-none transition focus:border-blue-400 focus:bg-white";
 
 export function ReleaseCenterPage() {
+  const navigate = useNavigate();
   const [context, setContext] = useState<ReportContext | null>(null);
   const [schoolName, setSchoolName] = useState("School Connect");
   const [filters, setFilters] = useState<ReleaseFilters>({
@@ -289,9 +283,18 @@ export function ReleaseCenterPage() {
   const [assessmentMismatchWarning, setAssessmentMismatchWarning] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [activeFilter, setActiveFilter] = useState<"ALL" | "READY" | "MISSING_CONTACT" | "SENT" | "OPENED" | "DOWNLOADED" | "NEEDS_ATTENTION">("ALL");
-  const [sendChannel, setSendChannel] = useState<"SMS" | "EMAIL">("SMS");
-  const [sendPreview, setSendPreview] = useState<ReportReleaseSendResult | null>(null);
-  const [sendLoading, setSendLoading] = useState(false);
+  const [sendIntroduction, setSendIntroduction] = useState("");
+  const [sendPreview, setSendPreview] = useState<ReleaseCommunicationPreview | null>(null);
+  const [sendPreviewLoading, setSendPreviewLoading] = useState(false);
+  const [sendActionLoading, setSendActionLoading] = useState(false);
+  const [sendPreviewError, setSendPreviewError] = useState("");
+  const [existingCampaignProgress, setExistingCampaignProgress] = useState<{
+    QUEUED: number;
+    PROCESSING: number;
+    SENT: number;
+    DELIVERED: number;
+    FAILED: number;
+  } | null>(null);
 
   useEffect(() => {
     Promise.all([fetchReportContext(), loadSettings()])
@@ -363,9 +366,13 @@ export function ReleaseCenterPage() {
   });
   const selectedRows = visibleRows.filter((row) => selectedIds.has(row.studentId));
   const selectedIssuableRows = selectedRows.filter((row) => canIssueReportLink(row, issuingIds.has(row.studentId)));
+  const sendableVisibleRows = visibleRows.filter((row) => buildIssuedLinkFromRow(row) && !row.isExpired && row.deliveryStatus !== "REVOKED" && row.deliveryStatus !== "SUPERSEDED");
+  const selectedSendableRows = selectedRows.filter((row) => buildIssuedLinkFromRow(row) && !row.isExpired && row.deliveryStatus !== "REVOKED" && row.deliveryStatus !== "SUPERSEDED");
   const allVisibleSelected = visibleRows.length > 0 && visibleRows.every((row) => selectedIds.has(row.studentId));
   const anySelected = selectedRows.length > 0;
   const anyIssuableSelected = selectedIssuableRows.length > 0;
+  const sendTargetRows = selectedSendableRows.length > 0 ? selectedSendableRows : sendableVisibleRows;
+  const sendTargetIds = sendTargetRows.map((row) => row.studentId);
 
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -533,71 +540,65 @@ export function ReleaseCenterPage() {
     }
   }
 
-  async function handlePreviewSend() {
-    if (selectedRows.length === 0) return;
-    setSendLoading(true);
-    setError("");
+  async function loadExistingCampaignProgress(campaignId: string) {
     try {
-      const result = await sendReportReleasesBulk({
-        studentIds: selectedRows.map((row) => row.studentId),
-        classId: filters.classId,
-        schoolCode: filters.schoolCode,
-        channel: sendChannel,
-        previewOnly: true,
-        confirm: false,
-      });
-      setSendPreview(result);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not preview report send.");
-    } finally {
-      setSendLoading(false);
+      const result = await fetchCommunicationStatus(campaignId);
+      setExistingCampaignProgress(result.progress);
+    } catch {
+      setExistingCampaignProgress(null);
     }
   }
 
-  async function handleSendSelectedReports() {
-    if (selectedRows.length === 0) return;
-    if (!window.confirm(`Send ${selectedRows.length} selected report${selectedRows.length === 1 ? "" : "s"} via ${sendChannel}?`)) return;
-    setSendLoading(true);
-    setError("");
+  async function handlePreviewCommunication() {
+    if (sendTargetIds.length === 0) return;
+    setSendPreviewLoading(true);
+    setSendPreviewError("");
+    setExistingCampaignProgress(null);
     try {
-      const result = await sendReportReleasesBulk({
-        studentIds: selectedRows.map((row) => row.studentId),
+      const result = await previewReleaseCommunication({
         classId: filters.classId,
-        schoolCode: filters.schoolCode,
-        channel: sendChannel,
-        previewOnly: false,
-        confirm: true,
+        streamId: filters.streamId,
+        academicYearId: filters.academicYearId,
+        termId: filters.termId,
+        assessmentType: (filters.assessmentType ?? "TERM_SUMMARY") as "BOT" | "MOT" | "EOT" | "TERM_SUMMARY",
+        studentIds: sendTargetIds,
+        introduction: sendIntroduction,
+        channel: "SMS",
       });
-      setSendPreview(result);
-      setBulkResult(
-        `Sent ${result.submitted} reports.${result.failed ? ` ${result.failed} failed.` : ""}${result.missingContact ? ` ${result.missingContact} missing valid contact.` : ""}${result.skippedDuplicate ? ` ${result.skippedDuplicate} duplicate send skipped.` : ""}`,
-      );
-      void loadStatus(filters, search);
+      setSendPreview(result.preview);
+      if (result.preview.existingCampaign) {
+        void loadExistingCampaignProgress(result.preview.existingCampaign.id);
+      }
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not send selected reports.");
+      setSendPreviewError(e instanceof Error ? e.message : "Could not preview report communication.");
     } finally {
-      setSendLoading(false);
+      setSendPreviewLoading(false);
     }
   }
 
-  async function handleSendSingle(row: ReleaseRow, channel: "SMS" | "EMAIL") {
-    setSendLoading(true);
-    setError("");
+  async function handleCreateOrOpenCommunication(forceNewVersion = false) {
+    if (sendTargetIds.length === 0) return;
+    setSendActionLoading(true);
+    setSendPreviewError("");
     try {
-      const result = await sendReportReleasesBulk({
-        studentIds: [row.studentId],
+      const result = await createOrReopenReleaseCommunication({
         classId: filters.classId,
-        schoolCode: filters.schoolCode,
-        channel,
-        previewOnly: false,
-        confirm: true,
+        streamId: filters.streamId,
+        academicYearId: filters.academicYearId,
+        termId: filters.termId,
+        assessmentType: (filters.assessmentType ?? "TERM_SUMMARY") as "BOT" | "MOT" | "EOT" | "TERM_SUMMARY",
+        studentIds: sendTargetIds,
+        introduction: sendIntroduction,
+        channel: "SMS",
+        forceNewVersion,
       });
-      setBulkResult(`Sent ${result.submitted} report${result.submitted === 1 ? "" : "s"} via ${channel}.`);
-      void loadStatus(filters, search);
+      setSendPreview(result.preview);
+      setExistingCampaignProgress(result.progress);
+      navigate(`/communications?campaignId=${encodeURIComponent(result.campaign.id)}`);
     } catch (e) {
-      setError(e instanceof Error ? e.message : `Could not send report via ${channel}.`);
+      setSendPreviewError(e instanceof Error ? e.message : "Could not create report communication.");
     } finally {
-      setSendLoading(false);
+      setSendActionLoading(false);
     }
   }
 
@@ -678,7 +679,7 @@ export function ReleaseCenterPage() {
         <div>
           <h1 className="mt-1 text-xl font-bold tracking-tight text-slate-950 sm:text-2xl">Release Center</h1>
           <p className="mt-1 text-sm text-slate-600">
-            Bulk-generate parent report links and deliver them to parents by SMS or email.
+            Bulk-generate parent report links and prepare SMS delivery campaigns through Communication.
           </p>
         </div>
         <div className="no-print flex flex-wrap gap-2">
@@ -709,50 +710,105 @@ export function ReleaseCenterPage() {
       </div>
 
       <section className="no-print rounded-xl border border-slate-200 bg-white px-4 py-4">
-        <div className="flex flex-wrap items-end justify-between gap-3">
+        <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <h2 className="text-base font-bold text-slate-900">Send reports to parents</h2>
-            <p className="mt-1 text-sm text-slate-600">
-              Preview delivery counts first, then send selected reports through real SMS or email delivery.
+            <h2 className="text-base font-bold text-slate-900">Send released reports through Communication</h2>
+            <p className="mt-1 max-w-3xl text-sm text-slate-600">
+              Preview the current released-report batch, then create or reopen a Communication campaign for approval and sending.
             </p>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <select
-              className={selectCls}
-              value={sendChannel}
-              onChange={(e) => setSendChannel(e.target.value as "SMS" | "EMAIL")}
-            >
-              <option value="SMS">SMS</option>
-              <option value="EMAIL">Email</option>
-            </select>
-            <button
-              type="button"
-              className="btn btn-secondary"
-              onClick={() => void handlePreviewSend()}
-              disabled={!anySelected || sendLoading}
-            >
-              {sendLoading ? "Working..." : "Preview send"}
-            </button>
-            <button
-              type="button"
-              className="btn btn-primary"
-              onClick={() => void handleSendSelectedReports()}
-              disabled={!anySelected || sendLoading}
-            >
-              Send reports to parents
-            </button>
+          <div className="rounded-xl bg-slate-50 px-3 py-2 text-xs font-medium text-slate-600">
+            SMS handoff only
           </div>
         </div>
-        {sendPreview ? (
-          <div className="mt-3 grid gap-2 text-sm text-slate-700 sm:grid-cols-2 xl:grid-cols-3">
-            <div>Total selected: {sendPreview.preview.totalSelected}</div>
-            <div>Links to issue: {sendPreview.preview.issuableLinks}</div>
-            <div>Missing contacts: {sendPreview.preview.missingContacts}</div>
-            <div>Already sent: {sendPreview.preview.alreadySent}</div>
-            <div>SMS segments: {sendPreview.preview.estimatedSmsSegments}</div>
-            <div>SMS credits: {sendPreview.preview.estimatedSmsCredits}</div>
+        <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(0,1.2fr)_minmax(280px,0.8fr)]">
+          <div className="grid gap-3">
+            <label className="grid gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
+              Message introduction
+              <textarea
+                className="premium-control min-h-[108px] rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-blue-400 focus:bg-white"
+                value={sendIntroduction}
+                onChange={(e) => setSendIntroduction(e.target.value)}
+                placeholder="Add an optional introduction before the report links."
+              />
+            </label>
+            <div className="grid gap-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-600">
+              <p>Selection mode: {selectedSendableRows.length > 0 ? "Selected eligible students" : "All eligible students in the current view"}</p>
+              <p>Eligible released students: {sendTargetIds.length}</p>
+              <p>Excluded from campaign preview: {Math.max(visibleRows.length - sendTargetIds.length, 0)}</p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => void handlePreviewCommunication()}
+                disabled={sendTargetIds.length === 0 || sendPreviewLoading || sendActionLoading}
+              >
+                {sendPreviewLoading ? "Previewing..." : "Preview communication"}
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={() => void handleCreateOrOpenCommunication(false)}
+                disabled={sendTargetIds.length === 0 || sendPreviewLoading || sendActionLoading}
+              >
+                {sendActionLoading ? "Opening..." : "Open in Communication"}
+              </button>
+              {sendPreview?.existingCampaign ? (
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => void handleCreateOrOpenCommunication(true)}
+                  disabled={sendPreviewLoading || sendActionLoading}
+                >
+                  Create new version
+                </button>
+              ) : null}
+            </div>
+            {sendPreviewError ? (
+              <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                {sendPreviewError}
+              </div>
+            ) : null}
           </div>
-        ) : null}
+          <div className="grid gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-700">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Channel</p>
+              <p className="mt-1 font-semibold text-slate-900">SMS</p>
+            </div>
+            {sendPreview ? (
+              <>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <div>Selected students: {sendPreview.counts.selectedStudents}</div>
+                  <div>Eligible recipients: {sendPreview.counts.eligibleRecipients}</div>
+                  <div>Missing contacts: {sendPreview.counts.missingContacts}</div>
+                  <div>Invalid numbers: {sendPreview.counts.invalidNumbers}</div>
+                  <div>Duplicate numbers: {sendPreview.counts.duplicateGuardianNumbers}</div>
+                  <div>SMS segments: {sendPreview.counts.smsSegments}</div>
+                </div>
+                <div className="rounded-xl border border-slate-200 bg-white px-3 py-3">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Estimated cost</p>
+                  <p className="mt-1 text-sm text-slate-700">{sendPreview.estimatedCostNote}</p>
+                </div>
+                {sendPreview.existingCampaign ? (
+                  <div className="rounded-xl border border-blue-200 bg-blue-50 px-3 py-3">
+                    <p className="font-semibold text-blue-900">Existing campaign found</p>
+                    <p className="mt-1 text-sm text-blue-800">
+                      {sendPreview.existingCampaign.title} ({sendPreview.existingCampaign.status})
+                    </p>
+                    {existingCampaignProgress ? (
+                      <p className="mt-1 text-xs text-blue-800">
+                        Progress: queued {existingCampaignProgress.QUEUED}, processing {existingCampaignProgress.PROCESSING}, sent {existingCampaignProgress.SENT}, delivered {existingCampaignProgress.DELIVERED}, failed {existingCampaignProgress.FAILED}
+                      </p>
+                    ) : null}
+                  </div>
+                ) : null}
+              </>
+            ) : (
+              <p className="text-sm text-slate-600">Preview first to see recipient counts, estimated SMS cost, and whether an existing campaign can be reopened.</p>
+            )}
+          </div>
+        </div>
       </section>
 
       {anySelected ? (
@@ -777,7 +833,7 @@ export function ReleaseCenterPage() {
             className="btn btn-secondary"
             onClick={() => void handleBulkMarkSent()}
           >
-            Mark selected as manually sent
+            Mark selected as sent
           </button>
           <button
             type="button"
@@ -994,8 +1050,6 @@ export function ReleaseCenterPage() {
                           schoolName={schoolName}
                           meta={meta}
                           onIssue={() => void handleIssueOne(row)}
-                          onSendSms={() => void handleSendSingle(row, "SMS")}
-                          onSendEmail={() => void handleSendSingle(row, "EMAIL")}
                           onMarkSent={() => void handleMarkSent(row)}
                           onRevoke={() => void handleRevoke(row)}
                           issuing={issuingIds.has(row.studentId)}
@@ -1043,8 +1097,6 @@ export function ReleaseCenterPage() {
                           schoolName={schoolName}
                           meta={meta}
                           onIssue={() => void handleIssueOne(row)}
-                          onSendSms={() => void handleSendSingle(row, "SMS")}
-                          onSendEmail={() => void handleSendSingle(row, "EMAIL")}
                           onMarkSent={() => void handleMarkSent(row)}
                           onRevoke={() => void handleRevoke(row)}
                           issuing={issuingIds.has(row.studentId)}

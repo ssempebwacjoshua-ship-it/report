@@ -10,7 +10,9 @@ const mockMarkSent = vi.fn();
 const mockMarkSentBulk = vi.fn();
 const mockRevokeIssuedReport = vi.fn();
 const mockRevokeBulk = vi.fn();
-const mockSendReportReleasesBulk = vi.fn();
+const mockPreviewReleaseCommunication = vi.fn();
+const mockCreateOrReopenReleaseCommunication = vi.fn();
+const mockFetchCommunicationStatus = vi.fn();
 const mockFetchReportContext = vi.fn();
 const mockFetchSettings = vi.fn();
 
@@ -21,11 +23,16 @@ vi.mock("../../client/releaseCenterClient", () => ({
   markSentBulk: (...args: unknown[]) => mockMarkSentBulk(...args),
   revokeIssuedReport: (...args: unknown[]) => mockRevokeIssuedReport(...args),
   revokeBulk: (...args: unknown[]) => mockRevokeBulk(...args),
-  sendReportReleasesBulk: (...args: unknown[]) => mockSendReportReleasesBulk(...args),
+  previewReleaseCommunication: (...args: unknown[]) => mockPreviewReleaseCommunication(...args),
+  createOrReopenReleaseCommunication: (...args: unknown[]) => mockCreateOrReopenReleaseCommunication(...args),
 }));
 
 vi.mock("../../../../client/reportsClient", () => ({
   fetchReportContext: () => mockFetchReportContext(),
+}));
+
+vi.mock("../../../../client/communicationsClient", () => ({
+  fetchCommunicationStatus: (...args: unknown[]) => mockFetchCommunicationStatus(...args),
 }));
 
 vi.mock("../../../../client/settingsClient", () => ({
@@ -74,6 +81,52 @@ function buildStatusResponse(rows: Array<Record<string, unknown>>): ReleaseStatu
   };
 }
 
+function buildCommunicationPreview() {
+  return {
+    channel: "SMS" as const,
+    channelAvailable: true,
+    unavailableReason: null,
+    batchLabel: "Term 1 TERM_SUMMARY reports",
+    introduction: "",
+    reportLinksPlaceholder: "{{reportLinksText}}" as const,
+    messageTemplate: "Dear Parent,\n\n{{reportLinksText}}",
+    selectedStudents: [],
+    recipients: [],
+    counts: {
+      selectedStudents: 1,
+      validParentNumbers: 1,
+      missingContacts: 0,
+      invalidNumbers: 0,
+      duplicateGuardianNumbers: 0,
+      excludedStudents: 0,
+      smsSegments: 1,
+      estimatedCostMinor: 120,
+      estimatedCostCurrency: "UGX",
+      eligibleRecipients: 1,
+    },
+    estimatedCostNote: "Estimated from 1 SMS segment at 120 UGX each.",
+    existingCampaign: null,
+    source: {
+      type: "RELEASE_CENTRE" as const,
+      batchId: "batch-1",
+      sourceKey: "source-1",
+      version: 1,
+      classId: "class-1",
+      streamId: null,
+      academicYearId: "ay-1",
+      termId: "term-1",
+      academicYearName: "2025/2026",
+      termName: "Term 1",
+      assessmentType: "TERM_SUMMARY",
+      selectedStudentIds: ["student-1"],
+      selectedIssuedReportIds: ["issued-1"],
+      selectedCount: 1,
+      channel: "SMS" as const,
+      createdFrom: "release-centre" as const,
+    },
+  };
+}
+
 async function renderPage() {
   render(
     <MemoryRouter initialEntries={["/reports/release"]}>
@@ -107,21 +160,20 @@ describe("ReleaseCenterPage", () => {
     mockMarkSentBulk.mockResolvedValue({ updated: 0, skipped: [] });
     mockRevokeIssuedReport.mockResolvedValue(undefined);
     mockRevokeBulk.mockResolvedValue({ updated: 0, skipped: [] });
-    mockSendReportReleasesBulk.mockResolvedValue({
-      preview: {
-        totalSelected: 1,
-        issuableLinks: 1,
-        missingContacts: 0,
-        alreadySent: 0,
-        estimatedSmsSegments: 1,
-        estimatedSmsCredits: 1,
-      },
-      submitted: 0,
-      failed: 0,
-      skippedDuplicate: 0,
-      missingContact: 0,
-      alreadySent: 0,
-      skipped: [],
+    const preview = buildCommunicationPreview();
+    mockPreviewReleaseCommunication.mockResolvedValue({
+      preview,
+    });
+    mockCreateOrReopenReleaseCommunication.mockResolvedValue({
+      reopened: false,
+      duplicate: false,
+      campaign: { id: "campaign-1", title: "Term 1 TERM_SUMMARY reports SMS", status: "DRAFT", version: 1 },
+      progress: { QUEUED: 0, PROCESSING: 0, SENT: 0, DELIVERED: 0, FAILED: 0 },
+      preview,
+    });
+    mockFetchCommunicationStatus.mockResolvedValue({
+      campaign: { id: "campaign-1", title: "Term 1 TERM_SUMMARY reports SMS", status: "DRAFT" },
+      progress: { QUEUED: 1, PROCESSING: 0, SENT: 2, DELIVERED: 3, FAILED: 0 },
     });
   });
 
@@ -162,63 +214,89 @@ describe("ReleaseCenterPage", () => {
 
     expect(await screen.findByRole("button", { name: "Issue links for selected" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Copy selected messages" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Mark selected as manually sent" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Mark selected as sent" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Revoke selected links" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Clear selection" })).toBeInTheDocument();
   });
 
-  it("shows bulk send controls and previews selected report delivery counts", async () => {
-    mockFetchReleaseStatus.mockResolvedValue(buildStatusResponse([buildRow()]));
+  it("previews release communication handoff for selected released rows", async () => {
+    mockFetchReleaseStatus.mockResolvedValue(buildStatusResponse([
+      buildRow({
+        parentLink: "https://school-connect.test/parent/r/issued-1",
+        issuedReport: {
+          id: "issued-1",
+          referenceCode: "REF-1",
+          publicShortCode: "SHORT1",
+          status: "ISSUED",
+          issuedAt: "2026-07-20T08:00:00.000Z",
+          expiresAt: "2026-07-30T08:00:00.000Z",
+          issuedByName: "Admin",
+          viewedAt: null,
+          lastViewedAt: null,
+          openCount: 0,
+          downloadedAt: null,
+          lastDownloadedAt: null,
+          downloadCount: 0,
+          sentAt: null,
+          revokedAt: null,
+          revokeReason: null,
+        },
+        deliveryStatus: "READY_TO_SEND",
+      }),
+    ]));
 
     await renderPage();
 
-    expect(screen.getByRole("heading", { name: "Send reports to parents" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Send released reports through Communication" })).toBeInTheDocument();
     const row = getDesktopRow("Ada Lovelace");
     fireEvent.click(within(row).getByRole("checkbox"));
-    fireEvent.click(screen.getByRole("button", { name: "Preview send" }));
+    fireEvent.click(screen.getByRole("button", { name: "Preview communication" }));
 
-    await waitFor(() => expect(mockSendReportReleasesBulk).toHaveBeenCalledWith(expect.objectContaining({
+    await waitFor(() => expect(mockPreviewReleaseCommunication).toHaveBeenCalledWith(expect.objectContaining({
       channel: "SMS",
-      confirm: false,
-      previewOnly: true,
+      introduction: "",
       studentIds: ["student-1"],
     })));
-    expect(await screen.findByText(/Total selected:/i)).toBeInTheDocument();
-    expect(screen.getByText(/SMS credits:/i)).toBeInTheDocument();
+    expect(await screen.findByText(/Eligible recipients: 1/i)).toBeInTheDocument();
+    expect(screen.getByText(/Estimated from 1 SMS segment at 120 UGX each./i)).toBeInTheDocument();
   });
 
-  it("shows provider setup errors from report release send", async () => {
-    mockFetchReleaseStatus.mockResolvedValue(buildStatusResponse([buildRow()]));
-    mockSendReportReleasesBulk
-      .mockResolvedValueOnce({
-        preview: {
-          totalSelected: 1,
-          issuableLinks: 1,
-          missingContacts: 0,
-          alreadySent: 0,
-          estimatedSmsSegments: 1,
-          estimatedSmsCredits: 1,
+  it("opens or reuses a communications campaign for report delivery", async () => {
+    mockFetchReleaseStatus.mockResolvedValue(buildStatusResponse([
+      buildRow({
+        parentLink: "https://school-connect.test/parent/r/issued-1",
+        issuedReport: {
+          id: "issued-1",
+          referenceCode: "REF-1",
+          publicShortCode: "SHORT1",
+          status: "ISSUED",
+          issuedAt: "2026-07-20T08:00:00.000Z",
+          expiresAt: "2026-07-30T08:00:00.000Z",
+          issuedByName: "Admin",
+          viewedAt: null,
+          lastViewedAt: null,
+          openCount: 0,
+          downloadedAt: null,
+          lastDownloadedAt: null,
+          downloadCount: 0,
+          sentAt: null,
+          revokedAt: null,
+          revokeReason: null,
         },
-        submitted: 0,
-        failed: 0,
-        skippedDuplicate: 0,
-        missingContact: 0,
-        alreadySent: 0,
-        skipped: [],
-      })
-      .mockRejectedValueOnce(new Error("SMS_PROVIDER_DISABLED, SMS_API_KEY_MISSING"));
-    vi.spyOn(window, "confirm").mockReturnValue(true);
+        deliveryStatus: "READY_TO_SEND",
+      }),
+    ]));
 
     await renderPage();
 
     const row = getDesktopRow("Ada Lovelace");
     fireEvent.click(within(row).getByRole("checkbox"));
-    fireEvent.click(screen.getByRole("button", { name: "Preview send" }));
-    await screen.findByText(/SMS credits:/i);
-    fireEvent.click(screen.getByRole("button", { name: "Send reports to parents" }));
+    fireEvent.click(screen.getByRole("button", { name: "Open in Communication" }));
 
-    expect(await screen.findByText("SMS_PROVIDER_DISABLED, SMS_API_KEY_MISSING")).toBeInTheDocument();
-    expect(screen.queryByText("Could not send report links")).not.toBeInTheDocument();
+    await waitFor(() => expect(mockCreateOrReopenReleaseCommunication).toHaveBeenCalledWith(expect.objectContaining({
+      channel: "SMS",
+      studentIds: ["student-1"],
+    })));
   });
 
   it("shows enabled Reissue for a READY row with a revoked report", async () => {
