@@ -55,10 +55,14 @@ Owns academic reporting, report rendering, marks import workflows, marksheets, r
 - Current legacy files still outside the module:
   - `src/server/services/marksImportService.ts`
   - `src/server/services/marksheetContextService.ts`
-  - `src/server/services/marksheetGeometryService.ts`
   - `src/server/services/marksheetIdDetectionService.ts`
   - `src/server/services/marksheetTableDetection.ts`
   - `src/server/services/promotionService.ts`
+- Module-owned service now moved into:
+  - `src/modules/reports/server/services/marksheetGeometryService.ts`
+- Compatibility shim retained at:
+  - `src/server/services/marksheetGeometryService.ts`
+- Existing service imports remain supported through the shim
 - Module-owned service now moved into:
   - `src/modules/reports/server/services/subjectComponentResolver.ts`
 - Compatibility shim retained at:
@@ -234,6 +238,11 @@ Owns academic reporting, report rendering, marks import workflows, marksheets, r
 - Compatibility shim retained at:
   - `src/client/marksheetsClient.ts`
 - Module path is now canonical and runtime behavior is unchanged
+- Marksheet geometry service moved into:
+  - `src/modules/reports/server/services/marksheetGeometryService.ts`
+- Compatibility shim retained at:
+  - `src/server/services/marksheetGeometryService.ts`
+- Module path is now canonical and runtime behavior is unchanged
 - Subject component resolver moved into:
   - `src/modules/reports/server/services/subjectComponentResolver.ts`
 - Compatibility shim retained at:
@@ -293,6 +302,8 @@ Owns academic reporting, report rendering, marks import workflows, marksheets, r
 - `src/pages/MarksImportPage.tsx` (compatibility shim)
 - `src/modules/reports/pages/MarksheetsPage.tsx`
 - `src/pages/MarksheetsPage.tsx` (compatibility shim)
+- `src/modules/reports/server/services/marksheetGeometryService.ts`
+- `src/server/services/marksheetGeometryService.ts` (compatibility shim)
 - `src/modules/reports/server/services/subjectComponentResolver.ts`
 - `src/server/services/subjectComponentResolver.ts` (compatibility shim)
 - `src/modules/reports/server/services/scoreValidationService.ts`
