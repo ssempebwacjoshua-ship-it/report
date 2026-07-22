@@ -22,11 +22,11 @@ vi.mock("../../client/releaseCenterClient", () => ({
   revokeBulk: (...args: unknown[]) => mockRevokeBulk(...args),
 }));
 
-vi.mock("../../client/reportsClient", () => ({
+vi.mock("../../../../client/reportsClient", () => ({
   fetchReportContext: () => mockFetchReportContext(),
 }));
 
-vi.mock("../../client/settingsClient", () => ({
+vi.mock("../../../../client/settingsClient", () => ({
   fetchSettings: () => mockFetchSettings(),
 }));
 

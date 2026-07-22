@@ -76,7 +76,6 @@ Owns report-link issuance, bulk release operations, revoke/sent tracking, and pa
 ## Owned Tests
 
 - Current legacy tests still outside the module:
-  - `src/tests/ui/ReleaseCenterPage.test.tsx`
   - `src/tests/ui/ParentReportPage.test.tsx`
   - `src/tests/shared/reportReleaseMessage.test.ts`
 - Module-owned test now moved into:
@@ -84,6 +83,7 @@ Owns report-link issuance, bulk release operations, revoke/sent tracking, and pa
   - `src/modules/release-center/tests/routes/reportIssueRoutes.test.ts`
   - `src/modules/release-center/tests/routes/parentRoutes.test.ts`
   - `src/modules/release-center/tests/routes/releaseCenterWorkflow.test.ts`
+  - `src/modules/release-center/tests/ui/ReleaseCenterPage.test.tsx`
 - Cross-module regression coverage that currently exercises release-center behavior:
   - `src/tests/security/tenantIsolation.test.ts`
   - `src/tests/ui/ReportsPage.test.tsx`
@@ -223,7 +223,7 @@ Owns report-link issuance, bulk release operations, revoke/sent tracking, and pa
 - `src/modules/release-center/tests/routes/parentRoutes.test.ts`
 - `src/modules/release-center/tests/routes/reportIssueRoutes.test.ts`
 - `src/modules/release-center/tests/routes/releaseCenterWorkflow.test.ts`
-- `src/tests/ui/ReleaseCenterPage.test.tsx`
+- `src/modules/release-center/tests/ui/ReleaseCenterPage.test.tsx`
 - `src/tests/ui/ParentReportPage.test.tsx`
 - `src/tests/shared/reportReleaseMessage.test.ts`
 - `src/tests/security/tenantIsolation.test.ts`
