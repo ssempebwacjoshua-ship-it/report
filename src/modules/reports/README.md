@@ -197,7 +197,6 @@ Owns academic reporting, report rendering, marks import workflows, marksheets, r
 ## Owned Tests
 
 - Current legacy tests still outside the module:
-  - `src/tests/routes/imports*`
   - `src/tests/routes/marksheetsRoutes.test.ts`
   - `src/tests/routes/reportCommentRoutes.test.ts`
   - `src/tests/routes/reportIssueRoutes.test.ts`
@@ -211,6 +210,7 @@ Owns academic reporting, report rendering, marks import workflows, marksheets, r
   - `src/tests/ui/MarksheetsPage.test.tsx`
 - Module-owned tests now moved into:
   - `src/modules/reports/tests/client/importsClient.test.ts`
+  - `src/modules/reports/tests/routes/importsAtomicity.test.ts`
   - `src/modules/reports/tests/services/reportEngine.test.ts`
   - `src/modules/reports/tests/routes/reportsRoutes.test.ts`
   - `src/modules/reports/tests/ui/ReportsPage.test.tsx`

@@ -63,9 +63,9 @@ afterEach(() => {
   vi.resetModules();
   vi.clearAllMocks();
   vi.restoreAllMocks();
-  vi.doUnmock("../../server/db/prisma");
+  vi.doUnmock("../../../../server/db/prisma");
   vi.doUnmock("../../server/repositories/settingsRepository");
-  vi.doUnmock("../../server/services/scanImportValidator");
+  vi.doUnmock("../../../../server/services/scanImportValidator");
 });
 
 describe("scan commit atomicity", () => {
@@ -150,14 +150,14 @@ describe("scan commit atomicity", () => {
       }),
     };
 
-    vi.doMock("../../server/db/prisma", () => ({ prisma }));
+    vi.doMock("../../../../server/db/prisma", () => ({ prisma }));
     vi.doMock("../../server/repositories/settingsRepository", () => ({
       getSettingsSections: vi.fn(async () => ({
         ocr: { minimumConfidenceForSuggestion: 0.6 },
         approval: { keepAuditTrail: false, requireDryRunBeforeCommit: false },
       })),
     }));
-    vi.doMock("../../server/services/scanImportValidator", () => ({
+    vi.doMock("../../../../server/services/scanImportValidator", () => ({
       validateScanRows: vi.fn((_rows: unknown) => reviewedRows()),
       parseScanMark: vi.fn((value: string) => value),
     }));
@@ -251,14 +251,14 @@ describe("scan commit atomicity", () => {
       }),
     };
 
-    vi.doMock("../../server/db/prisma", () => ({ prisma }));
+    vi.doMock("../../../../server/db/prisma", () => ({ prisma }));
     vi.doMock("../../server/repositories/settingsRepository", () => ({
       getSettingsSections: vi.fn(async () => ({
         ocr: { minimumConfidenceForSuggestion: 0.6 },
         approval: { keepAuditTrail: false, requireDryRunBeforeCommit: false },
       })),
     }));
-    vi.doMock("../../server/services/scanImportValidator", () => ({
+    vi.doMock("../../../../server/services/scanImportValidator", () => ({
       validateScanRows: vi.fn((_rows: unknown) => reviewedRows()),
       parseScanMark: vi.fn((value: string) => value),
     }));
@@ -333,14 +333,14 @@ describe("scan commit atomicity", () => {
       }),
     };
 
-    vi.doMock("../../server/db/prisma", () => ({ prisma }));
+    vi.doMock("../../../../server/db/prisma", () => ({ prisma }));
     vi.doMock("../../server/repositories/settingsRepository", () => ({
       getSettingsSections: vi.fn(async () => ({
         ocr: { minimumConfidenceForSuggestion: 0.6 },
         approval: { keepAuditTrail: false, requireDryRunBeforeCommit: false },
       })),
     }));
-    vi.doMock("../../server/services/scanImportValidator", () => ({
+    vi.doMock("../../../../server/services/scanImportValidator", () => ({
       validateScanRows: vi.fn((_rows: unknown) => reviewedRows()),
       parseScanMark: vi.fn((value: string) => value),
     }));
