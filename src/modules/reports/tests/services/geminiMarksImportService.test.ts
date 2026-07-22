@@ -4,7 +4,7 @@ import {
   classifyMark,
   type ExpectedStudent,
 } from "../../server/services/geminiMarksImportService";
-import type { GeminiExtractedMarkRow } from "../../server/services/geminiOcrService";
+import type { GeminiExtractedMarkRow } from "../../../../server/services/geminiOcrService";
 
 const STUDENTS: ExpectedStudent[] = [
   { studentId: "db-1", admissionNumber: "SC2026-00001", studentName: "Alice Nantongo" },
