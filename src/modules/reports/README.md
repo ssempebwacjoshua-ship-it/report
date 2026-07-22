@@ -38,9 +38,13 @@ Owns academic reporting, report rendering, marks import workflows, marksheets, r
 
 - API: `/api/reports*`, `/api/imports/*`, `/api/marksheets/*`, `/api/verify/:code`
 - Current route files still outside the module:
-  - `src/server/routes/importsRoutes.ts`
   - `src/server/routes/marksheetsRoutes.ts`
   - `src/server/routes/reportIssueRoutes.ts`
+- Module-owned route now moved into:
+  - `src/modules/reports/server/routes/importsRoutes.ts`
+- Compatibility shim retained at:
+  - `src/server/routes/importsRoutes.ts`
+- Existing route registration imports remain supported through the shim
 - Module-owned route now moved into:
   - `src/modules/reports/server/routes/verifyRoutes.ts`
 - Compatibility shim retained at:
@@ -240,6 +244,11 @@ Owns academic reporting, report rendering, marks import workflows, marksheets, r
 - Compatibility shim retained at:
   - `src/server/routes/reportsRoutes.ts`
 - Existing route registration imports remain supported through the shim
+- Imports routes moved into:
+  - `src/modules/reports/server/routes/importsRoutes.ts`
+- Compatibility shim retained at:
+  - `src/server/routes/importsRoutes.ts`
+- Module path is now canonical and runtime behavior is unchanged
 - Report engine moved into:
   - `src/modules/reports/server/services/reportEngine.ts`
 - Compatibility shim retained at:
