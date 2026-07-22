@@ -16,8 +16,14 @@ Owns academic reporting, report rendering, marks import workflows, marksheets, r
 ## Owned Frontend Routes/Pages
 
 - Browser: `/report-lab/reports`, `/report-lab/imports/marks`, `/report-lab/marksheets`, `/report-lab/verify/:code`
-- Current legacy files:
+- Module-owned page now moved into:
+  - `src/modules/reports/pages/ReportsPage.tsx`
+- Compatibility shim retained at:
   - `src/pages/ReportsPage.tsx`
+- Browser routes remain unchanged through the shim
+- Intentional cross-module dependency retained for report issuing/release:
+  - `src/modules/reports/pages/ReportsPage.tsx` depends on `src/modules/release-center/client/issueReportClient.ts`
+  - Release-center remains the owner of report issue/release behavior
 - Module-owned page now moved into:
   - `src/modules/reports/pages/VerifyPage.tsx`
 - Compatibility shim retained at:
@@ -233,6 +239,12 @@ Owns academic reporting, report rendering, marks import workflows, marksheets, r
 - Skeleton only
 - Ownership contract defined
 - Reports still consume the release-center-owned issue report client through a compatibility shim
+- Reports page moved into:
+  - `src/modules/reports/pages/ReportsPage.tsx`
+- Compatibility shim retained at:
+  - `src/pages/ReportsPage.tsx`
+- Module path is now canonical and browser/runtime behavior is unchanged
+- Reports page intentionally depends on the release-center-owned issue report client for report issuing/release
 - Verify routes moved into:
   - `src/modules/reports/server/routes/verifyRoutes.ts`
 - Compatibility shim retained at:
