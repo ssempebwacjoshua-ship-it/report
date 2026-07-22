@@ -101,18 +101,20 @@ function renderSidebar(pathname = "/dashboard", collapsed = false) {
 }
 
 describe("Sidebar navigation", () => {
-  it("shows the Report Lab workflow links", async () => {
+  it("shows only the main Report Lab destinations", async () => {
     authState.user = { name: "Test Admin", role: "ADMIN_OPERATOR" };
     renderSidebar("/reports");
 
     await waitFor(() => expect(screen.getByText("REPORT LAB")).toBeInTheDocument());
     expect(screen.getByRole("link", { name: /dashboard/i })).toHaveAttribute("href", "/dashboard");
     expect(screen.getByRole("link", { name: /students/i })).toHaveAttribute("href", "/students");
-    expect(screen.getByRole("link", { name: /marks import/i })).toHaveAttribute("href", "/imports/marks");
-    expect(screen.getByRole("link", { name: /marksheets/i })).toHaveAttribute("href", "/marksheets");
     expect(screen.getByRole("link", { name: /^reports$/i })).toHaveAttribute("href", "/reports");
-    expect(screen.getByRole("link", { name: /release center/i })).toHaveAttribute("href", "/reports/release");
+    expect(screen.getByRole("link", { name: /communication/i })).toHaveAttribute("href", "/communications");
     expect(screen.getByRole("link", { name: /academic setup/i })).toHaveAttribute("href", "/settings");
+    expect(screen.queryByRole("link", { name: /marks import/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /marksheets/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /release center/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /promotions/i })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /report lab/i })).not.toBeInTheDocument();
     expect(screen.queryByText(/smart pages/i)).not.toBeInTheDocument();
   });

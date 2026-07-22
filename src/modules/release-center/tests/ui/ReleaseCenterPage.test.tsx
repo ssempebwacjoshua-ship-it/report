@@ -138,6 +138,35 @@ describe("ReleaseCenterPage", () => {
     expect(within(row).getByRole("button", { name: "Issue link" })).toBeEnabled();
   });
 
+  it("shows reports workflow tabs with Release active", async () => {
+    mockFetchReleaseStatus.mockResolvedValue(buildStatusResponse([buildRow()]));
+
+    await renderPage();
+
+    expect(screen.getByRole("navigation", { name: "Reports section tabs" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Release" })).toHaveAttribute("aria-current", "page");
+  });
+
+  it("keeps selection actions hidden until a row is selected", async () => {
+    mockFetchReleaseStatus.mockResolvedValue(buildStatusResponse([buildRow()]));
+
+    await renderPage();
+
+    expect(screen.queryByRole("button", { name: "Issue links for selected" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Copy selected messages" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Mark selected as sent" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Revoke selected links" })).not.toBeInTheDocument();
+
+    const row = getDesktopRow("Ada Lovelace");
+    fireEvent.click(within(row).getByRole("checkbox"));
+
+    expect(await screen.findByRole("button", { name: "Issue links for selected" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Copy selected messages" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Mark selected as sent" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Revoke selected links" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Clear selection" })).toBeInTheDocument();
+  });
+
   it("shows bulk send controls and previews selected report delivery counts", async () => {
     mockFetchReleaseStatus.mockResolvedValue(buildStatusResponse([buildRow()]));
 

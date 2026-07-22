@@ -3,9 +3,10 @@ import { useSearchParams } from "react-router-dom";
 import { EmptyReportState } from "../../../components/reports/EmptyReportState";
 import { SectionLoader } from "../../../components/SectionLoader";
 import { ReportFilters } from "../../../components/reports/ReportFilters";
+import { ReportsSectionTabs } from "../../../components/reports/ReportsSectionTabs";
 import { StudentReportCard } from "../../../components/reports/StudentReportCard";
 import { StudentReportDetail } from "../../../components/reports/StudentReportDetail";
-import { fetchReportContext, fetchReports } from "../../../client/reportsClient";
+import { fetchReportContext, fetchReports } from "../client/reportsClient";
 import { fetchSettings } from "../../../client/settingsClient";
 import { issueReport, type IssueReportResult } from "../../release-center/client/issueReportClient";
 import { getSchoolDisplayName } from "../../../components/layout/branding";
@@ -221,6 +222,7 @@ export function ReportsPage() {
 
   return (
     <main className="grid gap-4">
+      <ReportsSectionTabs />
       <header className="page-header flex flex-wrap items-end justify-between gap-3">
         <div>
           <p className="text-xs font-bold uppercase tracking-wide text-blue-600">

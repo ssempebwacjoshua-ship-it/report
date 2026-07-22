@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { ReportsSectionTabs } from "../../../components/reports/ReportsSectionTabs";
 import {
   fetchReleaseStatus,
   issueBulk,
@@ -612,59 +612,15 @@ export function ReleaseCenterPage() {
 
   return (
     <main className="grid gap-5">
+      <ReportsSectionTabs />
       <header className="page-header flex flex-wrap items-end justify-between gap-3">
         <div>
-          <div className="flex items-center gap-2">
-            <Link to="/reports" className="text-xs font-bold text-blue-600 hover:underline">
-              ? Reports
-            </Link>
-          </div>
           <h1 className="mt-1 text-xl font-bold tracking-tight text-slate-950 sm:text-2xl">Release Center</h1>
           <p className="mt-1 text-sm text-slate-600">
             Bulk-generate parent report links and prepare WhatsApp, SMS, or email messages.
           </p>
         </div>
         <div className="no-print flex flex-wrap gap-2">
-          <button
-            type="button"
-            className="btn btn-secondary"
-            onClick={() => void handleBulkIssueSelected()}
-            disabled={!anyIssuableSelected || bulkIssuing}
-          >
-            Issue links for selected
-          </button>
-          <button
-            type="button"
-            className="btn btn-secondary"
-            onClick={() => void copySelectedMessages()}
-            disabled={!anySelected}
-          >
-            Copy selected messages
-          </button>
-          <button
-            type="button"
-            className="btn btn-secondary"
-            onClick={exportSelectedCsv}
-            disabled={!anySelected}
-          >
-            Export selected CSV
-          </button>
-          <button
-            type="button"
-            className="btn btn-secondary"
-            onClick={() => void handleBulkMarkSent()}
-            disabled={!anySelected}
-          >
-            Mark selected as sent
-          </button>
-          <button
-            type="button"
-            className="btn btn-danger-light"
-            onClick={() => void handleBulkRevoke()}
-            disabled={!anySelected}
-          >
-            Revoke selected links
-          </button>
           <button
             type="button"
             className="btn btn-secondary"
@@ -688,11 +644,53 @@ export function ReleaseCenterPage() {
         <button type="button" className="text-blue-600 underline" onClick={() => setSelectedIds(new Set(visibleRows.map((r) => r.studentId)))}>
           Select all visible rows
         </button>
-        <button type="button" className="text-blue-600 underline" onClick={() => setSelectedIds(new Set())}>
-          Clear selection
-        </button>
         <span>{selectedIds.size} selected</span>
       </div>
+
+      {anySelected ? (
+        <div className="no-print flex flex-wrap items-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={() => void handleBulkIssueSelected()}
+            disabled={!anyIssuableSelected || bulkIssuing}
+          >
+            Issue links for selected
+          </button>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={() => void copySelectedMessages()}
+          >
+            Copy selected messages
+          </button>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={() => void handleBulkMarkSent()}
+          >
+            Mark selected as sent
+          </button>
+          <button
+            type="button"
+            className="btn btn-danger-light"
+            onClick={() => void handleBulkRevoke()}
+          >
+            Revoke selected links
+          </button>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={exportSelectedCsv}
+          >
+            Export selected CSV
+          </button>
+          <button type="button" className="text-blue-700 underline" onClick={() => setSelectedIds(new Set())}>
+            Clear selection
+          </button>
+          <span className="text-xs font-semibold text-blue-700">{selectedRows.length} selected</span>
+        </div>
+      ) : null}
 
       <div className="premium-card rounded-2xl px-4 py-3">
         <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-6">

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { getApiBaseUrl } from "../../../client/apiBase";
 import { fetchReportContext } from "../client/reportsClient";
 import { fetchSettings } from "../../../client/settingsClient";
+import { ReportsSectionTabs } from "../../../components/reports/ReportsSectionTabs";
 import type { ReportContextOption } from "../../../shared/types/reports";
 import { formatUgandaSchoolYearLabel, nextUgandaSchoolYear } from "../../../shared/utils/ugandaYear";
 
@@ -249,6 +250,7 @@ export function PromotionWorkspacePage() {
 
   return (
     <main className="grid gap-6">
+      <ReportsSectionTabs />
       <header className="page-header flex flex-wrap items-end justify-between gap-3">
         <div>
           <p className="text-xs font-bold uppercase tracking-wide text-blue-600">Student Management</p>

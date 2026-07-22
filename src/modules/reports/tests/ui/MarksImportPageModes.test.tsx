@@ -1,10 +1,9 @@
-﻿import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import { MarksImportPage } from "../../pages/MarksImportPage";
 import type { ScanOptions } from "../../../../shared/types/imports";
 
-// Mock network clients so the page renders without hitting the API.
 vi.mock("../../client/importsClient", () => ({
   dryRunMarksImport: vi.fn(),
   commitMarksImport: vi.fn(),
@@ -26,6 +25,7 @@ vi.mock("../../client/importsClient", () => ({
   lookupMarksheetContext: vi.fn(),
   uploadScanFile: vi.fn(),
 }));
+
 vi.mock("../../../../client/settingsClient", () => ({
   fetchSettings: vi.fn().mockResolvedValue({ sections: {} }),
 }));
@@ -45,8 +45,12 @@ describe("MarksImportPage modes", () => {
     render(<MemoryRouter><MarksImportPage /></MemoryRouter>);
     fireEvent.click(screen.getByText("Smart Marksheet Import"));
     expect(screen.getByRole("button", { name: "Read Marksheet" })).toBeInTheDocument();
-    // Save Reviewed Marks is always visible (but disabled until commit is wired).
     expect(screen.getByRole("button", { name: "Save Reviewed Marks" })).toBeInTheDocument();
   });
-});
 
+  it("shows Reports tabs with Marks Import active", () => {
+    render(<MemoryRouter initialEntries={["/imports/marks"]}><MarksImportPage /></MemoryRouter>);
+    expect(screen.getByRole("navigation", { name: "Reports section tabs" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Marks Import" })).toHaveAttribute("aria-current", "page");
+  });
+});

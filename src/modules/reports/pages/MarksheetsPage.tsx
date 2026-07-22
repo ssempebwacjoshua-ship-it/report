@@ -2,6 +2,7 @@
 import { SectionLoader } from "../../../components/SectionLoader";
 import { PrintableMarksheet } from "../../../components/marksheets/PrintableMarksheet";
 import { Icon } from "../../../components/layout/Icon";
+import { ReportsSectionTabs } from "../../../components/reports/ReportsSectionTabs";
 import {
   approveMarksheetBatch,
   commitMarksheetEntry,
@@ -977,8 +978,9 @@ export function MarksheetsPage() {
   return (
     <main className="min-h-screen bg-slate-50">
       <div className="mx-auto max-w-6xl px-4 py-4 sm:px-6">
+        <ReportsSectionTabs />
         {/* Page header */}
-        <div className="page-header mb-6">
+        <div className="page-header mb-6 pt-4">
           <div className="flex items-center gap-3">
             <div className="grid h-11 w-11 place-items-center rounded-2xl bg-blue-600 text-white shadow-lg shadow-blue-200">
               <Icon name="clipboard" className="h-5 w-5" />

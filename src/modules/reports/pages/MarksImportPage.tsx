@@ -3,6 +3,7 @@ import { commitMarksImport, dryRunMarksImport, fetchSmartPagesBalance } from "..
 import { DIGITAL_ACCEPT, downloadCsvTemplate, downloadExcelTemplate, parseMarksFile, validatePastedCsv } from "../../../client/marksSheetHelpers";
 import { GeminiScanPanel } from "../../../components/imports/GeminiScanPanel";
 import { ImportPreviewTable } from "../../../components/imports/ImportPreviewTable";
+import { ReportsSectionTabs } from "../../../components/reports/ReportsSectionTabs";
 import type { ImportPreview } from "../../../shared/types/imports";
 
 // ── Sample CSV for the digital paste mode ────────────────────────────────────
@@ -311,6 +312,7 @@ export function MarksImportPage() {
 
   return (
     <main className="marks-import-page grid gap-5">
+      <ReportsSectionTabs />
       {/* Page header */}
       <header className="marks-import-header page-header flex flex-wrap items-end justify-between gap-3">
         <div>

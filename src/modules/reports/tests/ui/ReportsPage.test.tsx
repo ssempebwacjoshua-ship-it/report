@@ -1,10 +1,9 @@
-﻿import { render, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ReportsPage } from "../../pages/ReportsPage";
 import type { ReportContext } from "../../../../shared/types/reports";
 
-// Silence matchMedia ? unavailable in JSDOM
 beforeEach(() => {
   Object.defineProperty(window, "matchMedia", {
     writable: true,
@@ -57,8 +56,6 @@ vi.mock("../../../../client/settingsClient", () => ({
 vi.mock("../../../release-center/client/issueReportClient", () => ({ issueReport: vi.fn() }));
 vi.mock("../../../../components/layout/branding", () => ({ getSchoolDisplayName: vi.fn(() => "Test School") }));
 vi.mock("../../../../shared/reportReleaseMessage", () => ({ buildParentReportReleaseMessage: vi.fn(() => "") }));
-
-// Mock heavy sub-components so the test focuses on filter wiring.
 vi.mock("../../../../components/reports/ReportFilters", () => ({ ReportFilters: () => null }));
 vi.mock("../../../../components/reports/StudentReportCard", () => ({ StudentReportCard: () => null }));
 vi.mock("../../../../components/reports/StudentReportDetail", () => ({ StudentReportDetail: () => null }));
@@ -72,7 +69,7 @@ function renderAtUrl(url: string) {
   );
 }
 
-describe("ReportsPage ? URL params applied as initial filters", () => {
+describe("ReportsPage URL params applied as initial filters", () => {
   it("uses classId from URL instead of context default", async () => {
     const { fetchReports } = await import("../../client/reportsClient");
     const mockFetchReports = vi.mocked(fetchReports);
@@ -83,7 +80,6 @@ describe("ReportsPage ? URL params applied as initial filters", () => {
     await waitFor(() => {
       const calls = mockFetchReports.mock.calls;
       expect(calls.length).toBeGreaterThan(0);
-      // URL classId (class-1) must be used, not the context default (class-2)
       for (const [filters] of calls) {
         expect(filters.classId).toBe("class-1");
         expect(filters.classId).not.toBe("class-2");
@@ -91,7 +87,7 @@ describe("ReportsPage ? URL params applied as initial filters", () => {
     });
   });
 
-  it("uses assessmentType from URL instead of settings default (TERM_SUMMARY)", async () => {
+  it("uses assessmentType from URL instead of settings default", async () => {
     const { fetchReports } = await import("../../client/reportsClient");
     const mockFetchReports = vi.mocked(fetchReports);
     mockFetchReports.mockClear();
@@ -118,7 +114,6 @@ describe("ReportsPage ? URL params applied as initial filters", () => {
     await waitFor(() => {
       const calls = mockFetchReports.mock.calls;
       expect(calls.length).toBeGreaterThan(0);
-      // term-1 from URL, not term-2 which is the active term from context
       const hasUrlTerm = calls.some(([f]) => f.termId === "term-1");
       expect(hasUrlTerm).toBe(true);
     });
@@ -129,15 +124,25 @@ describe("ReportsPage ? URL params applied as initial filters", () => {
     const mockFetchReports = vi.mocked(fetchReports);
     mockFetchReports.mockClear();
 
-    // No classId in URL ? page should start with empty classId and not fetch until context loads
     renderAtUrl("/reports");
 
     await waitFor(() => {
       const calls = mockFetchReports.mock.calls;
-      // After context loads, classId should come from context (class-2 = first class)
       const hasFetchWithContextClass = calls.some(([f]) => f.classId === "class-2");
       expect(hasFetchWithContextClass).toBe(true);
     });
   });
 });
 
+describe("ReportsPage navigation tabs", () => {
+  it("renders the reporting workflow tabs with Reports active", async () => {
+    renderAtUrl("/reports");
+
+    const tabs = await screen.findByRole("navigation", { name: "Reports section tabs" });
+    expect(within(tabs).getByRole("link", { name: "Reports" })).toHaveAttribute("aria-current", "page");
+    expect(within(tabs).getByRole("link", { name: "Marks Import" })).toHaveAttribute("href", "/imports/marks");
+    expect(within(tabs).getByRole("link", { name: "Marksheets" })).toHaveAttribute("href", "/marksheets");
+    expect(within(tabs).getByRole("link", { name: "Release" })).toHaveAttribute("href", "/reports/release");
+    expect(within(tabs).getByRole("link", { name: "Promotions" })).toHaveAttribute("href", "/promotions");
+  });
+});

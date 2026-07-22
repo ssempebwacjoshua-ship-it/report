@@ -133,6 +133,17 @@ async function loadStudents() {
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
 describe("MarksheetsPage Print tab ? filter returns multiple students", () => {
+  it("shows Reports tabs with Marksheets active", async () => {
+    render(
+      <MemoryRouter initialEntries={["/marksheets"]}>
+        <MarksheetsPage />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByRole("navigation", { name: "Reports section tabs" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Marksheets" })).toHaveAttribute("aria-current", "page");
+  });
+
   it("shows all 3 students in the checklist when class and stream are selected", async () => {
     await loadStudents();
     // Verify all three checkboxes (unique per student in the checklist)
