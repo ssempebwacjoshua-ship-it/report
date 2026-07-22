@@ -1,5 +1,5 @@
 ﻿import { describe, expect, it } from "vitest";
-import { buildParentReportReleaseMessage, formatTermLabel } from "../../shared/reportReleaseMessage";
+import { buildParentReportReleaseMessage, formatTermLabel } from "../../../../shared/reportReleaseMessage";
 
 describe("report release parent messages", () => {
   it("uses parent-safe school report wording without internal assessment types", () => {
