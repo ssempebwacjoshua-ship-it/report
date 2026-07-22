@@ -3,7 +3,7 @@ import type { RawMarkImportRow, ValidatedMarkImportRow } from "../../../../share
 import type { SettingsSections } from "../../../../shared/types/settings";
 import { getSettingsSections } from "../repositories/settingsRepository";
 import { validateScoreEntry } from "./scoreValidationService";
-import { resolveSubjectComponent } from "../../../../server/services/subjectComponentResolver";
+import { resolveSubjectComponent } from "./subjectComponentResolver";
 
 export type ImportReferenceData = Awaited<ReturnType<typeof loadImportReferenceData>>;
 
