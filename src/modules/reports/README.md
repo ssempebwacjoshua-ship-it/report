@@ -210,6 +210,7 @@ Owns academic reporting, report rendering, marks import workflows, marksheets, r
   - `src/tests/ui/MarksImportPageModes.test.tsx`
   - `src/tests/ui/MarksheetsPage.test.tsx`
 - Module-owned tests now moved into:
+  - `src/modules/reports/tests/client/importsClient.test.ts`
   - `src/modules/reports/tests/services/reportEngine.test.ts`
   - `src/modules/reports/tests/routes/reportsRoutes.test.ts`
   - `src/modules/reports/tests/ui/ReportsPage.test.tsx`
