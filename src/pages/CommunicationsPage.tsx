@@ -46,7 +46,7 @@ type AudienceFormState = AudienceDefinition & {
 };
 
 type TemplateFormState = {
-  channel: "SMS" | "WHATSAPP";
+  channel: "SMS" | "EMAIL" | "WHATSAPP";
   communicationType: string;
   name: string;
   status: "DRAFT" | "APPROVED" | "ACTIVE";
@@ -73,7 +73,7 @@ const campaignTypes = [
 
 const defaultAudience: AudienceFormState = {
   audienceType: "ALL_PARENTS_GUARDIANS",
-  channel: "WHATSAPP",
+  channel: "SMS",
   classId: "",
   streamId: "",
   studentIds: [],
@@ -270,17 +270,16 @@ export function CommunicationsPage() {
     setError(null);
     setNotice(null);
     try {
-      const deliveryChannel = audience.channel === "SMS" ? "SMS" : "WHATSAPP";
+      const deliveryChannel = audience.channel === "EMAIL" ? "EMAIL" : "SMS";
       const result = await sendCommunication(campaignId, {
         channel: deliveryChannel,
         confirm: true,
         audience: audienceToDefinition(audience),
       });
-      const dryRunNotice = result.result.dryRun ? " Dry-run only: no provider message was sent." : "";
       await load();
-      setNotice(`Submitted ${result.result.submitted}; failed ${result.result.failed}; duplicates skipped ${result.result.skippedDuplicate}.${dryRunNotice}`);
+      setNotice(`Submitted ${result.result.submitted}; failed ${result.result.failed}; duplicates skipped ${result.result.skippedDuplicate}.`);
     } catch (err) {
-      const deliveryChannel = audience.channel === "SMS" ? "SMS" : "WHATSAPP";
+      const deliveryChannel = audience.channel === "EMAIL" ? "EMAIL" : "SMS";
       setError(formatCommunicationSendError(err, deliveryChannel, selectedCampaign));
     } finally {
       setSendingId(null);
@@ -400,12 +399,9 @@ export function CommunicationsPage() {
           <p className="text-xs font-bold uppercase tracking-wide text-blue-600">Communication Center</p>
           <h1 className="text-xl font-bold tracking-tight text-slate-950 sm:text-2xl">Communication</h1>
           <p className="mt-1 max-w-2xl text-sm text-slate-600">
-            Campaigns, real school audiences, approvals and delivery operations for SMS and WhatsApp. Provider sending remains dry-run by default.
+            Campaigns, real school audiences, approvals and delivery operations for SMS and email.
           </p>
         </div>
-        <span className="inline-flex w-fit rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-black uppercase text-amber-800">
-          DRY RUN
-        </span>
       </header>
 
       {error ? (
@@ -482,8 +478,8 @@ export function CommunicationsPage() {
                     value={audience.channel}
                     onChange={(event) => setAudience((current) => ({ ...current, channel: event.target.value as CommunicationChannel }))}
                   >
-                    <option value="WHATSAPP">WhatsApp</option>
                     <option value="SMS">SMS</option>
+                    <option value="EMAIL">Email</option>
                   </select>
                 </label>
               </div>
@@ -791,7 +787,7 @@ function TemplatesPanel({
             Channel
             <select className="premium-control rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900" value={form.channel} onChange={(event) => onChange({ ...form, channel: event.target.value as TemplateFormState["channel"] })}>
               <option value="SMS">SMS</option>
-              <option value="WHATSAPP">WhatsApp</option>
+              <option value="EMAIL">Email</option>
             </select>
           </label>
           <label className="grid gap-1 text-xs font-bold uppercase text-slate-500">
@@ -925,8 +921,8 @@ function templateToForm(template: CommunicationTemplate): TemplateFormState {
   };
 }
 
-function formatCommunicationSendError(err: unknown, channel: "SMS" | "WHATSAPP", campaign: CommunicationCampaign | null) {
-  const message = err instanceof Error ? err.message : `${channel === "WHATSAPP" ? "WhatsApp" : "SMS"} is not configured yet. Contact platform owner.`;
+function formatCommunicationSendError(err: unknown, channel: "SMS" | "EMAIL" | "WHATSAPP", campaign: CommunicationCampaign | null) {
+  const message = err instanceof Error ? err.message : `${channel === "EMAIL" ? "Email" : channel === "WHATSAPP" ? "WhatsApp" : "SMS"} is not configured yet. Contact platform owner.`;
   if (/approved communication template/i.test(message)) {
     return `Missing approved template for ${channel} + ${campaign?.type ?? "ANNOUNCEMENT"}. Open Templates tab and approve one.`;
   }

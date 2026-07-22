@@ -16,6 +16,7 @@ import { collectCommunicationAudienceRows, resolveCommunicationAudience } from "
 
 export { resolveCommunicationAudience } from "./communicationAudienceService";
 import { createProviderForChannel, DryRunMessageProvider, resolveSmsProvider, type SmsProvider } from "./communicationProviders";
+import { sendOutreachEmail } from "./emailService";
 import { evaluateSubscriptionEntitlement } from "./subscriptionEntitlementService";
 
 type Db = PrismaClient;
@@ -36,7 +37,7 @@ export type CommunicationContext = {
 };
 
 export function isCommunicationDryRun() {
-  return process.env.COMMUNICATION_DRY_RUN !== "false";
+  return process.env.COMMUNICATION_DRY_RUN === "true";
 }
 
 async function requireLiveCommunicationsEnabled(db: Db, ctx: CommunicationContext) {
@@ -47,7 +48,7 @@ async function requireLiveCommunicationsEnabled(db: Db, ctx: CommunicationContex
     entitlement: "communications.send",
   });
   if (!decision.allowed) {
-    console.warn("Communications disabled but bypassed for development");
+    throw httpError(decision.status, decision.message);
   }
 }
 
@@ -62,8 +63,16 @@ function buildTemplatePolicy(channel: CommunicationChannel, directMessage: strin
 }
 
 function resolveMessageText(content: { body: string; shortBody?: string | null }, values: Record<string, string>, directMessage?: string | null) {
-  const messageContent = directMessage?.trim() || content.shortBody?.trim() || content.body?.trim() || SMS_FALLBACK_MESSAGE;
+  const messageContent = directMessage?.trim() || content.shortBody?.trim() || content.body?.trim() || "";
   return renderContent(messageContent, values);
+}
+
+function resolveRequiredMessageBody(content: { body: string; shortBody?: string | null } | undefined, directMessage?: string | null) {
+  const messageBody = directMessage?.trim() || content?.shortBody?.trim() || content?.body?.trim() || "";
+  if (!messageBody) {
+    throw httpError(400, "Message body is required before sending.");
+  }
+  return messageBody;
 }
 
 export async function createCampaign(db: Db, ctx: CommunicationContext, input: {
@@ -318,7 +327,7 @@ export async function approveCampaign(db: Db, ctx: CommunicationContext, campaig
   return getCampaignOrThrow(db, ctx, campaignId);
 }
 
-export async function queueCampaign(db: Db, ctx: CommunicationContext, campaignId: string, channels: CommunicationChannel[] = ["WHATSAPP"]) {
+export async function queueCampaign(db: Db, ctx: CommunicationContext, campaignId: string, channels: CommunicationChannel[] = ["SMS"]) {
   await requireLiveCommunicationsEnabled(db, ctx);
   const campaign = await getCampaignOrThrow(db, ctx, campaignId);
   if (campaign.status !== "APPROVED" && campaign.status !== "FAILED") throw httpError(400, "Only approved campaigns can be queued.");
@@ -376,9 +385,8 @@ export async function sendCampaign(db: Db, ctx: CommunicationContext, campaignId
 }) {
   try {
   if (!communicationChannels.includes(input.channel)) throw httpError(400, "Unsupported communication channel.");
-  if (input.channel !== "WHATSAPP" && input.channel !== "SMS") throw httpError(400, "Only SMS and WhatsApp sending are supported.");
+  if (!["SMS", "EMAIL", "WHATSAPP"].includes(input.channel)) throw httpError(400, "Only SMS, email, and WhatsApp sending are supported.");
   if (!input.confirm) throw httpError(400, "Sending requires explicit confirmation.");
-  const messageContent = input.message ?? SMS_FALLBACK_MESSAGE;
   await requireLiveCommunicationsEnabled(db, ctx);
   const campaign = await getCampaignOrThrow(db, ctx, campaignId);
   if (["CANCELLED", "DELIVERED"].includes(campaign.status)) throw httpError(400, "This campaign cannot be sent.");
@@ -390,10 +398,15 @@ export async function sendCampaign(db: Db, ctx: CommunicationContext, campaignId
   }
   const refreshed = await getCampaignOrThrow(db, ctx, campaignId);
   const content = refreshed.contents.find((c) => c.version === refreshed.contentVersion) ?? refreshed.contents[0];
-  if (input.channel !== "SMS" && !input.message?.trim() && !content?.body?.trim()) throw httpError(400, "Message body is required before sending.");
+  const messageContent = resolveRequiredMessageBody(content, input.message);
 
   const recipients = await db.communicationRecipient.findMany({
-    where: { schoolId: ctx.schoolId, campaignId, status: { in: ["READY", "WARNING", "QUEUED"] }, phoneE164: { not: null } },
+    where: {
+      schoolId: ctx.schoolId,
+      campaignId,
+      status: { in: ["READY", "WARNING", "QUEUED"] },
+      ...(input.channel === "EMAIL" ? { email: { not: null } } : { phoneE164: { not: null } }),
+    },
     orderBy: { createdAt: "asc" },
     take: Number(process.env.COMMUNICATION_BATCH_SIZE ?? 25),
   });
@@ -405,6 +418,10 @@ export async function sendCampaign(db: Db, ctx: CommunicationContext, campaignId
 
   if (input.channel === "SMS") {
     return sendSmsCampaign(db, ctx, refreshed, recipients, content, buildTemplatePolicy(input.channel, messageContent), messageContent);
+  }
+
+  if (input.channel === "EMAIL") {
+    return sendEmailCampaign(db, ctx, refreshed, recipients, content, messageContent);
   }
 
   const provider = isCommunicationDryRun()
@@ -798,6 +815,158 @@ async function sendSmsCampaign(
   return { submitted, failed, skippedDuplicate, results, templatePolicy, dryRun: false, progress: await getCampaignProgressTotals(db, ctx, campaign.id) };
 }
 
+async function sendEmailCampaign(
+  db: Db,
+  ctx: CommunicationContext,
+  campaign: Awaited<ReturnType<typeof getCampaignOrThrow>>,
+  recipients: Awaited<ReturnType<Db["communicationRecipient"]["findMany"]>>,
+  content: NonNullable<Awaited<ReturnType<typeof getCampaignOrThrow>>["contents"][number]>,
+  directMessage: string | null,
+) {
+  let submitted = 0;
+  let failed = 0;
+  let skippedDuplicate = 0;
+  const results: Array<Record<string, unknown>> = [];
+
+  for (const recipient of recipients) {
+    const email = recipient.email?.trim();
+    if (!email) {
+      failed += 1;
+      results.push({ recipientId: recipient.id, status: "FAILED", errorCode: "MISSING_EMAIL" });
+      continue;
+    }
+
+    const values = (recipient.personalisationJson ?? {}) as Record<string, string>;
+    const renderedBody = resolveMessageText(content, values, directMessage);
+    if (!renderedBody.trim()) {
+      throw httpError(400, "Message body is required before sending.");
+    }
+
+    const subject = content.subject?.trim() || `${campaign.title} - ${ctx.schoolName}`;
+    const idempotencyKey = buildDeliveryIdempotencyKey({
+      schoolId: ctx.schoolId,
+      campaignId: campaign.id,
+      recipientId: recipient.id,
+      channel: "EMAIL",
+      contentVersion: campaign.contentVersion,
+    });
+    const existing = await db.communicationDelivery.findUnique({ where: { idempotencyKey } });
+    if (existing?.providerMessageId || (existing && ["SUBMITTED", "ACCEPTED", "DELIVERED", "READ"].includes(existing.status))) {
+      skippedDuplicate += 1;
+      results.push({ recipientId: recipient.id, status: "SKIPPED_DUPLICATE" });
+      continue;
+    }
+
+    const delivery = await db.communicationDelivery.upsert({
+      where: { idempotencyKey },
+      update: {
+        provider: isCommunicationDryRun() ? "DRY_RUN" : "OUTREACH_EMAIL",
+        status: "SUBMITTING",
+        renderedContentHash: hashRenderedContent(`${subject}\n${renderedBody}`),
+      },
+      create: {
+        schoolId: ctx.schoolId,
+        campaignId: campaign.id,
+        recipientId: recipient.id,
+        channel: "EMAIL" as never,
+        provider: isCommunicationDryRun() ? "DRY_RUN" : "OUTREACH_EMAIL",
+        status: "SUBMITTING",
+        contentVersion: campaign.contentVersion,
+        idempotencyKey,
+        renderedContentHash: hashRenderedContent(`${subject}\n${renderedBody}`),
+        queuedAt: new Date(),
+      },
+    });
+    const attempt = await db.communicationDeliveryAttempt.create({
+      data: {
+        deliveryId: delivery.id,
+        attemptNumber: delivery.attemptCount + 1,
+        provider: isCommunicationDryRun() ? "DRY_RUN" : "OUTREACH_EMAIL",
+        status: "STARTED",
+        requestId: idempotencyKey,
+      },
+    });
+
+    const response = isCommunicationDryRun()
+      ? { ok: true, provider: "RESEND" as const, messageId: `dry-run-${idempotencyKey.slice(0, 16)}` }
+      : await sendOutreachEmail({
+          to: email,
+          subject,
+          text: renderedBody,
+          html: renderedBody.replace(/\n/g, "<br />"),
+        });
+
+    const now = new Date();
+    if (response.ok) {
+      submitted += 1;
+      await db.communicationDelivery.update({
+        where: { id: delivery.id },
+        data: {
+          status: "SUBMITTED",
+          providerMessageId: response.messageId,
+          submittedAt: now,
+          acceptedAt: now,
+          attemptCount: { increment: 1 },
+        },
+      });
+      await db.communicationDeliveryAttempt.update({
+        where: { id: attempt.id },
+        data: {
+          status: "PROVIDER_ACCEPTED",
+          providerMessageId: response.messageId,
+          providerResponseCode: response.provider,
+          completedAt: now,
+        },
+      });
+      results.push({ recipientId: recipient.id, status: "SUBMITTED", providerMessageId: response.messageId });
+      continue;
+    }
+
+    failed += 1;
+    await db.communicationDelivery.update({
+      where: { id: delivery.id },
+      data: {
+        status: "FAILED",
+        failedAt: now,
+        lastErrorCode: response.safeErrorCode,
+        lastErrorMessageSafe: response.safeErrorMessage,
+        attemptCount: { increment: 1 },
+      },
+    });
+    await db.communicationDeliveryAttempt.update({
+      where: { id: attempt.id },
+      data: {
+        status: "PROVIDER_REJECTED",
+        errorCode: response.safeErrorCode,
+        errorMessageSafe: response.safeErrorMessage,
+        completedAt: now,
+      },
+    });
+    results.push({ recipientId: recipient.id, status: "FAILED", errorCode: response.safeErrorCode });
+  }
+
+  await db.communicationCampaign.update({
+    where: { id: campaign.id },
+    data: { status: determinePostSendCampaignStatus(campaign.status, submitted, failed), sendingStartedAt: new Date() },
+  });
+  await audit(db, ctx, "communication.delivery_submitted", campaign.id, {
+    channel: "EMAIL",
+    provider: isCommunicationDryRun() ? "DRY_RUN" : "OUTREACH_EMAIL",
+    submitted,
+    failed,
+    skippedDuplicate,
+  });
+  return {
+    submitted,
+    failed,
+    skippedDuplicate,
+    results,
+    templatePolicy: buildTemplatePolicy("EMAIL", directMessage),
+    dryRun: isCommunicationDryRun(),
+    progress: await getCampaignProgressTotals(db, ctx, campaign.id),
+  };
+}
+
 async function sendDryRunSmsCampaign(
   db: Db,
   ctx: CommunicationContext,
@@ -1073,7 +1242,7 @@ async function getCampaignSubmissionValidation(db: Db, ctx: CommunicationContext
     throw httpError(400, "At least one valid recipient is required before submitting for approval.");
   }
 
-  const channel = definition.channel ?? "WHATSAPP";
+  const channel = definition.channel ?? "SMS";
   const segmentEstimate = estimateSmsSegments(body);
   const estimatedBillableUnits = channel === "SMS"
     ? eligibleRecipients.length * Math.max(segmentEstimate.billableUnits, 0)

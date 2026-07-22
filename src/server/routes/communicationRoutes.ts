@@ -55,11 +55,11 @@ const updateCampaignSchema = z.object({
 });
 
 const channelListSchema = z.object({
-  channels: z.array(z.enum(communicationChannels)).min(1).default(["WHATSAPP"]),
+  channels: z.array(z.enum(communicationChannels)).min(1).default(["SMS"]),
 });
 
 const sendCommunicationSchema = z.object({
-  channel: z.enum(["WHATSAPP", "SMS"]),
+  channel: z.enum(["SMS", "EMAIL", "WHATSAPP"]),
   confirm: z.boolean(),
   message: z.string().trim().min(1).max(3000).optional(),
   audience: audienceSchema.optional(),
@@ -68,7 +68,7 @@ const sendCommunicationSchema = z.object({
 const templateStatusSchema = z.enum(["DRAFT", "APPROVED", "ACTIVE"]);
 
 const templateSchema = z.object({
-  channel: z.enum(["SMS", "WHATSAPP"]),
+  channel: z.enum(["SMS", "EMAIL", "WHATSAPP"]),
   communicationType: z.enum(communicationTypes),
   name: z.string().trim().min(3).max(120),
   content: z.string().trim().min(1).max(3000),
@@ -244,7 +244,7 @@ export function communicationRoutes() {
     try {
       const body = channelListSchema.parse(req.body ?? {});
       await queueCampaign(prisma, ctx(req), routeId(req), body.channels);
-      res.json({ ok: true, dryRun: process.env.COMMUNICATION_DRY_RUN !== "false" });
+      res.json({ ok: true, dryRun: process.env.COMMUNICATION_DRY_RUN === "true" });
     } catch (error) {
       next(error);
     }

@@ -434,7 +434,7 @@ describe("CommunicationsPage", () => {
     await waitFor(() => expect(screen.getByText("Set default SMS template")).toBeInTheDocument());
   });
 
-  it("shows dry-run mode clearly after a communication send", async () => {
+  it("shows normal send completion copy without a dry-run banner after a communication send", async () => {
     const user = userEvent.setup();
     vi.mocked(fetchCommunicationCampaigns)
       .mockResolvedValueOnce({
@@ -467,7 +467,8 @@ describe("CommunicationsPage", () => {
     }
     await user.click(sendButton);
 
-    await waitFor(() => expect(screen.getByText(/Dry-run only: no provider message was sent/i)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("Submitted 1; failed 0; duplicates skipped 0.")).toBeInTheDocument());
+    expect(screen.queryByText(/Dry-run only: no provider message was sent/i)).not.toBeInTheDocument();
   });
 
   it("reaches approved send flow end-to-end with mocked client actions", async () => {
@@ -511,7 +512,7 @@ describe("CommunicationsPage", () => {
     fireEvent.click(sendButton);
 
     await waitFor(() => expect(sendCommunication).toHaveBeenCalledWith("campaign-1", expect.objectContaining({
-      channel: "WHATSAPP",
+      channel: "SMS",
       confirm: true,
     })));
     await waitFor(() => expect(screen.getByText("Submitted 1; failed 0; duplicates skipped 0.")).toBeInTheDocument());

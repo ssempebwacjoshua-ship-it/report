@@ -18,7 +18,7 @@ export type CommunicationCampaign = {
 
 export type CommunicationTemplate = {
   id: string;
-  channel: "SMS" | "WHATSAPP";
+  channel: "SMS" | "EMAIL" | "WHATSAPP";
   communicationType: string;
   name: string;
   providerTemplateName: string | null;
@@ -44,7 +44,7 @@ export async function fetchCommunicationTemplates(): Promise<{ templates: Commun
 }
 
 export async function saveCommunicationTemplate(body: {
-  channel: "SMS" | "WHATSAPP";
+  channel: "SMS" | "EMAIL" | "WHATSAPP";
   communicationType: string;
   name: string;
   content: string;
@@ -114,7 +114,7 @@ export async function requestCommunicationCampaignApproval(campaignId: string): 
 }
 
 export async function sendCommunication(campaignId: string, body: {
-  channel: "WHATSAPP" | "SMS";
+  channel: "SMS" | "EMAIL" | "WHATSAPP";
   confirm: boolean;
   audience?: AudienceDefinition;
 }): Promise<{ ok: true; result: { submitted: number; failed: number; skippedDuplicate: number; dryRun?: boolean } }> {
@@ -123,7 +123,7 @@ export async function sendCommunication(campaignId: string, body: {
     headers: makeRequestHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify(body),
   });
-  if (!res.ok) throw new Error(await parseApiError(res, `${body.channel === "WHATSAPP" ? "WhatsApp" : "SMS"} is not configured yet. Contact platform owner.`));
+  if (!res.ok) throw new Error(await parseApiError(res, `${body.channel === "EMAIL" ? "Email" : body.channel === "WHATSAPP" ? "WhatsApp" : "SMS"} is not configured yet. Contact platform owner.`));
   return res.json();
 }
 

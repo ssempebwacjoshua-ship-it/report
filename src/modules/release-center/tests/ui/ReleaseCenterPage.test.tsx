@@ -162,7 +162,7 @@ describe("ReleaseCenterPage", () => {
 
     expect(await screen.findByRole("button", { name: "Issue links for selected" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Copy selected messages" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Mark selected as sent" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Mark selected as manually sent" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Revoke selected links" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Clear selection" })).toBeInTheDocument();
   });
