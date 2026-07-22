@@ -1,8 +1,8 @@
-﻿import request from "supertest";
+import request from "supertest";
 import { beforeAll, describe, expect, it } from "vitest";
-import { createServer } from "../../server";
-import { hashPassword, signToken } from "../../server/services/authService";
-import { prisma } from "../../server/db/prisma";
+import { createServer } from "../../../../server";
+import { hashPassword, signToken } from "../../../../server/services/authService";
+import { prisma } from "../../../../server/db/prisma";
 
 let authToken = "";
 
@@ -62,8 +62,6 @@ async function makeToken() {
   return authToken;
 }
 
-// ── GET /api/reports/release-status ──────────────────────────────────────────
-
 describe("releaseCenterRoutes ? GET /api/reports/release-status", () => {
   it("returns 401 without Authorization header", async () => {
     const res = await request(createServer())
@@ -94,7 +92,6 @@ describe("releaseCenterRoutes ? GET /api/reports/release-status", () => {
       .get("/api/reports/release-status")
       .set("Authorization", `Bearer ${token}`)
       .query({ classId: "00000000-0000-0000-0000-000000000099", schoolCode: "SCU-PREVIEW" });
-    // May be 200 with empty rows or 404 ? just ensure it returns parseable JSON
     expect([200, 404, 500]).toContain(res.status);
     if (res.status === 200) {
       expect(res.body).toHaveProperty("rows");
@@ -124,8 +121,6 @@ describe("releaseCenterRoutes bulk action endpoints", () => {
     expect(res.status).toBe(400);
   });
 });
-
-// ── POST /api/reports/issue-bulk ─────────────────────────────────────────────
 
 describe("releaseCenterRoutes ? POST /api/reports/issue-bulk", () => {
   it("returns 401 without Authorization header", async () => {
@@ -173,7 +168,6 @@ describe("releaseCenterRoutes ? POST /api/reports/issue-bulk", () => {
         schoolCode: "SCU-PREVIEW",
         classId: "00000000-0000-0000-0000-000000000099",
       });
-    // Empty class ? all skipped, none issued
     expect([201, 404, 500]).toContain(res.status);
     if (res.status === 201) {
       expect(res.body).toHaveProperty("issued");
@@ -183,8 +177,6 @@ describe("releaseCenterRoutes ? POST /api/reports/issue-bulk", () => {
     }
   });
 });
-
-// ── POST /api/reports/release/:id/mark-sent ──────────────────────────────────
 
 describe("releaseCenterRoutes ? POST /api/reports/release/:id/mark-sent", () => {
   it("returns 401 without auth", async () => {
@@ -203,8 +195,6 @@ describe("releaseCenterRoutes ? POST /api/reports/release/:id/mark-sent", () => 
   });
 });
 
-// ── POST /api/reports/release/:id/revoke ─────────────────────────────────────
-
 describe("releaseCenterRoutes ? POST /api/reports/release/:id/revoke", () => {
   it("returns 401 without auth", async () => {
     const res = await request(createServer())
@@ -222,12 +212,8 @@ describe("releaseCenterRoutes ? POST /api/reports/release/:id/revoke", () => {
   });
 });
 
-// ── Contact method resolution (unit-level via backend logic) ─────────────────
-
 describe("releaseCenterRoutes ? delivery status contract", () => {
   it("issue-bulk response never exposes parentAccessToken hash (only raw token)", async () => {
-    // The raw token is 64 hex chars; a SHA256 hash is also 64 hex chars.
-    // We can only verify the contract structurally ? parentAccessToken present if issued.
     const token = await makeToken();
     const res = await request(createServer())
       .post("/api/reports/issue-bulk")
@@ -235,10 +221,8 @@ describe("releaseCenterRoutes ? delivery status contract", () => {
       .send({ schoolCode: "SCU-PREVIEW", classId: "00000000-0000-0000-0000-000000000099" });
     if (res.status === 201 && res.body.issued?.length > 0) {
       for (const item of res.body.issued) {
-        // parentLink must be a browser URL, not an /api/ URL
         expect(item.parentLink).toMatch(/\/r\//);
         expect(item.parentLink).not.toMatch(/\/api\//);
-        // referenceCode must match YYYYMMDD-XXXXXX
         expect(item.referenceCode).toMatch(/^\d{8}-[0-9A-F]{6}$/);
       }
     }
@@ -284,4 +268,3 @@ describe("releaseCenterRoutes ? delivery status contract", () => {
     }
   });
 });
-
