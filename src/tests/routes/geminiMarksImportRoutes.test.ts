@@ -150,8 +150,8 @@ vi.mock("../../server/services/geminiOcrService", () => ({
   })),
 }));
 
-vi.mock("../../server/services/geminiMarksImportService", async (importActual) => {
-  const actual = await importActual<typeof import("../../server/services/geminiMarksImportService")>();
+vi.mock("../../modules/reports/server/services/geminiMarksImportService", async (importActual) => {
+  const actual = await importActual<typeof import("../../modules/reports/server/services/geminiMarksImportService")>();
   return {
     ...actual,
     loadExpectedStudents: vi.fn(async () => [
@@ -337,7 +337,7 @@ describe("debugNoDb mode", () => {
 
 describe("no active students", () => {
   it("returns 400 NO_STUDENTS at stage load_expected_students when roster is empty", async () => {
-    const { loadExpectedStudents } = await import("../../server/services/geminiMarksImportService");
+    const { loadExpectedStudents } = await import("../../modules/reports/server/services/geminiMarksImportService");
     vi.mocked(loadExpectedStudents).mockResolvedValueOnce([]);
 
     const res = await authPost("/api/marks-import/scan/extract")

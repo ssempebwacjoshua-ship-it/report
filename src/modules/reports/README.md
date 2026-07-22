@@ -67,6 +67,11 @@ Owns academic reporting, report rendering, marks import workflows, marksheets, r
   - `src/server/routes/importsRoutes.ts`
 - Existing route registration imports remain supported through the shim
 - Module-owned route now moved into:
+  - `src/modules/reports/server/routes/geminiMarksImportRoutes.ts`
+- Compatibility shim retained at:
+  - `src/server/routes/geminiMarksImportRoutes.ts`
+- Existing route registration imports remain supported through the shim
+- Module-owned route now moved into:
   - `src/modules/reports/server/routes/verifyRoutes.ts`
 - Compatibility shim retained at:
   - `src/server/routes/verifyRoutes.ts`
@@ -312,6 +317,11 @@ Owns academic reporting, report rendering, marks import workflows, marksheets, r
 - Compatibility shim retained at:
   - `src/server/routes/importsRoutes.ts`
 - Module path is now canonical and runtime behavior is unchanged
+- Gemini marks import routes moved into:
+  - `src/modules/reports/server/routes/geminiMarksImportRoutes.ts`
+- Compatibility shim retained at:
+  - `src/server/routes/geminiMarksImportRoutes.ts`
+- Module path is now canonical and runtime behavior is unchanged
 - Report engine moved into:
   - `src/modules/reports/server/services/reportEngine.ts`
 - Compatibility shim retained at:
@@ -487,5 +497,7 @@ Owns academic reporting, report rendering, marks import workflows, marksheets, r
 - `src/server/repositories/schoolRepository.ts` (compatibility shim)
 - `src/modules/reports/server/repositories/settingsRepository.ts`
 - `src/server/repositories/settingsRepository.ts` (compatibility shim)
+- `src/modules/reports/server/routes/geminiMarksImportRoutes.ts`
+- `src/server/routes/geminiMarksImportRoutes.ts` (compatibility shim)
 - `src/server/routes/importsRoutes.ts`
 - `src/server/routes/marksheetsRoutes.ts`
