@@ -3,10 +3,10 @@ import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import { MarksheetsPage } from "../../pages/MarksheetsPage";
 import { fetchReportContext } from "../../client/reportsClient";
-import { formatUgandaSchoolYearLabel, nextUgandaSchoolYear } from "../../shared/utils/ugandaYear";
+import { formatUgandaSchoolYearLabel, nextUgandaSchoolYear } from "../../../../shared/utils/ugandaYear";
 
 // Lightweight stand-in ? avoids pulling in qrcode.react in the test environment
-vi.mock("../../components/marksheets/PrintableMarksheet", () => ({
+vi.mock("../../../../components/marksheets/PrintableMarksheet", () => ({
   PrintableMarksheet: ({
     students,
   }: {
@@ -47,7 +47,7 @@ vi.mock("../../client/reportsClient", () => ({
   }),
 }));
 
-vi.mock("../../client/settingsClient", () => ({
+vi.mock("../../../../client/settingsClient", () => ({
   fetchSettings: vi.fn().mockResolvedValue({
     sections: {
       school: {

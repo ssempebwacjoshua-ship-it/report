@@ -14,8 +14,8 @@ import {
   cropPreview,
   scoreCropQuality,
   selectBestCrop,
-} from "../../server/services/scanPreprocessService";
-import { cropFailureReason } from "../../server/services/scanExtractionService";
+} from "../../../../server/services/scanPreprocessService";
+import { cropFailureReason } from "../../../../server/services/scanExtractionService";
 import type { PixelRect } from "../../server/services/marksheetGeometryService";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────

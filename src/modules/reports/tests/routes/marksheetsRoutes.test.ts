@@ -1,6 +1,6 @@
 ﻿import request from "supertest";
 import { describe, expect, it } from "vitest";
-import { createServer } from "../../server";
+import { createServer } from "../../../../server";
 
 describe("marksheetsRoutes", () => {
   it("GET /api/marksheets/students returns 400 when classId is missing", async () => {
