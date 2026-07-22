@@ -213,6 +213,7 @@ Owns academic reporting, report rendering, marks import workflows, marksheets, r
   - `src/modules/reports/tests/services/reportEngine.test.ts`
   - `src/modules/reports/tests/routes/reportsRoutes.test.ts`
   - `src/modules/reports/tests/ui/ReportsPage.test.tsx`
+  - `src/modules/reports/tests/ui/StudentReportCard.test.tsx`
 
 ## Owned Prisma Models, If Any
 
