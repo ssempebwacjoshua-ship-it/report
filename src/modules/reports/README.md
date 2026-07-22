@@ -18,8 +18,12 @@ Owns academic reporting, report rendering, marks import workflows, marksheets, r
 - Browser: `/report-lab/reports`, `/report-lab/imports/marks`, `/report-lab/marksheets`, `/report-lab/verify/:code`
 - Current legacy files:
   - `src/pages/ReportsPage.tsx`
-  - `src/pages/MarksImportPage.tsx`
   - `src/pages/VerifyPage.tsx`
+- Module-owned page now moved into:
+  - `src/modules/reports/pages/MarksImportPage.tsx`
+- Compatibility shim retained at:
+  - `src/pages/MarksImportPage.tsx`
+- Browser routes remain unchanged through the shim
 - Module-owned page now moved into:
   - `src/modules/reports/pages/MarksheetsPage.tsx`
 - Compatibility shim retained at:
@@ -211,6 +215,11 @@ Owns academic reporting, report rendering, marks import workflows, marksheets, r
 - Compatibility shim retained at:
   - `src/pages/MarksheetsPage.tsx`
 - Module path is canonical and runtime behavior and browser routes are unchanged
+- Marks import page moved into:
+  - `src/modules/reports/pages/MarksImportPage.tsx`
+- Compatibility shim retained at:
+  - `src/pages/MarksImportPage.tsx`
+- Module path is canonical and runtime behavior and browser routes are unchanged
 - Build passed after the release-center client moves
 - `npm run typecheck` still has unrelated repo-wide failures outside the client relocations
 - Runtime files not moved yet
@@ -218,7 +227,6 @@ Owns academic reporting, report rendering, marks import workflows, marksheets, r
 ## Known Legacy Files Still Outside The Module
 
 - `src/pages/ReportsPage.tsx`
-- `src/pages/MarksImportPage.tsx`
 - `src/pages/VerifyPage.tsx`
 - `src/modules/reports/client/reportsClient.ts`
 - `src/client/reportsClient.ts` (compatibility shim)
@@ -226,6 +234,8 @@ Owns academic reporting, report rendering, marks import workflows, marksheets, r
 - `src/client/importsClient.ts` (compatibility shim)
 - `src/modules/reports/client/marksheetsClient.ts`
 - `src/client/marksheetsClient.ts` (compatibility shim)
+- `src/modules/reports/pages/MarksImportPage.tsx`
+- `src/pages/MarksImportPage.tsx` (compatibility shim)
 - `src/modules/reports/pages/MarksheetsPage.tsx`
 - `src/pages/MarksheetsPage.tsx` (compatibility shim)
 - `src/pages/ReportsPage.tsx` still depends on the release-center-owned issue report client through `src/client/issueReportClient.ts`
