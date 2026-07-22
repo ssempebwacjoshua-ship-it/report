@@ -4,7 +4,7 @@ import { defaultSettingsSections } from "../../../../shared/types/settings";
 import type { ContactReadiness } from "../../../../shared/types/students";
 import { REPORT_CONTENT_LIMITS, constrainReportText } from "../../../../shared/utils/reportContentLimits";
 import { gradeForAverage, roundMark } from "./gradeService";
-import { rankByScore } from "../../../../server/services/rankingService";
+import { rankByScore } from "./rankingService";
 import { emptyReasonForReadiness } from "../../../../server/services/readinessService";
 
 export type EngineStudent = {
