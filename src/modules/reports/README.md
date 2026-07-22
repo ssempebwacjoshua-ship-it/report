@@ -81,8 +81,12 @@ Owns academic reporting, report rendering, marks import workflows, marksheets, r
 - Compatibility shim retained at:
   - `src/client/reportsClient.ts`
 - Existing runtime imports remain supported through the shim
-- Current legacy files:
+- Module-owned client now moved into:
+  - `src/modules/reports/client/importsClient.ts`
+- Compatibility shim retained at:
   - `src/client/importsClient.ts`
+- Existing runtime imports remain supported through the shim
+- Current legacy files:
   - `src/client/marksheetsClient.ts`
 - Cross-module usage note:
   - `src/modules/release-center/client/issueReportClient.ts` is currently owned by release-center
@@ -185,6 +189,11 @@ Owns academic reporting, report rendering, marks import workflows, marksheets, r
 - Compatibility shim retained at:
   - `src/client/reportsClient.ts`
 - Module path is now canonical and runtime behavior is unchanged
+- Imports client moved into:
+  - `src/modules/reports/client/importsClient.ts`
+- Compatibility shim retained at:
+  - `src/client/importsClient.ts`
+- Module path is now canonical and runtime behavior is unchanged
 - Build passed after the release-center client moves
 - `npm run typecheck` still has unrelated repo-wide failures outside the client relocations
 - Runtime files not moved yet
@@ -195,10 +204,11 @@ Owns academic reporting, report rendering, marks import workflows, marksheets, r
 - `src/pages/MarksImportPage.tsx`
 - `src/pages/MarksheetsPage.tsx`
 - `src/pages/VerifyPage.tsx`
-- `src/client/importsClient.ts`
 - `src/client/marksheetsClient.ts`
 - `src/modules/reports/client/reportsClient.ts`
 - `src/client/reportsClient.ts` (compatibility shim)
+- `src/modules/reports/client/importsClient.ts`
+- `src/client/importsClient.ts` (compatibility shim)
 - `src/pages/ReportsPage.tsx` still depends on the release-center-owned issue report client through `src/client/issueReportClient.ts`
 - `src/modules/reports/server/routes/reportsRoutes.ts`
 - `src/server/routes/reportsRoutes.ts` (compatibility shim)
