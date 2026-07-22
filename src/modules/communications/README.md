@@ -103,6 +103,14 @@ Owns campaign authoring, approvals, audience selection, delivery orchestration, 
 - Email
 - Telegram support tooling
 
+## Current Delivery Contract
+
+- School-facing communication flows currently expose SMS and Email in the Report Lab UI
+- WhatsApp provider/webhook support remains in the backend for future re-enable, but it is hidden from the current school-facing UI
+- Dry-run sending is explicit opt-in only through `COMMUNICATION_DRY_RUN=true`
+- Live SMS must use the real campaign/direct message body and must never fall back to `"Test SMS from School Connect"`
+- Live email delivery reuses the shared outreach email infrastructure
+
 ## Background Jobs/Workers
 
 - Delivery queues and retry/batch flows where present
@@ -119,6 +127,7 @@ Owns campaign authoring, approvals, audience selection, delivery orchestration, 
 - Skeleton only
 - Ownership contract defined
 - Runtime files not moved yet
+- Current legacy communications runtime now supports real SMS and email delivery while keeping WhatsApp backend support dormant in the UI
 
 ## Known Legacy Files Still Outside The Module
 

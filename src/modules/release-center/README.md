@@ -114,6 +114,13 @@ Owns report-link issuance, bulk release operations, revoke/sent tracking, and pa
 
 - Outbound communications providers through communications module boundaries
 
+## Current Delivery Contract
+
+- Release Center now supports real provider-backed report delivery by SMS and Email
+- The canonical Release Center page preview/send workflow derives student, guardian contact, issued link, message, and destination from tenant-scoped server data
+- Existing copy/export/manual workflows remain available as supporting tools, but provider-backed send is the primary delivery action
+- Provider-backed send and manual sent-marking remain distinct states
+
 ## Background Jobs/Workers
 
 - Bulk release/send flows where applicable
@@ -165,6 +172,7 @@ Owns report-link issuance, bulk release operations, revoke/sent tracking, and pa
 - Build passed after the client, page, report-link service, release-center-routes, report-issue-routes, and parent-routes moves
 - `npm run typecheck` still has unrelated repo-wide failures outside release-center client relocations
 - Other runtime files not moved yet
+- Release Center now includes real send preview plus send-selected flows for report delivery by SMS and Email
 
 ## Known Legacy Files Still Outside The Module
 

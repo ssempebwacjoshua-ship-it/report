@@ -132,6 +132,26 @@ export type BulkReleaseResult = {
   skipped: Array<{ studentId: string; studentName: string; reason: string }>;
 };
 
+export type ReportReleaseSendPreview = {
+  totalSelected: number;
+  issuableLinks: number;
+  missingContacts: number;
+  alreadySent: number;
+  estimatedSmsSegments: number;
+  estimatedSmsCredits: number;
+  emailRecipients?: number;
+};
+
+export type ReportReleaseSendResult = {
+  preview: ReportReleaseSendPreview;
+  submitted: number;
+  failed: number;
+  skippedDuplicate: number;
+  missingContact: number;
+  alreadySent: number;
+  skipped: Array<{ studentId: string; studentName: string; reason: string }>;
+};
+
 export async function markSent(issuedReportId: string): Promise<void> {
   const res = await fetch(`${API_BASE}/api/reports/release/${issuedReportId}/mark-sent`, {
     method: "POST",
@@ -166,4 +186,21 @@ export async function revokeBulk(body: { studentIds: string[]; classId: string; 
   });
   if (!res.ok) throw new Error(await parseApiError(res, "Could not revoke reports"));
   return res.json() as Promise<BulkReleaseResult>;
+}
+
+export async function sendReportReleasesBulk(body: {
+  studentIds: string[];
+  classId: string;
+  schoolCode?: string;
+  channel: "SMS" | "EMAIL";
+  previewOnly?: boolean;
+  confirm?: boolean;
+}): Promise<ReportReleaseSendResult> {
+  const res = await fetch(`${API_BASE}/api/reports/release/send-bulk`, {
+    method: "POST",
+    headers: makeRequestHeaders({ "Content-Type": "application/json" }),
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(await parseApiError(res, "Could not send report links"));
+  return res.json() as Promise<ReportReleaseSendResult>;
 }

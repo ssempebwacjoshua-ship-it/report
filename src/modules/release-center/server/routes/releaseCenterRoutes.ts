@@ -3,13 +3,18 @@ import { z } from "zod";
 import type { PreferredContactMethod } from "@prisma/client";
 import { prisma } from "../../../../server/db/prisma";
 import { requireAuth } from "../../../../server/middleware/requireAuth";
+import { resolveSmsProvider } from "../../../../server/services/communicationProviders";
+import { sendOutreachEmail } from "../../../../server/services/emailService";
 import { entitlementErrorBody, evaluateSubscriptionEntitlement } from "../../../../server/services/subscriptionEntitlementService";
+import { buildDeliveryIdempotencyKey, hashRenderedContent } from "../../../../server/utils/communicationHashes";
 import { loadReportEngineInput } from "../../../../server/repositories/reportsRepository";
 import { getSettingsSections } from "../../../../server/repositories/settingsRepository";
 import { buildReports } from "../../../../server/services/reportEngine";
 import { getReportLinkExpiry, isReportLinkExpired } from "../services/reportLinkService";
 import { issueOrReuseIssuedReportLink } from "../services/issuedReportLinkService";
 import { buildParentReportPublicUrl } from "../../../../server/config/publicUrl";
+import { estimateSmsSegments } from "../../../../shared/communications";
+import { buildParentReportReleaseMessage, formatTermLabel } from "../../../../shared/reportReleaseMessage";
 import { defaultSettingsSections } from "../../../../shared/types/settings";
 import { sanitizeReportCardForRender, sanitizeReportPersonalizationForReport, sanitizeSchoolSettingsForReport } from "../../../../shared/utils/reportContentLimits";
 
@@ -74,6 +79,19 @@ function computeDeliveryStatus(
   return "LINK_GENERATED";
 }
 
+function buildReleaseEmailSubject(studentName: string, termName: string, schoolName: string) {
+  return `${studentName} ${formatTermLabel(termName)} school report - ${schoolName}`;
+}
+
+function buildReleaseMessage(studentName: string, termName: string, schoolName: string, reportLink: string) {
+  return buildParentReportReleaseMessage({
+    studentName,
+    termName,
+    schoolName,
+    reportLink,
+  });
+}
+
 const releaseFiltersSchema = z.object({
   classId: z.string().min(1, "classId is required."),
   streamId: z.string().optional(),
@@ -95,6 +113,15 @@ const bulkIssueSchema = z.object({
 const bulkActionSchema = z.object({
   classId: z.string().min(1),
   studentIds: z.array(z.string().uuid()).min(1),
+});
+
+const bulkSendSchema = z.object({
+  classId: z.string().min(1),
+  studentIds: z.array(z.string().uuid()).min(1),
+  schoolCode: z.string().optional(),
+  channel: z.enum(["SMS", "EMAIL"]),
+  previewOnly: z.boolean().optional(),
+  confirm: z.boolean().optional(),
 });
 
 export function releaseCenterRoutes() {
@@ -302,6 +329,433 @@ export function releaseCenterRoutes() {
       }
 
       res.status(201).json({ issued, skipped });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/api/reports/release/send-bulk", requireAuth, async (req, res, next) => {
+    try {
+      const body = bulkSendSchema.parse(req.body);
+      const user = req.user!;
+      const schoolCode = req.school!.code;
+      const dryRun = process.env.COMMUNICATION_DRY_RUN === "true";
+      const entitlement = await evaluateSubscriptionEntitlement({
+        schoolId: req.school!.id,
+        entitlement: "communications.send",
+      });
+      if (!entitlement.allowed) {
+        res.status(entitlement.status).json(entitlementErrorBody(entitlement, "communications.send"));
+        return;
+      }
+
+      if (body.channel === "SMS" && !dryRun) {
+        const provider = resolveSmsProvider();
+        const config = await provider.checkHealth({
+          schoolId: user.schoolId,
+          sendingEnabled: true,
+          providerMetadata: null,
+        });
+        if (!config.sendingEnabled) {
+          throw Object.assign(new Error(config.issues.join(", ")), { status: 500, expose: true });
+        }
+      }
+
+      const settings = await getSettingsSections(prisma, schoolCode);
+      const filters = {
+        schoolCode,
+        classId: body.classId,
+        assessmentType: settings.academic.defaultAssessmentType,
+      };
+      const engineInput = await loadReportEngineInput(prisma, filters);
+      const reportResult = buildReports(engineInput);
+      const targetCards = reportResult.cards.filter((card) => body.studentIds.includes(card.studentId));
+      const studentIds = targetCards.map((card) => card.studentId);
+
+      const allContacts = await prisma.guardianContact.findMany({
+        where: { studentId: { in: studentIds }, canReceiveReports: true },
+        orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }],
+      });
+      const contactsByStudent = new Map<string, typeof allContacts>();
+      for (const contact of allContacts) {
+        const list = contactsByStudent.get(contact.studentId) ?? [];
+        list.push(contact);
+        contactsByStudent.set(contact.studentId, list);
+      }
+
+      const existingIssuedReports = await prisma.issuedReport.findMany({
+        where: {
+          schoolId: user.schoolId,
+          studentId: { in: studentIds },
+          academicYear: engineInput.academicYearName,
+          term: engineInput.termName,
+          assessmentType: filters.assessmentType,
+        },
+        orderBy: { issuedAt: "desc" },
+      });
+      const issuedByStudent = new Map<string, (typeof existingIssuedReports)[number]>();
+      for (const issued of existingIssuedReports) {
+        const existing = issuedByStudent.get(issued.studentId);
+        if (!existing || (issued.status === "ISSUED" && existing.status !== "ISSUED")) {
+          issuedByStudent.set(issued.studentId, issued);
+        }
+      }
+
+      const preview = {
+        totalSelected: body.studentIds.length,
+        issuableLinks: 0,
+        missingContacts: 0,
+        alreadySent: 0,
+        estimatedSmsSegments: 0,
+        estimatedSmsCredits: 0,
+        emailRecipients: 0,
+      };
+      const skipped: Array<{ studentId: string; studentName: string; reason: string }> = [];
+      const candidates: Array<{
+        card: (typeof targetCards)[number];
+        student: (typeof engineInput.students)[number];
+        contact: NonNullable<ResolvedContact>;
+        issued: (typeof existingIssuedReports)[number] | null;
+        message: string;
+        subject: string;
+        idempotencyKey: string;
+      }> = [];
+
+      for (const card of targetCards) {
+        const student = engineInput.students.find((item) => item.id === card.studentId);
+        if (!student) continue;
+        const contact = resolveContact(contactsByStudent.get(card.studentId) ?? []);
+        const matchingContact = body.channel === "SMS"
+          ? contact && contact.contactValue && contact.method !== "EMAIL" ? contact : null
+          : contact && contact.method === "EMAIL" ? contact : null;
+
+        if (!matchingContact) {
+          preview.missingContacts += 1;
+          skipped.push({ studentId: card.studentId, studentName: card.studentName, reason: "Missing valid contact" });
+          continue;
+        }
+
+        let issued = issuedByStudent.get(card.studentId) ?? null;
+        const expired = issued ? isReportLinkExpired(issued.expiresAt) : false;
+        if (!issued || issued.status !== "ISSUED" || expired) {
+          if (card.readiness !== "READY" && card.readiness !== "MISSING_MARKS") {
+            skipped.push({ studentId: card.studentId, studentName: card.studentName, reason: "Report not ready to issue" });
+            continue;
+          }
+          preview.issuableLinks += 1;
+          if (!body.previewOnly) {
+            const snapshot = {
+              card: sanitizeReportCardForRender(card),
+              settings: {
+                ...reportResult.settings,
+                school: sanitizeSchoolSettingsForReport(reportResult.settings.school),
+                personalization: sanitizeReportPersonalizationForReport(reportResult.settings.personalization ?? defaultSettingsSections.reportPersonalization),
+              },
+              issuedAt: new Date().toISOString(),
+              issuedByName: user.name,
+              filters,
+            };
+            const result = await issueOrReuseIssuedReportLink({
+              prisma,
+              schoolId: user.schoolId,
+              studentId: card.studentId,
+              academicYear: engineInput.academicYearName,
+              term: engineInput.termName,
+              assessmentType: filters.assessmentType,
+              snapshot,
+              issuedById: user.userId,
+              issuedByName: user.name,
+              auditActorId: user.userId,
+              auditActorName: user.name,
+              expiresAt: getReportLinkExpiry(settings.academic.termEndDate),
+            });
+            issued = await prisma.issuedReport.findFirst({ where: { id: result.issuedReportId, schoolId: user.schoolId } });
+          }
+        }
+
+        const reportLink = issued?.publicShortCode ? buildParentReportPublicUrl(issued.publicShortCode) : null;
+        if (!reportLink || !issued) {
+          skipped.push({ studentId: card.studentId, studentName: card.studentName, reason: "No issued link" });
+          continue;
+        }
+
+        const message = buildReleaseMessage(card.studentName, engineInput.termName, settings.school.schoolName, reportLink);
+        const subject = buildReleaseEmailSubject(card.studentName, engineInput.termName, settings.school.schoolName);
+        const contentVersion = Math.trunc(new Date(issued.issuedAt).getTime() / 1000);
+        const idempotencyKey = buildDeliveryIdempotencyKey({
+          schoolId: user.schoolId,
+          campaignId: issued.id,
+          recipientId: `${card.studentId}:${matchingContact.contactValue}`,
+          channel: body.channel,
+          contentVersion,
+        });
+        const duplicate = await prisma.communicationDelivery.findUnique({ where: { idempotencyKey } });
+        if (duplicate && ["SUBMITTED", "ACCEPTED", "DELIVERED", "READ"].includes(duplicate.status)) {
+          preview.alreadySent += 1;
+          skipped.push({ studentId: card.studentId, studentName: card.studentName, reason: "Already sent" });
+          continue;
+        }
+
+        if (body.channel === "SMS") {
+          const smsEstimate = estimateSmsSegments(message);
+          preview.estimatedSmsSegments += smsEstimate.segments;
+          preview.estimatedSmsCredits += smsEstimate.billableUnits;
+        } else {
+          preview.emailRecipients += 1;
+        }
+
+        candidates.push({ card, student, contact: matchingContact, issued, message, subject, idempotencyKey });
+      }
+
+      if (body.previewOnly) {
+        res.json({
+          preview,
+          submitted: 0,
+          failed: 0,
+          skippedDuplicate: preview.alreadySent,
+          missingContact: preview.missingContacts,
+          alreadySent: preview.alreadySent,
+          skipped,
+        });
+        return;
+      }
+
+      if (!body.confirm) {
+        res.status(400).json({ error: "Confirmation is required before sending reports." });
+        return;
+      }
+
+      let campaignId: string | null = null;
+      let snapshotId: string | null = null;
+      if (candidates.length > 0) {
+        const campaign = await prisma.communicationCampaign.create({
+          data: {
+            schoolId: user.schoolId,
+            type: "REPORT_RELEASE",
+            title: `Release Center ${body.channel} send`,
+            createdByUserId: user.userId,
+            status: "SENDING",
+            contents: {
+              create: {
+                version: 1,
+                subject: body.channel === "EMAIL" ? "Report release" : null,
+                body: "Release Center report delivery",
+                createdByUserId: user.userId,
+              },
+            },
+          },
+        });
+        const snapshot = await prisma.communicationAudienceSnapshot.create({
+          data: {
+            campaignId: campaign.id,
+            snapshotVersion: 1,
+            createdByUserId: user.userId,
+            recipientCount: candidates.length,
+          },
+        });
+        campaignId = campaign.id;
+        snapshotId = snapshot.id;
+      }
+
+      let submitted = 0;
+      let failed = 0;
+      let skippedDuplicate = preview.alreadySent;
+      for (const candidate of candidates) {
+        const recipient = await prisma.communicationRecipient.create({
+          data: {
+            schoolId: user.schoolId,
+            campaignId: campaignId!,
+            audienceSnapshotId: snapshotId!,
+            studentId: candidate.card.studentId,
+            displayName: candidate.card.studentName,
+            guardianId: null,
+            relationship: candidate.contact.guardianName,
+            phoneE164: body.channel === "SMS" ? candidate.contact.contactValue : null,
+            email: body.channel === "EMAIL" ? candidate.contact.contactValue : null,
+            preferredChannel: body.channel,
+            status: "QUEUED",
+            personalisationJson: {
+              guardianName: candidate.contact.guardianName,
+              studentName: candidate.card.studentName,
+              schoolName: settings.school.schoolName,
+            },
+          },
+        });
+        const delivery = await prisma.communicationDelivery.create({
+          data: {
+            schoolId: user.schoolId,
+            campaignId: campaignId!,
+            recipientId: recipient.id,
+            channel: body.channel,
+            provider: body.channel === "SMS" ? (dryRun ? "DRY_RUN" : resolveSmsProvider().providerKey) : (dryRun ? "DRY_RUN" : "OUTREACH_EMAIL"),
+            status: "SUBMITTING",
+            contentVersion: 1,
+            idempotencyKey: candidate.idempotencyKey,
+            renderedContentHash: hashRenderedContent(body.channel === "EMAIL" ? `${candidate.subject}\n${candidate.message}` : candidate.message),
+            queuedAt: new Date(),
+          },
+        });
+        const attempt = await prisma.communicationDeliveryAttempt.create({
+          data: {
+            deliveryId: delivery.id,
+            attemptNumber: 1,
+            provider: delivery.provider,
+            status: "STARTED",
+            requestId: candidate.idempotencyKey,
+          },
+        });
+
+        const now = new Date();
+        if (body.channel === "SMS") {
+          const provider = resolveSmsProvider();
+          const estimate = estimateSmsSegments(candidate.message);
+          const smsResult = dryRun
+            ? {
+                acceptedRecipients: [{
+                  recipientId: recipient.id,
+                  providerMessageId: `dry-run-${candidate.idempotencyKey.slice(0, 16)}`,
+                  requestProviderMessageId: undefined,
+                  lifecycleState: "SENT" as const,
+                  providerStatus: "DRY_RUN_ACCEPTED",
+                  billableUnits: 0,
+                }],
+                rejectedRecipients: [],
+              }
+            : await provider.sendBatch([{
+                recipientId: recipient.id,
+                toE164: candidate.contact.contactValue,
+                text: candidate.message,
+                idempotencyKey: candidate.idempotencyKey,
+                segmentCount: estimate.segments,
+              }], {
+                schoolId: user.schoolId,
+                sendingEnabled: true,
+                providerMetadata: null,
+              });
+
+          const accepted = smsResult.acceptedRecipients[0];
+          if (accepted) {
+            submitted += 1;
+            await prisma.communicationDelivery.update({
+              where: { id: delivery.id },
+              data: {
+                status: "SUBMITTED",
+                providerMessageId: accepted.providerMessageId ?? accepted.requestProviderMessageId,
+                submittedAt: now,
+                acceptedAt: now,
+                attemptCount: 1,
+              },
+            });
+            await prisma.communicationDeliveryAttempt.update({
+              where: { id: attempt.id },
+              data: {
+                status: "PROVIDER_ACCEPTED",
+                providerMessageId: accepted.providerMessageId ?? accepted.requestProviderMessageId,
+                providerResponseCode: accepted.providerStatus,
+                completedAt: now,
+              },
+            });
+            await prisma.issuedReport.update({
+              where: { id: candidate.issued.id },
+              data: { sentAt: candidate.issued.sentAt ?? now },
+            });
+            continue;
+          }
+
+          const rejected = smsResult.rejectedRecipients[0];
+          failed += 1;
+          await prisma.communicationDelivery.update({
+            where: { id: delivery.id },
+            data: {
+              status: "FAILED",
+              failedAt: now,
+              lastErrorCode: rejected?.errorCode ?? "SMS_SEND_FAILED",
+              lastErrorMessageSafe: rejected?.safeErrorMessage ?? "SMS provider rejected the message.",
+              attemptCount: 1,
+            },
+          });
+          await prisma.communicationDeliveryAttempt.update({
+            where: { id: attempt.id },
+            data: {
+              status: "PROVIDER_REJECTED",
+              errorCode: rejected?.errorCode ?? "SMS_SEND_FAILED",
+              errorMessageSafe: rejected?.safeErrorMessage ?? "SMS provider rejected the message.",
+              completedAt: now,
+            },
+          });
+          skipped.push({ studentId: candidate.card.studentId, studentName: candidate.card.studentName, reason: rejected?.safeErrorMessage ?? "Provider rejected" });
+          continue;
+        }
+
+        const emailResult = dryRun
+          ? { ok: true as const, provider: "RESEND" as const, messageId: `dry-run-${candidate.idempotencyKey.slice(0, 16)}` }
+          : await sendOutreachEmail({
+              to: candidate.contact.contactValue,
+              subject: candidate.subject,
+              text: candidate.message,
+              html: candidate.message.replace(/\n/g, "<br />"),
+            });
+
+        if (emailResult.ok) {
+          submitted += 1;
+          await prisma.communicationDelivery.update({
+            where: { id: delivery.id },
+            data: {
+              status: "SUBMITTED",
+              providerMessageId: emailResult.messageId,
+              submittedAt: now,
+              acceptedAt: now,
+              attemptCount: 1,
+            },
+          });
+          await prisma.communicationDeliveryAttempt.update({
+            where: { id: attempt.id },
+            data: {
+              status: "PROVIDER_ACCEPTED",
+              providerMessageId: emailResult.messageId,
+              providerResponseCode: emailResult.provider,
+              completedAt: now,
+            },
+          });
+          await prisma.issuedReport.update({
+            where: { id: candidate.issued.id },
+            data: { sentAt: candidate.issued.sentAt ?? now },
+          });
+          continue;
+        }
+
+        failed += 1;
+        await prisma.communicationDelivery.update({
+          where: { id: delivery.id },
+          data: {
+            status: "FAILED",
+            failedAt: now,
+            lastErrorCode: emailResult.safeErrorCode,
+            lastErrorMessageSafe: emailResult.safeErrorMessage,
+            attemptCount: 1,
+          },
+        });
+        await prisma.communicationDeliveryAttempt.update({
+          where: { id: attempt.id },
+          data: {
+            status: "PROVIDER_REJECTED",
+            errorCode: emailResult.safeErrorCode,
+            errorMessageSafe: emailResult.safeErrorMessage,
+            completedAt: now,
+          },
+        });
+        skipped.push({ studentId: candidate.card.studentId, studentName: candidate.card.studentName, reason: emailResult.safeErrorMessage ?? "Provider rejected" });
+      }
+
+      res.json({
+        preview,
+        submitted,
+        failed,
+        skippedDuplicate,
+        missingContact: preview.missingContacts,
+        alreadySent: preview.alreadySent,
+        skipped,
+      });
     } catch (error) {
       next(error);
     }

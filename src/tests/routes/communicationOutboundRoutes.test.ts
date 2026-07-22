@@ -431,7 +431,7 @@ describe("communication outbound routes", () => {
     expect(fetchMock).toHaveBeenCalled();
   });
 
-  it("uses the fallback SMS message when no approved template exists by default", async () => {
+  it("uses the campaign body for live SMS when no explicit direct message is supplied", async () => {
     const campaignId = await createCampaign();
     await prisma.communicationCampaign.update({ where: { id: campaignId }, data: { status: "APPROVED" } });
     await ensureActiveSubscription();
@@ -454,7 +454,8 @@ describe("communication outbound routes", () => {
     expect(res.body.result.submitted).toBe(1);
     expect(res.body.result.templatePolicy.policyStatus).toBe("DIRECT_MESSAGE");
     const requestBody = JSON.parse(fetchMock.mock.calls[0]?.[1]?.body as string);
-    expect(requestBody.message).toBe("Test SMS from School Connect");
+    expect(requestBody.message).toBe("Hello Test Guardian");
+    expect(requestBody.message).not.toBe("Test SMS from School Connect");
   });
 
   it("uses a direct SMS message when one is supplied", async () => {
@@ -508,7 +509,7 @@ describe("communication outbound routes", () => {
     expect(res.body.result.submitted).toBe(1);
   });
 
-  it("bypasses the entitlement gate for live sends while communications are temporarily open", async () => {
+  it("enforces the entitlement gate for live sends", async () => {
     const campaignId = await createCampaign();
     await prisma.communicationCampaign.update({ where: { id: campaignId }, data: { status: "APPROVED" } });
     await ensureActiveSubscription();
@@ -536,13 +537,13 @@ describe("communication outbound routes", () => {
       .set("Authorization", auth(adminToken))
       .send({ channel: "WHATSAPP", confirm: true, audience: { studentIds: [studentId], mode: "GENERAL" } });
 
-    expect(res.status).toBe(200);
-    expect(res.body.result.submitted).toBe(1);
-    expect(fetchMock).toHaveBeenCalled();
+    expect(res.status).toBe(402);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("blocks draft campaigns from direct send", async () => {
     const campaignId = await createCampaign();
+    vi.stubEnv("COMMUNICATION_DRY_RUN", "true");
     const body = { channel: "SMS", confirm: true, audience: { studentIds: [studentId], mode: "GENERAL" } };
     const res = await request(createServer()).post(`/api/communications/campaigns/${campaignId}/send`).set("Authorization", auth(adminToken)).send(body);
 
@@ -637,6 +638,7 @@ describe("communication outbound routes", () => {
   it("creates dry-run delivery rows and prevents duplicate sends without live provider credentials", async () => {
     const campaignId = await createCampaign();
     await prisma.communicationCampaign.update({ where: { id: campaignId }, data: { status: "APPROVED" } });
+    vi.stubEnv("COMMUNICATION_DRY_RUN", "true");
     const body = { channel: "SMS", confirm: true, audience: { studentIds: [studentId], mode: "GENERAL" } };
 
     const first = await request(createServer()).post(`/api/communications/campaigns/${campaignId}/send`).set("Authorization", auth(adminToken)).send(body);
