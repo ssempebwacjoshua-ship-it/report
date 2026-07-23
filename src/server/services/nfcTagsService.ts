@@ -15,8 +15,6 @@ export type NfcTagsContext = {
   role?: string | null;
 };
 
-const STUDENT_LINKED_ACTIVE_TAG_STATUSES = new Set(["ASSIGNED", "WRITTEN", "VERIFIED"]);
-
 function requireSchoolId(ctx: NfcTagsContext): string {
   if (!ctx.schoolId) throw Object.assign(new Error("School context required."), { status: 401 });
   return ctx.schoolId;
@@ -395,14 +393,12 @@ export async function resolvePublicCode(
 
   let result: NfcResolveResult;
 
-  const UNALLOCATED_STATUSES = new Set(["UNASSIGNED", "UNALLOCATED", "GENERATED", "REGISTERED"]);
+  const UNALLOCATED_STATUSES = new Set(["UNASSIGNED", "UNALLOCATED", "GENERATED", "WRITTEN", "VERIFIED", "REGISTERED"]);
 
   if (!tag) {
     result = "UNKNOWN";
   } else if (tag.status === "DISABLED") {
     result = "DISABLED";
-  } else if (tag.studentId && STUDENT_LINKED_ACTIVE_TAG_STATUSES.has(tag.status)) {
-    result = "ASSIGNED";
   } else if (!tag.studentId || UNALLOCATED_STATUSES.has(tag.status)) {
     result = "UNASSIGNED";
   } else {

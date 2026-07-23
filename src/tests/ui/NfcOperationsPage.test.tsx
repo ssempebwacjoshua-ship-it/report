@@ -10,8 +10,6 @@ const mockCancelReaderCredentialCapture = vi.hoisted(() => vi.fn());
 const mockGetReaderCredentialCapture = vi.hoisted(() => vi.fn());
 const mockListNfcTags = vi.hoisted(() => vi.fn());
 const mockGenerateNfcTags = vi.hoisted(() => vi.fn());
-const mockCreateNfcTagWriteCommand = vi.hoisted(() => vi.fn());
-const mockGetNfcTagWriteCommand = vi.hoisted(() => vi.fn());
 const mockFetchOfflineSyncStatus = vi.hoisted(() => vi.fn());
 const mockFetchStudents = vi.hoisted(() => vi.fn());
 const mockGetStudentWalletPinStatus = vi.hoisted(() => vi.fn());
@@ -24,8 +22,6 @@ vi.mock("../../client/nfcTagsClient", () => ({
   disableNfcTag: vi.fn(),
   enableNfcTag: vi.fn(),
   generateNfcTags: mockGenerateNfcTags,
-  createNfcTagWriteCommand: mockCreateNfcTagWriteCommand,
-  getNfcTagWriteCommand: mockGetNfcTagWriteCommand,
   getReaderCredentialCapture: mockGetReaderCredentialCapture,
   cancelReaderCredentialCapture: mockCancelReaderCredentialCapture,
   getNfcTagEvents: vi.fn(),
@@ -110,114 +106,6 @@ beforeEach(() => {
   mockGenerateNfcTags.mockResolvedValue({
     generated: 1,
     tags: [{ ...SAMPLE_TAGS[1], id: "tag-3", label: "Generated Tag", publicCode: "PUBLICCODE-NEW-003" }],
-  });
-  mockCreateNfcTagWriteCommand.mockResolvedValue({
-    id: "command-1",
-    type: "WRITE_NFC_TAG_PAYLOAD",
-    status: "PENDING",
-    createdAt: "2026-07-12T08:31:00.000Z",
-    requestedAt: "2026-07-12T08:31:00.000Z",
-    sentAt: null,
-    writeStartedAt: null,
-    writeCompletedAt: null,
-    verifyStartedAt: null,
-    verifiedAt: null,
-    failedAt: null,
-    completedAt: null,
-    lastStatusAt: "2026-07-12T08:31:00.000Z",
-    lastStatusMessage: "NFC payload write command queued for the selected ESP32 controller.",
-    errorMessage: null,
-    payload: {
-      tagId: "tag-3",
-      studentId: "student-2",
-      publicCode: "PUBLICCODE-NEW-003",
-      payload: "SCNFC:PUBLICCODE-NEW-003",
-      format: "NDEF_TEXT",
-      verifyAfterWrite: true,
-      captureReaderCredential: true,
-    },
-    device: {
-      id: "device-1",
-      name: "Attendance Gate 01",
-      deviceKey: "attendance-gate-01",
-      label: "Attendance Gate 01 (Main Entrance)",
-      onlineStatus: "ONLINE",
-      lastSeenAt: "2026-07-12T08:00:00.000Z",
-      lastHeartbeatAt: "2026-07-12T08:00:00.000Z",
-    },
-    tag: {
-      id: "tag-3",
-      publicCode: "PUBLICCODE-NEW-003",
-      label: "Generated Tag",
-      status: "ASSIGNED",
-      physicalUid: null,
-      writtenPayload: "SCNFC:PUBLICCODE-NEW-003",
-      student: {
-        id: "student-2",
-        name: "Mike Ssempebwa",
-        admissionNumber: "SCU-S1B-030",
-      },
-    },
-    writtenPayload: null,
-    readbackPayload: null,
-    mobilePayloadStatus: "pending",
-    readerCredentialStatus: "pending",
-    readerCredentialLinkedAt: null,
-    readerCredentialError: null,
-  });
-  mockGetNfcTagWriteCommand.mockResolvedValue({
-    id: "command-1",
-    type: "WRITE_NFC_TAG_PAYLOAD",
-    status: "VERIFIED",
-    createdAt: "2026-07-12T08:31:00.000Z",
-    requestedAt: "2026-07-12T08:31:00.000Z",
-    sentAt: "2026-07-12T08:31:02.000Z",
-    writeStartedAt: "2026-07-12T08:31:05.000Z",
-    writeCompletedAt: "2026-07-12T08:31:08.000Z",
-    verifyStartedAt: "2026-07-12T08:31:10.000Z",
-    verifiedAt: "2026-07-12T08:31:12.000Z",
-    failedAt: null,
-    completedAt: "2026-07-12T08:31:12.000Z",
-    lastStatusAt: "2026-07-12T08:31:12.000Z",
-    lastStatusMessage: "NFC mobile payload verified successfully.",
-    errorMessage: null,
-    payload: {
-      tagId: "tag-3",
-      studentId: "student-2",
-      publicCode: "PUBLICCODE-NEW-003",
-      payload: "SCNFC:PUBLICCODE-NEW-003",
-      format: "NDEF_TEXT",
-      verifyAfterWrite: true,
-      captureReaderCredential: true,
-    },
-    device: {
-      id: "device-1",
-      name: "Attendance Gate 01",
-      deviceKey: "attendance-gate-01",
-      label: "Attendance Gate 01 (Main Entrance)",
-      onlineStatus: "ONLINE",
-      lastSeenAt: "2026-07-12T08:00:00.000Z",
-      lastHeartbeatAt: "2026-07-12T08:00:00.000Z",
-    },
-    tag: {
-      id: "tag-3",
-      publicCode: "PUBLICCODE-NEW-003",
-      label: "Generated Tag",
-      status: "VERIFIED",
-      physicalUid: "WB-123456",
-      writtenPayload: "SCNFC:PUBLICCODE-NEW-003",
-      student: {
-        id: "student-2",
-        name: "Mike Ssempebwa",
-        admissionNumber: "SCU-S1B-030",
-      },
-    },
-    writtenPayload: "SCNFC:PUBLICCODE-NEW-003",
-    readbackPayload: "SCNFC:PUBLICCODE-NEW-003",
-    mobilePayloadStatus: "verified",
-    readerCredentialStatus: "linked",
-    readerCredentialLinkedAt: "2026-07-12T08:31:11.000Z",
-    readerCredentialError: null,
   });
   mockFetchStudents.mockResolvedValue({
     students: [
@@ -629,52 +517,6 @@ describe("NfcOperationsPage", () => {
 
     expect(await screen.findByRole("option", { name: /Block A \(Classroom\)/ })).toBeInTheDocument();
     expect(screen.queryByRole("option", { name: /Block B \(BLOCK B\)/i })).not.toBeInTheDocument();
-  });
-
-  it("shows controller-driven registration progress with separate mobile payload and reader credential states", async () => {
-    mockFetchOfflineSyncStatus.mockResolvedValue({
-      providerReachable: true,
-      lastSyncAt: isoMinutesAgo(0),
-      pendingCount: 0,
-      stale: false,
-      devices: [
-        {
-          id: "device-1",
-          name: "Attendance Gate 01",
-          deviceKey: "attendance-gate-01",
-          location: "Main Entrance",
-          locationName: "Main Entrance",
-          locationType: "GATE",
-          attendanceMode: "GATE_ATTENDANCE",
-          mode: "GATE",
-          status: "ACTIVE",
-          isActive: true,
-          onlineStatus: "ONLINE",
-          lastHeartbeatAt: isoMinutesAgo(0),
-          lastSeenAt: isoMinutesAgo(0),
-        },
-      ],
-    });
-    renderPage();
-
-    await waitFor(() => expect(screen.getByRole("heading", { name: "Controller-driven wristband registration" })).toBeInTheDocument());
-    await waitFor(() => expect(screen.getByRole("option", { name: /Attendance Gate 01 \(Main Entrance\)/ })).toBeInTheDocument());
-    fireEvent.change(screen.getByLabelText("Student"), { target: { value: "student-2" } });
-    fireEvent.change(screen.getByLabelText("ESP32 controller"), { target: { value: "device-1" } });
-    fireEvent.change(screen.getByLabelText("Existing tag (optional)"), { target: { value: "tag-2" } });
-
-    fireEvent.click(screen.getByRole("button", { name: "Send write and capture command" }));
-
-    await waitFor(() => expect(mockCreateNfcTagWriteCommand).toHaveBeenCalledWith({
-      controllerId: "device-1",
-      studentId: "student-2",
-      tagId: "tag-2",
-    }));
-
-    expect(screen.getByText(/Waiting for the selected ESP32 controller to write, verify, and capture the reader credential/i)).toBeInTheDocument();
-    expect(screen.getByText("Mobile payload")).toBeInTheDocument();
-    expect(screen.getByText("Reader credential")).toBeInTheDocument();
-    expect(screen.getAllByText("Pending")).toHaveLength(2);
   });
 
 });

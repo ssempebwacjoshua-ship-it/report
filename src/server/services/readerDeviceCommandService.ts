@@ -3,11 +3,9 @@ import { findReaderGatewayOtaRelease } from "../config/readerGatewayOtaCatalog";
 import { getReaderGatewayCanonicalApiBaseUrl } from "../config/readerGatewayCanonicalConfig";
 
 const TRUSTED_READER_OTA_FALLBACK_BASE_URL = "https://report-production-b00d.up.railway.app";
-const ACTIVE_FIRMWARE_COMMAND_STATUSES = ["PENDING", "ACKED", "DOWNLOADING", "INSTALLING"] as const;
-const TERMINAL_FIRMWARE_COMMAND_STATUSES = ["SUCCEEDED", "FAILED"] as const;
+const ACTIVE_COMMAND_STATUSES = ["PENDING", "ACKED", "DOWNLOADING", "INSTALLING"] as const;
+const TERMINAL_COMMAND_STATUSES = ["SUCCEEDED", "FAILED"] as const;
 const FIRMWARE_UPDATE_COMMAND = "FIRMWARE_UPDATE" as const;
-export const WRITE_NFC_TAG_PAYLOAD_COMMAND = "WRITE_NFC_TAG_PAYLOAD" as const;
-const DEVICE_DELIVERABLE_WRITE_STATUSES = ["PENDING", "SENT"] as const;
 
 type ReaderDeviceCommandDb = Pick<PrismaClient, "readerDeviceCommand" | "nfcOfflineDevice" | "auditLog" | "$transaction">;
 
@@ -30,23 +28,6 @@ type ReaderDeviceCommandRow = {
   firmwareVersion: string | null;
   firmwareUrl: string | null;
   firmwareSha256: string | null;
-  payloadJson: unknown;
-  targetTagId: string | null;
-  targetStudentId: string | null;
-  expectedPayload: string | null;
-  writtenPayload: string | null;
-  readbackPayload: string | null;
-  credentialJson: unknown;
-  credentialStatus: string | null;
-  credentialError: string | null;
-  sentAt: Date | null;
-  writeStartedAt: Date | null;
-  writeCompletedAt: Date | null;
-  verifyStartedAt: Date | null;
-  verifiedAt: Date | null;
-  failedAt: Date | null;
-  credentialLinkedAt: Date | null;
-  errorMessage: string | null;
   requestedByUserId: string | null;
   requestedAt: Date;
   ackedAt: Date | null;
@@ -57,36 +38,13 @@ type ReaderDeviceCommandRow = {
   updatedAt: Date;
 };
 
-type WritePayloadJson = {
-  tagId: string;
-  studentId: string;
-  publicCode: string;
-  payload: string;
-  format: "NDEF_TEXT";
-  verifyAfterWrite: boolean;
-  captureReaderCredential: boolean;
+export type ReaderPendingCommandSummary = {
+  id: string;
+  type: "FIRMWARE_UPDATE";
+  firmwareVersion: string | null;
+  firmwareUrl: string | null;
+  firmwareSha256: string | null;
 };
-
-export type ReaderPendingCommandSummary =
-  | {
-      id: string;
-      type: "FIRMWARE_UPDATE";
-      firmwareVersion: string | null;
-      firmwareUrl: string | null;
-      firmwareSha256: string | null;
-    }
-  | {
-      id: string;
-      type: "WRITE_NFC_TAG_PAYLOAD";
-      tagId: string;
-      studentId: string;
-      publicCode: string;
-      payload: string;
-      format: "NDEF_TEXT";
-      verifyAfterWrite: boolean;
-      captureReaderCredential: boolean;
-      status: "PENDING" | "SENT";
-    };
 
 function trustedReaderOtaOrigins() {
   const origins = new Set<string>();
@@ -142,61 +100,21 @@ export function assertTrustedReaderFirmwareUrl(value: string) {
   }
 }
 
-function asWritePayloadJson(value: unknown): WritePayloadJson | null {
-  if (!value || typeof value !== "object") {
-    return null;
-  }
-  const payload = value as Partial<WritePayloadJson>;
-  if (
-    typeof payload.tagId !== "string"
-    || typeof payload.studentId !== "string"
-    || typeof payload.publicCode !== "string"
-    || typeof payload.payload !== "string"
-    || payload.format !== "NDEF_TEXT"
-    || typeof payload.verifyAfterWrite !== "boolean"
-    || typeof payload.captureReaderCredential !== "boolean"
-  ) {
-    return null;
-  }
-  return payload as WritePayloadJson;
-}
-
 function toPendingCommandSummary(command: ReaderDeviceCommandRow | null): ReaderPendingCommandSummary | null {
-  if (!command) {
+  if (!command || command.type !== FIRMWARE_UPDATE_COMMAND) {
     return null;
   }
-  if (command.type === FIRMWARE_UPDATE_COMMAND) {
-    return {
-      id: command.id,
-      type: "FIRMWARE_UPDATE",
-      firmwareVersion: command.firmwareVersion,
-      firmwareUrl: command.firmwareUrl,
-      firmwareSha256: command.firmwareSha256,
-    };
-  }
-  if (command.type === WRITE_NFC_TAG_PAYLOAD_COMMAND) {
-    const payload = asWritePayloadJson(command.payloadJson);
-    if (!payload) {
-      return null;
-    }
-    return {
-      id: command.id,
-      type: "WRITE_NFC_TAG_PAYLOAD",
-      tagId: payload.tagId,
-      studentId: payload.studentId,
-      publicCode: payload.publicCode,
-      payload: payload.payload,
-      format: payload.format,
-      verifyAfterWrite: payload.verifyAfterWrite,
-      captureReaderCredential: payload.captureReaderCredential,
-      status: command.status === "SENT" ? "SENT" : "PENDING",
-    };
-  }
-  return null;
+  return {
+    id: command.id,
+    type: "FIRMWARE_UPDATE",
+    firmwareVersion: command.firmwareVersion,
+    firmwareUrl: command.firmwareUrl,
+    firmwareSha256: command.firmwareSha256,
+  };
 }
 
 export async function getPendingReaderCommand(
-  db: Pick<PrismaClient, "readerDeviceCommand" | "auditLog" | "$transaction">,
+  db: Pick<PrismaClient, "readerDeviceCommand">,
   schoolId: string,
   deviceId: string,
 ) {
@@ -204,57 +122,10 @@ export async function getPendingReaderCommand(
     where: {
       schoolId,
       deviceId,
-      OR: [
-        { type: FIRMWARE_UPDATE_COMMAND, status: "PENDING" },
-        { type: WRITE_NFC_TAG_PAYLOAD_COMMAND, status: { in: [...DEVICE_DELIVERABLE_WRITE_STATUSES] } },
-      ],
+      status: "PENDING",
     },
     orderBy: [{ requestedAt: "asc" }, { createdAt: "asc" }],
   }) as ReaderDeviceCommandRow | null;
-
-  if (!command) {
-    return null;
-  }
-
-  if (command.type === WRITE_NFC_TAG_PAYLOAD_COMMAND && command.status === "PENDING" && db.$transaction) {
-    const now = new Date();
-    const delivered = await db.$transaction(async (tx) => {
-      const refreshed = await tx.readerDeviceCommand.findFirst({
-        where: { id: command.id, schoolId, deviceId },
-      }) as ReaderDeviceCommandRow | null;
-      if (!refreshed) {
-        return null;
-      }
-      if (refreshed.status === "PENDING") {
-        const updated = await tx.readerDeviceCommand.update({
-          where: { id: refreshed.id },
-          data: {
-            status: "SENT",
-            sentAt: refreshed.sentAt ?? now,
-            lastStatusAt: now,
-            lastStatusMessage: "Reader command delivered to the selected controller.",
-          },
-        }) as ReaderDeviceCommandRow;
-        await tx.auditLog.create({
-          data: {
-            schoolId,
-            action: "reader_device.command_sent",
-            correlationId: refreshed.id,
-            details: {
-              deviceId,
-              commandId: refreshed.id,
-              type: refreshed.type,
-              status: "SENT",
-            },
-          },
-        });
-        return updated;
-      }
-      return refreshed;
-    });
-    return toPendingCommandSummary(delivered);
-  }
-
   return toPendingCommandSummary(command);
 }
 
@@ -281,7 +152,7 @@ export async function createFirmwareUpdateCommand(
       deviceId: device.id,
       type: FIRMWARE_UPDATE_COMMAND,
       firmwareVersion: release.version,
-      status: { in: [...ACTIVE_FIRMWARE_COMMAND_STATUSES] },
+      status: { in: [...ACTIVE_COMMAND_STATUSES] },
     },
     orderBy: [{ requestedAt: "desc" }, { createdAt: "desc" }],
   }) as ReaderDeviceCommandRow | null;
@@ -375,7 +246,7 @@ export async function acknowledgeReaderCommand(
   if (command.type !== FIRMWARE_UPDATE_COMMAND) {
     throw Object.assign(new Error("Unsupported reader command type."), { status: 409 });
   }
-  if (TERMINAL_FIRMWARE_COMMAND_STATUSES.includes(command.status as (typeof TERMINAL_FIRMWARE_COMMAND_STATUSES)[number])) {
+  if (TERMINAL_COMMAND_STATUSES.includes(command.status as (typeof TERMINAL_COMMAND_STATUSES)[number])) {
     return command;
   }
   if (command.status !== "PENDING") {
@@ -436,7 +307,7 @@ export async function updateReaderCommandStatus(
   if (command.type !== FIRMWARE_UPDATE_COMMAND) {
     throw Object.assign(new Error("Unsupported reader command type."), { status: 409 });
   }
-  if (TERMINAL_FIRMWARE_COMMAND_STATUSES.includes(command.status as (typeof TERMINAL_FIRMWARE_COMMAND_STATUSES)[number]) && command.status !== status) {
+  if (TERMINAL_COMMAND_STATUSES.includes(command.status as (typeof TERMINAL_COMMAND_STATUSES)[number]) && command.status !== status) {
     throw Object.assign(new Error("Command already completed."), { status: 409 });
   }
 
