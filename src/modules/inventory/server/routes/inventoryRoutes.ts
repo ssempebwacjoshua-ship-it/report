@@ -44,8 +44,7 @@ const reportingRecordSchema = z.object({
   termId: z.string().uuid().optional().or(z.literal("")),
   items: z.array(z.object({
     itemId: z.string().uuid(),
-    expectedQuantity: z.number().int().min(0),
-    broughtQuantity: z.number().int().min(0),
+    quantity: z.number().int().min(0),
   })).min(1),
 });
 

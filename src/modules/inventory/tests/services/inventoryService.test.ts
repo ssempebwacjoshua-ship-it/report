@@ -67,18 +67,19 @@ describe("inventoryService", () => {
     expect(movementCreate).toHaveBeenCalledTimes(2);
   });
 
-  it("calculates low stock and reporting counts from school-scoped data", async () => {
+  it("calculates low stock, reporting visits, items brought today, and adjustments from school-scoped data", async () => {
     const summary = await getInventoryDashboardSummary({
       inventoryItem: {
         findMany: async () => [
-          { id: "item-1", schoolId: "school-a", name: "Soap", category: "Hygiene", unit: "bar", minimumStock: 5, active: true, updatedAt: new Date() },
-          { id: "item-2", schoolId: "school-a", name: "Rice", category: "Food", unit: "kg", minimumStock: 2, active: true, updatedAt: new Date() },
+          { id: "item-1", schoolId: "school-a", name: "Soap", category: "Hygiene", unit: "bar", minimumStock: 5, active: true, updatedAt: new Date("2026-07-23T08:00:00.000Z") },
+          { id: "item-2", schoolId: "school-a", name: "Rice", category: "Food", unit: "kg", minimumStock: 2, active: true, updatedAt: new Date("2026-07-23T08:00:00.000Z") },
         ],
       },
       inventoryStockMovement: {
         findMany: async () => [
-          { id: "move-1", schoolId: "school-a", itemId: "item-1", type: "RECEIVED", quantity: 3, source: "Store", notes: null, createdAt: new Date(), recordedByUserId: "user-1", item: { id: "item-1", name: "Soap" }, student: null },
-          { id: "move-2", schoolId: "school-a", itemId: "item-2", type: "RECEIVED", quantity: 9, source: "Store", notes: null, createdAt: new Date(), recordedByUserId: "user-1", item: { id: "item-2", name: "Rice" }, student: null },
+          { id: "move-1", schoolId: "school-a", itemId: "item-1", type: "RECEIVED", quantity: 3, source: "Store", notes: null, createdAt: new Date("2026-07-23T09:00:00.000Z"), recordedByUserId: "user-1", item: { id: "item-1", name: "Soap" }, student: null },
+          { id: "move-2", schoolId: "school-a", itemId: "item-2", type: "RECEIVED", quantity: 9, source: "Store", notes: null, createdAt: new Date("2026-07-23T09:00:00.000Z"), recordedByUserId: "user-1", item: { id: "item-2", name: "Rice" }, student: null },
+          { id: "move-3", schoolId: "school-a", itemId: "item-2", type: "ADJUSTED", quantity: 1, source: "RECONCILIATION", notes: null, createdAt: new Date("2026-07-23T11:00:00.000Z"), recordedByUserId: "user-1", item: { id: "item-2", name: "Rice" }, student: null },
         ],
       },
       studentReportingRecord: {
@@ -87,12 +88,12 @@ describe("inventoryService", () => {
           schoolId: "school-a",
           studentId: "student-1",
           termId: null,
-          reportedAt: new Date(),
+          reportedAt: new Date("2026-07-23T10:00:00.000Z"),
           status: "REPORTED",
           student: { id: "student-1", firstName: "Ada", lastName: "Lovelace", admissionNumber: "A-1" },
           items: [
-            { expectedQuantity: 1, broughtQuantity: 1, status: "COMPLETE", item: { id: "item-1", name: "Soap" } },
-            { expectedQuantity: 2, broughtQuantity: 1, status: "PARTIAL", item: { id: "item-2", name: "Rice" } },
+            { expectedQuantity: 0, broughtQuantity: 1, status: "COMPLETE", item: { id: "item-1", name: "Soap" } },
+            { expectedQuantity: 0, broughtQuantity: 2, status: "COMPLETE", item: { id: "item-2", name: "Rice" } },
           ],
         }],
       },
@@ -101,35 +102,44 @@ describe("inventoryService", () => {
     expect(summary.itemsTracked).toBe(2);
     expect(summary.lowStock).toBe(1);
     expect(summary.reportingToday).toBe(1);
-    expect(summary.requirementsReceived).toBe(1);
-    expect(summary.reconciliationIssues).toBe(1);
+    expect(summary.itemsBroughtToday).toBe(3);
+    expect(summary.adjustmentsToday).toBe(1);
   });
 
-  it("derives reporting and reconciliation statuses from expected vs brought quantities", () => {
-    const issues = buildReconciliationIssues(
-      [
-        { id: "req-1", itemId: "item-1", itemName: "Soap", requiredQuantity: 2, classId: null, className: null, termId: null, termName: null, active: true },
-        { id: "req-2", itemId: "item-2", itemName: "Rice", requiredQuantity: 1, classId: null, className: null, termId: null, termName: null, active: true },
-      ],
-      [{
-        id: "record-1",
-        studentId: "student-1",
-        studentName: "Ada Lovelace",
-        admissionNumber: "A-001",
-        status: "REPORTED",
-        reportedAt: new Date().toISOString(),
-        termId: null,
-        items: [
-          { itemId: "item-1", itemName: "Soap", expectedQuantity: 2, broughtQuantity: 1, status: "PARTIAL" },
-          { itemId: "item-2", itemName: "Rice", expectedQuantity: 1, broughtQuantity: 2, status: "EXTRA" },
-        ],
-      }],
-    );
+  it("builds low-stock reconciliation rows from current inventory balances", () => {
+    const issues = buildReconciliationIssues([
+      {
+        id: "item-1",
+        name: "Soap",
+        category: "Hygiene",
+        unit: "bar",
+        minimumStock: 2,
+        active: true,
+        onHandQuantity: 1,
+        lowStock: true,
+        updatedAt: new Date("2026-07-23T08:00:00.000Z").toISOString(),
+      },
+      {
+        id: "item-2",
+        name: "Rice",
+        category: "Food",
+        unit: "kg",
+        minimumStock: 2,
+        active: true,
+        onHandQuantity: 4,
+        lowStock: false,
+        updatedAt: new Date("2026-07-23T08:00:00.000Z").toISOString(),
+      },
+    ]);
 
-    expect(issues).toEqual(expect.arrayContaining([
-      expect.objectContaining({ itemId: "item-1", status: "PARTIAL" }),
-      expect.objectContaining({ itemId: "item-2", status: "EXTRA" }),
-    ]));
+    expect(issues).toEqual([
+      expect.objectContaining({
+        itemId: "item-1",
+        currentQuantity: 1,
+        minimumStock: 2,
+        status: "LOW_STOCK",
+      }),
+    ]);
   });
 
   it("saves a reporting-day record and student-brought movements together", async () => {
@@ -137,11 +147,11 @@ describe("inventoryService", () => {
       id: "record-1",
       studentId: "student-1",
       status: "REPORTED",
-      reportedAt: new Date(),
+      reportedAt: new Date("2026-07-23T10:00:00.000Z"),
       termId: null,
       student: { id: "student-1", firstName: "Ada", lastName: "Lovelace", admissionNumber: "A-001" },
       items: [
-        { expectedQuantity: 1, broughtQuantity: 1, status: "COMPLETE", item: { id: "item-1", name: "Soap" } },
+        { expectedQuantity: 0, broughtQuantity: 1, status: "COMPLETE", item: { id: "item-1", name: "Soap" } },
       ],
     }));
     const movementCreate = vi.fn(async () => ({}));
@@ -160,10 +170,11 @@ describe("inventoryService", () => {
       schoolId: "school-a",
       actorId: "user-1",
       studentId: "student-1",
-      items: [{ itemId: "item-1", expectedQuantity: 1, broughtQuantity: 1 }],
+      items: [{ itemId: "item-1", quantity: 1 }],
     });
 
     expect(record.studentId).toBe("student-1");
+    expect(record.items).toEqual([{ itemId: "item-1", itemName: "Soap", quantity: 1 }]);
     expect(movementCreate).toHaveBeenCalledTimes(1);
   });
 });

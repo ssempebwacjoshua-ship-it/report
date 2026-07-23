@@ -652,19 +652,19 @@ export function DashboardPage() {
             to="/inventory/reporting"
           />
           <StatCard
-            label="Requirements Received"
-            value={statsLoading ? "-" : fmt(stats?.inventory.requirementsReceived ?? 0)}
-            note="Complete or extra checklist lines"
-            trend="Audit"
+            label="Items Brought Today"
+            value={statsLoading ? "-" : fmt(stats?.inventory.itemsBroughtToday ?? 0)}
+            note="Total quantity recorded from students"
+            trend="Today"
             tone="blue"
             icon="check"
             to="/inventory/reporting"
           />
           <StatCard
-            label="Reconciliation Issues"
-            value={statsLoading ? "-" : fmt(stats?.inventory.reconciliationIssues ?? 0)}
-            note="Missing, partial, or extra items"
-            trend={stats?.inventory.reconciliationIssues ? "Review" : "Clear"}
+            label="Adjustments Today"
+            value={statsLoading ? "-" : fmt(stats?.inventory.adjustmentsToday ?? 0)}
+            note="Manual stock adjustments recorded"
+            trend={stats?.inventory.adjustmentsToday ? "Review" : "Clear"}
             tone="yellow"
             icon="file"
             to="/inventory/reconciliation"

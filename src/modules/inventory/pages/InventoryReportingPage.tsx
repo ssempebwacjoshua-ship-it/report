@@ -3,11 +3,10 @@ import { Link } from "react-router-dom";
 import {
   fetchInventoryItems,
   fetchInventoryReportingContext,
-  saveReportingRequirement,
   saveStudentReportingRecord,
 } from "../client/inventoryClient";
 import { InventorySectionTabs } from "../../../components/inventory/InventorySectionTabs";
-import type { InventoryItemSummary, InventoryStudentOption, ReportingRequirementView } from "../shared/types";
+import type { InventoryItemSummary, InventoryStudentOption, StudentReportingRecordView } from "../shared/types";
 
 function InventoryEmptyState({
   title,
@@ -36,13 +35,11 @@ function InventoryEmptyState({
 export function InventoryReportingPage() {
   const [students, setStudents] = useState<InventoryStudentOption[]>([]);
   const [items, setItems] = useState<InventoryItemSummary[]>([]);
-  const [requirements, setRequirements] = useState<ReportingRequirementView[]>([]);
+  const [recentRecords, setRecentRecords] = useState<StudentReportingRecordView[]>([]);
   const [studentSearch, setStudentSearch] = useState("");
   const [selectedStudentId, setSelectedStudentId] = useState("");
-  const [requirementItemId, setRequirementItemId] = useState("");
-  const [requirementQty, setRequirementQty] = useState(1);
-  const [selectedRequirementId, setSelectedRequirementId] = useState("");
-  const [broughtQuantity, setBroughtQuantity] = useState(1);
+  const [selectedItemId, setSelectedItemId] = useState("");
+  const [quantity, setQuantity] = useState(1);
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
 
@@ -52,7 +49,7 @@ export function InventoryReportingPage() {
       fetchInventoryItems(),
     ]);
     setStudents(reporting.students);
-    setRequirements(reporting.requirements);
+    setRecentRecords(reporting.recentRecords);
     setItems(itemResponse.items.filter((item) => item.active));
     setSelectedStudentId((current) => {
       if (current && reporting.students.some((student) => student.id === current)) {
@@ -79,39 +76,23 @@ export function InventoryReportingPage() {
     () => students.find((student) => student.id === selectedStudentId) ?? null,
     [students, selectedStudentId],
   );
-  const selectedRequirement = useMemo(
-    () => requirements.find((requirement) => requirement.id === selectedRequirementId) ?? null,
-    [requirements, selectedRequirementId],
+  const selectedItem = useMemo(
+    () => items.find((item) => item.id === selectedItemId) ?? null,
+    [items, selectedItemId],
   );
   const hasActiveItems = items.length > 0;
-  const hasRequirements = requirements.length > 0;
-
-  async function handleSaveRequirement(event: FormEvent) {
-    event.preventDefault();
-    setError("");
-    await saveReportingRequirement({ itemId: requirementItemId, requiredQuantity: requirementQty });
-    setNotice("Reporting requirement saved.");
-    setRequirementItemId("");
-    setRequirementQty(1);
-    await reloadReporting(studentSearch);
-  }
 
   async function handleSaveRecord(event: FormEvent) {
     event.preventDefault();
-    if (!selectedStudentId || !selectedRequirement) return;
+    if (!selectedStudentId || !selectedItemId) return;
+    setError("");
     await saveStudentReportingRecord({
       studentId: selectedStudentId,
-      items: [
-        {
-          itemId: selectedRequirement.itemId,
-          expectedQuantity: selectedRequirement.requiredQuantity,
-          broughtQuantity,
-        },
-      ],
+      items: [{ itemId: selectedItemId, quantity }],
     });
-    setNotice("Student reporting-day record saved.");
-    setSelectedRequirementId("");
-    setBroughtQuantity(1);
+    setNotice("Item brought recorded.");
+    setSelectedItemId("");
+    setQuantity(1);
     await reloadReporting(studentSearch);
   }
 
@@ -135,64 +116,18 @@ export function InventoryReportingPage() {
       {notice ? <div className="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">{notice}</div> : null}
       {error ? <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div> : null}
 
-      <section className="grid gap-4 xl:grid-cols-[0.8fr_1.2fr]">
-        <form className="premium-card grid gap-3 rounded-2xl p-4" onSubmit={(event) => void handleSaveRequirement(event)}>
-          <h2 className="text-base font-bold text-slate-950">Add reporting requirement</h2>
-          <p className="text-sm text-slate-600">
-            Choose an active inventory item first, then set the expected quantity for reporting day.
-          </p>
-          {hasActiveItems ? (
-            <>
-              <select aria-label="Requirement item" className="input" value={requirementItemId} onChange={(event) => setRequirementItemId(event.target.value)}>
-                <option value="">Select item</option>
-                {items.map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.name}
-                  </option>
-                ))}
-              </select>
-              <input
-                aria-label="Required quantity"
-                className="input"
-                type="number"
-                min={1}
-                value={requirementQty}
-                onChange={(event) => setRequirementQty(Number(event.target.value))}
-              />
-              <div>
-                <button type="submit" className="btn btn-primary" disabled={!requirementItemId}>
-                  Save requirement
-                </button>
-              </div>
-            </>
-          ) : (
-            <InventoryEmptyState
-              title="Add requirements from inventory items"
-              description="There are no active inventory items yet. Add inventory item first."
-              actionLabel="Add inventory item first"
-              actionTo="/inventory/items"
-            />
-          )}
-        </form>
-
+      <section className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
         <form className="premium-card grid gap-3 rounded-2xl p-4" onSubmit={(event) => void handleSaveRecord(event)}>
-          <h2 className="text-base font-bold text-slate-950">Record student brought items</h2>
+          <h2 className="text-base font-bold text-slate-950">Items brought</h2>
           <p className="text-sm text-slate-600">
-            Select a student, choose the reporting-day requirement from the configured inventory items, then record the quantity brought.
+            Select a student, choose the item brought from your inventory list, then record the quantity.
           </p>
           {!hasActiveItems ? (
             <InventoryEmptyState
-              title="Add requirements from inventory items"
-              description="No active inventory items are available for reporting day yet."
-              actionLabel="Add inventory item first"
+              title="Add inventory item first"
+              description="There are no active inventory items available for reporting day yet."
+              actionLabel="Open items"
               actionTo="/inventory/items"
-            />
-          ) : !hasRequirements ? (
-            <InventoryEmptyState
-              title="Add requirements from inventory items"
-              description="Reporting-day requirements are not configured yet."
-              actionLabel="Add requirements from inventory items"
-              actionTo="/inventory/reporting"
             />
           ) : (
             <>
@@ -219,7 +154,7 @@ export function InventoryReportingPage() {
                 </div>
               </div>
 
-              <select aria-label="Student" className="input" value={selectedStudentId} onChange={(event) => setSelectedStudentId(event.target.value)}>
+              <select aria-label="Select student" className="input" value={selectedStudentId} onChange={(event) => setSelectedStudentId(event.target.value)}>
                 <option value="">Select student</option>
                 {students.map((student) => (
                   <option key={student.id} value={student.id}>
@@ -231,54 +166,77 @@ export function InventoryReportingPage() {
                 <p className="text-sm text-slate-500">No students matched that search yet. Try a different name or admission number.</p>
               ) : null}
 
-              <select
-                aria-label="Reporting requirement"
-                className="input"
-                value={selectedRequirementId}
-                onChange={(event) => setSelectedRequirementId(event.target.value)}
-              >
-                <option value="">Select requirement</option>
-                {requirements.map((requirement) => (
-                  <option key={requirement.id} value={requirement.id}>
-                    {requirement.itemName}
+              <select aria-label="Select item brought" className="input" value={selectedItemId} onChange={(event) => setSelectedItemId(event.target.value)}>
+                <option value="">Select item brought</option>
+                {items.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.name}
                   </option>
                 ))}
               </select>
 
               <div className="rounded-xl border border-slate-200 bg-slate-50/70 px-3 py-3 text-sm text-slate-600">
                 <p className="font-semibold text-slate-900">
-                  {selectedRequirement ? selectedRequirement.itemName : "Choose a requirement"}
+                  {selectedItem ? selectedItem.name : "Choose an item"}
                 </p>
                 <p className="mt-1">
-                  Expected quantity: {selectedRequirement ? selectedRequirement.requiredQuantity : "Select an item"}
-                </p>
-                <p className="mt-1 text-xs font-semibold text-slate-500">
                   {selectedStudent
-                    ? `${selectedStudent.className ?? "No class"}${selectedStudent.streamName ? ` • ${selectedStudent.streamName}` : ""}`
+                    ? `${selectedStudent.studentName} (${selectedStudent.admissionNumber})`
                     : "Select a student to continue"}
                 </p>
               </div>
 
               <label className="text-sm text-slate-600">
-                Quantity brought
+                Quantity
                 <input
-                  aria-label="Quantity brought"
+                  aria-label="Quantity"
                   className="input mt-1"
                   type="number"
                   min={0}
-                  value={broughtQuantity}
-                  onChange={(event) => setBroughtQuantity(Number(event.target.value))}
+                  value={quantity}
+                  onChange={(event) => setQuantity(Number(event.target.value))}
                 />
               </label>
 
               <div>
-                <button type="submit" className="btn btn-primary" disabled={!selectedStudentId || !selectedRequirementId}>
-                  Save registration
+                <button type="submit" className="btn btn-primary" disabled={!selectedStudentId || !selectedItemId}>
+                  Save item brought
                 </button>
               </div>
             </>
           )}
         </form>
+
+        <section className="premium-card grid gap-3 rounded-2xl p-4">
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="text-base font-bold text-slate-950">Recent items brought</h2>
+            <Link className="text-sm font-semibold text-[color:var(--sc-primary)]" to="/inventory">
+              Back to overview
+            </Link>
+          </div>
+          {recentRecords.length === 0 ? (
+            <InventoryEmptyState
+              title="No reporting-day registrations yet"
+              description="Use the form to start recording what students brought today."
+            />
+          ) : (
+            <div className="space-y-2">
+              {recentRecords.map((record) => (
+                <div key={record.id} className="rounded-xl border border-slate-200 px-3 py-3">
+                  <p className="font-semibold text-slate-900">{record.studentName}</p>
+                  <p className="mt-1 text-sm text-slate-600">{record.admissionNumber}</p>
+                  <div className="mt-2 space-y-1 text-sm text-slate-600">
+                    {record.items.map((item) => (
+                      <p key={`${record.id}-${item.itemId}`}>
+                        {item.itemName}: {item.quantity}
+                      </p>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
       </section>
     </main>
   );

@@ -51,17 +51,17 @@ export function InventoryReconciliationPage() {
 
       <section className="grid gap-4 xl:grid-cols-[1.25fr_0.75fr]">
         <div className="premium-card rounded-2xl p-4">
-          <h2 className="mb-3 text-base font-bold text-slate-950">Mismatches</h2>
+          <h2 className="mb-3 text-base font-bold text-slate-950">Low-stock items</h2>
           {!data || data.issues.length === 0 ? (
-            <p className="text-sm text-slate-500">No reconciliation issues found right now.</p>
+            <p className="text-sm text-slate-500">No low-stock issues found right now.</p>
           ) : (
             <div className="overflow-x-auto">
               <table className="min-w-full text-left text-sm">
                 <thead className="text-slate-500">
                   <tr>
                     <th className="pb-2">Item</th>
-                    <th className="pb-2">Expected</th>
-                    <th className="pb-2">Received</th>
+                    <th className="pb-2">On hand</th>
+                    <th className="pb-2">Minimum</th>
                     <th className="pb-2">Difference</th>
                     <th className="pb-2">Status</th>
                   </tr>
@@ -70,8 +70,8 @@ export function InventoryReconciliationPage() {
                   {data.issues.map((issue) => (
                     <tr key={issue.itemId} className="border-t border-slate-200">
                       <td className="py-2 font-semibold text-slate-900">{issue.itemName}</td>
-                      <td className="py-2 text-slate-600">{issue.expectedQuantity}</td>
-                      <td className="py-2 text-slate-600">{issue.receivedQuantity}</td>
+                      <td className="py-2 text-slate-600">{issue.currentQuantity}</td>
+                      <td className="py-2 text-slate-600">{issue.minimumStock}</td>
                       <td className="py-2 text-slate-600">{issue.difference}</td>
                       <td className="py-2 text-slate-600">{issue.status}</td>
                     </tr>

@@ -29,8 +29,8 @@ export type DashboardInventorySummary = {
   itemsTracked: number;
   lowStock: number;
   reportingToday: number;
-  requirementsReceived: number;
-  reconciliationIssues: number;
+  itemsBroughtToday: number;
+  adjustmentsToday: number;
 };
 
 export type DashboardStats = {

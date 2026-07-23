@@ -170,7 +170,7 @@ describe("inventoryRoutes", () => {
           reportedAt: new Date("2026-07-23T10:00:00.000Z"),
           termId: null,
           student: { id: "student-1", firstName: "Ada", lastName: "Lovelace", admissionNumber: "A-001" },
-          items: [{ expectedQuantity: 1, broughtQuantity: 1, status: "COMPLETE", item: { id: "item-1", name: "Soap" } }],
+          items: [{ expectedQuantity: 0, broughtQuantity: 1, status: "COMPLETE", item: { id: "item-1", name: "Soap" } }],
         }),
       },
       inventoryStockMovement: { create: async () => ({}) },
@@ -182,7 +182,7 @@ describe("inventoryRoutes", () => {
 
     const res = await request(app).post("/api/inventory/reporting/records").send({
       studentId: "22222222-2222-4222-8222-222222222222",
-      items: [{ itemId: "11111111-1111-4111-8111-111111111111", expectedQuantity: 1, broughtQuantity: 1 }],
+      items: [{ itemId: "11111111-1111-4111-8111-111111111111", quantity: 1 }],
     });
 
     expect(res.status).toBe(201);

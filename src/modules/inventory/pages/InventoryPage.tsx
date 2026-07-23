@@ -54,7 +54,7 @@ export function InventoryPage() {
         <p className="text-xs font-bold uppercase tracking-wide text-blue-600">Inventory</p>
         <h1 className="text-xl font-bold tracking-tight text-slate-950 sm:text-2xl">Stock and reporting-day operations</h1>
         <p className="mt-1 text-sm text-slate-600">
-          Track school supplies, student reporting requirements, and reconciliation issues in one operational workspace.
+          Track school supplies, stock movements, and the items students bring during reporting day in one operational workspace.
         </p>
       </header>
 
@@ -66,8 +66,8 @@ export function InventoryPage() {
             <SummaryCard label="Items tracked" value={data.summary.itemsTracked} />
             <SummaryCard label="Low stock" value={data.summary.lowStock} />
             <SummaryCard label="Reporting today" value={data.summary.reportingToday} />
-            <SummaryCard label="Requirements received" value={data.summary.requirementsReceived} />
-            <SummaryCard label="Reconciliation issues" value={data.summary.reconciliationIssues} />
+            <SummaryCard label="Items brought today" value={data.summary.itemsBroughtToday} />
+            <SummaryCard label="Adjustments today" value={data.summary.adjustmentsToday} />
           </section>
 
           <section className="grid gap-4 xl:grid-cols-[1.3fr_0.9fr]">
@@ -131,7 +131,7 @@ export function InventoryPage() {
                   ) : data.reportingToday.map((record) => (
                     <div key={record.id} className="rounded-xl border border-slate-200 px-3 py-2">
                       <p className="font-semibold text-slate-900">{record.studentName}</p>
-                      <p className="text-sm text-slate-600">{record.admissionNumber} • {record.items.length} checklist item(s)</p>
+                      <p className="text-sm text-slate-600">{record.admissionNumber} • {record.items.length} item(s) brought</p>
                     </div>
                   ))}
                 </div>

@@ -30,19 +30,6 @@ const fetchInventoryReportingContextMock = vi.hoisted(() => vi.fn(async (search 
           || student.admissionNumber.toLowerCase().includes(normalized),
         )
       : students,
-    requirements: [
-      {
-        id: "req-1",
-        itemId: "item-1",
-        itemName: "Soap",
-        requiredQuantity: 1,
-        classId: null,
-        className: null,
-        termId: null,
-        termName: null,
-        active: true,
-      },
-    ],
     recentRecords: [],
   };
 }));
@@ -53,8 +40,8 @@ vi.mock("../../client/inventoryClient", () => ({
       itemsTracked: 8,
       lowStock: 2,
       reportingToday: 3,
-      requirementsReceived: 7,
-      reconciliationIssues: 1,
+      itemsBroughtToday: 7,
+      adjustmentsToday: 1,
     },
     items: [],
     recentMovements: [],
@@ -80,11 +67,10 @@ vi.mock("../../client/inventoryClient", () => ({
   createInventoryItem: vi.fn(async () => ({ item: { id: "item-2" } })),
   recordInventoryMovement: vi.fn(async () => ({ movement: { id: "move-1" } })),
   fetchInventoryReportingContext: fetchInventoryReportingContextMock,
-  saveReportingRequirement: vi.fn(async () => ({ ok: true })),
   saveStudentReportingRecord: vi.fn(async () => ({ record: { id: "record-1" } })),
   archiveInventoryItem: vi.fn(async () => ({ ok: true })),
   fetchInventoryReconciliation: vi.fn(async () => ({
-    summary: { itemsTracked: 0, lowStock: 0, reportingToday: 0, requirementsReceived: 0, reconciliationIssues: 0 },
+    summary: { itemsTracked: 0, lowStock: 0, reportingToday: 0, itemsBroughtToday: 0, adjustmentsToday: 0 },
     issues: [],
   })),
 }));
@@ -149,23 +135,23 @@ describe("Inventory module pages", () => {
     const client = await import("../../client/inventoryClient");
     renderWithRouter(<InventoryReportingPage />, "/inventory/reporting");
 
-    const studentSelect = await screen.findByLabelText("Student");
+    const studentSelect = await screen.findByLabelText("Select student");
     await waitFor(() => expect((studentSelect as HTMLSelectElement).value).toBe("student-1"));
-    expect(screen.getByLabelText("Reporting requirement")).toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText("Reporting requirement"), { target: { value: "req-1" } });
-    fireEvent.change(screen.getByLabelText("Quantity brought"), { target: { value: "1" } });
-    fireEvent.click(screen.getByRole("button", { name: "Save registration" }));
+    expect(screen.getByLabelText("Select item brought")).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Select item brought"), { target: { value: "item-1" } });
+    fireEvent.change(screen.getByLabelText("Quantity"), { target: { value: "1" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save item brought" }));
 
     await waitFor(() => expect(vi.mocked(client.saveStudentReportingRecord)).toHaveBeenCalledWith({
       studentId: "student-1",
-      items: [{ itemId: "item-1", expectedQuantity: 1, broughtQuantity: 1 }],
+      items: [{ itemId: "item-1", quantity: 1 }],
     }));
   });
 
   it("allows an admin to search students before recording reporting-day items", async () => {
     renderWithRouter(<InventoryReportingPage />, "/inventory/reporting");
 
-    await screen.findByLabelText("Student");
+    await screen.findByLabelText("Select student");
     fireEvent.change(screen.getByLabelText("Search student"), { target: { value: "Grace" } });
     fireEvent.click(screen.getByRole("button", { name: "Search" }));
 
@@ -174,11 +160,14 @@ describe("Inventory module pages", () => {
     expect(screen.queryByRole("option", { name: "Ada Lovelace (A-001)" })).not.toBeInTheDocument();
   });
 
-  it("shows inventory items as the requirement source when configuring reporting day", async () => {
+  it("shows inventory items as the dropdown source when recording items brought", async () => {
     renderWithRouter(<InventoryReportingPage />, "/inventory/reporting");
 
-    const requirementSelect = await screen.findByLabelText("Requirement item");
+    const itemSelect = await screen.findByLabelText("Select item brought");
     expect(screen.getAllByRole("option", { name: "Soap" }).length).toBeGreaterThan(0);
-    expect(requirementSelect).toBeInTheDocument();
+    expect(itemSelect).toBeInTheDocument();
+    expect(screen.queryByText(/expected quantity/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/partial/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/missing/i)).not.toBeInTheDocument();
   });
 });
