@@ -5,6 +5,48 @@ import { InventoryItemsPage } from "../../pages/InventoryItemsPage";
 import { InventoryPage } from "../../pages/InventoryPage";
 import { InventoryReportingPage } from "../../pages/InventoryReportingPage";
 
+const fetchInventoryReportingContextMock = vi.hoisted(() => vi.fn(async (search = "") => {
+  const students = [
+    {
+      id: "student-1",
+      admissionNumber: "A-001",
+      studentName: "Ada Lovelace",
+      className: "Senior 1",
+      streamName: "A",
+    },
+    {
+      id: "student-2",
+      admissionNumber: "B-002",
+      studentName: "Grace Hopper",
+      className: "Senior 2",
+      streamName: "B",
+    },
+  ];
+  const normalized = search.trim().toLowerCase();
+  return {
+    students: normalized
+      ? students.filter((student) =>
+          student.studentName.toLowerCase().includes(normalized)
+          || student.admissionNumber.toLowerCase().includes(normalized),
+        )
+      : students,
+    requirements: [
+      {
+        id: "req-1",
+        itemId: "item-1",
+        itemName: "Soap",
+        requiredQuantity: 1,
+        classId: null,
+        className: null,
+        termId: null,
+        termName: null,
+        active: true,
+      },
+    ],
+    recentRecords: [],
+  };
+}));
+
 vi.mock("../../client/inventoryClient", () => ({
   fetchInventoryOverview: vi.fn(async () => ({
     summary: {
@@ -37,31 +79,7 @@ vi.mock("../../client/inventoryClient", () => ({
   })),
   createInventoryItem: vi.fn(async () => ({ item: { id: "item-2" } })),
   recordInventoryMovement: vi.fn(async () => ({ movement: { id: "move-1" } })),
-  fetchInventoryReportingContext: vi.fn(async () => ({
-    students: [
-      {
-        id: "student-1",
-        admissionNumber: "A-001",
-        studentName: "Ada Lovelace",
-        className: "Senior 1",
-        streamName: "A",
-      },
-    ],
-    requirements: [
-      {
-        id: "req-1",
-        itemId: "item-1",
-        itemName: "Soap",
-        requiredQuantity: 1,
-        classId: null,
-        className: null,
-        termId: null,
-        termName: null,
-        active: true,
-      },
-    ],
-    recentRecords: [],
-  })),
+  fetchInventoryReportingContext: fetchInventoryReportingContextMock,
   saveReportingRequirement: vi.fn(async () => ({ ok: true })),
   saveStudentReportingRecord: vi.fn(async () => ({ record: { id: "record-1" } })),
   archiveInventoryItem: vi.fn(async () => ({ ok: true })),
@@ -142,6 +160,18 @@ describe("Inventory module pages", () => {
       studentId: "student-1",
       items: [{ itemId: "item-1", expectedQuantity: 1, broughtQuantity: 1 }],
     }));
+  });
+
+  it("allows an admin to search students before recording reporting-day items", async () => {
+    renderWithRouter(<InventoryReportingPage />, "/inventory/reporting");
+
+    await screen.findByLabelText("Student");
+    fireEvent.change(screen.getByLabelText("Search student"), { target: { value: "Grace" } });
+    fireEvent.click(screen.getByRole("button", { name: "Search" }));
+
+    await waitFor(() => expect(fetchInventoryReportingContextMock).toHaveBeenLastCalledWith("Grace"));
+    await waitFor(() => expect(screen.getByRole("option", { name: "Grace Hopper (B-002)" })).toBeInTheDocument());
+    expect(screen.queryByRole("option", { name: "Ada Lovelace (A-001)" })).not.toBeInTheDocument();
   });
 
   it("shows inventory items as the requirement source when configuring reporting day", async () => {

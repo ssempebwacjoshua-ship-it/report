@@ -37,6 +37,7 @@ export function InventoryReportingPage() {
   const [students, setStudents] = useState<InventoryStudentOption[]>([]);
   const [items, setItems] = useState<InventoryItemSummary[]>([]);
   const [requirements, setRequirements] = useState<ReportingRequirementView[]>([]);
+  const [studentSearch, setStudentSearch] = useState("");
   const [selectedStudentId, setSelectedStudentId] = useState("");
   const [requirementItemId, setRequirementItemId] = useState("");
   const [requirementQty, setRequirementQty] = useState(1);
@@ -45,21 +46,33 @@ export function InventoryReportingPage() {
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
 
-  async function load() {
+  async function load(search = "") {
     const [reporting, itemResponse] = await Promise.all([
-      fetchInventoryReportingContext(),
+      fetchInventoryReportingContext(search),
       fetchInventoryItems(),
     ]);
     setStudents(reporting.students);
     setRequirements(reporting.requirements);
     setItems(itemResponse.items.filter((item) => item.active));
-    if (!selectedStudentId && reporting.students[0]) {
-      setSelectedStudentId(reporting.students[0].id);
+    setSelectedStudentId((current) => {
+      if (current && reporting.students.some((student) => student.id === current)) {
+        return current;
+      }
+      return reporting.students[0]?.id ?? "";
+    });
+  }
+
+  async function reloadReporting(search = "") {
+    try {
+      setError("");
+      await load(search);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Could not load reporting day data.");
     }
   }
 
   useEffect(() => {
-    load().catch((caught: Error) => setError(caught.message));
+    void reloadReporting();
   }, []);
 
   const selectedStudent = useMemo(
@@ -80,7 +93,7 @@ export function InventoryReportingPage() {
     setNotice("Reporting requirement saved.");
     setRequirementItemId("");
     setRequirementQty(1);
-    await load();
+    await reloadReporting(studentSearch);
   }
 
   async function handleSaveRecord(event: FormEvent) {
@@ -99,7 +112,16 @@ export function InventoryReportingPage() {
     setNotice("Student reporting-day record saved.");
     setSelectedRequirementId("");
     setBroughtQuantity(1);
-    await load();
+    await reloadReporting(studentSearch);
+  }
+
+  async function handleStudentSearch() {
+    await reloadReporting(studentSearch);
+  }
+
+  async function handleClearStudentSearch() {
+    setStudentSearch("");
+    await reloadReporting("");
   }
 
   return (
@@ -174,6 +196,29 @@ export function InventoryReportingPage() {
             />
           ) : (
             <>
+              <div className="grid gap-2 rounded-xl border border-slate-200 bg-slate-50/70 p-3">
+                <label className="grid gap-1 text-sm text-slate-700">
+                  <span className="font-medium">Search student</span>
+                  <input
+                    aria-label="Search student"
+                    className="input"
+                    placeholder="Search by name or admission number"
+                    value={studentSearch}
+                    onChange={(event) => setStudentSearch(event.target.value)}
+                  />
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  <button type="button" className="btn btn-secondary" onClick={() => void handleStudentSearch()}>
+                    Search
+                  </button>
+                  {studentSearch.trim() ? (
+                    <button type="button" className="btn btn-secondary" onClick={() => void handleClearStudentSearch()}>
+                      Clear search
+                    </button>
+                  ) : null}
+                </div>
+              </div>
+
               <select aria-label="Student" className="input" value={selectedStudentId} onChange={(event) => setSelectedStudentId(event.target.value)}>
                 <option value="">Select student</option>
                 {students.map((student) => (
@@ -182,6 +227,9 @@ export function InventoryReportingPage() {
                   </option>
                 ))}
               </select>
+              {students.length === 0 ? (
+                <p className="text-sm text-slate-500">No students matched that search yet. Try a different name or admission number.</p>
+              ) : null}
 
               <select
                 aria-label="Reporting requirement"
