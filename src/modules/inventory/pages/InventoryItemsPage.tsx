@@ -30,6 +30,9 @@ export function InventoryItemsPage() {
   const [itemForm, setItemForm] = useState(emptyItemForm);
   const [movementForm, setMovementForm] = useState(emptyMovementForm);
   const [issueForm, setIssueForm] = useState(emptyIssueForm);
+  const [addingItem, setAddingItem] = useState(false);
+  const [receivingStock, setReceivingStock] = useState(false);
+  const [issuingStock, setIssuingStock] = useState(false);
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
 
@@ -44,8 +47,10 @@ export function InventoryItemsPage() {
 
   async function handleAddItem(event: FormEvent) {
     event.preventDefault();
+    if (addingItem) return;
     setError("");
     setNotice("");
+    setAddingItem(true);
     try {
       await createInventoryItem(itemForm);
       setNotice("Inventory item added.");
@@ -53,13 +58,17 @@ export function InventoryItemsPage() {
       await load();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Could not create inventory item.");
+    } finally {
+      setAddingItem(false);
     }
   }
 
   async function handleReceiveStock(event: FormEvent) {
     event.preventDefault();
+    if (receivingStock) return;
     setError("");
     setNotice("");
+    setReceivingStock(true);
     try {
       await recordInventoryMovement("receive", movementForm);
       setNotice("Stock received recorded.");
@@ -67,6 +76,8 @@ export function InventoryItemsPage() {
       await load();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Could not record stock received.");
+    } finally {
+      setReceivingStock(false);
     }
   }
 
@@ -84,8 +95,10 @@ export function InventoryItemsPage() {
 
   async function handleIssueStock(event: FormEvent) {
     event.preventDefault();
+    if (issuingStock) return;
     setError("");
     setNotice("");
+    setIssuingStock(true);
     try {
       await recordInventoryMovement("issue", issueForm);
       setNotice("Stock taken out recorded.");
@@ -93,6 +106,8 @@ export function InventoryItemsPage() {
       await load();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Could not record stock taken out.");
+    } finally {
+      setIssuingStock(false);
     }
   }
 
@@ -168,9 +183,9 @@ export function InventoryItemsPage() {
             <button
               type="submit"
               className="btn btn-primary"
-              disabled={!itemForm.name.trim() || !itemForm.category.trim() || !itemForm.unit.trim() || itemForm.minimumStock < 0}
+              disabled={addingItem || !itemForm.name.trim() || !itemForm.category.trim() || !itemForm.unit.trim() || itemForm.minimumStock < 0}
             >
-              Add item
+              {addingItem ? "Saving..." : "Add item"}
             </button>
           </div>
         </form>
@@ -185,7 +200,9 @@ export function InventoryItemsPage() {
           <input aria-label="Receive source" className="input" value={movementForm.source} onChange={(event) => setMovementForm((current) => ({ ...current, source: event.target.value }))} />
           <input aria-label="Receive notes" className="input" value={movementForm.notes} onChange={(event) => setMovementForm((current) => ({ ...current, notes: event.target.value }))} />
           <div>
-            <button type="submit" className="btn btn-primary">Record stock received</button>
+            <button type="submit" className="btn btn-primary" disabled={receivingStock || !movementForm.itemId || movementForm.quantity < 1 || !movementForm.source.trim()}>
+              {receivingStock ? "Saving..." : "Record stock received"}
+            </button>
           </div>
         </form>
 
@@ -248,9 +265,9 @@ export function InventoryItemsPage() {
             <button
               type="submit"
               className="btn btn-primary"
-              disabled={!issueForm.itemId || issueForm.quantity < 1 || !issueForm.recipientName.trim() || !issueForm.source.trim()}
+              disabled={issuingStock || !issueForm.itemId || issueForm.quantity < 1 || !issueForm.recipientName.trim() || !issueForm.source.trim()}
             >
-              Save taken-out record
+              {issuingStock ? "Saving..." : "Save taken-out record"}
             </button>
           </div>
         </form>
