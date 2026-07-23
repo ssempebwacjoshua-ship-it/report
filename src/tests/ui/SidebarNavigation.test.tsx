@@ -1,6 +1,7 @@
-import { render, screen, waitFor } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
+import { Topbar } from "../../components/layout/Topbar";
 import { Sidebar } from "../../components/layout/Sidebar";
 import { SettingsProvider } from "../../components/layout/SettingsContext";
 
@@ -90,12 +91,43 @@ vi.mock("../../client/settingsClient", () => ({
   }),
 }));
 
+vi.mock("../../hooks/useConnectivityStatus", () => ({
+  useConnectivityStatus: () => ({ state: "ONLINE", pendingCount: 0 }),
+}));
+
+vi.mock("../../pwa/standaloneMode", () => ({
+  getDedicatedInstalledWorkspace: () => null,
+}));
+
 function renderSidebar(pathname = "/dashboard", collapsed = false) {
   return render(
     <MemoryRouter initialEntries={[pathname]}>
       <SettingsProvider>
         <Sidebar open onClose={() => {}} collapsed={collapsed} onToggleCollapsed={() => {}} width={248} />
       </SettingsProvider>
+    </MemoryRouter>,
+  );
+}
+
+function renderTopbar(pathname = "/dashboard") {
+  return render(
+    <MemoryRouter initialEntries={[pathname]}>
+      <Routes>
+        <Route
+          path="*"
+          element={
+            <>
+              <Topbar onMenuClick={() => {}} />
+              <Routes>
+                <Route path="/dashboard" element={<div>Dashboard Workspace</div>} />
+                <Route path="/inventory" element={<div>Inventory Workspace</div>} />
+                <Route path="/smart-pages" element={<div>Smart Pages Workspace</div>} />
+                <Route path="/nfc/wristbands" element={<div>NFC Workspace</div>} />
+              </Routes>
+            </>
+          }
+        />
+      </Routes>
     </MemoryRouter>,
   );
 }
@@ -118,6 +150,18 @@ describe("Sidebar navigation", () => {
     expect(screen.queryByRole("link", { name: /promotions/i })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /report lab/i })).not.toBeInTheDocument();
     expect(screen.queryByText(/smart pages/i)).not.toBeInTheDocument();
+  });
+
+  it("shows Inventory in the top product navigation and opens /inventory", async () => {
+    authState.user = { name: "Test Admin", role: "ADMIN_OPERATOR" };
+    renderTopbar("/dashboard");
+
+    const inventoryButton = await screen.findByRole("button", { name: "Inventory" });
+    expect(inventoryButton).toBeInTheDocument();
+
+    fireEvent.click(inventoryButton);
+
+    await waitFor(() => expect(screen.getByText("Inventory Workspace")).toBeInTheDocument());
   });
 
   it("shows the Smart Pages workflow links without a fake dropdown group", async () => {

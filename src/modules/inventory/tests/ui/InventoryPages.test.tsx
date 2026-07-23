@@ -86,6 +86,11 @@ describe("Inventory module pages", () => {
     expect(await screen.findByText("Stock and reporting-day operations")).toBeInTheDocument();
     expect(screen.getByText("Items tracked")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Open items" })).toHaveAttribute("href", "/inventory/items");
+    expect(screen.getByText("No stock movements yet.")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Receive stock" })).toHaveAttribute("href", "/inventory/items");
+    expect(screen.getByText("No low-stock alerts right now.")).toBeInTheDocument();
+    expect(screen.getByText("No reporting-day registrations recorded yet.")).toBeInTheDocument();
+    expect(screen.getAllByRole("link", { name: "Open reporting day" }).length).toBeGreaterThan(0);
   });
 
   it("allows an admin to add an item", async () => {
@@ -128,12 +133,22 @@ describe("Inventory module pages", () => {
 
     const studentSelect = await screen.findByLabelText("Student");
     await waitFor(() => expect((studentSelect as HTMLSelectElement).value).toBe("student-1"));
-    fireEvent.change(screen.getByLabelText("Soap brought quantity"), { target: { value: "1" } });
+    expect(screen.getByLabelText("Reporting requirement")).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Reporting requirement"), { target: { value: "req-1" } });
+    fireEvent.change(screen.getByLabelText("Quantity brought"), { target: { value: "1" } });
     fireEvent.click(screen.getByRole("button", { name: "Save registration" }));
 
     await waitFor(() => expect(vi.mocked(client.saveStudentReportingRecord)).toHaveBeenCalledWith({
       studentId: "student-1",
       items: [{ itemId: "item-1", expectedQuantity: 1, broughtQuantity: 1 }],
     }));
+  });
+
+  it("shows inventory items as the requirement source when configuring reporting day", async () => {
+    renderWithRouter(<InventoryReportingPage />, "/inventory/reporting");
+
+    const requirementSelect = await screen.findByLabelText("Requirement item");
+    expect(screen.getAllByRole("option", { name: "Soap" }).length).toBeGreaterThan(0);
+    expect(requirementSelect).toBeInTheDocument();
   });
 });
