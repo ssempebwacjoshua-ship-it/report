@@ -58,12 +58,25 @@ vi.mock("../../client/inventoryClient", () => ({
     summary: {
       itemsTracked: 8,
       lowStock: 2,
-      reportingToday: 3,
       itemsBroughtToday: 7,
-      adjustmentsToday: 1,
+      itemsIssuedToday: 4,
+      reconciliationIssues: 1,
     },
     items: [],
-    recentMovements: [],
+    recentMovements: [{
+      id: "move-1",
+      itemId: "item-1",
+      itemName: "Soap",
+      type: "ISSUED",
+      quantity: 2,
+      purpose: "Dormitory hygiene",
+      notes: "Ref dorm-1",
+      createdAt: "2026-07-23T10:00:00.000Z",
+      studentName: null,
+      recipientName: "Matron",
+      recipientType: "Staff",
+      recordedByName: "Admin User",
+    }],
     lowStockItems: [],
     reportingToday: [],
     reconciliationIssues: [],
@@ -110,7 +123,7 @@ vi.mock("../../client/inventoryClient", () => ({
   }),
   archiveInventoryItem: vi.fn(async () => ({ ok: true })),
   fetchInventoryReconciliation: vi.fn(async () => ({
-    summary: { itemsTracked: 0, lowStock: 0, reportingToday: 0, itemsBroughtToday: 0, adjustmentsToday: 0 },
+    summary: { itemsTracked: 0, lowStock: 0, itemsBroughtToday: 0, itemsIssuedToday: 0, reconciliationIssues: 0 },
     issues: [],
   })),
 }));
@@ -131,8 +144,9 @@ describe("Inventory module pages", () => {
     expect(await screen.findByText("Stock and reporting-day operations")).toBeInTheDocument();
     expect(screen.getByText("Items tracked")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Open items" })).toHaveAttribute("href", "/inventory/items");
-    expect(screen.getByText("No stock movements yet.")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Receive stock" })).toHaveAttribute("href", "/inventory/items");
+    expect(screen.getByRole("cell", { name: "Matron (Staff)" })).toBeInTheDocument();
+    expect(screen.getByRole("cell", { name: "Dormitory hygiene" })).toBeInTheDocument();
+    expect(screen.getByRole("cell", { name: "Admin User" })).toBeInTheDocument();
     expect(screen.getByText("No low-stock alerts right now.")).toBeInTheDocument();
     expect(screen.getByText("No reporting-day registrations recorded yet.")).toBeInTheDocument();
     expect(screen.getAllByRole("link", { name: "Open reporting day" }).length).toBeGreaterThan(0);
@@ -170,6 +184,28 @@ describe("Inventory module pages", () => {
       quantity: 5,
       source: "Supplier delivery",
     })));
+  });
+
+  it("allows an admin to save a taken-out stock record", async () => {
+    const client = await import("../../client/inventoryClient");
+    renderWithRouter(<InventoryItemsPage />, "/inventory/items");
+
+    fireEvent.change(await screen.findByLabelText("Issue item"), { target: { value: "item-1" } });
+    fireEvent.change(screen.getByLabelText("Issue quantity"), { target: { value: "2" } });
+    fireEvent.change(screen.getByLabelText("Recipient name"), { target: { value: "Kitchen team" } });
+    fireEvent.change(screen.getByLabelText("Recipient type"), { target: { value: "Kitchen" } });
+    fireEvent.change(screen.getByLabelText("Issue purpose"), { target: { value: "Lunch service" } });
+    fireEvent.change(screen.getByLabelText("Issue notes"), { target: { value: "Midday meal" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save taken-out record" }));
+
+    await waitFor(() => expect(vi.mocked(client.recordInventoryMovement)).toHaveBeenCalledWith("issue", {
+      itemId: "item-1",
+      quantity: 2,
+      recipientName: "Kitchen team",
+      recipientType: "Kitchen",
+      source: "Lunch service",
+      notes: "Midday meal",
+    }));
   });
 
   it("allows an admin to record student reporting-day brought items", async () => {

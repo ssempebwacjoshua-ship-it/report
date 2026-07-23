@@ -152,9 +152,9 @@ describe("dashboardService", () => {
     expect(stats.inventory).toEqual({
       itemsTracked: 0,
       lowStock: 0,
-      reportingToday: 0,
       itemsBroughtToday: 0,
-      adjustmentsToday: 0,
+      itemsIssuedToday: 0,
+      reconciliationIssues: 0,
     });
     expect(attendance.totalStudents).toBe(2);
     expect(attendance.absent).toBe(2);

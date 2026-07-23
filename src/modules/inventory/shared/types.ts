@@ -1,9 +1,9 @@
 export type InventoryDashboardSummary = {
   itemsTracked: number;
   lowStock: number;
-  reportingToday: number;
   itemsBroughtToday: number;
-  adjustmentsToday: number;
+  itemsIssuedToday: number;
+  reconciliationIssues: number;
 };
 
 export type InventoryItemSummary = {
@@ -24,11 +24,13 @@ export type InventoryMovementView = {
   itemName: string;
   type: "RECEIVED" | "ISSUED" | "ADJUSTED" | "STUDENT_BROUGHT";
   quantity: number;
-  source: string;
+  purpose: string;
   notes: string | null;
   createdAt: string;
   studentName: string | null;
-  recordedByUserId: string;
+  recipientName: string | null;
+  recipientType: string | null;
+  recordedByName: string;
 };
 
 export type InventoryStudentOption = {

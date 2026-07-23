@@ -43,9 +43,9 @@ function formatAuditAction(action: string, details: unknown): string {
 const emptyInventorySummary: DashboardInventorySummary = {
   itemsTracked: 0,
   lowStock: 0,
-  reportingToday: 0,
   itemsBroughtToday: 0,
-  adjustmentsToday: 0,
+  itemsIssuedToday: 0,
+  reconciliationIssues: 0,
 };
 
 export async function getDashboardStats(

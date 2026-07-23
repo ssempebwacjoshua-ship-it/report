@@ -28,9 +28,9 @@ export type DashboardWorkflow = {
 export type DashboardInventorySummary = {
   itemsTracked: number;
   lowStock: number;
-  reportingToday: number;
   itemsBroughtToday: number;
-  adjustmentsToday: number;
+  itemsIssuedToday: number;
+  reconciliationIssues: number;
 };
 
 export type DashboardStats = {

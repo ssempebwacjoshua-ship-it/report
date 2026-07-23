@@ -51,9 +51,9 @@ const statsPayload: DashboardStats = {
   inventory: {
     itemsTracked: 18,
     lowStock: 3,
-    reportingToday: 5,
     itemsBroughtToday: 11,
-    adjustmentsToday: 2,
+    itemsIssuedToday: 4,
+    reconciliationIssues: 2,
   },
   recentBatches: [],
   recentActivity: [],
@@ -130,7 +130,9 @@ describe("DashboardPage", () => {
     expect(screen.getByText("Inventory")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /items tracked/i })).toHaveAttribute("href", "/inventory/items");
     expect(screen.getByRole("link", { name: /low stock/i })).toHaveAttribute("href", "/inventory/reconciliation");
-    expect(screen.getByRole("link", { name: /reporting today/i })).toHaveAttribute("href", "/inventory/reporting");
+    expect(screen.getByRole("link", { name: /items brought today/i })).toHaveAttribute("href", "/inventory/reporting");
+    expect(screen.getByRole("link", { name: /items issued today/i })).toHaveAttribute("href", "/inventory/items");
+    expect(screen.getByRole("link", { name: /reconciliation issues/i })).toHaveAttribute("href", "/inventory/reconciliation");
     expect(screen.getByRole("link", { name: /gate and classroom attendance, including late students/i })).toHaveAttribute(
       "href",
       "/nfc/attendance?view=REGISTER",

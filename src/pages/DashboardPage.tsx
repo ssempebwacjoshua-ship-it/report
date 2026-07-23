@@ -643,15 +643,6 @@ export function DashboardPage() {
             to="/inventory/reconciliation"
           />
           <StatCard
-            label="Reporting Today"
-            value={statsLoading ? "-" : fmt(stats?.inventory.reportingToday ?? 0)}
-            note="Students registered today"
-            trend="Today"
-            tone="purple"
-            icon="students"
-            to="/inventory/reporting"
-          />
-          <StatCard
             label="Items Brought Today"
             value={statsLoading ? "-" : fmt(stats?.inventory.itemsBroughtToday ?? 0)}
             note="Total quantity recorded from students"
@@ -661,10 +652,19 @@ export function DashboardPage() {
             to="/inventory/reporting"
           />
           <StatCard
-            label="Adjustments Today"
-            value={statsLoading ? "-" : fmt(stats?.inventory.adjustmentsToday ?? 0)}
-            note="Manual stock adjustments recorded"
-            trend={stats?.inventory.adjustmentsToday ? "Review" : "Clear"}
+            label="Items Issued Today"
+            value={statsLoading ? "-" : fmt(stats?.inventory.itemsIssuedToday ?? 0)}
+            note="Total quantity taken out today"
+            trend={stats?.inventory.itemsIssuedToday ? "Today" : "Clear"}
+            tone="purple"
+            icon="students"
+            to="/inventory/items"
+          />
+          <StatCard
+            label="Reconciliation Issues"
+            value={statsLoading ? "-" : fmt(stats?.inventory.reconciliationIssues ?? 0)}
+            note="Items needing reconciliation review"
+            trend={stats?.inventory.reconciliationIssues ? "Review" : "Clear"}
             tone="yellow"
             icon="file"
             to="/inventory/reconciliation"

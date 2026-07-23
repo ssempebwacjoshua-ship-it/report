@@ -398,6 +398,8 @@ model InventoryStockMovement {
   type                 InventoryMovementType
   quantity             Int
   source               String
+  recipientName        String?
+  recipientType        String?
   studentId            String?               @db.Uuid
   notes                String?
   recordedByUserId     String                @db.Uuid
