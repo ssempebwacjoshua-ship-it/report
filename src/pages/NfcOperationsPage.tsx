@@ -1418,9 +1418,9 @@ export function NfcOperationsPage() {
       {/* Link reader credential modal */}
       {linkReaderTarget && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={closeLinkReaderModal}>
-          <div className="w-full max-w-2xl rounded-2xl bg-white p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-start justify-between gap-4">
-              <div>
+          <div className="flex max-h-[min(92vh,820px)] w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-start justify-between gap-4 border-b border-slate-200 px-5 py-4 sm:px-6">
+              <div className="min-w-0">
                 <h2 className="text-lg font-black text-slate-950">Link reader credential</h2>
                 <p className="mt-1 text-sm text-slate-500">
                   Keep mobile NFC writing separate from TMT reader capture so the same wristband can work for both phone taps and reader scans.
@@ -1429,204 +1429,206 @@ export function NfcOperationsPage() {
               <button type="button" onClick={closeLinkReaderModal} className="text-slate-400 hover:text-slate-700">x</button>
             </div>
 
-            <div className="mt-4 grid gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm sm:grid-cols-2">
-              <div>
-                <p className="text-xs font-black uppercase tracking-wider text-slate-500">Student</p>
-                <p className="mt-1 font-semibold text-slate-900">{linkReaderTarget.student.name}</p>
-                <p className="text-xs text-slate-500">{linkReaderTarget.student.admissionNumber}</p>
-              </div>
-              <div>
-                <p className="text-xs font-black uppercase tracking-wider text-slate-500">Wristband</p>
-                <p className="mt-1 font-semibold text-slate-900">{linkReaderTarget.label ?? `Tag ${linkReaderTarget.publicCode.slice(0, 8)}...`}</p>
-                <p className="font-mono text-xs text-slate-500">{linkReaderPayload}</p>
-                <p className="mt-1 text-xs text-slate-500">
-                  Reader credential status: {linkReaderCredentialStatus}
-                </p>
-              </div>
-            </div>
-
-            <div className="mt-4 rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div className="max-w-2xl">
-                  <p className="text-xs font-black uppercase tracking-wider text-blue-700">Mobile NFC write details</p>
-                  <p className="mt-1 text-slate-700">
-                    Write either the URL or the text payload below using NFC Tools on a phone. The TMT reader only captures the separate Wiegand credential.
-                  </p>
-                </div>
-                <div className="rounded-full bg-white px-3 py-1 text-xs font-black text-blue-700">
-                  Mobile NFC payload: {linkReaderMobileStatus}
-                </div>
-              </div>
-
-              <div className="mt-4 grid gap-3">
-                <div className="rounded-xl border border-blue-100 bg-white p-3">
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div className="min-w-0 flex-1">
-                      <p className="text-xs font-black uppercase tracking-wider text-slate-500">Full URL</p>
-                      <p className="mt-1 break-all font-mono text-xs text-slate-700">{linkReaderUrl}</p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => handleCopyLinkReaderValue("url", linkReaderUrl)}
-                      className="inline-flex min-h-[36px] items-center rounded-lg border border-blue-200 px-3 py-1.5 text-xs font-black text-blue-700 hover:bg-blue-50"
-                    >
-                      {linkReaderCopiedValue === "url" ? "Copied URL" : "Copy URL"}
-                    </button>
-                  </div>
-                </div>
-
-                <div className="rounded-xl border border-blue-100 bg-white p-3">
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div className="min-w-0 flex-1">
-                      <p className="text-xs font-black uppercase tracking-wider text-slate-500">Text payload</p>
-                      <p className="mt-1 break-all font-mono text-xs text-slate-700">{linkReaderPayload}</p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => handleCopyLinkReaderValue("payload", linkReaderPayload)}
-                      className="inline-flex min-h-[36px] items-center rounded-lg border border-blue-200 px-3 py-1.5 text-xs font-black text-blue-700 hover:bg-blue-50"
-                    >
-                      {linkReaderCopiedValue === "payload" ? "Copied payload" : "Copy payload"}
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {!linkReaderCapture && (
-              <div className="mt-5 space-y-4">
-                <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-                  Reader credential capture stays separate. Start capture mode, tap the same wristband on an active TMT attendance reader, then review the masked identifiers before confirming the link.
-                </div>
-                <label className="grid gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-500">
-                  Attendance reader
-                  <select
-                    className="premium-control"
-                    value={linkReaderDeviceId}
-                    onChange={(e) => setLinkReaderDeviceId(e.target.value)}
-                    disabled={linkReaderDevicesLoading || linkReaderLoading}
-                  >
-                    {linkReaderDevices.length === 0 && <option value="">No online attendance readers found</option>}
-                    {linkReaderDevices.map((device) => (
-                      <option key={device.id} value={device.id}>
-                        {formatAttendanceReaderLabel(device)} ({device.deviceKey})
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                {linkReaderDevicesLoading && <p className="text-xs text-slate-500">Loading attendance readers...</p>}
-                <button
-                  type="button"
-                  onClick={() => { void handleStartReaderLinkCapture(); }}
-                  disabled={linkReaderLoading || linkReaderDevicesLoading || !linkReaderDeviceId}
-                  className="btn btn-primary min-h-[44px] rounded-xl px-4 py-2.5 text-sm font-black"
-                >
-                  {linkReaderLoading ? "Starting capture..." : "Start capture mode"}
-                </button>
-              </div>
-            )}
-
-            {linkReaderCapture && (
-              <div className="mt-5 space-y-4">
-                <div className="grid gap-3 rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm sm:grid-cols-2">
-                  <div>
-                    <p className="text-xs font-black uppercase tracking-wider text-blue-700">Capture status</p>
-                    <p className="mt-1 font-semibold text-slate-900">{linkReaderCapture.status}</p>
-                    <p className="text-xs text-slate-600">Expires: {new Date(linkReaderCapture.expiresAt).toLocaleTimeString()}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs font-black uppercase tracking-wider text-blue-700">Reader</p>
-                    <p className="mt-1 font-semibold text-slate-900">{linkReaderCapture.deviceLabel ?? "Any linked attendance reader"}</p>
-                  </div>
-                </div>
-
-                {linkReaderCapture.status === "PENDING" && (
-                  <div className="rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-700">
-                    Waiting for one physical tap from the selected wristband on the attendance reader. This page refreshes automatically when the reader sends the Wiegand credential.
-                  </div>
-                )}
-
-                {linkReaderCapture.preview && (
-                  <div className="grid gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm sm:grid-cols-2">
-                    <div>
-                      <p className="text-xs font-black uppercase tracking-wider text-emerald-700">Masked canonical credential</p>
-                      <p className="mt-1 font-mono text-slate-900">{linkReaderCapture.preview.maskedCanonicalCredential ?? "-"}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs font-black uppercase tracking-wider text-emerald-700">Reader source</p>
-                      <p className="mt-1 font-semibold text-slate-900">{linkReaderCapture.preview.readerName}</p>
-                      <p className="text-xs text-slate-600">Captured {new Date(linkReaderCapture.preview.capturedAt).toLocaleTimeString()}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs font-black uppercase tracking-wider text-emerald-700">Structured fields</p>
-                      <ul className="mt-1 space-y-1 text-xs text-slate-700">
-                        <li>Credential: {linkReaderCapture.preview.credential ?? "-"}</li>
-                        <li>Raw decimal: {linkReaderCapture.preview.rawWiegandDecimal ?? "-"}</li>
-                        <li>Raw hex: {linkReaderCapture.preview.rawWiegandHex ?? "-"}</li>
-                        <li>Facility code: {linkReaderCapture.preview.facilityCode ?? "-"}</li>
-                        <li>Card number: {linkReaderCapture.preview.cardNumber ?? "-"}</li>
-                      </ul>
-                    </div>
-                    <div>
-                      <p className="text-xs font-black uppercase tracking-wider text-emerald-700">Deterministic aliases</p>
-                      <ul className="mt-1 space-y-1 text-xs text-slate-700">
-                        {linkReaderCapture.preview.maskedAliases.length === 0 ? (
-                          <li>-</li>
-                        ) : (
-                          linkReaderCapture.preview.maskedAliases.map((alias) => <li key={alias}>{alias}</li>)
-                        )}
-                      </ul>
-                    </div>
-                  </div>
-                )}
-
-                {linkReaderCapture.status === "CAPTURED" && (
-                  <div className="rounded-xl border border-emerald-200 bg-white p-4 text-sm text-slate-700">
-                    Review the masked reader identifiers above, confirm the student and wristband, then save the canonical reader credential. The written NFC payload will not be changed.
-                  </div>
-                )}
-              </div>
-            )}
-
-            {linkReaderError && <p className="mt-4 text-sm text-red-600">{linkReaderError}</p>}
-            {linkReaderSuccess && <p className="mt-4 text-sm font-semibold text-emerald-700">{linkReaderSuccess}</p>}
-
-            {linkReaderConflict && (
-              <div className="mt-4 space-y-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm">
+            <div className="flex-1 overflow-y-auto px-5 py-4 sm:px-6">
+              <div className="grid gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm sm:grid-cols-2">
                 <div>
-                  <p className="font-black text-amber-900">Existing active reader credential found</p>
-                  <p className="mt-1 text-amber-800">
-                    {linkReaderConflict.previousStudent.name} ({linkReaderConflict.previousStudent.admissionNumber}) already has the matching reader credential.
+                  <p className="text-xs font-black uppercase tracking-wider text-slate-500">Student</p>
+                  <p className="mt-1 font-semibold text-slate-900">{linkReaderTarget.student.name}</p>
+                  <p className="text-xs text-slate-500">{linkReaderTarget.student.admissionNumber}</p>
+                </div>
+                <div>
+                  <p className="text-xs font-black uppercase tracking-wider text-slate-500">Wristband</p>
+                  <p className="mt-1 font-semibold text-slate-900">{linkReaderTarget.label ?? `Tag ${linkReaderTarget.publicCode.slice(0, 8)}...`}</p>
+                  <p className="font-mono text-xs text-slate-500">{linkReaderPayload}</p>
+                  <p className="mt-1 text-xs text-slate-500">
+                    Reader credential status: {linkReaderCredentialStatus}
                   </p>
                 </div>
-                <div className="grid gap-2 text-xs text-amber-900 sm:grid-cols-2">
-                  <p>Credential status: <span className="font-bold">{linkReaderConflict.previousCredential.status}</span></p>
-                  <p>Matched alias: <span className="font-mono font-bold">{linkReaderConflict.matchedAliasMasked ?? "-"}</span></p>
-                  <p>Alias source: <span className="font-bold">{linkReaderConflict.matchedAliasSource ?? "-"}</span></p>
-                  <p>Alias strength: <span className="font-bold">{linkReaderConflict.matchedAliasStrength}</span></p>
-                  <p>Existing tag: <span className="font-bold">{linkReaderConflict.previousTag?.label ?? "Unlabeled wristband"}</span></p>
-                  <p>Public-code prefix: <span className="font-mono font-bold">{linkReaderConflict.previousTag?.publicCodePrefix ?? "-"}</span></p>
-                </div>
-                {linkReaderConflict.canTransfer && (
-                  <>
-                    <label className="grid gap-1.5 text-xs font-bold uppercase tracking-wider text-amber-900">
-                      Transfer reason
-                      <textarea
-                        className="premium-control min-h-[80px] resize-none rounded-xl text-sm"
-                        value={linkReaderTransferReason}
-                        onChange={(e) => setLinkReaderTransferReason(e.target.value)}
-                        placeholder="Explain why this reader credential is being reassigned."
-                      />
-                    </label>
-                    <p className="text-xs text-amber-800">
-                      Transfer deactivates the previous student credential, clears the previous tag physical UID only when it matches, and links this captured reader credential to the current assigned wristband without changing historical attendance.
-                    </p>
-                  </>
-                )}
               </div>
-            )}
 
-            <div className="mt-6 flex flex-wrap gap-3">
+              <div className="mt-4 rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="max-w-2xl">
+                    <p className="text-xs font-black uppercase tracking-wider text-blue-700">Mobile NFC write details</p>
+                    <p className="mt-1 text-slate-700">
+                      Write either the URL or the text payload below using NFC Tools on a phone. The TMT reader only captures the separate Wiegand credential.
+                    </p>
+                  </div>
+                  <div className="rounded-full bg-white px-3 py-1 text-xs font-black text-blue-700">
+                    Mobile NFC payload: {linkReaderMobileStatus}
+                  </div>
+                </div>
+
+                <div className="mt-4 grid gap-3">
+                  <div className="rounded-xl border border-blue-100 bg-white p-3">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs font-black uppercase tracking-wider text-slate-500">Full URL</p>
+                        <p className="mt-1 break-all font-mono text-xs text-slate-700">{linkReaderUrl}</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleCopyLinkReaderValue("url", linkReaderUrl)}
+                        className="inline-flex min-h-[36px] items-center rounded-lg border border-blue-200 px-3 py-1.5 text-xs font-black text-blue-700 hover:bg-blue-50"
+                      >
+                        {linkReaderCopiedValue === "url" ? "Copied URL" : "Copy URL"}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="rounded-xl border border-blue-100 bg-white p-3">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs font-black uppercase tracking-wider text-slate-500">Text payload</p>
+                        <p className="mt-1 break-all font-mono text-xs text-slate-700">{linkReaderPayload}</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleCopyLinkReaderValue("payload", linkReaderPayload)}
+                        className="inline-flex min-h-[36px] items-center rounded-lg border border-blue-200 px-3 py-1.5 text-xs font-black text-blue-700 hover:bg-blue-50"
+                      >
+                        {linkReaderCopiedValue === "payload" ? "Copied payload" : "Copy payload"}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {!linkReaderCapture && (
+                <div className="mt-5 space-y-4">
+                  <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+                    Reader credential capture stays separate. Start capture mode, tap the same wristband on an active TMT attendance reader, then review the masked identifiers before confirming the link.
+                  </div>
+                  <label className="grid gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-500">
+                    Attendance reader
+                    <select
+                      className="premium-control"
+                      value={linkReaderDeviceId}
+                      onChange={(e) => setLinkReaderDeviceId(e.target.value)}
+                      disabled={linkReaderDevicesLoading || linkReaderLoading}
+                    >
+                      {linkReaderDevices.length === 0 && <option value="">No online attendance readers found</option>}
+                      {linkReaderDevices.map((device) => (
+                        <option key={device.id} value={device.id}>
+                          {formatAttendanceReaderLabel(device)} ({device.deviceKey})
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  {linkReaderDevicesLoading && <p className="text-xs text-slate-500">Loading attendance readers...</p>}
+                  <button
+                    type="button"
+                    onClick={() => { void handleStartReaderLinkCapture(); }}
+                    disabled={linkReaderLoading || linkReaderDevicesLoading || !linkReaderDeviceId}
+                    className="btn btn-primary min-h-[44px] rounded-xl px-4 py-2.5 text-sm font-black"
+                  >
+                    {linkReaderLoading ? "Starting capture..." : "Start capture mode"}
+                  </button>
+                </div>
+              )}
+
+              {linkReaderCapture && (
+                <div className="mt-5 space-y-4">
+                  <div className="grid gap-3 rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm sm:grid-cols-2">
+                    <div>
+                      <p className="text-xs font-black uppercase tracking-wider text-blue-700">Capture status</p>
+                      <p className="mt-1 font-semibold text-slate-900">{linkReaderCapture.status}</p>
+                      <p className="text-xs text-slate-600">Expires: {new Date(linkReaderCapture.expiresAt).toLocaleTimeString()}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs font-black uppercase tracking-wider text-blue-700">Reader</p>
+                      <p className="mt-1 font-semibold text-slate-900">{linkReaderCapture.deviceLabel ?? "Any linked attendance reader"}</p>
+                    </div>
+                  </div>
+
+                  {linkReaderCapture.status === "PENDING" && (
+                    <div className="rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-700">
+                      Waiting for one physical tap from the selected wristband on the attendance reader. This page refreshes automatically when the reader sends the Wiegand credential.
+                    </div>
+                  )}
+
+                  {linkReaderCapture.preview && (
+                    <div className="grid gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm sm:grid-cols-2">
+                      <div className="rounded-lg bg-white/70 p-3">
+                        <p className="text-xs font-black uppercase tracking-wider text-emerald-700">Masked credential</p>
+                        <p className="mt-1 break-all font-mono text-xs text-slate-900">{linkReaderCapture.preview.maskedCanonicalCredential ?? "-"}</p>
+                      </div>
+                      <div className="rounded-lg bg-white/70 p-3">
+                        <p className="text-xs font-black uppercase tracking-wider text-emerald-700">Reader source</p>
+                        <p className="mt-1 text-sm font-semibold text-slate-900">{linkReaderCapture.preview.readerName}</p>
+                        <p className="text-xs text-slate-600">Captured {new Date(linkReaderCapture.preview.capturedAt).toLocaleTimeString()}</p>
+                      </div>
+                      <div className="rounded-lg bg-white/70 p-3">
+                        <p className="text-xs font-black uppercase tracking-wider text-emerald-700">Structured fields</p>
+                        <ul className="mt-1 space-y-1 text-xs text-slate-700">
+                          <li>Credential: {linkReaderCapture.preview.credential ?? "-"}</li>
+                          <li>Raw decimal: {linkReaderCapture.preview.rawWiegandDecimal ?? "-"}</li>
+                          <li>Raw hex: {linkReaderCapture.preview.rawWiegandHex ?? "-"}</li>
+                          <li>Facility code: {linkReaderCapture.preview.facilityCode ?? "-"}</li>
+                          <li>Card number: {linkReaderCapture.preview.cardNumber ?? "-"}</li>
+                        </ul>
+                      </div>
+                      <div className="rounded-lg bg-white/70 p-3">
+                        <p className="text-xs font-black uppercase tracking-wider text-emerald-700">Deterministic aliases</p>
+                        <ul className="mt-1 max-h-28 space-y-1 overflow-y-auto pr-1 text-xs text-slate-700">
+                          {linkReaderCapture.preview.maskedAliases.length === 0 ? (
+                            <li>-</li>
+                          ) : (
+                            linkReaderCapture.preview.maskedAliases.map((alias) => <li key={alias}>{alias}</li>)
+                          )}
+                        </ul>
+                      </div>
+                    </div>
+                  )}
+
+                  {linkReaderCapture.status === "CAPTURED" && (
+                    <div className="rounded-xl border border-emerald-200 bg-white p-4 text-sm text-slate-700">
+                      Review the masked reader identifiers above, confirm the student and wristband, then save the canonical reader credential. The written NFC payload will not be changed.
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {linkReaderError && <p className="mt-4 text-sm text-red-600">{linkReaderError}</p>}
+              {linkReaderSuccess && <p className="mt-4 text-sm font-semibold text-emerald-700">{linkReaderSuccess}</p>}
+
+              {linkReaderConflict && (
+                <div className="mt-4 space-y-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm">
+                  <div>
+                    <p className="font-black text-amber-900">Existing active reader credential found</p>
+                    <p className="mt-1 text-amber-800">
+                      {linkReaderConflict.previousStudent.name} ({linkReaderConflict.previousStudent.admissionNumber}) already has the matching reader credential.
+                    </p>
+                  </div>
+                  <div className="grid gap-2 text-xs text-amber-900 sm:grid-cols-2">
+                    <p>Credential status: <span className="font-bold">{linkReaderConflict.previousCredential.status}</span></p>
+                    <p>Matched alias: <span className="font-mono font-bold">{linkReaderConflict.matchedAliasMasked ?? "-"}</span></p>
+                    <p>Alias source: <span className="font-bold">{linkReaderConflict.matchedAliasSource ?? "-"}</span></p>
+                    <p>Alias strength: <span className="font-bold">{linkReaderConflict.matchedAliasStrength}</span></p>
+                    <p>Existing tag: <span className="font-bold">{linkReaderConflict.previousTag?.label ?? "Unlabeled wristband"}</span></p>
+                    <p>Public-code prefix: <span className="font-mono font-bold">{linkReaderConflict.previousTag?.publicCodePrefix ?? "-"}</span></p>
+                  </div>
+                  {linkReaderConflict.canTransfer && (
+                    <>
+                      <label className="grid gap-1.5 text-xs font-bold uppercase tracking-wider text-amber-900">
+                        Transfer reason
+                        <textarea
+                          className="premium-control min-h-[80px] resize-none rounded-xl text-sm"
+                          value={linkReaderTransferReason}
+                          onChange={(e) => setLinkReaderTransferReason(e.target.value)}
+                          placeholder="Explain why this reader credential is being reassigned."
+                        />
+                      </label>
+                      <p className="text-xs text-amber-800">
+                        Transfer deactivates the previous student credential, clears the previous tag physical UID only when it matches, and links this captured reader credential to the current assigned wristband without changing historical attendance.
+                      </p>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className="flex shrink-0 flex-wrap gap-3 border-t border-slate-200 px-5 py-4 sm:px-6">
               {linkReaderCapture?.status === "CAPTURED" && (
                 <button
                   type="button"
