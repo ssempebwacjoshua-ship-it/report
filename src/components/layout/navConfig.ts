@@ -47,6 +47,7 @@ export const navItemsByProduct: Record<ProductKey, NavItem[]> = {
   reportLab: [
     { to: "/dashboard", label: "Dashboard", icon: "home", exact: true, requiredPermission: "app.admin" },
     { to: "/students", label: "Students", icon: "students", exact: true, requiredPermission: "app.admin" },
+    { to: "/inventory", label: "Inventory", icon: "clipboard", exact: false, requiredPermission: "app.admin" },
     { to: "/reports", label: "Reports", icon: "file", exact: true, requiredPermission: "app.admin" },
     { to: "/communications", label: "Communication", icon: "bell", exact: true, requiredPermission: "communications.view" },
     { to: "/settings", label: "Academic Setup", icon: "settings", requiredPermission: "app.admin" },

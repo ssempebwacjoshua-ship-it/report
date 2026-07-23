@@ -610,6 +610,68 @@ export function DashboardPage() {
         </div>
       </section>
 
+      <section className="premium-card rounded-xl p-4">
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <div>
+            <h2 className="text-sm font-bold text-slate-950">Inventory</h2>
+            <p className="mt-0.5 text-xs text-slate-500">
+              Monitor stock, reporting-day intake, and reconciliation gaps.
+            </p>
+          </div>
+          <Link to="/inventory" className="action-link text-sm">
+            Open Inventory
+            <span aria-hidden="true">&rarr;</span>
+          </Link>
+        </div>
+        <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+          <StatCard
+            label="Items Tracked"
+            value={statsLoading ? "-" : fmt(stats?.inventory.itemsTracked ?? 0)}
+            note="Active inventory lines"
+            trend={stats?.inventory.itemsTracked ? "Live" : "Empty"}
+            tone="green"
+            icon="file"
+            to="/inventory/items"
+          />
+          <StatCard
+            label="Low Stock"
+            value={statsLoading ? "-" : fmt(stats?.inventory.lowStock ?? 0)}
+            note="Items at or below minimum"
+            trend={stats?.inventory.lowStock ? "Action" : "Clear"}
+            tone="yellow"
+            icon="cloud"
+            to="/inventory/reconciliation"
+          />
+          <StatCard
+            label="Reporting Today"
+            value={statsLoading ? "-" : fmt(stats?.inventory.reportingToday ?? 0)}
+            note="Students registered today"
+            trend="Today"
+            tone="purple"
+            icon="students"
+            to="/inventory/reporting"
+          />
+          <StatCard
+            label="Requirements Received"
+            value={statsLoading ? "-" : fmt(stats?.inventory.requirementsReceived ?? 0)}
+            note="Complete or extra checklist lines"
+            trend="Audit"
+            tone="blue"
+            icon="check"
+            to="/inventory/reporting"
+          />
+          <StatCard
+            label="Reconciliation Issues"
+            value={statsLoading ? "-" : fmt(stats?.inventory.reconciliationIssues ?? 0)}
+            note="Missing, partial, or extra items"
+            trend={stats?.inventory.reconciliationIssues ? "Review" : "Clear"}
+            tone="yellow"
+            icon="file"
+            to="/inventory/reconciliation"
+          />
+        </div>
+      </section>
+
       <footer className="flex flex-wrap justify-between gap-3 pb-1 text-xs text-slate-400">
         <span>&copy; 2026 {schoolName}. All rights reserved.</span>
         <span>Version 1.0.0</span>

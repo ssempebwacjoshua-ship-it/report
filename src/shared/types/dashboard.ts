@@ -25,6 +25,14 @@ export type DashboardWorkflow = {
   released: number;
 };
 
+export type DashboardInventorySummary = {
+  itemsTracked: number;
+  lowStock: number;
+  reportingToday: number;
+  requirementsReceived: number;
+  reconciliationIssues: number;
+};
+
 export type DashboardStats = {
   schoolName: string;
   activeTerm: ActiveTerm | null;
@@ -36,6 +44,7 @@ export type DashboardStats = {
   /** IssuedReports with sentAt set */
   reportsReleasedCount: number;
   workflow: DashboardWorkflow;
+  inventory: DashboardInventorySummary;
   recentBatches: RecentBatch[];
   recentActivity: DashboardActivity[];
 };

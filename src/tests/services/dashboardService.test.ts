@@ -113,6 +113,15 @@ function createDashboardDb() {
     issuedReport: {
       count: async () => 0,
     },
+    inventoryItem: {
+      findMany: async () => [],
+    },
+    inventoryStockMovement: {
+      findMany: async () => [],
+    },
+    studentReportingRecord: {
+      findMany: async () => [],
+    },
     auditLog: {
       findMany: async () => [],
       create: async ({ data }: { data: Record<string, unknown> }) => data,
@@ -140,6 +149,13 @@ describe("dashboardService", () => {
     ]);
 
     expect(stats.enrolledStudents).toBe(2);
+    expect(stats.inventory).toEqual({
+      itemsTracked: 0,
+      lowStock: 0,
+      reportingToday: 0,
+      requirementsReceived: 0,
+      reconciliationIssues: 0,
+    });
     expect(attendance.totalStudents).toBe(2);
     expect(attendance.absent).toBe(2);
     expect(attendance.dayScholarsAbsent).toBe(1);
