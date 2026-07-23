@@ -55,7 +55,6 @@ class ReaderGatewayApp {
   void processScan(const ReaderScanEvent& event);
   void processOfflineQueue();
   void sendHeartbeat();
-  const char* heartbeatSkipReason() const;
   void logReaderReadyDiagnostic();
   void markApiContact();
   bool hasWorkingNetwork() const;
@@ -83,7 +82,6 @@ class ReaderGatewayApp {
   unsigned long lastWifiAttemptMs_ = 0;
   unsigned long lastQueueAttemptMs_ = 0;
   unsigned long lastHeartbeatMs_ = 0;
-  unsigned long lastHeartbeatDiagnosticMs_ = 0;
   unsigned long lastOtaCheckMs_ = 0;
   unsigned long lastReaderReadyLogMs_ = 0;
   unsigned long wifiDisconnectedSinceMs_ = 0;
