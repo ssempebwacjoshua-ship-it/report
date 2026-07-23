@@ -170,6 +170,7 @@ describe("inventoryRoutes", () => {
           reportedAt: new Date("2026-07-23T10:00:00.000Z"),
           termId: null,
           student: { id: "student-1", firstName: "Ada", lastName: "Lovelace", admissionNumber: "A-001" },
+          recordedByUser: { firstName: "Admin", lastName: "User", email: "admin@example.com" },
           items: [{ expectedQuantity: 0, broughtQuantity: 1, status: "COMPLETE", item: { id: "item-1", name: "Soap" } }],
         }),
       },

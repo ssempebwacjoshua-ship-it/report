@@ -91,6 +91,7 @@ describe("inventoryService", () => {
           reportedAt: new Date("2026-07-23T10:00:00.000Z"),
           status: "REPORTED",
           student: { id: "student-1", firstName: "Ada", lastName: "Lovelace", admissionNumber: "A-1" },
+          recordedByUser: { firstName: "Admin", lastName: "User", email: "admin@example.com" },
           items: [
             { expectedQuantity: 0, broughtQuantity: 1, status: "COMPLETE", item: { id: "item-1", name: "Soap" } },
             { expectedQuantity: 0, broughtQuantity: 2, status: "COMPLETE", item: { id: "item-2", name: "Rice" } },
@@ -150,6 +151,7 @@ describe("inventoryService", () => {
       reportedAt: new Date("2026-07-23T10:00:00.000Z"),
       termId: null,
       student: { id: "student-1", firstName: "Ada", lastName: "Lovelace", admissionNumber: "A-001" },
+      recordedByUser: { firstName: "Admin", lastName: "User", email: "admin@example.com" },
       items: [
         { expectedQuantity: 0, broughtQuantity: 1, status: "COMPLETE", item: { id: "item-1", name: "Soap" } },
       ],
@@ -174,7 +176,13 @@ describe("inventoryService", () => {
     });
 
     expect(record.studentId).toBe("student-1");
-    expect(record.items).toEqual([{ itemId: "item-1", itemName: "Soap", quantity: 1 }]);
+    expect(record.items).toEqual([{
+      itemId: "item-1",
+      itemName: "Soap",
+      quantity: 1,
+      recordedAt: "2026-07-23T10:00:00.000Z",
+      recordedByName: "Admin User",
+    }]);
     expect(movementCreate).toHaveBeenCalledTimes(1);
   });
 });

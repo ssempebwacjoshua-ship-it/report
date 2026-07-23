@@ -21,6 +21,11 @@ function studentNameOf(student: { firstName: string; lastName: string }) {
   return `${student.firstName} ${student.lastName}`.trim();
 }
 
+function userDisplayName(user: { firstName: string | null; lastName: string | null; email: string | null }) {
+  const fullName = `${user.firstName ?? ""} ${user.lastName ?? ""}`.trim();
+  return fullName || user.email || "Staff";
+}
+
 function toInventoryItemSummary(
   item: {
     id: string;
@@ -99,6 +104,7 @@ function toReportingRecordView(record: {
   reportedAt: Date;
   termId: string | null;
   student: { id: string; firstName: string; lastName: string; admissionNumber: string };
+  recordedByUser: { firstName: string | null; lastName: string | null; email: string | null };
   items: Array<{
     broughtQuantity: number;
     item: { id: string; name: string };
@@ -116,6 +122,8 @@ function toReportingRecordView(record: {
       itemId: item.item.id,
       itemName: item.item.name,
       quantity: item.broughtQuantity,
+      recordedAt: record.reportedAt.toISOString(),
+      recordedByName: userDisplayName(record.recordedByUser),
     })),
   };
 }

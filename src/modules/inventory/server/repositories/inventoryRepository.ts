@@ -68,6 +68,7 @@ export async function listRecentReportingRecords(prisma: PrismaClient, schoolId:
     where: { schoolId },
     include: {
       student: { select: { id: true, firstName: true, lastName: true, admissionNumber: true } },
+      recordedByUser: { select: { firstName: true, lastName: true, email: true } },
       items: {
         include: {
           item: { select: { id: true, name: true } },
