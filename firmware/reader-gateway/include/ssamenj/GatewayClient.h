@@ -12,6 +12,12 @@ class GatewayClient {
   bool postScan(const ReaderGatewayConfig& config, const ReaderScanEvent& event, ReaderApiResponse& response);
   bool registerDevice(const ReaderGatewayConfig& config, ReaderApiResponse& response, ReaderRegistrationResult& result);
   bool postHeartbeat(const ReaderGatewayConfig& config, const ReaderHeartbeatMetrics& metrics, ReaderApiResponse& response);
+  bool postWriteCommandStatus(
+    const ReaderGatewayConfig& config,
+    const ReaderPendingCommand& command,
+    const ReaderWriteCommandStatusReport& report,
+    ReaderApiResponse& response
+  );
   bool checkForOtaUpdate(const ReaderGatewayConfig& config, size_t queueDepth, ReaderOtaManifest& manifest);
   bool reportOtaStatus(const ReaderGatewayConfig& config, const ReaderOtaStatusReport& report, ReaderApiResponse& response);
 
@@ -23,5 +29,6 @@ class GatewayClient {
   void applyRequestHeaders(HTTPClient& http, const ReaderGatewayConfig& config);
   String buildBasePayload(const ReaderGatewayConfig& config, const ReaderScanEvent* event, bool registration) const;
   String buildHeartbeatPayload(const ReaderGatewayConfig& config, const ReaderHeartbeatMetrics& metrics) const;
+  String buildWriteCommandStatusPayload(const ReaderGatewayConfig& config, const ReaderWriteCommandStatusReport& report) const;
   bool parseResponse(const String& body, int statusCode, ReaderApiResponse& response);
 };
