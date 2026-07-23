@@ -477,6 +477,7 @@ export async function saveStudentReportingRecord(
       },
       include: {
         student: { select: { id: true, firstName: true, lastName: true, admissionNumber: true } },
+        recordedByUser: { select: { name: true, email: true } },
         items: { include: { item: { select: { id: true, name: true } } } },
       },
     });
