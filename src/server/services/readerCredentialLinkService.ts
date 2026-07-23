@@ -259,7 +259,7 @@ async function loadAssignedTag(
   });
 
   if (!tag) throw Object.assign(new Error("NFC tag not found."), { status: 404 });
-  if (tag.status !== "ASSIGNED" || !tag.studentId || !tag.student) {
+  if (!["ASSIGNED", "WRITTEN", "VERIFIED"].includes(tag.status) || !tag.studentId || !tag.student) {
     throw Object.assign(new Error("Only assigned wristbands can link a reader credential."), { status: 409 });
   }
   return tag;
@@ -634,7 +634,114 @@ async function upsertLinkedCredentialForTarget(
             scanToken: generateCredentialScanToken(),
             issuedById: ctx.actorId ?? null,
           },
-        });
+      });
+}
+
+export async function linkReaderCredentialToAssignedTag(
+  input: {
+    schoolId: string;
+    tagId: string;
+    studentId: string;
+    commandId?: string | null;
+    actorId?: string | null;
+    actorRole?: string | null;
+    readerId?: string | null;
+    readerName?: string | null;
+    credential?: string | null;
+    credentialUID?: string | null;
+    rawWiegandDecimal?: string | null;
+    rawWiegandHex?: string | null;
+    rawWiegandBinary?: string | null;
+    rawWiegandBitCount?: number | null;
+    facilityCode?: string | null;
+    cardNumber?: string | null;
+  },
+  db: ReaderCredentialLinkDb = defaultPrisma,
+) {
+  return runWrite(db, async (tx) => {
+    const tag = await loadAssignedTag(tx, input.schoolId, input.tagId);
+    if (tag.studentId !== input.studentId) {
+      throw Object.assign(new Error("Tag assignment changed before the reader credential could be linked."), { status: 409 });
+    }
+
+    const aliases = buildReaderCredentialAliases(buildCaptureInput(input));
+    if (!aliases.canonical) {
+      throw Object.assign(new Error("Reader credential payload is missing a canonical identifier."), { status: 400 });
+    }
+
+    const captured: CapturedReaderCredential = {
+      canonical: aliases.canonical,
+      aliases: aliases.aliases,
+      strongAliases: aliases.strongAliases,
+      weakAliases: aliases.weakAliases,
+      aliasSource: aliases.aliasSource,
+      credential: input.credentialUID ?? input.credential ?? null,
+      rawWiegandDecimal: input.rawWiegandDecimal ?? null,
+      rawWiegandHex: input.rawWiegandHex ?? null,
+      facilityCode: input.facilityCode ?? null,
+      cardNumber: input.cardNumber ?? null,
+      capturedAt: new Date().toISOString(),
+      readerId: input.readerId ?? "unknown-reader",
+      readerName: input.readerName ?? "Reader gateway",
+    };
+
+    const conflictingCredential = await findCredentialConflict(tx, input.schoolId, captured, tag.studentId!);
+    if (conflictingCredential) {
+      throw readerCredentialConflict(conflictingCredential.payload);
+    }
+
+    const conflictingTag = await tx.nfcTag.findFirst({
+      where: {
+        schoolId: input.schoolId,
+        id: { not: tag.id },
+        physicalUid: { in: captured.strongAliases.length > 0 ? captured.strongAliases : captured.weakAliases },
+      },
+    });
+    if (conflictingTag) {
+      throw Object.assign(new Error("This reader credential is already linked to another wristband."), { status: 409 });
+    }
+
+    const actorCtx: ReaderCredentialLinkContext = {
+      schoolId: input.schoolId,
+      actorId: input.actorId ?? null,
+      role: input.actorRole ?? null,
+    };
+    const linkedCredential = await upsertLinkedCredentialForTarget(tx, actorCtx, input.schoolId, tag.studentId!, captured.canonical);
+    await tx.nfcTag.update({
+      where: { id: tag.id },
+      data: { physicalUid: captured.canonical },
+    });
+
+    await tx.auditLog.create({
+      data: {
+        schoolId: input.schoolId,
+        action: "nfc_tag.reader_credential_linked",
+        correlationId: input.commandId ?? null,
+        details: {
+          commandId: input.commandId ?? null,
+          tagId: tag.id,
+          studentId: tag.studentId,
+          readerId: captured.readerId,
+          readerName: captured.readerName,
+          canonicalMasked: maskCredentialValue(captured.canonical),
+          aliasMasked: captured.aliases.map((value) => maskCredentialValue(value)).filter(Boolean),
+          capturedAt: captured.capturedAt,
+          rawWiegandBitCount: input.rawWiegandBitCount ?? null,
+          rawWiegandBinary: input.rawWiegandBinary ?? null,
+          linkedStudentCredentialId: linkedCredential.id,
+          actor: {
+            id: input.actorId ?? null,
+            role: input.actorRole ?? null,
+          },
+        },
+      },
+    });
+
+    return {
+      credentialId: linkedCredential.id,
+      canonicalCredential: captured.canonical,
+    };
+  });
 }
 
 export async function confirmReaderCredentialLink(

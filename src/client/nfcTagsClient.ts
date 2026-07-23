@@ -17,6 +17,7 @@ import type {
   ReaderCredentialConflictResponse,
   ReaderCredentialLinkConfirmResponse,
   ReaderCredentialTransferResponse,
+  NfcTagWriteCommandSummary,
 } from "../shared/types/nfcTags";
 
 export async function listNfcTags(filters: { status?: string } = {}): Promise<NfcTagListResponse> {
@@ -253,5 +254,34 @@ export async function transferReaderCredentialCapture(captureId: string, reason:
     body: JSON.stringify({ reason }),
   });
   if (!res.ok) throw new Error(await parseApiError(res, "Failed to transfer reader credential."));
+  return res.json();
+}
+
+export async function createNfcTagWriteCommand(input: {
+  controllerId: string;
+  studentId?: string | null;
+  admissionNumber?: string | null;
+  tagId?: string | null;
+}): Promise<NfcTagWriteCommandSummary> {
+  const res = await fetch(`${getApiBaseUrl()}/api/nfc/tags/write-commands`, {
+    method: "POST",
+    headers: makeSchoolRequestHeaders({ "Content-Type": "application/json" }),
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) throw new Error(await parseApiError(res, "Failed to start the controller-driven NFC write command."));
+  return res.json();
+}
+
+export async function getNfcTagWriteCommand(commandId: string): Promise<NfcTagWriteCommandSummary> {
+  const url = new URL(`${getApiBaseUrl()}/api/nfc/tags/write-commands/${encodeURIComponent(commandId)}`);
+  url.searchParams.set("_", Date.now().toString());
+  const res = await fetch(url.toString(), {
+    cache: "no-store",
+    headers: makeSchoolRequestHeaders({
+      "Cache-Control": "no-cache",
+      Pragma: "no-cache",
+    }),
+  });
+  if (!res.ok) throw new Error(await parseApiError(res, "Failed to load the controller-driven NFC write command."));
   return res.json();
 }

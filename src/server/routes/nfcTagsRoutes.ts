@@ -29,6 +29,10 @@ import {
   startReaderCredentialCapture,
   transferReaderCredentialLink,
 } from "../services/readerCredentialLinkService";
+import {
+  createNfcTagWriteCommand,
+  getNfcTagWriteCommand,
+} from "../services/nfcTagWriteCommandService";
 import { attachUsageWarning, recordPlatformUsage, requirePlatformModule } from "../platformIntegration";
 
 const generateSchema = z.object({
@@ -94,6 +98,15 @@ const readerCredentialCaptureStartSchema = z.object({
 
 const readerCredentialTransferSchema = z.object({
   reason: z.string().trim().min(1, "Transfer reason is required."),
+});
+
+const readerTagWriteCommandCreateSchema = z.object({
+  controllerId: z.string().trim().min(1, "Controller ID is required."),
+  studentId: z.string().uuid("studentId must be a valid UUID.").optional().nullable(),
+  admissionNumber: z.string().trim().min(1).optional().nullable(),
+  tagId: z.string().uuid("tagId must be a valid UUID.").optional().nullable(),
+}).refine((value) => value.studentId || value.admissionNumber, {
+  message: "Provide studentId or admissionNumber.",
 });
 
 function ctx(req: Express.Request): NfcTagsContext {
@@ -364,6 +377,33 @@ export function nfcTagsRoutes() {
       }
       const { reason } = readerCredentialTransferSchema.parse(req.body);
       res.json(await transferReaderCredentialLink(ctx(req), req.params.captureId, reason));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/api/nfc/tags/write-commands", async (req, res, next) => {
+    try {
+      if (!(await requirePlatformModule(req, res, "nfc.tags"))) {
+        return;
+      }
+      const result = await createNfcTagWriteCommand(ctx(req), {
+        ...readerTagWriteCommandCreateSchema.parse(req.body),
+        baseUrl: getPublicAppUrl(req),
+      });
+      res.status(201).json(result);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.get("/api/nfc/tags/write-commands/:commandId", async (req, res, next) => {
+    try {
+      if (!(await requirePlatformModule(req, res, "nfc.tags"))) {
+        return;
+      }
+      res.set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+      res.json(await getNfcTagWriteCommand(ctx(req), req.params.commandId));
     } catch (error) {
       next(error);
     }

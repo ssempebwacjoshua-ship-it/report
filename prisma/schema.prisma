@@ -1593,6 +1593,23 @@ model ReaderDeviceCommand {
   firmwareVersion   String?
   firmwareUrl       String?
   firmwareSha256    String?
+  payloadJson       Json?
+  targetTagId       String?  @db.Uuid
+  targetStudentId   String?  @db.Uuid
+  expectedPayload   String?
+  writtenPayload    String?
+  readbackPayload   String?
+  credentialJson    Json?
+  credentialStatus  String?
+  credentialError   String?
+  sentAt            DateTime?
+  writeStartedAt    DateTime?
+  writeCompletedAt  DateTime?
+  verifyStartedAt   DateTime?
+  verifiedAt        DateTime?
+  failedAt          DateTime?
+  credentialLinkedAt DateTime?
+  errorMessage      String?
   requestedByUserId String?
   requestedAt       DateTime @default(now())
   ackedAt           DateTime?

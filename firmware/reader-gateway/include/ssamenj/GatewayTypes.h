@@ -76,11 +76,15 @@ struct ReaderGatewayConfig {
   int8_t d1Pin = 19;
   int8_t buzzerPin = -1;
   int8_t ledPin = -1;
+  int8_t nfcWriterSdaPin = 21;
+  int8_t nfcWriterSclPin = 22;
 
   bool tlsInsecure = true;
   bool autoRegister = true;
   bool feedbackOutputsEnabled = false;
   bool feedbackDriverActiveHigh = false;
+  bool nfcWriterEnabled = false;
+  String nfcWriterType = "PN532_I2C";
 };
 
 struct ReaderScanEvent {
@@ -102,6 +106,20 @@ struct ReaderScanEvent {
   String syncStatus = "pending";
 };
 
+struct ReaderPendingCommand {
+  bool present = false;
+  String id;
+  String type;
+  String tagId;
+  String studentId;
+  String publicCode;
+  String payload;
+  String format;
+  bool verifyAfterWrite = false;
+  bool captureReaderCredential = false;
+  String status;
+};
+
 struct ReaderApiResponse {
   bool success = false;
   int statusCode = 0;
@@ -109,6 +127,7 @@ struct ReaderApiResponse {
   String message;
   String studentName;
   String beep = "none";
+  ReaderPendingCommand pendingCommand;
 };
 
 struct ReaderRegistrationResult {
@@ -125,6 +144,7 @@ struct ReaderRegistrationResult {
   String readerLocation;
   String readerType;
   String message;
+  ReaderPendingCommand pendingCommand;
 };
 
 struct ReaderHeartbeatMetrics {
@@ -157,4 +177,11 @@ struct ReaderOtaStatusReport {
   String toVersion;
   String status;
   String message;
+};
+
+struct ReaderWriteCommandStatusReport {
+  String status;
+  String writtenPayload;
+  String readbackPayload;
+  String errorMessage;
 };

@@ -125,6 +125,30 @@ String GatewayClient::buildHeartbeatPayload(const ReaderGatewayConfig& config, c
   return payload;
 }
 
+String GatewayClient::buildWriteCommandStatusPayload(
+  const ReaderGatewayConfig& config,
+  const ReaderWriteCommandStatusReport& report
+) const {
+  JsonDocument doc;
+  doc["deviceId"] = config.deviceId;
+  doc["readerId"] = config.readerId;
+  doc["schoolId"] = config.schoolId;
+  doc["status"] = report.status;
+  if (!report.writtenPayload.isEmpty()) {
+    doc["writtenPayload"] = report.writtenPayload;
+  }
+  if (!report.readbackPayload.isEmpty()) {
+    doc["readbackPayload"] = report.readbackPayload;
+  }
+  if (!report.errorMessage.isEmpty()) {
+    doc["errorMessage"] = report.errorMessage;
+  }
+
+  String payload;
+  serializeJson(doc, payload);
+  return payload;
+}
+
 String buildOtaCheckPayload(const ReaderGatewayConfig& config, size_t queueDepth) {
   JsonDocument doc;
   doc["deviceId"] = config.deviceId;
@@ -178,6 +202,20 @@ bool GatewayClient::parseResponse(const String& body, int statusCode, ReaderApiR
   response.message = doc["message"] | "";
   response.studentName = doc["studentName"] | "";
   response.beep = doc["beep"] | response.beep;
+  if (doc["command"].is<JsonObject>()) {
+    JsonObject command = doc["command"].as<JsonObject>();
+    response.pendingCommand.present = true;
+    response.pendingCommand.id = command["id"] | "";
+    response.pendingCommand.type = command["type"] | "";
+    response.pendingCommand.tagId = command["tagId"] | "";
+    response.pendingCommand.studentId = command["studentId"] | "";
+    response.pendingCommand.publicCode = command["publicCode"] | "";
+    response.pendingCommand.payload = command["payload"] | "";
+    response.pendingCommand.format = command["format"] | "";
+    response.pendingCommand.verifyAfterWrite = command["verifyAfterWrite"] | false;
+    response.pendingCommand.captureReaderCredential = command["captureReaderCredential"] | false;
+    response.pendingCommand.status = command["status"] | "";
+  }
   return response.success;
 }
 
@@ -279,6 +317,20 @@ bool GatewayClient::registerDevice(const ReaderGatewayConfig& config, ReaderApiR
     result.readerLocation = doc["location"] | "";
     result.readerType = doc["readerType"] | "";
     result.message = doc["message"] | "";
+    if (doc["command"].is<JsonObject>()) {
+      JsonObject command = doc["command"].as<JsonObject>();
+      result.pendingCommand.present = true;
+      result.pendingCommand.id = command["id"] | "";
+      result.pendingCommand.type = command["type"] | "";
+      result.pendingCommand.tagId = command["tagId"] | "";
+      result.pendingCommand.studentId = command["studentId"] | "";
+      result.pendingCommand.publicCode = command["publicCode"] | "";
+      result.pendingCommand.payload = command["payload"] | "";
+      result.pendingCommand.format = command["format"] | "";
+      result.pendingCommand.verifyAfterWrite = command["verifyAfterWrite"] | false;
+      result.pendingCommand.captureReaderCredential = command["captureReaderCredential"] | false;
+      result.pendingCommand.status = command["status"] | "";
+    }
   }
 
   if (config.registrationPath.endsWith("/activate")) {
@@ -300,6 +352,17 @@ bool GatewayClient::registerDevice(const ReaderGatewayConfig& config, ReaderApiR
 bool GatewayClient::postHeartbeat(const ReaderGatewayConfig& config, const ReaderHeartbeatMetrics& metrics, ReaderApiResponse& response) {
   const String body = buildHeartbeatPayload(config, metrics);
   return sendJson(config, config.heartbeatPath, body, response);
+}
+
+bool GatewayClient::postWriteCommandStatus(
+  const ReaderGatewayConfig& config,
+  const ReaderPendingCommand& command,
+  const ReaderWriteCommandStatusReport& report,
+  ReaderApiResponse& response
+) {
+  const String body = buildWriteCommandStatusPayload(config, report);
+  const String path = "/api/readers/commands/" + command.id + "/status";
+  return sendJson(config, path, body, response);
 }
 
 bool GatewayClient::checkForOtaUpdate(const ReaderGatewayConfig& config, size_t queueDepth, ReaderOtaManifest& manifest) {

@@ -4,9 +4,11 @@ import type { NfcTag } from "../shared/types/nfcTags";
 import { NfcSectionTabs } from "../components/nfc/NfcSectionTabs";
 import {
   assignNfcTag,
+  createNfcTagWriteCommand,
   confirmReaderCredentialCapture,
   disableNfcTag,
   enableNfcTag,
+  getNfcTagWriteCommand,
   generateNfcTags,
   getReaderCredentialCapture,
   cancelReaderCredentialCapture,
@@ -26,6 +28,7 @@ import type { StudentListItem } from "../shared/types/students";
 import type { WalletPinStatus } from "../shared/types/studentCredentials";
 import type { OfflineDeviceStatus } from "../client/nfcOfflineClient";
 import type {
+  NfcTagWriteCommandSummary,
   ReaderCredentialCaptureSession,
   ReaderCredentialCaptureStartResponse,
   ReaderCredentialConflictResponse,
@@ -588,6 +591,20 @@ export function NfcOperationsPage() {
   const [walletPinError, setWalletPinError] = useState<string | null>(null);
   const [walletPinSuccess, setWalletPinSuccess] = useState(false);
 
+  // Controller-driven write/register flow
+  const [registrationStudents, setRegistrationStudents] = useState<StudentListItem[]>([]);
+  const [registrationStudentsLoading, setRegistrationStudentsLoading] = useState(false);
+  const [registrationDevices, setRegistrationDevices] = useState<OfflineDeviceStatus[]>([]);
+  const [registrationDevicesLoading, setRegistrationDevicesLoading] = useState(false);
+  const [registrationStudentId, setRegistrationStudentId] = useState("");
+  const [registrationControllerId, setRegistrationControllerId] = useState("");
+  const [registrationTagId, setRegistrationTagId] = useState("");
+  const [registrationCommand, setRegistrationCommand] = useState<NfcTagWriteCommandSummary | null>(null);
+  const [registrationLoading, setRegistrationLoading] = useState(false);
+  const [registrationError, setRegistrationError] = useState<string | null>(null);
+  const [registrationSuccess, setRegistrationSuccess] = useState<string | null>(null);
+  const registrationPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
   // Reader credential link modal
   const [linkReaderTarget, setLinkReaderTarget] = useState<LinkReaderTarget | null>(null);
   const [linkReaderDevices, setLinkReaderDevices] = useState<OfflineDeviceStatus[]>([]);
@@ -626,6 +643,56 @@ export function NfcOperationsPage() {
   useEffect(() => { void loadTags(); }, [loadTags]);
 
   useEffect(() => {
+    let cancelled = false;
+    setRegistrationStudentsLoading(true);
+    fetchStudents({ isActive: "true" })
+      .then((result) => {
+        if (cancelled) return;
+        setRegistrationStudents(result.students);
+        setRegistrationStudentId((current) => current || result.students[0]?.id || "");
+      })
+      .catch((caught) => {
+        if (cancelled) return;
+        setRegistrationError(caught instanceof Error ? caught.message : "Failed to load active students for wristband registration.");
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setRegistrationStudentsLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    setRegistrationDevicesLoading(true);
+    fetchOfflineSyncStatus()
+      .then((status) => {
+        if (cancelled) return;
+        const devices = status.devices
+          .filter((device) => isReaderAvailableForCredentialCapture(device))
+          .sort((left, right) => new Date(right.lastHeartbeatAt ?? right.lastSeenAt ?? 0).getTime() - new Date(left.lastHeartbeatAt ?? left.lastSeenAt ?? 0).getTime());
+        setRegistrationDevices(devices);
+        setRegistrationControllerId((current) => current || devices[0]?.id || devices[0]?.deviceKey || "");
+      })
+      .catch((caught) => {
+        if (cancelled) return;
+        setRegistrationError(caught instanceof Error ? caught.message : "Failed to load active ESP32 controllers.");
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setRegistrationDevicesLoading(false);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
     if (!assignTagId) {
       setAssignStudents([]);
       setAssignResults([]);
@@ -641,6 +708,13 @@ export function NfcOperationsPage() {
     let cancelled = false;
     setAssignSearching(true);
     setAssignError(null);
+
+    if (registrationStudents.length > 0) {
+      setAssignStudents(registrationStudents);
+      setAssignResults(filterAssignableStudents(registrationStudents, assignSearch));
+      setAssignSearching(false);
+      return;
+    }
 
     fetchStudents({ isActive: "true" })
       .then((result) => {
@@ -664,7 +738,7 @@ export function NfcOperationsPage() {
     return () => {
       cancelled = true;
     };
-  }, [assignTagId]);
+  }, [assignTagId, assignSearch, registrationStudents]);
 
   useEffect(() => {
     if (!linkReaderTarget) {
@@ -1129,6 +1203,77 @@ export function NfcOperationsPage() {
     }
   }
 
+  useEffect(() => {
+    if (!registrationCommand) {
+      if (registrationPollRef.current) {
+        clearInterval(registrationPollRef.current);
+        registrationPollRef.current = null;
+      }
+      return;
+    }
+
+    if (!["PENDING", "SENT", "WRITING", "WRITTEN", "VERIFYING"].includes(registrationCommand.status)) {
+      if (registrationPollRef.current) {
+        clearInterval(registrationPollRef.current);
+        registrationPollRef.current = null;
+      }
+      return;
+    }
+
+    if (registrationPollRef.current) {
+      clearInterval(registrationPollRef.current);
+    }
+
+    registrationPollRef.current = setInterval(() => {
+      void getNfcTagWriteCommand(registrationCommand.id)
+        .then((command) => {
+          setRegistrationCommand(command);
+          if (command.status === "VERIFIED" && command.readerCredentialStatus === "linked") {
+            setRegistrationSuccess("Wristband registration complete. The mobile payload is verified and the reader credential is linked.");
+            void loadTags();
+          }
+        })
+        .catch((caught) => {
+          setRegistrationError(caught instanceof Error ? caught.message : "Failed to refresh wristband write progress.");
+        });
+    }, 2500);
+
+    return () => {
+      if (registrationPollRef.current) {
+        clearInterval(registrationPollRef.current);
+        registrationPollRef.current = null;
+      }
+    };
+  }, [registrationCommand, loadTags]);
+
+  async function handleStartControllerRegistration() {
+    if (!registrationStudentId || !registrationControllerId) {
+      setRegistrationError("Choose both a student and an ESP32 controller before sending the write command.");
+      return;
+    }
+
+    try {
+      setRegistrationLoading(true);
+      setRegistrationError(null);
+      setRegistrationSuccess(null);
+      const student = registrationStudents.find((item) => item.id === registrationStudentId) ?? null;
+      const command = await createNfcTagWriteCommand({
+        controllerId: registrationControllerId,
+        studentId: registrationStudentId,
+        tagId: registrationTagId || null,
+      });
+      setRegistrationCommand(command);
+      if (student) {
+        setRegistrationSuccess(`Write command queued for ${student.studentName}. Waiting for the selected ESP32 controller to write, verify, and capture the reader credential.`);
+      }
+      await loadTags();
+    } catch (caught) {
+      setRegistrationError(caught instanceof Error ? caught.message : "Failed to start the controller-driven wristband registration.");
+    } finally {
+      setRegistrationLoading(false);
+    }
+  }
+
   function makeActions(tag: NfcTag): TagActions {
     return {
       onCopyPayload: () => handleCopyPayload(tag),
@@ -1193,6 +1338,148 @@ export function NfcOperationsPage() {
 
       {generateError && <div className="rounded-2xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{generateError}</div>}
       {error && <div className="rounded-2xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
+
+      <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h2 className="text-base font-black text-slate-950">Controller-driven wristband registration</h2>
+            <p className="mt-1 text-sm text-slate-500">
+              Create or select a student wristband, send a real ESP32 write command, then wait for payload verification and Wiegand credential capture.
+            </p>
+          </div>
+          {registrationCommand ? (
+            <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs">
+              <p className="font-black uppercase tracking-wider text-slate-500">Latest command</p>
+              <p className="mt-1 font-mono text-slate-800">{registrationCommand.id}</p>
+            </div>
+          ) : null}
+        </div>
+
+        <div className="mt-4 grid gap-3 lg:grid-cols-3">
+          <label className="grid gap-1 text-xs font-bold uppercase tracking-wide text-slate-500">
+            Student
+            <select
+              className="premium-control"
+              value={registrationStudentId}
+              onChange={(e) => setRegistrationStudentId(e.target.value)}
+              disabled={registrationStudentsLoading || registrationLoading}
+            >
+              {registrationStudents.length === 0 ? <option value="">No active students found</option> : null}
+              {registrationStudents.map((student) => (
+                <option key={student.id} value={student.id}>
+                  {student.studentName} ({student.admissionNumber})
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="grid gap-1 text-xs font-bold uppercase tracking-wide text-slate-500">
+            ESP32 controller
+            <select
+              className="premium-control"
+              value={registrationControllerId}
+              onChange={(e) => setRegistrationControllerId(e.target.value)}
+              disabled={registrationDevicesLoading || registrationLoading}
+            >
+              {!registrationDevicesLoading && registrationDevices.length === 0 ? <option value="">No active ESP32 controllers found</option> : null}
+              {registrationDevices.map((device) => (
+                <option key={device.id} value={device.id}>
+                  {formatAttendanceReaderLabel(device)}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="grid gap-1 text-xs font-bold uppercase tracking-wide text-slate-500">
+            Existing tag (optional)
+            <select
+              className="premium-control"
+              value={registrationTagId}
+              onChange={(e) => setRegistrationTagId(e.target.value)}
+              disabled={registrationLoading}
+            >
+              <option value="">Create a new student wristband tag</option>
+              {tags
+                .filter((tag) => tag.status !== "DISABLED" && tag.status !== "LOST")
+                .map((tag) => (
+                  <option key={tag.id} value={tag.id}>
+                    Use existing: {(tag.label ?? `Tag ${tag.publicCode.slice(0, 8)}...`)}{tag.student ? ` — ${tag.student.name}` : ""}
+                  </option>
+                ))}
+            </select>
+          </label>
+        </div>
+
+        <div className="mt-4 flex flex-wrap items-center gap-3">
+          <button
+            type="button"
+            onClick={() => { void handleStartControllerRegistration(); }}
+            disabled={registrationLoading || registrationStudentsLoading || registrationDevicesLoading || !registrationStudentId || !registrationControllerId}
+            className="btn btn-primary min-h-[42px] rounded-xl px-4 py-2.5 text-sm font-black"
+          >
+            {registrationLoading ? "Sending write command..." : "Send write and capture command"}
+          </button>
+          <p className="text-xs text-slate-500">
+            Completion requires both mobile payload verification and reader credential linking.
+          </p>
+        </div>
+
+        {registrationError ? (
+          <div className="mt-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{registrationError}</div>
+        ) : null}
+        {registrationSuccess ? (
+          <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700">{registrationSuccess}</div>
+        ) : null}
+
+        {registrationCommand ? (
+          <div className="mt-4 grid gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 md:grid-cols-2">
+            <div className="space-y-2">
+              <p className="text-xs font-black uppercase tracking-wider text-slate-500">Mobile payload</p>
+              <p className="font-semibold text-slate-900">
+                {registrationCommand.mobilePayloadStatus === "verified"
+                  ? "Verified"
+                  : registrationCommand.mobilePayloadStatus === "written"
+                    ? "Written"
+                    : registrationCommand.mobilePayloadStatus === "failed"
+                      ? "Failed"
+                      : "Pending"}
+              </p>
+              <p className="font-mono text-xs text-slate-600">{registrationCommand.payload.payload}</p>
+              <p className="text-xs text-slate-500">Command status: {registrationCommand.status}</p>
+              {registrationCommand.readbackPayload ? (
+                <p className="text-xs text-slate-500">Readback: <span className="font-mono">{registrationCommand.readbackPayload}</span></p>
+              ) : null}
+              {registrationCommand.errorMessage ? (
+                <p className="text-xs text-red-600">{registrationCommand.errorMessage}</p>
+              ) : null}
+            </div>
+            <div className="space-y-2">
+              <p className="text-xs font-black uppercase tracking-wider text-slate-500">Reader credential</p>
+              <p className="font-semibold text-slate-900">
+                {registrationCommand.readerCredentialStatus === "linked"
+                  ? "Linked"
+                  : registrationCommand.readerCredentialStatus === "failed"
+                    ? "Failed"
+                    : registrationCommand.readerCredentialStatus === "not_requested"
+                      ? "Not requested"
+                      : "Pending"}
+              </p>
+              <p className="text-xs text-slate-500">
+                Controller: {registrationCommand.device?.label ?? "Selected controller"}
+              </p>
+              <p className="text-xs text-slate-500">
+                Tag: {(registrationCommand.tag.label ?? `Tag ${registrationCommand.tag.publicCode.slice(0, 8)}...`)} · {registrationCommand.tag.student?.name ?? "No student"}
+              </p>
+              {registrationCommand.readerCredentialError ? (
+                <p className="text-xs text-red-600">{registrationCommand.readerCredentialError}</p>
+              ) : null}
+              {registrationCommand.readerCredentialLinkedAt ? (
+                <p className="text-xs text-emerald-700">Linked at {new Date(registrationCommand.readerCredentialLinkedAt).toLocaleTimeString()}</p>
+              ) : null}
+            </div>
+          </div>
+        ) : null}
+      </div>
 
       <div className="flex flex-wrap items-center gap-1.5">
         {(["", "UNASSIGNED", "ASSIGNED", "DISABLED", "LOST"] as StatusFilter[]).map((s) => (
@@ -1427,7 +1714,7 @@ export function NfcOperationsPage() {
                     onChange={(e) => setLinkReaderDeviceId(e.target.value)}
                     disabled={linkReaderDevicesLoading || linkReaderLoading}
                   >
-                    {linkReaderDevices.length === 0 && <option value="">No online attendance readers found</option>}
+                    {!linkReaderDevicesLoading && linkReaderDevices.length === 0 && <option value="">Select an attendance reader</option>}
                     {linkReaderDevices.map((device) => (
                       <option key={device.id} value={device.id}>
                         {formatAttendanceReaderLabel(device)} ({device.deviceKey})

@@ -72,6 +72,24 @@ describe("NFC Tags routes — route existence", () => {
     expect([201, 400, 401, 500]).toContain(res.status);
   });
 
+  it("POST /api/nfc/tags/write-commands route exists (not 404)", async () => {
+    const res = await request(createServer())
+      .post("/api/nfc/tags/write-commands")
+      .send({
+        controllerId: "controller-1",
+        studentId: "00000000-0000-0000-0000-000000000002",
+      });
+    expect(res.status).not.toBe(404);
+    expect([201, 400, 401, 403, 404, 409, 500]).toContain(res.status);
+  });
+
+  it("GET /api/nfc/tags/write-commands/:commandId route exists (not 404)", async () => {
+    const res = await request(createServer())
+      .get("/api/nfc/tags/write-commands/11111111-1111-4111-8111-111111111111");
+    expect(res.status).not.toBe(404);
+    expect([200, 401, 403, 404, 500]).toContain(res.status);
+  });
+
   it("GET /api/nfc/tags/reader-credential-captures/:captureId route exists (not 404)", async () => {
     const res = await request(createServer())
       .get("/api/nfc/tags/reader-credential-captures/test-capture");

@@ -116,6 +116,7 @@ Owns wristbands/tags, wallet and canteen flows, gate operations, attendance, off
 
 - Reader gateway devices
 - Offline kiosk/device sync flows
+- ESP32 controller command delivery for wristband NFC payload write, verify, and reader-credential capture callbacks
 
 ## Background Jobs/Workers
 
@@ -128,13 +129,15 @@ Owns wristbands/tags, wallet and canteen flows, gate operations, attendance, off
 - Attendance and gate scans
 - Offline mode
 - Reader gateway/device activation
+- ESP32 controller-driven tag write, verification, and reader-credential linking
 - Pass-outs and visitors
 
 ## Migration Status
 
-- Skeleton only
 - Ownership contract defined
-- Runtime files not moved yet
+- Runtime files remain in legacy folders, but NFC now owns the controller-driven wristband registration contract
+- `WRITE_NFC_TAG_PAYLOAD` lifecycle added for selected ESP32 controllers
+- Legacy structure still in place pending module-file relocation
 
 ## Known Legacy Files Still Outside The Module
 
@@ -149,3 +152,13 @@ Owns wristbands/tags, wallet and canteen flows, gate operations, attendance, off
 - `src/server/routes/nfcOperationsRoutes.ts`
 - `src/server/routes/nfcTagsRoutes.ts`
 - `src/server/routes/readerGatewayRoutes.ts`
+- `src/server/services/nfcTagWriteCommandService.ts`
+- `src/server/services/readerDeviceCommandService.ts`
+
+## Current Command Lifecycle Notes
+
+- School Connect now creates `WRITE_NFC_TAG_PAYLOAD` commands for a selected ESP32 controller with payload `SCNFC:{publicCode}`
+- Heartbeat delivery remains controller-specific: only the selected controller can receive the queued command
+- Reader status callbacks remain controller-specific and school-scoped
+- `NfcTag.status` advances to `WRITTEN` only after controller write success and to `VERIFIED` only after exact readback verification
+- Reader credential linking remains separate from mobile payload verification and reuses existing normalization/linking logic
