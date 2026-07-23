@@ -108,7 +108,13 @@ function SidebarSection({
     (!item.requiredPermission || hasPermission(user?.role, item.requiredPermission))
     && (!item.visibleRoles || item.visibleRoles.includes(user?.role ?? "")),
   );
-  const sectionLabel = product === "reportLab" ? "REPORT LAB" : product === "nfc" ? "NFC" : "SMART PAGES";
+  const sectionLabel = product === "reportLab"
+    ? "REPORT LAB"
+    : product === "nfc"
+      ? "NFC"
+      : product === "inventory"
+        ? "INVENTORY"
+        : "SMART PAGES";
 
   if (items.length === 0) return null;
 

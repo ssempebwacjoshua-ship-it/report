@@ -1,6 +1,6 @@
 import { hasPermission } from "../../shared/permissions";
 
-export type ProductKey = "reportLab" | "smartPages" | "nfc";
+export type ProductKey = "reportLab" | "smartPages" | "nfc" | "inventory";
 
 export type NavItem = {
   to: string;
@@ -29,11 +29,12 @@ export const productSwitcherItems: Record<ProductKey, { label: string; to: strin
   reportLab: { label: "Report Lab", to: "/dashboard" },
   smartPages: { label: "Smart Pages", to: "/smart-pages" },
   nfc: { label: "NFC", to: "/nfc/wristbands" },
+  inventory: { label: "Inventory", to: "/inventory" },
 };
 
 export function getVisibleProductSwitcherProducts(role: string | null | undefined, pathname: string): ProductKey[] {
   if (hasPermission(role, "app.admin")) {
-    return ["reportLab", "smartPages", "nfc"];
+    return ["reportLab", "smartPages", "nfc", "inventory"];
   }
 
   if (hasPermission(role, "nfc.gate.view") || hasPermission(role, "nfc.canteen.view")) {
@@ -69,6 +70,10 @@ export const navItemsByProduct: Record<ProductKey, NavItem[]> = {
     { to: "/nfc/settings", label: "Settings", icon: "settings", exact: true, requiredPermission: "app.admin" },
     { to: "/nfc/staff-users", label: "Staff", icon: "settings", exact: true, requiredPermission: "staff.manage" },
   ],
+  inventory: [
+    { to: "/dashboard", label: "Dashboard", icon: "home", exact: true, requiredPermission: "app.admin" },
+    { to: "/inventory", label: "Inventory", icon: "clipboard", exact: false, requiredPermission: "app.admin" },
+  ],
 };
 
 const smartPagesPrefixes = [
@@ -81,6 +86,8 @@ const smartPagesPrefixes = [
   "/preferences",
   "/smart-pages/billing",
 ];
+
+const inventoryPrefixes = ["/inventory"];
 
 // All NFC pages live under /nfc/ plus the token deep-link paths.
 const nfcPrefixes = ["/nfc/", "/canteen/nfc/", "/gate/nfc/"];
@@ -100,6 +107,7 @@ export function getProductFromPath(pathname: string): ProductKey {
     nfcPrefixes.some((p) => pathname === p || pathname.startsWith(p)) ||
     legacyNfcPaths.some((p) => pathname === p || pathname.startsWith(`${p}/`))
   ) return "nfc";
+  if (inventoryPrefixes.some((p) => pathname === p || pathname.startsWith(`${p}/`))) return "inventory";
   return smartPagesPrefixes.some((p) => pathname === p || pathname.startsWith(`${p}/`))
     ? "smartPages"
     : "reportLab";

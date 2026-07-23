@@ -14,6 +14,27 @@ function SummaryCard({ label, value }: { label: string; value: number }) {
   );
 }
 
+function CompactEmptyState({
+  message,
+  actionLabel,
+  actionTo,
+}: {
+  message: string;
+  actionLabel?: string;
+  actionTo?: string;
+}) {
+  return (
+    <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-3 py-3">
+      <p className="text-sm text-slate-600">{message}</p>
+      {actionLabel && actionTo ? (
+        <Link className="mt-2 inline-flex text-sm font-semibold text-[color:var(--sc-primary)]" to={actionTo}>
+          {actionLabel}
+        </Link>
+      ) : null}
+    </div>
+  );
+}
+
 export function InventoryPage() {
   const [data, setData] = useState<InventoryOverviewResponse | null>(null);
   const [error, setError] = useState("");
@@ -57,7 +78,11 @@ export function InventoryPage() {
               </div>
               <div className="space-y-2">
                 {data.recentMovements.length === 0 ? (
-                  <p className="text-sm text-slate-500">No inventory movements recorded yet.</p>
+                  <CompactEmptyState
+                    message="No stock movements yet."
+                    actionLabel="Receive stock"
+                    actionTo="/inventory/items"
+                  />
                 ) : data.recentMovements.map((movement) => (
                   <div key={movement.id} className="rounded-xl border border-slate-200 px-3 py-2">
                     <div className="flex flex-wrap items-center justify-between gap-2">
@@ -81,7 +106,7 @@ export function InventoryPage() {
                 </div>
                 <div className="space-y-2">
                   {data.lowStockItems.length === 0 ? (
-                    <p className="text-sm text-slate-500">No low-stock alerts right now.</p>
+                    <CompactEmptyState message="No low-stock alerts right now." />
                   ) : data.lowStockItems.map((item) => (
                     <div key={item.id} className="rounded-xl border border-slate-200 px-3 py-2">
                       <p className="font-semibold text-slate-900">{item.name}</p>
@@ -98,7 +123,11 @@ export function InventoryPage() {
                 </div>
                 <div className="space-y-2">
                   {data.reportingToday.length === 0 ? (
-                    <p className="text-sm text-slate-500">No student reporting registrations recorded yet.</p>
+                    <CompactEmptyState
+                      message="No reporting-day registrations recorded yet."
+                      actionLabel="Open reporting day"
+                      actionTo="/inventory/reporting"
+                    />
                   ) : data.reportingToday.map((record) => (
                     <div key={record.id} className="rounded-xl border border-slate-200 px-3 py-2">
                       <p className="font-semibold text-slate-900">{record.studentName}</p>

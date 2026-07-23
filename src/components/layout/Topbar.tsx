@@ -83,7 +83,7 @@ export function Topbar({ onMenuClick }: Props) {
     navigate("/login", { replace: true });
   }
 
-  function switchProduct(nextProduct: "reportLab" | "smartPages" | "nfc") {
+  function switchProduct(nextProduct: "reportLab" | "smartPages" | "nfc" | "inventory") {
     navigate(productSwitcherItems[nextProduct].to);
   }
 
