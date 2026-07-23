@@ -112,7 +112,7 @@ export async function saveReportingRequirement(input: {
 export async function saveStudentReportingRecord(input: {
   studentId: string;
   termId?: string;
-  items: Array<{ itemId: string; expectedQuantity: number; broughtQuantity: number }>;
+  items: Array<{ itemId: string; quantity: number }>;
 }) {
   const response = await fetch(`${API_BASE}/api/inventory/reporting/records`, {
     method: "POST",

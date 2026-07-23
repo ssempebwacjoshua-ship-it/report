@@ -2,7 +2,7 @@
 
 ## Scope
 
-Module-owned runtime for school inventory tracking, stock movement logging, reporting-day requirement intake, and simple reconciliation.
+Module-owned runtime for school inventory tracking, stock movement logging, student reporting-day intake, and stock adjustments.
 
 ## Owned runtime
 
@@ -71,10 +71,15 @@ Implemented:
 
 - Item create/list/archive workflow
 - Stock receive/issue/adjust movement logging
-- Reporting-day requirement setup
-- Student reporting-day intake with expected vs brought status
-- Simple reconciliation issue summary
+- Student reporting-day intake that records only what each student brought
+- Dashboard summary for items brought today
+- Low-stock review and manual stock adjustments
 - Dashboard inventory row
+
+Legacy but not used in this MVP:
+
+- `POST /api/inventory/reporting/requirements`
+- `ReportingRequirement` records and related expected-quantity fields remain in the schema as non-destructive legacy structures
 
 Deferred:
 

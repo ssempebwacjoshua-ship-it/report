@@ -1,9 +1,8 @@
-import type { PrismaClient, StudentReportingItemStatus } from "@prisma/client";
+import type { PrismaClient } from "@prisma/client";
 import {
   listInventoryItems,
   listInventoryMovements,
   listRecentReportingRecords,
-  listReportingRequirements,
   searchInventoryStudents,
 } from "../repositories/inventoryRepository";
 import type {
@@ -15,7 +14,6 @@ import type {
   InventoryReconciliationResponse,
   InventoryReportingContextResponse,
   InventoryStudentOption,
-  ReportingRequirementView,
   StudentReportingRecordView,
 } from "../../shared/types";
 
@@ -74,28 +72,6 @@ function toMovementView(movement: {
   };
 }
 
-function toRequirementView(requirement: {
-  id: string;
-  itemId: string;
-  requiredQuantity: number;
-  active: boolean;
-  item: { id: string; name: string };
-  class: { id: string; name: string } | null;
-  term: { id: string; name: string } | null;
-}): ReportingRequirementView {
-  return {
-    id: requirement.id,
-    itemId: requirement.itemId,
-    itemName: requirement.item.name,
-    requiredQuantity: requirement.requiredQuantity,
-    classId: requirement.class?.id ?? null,
-    className: requirement.class?.name ?? null,
-    termId: requirement.term?.id ?? null,
-    termName: requirement.term?.name ?? null,
-    active: requirement.active,
-  };
-}
-
 function toStudentOption(student: {
   id: string;
   admissionNumber: string;
@@ -124,9 +100,7 @@ function toReportingRecordView(record: {
   termId: string | null;
   student: { id: string; firstName: string; lastName: string; admissionNumber: string };
   items: Array<{
-    expectedQuantity: number;
     broughtQuantity: number;
-    status: StudentReportingItemStatus;
     item: { id: string; name: string };
   }>;
 }): StudentReportingRecordView {
@@ -141,9 +115,7 @@ function toReportingRecordView(record: {
     items: record.items.map((item) => ({
       itemId: item.item.id,
       itemName: item.item.name,
-      expectedQuantity: item.expectedQuantity,
-      broughtQuantity: item.broughtQuantity,
-      status: item.status,
+      quantity: item.broughtQuantity,
     })),
   };
 }
@@ -157,13 +129,6 @@ function calculateOnHandByItem(
     totals.set(movement.itemId, (totals.get(movement.itemId) ?? 0) + delta);
   }
   return totals;
-}
-
-function deriveReportingItemStatus(expectedQuantity: number, broughtQuantity: number): StudentReportingItemStatus {
-  if (broughtQuantity === expectedQuantity) return "COMPLETE";
-  if (broughtQuantity <= 0) return "MISSING";
-  if (broughtQuantity > expectedQuantity) return "EXTRA";
-  return "PARTIAL";
 }
 
 async function createAuditLog(
@@ -191,27 +156,27 @@ export async function getInventoryDashboardSummary(prisma: PrismaClient, schoolI
   const today = new Date().toISOString().slice(0, 10);
   const lowStock = items.filter((item) => (totals.get(item.id) ?? 0) <= item.minimumStock && item.active).length;
   const reportingToday = recentRecords.filter((record) => record.reportedAt.toISOString().startsWith(today)).length;
-  const requirementsReceived = recentRecords
+  const itemsBroughtToday = recentRecords
+    .filter((record) => record.reportedAt.toISOString().startsWith(today))
     .flatMap((record) => record.items)
-    .filter((item) => item.status === "COMPLETE" || item.status === "EXTRA").length;
-  const reconciliationIssues = recentRecords
-    .flatMap((record) => record.items)
-    .filter((item) => item.status === "MISSING" || item.status === "PARTIAL" || item.status === "EXTRA").length;
+    .reduce((total, item) => total + item.broughtQuantity, 0);
+  const adjustmentsToday = movements.filter(
+    (movement) => movement.type === "ADJUSTED" && movement.createdAt.toISOString().startsWith(today),
+  ).length;
 
   return {
     itemsTracked: items.filter((item) => item.active).length,
     lowStock,
     reportingToday,
-    requirementsReceived,
-    reconciliationIssues,
+    itemsBroughtToday,
+    adjustmentsToday,
   };
 }
 
 export async function getInventoryOverview(prisma: PrismaClient, schoolId: string): Promise<InventoryOverviewResponse> {
-  const [items, movements, requirements, recentRecords, summary] = await Promise.all([
+  const [items, movements, recentRecords, summary] = await Promise.all([
     listInventoryItems(prisma, schoolId),
     listInventoryMovements(prisma, schoolId, 20),
-    listReportingRequirements(prisma, schoolId),
     listRecentReportingRecords(prisma, schoolId, 8),
     getInventoryDashboardSummary(prisma, schoolId),
   ]);
@@ -220,7 +185,6 @@ export async function getInventoryOverview(prisma: PrismaClient, schoolId: strin
   const lowStockItems = itemSummaries.filter((item) => item.active && item.lowStock).slice(0, 8);
   const recentMovementViews = movements.map(toMovementView);
   const reportingToday = recentRecords.map(toReportingRecordView);
-  const reconciliationIssues = buildReconciliationIssues(requirements.map(toRequirementView), reportingToday);
 
   return {
     summary,
@@ -228,7 +192,7 @@ export async function getInventoryOverview(prisma: PrismaClient, schoolId: strin
     recentMovements: recentMovementViews,
     lowStockItems,
     reportingToday,
-    reconciliationIssues,
+    reconciliationIssues: [],
   };
 }
 
@@ -425,14 +389,12 @@ export async function saveReportingRequirement(
 }
 
 export async function getInventoryReportingContext(prisma: PrismaClient, schoolId: string, search = ""): Promise<InventoryReportingContextResponse> {
-  const [students, requirements, recentRecords] = await Promise.all([
+  const [students, recentRecords] = await Promise.all([
     searchInventoryStudents(prisma, schoolId, search),
-    listReportingRequirements(prisma, schoolId),
     listRecentReportingRecords(prisma, schoolId, 10),
   ]);
   return {
     students: students.map(toStudentOption),
-    requirements: requirements.map(toRequirementView),
     recentRecords: recentRecords.map(toReportingRecordView),
   };
 }
@@ -446,8 +408,7 @@ export async function saveStudentReportingRecord(
     termId?: string | null;
     items: Array<{
       itemId: string;
-      expectedQuantity: number;
-      broughtQuantity: number;
+      quantity: number;
     }>;
   },
 ) {
@@ -479,9 +440,9 @@ export async function saveStudentReportingRecord(
         items: {
           create: input.items.map((item) => ({
             itemId: item.itemId,
-            expectedQuantity: item.expectedQuantity,
-            broughtQuantity: item.broughtQuantity,
-            status: deriveReportingItemStatus(item.expectedQuantity, item.broughtQuantity),
+            expectedQuantity: 0,
+            broughtQuantity: item.quantity,
+            status: "COMPLETE",
           })),
         },
       },
@@ -491,14 +452,14 @@ export async function saveStudentReportingRecord(
       },
     });
 
-    const broughtMovements = input.items.filter((item) => item.broughtQuantity > 0);
+    const broughtMovements = input.items.filter((item) => item.quantity > 0);
     for (const item of broughtMovements) {
       await tx.inventoryStockMovement.create({
         data: {
           schoolId: input.schoolId,
           itemId: item.itemId,
           type: "STUDENT_BROUGHT",
-          quantity: item.broughtQuantity,
+          quantity: item.quantity,
           source: "REPORTING_DAY",
           studentId: input.studentId,
           notes: "Recorded from student reporting day registration.",
@@ -520,58 +481,24 @@ export async function saveStudentReportingRecord(
   return toReportingRecordView(record);
 }
 
-export function buildReconciliationIssues(
-  requirements: ReportingRequirementView[],
-  records: StudentReportingRecordView[],
-): InventoryReconciliationIssue[] {
-  const aggregates = new Map<string, { itemName: string; expectedQuantity: number; receivedQuantity: number }>();
-  for (const requirement of requirements) {
-    aggregates.set(requirement.itemId, {
-      itemName: requirement.itemName,
-      expectedQuantity: (aggregates.get(requirement.itemId)?.expectedQuantity ?? 0) + requirement.requiredQuantity,
-      receivedQuantity: aggregates.get(requirement.itemId)?.receivedQuantity ?? 0,
-    });
-  }
-  for (const record of records) {
-    for (const item of record.items) {
-      const current = aggregates.get(item.itemId) ?? {
-        itemName: item.itemName,
-        expectedQuantity: 0,
-        receivedQuantity: 0,
-      };
-      current.receivedQuantity += item.broughtQuantity;
-      aggregates.set(item.itemId, current);
-    }
-  }
-  return Array.from(aggregates.entries())
-    .map(([itemId, value]) => {
-      const difference = value.receivedQuantity - value.expectedQuantity;
-      if (difference === 0) return null;
-      return {
-        itemId,
-        itemName: value.itemName,
-        expectedQuantity: value.expectedQuantity,
-        receivedQuantity: value.receivedQuantity,
-        difference,
-        status: difference < 0
-          ? value.receivedQuantity <= 0
-            ? "MISSING"
-            : "PARTIAL"
-          : "EXTRA",
-      } satisfies InventoryReconciliationIssue;
-    })
-    .filter((issue): issue is InventoryReconciliationIssue => issue !== null);
+export function buildReconciliationIssues(items: InventoryItemSummary[]): InventoryReconciliationIssue[] {
+  return items
+    .filter((item) => item.active && item.lowStock)
+    .map((item) => ({
+      itemId: item.id,
+      itemName: item.name,
+      currentQuantity: item.onHandQuantity,
+      minimumStock: item.minimumStock,
+      difference: item.onHandQuantity - item.minimumStock,
+      status: "LOW_STOCK",
+    }));
 }
 
 export async function getInventoryReconciliation(prisma: PrismaClient, schoolId: string): Promise<InventoryReconciliationResponse> {
-  const [requirements, recentRecords, summary] = await Promise.all([
-    listReportingRequirements(prisma, schoolId),
-    listRecentReportingRecords(prisma, schoolId, 200),
+  const [itemsResponse, summary] = await Promise.all([
+    getInventoryItemsResponse(prisma, schoolId),
     getInventoryDashboardSummary(prisma, schoolId),
   ]);
-  const issues = buildReconciliationIssues(
-    requirements.map(toRequirementView),
-    recentRecords.map(toReportingRecordView),
-  );
+  const issues = buildReconciliationIssues(itemsResponse.items);
   return { summary, issues };
 }

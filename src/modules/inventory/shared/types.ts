@@ -2,8 +2,8 @@ export type InventoryDashboardSummary = {
   itemsTracked: number;
   lowStock: number;
   reportingToday: number;
-  requirementsReceived: number;
-  reconciliationIssues: number;
+  itemsBroughtToday: number;
+  adjustmentsToday: number;
 };
 
 export type InventoryItemSummary = {
@@ -31,18 +31,6 @@ export type InventoryMovementView = {
   recordedByUserId: string;
 };
 
-export type ReportingRequirementView = {
-  id: string;
-  itemId: string;
-  itemName: string;
-  requiredQuantity: number;
-  classId: string | null;
-  className: string | null;
-  termId: string | null;
-  termName: string | null;
-  active: boolean;
-};
-
 export type InventoryStudentOption = {
   id: string;
   admissionNumber: string;
@@ -54,9 +42,7 @@ export type InventoryStudentOption = {
 export type StudentReportingItemView = {
   itemId: string;
   itemName: string;
-  expectedQuantity: number;
-  broughtQuantity: number;
-  status: "COMPLETE" | "PARTIAL" | "MISSING" | "EXTRA";
+  quantity: number;
 };
 
 export type StudentReportingRecordView = {
@@ -73,10 +59,10 @@ export type StudentReportingRecordView = {
 export type InventoryReconciliationIssue = {
   itemId: string;
   itemName: string;
-  expectedQuantity: number;
-  receivedQuantity: number;
+  currentQuantity: number;
+  minimumStock: number;
   difference: number;
-  status: "MISSING" | "PARTIAL" | "EXTRA";
+  status: "LOW_STOCK";
 };
 
 export type InventoryOverviewResponse = {
@@ -98,7 +84,6 @@ export type InventoryMovementsResponse = {
 
 export type InventoryReportingContextResponse = {
   students: InventoryStudentOption[];
-  requirements: ReportingRequirementView[];
   recentRecords: StudentReportingRecordView[];
 };
 
