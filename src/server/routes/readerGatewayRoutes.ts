@@ -24,7 +24,6 @@ import {
   getPendingReaderCommand,
   updateReaderCommandStatus,
 } from "../services/readerDeviceCommandService";
-import { processReaderTagWriteCommandCallback } from "../services/nfcTagWriteCommandService";
 
 type ReaderGatewayDevice = {
   id: string;
@@ -132,25 +131,10 @@ const otaStatusSchema = readerIdentitySchema.extend({
 
 const commandAckSchema = readerIdentitySchema.extend({});
 
-const firmwareCommandStatusSchema = readerIdentitySchema.extend({
+const commandStatusSchema = readerIdentitySchema.extend({
   status: z.enum(["ACKED", "DOWNLOADING", "INSTALLING", "SUCCEEDED", "FAILED"]),
   message: z.string().trim().min(1).max(500),
   firmwareVersion: z.string().trim().optional(),
-});
-
-const writeCommandStatusSchema = readerIdentitySchema.extend({
-  status: z.enum(["SENT", "WRITING", "WRITTEN", "VERIFYING", "VERIFIED", "FAILED"]),
-  writtenPayload: z.string().trim().optional().nullable(),
-  readbackPayload: z.string().trim().optional().nullable(),
-  credential: z.string().trim().optional().nullable(),
-  credentialUID: z.string().trim().optional().nullable(),
-  rawWiegandBitCount: z.coerce.number().int().min(0).optional().nullable(),
-  rawWiegandBinary: z.string().trim().optional().nullable(),
-  rawWiegandDecimal: z.string().trim().optional().nullable(),
-  rawWiegandHex: z.string().trim().optional().nullable(),
-  facilityCode: z.string().trim().optional().nullable(),
-  cardNumber: z.string().trim().optional().nullable(),
-  errorMessage: z.string().trim().max(500).optional().nullable(),
 });
 
 function bearerToken(req: Express.Request) {
@@ -694,42 +678,21 @@ export function readerGatewayRoutes() {
   router.post("/api/readers/commands/:commandId/status", async (req, res, next) => {
     try {
       const commandId = z.string().uuid("Command ID is invalid.").parse(req.params.commandId);
-      const parsed = req.body && typeof req.body === "object" && "message" in req.body
-        ? firmwareCommandStatusSchema.parse(req.body)
-        : writeCommandStatusSchema.parse(req.body);
-      const device = await authenticateDevice(req, parsed);
-      if ("message" in parsed) {
-        await updateReaderCommandStatus(
-          prisma as never,
-          device,
-          commandId,
-          parsed.status,
-          parsed.message,
-          parsed.firmwareVersion ?? null,
-        );
-      } else {
-        await processReaderTagWriteCommandCallback(device, {
-          commandId,
-          deviceId: parsed.deviceId,
-          status: parsed.status,
-          writtenPayload: parsed.writtenPayload ?? null,
-          readbackPayload: parsed.readbackPayload ?? null,
-          credential: parsed.credential ?? null,
-          credentialUID: parsed.credentialUID ?? null,
-          rawWiegandBitCount: parsed.rawWiegandBitCount ?? null,
-          rawWiegandBinary: parsed.rawWiegandBinary ?? null,
-          rawWiegandDecimal: parsed.rawWiegandDecimal ?? null,
-          rawWiegandHex: parsed.rawWiegandHex ?? null,
-          facilityCode: parsed.facilityCode ?? null,
-          cardNumber: parsed.cardNumber ?? null,
-          errorMessage: parsed.errorMessage ?? null,
-        }, prisma as never);
-      }
+      const body = commandStatusSchema.parse(req.body);
+      const device = await authenticateDevice(req, body);
+      await updateReaderCommandStatus(
+        prisma as never,
+        device,
+        commandId,
+        body.status,
+        body.message,
+        body.firmwareVersion ?? null,
+      );
 
       res.json({
         success: true,
         action: "COMMAND",
-        status: parsed.status,
+        status: body.status,
         message: "Reader command status recorded.",
         beep: "none",
         feedback: { beep: "none" },

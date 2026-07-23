@@ -9,7 +9,6 @@
 #include "FeedbackController.h"
 #include "GatewayClient.h"
 #include "OfflineQueue.h"
-#include "Pn532NfcWriter.h"
 #include "WiegandReader.h"
 
 class ReaderGatewayApp {
@@ -56,14 +55,6 @@ class ReaderGatewayApp {
   void processScan(const ReaderScanEvent& event);
   void processOfflineQueue();
   void sendHeartbeat();
-  void processPendingCommand(const ReaderPendingCommand& command);
-  bool reportWriteCommandStatus(
-    const ReaderPendingCommand& command,
-    const String& status,
-    const String& writtenPayload,
-    const String& readbackPayload,
-    const String& errorMessage
-  );
   void logReaderReadyDiagnostic();
   void markApiContact();
   bool hasWorkingNetwork() const;
@@ -77,7 +68,6 @@ class ReaderGatewayApp {
   GatewayClient gatewayClient_;
   FeedbackController feedback_;
   WiegandReader wiegand_;
-  Pn532NfcWriter nfcWriter_;
   DeviceRegistration deviceRegistration_;
   Preferences provisioningPreferences_;
   ReaderGatewayConfig config_;

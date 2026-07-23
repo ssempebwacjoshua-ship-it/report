@@ -1009,10 +1009,6 @@ bool ReaderGatewayApp::begin() {
   Serial.printf("Wi-Fi SSID configured: %s\n", configuredWifiSsid().c_str());
   Serial.printf("Configured D0 pin: %d\n", static_cast<int>(config_.d0Pin));
   Serial.printf("Configured D1 pin: %d\n", static_cast<int>(config_.d1Pin));
-  Serial.printf("Configured NFC writer enabled: %s\n", config_.nfcWriterEnabled ? "yes" : "no");
-  Serial.printf("Configured NFC writer type: %s\n", config_.nfcWriterType.c_str());
-  Serial.printf("Configured NFC writer SDA pin: %d\n", static_cast<int>(config_.nfcWriterSdaPin));
-  Serial.printf("Configured NFC writer SCL pin: %d\n", static_cast<int>(config_.nfcWriterSclPin));
   if (!provisionedActivationCode_.isEmpty()) {
     Serial.println("Provisioned activation code is stored");
   }
@@ -1022,7 +1018,6 @@ bool ReaderGatewayApp::begin() {
   gatewayClient_.begin(config_);
   deviceRegistration_.begin(&gatewayClient_, &config_);
   wiegand_.begin(config_.d0Pin, config_.d1Pin, config_.wiegandTimeoutMs);
-  nfcWriter_.begin(config_);
 
   if (!hasStoredWifiCredentials()) {
     openSetupPortal("No saved Wi-Fi credentials were found");
@@ -1174,78 +1169,10 @@ void ReaderGatewayApp::sendHeartbeat() {
   if (gatewayClient_.postHeartbeat(config_, metrics, response) && response.success) {
     markApiContact();
     Serial.println("Heartbeat Success");
-    if (response.pendingCommand.present) {
-      processPendingCommand(response.pendingCommand);
-    }
     return;
   }
 
   Serial.println("Heartbeat Failed");
-}
-
-bool ReaderGatewayApp::reportWriteCommandStatus(
-  const ReaderPendingCommand& command,
-  const String& status,
-  const String& writtenPayload,
-  const String& readbackPayload,
-  const String& errorMessage
-) {
-  ReaderWriteCommandStatusReport report;
-  report.status = status;
-  report.writtenPayload = writtenPayload;
-  report.readbackPayload = readbackPayload;
-  report.errorMessage = errorMessage;
-
-  ReaderApiResponse response;
-  return gatewayClient_.postWriteCommandStatus(config_, command, report, response) && response.success;
-}
-
-void ReaderGatewayApp::processPendingCommand(const ReaderPendingCommand& command) {
-  if (!command.present || command.id.isEmpty()) {
-    return;
-  }
-  if (!command.type.equalsIgnoreCase("WRITE_NFC_TAG_PAYLOAD")) {
-    return;
-  }
-  if (!command.payload.startsWith("SCNFC:")) {
-    reportWriteCommandStatus(
-      command,
-      "FAILED",
-      "",
-      "",
-      "Refusing to write an unexpected NFC payload. Expected SCNFC public-code payload."
-    );
-    return;
-  }
-
-  transactionActive_ = true;
-  reportWriteCommandStatus(command, "SENT", "", "", "");
-
-  if (!nfcWriter_.isEnabled()) {
-    reportWriteCommandStatus(command, "FAILED", "", "", "PN532 writer is disabled for this controller.");
-    transactionActive_ = false;
-    return;
-  }
-  if (!nfcWriter_.isReady()) {
-    reportWriteCommandStatus(command, "FAILED", "", "", nfcWriter_.lastError());
-    transactionActive_ = false;
-    return;
-  }
-
-  reportWriteCommandStatus(command, "WRITING", "", "", "");
-
-  String readbackPayload;
-  String errorMessage;
-  if (!nfcWriter_.writeAndVerifyTextPayload(command.payload, readbackPayload, errorMessage)) {
-    reportWriteCommandStatus(command, "FAILED", "", readbackPayload, errorMessage);
-    transactionActive_ = false;
-    return;
-  }
-
-  reportWriteCommandStatus(command, "WRITTEN", command.payload, "", "");
-  reportWriteCommandStatus(command, "VERIFYING", command.payload, "", "");
-  reportWriteCommandStatus(command, "VERIFIED", command.payload, readbackPayload, "");
-  transactionActive_ = false;
 }
 
 void ReaderGatewayApp::processScan(const ReaderScanEvent& scan) {
@@ -1400,9 +1327,6 @@ void ReaderGatewayApp::loop() {
         Serial.println("Registering reader...");
         applyRegistrationResult(registration);
         markApiContact();
-        if (registration.pendingCommand.present) {
-          processPendingCommand(registration.pendingCommand);
-        }
       } else if (config_.autoRegister) {
         logRegistrationFailure("Assignment Pending", deviceRegistration_.lastResponse());
         if (shouldReenterActivation(deviceRegistration_.lastResponse())) {
@@ -1432,9 +1356,6 @@ void ReaderGatewayApp::loop() {
       Serial.println("Registering reader...");
       applyRegistrationResult(registration);
       markApiContact();
-      if (registration.pendingCommand.present) {
-        processPendingCommand(registration.pendingCommand);
-      }
     } else {
       logRegistrationFailure("Server unavailable; setup saved and retrying", deviceRegistration_.lastResponse());
       if (shouldReenterActivation(deviceRegistration_.lastResponse())) {

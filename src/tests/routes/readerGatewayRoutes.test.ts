@@ -10,6 +10,10 @@ const prismaMocks = vi.hoisted(() => ({
   nfcOfflineDeviceCreate: vi.fn(),
   nfcOfflineDeviceUpdate: vi.fn(),
   nfcOfflineDeviceUpdateMany: vi.fn(),
+  readerCredentialCaptureSessionFindMany: vi.fn(),
+  readerCredentialCaptureSessionFindFirst: vi.fn(),
+  readerCredentialCaptureSessionCreate: vi.fn(),
+  readerCredentialCaptureSessionUpdate: vi.fn(),
   readerDeviceCommandFindFirst: vi.fn(),
   readerDeviceCommandCreate: vi.fn(),
   readerDeviceCommandUpdate: vi.fn(),
@@ -19,8 +23,11 @@ const prismaMocks = vi.hoisted(() => ({
   auditLogCreate: vi.fn(),
   studentCredentialFindFirst: vi.fn(),
   studentCredentialFindMany: vi.fn(),
+  studentCredentialCreate: vi.fn(),
+  studentCredentialUpdate: vi.fn(),
   nfcTagFindFirst: vi.fn(),
   nfcTagFindMany: vi.fn(),
+  nfcTagUpdate: vi.fn(),
   studentFeeHoldFindFirst: vi.fn(),
   studentGateHoldFindFirst: vi.fn(),
   studentGateHoldUpdateMany: vi.fn(),
@@ -32,10 +39,7 @@ const prismaMocks = vi.hoisted(() => ({
   classroomAttendanceEventCreate: vi.fn(),
   studentAttendanceEventFindFirst: vi.fn(),
   studentAttendanceEventCreate: vi.fn(),
-  readerCredentialCaptureSessionFindMany: vi.fn(),
-  readerCredentialCaptureSessionFindFirst: vi.fn(),
-  readerCredentialCaptureSessionCreate: vi.fn(),
-  readerCredentialCaptureSessionUpdate: vi.fn(),
+  nfcGateScanCreate: vi.fn(),
   transaction: vi.fn(),
 }));
 
@@ -46,6 +50,12 @@ vi.mock("../../server/db/prisma", () => ({
       create: prismaMocks.nfcOfflineDeviceCreate,
       update: prismaMocks.nfcOfflineDeviceUpdate,
       updateMany: prismaMocks.nfcOfflineDeviceUpdateMany,
+    },
+    readerCredentialCaptureSession: {
+      findMany: prismaMocks.readerCredentialCaptureSessionFindMany,
+      findFirst: prismaMocks.readerCredentialCaptureSessionFindFirst,
+      create: prismaMocks.readerCredentialCaptureSessionCreate,
+      update: prismaMocks.readerCredentialCaptureSessionUpdate,
     },
     readerDeviceCommand: {
       findFirst: prismaMocks.readerDeviceCommandFindFirst,
@@ -65,10 +75,13 @@ vi.mock("../../server/db/prisma", () => ({
     studentCredential: {
       findFirst: prismaMocks.studentCredentialFindFirst,
       findMany: prismaMocks.studentCredentialFindMany,
+      create: prismaMocks.studentCredentialCreate,
+      update: prismaMocks.studentCredentialUpdate,
     },
     nfcTag: {
       findFirst: prismaMocks.nfcTagFindFirst,
       findMany: prismaMocks.nfcTagFindMany,
+      update: prismaMocks.nfcTagUpdate,
     },
     studentFeeHold: {
       findFirst: prismaMocks.studentFeeHoldFindFirst,
@@ -93,11 +106,8 @@ vi.mock("../../server/db/prisma", () => ({
       findFirst: prismaMocks.studentAttendanceEventFindFirst,
       create: prismaMocks.studentAttendanceEventCreate,
     },
-    readerCredentialCaptureSession: {
-      findMany: prismaMocks.readerCredentialCaptureSessionFindMany,
-      findFirst: prismaMocks.readerCredentialCaptureSessionFindFirst,
-      create: prismaMocks.readerCredentialCaptureSessionCreate,
-      update: prismaMocks.readerCredentialCaptureSessionUpdate,
+    nfcGateScan: {
+      create: prismaMocks.nfcGateScanCreate,
     },
     $transaction: prismaMocks.transaction,
   },
@@ -531,6 +541,87 @@ function buildLocationAwareTransactionMocks(
   });
 }
 
+function buildTransactionDelegates(overrides: Record<string, any> = {}) {
+  return {
+    nfcOfflineDevice: {
+      findFirst: prismaMocks.nfcOfflineDeviceFindFirst,
+      create: prismaMocks.nfcOfflineDeviceCreate,
+      update: prismaMocks.nfcOfflineDeviceUpdate,
+      updateMany: prismaMocks.nfcOfflineDeviceUpdateMany,
+      ...(overrides.nfcOfflineDevice ?? {}),
+    },
+    readerCredentialCaptureSession: {
+      findMany: prismaMocks.readerCredentialCaptureSessionFindMany,
+      findFirst: prismaMocks.readerCredentialCaptureSessionFindFirst,
+      create: prismaMocks.readerCredentialCaptureSessionCreate,
+      update: prismaMocks.readerCredentialCaptureSessionUpdate,
+      ...(overrides.readerCredentialCaptureSession ?? {}),
+    },
+    readerDeviceCommand: {
+      findFirst: prismaMocks.readerDeviceCommandFindFirst,
+      create: prismaMocks.readerDeviceCommandCreate,
+      update: prismaMocks.readerDeviceCommandUpdate,
+      ...(overrides.readerDeviceCommand ?? {}),
+    },
+    auditLog: {
+      findFirst: prismaMocks.auditLogFindFirst,
+      create: prismaMocks.auditLogCreate,
+      ...(overrides.auditLog ?? {}),
+    },
+    studentCredential: {
+      findFirst: prismaMocks.studentCredentialFindFirst,
+      findMany: prismaMocks.studentCredentialFindMany,
+      create: prismaMocks.studentCredentialCreate,
+      update: prismaMocks.studentCredentialUpdate,
+      ...(overrides.studentCredential ?? {}),
+    },
+    nfcTag: {
+      findFirst: prismaMocks.nfcTagFindFirst,
+      findMany: prismaMocks.nfcTagFindMany,
+      update: prismaMocks.nfcTagUpdate,
+      ...(overrides.nfcTag ?? {}),
+    },
+    schoolNfcPolicy: {
+      findUnique: prismaMocks.schoolNfcPolicyFindUnique,
+      ...(overrides.schoolNfcPolicy ?? {}),
+    },
+    studentFeeHold: {
+      findFirst: prismaMocks.studentFeeHoldFindFirst,
+      ...(overrides.studentFeeHold ?? {}),
+    },
+    studentGateHold: {
+      findFirst: prismaMocks.studentGateHoldFindFirst,
+      updateMany: prismaMocks.studentGateHoldUpdateMany,
+      ...(overrides.studentGateHold ?? {}),
+    },
+    dailyAttendance: {
+      findFirst: prismaMocks.dailyAttendanceFindFirst,
+      upsert: prismaMocks.dailyAttendanceUpsert,
+      ...(overrides.dailyAttendance ?? {}),
+    },
+    campusMovementEvent: {
+      findFirst: prismaMocks.campusMovementEventFindFirst,
+      create: prismaMocks.campusMovementEventCreate,
+      ...(overrides.campusMovementEvent ?? {}),
+    },
+    classroomAttendanceEvent: {
+      findFirst: prismaMocks.classroomAttendanceEventFindFirst,
+      create: prismaMocks.classroomAttendanceEventCreate,
+      ...(overrides.classroomAttendanceEvent ?? {}),
+    },
+    studentAttendanceEvent: {
+      findFirst: prismaMocks.studentAttendanceEventFindFirst,
+      create: prismaMocks.studentAttendanceEventCreate,
+      ...(overrides.studentAttendanceEvent ?? {}),
+    },
+    nfcGateScan: {
+      create: prismaMocks.nfcGateScanCreate,
+      ...(overrides.nfcGateScan ?? {}),
+    },
+    ...overrides,
+  };
+}
+
 describe("readerGatewayRoutes", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -540,51 +631,14 @@ describe("readerGatewayRoutes", () => {
     prismaMocks.nfcOfflineDeviceFindFirst.mockResolvedValue(device());
     prismaMocks.nfcOfflineDeviceCreate.mockResolvedValue(device());
     prismaMocks.nfcOfflineDeviceUpdate.mockResolvedValue({});
+    prismaMocks.nfcOfflineDeviceUpdateMany.mockResolvedValue({ count: 0 });
+    prismaMocks.readerCredentialCaptureSessionFindMany.mockResolvedValue([]);
+    prismaMocks.readerCredentialCaptureSessionFindFirst.mockResolvedValue(null);
+    prismaMocks.readerCredentialCaptureSessionCreate.mockImplementation(async ({ data }: { data: Record<string, any> }) => ({ ...data }));
+    prismaMocks.readerCredentialCaptureSessionUpdate.mockImplementation(async ({ where, data }: { where?: Record<string, any>; data: Record<string, any> }) => ({ id: where?.id ?? "capture-1", ...data }));
     prismaMocks.readerDeviceCommandFindFirst.mockResolvedValue(null);
     prismaMocks.readerDeviceCommandCreate.mockResolvedValue({});
     prismaMocks.readerDeviceCommandUpdate.mockResolvedValue({});
-    prismaMocks.readerCredentialCaptureSessionFindMany.mockResolvedValue([]);
-    prismaMocks.readerCredentialCaptureSessionFindFirst.mockResolvedValue(null);
-    prismaMocks.readerCredentialCaptureSessionCreate.mockResolvedValue({
-      id: "capture-1",
-      schoolId: "school-1",
-      tagId: "tag-1",
-      studentId: "stu-1",
-      deviceId: "dev-1",
-      deviceLabel: "Main Entrance Reader",
-      status: "PENDING",
-      activeSchoolId: "school-1",
-      expiresAt: new Date(Date.now() + 60_000),
-      createdAt: new Date(),
-      updatedAt: new Date(),
-      capturedAt: null,
-      confirmedAt: null,
-      cancelledAt: null,
-      expiredAt: null,
-      capturedReaderId: null,
-      capturedReaderName: null,
-      capturedCredentialJson: null,
-    });
-    prismaMocks.readerCredentialCaptureSessionUpdate.mockImplementation(async ({ data }: { data: Record<string, unknown> }) => ({
-      id: "capture-1",
-      schoolId: "school-1",
-      tagId: "tag-1",
-      studentId: "stu-1",
-      deviceId: "dev-1",
-      deviceLabel: "Main Entrance Reader",
-      status: typeof data.status === "string" ? data.status : "CAPTURED",
-      activeSchoolId: data.activeSchoolId ?? null,
-      expiresAt: new Date(Date.now() + 60_000),
-      createdAt: new Date(),
-      updatedAt: new Date(),
-      capturedAt: data.capturedAt instanceof Date ? data.capturedAt : new Date(),
-      confirmedAt: null,
-      cancelledAt: null,
-      expiredAt: null,
-      capturedReaderId: data.capturedReaderId ?? "dev-1",
-      capturedReaderName: data.capturedReaderName ?? "Attendance Gate 01",
-      capturedCredentialJson: data.capturedCredentialJson ?? null,
-    }));
     prismaMocks.schoolFindUnique.mockResolvedValue({
       id: "school-1",
       code: "SCU-PREVIEW",
@@ -613,8 +667,11 @@ describe("readerGatewayRoutes", () => {
     prismaMocks.auditLogCreate.mockResolvedValue({});
     prismaMocks.studentCredentialFindFirst.mockResolvedValue(null);
     prismaMocks.studentCredentialFindMany.mockResolvedValue([credential()]);
+    prismaMocks.studentCredentialCreate.mockImplementation(async ({ data }: { data: Record<string, any> }) => ({ id: "cred-created", ...data }));
+    prismaMocks.studentCredentialUpdate.mockImplementation(async ({ where, data }: { where?: Record<string, any>; data: Record<string, any> }) => ({ id: where?.id ?? "cred-updated", ...data }));
     prismaMocks.nfcTagFindFirst.mockResolvedValue(null);
     prismaMocks.nfcTagFindMany.mockResolvedValue([]);
+    prismaMocks.nfcTagUpdate.mockImplementation(async ({ where, data }: { where?: Record<string, any>; data: Record<string, any> }) => ({ id: where?.id ?? "tag-1", ...data }));
     prismaMocks.studentFeeHoldFindFirst.mockResolvedValue(null);
     prismaMocks.studentGateHoldFindFirst.mockResolvedValue(null);
     prismaMocks.studentGateHoldUpdateMany.mockResolvedValue({ count: 0 });
@@ -626,13 +683,9 @@ describe("readerGatewayRoutes", () => {
     prismaMocks.classroomAttendanceEventCreate.mockResolvedValue({ id: "class-1" });
     prismaMocks.studentAttendanceEventFindFirst.mockResolvedValue(null);
     prismaMocks.studentAttendanceEventCreate.mockResolvedValue({ id: "att-1" });
+    prismaMocks.nfcGateScanCreate.mockResolvedValue({ id: "gate-1" });
     prismaMocks.transaction.mockImplementation(async (fn: (tx: any) => Promise<unknown>) => {
-      const tx = {
-        nfcOfflineDevice: { update: prismaMocks.nfcOfflineDeviceUpdate },
-        auditLog: { create: prismaMocks.auditLogCreate },
-        studentAttendanceEvent: { create: prismaMocks.studentAttendanceEventCreate },
-      };
-      return fn(tx);
+      return fn(buildTransactionDelegates());
     });
     delete process.env.READER_GATEWAY_OTA_RELEASES_JSON;
   });
@@ -900,141 +953,9 @@ describe("readerGatewayRoutes", () => {
       where: expect.objectContaining({
         schoolId: "school-1",
         deviceId: "dev-1",
-        OR: expect.any(Array),
+        status: "PENDING",
       }),
     }));
-  });
-
-  it("returns a pending NFC tag write command only to the selected controller heartbeat", async () => {
-    prismaMocks.readerDeviceCommandFindFirst.mockResolvedValue({
-      id: "22222222-2222-4222-8222-222222222222",
-      schoolId: "school-1",
-      deviceId: "dev-1",
-      type: "WRITE_NFC_TAG_PAYLOAD",
-      status: "PENDING",
-      payloadJson: {
-        tagId: "tag-1",
-        studentId: "stu-1",
-        publicCode: "PUBLICCODE-001",
-        payload: "SCNFC:PUBLICCODE-001",
-        format: "NDEF_TEXT",
-        verifyAfterWrite: true,
-        captureReaderCredential: true,
-      },
-      targetTagId: "tag-1",
-      targetStudentId: "stu-1",
-      expectedPayload: "SCNFC:PUBLICCODE-001",
-      writtenPayload: null,
-      readbackPayload: null,
-      credentialJson: null,
-      credentialStatus: "PENDING",
-      credentialError: null,
-      sentAt: null,
-      writeStartedAt: null,
-      writeCompletedAt: null,
-      verifyStartedAt: null,
-      verifiedAt: null,
-      failedAt: null,
-      credentialLinkedAt: null,
-      errorMessage: null,
-      requestedByUserId: "admin-1",
-      requestedAt: new Date("2026-07-23T10:00:00Z"),
-      ackedAt: null,
-      completedAt: null,
-      lastStatusAt: new Date("2026-07-23T10:00:00Z"),
-      lastStatusMessage: "queued",
-      createdAt: new Date("2026-07-23T10:00:00Z"),
-      updatedAt: new Date("2026-07-23T10:00:00Z"),
-    });
-    prismaMocks.readerDeviceCommandUpdate.mockResolvedValue({
-      id: "22222222-2222-4222-8222-222222222222",
-      schoolId: "school-1",
-      deviceId: "dev-1",
-      type: "WRITE_NFC_TAG_PAYLOAD",
-      status: "SENT",
-      payloadJson: {
-        tagId: "tag-1",
-        studentId: "stu-1",
-        publicCode: "PUBLICCODE-001",
-        payload: "SCNFC:PUBLICCODE-001",
-        format: "NDEF_TEXT",
-        verifyAfterWrite: true,
-        captureReaderCredential: true,
-      },
-      targetTagId: "tag-1",
-      targetStudentId: "stu-1",
-      expectedPayload: "SCNFC:PUBLICCODE-001",
-      writtenPayload: null,
-      readbackPayload: null,
-      credentialJson: null,
-      credentialStatus: "PENDING",
-      credentialError: null,
-      sentAt: new Date("2026-07-23T10:00:02Z"),
-      writeStartedAt: null,
-      writeCompletedAt: null,
-      verifyStartedAt: null,
-      verifiedAt: null,
-      failedAt: null,
-      credentialLinkedAt: null,
-      errorMessage: null,
-      requestedByUserId: "admin-1",
-      requestedAt: new Date("2026-07-23T10:00:00Z"),
-      ackedAt: null,
-      completedAt: null,
-      lastStatusAt: new Date("2026-07-23T10:00:02Z"),
-      lastStatusMessage: "NFC payload write command sent to controller.",
-      createdAt: new Date("2026-07-23T10:00:00Z"),
-      updatedAt: new Date("2026-07-23T10:00:02Z"),
-    });
-    prismaMocks.transaction.mockImplementation(async (fn: (tx: any) => Promise<unknown>) => fn({
-      readerDeviceCommand: {
-        findFirst: prismaMocks.readerDeviceCommandFindFirst,
-        update: prismaMocks.readerDeviceCommandUpdate,
-      },
-      auditLog: {
-        create: prismaMocks.auditLogCreate,
-      },
-    }));
-
-    const res = await request(buildApp())
-      .post("/api/readers/heartbeat")
-      .set("Authorization", "Bearer device-token-123")
-      .send({
-        deviceId: "attendance-gate-01",
-        readerId: "attendance-gate-01",
-        schoolId: "school-1",
-        firmwareVersion: "1.0.9",
-      });
-
-    expect(res.status).toBe(200);
-    expect(res.body.command).toMatchObject({
-      id: "22222222-2222-4222-8222-222222222222",
-      type: "WRITE_NFC_TAG_PAYLOAD",
-      status: "SENT",
-      tagId: "tag-1",
-      studentId: "stu-1",
-      publicCode: "PUBLICCODE-001",
-      payload: "SCNFC:PUBLICCODE-001",
-      format: "NDEF_TEXT",
-      verifyAfterWrite: true,
-      captureReaderCredential: true,
-    });
-  });
-
-  it("does not deliver a selected controller command to another controller identity", async () => {
-    const res = await request(buildApp())
-      .post("/api/readers/heartbeat")
-      .set("Authorization", "Bearer device-token-123")
-      .send({
-        deviceId: "other-controller",
-        readerId: "other-controller",
-        schoolId: "school-1",
-        firmwareVersion: "1.0.9",
-      });
-
-    expect(res.status).toBe(403);
-    expect(res.body.error).toMatch(/identity does not match/i);
-    expect(prismaMocks.readerDeviceCommandFindFirst).not.toHaveBeenCalled();
   });
 
   it("acks a pending firmware command for the authenticated reader", async () => {
@@ -1056,11 +977,7 @@ describe("readerGatewayRoutes", () => {
       createdAt: new Date("2026-07-15T10:00:00Z"),
       updatedAt: new Date("2026-07-15T10:00:00Z"),
     });
-    prismaMocks.transaction.mockImplementation(async (fn: (tx: any) => Promise<unknown>) => fn({
-      readerDeviceCommand: { update: prismaMocks.readerDeviceCommandUpdate },
-      nfcOfflineDevice: { update: prismaMocks.nfcOfflineDeviceUpdate },
-      auditLog: { create: prismaMocks.auditLogCreate },
-    }));
+    prismaMocks.transaction.mockImplementation(async (fn: (tx: any) => Promise<unknown>) => fn(buildTransactionDelegates()));
 
     const res = await request(buildApp())
       .post("/api/readers/commands/11111111-1111-4111-8111-111111111111/ack")
@@ -1099,11 +1016,7 @@ describe("readerGatewayRoutes", () => {
       createdAt: new Date("2026-07-15T10:00:00Z"),
       updatedAt: new Date("2026-07-15T10:01:00Z"),
     });
-    prismaMocks.transaction.mockImplementation(async (fn: (tx: any) => Promise<unknown>) => fn({
-      readerDeviceCommand: { update: prismaMocks.readerDeviceCommandUpdate },
-      nfcOfflineDevice: { update: prismaMocks.nfcOfflineDeviceUpdate },
-      auditLog: { create: prismaMocks.auditLogCreate },
-    }));
+    prismaMocks.transaction.mockImplementation(async (fn: (tx: any) => Promise<unknown>) => fn(buildTransactionDelegates()));
 
     const res = await request(buildApp())
       .post("/api/readers/commands/11111111-1111-4111-8111-111111111111/status")
@@ -1126,23 +1039,6 @@ describe("readerGatewayRoutes", () => {
         firmwareVersion: "1.0.10",
       }),
     }));
-  });
-
-  it("rejects NFC write command status callbacks from a different school before completion", async () => {
-    const res = await request(buildApp())
-      .post("/api/readers/commands/22222222-2222-4222-8222-222222222222/status")
-      .set("Authorization", "Bearer device-token-123")
-      .send({
-        deviceId: "attendance-gate-01",
-        readerId: "attendance-gate-01",
-        schoolId: "school-2",
-        status: "WRITTEN",
-        writtenPayload: "SCNFC:PUBLICCODE-001",
-      });
-
-    expect(res.status).toBe(403);
-    expect(res.body.error).toMatch(/different school/i);
-    expect(prismaMocks.readerDeviceCommandFindFirst).not.toHaveBeenCalled();
   });
 
   it("returns a staged OTA release for an assigned firmware channel", async () => {
@@ -1218,13 +1114,7 @@ describe("readerGatewayRoutes", () => {
   });
 
   it("records OTA status updates for audit and device health", async () => {
-    prismaMocks.transaction.mockImplementation(async (fn: (tx: any) => Promise<unknown>) => {
-      const tx = {
-        nfcOfflineDevice: { update: prismaMocks.nfcOfflineDeviceUpdate },
-        auditLog: { create: prismaMocks.auditLogCreate },
-      };
-      return fn(tx);
-    });
+    prismaMocks.transaction.mockImplementation(async (fn: (tx: any) => Promise<unknown>) => fn(buildTransactionDelegates()));
 
     const res = await request(buildApp())
       .post("/api/readers/ota/status")
@@ -1265,6 +1155,45 @@ describe("readerGatewayRoutes", () => {
   });
 
   it("captures a pending reader-link tap before attendance resolution", async () => {
+    const captureSessions: Array<Record<string, any>> = [];
+    const findCaptureSession = async ({ where }: { where: Record<string, any> }) =>
+      captureSessions.find((session) =>
+        (!where?.id || session.id === where.id)
+        && (!where?.schoolId || session.schoolId === where.schoolId)
+        && (!where?.activeSchoolId || session.activeSchoolId === where.activeSchoolId)
+        && (!where?.status?.in || where.status.in.includes(session.status))
+        && (!where?.OR || where.OR.some((entry: Record<string, any>) => {
+          if (entry.deviceId === null) {
+            return session.deviceId === null;
+          }
+          return !entry.deviceId || session.deviceId === entry.deviceId;
+        }))
+      ) ?? null;
+    const createCaptureSession = async ({ data }: { data: Record<string, any> }) => {
+      const row = {
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        confirmedAt: null,
+        cancelledAt: null,
+        expiredAt: null,
+        capturedAt: null,
+        capturedReaderId: null,
+        capturedCredentialJson: null,
+        ...data,
+      };
+      captureSessions.push(row);
+      return row;
+    };
+    const updateCaptureSession = async ({ where, data }: { where: Record<string, any>; data: Record<string, any> }) => {
+      const session = captureSessions.find((item) => item.id === where.id);
+      if (!session) throw new Error("Capture session not found in test fixture.");
+      Object.assign(session, data, { updatedAt: new Date() });
+      return session;
+    };
+    prismaMocks.readerCredentialCaptureSessionFindMany.mockImplementation(async () => []);
+    prismaMocks.readerCredentialCaptureSessionFindFirst.mockImplementation(findCaptureSession as any);
+    prismaMocks.readerCredentialCaptureSessionCreate.mockImplementation(createCaptureSession as any);
+    prismaMocks.readerCredentialCaptureSessionUpdate.mockImplementation(updateCaptureSession as any);
     const captureDb = {
       nfcTag: {
         findFirst: async () => ({
@@ -1305,52 +1234,14 @@ describe("readerGatewayRoutes", () => {
       },
       readerCredentialCaptureSession: {
         findMany: async () => [],
-        findFirst: async () => null,
-        create: async () => ({
-          id: "capture-1",
-          schoolId: "school-1",
-          tagId: "tag-1",
-          studentId: "stu-1",
-          deviceId: "dev-1",
-          deviceLabel: "Main Entrance Reader",
-          status: "PENDING",
-          activeSchoolId: "school-1",
-          expiresAt: new Date(Date.now() + 60_000),
-          createdAt: new Date(),
-          updatedAt: new Date(),
-          capturedAt: null,
-          confirmedAt: null,
-          cancelledAt: null,
-          expiredAt: null,
-          capturedReaderId: null,
-          capturedReaderName: null,
-          capturedCredentialJson: null,
-        }),
-        update: async ({ data }: { data: Record<string, unknown> }) => ({
-          id: "capture-1",
-          schoolId: "school-1",
-          tagId: "tag-1",
-          studentId: "stu-1",
-          deviceId: "dev-1",
-          deviceLabel: "Main Entrance Reader",
-          status: typeof data.status === "string" ? data.status : "CAPTURED",
-          activeSchoolId: data.activeSchoolId ?? null,
-          expiresAt: new Date(Date.now() + 60_000),
-          createdAt: new Date(),
-          updatedAt: new Date(),
-          capturedAt: data.capturedAt instanceof Date ? data.capturedAt : new Date(),
-          confirmedAt: null,
-          cancelledAt: null,
-          expiredAt: null,
-          capturedReaderId: data.capturedReaderId ?? "dev-1",
-          capturedReaderName: data.capturedReaderName ?? "Attendance Gate 01",
-          capturedCredentialJson: data.capturedCredentialJson ?? null,
-        }),
+        findFirst: findCaptureSession,
+        create: createCaptureSession,
+        update: updateCaptureSession,
       },
       auditLog: {
         create: async () => ({}),
       },
-      $transaction: async <T>(fn: (tx: any) => Promise<T>) => fn(captureDb),
+      $transaction: async <T>(fn: (tx: any) => Promise<T>) => fn(buildTransactionDelegates(captureDb)),
     } as never;
 
     await startReaderCredentialCapture(
@@ -1358,27 +1249,6 @@ describe("readerGatewayRoutes", () => {
       { tagId: "tag-1", deviceId: "dev-1" },
       captureDb,
     );
-
-    prismaMocks.readerCredentialCaptureSessionFindFirst.mockResolvedValueOnce({
-      id: "capture-1",
-      schoolId: "school-1",
-      tagId: "tag-1",
-      studentId: "stu-1",
-      deviceId: "dev-1",
-      deviceLabel: "Main Entrance Reader",
-      status: "PENDING",
-      activeSchoolId: "school-1",
-      expiresAt: new Date(Date.now() + 60_000),
-      createdAt: new Date(),
-      updatedAt: new Date(),
-      capturedAt: null,
-      confirmedAt: null,
-      cancelledAt: null,
-      expiredAt: null,
-      capturedReaderId: null,
-      capturedReaderName: null,
-      capturedCredentialJson: null,
-    });
 
     const res = await request(buildApp())
       .post("/api/readers/events")
@@ -1442,10 +1312,7 @@ describe("readerGatewayRoutes", () => {
   });
 
   it("registers an already assigned reader idempotently with its existing school", async () => {
-    prismaMocks.transaction.mockImplementation(async (fn: (tx: any) => Promise<unknown>) => fn({
-      nfcOfflineDevice: { update: prismaMocks.nfcOfflineDeviceUpdate },
-      auditLog: { create: prismaMocks.auditLogCreate },
-    }));
+    prismaMocks.transaction.mockImplementation(async (fn: (tx: any) => Promise<unknown>) => fn(buildTransactionDelegates()));
 
     const res = await request(buildApp())
       .post("/api/readers/register")
@@ -1472,13 +1339,7 @@ describe("readerGatewayRoutes", () => {
       deviceKey: "attendance-gate-01",
       deviceTokenHash: "hashed-token",
     });
-    prismaMocks.transaction.mockImplementation(async (fn: (tx: any) => Promise<unknown>) => fn({
-      nfcOfflineDevice: {
-        create: prismaMocks.nfcOfflineDeviceCreate,
-        update: prismaMocks.nfcOfflineDeviceUpdate,
-      },
-      auditLog: { create: prismaMocks.auditLogCreate },
-    }));
+    prismaMocks.transaction.mockImplementation(async (fn: (tx: any) => Promise<unknown>) => fn(buildTransactionDelegates()));
 
     const res = await request(buildApp())
       .post("/api/readers/register")
@@ -1515,12 +1376,7 @@ describe("readerGatewayRoutes", () => {
         activationCodeUsedAt: null,
         activationBoundHardwareId: null,
       });
-    prismaMocks.transaction.mockImplementation(async (fn: (tx: any) => Promise<unknown>) => fn({
-      nfcOfflineDevice: {
-        updateMany: prismaMocks.nfcOfflineDeviceUpdateMany,
-      },
-      auditLog: { create: prismaMocks.auditLogCreate },
-    }));
+    prismaMocks.transaction.mockImplementation(async (fn: (tx: any) => Promise<unknown>) => fn(buildTransactionDelegates()));
     prismaMocks.nfcOfflineDeviceUpdateMany.mockResolvedValue({ count: 1 });
 
     const res = await request(buildApp())
@@ -1594,13 +1450,7 @@ describe("readerGatewayRoutes", () => {
       deviceKey: "attendance-gate-01",
       deviceTokenHash: "existing-token-hash",
     });
-    prismaMocks.transaction.mockImplementation(async (fn: (tx: any) => Promise<unknown>) => fn({
-      nfcOfflineDevice: {
-        create: prismaMocks.nfcOfflineDeviceCreate,
-        update: prismaMocks.nfcOfflineDeviceUpdate,
-      },
-      auditLog: { create: prismaMocks.auditLogCreate },
-    }));
+    prismaMocks.transaction.mockImplementation(async (fn: (tx: any) => Promise<unknown>) => fn(buildTransactionDelegates()));
 
     const res = await request(buildApp())
       .post("/api/readers/register")

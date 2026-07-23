@@ -55,14 +55,10 @@ ReaderGatewayConfig ConfigManager::defaults() {
   config.d1Pin = 19;
   config.buzzerPin = -1;
   config.ledPin = -1;
-  config.nfcWriterSdaPin = 21;
-  config.nfcWriterSclPin = 22;
   config.tlsInsecure = true;
   config.autoRegister = true;
   config.feedbackOutputsEnabled = false;
   config.feedbackDriverActiveHigh = false;
-  config.nfcWriterEnabled = false;
-  config.nfcWriterType = "PN532_I2C";
   return config;
 }
 
@@ -125,14 +121,10 @@ bool ConfigManager::load(ReaderGatewayConfig& config) {
   config.d1Pin = doc["d1Pin"] | config.d1Pin;
   config.buzzerPin = doc["buzzerPin"] | config.buzzerPin;
   config.ledPin = doc["ledPin"] | config.ledPin;
-  config.nfcWriterSdaPin = doc["nfcWriterSdaPin"] | config.nfcWriterSdaPin;
-  config.nfcWriterSclPin = doc["nfcWriterSclPin"] | config.nfcWriterSclPin;
   config.tlsInsecure = doc["tlsInsecure"] | config.tlsInsecure;
   config.autoRegister = doc["autoRegister"] | config.autoRegister;
   config.feedbackOutputsEnabled = doc["feedbackOutputsEnabled"] | config.feedbackOutputsEnabled;
   config.feedbackDriverActiveHigh = doc["feedbackDriverActiveHigh"] | config.feedbackDriverActiveHigh;
-  config.nfcWriterEnabled = doc["nfcWriterEnabled"] | config.nfcWriterEnabled;
-  config.nfcWriterType = doc["nfcWriterType"] | config.nfcWriterType;
   Serial.println("Config loaded from LittleFS");
   return true;
 }
@@ -170,14 +162,10 @@ bool ConfigManager::save(const ReaderGatewayConfig& config) {
   doc["d1Pin"] = config.d1Pin;
   doc["buzzerPin"] = config.buzzerPin;
   doc["ledPin"] = config.ledPin;
-  doc["nfcWriterSdaPin"] = config.nfcWriterSdaPin;
-  doc["nfcWriterSclPin"] = config.nfcWriterSclPin;
   doc["tlsInsecure"] = config.tlsInsecure;
   doc["autoRegister"] = config.autoRegister;
   doc["feedbackOutputsEnabled"] = config.feedbackOutputsEnabled;
   doc["feedbackDriverActiveHigh"] = config.feedbackDriverActiveHigh;
-  doc["nfcWriterEnabled"] = config.nfcWriterEnabled;
-  doc["nfcWriterType"] = config.nfcWriterType;
 
   File file = LittleFS.open(path_, FILE_WRITE);
   if (!file) {

@@ -361,7 +361,7 @@ export async function listTagBatches(
     include: {
       _count: { select: { tags: true } },
       tags: {
-        select: { status: true, studentId: true },
+        select: { status: true },
       },
     },
   });
@@ -374,10 +374,13 @@ export async function listTagBatches(
       }
       const written = (statusCounts["WRITTEN"] ?? 0) + (statusCounts["VERIFIED"] ?? 0);
       const verified = statusCounts["VERIFIED"] ?? 0;
-      const unallocated = b.tags.filter((tag) =>
-        !tag.studentId
-        && ["UNALLOCATED", "REGISTERED", "GENERATED", "WRITTEN", "VERIFIED", "UNASSIGNED"].includes(tag.status),
-      ).length;
+      const unallocated =
+        (statusCounts["UNALLOCATED"] ?? 0) +
+        (statusCounts["REGISTERED"] ?? 0) +
+        (statusCounts["GENERATED"] ?? 0) +
+        (statusCounts["WRITTEN"] ?? 0) +
+        (statusCounts["VERIFIED"] ?? 0) +
+        (statusCounts["UNASSIGNED"] ?? 0); // legacy
       const assigned = (statusCounts["ASSIGNED"] ?? 0);
       const disabled = (statusCounts["DISABLED"] ?? 0);
       const lost = (statusCounts["LOST"] ?? 0);
@@ -427,7 +430,6 @@ export async function listTagInventory(
     switch (filters.status) {
       case "UNALLOCATED":
         where.status = { in: ["UNALLOCATED", "GENERATED", "WRITTEN", "VERIFIED", "REGISTERED", "UNASSIGNED"] };
-        where.studentId = null;
         break;
       case "ASSIGNED":
         where.status = "ASSIGNED";
