@@ -219,5 +219,10 @@ describe("inventoryService", () => {
       recordedByName: "Admin User",
     }]);
     expect(movementCreate).toHaveBeenCalledTimes(1);
+    expect(recordCreate).toHaveBeenCalledWith(expect.objectContaining({
+      include: expect.objectContaining({
+        recordedByUser: { select: { name: true, email: true } },
+      }),
+    }));
   });
 });
