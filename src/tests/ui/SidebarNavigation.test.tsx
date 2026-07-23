@@ -140,10 +140,10 @@ describe("Sidebar navigation", () => {
     await waitFor(() => expect(screen.getByText("REPORT LAB")).toBeInTheDocument());
     expect(screen.getByRole("link", { name: /dashboard/i })).toHaveAttribute("href", "/dashboard");
     expect(screen.getByRole("link", { name: /students/i })).toHaveAttribute("href", "/students");
-    expect(screen.getByRole("link", { name: /inventory/i })).toHaveAttribute("href", "/inventory");
     expect(screen.getByRole("link", { name: /^reports$/i })).toHaveAttribute("href", "/reports");
     expect(screen.getByRole("link", { name: /communication/i })).toHaveAttribute("href", "/communications");
     expect(screen.getByRole("link", { name: /academic setup/i })).toHaveAttribute("href", "/settings");
+    expect(screen.queryByRole("link", { name: /inventory/i })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /marks import/i })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /marksheets/i })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /release center/i })).not.toBeInTheDocument();
