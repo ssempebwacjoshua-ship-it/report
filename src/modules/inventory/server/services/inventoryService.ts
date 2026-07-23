@@ -21,9 +21,8 @@ function studentNameOf(student: { firstName: string; lastName: string }) {
   return `${student.firstName} ${student.lastName}`.trim();
 }
 
-function userDisplayName(user: { firstName: string | null; lastName: string | null; email: string | null }) {
-  const fullName = `${user.firstName ?? ""} ${user.lastName ?? ""}`.trim();
-  return fullName || user.email || "Staff";
+function userDisplayName(user: { name: string | null; email: string | null }) {
+  return user.name?.trim() || user.email || "Staff";
 }
 
 function toInventoryItemSummary(
@@ -61,7 +60,7 @@ function toMovementView(movement: {
   recipientType: string | null;
   notes: string | null;
   createdAt: Date;
-  recordedByUser: { firstName: string | null; lastName: string | null; email: string | null };
+  recordedByUser: { name: string | null; email: string | null };
   item: { id: string; name: string };
   student: { firstName: string; lastName: string } | null;
 }): InventoryMovementView {
@@ -108,7 +107,7 @@ function toReportingRecordView(record: {
   reportedAt: Date;
   termId: string | null;
   student: { id: string; firstName: string; lastName: string; admissionNumber: string };
-  recordedByUser: { firstName: string | null; lastName: string | null; email: string | null };
+  recordedByUser: { name: string | null; email: string | null };
   items: Array<{
     broughtQuantity: number;
     item: { id: string; name: string };
@@ -350,7 +349,7 @@ export async function recordInventoryMovement(
     include: {
       item: { select: { id: true, name: true } },
       student: { select: { firstName: true, lastName: true } },
-      recordedByUser: { select: { firstName: true, lastName: true, email: true } },
+      recordedByUser: { select: { name: true, email: true } },
     },
   });
   const auditAction = input.type === "RECEIVED"

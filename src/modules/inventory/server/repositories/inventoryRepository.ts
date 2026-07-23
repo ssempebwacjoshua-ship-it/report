@@ -13,7 +13,7 @@ export async function listInventoryMovements(prisma: PrismaClient, schoolId: str
     include: {
       item: { select: { id: true, name: true } },
       student: { select: { firstName: true, lastName: true } },
-      recordedByUser: { select: { firstName: true, lastName: true, email: true } },
+      recordedByUser: { select: { name: true, email: true } },
     },
     orderBy: { createdAt: "desc" },
     take,
@@ -69,7 +69,7 @@ export async function listRecentReportingRecords(prisma: PrismaClient, schoolId:
     where: { schoolId },
     include: {
       student: { select: { id: true, firstName: true, lastName: true, admissionNumber: true } },
-      recordedByUser: { select: { firstName: true, lastName: true, email: true } },
+      recordedByUser: { select: { name: true, email: true } },
       items: {
         include: {
           item: { select: { id: true, name: true } },
