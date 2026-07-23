@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NfcOperationsPage } from "../../pages/NfcOperationsPage";
@@ -14,6 +14,7 @@ const mockFetchOfflineSyncStatus = vi.hoisted(() => vi.fn());
 const mockFetchStudents = vi.hoisted(() => vi.fn());
 const mockGetStudentWalletPinStatus = vi.hoisted(() => vi.fn());
 const mockSetStudentWalletPin = vi.hoisted(() => vi.fn());
+const mockClipboardWriteText = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
 
 vi.mock("../../client/nfcTagsClient", () => ({
   assignNfcTag: mockAssignNfcTag,
@@ -102,6 +103,11 @@ const SAMPLE_TAGS: NfcTag[] = [
 
 beforeEach(() => {
   vi.clearAllMocks();
+  Object.assign(navigator, {
+    clipboard: {
+      writeText: mockClipboardWriteText,
+    },
+  });
   mockListNfcTags.mockResolvedValue({ tags: SAMPLE_TAGS, total: SAMPLE_TAGS.length });
   mockGenerateNfcTags.mockResolvedValue({
     generated: 1,
@@ -380,8 +386,24 @@ describe("NfcOperationsPage", () => {
     fireEvent.click(screen.getAllByRole("button", { name: /Link reader/i })[0]);
 
     expect(await screen.findByText("Link reader credential")).toBeInTheDocument();
-    expect(screen.getByText(/Preserve the written/)).toBeInTheDocument();
+    const modal = screen.getByRole("heading", { name: "Link reader credential" }).closest("div[class*='rounded-2xl']");
+    expect(modal).not.toBeNull();
+    const modalScope = within(modal as HTMLElement);
+
+    expect(modalScope.getByText("Mobile NFC write details")).toBeInTheDocument();
+    expect(modalScope.getByText(/write either the URL or the text payload below using NFC Tools/i)).toBeInTheDocument();
+    expect(modalScope.getByText("https://ssamenj.vercel.app/nfc/t/PUBLICCODE-ASSIGNED-001")).toBeInTheDocument();
+    expect(modalScope.getAllByText("SCNFC:PUBLICCODE-ASSIGNED-001-WITH-A-LONG-PAYLOAD-VALUE").length).toBeGreaterThanOrEqual(2);
+    expect(modalScope.getByText("Mobile NFC payload: Generated")).toBeInTheDocument();
+    expect(modalScope.getByText("Reader credential status: Not linked")).toBeInTheDocument();
+    expect(modalScope.queryByText(/PN532/i)).not.toBeInTheDocument();
     expect(screen.getByRole("option", { name: /Attendance Gate 01 \(Main Entrance\)/ })).toBeInTheDocument();
+
+    fireEvent.click(modalScope.getByRole("button", { name: "Copy URL" }));
+    expect(mockClipboardWriteText).toHaveBeenCalledWith("https://ssamenj.vercel.app/nfc/t/PUBLICCODE-ASSIGNED-001");
+
+    fireEvent.click(modalScope.getByRole("button", { name: "Copy payload" }));
+    expect(mockClipboardWriteText).toHaveBeenCalledWith("SCNFC:PUBLICCODE-ASSIGNED-001-WITH-A-LONG-PAYLOAD-VALUE");
   });
 
   it("lists a commissioned gate reader when it has location-aware attendance metadata", async () => {
