@@ -80,6 +80,12 @@ export function InventoryReportingPage() {
     () => items.find((item) => item.id === selectedItemId) ?? null,
     [items, selectedItemId],
   );
+  const selectedStudentItems = useMemo(
+    () => recentRecords
+      .filter((record) => record.studentId === selectedStudentId)
+      .flatMap((record) => record.items),
+    [recentRecords, selectedStudentId],
+  );
   const hasActiveItems = items.length > 0;
 
   async function handleSaveRecord(event: FormEvent) {
@@ -124,9 +130,9 @@ export function InventoryReportingPage() {
           </p>
           {!hasActiveItems ? (
             <InventoryEmptyState
-              title="Add inventory item first"
-              description="There are no active inventory items available for reporting day yet."
-              actionLabel="Open items"
+              title="Add item names first"
+              description="Add item names first, such as ream, soap, toilet paper, books."
+              actionLabel="Add item"
               actionTo="/inventory/items"
             />
           ) : (
@@ -209,31 +215,44 @@ export function InventoryReportingPage() {
 
         <section className="premium-card grid gap-3 rounded-2xl p-4">
           <div className="flex items-center justify-between gap-3">
-            <h2 className="text-base font-bold text-slate-950">Recent items brought</h2>
-            <Link className="text-sm font-semibold text-[color:var(--sc-primary)]" to="/inventory">
-              Back to overview
-            </Link>
+            <h2 className="text-base font-bold text-slate-950">Recorded items for selected student</h2>
+            {selectedStudent ? (
+              <p className="text-sm text-slate-600">
+                {selectedStudent.studentName} ({selectedStudent.admissionNumber})
+              </p>
+            ) : (
+              <Link className="text-sm font-semibold text-[color:var(--sc-primary)]" to="/inventory">
+                Back to overview
+              </Link>
+            )}
           </div>
-          {recentRecords.length === 0 ? (
+          {selectedStudentItems.length === 0 ? (
             <InventoryEmptyState
-              title="No reporting-day registrations yet"
-              description="Use the form to start recording what students brought today."
+              title="No items recorded for this student yet"
+              description="Use the form to record the first reporting-day item for the selected student."
             />
           ) : (
-            <div className="space-y-2">
-              {recentRecords.map((record) => (
-                <div key={record.id} className="rounded-xl border border-slate-200 px-3 py-3">
-                  <p className="font-semibold text-slate-900">{record.studentName}</p>
-                  <p className="mt-1 text-sm text-slate-600">{record.admissionNumber}</p>
-                  <div className="mt-2 space-y-1 text-sm text-slate-600">
-                    {record.items.map((item) => (
-                      <p key={`${record.id}-${item.itemId}`}>
-                        {item.itemName}: {item.quantity}
-                      </p>
-                    ))}
-                  </div>
-                </div>
-              ))}
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-left text-sm">
+                <thead className="text-slate-500">
+                  <tr>
+                    <th className="pb-2">Item name</th>
+                    <th className="pb-2">Quantity brought</th>
+                    <th className="pb-2">Recorded by</th>
+                    <th className="pb-2">Time</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {selectedStudentItems.map((item, index) => (
+                    <tr key={`${item.itemId}-${item.recordedAt}-${index}`} className="border-t border-slate-200">
+                      <td className="py-2 font-semibold text-slate-900">{item.itemName}</td>
+                      <td className="py-2 text-slate-600">{item.quantity}</td>
+                      <td className="py-2 text-slate-600">{item.recordedByName}</td>
+                      <td className="py-2 text-slate-600">{new Date(item.recordedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           )}
         </section>

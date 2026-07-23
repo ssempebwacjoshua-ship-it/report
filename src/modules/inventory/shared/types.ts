@@ -43,6 +43,8 @@ export type StudentReportingItemView = {
   itemId: string;
   itemName: string;
   quantity: number;
+  recordedAt: string;
+  recordedByName: string;
 };
 
 export type StudentReportingRecordView = {

@@ -5,6 +5,25 @@ import { InventoryItemsPage } from "../../pages/InventoryItemsPage";
 import { InventoryPage } from "../../pages/InventoryPage";
 import { InventoryReportingPage } from "../../pages/InventoryReportingPage";
 
+const reportingRecordsState = vi.hoisted(() => ({
+  recentRecords: [] as Array<{
+    id: string;
+    studentId: string;
+    studentName: string;
+    admissionNumber: string;
+    status: "REPORTED";
+    reportedAt: string;
+    termId: null;
+    items: Array<{
+      itemId: string;
+      itemName: string;
+      quantity: number;
+      recordedAt: string;
+      recordedByName: string;
+    }>;
+  }>,
+}));
+
 const fetchInventoryReportingContextMock = vi.hoisted(() => vi.fn(async (search = "") => {
   const students = [
     {
@@ -30,7 +49,7 @@ const fetchInventoryReportingContextMock = vi.hoisted(() => vi.fn(async (search 
           || student.admissionNumber.toLowerCase().includes(normalized),
         )
       : students,
-    recentRecords: [],
+    recentRecords: reportingRecordsState.recentRecords,
   };
 }));
 
@@ -67,7 +86,28 @@ vi.mock("../../client/inventoryClient", () => ({
   createInventoryItem: vi.fn(async () => ({ item: { id: "item-2" } })),
   recordInventoryMovement: vi.fn(async () => ({ movement: { id: "move-1" } })),
   fetchInventoryReportingContext: fetchInventoryReportingContextMock,
-  saveStudentReportingRecord: vi.fn(async () => ({ record: { id: "record-1" } })),
+  saveStudentReportingRecord: vi.fn(async (input: { studentId: string; items: Array<{ itemId: string; quantity: number }> }) => {
+    const student = input.studentId === "student-2"
+      ? { studentName: "Grace Hopper", admissionNumber: "B-002" }
+      : { studentName: "Ada Lovelace", admissionNumber: "A-001" };
+    reportingRecordsState.recentRecords = [{
+      id: "record-1",
+      studentId: input.studentId,
+      studentName: student.studentName,
+      admissionNumber: student.admissionNumber,
+      status: "REPORTED",
+      reportedAt: "2026-07-23T10:00:00.000Z",
+      termId: null,
+      items: input.items.map((item) => ({
+        itemId: item.itemId,
+        itemName: item.itemId === "item-1" ? "Soap" : "Unknown",
+        quantity: item.quantity,
+        recordedAt: "2026-07-23T10:00:00.000Z",
+        recordedByName: "Admin User",
+      })),
+    }];
+    return { record: { id: "record-1" } };
+  }),
   archiveInventoryItem: vi.fn(async () => ({ ok: true })),
   fetchInventoryReconciliation: vi.fn(async () => ({
     summary: { itemsTracked: 0, lowStock: 0, reportingToday: 0, itemsBroughtToday: 0, adjustmentsToday: 0 },
@@ -81,6 +121,7 @@ function renderWithRouter(node: React.ReactNode, route = "/inventory") {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  reportingRecordsState.recentRecords = [];
 });
 
 describe("Inventory module pages", () => {
@@ -146,6 +187,8 @@ describe("Inventory module pages", () => {
       studentId: "student-1",
       items: [{ itemId: "item-1", quantity: 1 }],
     }));
+    expect(await screen.findByRole("cell", { name: "Soap" })).toBeInTheDocument();
+    expect(screen.getByRole("cell", { name: "Admin User" })).toBeInTheDocument();
   });
 
   it("allows an admin to search students before recording reporting-day items", async () => {
@@ -169,5 +212,17 @@ describe("Inventory module pages", () => {
     expect(screen.queryByText(/expected quantity/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/partial/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/missing/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/complete/i)).not.toBeInTheDocument();
+  });
+
+  it("shows the add-item-first guidance when no inventory item names exist", async () => {
+    const client = await import("../../client/inventoryClient");
+    vi.mocked(client.fetchInventoryItems).mockResolvedValueOnce({ items: [] });
+
+    renderWithRouter(<InventoryReportingPage />, "/inventory/reporting");
+
+    expect(await screen.findByText("Add item names first")).toBeInTheDocument();
+    expect(screen.getByText("Add item names first, such as ream, soap, toilet paper, books.")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Add item" })).toHaveAttribute("href", "/inventory/items");
   });
 });
