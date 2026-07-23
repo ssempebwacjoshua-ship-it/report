@@ -8,7 +8,19 @@ import {
 import { InventorySectionTabs } from "../../../components/inventory/InventorySectionTabs";
 import type { InventoryItemSummary } from "../shared/types";
 
-const emptyItemForm = { name: "", category: "", unit: "", minimumStock: 0 };
+const categoryOptions = [
+  "General supplies",
+  "Stationery",
+  "Hygiene",
+  "Boarding",
+  "Uniform",
+  "Food",
+  "Cleaning",
+];
+
+const unitOptions = ["piece", "ream", "bar", "book", "pair", "bucket", "kg", "litre"];
+
+const emptyItemForm = { name: "", category: "General supplies", unit: "piece", minimumStock: 1 };
 const emptyMovementForm = { itemId: "", quantity: 1, source: "", notes: "" };
 
 export function InventoryItemsPage() {
@@ -30,26 +42,41 @@ export function InventoryItemsPage() {
   async function handleAddItem(event: FormEvent) {
     event.preventDefault();
     setError("");
-    await createInventoryItem(itemForm);
-    setNotice("Inventory item added.");
-    setItemForm(emptyItemForm);
-    await load();
+    setNotice("");
+    try {
+      await createInventoryItem(itemForm);
+      setNotice("Inventory item added.");
+      setItemForm(emptyItemForm);
+      await load();
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Could not create inventory item.");
+    }
   }
 
   async function handleReceiveStock(event: FormEvent) {
     event.preventDefault();
     setError("");
-    await recordInventoryMovement("receive", movementForm);
-    setNotice("Stock received recorded.");
-    setMovementForm(emptyMovementForm);
-    await load();
+    setNotice("");
+    try {
+      await recordInventoryMovement("receive", movementForm);
+      setNotice("Stock received recorded.");
+      setMovementForm(emptyMovementForm);
+      await load();
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Could not record stock received.");
+    }
   }
 
   async function handleArchive(itemId: string) {
     setError("");
-    await archiveInventoryItem(itemId);
-    setNotice("Inventory item archived.");
-    await load();
+    setNotice("");
+    try {
+      await archiveInventoryItem(itemId);
+      setNotice("Inventory item archived.");
+      await load();
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Could not archive inventory item.");
+    }
   }
 
   return (
@@ -66,12 +93,68 @@ export function InventoryItemsPage() {
       <section className="grid gap-4 xl:grid-cols-2">
         <form className="premium-card grid gap-3 rounded-2xl p-4" onSubmit={(event) => void handleAddItem(event)}>
           <h2 className="text-base font-bold text-slate-950">Add item</h2>
-          <input aria-label="Item name" className="input" value={itemForm.name} onChange={(event) => setItemForm((current) => ({ ...current, name: event.target.value }))} />
-          <input aria-label="Category" className="input" value={itemForm.category} onChange={(event) => setItemForm((current) => ({ ...current, category: event.target.value }))} />
-          <input aria-label="Unit" className="input" value={itemForm.unit} onChange={(event) => setItemForm((current) => ({ ...current, unit: event.target.value }))} />
-          <input aria-label="Minimum stock" className="input" type="number" value={itemForm.minimumStock} onChange={(event) => setItemForm((current) => ({ ...current, minimumStock: Number(event.target.value) }))} />
+          <p className="text-sm text-slate-600">
+            Add the item name, then confirm the category, unit, and low-stock threshold before saving.
+          </p>
+          <label className="grid gap-1 text-sm text-slate-700">
+            <span className="font-medium">Item name</span>
+            <input
+              aria-label="Item name"
+              className="input"
+              placeholder="Reams of paper"
+              value={itemForm.name}
+              onChange={(event) => setItemForm((current) => ({ ...current, name: event.target.value }))}
+            />
+          </label>
+          <label className="grid gap-1 text-sm text-slate-700">
+            <span className="font-medium">Category</span>
+            <select
+              aria-label="Category"
+              className="input"
+              value={itemForm.category}
+              onChange={(event) => setItemForm((current) => ({ ...current, category: event.target.value }))}
+            >
+              {categoryOptions.map((option) => (
+                <option key={option} value={option}>
+                  {option}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="grid gap-1 text-sm text-slate-700">
+            <span className="font-medium">Unit</span>
+            <select
+              aria-label="Unit"
+              className="input"
+              value={itemForm.unit}
+              onChange={(event) => setItemForm((current) => ({ ...current, unit: event.target.value }))}
+            >
+              {unitOptions.map((option) => (
+                <option key={option} value={option}>
+                  {option}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="grid gap-1 text-sm text-slate-700">
+            <span className="font-medium">Minimum stock</span>
+            <input
+              aria-label="Minimum stock"
+              className="input"
+              type="number"
+              min={0}
+              value={itemForm.minimumStock}
+              onChange={(event) => setItemForm((current) => ({ ...current, minimumStock: Number(event.target.value) }))}
+            />
+          </label>
           <div>
-            <button type="submit" className="btn btn-primary">Add item</button>
+            <button
+              type="submit"
+              className="btn btn-primary"
+              disabled={!itemForm.name.trim() || !itemForm.category.trim() || !itemForm.unit.trim() || itemForm.minimumStock < 0}
+            >
+              Add item
+            </button>
           </div>
         </form>
 
