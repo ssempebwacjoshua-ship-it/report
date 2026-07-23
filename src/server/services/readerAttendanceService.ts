@@ -99,6 +99,12 @@ type ProcessedReaderAttendance = {
   statusCode: number;
 };
 
+export type PreparedLocationAwareReaderEvent = {
+  scannedAt: Date;
+  policy: AttendancePolicy;
+  student: ResolvedStudent | null;
+};
+
 function respond(
   action: string,
   status: string,
@@ -701,9 +707,32 @@ export async function processLocationAwareReaderEvent(
   body: EventBody,
   db: ReaderAttendanceDb = defaultPrisma,
 ): Promise<ProcessedReaderAttendance> {
+  const prepared = await prepareLocationAwareReaderEvent(device, body, db);
+  return commitPreparedLocationAwareReaderEvent(device, body, prepared, db);
+}
+
+export async function prepareLocationAwareReaderEvent(
+  device: LocationAwareReaderDevice,
+  body: EventBody,
+  db: Pick<ReaderAttendanceDb, "schoolNfcPolicy" | "studentCredential" | "nfcTag"> = defaultPrisma,
+): Promise<PreparedLocationAwareReaderEvent> {
   const scannedAt = parseDeviceTime(body.deviceTime);
   const policy = await loadPolicy(device.schoolId, db);
   const student = await resolveStudentForReader(device.schoolId, body, db);
+  return {
+    scannedAt,
+    policy,
+    student,
+  };
+}
+
+export async function commitPreparedLocationAwareReaderEvent(
+  device: LocationAwareReaderDevice,
+  body: EventBody,
+  prepared: PreparedLocationAwareReaderEvent,
+  db: ReaderAttendanceDb = defaultPrisma,
+): Promise<ProcessedReaderAttendance> {
+  const { scannedAt, policy, student } = prepared;
   if (!student) {
     await db.nfcGateScan.create({
       data: {

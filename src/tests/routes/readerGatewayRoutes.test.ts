@@ -322,6 +322,7 @@ function buildLocationAwareTransactionMocks(
   options: {
     failAuditCreate?: boolean;
     failDeviceUpdate?: boolean;
+    forbidTransactionCredentialReads?: boolean;
     firstReady?: ReturnType<typeof deferred>;
     allowFirstCommit?: ReturnType<typeof deferred>;
     firstCommitted?: ReturnType<typeof deferred>;
@@ -351,10 +352,20 @@ function buildLocationAwareTransactionMocks(
       findUnique: async () => working.policy,
     },
     studentCredential: {
-      findFirst: async () => working.credential,
+      findFirst: async () => {
+        if (options.forbidTransactionCredentialReads) {
+          throw new Error("studentCredential.findFirst should not run inside the write transaction");
+        }
+        return working.credential;
+      },
     },
     nfcTag: {
-      findFirst: async () => null,
+      findFirst: async () => {
+        if (options.forbidTransactionCredentialReads) {
+          throw new Error("nfcTag.findFirst should not run inside the write transaction");
+        }
+        return null;
+      },
     },
     studentFeeHold: {
       findFirst: async ({ where }: { where: Record<string, any> }) =>
@@ -1564,6 +1575,26 @@ describe("readerGatewayRoutes location-aware atomicity", () => {
       status: "PRESENT",
       message: "Arrival recorded",
     });
+  });
+
+  it("resolves credentials before the write transaction so reader events do not reuse an expired tx client", async () => {
+    const state = locationAwareState();
+    buildLocationAwareTransactionMocks(state, { forbidTransactionCredentialReads: true });
+
+    const res = await request(buildApp())
+      .post("/api/readers/events")
+      .set("Authorization", "Bearer device-token-123")
+      .send(eventBody({ eventId: "pre-resolved-event-1", deviceTime: "2026-07-11T04:45:00Z" }));
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({
+      success: true,
+      action: "GATE_ENTRY",
+      status: "PRESENT",
+      message: "Arrival recorded",
+    });
+    expect(state.campusMovementEvents).toHaveLength(1);
+    expect(state.auditLogs).toHaveLength(1);
   });
 
   it("rolls back an approved override when audit creation fails", async () => {
