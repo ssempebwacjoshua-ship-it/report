@@ -168,6 +168,7 @@ describe("Inventory module pages", () => {
       unit: "kg",
       minimumStock: 10,
     }));
+    await waitFor(() => expect(screen.getByLabelText("Item name")).toHaveValue(""));
   });
 
   it("allows an admin to record stock received", async () => {
@@ -184,6 +185,7 @@ describe("Inventory module pages", () => {
       quantity: 5,
       source: "Supplier delivery",
     })));
+    await waitFor(() => expect(screen.getByLabelText("Receive item")).toHaveValue(""));
   });
 
   it("allows an admin to save a taken-out stock record", async () => {
@@ -206,6 +208,7 @@ describe("Inventory module pages", () => {
       source: "Lunch service",
       notes: "Midday meal",
     }));
+    await waitFor(() => expect(screen.getByLabelText("Issue item")).toHaveValue(""));
   });
 
   it("allows an admin to record student reporting-day brought items", async () => {
@@ -223,6 +226,7 @@ describe("Inventory module pages", () => {
       studentId: "student-1",
       items: [{ itemId: "item-1", quantity: 1 }],
     }));
+    await waitFor(() => expect(screen.getByLabelText("Select item brought")).toHaveValue(""));
     expect(await screen.findByRole("cell", { name: "Soap" })).toBeInTheDocument();
     expect(screen.getByRole("cell", { name: "Admin User" })).toBeInTheDocument();
   });

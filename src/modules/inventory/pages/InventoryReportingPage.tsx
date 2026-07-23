@@ -40,6 +40,7 @@ export function InventoryReportingPage() {
   const [selectedStudentId, setSelectedStudentId] = useState("");
   const [selectedItemId, setSelectedItemId] = useState("");
   const [quantity, setQuantity] = useState(1);
+  const [savingRecord, setSavingRecord] = useState(false);
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
 
@@ -90,16 +91,23 @@ export function InventoryReportingPage() {
 
   async function handleSaveRecord(event: FormEvent) {
     event.preventDefault();
-    if (!selectedStudentId || !selectedItemId) return;
+    if (savingRecord || !selectedStudentId || !selectedItemId) return;
     setError("");
-    await saveStudentReportingRecord({
-      studentId: selectedStudentId,
-      items: [{ itemId: selectedItemId, quantity }],
-    });
-    setNotice("Item brought recorded.");
-    setSelectedItemId("");
-    setQuantity(1);
-    await reloadReporting(studentSearch);
+    setSavingRecord(true);
+    try {
+      await saveStudentReportingRecord({
+        studentId: selectedStudentId,
+        items: [{ itemId: selectedItemId, quantity }],
+      });
+      setNotice("Item brought recorded.");
+      setSelectedItemId("");
+      setQuantity(1);
+      await reloadReporting(studentSearch);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Could not save reporting-day record.");
+    } finally {
+      setSavingRecord(false);
+    }
   }
 
   async function handleStudentSearch() {
@@ -205,8 +213,8 @@ export function InventoryReportingPage() {
               </label>
 
               <div>
-                <button type="submit" className="btn btn-primary" disabled={!selectedStudentId || !selectedItemId}>
-                  Save item brought
+                <button type="submit" className="btn btn-primary" disabled={savingRecord || !selectedStudentId || !selectedItemId}>
+                  {savingRecord ? "Saving..." : "Save item brought"}
                 </button>
               </div>
             </>
