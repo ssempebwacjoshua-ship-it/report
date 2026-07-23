@@ -27,7 +27,13 @@ export type NfcPermission =
   | "communications.templates.manage"
   | "communications.audiences.manage"
   | "communications.replies.view"
-  | "communications.settings.manage";
+  | "communications.settings.manage"
+  | "inventory.view"
+  | "inventory.items.manage"
+  | "inventory.stock.receive"
+  | "inventory.stock.issue"
+  | "inventory.reconcile"
+  | "inventory.reporting.register";
 
 export const rolePermissions: Record<string, string[]> = {
   ADMIN_OPERATOR: ["*"],

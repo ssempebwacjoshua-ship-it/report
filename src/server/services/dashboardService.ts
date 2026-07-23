@@ -2,9 +2,11 @@
 import type {
   DashboardActivity,
   DashboardAttendanceSummary,
+  DashboardInventorySummary,
   DashboardStats,
   RecentBatch,
 } from "../../shared/types/dashboard";
+import { getInventoryDashboardSummary } from "../../modules/inventory/server/services/inventoryService";
 import { countCurrentEnrolledStudents } from "./currentEnrollmentService";
 import {
   getDashboardAttendanceSummary as getCanonicalDashboardAttendanceSummary,
@@ -38,6 +40,14 @@ function formatAuditAction(action: string, details: unknown): string {
   }
 }
 
+const emptyInventorySummary: DashboardInventorySummary = {
+  itemsTracked: 0,
+  lowStock: 0,
+  reportingToday: 0,
+  requirementsReceived: 0,
+  reconciliationIssues: 0,
+};
+
 export async function getDashboardStats(
   prisma: PrismaClient,
   schoolCode: string,
@@ -61,6 +71,7 @@ export async function getDashboardStats(
       reportsIssuedCount: 0,
       reportsReleasedCount: 0,
       workflow: { marksUploaded: 0, reviewed: 0, generated: 0, approved: 0, released: 0 },
+      inventory: emptyInventorySummary,
       recentBatches: [],
       recentActivity: [],
     };
@@ -78,6 +89,7 @@ export async function getDashboardStats(
     released,
     rawBatches,
     rawActivity,
+    inventory,
   ] = await Promise.all([
     activeTerm
       ? countCurrentEnrolledStudents(prisma, school.id)
@@ -123,6 +135,7 @@ export async function getDashboardStats(
       take: 6,
       select: { action: true, createdAt: true, details: true },
     }),
+    getInventoryDashboardSummary(prisma, school.id),
   ]);
 
   // Pending review = committed batches where marks are still all-DRAFT
@@ -161,6 +174,7 @@ export async function getDashboardStats(
       approved,
       released,
     },
+    inventory,
     recentBatches,
     recentActivity,
   };

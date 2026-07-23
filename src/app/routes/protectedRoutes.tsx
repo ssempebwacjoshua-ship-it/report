@@ -6,6 +6,7 @@ import { DashboardPage } from "../../pages/DashboardPage";
 import { RouteErrorPage } from "../../pages/RouteErrorPage";
 import { SettingsPage } from "../../pages/SettingsPage";
 import { StudentsPage } from "../../pages/StudentsPage";
+import { inventoryRoutes } from "./inventoryRoutes";
 import { nfcRoutes } from "./nfcRoutes";
 import { reportsRoutes } from "./reportsRoutes";
 import { RoleAwareRedirect } from "./routeHelpers";
@@ -20,6 +21,7 @@ export const protectedRoutes: RouteObject[] = [
       { index: true, element: <RoleAwareRedirect /> },
       { path: "dashboard", element: <PermissionGuard permission="app.admin"><DashboardPage /></PermissionGuard> },
       { path: "students", element: <PermissionGuard permission="app.admin"><StudentsPage /></PermissionGuard> },
+      ...inventoryRoutes,
       ...nfcRoutes,
       ...reportsRoutes,
       { path: "communications", element: <PermissionGuard permission="communications.view"><CommunicationsPage /></PermissionGuard> },

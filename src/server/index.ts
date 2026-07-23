@@ -22,6 +22,7 @@ import { securityHeaders } from "./middleware/securityHeaders";
 import { assertPlatformIntegrationConfigured } from "./platformClient";
 import { getAllowedBrowserOrigins, getRuntimeDiagnostics, isAllowedBrowserOrigin } from "./config/deployRuntime";
 import { registerCommunicationPlatformRoutes, registerCommunicationRoutes } from "./modules/registerCommunicationRoutes";
+import { registerInventoryRoutes } from "./modules/registerInventoryRoutes";
 import { registerNfcRoutes } from "./modules/registerNfcRoutes";
 import { registerOwnerRoutes } from "./modules/registerOwnerRoutes";
 import { registerPlatformRoutes } from "./modules/registerPlatformRoutes";
@@ -204,6 +205,7 @@ export function createServer() {
   app.use(dashboardRoutes());
   registerReportsRoutes(app);
   registerCommunicationRoutes(app);
+  registerInventoryRoutes(app);
   app.use(studentsRoutes());
   app.use(schoolStructureRoutes());
   app.use(settingsRoutes());

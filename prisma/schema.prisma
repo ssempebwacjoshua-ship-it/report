@@ -65,7 +65,11 @@ model School {
   communicationUsageRecords    CommunicationUsageRecord[]
   communicationChannelSettings CommunicationChannelSetting[]
   authTokens                   AuthToken[]
-}
+  inventoryItems               InventoryItem[]
+  inventoryStockMovements      InventoryStockMovement[]
+  reportingRequirements        ReportingRequirement[]
+  studentReportingRecords      StudentReportingRecord[]
+  }
 
 model AcademicYear {
   id          String            @id @default(uuid()) @db.Uuid
@@ -96,6 +100,8 @@ model Term {
   updatedAt      DateTime          @updatedAt
   enrollments    ClassEnrollment[]
   marks          SubjectMark[]
+  reportingRequirements ReportingRequirement[]
+  studentReportingRecords StudentReportingRecord[]
   academicYear   AcademicYear      @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
 
   @@unique([academicYearId, name])
@@ -114,6 +120,7 @@ model SchoolClass {
   school      School            @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   streams     Stream[]
   marks       SubjectMark[]
+  reportingRequirements ReportingRequirement[]
 
   @@unique([schoolId, name])
   @@unique([schoolId, code])
@@ -167,6 +174,8 @@ model Student {
   classroomAttendanceEvents ClassroomAttendanceEvent[]
   gateScans                 NfcGateScan[]
   nfcTags                   NfcTag[]
+  inventoryMovements        InventoryStockMovement[]
+  reportingRecords          StudentReportingRecord[]
   school                    School                     @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   marks                     SubjectMark[]
 
@@ -344,6 +353,120 @@ model AuditLog {
   @@index([schoolId, createdAt], map: "AuditLog_schoolId_createdAt_idx")
 }
 
+enum InventoryMovementType {
+  RECEIVED
+  ISSUED
+  ADJUSTED
+  STUDENT_BROUGHT
+}
+
+enum StudentReportingStatus {
+  REPORTED
+  PENDING
+}
+
+enum StudentReportingItemStatus {
+  COMPLETE
+  PARTIAL
+  MISSING
+  EXTRA
+}
+
+model InventoryItem {
+  id               String                   @id @default(uuid()) @db.Uuid
+  schoolId         String                   @db.Uuid
+  name             String
+  category         String
+  unit             String
+  minimumStock     Int                      @default(0)
+  active           Boolean                  @default(true)
+  createdAt        DateTime                 @default(now())
+  updatedAt        DateTime                 @updatedAt
+  school           School                   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  stockMovements   InventoryStockMovement[]
+  requirements     ReportingRequirement[]
+  reportingItems   StudentReportingItem[]
+
+  @@unique([schoolId, name])
+  @@index([schoolId, active, category])
+}
+
+model InventoryStockMovement {
+  id                   String                @id @default(uuid()) @db.Uuid
+  schoolId             String                @db.Uuid
+  itemId               String                @db.Uuid
+  type                 InventoryMovementType
+  quantity             Int
+  source               String
+  studentId            String?               @db.Uuid
+  notes                String?
+  recordedByUserId     String                @db.Uuid
+  createdAt            DateTime              @default(now())
+  school               School                @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  item                 InventoryItem         @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  student              Student?              @relation(fields: [studentId], references: [id], onDelete: SetNull)
+  recordedByUser       User                  @relation("InventoryStockMovementRecordedBy", fields: [recordedByUserId], references: [id], onDelete: Cascade)
+
+  @@index([schoolId, createdAt])
+  @@index([schoolId, itemId, createdAt])
+  @@index([schoolId, studentId, createdAt])
+}
+
+model ReportingRequirement {
+  id               String           @id @default(uuid()) @db.Uuid
+  schoolId         String           @db.Uuid
+  itemId           String           @db.Uuid
+  termId           String?          @db.Uuid
+  classId          String?          @db.Uuid
+  requiredQuantity Int
+  active           Boolean          @default(true)
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  school           School           @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  item             InventoryItem    @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  term             Term?            @relation(fields: [termId], references: [id], onDelete: SetNull)
+  class            SchoolClass?     @relation(fields: [classId], references: [id], onDelete: SetNull)
+
+  @@index([schoolId, active, termId, classId])
+  @@index([schoolId, itemId, active])
+}
+
+model StudentReportingRecord {
+  id                String                 @id @default(uuid()) @db.Uuid
+  schoolId          String                 @db.Uuid
+  studentId         String                 @db.Uuid
+  termId            String?                @db.Uuid
+  reportedAt        DateTime               @default(now())
+  recordedByUserId  String                 @db.Uuid
+  status            StudentReportingStatus @default(REPORTED)
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
+  school            School                 @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  student           Student                @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  term              Term?                  @relation(fields: [termId], references: [id], onDelete: SetNull)
+  recordedByUser    User                   @relation("StudentReportingRecordRecordedBy", fields: [recordedByUserId], references: [id], onDelete: Cascade)
+  items             StudentReportingItem[]
+
+  @@index([schoolId, studentId, reportedAt])
+  @@index([schoolId, termId, reportedAt])
+}
+
+model StudentReportingItem {
+  id               String                     @id @default(uuid()) @db.Uuid
+  reportingRecordId String                    @db.Uuid
+  itemId           String                     @db.Uuid
+  expectedQuantity Int
+  broughtQuantity  Int
+  status           StudentReportingItemStatus
+  createdAt        DateTime                   @default(now())
+  updatedAt        DateTime                   @updatedAt
+  reportingRecord  StudentReportingRecord     @relation(fields: [reportingRecordId], references: [id], onDelete: Cascade)
+  item             InventoryItem              @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@unique([reportingRecordId, itemId])
+  @@index([itemId, status])
+}
+
 // Owner/subscription
 model PlatformSupportSession {
   id          String    @id @default(uuid()) @db.Uuid
@@ -423,6 +546,8 @@ model User {
   canteenReconciliationOperators  CanteenReconciliation[]         @relation("CanteenReconciliationOperator")
   submittedCanteenReconciliations CanteenReconciliation[]         @relation("CanteenReconciliationSubmittedBy")
   approvedCanteenReconciliations  CanteenReconciliation[]         @relation("CanteenReconciliationApprovedBy")
+  inventoryStockMovements         InventoryStockMovement[]        @relation("InventoryStockMovementRecordedBy")
+  studentReportingRecords         StudentReportingRecord[]        @relation("StudentReportingRecordRecordedBy")
   authTokens                      AuthToken[]
   school                          School                          @relation(fields: [schoolId], references: [id], onDelete: Cascade)
 
