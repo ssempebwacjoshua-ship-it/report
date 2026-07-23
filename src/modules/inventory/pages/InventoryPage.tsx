@@ -35,6 +35,19 @@ function CompactEmptyState({
   );
 }
 
+function formatMovementType(type: "RECEIVED" | "ISSUED" | "ADJUSTED" | "STUDENT_BROUGHT") {
+  switch (type) {
+    case "RECEIVED":
+      return "Received";
+    case "ISSUED":
+      return "Took out";
+    case "ADJUSTED":
+      return "Adjusted";
+    case "STUDENT_BROUGHT":
+      return "Brought by student";
+  }
+}
+
 export function InventoryPage() {
   const [data, setData] = useState<InventoryOverviewResponse | null>(null);
   const [error, setError] = useState("");
@@ -65,37 +78,66 @@ export function InventoryPage() {
           <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
             <SummaryCard label="Items tracked" value={data.summary.itemsTracked} />
             <SummaryCard label="Low stock" value={data.summary.lowStock} />
-            <SummaryCard label="Reporting today" value={data.summary.reportingToday} />
             <SummaryCard label="Items brought today" value={data.summary.itemsBroughtToday} />
-            <SummaryCard label="Adjustments today" value={data.summary.adjustmentsToday} />
+            <SummaryCard label="Items issued today" value={data.summary.itemsIssuedToday} />
+            <SummaryCard label="Reconciliation issues" value={data.summary.reconciliationIssues} />
           </section>
 
           <section className="grid gap-4 xl:grid-cols-[1.3fr_0.9fr]">
             <div className="premium-card rounded-2xl p-4">
               <div className="mb-3 flex items-center justify-between gap-3">
-                <h2 className="text-base font-bold text-slate-950">Recent stock movements</h2>
+                <h2 className="text-base font-bold text-slate-950">Recent inventory movements</h2>
                 <Link className="text-sm font-semibold text-[color:var(--sc-primary)]" to="/inventory/items">Open items</Link>
               </div>
-              <div className="space-y-2">
-                {data.recentMovements.length === 0 ? (
+              {data.recentMovements.length === 0 ? (
+                <div className="space-y-2">
                   <CompactEmptyState
                     message="No stock movements yet."
                     actionLabel="Receive stock"
                     actionTo="/inventory/items"
                   />
-                ) : data.recentMovements.map((movement) => (
-                  <div key={movement.id} className="rounded-xl border border-slate-200 px-3 py-2">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <p className="font-semibold text-slate-900">{movement.itemName}</p>
-                      <span className="text-xs font-bold uppercase text-slate-500">{movement.type}</span>
-                    </div>
-                    <p className="mt-1 text-sm text-slate-600">
-                      {movement.quantity} via {movement.source}
-                      {movement.studentName ? ` • ${movement.studentName}` : ""}
-                    </p>
-                  </div>
-                ))}
-              </div>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="min-w-full text-left text-sm">
+                    <thead className="text-slate-500">
+                      <tr>
+                        <th className="pb-2">Date/time</th>
+                        <th className="pb-2">Item</th>
+                        <th className="pb-2">Type</th>
+                        <th className="pb-2">Quantity</th>
+                        <th className="pb-2">Person/recipient</th>
+                        <th className="pb-2">Purpose</th>
+                        <th className="pb-2">Recorded by</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {data.recentMovements.map((movement) => (
+                        <tr key={movement.id} className="border-t border-slate-200">
+                          <td className="py-2 text-slate-600">
+                            {new Date(movement.createdAt).toLocaleString([], {
+                              month: "short",
+                              day: "numeric",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}
+                          </td>
+                          <td className="py-2 font-semibold text-slate-900">{movement.itemName}</td>
+                          <td className="py-2 text-slate-600">{formatMovementType(movement.type)}</td>
+                          <td className="py-2 text-slate-600">{movement.quantity}</td>
+                          <td className="py-2 text-slate-600">
+                            {movement.recipientName
+                              ? `${movement.recipientName}${movement.recipientType ? ` (${movement.recipientType})` : ""}`
+                              : movement.studentName ?? "—"}
+                          </td>
+                          <td className="py-2 text-slate-600">{movement.purpose}</td>
+                          <td className="py-2 text-slate-600">{movement.recordedByName}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
 
             <div className="grid gap-4">

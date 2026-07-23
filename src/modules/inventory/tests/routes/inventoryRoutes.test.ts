@@ -130,13 +130,19 @@ describe("inventoryRoutes", () => {
   });
 
   it("records stock receive and issue movements", async () => {
-    mockPrisma.inventoryItem.findFirst.mockResolvedValue({ id: "item-1", name: "Soap" });
+    mockPrisma.inventoryItem.findFirst.mockResolvedValue({ id: "11111111-1111-4111-8111-111111111111", name: "Soap" });
+    mockPrisma.inventoryStockMovement.findMany.mockResolvedValue([{
+      itemId: "11111111-1111-4111-8111-111111111111",
+      type: "RECEIVED",
+      quantity: 8,
+    }]);
     mockPrisma.inventoryStockMovement.create.mockImplementation(async ({ data }: any) => ({
       id: "move-1",
       ...data,
       createdAt: new Date("2026-07-23T09:00:00.000Z"),
       item: { id: "item-1", name: "Soap" },
       student: null,
+      recordedByUser: { firstName: "Admin", lastName: "User", email: "admin@example.com" },
     }));
     const app = createApp({
       user: { userId: "admin-1", role: "ADMIN_OPERATOR" },
@@ -151,11 +157,48 @@ describe("inventoryRoutes", () => {
     const issueRes = await request(app).post("/api/inventory/movements/issue").send({
       itemId: "11111111-1111-4111-8111-111111111111",
       quantity: 2,
-      source: "Dormitory",
+      recipientName: "Kitchen team",
+      recipientType: "Kitchen",
+      source: "Lunch service",
     });
 
     expect(receiveRes.status).toBe(201);
     expect(issueRes.status).toBe(201);
+  });
+
+  it("requires inventory.stock.issue permission for stock issue", async () => {
+    const app = createApp({
+      user: { userId: "teacher-1", role: "TEACHER" },
+      school: { id: "school-a", code: "SC-A", name: "School A" },
+    });
+
+    const res = await request(app).post("/api/inventory/movements/issue").send({
+      itemId: "11111111-1111-4111-8111-111111111111",
+      quantity: 1,
+      recipientName: "Kitchen team",
+      recipientType: "Kitchen",
+      source: "Lunch service",
+    });
+
+    expect(res.status).toBe(403);
+  });
+
+  it("does not allow school A to issue school B inventory items", async () => {
+    mockPrisma.inventoryItem.findFirst.mockResolvedValue(null);
+    const app = createApp({
+      user: { userId: "admin-1", role: "ADMIN_OPERATOR" },
+      school: { id: "school-a", code: "SC-A", name: "School A" },
+    });
+
+    const res = await request(app).post("/api/inventory/movements/issue").send({
+      itemId: "33333333-3333-4333-8333-333333333333",
+      quantity: 1,
+      recipientName: "Office clerk",
+      recipientType: "Office",
+      source: "Term office use",
+    });
+
+    expect(res.status).toBe(404);
   });
 
   it("saves reporting-day records with school-scoped student validation", async () => {

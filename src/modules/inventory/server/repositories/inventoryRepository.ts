@@ -13,6 +13,7 @@ export async function listInventoryMovements(prisma: PrismaClient, schoolId: str
     include: {
       item: { select: { id: true, name: true } },
       student: { select: { firstName: true, lastName: true } },
+      recordedByUser: { select: { firstName: true, lastName: true, email: true } },
     },
     orderBy: { createdAt: "desc" },
     take,

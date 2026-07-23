@@ -57,9 +57,11 @@ function toMovementView(movement: {
   type: "RECEIVED" | "ISSUED" | "ADJUSTED" | "STUDENT_BROUGHT";
   quantity: number;
   source: string;
+  recipientName: string | null;
+  recipientType: string | null;
   notes: string | null;
   createdAt: Date;
-  recordedByUserId: string;
+  recordedByUser: { firstName: string | null; lastName: string | null; email: string | null };
   item: { id: string; name: string };
   student: { firstName: string; lastName: string } | null;
 }): InventoryMovementView {
@@ -69,11 +71,13 @@ function toMovementView(movement: {
     itemName: movement.item.name,
     type: movement.type,
     quantity: movement.quantity,
-    source: movement.source,
+    purpose: movement.source,
     notes: movement.notes,
     createdAt: movement.createdAt.toISOString(),
     studentName: movement.student ? studentNameOf(movement.student) : null,
-    recordedByUserId: movement.recordedByUserId,
+    recipientName: movement.recipientName,
+    recipientType: movement.recipientType,
+    recordedByName: userDisplayName(movement.recordedByUser),
   };
 }
 
@@ -163,21 +167,21 @@ export async function getInventoryDashboardSummary(prisma: PrismaClient, schoolI
   const totals = calculateOnHandByItem(movements);
   const today = new Date().toISOString().slice(0, 10);
   const lowStock = items.filter((item) => (totals.get(item.id) ?? 0) <= item.minimumStock && item.active).length;
-  const reportingToday = recentRecords.filter((record) => record.reportedAt.toISOString().startsWith(today)).length;
   const itemsBroughtToday = recentRecords
     .filter((record) => record.reportedAt.toISOString().startsWith(today))
     .flatMap((record) => record.items)
     .reduce((total, item) => total + item.broughtQuantity, 0);
-  const adjustmentsToday = movements.filter(
-    (movement) => movement.type === "ADJUSTED" && movement.createdAt.toISOString().startsWith(today),
-  ).length;
+  const itemsIssuedToday = movements
+    .filter((movement) => movement.type === "ISSUED" && movement.createdAt.toISOString().startsWith(today))
+    .reduce((total, movement) => total + movement.quantity, 0);
+  const reconciliationIssues = lowStock;
 
   return {
     itemsTracked: items.filter((item) => item.active).length,
     lowStock,
-    reportingToday,
     itemsBroughtToday,
-    adjustmentsToday,
+    itemsIssuedToday,
+    reconciliationIssues,
   };
 }
 
@@ -297,6 +301,8 @@ export async function recordInventoryMovement(
     quantity: number;
     source: string;
     notes?: string | null;
+    recipientName?: string | null;
+    recipientType?: string | null;
     studentId?: string | null;
   },
 ) {
@@ -317,6 +323,17 @@ export async function recordInventoryMovement(
     }
   }
 
+  if (input.type === "ISSUED") {
+    const movements = await prisma.inventoryStockMovement.findMany({
+      where: { schoolId: input.schoolId, itemId: input.itemId },
+      select: { type: true, quantity: true },
+    });
+    const onHand = calculateOnHandByItem(movements).get(input.itemId) ?? 0;
+    if (input.quantity > onHand) {
+      throw Object.assign(new Error("Cannot take out more than the available stock."), { status: 400, expose: true });
+    }
+  }
+
   const movement = await prisma.inventoryStockMovement.create({
     data: {
       schoolId: input.schoolId,
@@ -324,6 +341,8 @@ export async function recordInventoryMovement(
       type: input.type,
       quantity: input.quantity,
       source: input.source,
+      recipientName: input.recipientName ?? null,
+      recipientType: input.recipientType ?? null,
       notes: input.notes ?? null,
       studentId: input.studentId ?? null,
       recordedByUserId: input.actorId,
@@ -331,6 +350,7 @@ export async function recordInventoryMovement(
     include: {
       item: { select: { id: true, name: true } },
       student: { select: { firstName: true, lastName: true } },
+      recordedByUser: { select: { firstName: true, lastName: true, email: true } },
     },
   });
   const auditAction = input.type === "RECEIVED"
@@ -345,6 +365,8 @@ export async function recordInventoryMovement(
     actorId: input.actorId,
     quantity: input.quantity,
     source: input.source,
+    recipientName: input.recipientName ?? null,
+    recipientType: input.recipientType ?? null,
     studentId: input.studentId ?? null,
   });
   return toMovementView(movement);

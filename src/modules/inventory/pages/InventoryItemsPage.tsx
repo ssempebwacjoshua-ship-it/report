@@ -19,14 +19,17 @@ const categoryOptions = [
 ];
 
 const unitOptions = ["piece", "ream", "bar", "book", "pair", "bucket", "kg", "litre"];
+const recipientTypeOptions = ["Staff", "Student", "Department", "Kitchen", "Office", "Other"];
 
 const emptyItemForm = { name: "", category: "General supplies", unit: "piece", minimumStock: 1 };
 const emptyMovementForm = { itemId: "", quantity: 1, source: "", notes: "" };
+const emptyIssueForm = { itemId: "", quantity: 1, recipientName: "", recipientType: "Staff", source: "", notes: "" };
 
 export function InventoryItemsPage() {
   const [items, setItems] = useState<InventoryItemSummary[]>([]);
   const [itemForm, setItemForm] = useState(emptyItemForm);
   const [movementForm, setMovementForm] = useState(emptyMovementForm);
+  const [issueForm, setIssueForm] = useState(emptyIssueForm);
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
 
@@ -79,6 +82,20 @@ export function InventoryItemsPage() {
     }
   }
 
+  async function handleIssueStock(event: FormEvent) {
+    event.preventDefault();
+    setError("");
+    setNotice("");
+    try {
+      await recordInventoryMovement("issue", issueForm);
+      setNotice("Stock taken out recorded.");
+      setIssueForm(emptyIssueForm);
+      await load();
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Could not record stock taken out.");
+    }
+  }
+
   return (
     <main className="grid gap-4">
       <InventorySectionTabs />
@@ -90,7 +107,7 @@ export function InventoryItemsPage() {
       {notice ? <div className="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">{notice}</div> : null}
       {error ? <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div> : null}
 
-      <section className="grid gap-4 xl:grid-cols-2">
+      <section className="grid gap-4 xl:grid-cols-3">
         <form className="premium-card grid gap-3 rounded-2xl p-4" onSubmit={(event) => void handleAddItem(event)}>
           <h2 className="text-base font-bold text-slate-950">Add item</h2>
           <p className="text-sm text-slate-600">
@@ -169,6 +186,72 @@ export function InventoryItemsPage() {
           <input aria-label="Receive notes" className="input" value={movementForm.notes} onChange={(event) => setMovementForm((current) => ({ ...current, notes: event.target.value }))} />
           <div>
             <button type="submit" className="btn btn-primary">Record stock received</button>
+          </div>
+        </form>
+
+        <form className="premium-card grid gap-3 rounded-2xl p-4" onSubmit={(event) => void handleIssueStock(event)}>
+          <h2 className="text-base font-bold text-slate-950">Take out stock</h2>
+          <p className="text-sm text-slate-600">
+            Record what left inventory, who took it, and why it was taken out.
+          </p>
+          <select
+            aria-label="Issue item"
+            className="input"
+            value={issueForm.itemId}
+            onChange={(event) => setIssueForm((current) => ({ ...current, itemId: event.target.value }))}
+          >
+            <option value="">Select item</option>
+            {items.filter((item) => item.active).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+          </select>
+          <input
+            aria-label="Issue quantity"
+            className="input"
+            type="number"
+            min={1}
+            value={issueForm.quantity}
+            onChange={(event) => setIssueForm((current) => ({ ...current, quantity: Number(event.target.value) }))}
+          />
+          <input
+            aria-label="Recipient name"
+            className="input"
+            placeholder="Who took the item?"
+            value={issueForm.recipientName}
+            onChange={(event) => setIssueForm((current) => ({ ...current, recipientName: event.target.value }))}
+          />
+          <select
+            aria-label="Recipient type"
+            className="input"
+            value={issueForm.recipientType}
+            onChange={(event) => setIssueForm((current) => ({ ...current, recipientType: event.target.value }))}
+          >
+            {recipientTypeOptions.map((option) => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
+          </select>
+          <input
+            aria-label="Issue purpose"
+            className="input"
+            placeholder="Why was it taken out?"
+            value={issueForm.source}
+            onChange={(event) => setIssueForm((current) => ({ ...current, source: event.target.value }))}
+          />
+          <input
+            aria-label="Issue notes"
+            className="input"
+            placeholder="Reference or notes"
+            value={issueForm.notes}
+            onChange={(event) => setIssueForm((current) => ({ ...current, notes: event.target.value }))}
+          />
+          <div>
+            <button
+              type="submit"
+              className="btn btn-primary"
+              disabled={!issueForm.itemId || issueForm.quantity < 1 || !issueForm.recipientName.trim() || !issueForm.source.trim()}
+            >
+              Save taken-out record
+            </button>
           </div>
         </form>
       </section>

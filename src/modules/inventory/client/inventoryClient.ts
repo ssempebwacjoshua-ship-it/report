@@ -73,6 +73,8 @@ export async function recordInventoryMovement(
     itemId: string;
     quantity: number;
     source: string;
+    recipientName?: string;
+    recipientType?: string;
     notes?: string;
     studentId?: string;
   },

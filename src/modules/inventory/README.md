@@ -2,7 +2,7 @@
 
 ## Scope
 
-Module-owned runtime for school inventory tracking, stock movement logging, student reporting-day intake, and stock adjustments.
+Module-owned runtime for school inventory tracking, stock movement logging, student reporting-day intake, stock outflow audit, and stock adjustments.
 
 ## Owned runtime
 
@@ -71,8 +71,9 @@ Implemented:
 
 - Item create/list/archive workflow
 - Stock receive/issue/adjust movement logging
+- Stock outflow audit trail for taken-out items with recipient, purpose, notes, and recorded-by details
 - Student reporting-day intake that records only what each student brought
-- Dashboard summary for items brought today
+- Dashboard summary for items brought today, items issued today, and reconciliation issues
 - Low-stock review and manual stock adjustments
 - Dashboard inventory row
 

@@ -28,6 +28,8 @@ const movementSchema = z.object({
   itemId: z.string().uuid(),
   quantity: z.number().int().positive(),
   source: z.string().trim().min(1),
+  recipientName: z.string().trim().optional().or(z.literal("")),
+  recipientType: z.string().trim().optional().or(z.literal("")),
   notes: z.string().trim().optional().or(z.literal("")),
   studentId: z.string().uuid().optional(),
 });
@@ -172,6 +174,8 @@ export function inventoryRoutes() {
         type: "RECEIVED",
         quantity: body.quantity,
         source: body.source,
+        recipientName: body.recipientName || null,
+        recipientType: body.recipientType || null,
         notes: body.notes || null,
       });
       res.status(201).json({ movement });
@@ -190,6 +194,8 @@ export function inventoryRoutes() {
         type: "ISSUED",
         quantity: body.quantity,
         source: body.source,
+        recipientName: body.recipientName || null,
+        recipientType: body.recipientType || null,
         notes: body.notes || null,
         studentId: body.studentId,
       });
@@ -209,6 +215,8 @@ export function inventoryRoutes() {
         type: "ADJUSTED",
         quantity: body.quantity,
         source: body.source,
+        recipientName: body.recipientName || null,
+        recipientType: body.recipientType || null,
         notes: body.notes || null,
       });
       res.status(201).json({ movement });

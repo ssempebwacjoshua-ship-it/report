@@ -30,18 +30,22 @@ describe("inventoryService", () => {
 
   it("records received and issued stock movements", async () => {
     const findFirst = vi.fn(async () => ({ id: "item-1", name: "Soap" }));
+    const movementFindMany = vi.fn(async () => [
+      { itemId: "item-1", type: "RECEIVED", quantity: 12 },
+    ]);
     const movementCreate = vi.fn(async ({ data }: any) => ({
       id: "move-1",
       ...data,
       createdAt: new Date("2026-07-23T08:00:00.000Z"),
       item: { id: "item-1", name: "Soap" },
       student: null,
+      recordedByUser: { firstName: "Admin", lastName: "User", email: "admin@example.com" },
     }));
     const auditCreate = vi.fn(async () => ({}));
     const prisma = {
       inventoryItem: { findFirst },
       student: { findFirst: vi.fn(async () => ({ id: "student-1" })) },
-      inventoryStockMovement: { create: movementCreate },
+      inventoryStockMovement: { create: movementCreate, findMany: movementFindMany },
       auditLog: { create: auditCreate },
     } as never;
 
@@ -59,15 +63,45 @@ describe("inventoryService", () => {
       itemId: "item-1",
       type: "ISSUED",
       quantity: 2,
-      source: "Dormitory",
+      source: "Cleaning supplies",
+      recipientName: "Matron",
+      recipientType: "Staff",
     });
 
     expect(received.type).toBe("RECEIVED");
     expect(issued.type).toBe("ISSUED");
+    expect(issued.recipientName).toBe("Matron");
+    expect(issued.recordedByName).toBe("Admin User");
     expect(movementCreate).toHaveBeenCalledTimes(2);
   });
 
-  it("calculates low stock, reporting visits, items brought today, and adjustments from school-scoped data", async () => {
+  it("blocks issuing more stock than is available", async () => {
+    const prisma = {
+      inventoryItem: { findFirst: vi.fn(async () => ({ id: "item-1", name: "Soap" })) },
+      inventoryStockMovement: {
+        findMany: vi.fn(async () => [{ itemId: "item-1", type: "RECEIVED", quantity: 1 }]),
+        create: vi.fn(),
+      },
+      student: { findFirst: vi.fn() },
+      auditLog: { create: vi.fn() },
+    } as never;
+
+    await expect(recordInventoryMovement(prisma, {
+      schoolId: "school-a",
+      actorId: "user-1",
+      itemId: "item-1",
+      type: "ISSUED",
+      quantity: 3,
+      source: "Kitchen use",
+      recipientName: "Kitchen",
+      recipientType: "Kitchen",
+    })).rejects.toMatchObject({
+      message: "Cannot take out more than the available stock.",
+      status: 400,
+    });
+  });
+
+  it("calculates low stock, items brought today, items issued today, and reconciliation issues from school-scoped data", async () => {
     const summary = await getInventoryDashboardSummary({
       inventoryItem: {
         findMany: async () => [
@@ -79,7 +113,8 @@ describe("inventoryService", () => {
         findMany: async () => [
           { id: "move-1", schoolId: "school-a", itemId: "item-1", type: "RECEIVED", quantity: 3, source: "Store", notes: null, createdAt: new Date("2026-07-23T09:00:00.000Z"), recordedByUserId: "user-1", item: { id: "item-1", name: "Soap" }, student: null },
           { id: "move-2", schoolId: "school-a", itemId: "item-2", type: "RECEIVED", quantity: 9, source: "Store", notes: null, createdAt: new Date("2026-07-23T09:00:00.000Z"), recordedByUserId: "user-1", item: { id: "item-2", name: "Rice" }, student: null },
-          { id: "move-3", schoolId: "school-a", itemId: "item-2", type: "ADJUSTED", quantity: 1, source: "RECONCILIATION", notes: null, createdAt: new Date("2026-07-23T11:00:00.000Z"), recordedByUserId: "user-1", item: { id: "item-2", name: "Rice" }, student: null },
+          { id: "move-3", schoolId: "school-a", itemId: "item-2", type: "ISSUED", quantity: 2, source: "Lunch service", notes: null, createdAt: new Date("2026-07-23T10:30:00.000Z"), recordedByUserId: "user-1", item: { id: "item-2", name: "Rice" }, student: null },
+          { id: "move-4", schoolId: "school-a", itemId: "item-2", type: "ADJUSTED", quantity: 1, source: "RECONCILIATION", notes: null, createdAt: new Date("2026-07-23T11:00:00.000Z"), recordedByUserId: "user-1", item: { id: "item-2", name: "Rice" }, student: null },
         ],
       },
       studentReportingRecord: {
@@ -102,9 +137,9 @@ describe("inventoryService", () => {
 
     expect(summary.itemsTracked).toBe(2);
     expect(summary.lowStock).toBe(1);
-    expect(summary.reportingToday).toBe(1);
     expect(summary.itemsBroughtToday).toBe(3);
-    expect(summary.adjustmentsToday).toBe(1);
+    expect(summary.itemsIssuedToday).toBe(2);
+    expect(summary.reconciliationIssues).toBe(1);
   });
 
   it("builds low-stock reconciliation rows from current inventory balances", () => {
