@@ -26,6 +26,7 @@ constexpr const char* PROVISIONING_FIRMWARE_CHANNEL_KEY = "fwChannel";
 constexpr const char* PROVISIONING_SETUP_REQUIRED_KEY = "setupReq";
 constexpr const char* SETUP_PORTAL_PASSWORD = "ssamenj123";
 constexpr unsigned long HEARTBEAT_INTERVAL_MS = 60000;
+constexpr unsigned long HEARTBEAT_DIAGNOSTIC_INTERVAL_MS = 10000;
 constexpr unsigned long READER_READY_DIAGNOSTIC_INTERVAL_MS = 10000;
 constexpr unsigned long SETUP_PORTAL_REOPEN_DELAY_MS = 2UL * 60UL * 1000UL;
 constexpr unsigned long FACTORY_RESET_HOLD_MS = 10000;
@@ -1133,20 +1134,55 @@ void ReaderGatewayApp::logReaderReadyDiagnostic() {
   }
   lastReaderReadyLogMs_ = now;
 
+  const char* heartbeatReason = heartbeatSkipReason();
+
   Serial.printf(
-    "Reader idle: provisioned=%s wifi=%s queueDepth=%u pendingFrame=%s d0=%d d1=%d rssi=%d\n",
+    "Reader idle: provisioned=%s wifi=%s queueDepth=%u pendingFrame=%s transactionActive=%s heartbeat=%s lastApi=%s d0=%d d1=%d rssi=%d\n",
     isProvisioned() ? "yes" : "no",
     WiFi.status() == WL_CONNECTED ? "connected" : wifiStatusToString(WiFi.status()),
     static_cast<unsigned int>(offlineQueueDepth_),
     wiegand_.hasPendingFrame() ? "yes" : "no",
+    transactionActive_ ? "yes" : "no",
+    heartbeatReason == nullptr ? "ready" : heartbeatReason,
+    lastSuccessfulApiContactAt_.isEmpty() ? "-" : lastSuccessfulApiContactAt_.c_str(),
     digitalRead(config_.d0Pin),
     digitalRead(config_.d1Pin),
     WiFi.status() == WL_CONNECTED ? WiFi.RSSI() : 0
   );
 }
 
+const char* ReaderGatewayApp::heartbeatSkipReason() const {
+  if (!hasWorkingNetwork()) {
+    return "wifi_disconnected";
+  }
+  if (!isProvisioned()) {
+    return "not_provisioned";
+  }
+  if (transactionActive_) {
+    return "transaction_active";
+  }
+  if (wiegand_.hasPendingFrame()) {
+    return "pending_frame";
+  }
+  return nullptr;
+}
+
 void ReaderGatewayApp::sendHeartbeat() {
-  if (!hasWorkingNetwork() || !isProvisioned() || offlineQueueDepth_ > 0 || wiegand_.hasPendingFrame()) {
+  const char* skipReason = heartbeatSkipReason();
+  if (skipReason != nullptr) {
+    const unsigned long now = millis();
+    if (now - lastHeartbeatDiagnosticMs_ >= HEARTBEAT_DIAGNOSTIC_INTERVAL_MS) {
+      lastHeartbeatDiagnosticMs_ = now;
+      Serial.printf(
+        "Heartbeat skipped: reason=%s wifi=%s queueDepth=%u pendingFrame=%s provisioned=%s lastApi=%s\n",
+        skipReason,
+        WiFi.status() == WL_CONNECTED ? "connected" : wifiStatusToString(WiFi.status()),
+        static_cast<unsigned int>(offlineQueueDepth_),
+        wiegand_.hasPendingFrame() ? "yes" : "no",
+        isProvisioned() ? "yes" : "no",
+        lastSuccessfulApiContactAt_.isEmpty() ? "-" : lastSuccessfulApiContactAt_.c_str()
+      );
+    }
     return;
   }
 
@@ -1155,6 +1191,7 @@ void ReaderGatewayApp::sendHeartbeat() {
     return;
   }
   lastHeartbeatMs_ = now;
+  lastHeartbeatDiagnosticMs_ = 0;
 
   ReaderHeartbeatMetrics metrics;
   metrics.wifiRssi = WiFi.RSSI();
@@ -1172,7 +1209,14 @@ void ReaderGatewayApp::sendHeartbeat() {
     return;
   }
 
-  Serial.println("Heartbeat Failed");
+  Serial.printf(
+    "Heartbeat Failed: status=%d action=%s message=%s queueDepth=%u lastApi=%s\n",
+    response.statusCode,
+    response.action.isEmpty() ? "-" : response.action.c_str(),
+    response.message.isEmpty() ? "-" : response.message.c_str(),
+    static_cast<unsigned int>(offlineQueueDepth_),
+    lastSuccessfulApiContactAt_.isEmpty() ? "-" : lastSuccessfulApiContactAt_.c_str()
+  );
 }
 
 void ReaderGatewayApp::processScan(const ReaderScanEvent& scan) {
@@ -1339,9 +1383,11 @@ void ReaderGatewayApp::loop() {
       }
     }
     processOfflineQueue();
-    if (isProvisioned() && !wiegand_.hasPendingFrame() && offlineQueueDepth_ == 0) {
+    if (isProvisioned()) {
       sendHeartbeat();
-      maybeCheckForOtaUpdate();
+      if (!wiegand_.hasPendingFrame() && offlineQueueDepth_ == 0) {
+        maybeCheckForOtaUpdate();
+      }
     }
   } else {
     if (wifiConnectedLogged_) {
