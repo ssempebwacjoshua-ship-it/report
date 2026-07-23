@@ -142,7 +142,7 @@ describe("inventoryRoutes", () => {
       createdAt: new Date("2026-07-23T09:00:00.000Z"),
       item: { id: "item-1", name: "Soap" },
       student: null,
-      recordedByUser: { firstName: "Admin", lastName: "User", email: "admin@example.com" },
+      recordedByUser: { name: "Admin User", email: "admin@example.com" },
     }));
     const app = createApp({
       user: { userId: "admin-1", role: "ADMIN_OPERATOR" },
@@ -213,7 +213,7 @@ describe("inventoryRoutes", () => {
           reportedAt: new Date("2026-07-23T10:00:00.000Z"),
           termId: null,
           student: { id: "student-1", firstName: "Ada", lastName: "Lovelace", admissionNumber: "A-001" },
-          recordedByUser: { firstName: "Admin", lastName: "User", email: "admin@example.com" },
+          recordedByUser: { name: "Admin User", email: "admin@example.com" },
           items: [{ expectedQuantity: 0, broughtQuantity: 1, status: "COMPLETE", item: { id: "item-1", name: "Soap" } }],
         }),
       },

@@ -39,7 +39,7 @@ describe("inventoryService", () => {
       createdAt: new Date("2026-07-23T08:00:00.000Z"),
       item: { id: "item-1", name: "Soap" },
       student: null,
-      recordedByUser: { firstName: "Admin", lastName: "User", email: "admin@example.com" },
+      recordedByUser: { name: "Admin User", email: "admin@example.com" },
     }));
     const auditCreate = vi.fn(async () => ({}));
     const prisma = {
@@ -126,7 +126,7 @@ describe("inventoryService", () => {
           reportedAt: new Date("2026-07-23T10:00:00.000Z"),
           status: "REPORTED",
           student: { id: "student-1", firstName: "Ada", lastName: "Lovelace", admissionNumber: "A-1" },
-          recordedByUser: { firstName: "Admin", lastName: "User", email: "admin@example.com" },
+          recordedByUser: { name: "Admin User", email: "admin@example.com" },
           items: [
             { expectedQuantity: 0, broughtQuantity: 1, status: "COMPLETE", item: { id: "item-1", name: "Soap" } },
             { expectedQuantity: 0, broughtQuantity: 2, status: "COMPLETE", item: { id: "item-2", name: "Rice" } },
@@ -186,7 +186,7 @@ describe("inventoryService", () => {
       reportedAt: new Date("2026-07-23T10:00:00.000Z"),
       termId: null,
       student: { id: "student-1", firstName: "Ada", lastName: "Lovelace", admissionNumber: "A-001" },
-      recordedByUser: { firstName: "Admin", lastName: "User", email: "admin@example.com" },
+      recordedByUser: { name: "Admin User", email: "admin@example.com" },
       items: [
         { expectedQuantity: 0, broughtQuantity: 1, status: "COMPLETE", item: { id: "item-1", name: "Soap" } },
       ],
