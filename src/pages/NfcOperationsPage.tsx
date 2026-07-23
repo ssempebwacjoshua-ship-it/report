@@ -531,6 +531,9 @@ export function NfcOperationsPage() {
     publicCode: string;
     label: string | null;
     physicalUid: string | null;
+    writtenUrl: string | null;
+    writtenPayload: string | null;
+    verifiedAt: string | null;
     student: NonNullable<NfcTag["student"]>;
   };
 
@@ -601,6 +604,7 @@ export function NfcOperationsPage() {
   const [linkReaderSuccess, setLinkReaderSuccess] = useState<string | null>(null);
   const [linkReaderConflict, setLinkReaderConflict] = useState<ReaderCredentialConflictResponse["conflict"] | null>(null);
   const [linkReaderTransferReason, setLinkReaderTransferReason] = useState("");
+  const [linkReaderCopiedValue, setLinkReaderCopiedValue] = useState<"url" | "payload" | null>(null);
   const linkReaderPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const linkReaderTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const linkReaderSessionRef = useRef(0);
@@ -675,6 +679,7 @@ export function NfcOperationsPage() {
       setLinkReaderSuccess(null);
       setLinkReaderConflict(null);
       setLinkReaderTransferReason("");
+      setLinkReaderCopiedValue(null);
       linkReaderSessionRef.current += 1;
       if (linkReaderPollRef.current) {
         clearInterval(linkReaderPollRef.current);
@@ -958,6 +963,9 @@ export function NfcOperationsPage() {
       publicCode: tag.publicCode,
       label: tag.label,
       physicalUid: tag.physicalUid,
+      writtenUrl: tag.writtenUrl,
+      writtenPayload: tag.writtenPayload,
+      verifiedAt: tag.verifiedAt,
       student: tag.student,
     });
     setLinkReaderCapture(null);
@@ -968,6 +976,7 @@ export function NfcOperationsPage() {
     setLinkReaderSuccess(null);
     setLinkReaderConflict(null);
     setLinkReaderTransferReason("");
+    setLinkReaderCopiedValue(null);
     linkReaderSessionRef.current += 1;
     if (linkReaderPollRef.current) {
       clearInterval(linkReaderPollRef.current);
@@ -1004,6 +1013,7 @@ export function NfcOperationsPage() {
     setLinkReaderSuccess(null);
     setLinkReaderConflict(null);
     setLinkReaderTransferReason("");
+    setLinkReaderCopiedValue(null);
   }
 
   async function handleStartReaderLinkCapture() {
@@ -1129,6 +1139,14 @@ export function NfcOperationsPage() {
     }
   }
 
+  function handleCopyLinkReaderValue(kind: "url" | "payload", value: string) {
+    copyToClipboard(value);
+    setLinkReaderCopiedValue(kind);
+    window.setTimeout(() => {
+      setLinkReaderCopiedValue((current) => (current === kind ? null : current));
+    }, 1200);
+  }
+
   function makeActions(tag: NfcTag): TagActions {
     return {
       onCopyPayload: () => handleCopyPayload(tag),
@@ -1148,6 +1166,19 @@ export function NfcOperationsPage() {
       copiedPayloadId,
     };
   }
+
+  const linkReaderUrl = linkReaderTarget
+    ? (linkReaderTarget.writtenUrl ?? `${window.location.origin}/t/${linkReaderTarget.publicCode}`)
+    : "";
+  const linkReaderPayload = linkReaderTarget
+    ? (linkReaderTarget.writtenPayload ?? `SCNFC:${linkReaderTarget.publicCode}`)
+    : "";
+  const linkReaderMobileStatus = linkReaderTarget?.verifiedAt ? "Verified" : "Generated";
+  const linkReaderCredentialStatus = linkReaderTarget?.physicalUid
+    ? "Linked"
+    : linkReaderCapture?.preview
+      ? "Captured"
+      : "Not linked";
 
   if (loading && tags.length === 0) {
     return <SectionLoader message="Loading wristbands..." />;
@@ -1392,7 +1423,7 @@ export function NfcOperationsPage() {
               <div>
                 <h2 className="text-lg font-black text-slate-950">Link reader credential</h2>
                 <p className="mt-1 text-sm text-slate-500">
-                  Preserve the written <span className="font-mono">SCNFC:{linkReaderTarget.publicCode}</span> payload and link a separate Wiegand credential for this wristband.
+                  Keep mobile NFC writing separate from TMT reader capture so the same wristband can work for both phone taps and reader scans.
                 </p>
               </div>
               <button type="button" onClick={closeLinkReaderModal} className="text-slate-400 hover:text-slate-700">x</button>
@@ -1407,17 +1438,65 @@ export function NfcOperationsPage() {
               <div>
                 <p className="text-xs font-black uppercase tracking-wider text-slate-500">Wristband</p>
                 <p className="mt-1 font-semibold text-slate-900">{linkReaderTarget.label ?? `Tag ${linkReaderTarget.publicCode.slice(0, 8)}...`}</p>
-                <p className="font-mono text-xs text-slate-500">SCNFC:{linkReaderTarget.publicCode}</p>
+                <p className="font-mono text-xs text-slate-500">{linkReaderPayload}</p>
                 <p className="mt-1 text-xs text-slate-500">
-                  Current reader credential: {linkReaderTarget.physicalUid ? "Linked" : "Not linked"}
+                  Reader credential status: {linkReaderCredentialStatus}
                 </p>
+              </div>
+            </div>
+
+            <div className="mt-4 rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="max-w-2xl">
+                  <p className="text-xs font-black uppercase tracking-wider text-blue-700">Mobile NFC write details</p>
+                  <p className="mt-1 text-slate-700">
+                    Write either the URL or the text payload below using NFC Tools on a phone. The TMT reader only captures the separate Wiegand credential.
+                  </p>
+                </div>
+                <div className="rounded-full bg-white px-3 py-1 text-xs font-black text-blue-700">
+                  Mobile NFC payload: {linkReaderMobileStatus}
+                </div>
+              </div>
+
+              <div className="mt-4 grid gap-3">
+                <div className="rounded-xl border border-blue-100 bg-white p-3">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-black uppercase tracking-wider text-slate-500">Full URL</p>
+                      <p className="mt-1 break-all font-mono text-xs text-slate-700">{linkReaderUrl}</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleCopyLinkReaderValue("url", linkReaderUrl)}
+                      className="inline-flex min-h-[36px] items-center rounded-lg border border-blue-200 px-3 py-1.5 text-xs font-black text-blue-700 hover:bg-blue-50"
+                    >
+                      {linkReaderCopiedValue === "url" ? "Copied URL" : "Copy URL"}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-blue-100 bg-white p-3">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-black uppercase tracking-wider text-slate-500">Text payload</p>
+                      <p className="mt-1 break-all font-mono text-xs text-slate-700">{linkReaderPayload}</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleCopyLinkReaderValue("payload", linkReaderPayload)}
+                      className="inline-flex min-h-[36px] items-center rounded-lg border border-blue-200 px-3 py-1.5 text-xs font-black text-blue-700 hover:bg-blue-50"
+                    >
+                      {linkReaderCopiedValue === "payload" ? "Copied payload" : "Copy payload"}
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
 
             {!linkReaderCapture && (
               <div className="mt-5 space-y-4">
                 <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-                  Start capture mode, tap the already assigned physical wristband on an active attendance reader, then review the masked reader identifiers before confirming.
+                  Reader credential capture stays separate. Start capture mode, tap the same wristband on an active TMT attendance reader, then review the masked identifiers before confirming the link.
                 </div>
                 <label className="grid gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-500">
                   Attendance reader
