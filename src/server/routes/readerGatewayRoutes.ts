@@ -6,8 +6,9 @@ import { prisma } from "../db/prisma";
 import { findReaderGatewayOtaRelease, getReaderGatewayOtaReleaseById } from "../config/readerGatewayOtaCatalog";
 import {
   buildReaderCredentialDiagnostics,
+  commitPreparedLocationAwareReaderEvent,
   isLocationAwareReader,
-  processLocationAwareReaderEvent,
+  prepareLocationAwareReaderEvent,
   type ReaderGatewayResponse,
 } from "../services/readerAttendanceService";
 import { captureReaderCredentialFromReader } from "../services/readerCredentialLinkService";
@@ -479,8 +480,9 @@ export function readerGatewayRoutes() {
       const credentialDiagnostics = buildReaderCredentialDiagnostics(body);
       if (isLocationAwareReader(device)) {
         try {
+          const prepared = await prepareLocationAwareReaderEvent(device, body, prisma);
           const processed = await prisma.$transaction(async (tx) => {
-            const committed = await processLocationAwareReaderEvent(device, body, tx);
+            const committed = await commitPreparedLocationAwareReaderEvent(device, body, prepared, tx);
             await tx.auditLog.create({
               data: {
                 schoolId: device.schoolId,
